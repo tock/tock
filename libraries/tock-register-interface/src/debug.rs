@@ -64,14 +64,17 @@ impl_tuple!(E1: F1, E2: F2, E3: F3, E4: F4, E5: F5, E6: F6, E7: F7, E8: F8, E9: 
 /// - The name of the Register since we don't store that anywhere else.
 /// - The names of the fields in the register.
 /// - The fields themselves, these are of type [`Field`].
-pub trait RegisterDebugInfo<T: UIntLike, E> {
+pub trait RegisterDebugInfo<T: UIntLike> {
+    /// A type containing a tuple of all the enum types used in the register in order
+    type EnumTypes;
+
     /// The name of the register.
     fn name() -> &'static str;
     /// The names of the fields in the register.
     fn fields_names() -> &'static [&'static str];
     /// The fields themselves, these are of type [`Field`],
     /// these are returned as a tuple of fields.
-    fn fields() -> impl FieldDebug<T, E>;
+    fn fields() -> impl FieldDebug<T, Self::EnumTypes>;
 }
 
 /// `RegisterDebugValue` is a container for the debug information and the value of the register
@@ -79,16 +82,16 @@ pub trait RegisterDebugInfo<T: UIntLike, E> {
 ///
 /// The data is read once into this register and used for all the fields printing to avoid multiple reads
 /// to hardware.
-pub struct RegisterDebugValue<T: UIntLike, E, R: RegisterDebugInfo<T, E>> {
+pub struct RegisterDebugValue<T: UIntLike, E: RegisterDebugInfo<T>> {
     pub(crate) data: T,
-    pub(crate) _reg: core::marker::PhantomData<(E, R)>,
+    pub(crate) _reg: core::marker::PhantomData<E>,
 }
 
-impl<'a, T: UIntLike, E, R: RegisterDebugInfo<T, E>> fmt::Debug for RegisterDebugValue<T, E, R> {
+impl<T: UIntLike, E: RegisterDebugInfo<T>> fmt::Debug for RegisterDebugValue<T, E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut debug_struct = f.debug_struct(R::name());
-        let mut names = R::fields_names().iter();
-        R::fields().debug_field(self.data, &mut |v| {
+        let mut debug_struct = f.debug_struct(E::name());
+        let mut names = E::fields_names().iter();
+        E::fields().debug_field(self.data, &mut |v| {
             debug_struct.field(names.next().unwrap(), &v);
         });
         debug_struct.finish()

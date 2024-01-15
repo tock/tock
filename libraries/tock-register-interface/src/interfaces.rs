@@ -273,9 +273,9 @@ pub trait Debuggable: Readable {
     /// Returns a [`RegisterDebugValue`] that implements [`core::fmt::Debug`], the debug information
     /// is extracted from `<Register>::DebugInfo`.
     #[inline]
-    fn debug<E>(&self) -> crate::debug::RegisterDebugValue<Self::T, E, Self::R>
+    fn debug<E>(&self) -> crate::debug::RegisterDebugValue<Self::T, E>
     where
-        Self::R: crate::debug::RegisterDebugInfo<Self::T, E>,
+        E: crate::debug::RegisterDebugInfo<Self::T>,
     {
         crate::debug::RegisterDebugValue {
             data: self.get(),

@@ -117,9 +117,9 @@ impl<T: UIntLike, R: RegisterLongName> LocalRegisterCopy<T, R> {
 
     #[inline]
     #[cfg(feature = "register_debug")]
-    pub fn debug<E>(&self) -> crate::debug::RegisterDebugValue<T, E, R>
+    pub fn debug<E>(&self) -> crate::debug::RegisterDebugValue<T, E>
     where
-        R: crate::debug::RegisterDebugInfo<T, E>,
+        E: crate::debug::RegisterDebugInfo<T>,
     {
         crate::debug::RegisterDebugValue {
             data: self.get(),

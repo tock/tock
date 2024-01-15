@@ -533,13 +533,15 @@ macro_rules! impl_register_debug {
             $($field:ident, $numbits:tt, $values:tt),*
     ) => {
         /// Debug information type for the register.
-        pub type DebugInfo = (
-            $(
-                $field::Value,
-            )*
-        );
+        pub struct DebugInfo;
 
-        impl $crate::debug::RegisterDebugInfo<$valtype, DebugInfo> for $reg_desc {
+        impl $crate::debug::RegisterDebugInfo<$valtype> for DebugInfo {
+            type EnumTypes = (
+                $(
+                    $field::Value,
+                )*
+            );
+
             fn name() -> &'static str {
                 stringify!($reg_mod)
             }
@@ -552,7 +554,7 @@ macro_rules! impl_register_debug {
                 ]
             }
 
-            fn fields() -> impl $crate::debug::FieldDebug<$valtype, DebugInfo> {
+            fn fields() -> impl $crate::debug::FieldDebug<$valtype, Self::EnumTypes> {
                 (
                     $(
                         $field,
