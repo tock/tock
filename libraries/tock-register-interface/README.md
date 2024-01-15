@@ -472,13 +472,17 @@ register_bitfields! [
 
 By default, if you print the value of a register, you will get the raw value as a number.
 
-But you can enable the feature `debug_registers` to make `LocalRegisterCopy` implement better `fmt::Debug` implementation for the register, allowing to view the content of the register easily.
+But you can enable the feature `register_debug` to enable getting `fmt::Debug` structs for the registers values.
+
+This is implemented in `LocalRegisterCopy` and in using `Debuggable` registers which is auto implemented with `Readable`.
+
+Example:
 
 ```rust
 // Create a copy of the register value as a local variable.
 let local = registers.cr.extract();
 
-println!("cr: {:#?}", local);
+println!("cr: {:#?}", local.debug::<Control::Debug>());
 ```
 
 For example, if the value of the `Control` register is `0b0000_0100`, the output will be:
@@ -486,10 +490,20 @@ For example, if the value of the `Control` register is `0b0000_0100`, the output
 ```rust
 cr: Control {
     RANGE: VeryHigh,
-    EN: false,
-    INT: true
+    EN: 0,
+    INT: 1
 }
 ```
+
+Similarly it works directly on the register:
+
+```rust
+// require `Debuggable` trait
+use tock_registers::interfaces::Debuggable;
+
+println!("cr: {:#?}", registers.cr.debug::<Control::Debug>());
+```
+> Do note this will issue a read to the register once.
 
 ## Implementing custom register types
 

@@ -533,9 +533,9 @@ macro_rules! impl_register_debug {
             $($field:ident, $numbits:tt, $values:tt),*
     ) => {
         /// Debug information type for the register.
-        pub struct DebugInfo;
+        pub struct Debug;
 
-        impl $crate::debug::RegisterDebugInfo<$valtype> for DebugInfo {
+        impl $crate::debug::RegisterDebugInfo<$valtype> for Debug {
             type EnumTypes = (
                 $(
                     $field::Value,

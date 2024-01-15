@@ -38,6 +38,12 @@
 //!   example a memory-mapped UART register might transmit when
 //!   writing and receive when reading.
 //!
+//! - [`Debuggable`] (feature `register_debug`): indicates that the
+//!   register can be debugged with [`debug`](crate::interfaces::Debuggable::debug).
+//!   This will return a value that implements [`Debug`](core::fmt::Debug).
+//!   It makes debugging easier.
+//!   This is automticaly implemented for any register implementing [`Readable`].
+//!
 //!   If a type implements both [`Readable`] and [`Writeable`], and
 //!   the associated [`RegisterLongName`](crate::RegisterLongName)
 //!   type parameters are identical, it will automatically implement
