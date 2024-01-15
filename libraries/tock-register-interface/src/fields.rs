@@ -538,8 +538,8 @@ macro_rules! impl_register_debug {
         impl $crate::debug::RegisterDebugInfo<$valtype> for Debug {
             type EnumTypes = (
                 $(
-                    $field::Value,
-                )*
+                    $field::Value
+                ),*
             );
 
             fn name() -> &'static str {
@@ -549,16 +549,16 @@ macro_rules! impl_register_debug {
             fn fields_names() -> &'static [&'static str] {
                 &[
                     $(
-                        stringify!($field),
-                    )*
+                        stringify!($field)
+                    ),*
                 ]
             }
 
             fn fields() -> impl $crate::debug::FieldDebug<$valtype, Self::EnumTypes> {
                 (
                     $(
-                        $field,
-                    )*
+                        $field
+                    ),*
                 )
             }
         }
