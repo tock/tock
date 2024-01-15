@@ -151,7 +151,6 @@
 //! assert!(dummy.read(DummyReg::HIGH) == 0xb);
 //! ```
 
-use crate::debug::{RegisterDebugInfo, RegisterDebugValue};
 use crate::fields::{Field, FieldValue, TryFromValue};
 use crate::{LocalRegisterCopy, RegisterLongName, UIntLike};
 
@@ -269,15 +268,16 @@ pub trait Readable {
 /// The `debug` method returns a value that implements [`core::fmt::Debug`].
 ///
 /// [`register_bitfields`]: crate::register_bitfields
+#[cfg(feature = "register_debug")]
 pub trait Debuggable: Readable {
     /// Returns a [`RegisterDebugValue`] that implements [`core::fmt::Debug`], the debug information
     /// is extracted from `<Register>::DebugInfo`.
     #[inline]
-    fn debug<E>(&self) -> RegisterDebugValue<Self::T, E, Self::R>
+    fn debug<E>(&self) -> crate::debug::RegisterDebugValue<Self::T, E, Self::R>
     where
-        Self::R: RegisterDebugInfo<Self::T, E>,
+        Self::R: crate::debug::RegisterDebugInfo<Self::T, E>,
     {
-        RegisterDebugValue {
+        crate::debug::RegisterDebugValue {
             data: self.get(),
             _reg: core::marker::PhantomData,
         }
@@ -285,6 +285,7 @@ pub trait Debuggable: Readable {
 }
 
 // pass Readable implementation to Debuggable
+#[cfg(feature = "register_debug")]
 impl<T: Readable> Debuggable for T {}
 
 /// Writeable register

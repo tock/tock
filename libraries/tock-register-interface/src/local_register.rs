@@ -7,7 +7,6 @@
 
 use core::marker::PhantomData;
 
-use crate::debug::{RegisterDebugInfo, RegisterDebugValue};
 use crate::fields::{Field, FieldValue, TryFromValue};
 use crate::{RegisterLongName, UIntLike};
 
@@ -117,11 +116,12 @@ impl<T: UIntLike, R: RegisterLongName> LocalRegisterCopy<T, R> {
     }
 
     #[inline]
-    pub fn debug<E>(&self) -> RegisterDebugValue<T, E, R>
+    #[cfg(feature = "register_debug")]
+    pub fn debug<E>(&self) -> crate::debug::RegisterDebugValue<T, E, R>
     where
-        R: RegisterDebugInfo<T, E>,
+        R: crate::debug::RegisterDebugInfo<T, E>,
     {
-        RegisterDebugValue {
+        crate::debug::RegisterDebugValue {
             data: self.get(),
             _reg: core::marker::PhantomData,
         }

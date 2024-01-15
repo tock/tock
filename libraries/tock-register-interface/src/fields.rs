@@ -482,6 +482,14 @@ macro_rules! register_bitmasks {
 
 /// Helper macro for defining debugging of a field.
 #[macro_export]
+#[cfg(not(feature = "register_debug"))]
+macro_rules! impl_register_debug {
+    ($($t:tt)*) => {};
+}
+
+/// Helper macro for defining debugging of a field.
+#[macro_export]
+#[cfg(feature = "register_debug")]
 macro_rules! impl_register_debug {
     {
         // BITFIELD_NAME OFFSET(x)
