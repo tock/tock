@@ -5,9 +5,9 @@
 //! Module containing the [`LocalRegisterCopy`] type. Please refer to
 //! its documentation.
 
-use core::fmt;
 use core::marker::PhantomData;
 
+use crate::debug::{RegisterDebugInfo, RegisterDebugValue};
 use crate::fields::{Field, FieldValue, TryFromValue};
 use crate::{RegisterLongName, UIntLike};
 
@@ -32,12 +32,12 @@ use crate::{RegisterLongName, UIntLike};
 /// [`Writeable`](crate::interfaces::Writeable) and
 /// [`ReadWriteable`](crate::interfaces::ReadWriteable).
 #[derive(Copy, Clone)]
-pub struct LocalRegisterCopy<T: UIntLike, R: RegisterLongName = ()> {
+pub struct LocalRegisterCopy<T: UIntLike, R: RegisterLongName = (), E = ()> {
     value: T,
-    associated_register: PhantomData<R>,
+    associated_register: PhantomData<(R, E)>,
 }
 
-impl<T: UIntLike, R: RegisterLongName> LocalRegisterCopy<T, R> {
+impl<T: UIntLike, R: RegisterLongName, A> LocalRegisterCopy<T, R, A> {
     pub const fn new(value: T) -> Self {
         LocalRegisterCopy {
             value: value,
@@ -117,20 +117,12 @@ impl<T: UIntLike, R: RegisterLongName> LocalRegisterCopy<T, R> {
     }
 }
 
-#[cfg(not(feature = "debug_registers"))]
-impl<T: UIntLike + fmt::Debug, R: RegisterLongName> fmt::Debug for LocalRegisterCopy<T, R> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self.value)
-    }
-}
-
-#[cfg(feature = "debug_registers")]
-impl<T: UIntLike, R> fmt::Debug for LocalRegisterCopy<T, R>
-where
-    R: RegisterLongName + crate::RegisterDebug<Value = T>,
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        R::debug(f, self.value)
+impl<T: UIntLike, E, R: RegisterLongName + RegisterDebugInfo<T, E>> LocalRegisterCopy<T, R, E> {
+    pub fn debug(&self) -> RegisterDebugValue<T, E, R> {
+        RegisterDebugValue {
+            data: &self.value,
+            _reg: core::marker::PhantomData,
+        }
     }
 }
 

@@ -69,9 +69,13 @@ pub mod macros;
 #[cfg(feature = "register_types")]
 pub mod registers;
 
+#[cfg(feature = "debug_registers")]
+pub mod debug;
+
 mod local_register;
 pub use local_register::LocalRegisterCopy;
 
+use core::fmt::Debug;
 use core::ops::{BitAnd, BitOr, BitOrAssign, Not, Shl, Shr};
 
 /// Trait representing the base type of registers.
@@ -93,6 +97,7 @@ pub trait UIntLike:
     + Shl<usize, Output = Self>
     + Copy
     + Clone
+    + Debug
 {
     /// Return the representation of the value `0` in the implementing
     /// type.
@@ -130,9 +135,3 @@ pub trait RegisterLongName {}
 // Useful implementation for when no RegisterLongName is required
 // (e.g. no fields need to be accessed, just the raw register values)
 impl RegisterLongName for () {}
-
-#[cfg(feature = "debug_registers")]
-pub trait RegisterDebug {
-    type Value: UIntLike;
-    fn debug(f: &mut core::fmt::Formatter<'_>, value: Self::Value) -> core::fmt::Result;
-}

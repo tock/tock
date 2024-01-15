@@ -465,6 +465,7 @@ macro_rules! register_bitmasks {
 
             #[allow(dead_code)]
             #[allow(non_camel_case_types)]
+            #[derive(Debug)]
             $(#[$outer])*
             pub enum Value {}
 
@@ -479,14 +480,6 @@ macro_rules! register_bitmasks {
     };
 }
 
-#[cfg(not(feature = "debug_registers"))]
-/// Helper macro for defining debugging of a field.
-#[macro_export]
-macro_rules! impl_register_debug {
-    ($($tokens:tt)*) => {};
-}
-
-#[cfg(feature = "debug_registers")]
 /// Helper macro for defining debugging of a field.
 #[macro_export]
 macro_rules! impl_register_debug {
@@ -531,40 +524,33 @@ macro_rules! impl_register_debug {
         @impl $valtype:ident, $reg_desc:ident, $reg_mod:ident, $(#[$outer:meta])*
             $($field:ident, $numbits:tt, $values:tt),*
     ) => {
-        impl $crate::RegisterDebug for $reg_desc {
-            type Value = $valtype;
-            fn debug(mut f: &mut ::core::fmt::Formatter<'_>, value: Self::Value) -> ::core::fmt::Result {
-                use $crate::fields::TryFromValue;
+        pub type DebugInfo = (
+            $(
+                $field::Value,
+            )*
+        );
 
-                let mut s = f.debug_struct(stringify!($reg_mod));
-                $(
-                    $crate::impl_register_debug!(@impl_statements s, value, $field, $numbits, $values);
-                )*
-                s.finish()
+        impl $crate::debug::RegisterDebugInfo<$valtype, DebugInfo> for $reg_desc {
+            fn name() -> &'static str {
+                stringify!($reg_mod)
+            }
+
+            fn fields_names() -> &'static [&'static str] {
+                &[
+                    $(
+                        stringify!($field),
+                    )*
+                ]
+            }
+
+            fn fields_enums() -> impl $crate::debug::EnumTuples<$valtype, DebugInfo> {
+                (
+                    $(
+                        $field,
+                    )*
+                )
             }
         }
-    };
-    {
-        @impl_statements $struct_fmt:ident, $value:ident, $field:ident, $numbits:tt,
-            [$( $(#[$inner:meta])* $_valname:ident = $_value:expr ),+ $(,)?]
-    } => {
-        let v = $field.read($value);
-        if let Some(v) = $field::Value::try_from_value(v) {
-            $struct_fmt.field(stringify!($field), &v);
-        } else {
-            $struct_fmt.field(stringify!($field), &v);
-        }
-    };
-    {
-        // if its 1 bit, treat it as a bool
-        @impl_statements $struct_fmt:ident, $value:ident, $field:ident, 1, []
-    } => {
-        $struct_fmt.field(stringify!($field), &($field.read($value) != 0));
-    };
-    {
-        @impl_statements $struct_fmt:ident, $value:ident, $field:ident, $numbits:tt, []
-    } => {
-        $struct_fmt.field(stringify!($field), &$field.read($value));
     };
 }
 
