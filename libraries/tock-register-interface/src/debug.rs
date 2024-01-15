@@ -60,18 +60,16 @@ pub struct RegisterDebug<T: UIntLike, E, R: RegisterDebugInfo<T, E>>(
 
 impl<T: UIntLike, E, R: RegisterDebugInfo<T, E>> RegisterLongName for RegisterDebug<T, E, R> {}
 
-pub struct RegisterDebugValue<'a, T: UIntLike, E, R: RegisterDebugInfo<T, E>> {
-    pub(crate) data: &'a T,
+pub struct RegisterDebugValue<T: UIntLike, E, R: RegisterDebugInfo<T, E>> {
+    pub(crate) data: T,
     pub(crate) _reg: core::marker::PhantomData<(E, R)>,
 }
 
-impl<'a, T: UIntLike, E, R: RegisterDebugInfo<T, E>> fmt::Debug
-    for RegisterDebugValue<'a, T, E, R>
-{
+impl<'a, T: UIntLike, E, R: RegisterDebugInfo<T, E>> fmt::Debug for RegisterDebugValue<T, E, R> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut debug_struct = f.debug_struct(R::name());
         let mut names = R::fields_names().iter();
-        R::fields_enums().debug_field(*self.data, &mut |v| {
+        R::fields_enums().debug_field(self.data, &mut |v| {
             debug_struct.field(names.next().unwrap(), &v);
         });
         debug_struct.finish()

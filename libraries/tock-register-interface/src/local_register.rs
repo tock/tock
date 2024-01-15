@@ -32,12 +32,12 @@ use crate::{RegisterLongName, UIntLike};
 /// [`Writeable`](crate::interfaces::Writeable) and
 /// [`ReadWriteable`](crate::interfaces::ReadWriteable).
 #[derive(Copy, Clone)]
-pub struct LocalRegisterCopy<T: UIntLike, R: RegisterLongName = (), E = ()> {
+pub struct LocalRegisterCopy<T: UIntLike, R: RegisterLongName = ()> {
     value: T,
-    associated_register: PhantomData<(R, E)>,
+    associated_register: PhantomData<R>,
 }
 
-impl<T: UIntLike, R: RegisterLongName, A> LocalRegisterCopy<T, R, A> {
+impl<T: UIntLike, R: RegisterLongName> LocalRegisterCopy<T, R> {
     pub const fn new(value: T) -> Self {
         LocalRegisterCopy {
             value: value,
@@ -115,12 +115,14 @@ impl<T: UIntLike, R: RegisterLongName, A> LocalRegisterCopy<T, R, A> {
     pub fn bitand(&self, rhs: T) -> LocalRegisterCopy<T, R> {
         LocalRegisterCopy::new(self.value & rhs)
     }
-}
 
-impl<T: UIntLike, E, R: RegisterLongName + RegisterDebugInfo<T, E>> LocalRegisterCopy<T, R, E> {
-    pub fn debug(&self) -> RegisterDebugValue<T, E, R> {
+    #[inline]
+    pub fn debug<E>(&self) -> RegisterDebugValue<T, E, R>
+    where
+        R: RegisterDebugInfo<T, E>,
+    {
         RegisterDebugValue {
-            data: &self.value,
+            data: self.get(),
             _reg: core::marker::PhantomData,
         }
     }

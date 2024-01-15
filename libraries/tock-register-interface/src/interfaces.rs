@@ -151,6 +151,7 @@
 //! assert!(dummy.read(DummyReg::HIGH) == 0xb);
 //! ```
 
+use crate::debug::{RegisterDebugInfo, RegisterDebugValue};
 use crate::fields::{Field, FieldValue, TryFromValue};
 use crate::{LocalRegisterCopy, RegisterLongName, UIntLike};
 
@@ -259,6 +260,21 @@ pub trait Readable {
             .any(|field| self.get() & field.mask() == field.value)
     }
 }
+
+pub trait Debuggable: Readable {
+    #[inline]
+    fn debug<E>(&self) -> RegisterDebugValue<Self::T, E, Self::R>
+    where
+        Self::R: RegisterDebugInfo<Self::T, E>,
+    {
+        RegisterDebugValue {
+            data: self.get(),
+            _reg: core::marker::PhantomData,
+        }
+    }
+}
+
+impl<T: Readable> Debuggable for T {}
 
 /// Writeable register
 ///
