@@ -494,43 +494,44 @@ macro_rules! impl_register_debug {
     {
         // BITFIELD_NAME OFFSET(x)
         $(#[$outer:meta])*
-        $valtype:ident, $reg_desc:ident, $reg_mod:ident, [
+        $valtype:ident, $reg_desc:ident, [
             $( $(#[$inner:meta])* $field:ident OFFSET($offset:expr)),+ $(,)?
         ]
     } => {
-        $crate::impl_register_debug!(@impl $valtype, $reg_desc, $reg_mod, $($field, 1, []),*);
+        $crate::impl_register_debug!(@impl $valtype, $reg_desc, [$($field),*]);
     };
     {
         // BITFIELD_NAME OFFSET
         // All fields are 1 bit
         $(#[$outer:meta])*
-        $valtype:ident, $reg_desc:ident, $reg_mod:ident, [
+        $valtype:ident, $reg_desc:ident, [
             $( $(#[$inner:meta])* $field:ident $offset:expr ),+ $(,)?
         ]
     } => {
-        $crate::impl_register_debug!(@impl $valtype, $reg_desc, $reg_mod, $($field, 1, []),*);
+        $crate::impl_register_debug!(@impl $valtype, $reg_desc, [$($field),*]);
     };
     {
         // BITFIELD_NAME OFFSET(x) NUMBITS(y)
         $(#[$outer:meta])*
-        $valtype:ident, $reg_desc:ident, $reg_mod:ident, [
-            $( $(#[$inner:meta])* $field:ident OFFSET($offset:expr) NUMBITS($numbits:tt) ),+ $(,)?
+        $valtype:ident, $reg_desc:ident, [
+            $( $(#[$inner:meta])* $field:ident OFFSET($offset:expr) NUMBITS($numbits:expr) ),+ $(,)?
         ]
     } => {
-        $crate::impl_register_debug!(@impl $valtype, $reg_desc, $reg_mod, $($field, $numbits, []),*);
+        $crate::impl_register_debug!(@impl $valtype, $reg_desc, [$($field),*]);
     };
     {
         // BITFIELD_NAME OFFSET(x) NUMBITS(y) []
-        $valtype:ident, $reg_desc:ident, $reg_mod:ident, [
-            $( $(#[$inner:meta])* $field:ident OFFSET($offset:expr) NUMBITS($numbits:tt)
+        $(#[$outer:meta])*
+        $valtype:ident, $reg_desc:ident, [
+            $( $(#[$inner:meta])* $field:ident OFFSET($offset:expr) NUMBITS($numbits:expr)
                $values:tt ),+ $(,)?
         ]
     } => {
-        $crate::impl_register_debug!(@impl $valtype, $reg_desc, $reg_mod, $($field, $numbits, $values),*);
+        $crate::impl_register_debug!(@impl $valtype, $reg_desc, [$($field),*]);
     };
     (
-        @impl $valtype:ident, $reg_desc:ident, $reg_mod:ident, $(#[$outer:meta])*
-            $($field:ident, $numbits:tt, $values:tt),*
+        // final implementation of the macro
+        @impl $valtype:ident, $reg_mod:ident, [$($field:ident),*]
     ) => {
         /// Debug information type for the register.
         pub struct Debug;
@@ -584,7 +585,7 @@ macro_rules! register_bitfields {
                 pub struct Register;
                 impl $crate::RegisterLongName for Register {}
 
-                $crate::impl_register_debug!( $valtype, Register, $reg, $fields );
+                $crate::impl_register_debug!( $valtype, $reg, $fields );
 
                 use $crate::fields::Field;
 
