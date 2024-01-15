@@ -261,7 +261,17 @@ pub trait Readable {
     }
 }
 
+/// [`Debuggable`] is a trait for types that can be printed with [`core::fmt::Debug`].
+/// It extends the [`Readable`] trait and doesn't require any manual implementation.
+///
+/// This is implemented for the register when using the [`register_bitfields`] macro.
+///
+/// The `debug` method returns a value that implements [`core::fmt::Debug`].
+///
+/// [`register_bitfields`]: crate::register_bitfields
 pub trait Debuggable: Readable {
+    /// Returns a [`RegisterDebugValue`] that implements [`core::fmt::Debug`], the debug information
+    /// is extracted from `<Register>::DebugInfo`.
     #[inline]
     fn debug<E>(&self) -> RegisterDebugValue<Self::T, E, Self::R>
     where
@@ -274,6 +284,7 @@ pub trait Debuggable: Readable {
     }
 }
 
+// pass Readable implementation to Debuggable
 impl<T: Readable> Debuggable for T {}
 
 /// Writeable register

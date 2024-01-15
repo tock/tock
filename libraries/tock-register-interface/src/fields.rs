@@ -524,6 +524,7 @@ macro_rules! impl_register_debug {
         @impl $valtype:ident, $reg_desc:ident, $reg_mod:ident, $(#[$outer:meta])*
             $($field:ident, $numbits:tt, $values:tt),*
     ) => {
+        /// Debug information type for the register.
         pub type DebugInfo = (
             $(
                 $field::Value,
@@ -543,7 +544,7 @@ macro_rules! impl_register_debug {
                 ]
             }
 
-            fn fields_enums() -> impl $crate::debug::EnumTuples<$valtype, DebugInfo> {
+            fn fields() -> impl $crate::debug::FieldDebug<$valtype, DebugInfo> {
                 (
                     $(
                         $field,
