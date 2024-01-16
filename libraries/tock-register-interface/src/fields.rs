@@ -542,6 +542,7 @@ macro_rules! impl_register_debug {
                     $field::Value
                 ),*
             );
+            type R = Register;
 
             fn name() -> &'static str {
                 stringify!($reg_mod)
@@ -555,30 +556,33 @@ macro_rules! impl_register_debug {
                 ]
             }
 
-            fn fields() -> impl $crate::debug::FieldDebug<$valtype, Self::EnumTypes> {
-                $crate::impl_register_debug!(@recurse
+            fn fields() -> &'static [Field<$valtype, Self::R>] {
+                &[
                     $(
                         $field
                     ),*
-                )
+                ]
             }
         }
     };
     // implement types of the enum using recursive method
     // i.e., the types and fields will become like
-    // (Foo, (Bar, (Baz)))
+    // ((Foo,), ((Bar,), (Baz,)))
+    //
+    // we are using (Foo,) to make it into a tuple, we have an auto impl
+    // for the trait `EnumDebug` for these tuples
     (
         @recurse $enum_val:path, $($rest:path),+
     ) => {
         (
-            $enum_val,
+            ($enum_val,),
             $crate::impl_register_debug!(@recurse $($rest),+)
         )
     };
     (
         @recurse $enum_val:path $(,)?
     ) => {
-        $enum_val
+        ($enum_val,)
     };
 }
 

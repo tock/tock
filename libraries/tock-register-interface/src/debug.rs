@@ -16,45 +16,43 @@ use crate::{
     RegisterLongName, UIntLike,
 };
 
-/// `FieldDebug` is a debug helper trait that is implemented for Fields, and tuples of Fields.
+/// `EnumDebug` is a debug helper trait that is implemented for Enums used in [`Fields`], and tuples of Enums.
 ///
-/// This trait contain reference to the int type used on the field and the enum type its associated with.
+/// This trait contain reference to the int type used on the enum type associated with a type
 ///
 /// This is auto used by [`register_bitfields!`], and don't need to be implemented manually.
 ///
 /// [`register_bitfields!`]: crate::register_bitfields
-pub trait FieldDebug<T: UIntLike, E> {
-    /// Handles [`fmt::Debug`] value generation for a field.
-    /// It will try to convert the data to the associated enum type, and if it fails, it will
-    /// print the raw value as a number.
-    fn debug_field(&self, data: T, a: &mut impl FnMut(&dyn fmt::Debug));
+/// [`Fields`]: crate::fields::Field
+pub trait EnumDebug<T: UIntLike> {
+    fn debug_field(data: &mut impl FnMut() -> T, f: &mut impl FnMut(&dyn fmt::Debug));
 }
 
-impl<T, R, E> FieldDebug<T, E> for Field<T, R>
+// hack: using `tuple` instead of directly on `E1` as it would cause conflicting implementation
+impl<T, E1> EnumDebug<T> for (E1,)
 where
     T: UIntLike,
-    R: RegisterLongName,
-    E: TryFromValue<T, EnumType = E> + fmt::Debug,
+    E1: TryFromValue<T, EnumType = E1> + fmt::Debug,
 {
-    fn debug_field(&self, data: T, f: &mut impl FnMut(&dyn fmt::Debug)) {
-        let v = self.read(data);
-        match E::try_from_value(v) {
+    fn debug_field(data: &mut impl FnMut() -> T, f: &mut impl FnMut(&dyn fmt::Debug)) {
+        let data = data();
+        match E1::try_from_value(data) {
             Some(v) => f(&v),
-            None => f(&v),
+            None => f(&data),
         }
     }
 }
 
-// implement for 2 value tuple, this will be recursive, see [`impl_register_debug!`] for how it will look like
-impl<T, E1, E2, F1, F2> FieldDebug<T, (E1, E2)> for (F1, F2)
+// implement for 2 enums, the rest is recursive
+impl<T, E1, E2> EnumDebug<T> for (E1, E2)
 where
     T: UIntLike,
-    F1: FieldDebug<T, E1>,
-    F2: FieldDebug<T, E2>,
+    E1: EnumDebug<T>,
+    E2: EnumDebug<T>,
 {
-    fn debug_field(&self, data: T, f: &mut impl FnMut(&dyn fmt::Debug)) {
-        self.0.debug_field(data, f);
-        self.1.debug_field(data, f);
+    fn debug_field(data: &mut impl FnMut() -> T, f: &mut impl FnMut(&dyn fmt::Debug)) {
+        E1::debug_field(data, f);
+        E2::debug_field(data, f);
     }
 }
 
@@ -66,7 +64,9 @@ where
 /// - The fields themselves, these are of type [`Field`].
 pub trait RegisterDebugInfo<T: UIntLike> {
     /// A type containing a tuple of all the enum types used in the register in order
-    type EnumTypes;
+    type EnumTypes: EnumDebug<T>;
+    /// The type of the register.
+    type R: RegisterLongName;
 
     /// The name of the register.
     fn name() -> &'static str;
@@ -74,7 +74,7 @@ pub trait RegisterDebugInfo<T: UIntLike> {
     fn fields_names() -> &'static [&'static str];
     /// The fields themselves, these are of type [`Field`],
     /// these are returned as a tuple of fields.
-    fn fields() -> impl FieldDebug<T, Self::EnumTypes>;
+    fn fields() -> &'static [Field<T, Self::R>];
 }
 
 /// `RegisterDebugValue` is a container for the debug information and the value of the register
@@ -93,15 +93,23 @@ where
 
 impl<T, E> fmt::Debug for RegisterDebugValue<T, E>
 where
-    T: UIntLike,
+    T: UIntLike + 'static,
     E: RegisterDebugInfo<T>,
+    E::R: 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut debug_struct = f.debug_struct(E::name());
+
         let mut names = E::fields_names().iter();
-        E::fields().debug_field(self.data, &mut |v| {
-            debug_struct.field(names.next().unwrap(), &v);
-        });
+        let mut fields = E::fields().iter();
+
+        let mut data = || fields.next().unwrap().read(self.data);
+        let mut debug_field = |f: &dyn fmt::Debug| {
+            debug_struct.field(names.next().unwrap(), f);
+        };
+
+        E::EnumTypes::debug_field(&mut data, &mut debug_field);
+
         debug_struct.finish()
     }
 }
