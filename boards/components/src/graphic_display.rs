@@ -37,7 +37,7 @@ use kernel::create_capability;
 macro_rules! graphic_display_component_static {
     ($s:literal $(,)?) => {{
         let buffer = kernel::static_buf!([u8; $s]);
-        let screen = kernel::static_buf!(drivers::graphic_display::GraphicDisplay);
+        let screen = kernel::static_buf!(capsules_extra::graphic_display::GraphicDisplay);
 
         (buffer, screen)
     };};

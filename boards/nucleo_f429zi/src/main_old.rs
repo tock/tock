@@ -1,7 +1,3 @@
-// Licensed under the Apache License, Version 2.0 or the MIT License.
-// SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2022.
-
 //! Board file for Nucleo-F429ZI development board
 //!
 //! - <https://www.st.com/en/evaluation-tools/nucleo-f429zi.html>
@@ -11,19 +7,28 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
+#![feature(core_intrinsics)]
 
+use kernel::hil::gpio::FloatingState;
+use kernel::hil::led::LedLow;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::hil::led::LedHigh;
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 
+use capsules_core::virtualizers::virtual_i2c::MuxI2C;
+use kernel::hil::i2c::I2CMaster;
 use stm32f429zi::gpio::{AlternateFunction, Mode, PinId, PortId};
 use stm32f429zi::interrupt_service::Stm32f429ziDefaultPeripherals;
+use stm32f429zi::{rcc, rcc::Rcc};
+use stm32f4xx::{flash, i2c, pwr, utils};
+use stm32f429zi::pwr;
 
+use core::intrinsics::breakpoint;
 /// Support routines for debugging I/O.
 pub mod io;
 
@@ -53,12 +58,11 @@ struct NucleoF429ZI {
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     led: &'static capsules_core::led::LedDriver<
         'static,
-        LedHigh<'static, stm32f429zi::gpio::Pin<'static>>,
+        LedLow<'static, stm32f429zi::gpio::Pin<'static>>,
         3,
     >,
     button: &'static capsules_core::button::Button<'static, stm32f429zi::gpio::Pin<'static>>,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
-    dac: &'static capsules_extra::dac::Dac<'static>,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, stm32f429zi::tim2::Tim2<'static>>,
@@ -69,11 +73,15 @@ struct NucleoF429ZI {
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
-    can: &'static capsules_extra::can::CanCapsule<'static, stm32f429zi::can::Can<'static>>,
-    date_time: &'static capsules_extra::date_time::DateTimeCapsule<
+
+    display: &'static capsules_extra::graphic_display::GraphicDisplay<'static>,
+    ipc_comm: &'static kernel::ipc::IPC<00000>,
+    pwm: &'static capsules_extra::pwm::Pwm<'static, 1>,
+    measurement: &'static capsules_extra::measurement::MeasurementCapsule< //todo implemente capsule
         'static,
-        stm32f429zi::rtc::Rtc<'static>,
+        stm32f4xx::tim3::Tim2_5<'static>, //todo check
     >,
+    can: &'static capsules_extra::can::CanCapsule<'static, stm32f429zi::can::Can<'static>>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -92,9 +100,11 @@ impl SyscallDriverLookup for NucleoF429ZI {
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
+            capsules_extra::graphic_display::DRIVER_NUM => f(Some(self.display)),
+            kernel::ipc::DRIVER_NUM => f(Some(self.ipc_comm)),
+            capsules_extra::pwm::DRIVER_NUM => f(Some(self.pwm)),
+            capsules_extra::measurement::DRIVER_NUM => f(Some(self.measurement)), // impl measurement
             capsules_extra::can::DRIVER_NUM => f(Some(self.can)),
-            capsules_extra::dac::DRIVER_NUM => f(Some(self.dac)),
-            capsules_extra::date_time::DRIVER_NUM => f(Some(self.date_time)),
             _ => f(None),
         }
     }
@@ -176,46 +186,48 @@ unsafe fn setup_dma(
 unsafe fn set_pin_primary_functions(
     syscfg: &stm32f429zi::syscfg::Syscfg,
     gpio_ports: &'static stm32f429zi::gpio::GpioPorts<'static>,
+    i2c1: &stm32f4xx::i2c::I2C,
 ) {
-    use kernel::hil::gpio::Configure;
+    use apis::gpio::Configure;
 
     syscfg.enable_clock();
 
     gpio_ports.get_port_from_port_id(PortId::B).enable_clock();
 
     // User LD2 is connected to PB07. Configure PB07 as `debug_gpio!(0, ...)`
-    gpio_ports.get_pin(PinId::PB07).map(|pin| {
+    if let Some(pin) = gpio_ports.get_pin(PinId::PB07) {
         pin.make_output();
 
         // Configure kernel debug gpios as early as possible
         kernel::debug::assign_gpios(Some(pin), None, None);
-    });
+    };
 
     gpio_ports.get_port_from_port_id(PortId::D).enable_clock();
 
     // pd8 and pd9 (USART3) is connected to ST-LINK virtual COM port
-    gpio_ports.get_pin(PinId::PD08).map(|pin| {
+    if let Some(pin) = gpio_ports.get_pin(PinId::PD08) {
         pin.set_mode(Mode::AlternateFunctionMode);
         // AF7 is USART2_TX
         pin.set_alternate_function(AlternateFunction::AF7);
-    });
-    gpio_ports.get_pin(PinId::PD09).map(|pin| {
+    };
+    if let Some(pin) = gpio_ports.get_pin(PinId::PD09) {
         pin.set_mode(Mode::AlternateFunctionMode);
         // AF7 is USART2_RX
         pin.set_alternate_function(AlternateFunction::AF7);
-    });
+    };
 
     gpio_ports.get_port_from_port_id(PortId::C).enable_clock();
 
-    // button is connected on pc13
-    gpio_ports.get_pin(PinId::PC13).map(|pin| {
+    // button is connected on pa6
+    if let Some(pin) = gpio_ports.get_pin(PinId::PA06) {
+        pin.set_mode(Mode::Input);
         pin.enable_interrupt();
-    });
+    }
 
     // set interrupt for pin D0
-    gpio_ports.get_pin(PinId::PG09).map(|pin| {
+    if let Some(pin) = gpio_ports.get_pin(PinId::PG09) {
         pin.enable_interrupt();
-    });
+    }
 
     // Enable clocks for GPIO Ports
     // Disable some of them if you don't need some of the GPIOs
@@ -227,35 +239,98 @@ unsafe fn set_pin_primary_functions(
     gpio_ports.get_port_from_port_id(PortId::H).enable_clock();
 
     // Arduino A0
+    if let Some(pin) = gpio_ports.get_pin(PinId::PC00) {
+        pin.set_mode(stm32f429zi::gpio::Mode::AnalogMode);
+    }
+
+    // // Arduino A1
+    // if let Some(pin) = gpio_ports.get_pin(PinId::PC00) {
+    //     pin.set_mode(stm32f429zi::gpio::Mode::AnalogMode);
+    // }
+
+    // // Arduino A2
+    // if let Some(pin) = gpio_ports.get_pin(PinId::PC03) {
+    //     pin.set_mode(stm32f429zi::gpio::Mode::AnalogMode);
+    // }
+
+    // // Arduino A6
+    // if let Some(pin) = gpio_ports.get_pin(PinId::PB01) {
+    //     pin.set_mode(stm32f429zi::gpio::Mode::AnalogMode);
+    // }
+
+    // // Arduino A7
+    // if let Some(pin) = gpio_ports.get_pin(PinId::PC02) {
+    //     pin.set_mode(stm32f429zi::gpio::Mode::AnalogMode);
+    // }
+
+    if let Some(pin) = gpio_ports.get_pin(PinId::PB08) {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_floating_state(kernel::hil::gpio::FloatingState::PullNone);
+        pin.set_mode_output_opendrain();
+        // AF4 is I2C
+        pin.set_speed();
+        pin.set_alternate_function(AlternateFunction::AF4);
+    };
+    if let Some(pin) = gpio_ports.get_pin(PinId::PB09) {
+        pin.make_output();
+        pin.set_floating_state(kernel::hil::gpio::FloatingState::PullNone);
+        pin.set_speed();
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_mode_output_opendrain();
+        // AF4 is I2C
+        pin.set_alternate_function(AlternateFunction::AF4);
+    };
+
+    i2c1.enable_clock();
+    i2c1.set_speed(i2c::I2CSpeed::Speed100k, 8);
+
+    // PE11 is connected to motor driver IN2
+    gpio_ports.get_pin(PinId::PE11).map(|pin| {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        // AF1 is TIM1/2
+        pin.set_alternate_function(AlternateFunction::AF1);
+    });
+
+    // PE13 is connected to motor driver IN1
+    gpio_ports.get_pin(PinId::PE13).map(|pin| {
+        pin.set_mode(Mode::GeneralPurposeOutputMode);
+        // pin.set_mode(Mode::AlternateFunctionMode);
+        // // AF1 is TIM1/2
+        // pin.set_alternate_function(AlternateFunction::AF1);
+    });
+
+    // PA7 is Encoder pulse counting
+    gpio_ports.get_pin(PinId::PA07).map(|pin| {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_floating_state(FloatingState::PullDown);
+        //pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_alternate_function(AlternateFunction::AF2);
+    });
+
+    // PA3 is Encoder pulse counting
     gpio_ports.get_pin(PinId::PA03).map(|pin| {
-        pin.set_mode(stm32f429zi::gpio::Mode::AnalogMode);
+        pin.make_input();
+        pin.set_floating_state(FloatingState::PullNone);
     });
 
-    // Arduino A1
-    gpio_ports.get_pin(PinId::PC00).map(|pin| {
-        pin.set_mode(stm32f429zi::gpio::Mode::AnalogMode);
+    // PA08 is Clock Output MCO1
+    gpio_ports.get_pin(PinId::PA08).map(|pin| {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        // AF0 is Clock output (MCO1)
+        pin.set_alternate_function(AlternateFunction::AF0);
     });
 
-    // Arduino A2
-    gpio_ports.get_pin(PinId::PC03).map(|pin| {
-        pin.set_mode(stm32f429zi::gpio::Mode::AnalogMode);
-    });
-
-    // Arduino A6
-    gpio_ports.get_pin(PinId::PB01).map(|pin| {
-        pin.set_mode(stm32f429zi::gpio::Mode::AnalogMode);
-    });
-
-    // Arduino A7
-    gpio_ports.get_pin(PinId::PC02).map(|pin| {
-        pin.set_mode(stm32f429zi::gpio::Mode::AnalogMode);
+    // PC09 is ClockOutput MCO2
+    gpio_ports.get_pin(PinId::PC09).map(|pin| {
+        pin.set_mode(Mode::AlternateFunctionMode);
+        pin.set_alternate_function(AlternateFunction::AF0);
     });
 
     gpio_ports.get_pin(PinId::PD00).map(|pin| {
         pin.set_mode(Mode::AlternateFunctionMode);
         // AF9 is CAN_RX
         pin.set_alternate_function(AlternateFunction::AF9);
-        pin.set_floating_state(kernel::hil::gpio::FloatingState::PullDown);
+        pin.set_floating_state(kernel::hil::gpio::FloatingState::PullNone);
     });
     gpio_ports.get_pin(PinId::PD01).map(|pin| {
         pin.set_mode(Mode::AlternateFunctionMode);
@@ -263,9 +338,8 @@ unsafe fn set_pin_primary_functions(
         pin.set_alternate_function(AlternateFunction::AF9);
     });
 
-    // DAC Channel 1
-    gpio_ports.get_pin(PinId::PA04).map(|pin| {
-        pin.set_mode(stm32f429zi::gpio::Mode::AnalogMode);
+    gpio_ports.get_pin(PinId::PE08).map(|pin| {
+        pin.make_output();
     });
 }
 
@@ -273,8 +347,9 @@ unsafe fn set_pin_primary_functions(
 unsafe fn setup_peripherals(
     tim2: &stm32f429zi::tim2::Tim2,
     trng: &stm32f429zi::trng::Trng,
+    tim1: &stm32f4xx::tim1::Tim1_8,
+    tim3: &stm32f4xx::tim3::Tim2_5,
     can1: &'static stm32f429zi::can::Can,
-    rtc: &'static stm32f429zi::rtc::Rtc,
 ) {
     // USART3 IRQn is 39
     cortexm4::nvic::Nvic::new(stm32f429zi::nvic::USART3).enable();
@@ -287,11 +362,14 @@ unsafe fn setup_peripherals(
     // RNG
     trng.enable_clock();
 
+    tim1.enable_clock();
+    tim1.start();
+    // tim1.start_pwm(&stm32f4xx::tim1::TimOutputs::OutputCh2, 2000, 800);
+    tim3.enable_clock();
+    tim3.start();
+
     // CAN
     can1.enable_clock();
-
-    // RTC
-    rtc.enable_clock();
 }
 
 /// Statically initialize the core peripherals for the chip.
@@ -300,14 +378,14 @@ unsafe fn setup_peripherals(
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn create_peripherals() -> (
+unsafe fn get_peripherals() -> (
     &'static mut Stm32f429ziDefaultPeripherals<'static>,
     &'static stm32f429zi::syscfg::Syscfg<'static>,
     &'static stm32f429zi::dma::Dma1<'static>,
+    &'static stm32f429zi::rcc::Rcc,
 ) {
     // We use the default HSI 16Mhz clock
     let rcc = static_init!(stm32f429zi::rcc::Rcc, stm32f429zi::rcc::Rcc::new());
-
     let syscfg = static_init!(
         stm32f429zi::syscfg::Syscfg,
         stm32f429zi::syscfg::Syscfg::new(rcc)
@@ -323,28 +401,97 @@ unsafe fn create_peripherals() -> (
         Stm32f429ziDefaultPeripherals,
         Stm32f429ziDefaultPeripherals::new(rcc, exti, dma1, dma2)
     );
-    (peripherals, syscfg, dma1)
+    (peripherals, syscfg, dma1, rcc)
+}
+
+/// Initialize clock tree and related peripherals (flash, pwr)
+///
+/// In order to start the PLL, the pwr scaling needs to be configured. In order to increase the system clock to 180MHz, the flash latency needs to be increased and pwr overdrive needs to be enabled.
+/// see: RM0090 ch. 5.1.4 pg 123
+unsafe fn try_init_clocks(rcc: &Rcc) -> Result<(), ()> {
+    // only PWR peripheral should be enabled, HSI -> SystemClock
+    rcc::enable_boot_esential_clocks()?;
+    pwr::configure_voltage_scaling(1)?;
+
+    // uncomment these lines in order to measure internal clocks
+    rcc.configure_prescaler(&rcc::RccClockDestination::MClockOutput1, 5);
+    rcc.configure_prescaler(&rcc::RccClockDestination::MClockOutput2, 5);
+
+    // HSI -> PLL, wait for HSI to be stable
+    utils::wait_for_condition(
+        1_000,
+        || rcc.is_clock_stable(&rcc::RccClockSource::HsiRc),
+        || (),
+    )?;
+
+    // HSI = 16MHz
+    // PLL output = (16/8)*180/2 = 180 MHz
+    rcc.configure_pll(8, 180, 2);
+    rcc.enable(rcc::RccClockSource::Pll);
+
+    pwr::enable_overdrive()?;
+    flash::set_latency(5);
+
+    let _ = utils::wait_for_condition(
+        1_000,
+        || rcc.is_clock_stable(&rcc::RccClockSource::Pll),
+        || (),
+    );
+    rcc.configure_prescaler(&rcc::RccClockDestination::Apb1, 4);
+    rcc.configure_prescaler(&rcc::RccClockDestination::Apb2, 4);
+    rcc.route(
+        &rcc::RccClockSource::Pll,
+        &rcc::RccClockDestination::SystemClock,
+    )?;
+
+    Ok(())
+}
+
+/// Initialize clock tree, if it fails it reverts to default configuration (HSI-> SystemClcok)
+pub unsafe fn init_clocks(rcc: &Rcc) {
+    match try_init_clocks(&rcc) {
+        Ok(_) => {}
+        Err(_) => {
+            let _ = rcc.route(
+                &rcc::RccClockSource::HsiRc,
+                &rcc::RccClockDestination::SystemClock,
+            );
+        }
+    }
+    if rcc.compute_nominal_frequency().is_err() {
+        breakpoint();
+    }
 }
 
 /// Main function.
+///
+/// # Safety
+/// This function needs to be marked unsafe allows ...
 ///
 /// This is called after RAM initialization is complete.
 #[no_mangle]
 pub unsafe fn main() {
     stm32f429zi::init();
 
-    let (peripherals, syscfg, dma1) = create_peripherals();
+    let (peripherals, syscfg, dma1, rcc) = get_peripherals();
     peripherals.init();
+
+    init_clocks(rcc);
     let base_peripherals = &peripherals.stm32f4;
 
     setup_peripherals(
         &base_peripherals.tim2,
         &peripherals.trng,
+        &base_peripherals.tim1,
+        &base_peripherals.tim3,
         &peripherals.can1,
-        &peripherals.rtc,
     );
 
-    set_pin_primary_functions(syscfg, &base_peripherals.gpio_ports);
+    set_pin_primary_functions(
+        syscfg,
+        &base_peripherals.gpio_ports,
+        &peripherals.stm32f4.i2c1,
+    );
 
     setup_dma(
         dma1,
@@ -353,6 +500,14 @@ pub unsafe fn main() {
     );
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+
+    let dynamic_deferred_call_clients =
+        static_init!([DynamicDeferredCallClientState; 3], Default::default());
+    let dynamic_deferred_caller = static_init!(
+        DynamicDeferredCall,
+        DynamicDeferredCall::new(dynamic_deferred_call_clients)
+    );
+    DynamicDeferredCall::set_global_instance(dynamic_deferred_caller);
 
     let chip = static_init!(
         stm32f429zi::chip::Stm32f4xx<Stm32f429ziDefaultPeripherals>,
@@ -364,8 +519,12 @@ pub unsafe fn main() {
 
     // Create a shared UART channel for kernel debug.
     base_peripherals.usart3.enable_clock();
-    let uart_mux = components::console::UartMuxComponent::new(&base_peripherals.usart3, 115200)
-        .finalize(components::uart_mux_component_static!());
+    let uart_mux = components::console::UartMuxComponent::new(
+        &base_peripherals.usart3,
+        115200,
+        dynamic_deferred_caller,
+    )
+    .finalize(components::uart_mux_component_static!());
 
     io::WRITER.set_initialized();
 
@@ -379,7 +538,7 @@ pub unsafe fn main() {
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
-        capsules_core::console::DRIVER_NUM,
+        capsules::console::DRIVER_NUM,
         uart_mux,
     )
     .finalize(components::console_component_static!());
@@ -393,22 +552,26 @@ pub unsafe fn main() {
     let gpio_ports = &base_peripherals.gpio_ports;
 
     let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
-        LedHigh<'static, stm32f429zi::gpio::Pin>,
-        LedHigh::new(gpio_ports.get_pin(stm32f429zi::gpio::PinId::PB00).unwrap()),
-        LedHigh::new(gpio_ports.get_pin(stm32f429zi::gpio::PinId::PB07).unwrap()),
-        LedHigh::new(gpio_ports.get_pin(stm32f429zi::gpio::PinId::PB14).unwrap()),
+        LedLow<'static, stm32f429zi::gpio::Pin>,
+        LedLow::new(gpio_ports.get_pin(stm32f429zi::gpio::PinId::PD15).unwrap()),
+        LedLow::new(gpio_ports.get_pin(stm32f429zi::gpio::PinId::PD14).unwrap()),
+        LedLow::new(gpio_ports.get_pin(stm32f429zi::gpio::PinId::PA05).unwrap()),
     ));
+
+    // LedHigh::new(gpio_ports.get_pin(stm32f429zi::gpio::PinId::PB00).unwrap()),
+    // LedHigh::new(gpio_ports.get_pin(stm32f429zi::gpio::PinId::PB07).unwrap()),
+    // LedHigh::new(gpio_ports.get_pin(stm32f429zi::gpio::PinId::PB14).unwrap()),
 
     // BUTTONs
     let button = components::button::ButtonComponent::new(
         board_kernel,
-        capsules_core::button::DRIVER_NUM,
+        capsules::button::DRIVER_NUM,
         components::button_component_helper!(
             stm32f429zi::gpio::Pin,
             (
-                gpio_ports.get_pin(stm32f429zi::gpio::PinId::PC13).unwrap(),
-                kernel::hil::gpio::ActivationMode::ActiveHigh,
-                kernel::hil::gpio::FloatingState::PullNone
+                gpio_ports.get_pin(stm32f429zi::gpio::PinId::PA06).unwrap(),
+                apis::gpio::ActivationMode::ActiveHigh,
+                apis::gpio::FloatingState::PullDown
             )
         ),
     )
@@ -423,7 +586,7 @@ pub unsafe fn main() {
 
     let alarm = components::alarm::AlarmDriverComponent::new(
         board_kernel,
-        capsules_core::alarm::DRIVER_NUM,
+        capsules::alarm::DRIVER_NUM,
         mux_alarm,
     )
     .finalize(components::alarm_component_static!(stm32f429zi::tim2::Tim2));
@@ -431,7 +594,7 @@ pub unsafe fn main() {
     // GPIO
     let gpio = GpioComponent::new(
         board_kernel,
-        capsules_core::gpio::DRIVER_NUM,
+        capsules::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             stm32f429zi::gpio::Pin,
             // Arduino like RX/TX
@@ -440,16 +603,16 @@ pub unsafe fn main() {
             2 => gpio_ports.pins[5][15].as_ref().unwrap(), //D2
             3 => gpio_ports.pins[4][13].as_ref().unwrap(), //D3
             4 => gpio_ports.pins[5][14].as_ref().unwrap(), //D4
-            5 => gpio_ports.pins[4][11].as_ref().unwrap(), //D5
-            6 => gpio_ports.pins[4][9].as_ref().unwrap(), //D6
+            // 5 => gpio_ports.pins[4][11].as_ref().unwrap(), //D5
+            // 6 => gpio_ports.pins[4][9].as_ref().unwrap(), //D6
             7 => gpio_ports.pins[5][13].as_ref().unwrap(), //D7
             8 => gpio_ports.pins[5][12].as_ref().unwrap(), //D8
-            9 => gpio_ports.pins[3][15].as_ref().unwrap(), //D9
+            // 9 => gpio_ports.pins[3][15].as_ref().unwrap(), //D9
             // SPI Pins
-            10 => gpio_ports.pins[3][14].as_ref().unwrap(), //D10
-            11 => gpio_ports.pins[0][7].as_ref().unwrap(),  //D11
-            12 => gpio_ports.pins[0][6].as_ref().unwrap(),  //D12
-            13 => gpio_ports.pins[0][5].as_ref().unwrap(),  //D13
+            // 10 => gpio_ports.pins[3][14].as_ref().unwrap(), //D10
+            // 11 => gpio_ports.pins[0][7].as_ref().unwrap(),  //D11
+            // 12 => gpio_ports.pins[0][6].as_ref().unwrap(),  //D12
+            // 13 => gpio_ports.pins[0][5].as_ref().unwrap(),  //D13
             // I2C Pins
             14 => gpio_ports.pins[1][9].as_ref().unwrap(), //D14
             15 => gpio_ports.pins[1][8].as_ref().unwrap(), //D15
@@ -508,8 +671,8 @@ pub unsafe fn main() {
             63 => gpio_ports.pins[5][9].as_ref().unwrap(), //D63
             64 => gpio_ports.pins[6][1].as_ref().unwrap(), //D64
             65 => gpio_ports.pins[6][0].as_ref().unwrap(), //D65
-            66 => gpio_ports.pins[3][1].as_ref().unwrap(), //D66
-            67 => gpio_ports.pins[3][0].as_ref().unwrap(), //D67
+            // 66 => gpio_ports.pins[3][1].as_ref().unwrap(), //D66
+            // 67 => gpio_ports.pins[3][0].as_ref().unwrap(), //D67
             68 => gpio_ports.pins[5][0].as_ref().unwrap(), //D68
             69 => gpio_ports.pins[5][1].as_ref().unwrap(), //D69
             70 => gpio_ports.pins[5][2].as_ref().unwrap(), //D70
@@ -520,7 +683,7 @@ pub unsafe fn main() {
             // 72 => gpio_ports.pins[0][3].as_ref().unwrap(), //A0
             // 73 => gpio_ports.pins[2][0].as_ref().unwrap(), //A1
             // 74 => gpio_ports.pins[2][3].as_ref().unwrap(), //A2
-            75 => gpio_ports.pins[5][3].as_ref().unwrap(), //A3
+            // 75 => gpio_ports.pins[5][3].as_ref().unwrap(), //A3
             76 => gpio_ports.pins[5][5].as_ref().unwrap(), //A4
             77 => gpio_ports.pins[5][10].as_ref().unwrap(), //A5
             // 78 => gpio_ports.pins[1][1].as_ref().unwrap(), //A6
@@ -554,42 +717,18 @@ pub unsafe fn main() {
     kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
 
     let adc_channel_0 =
-        components::adc::AdcComponent::new(adc_mux, stm32f429zi::adc::Channel::Channel3)
-            .finalize(components::adc_component_static!(stm32f429zi::adc::Adc));
-
-    let adc_channel_1 =
         components::adc::AdcComponent::new(adc_mux, stm32f429zi::adc::Channel::Channel10)
-            .finalize(components::adc_component_static!(stm32f429zi::adc::Adc));
-
-    let adc_channel_2 =
-        components::adc::AdcComponent::new(adc_mux, stm32f429zi::adc::Channel::Channel13)
-            .finalize(components::adc_component_static!(stm32f429zi::adc::Adc));
-
-    let adc_channel_3 =
-        components::adc::AdcComponent::new(adc_mux, stm32f429zi::adc::Channel::Channel9)
-            .finalize(components::adc_component_static!(stm32f429zi::adc::Adc));
-
-    let adc_channel_4 =
-        components::adc::AdcComponent::new(adc_mux, stm32f429zi::adc::Channel::Channel12)
             .finalize(components::adc_component_static!(stm32f429zi::adc::Adc));
 
     let adc_syscall =
         components::adc::AdcVirtualComponent::new(board_kernel, capsules_core::adc::DRIVER_NUM)
             .finalize(components::adc_syscall_component_helper!(
                 adc_channel_0,
-                adc_channel_1,
-                adc_channel_2,
-                adc_channel_3,
-                adc_channel_4,
             ));
 
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
-
-    // DAC
-    let dac = components::dac::DacComponent::new(&base_peripherals.dac)
-        .finalize(components::dac_component_static!());
 
     // RNG
     let rng = components::rng::RngComponent::new(
@@ -599,8 +738,24 @@ pub unsafe fn main() {
     )
     .finalize(components::rng_component_static!());
 
-    // CAN
-    let can = components::can::CanComponent::new(
+    // PROCESS CONSOLE
+    let process_console = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+        process_printer,
+        None,
+    )
+    .finalize(components::process_console_component_static!(
+        stm32f429zi::tim2::Tim2
+    ));
+    let _ = process_console.start();
+
+    let ipc_comm =
+        driver_setup::ipc::IPCComponent::new(board_kernel, drivers::communication::DRIVER_NUM)
+            .finalize(driver_setup::ipc_component_static!());
+
+    let can = driver_setup::can::CanComponent::new(
         board_kernel,
         capsules_extra::can::DRIVER_NUM,
         &peripherals.can1,
@@ -609,64 +764,87 @@ pub unsafe fn main() {
         stm32f429zi::can::Can<'static>
     ));
 
-    // RTC DATE TIME
-    match peripherals.rtc.rtc_init() {
-        Err(e) => debug!("{:?}", e),
-        _ => (),
-    };
+    // I2C SSD1306 screen
+    let i2c_mux = static_init!(
+        MuxI2C<'static>,
+        MuxI2C::new(&peripherals.stm32f4.i2c1, None, dynamic_deferred_caller)
+    );
+    peripherals.stm32f4.i2c1.set_master_client(i2c_mux);
 
-    let date_time = components::date_time::DateTimeComponent::new(
-        board_kernel,
-        capsules_extra::date_time::DRIVER_NUM,
-        &peripherals.rtc,
+    let bus = components::bus::I2CMasterBusComponent::new(
+        i2c_mux,
+        capsules_extra::ssd1306::SLAVE_ADDRESS_WRITE,
     )
-    .finalize(components::date_time_component_static!(
-        stm32f429zi::rtc::Rtc<'static>
-    ));
+    .finalize(components::i2c_master_bus_component_static!(2));
 
-    // PROCESS CONSOLE
-    let process_console = components::process_console::ProcessConsoleComponent::new(
+    let ssd1306_screen = components::ssd1306::SSD1306Component::new(bus, dynamic_deferred_caller)
+        .finalize(components::ssd1306_component_static!(
+            capsules_extra::bus::I2CMasterBus<'static, capsules_core::virtualizers::virtual_i2c::I2CDevice<'static>>,
+        ));
+
+    let _ = ssd1306_screen.init();
+
+    let display = components::graphic_display::GraphicDisplayComponent::new(
         board_kernel,
-        uart_mux,
-        mux_alarm,
-        process_printer,
-        Some(cortexm4::support::reset),
+        capsules_extra::graphic_display::DRIVER_NUM,
+        ssd1306_screen,
+        Some(ssd1306_screen),
     )
-    .finalize(components::process_console_component_static!(
-        stm32f429zi::tim2::Tim2
-    ));
-    let _ = process_console.start();
+    .finalize(components::graphic_display_component_static!(1025));
+
+    let mux_pwm = components::pwm::PwmMuxComponent::new(&base_peripherals.tim1).finalize(
+        components::pwm_mux_component_static!(stm32f4xx::tim1::Tim1_8),
+    );
+
+    let pwm = components::pwm::PwmVirtualComponent::new(board_kernel, capsules_extra::pwm::DRIVER_NUM)
+        .finalize(components::pwm_syscall_component_helper!(
+            components::pwm::PwmPinComponent::new(
+                &mux_pwm,
+                stm32f4xx::tim1::TimOutputs::OutputCh2,
+                //gpio_ports.get_pin(stm32f429zi: gpio::PinId::PE11).unwrap()
+            )
+            .finalize(components::pwm_pin_user_component_static!(
+                stm32f4xx::tim1::Tim1_8
+            ))
+        ));
+
+    let measurement = components::measurement::MeasurementComponent::new(&base_peripherals.tim3)
+        .finalize(components::measurement_component_static!(stm32f4xx::tim3::Tim2_5));
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let nucleo_f429zi = NucleoF429ZI {
-        console: console,
+        console,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
         adc: adc_syscall,
-        dac: dac,
-        led: led,
+        led,
         temperature: temp,
-        button: button,
-        alarm: alarm,
-        gpio: gpio,
-        rng: rng,
+        button,
+        alarm,
+        gpio,
+        rng,
 
         scheduler,
-        systick: cortexm4::systick::SysTick::new(),
-        can: can,
-        date_time,
+        systick: cortexm4::systick::SysTick::new_with_calibration(
+            rcc.get_nominal_frequency_(&rcc::PeripheralClockType::AHB1(rcc::HCLK1::SysTick)),
+        ),
+
+        display,
+        ipc_comm,
+        pwm,
+        measurement,
+        can,
     };
 
     // // Optional kernel tests
     // //
     // // See comment in `boards/imix/src/main.rs`
     // virtual_uart_rx_test::run_virtual_uart_receive(mux_uart);
-
     debug!("Initialization complete. Entering main loop");
 
     // These symbols are defined in the linker script.

@@ -8,23 +8,23 @@ use kernel::deferred_call::DeferredCallClient;
 #[macro_export]
 macro_rules! ssd1306_component_static {
     ($B: ty, $(,)?) => {{
-        let buffer = kernel::static_buf!([u8; drivers::ssd1306::BUFFER_SIZE]);
+        let buffer = kernel::static_buf!([u8; capsules_extra::ssd1306::BUFFER_SIZE]);
         let app_write_buffer = kernel::static_buf!(
-            [u8; drivers::ssd1306::WIDTH * drivers::ssd1306::HEIGHT / 8
-                + drivers::ssd1306::BUFFER_PADDING]
+            [u8; capsules_extra::ssd1306::WIDTH * capsules_extra::ssd1306::HEIGHT / 8
+                + capsules_extra::ssd1306::BUFFER_PADDING]
         );
         let bus_write_buffer = kernel::static_buf!(
-            [u8; drivers::ssd1306::WIDTH * drivers::ssd1306::HEIGHT / 8
-                + drivers::ssd1306::BUFFER_PADDING]
+            [u8; capsules_extra::ssd1306::WIDTH * capsules_extra::ssd1306::HEIGHT / 8
+                + capsules_extra::ssd1306::BUFFER_PADDING]
         );
         let aux_write_buffer = kernel::static_buf!(
-            [u8; drivers::ssd1306::WIDTH * drivers::ssd1306::HEIGHT / 8
-                + drivers::ssd1306::BUFFER_PADDING]
+            [u8; capsules_extra::ssd1306::WIDTH * capsules_extra::ssd1306::HEIGHT / 8
+                + capsules_extra::ssd1306::BUFFER_PADDING]
         );
         let command_sequence = kernel::static_buf!(
-            [drivers::ssd1306::ScreenCommand; drivers::ssd1306::SEQUENCE_BUFFER_SIZE]
+            [capsules_extra::ssd1306::ScreenCommand; capsules_extra::ssd1306::SEQUENCE_BUFFER_SIZE]
         );
-        let ssd1306 = kernel::static_buf!(drivers::ssd1306::SSD1306<'static, $B>);
+        let ssd1306 = kernel::static_buf!(capsules_extra::ssd1306::SSD1306<'static, $B>);
         (
             ssd1306,
             command_sequence,
