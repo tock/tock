@@ -424,7 +424,11 @@ where
         ret
     }
 
-    fn write(&self, data: SubSliceMut<'static, u8>) -> Result<(), ErrorCode> {
+    fn write(
+        &self,
+        data: SubSliceMut<'static, u8>,
+        _continue_write: bool,
+    ) -> Result<(), ErrorCode> {
         let len = data.len();
         let buffer = data.take();
 

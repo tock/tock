@@ -231,7 +231,7 @@ impl<'a> Screen<'a> {
                         if len > 0 {
                             let mut data = SubSliceMut::new(buffer);
                             data.slice(..len);
-                            self.screen.write(data)
+                            self.screen.write(data, false)
                         } else {
                             self.buffer.replace(buffer);
                             self.run_next_command(kernel::errorcode::into_statuscode(Ok(())), 0, 0);
@@ -267,7 +267,7 @@ impl<'a> Screen<'a> {
                         if len > 0 {
                             let mut data = SubSliceMut::new(buffer);
                             data.slice(..len);
-                            self.screen.write(data)
+                            self.screen.write(data, false)
                         } else {
                             self.buffer.replace(buffer);
                             self.run_next_command(kernel::errorcode::into_statuscode(Ok(())), 0, 0);
@@ -434,7 +434,7 @@ impl<'a> hil::screen::ScreenClient for Screen<'a> {
         if r == Ok(()) && len > 0 {
             let mut data = SubSliceMut::new(buffer);
             data.slice(..len);
-            let _ = self.screen.write(data);
+            let _ = self.screen.write(data, true);
         } else {
             self.buffer.replace(buffer);
             self.run_next_command(kernel::errorcode::into_statuscode(r), 0, 0);

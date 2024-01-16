@@ -790,28 +790,38 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::Screen<'a> for ST77XX<'a, A, 
         }
     }
 
-    fn write(&self, data: SubSliceMut<'static, u8>) -> Result<(), ErrorCode> {
+    fn write(&self, data: SubSliceMut<'static, u8>, continue_write: bool) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             self.setup_command.set(false);
             let len = data.len();
             self.write_buffer.replace(data.take());
-            let buffer_len = self.buffer.map_or_else(
-                || panic!("st77xx: buffer is not available"),
-                |buffer| buffer.len(),
-            );
-            if buffer_len > 0 {
-                // set buffer
-                self.sequence_buffer.map_or_else(
-                    || panic!("st77xx: write no sequence buffer"),
-                    |sequence| {
-                        sequence[0] = SendCommand::Slice(&WRITE_RAM, len);
-                        self.sequence_len.set(1);
-                    },
+
+            if continue_write == false {
+                // Writing new data for the first time, make sure to reset
+                // the screen buffer location to the beginning.
+
+                let buffer_len = self.buffer.map_or_else(
+                    || panic!("st77xx: buffer is not available"),
+                    |buffer| buffer.len(),
                 );
-                let _ = self.send_sequence_buffer();
-                Ok(())
+                if buffer_len > 0 {
+                    // set buffer
+                    self.sequence_buffer.map_or_else(
+                        || panic!("st77xx: write no sequence buffer"),
+                        |sequence| {
+                            sequence[0] = SendCommand::Slice(&WRITE_RAM, len);
+                            self.sequence_len.set(1);
+                        },
+                    );
+                    let _ = self.send_sequence_buffer();
+                    Ok(())
+                } else {
+                    Err(ErrorCode::NOMEM)
+                }
             } else {
-                Err(ErrorCode::NOMEM)
+                // Continuing the previous write.
+                self.send_parameters_slice(len);
+                Ok(())
             }
         } else {
             Err(ErrorCode::BUSY)
