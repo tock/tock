@@ -282,7 +282,7 @@ pub trait Debuggable: Readable {
     #[inline]
     fn debug<E>(&self) -> crate::debug::RegisterDebugValue<Self::T, E>
     where
-        E: crate::debug::RegisterDebugInfo<Self::T>,
+        E: crate::debug::RegisterDebugInfo<Self::T, R = Self::R>,
     {
         crate::debug::RegisterDebugValue {
             data: self.get(),
