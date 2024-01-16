@@ -30,8 +30,11 @@ pub trait FieldDebug<T: UIntLike, E> {
     fn debug_field(&self, data: T, a: &mut impl FnMut(&dyn fmt::Debug));
 }
 
-impl<T: UIntLike, R: RegisterLongName, E: TryFromValue<T, EnumType = E> + fmt::Debug>
-    FieldDebug<T, E> for Field<T, R>
+impl<T, R, E> FieldDebug<T, E> for Field<T, R>
+where
+    T: UIntLike,
+    R: RegisterLongName,
+    E: TryFromValue<T, EnumType = E> + fmt::Debug,
 {
     fn debug_field(&self, data: T, f: &mut impl FnMut(&dyn fmt::Debug)) {
         let v = self.read(data);
@@ -42,22 +45,18 @@ impl<T: UIntLike, R: RegisterLongName, E: TryFromValue<T, EnumType = E> + fmt::D
     }
 }
 
-macro_rules! impl_tuple {
-    ($($enum:ident $field:ident),*) => {
-        impl<T: UIntLike, $($enum),* , $($field: FieldDebug<T, $enum>),*> FieldDebug<T, ($($enum),*)> for ($($field),*) {
-            fn debug_field(&self, data: T, f: &mut impl FnMut(&dyn fmt::Debug)) {
-                #[allow(non_snake_case)]
-                let ($($field),*) = self;
-                $(
-                    $field.debug_field(data, f);
-                )*
-            }
-        }
-    };
+// implement for 2 value tuple, this will be recursive, see [`impl_register_debug!`] for how it will look like
+impl<T, E1, E2, F1, F2> FieldDebug<T, (E1, E2)> for (F1, F2)
+where
+    T: UIntLike,
+    F1: FieldDebug<T, E1>,
+    F2: FieldDebug<T, E2>,
+{
+    fn debug_field(&self, data: T, f: &mut impl FnMut(&dyn fmt::Debug)) {
+        self.0.debug_field(data, f);
+        self.1.debug_field(data, f);
+    }
 }
-
-// Implement FieldDebug for tuples of fields
-impl_tuple!(E1 F1, E2 F2);
 
 /// `RegisterDebugInfo` is a trait for types that can provide debug information for the `Register`.
 ///
@@ -83,12 +82,20 @@ pub trait RegisterDebugInfo<T: UIntLike> {
 ///
 /// The data is read once into this register and used for all the fields printing to avoid multiple reads
 /// to hardware.
-pub struct RegisterDebugValue<T: UIntLike, E: RegisterDebugInfo<T>> {
+pub struct RegisterDebugValue<T, E>
+where
+    T: UIntLike,
+    E: RegisterDebugInfo<T>,
+{
     pub(crate) data: T,
     pub(crate) _reg: core::marker::PhantomData<E>,
 }
 
-impl<T: UIntLike, E: RegisterDebugInfo<T>> fmt::Debug for RegisterDebugValue<T, E> {
+impl<T, E> fmt::Debug for RegisterDebugValue<T, E>
+where
+    T: UIntLike,
+    E: RegisterDebugInfo<T>,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut debug_struct = f.debug_struct(E::name());
         let mut names = E::fields_names().iter();
