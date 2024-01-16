@@ -2,7 +2,8 @@ use core::mem::MaybeUninit;
 use capsules_extra::bus;
 use capsules_extra::ssd1306;
 use kernel::component::Component;
-use kernel::dynamic_deferred_call::DynamicDeferredCall;
+use kernel::deferred_call::DeferredCall;
+use kernel::deferred_call::DeferredCallClient;
 
 #[macro_export]
 macro_rules! ssd1306_component_static {
@@ -37,17 +38,14 @@ macro_rules! ssd1306_component_static {
 
 pub struct SSD1306Component<B: 'static + bus::Bus<'static>> {
     bus: &'static B,
-    deferred_caller: &'static DynamicDeferredCall,
+    deferred_caller: DeferredCall,
 }
 
 impl<B: 'static + bus::Bus<'static>> SSD1306Component<B> {
-    pub fn new(
-        bus: &'static B,
-        deferred_caller: &'static DynamicDeferredCall,
-    ) -> SSD1306Component<B> {
+    pub fn new(bus: &'static B) -> SSD1306Component<B> {
         SSD1306Component {
             bus,
-            deferred_caller,
+            deferred_caller: DeferredCall::new(),
         }
     }
 }
@@ -99,7 +97,9 @@ impl<B: 'static + bus::Bus<'static>> Component for SSD1306Component<B> {
         ));
         self.bus.set_client(ssd1306);
 
-        ssd1306.initialize_callback_handle(self.deferred_caller.register(ssd1306).unwrap());
+       // todo remove ssd1306.initialize_callback_handle(self.deferred_caller.register(ssd1306).unwrap());
+
+        ssd1306.register();
         ssd1306
     }
 }

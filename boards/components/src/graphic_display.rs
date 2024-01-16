@@ -27,7 +27,7 @@
 //! ```
 
 use core::mem::MaybeUninit;
-use capsules_extra::graphics_display::graphics_display::GraphicDisplay;
+use capsules_extra::graphics_display::GraphicDisplay;
 use kernel::hil::display;
 use kernel::capabilities;
 use kernel::component::Component;

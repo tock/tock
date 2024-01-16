@@ -3,9 +3,8 @@ use kernel::{
     ErrorCode,
 };
 
-//TODO; wtf is this?
 use kernel::deferred_call::{
-    DeferredCallHandle, DynamicDeferredCall, DynamicDeferredCallClient,
+    DeferredCall, DeferredCallClient
 };
 
 use crate::bus::{self, Bus, BusWidth};
@@ -325,8 +324,7 @@ pub struct SSD1306<'a, B: Bus<'a>> {
     screen_client: OptionalCell<&'static dyn ScreenClient>,
     frame_buffer_client: OptionalCell<&'static dyn FrameBufferClient>,
 
-    deferred_caller: &'a DynamicDeferredCall,
-    handle: OptionalCell<DeferredCallHandle>,
+    deferred_caller: DeferredCall,
 
     initial_write: Cell<bool>,
     invert: Cell<bool>,
@@ -340,7 +338,7 @@ impl<'a, B: Bus<'a>> SSD1306<'a, B> {
         app_write_buffer: &'static mut [u8],
         bus_write_buffer: &'static mut [u8],
         aux_write_buffer: &'static mut [u8],
-        deferred_caller: &'a DynamicDeferredCall,
+        deferred_caller: DeferredCall,
     ) -> SSD1306<'a, B> {
         SSD1306 {
             bus,
@@ -378,8 +376,7 @@ impl<'a, B: Bus<'a>> SSD1306<'a, B> {
             screen_client: OptionalCell::empty(),
             frame_buffer_client: OptionalCell::empty(),
             initial_write: Cell::new(false),
-            deferred_caller,
-            handle: OptionalCell::empty(),
+            deferred_caller: deferred_caller,
             invert: Cell::new(false),
         }
     }
@@ -394,9 +391,9 @@ impl<'a, B: Bus<'a>> SSD1306<'a, B> {
         }
     }
 
-    pub fn initialize_callback_handle(&self, handle: DeferredCallHandle) {
-        self.handle.replace(handle);
-    }
+    // todo remove pub fn initialize_callback_handle(&self, handle: DeferredCallHandle) {
+    //     self.handle.replace(handle);
+    // }
 
     pub fn do_next_op(&self) {
         match self.status.get() {
@@ -674,7 +671,8 @@ impl<'a, B: Bus<'a>> FrameBuffer<'static> for SSD1306<'a, B> {
             });
             self.async_status
                 .set(ScreenAsyncCommand::AsyncFrameBufferCommand(Ok(())));
-            self.handle.map(|handle| self.deferred_caller.set(*handle));
+            // todo remove self.handle.map(|handle| self.deferred_caller.set(*handle));
+            self.deferred_caller.set();
             Ok(())
         } else {
             Err(ErrorCode::BUSY)
@@ -726,7 +724,8 @@ impl<'a, B: Bus<'a>> FrameBuffer<'static> for SSD1306<'a, B> {
             Err(ErrorCode::BUSY)
         };
         self.async_status.set(ScreenAsyncCommand::Write(ret));
-        self.handle.map(|handle| self.deferred_caller.set(*handle));
+        // todo removeself.handle.map(|handle| self.deferred_caller.set(*handle));
+        self.deferred_caller.set();
         ret
     }
 
@@ -775,14 +774,16 @@ impl<'a, B: Bus<'a>> Screen<'static> for SSD1306<'a, B> {
     fn set_brightness(&self, _brightness: u16) -> Result<(), kernel::ErrorCode> {
         self.async_status
             .set(ScreenAsyncCommand::AsyncScreenCommand(Ok(())));
-        self.handle.map(|handle| self.deferred_caller.set(*handle));
+        // todo remove self.handle.map(|handle| self.deferred_caller.set(*handle));
+        self.deferred_caller.set();
         Ok(())
     }
 
     fn set_power(&self, _enabled: bool) -> Result<(), kernel::ErrorCode> {
         self.async_status
             .set(ScreenAsyncCommand::AsyncScreenCommand(Ok(())));
-        self.handle.map(|handle| self.deferred_caller.set(*handle));
+        // todo remove self.handle.map(|handle| self.deferred_caller.set(*handle));
+        self.deferred_caller.set();
         Ok(())
     }
 
@@ -790,7 +791,8 @@ impl<'a, B: Bus<'a>> Screen<'static> for SSD1306<'a, B> {
         self.invert.replace(enabled);
         self.async_status
             .set(ScreenAsyncCommand::AsyncScreenCommand(Ok(())));
-        self.handle.map(|handle| self.deferred_caller.set(*handle));
+        //todo remove self.handle.map(|handle| self.deferred_caller.set(*handle));
+        self.deferred_caller.set();
         Ok(())
     }
 
@@ -799,7 +801,8 @@ impl<'a, B: Bus<'a>> Screen<'static> for SSD1306<'a, B> {
         // todo update origin and graphics mode
         self.async_status
             .set(ScreenAsyncCommand::AsyncScreenCommand(Ok(())));
-        self.handle.map(|handle| self.deferred_caller.set(*handle));
+        //todo remove self.handle.map(|handle| self.deferred_caller.set(*handle));
+        self.deferred_caller.set();
         Ok(())
     }
 }
@@ -822,8 +825,8 @@ impl<'a, B: Bus<'a>> FrameBufferSetup<'static> for SSD1306<'a, B> {
     }
 }
 
-impl<'a, B: Bus<'a>> DynamicDeferredCallClient for SSD1306<'a, B> {
-    fn call(&self, _: DeferredCallHandle) {
+impl<'a, B: Bus<'a>> DeferredCallClient for SSD1306<'a, B> {
+    fn handle_deferred_call(&self) {
         match self.async_status.get() {
             ScreenAsyncCommand::Idle => panic!("Received dynamic call without a caller"),
             ScreenAsyncCommand::AsyncScreenCommand(res) => {
@@ -859,5 +862,9 @@ impl<'a, B: Bus<'a>> DynamicDeferredCallClient for SSD1306<'a, B> {
                 );
             }
         }
+    }
+
+    fn register(&'static self) {
+        self.deferred_caller.register(self);
     }
 }

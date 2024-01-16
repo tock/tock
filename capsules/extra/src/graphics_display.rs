@@ -308,7 +308,7 @@ impl<'a> GraphicDisplay<'a> {
             || 0,
             |process_id| {
                 self.apps
-                    .enter(*process_id, |app, kernel_data| {
+                    .enter(process_id, |app, kernel_data| {
                         let position = app.write_position;
                         let mut len = app.write_len;
                         // debug!("position is {} and len is {}, (before, after) - ({}, {})", position, len, before, after);
