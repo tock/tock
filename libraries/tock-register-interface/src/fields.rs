@@ -537,7 +537,7 @@ macro_rules! impl_register_debug {
         pub struct Debug;
 
         impl $crate::debug::RegisterDebugInfo<$valtype> for Debug {
-            type EnumTypes = (
+            type EnumTypes = $crate::impl_register_debug!(@recurse
                 $(
                     $field::Value
                 ),*
@@ -556,13 +556,29 @@ macro_rules! impl_register_debug {
             }
 
             fn fields() -> impl $crate::debug::FieldDebug<$valtype, Self::EnumTypes> {
-                (
+                $crate::impl_register_debug!(@recurse
                     $(
                         $field
                     ),*
                 )
             }
         }
+    };
+    // implement types of the enum using recursive method
+    // i.e., the types and fields will become like
+    // (Foo, (Bar, (Baz)))
+    (
+        @recurse $enum_val:path, $($rest:path),+
+    ) => {
+        (
+            $enum_val,
+            $crate::impl_register_debug!(@recurse $($rest),+)
+        )
+    };
+    (
+        @recurse $enum_val:path $(,)?
+    ) => {
+        $enum_val
     };
 }
 
