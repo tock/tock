@@ -100,12 +100,6 @@ pub struct Platform {
     >,
     ieee802154_radio: &'static capsules_extra::ieee802154::RadioDriver<'static>,
     button: &'static capsules_core::button::Button<'static, nrf52840::gpio::GPIOPin<'static>>,
-    pconsole: &'static capsules_core::process_console::ProcessConsole<
-        'static,
-        { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
-        VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
-        components::process_console::Capability,
-    >,
     console: &'static capsules_core::console::Console<'static>,
     gpio: &'static capsules_core::gpio::GPIO<'static, nrf52840::gpio::GPIOPin<'static>>,
     led: &'static capsules_core::led::LedDriver<
@@ -388,17 +382,6 @@ pub unsafe fn start_particle_boron() -> (
     let uart_mux = components::console::UartMuxComponent::new(uart_channel, 115200)
         .finalize(components::uart_mux_component_static!());
 
-    let pconsole = components::process_console::ProcessConsoleComponent::new(
-        board_kernel,
-        uart_mux,
-        mux_alarm,
-        process_printer,
-        Some(cortexm4::support::reset),
-    )
-    .finalize(components::process_console_component_static!(
-        nrf52840::rtc::Rtc<'static>
-    ));
-
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
         board_kernel,
@@ -571,7 +554,6 @@ pub unsafe fn start_particle_boron() -> (
         button,
         ble_radio,
         ieee802154_radio,
-        pconsole,
         console,
         led,
         gpio,
@@ -596,7 +578,6 @@ pub unsafe fn start_particle_boron() -> (
     CHIP = Some(chip);
 
     debug!("Particle Boron: Initialization complete. Entering main loop\r");
-    let _ = platform.pconsole.start();
 
     //--------------------------------------------------------------------------
     // PROCESSES AND MAIN LOOP
