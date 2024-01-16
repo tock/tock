@@ -246,14 +246,19 @@ pub trait Screen<'a> {
     /// When finished, the driver will call the `write_complete()` callback.
     ///
     /// This function can be called multiple times if the write frame is larger
-    /// than the size of the available buffer. The write frame is only reset
-    /// when `set_write_frame()` is called.
+    /// than the size of the available buffer by setting `continue_write` to
+    /// `true`. If `continue_write` is false, the buffer write position will be
+    /// reset before the data are written.
     ///
     /// Return values:
     /// - `Ok(())`: Write is valid and will be sent to the screen.
     /// - `SIZE`: The buffer is too long for the selected write frame.
     /// - `BUSY`: Another write is in progress.
-    fn write(&self, buffer: SubSliceMut<'static, u8>) -> Result<(), ErrorCode>;
+    fn write(
+        &self,
+        buffer: SubSliceMut<'static, u8>,
+        continue_write: bool,
+    ) -> Result<(), ErrorCode>;
 
     /// Set the display brightness value.
     ///
