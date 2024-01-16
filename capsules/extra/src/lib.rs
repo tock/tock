@@ -36,7 +36,7 @@ pub mod fm25cl;
 pub mod ft6x06;
 pub mod fxos8700cq;
 pub mod gpio_async;
-pub mod graphics_display;
+pub mod graphic_display;
 pub mod hd44780;
 pub mod hmac;
 pub mod hmac_sha256;
