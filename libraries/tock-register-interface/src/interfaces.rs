@@ -275,6 +275,7 @@ pub trait Readable {
 ///
 /// [`register_bitfields`]: crate::register_bitfields
 #[cfg(any(feature = "register_debug", doc))]
+#[doc(cfg(feature = "register_debug"))]
 pub trait Debuggable: Readable {
     /// Returns a [`RegisterDebugValue`](crate::debug::RegisterDebugValue) that implements [`core::fmt::Debug`], the debug information
     /// is extracted from `<Register>::DebugInfo`.
@@ -292,6 +293,7 @@ pub trait Debuggable: Readable {
 
 // pass Readable implementation to Debuggable
 #[cfg(any(feature = "register_debug", doc))]
+#[doc(cfg(feature = "register_debug"))]
 impl<T: Readable> Debuggable for T {}
 
 /// Writeable register
