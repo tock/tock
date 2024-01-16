@@ -69,7 +69,7 @@ pub mod macros;
 #[cfg(feature = "register_types")]
 pub mod registers;
 
-#[cfg(feature = "register_debug")]
+#[cfg(any(feature = "register_debug", doc))]
 pub mod debug;
 
 mod local_register;

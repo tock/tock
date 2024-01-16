@@ -1,3 +1,14 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
+//! Register debug information
+//!
+//! This module provide types that is used when implementing a register description.
+//!
+//! These types allow to querying type information about a register that is later used for implementing
+//! [`fmt::Debug`] for the wrapper value [`RegisterDebugValue`].
+
 use core::fmt;
 
 use crate::{
