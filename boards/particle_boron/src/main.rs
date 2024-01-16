@@ -507,9 +507,9 @@ pub unsafe fn start_particle_boron() -> (
     // I2C Master/Slave
     //--------------------------------------------------------------------------
 
-    let i2c_master_buffer = static_init!([u8; 32], [0; 32]);
-    let i2c_slave_buffer1 = static_init!([u8; 32], [0; 32]);
-    let i2c_slave_buffer2 = static_init!([u8; 32], [0; 32]);
+    let i2c_master_buffer = static_init!([u8; 128], [0; 128]);
+    let i2c_slave_buffer1 = static_init!([u8; 128], [0; 128]);
+    let i2c_slave_buffer2 = static_init!([u8; 128], [0; 128]);
 
     let i2c_master_slave = static_init!(
         I2CMasterSlaveDriver<nrf52840::i2c::TWI<'static>>,
@@ -532,7 +532,7 @@ pub unsafe fn start_particle_boron() -> (
     base_peripherals.twi1.set_slave_client(i2c_master_slave);
     // Note: strongly suggested to use external pull-ups for higher speeds
     //       to maintain signal integrity.
-    base_peripherals.twi1.set_speed(nrf52840::i2c::Speed::K100);
+    base_peripherals.twi1.set_speed(nrf52840::i2c::Speed::K400);
 
     // I2C pin cfg for target
     nrf52840_peripherals.gpio_port[I2C_SDA_PIN].set_i2c_pin_cfg();
