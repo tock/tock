@@ -61,7 +61,6 @@
 // If we don't build any actual register types, we don't need unsafe
 // code in this crate
 #![cfg_attr(not(feature = "register_types"), forbid(unsafe_code))]
-#![feature(doc_cfg)]
 
 pub mod fields;
 pub mod interfaces;
@@ -71,7 +70,6 @@ pub mod macros;
 pub mod registers;
 
 #[cfg(any(feature = "register_debug", doc))]
-#[doc(cfg(feature = "register_debug"))]
 pub mod debug;
 
 mod local_register;
