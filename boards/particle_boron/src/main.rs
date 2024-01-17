@@ -380,7 +380,7 @@ pub unsafe fn start_particle_boron() -> (
 
     // Create a shared UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(uart_channel, 115200)
-        .finalize(components::uart_mux_component_static!());
+        .finalize(components::uart_mux_component_static!(132));
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
@@ -388,7 +388,7 @@ pub unsafe fn start_particle_boron() -> (
         capsules_core::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(components::console_component_static!());
+    .finalize(components::console_component_static!(132, 132));
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux)
         .finalize(components::debug_writer_component_static!());
