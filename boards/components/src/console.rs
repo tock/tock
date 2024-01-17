@@ -50,20 +50,20 @@ use capsules_core::console::DEFAULT_BUF_SIZE;
 
 #[macro_export]
 macro_rules! uart_mux_component_static {
-    () => {{
-        use capsules_core::virtualizers::virtual_uart::MuxUart;
-        use kernel::static_buf;
-        let UART_MUX = static_buf!(MuxUart<'static>);
-        let RX_BUF = static_buf!([u8; capsules_core::virtualizers::virtual_uart::RX_BUF_LEN]);
-        (UART_MUX, RX_BUF)
-    }};
-    ($rx_buffer_len: literal) => {{
+    // Common logic for both branches
+    ($rx_buffer_len: expr) => {{
         use capsules_core::virtualizers::virtual_uart::MuxUart;
         use kernel::static_buf;
         let UART_MUX = static_buf!(MuxUart<'static>);
         let RX_BUF = static_buf!([u8; $rx_buffer_len]);
         (UART_MUX, RX_BUF)
     }};
+    () => {
+        $crate::uart_mux_component_static!(capsules_core::virtualizers::virtual_uart::RX_BUF_LEN);
+    };
+    ($rx_buffer_len: literal) => {
+        $crate::uart_mux_component_static!($rx_buffer_len);
+    };
 }
 
 pub struct UartMuxComponent<const RX_BUF_LEN: usize> {
@@ -102,19 +102,9 @@ impl<const RX_BUF_LEN: usize> Component for UartMuxComponent<RX_BUF_LEN> {
 
 #[macro_export]
 macro_rules! console_component_static {
-    () => {{
+    // Common logic for both branches
+    ($rx_buffer_len: expr, $tx_buffer_len: expr) => {{
         use capsules_core::console::{Console, DEFAULT_BUF_SIZE};
-        use capsules_core::virtualizers::virtual_uart::UartDevice;
-        use kernel::static_buf;
-        let read_buf = static_buf!([u8; DEFAULT_BUF_SIZE]);
-        let write_buf = static_buf!([u8; DEFAULT_BUF_SIZE]);
-        // Create virtual device for console.
-        let console_uart = static_buf!(UartDevice);
-        let console = static_buf!(Console<'static>);
-        (write_buf, read_buf, console_uart, console)
-    }};
-    ($rx_buffer_len: literal, $tx_buffer_len: literal) => {{
-        use capsules_core::console::Console;
         use capsules_core::virtualizers::virtual_uart::UartDevice;
         use kernel::static_buf;
         let read_buf = static_buf!([u8; $rx_buffer_len]);
@@ -124,6 +114,12 @@ macro_rules! console_component_static {
         let console = static_buf!(Console<'static>);
         (write_buf, read_buf, console_uart, console)
     }};
+    () => {
+        $crate::console_component_static!(DEFAULT_BUF_SIZE, DEFAULT_BUF_SIZE);
+    };
+    ($rx_buffer_len: literal, $tx_buffer_len: literal) => {
+        $crate::console_component_static!($rx_buffer_len, $tx_buffer_len);
+    };
 }
 
 pub struct ConsoleComponent<const RX_BUF_LEN: usize, const TX_BUF_LEN: usize> {
