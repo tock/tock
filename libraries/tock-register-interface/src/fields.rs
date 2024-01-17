@@ -322,7 +322,7 @@ macro_rules! register_bitmasks {
     } => {
         $(#[$outer])*
         $( $crate::register_bitmasks!($valtype, $reg_desc, $(#[$inner])* $field, $offset, 1, []); )*
-        $crate::register_bitmasks!(@debug $valtype, $reg_mod, [$($field),*]);
+        $crate::register_bitmasks!(@debug $valtype, $reg_mod, $reg_desc, [$($field),*]);
     };
 
     {
@@ -335,7 +335,7 @@ macro_rules! register_bitmasks {
     } => {
         $(#[$outer])*
         $( $crate::register_bitmasks!($valtype, $reg_desc, $(#[$inner])* $field, $offset, 1, []); )*
-        $crate::register_bitmasks!(@debug $valtype, $reg_mod, [$($field),*]);
+        $crate::register_bitmasks!(@debug $valtype, $reg_mod, $reg_desc, [$($field),*]);
     };
 
     {
@@ -347,7 +347,7 @@ macro_rules! register_bitmasks {
     } => {
         $(#[$outer])*
         $( $crate::register_bitmasks!($valtype, $reg_desc, $(#[$inner])* $field, $offset, $numbits, []); )*
-        $crate::register_bitmasks!(@debug $valtype, $reg_mod, [$($field),*]);
+        $crate::register_bitmasks!(@debug $valtype, $reg_mod, $reg_desc, [$($field),*]);
     };
 
     {
@@ -361,7 +361,7 @@ macro_rules! register_bitmasks {
         $(#[$outer])*
         $( $crate::register_bitmasks!($valtype, $reg_desc, $(#[$inner])* $field, $offset, $numbits,
                               $values); )*
-        $crate::register_bitmasks!(@debug $valtype, $reg_mod, [$($field),*]);
+        $crate::register_bitmasks!(@debug $valtype, $reg_mod, $reg_desc, [$($field),*]);
     };
 
     {
@@ -488,18 +488,14 @@ macro_rules! register_bitmasks {
     // debug impl
     (
         // final implementation of the macro
-        @debug $valtype:ident, $reg_mod:ident, [$($field:ident),*]
+        @debug $valtype:ident, $reg_mod:ident, $reg_desc:ident, [$($field:ident),*]
     ) => {
-        /// Debug information type for the register.
-        pub struct Debug;
-
-        impl $crate::debug::RegisterDebugInfo<$valtype> for Debug {
+        impl $crate::debug::RegisterDebugInfo<$valtype> for $reg_desc {
             type EnumTypes = $crate::register_bitmasks!(@recurse
                 $(
                     $field::Value
                 ),*
             );
-            type R = Register;
 
             fn name() -> &'static str {
                 stringify!($reg_mod)
@@ -513,7 +509,7 @@ macro_rules! register_bitmasks {
                 ]
             }
 
-            fn fields() -> &'static [Field<$valtype, Self::R>] {
+            fn fields() -> &'static [Field<$valtype, Self>] {
                 &[
                     $(
                         $field

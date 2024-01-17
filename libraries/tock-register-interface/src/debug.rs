@@ -62,11 +62,9 @@ where
 /// - The name of the Register since we don't store that anywhere else.
 /// - The names of the fields in the register.
 /// - The fields themselves, these are of type [`Field`].
-pub trait RegisterDebugInfo<T: UIntLike> {
+pub trait RegisterDebugInfo<T: UIntLike>: RegisterLongName {
     /// A type containing a tuple of all the enum types used in the register in order
     type EnumTypes: EnumDebug<T>;
-    /// The type of the register.
-    type R: RegisterLongName;
 
     /// The name of the register.
     fn name() -> &'static str;
@@ -74,7 +72,9 @@ pub trait RegisterDebugInfo<T: UIntLike> {
     fn fields_names() -> &'static [&'static str];
     /// The fields themselves, these are of type [`Field`],
     /// these are returned as a tuple of fields.
-    fn fields() -> &'static [Field<T, Self::R>];
+    fn fields() -> &'static [Field<T, Self>]
+    where
+        Self: Sized;
 }
 
 /// `RegisterDebugValue` is a container for the debug information and the value of the register
@@ -95,7 +95,7 @@ impl<T, E> fmt::Debug for RegisterDebugValue<T, E>
 where
     T: UIntLike + 'static,
     E: RegisterDebugInfo<T>,
-    E::R: 'static,
+    E: 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut debug_struct = f.debug_struct(E::name());

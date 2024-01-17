@@ -38,7 +38,7 @@
 //!   example a memory-mapped UART register might transmit when
 //!   writing and receive when reading.
 //!
-//! - [`Debuggable`] (feature `register_debug`): indicates that the
+//! - [`Debuggable`]: indicates that the
 //!   register can be debugged with [`debug`](crate::interfaces::Debuggable::debug).
 //!   This will return a value that implements [`Debug`](core::fmt::Debug).
 //!   It makes debugging easier.
@@ -274,14 +274,13 @@ pub trait Readable {
 /// The `debug` method returns a value that implements [`core::fmt::Debug`].
 ///
 /// [`register_bitfields`]: crate::register_bitfields
-#[cfg(any(feature = "register_debug", doc))]
 pub trait Debuggable: Readable {
     /// Returns a [`RegisterDebugValue`](crate::debug::RegisterDebugValue) that implements [`core::fmt::Debug`], the debug information
     /// is extracted from `<Register>::DebugInfo`.
     #[inline]
-    fn debug<E>(&self) -> crate::debug::RegisterDebugValue<Self::T, E>
+    fn debug(&self) -> crate::debug::RegisterDebugValue<Self::T, Self::R>
     where
-        E: crate::debug::RegisterDebugInfo<Self::T, R = Self::R>,
+        Self::R: crate::debug::RegisterDebugInfo<Self::T>,
     {
         crate::debug::RegisterDebugValue {
             data: self.get(),
@@ -291,7 +290,6 @@ pub trait Debuggable: Readable {
 }
 
 // pass Readable implementation to Debuggable
-#[cfg(any(feature = "register_debug", doc))]
 impl<T: Readable> Debuggable for T {}
 
 /// Writeable register
