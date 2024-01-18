@@ -796,7 +796,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::Screen<'a> for ST77XX<'a, A, 
             let len = data.len();
             self.write_buffer.replace(data.take());
 
-            if continue_write == false {
+            if !continue_write {
                 // Writing new data for the first time, make sure to reset
                 // the screen buffer location to the beginning.
 
