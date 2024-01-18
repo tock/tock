@@ -11,9 +11,8 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
-#![feature(naked_functions)]
 
-use core::arch::asm;
+use core::arch::global_asm;
 
 use capsules_core::i2c_master::I2CMasterDriver;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
@@ -153,31 +152,35 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Ras
     }
 }
 
-/// Entry point used for debugger
-///
-/// When loaded using gdb, the Raspberry Pi Pico is not reset
-/// by default. Without this function, gdb sets the PC to the
-/// beginning of the flash. This is not correct, as the RP2040
-/// has a more complex boot process.
-///
-/// This function is set to be the entry point for gdb and is used
-/// to send the RP2040 back in the bootloader so that all the boot
-/// sequence is performed.
-#[no_mangle]
-#[naked]
-pub unsafe extern "C" fn jump_to_bootloader() {
-    asm!(
-        "
+#[allow(dead_code)]
+extern "C" {
+    /// Entry point used for debugger
+    ///
+    /// When loaded using gdb, the Raspberry Pi Pico is not reset
+    /// by default. Without this function, gdb sets the PC to the
+    /// beginning of the flash. This is not correct, as the RP2040
+    /// has a more complex boot process.
+    ///
+    /// This function is set to be the entry point for gdb and is used
+    /// to send the RP2040 back in the bootloader so that all the boot
+    /// sequence is performed.
+    fn jump_to_bootloader();
+}
+
+global_asm!(
+    "
+    .section .jump_to_bootloader, \"ax\"
+    .global jump_to_bootloader
+    .thumb_func
+  jump_to_bootloader:
     movs r0, #0
     ldr r1, =(0xe0000000 + 0x0000ed08)
     str r0, [r1]
     ldmia r0!, {{r1, r2}}
     msr msp, r1
     bx r2
-    ",
-        options(noreturn)
-    );
-}
+    "
+);
 
 fn init_clocks(peripherals: &Rp2040DefaultPeripherals) {
     // Start tick in watchdog
