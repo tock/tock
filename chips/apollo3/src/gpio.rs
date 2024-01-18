@@ -259,6 +259,20 @@ impl Port<'_> {
         let regs = GPIO_BASE;
 
         match sda.pin as usize {
+            40 => {
+                regs.padkey.set(115);
+                regs.padreg[10].modify(
+                    PADREG::PAD0PULL::SET
+                        + PADREG::PAD0INPEN::SET
+                        + PADREG::PAD0STRING::SET
+                        + PADREG::PAD0FNCSEL.val(0x4)
+                        + PADREG::PAD0RSEL.val(0x00),
+                );
+                regs.cfg[5].modify(CFG::GPIO0INCFG.val(0x00) + CFG::GPIO0OUTCFG.val(0x02));
+                regs.altpadcfgk
+                    .modify(ALTPADCFG::PAD0_DS1::SET + ALTPADCFG::PAD0_DS1::CLEAR);
+                regs.padkey.set(0x00);
+            }
             25 => {
                 regs.padkey.set(115);
                 regs.padreg[6].modify(
@@ -291,6 +305,20 @@ impl Port<'_> {
         }
 
         match scl.pin as usize {
+            39 => {
+                regs.padkey.set(115);
+                regs.padreg[9].modify(
+                    PADREG::PAD3PULL::SET
+                        + PADREG::PAD3INPEN::SET
+                        + PADREG::PAD3STRNG::SET
+                        + PADREG::PAD3FNCSEL.val(0x4)
+                        + PADREG::PAD3RSEL.val(0x00),
+                );
+                regs.cfg[4].modify(CFG::GPIO7INTD.val(0x00) + CFG::GPIO7OUTCFG.val(0x02));
+                regs.altpadcfgj
+                    .modify(ALTPADCFG::PAD3_DS1::SET + ALTPADCFG::PAD3_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
             27 => {
                 regs.padkey.set(115);
                 regs.padreg[6].modify(

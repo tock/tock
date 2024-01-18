@@ -37,6 +37,7 @@ members = [
     "boards/particle_boron",
     "boards/pico_explorer_base",
     "boards/raspberry_pi_pico",
+    "boards/apollo3/redboard_artemis_atp",
     "boards/apollo3/redboard_artemis_nano",
     "boards/apollo3/lora_things_plus",
     "boards/redboard_redv",
