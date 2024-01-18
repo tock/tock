@@ -6,10 +6,12 @@
 
 #![crate_name = "cortexm0"]
 #![crate_type = "rlib"]
-#![feature(naked_functions)]
 #![no_std]
 
 use core::fmt::Write;
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+use core::arch::global_asm;
 
 // Re-export the base generic cortex-m functions here as they are
 // valid on cortex-m0.
@@ -76,12 +78,18 @@ unsafe extern "C" fn generic_isr() {
 }
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
-#[naked]
-/// All ISRs are caught by this handler which disables the NVIC and switches to the kernel.
-unsafe extern "C" fn generic_isr() {
-    use core::arch::asm;
-    asm!(
-        "
+extern "C" {
+    /// All ISRs are caught by this handler which disables the NVIC and switches to the kernel.
+    pub fn generic_isr();
+}
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+global_asm!(
+    "
+    .section .generic_isr, \"ax\"
+    .global generic_isr
+    .thumb_func
+  generic_isr:
     /* Skip saving process state if not coming from user-space */
     ldr r0, 300f // MEXC_RETURN_PSP
     cmp lr, r0
@@ -155,29 +163,34 @@ unsafe extern "C" fn generic_isr() {
 200: // MEXC_RETURN_MSP
   .word 0xFFFFFFF9
 300: // MEXC_RETURN_PSP
-  .word 0xFFFFFFFD",
-        options(noreturn)
-    );
-}
+  .word 0xFFFFFFFD"
+);
 
 // Mock implementation for tests on Travis-CI.
 #[cfg(not(any(target_arch = "arm", target_os = "none")))]
-unsafe extern "C" fn systick_handler() {
+unsafe extern "C" fn systick_handler_m0() {
     unimplemented!()
 }
 
-/// The `systick_handler` is called when the systick interrupt occurs, signaling
-/// that an application executed for longer than its timeslice. This interrupt
-/// handler is no longer responsible for signaling to the kernel thread that an
-/// interrupt has occurred, but is slightly more efficient than the
-/// `generic_isr` handler on account of not needing to mark the interrupt as
-/// pending.
 #[cfg(all(target_arch = "arm", target_os = "none"))]
-#[naked]
-unsafe extern "C" fn systick_handler() {
-    use core::arch::asm;
-    asm!(
-        "
+extern "C" {
+    /// The `systick_handler` is called when the systick interrupt occurs, signaling
+    /// that an application executed for longer than its timeslice. This interrupt
+    /// handler is no longer responsible for signaling to the kernel thread that an
+    /// interrupt has occurred, but is slightly more efficient than the
+    /// `generic_isr` handler on account of not needing to mark the interrupt as
+    /// pending.
+    pub fn systick_handler_m0();
+}
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+global_asm!(
+    "
+    .section .systick_handler_m0, \"ax\"
+    .global systick_handler_m0
+    .thumb_func
+  systick_handler_m0:
+
     // Set thread mode to privileged to switch back to kernel mode.
     movs r0, #0
     msr CONTROL, r0
@@ -193,10 +206,8 @@ unsafe extern "C" fn systick_handler() {
 .align 4
 100: // ST_EXC_RETURN_MSP
   .word 0xFFFFFFF9
-    ",
-        options(noreturn)
-    );
-}
+    "
+);
 
 // Mock implementation for tests on Travis-CI.
 #[cfg(not(any(target_arch = "arm", target_os = "none")))]
@@ -205,11 +216,17 @@ unsafe extern "C" fn svc_handler() {
 }
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
-#[naked]
-unsafe extern "C" fn svc_handler() {
-    use core::arch::asm;
-    asm!(
-        "
+extern "C" {
+    pub fn svc_handler();
+}
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+global_asm!(
+    "
+  .section .svc_handler, \"ax\"
+  .global svc_handler
+  .thumb_func
+svc_handler:
   ldr r0, 200f // EXC_RETURN_MSP
   cmp lr, r0
   bne 100f
@@ -228,23 +245,29 @@ unsafe extern "C" fn svc_handler() {
   .word 0xFFFFFFF9
 300: // EXC_RETURN_PSP
   .word 0xFFFFFFFD
-  ",
-        options(noreturn)
-    );
-}
+  "
+);
 
 // Mock implementation for tests on Travis-CI.
 #[cfg(not(any(target_arch = "arm", target_os = "none")))]
 unsafe extern "C" fn hard_fault_handler() {
     unimplemented!()
 }
+
 #[cfg(all(target_arch = "arm", target_os = "none"))]
-#[naked]
-unsafe extern "C" fn hard_fault_handler() {
-    use core::arch::asm;
-    // If `kernel_stack` is non-zero, then hard-fault occurred in
-    // kernel, otherwise the hard-fault occurred in user.
-    asm!("
+extern "C" {
+    pub fn hard_fault_handler();
+}
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+// If `kernel_stack` is non-zero, then hard-fault occurred in
+// kernel, otherwise the hard-fault occurred in user.
+global_asm!(
+"
+    .section .hard_fault_handler, \"ax\"
+    .global hard_fault_handler
+    .thumb_func
+  hard_fault_handler:
     /*
      * Will be incremented to 1 when we determine that it was a fault
      * in the kernel
@@ -325,8 +348,7 @@ unsafe extern "C" fn hard_fault_handler() {
     .word 0xFFFFFFF9
     ",
     kernel_hard_fault_handler = sym hard_fault_handler_kernel,
-    options(noreturn));
-}
+);
 
 // Enum with no variants to ensure that this type is not instantiable. It is
 // only used to pass architecture-specific constants and functions via the
@@ -335,7 +357,7 @@ pub enum CortexM0 {}
 
 impl cortexm::CortexMVariant for CortexM0 {
     const GENERIC_ISR: unsafe extern "C" fn() = generic_isr;
-    const SYSTICK_HANDLER: unsafe extern "C" fn() = systick_handler;
+    const SYSTICK_HANDLER: unsafe extern "C" fn() = systick_handler_m0;
     const SVC_HANDLER: unsafe extern "C" fn() = svc_handler;
     const HARD_FAULT_HANDLER: unsafe extern "C" fn() = hard_fault_handler;
 

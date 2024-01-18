@@ -6,10 +6,12 @@
 
 #![crate_name = "cortexm0p"]
 #![crate_type = "rlib"]
-#![feature(naked_functions)]
 #![no_std]
 
 use core::fmt::Write;
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+use core::arch::global_asm;
 
 pub mod mpu {
     pub type MPU = cortexm::mpu::MPU<8, 256>;
@@ -30,16 +32,22 @@ use cortexm0::CortexM0;
 
 // Mock implementation for tests on Travis-CI.
 #[cfg(not(any(target_arch = "arm", target_os = "none")))]
-pub unsafe extern "C" fn svc_handler() {
+pub unsafe extern "C" fn svc_handler_m0p() {
     unimplemented!()
 }
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
-#[naked]
-pub unsafe extern "C" fn svc_handler() {
-    use core::arch::asm;
-    asm!(
-        "
+extern "C" {
+    pub fn svc_handler_m0p();
+}
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+global_asm!(
+    "
+  .section .svc_handler_m0p, \"ax\"
+  .global svc_handler_m0p
+  .thumb_func
+svc_handler_m0p:
   ldr r0, 100f // EXC_RETURN_MSP
   cmp lr, r0
   bne 300f // to_kernel
@@ -66,10 +74,8 @@ pub unsafe extern "C" fn svc_handler() {
   .word 0xFFFFFFF9
 200: // EXC_RETURN_PSP
   .word 0xFFFFFFFD
-  ",
-        options(noreturn)
-    );
-}
+  "
+);
 
 // Enum with no variants to ensure that this type is not instantiable. It is
 // only used to pass architecture-specific constants and functions via the
@@ -79,7 +85,7 @@ pub enum CortexM0P {}
 impl cortexm::CortexMVariant for CortexM0P {
     const GENERIC_ISR: unsafe extern "C" fn() = CortexM0::GENERIC_ISR;
     const SYSTICK_HANDLER: unsafe extern "C" fn() = CortexM0::SYSTICK_HANDLER;
-    const SVC_HANDLER: unsafe extern "C" fn() = svc_handler;
+    const SVC_HANDLER: unsafe extern "C" fn() = svc_handler_m0p;
     const HARD_FAULT_HANDLER: unsafe extern "C" fn() = CortexM0::HARD_FAULT_HANDLER;
 
     #[cfg(all(target_arch = "arm", target_os = "none"))]
