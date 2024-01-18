@@ -227,18 +227,24 @@ CARGO_FLAGS ?=
 
 # Add default flags to cargo. Boards can add additional options in
 # `CARGO_FLAGS`.
+CARGO_FLAGS_TOCK ?= \
+  $(VERBOSE_FLAGS) \
+  --target=$(TARGET) \
+  --package $(PLATFORM) \
+  --target-dir=$(TARGET_DIRECTORY) $(CARGO_FLAGS)
+
+# Add flags if we are compiling on nightly. If we are on stable, disallow
+# features.
 #
 # - `-Z build-std=core,compiler_builtins`: Build the std library from source
 #   using our optimization settings. This leads to significantly smaller binary
 #   sizes, and makes debugging easier since debug information for the core
 #   library is included in the resulting .elf file. See
 #   https://github.com/tock/tock/pull/2847 for more details.
-CARGO_FLAGS_TOCK ?= \
-  $(VERBOSE_FLAGS) \
-  -Z build-std=core,compiler_builtins \
-  --target=$(TARGET) \
-  --package $(PLATFORM) \
-  --target-dir=$(TARGET_DIRECTORY) $(CARGO_FLAGS)
+ifneq ($(USE_STABLE_RUST),1)
+  CARGO_FLAGS_TOCK += \
+    -Zbuild-std=core,compiler_builtins
+endif
 
 # Set the default flags we need for objdump to get a .lst file.
 OBJDUMP_FLAGS ?= --disassemble-all --source --section-headers --demangle
