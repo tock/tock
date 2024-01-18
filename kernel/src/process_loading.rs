@@ -78,19 +78,6 @@ pub enum ProcessLoadError {
     /// KernelVersion TBF header.
     IncompatibleKernelVersion { version: Option<(u16, u16)> },
 
-    /// The application checker requires credentials, but the TBF did
-    /// not include a credentials that meets the checker's
-    /// requirements. This can be either because the TBF has no
-    /// credentials or the checker policy did not accept any of the
-    /// credentials it has.
-    CredentialsNoAccept,
-
-    /// The process contained a credentials which was rejected by the verifier.
-    /// The u32 indicates which credentials was rejected: the first credentials
-    /// after the application binary is 0, and each subsequent credentials increments
-    /// this counter.
-    CredentialsReject(u32),
-
     /// Process loading error due (likely) to a bug in the kernel. If you get
     /// this error please open a bug report.
     InternalError,
@@ -163,12 +150,6 @@ impl fmt::Debug for ProcessLoadError {
                 ),
                 None => write!(f, "Process did not provide a TBF kernel version header"),
             },
-
-            ProcessLoadError::CredentialsNoAccept => write!(f, "No credentials accepted."),
-
-            ProcessLoadError::CredentialsReject(index) => {
-                write!(f, "Credentials index {} rejected.", index)
-            }
 
             ProcessLoadError::InternalError => write!(f, "Error in kernel. Likely a bug."),
         }
