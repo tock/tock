@@ -3,16 +3,14 @@ use kernel::{
     ErrorCode,
 };
 
-use kernel::deferred_call::{
-    DeferredCall, DeferredCallClient
-};
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 
 use crate::bus::{self, Bus, BusWidth};
+use core::cell::Cell;
 use kernel::hil::display::{
     Align, FrameBuffer, FrameBufferClient, FrameBufferSetup, GraphicsFrame, GraphicsMode,
     PixelFormat, Point, Rotation, Screen, ScreenClient, Tile,
 };
-use core::cell::Cell;
 
 pub const SLAVE_ADDRESS_WRITE: u8 = 0b0111100;
 pub const SLAVE_ADDRESS_READ: u8 = 0b0111101;

@@ -26,12 +26,12 @@
 //!         .finalize(components::graphic_display_component_static!(40960));
 //! ```
 
-use core::mem::MaybeUninit;
 use capsules_extra::graphic_display::GraphicDisplay;
-use kernel::hil::display;
+use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
+use kernel::hil::display;
 
 #[macro_export]
 macro_rules! graphic_display_component_static {

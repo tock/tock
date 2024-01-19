@@ -1,6 +1,6 @@
-use core::mem::MaybeUninit;
 use capsules_extra::bus;
 use capsules_extra::ssd1306;
+use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::deferred_call::DeferredCall;
 use kernel::deferred_call::DeferredCallClient;
@@ -97,7 +97,7 @@ impl<B: 'static + bus::Bus<'static>> Component for SSD1306Component<B> {
         ));
         self.bus.set_client(ssd1306);
 
-       // todo remove ssd1306.initialize_callback_handle(self.deferred_caller.register(ssd1306).unwrap());
+        // todo remove ssd1306.initialize_callback_handle(self.deferred_caller.register(ssd1306).unwrap());
 
         ssd1306.register();
         ssd1306

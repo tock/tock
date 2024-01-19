@@ -1,7 +1,7 @@
 //! Interface for screens and displays.
+use crate::ErrorCode;
 use core::ops::Add;
 use core::ops::Sub;
-use crate::ErrorCode;
 
 pub const MAX_BRIGHTNESS: u16 = 65535;
 
