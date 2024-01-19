@@ -108,7 +108,7 @@
 - Johnathan: Leon, I just saw your comments on Alistairs PR. There is still something wrong. Alistairs PR only fixes one out of the eight pins, but I am gonna go through and fix that whole config.
 - Leon: That is great to hear. The way I have been testing this is compiling and bootstrapping CW310 and seeing if it prints.
 - Leon: I would have liked to see which commit actually broke this.
-- Johnathan: It is from when Mccall (?) redid the pinmux driver.
+- Johnathan: It is from when Michał redid the pinmux driver.
 - Leon: More generally, I am now in a position where using the test infra I introduced last week I can run things on a CW310 and it works, which will be pretty nice.
 - Johnathan: I am about to go through a transition, since we are moving to hyberdebug with a different board.
 - Leon: Did you get a CW340?
