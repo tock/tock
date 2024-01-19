@@ -182,7 +182,30 @@ impl<'a> uart::ReceiveClient for MuxUart<'a> {
         // we just received, or if a new receive has been started, we start the
         // underlying UART receive again.
         if read_pending {
-            self.start_receive(next_read_len);
+            if let Err((e, buf)) = self.start_receive(next_read_len) {
+                self.buffer.replace(buf);
+
+                // Report the error to all devices
+                self.devices.iter().for_each(|device| {
+                    if device.receiver {
+                        device.rx_buffer.take().map(|rxbuf| {
+                            let state = device.state.get();
+                            let position = device.rx_position.get();
+
+                            if state == UartDeviceReceiveState::Receiving {
+                                device.state.set(UartDeviceReceiveState::Idle);
+
+                                device.received_buffer(
+                                    rxbuf,
+                                    position,
+                                    Err(e),
+                                    uart::Error::Aborted,
+                                );
+                            }
+                        });
+                    }
+                });
+            }
         }
     }
 }
@@ -253,27 +276,27 @@ impl<'a> MuxUart<'a> {
     /// 2. We are in the midst of a read: abort so we can start a new read now
     ///    (return true)
     /// 3. We are idle: start reading (return false)
-    fn start_receive(&self, rx_len: usize) -> bool {
+    fn start_receive(&self, rx_len: usize) -> Result<bool, (ErrorCode, &'static mut [u8])> {
         self.buffer.take().map_or_else(
             || {
                 // No rxbuf which means a read is ongoing
                 if self.completing_read.get() {
                     // Case (1). Do nothing here, `received_buffer()` handler
                     // will call start_receive when ready.
-                    false
+                    Ok(false)
                 } else {
                     // Case (2). Stop the previous read so we can use the
                     // `received_buffer()` handler to recalculate the minimum
                     // length for a read.
                     let _ = self.uart.receive_abort();
-                    true
+                    Ok(true)
                 }
             },
             |rxbuf| {
                 // Case (3). No ongoing receive calls, we can start one now.
                 let len = cmp::min(rx_len, rxbuf.len());
-                let _ = self.uart.receive_buffer(rxbuf, len);
-                false
+                self.uart.receive_buffer(rxbuf, len)?;
+                Ok(false)
             },
         )
     }
@@ -452,7 +475,7 @@ impl<'a> uart::Receive<'a> for UartDevice<'a> {
             self.rx_len.set(rx_len);
             self.rx_position.set(0);
             self.state.set(UartDeviceReceiveState::Idle);
-            self.mux.start_receive(rx_len);
+            self.mux.start_receive(rx_len)?;
             self.state.set(UartDeviceReceiveState::Receiving);
             Ok(())
         }

@@ -71,7 +71,7 @@ impl IoWrite for Writer {
 /// Panic handler.
 #[no_mangle]
 #[panic_handler]
-pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
+pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
     // User LD4 is connected to PG14
     // Have to reinitialize several peripherals because otherwise can't access them here.
     let rcc = stm32f429zi::rcc::Rcc::new();

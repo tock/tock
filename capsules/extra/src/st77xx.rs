@@ -161,7 +161,6 @@ const COLMOD: Command = Command {
 
 const MADCTL: Command = Command {
     id: 0x36,
-    /// Default Parameters:
     parameters: Some(&[0x00]),
     delay: 0,
 };
@@ -892,84 +891,73 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> bus::Client for ST77XX<'a, A, B, P> {
 #[allow(dead_code)]
 const GAMSET: Command = Command {
     id: 0x26,
-    /// Default parameters: Gama Set
+    // Default parameters: Gama Set
     parameters: Some(&[0]),
     delay: 0,
 };
 
 const FRMCTR1: Command = Command {
     id: 0xB1,
-    /// Default Parameters:
     parameters: Some(&[0x01, 0x2C, 0x2D]),
     delay: 0,
 };
 
 const FRMCTR2: Command = Command {
     id: 0xB2,
-    /// Default Parameters:
     parameters: Some(&[0x01, 0x2C, 0x2D]),
     delay: 0,
 };
 
 const FRMCTR3: Command = Command {
     id: 0xB3,
-    /// Default Parameters:
     parameters: Some(&[0x01, 0x2C, 0x2D, 0x01, 0x2C, 0x2D]),
     delay: 0,
 };
 
 const INVCTR: Command = Command {
     id: 0xB4,
-    /// Default Parameters:
     parameters: Some(&[0x07]),
     delay: 0,
 };
 
 const PWCTR1: Command = Command {
     id: 0xC0,
-    /// Default Parameters:
     parameters: Some(&[0xA2, 0x02, 0x84]),
     delay: 0,
 };
 
 const PWCTR2: Command = Command {
     id: 0xC1,
-    /// Default Parameters:
     parameters: Some(&[0xC5]),
     delay: 0,
 };
 
 const PWCTR3: Command = Command {
     id: 0xC2,
-    /// Default Parameters:
     parameters: Some(&[0x0A, 0x00]),
     delay: 0,
 };
 
 const PWCTR4: Command = Command {
     id: 0xC3,
-    /// Default Parameters:
     parameters: Some(&[0x8A, 0x2A]),
     delay: 0,
 };
 
 const PWCTR5: Command = Command {
     id: 0xC4,
-    /// Default Parameters:
     parameters: Some(&[0x8A, 0xEE]),
     delay: 0,
 };
 
 const VMCTR1: Command = Command {
     id: 0xC5,
-    /// Default Parameters:
     parameters: Some(&[0x0E]),
     delay: 0,
 };
 
 const GMCTRP1: Command = Command {
     id: 0xE0,
-    /// Default Parameters:
     parameters: Some(&[
         0x02, 0x1c, 0x07, 0x12, 0x37, 0x32, 0x29, 0x2d, 0x29, 0x25, 0x2B, 0x39, 0x00, 0x01, 0x03,
         0x10,
@@ -979,7 +967,6 @@ const GMCTRP1: Command = Command {
 
 const GMCTRN1: Command = Command {
     id: 0xE1,
-    /// Default Parameters:
     parameters: Some(&[
         0x03, 0x1d, 0x07, 0x06, 0x2E, 0x2C, 0x29, 0x2D, 0x2E, 0x2E, 0x37, 0x3F, 0x00, 0x00, 0x02,
         0x10,

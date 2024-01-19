@@ -394,7 +394,7 @@ impl<'a, A: time::Alarm<'a>> ThreadNetworkDriver<'a, A> {
             return Err((ErrorCode::FAIL, buf));
         }
 
-        let (offset, _) = encode_res.unwrap();
+        let (offset, ()) = encode_res.unwrap();
 
         // GENERAL NOTE: `self.crypto_sizelock`
         // This does not seem to be the most elegant solution. The `crypto_sizelock` arose from the fact
@@ -619,7 +619,7 @@ impl<'a, A: time::Alarm<'a>> UDPRecvClient for ThreadNetworkDriver<'a, A> {
                         );
                         self.recv_buffer.replace(SubSliceMut::new(buf));
                     },
-                    |_| (),
+                    |()| (),
                 )
             },
         );

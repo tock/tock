@@ -50,20 +50,20 @@ use capsules_core::console::DEFAULT_BUF_SIZE;
 
 #[macro_export]
 macro_rules! uart_mux_component_static {
-    () => {{
-        use capsules_core::virtualizers::virtual_uart::MuxUart;
-        use kernel::static_buf;
-        let UART_MUX = static_buf!(MuxUart<'static>);
-        let RX_BUF = static_buf!([u8; capsules_core::virtualizers::virtual_uart::RX_BUF_LEN]);
-        (UART_MUX, RX_BUF)
-    }};
-    ($rx_buffer_len: literal) => {{
+    // Common logic for both branches
+    ($rx_buffer_len: expr) => {{
         use capsules_core::virtualizers::virtual_uart::MuxUart;
         use kernel::static_buf;
         let UART_MUX = static_buf!(MuxUart<'static>);
         let RX_BUF = static_buf!([u8; $rx_buffer_len]);
         (UART_MUX, RX_BUF)
     }};
+    () => {
+        $crate::uart_mux_component_static!(capsules_core::virtualizers::virtual_uart::RX_BUF_LEN);
+    };
+    ($rx_buffer_len: literal) => {
+        $crate::uart_mux_component_static!($rx_buffer_len);
+    };
 }
 
 pub struct UartMuxComponent<const RX_BUF_LEN: usize> {
@@ -102,31 +102,38 @@ impl<const RX_BUF_LEN: usize> Component for UartMuxComponent<RX_BUF_LEN> {
 
 #[macro_export]
 macro_rules! console_component_static {
-    () => {{
+    // Common logic for both branches
+    ($rx_buffer_len: expr, $tx_buffer_len: expr) => {{
         use capsules_core::console::{Console, DEFAULT_BUF_SIZE};
         use capsules_core::virtualizers::virtual_uart::UartDevice;
         use kernel::static_buf;
-        let read_buf = static_buf!([u8; DEFAULT_BUF_SIZE]);
-        let write_buf = static_buf!([u8; DEFAULT_BUF_SIZE]);
+        let read_buf = static_buf!([u8; $rx_buffer_len]);
+        let write_buf = static_buf!([u8; $tx_buffer_len]);
         // Create virtual device for console.
         let console_uart = static_buf!(UartDevice);
         let console = static_buf!(Console<'static>);
         (write_buf, read_buf, console_uart, console)
     }};
+    () => {
+        $crate::console_component_static!(DEFAULT_BUF_SIZE, DEFAULT_BUF_SIZE);
+    };
+    ($rx_buffer_len: literal, $tx_buffer_len: literal) => {
+        $crate::console_component_static!($rx_buffer_len, $tx_buffer_len);
+    };
 }
 
-pub struct ConsoleComponent {
+pub struct ConsoleComponent<const RX_BUF_LEN: usize, const TX_BUF_LEN: usize> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     uart_mux: &'static MuxUart<'static>,
 }
 
-impl ConsoleComponent {
+impl<const RX_BUF_LEN: usize, const TX_BUF_LEN: usize> ConsoleComponent<RX_BUF_LEN, TX_BUF_LEN> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
         uart_mux: &'static MuxUart,
-    ) -> ConsoleComponent {
+    ) -> ConsoleComponent<RX_BUF_LEN, TX_BUF_LEN> {
         ConsoleComponent {
             board_kernel: board_kernel,
             driver_num: driver_num,
@@ -135,10 +142,12 @@ impl ConsoleComponent {
     }
 }
 
-impl Component for ConsoleComponent {
+impl<const RX_BUF_LEN: usize, const TX_BUF_LEN: usize> Component
+    for ConsoleComponent<RX_BUF_LEN, TX_BUF_LEN>
+{
     type StaticInput = (
-        &'static mut MaybeUninit<[u8; DEFAULT_BUF_SIZE]>,
-        &'static mut MaybeUninit<[u8; DEFAULT_BUF_SIZE]>,
+        &'static mut MaybeUninit<[u8; TX_BUF_LEN]>,
+        &'static mut MaybeUninit<[u8; RX_BUF_LEN]>,
         &'static mut MaybeUninit<UartDevice<'static>>,
         &'static mut MaybeUninit<console::Console<'static>>,
     );
@@ -147,9 +156,9 @@ impl Component for ConsoleComponent {
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
-        let write_buffer = s.0.write([0; DEFAULT_BUF_SIZE]);
+        let write_buffer = s.0.write([0; TX_BUF_LEN]);
 
-        let read_buffer = s.1.write([0; DEFAULT_BUF_SIZE]);
+        let read_buffer = s.1.write([0; RX_BUF_LEN]);
 
         let console_uart = s.2.write(UartDevice::new(self.uart_mux, true));
         console_uart.setup();

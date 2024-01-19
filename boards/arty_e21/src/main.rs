@@ -122,12 +122,15 @@ impl KernelResources<arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeriphe
     }
 }
 
-/// Main function.
-///
-/// This function is called from the arch crate after some very basic RISC-V
-/// and RAM setup.
-#[no_mangle]
-pub unsafe fn main() {
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+unsafe fn start() -> (
+    &'static kernel::Kernel,
+    ArtyE21,
+    &'static arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeripherals<'static>>,
+) {
     let peripherals = static_init!(ArtyExxDefaultPeripherals, ArtyExxDefaultPeripherals::new());
     peripherals.init();
 
@@ -139,7 +142,6 @@ pub unsafe fn main() {
     chip.initialize();
 
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
-    let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
@@ -296,5 +298,19 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&artye21, chip, None::<&kernel::ipc::IPC<0>>, &main_loop_cap);
+    (board_kernel, artye21, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, board, chip) = start();
+    board_kernel.kernel_loop(
+        &board,
+        chip,
+        None::<&kernel::ipc::IPC<0>>,
+        &main_loop_capability,
+    );
 }

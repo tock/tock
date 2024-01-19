@@ -822,7 +822,7 @@ impl ble_advertising::BleConfig for Radio<'_> {
         // Convert u8 to TxPower
         match nrf5x::constants::TxPower::try_from(tx_power) {
             // Invalid transmitting power, propogate error
-            Err(_) => Err(ErrorCode::NOSUPPORT),
+            Err(()) => Err(ErrorCode::NOSUPPORT),
             // Valid transmitting power, propogate success
             Ok(res) => {
                 self.tx_power.set(res);

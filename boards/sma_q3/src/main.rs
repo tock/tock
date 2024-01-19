@@ -73,9 +73,15 @@ static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText>
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
+type Bmp280Sensor = components::bmp280::Bmp280ComponentType<
+    VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+    capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52840::i2c::TWI<'static>>,
+>;
+type TemperatureDriver = components::temperature::TemperatureComponentType<Bmp280Sensor>;
+
 /// Supported drivers by the platform
 pub struct Platform {
-    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temperature: &'static TemperatureDriver,
     ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
         'static,
         nrf52840::ble_radio::Radio<'static>,
@@ -360,7 +366,9 @@ pub unsafe fn main() {
         capsules_extra::temperature::DRIVER_NUM,
         &base_peripherals.temp,
     )
-    .finalize(components::temperature_component_static!());
+    .finalize(components::temperature_component_static!(
+        nrf52840::temperature::Temp
+    ));
 
     let sensors_i2c_bus = static_init!(
         capsules_core::virtualizers::virtual_i2c::MuxI2C<'static, nrf52840::i2c::TWI>,
@@ -389,7 +397,7 @@ pub unsafe fn main() {
         capsules_extra::temperature::DRIVER_NUM,
         bmp280,
     )
-    .finalize(components::temperature_component_static!());
+    .finalize(components::temperature_component_static!(Bmp280Sensor));
 
     let rng = components::rng::RngComponent::new(
         board_kernel,

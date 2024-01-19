@@ -15,6 +15,7 @@ pub mod chip;
 pub mod clkgen;
 pub mod gpio;
 pub mod iom;
+pub mod ios;
 pub mod mcuctrl;
 pub mod nvic;
 pub mod pwrctrl;

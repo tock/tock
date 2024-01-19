@@ -15,12 +15,19 @@ use kernel::hil::adc::AdcChannel;
 macro_rules! temperature_stm_adc_component_static {
     ($A:ty $(,)?) => {{
         let adc_device = components::adc_component_static!($A);
-        let temperature_stm =
-            kernel::static_buf!(capsules_extra::temperature_stm::TemperatureSTM<'static>);
+        let temperature_stm = kernel::static_buf!(
+            capsules_extra::temperature_stm::TemperatureSTM<
+                'static,
+                capsules_core::virtualizers::virtual_adc::AdcDevice<'static, $A>,
+            >
+        );
 
         (adc_device, temperature_stm)
     };};
 }
+
+pub type TemperatureSTMComponentType<A> =
+    capsules_extra::temperature_stm::TemperatureSTM<'static, A>;
 
 pub struct TemperatureSTMComponent<A: 'static + adc::Adc<'static>> {
     adc_mux: &'static capsules_core::virtualizers::virtual_adc::MuxAdc<'static, A>,
@@ -48,9 +55,9 @@ impl<A: 'static + adc::Adc<'static>> TemperatureSTMComponent<A> {
 impl<A: 'static + adc::Adc<'static>> Component for TemperatureSTMComponent<A> {
     type StaticInput = (
         &'static mut MaybeUninit<AdcDevice<'static, A>>,
-        &'static mut MaybeUninit<TemperatureSTM<'static>>,
+        &'static mut MaybeUninit<TemperatureSTM<'static, AdcDevice<'static, A>>>,
     );
-    type Output = &'static TemperatureSTM<'static>;
+    type Output = &'static TemperatureSTM<'static, AdcDevice<'static, A>>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let adc_device =

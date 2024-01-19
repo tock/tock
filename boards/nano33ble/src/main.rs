@@ -115,6 +115,11 @@ fn baud_rate_reset_bootloader_enter() {
     }
 }
 
+type HTS221Sensor = components::hts221::Hts221ComponentType<
+    capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52840::i2c::TWI<'static>>,
+>;
+type TemperatureDriver = components::temperature::TemperatureComponentType<HTS221Sensor>;
+
 /// Supported drivers by the platform
 pub struct Platform {
     ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
@@ -137,7 +142,7 @@ pub struct Platform {
         components::process_console::Capability,
     >,
     proximity: &'static capsules_extra::proximity::ProximitySensor<'static>,
-    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temperature: &'static TemperatureDriver,
     humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
     gpio: &'static capsules_core::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
     led: &'static capsules_core::led::LedDriver<
@@ -476,8 +481,8 @@ pub unsafe fn start() -> (
         nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
     );
 
-    let _ = &nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].make_output();
-    let _ = &nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].set();
+    nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].make_output();
+    nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].set();
 
     let apds9960 = components::apds9960::Apds9960Component::new(
         sensors_i2c_bus,
@@ -499,7 +504,7 @@ pub unsafe fn start() -> (
         capsules_extra::temperature::DRIVER_NUM,
         hts221,
     )
-    .finalize(components::temperature_component_static!());
+    .finalize(components::temperature_component_static!(HTS221Sensor));
     let humidity = components::humidity::HumidityComponent::new(
         board_kernel,
         capsules_extra::humidity::DRIVER_NUM,

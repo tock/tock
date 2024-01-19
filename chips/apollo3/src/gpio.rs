@@ -145,8 +145,16 @@ impl Port<'_> {
         match rx_pin.pin as usize {
             49 => {
                 regs.padkey.set(115);
-                regs.padreg[12].modify(PADREG::PAD1INPEN::SET);
-                regs.cfg[6].modify(CFG::GPIO1INTD.val(0x00) + CFG::GPIO1OUTCFG.val(0x00));
+                regs.padreg[12].modify(
+                    PADREG::PAD1PULL::CLEAR
+                        + PADREG::PAD1INPEN::SET
+                        + PADREG::PAD1STRNG::CLEAR
+                        + PADREG::PAD1FNCSEL::CLEAR
+                        + PADREG::PAD1RSEL::CLEAR,
+                );
+                regs.cfg[6].modify(
+                    CFG::GPIO1INCFG::CLEAR + CFG::GPIO1INTD.val(0x00) + CFG::GPIO1OUTCFG.val(0x00),
+                );
                 regs.altpadcfgm
                     .modify(ALTPADCFG::PAD1_DS1::CLEAR + ALTPADCFG::PAD1_SR::CLEAR);
                 regs.padkey.set(0x00);
@@ -308,6 +316,54 @@ impl Port<'_> {
                 regs.cfg[0].modify(CFG::GPIO5OUTCFG.val(0x03) + CFG::GPIO1OUTCFG.val(0x00));
                 regs.altpadcfgb
                     .modify(ALTPADCFG::PAD1_DS1::SET + ALTPADCFG::PAD1_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
+            _ => {
+                panic!("scl not supported");
+            }
+        }
+    }
+
+    pub fn enable_i2c_slave(&self, sda: &GpioPin, scl: &GpioPin) {
+        let regs = GPIO_BASE;
+
+        match sda.pin as usize {
+            1 => {
+                regs.padkey.set(115);
+                regs.padreg[0].modify(
+                    PADREG::PAD1PULL::SET
+                        + PADREG::PAD1INPEN::SET
+                        + PADREG::PAD1STRNG::CLEAR
+                        + PADREG::PAD1FNCSEL.val(0x00)
+                        + PADREG::PAD1RSEL.val(0x00),
+                );
+                regs.cfg[0].modify(
+                    CFG::GPIO1INCFG::CLEAR + CFG::GPIO1OUTCFG.val(0x02) + CFG::GPIO1INTD::CLEAR,
+                );
+                regs.altpadcfga
+                    .modify(ALTPADCFG::PAD1_DS1::CLEAR + ALTPADCFG::PAD1_SR::CLEAR);
+                regs.padkey.set(0x00);
+            }
+            _ => {
+                panic!("sda not supported");
+            }
+        }
+
+        match scl.pin as usize {
+            0 => {
+                regs.padkey.set(115);
+                regs.padreg[0].modify(
+                    PADREG::PAD0PULL::CLEAR
+                        + PADREG::PAD0INPEN::SET
+                        + PADREG::PAD0STRING::CLEAR
+                        + PADREG::PAD0FNCSEL.val(0x0)
+                        + PADREG::PAD0RSEL.val(0x0),
+                );
+                regs.cfg[0].modify(
+                    CFG::GPIO0INCFG::CLEAR + CFG::GPIO0OUTCFG.val(0x0) + CFG::GPIO0INTD::CLEAR,
+                );
+                regs.altpadcfga
+                    .modify(ALTPADCFG::PAD0_DS1::CLEAR + ALTPADCFG::PAD0_SR::CLEAR);
                 regs.padkey.set(0x00);
             }
             _ => {

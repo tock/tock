@@ -181,6 +181,10 @@ type KVStorePermissions = components::kv::KVStorePermissionsComponentType<TicKVK
 type VirtualKVPermissions = components::kv::VirtualKVPermissionsComponentType<KVStorePermissions>;
 type KVDriver = components::kv::KVDriverComponentType<VirtualKVPermissions>;
 
+// Temperature
+type TemperatureDriver =
+    components::temperature::TemperatureComponentType<nrf52840::temperature::Temp<'static>>;
+
 /// Supported drivers by the platform
 pub struct Platform {
     ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
@@ -205,7 +209,7 @@ pub struct Platform {
     >,
     rng: &'static capsules_core::rng::RngDriver<'static>,
     adc: &'static capsules_core::adc::AdcDedicated<'static, nrf52840::adc::Adc<'static>>,
-    temp: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temp: &'static TemperatureDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     analog_comparator: &'static capsules_extra::analog_comparator::AnalogComparator<
         'static,
@@ -639,7 +643,9 @@ pub unsafe fn main() {
         capsules_extra::temperature::DRIVER_NUM,
         &base_peripherals.temp,
     )
-    .finalize(components::temperature_component_static!());
+    .finalize(components::temperature_component_static!(
+        nrf52840::temperature::Temp
+    ));
 
     //--------------------------------------------------------------------------
     // RANDOM NUMBER GENERATOR
@@ -862,19 +868,19 @@ pub unsafe fn main() {
     // ctap.enable();
     // ctap.attach();
 
-    // Keyboard HID Example
-    //
+    // // Keyboard HID Example
+    // type UsbHw = nrf52840::usbd::Usbd<'static>;
+    // let usb_device = &nrf52840_peripherals.usbd;
+
     // let (keyboard_hid, keyboard_hid_driver) = components::keyboard_hid::KeyboardHidComponent::new(
     //     board_kernel,
     //     capsules_core::driver::NUM::KeyboardHid as usize,
-    //     &nrf52840_peripherals.usbd,
+    //     usb_device,
     //     0x1915, // Nordic Semiconductor
     //     0x503a,
     //     strings,
     // )
-    // .finalize(components::keyboard_hid_component_static!(
-    //     nrf52840::usbd::Usbd
-    // ));
+    // .finalize(components::keyboard_hid_component_static!(UsbHw));
 
     // keyboard_hid.enable();
     // keyboard_hid.attach();

@@ -11,9 +11,9 @@ differ significantly depending on the LiteX release and configuration
 options used. This board definition currently targets and has been
 tested with
 - [the LiteX SoC generator, revision
-  c4e635ea5c91ca](https://github.com/enjoy-digital/litex/tree/c4e635ea5c91ca)
+  a6d9955c9d3065](https://github.com/enjoy-digital/litex/tree/a6d9955c9d3065)
 - using the companion [target
-  file](https://github.com/litex-hub/litex-boards/blob/bf458e388efea4/litex_boards/targets/digilent_arty.py)
+  file](https://github.com/litex-hub/litex-boards/blob/52f9f0f1079085/litex_boards/targets/digilent_arty.py)
   from `litex-boards`
 - built around a VexRiscv-CPU with PMP, hardware multiplication and
   compressed instruction support (named `TockSecureIMC`)
@@ -24,7 +24,12 @@ tested with
   --cpu-variant=tock+secure+imc
   --csr-data-width=32
   --timer-uptime
+  --integrated-rom-size=0xb000
   --with-ethernet
+  --with-buttons
+  --with-xadc
+  --with-dna
+  --with-spi-flash
   ```
 
 The `tock+secure+imc` is a custom VexRiscv CPU variant, based on the
@@ -39,7 +44,7 @@ Verilog files and a patched LiteX version to support them) can be
 obtained from the [Tock on LiteX companion repository
 releases](https://github.com/lschuermann/tock-litex/releases/). The
 current board definition has been verified to work with [release
-2022081701](https://github.com/lschuermann/tock-litex/releases/tag/2022081701).
+2024011101](https://github.com/lschuermann/tock-litex/releases/tag/2024011101).
 The bitstream for this board is located in `digilent_arty_a7-35t.zip`
 or `digilent_arty_a7-100t.zip` under `gateware/digilent_arty.bit`.
 
@@ -59,18 +64,24 @@ and cores are supported:
 - [X] UART output via USB-FTDI
 - [X] Green onboard LEDs
 - [X] 100MBit/s Ethernet MAC
+- [X] GPIO Interface
+- [X] Buttons and Switches
 
 The following components and cores require porting:
-- [ ] GPIO Interface
-- [ ] Buttons and Switches
 - [ ] RGB LEDs
+- [ ] XADC Core
+- [ ] FPGA DNA Core
+- [ ] SPI Flash
 
 
 Building the SoC / Programming the FPGA
 ---------------------------------------
 
-Please refer to the [LiteX
-documentation](https://github.com/enjoy-digital/litex/wiki/) for
+The [Tock on LiteX companion
+repository](https://github.com/lschuermann/tock-litex) contains instructions for
+how to build the specific FPGA bitstream as targeted with this board
+definition. Please refer to the [LiteX
+documentation](https://github.com/enjoy-digital/litex/wiki/) for general
 instructions on how to install and use the LiteX SoC generator.
 
 Once LiteX and Xilinx Vivado is installed, building a bitstream should

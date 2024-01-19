@@ -386,7 +386,7 @@ impl<
                         });
 
                     match result {
-                        Ok(_) => kernel_data
+                        Ok(()) => kernel_data
                             .schedule_upcall(0, (0, pointer as usize, 0))
                             .ok(),
                         Err(e) => kernel_data

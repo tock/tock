@@ -99,7 +99,7 @@ impl led::Led for MatrixLed {
 #[cfg(not(test))]
 #[no_mangle]
 #[panic_handler]
-pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
+pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     // MicroBit v2 has an LED matrix, use the upper left LED
     // let mut led = Led (&gpio::PORT[Pin::P0_28], );
 

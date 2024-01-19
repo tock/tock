@@ -2,7 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! Tock syscall number definitions and arch-agnostic interface trait.
+//! Mechanisms for handling and defining system calls.
+//!
+//! This includes:
+//! - syscall class
+//! - error types
+//! - interface trait for context switches
 
 use core::convert::TryFrom;
 use core::fmt::Write;
@@ -78,13 +83,17 @@ impl TryFrom<u8> for SyscallClass {
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Syscall {
     /// Structure representing an invocation of the Yield system call class.
-    /// `which` is the Yield identifier value and `address` is the no wait field.
+    ///
+    /// - `which`: the Yield identifier value
+    /// - `address`: the no wait field
     Yield { which: usize, address: *mut u8 },
 
-    /// Structure representing an invocation of the Subscribe system call
-    /// class. `driver_number` is the driver identifier, `subdriver_number`
-    /// is the subscribe identifier, `upcall_ptr` is upcall pointer,
-    /// and `appdata` is the application data.
+    /// Structure representing an invocation of the Subscribe system call class.
+    ///
+    /// - `driver_number`: the driver identifier
+    /// - `subdriver_number`: the subscribe identifier
+    /// - `upcall_ptr`: upcall pointer to the upcall function
+    /// - `appdata`: userspace application data
     Subscribe {
         driver_number: usize,
         subdriver_number: usize,
@@ -93,8 +102,11 @@ pub enum Syscall {
     },
 
     /// Structure representing an invocation of the Command system call class.
-    /// `driver_number` is the driver identifier and `subdriver_number` is
-    /// the command identifier.
+    ///
+    /// - `driver_number`: the driver identifier
+    /// - `subdriver_number`: the command identifier
+    /// - `arg0`: value passed to the `Command` implementation
+    /// - `arg1`: value passed to the `Command` implementation
     Command {
         driver_number: usize,
         subdriver_number: usize,
@@ -103,9 +115,12 @@ pub enum Syscall {
     },
 
     /// Structure representing an invocation of the ReadWriteAllow system call
-    /// class. `driver_number` is the driver identifier, `subdriver_number` is
-    /// the buffer identifier, `allow_address` is the address, and `allow_size`
-    /// is the size.
+    /// class.
+    ///
+    /// - `driver_number`: the driver identifier
+    /// - `subdriver_number`: the buffer identifier
+    /// - `allow_address`: the address where the buffer starts
+    /// - `allow_size`: the size of the buffer in bytes
     ReadWriteAllow {
         driver_number: usize,
         subdriver_number: usize,
@@ -114,9 +129,12 @@ pub enum Syscall {
     },
 
     /// Structure representing an invocation of the ReadWriteAllow system call
-    /// class, but with shared kernel and app access. `driver_number` is the
-    /// driver identifier, `subdriver_number` is the buffer identifier,
-    // `allow_address` is the address, and `allow_size` is the size.
+    /// class, but with shared kernel and app access.
+    ///
+    /// - `driver_number`: the driver identifier
+    /// - `subdriver_number`: the buffer identifier
+    /// - `allow_address`: the address where the buffer starts
+    /// - `allow_size`: the size of the buffer in bytes
     UserspaceReadableAllow {
         driver_number: usize,
         subdriver_number: usize,
@@ -125,9 +143,12 @@ pub enum Syscall {
     },
 
     /// Structure representing an invocation of the ReadOnlyAllow system call
-    /// class. `driver_number` is the driver identifier, `subdriver_number` is
-    /// the buffer identifier, `allow_address` is the address, and `allow_size`
-    /// is the size.
+    /// class.
+    ///
+    /// - `driver_number`: the driver identifier
+    /// - `subdriver_number`: the buffer identifier
+    /// - `allow_address`: the address where the buffer starts
+    /// - `allow_size`: the size of the buffer in bytes
     ReadOnlyAllow {
         driver_number: usize,
         subdriver_number: usize,
@@ -135,14 +156,16 @@ pub enum Syscall {
         allow_size: usize,
     },
 
-    /// Structure representing an invocation of the Memop system call
-    /// class. `operand` is the operation and `arg0` is the operation
-    /// argument.
+    /// Structure representing an invocation of the Memop system call class.
+    ///
+    /// - `operand`: the operation
+    /// - `arg0`: the operation argument
     Memop { operand: usize, arg0: usize },
 
-    /// Structure representing an invocation of the Exit system call
-    /// class. `which` is the exit identifier and `completion_code` is
-    /// the completion code passed into the kernel.
+    /// Structure representing an invocation of the Exit system call class.
+    ///
+    /// - `which`: the exit identifier
+    /// - `completion_code`: the completion code passed into the kernel
     Exit {
         which: usize,
         completion_code: usize,
@@ -249,7 +272,7 @@ pub enum SyscallReturnVariant {
 /// types
 /// (e.g. [`ReadWriteProcessBuffer`](crate::processbuffer::ReadWriteProcessBuffer)
 /// and `GrantKernelData`) or wrappers around this struct
-/// ([`CommandReturn`](crate::syscall_driver::CommandReturn)) which limit the
+/// ([`CommandReturn`]) which limit the
 /// available constructors to safely constructable variants.
 #[derive(Copy, Clone, Debug)]
 pub enum SyscallReturn {

@@ -11,14 +11,14 @@
 //!
 //! Each trait has two associated type parameters, namely:
 //!
-//! - `T`: [`UIntLike`](crate::UIntLike), indicating the underlying
+//! - `T`: [`UIntLike`], indicating the underlying
 //!   integer type used to represent the register's raw contents.
 //!
-//! - `R`: [`RegisterLongName`](crate::RegisterLongName), functioning
+//! - `R`: [`RegisterLongName`], functioning
 //!   as a type to identify this register's descriptive name and
 //!   semantic meaning. It is further used to impose type constraints
 //!   on values passed through the API, such as
-//!   [`FieldValue`](crate::fields::FieldValue).
+//!   [`FieldValue`].
 //!
 //! Registers can have different access levels, which are mapped to
 //! different traits respectively:
@@ -39,7 +39,7 @@
 //!   writing and receive when reading.
 //!
 //!   If a type implements both [`Readable`] and [`Writeable`], and
-//!   the associated [`RegisterLongName`](crate::RegisterLongName)
+//!   the associated [`RegisterLongName`]
 //!   type parameters are identical, it will automatically implement
 //!   [`ReadWriteable`]. In particular, for
 //!   [`Aliased`](crate::registers::Aliased) this is -- in general --

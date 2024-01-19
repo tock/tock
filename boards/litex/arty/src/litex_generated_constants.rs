@@ -49,9 +49,10 @@ pub const CSR_ETHPHY_BASE: usize = CSR_BASE + 0x2800;
 pub const CSR_IDENTIFIER_MEM_BASE: usize = CSR_BASE + 0x3000;
 pub const CSR_LEDS_BASE: usize = CSR_BASE + 0x3800;
 pub const CSR_SDRAM_BASE: usize = CSR_BASE + 0x4000;
-pub const CSR_TIMER0_BASE: usize = CSR_BASE + 0x4800;
-pub const CSR_UART_BASE: usize = CSR_BASE + 0x5000;
-pub const CSR_XADC_BASE: usize = CSR_BASE + 0x5800;
+pub const CSR_SPIFLASH_CORE_BASE: usize = CSR_BASE + 0x4800;
+pub const CSR_TIMER0_BASE: usize = CSR_BASE + 0x5000;
+pub const CSR_UART_BASE: usize = CSR_BASE + 0x5800;
+pub const CSR_XADC_BASE: usize = CSR_BASE + 0x6000;
 
 // constants defined in `generated/mem.h`
 pub const MEM_ETHMAC_BASE: usize = 0x80000000;

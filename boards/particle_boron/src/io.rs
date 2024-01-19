@@ -67,7 +67,7 @@ const LED2_R_PIN: Pin = Pin::P0_13;
 #[no_mangle]
 #[panic_handler]
 /// Panic handler
-pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
+pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     // The nRF52840DK LEDs (see back of board)
     let led_kernel_pin = &nrf52840::gpio::GPIOPin::new(LED2_R_PIN);
     let led = &mut led::LedLow::new(led_kernel_pin);
