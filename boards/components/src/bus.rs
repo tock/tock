@@ -62,11 +62,11 @@ macro_rules! spi_bus_component_static {
 
 #[macro_export]
 macro_rules! i2c_master_bus_component_static {
-    ($I:ty $(,)?) => {{
+    () => {{
         let address_buffer = kernel::static_buf!([u8; 1]);
-        let bus = kernel::static_buf!(capsules_extra::bus::I2CMasterBus<'static, $I>);
+        let bus = kernel::static_buf!(capsules_extra::bus::I2CMasterBus<'static>);
         let i2c_device =
-            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, $I>);
+            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<'static>);
 
         (bus, i2c_device, address_buffer)
     };};

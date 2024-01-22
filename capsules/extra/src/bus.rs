@@ -330,7 +330,6 @@ impl<'a, I: I2CDevice> Bus<'a> for I2CMasterBus<'a, I> {
         let bytes = data_width.width_in_bytes();
         self.len.set(len * bytes);
 
-        //TODO: might crash
         if len * bytes < 255 && buffer.len() >= len * bytes {
             debug!("write len {}", len);
             self.len.set(len);
