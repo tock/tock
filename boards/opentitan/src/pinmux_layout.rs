@@ -113,10 +113,10 @@ impl EarlGreyPinmuxConfig for BoardPinmuxLayout {
         Out::GpioGpio12,    // Ioc2
         Out::ConstantHighZ, // Ioc3 UART3_RX
         Out::Uart0Tx,       // Ioc4 UART3_TX
-        Out::GpioGpio13,    // Ioc5
+        Out::ConstantHighZ, // Ioc5 (TAP STRAP 1)
         Out::GpioGpio14,    // Ioc6
         Out::GpioGpio15,    // Ioc7
-        Out::GpioGpio16,    // Ioc8
+        Out::ConstantHighZ, // Ioc8 (TAP STRAP 0)
         Out::GpioGpio17,    // Ioc9
         Out::GpioGpio18,    // Ioc10
         Out::GpioGpio19,    // Ioc11
