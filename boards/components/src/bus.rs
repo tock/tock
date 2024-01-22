@@ -65,11 +65,12 @@ macro_rules! i2c_master_bus_component_static {
     ($D:ty $(,)?) => {{
         let address_buffer = kernel::static_buf!([u8; 1]);
         let bus = kernel::static_buf!(capsules_extra::bus::I2CMasterBus<'static, $D>);
-        let i2c_device =
-            kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<
+        let i2c_device = kernel::static_buf!(
+            capsules_core::virtualizers::virtual_i2c::I2CDevice<
                 'static,
                 capsules_extra::bus::I2CMasterBus<'static, $D>,
-                >);
+            >
+        );
 
         (bus, i2c_device, address_buffer)
     };};
