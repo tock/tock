@@ -301,21 +301,7 @@ impl<'a, I: I2CDevice> Bus<'a> for I2CMasterBus<'a, I> {
                         }
                     }
                 }),
-            BusWidth::Bits16LE => self
-                .addr_buffer
-                .take()
-                .map_or(Err(ErrorCode::NOMEM), |buffer| {
-                    buffer[0] = 0x00;
-                    buffer[1] = addr as u8;
-                    self.status.set(BusStatus::SetAddress);
-                    match self.i2c.write(buffer, 2) {
-                        Ok(()) => Ok(()),
-                        Err((error, buffer)) => {
-                            self.addr_buffer.replace(buffer);
-                            Err(error.into())
-                        }
-                    }
-                }),
+
             _ => Err(ErrorCode::NOSUPPORT),
         }
     }
