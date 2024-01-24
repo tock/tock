@@ -46,6 +46,8 @@ macro_rules! screen_component_static {
     };};
 }
 
+pub type ScreenComponentType = capsules_extra::screen::Screen<'static>;
+
 pub struct ScreenComponent<const SCREEN_BUF_LEN: usize> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
@@ -89,9 +91,9 @@ impl<const SCREEN_BUF_LEN: usize> Component for ScreenComponent<SCREEN_BUF_LEN> 
             grant_screen,
         ));
 
-        kernel::hil::screen::Screen::set_client(self.screen, Some(screen));
+        kernel::hil::screen::Screen::set_client(self.screen, screen);
         if let Some(screen_setup) = self.screen_setup {
-            kernel::hil::screen::ScreenSetup::set_client(screen_setup, Some(screen));
+            kernel::hil::screen::ScreenSetup::set_client(screen_setup, screen);
         }
 
         screen
