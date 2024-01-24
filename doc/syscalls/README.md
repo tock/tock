@@ -98,6 +98,7 @@ _Note:_ GPIO is slated for re-numbering in Tock 2.0.
 |   | 0x50000       | App Flash        | Allow apps to write their own flash        |
 |   | 0x50001       | Nonvolatile Storage | Generic interface for persistent storage |
 |   | 0x50002       | SDCard           | Raw block access to an SD card             |
+|   | 0x50003       | [Key-Value](50003_key_value.md) | Access to a key-value storage database |
 
 ### Sensors
 
