@@ -1,6 +1,7 @@
 # Tock Meeting Notes 1/19/24
 
 ## Attendees
+- Alyssa Haroldsen
 - Alex Radovici
 - Amit Levy
 - Andrew Imwalle
