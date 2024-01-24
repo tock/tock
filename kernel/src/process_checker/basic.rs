@@ -273,20 +273,24 @@ impl Compress for AppCheckerSha256 {
 /// ```rust
 /// let checker = static_init!(
 ///     kernel::process_checker::basic::AppCheckerNames,
-///     kernel::process_checker::basic::AppCheckerNames::new()
+///     kernel::process_checker::basic::AppCheckerNames::new(
+///         crate::utilities::helpers::addhash_str
+///     )
 /// );
 /// kernel::deferred_call::DeferredCallClient::register(checker);
 /// ```
-pub struct AppCheckerNames<'a> {
+pub struct AppCheckerNames<'a, F: Fn(&'static str) -> u32> {
+    hasher: &'a F,
     deferred_call: DeferredCall,
     client: OptionalCell<&'a dyn Client<'a>>,
     credentials: OptionalCell<TbfFooterV2Credentials>,
     binary: OptionalCell<&'a [u8]>,
 }
 
-impl<'a> AppCheckerNames<'a> {
-    pub fn new() -> Self {
+impl<'a, F: Fn(&'static str) -> u32> AppCheckerNames<'a, F> {
+    pub fn new(hasher: &'a F) -> Self {
         Self {
+            hasher,
             deferred_call: DeferredCall::new(),
             client: OptionalCell::empty(),
             credentials: OptionalCell::empty(),
@@ -295,7 +299,7 @@ impl<'a> AppCheckerNames<'a> {
     }
 }
 
-impl<'a> DeferredCallClient for AppCheckerNames<'a> {
+impl<'a, F: Fn(&'static str) -> u32> DeferredCallClient for AppCheckerNames<'a, F> {
     fn handle_deferred_call(&self) {
         self.client.map(|c| {
             c.check_done(
@@ -311,7 +315,7 @@ impl<'a> DeferredCallClient for AppCheckerNames<'a> {
     }
 }
 
-impl<'a> AppCredentialsChecker<'a> for AppCheckerNames<'a> {
+impl<'a, F: Fn(&'static str) -> u32> AppCredentialsChecker<'a> for AppCheckerNames<'a, F> {
     fn require_credentials(&self) -> bool {
         false
     }
@@ -336,17 +340,17 @@ impl<'a> AppCredentialsChecker<'a> for AppCheckerNames<'a> {
     }
 }
 
-impl AppUniqueness for AppCheckerNames<'_> {
+impl<'a, F: Fn(&'static str) -> u32> AppUniqueness for AppCheckerNames<'a, F> {
     fn different_identifier(&self, _process_a: &dyn Process, _process_b: &dyn Process) -> bool {
         true
     }
 }
 
-impl Compress for AppCheckerNames<'_> {
+impl<'a, F: Fn(&'static str) -> u32> Compress for AppCheckerNames<'a, F> {
     fn to_short_id(&self, process: &dyn Process, _credentials: &TbfFooterV2Credentials) -> ShortID {
         let name = process.get_process_name();
-        let sum = crate::utilities::helpers::addhash_str(name);
-        match NonZeroU32::new(sum) {
+        let sum = (self.hasher)(name);
+        match core::num::NonZeroU32::new(sum) {
             Some(id) => ShortID::Fixed(id),
             None => ShortID::LocallyUnique,
         }
