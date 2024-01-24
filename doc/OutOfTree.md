@@ -53,6 +53,7 @@ something like:
     │   └── my_board
     │       ├── Cargo.toml
     │       ├── Makefile
+    │       ├── layout.ld
     │       └── src
     │           └── main.rs
     ├── my_drivers
@@ -96,6 +97,7 @@ to elements of Tock.
   name = "my_board"
   version = "0.1.0"
   authors = ["Example Developer <developer@example.com>"]
+  build = "../../tock/boards/build.rs"
 
   [profile.dev]
   panic = "abort"
@@ -115,7 +117,9 @@ to elements of Tock.
   my_drivers = { path = "../../my_drivers" }
   ```
 
-
+If using a linker script named `layout.ld`, your board crate can make use of the
+Tock submodule's `build.rs` script to ensure it rebuilds when any linker scripts
+change.
 
 Everything Else
 ---------------

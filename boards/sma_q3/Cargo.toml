@@ -9,7 +9,7 @@ authors = [
     "Tock Project Developers <tock-dev@googlegroups.com>",
     "Dorota <gihu.dcz@porcupinefactory.org>"
 ]
-build = "build.rs"
+build = "../build.rs"
 edition.workspace = true
 
 [dependencies]
