@@ -325,7 +325,7 @@ impl<'a, T> SubSliceMut<'a, T> {
         let end = match range.end_bound() {
             Bound::Included(e) => *e + 1,
             Bound::Excluded(e) => *e,
-            Bound::Unbounded => self.active_range.end,
+            Bound::Unbounded => self.active_range.end - self.active_range.start,
         };
 
         let new_start = self.active_range.start + start;
@@ -445,7 +445,7 @@ impl<'a, T> SubSlice<'a, T> {
         let end = match range.end_bound() {
             Bound::Included(e) => *e + 1,
             Bound::Excluded(e) => *e,
-            Bound::Unbounded => self.active_range.end,
+            Bound::Unbounded => self.active_range.end - self.active_range.start,
         };
 
         let new_start = self.active_range.start + start;
