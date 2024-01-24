@@ -1,5 +1,4 @@
 # Tock Meeting Notes 1/19/24
-============================
 
 ## Attendees
 - Alex Radovici
