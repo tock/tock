@@ -1609,7 +1609,7 @@ impl process_checker::Client<'static> for ProcessCheckerMachine {
             Ok(process_checker::CheckResult::Accept) => {
                 self.processes[self.process.get()].map(|p| {
                     let short_id = self.policy.map_or(ShortID::LocallyUnique, |policy| {
-                        policy.to_short_id(&credentials)
+                        policy.to_short_id(p, &credentials)
                     });
                     let _r =
                         p.mark_credentials_pass(Some(credentials), short_id, &self.approve_cap);

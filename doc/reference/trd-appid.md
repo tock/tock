@@ -929,7 +929,7 @@ impl PartialEq for ShortID {
 impl Eq for ShortID {}
 
 pub trait Compress {
-    fn to_short_id(process: &dyn Process) -> ShortID;
+    fn to_short_id(process: &dyn Process, credentials: &TbfFooterV2Credentials) -> ShortID;
 }
 ```
 
