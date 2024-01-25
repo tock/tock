@@ -9,6 +9,7 @@ Existing Working Groups
 
 - [Core](core/README.md)
 - [OpenTitan](opentitan/README.md)
+- [Documentation](documentation/README.md)
 
 
 Retired Working Groups
