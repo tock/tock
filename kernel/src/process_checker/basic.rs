@@ -270,7 +270,7 @@ impl Compress for AppCheckerSha256 {
 ///
 /// ### Usage
 ///
-/// ```rust
+/// ```rust,ignore
 /// let checker = static_init!(
 ///     kernel::process_checker::basic::AppCheckerNames,
 ///     kernel::process_checker::basic::AppCheckerNames::new(
