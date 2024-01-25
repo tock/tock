@@ -38,12 +38,6 @@
 //!   example a memory-mapped UART register might transmit when
 //!   writing and receive when reading.
 //!
-//! - [`Debuggable`]: indicates that the
-//!   register can be debugged with [`debug`](crate::interfaces::Debuggable::debug).
-//!   This will return a value that implements [`Debug`](core::fmt::Debug).
-//!   It makes debugging easier.
-//!   This is automticaly implemented for any register implementing [`Readable`].
-//!
 //!   If a type implements both [`Readable`] and [`Writeable`], and
 //!   the associated [`RegisterLongName`](crate::RegisterLongName)
 //!   type parameters are identical, it will automatically implement
@@ -85,6 +79,15 @@
 //!   };
 //!   ReadWriteable::modify(aliased_reg, A::DUMMY::SET);
 //!   ```
+//!
+//! - [`Debuggable`]: indicates that the register supports producing
+//!   human-readable debug output using the `RegisterDebugValue` type.
+//!   This type can be produced with the
+//!   [`debug`](crate::interfaces::Debuggable::debug) method.  This
+//!   will return a value that implements [`Debug`](core::fmt::Debug).
+//!   It is automticaly implemented for any register implementing
+//!   [`Readable`].
+//!
 //!
 //! ## Example: implementing a custom register type
 //!
@@ -266,8 +269,9 @@ pub trait Readable {
     }
 }
 
-/// [`Debuggable`] is a trait for types that can be printed with [`core::fmt::Debug`].
-/// It extends the [`Readable`] trait and doesn't require any manual implementation.
+/// [`Debuggable`] is a trait for registers that support human-readable debug
+/// output with [`core::fmt::Debug`].  It extends the [`Readable`] trait and
+/// doesn't require manual implementation.
 ///
 /// This is implemented for the register when using the [`register_bitfields`] macro.
 ///
@@ -275,8 +279,9 @@ pub trait Readable {
 ///
 /// [`register_bitfields`]: crate::register_bitfields
 pub trait Debuggable: Readable {
-    /// Returns a [`RegisterDebugValue`](crate::debug::RegisterDebugValue) that implements [`core::fmt::Debug`], the debug information
-    /// is extracted from `<Register>::DebugInfo`.
+    /// Returns a [`RegisterDebugValue`](crate::debug::RegisterDebugValue) that
+    /// implements [`core::fmt::Debug`], the debug information is extracted from
+    /// `<Register>::DebugInfo`.
     #[inline]
     fn debug(&self) -> crate::debug::RegisterDebugValue<Self::T, Self::R>
     where
