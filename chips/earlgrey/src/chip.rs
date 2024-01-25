@@ -4,13 +4,13 @@
 
 //! High-level setup and interrupt mapping for the chip.
 
-use core::fmt::Write;
+use core::fmt::{Display, Write};
 use core::marker::PhantomData;
 use kernel;
 use kernel::platform::chip::{Chip, InterruptService};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use rv32i::csr::{mcause, mie::mie, mtvec::mtvec, CSR};
-use rv32i::epmp::PMP;
+use rv32i::pmp::{PMPUserMPU, TORUserPMP};
 use rv32i::syscall::SysCall;
 
 use crate::chip_config::EarlGreyConfig;
@@ -21,12 +21,14 @@ use crate::plic::PLIC;
 
 pub struct EarlGrey<
     'a,
+    const MPU_REGIONS: usize,
     I: InterruptService + 'a,
     CFG: EarlGreyConfig + 'static,
     PINMUX: EarlGreyPinmuxConfig,
+    PMP: TORUserPMP<{ MPU_REGIONS }> + Display + 'static,
 > {
     userspace_kernel_boundary: SysCall,
-    pub pmp: PMP<8>,
+    pub mpu: PMPUserMPU<MPU_REGIONS, PMP>,
     plic: &'a Plic,
     timer: &'static crate::timer::RvTimer<'static, CFG>,
     pwrmgr: lowrisc::pwrmgr::PwrMgr,
@@ -135,16 +137,23 @@ impl<'a, CFG: EarlGreyConfig, PINMUX: EarlGreyPinmuxConfig> InterruptService
     }
 }
 
-impl<'a, I: InterruptService + 'a, CFG: EarlGreyConfig, PINMUX: EarlGreyPinmuxConfig>
-    EarlGrey<'a, I, CFG, PINMUX>
+impl<
+        'a,
+        const MPU_REGIONS: usize,
+        I: InterruptService + 'a,
+        CFG: EarlGreyConfig,
+        PINMUX: EarlGreyPinmuxConfig,
+        PMP: TORUserPMP<{ MPU_REGIONS }> + Display + 'static,
+    > EarlGrey<'a, MPU_REGIONS, I, CFG, PINMUX, PMP>
 {
     pub unsafe fn new(
         plic_interrupt_service: &'a I,
-        timer: &'static crate::timer::RvTimer<'_, CFG>,
+        timer: &'static crate::timer::RvTimer<CFG>,
+        pmp: PMP,
     ) -> Self {
         Self {
             userspace_kernel_boundary: SysCall::new(),
-            pmp: PMP::new(),
+            mpu: PMPUserMPU::new(pmp),
             plic: &PLIC,
             pwrmgr: lowrisc::pwrmgr::PwrMgr::new(crate::pwrmgr::PWRMGR_BASE),
             timer,
@@ -244,14 +253,20 @@ impl<'a, I: InterruptService + 'a, CFG: EarlGreyConfig, PINMUX: EarlGreyPinmuxCo
     }
 }
 
-impl<'a, I: InterruptService + 'a, CFG: EarlGreyConfig, PINMUX: EarlGreyPinmuxConfig>
-    kernel::platform::chip::Chip for EarlGrey<'a, I, CFG, PINMUX>
+impl<
+        'a,
+        const MPU_REGIONS: usize,
+        I: InterruptService + 'a,
+        CFG: EarlGreyConfig,
+        PINMUX: EarlGreyPinmuxConfig,
+        PMP: TORUserPMP<{ MPU_REGIONS }> + Display + 'static,
+    > kernel::platform::chip::Chip for EarlGrey<'a, MPU_REGIONS, I, CFG, PINMUX, PMP>
 {
-    type MPU = PMP<8>;
+    type MPU = PMPUserMPU<MPU_REGIONS, PMP>;
     type UserspaceKernelBoundary = SysCall;
 
     fn mpu(&self) -> &Self::MPU {
-        &self.pmp
+        &self.mpu
     }
 
     fn userspace_kernel_boundary(&self) -> &SysCall {
@@ -302,7 +317,7 @@ impl<'a, I: InterruptService + 'a, CFG: EarlGreyConfig, PINMUX: EarlGreyPinmuxCo
             CFG::NAME
         ));
         rv32i::print_riscv_state(writer);
-        let _ = writer.write_fmt(format_args!("{}", self.pmp));
+        let _ = writer.write_fmt(format_args!("{}", self.mpu.pmp));
     }
 }
 
