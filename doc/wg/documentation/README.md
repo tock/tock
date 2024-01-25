@@ -16,13 +16,16 @@ The goals of the Tock Documentation Working Group (DOC) are to:
 ## Members
 
 - Brad Campbell (Chair), University of Virginia
+- Branden Ghena, Northwestern University
 
 ## Code Purview
 
 The DOC working group maintains:
 
 - https://github.com/tock/book
-- https://github.com/tock/tock/tree/master/doc
+- A subset of https://github.com/tock/tock/tree/master/doc
+  - Syscall documentation
+  - General Tock documentation
 
 [book]: https://book.tockos.org/
 [api]: https://docs.tockos.org/kernel/
