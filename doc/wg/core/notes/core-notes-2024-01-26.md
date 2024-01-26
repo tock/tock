@@ -63,7 +63,7 @@
 
 ## Cortex-M Hardfault Handler
 * https://github.com/tock/tock/pull/3798
-* Leon: A lot of Brad's PRs are blocked on this. And it feels like a significant issue for our threat model. Issue is that I can't really test any Cortex-M changes.
+* Leon: A lot of Brad's PRs are blocked on this. And it feels like a significant issue for our threat model. Issue is that I can't really test any Cortex-M0 changes.
 * Alex: We have pico debuggers and I can help you with that. Let's take it offline.
 * Branden: So you just need to test on an M0?
 * Leon: Right. I tested on an M4, but I don't have an M0 right now.
