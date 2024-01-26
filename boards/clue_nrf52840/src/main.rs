@@ -143,6 +143,7 @@ type SHT3xSensor = components::sht3x::SHT3xComponentType<
     capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52840::i2c::TWI<'static>>,
 >;
 type TemperatureDriver = components::temperature::TemperatureComponentType<SHT3xSensor>;
+type HumidityDriver = components::humidity::HumidityComponentType<SHT3xSensor>;
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -187,7 +188,7 @@ pub struct Platform {
     >,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
     temperature: &'static TemperatureDriver,
-    humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
+    humidity: &'static HumidityDriver,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
@@ -629,7 +630,7 @@ unsafe fn start() -> (
         capsules_extra::humidity::DRIVER_NUM,
         sht3x,
     )
-    .finalize(components::humidity_component_static!());
+    .finalize(components::humidity_component_static!(SHT3xSensor));
 
     //--------------------------------------------------------------------------
     // TFT

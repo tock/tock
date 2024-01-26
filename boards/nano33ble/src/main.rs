@@ -119,6 +119,7 @@ type HTS221Sensor = components::hts221::Hts221ComponentType<
     capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52840::i2c::TWI<'static>>,
 >;
 type TemperatureDriver = components::temperature::TemperatureComponentType<HTS221Sensor>;
+type HumidityDriver = components::humidity::HumidityComponentType<HTS221Sensor>;
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -143,7 +144,7 @@ pub struct Platform {
     >,
     proximity: &'static capsules_extra::proximity::ProximitySensor<'static>,
     temperature: &'static TemperatureDriver,
-    humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
+    humidity: &'static HumidityDriver,
     gpio: &'static capsules_core::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
     led: &'static capsules_core::led::LedDriver<
         'static,
@@ -510,7 +511,7 @@ pub unsafe fn start() -> (
         capsules_extra::humidity::DRIVER_NUM,
         hts221,
     )
-    .finalize(components::humidity_component_static!());
+    .finalize(components::humidity_component_static!(HTS221Sensor));
 
     //--------------------------------------------------------------------------
     // WIRELESS

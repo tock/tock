@@ -53,6 +53,7 @@ type SI7021Sensor = components::si7021::SI7021ComponentType<
     capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, sam4l::i2c::I2CHw<'static>>,
 >;
 type TemperatureDriver = components::temperature::TemperatureComponentType<SI7021Sensor>;
+type HumidityDriver = components::humidity::HumidityComponentType<SI7021Sensor>;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -69,7 +70,7 @@ struct Hail {
     ambient_light: &'static capsules_extra::ambient_light::AmbientLight<'static>,
     temp: &'static TemperatureDriver,
     ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
-    humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
+    humidity: &'static HumidityDriver,
     spi: &'static capsules_core::spi_controller::Spi<
         'static,
         capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
@@ -340,7 +341,7 @@ unsafe fn start() -> (
         capsules_extra::humidity::DRIVER_NUM,
         si7021,
     )
-    .finalize(components::humidity_component_static!());
+    .finalize(components::humidity_component_static!(SI7021Sensor));
 
     // Configure the ISL29035, device address 0x44
     let isl29035 = components::isl29035::Isl29035Component::new(sensors_i2c, mux_alarm).finalize(

@@ -109,6 +109,7 @@ type BME280Sensor = components::bme280::Bme280ComponentType<
     capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, apollo3::iom::Iom<'static>>,
 >;
 type TemperatureDriver = components::temperature::TemperatureComponentType<BME280Sensor>;
+type HumidityDriver = components::humidity::HumidityComponentType<BME280Sensor>;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -147,7 +148,7 @@ struct LoRaThingsPlus {
         VirtualMuxAlarm<'static, apollo3::stimer::STimer<'static>>,
     >,
     temperature: &'static TemperatureDriver,
-    humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
+    humidity: &'static HumidityDriver,
     air_quality: &'static capsules_extra::air_quality::AirQualitySensor<'static>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
@@ -363,7 +364,7 @@ unsafe fn setup() -> (
         capsules_extra::humidity::DRIVER_NUM,
         bme280,
     )
-    .finalize(components::humidity_component_static!());
+    .finalize(components::humidity_component_static!(BME280Sensor));
     BME280 = Some(bme280);
 
     let ccs811 = Ccs811Component::new(mux_i2c, 0x5B).finalize(
