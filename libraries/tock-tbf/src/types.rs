@@ -618,7 +618,9 @@ impl core::convert::TryFrom<&'static [u8]> for TbfFooterV2Credentials {
             4 => TbfFooterV2CredentialsType::SHA384,
             5 => TbfFooterV2CredentialsType::SHA512,
             _ => {
-                return Err(TbfParseError::InternalError);
+                return Err(TbfParseError::BadTlvEntry(
+                    TbfHeaderTypes::TbfFooterCredentials as usize,
+                ));
             }
         };
         let length = match ftype {
