@@ -270,15 +270,15 @@ pub unsafe fn main() {
     let pmp = rv32i::pmp::kernel_protection::KernelProtectionPMP::new(
         rv32i::pmp::kernel_protection::FlashRegion(
             rv32i::pmp::NAPOTRegionSpec::new(
-                &_sflash as *const u8,                                           // start
-                &_eflash as *const u8 as usize - &_sflash as *const u8 as usize, // size
+                core::ptr::addr_of!(_sflash),
+                core::ptr::addr_of!(_eflash) as usize - core::ptr::addr_of!(_sflash) as usize,
             )
             .unwrap(),
         ),
         rv32i::pmp::kernel_protection::RAMRegion(
             rv32i::pmp::NAPOTRegionSpec::new(
-                &_ssram as *const u8,                                          // start
-                &_esram as *const u8 as usize - &_ssram as *const u8 as usize, // size
+                core::ptr::addr_of!(_ssram),
+                core::ptr::addr_of!(_esram) as usize - core::ptr::addr_of!(_ssram) as usize,
             )
             .unwrap(),
         ),
@@ -291,8 +291,8 @@ pub unsafe fn main() {
         ),
         rv32i::pmp::kernel_protection::KernelTextRegion(
             rv32i::pmp::TORRegionSpec::new(
-                &_stext as *const u8, // start
-                &_etext as *const u8, // end
+                core::ptr::addr_of!(_stext),
+                core::ptr::addr_of!(_etext),
             )
             .unwrap(),
         ),
@@ -603,12 +603,12 @@ pub unsafe fn main() {
         board_kernel,
         chip,
         core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
         ),
         core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+            core::ptr::addr_of_mut!(_sappmem),
+            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
         &mut PROCESSES,
         &FAULT_RESPONSE,

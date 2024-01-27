@@ -233,7 +233,10 @@ impl Pwm {
         // Setup the duty cycles
         unsafe {
             DUTY_CYCLES[0] = dc_out as u16;
-            self.registers.seq0.seq_ptr.set(&DUTY_CYCLES as *const u16);
+            self.registers
+                .seq0
+                .seq_ptr
+                .set(core::ptr::addr_of!(DUTY_CYCLES) as *const u16);
         }
         self.registers.seq0.seq_cnt.write(SEQ_CNT::CNT.val(1));
         self.registers

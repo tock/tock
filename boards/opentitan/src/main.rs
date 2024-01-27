@@ -335,15 +335,15 @@ unsafe fn setup() -> (
     let earlgrey_epmp = earlgrey::epmp::EarlGreyEPMP::new_debug(
         earlgrey::epmp::FlashRegion(
             rv32i::pmp::NAPOTRegionSpec::new(
-                &_sflash as *const u8,                                           // start
-                &_eflash as *const u8 as usize - &_sflash as *const u8 as usize, // size
+                core::ptr::addr_of!(_sflash),
+                core::ptr::addr_of!(_eflash) as usize - core::ptr::addr_of!(_sflash) as usize,
             )
             .unwrap(),
         ),
         earlgrey::epmp::RAMRegion(
             rv32i::pmp::NAPOTRegionSpec::new(
-                &_ssram as *const u8,                                          // start
-                &_esram as *const u8 as usize - &_ssram as *const u8 as usize, // size
+                core::ptr::addr_of!(_ssram),
+                core::ptr::addr_of!(_esram) as usize - core::ptr::addr_of!(_ssram) as usize,
             )
             .unwrap(),
         ),
@@ -356,8 +356,8 @@ unsafe fn setup() -> (
         ),
         earlgrey::epmp::KernelTextRegion(
             rv32i::pmp::TORRegionSpec::new(
-                &_stext as *const u8, // start
-                &_etext as *const u8, // end
+                core::ptr::addr_of!(_stext),
+                core::ptr::addr_of!(_etext),
             )
             .unwrap(),
         ),
@@ -589,8 +589,8 @@ unsafe fn setup() -> (
 
     // Allocate a flash protection region (associated cfg number: 0), for the code section.
     if let Err(e) = peripherals.flash_ctrl.mp_set_region_perms(
-        &_manifest as *const u8 as usize,
-        &_etext as *const u8 as usize,
+        core::ptr::addr_of!(_manifest) as usize,
+        core::ptr::addr_of!(_etext) as usize,
         0,
         &mp_cfg,
     ) {
@@ -739,8 +739,8 @@ unsafe fn setup() -> (
         crate::otbn::find_app(
             "otbn-rsa",
             core::slice::from_raw_parts(
-                &_sapps as *const u8,
-                &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+                core::ptr::addr_of!(_sapps),
+                core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
             ),
         )
     {
@@ -859,12 +859,12 @@ unsafe fn setup() -> (
         board_kernel,
         chip,
         core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
         ),
         core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+            core::ptr::addr_of_mut!(_sappmem),
+            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
         &mut PROCESSES,
         &FAULT_RESPONSE,

@@ -160,7 +160,7 @@ pub const USART3_BASE: StaticRef<UsartRegisters> =
 
 // for use by dma1
 pub(crate) fn get_address_dr(regs: StaticRef<UsartRegisters>) -> u32 {
-    &regs.dr as *const ReadWrite<u32> as u32
+    core::ptr::addr_of!(regs.dr) as u32
 }
 
 #[allow(non_camel_case_types)]

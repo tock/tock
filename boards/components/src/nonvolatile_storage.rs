@@ -15,8 +15,8 @@
 //!     &sam4l::flashcalw::FLASH_CONTROLLER,
 //!     0x60000,
 //!     0x20000,
-//!     &_sstorage as *const u8 as usize,
-//!     &_estorage as *const u8 as usize,
+//!     core::ptr::addr_of!(_sstorage) as usize,
+//!     core::ptr::addr_of!(_estorage) as usize,
 //! )
 //! .finalize(components::nonvolatile_storage_component_static!(
 //!     sam4l::flashcalw::FLASHCALW
