@@ -526,7 +526,18 @@ macro_rules! register_bitmasks {
         }
     };
 
-    // Build the recursive `FieldValueEnumSeq` type sequence:
+    // Build the recursive `FieldValueEnumSeq` type sequence. This will generate
+    // a type signature of the form:
+    //
+    // ```
+    // FieldValueEnumCons<u32, Foo,
+    //     FieldValueEnumCons<u32, Bar,
+    //         FieldValueEnumCons<u32, Baz,
+    //             FieldValueEnumNil
+    //         >
+    //     >
+    // >
+    // ```
     (
         @fv_enum_type_seq $valtype:ident, $enum_val:path $(, $($rest:path),+)?
     ) => {
