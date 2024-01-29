@@ -45,8 +45,8 @@ macro_rules! count_expressions {
 
 /// Compute the CRC-32B checksum of a string.
 ///
-/// Implementation based on https://lxp32.github.io/docs/a-simple-example-crc32-calculation/.
-/// Online calculator here: https://md5calc.com/hash/crc32b
+/// Implementation based on <https://lxp32.github.io/docs/a-simple-example-crc32-calculation/>.
+/// Online calculator here: <https://md5calc.com/hash/crc32b>.
 pub fn crc32b_str(s: &'static str) -> u32 {
     let mut crc: u32 = 0xFFFFFFFF;
 
