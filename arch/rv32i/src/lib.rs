@@ -14,7 +14,6 @@ use core::fmt::Write;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 
 pub mod clic;
-pub mod epmp;
 pub mod machine_timer;
 pub mod pmp;
 pub mod support;

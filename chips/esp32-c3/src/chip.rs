@@ -12,7 +12,7 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeabl
 use kernel::utilities::StaticRef;
 
 use rv32i::csr::{self, mcause, mtvec::mtvec, CSR};
-use rv32i::pmp::PMP;
+use rv32i::pmp::{simple::SimplePMP, PMPUserMPU};
 use rv32i::syscall::SysCall;
 
 use crate::intc::{Intc, IntcRegisters};
@@ -28,7 +28,7 @@ pub static mut INTC: Intc = Intc::new(INTC_BASE);
 
 pub struct Esp32C3<'a, I: InterruptService + 'a> {
     userspace_kernel_boundary: SysCall,
-    pub pmp: PMP<8>,
+    pub pmp: PMPUserMPU<8, SimplePMP<16>>,
     intc: &'a Intc,
     pic_interrupt_service: &'a I,
 }
@@ -81,7 +81,7 @@ impl<'a, I: InterruptService + 'a> Esp32C3<'a, I> {
     pub unsafe fn new(pic_interrupt_service: &'a I) -> Self {
         Self {
             userspace_kernel_boundary: SysCall::new(),
-            pmp: PMP::new(),
+            pmp: PMPUserMPU::new(SimplePMP::new().unwrap()),
             intc: &INTC,
             pic_interrupt_service,
         }
@@ -109,7 +109,7 @@ impl<'a, I: InterruptService + 'a> Esp32C3<'a, I> {
 }
 
 impl<'a, I: InterruptService + 'a> Chip for Esp32C3<'a, I> {
-    type MPU = PMP<8>;
+    type MPU = PMPUserMPU<8, SimplePMP<16>>;
     type UserspaceKernelBoundary = SysCall;
 
     fn service_pending_interrupts(&self) {

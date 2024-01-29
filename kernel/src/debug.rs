@@ -121,6 +121,16 @@ pub unsafe fn panic_print<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
     // Flush debug buffer if needed
     flush(writer);
     panic_cpu_state(chip, writer);
+
+    // Some systems may enforce memory protection regions for the
+    // kernel, making application memory inaccessible. However,
+    // priting process information will attempt to access memory. If
+    // we are provided a chip reference, attempt to disable userspace
+    // memory protection first:
+    chip.map(|c| {
+        use crate::platform::mpu::MPU;
+        c.mpu().disable_app_mpu()
+    });
     panic_process_info(processes, process_printer, writer);
 }
 
