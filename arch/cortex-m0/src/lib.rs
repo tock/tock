@@ -116,14 +116,6 @@ unsafe extern "C" fn hard_fault_handler_continued(faulting_stack: *mut u32, kern
             msr CONTROL, r0
             /* No ISB required on M0 */
             /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
-
-            ldr r0, 100f
-            mov lr, r0
-            b 200f // freturn
-    .align 4
-    100: // FEXC_RETURN_MSP
-      .word 0xFFFFFFF9
-    200: // freturn
         ",
             out("r1") _,
             out("r0") _,
@@ -333,9 +325,17 @@ unsafe extern "C" fn hard_fault_handler() {
 
 200: // _hardfault_exit
 
-    b {}    // Branch to the non-naked fault handler.
-    bx lr   // If continued function returns, we need to manually branch to
-            // link register.
+    bl {}    // Branch to the non-naked fault handler.
+
+    // Load the FEXC_RETURN_MSP LR address and return to it, to switch
+    // to the kernel (MSP) stack:
+    ldr r0, 300f
+    mov lr, r0
+    bx lr
+
+    .align 4
+300: // FEXC_RETURN_MSP
+    .word 0xFFFFFFF9
     ",
     sym hard_fault_handler_continued,
     options(noreturn));
