@@ -666,10 +666,7 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_continued(
         msr CONTROL, r0
         /* CONTROL writes must be followed by ISB */
         /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
-        isb
-
-        movw LR, #0xFFF9
-        movt LR, #0xFFFF",
+        isb",
             out("r1") _,
             out("r0") _,
             out("r2") _,
@@ -732,9 +729,14 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
         "moveq  sp, r4        /* Set the stack pointer to _estack */",
         // finally, branch to non-naked handler
         // per ARM calling convention, faulting stack is passed in r0, kernel_stack in r1,
-        // and whether there was a stack overflow in r2
-        "b {}", // branch to function
-        "bx lr", // if continued function returns, we need to manually branch to link register
+        // and whether there was a stack overflow in r2,
+        // we don't need to retain our original LR register
+        "bl {}", // branch to function
+        // if this function returns, then the hard fault occurred in
+        // userspace. In this case, switch to the kernel (MSP) stack:
+        "movw lr, #0xFFF9",
+        "movt lr, #0xFFFF",
+        "bx lr",
         sym _estack, sym hard_fault_handler_arm_v7m_continued,
         options(noreturn), // asm block never returns, so no need to mark clobbers
     );
