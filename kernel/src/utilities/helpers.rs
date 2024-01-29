@@ -42,3 +42,25 @@ macro_rules! count_expressions {
     ($head:expr $(,)?) => (1usize);
     ($head:expr, $($tail:expr),* $(,)?) => (1usize + count_expressions!($($tail),*));
 }
+
+/// Compute the CRC-32B checksum of a string.
+///
+/// Implementation based on https://lxp32.github.io/docs/a-simple-example-crc32-calculation/.
+/// Online calculator here: https://md5calc.com/hash/crc32b
+pub fn crc32b_str(s: &'static str) -> u32 {
+    let mut crc: u32 = 0xFFFFFFFF;
+
+    for c in s.chars() {
+        let mut c: u8 = c as u8;
+
+        for _i in 0..8 {
+            let b: u32 = ((c as u32) ^ crc) & 0x1;
+            crc >>= 1;
+            if b != 0 {
+                crc ^= 0xEDB88320;
+            }
+            c >>= 1;
+        }
+    }
+    !crc
+}
