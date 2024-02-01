@@ -6,8 +6,10 @@
 
 #![crate_name = "cortexv7m"]
 #![crate_type = "rlib"]
-#![feature(naked_functions)]
 #![no_std]
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+use core::arch::global_asm;
 
 // These constants are defined in the linker script.
 extern "C" {
@@ -20,16 +22,22 @@ extern "C" {
     static _erelocate: *const u32;
 }
 
-/// ARMv7-M systick handler function.
-///
-/// For documentation of this function, please see
-/// [`CortexMVariant::SYSTICK_HANDLER`].
 #[cfg(all(target_arch = "arm", target_os = "none"))]
-#[naked]
-pub unsafe extern "C" fn systick_handler_arm_v7m() {
-    use core::arch::asm;
-    asm!(
-        "
+extern "C" {
+    /// ARMv7-M systick handler function.
+    ///
+    /// For documentation of this function, please see
+    /// [`CortexMVariant::SYSTICK_HANDLER`].
+    pub fn systick_handler_arm_v7m();
+}
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+global_asm!(
+    "
+    .section .systick_handler_arm_v7m, \"ax\"
+    .global systick_handler_arm_v7m
+    .thumb_func
+  systick_handler_arm_v7m:
     // Use the CONTROL register to set the thread mode to privileged to switch
     // back to kernel mode.
     //
@@ -52,21 +60,25 @@ pub unsafe extern "C" fn systick_handler_arm_v7m() {
     // This will resume in the switch_to_user function where application state
     // is saved and the scheduler can choose what to do next.
     bx lr
-    ",
-        options(noreturn)
-    );
+    "
+);
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+extern "C" {
+    /// Handler of `svc` instructions on ARMv7-M.
+    ///
+    /// For documentation of this function, please see
+    /// [`CortexMVariant::SVC_HANDLER`].
+    pub fn svc_handler_arm_v7m();
 }
 
-/// Handler of `svc` instructions on ARMv7-M.
-///
-/// For documentation of this function, please see
-/// [`CortexMVariant::SVC_HANDLER`].
 #[cfg(all(target_arch = "arm", target_os = "none"))]
-#[naked]
-pub unsafe extern "C" fn svc_handler_arm_v7m() {
-    use core::arch::asm;
-    asm!(
-        "
+global_asm!(
+    "
+    .section .svc_handler_arm_v7m, \"ax\"
+    .global svc_handler_arm_v7m
+    .thumb_func
+  svc_handler_arm_v7m:
     // First check to see which direction we are going in. If the link register
     // is something other than 0xFFFFFFF9, then we are coming from an app which
     // has called a syscall.
@@ -126,20 +138,23 @@ pub unsafe extern "C" fn svc_handler_arm_v7m() {
 
     // Return to the kernel.
     bx lr
-    ",
-        options(noreturn)
-    );
-}
+    "
+);
 
-/// Generic interrupt handler for ARMv7-M instruction sets.
-///
-/// For documentation of this function, see [`CortexMVariant::GENERIC_ISR`].
 #[cfg(all(target_arch = "arm", target_os = "none"))]
-#[naked]
-pub unsafe extern "C" fn generic_isr_arm_v7m() {
-    use core::arch::asm;
-    asm!(
+extern "C" {
+    /// Generic interrupt handler for ARMv7-M instruction sets.
+    ///
+    /// For documentation of this function, see [`CortexMVariant::GENERIC_ISR`].
+    pub fn generic_isr_arm_v7m();
+}
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+global_asm!(
         "
+    .section .generic_isr_arm_v7m, \"ax\"
+    .global generic_isr_arm_v7m
+    .thumb_func
+  generic_isr_arm_v7m:
     // Use the CONTROL register to set the thread mode to privileged to ensure
     // we are executing as the kernel. This may be redundant if the interrupt
     // happened while the kernel code was executing.
@@ -203,10 +218,7 @@ pub unsafe extern "C" fn generic_isr_arm_v7m() {
     // doing. If an app was executing we will switch to the kernel so it can
     // choose whether to service the interrupt.
     bx lr
-    ",
-        options(noreturn)
-    );
-}
+    ");
 
 /// Assembly function to switch into userspace and store/restore application
 /// state.
@@ -427,22 +439,27 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
     }
 }
 
-/// ARMv7-M hardfault handler.
-///
-/// For documentation of this function, please see
-/// [`CortexMVariant::HARD_FAULT_HANDLER_HANDLER`].
 #[cfg(all(target_arch = "arm", target_os = "none"))]
-#[naked]
-pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
-    use core::arch::asm;
-    // First need to determine if this a kernel fault or a userspace fault, and store
-    // the unmodified stack pointer. Place these values in registers, then call
-    // a non-naked function, to allow for use of rust code alongside inline asm.
-    // Because calling a function increases the stack pointer, we have to check for a kernel
-    // stack overflow and adjust the stack pointer before we branch
+extern "C" {
+    /// ARMv7-M hardfault handler.
+    ///
+    /// For documentation of this function, please see
+    /// [`CortexMVariant::HARD_FAULT_HANDLER_HANDLER`].
+    pub fn hard_fault_handler_arm_v7m();
+}
 
-    asm!(
-        "
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+// First need to determine if this a kernel fault or a userspace fault, and store
+// the unmodified stack pointer. Place these values in registers, then call
+// a non-naked function, to allow for use of rust code alongside inline asm.
+// Because calling a function increases the stack pointer, we have to check for a kernel
+// stack overflow and adjust the stack pointer before we branch
+global_asm!(
+    "
+        .section .hard_fault_handler_arm_v7m, \"ax\"
+        .global hard_fault_handler_arm_v7m
+        .thumb_func
+    hard_fault_handler_arm_v7m:
         mov    r2, 0     // r2 = 0
         tst    lr, #4    // bitwise AND link register to 0b100
         itte   eq        // if lr==4, run next two instructions, else, run 3rd instruction.
@@ -511,11 +528,9 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
         movw lr, #0xFFF9
         movt lr, #0xFFFF
         bx lr",
-        estack = sym _estack,
-        kernel_hard_fault_handler = sym hard_fault_handler_arm_v7m_kernel,
-        options(noreturn), // asm block never returns, so no need to mark clobbers
-    );
-}
+    estack = sym _estack,
+    kernel_hard_fault_handler = sym hard_fault_handler_arm_v7m_kernel,
+);
 
 // Table 2.5
 // http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/CHDBIBGJ.html
