@@ -1,15 +1,11 @@
 Licensing and Copyrights
 ========================================
 
-**TRD:** <br/>
+**TRD: 4** <br/>
 **Working Group:** Core<br/>
 **Type:** Best Current Practice<br/>
-**Status:** Draft <br/>
+**Status:** Final <br/>
 **Author:** Pat Pannuto<br/>
-**Draft-Created:** 2022/11/05 <br/>
-**Draft-Modified:** 2022/11/05 <br/>
-**Draft-Version:** 1 <br/>
-**Draft-Discuss:** tock-dev@googlegroups.com<br/>
 
 Abstract
 --------
