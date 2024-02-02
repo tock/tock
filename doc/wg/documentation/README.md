@@ -2,7 +2,7 @@ Tock Documentation Working Group (DOC)
 ======================================
 
 - Working Group Charter
-- Adopted xx/xx/xxxx
+- Adopted 02/02/2024
 
 ## Goals
 
