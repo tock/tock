@@ -11,3 +11,4 @@ edition.workspace = true
 [dependencies]
 kernel = { path = "../../kernel" }
 cortexm = { path = "../cortex-m" }
+cortexv7m = { path = "../cortex-v7m" }
