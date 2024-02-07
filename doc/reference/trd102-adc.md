@@ -147,7 +147,7 @@ The AdcHighSpeed trait is used for sampling data at high frequencies such that
 receiving individual samples would be untenable. Instead, it provides an
 interface that returns buffers filled with samples. This trait relies on the
 Adc trait being implemented as well in order to provide primitives like
-`intialize` and `stop_sampling` which are used for ADCs in this mode as well.
+`initialize` and `stop_sampling` which are used for ADCs in this mode as well.
 While we expect many chips to support the Adc trait, we expect the AdcHighSpeed
 trait to be implemented due to a high-speed sampling need on a platform. The
 trait has three functions:
