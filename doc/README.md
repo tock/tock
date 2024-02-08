@@ -11,9 +11,6 @@ Book](https://book.tockos.org).
 Tock Policies
 -------------
 
-### Threat Model
-- **[Threat Model](threat_model/README.md)** - Detailed description of Tock's security properties.
-
 ### Interface Details
 - **[Syscall Interfaces](syscalls)** - API between userland and the kernel.
 - **[Internal Kernel Interfaces](reference)** - Hardware Interface Layers (HILs) for kernel components.
