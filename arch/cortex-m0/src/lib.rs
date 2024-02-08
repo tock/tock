@@ -31,8 +31,9 @@ struct HardFaultStackedRegisters {
 }
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
-#[inline(never)]
-unsafe fn kernel_hardfault(faulting_stack: *mut u32) {
+/// Handle a hard fault that occurred in the kernel. This function is invoked
+/// by the naked hard_fault_handler function.
+unsafe extern "C" fn hard_fault_handler_kernel(faulting_stack: *mut u32) -> ! {
     let hardfault_stacked_registers = HardFaultStackedRegisters {
         r0: *faulting_stack.offset(0),
         r1: *faulting_stack.offset(1),
@@ -66,71 +67,6 @@ unsafe fn kernel_hardfault(faulting_stack: *mut u32) {
         hardfault_stacked_registers.pc,
         hardfault_stacked_registers.xpsr
     );
-}
-
-#[cfg(all(target_arch = "arm", target_os = "none"))]
-/// Continue the hardfault handler. This function is not `#[naked]`, meaning we
-/// can mix `asm!()` and Rust. We separate this logic to not have to write the
-/// entire fault handler entirely in assembly.
-unsafe extern "C" fn hard_fault_handler_continued(faulting_stack: *mut u32, kernel_stack: u32) {
-    use core::arch::asm;
-    if kernel_stack != 0 {
-        kernel_hardfault(faulting_stack);
-    } else {
-        // hard fault occurred in an app, not the kernel. The app should be
-        // marked as in an error state and handled by the kernel
-        asm!(
-            "
-            ldr r0, =APP_HARD_FAULT
-            movs r1, #1 /* Fault */
-            str r1, [r0, #0]
-
-            /*
-            * NOTE:
-            * -----
-            *
-            * Even though ARMv6-M SCB and Control registers
-            * are different from ARMv7-M, they are still compatible
-            * with each other. So, we can keep the same code as
-            * ARMv7-M.
-            *
-            * ARMv6-M however has no _privileged_ mode.
-            */
-
-            /* Read the SCB registers. */
-            ldr r0, =SCB_REGISTERS
-            ldr r1, =0xE000ED14
-            ldr r2, [r1, #0] /* CCR */
-            str r2, [r0, #0]
-            ldr r2, [r1, #20] /* CFSR */
-            str r2, [r0, #4]
-            ldr r2, [r1, #24] /* HFSR */
-            str r2, [r0, #8]
-            ldr r2, [r1, #32] /* MMFAR */
-            str r2, [r0, #12]
-            ldr r2, [r1, #36] /* BFAR */
-            str r2, [r0, #16]
-
-            /* Set thread mode to privileged */
-            movs r0, #0
-            msr CONTROL, r0
-            /* No ISB required on M0 */
-            /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
-
-            ldr r0, 100f
-            mov lr, r0
-            b 200f // freturn
-    .align 4
-    100: // FEXC_RETURN_MSP
-      .word 0xFFFFFFF9
-    200: // freturn
-        ",
-            out("r1") _,
-            out("r0") _,
-            out("r2") _,
-            options(nostack),
-        );
-    }
 }
 
 // Mock implementation for tests on Travis-CI.
@@ -333,11 +269,62 @@ unsafe extern "C" fn hard_fault_handler() {
 
 200: // _hardfault_exit
 
-    b {}    // Branch to the non-naked fault handler.
-    bx lr   // If continued function returns, we need to manually branch to
-            // link register.
+    // If the hard-fault occured while executing the kernel (r1 != 0),
+    // jump to the non-naked kernel hard fault handler. This handler
+    // MUST NOT return. The faulting stack is passed as the first argument
+    // (r0).
+    cmp r1, #0
+    bne {kernel_hard_fault_handler}    // Branch to the non-naked fault handler.
+
+    // Otherwise, store that a hardfault occurred in an app, store some CPU
+    // state and finally return to the kernel stack:
+    ldr r0, =APP_HARD_FAULT
+    movs r1, #1 /* Fault */
+    str r1, [r0, #0]
+
+    /*
+    * NOTE:
+    * -----
+    *
+    * Even though ARMv6-M SCB and Control registers
+    * are different from ARMv7-M, they are still compatible
+    * with each other. So, we can keep the same code as
+    * ARMv7-M.
+    *
+    * ARMv6-M however has no _privileged_ mode.
+    */
+
+    /* Read the SCB registers. */
+    ldr r0, =SCB_REGISTERS
+    ldr r1, =0xE000ED14
+    ldr r2, [r1, #0] /* CCR */
+    str r2, [r0, #0]
+    ldr r2, [r1, #20] /* CFSR */
+    str r2, [r0, #4]
+    ldr r2, [r1, #24] /* HFSR */
+    str r2, [r0, #8]
+    ldr r2, [r1, #32] /* MMFAR */
+    str r2, [r0, #12]
+    ldr r2, [r1, #36] /* BFAR */
+    str r2, [r0, #16]
+
+    /* Set thread mode to privileged */
+    movs r0, #0
+    msr CONTROL, r0
+    /* No ISB required on M0 */
+    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+
+    // Load the FEXC_RETURN_MSP LR address and return to it, to switch to the
+    // kernel (MSP) stack:
+    ldr r0, 300f
+    mov lr, r0
+    bx lr
+
+    .align 4
+300: // FEXC_RETURN_MSP
+    .word 0xFFFFFFF9
     ",
-    sym hard_fault_handler_continued,
+    kernel_hard_fault_handler = sym hard_fault_handler_kernel,
     options(noreturn));
 }
 
