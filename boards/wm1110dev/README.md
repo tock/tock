@@ -47,6 +47,10 @@ Pin mappings:
 Make sure _both_ the nRF52840dk board and the WM1110-dev board are attached to
 your computer via two USB connections.
 
+> Tip: If you only have one USB cable, plug it into the nRF52840dk. Then, jumper
+> `3V3 (wm1110dev) <-> VDD (nrf)` and `SWD SEL (nrf) <-> VDD (nrf)`. The other
+> jumpers remain the same.
+
 Then:
 
 ```
