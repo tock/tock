@@ -292,13 +292,16 @@ global_asm!(
 
 200: // _hardfault_exit
 
-    // If the hard-fault occured while executing the kernel (r1 != 0),
+    // If the hard-fault occurred while executing the kernel (r1 != 0),
     // jump to the non-naked kernel hard fault handler. This handler
     // MUST NOT return. The faulting stack is passed as the first argument
     // (r0).
-    cmp r1, #0
-    bne {kernel_hard_fault_handler}    // Branch to the non-naked fault handler.
+    cmp r1, #0                           // Check if app (r1==0) or kernel (r1==1) fault.
+    beq 400f                             // If app fault, skip to app handling.
+    ldr r2, ={kernel_hard_fault_handler} // Load address of fault handler.
+    bx r2                                // Branch to the non-naked fault handler.
 
+400: // _hardfault_app
     // Otherwise, store that a hardfault occurred in an app, store some CPU
     // state and finally return to the kernel stack:
     ldr r0, =APP_HARD_FAULT
