@@ -442,27 +442,28 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
     // stack overflow and adjust the stack pointer before we branch
 
     asm!(
-        "mov    r2, 0     /* r2 = 0 */",
-        "tst    lr, #4    /* bitwise AND link register to 0b100 */",
-        "itte   eq        /* if lr==4, run next two instructions, else, run 3rd instruction. */",
-        "mrseq  r0, msp   /* r0 = kernel stack pointer */",
-        "addeq  r2, 1     /* r2 = 1, kernel was executing */",
-        "mrsne  r0, psp   /* r0 = userland stack pointer */",
+        "
+        mov    r2, 0     // r2 = 0
+        tst    lr, #4    // bitwise AND link register to 0b100
+        itte   eq        // if lr==4, run next two instructions, else, run 3rd instruction.
+        mrseq  r0, msp   // r0 = kernel stack pointer
+        addeq  r2, 1     // r2 = 1, kernel was executing
+        mrsne  r0, psp   // r0 = userland stack pointer
         // Need to determine if we had a stack overflow before we push anything
         // on to the stack. We check this by looking at the BusFault Status
         // Register's (BFSR) `LSPERR` and `STKERR` bits to see if the hardware
         // had any trouble stacking important registers to the stack during the
         // fault. If so, then we cannot use this stack while handling this fault
         // or we will trigger another fault.
-        "ldr   r3, =0xE000ED29  /* SCB BFSR register address */",
-        "ldrb  r3, [r3]         /* r3 = BFSR */",
-        "tst   r3, #0x30        /* r3 = BFSR & 0b00110000; LSPERR & STKERR bits */",
-        "ite   ne               /* check if the result of that bitwise AND was not 0 */",
-        "movne r1, #1           /* BFSR & 0b00110000 != 0; r1 = 1 */",
-        "moveq r1, #0           /* BFSR & 0b00110000 == 0; r1 = 0 */",
-        "and r5, r2, r1         /* bitwise and r1 and r2, store in r5 */ ",
-        "cmp  r5, #1            /*  update condition codes to reflect if r1 == 1 && r2 == 1 */",
-        "itt  eq                /* if r5==1 run the next 2 instructions, else skip to branch */",
+        ldr   r3, =0xE000ED29  // SCB BFSR register address
+        ldrb  r3, [r3]         // r3 = BFSR
+        tst   r3, #0x30        // r3 = BFSR & 0b00110000; LSPERR & STKERR bits
+        ite   ne               // check if the result of that bitwise AND was not 0
+        movne r1, #1           // BFSR & 0b00110000 != 0; r1 = 1
+        moveq r1, #0           // BFSR & 0b00110000 == 0; r1 = 0
+        and r5, r2, r1         // bitwise and r1 and r2, store in r5
+        cmp  r5, #1            //  update condition codes to reflect if r1 == 1 && r2 == 1
+        itt  eq                // if r5==1 run the next 2 instructions, else skip to branch
         // if true, The hardware couldn't use the stack, so we have no saved data and
         // we cannot use the kernel stack as is. We just want to report that
         // the kernel's stack overflowed, since that is essential for
@@ -472,44 +473,44 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
         // kernel's original stack. This should in theory leave the bottom
         // of the stack where the problem occurred untouched should one want
         // to further debug.
-        "ldreq  r4, ={estack} /* load _estack into r4 */",
-        "moveq  sp, r4        /* Set the stack pointer to _estack */",
+        ldreq  r4, ={estack} // load _estack into r4
+        moveq  sp, r4        // Set the stack pointer to _estack
         // finally, if the fault occurred in privileged mode (r2 == 1), branch
         // to non-naked handler.
-        "cmp r2, #0",
+        cmp r2, #0
         // Per ARM calling convention, faulting stack is passed in r0, whether
         // there was a stack overflow in r1. This function must never return.
-        "bne {kernel_hard_fault_handler}", // branch to kernel hard fault handler
+        bne {kernel_hard_fault_handler} // branch to kernel hard fault handler
         // Otherwise, the hard fault occurred in userspace. In this case, read
         // the relevant SCB registers:
-        "ldr r0, =SCB_REGISTERS    /* Global variable address */",
-        "ldr r1, =0xE000ED14       /* SCB CCR register address */",
-        "ldr r2, [r1, #0]          /* CCR */",
-        "str r2, [r0, #0]",
-        "ldr r2, [r1, #20]         /* CFSR */",
-        "str r2, [r0, #4]",
-        "ldr r2, [r1, #24]         /* HFSR */",
-        "str r2, [r0, #8]",
-        "ldr r2, [r1, #32]         /* MMFAR */",
-        "str r2, [r0, #12]",
-        "ldr r2, [r1, #36]         /* BFAR */",
-        "str r2, [r0, #16]",
+        ldr r0, =SCB_REGISTERS    // Global variable address
+        ldr r1, =0xE000ED14       // SCB CCR register address
+        ldr r2, [r1, #0]          // CCR
+        str r2, [r0, #0]
+        ldr r2, [r1, #20]         // CFSR
+        str r2, [r0, #4]
+        ldr r2, [r1, #24]         // HFSR
+        str r2, [r0, #8]
+        ldr r2, [r1, #32]         // MMFAR
+        str r2, [r0, #12]
+        ldr r2, [r1, #36]         // BFAR
+        str r2, [r0, #16]
 
-        "ldr r0, =APP_HARD_FAULT  /* Global variable address */",
-        "mov r1, #1               /* r1 = 1 */",
-        "str r1, [r0, #0]         /* APP_HARD_FAULT = 1 */",
+        ldr r0, =APP_HARD_FAULT  // Global variable address
+        mov r1, #1               // r1 = 1
+        str r1, [r0, #0]         // APP_HARD_FAULT = 1
 
         // Set thread mode to privileged
-        "mov r0, #0",
-        "msr CONTROL, r0",
+        mov r0, #0
+        msr CONTROL, r0
         // CONTROL writes must be followed by ISB
         // http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html
-        "isb",
+        isb
 
         // Switch to the kernel (MSP) stack:
-        "movw lr, #0xFFF9",
-        "movt lr, #0xFFFF",
-        "bx lr",
+        movw lr, #0xFFF9
+        movt lr, #0xFFFF
+        bx lr",
         estack = sym _estack,
         kernel_hard_fault_handler = sym hard_fault_handler_arm_v7m_kernel,
         options(noreturn), // asm block never returns, so no need to mark clobbers
