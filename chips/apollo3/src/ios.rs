@@ -197,6 +197,8 @@ impl<'a> Ios<'_> {
                 for i in 1..len {
                     unsafe {
                         buf[i] = *((0x5000_000F + (i as u32 - 1)) as *mut u8);
+                        // Zero the data after we read it
+                        *((0x5000_000F + (i as u32 - 1)) as *mut u8) = 0x00;
                     }
                 }
 
