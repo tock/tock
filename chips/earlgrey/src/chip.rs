@@ -445,55 +445,55 @@ pub extern "C" fn _start_trap_vectored() {
 }
 
 #[cfg(all(target_arch = "riscv32", target_os = "none"))]
-#[link_section = ".riscv.trap_vectored"]
-#[export_name = "_start_trap_vectored"]
-#[naked]
-pub extern "C" fn _start_trap_vectored() -> ! {
-    use core::arch::asm;
-    unsafe {
-        // According to the Ibex user manual:
-        // [NMI] has interrupt ID 31, i.e., it has the highest priority of all
-        // interrupts and the core jumps to the trap-handler base address (in
-        // mtvec) plus 0x7C to handle the NMI.
-        //
-        // Below are 32 (non-compressed) jumps to cover the entire possible
-        // range of vectored traps.
-        asm!(
-            "
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-        ",
-            options(noreturn)
-        );
-    }
+extern "C" {
+    pub fn _start_trap_vectored();
 }
+
+#[cfg(all(target_arch = "riscv32", target_os = "none"))]
+// According to the Ibex user manual:
+// [NMI] has interrupt ID 31, i.e., it has the highest priority of all
+// interrupts and the core jumps to the trap-handler base address (in
+// mtvec) plus 0x7C to handle the NMI.
+//
+// Below are 32 (non-compressed) jumps to cover the entire possible
+// range of vectored traps.
+core::arch::global_asm!(
+    "
+            .section .riscv.trap_vectored, \"ax\"
+            .globl _start_trap_vectored
+          _start_trap_vectored:
+
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+        "
+);

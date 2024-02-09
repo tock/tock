@@ -297,49 +297,48 @@ pub extern "C" fn _start_trap_vectored() {
 }
 
 #[cfg(all(target_arch = "riscv32", target_os = "none"))]
-#[link_section = ".riscv.trap_vectored"]
-#[export_name = "_start_trap_vectored"]
-#[naked]
-pub extern "C" fn _start_trap_vectored() -> ! {
-    use core::arch::asm;
-    unsafe {
-        // Below are 32 (non-compressed) jumps to cover the entire possible
-        // range of vectored traps.
-        asm!(
-            "
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-        ",
-            options(noreturn)
-        );
-    }
+extern "C" {
+    pub fn _start_trap_vectored();
 }
+
+#[cfg(all(target_arch = "riscv32", target_os = "none"))]
+// Below are 32 (non-compressed) jumps to cover the entire possible
+// range of vectored traps.
+core::arch::global_asm!(
+    "
+            .section .riscv.trap_vectored, \"ax\"
+            .globl _start_trap_vectored
+          _start_trap_vectored:
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+        "
+);

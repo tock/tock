@@ -4,7 +4,6 @@
 
 //! Drivers and chip support for EarlGrey.
 
-#![feature(naked_functions)]
 #![no_std]
 #![crate_name = "earlgrey"]
 #![crate_type = "rlib"]
