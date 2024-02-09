@@ -236,7 +236,7 @@ impl<'a> I2CSlave<'a> for Ios<'a> {
         // section as big as possible.
         self.registers
             .fifocfg
-            .modify(FIFOCFG::FIFOBASE.val(0x78 / 8));
+            .modify(FIFOCFG::FIFOBASE.val(SRAM_ROBASE_OFFSET / 8));
 
         // We don't need any RAM space, so extend the FIFO all the way to the end
         // of the LRAM.
