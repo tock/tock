@@ -400,7 +400,15 @@ impl<'a> Iom<'_> {
     fn i2c_reset_fifo(&self) {
         let regs = self.registers;
 
+        // Set the value low to reset
         regs.fifoctrl.modify(FIFOCTRL::FIFORSTN::CLEAR);
+
+        // Wait a few cycles to ensure the reset completes
+        for _i in 0..30 {
+            cortexm4::support::nop();
+        }
+
+        // Exit the reset state
         regs.fifoctrl.modify(FIFOCTRL::FIFORSTN::SET);
     }
 
