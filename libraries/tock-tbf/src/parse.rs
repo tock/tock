@@ -315,7 +315,10 @@ pub fn parse_tbf_footer(
     footers: &'static [u8],
 ) -> Result<(types::TbfFooterV2Credentials, u32), types::TbfParseError> {
     let mut remaining = footers;
-    let tlv_header: types::TbfTlv = remaining.try_into()?;
+    let tlv_header: types::TbfTlv = remaining
+        .get(0..4)
+        .ok_or(types::TbfParseError::NotEnoughFlash)?
+        .try_into()?;
     remaining = remaining
         .get(4..)
         .ok_or(types::TbfParseError::NotEnoughFlash)?;
