@@ -287,6 +287,10 @@ impl<'a> device::MacDevice<'a> for MacUser<'a> {
             .prepare_data_frame(buf, dst_pan, dst_addr, src_pan, src_addr, security_needed)
     }
 
+    fn buf_to_frame(&self, buf: &'static mut [u8]) -> framer::Frame {
+        self.mux.mac.buf_to_frame(buf)
+    }
+
     fn transmit(&self, frame: framer::Frame) -> Result<(), (ErrorCode, &'static mut [u8])> {
         // If the muxer is idle, immediately transmit the frame, otherwise
         // attempt to queue the transmission request. However, each MAC user can

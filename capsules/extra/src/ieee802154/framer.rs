@@ -99,7 +99,7 @@ use kernel::ErrorCode;
 #[derive(Eq, PartialEq, Debug)]
 pub struct Frame {
     buf: &'static mut [u8],
-    info: FrameInfo,
+    info: Option<FrameInfo>,
 }
 
 /// This contains just enough information about a frame to determine
@@ -134,7 +134,13 @@ impl Frame {
 
     /// Calculates how much more data this frame can hold
     pub fn remaining_data_capacity(&self) -> usize {
-        self.buf.len() - radio::PSDU_OFFSET - radio::MFR_SIZE - self.info.secured_length()
+        self.buf.len()
+            - radio::PSDU_OFFSET
+            - radio::MFR_SIZE
+            - self
+                .info
+                .expect("Invalid frame info provided")
+                .secured_length()
     }
 
     /// Appends payload bytes into the frame if possible
@@ -142,9 +148,13 @@ impl Frame {
         if payload.len() > self.remaining_data_capacity() {
             return Err(ErrorCode::NOMEM);
         }
-        let begin = radio::PSDU_OFFSET + self.info.unsecured_length();
+        let begin = radio::PSDU_OFFSET
+            + self
+                .info
+                .expect("Invalid frame info provided")
+                .unsecured_length();
         self.buf[begin..begin + payload.len()].copy_from_slice(payload);
-        self.info.data_len += payload.len();
+        self.info.expect("Invalid frame info provided").data_len += payload.len();
 
         Ok(())
     }
@@ -156,11 +166,16 @@ impl Frame {
         payload_buf: &ReadableProcessSlice,
     ) -> Result<(), ErrorCode> {
         if payload_buf.len() > self.remaining_data_capacity() {
+            kernel::debug!("here");
             return Err(ErrorCode::NOMEM);
         }
-        let begin = radio::PSDU_OFFSET + self.info.unsecured_length();
+        let begin = radio::PSDU_OFFSET
+            + self
+                .info
+                .expect("Invalid frame info provided")
+                .unsecured_length();
         payload_buf.copy_to_slice(&mut self.buf[begin..begin + payload_buf.len()]);
-        self.info.data_len += payload_buf.len();
+        self.info.expect("Invalid frame info provided").data_len += payload_buf.len();
 
         Ok(())
     }
@@ -816,16 +831,23 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
         match header.encode(&mut buf[radio::PSDU_OFFSET..], true).done() {
             Some((data_offset, mac_payload_offset)) => Ok(Frame {
                 buf: buf,
-                info: FrameInfo {
+                info: Some(FrameInfo {
                     frame_type: FrameType::Data,
                     mac_payload_offset: mac_payload_offset,
                     data_offset: data_offset,
                     data_len: 0,
                     mic_len: mic_len,
                     security_params: security_desc.map(|(sec, key, nonce)| (sec.level, key, nonce)),
-                },
+                }),
             }),
             None => Err(buf),
+        }
+    }
+
+    fn buf_to_frame(&self, buf: &'static mut [u8]) -> Frame {
+        Frame {
+            buf: buf,
+            info: None,
         }
     }
 
@@ -839,7 +861,8 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
         };
         match state {
             TxState::Idle => {
-                let next_state = self.outgoing_frame_security(buf, info);
+                let next_state =
+                    self.outgoing_frame_security(buf, info.expect("Invalid frame info provided"));
                 self.tx_state.replace(next_state);
                 self.step_transmit_state()
             }

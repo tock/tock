@@ -73,6 +73,8 @@ pub trait MacDevice<'a> {
         security_needed: Option<(SecurityLevel, KeyId)>,
     ) -> Result<Frame, &'static mut [u8]>;
 
+    fn buf_to_frame(&self, buf: &'static mut [u8]) -> Frame;
+
     /// Transmits a frame that has been prepared by the above process. If the
     /// transmission process fails, the buffer inside the frame is returned so
     /// that it can be re-used.
