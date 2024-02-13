@@ -205,11 +205,7 @@ impl PendingTX {
 
     /// Take the pending transmission, replacing it with `Empty` and return the current PendingTx
     fn take(&mut self) -> PendingTX {
-        match core::mem::replace(self, PendingTX::Empty) {
-            PendingTX::Parse(addr, sec) => PendingTX::Parse(addr, sec),
-            PendingTX::Direct => PendingTX::Direct,
-            PendingTX::Empty => PendingTX::Empty,
-        }
+        core::mem::replace(self, PendingTX::Empty)
     }
 }
 
@@ -680,6 +676,10 @@ impl SyscallDriver for RadioDriver<'_> {
     ///                      9 bytes: the key ID (might not use all bytes) +
     ///                      16 bytes: the key.
     /// - `25`: Remove the key at an index.
+    /// - `26`: Transmit a frame (parse required). Take the provided payload and
+    ///        parameters to encrypt, form headers, and transmit the frame.
+    /// - `27`: Transmit a frame (direct). Transmit preformed 15.4 frame (i.e.
+    ///        headers and security etc completed by userprocess).
     fn command(
         &self,
         command_number: usize,

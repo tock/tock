@@ -131,7 +131,7 @@ impl FrameInfoWrap {
         }
     }
 
-    /// Fetcher of the FrameInfo struct for Parse sending and panic if
+    /// Fetcher of the FrameInfo struct for Parse sending. Panics if
     /// called for Direct sending.
     pub fn expect(&self) -> FrameInfo {
         match self {
@@ -191,7 +191,10 @@ impl Frame {
         self.buf[begin..begin + payload.len()].copy_from_slice(payload);
         match self.info {
             FrameInfoWrap::Direct(len) => self.info = FrameInfoWrap::Direct(len + payload.len()),
-            FrameInfoWrap::Parse(_) => self.info.expect().data_len += payload.len(),
+            FrameInfoWrap::Parse(mut info) => {
+                info.data_len += payload.len();
+                self.info = FrameInfoWrap::Parse(info);
+            }
         }
         Ok(())
     }
@@ -203,7 +206,6 @@ impl Frame {
         payload_buf: &ReadableProcessSlice,
     ) -> Result<(), ErrorCode> {
         if payload_buf.len() > self.remaining_data_capacity() {
-            kernel::debug!("here");
             return Err(ErrorCode::NOMEM);
         }
         let begin = radio::PSDU_OFFSET + self.info.unsecured_length();
@@ -212,7 +214,10 @@ impl Frame {
             FrameInfoWrap::Direct(len) => {
                 self.info = FrameInfoWrap::Direct(len + payload_buf.len())
             }
-            FrameInfoWrap::Parse(_) => self.info.expect().data_len += payload_buf.len(),
+            FrameInfoWrap::Parse(mut info) => {
+                info.data_len += payload_buf.len();
+                self.info = FrameInfoWrap::Parse(info);
+            }
         }
         Ok(())
     }
