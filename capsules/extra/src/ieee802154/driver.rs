@@ -177,6 +177,10 @@ impl KeyDescriptor {
     }
 }
 
+/// Denotes the type of pending transmission. A `Parse(..)` PendingTX
+/// indicates that the 15.4 framer will need to form the packet header
+/// from the provided address and security level. A `Direct` PendingTX
+/// is formed by the userprocess and passes through the Framer unchanged.
 enum PendingTX {
     Parse(u16, Option<(SecurityLevel, KeyId)>),
     Direct,
@@ -184,12 +188,14 @@ enum PendingTX {
 }
 
 impl Default for PendingTX {
+    /// The default PendingTX is `Empty`
     fn default() -> Self {
         PendingTX::Empty
     }
 }
 
 impl PendingTX {
+    /// Returns true if the PendingTX is not `Empty`
     fn is_some(&self) -> bool {
         match self {
             PendingTX::Empty => false,
@@ -448,19 +454,32 @@ impl<'a> RadioDriver<'a> {
             // this, or future, implementations do not forget to "remove" the pending_tx
             // from the app after processing.
             let curr_tx = app.pending_tx.take();
-            if let PendingTX::Empty = curr_tx {
-                // this may not be the correct return value for handling this. This is following current convention
-                return Ok(())
-            }
 
- 
+            // Before beginning the transmission process, confirm that the PendingTX
+            // is not Empty. In the Empty case, there is nothing to transmit and we
+            // can return Ok(()) immediately as there is nothing to transmit.
+            if let PendingTX::Empty = curr_tx { return Ok(()) }
 
+            // At a high level, we must form a Frame from the provided userproceess data,
+            // place this frame into a static buffer, and then transmit the frame. This is
+            // somewhat complicated by the need to error handle each of these steps and also
+            // provide Direct and Parse sending modes (i.e. Direct mode userprocess fully forms
+            // 15.4 packet and Parse mode the 15.4 framer forms the packet from the userprocess
+            // parameters and payload). Because we first take this kernel buffer, we must
+            // replace the `kernel_tx` buffer upon handling any error.
             self.kernel_tx.take().map_or(Err(ErrorCode::NOMEM), |kbuf| {
                 match curr_tx {
                     PendingTX::Empty => {
                         unreachable!("PendingTX::Empty should have been handled earlier with guard statement.")
                     }
-                    PendingTX::Direct => Ok(self.mac.buf_to_frame(kbuf, 0)),
+                    PendingTX::Direct => {
+                        // Here we form an empty frame from the buffer to later be filled by the specified
+                        // userprocess frame data. Note, we must allocate the needed buffer for the frame,
+                        // but set the `len` field to 0 as the frame is empty.
+                        self.mac.buf_to_frame(kbuf, 0).map_err(|(err, buf)| {
+                            self.kernel_tx.replace(buf);
+                            err
+                    })},
                     PendingTX::Parse(dst_addr, security_needed) => {
                         // Prepare the frame headers
                         let pan = self.mac.get_pan();
@@ -476,31 +495,32 @@ impl<'a> RadioDriver<'a> {
                         ).map_or_else(|err_buf| {
                             self.kernel_tx.replace(err_buf);
                             Err(ErrorCode::FAIL)
-                        }, | frame | 
+                        }, | frame|
                             Ok(frame)
                         )
-                    }}}).map(|mut frame| {
+                    }
+                }
+            }).map(|mut frame| {
 
-                                   // Obtain the payload from the userprocess. Although a ReadableProcess buffer has the potential
-                // to change, this given buffer is guaranteed to remain the same over the course of this method
-                // (TRD 4.4.1). As such, we can safely assume that the obtained reference to this payload is
-                // valid including when we copy the payload into the kernel_tx buffer.
-           kernel_data
+            // Obtain the payload from the userprocess, append the "payload" to the previously formed frame
+            // and pass the frame to be transmitted. Note, the term "payload" is somewhat misleading in the
+            // case of Direct transmission as the payload is the entire 15.4 frame.
+            kernel_data
             .get_readonly_processbuffer(ro_allow::WRITE)
-            .and_then(|write| write.enter(|payload| 
-                frame.append_payload_process(payload)                
+            .and_then(|write| write.enter(|payload|
+                frame.append_payload_process(payload)
             ))?.map( |()|
                 {
-                    kernel::debug!("entered transmit");
                     self.mac.transmit(frame).map_or_else(|(errorcode, error_buf)| {
                         self.kernel_tx.replace(error_buf);
                         Err(errorcode)
-                    }, |_| {self.current_app.set(processid); Ok(())}
-                    )}
+                    }, |()| {self.current_app.set(processid); Ok(()) }
+                    )
+                }
             )?
-
         })?
-    })?}
+    })?
+    }
 
     /// Schedule the next transmission if there is one pending. Performs the
     /// transmission asynchronously, returning any errors via callbacks.
@@ -939,7 +959,9 @@ impl SyscallDriver for RadioDriver<'_> {
                         }
 
                         match next_tx {
-                            Some((dst_addr, sec)) => app.pending_tx = PendingTX::Parse(dst_addr, sec),
+                            Some((dst_addr, sec)) => {
+                                app.pending_tx = PendingTX::Parse(dst_addr, sec)
+                            }
                             None => app.pending_tx = PendingTX::Empty,
                         }
                         Ok(())
@@ -954,18 +976,19 @@ impl SyscallDriver for RadioDriver<'_> {
             }
             27 => {
                 self.apps
-                .enter(processid, |app, _| {
-                    if app.pending_tx.is_some() {
-                        // Cannot support more than one pending tx per process.
-                        return Err(ErrorCode::BUSY);
-                    }
-                    app.pending_tx = PendingTX::Direct;
-                    Ok(())
-                }).map_or_else(
-                    |err| CommandReturn::failure(err.into()),
-                    |_| self.do_next_tx_sync(processid).into()
-                )
-            },
+                    .enter(processid, |app, _| {
+                        if app.pending_tx.is_some() {
+                            // Cannot support more than one pending tx per process.
+                            return Err(ErrorCode::BUSY);
+                        }
+                        app.pending_tx = PendingTX::Direct;
+                        Ok(())
+                    })
+                    .map_or_else(
+                        |err| CommandReturn::failure(err.into()),
+                        |_| self.do_next_tx_sync(processid).into(),
+                    )
+            }
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }

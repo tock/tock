@@ -73,7 +73,24 @@ pub trait MacDevice<'a> {
         security_needed: Option<(SecurityLevel, KeyId)>,
     ) -> Result<Frame, &'static mut [u8]>;
 
-    fn buf_to_frame(&self, buf: &'static mut [u8], len: usize) -> Frame;
+    /// Creates an IEEE 802.15.4 Frame object that is compatible with the
+    /// MAC transit and append payload methods. This serves to provide
+    /// functionality for sending packets fully formed by the userprocess
+    /// and that the 15.4 capsule does not modify. The len field may be less
+    /// than the length of the buffer as the len field is the length of
+    /// the current frame while the buffer is the maximum 15.4 frame size.
+    ///
+    /// - `buf`: The buffer to be used for the frame
+    /// - `len`: The length of the frame
+    ///
+    /// Returns a Result:
+    ///     - on success a Frame object that can be used to.
+    ///     - on failure an error returning the buffer.
+    fn buf_to_frame(
+        &self,
+        buf: &'static mut [u8],
+        len: usize,
+    ) -> Result<Frame, (ErrorCode, &'static mut [u8])>;
 
     /// Transmits a frame that has been prepared by the above process. If the
     /// transmission process fails, the buffer inside the frame is returned so

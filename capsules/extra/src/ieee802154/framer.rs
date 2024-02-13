@@ -102,6 +102,12 @@ pub struct Frame {
     info: FrameInfoWrap,
 }
 
+/// This enum wraps the `FrameInfo` struct and allows each sending type
+/// (Parse or Direct) to only store the relevant information. In the
+/// case of a Direct send, the `FrameInfo` struct is irrelevant as the
+/// packet has been fully formed by the userprocess. For a direct send,
+/// we only require knowledge on the frame length. In the case of a
+/// Parse send, the wrapper provides all required frame header information.
 #[derive(Eq, PartialEq, Debug)]
 enum FrameInfoWrap {
     Direct(usize),
@@ -109,12 +115,15 @@ enum FrameInfoWrap {
 }
 
 impl FrameInfoWrap {
+    /// Obtain secured_length of the Frame
     pub fn secured_length(&self) -> usize {
         match self {
             FrameInfoWrap::Parse(info) => info.secured_length(),
             FrameInfoWrap::Direct(len) => *len,
         }
     }
+
+    /// Obtain unsecured_length of the Frame
     pub fn unsecured_length(&self) -> usize {
         match self {
             FrameInfoWrap::Parse(info) => info.secured_length(),
@@ -122,9 +131,15 @@ impl FrameInfoWrap {
         }
     }
 
+    /// Fetcher of the FrameInfo struct for Parse sending and panic if
+    /// called for Direct sending.
     pub fn expect(&self) -> FrameInfo {
         match self {
             FrameInfoWrap::Direct(_) => {
+                // This should never be called for a Direct send. The Framer should never
+                // require information other than the Frame length for a Direct send. This
+                // warrants a panic condition as fetching the `FrameInfo` struct for a
+                // Direct send is undefined behavior.
                 panic!("FrameInfoWrap::Direct called when expecting FrameInfoWrap::Parse")
             }
             FrameInfoWrap::Parse(info) => *info,
@@ -875,11 +890,21 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
         }
     }
 
-    fn buf_to_frame(&self, buf: &'static mut [u8], len: usize) -> Frame {
-        Frame {
+    fn buf_to_frame(
+        &self,
+        buf: &'static mut [u8],
+        len: usize,
+    ) -> Result<Frame, (ErrorCode, &'static mut [u8])> {
+        // Error check input for compliance with max 15.4 buffer size and
+        // that the provided len is compatibile with the provided buffer.
+        if buf.len() < radio::MAX_BUF_SIZE || len > buf.len() {
+            return Err((ErrorCode::INVAL, buf));
+        }
+
+        Ok(Frame {
             buf: buf,
             info: FrameInfoWrap::Direct(len),
-        }
+        })
     }
 
     fn transmit(&self, frame: Frame) -> Result<(), (ErrorCode, &'static mut [u8])> {
