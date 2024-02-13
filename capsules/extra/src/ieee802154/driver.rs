@@ -460,7 +460,7 @@ impl<'a> RadioDriver<'a> {
                     PendingTX::Empty => {
                         unreachable!("PendingTX::Empty should have been handled earlier with guard statement.")
                     }
-                    PendingTX::Direct => Ok(self.mac.buf_to_frame(kbuf)),
+                    PendingTX::Direct => Ok(self.mac.buf_to_frame(kbuf, 0)),
                     PendingTX::Parse(dst_addr, security_needed) => {
                         // Prepare the frame headers
                         let pan = self.mac.get_pan();
@@ -491,6 +491,7 @@ impl<'a> RadioDriver<'a> {
                 frame.append_payload_process(payload)                
             ))?.map( |()|
                 {
+                    kernel::debug!("entered transmit");
                     self.mac.transmit(frame).map_or_else(|(errorcode, error_buf)| {
                         self.kernel_tx.replace(error_buf);
                         Err(errorcode)
@@ -956,11 +957,14 @@ impl SyscallDriver for RadioDriver<'_> {
                 .enter(processid, |app, _| {
                     if app.pending_tx.is_some() {
                         // Cannot support more than one pending tx per process.
-                        return CommandReturn::failure(ErrorCode::BUSY);
+                        return Err(ErrorCode::BUSY);
                     }
                     app.pending_tx = PendingTX::Direct;
-                    self.do_next_tx_sync(processid).into()
-                }).unwrap_or_else(|err| CommandReturn::failure(err.into()))
+                    Ok(())
+                }).map_or_else(
+                    |err| CommandReturn::failure(err.into()),
+                    |_| self.do_next_tx_sync(processid).into()
+                )
             },
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
