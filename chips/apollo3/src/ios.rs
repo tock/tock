@@ -197,6 +197,8 @@ impl<'a> Ios<'_> {
                 for i in 1..len {
                     unsafe {
                         buf[i] = *((0x5000_000F + (i as u32 - 1)) as *mut u8);
+                        // Zero the data after we read it
+                        *((0x5000_000F + (i as u32 - 1)) as *mut u8) = 0x00;
                     }
                 }
 
@@ -236,7 +238,7 @@ impl<'a> I2CSlave<'a> for Ios<'a> {
         // section as big as possible.
         self.registers
             .fifocfg
-            .modify(FIFOCFG::FIFOBASE.val(0x78 / 8));
+            .modify(FIFOCFG::FIFOBASE.val(SRAM_ROBASE_OFFSET / 8));
 
         // We don't need any RAM space, so extend the FIFO all the way to the end
         // of the LRAM.
