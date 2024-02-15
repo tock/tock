@@ -314,9 +314,6 @@ pub trait Process {
     /// loading.
     fn short_app_id(&self) -> ShortID;
 
-    /// Set the ShortID for this process.
-    fn set_short_app_id(&self, id: ShortID);
-
     /// Returns the version number of the binary in this process, as specified
     /// in a TBF Program Header; if the binary has no version assigned, return [None]
     fn binary_version(&self) -> Option<BinaryVersion>;

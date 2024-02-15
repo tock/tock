@@ -107,7 +107,7 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
 
     /// An application ShortID, generated from process loading and
     /// checking, which denotes the security identity of this process.
-    app_id: Cell<ShortID>,
+    app_id: ShortID,
 
     /// Pointer to the main Kernel struct.
     kernel: &'static Kernel,
@@ -242,11 +242,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     }
 
     fn short_app_id(&self) -> ShortID {
-        self.app_id.get()
-    }
-
-    fn set_short_app_id(&self, id: ShortID) {
-        self.app_id.set(id);
+        self.app_id
     }
 
     fn binary_version(&self) -> Option<BinaryVersion> {
@@ -1267,6 +1263,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         pb: ProcessBinary,
         remaining_memory: &'a mut [u8],
         fault_policy: &'static dyn ProcessFaultPolicy,
+        app_id: ShortID,
         index: usize,
     ) -> Result<(Option<&'static dyn Process>, &'a mut [u8]), (ProcessLoadError, &'a mut [u8])>
     {
@@ -1613,7 +1610,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         process
             .process_id
             .set(ProcessId::new(kernel, unique_identifier, index));
-        process.app_id.set(ShortID::LocallyUnique);
+        process.app_id = app_id;
         process.kernel = kernel;
         process.chip = chip;
         process.allow_high_water_mark = Cell::new(initial_allow_high_water_mark);
