@@ -234,6 +234,81 @@ impl Syscall {
             Err(_) => None,
         }
     }
+
+    /// Get the `driver_number` for the syscall classes that use driver numbers.
+    pub fn driver_number(&self) -> Option<usize> {
+        match *self {
+            Syscall::Subscribe {
+                driver_number,
+                subdriver_number: _,
+                upcall_ptr: _,
+                appdata: _,
+            } => Some(driver_number),
+            Syscall::Command {
+                driver_number,
+                subdriver_number: _,
+                arg0: _,
+                arg1: _,
+            } => Some(driver_number),
+            Syscall::ReadWriteAllow {
+                driver_number,
+                subdriver_number: _,
+                allow_address: _,
+                allow_size: _,
+            } => Some(driver_number),
+            Syscall::UserspaceReadableAllow {
+                driver_number,
+                subdriver_number: _,
+                allow_address: _,
+                allow_size: _,
+            } => Some(driver_number),
+            Syscall::ReadOnlyAllow {
+                driver_number,
+                subdriver_number: _,
+                allow_address: _,
+                allow_size: _,
+            } => Some(driver_number),
+            _ => None,
+        }
+    }
+
+    /// Get the `subdriver_number` for the syscall classes that use sub driver
+    /// numbers.
+    pub fn subdriver_number(&self) -> Option<usize> {
+        match *self {
+            Syscall::Subscribe {
+                driver_number: _,
+                subdriver_number,
+                upcall_ptr: _,
+                appdata: _,
+            } => Some(subdriver_number),
+            Syscall::Command {
+                driver_number: _,
+                subdriver_number,
+                arg0: _,
+                arg1: _,
+            } => Some(subdriver_number),
+            Syscall::ReadWriteAllow {
+                driver_number: _,
+                subdriver_number,
+                allow_address: _,
+                allow_size: _,
+            } => Some(subdriver_number),
+            Syscall::UserspaceReadableAllow {
+                driver_number: _,
+                subdriver_number,
+                allow_address: _,
+                allow_size: _,
+            } => Some(subdriver_number),
+            Syscall::ReadOnlyAllow {
+                driver_number: _,
+                subdriver_number,
+                allow_address: _,
+                allow_size: _,
+            } => Some(subdriver_number),
+            _ => None,
+        }
+    }
 }
 
 // ---------- SYSCALL RETURN VALUE ENCODING ----------
