@@ -214,9 +214,9 @@ pub struct App {
     pending_tx: PendingTX,
 }
 
-pub struct RadioDriver<'a> {
+pub struct RadioDriver<'a, M: device::MacDevice<'a>> {
     /// Underlying MAC device, possibly multiplexed
-    mac: &'a dyn device::MacDevice<'a>,
+    mac: &'a M,
 
     /// List of (short address, long address) pairs representing IEEE 802.15.4
     /// neighbors.
@@ -259,9 +259,9 @@ pub struct RadioDriver<'a> {
     backup_device_procedure: OptionalCell<&'a dyn framer::DeviceProcedure>,
 }
 
-impl<'a> RadioDriver<'a> {
+impl<'a, M: device::MacDevice<'a>> RadioDriver<'a, M> {
     pub fn new(
-        mac: &'a dyn device::MacDevice<'a>,
+        mac: &'a M,
         grant: Grant<
             App,
             UpcallCount<{ upcall::COUNT }>,
@@ -544,7 +544,7 @@ impl<'a> RadioDriver<'a> {
     }
 }
 
-impl DeferredCallClient for RadioDriver<'static> {
+impl<'a, M: device::MacDevice<'a>> DeferredCallClient for RadioDriver<'a, M> {
     fn handle_deferred_call(&self) {
         let _ = self
             .apps
@@ -570,7 +570,7 @@ impl DeferredCallClient for RadioDriver<'static> {
     }
 }
 
-impl framer::DeviceProcedure for RadioDriver<'_> {
+impl<'a, M: device::MacDevice<'a>> framer::DeviceProcedure for RadioDriver<'a, M> {
     /// Gets the long address corresponding to the neighbor that matches the given
     /// MAC address. If no such neighbor exists, returns `None`.
     fn lookup_addr_long(&self, addr: MacAddress) -> Option<[u8; 8]> {
@@ -597,7 +597,7 @@ impl framer::DeviceProcedure for RadioDriver<'_> {
     }
 }
 
-impl framer::KeyProcedure for RadioDriver<'_> {
+impl<'a, M: device::MacDevice<'a>> framer::KeyProcedure for RadioDriver<'a, M> {
     /// Gets the key corresponding to the key that matches the given security
     /// level `level` and key ID `key_id`. If no such key matches, returns
     /// `None`.
@@ -626,7 +626,7 @@ impl framer::KeyProcedure for RadioDriver<'_> {
     }
 }
 
-impl SyscallDriver for RadioDriver<'_> {
+impl<'a, M: device::MacDevice<'a>> SyscallDriver for RadioDriver<'a, M> {
     /// IEEE 802.15.4 MAC device control.
     ///
     /// For some of the below commands, one 32-bit argument is not enough to
@@ -998,7 +998,7 @@ impl SyscallDriver for RadioDriver<'_> {
     }
 }
 
-impl device::TxClient for RadioDriver<'_> {
+impl<'a, M: device::MacDevice<'a>> device::TxClient for RadioDriver<'a, M> {
     fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: Result<(), ErrorCode>) {
         self.kernel_tx.replace(spi_buf);
         self.current_app.take().map(|processid| {
@@ -1035,7 +1035,7 @@ fn encode_address(addr: &Option<MacAddress>) -> usize {
     ((AddressMode::from(addr) as usize) << 16) | short_addr_only
 }
 
-impl device::RxClient for RadioDriver<'_> {
+impl<'a, M: device::MacDevice<'a>> device::RxClient for RadioDriver<'a, M> {
     fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
         self.apps.each(|_, _, kernel_data| {
             let read_present = kernel_data
