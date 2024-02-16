@@ -195,7 +195,10 @@ struct EarlGrey {
             lowrisc::spi_host::SpiHost<'static>,
         >,
     >,
-    rng: &'static capsules_core::rng::RngDriver<'static>,
+    rng: &'static capsules_core::rng::RngDriver<
+        'static,
+        capsules_core::rng::Entropy32ToRandom<'static, lowrisc::csrng::CsRng<'static>>,
+    >,
     aes: &'static capsules_extra::symmetric_encryption::aes::AesDriver<
         'static,
         aes_gcm::Aes128Gcm<
@@ -765,13 +768,16 @@ unsafe fn setup() -> (
 
     // Convert hardware RNG to the Random interface.
     let entropy_to_random = static_init!(
-        capsules_core::rng::Entropy32ToRandom<'static>,
+        capsules_core::rng::Entropy32ToRandom<'static, lowrisc::csrng::CsRng<'static>>,
         capsules_core::rng::Entropy32ToRandom::new(&peripherals.rng)
     );
     peripherals.rng.set_client(entropy_to_random);
     // Setup RNG for userspace
     let rng = static_init!(
-        capsules_core::rng::RngDriver<'static>,
+        capsules_core::rng::RngDriver<
+            'static,
+            capsules_core::rng::Entropy32ToRandom<'static, lowrisc::csrng::CsRng<'static>>,
+        >,
         capsules_core::rng::RngDriver::new(
             entropy_to_random,
             board_kernel.create_grant(capsules_core::rng::DRIVER_NUM, &memory_allocation_cap)

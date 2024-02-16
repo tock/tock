@@ -16,11 +16,9 @@ use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::adc::Adc;
 use kernel::hil::buzzer::Buzzer;
-use kernel::hil::entropy::Entropy32;
 use kernel::hil::gpio::{Configure, InterruptWithValue, Output};
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedLow;
-use kernel::hil::rng::Rng;
 use kernel::hil::time::{Alarm, Counter};
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
@@ -61,6 +59,7 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 type TemperatureDriver =
     components::temperature::TemperatureComponentType<nrf52832::temperature::Temp<'static>>;
+type RngDriver = components::rng::RngComponentType<nrf52832::trng::Trng<'static>>;
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -77,7 +76,7 @@ pub struct Platform {
         LedLow<'static, nrf52832::gpio::GPIOPin<'static>>,
         4,
     >,
-    rng: &'static capsules_core::rng::RngDriver<'static>,
+    rng: &'static RngDriver,
     temp: &'static TemperatureDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     alarm: &'static capsules_core::alarm::AlarmDriver<
@@ -483,25 +482,12 @@ unsafe fn start() -> (
     // RNG
     //
 
-    // Convert hardware RNG to the Random interface.
-    let entropy_to_random = static_init!(
-        capsules_core::rng::Entropy32ToRandom<'static>,
-        capsules_core::rng::Entropy32ToRandom::new(&base_peripherals.trng)
-    );
-    base_peripherals.trng.set_client(entropy_to_random);
-
-    // Setup RNG for userspace
-    let rng = static_init!(
-        capsules_core::rng::RngDriver<'static>,
-        capsules_core::rng::RngDriver::new(
-            entropy_to_random,
-            board_kernel.create_grant(
-                capsules_core::rng::DRIVER_NUM,
-                &memory_allocation_capability
-            )
-        )
-    );
-    entropy_to_random.set_client(rng);
+    let rng = components::rng::RngComponent::new(
+        board_kernel,
+        capsules_core::rng::DRIVER_NUM,
+        &base_peripherals.trng,
+    )
+    .finalize(components::rng_component_static!(nrf52832::trng::Trng));
 
     //
     // Light Sensor

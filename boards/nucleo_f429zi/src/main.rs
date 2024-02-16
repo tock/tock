@@ -54,6 +54,7 @@ type TemperatureSTMSensor = components::temperature_stm::TemperatureSTMComponent
     capsules_core::virtualizers::virtual_adc::AdcDevice<'static, stm32f429zi::adc::Adc<'static>>,
 >;
 type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureSTMSensor>;
+type RngDriver = components::rng::RngComponentType<stm32f429zi::trng::Trng<'static>>;
 
 /// Nucleo F429ZI HSE frequency in MHz
 pub const NUCLEO_F429ZI_HSE_FREQUENCY_MHZ: usize = 8;
@@ -77,7 +78,7 @@ struct NucleoF429ZI {
     >,
     temperature: &'static TemperatureDriver,
     gpio: &'static capsules_core::gpio::GPIO<'static, stm32f429zi::gpio::Pin<'static>>,
-    rng: &'static capsules_core::rng::RngDriver<'static>,
+    rng: &'static RngDriver,
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
@@ -597,7 +598,7 @@ unsafe fn start() -> (
         capsules_core::rng::DRIVER_NUM,
         &peripherals.trng,
     )
-    .finalize(components::rng_component_static!());
+    .finalize(components::rng_component_static!(stm32f429zi::trng::Trng));
 
     // CAN
     let can = components::can::CanComponent::new(

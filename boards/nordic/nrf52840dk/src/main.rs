@@ -161,6 +161,7 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 //------------------------------------------------------------------------------
 
 type AlarmDriver = components::alarm::AlarmDriverComponentType<nrf52840::rtc::Rtc<'static>>;
+type RngDriver = components::rng::RngComponentType<nrf52840::trng::Trng<'static>>;
 
 // TicKV
 type Mx25r6435f = components::mx25r6435f::Mx25r6435fComponentType<
@@ -216,7 +217,7 @@ pub struct Platform {
         kernel::hil::led::LedLow<'static, nrf52840::gpio::GPIOPin<'static>>,
         4,
     >,
-    rng: &'static capsules_core::rng::RngDriver<'static>,
+    rng: &'static RngDriver,
     adc: &'static capsules_core::adc::AdcDedicated<'static, nrf52840::adc::Adc<'static>>,
     temp: &'static TemperatureDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
@@ -663,7 +664,7 @@ pub unsafe fn start() -> (
         capsules_core::rng::DRIVER_NUM,
         &base_peripherals.trng,
     )
-    .finalize(components::rng_component_static!());
+    .finalize(components::rng_component_static!(nrf52840::trng::Trng));
 
     //--------------------------------------------------------------------------
     // ADC

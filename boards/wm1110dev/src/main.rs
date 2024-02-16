@@ -92,6 +92,7 @@ type SHT4xSensor = components::sht4x::SHT4xComponentType<
 >;
 type TemperatureDriver = components::temperature::TemperatureComponentType<SHT4xSensor>;
 type HumidityDriver = components::humidity::HumidityComponentType<SHT4xSensor>;
+type RngDriver = components::rng::RngComponentType<nrf52840::trng::Trng<'static>>;
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -102,7 +103,7 @@ pub struct Platform {
         LedHigh<'static, nrf52::gpio::GPIOPin<'static>>,
         2,
     >,
-    rng: &'static capsules_core::rng::RngDriver<'static>,
+    rng: &'static RngDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
@@ -424,7 +425,7 @@ pub unsafe fn start() -> (
         capsules_core::rng::DRIVER_NUM,
         &base_peripherals.trng,
     )
-    .finalize(components::rng_component_static!());
+    .finalize(components::rng_component_static!(nrf52840::trng::Trng));
 
     //--------------------------------------------------------------------------
     // FINAL SETUP AND BOARD BOOT

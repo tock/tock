@@ -143,6 +143,7 @@ type SHT3xSensor = components::sht3x::SHT3xComponentType<
 >;
 type TemperatureDriver = components::temperature::TemperatureComponentType<SHT3xSensor>;
 type HumidityDriver = components::humidity::HumidityComponentType<SHT3xSensor>;
+type RngDriver = components::rng::RngComponentType<nrf52840::trng::Trng<'static>>;
 
 type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<
     nrf52840::ieee802154_radio::Radio<'static>,
@@ -170,7 +171,7 @@ pub struct Platform {
     >,
     button: &'static capsules_core::button::Button<'static, nrf52::gpio::GPIOPin<'static>>,
     screen: &'static capsules_extra::screen::Screen<'static>,
-    rng: &'static capsules_core::rng::RngDriver<'static>,
+    rng: &'static RngDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
@@ -527,7 +528,7 @@ unsafe fn start() -> (
         capsules_core::rng::DRIVER_NUM,
         &base_peripherals.trng,
     )
-    .finalize(components::rng_component_static!());
+    .finalize(components::rng_component_static!(nrf52840::trng::Trng));
 
     //--------------------------------------------------------------------------
     // ADC

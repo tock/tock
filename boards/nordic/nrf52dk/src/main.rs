@@ -136,6 +136,7 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 type TemperatureDriver =
     components::temperature::TemperatureComponentType<nrf52832::temperature::Temp<'static>>;
+type RngDriver = components::rng::RngComponentType<nrf52832::trng::Trng<'static>>;
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -158,7 +159,7 @@ pub struct Platform {
         LedLow<'static, nrf52832::gpio::GPIOPin<'static>>,
         4,
     >,
-    rng: &'static capsules_core::rng::RngDriver<'static>,
+    rng: &'static RngDriver,
     temp: &'static TemperatureDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     analog_comparator: &'static capsules_extra::analog_comparator::AnalogComparator<
@@ -421,7 +422,7 @@ pub unsafe fn start() -> (
         capsules_core::rng::DRIVER_NUM,
         &base_peripherals.trng,
     )
-    .finalize(components::rng_component_static!());
+    .finalize(components::rng_component_static!(nrf52832::trng::Trng));
 
     // Initialize AC using AIN5 (P0.29) as VIN+ and VIN- as AIN0 (P0.02)
     // These are hardcoded pin assignments specified in the driver

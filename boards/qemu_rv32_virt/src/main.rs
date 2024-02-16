@@ -71,7 +71,12 @@ struct QemuRv32VirtPlatform {
     scheduler_timer: &'static VirtualSchedulerTimer<
         VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
     >,
-    virtio_rng: Option<&'static capsules_core::rng::RngDriver<'static>>,
+    virtio_rng: Option<
+        &'static capsules_core::rng::RngDriver<
+            'static,
+            qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng<'static, 'static>,
+        >,
+    >,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -296,61 +301,63 @@ pub unsafe fn main() {
 
     // If there is a VirtIO EntropySource present, use the appropriate VirtIORng
     // driver and expose it to userspace though the RngDriver
-    let virtio_rng_driver: Option<&'static capsules_core::rng::RngDriver<'static>> =
-        if let Some(rng_idx) = virtio_rng_idx {
-            use kernel::hil::rng::Rng;
-            use qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng;
-            use qemu_rv32_virt_chip::virtio::queues::split_queue::{
-                SplitVirtqueue, VirtqueueAvailableRing, VirtqueueDescriptors, VirtqueueUsedRing,
-            };
-            use qemu_rv32_virt_chip::virtio::queues::Virtqueue;
-            use qemu_rv32_virt_chip::virtio::transports::VirtIOTransport;
-
-            // EntropySource requires a single Virtqueue for retrieved entropy
-            let descriptors =
-                static_init!(VirtqueueDescriptors<1>, VirtqueueDescriptors::default(),);
-            let available_ring =
-                static_init!(VirtqueueAvailableRing<1>, VirtqueueAvailableRing::default(),);
-            let used_ring = static_init!(VirtqueueUsedRing<1>, VirtqueueUsedRing::default(),);
-            let queue = static_init!(
-                SplitVirtqueue<1>,
-                SplitVirtqueue::new(descriptors, available_ring, used_ring),
-            );
-            queue.set_transport(&peripherals.virtio_mmio[rng_idx]);
-
-            // VirtIO EntropySource device driver instantiation
-            let rng = static_init!(VirtIORng, VirtIORng::new(queue));
-            kernel::deferred_call::DeferredCallClient::register(rng);
-            queue.set_client(rng);
-
-            // Register the queues and driver with the transport, so interrupts
-            // are routed properly
-            let mmio_queues = static_init!([&'static dyn Virtqueue; 1], [queue; 1]);
-            peripherals.virtio_mmio[rng_idx]
-                .initialize(rng, mmio_queues)
-                .unwrap();
-
-            // Provide an internal randomness buffer
-            let rng_buffer = static_init!([u8; 64], [0; 64]);
-            rng.provide_buffer(rng_buffer)
-                .expect("rng: providing initial buffer failed");
-
-            // Userspace RNG driver over the VirtIO EntropySource
-            let rng_driver: &'static mut capsules_core::rng::RngDriver = static_init!(
-                capsules_core::rng::RngDriver,
-                capsules_core::rng::RngDriver::new(
-                    rng,
-                    board_kernel
-                        .create_grant(capsules_core::rng::DRIVER_NUM, &memory_allocation_cap),
-                ),
-            );
-            rng.set_client(rng_driver);
-
-            Some(rng_driver as &'static capsules_core::rng::RngDriver)
-        } else {
-            // No VirtIO EntropySource discovered
-            None
+    let virtio_rng_driver: Option<
+        &'static capsules_core::rng::RngDriver<
+            'static,
+            qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng<'static, 'static>,
+        >,
+    > = if let Some(rng_idx) = virtio_rng_idx {
+        use kernel::hil::rng::Rng;
+        use qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng;
+        use qemu_rv32_virt_chip::virtio::queues::split_queue::{
+            SplitVirtqueue, VirtqueueAvailableRing, VirtqueueDescriptors, VirtqueueUsedRing,
         };
+        use qemu_rv32_virt_chip::virtio::queues::Virtqueue;
+        use qemu_rv32_virt_chip::virtio::transports::VirtIOTransport;
+
+        // EntropySource requires a single Virtqueue for retrieved entropy
+        let descriptors = static_init!(VirtqueueDescriptors<1>, VirtqueueDescriptors::default(),);
+        let available_ring =
+            static_init!(VirtqueueAvailableRing<1>, VirtqueueAvailableRing::default(),);
+        let used_ring = static_init!(VirtqueueUsedRing<1>, VirtqueueUsedRing::default(),);
+        let queue = static_init!(
+            SplitVirtqueue<1>,
+            SplitVirtqueue::new(descriptors, available_ring, used_ring),
+        );
+        queue.set_transport(&peripherals.virtio_mmio[rng_idx]);
+
+        // VirtIO EntropySource device driver instantiation
+        let rng = static_init!(VirtIORng, VirtIORng::new(queue));
+        kernel::deferred_call::DeferredCallClient::register(rng);
+        queue.set_client(rng);
+
+        // Register the queues and driver with the transport, so interrupts
+        // are routed properly
+        let mmio_queues = static_init!([&'static dyn Virtqueue; 1], [queue; 1]);
+        peripherals.virtio_mmio[rng_idx]
+            .initialize(rng, mmio_queues)
+            .unwrap();
+
+        // Provide an internal randomness buffer
+        let rng_buffer = static_init!([u8; 64], [0; 64]);
+        rng.provide_buffer(rng_buffer)
+            .expect("rng: providing initial buffer failed");
+
+        // Userspace RNG driver over the VirtIO EntropySource
+        let rng_driver = static_init!(
+            capsules_core::rng::RngDriver<VirtIORng>,
+            capsules_core::rng::RngDriver::new(
+                rng,
+                board_kernel.create_grant(capsules_core::rng::DRIVER_NUM, &memory_allocation_cap),
+            ),
+        );
+        rng.set_client(rng_driver);
+
+        Some(rng_driver as &'static capsules_core::rng::RngDriver<VirtIORng>)
+    } else {
+        // No VirtIO EntropySource discovered
+        None
+    };
 
     // If there is a VirtIO NetworkCard present, use the appropriate VirtIONet
     // driver. Currently this is not used, as work on the userspace network

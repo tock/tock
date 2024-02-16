@@ -49,6 +49,7 @@ type TemperatureSTMSensor = components::temperature_stm::TemperatureSTMComponent
     capsules_core::virtualizers::virtual_adc::AdcDevice<'static, stm32f412g::adc::Adc<'static>>,
 >;
 type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureSTMSensor>;
+type RngDriver = components::rng::RngComponentType<stm32f412g::trng::Trng<'static>>;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -70,7 +71,7 @@ struct STM32F412GDiscovery {
     touch: &'static capsules_extra::touch::Touch<'static>,
     screen: &'static capsules_extra::screen::Screen<'static>,
     temperature: &'static TemperatureDriver,
-    rng: &'static capsules_core::rng::RngDriver<'static>,
+    rng: &'static RngDriver,
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
@@ -607,7 +608,7 @@ pub unsafe fn main() {
         capsules_core::rng::DRIVER_NUM,
         &peripherals.trng,
     )
-    .finalize(components::rng_component_static!());
+    .finalize(components::rng_component_static!(stm32f412g::trng::Trng));
 
     // FT6206
 

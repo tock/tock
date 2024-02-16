@@ -83,6 +83,7 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 type TemperatureDriver =
     components::temperature::TemperatureComponentType<nrf52::temperature::Temp<'static>>;
+type RngDriver = components::rng::RngComponentType<nrf52833::trng::Trng<'static>>;
 
 /// Supported drivers by the platform
 pub struct MicroBit {
@@ -109,7 +110,7 @@ pub struct MicroBit {
         25,
     >,
     button: &'static capsules_core::button::Button<'static, nrf52::gpio::GPIOPin<'static>>,
-    rng: &'static capsules_core::rng::RngDriver<'static>,
+    rng: &'static RngDriver,
     ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
     lsm303agr: &'static capsules_extra::lsm303agr::Lsm303agrI2C<
         'static,
@@ -434,7 +435,7 @@ unsafe fn start() -> (
         capsules_core::rng::DRIVER_NUM,
         &base_peripherals.trng,
     )
-    .finalize(components::rng_component_static!());
+    .finalize(components::rng_component_static!(nrf52833::trng::Trng));
 
     //--------------------------------------------------------------------------
     // SENSORS
