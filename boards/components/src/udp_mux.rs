@@ -67,7 +67,7 @@ pub const MAX_PAYLOAD_LEN: usize = 200; //The max size UDP message that can be s
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! udp_mux_component_static {
-    ($A:ty, $M:ty $(,)?) => {{
+    ($A:ty $(,)?) => {{
         use capsules_core;
         use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
         use capsules_extra::net::sixlowpan::{sixlowpan_compression, sixlowpan_state};
@@ -77,7 +77,7 @@ macro_rules! udp_mux_component_static {
 
         let alarm = kernel::static_buf!(VirtualMuxAlarm<'static, $A>);
         let mac_user =
-            kernel::static_buf!(capsules_extra::ieee802154::virtual_mac::MacUser<'static, $M>);
+            kernel::static_buf!(capsules_extra::ieee802154::virtual_mac::MacUser<'static>);
         let sixlowpan = kernel::static_buf!(
             sixlowpan_state::Sixlowpan<
                 'static,
@@ -156,8 +156,8 @@ macro_rules! udp_mux_component_static {
     };};
 }
 
-pub struct UDPMuxComponent<A: Alarm<'static> + 'static, M: MacDevice<'static> + 'static> {
-    mux_mac: &'static capsules_extra::ieee802154::virtual_mac::MuxMac<'static, M>,
+pub struct UDPMuxComponent<A: Alarm<'static> + 'static> {
+    mux_mac: &'static capsules_extra::ieee802154::virtual_mac::MuxMac<'static>,
     ctx_pfix_len: u8,
     ctx_pfix: [u8; 16],
     dst_mac_addr: MacAddress,
@@ -166,9 +166,9 @@ pub struct UDPMuxComponent<A: Alarm<'static> + 'static, M: MacDevice<'static> + 
     alarm_mux: &'static MuxAlarm<'static, A>,
 }
 
-impl<A: Alarm<'static> + 'static, M: MacDevice<'static>> UDPMuxComponent<A, M> {
+impl<A: Alarm<'static> + 'static> UDPMuxComponent<A> {
     pub fn new(
-        mux_mac: &'static capsules_extra::ieee802154::virtual_mac::MuxMac<'static, M>,
+        mux_mac: &'static capsules_extra::ieee802154::virtual_mac::MuxMac<'static>,
         ctx_pfix_len: u8,
         ctx_pfix: [u8; 16],
         dst_mac_addr: MacAddress,
@@ -188,10 +188,10 @@ impl<A: Alarm<'static> + 'static, M: MacDevice<'static>> UDPMuxComponent<A, M> {
     }
 }
 
-impl<A: Alarm<'static> + 'static, M: MacDevice<'static>> Component for UDPMuxComponent<A, M> {
+impl<A: Alarm<'static> + 'static> Component for UDPMuxComponent<A> {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
-        &'static mut MaybeUninit<capsules_extra::ieee802154::virtual_mac::MacUser<'static, M>>,
+        &'static mut MaybeUninit<capsules_extra::ieee802154::virtual_mac::MacUser<'static>>,
         &'static mut MaybeUninit<
             sixlowpan_state::Sixlowpan<
                 'static,
