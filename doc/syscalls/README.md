@@ -54,14 +54,18 @@ stabilized or not (a "✓" indicates stability) in the Tock 2.0 release.
 
 |2.0| Driver Number | Driver           | Description                                |
 |---|---------------|------------------|--------------------------------------------|
-|   | 0x10000       | IPC              | Inter-process communication                |
 |   | 0x00009       | [ROS](00009_ros.md) | Read Only State, access system information |
+|   | 0x10000       | IPC              | Inter-process communication                |
 
 ### Hardware Access
 
 |2.0| Driver Number | Driver           | Description                                |
 |---|---------------|------------------|--------------------------------------------|
 |   | 0x00004       | [GPIO](00004_gpio.md) | Set and read GPIO pins                |
+| ✓ | 0x00005       | [ADC](00005_adc.md)| Sample analog-to-digital converter pins  |
+|   | 0x00006       | DAC              | Digital to analog converter                |
+|   | 0x00007       | [AnalogComparator](00007_analog_comparator.md) | Analog Comparator |
+|   | 0x00010       | [PWM](00010_pwm.md)| Control PWM pins                         |
 |   | 0x20000       | UART             | UART                                       |
 |   | 0x20001       | SPI              | Raw SPI Master interface                   |
 |   | 0x20002       | SPI Slave        | Raw SPI slave interface                    |
@@ -69,10 +73,6 @@ stabilized or not (a "✓" indicates stability) in the Tock 2.0 release.
 |   | 0x20004       | I2C Slave        | Raw I2C Slave interface                    |
 |   | 0x20005       | USB              | Universal Serial Bus interface             |
 |   | 0x20007       | [CAN](20007_can.md)| Controller Area Network interface        |
-| ✓ | 0x00005       | [ADC](00005_adc.md)| Sample analog-to-digital converter pins  |
-|   | 0x00006       | DAC              | Digital to analog converter                |
-|   | 0x00007       | [AnalogComparator](00007_analog_comparator.md) | Analog Comparator |
-|   | 0x00010       | [PWM](00010_pwm.md)| Control PWM pins                         |
 
 _Note:_ GPIO is slated for re-numbering in Tock 2.0.
 
