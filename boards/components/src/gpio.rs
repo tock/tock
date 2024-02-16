@@ -119,6 +119,8 @@ macro_rules! gpio_component_static {
     };};
 }
 
+pub type GpioComponentType<IP> = GPIO<'static, IP>;
+
 pub struct GpioComponent<IP: 'static + gpio::InterruptPin<'static>> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
