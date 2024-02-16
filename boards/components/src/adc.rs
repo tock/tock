@@ -147,6 +147,8 @@ impl Component for AdcVirtualComponent {
     }
 }
 
+pub type AdcDedicatedComponentType<A> = capsules_core::adc::AdcDedicated<'static, A>;
+
 pub struct AdcDedicatedComponent<
     A: kernel::hil::adc::Adc<'static> + kernel::hil::adc::AdcHighSpeed<'static> + 'static,
 > {
