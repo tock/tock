@@ -115,6 +115,13 @@ type SI7021Sensor = components::si7021::SI7021ComponentType<
 type TemperatureDriver = components::temperature::TemperatureComponentType<SI7021Sensor>;
 type HumidityDriver = components::humidity::HumidityComponentType<SI7021Sensor>;
 
+type Rf233 = capsules_extra::rf233::RF233<
+    'static,
+    VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw<'static>>,
+>;
+type Ieee802154MacDevice =
+    components::ieee802154::Ieee802154ComponentMacDeviceType<Rf233, sam4l::aes::Aes<'static>>;
+
 struct Imix {
     pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
@@ -705,7 +712,10 @@ pub unsafe fn main() {
         local_ip_ifaces,
         mux_alarm,
     )
-    .finalize(components::udp_mux_component_static!(sam4l::ast::Ast));
+    .finalize(components::udp_mux_component_static!(
+        sam4l::ast::Ast,
+        Ieee802154MacDevice
+    ));
 
     // UDP driver initialization happens here
     let udp_driver = components::udp_driver::UDPDriverComponent::new(

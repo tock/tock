@@ -144,6 +144,11 @@ type SHT3xSensor = components::sht3x::SHT3xComponentType<
 type TemperatureDriver = components::temperature::TemperatureComponentType<SHT3xSensor>;
 type HumidityDriver = components::humidity::HumidityComponentType<SHT3xSensor>;
 
+type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<
+    nrf52840::ieee802154_radio::Radio<'static>,
+    nrf52840::aes::AesECB<'static>,
+>;
+
 /// Supported drivers by the platform
 pub struct Platform {
     ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
@@ -154,7 +159,7 @@ pub struct Platform {
             nrf52::rtc::Rtc<'static>,
         >,
     >,
-    ieee802154_radio: &'static capsules_extra::ieee802154::RadioDriver<'static>,
+    ieee802154_radio: &'static Ieee802154Driver,
     console: &'static capsules_core::console::Console<'static>,
     proximity: &'static capsules_extra::proximity::ProximitySensor<'static>,
     gpio: &'static capsules_core::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
