@@ -119,15 +119,6 @@ type HTS221Sensor = components::hts221::Hts221ComponentType<
 >;
 type TemperatureDriver = components::temperature::TemperatureComponentType<HTS221Sensor>;
 type HumidityDriver = components::humidity::HumidityComponentType<HTS221Sensor>;
-type MuxAes = components::ieee802154::MuxAes128ccmComponentType<nrf52840::aes::AesECB<'static>>;
-type Ieee802154MuxMac = components::ieee802154::Ieee802154ComponentMuxMacType<
-    nrf52840::ieee802154_radio::Radio<'static>,
-    MuxAes,
->;
-type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<
-    nrf52840::ieee802154_radio::Radio<'static>,
-    MuxAes,
->;
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -139,7 +130,7 @@ pub struct Platform {
             nrf52::rtc::Rtc<'static>,
         >,
     >,
-    ieee802154_radio: &'static Ieee802154Driver,
+    ieee802154_radio: &'static capsules_extra::ieee802154::RadioDriver<'static>,
     console: &'static capsules_core::console::Console<'static>,
     pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
@@ -586,10 +577,7 @@ pub unsafe fn start() -> (
         local_ip_ifaces,
         mux_alarm,
     )
-    .finalize(components::udp_mux_component_static!(
-        nrf52840::rtc::Rtc,
-        Ieee802154MuxMac
-    ));
+    .finalize(components::udp_mux_component_static!(nrf52840::rtc::Rtc));
 
     // UDP driver initialization happens here
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
