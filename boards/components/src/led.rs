@@ -44,6 +44,8 @@ macro_rules! led_component_static {
     };};
 }
 
+pub type LedsComponentType<L, const NUMLEDS: usize> = LedDriver<'static, L, NUMLEDS>;
+
 pub struct LedsComponent<L: 'static + Led, const NUM_LEDS: usize> {
     _phantom: PhantomData<L>,
 }
