@@ -871,7 +871,66 @@ impl<T: AppUniqueness + Compress> AppIdPolicy for T {}
 10 Capsules
 ===============================
 
-Include a sample capsule that uses ShortIDs.
+Capsules can use AppID to restrict access to only certain processes or to
+partition a resource based among processes. By using AppID, this assignment is
+persistent across reboots and application updates.
+
+For example, consider a display that is divided such that different applications
+are given access to different regions of the display. These assignments should
+be persistent to main continuity for the user looking at the display, even if
+applications are added or removed.
+
+This is a very incomplete example but it shows the general use of ShortID within
+a capsule. Note that accessing a ShortID is done using `ProcessId`.
+
+```rust
+pub struct AppScreenRegion {
+    app_id: kernel::process::ShortID,
+    frame: Frame,
+}
+
+pub struct ScreenShared<'a, S: hil::screen::Screen<'a>> {
+    screen: &'a S,
+    apps: Grant<App, UpcallCount<1>, AllowRoCount<{ ro_allow::COUNT }>, AllowRwCount<0>>,
+    apps_regions: &'a [AppScreenRegion],
+}
+
+impl<'a, S: hil::screen::Screen<'a>> ScreenShared<'a, S> {
+    fn get_app_screen_region_frame(&self, process_id: ProcessId) -> Option<Frame> {
+        // Check if a process with that short ID has an allocated frame.
+        let short_id = process_id.short_app_id();
+
+        for app_screen_region in self.apps_regions {
+            if short_id == app_screen_region.app_id {
+                return Some(app_screen_region.frame);
+            }
+        }
+        None
+    }
+
+    fn write_screen(&self, process_id: ProcessId) {
+      let screen_region = self.get_app_screen_region_frame(process_id);
+      self.screen.write(screen_region);
+    }
+}
+
+impl<'a, S: hil::screen::Screen<'a>> SyscallDriver for ScreenShared<'a, S> {
+    fn command(&self, command_num: usize, _: usize, _: usize, process_id: ProcessId) -> CommandReturn {
+        match command_num {
+            // Driver existence check
+            0 => CommandReturn::success(),
+
+            // Write
+            1 => {
+                self.write_screen(process_id);
+                CommandReturn::success()
+            }
+
+            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
+        }
+    }
+}
+```
 
 11 Implementation Considerations
 ===============================
