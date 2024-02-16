@@ -84,6 +84,8 @@ macro_rules! button_component_static {
     };};
 }
 
+pub type ButtonComponentType<IP> = capsules_core::button::Button<'static, IP>;
+
 pub struct ButtonComponent<IP: 'static + gpio::InterruptPin<'static>> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
