@@ -86,6 +86,7 @@ struct NucleoF429ZI {
         'static,
         stm32f429zi::rtc::Rtc<'static>,
     >,
+    //todo uncomment: display: &'static capsules_extra::graphic_display::GraphicDisplay<'static>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -636,6 +637,41 @@ pub unsafe fn main() {
         stm32f429zi::rtc::Rtc<'static>
     ));
 
+    // I2C SSD1306 screen
+    let i2c_mux = components::i2c::I2CMuxComponent::new(&peripherals.stm32f4.i2c1, None).finalize(
+        components::i2c_mux_component_static!(stm32f4xx::i2c::I2C<'static>),
+    );
+    kernel::deferred_call::DeferredCallClient::register(i2c_mux);
+
+    //todo: bus initialization + uncomment
+    // let bus = components::bus::I2CMasterBusComponent::new(
+    //     i2c_mux,
+    //     capsules_extra::ssd1306::SLAVE_ADDRESS_WRITE,
+    // )
+    // .finalize(components::i2c_master_bus_component_static!());
+
+    // let ssd1306_screen = components::ssd1306::SSD1306Component::new(bus).finalize(
+    //     components::ssd1306_component_static!(
+    //         capsules_extra::bus::I2CMasterBus<
+    //             'static,
+    //             capsules_core::virtualizers::virtual_i2c::I2CDevice<
+    //                 'static,
+    //                 stm32f4xx::i2c::I2C<'static>,
+    //             >,
+    //         >,
+    //     ),
+    // );
+
+    // let _ = ssd1306_screen.init();
+
+    // let display = components::graphic_display::GraphicDisplayComponent::new(
+    //     board_kernel,
+    //     capsules_extra::graphic_display::DRIVER_NUM,
+    //     ssd1306_screen,
+    //     Some(ssd1306_screen),
+    // )
+    // .finalize(components::graphic_display_component_static!(1025));
+
     // PROCESS CONSOLE
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
@@ -672,6 +708,7 @@ pub unsafe fn main() {
         systick: cortexm4::systick::SysTick::new(),
         can: can,
         date_time,
+        //todo uncomment: display,
     };
 
     // // Optional kernel tests
