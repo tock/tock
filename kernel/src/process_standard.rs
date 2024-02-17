@@ -1312,8 +1312,9 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
                 let _ = writer.write_fmt(format_args!(
                     "\
-                    \r\nTo debug libtock-c apps, run `make debug RAM_START={:#x}`\
-                    \r\nFLASH_INIT={:#x} in the app's folder and open the .lst file.\r\n\r\n",
+                    \r\nTo debug libtock-c apps, run\
+                    \r\n`make debug RAM_START={:#x} FLASH_INIT={:#x}`\
+                    \r\nin the app's folder and open the .lst file.\r\n\r\n",
                     sram_start, flash_init_fn
                 ));
             }
