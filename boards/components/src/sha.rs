@@ -60,14 +60,8 @@ impl<A: 'static + digest::Digest<'static, D>, D: DigestAlgorithm> ShaComponent<A
     }
 }
 
-impl<
-        A: kernel::hil::digest::Sha256
-            + digest::Sha384
-            + digest::Sha512
-            + 'static
-            + digest::Digest<'static, D>,
-        D: DigestAlgorithm + 'static,
-    > Component for ShaComponent<A, D>
+impl<A: digest::Digest<'static, D> + 'static, D: DigestAlgorithm + 'static> Component
+    for ShaComponent<A, D>
 {
     type StaticInput = (
         &'static mut MaybeUninit<ShaDriver<'static, A, D>>,

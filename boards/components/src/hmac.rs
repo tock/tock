@@ -114,19 +114,13 @@ pub type HmacSha256SoftwareComponentType<S> =
     capsules_extra::hmac_sha256::HmacSha256Software<'static, S>;
 
 pub struct HmacSha256SoftwareComponent<
-    S: digest::Sha256
-        + digest::DigestDataHash<'static, Sha256Hash>
-        + digest::Digest<'static, Sha256Hash>
-        + 'static,
+    S: digest::DigestDataHash<'static, Sha256Hash> + digest::Digest<'static, Sha256Hash> + 'static,
 > {
     sha_256: &'static S,
 }
 
-impl<
-        S: digest::Sha256
-            + digest::DigestDataHash<'static, Sha256Hash>
-            + digest::Digest<'static, Sha256Hash>,
-    > HmacSha256SoftwareComponent<S>
+impl<S: digest::DigestDataHash<'static, Sha256Hash> + digest::Digest<'static, Sha256Hash>>
+    HmacSha256SoftwareComponent<S>
 {
     pub fn new(sha_256: &'static S) -> HmacSha256SoftwareComponent<S> {
         HmacSha256SoftwareComponent { sha_256 }
@@ -134,10 +128,7 @@ impl<
 }
 
 impl<
-        S: digest::Sha256
-            + digest::DigestDataHash<'static, Sha256Hash>
-            + digest::Digest<'static, Sha256Hash>
-            + 'static,
+        S: digest::DigestDataHash<'static, Sha256Hash> + digest::Digest<'static, Sha256Hash> + 'static,
     > Component for HmacSha256SoftwareComponent<S>
 {
     type StaticInput = (

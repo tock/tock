@@ -9,7 +9,7 @@
 use crate::deferred_call::{DeferredCall, DeferredCallClient};
 use crate::hil::digest::DigestDataVerify;
 use crate::hil::digest::{ClientData, ClientHash, ClientVerify};
-use crate::hil::digest::{DigestAlgorithm, Sha256, Sha256Hash};
+use crate::hil::digest::{DigestAlgorithm, Sha256Hash};
 use crate::process::{Process, ShortID};
 use crate::process_checker::{AppCredentialsChecker, AppUniqueness};
 use crate::process_checker::{CheckResult, Client, Compress};
@@ -103,8 +103,8 @@ impl Compress for AppCheckerSimulated<'_> {
     }
 }
 
-pub trait Sha256Verifier<'a>: DigestDataVerify<'a, Sha256Hash> + Sha256 {}
-impl<'a, T: DigestDataVerify<'a, Sha256Hash> + Sha256> Sha256Verifier<'a> for T {}
+pub trait Sha256Verifier<'a>: DigestDataVerify<'a, Sha256Hash> {}
+impl<'a, T: DigestDataVerify<'a, Sha256Hash>> Sha256Verifier<'a> for T {}
 
 /// A Credentials Checking Policy that only runs Userspace Binaries
 /// which have a unique SHA256 credential. A Userspace Binary without

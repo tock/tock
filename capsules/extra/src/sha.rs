@@ -59,12 +59,6 @@ use kernel::utilities::leasable_buffer::SubSlice;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::{ErrorCode, ProcessId};
 
-enum ShaOperation {
-    Sha256,
-    Sha384,
-    Sha512,
-}
-
 pub struct ShaDriver<'a, H: digest::Digest<'a, D>, D: digest::DigestAlgorithm + 'static> {
     sha: &'a H,
 
@@ -83,12 +77,7 @@ pub struct ShaDriver<'a, H: digest::Digest<'a, D>, D: digest::DigestAlgorithm + 
     dest_buffer: MapCell<&'static mut D>,
 }
 
-impl<
-        'a,
-        H: digest::Digest<'a, D> + digest::Sha256 + digest::Sha384 + digest::Sha512,
-        D: digest::DigestAlgorithm,
-    > ShaDriver<'a, H, D>
-{
+impl<'a, H: digest::Digest<'a, D>, D: digest::DigestAlgorithm> ShaDriver<'a, H, D> {
     pub fn new(
         sha: &'a H,
         data_buffer: &'static mut [u8],
@@ -114,14 +103,7 @@ impl<
     fn run(&self) -> Result<(), ErrorCode> {
         self.processid.map_or(Err(ErrorCode::RESERVE), |processid| {
             self.apps
-                .enter(processid, |app, kernel_data| {
-                    match app.sha_operation {
-                        Some(ShaOperation::Sha256) => self.sha.set_mode_sha256()?,
-                        Some(ShaOperation::Sha384) => self.sha.set_mode_sha384()?,
-                        Some(ShaOperation::Sha512) => self.sha.set_mode_sha512()?,
-                        _ => return Err(ErrorCode::INVAL),
-                    }
-
+                .enter(processid, |_app, kernel_data| {
                     kernel_data
                         .get_readonly_processbuffer(ro_allow::DATA)
                         .and_then(|data| {
@@ -219,11 +201,8 @@ impl<
     }
 }
 
-impl<
-        'a,
-        H: digest::Digest<'a, D> + digest::Sha256 + digest::Sha384 + digest::Sha512,
-        D: digest::DigestAlgorithm,
-    > digest::ClientData<D> for ShaDriver<'a, H, D>
+impl<'a, H: digest::Digest<'a, D>, D: digest::DigestAlgorithm> digest::ClientData<D>
+    for ShaDriver<'a, H, D>
 {
     // Because data needs to be copied from a userspace buffer into a kernel (RAM) one,
     // we always pass mut data; this callback should never be invoked.
@@ -358,11 +337,8 @@ impl<
     }
 }
 
-impl<
-        'a,
-        H: digest::Digest<'a, D> + digest::Sha256 + digest::Sha384 + digest::Sha512,
-        D: digest::DigestAlgorithm,
-    > digest::ClientHash<D> for ShaDriver<'a, H, D>
+impl<'a, H: digest::Digest<'a, D>, D: digest::DigestAlgorithm> digest::ClientHash<D>
+    for ShaDriver<'a, H, D>
 {
     fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut D) {
         self.processid.map(|id| {
@@ -413,11 +389,8 @@ impl<
     }
 }
 
-impl<
-        'a,
-        H: digest::Digest<'a, D> + digest::Sha256 + digest::Sha384 + digest::Sha512,
-        D: digest::DigestAlgorithm,
-    > digest::ClientVerify<D> for ShaDriver<'a, H, D>
+impl<'a, H: digest::Digest<'a, D>, D: digest::DigestAlgorithm> digest::ClientVerify<D>
+    for ShaDriver<'a, H, D>
 {
     fn verification_done(&self, result: Result<bool, ErrorCode>, compare: &'static mut D) {
         self.processid.map(|id| {
@@ -448,11 +421,8 @@ impl<
     }
 }
 
-impl<
-        'a,
-        H: digest::Digest<'a, D> + digest::Sha256 + digest::Sha384 + digest::Sha512,
-        D: digest::DigestAlgorithm,
-    > SyscallDriver for ShaDriver<'a, H, D>
+impl<'a, H: digest::Digest<'a, D>, D: digest::DigestAlgorithm> SyscallDriver
+    for ShaDriver<'a, H, D>
 {
     /// Setup and run the HMAC hardware
     ///
@@ -570,26 +540,9 @@ impl<
             .enter(processid, |app, kernel_data| {
                 match command_num {
                     // set_algorithm
-                    0 => {
-                        match data1 {
-                            // SHA256
-                            0 => {
-                                app.sha_operation = Some(ShaOperation::Sha256);
-                                CommandReturn::success()
-                            }
-                            // SHA384
-                            1 => {
-                                app.sha_operation = Some(ShaOperation::Sha384);
-                                CommandReturn::success()
-                            }
-                            // SHA512
-                            2 => {
-                                app.sha_operation = Some(ShaOperation::Sha512);
-                                CommandReturn::success()
-                            }
-                            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
-                        }
-                    }
+                    0 => match data1 {
+                        _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
+                    },
 
                     // run
                     1 => {
@@ -716,6 +669,5 @@ enum UserSpaceOp {
 #[derive(Default)]
 pub struct App {
     pending_run_app: Option<ProcessId>,
-    sha_operation: Option<ShaOperation>,
     op: Cell<Option<UserSpaceOp>>,
 }

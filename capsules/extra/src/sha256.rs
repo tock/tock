@@ -15,7 +15,7 @@ use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::digest::{Client, ClientData, ClientHash, ClientVerify};
 use kernel::hil::digest::{ClientDataHash, ClientDataVerify, DigestDataHash, DigestDataVerify};
 use kernel::hil::digest::{Digest, DigestData, DigestHash, DigestVerify};
-use kernel::hil::digest::{DigestAlgorithm, Sha256, Sha256Hash};
+use kernel::hil::digest::{DigestAlgorithm, Sha256Hash};
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::leasable_buffer::SubSlice;
 use kernel::utilities::leasable_buffer::SubSliceMut;
@@ -482,13 +482,6 @@ impl<'a> DeferredCallClient for Sha256Software<'a> {
 
     fn register(&'static self) {
         self.deferred_call.register(self);
-    }
-}
-
-impl Sha256 for Sha256Software<'_> {
-    /// Call before adding data to perform Sha256
-    fn set_mode_sha256(&self) -> Result<(), ErrorCode> {
-        Ok(())
     }
 }
 

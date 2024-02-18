@@ -365,26 +365,6 @@ pub trait DigestDataVerify<'a, D: DigestAlgorithm>:
     fn set_client(&'a self, client: &'a dyn ClientDataVerify<D>);
 }
 
-pub trait Sha224 {
-    /// Call before adding data to perform Sha224
-    fn set_mode_sha224(&self) -> Result<(), ErrorCode>;
-}
-
-pub trait Sha256 {
-    /// Call before adding data to perform Sha256
-    fn set_mode_sha256(&self) -> Result<(), ErrorCode>;
-}
-
-pub trait Sha384 {
-    /// Call before adding data to perform Sha384
-    fn set_mode_sha384(&self) -> Result<(), ErrorCode>;
-}
-
-pub trait Sha512 {
-    /// Call before adding data to perform Sha512
-    fn set_mode_sha512(&self) -> Result<(), ErrorCode>;
-}
-
 pub trait HmacSha256 {
     /// Call before adding data to perform HMACSha256
     ///
