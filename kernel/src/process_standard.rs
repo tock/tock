@@ -291,26 +291,6 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         ret
     }
 
-    fn mark_credentials_pass(
-        &self,
-        credentials: Option<TbfFooterV2Credentials>,
-        short_app_id: ShortID,
-        _capability: &dyn capabilities::ProcessApprovalCapability,
-    ) -> Result<(), ErrorCode> {
-        if self.state.get() != State::CredentialsUnchecked {
-            return Err(ErrorCode::NODEVICE);
-        }
-
-        self.state.set(State::CredentialsApproved);
-        self.app_id.set(short_app_id);
-        credentials.map(|c| self.credentials.replace(c));
-        Ok(())
-    }
-
-    fn mark_credentials_fail(&self, _capability: &dyn capabilities::ProcessApprovalCapability) {
-        self.state.set(State::CredentialsFailed);
-    }
-
     fn get_credentials(&self) -> Option<TbfFooterV2Credentials> {
         let c = self.credentials.take();
         self.credentials.insert(c);
@@ -326,7 +306,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         &self,
         _cap: &dyn capabilities::ProcessInitCapability,
     ) -> Result<(), ErrorCode> {
-        if self.state.get() != State::CredentialsApproved && self.state.get() != State::Terminated {
+        if self.state.get() != State::Terminated {
             return Err(ErrorCode::NODEVICE);
         }
 
@@ -352,7 +332,6 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     fn ready(&self) -> bool {
         self.tasks.map_or(false, |ring_buf| ring_buf.has_elements())
             || self.state.get() == State::Running
-            || self.state.get() == State::CredentialsApproved
     }
 
     fn remove_pending_upcalls(&self, upcall_id: UpcallId) {
@@ -446,11 +425,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn try_restart(&self, completion_code: Option<u32>) {
         let current_state = self.state.get();
-        if current_state == State::CredentialsFailed || current_state == State::CredentialsUnchecked
-        {
-            // Can't restart an unchecked or failed process
-            return;
-        }
+
         // Terminate the process, freeing its state and removing any
         // pending tasks from the scheduler's queue.
         self.terminate(completion_code);
