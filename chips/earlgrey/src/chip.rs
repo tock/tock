@@ -436,7 +436,7 @@ pub unsafe fn configure_trap_handler() {
 // Mock implementation for crate tests that does not include the section
 // specifier, as the test will not use our linker script, and the host
 // compilation environment may not allow the section name.
-#[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+#[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
 pub extern "C" fn _start_trap_vectored() {
     use core::hint::unreachable_unchecked;
     unsafe {

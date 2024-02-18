@@ -561,22 +561,22 @@ pub fn ipsr_isr_number_to_str(isr_number: usize) -> &'static str {
 // ARM assembly since it will not compile.
 ///////////////////////////////////////////////////////////////////
 
-#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn systick_handler_arm_v7m() {
     unimplemented!()
 }
 
-#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn svc_handler_arm_v7m() {
     unimplemented!()
 }
 
-#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn generic_isr_arm_v7m() {
     unimplemented!()
 }
 
-#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn switch_to_user_arm_v7m(
     _user_stack: *const u8,
     _process_regs: &mut [usize; 8],
@@ -584,7 +584,7 @@ pub unsafe extern "C" fn switch_to_user_arm_v7m(
     unimplemented!()
 }
 
-#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
     unimplemented!()
 }

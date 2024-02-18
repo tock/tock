@@ -214,7 +214,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     }
 
     // Mock implementation for tests on Travis-CI.
-    #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+    #[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
     unsafe fn switch_to_process(
         &self,
         _accessible_memory_start: *const u8,

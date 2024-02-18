@@ -134,7 +134,7 @@ impl<'a, I: InterruptService + 'a> ArtyExx<'a, I> {
     }
 
     // Mock implementation for tests on Travis-CI.
-    #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+    #[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
     pub unsafe fn configure_trap_handler(&self) {
         unimplemented!()
     }

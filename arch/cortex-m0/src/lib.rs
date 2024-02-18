@@ -72,7 +72,7 @@ unsafe extern "C" fn hard_fault_handler_kernel(faulting_stack: *mut u32) -> ! {
 }
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 unsafe extern "C" fn generic_isr() {
     unimplemented!()
 }
@@ -167,7 +167,7 @@ global_asm!(
 );
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 unsafe extern "C" fn systick_handler_m0() {
     unimplemented!()
 }
@@ -210,7 +210,7 @@ global_asm!(
 );
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 unsafe extern "C" fn svc_handler() {
     unimplemented!()
 }
@@ -249,7 +249,7 @@ svc_handler:
 );
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 unsafe extern "C" fn hard_fault_handler() {
     unimplemented!()
 }
@@ -365,7 +365,7 @@ impl cortexm::CortexMVariant for CortexM0 {
     const HARD_FAULT_HANDLER: unsafe extern "C" fn() = hard_fault_handler;
 
     // Mock implementation for tests on Travis-CI.
-    #[cfg(not(any(target_arch = "arm", target_os = "none")))]
+    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
     unsafe fn switch_to_user(
         _user_stack: *const usize,
         _process_regs: &mut [usize; 8],

@@ -384,12 +384,12 @@ pub unsafe fn print_cortexm_state(writer: &mut dyn Write) {
 // ARM assembly since it will not compile.
 ///////////////////////////////////////////////////////////////////
 
-#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn unhandled_interrupt() {
     unimplemented!()
 }
 
-#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn initialize_ram_jump_to_main() {
     unimplemented!()
 }

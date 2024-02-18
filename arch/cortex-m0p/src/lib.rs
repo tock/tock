@@ -31,7 +31,7 @@ pub use cortexm::CortexMVariant;
 use cortexm0::CortexM0;
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn svc_handler_m0p() {
     unimplemented!()
 }
@@ -96,7 +96,7 @@ impl cortexm::CortexMVariant for CortexM0P {
         CortexM0::switch_to_user(user_stack, process_regs)
     }
 
-    #[cfg(not(any(target_arch = "arm", target_os = "none")))]
+    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
     unsafe fn switch_to_user(
         _user_stack: *const usize,
         _process_regs: &mut [usize; 8],
