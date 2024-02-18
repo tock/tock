@@ -7,13 +7,14 @@
 //| the [AppID TRD](../../doc/reference/trd-appid.md).
 
 use crate::deferred_call::{DeferredCall, DeferredCallClient};
+use crate::hil::digest::DigestDataVerify;
 use crate::hil::digest::{ClientData, ClientHash, ClientVerify};
-use crate::hil::digest::{DigestDataVerify, Sha256};
+use crate::hil::digest::{DigestAlgorithm, Sha256, Sha256Hash};
 use crate::process::{Process, ShortID};
 use crate::process_checker::{AppCredentialsChecker, AppUniqueness};
 use crate::process_checker::{CheckResult, Client, Compress};
+use crate::utilities::cells::MapCell;
 use crate::utilities::cells::OptionalCell;
-use crate::utilities::cells::TakeCell;
 use crate::utilities::leasable_buffer::{SubSlice, SubSliceMut};
 use crate::ErrorCode;
 use tock_tbf::types::TbfFooterV2Credentials;
@@ -102,8 +103,8 @@ impl Compress for AppCheckerSimulated<'_> {
     }
 }
 
-pub trait Sha256Verifier<'a>: DigestDataVerify<'a, 32_usize> + Sha256 {}
-impl<'a, T: DigestDataVerify<'a, 32_usize> + Sha256> Sha256Verifier<'a> for T {}
+pub trait Sha256Verifier<'a>: DigestDataVerify<'a, Sha256Hash> + Sha256 {}
+impl<'a, T: DigestDataVerify<'a, Sha256Hash> + Sha256> Sha256Verifier<'a> for T {}
 
 /// A Credentials Checking Policy that only runs Userspace Binaries
 /// which have a unique SHA256 credential. A Userspace Binary without
@@ -112,20 +113,20 @@ impl<'a, T: DigestDataVerify<'a, 32_usize> + Sha256> Sha256Verifier<'a> for T {}
 pub struct AppCheckerSha256 {
     hasher: &'static dyn Sha256Verifier<'static>,
     client: OptionalCell<&'static dyn Client<'static>>,
-    hash: TakeCell<'static, [u8; 32]>,
+    hash: MapCell<&'static mut Sha256Hash>,
     binary: OptionalCell<&'static [u8]>,
     credentials: OptionalCell<TbfFooterV2Credentials>,
 }
 
 impl AppCheckerSha256 {
     pub fn new(
-        hash: &'static dyn Sha256Verifier<'static>,
-        buffer: &'static mut [u8; 32],
+        hasher: &'static dyn Sha256Verifier<'static>,
+        buffer: &'static mut Sha256Hash,
     ) -> AppCheckerSha256 {
         AppCheckerSha256 {
-            hasher: hash,
+            hasher,
             client: OptionalCell::empty(),
-            hash: TakeCell::new(buffer),
+            hash: MapCell::new(buffer),
             credentials: OptionalCell::empty(),
             binary: OptionalCell::empty(),
         }
@@ -146,7 +147,7 @@ impl AppCredentialsChecker<'static> for AppCheckerSha256 {
         match credentials.format() {
             TbfFooterV2CredentialsType::SHA256 => {
                 self.hash.map(|h| {
-                    h[..32].copy_from_slice(&credentials.data()[..32]);
+                    h.as_mut_slice()[..32].copy_from_slice(&credentials.data()[..32]);
                 });
                 self.hasher.clear_data();
                 match self.hasher.add_data(SubSlice::new(binary)) {
@@ -186,7 +187,7 @@ impl AppUniqueness for AppCheckerSha256 {
     }
 }
 
-impl ClientData<32_usize> for AppCheckerSha256 {
+impl ClientData<Sha256Hash> for AppCheckerSha256 {
     fn add_mut_data_done(&self, _result: Result<(), ErrorCode>, _data: SubSliceMut<'static, u8>) {}
 
     fn add_data_done(&self, result: Result<(), ErrorCode>, data: SubSlice<'static, u8>) {
@@ -194,7 +195,7 @@ impl ClientData<32_usize> for AppCheckerSha256 {
             Err(e) => panic!("Internal error during application binary checking. SHA256 engine threw error in adding data: {:?}", e),
             Ok(()) => {
                 self.binary.set(data.take());
-                let hash: &'static mut [u8; 32_usize] = self.hash.take().unwrap();
+                let hash =  self.hash.take().unwrap();
                 match self.hasher.verify(hash) {
                     Err((e, _)) => panic!("Failed invoke hash verification in process credential checking: {:?}", e),
                     Ok(()) => {},
@@ -204,12 +205,8 @@ impl ClientData<32_usize> for AppCheckerSha256 {
     }
 }
 
-impl ClientVerify<32_usize> for AppCheckerSha256 {
-    fn verification_done(
-        &self,
-        result: Result<bool, ErrorCode>,
-        compare: &'static mut [u8; 32_usize],
-    ) {
+impl ClientVerify<Sha256Hash> for AppCheckerSha256 {
+    fn verification_done(&self, result: Result<bool, ErrorCode>, compare: &'static mut Sha256Hash) {
         self.hash.replace(compare);
         match result {
             Ok(true) => {
@@ -237,8 +234,8 @@ impl ClientVerify<32_usize> for AppCheckerSha256 {
     }
 }
 
-impl ClientHash<32_usize> for AppCheckerSha256 {
-    fn hash_done(&self, _result: Result<(), ErrorCode>, _digest: &'static mut [u8; 32_usize]) {}
+impl ClientHash<Sha256Hash> for AppCheckerSha256 {
+    fn hash_done(&self, _result: Result<(), ErrorCode>, _digest: &'static mut Sha256Hash) {}
 }
 
 impl Compress for AppCheckerSha256 {
