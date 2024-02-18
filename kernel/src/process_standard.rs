@@ -376,7 +376,25 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         }
     }
 
+    fn start(&self, _cap: &dyn crate::capabilities::ProcessStartCapability) {
+        // `start()` can only be called on a terminated process.
+        if self.get_state() != State::Terminated {
+            return;
+        }
+
+        // Reset to start the process.
+        if let Ok(()) = self.reset() {
+            self.state.set(State::Yielded);
+        }
+    }
+
     fn try_restart(&self, completion_code: Option<u32>) {
+        // `try_restart()` cannot be called if the process is terminated. Only
+        // `start()` can start a terminated process.
+        if self.get_state() == State::Terminated {
+            return;
+        }
+
         // Terminate the process, freeing its state and removing any
         // pending tasks from the scheduler's queue.
         self.terminate(completion_code);
@@ -1709,13 +1727,9 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         Ok((Some(process), unused_memory))
     }
 
-    /// Reset the process, resetting all of its state and
-    /// re-initializing it so it can start running.  Assumes the
-    /// process is not running but is still in flash and still has its
-    /// memory region allocated to it. This does not start the
-    /// process, as that requires the kernel to check that its
-    /// application identifier does not overlap with a running
-    /// process.
+    /// Reset the process, resetting all of its state and re-initializing it so
+    /// it can start running. Assumes the process is not running but is still in
+    /// flash and still has its memory region allocated to it.
     fn reset(&self) -> Result<(), ErrorCode> {
         // We need a new process identifier for this process since the restarted
         // version is in effect a new process. This is also necessary to

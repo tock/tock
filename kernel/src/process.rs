@@ -318,6 +318,20 @@ pub trait Process {
     /// in a TBF Program Header; if the binary has no version assigned, return [None]
     fn binary_version(&self) -> Option<BinaryVersion>;
 
+    /// Returns how many times this process has been restarted.
+    fn get_restart_count(&self) -> usize;
+
+    /// Get the name of the process. Used for IPC.
+    fn get_process_name(&self) -> &'static str;
+
+    /// Return if there are any Tasks (upcalls/IPC requests) enqueued for the
+    /// process.
+    fn has_tasks(&self) -> bool;
+
+    /// Returns the number of pending tasks. If 0 then `dequeue_task()` will
+    /// return `None` when called.
+    fn pending_tasks(&self) -> usize;
+
     /// Queue a `Task` for the process. This will be added to a per-process
     /// buffer and executed by the scheduler. `Task`s are some function the app
     /// should run, for example a upcall or an IPC call.
@@ -330,13 +344,6 @@ pub trait Process {
     /// Other return values must be treated as kernel-internal errors.
     fn enqueue_task(&self, task: Task) -> Result<(), ErrorCode>;
 
-    /// Returns whether this process is ready to execute.
-    fn ready(&self) -> bool;
-
-    /// Return if there are any Tasks (upcalls/IPC requests) enqueued for the
-    /// process.
-    fn has_tasks(&self) -> bool;
-
     /// Remove the scheduled operation from the front of the queue and return it
     /// to be handled by the scheduler.
     ///
@@ -344,16 +351,15 @@ pub trait Process {
     /// `None`.
     fn dequeue_task(&self) -> Option<Task>;
 
-    /// Returns the number of pending tasks. If 0 then `dequeue_task()` will
-    /// return `None` when called.
-    fn pending_tasks(&self) -> usize;
-
     /// Remove all scheduled upcalls for a given upcall id from the task queue.
     fn remove_pending_upcalls(&self, upcall_id: UpcallId);
 
     /// Returns the current state the process is in. Common states are "running"
     /// or "yielded".
     fn get_state(&self) -> State;
+
+    /// Returns whether this process is ready to execute.
+    fn ready(&self) -> bool;
 
     /// Returns whether the process is running (has active stack frames) or not
     /// (has never run, has faulted, or has completed).
@@ -382,23 +388,45 @@ pub trait Process {
     /// process.
     fn set_fault_state(&self);
 
-    /// Returns how many times this process has been restarted.
-    fn get_restart_count(&self) -> usize;
-
-    /// Get the name of the process. Used for IPC.
-    fn get_process_name(&self) -> &'static str;
-
-    /// Get the completion code if the process has previously terminated.
+    /// Start a terminated process. This function can only be called on a
+    /// terminated process.
     ///
-    /// If the process has never terminated then there has been no opportunity
-    /// for a completion code to be set, and this will return `None`.
+    /// The caller MUST verify this process is unique before calling this
+    /// function. This requires a capability to call to ensure that the caller
+    /// have verified that this process is unique before trying to start it.
+    fn start(&self, cap: &dyn crate::capabilities::ProcessStartCapability);
+
+    /// Terminates and attempts to restart the process. The process and current
+    /// application always terminate. The kernel may, based on its own policy,
+    /// restart the application using the same process, reuse the process for
+    /// another application, or simply terminate the process and application.
     ///
-    /// If the process has previously terminated this will return `Some()`. If
-    /// the last time the process terminated it did not provide a completion
-    /// code (e.g. the process faulted), then this will return `Some(None)`. If
-    /// the last time the process terminated it did provide a completion code,
-    /// this will return `Some(Some(completion_code))`.
-    fn get_completion_code(&self) -> Option<Option<u32>>;
+    /// This function can be called when the process is in any state except for
+    /// `Terminated`. It attempts to reset all process state and re-initialize
+    /// it so that it can be reused.
+    ///
+    /// Restarting an application can fail for three general reasons:
+    ///
+    /// 1. The process is already terminated. Use `start()` instead.
+    ///
+    /// 2. The kernel chooses not to restart the application, based on its
+    ///    policy.
+    ///
+    /// 3. The kernel decides to restart the application but fails to do so
+    ///    because some state can no long be configured for the process. For
+    ///    example, the syscall state for the process fails to initialize.
+    ///
+    /// After `restart()` runs the process will either be queued to run its the
+    /// application's `_start` function, terminated, or queued to run a
+    /// different application's `_start` function.
+    ///
+    /// As the process will be terminated before being restarted, this function
+    /// accepts an optional `completion_code`. If the process provided a
+    /// completion code (e.g. via the exit syscall), then this should be called
+    /// with `Some(u32)`. If the kernel is trying to restart the process and the
+    /// process did not provide a completion code, then this should be called
+    /// with `None`.
+    fn try_restart(&self, completion_code: Option<u32>);
 
     /// Stop and clear a process's state and put it into the `Terminated` state.
     ///
@@ -415,35 +443,17 @@ pub trait Process {
     /// `None`.
     fn terminate(&self, completion_code: Option<u32>);
 
-    /// Terminates and attempts to restart the process. The process and current
-    /// application always terminate. The kernel may, based on its own policy,
-    /// restart the application using the same process, reuse the process for
-    /// another application, or simply terminate the process and application.
+    /// Get the completion code if the process has previously terminated.
     ///
-    /// This function can be called when the process is in any state. It
-    /// attempts to reset all process state and re-initialize it so that it can
-    /// be reused.
+    /// If the process has never terminated then there has been no opportunity
+    /// for a completion code to be set, and this will return `None`.
     ///
-    /// Restarting an application can fail for two general reasons:
-    ///
-    /// 1. The kernel chooses not to restart the application, based on its
-    ///    policy.
-    ///
-    /// 2. The kernel decides to restart the application but fails to do so
-    ///    because Some state can no long be configured for the process. For
-    ///    example, the syscall state for the process fails to initialize.
-    ///
-    /// After `restart()` runs the process will either be queued to run its the
-    /// application's `_start` function, terminated, or queued to run a
-    /// different application's `_start` function.
-    ///
-    /// As the process will be terminated before being restarted, this function
-    /// accepts an optional `completion_code`. If the process provided a
-    /// completion code (e.g. via the exit syscall), then this should be called
-    /// with `Some(u32)`. If the kernel is trying to restart the process and the
-    /// process did not provide a completion code, then this should be called
-    /// with `None`.
-    fn try_restart(&self, completion_code: Option<u32>);
+    /// If the process has previously terminated this will return `Some()`. If
+    /// the last time the process terminated it did not provide a completion
+    /// code (e.g. the process faulted), then this will return `Some(None)`. If
+    /// the last time the process terminated it did provide a completion code,
+    /// this will return `Some(Some(completion_code))`.
+    fn get_completion_code(&self) -> Option<Option<u32>>;
 
     // memop operations
 
