@@ -9,9 +9,10 @@
 use crate::deferred_call::{DeferredCall, DeferredCallClient};
 use crate::hil::digest::{ClientData, ClientHash, ClientVerify};
 use crate::hil::digest::{DigestDataVerify, Sha256};
-use crate::process::{Process, ShortID};
-use crate::process_checker::{AppCredentialsChecker, AppUniqueness};
-use crate::process_checker::{CheckResult, Client, Compress};
+use crate::process::{Process, ProcessBinary, ShortID};
+use crate::process_checker::CheckResult;
+use crate::process_checker::{AppCredentialsPolicy, AppCredentialsPolicyClient};
+use crate::process_checker::{AppUniqueness, Compress};
 use crate::utilities::cells::OptionalCell;
 use crate::utilities::cells::TakeCell;
 use crate::utilities::leasable_buffer::{SubSlice, SubSliceMut};
@@ -25,7 +26,7 @@ use tock_tbf::types::TbfFooterV2CredentialsType;
 /// uniqueness check and is not run.
 pub struct AppCheckerSimulated<'a> {
     deferred_call: DeferredCall,
-    client: OptionalCell<&'a dyn Client<'a>>,
+    client: OptionalCell<&'a dyn AppCredentialsPolicyClient<'a>>,
     credentials: OptionalCell<TbfFooterV2Credentials>,
     binary: OptionalCell<&'a [u8]>,
 }
@@ -57,7 +58,7 @@ impl<'a> DeferredCallClient for AppCheckerSimulated<'a> {
     }
 }
 
-impl<'a> AppCredentialsChecker<'a> for AppCheckerSimulated<'a> {
+impl<'a> AppCredentialsPolicy<'a> for AppCheckerSimulated<'a> {
     fn require_credentials(&self) -> bool {
         false
     }
@@ -77,27 +78,45 @@ impl<'a> AppCredentialsChecker<'a> for AppCheckerSimulated<'a> {
         }
     }
 
-    fn set_client(&self, client: &'a dyn Client<'a>) {
+    fn set_client(&self, client: &'a dyn AppCredentialsPolicyClient<'a>) {
         self.client.replace(client);
     }
 }
 
-impl AppUniqueness for AppCheckerSimulated<'_> {
+struct AppIdAssignerSimulated {}
+
+impl AppUniqueness for AppIdAssignerSimulated {
     // This checker doesn't allow you to run two processes with the
     // same name.
-    fn different_identifier(&self, process_a: &dyn Process, process_b: &dyn Process) -> bool {
+    fn different_identifier(&self, process_a: &ProcessBinary, process_b: &ProcessBinary) -> bool {
+        let a = process_a.header.get_package_name().unwrap_or("");
+        let b = process_b.header.get_package_name().unwrap_or("");
+        !a.eq(b)
+    }
+
+    fn different_identifier_process(
+        &self,
+        process_binary: &ProcessBinary,
+        process: &dyn Process,
+    ) -> bool {
+        let a = process_binary.header.get_package_name().unwrap_or("");
+        let b = process.get_process_name();
+        !a.eq(b)
+    }
+
+    fn different_identifier_processes(
+        &self,
+        process_a: &dyn Process,
+        process_b: &dyn Process,
+    ) -> bool {
         let a = process_a.get_process_name();
         let b = process_b.get_process_name();
         !a.eq(b)
     }
 }
 
-impl Compress for AppCheckerSimulated<'_> {
-    fn to_short_id(
-        &self,
-        _process: &dyn Process,
-        _credentials: &TbfFooterV2Credentials,
-    ) -> ShortID {
+impl Compress for AppIdAssignerSimulated {
+    fn to_short_id(&self, _process: &ProcessBinary) -> ShortID {
         ShortID::LocallyUnique
     }
 }
@@ -111,7 +130,7 @@ impl<'a, T: DigestDataVerify<'a, 32_usize> + Sha256> Sha256Verifier<'a> for T {}
 /// with a particular SHA256 hash runs at any time.
 pub struct AppCheckerSha256 {
     hasher: &'static dyn Sha256Verifier<'static>,
-    client: OptionalCell<&'static dyn Client<'static>>,
+    client: OptionalCell<&'static dyn AppCredentialsPolicyClient<'static>>,
     hash: TakeCell<'static, [u8; 32]>,
     binary: OptionalCell<&'static [u8]>,
     credentials: OptionalCell<TbfFooterV2Credentials>,
@@ -132,7 +151,7 @@ impl AppCheckerSha256 {
     }
 }
 
-impl AppCredentialsChecker<'static> for AppCheckerSha256 {
+impl AppCredentialsPolicy<'static> for AppCheckerSha256 {
     fn require_credentials(&self) -> bool {
         true
     }
@@ -158,31 +177,8 @@ impl AppCredentialsChecker<'static> for AppCheckerSha256 {
         }
     }
 
-    fn set_client(&self, client: &'static dyn Client<'static>) {
+    fn set_client(&self, client: &'static dyn AppCredentialsPolicyClient<'static>) {
         self.client.replace(client);
-    }
-}
-
-impl AppUniqueness for AppCheckerSha256 {
-    fn different_identifier(&self, process_a: &dyn Process, process_b: &dyn Process) -> bool {
-        let credentials_a = process_a.get_credentials();
-        let credentials_b = process_b.get_credentials();
-        credentials_a.map_or(true, |a| {
-            credentials_b.map_or(true, |b| {
-                if a.format() != b.format() {
-                    return true;
-                } else {
-                    let data_a = a.data();
-                    let data_b = b.data();
-                    for (p1, p2) in data_a.iter().zip(data_b.iter()) {
-                        if p1 != p2 {
-                            return true;
-                        }
-                    }
-                }
-                false
-            })
-        })
     }
 }
 
@@ -241,114 +237,57 @@ impl ClientHash<32_usize> for AppCheckerSha256 {
     fn hash_done(&self, _result: Result<(), ErrorCode>, _digest: &'static mut [u8; 32_usize]) {}
 }
 
-impl Compress for AppCheckerSha256 {
-    // This checker generates a short ID from the first 32 bits of the
-    // hash and sets the first bit to be 1 to ensure it is non-zero.
-    // Note that since these identifiers are only 31 bits, they do not
-    // provide sufficient collision resistance to verify a unique identity.
-    fn to_short_id(&self, _process: &dyn Process, credentials: &TbfFooterV2Credentials) -> ShortID {
-        let id: u32 = 0x8000000_u32
-            | (credentials.data()[0] as u32) << 24
-            | (credentials.data()[1] as u32) << 16
-            | (credentials.data()[2] as u32) << 8
-            | (credentials.data()[3] as u32);
-        match core::num::NonZeroU32::new(id) {
-            Some(nzid) => ShortID::Fixed(nzid),
-            None => ShortID::LocallyUnique, // Should never be generated
-        }
-    }
-}
-
-/// A sample Credentials Checking Policy that loads and runs all processes and
-/// assigns pseudo-unique ShortIDs.
+/// A sample AppID Assignment tool that assigns pseudo-unique AppIDs and
+/// ShortIDs based on the process name.
 ///
 /// ShortIDs are assigned as a non-secure hash of the process name.
-///
-/// Note, this checker relies on there being at least one credential (of any
-/// type) installed so that we can accept the credential and `to_short_id()`
-/// will be called.
 ///
 /// ### Usage
 ///
 /// ```rust,ignore
-/// let checker = static_init!(
-///     kernel::process_checker::basic::AppCheckerNames,
-///     kernel::process_checker::basic::AppCheckerNames::new(
-///         crate::utilities::helpers::addhash_str
+/// let assigner = static_init!(
+///     kernel::process_checker::basic::AppIdAssignerNames<fn(&'static str) -> u32>,
+///     kernel::process_checker::basic::AppIdAssignerNames::new(
+///         &((|s| { kernel::utilities::helpers::crc32_posix(s.as_bytes()) })
+///         as fn(&'static str) -> u32)
 ///     )
 /// );
-/// kernel::deferred_call::DeferredCallClient::register(checker);
 /// ```
-pub struct AppCheckerNames<'a, F: Fn(&'static str) -> u32> {
+pub struct AppIdAssignerNames<'a, F: Fn(&'static str) -> u32> {
     hasher: &'a F,
-    deferred_call: DeferredCall,
-    client: OptionalCell<&'a dyn Client<'a>>,
-    credentials: OptionalCell<TbfFooterV2Credentials>,
-    binary: OptionalCell<&'a [u8]>,
 }
 
-impl<'a, F: Fn(&'static str) -> u32> AppCheckerNames<'a, F> {
+impl<'a, F: Fn(&'static str) -> u32> AppIdAssignerNames<'a, F> {
     pub fn new(hasher: &'a F) -> Self {
-        Self {
-            hasher,
-            deferred_call: DeferredCall::new(),
-            client: OptionalCell::empty(),
-            credentials: OptionalCell::empty(),
-            binary: OptionalCell::empty(),
-        }
+        Self { hasher }
     }
 }
 
-impl<'a, F: Fn(&'static str) -> u32> DeferredCallClient for AppCheckerNames<'a, F> {
-    fn handle_deferred_call(&self) {
-        self.client.map(|c| {
-            c.check_done(
-                Ok(CheckResult::Accept),
-                self.credentials.take().unwrap(),
-                self.binary.take().unwrap(),
-            )
-        });
+impl<'a, F: Fn(&'static str) -> u32> AppUniqueness for AppIdAssignerNames<'a, F> {
+    fn different_identifier(&self, process_a: &ProcessBinary, process_b: &ProcessBinary) -> bool {
+        self.to_short_id(process_a) != self.to_short_id(process_b)
     }
 
-    fn register(&'static self) {
-        self.deferred_call.register(self);
-    }
-}
-
-impl<'a, F: Fn(&'static str) -> u32> AppCredentialsChecker<'a> for AppCheckerNames<'a, F> {
-    fn require_credentials(&self) -> bool {
-        false
-    }
-
-    fn check_credentials(
+    fn different_identifier_process(
         &self,
-        credentials: TbfFooterV2Credentials,
-        binary: &'a [u8],
-    ) -> Result<(), (ErrorCode, TbfFooterV2Credentials, &'a [u8])> {
-        if self.credentials.is_none() {
-            self.credentials.replace(credentials);
-            self.binary.replace(binary);
-            self.deferred_call.set();
-            Ok(())
-        } else {
-            Err((ErrorCode::BUSY, credentials, binary))
-        }
+        process_a: &ProcessBinary,
+        process_b: &dyn Process,
+    ) -> bool {
+        self.to_short_id(process_a) != process_b.short_app_id()
     }
 
-    fn set_client(&self, client: &'a dyn Client<'a>) {
-        self.client.replace(client);
+    fn different_identifier_processes(
+        &self,
+        process_a: &dyn Process,
+        process_b: &dyn Process,
+    ) -> bool {
+        process_a.short_app_id() != process_b.short_app_id()
     }
 }
 
-impl<'a, F: Fn(&'static str) -> u32> AppUniqueness for AppCheckerNames<'a, F> {
-    fn different_identifier(&self, _process_a: &dyn Process, _process_b: &dyn Process) -> bool {
-        true
-    }
-}
-
-impl<'a, F: Fn(&'static str) -> u32> Compress for AppCheckerNames<'a, F> {
-    fn to_short_id(&self, process: &dyn Process, _credentials: &TbfFooterV2Credentials) -> ShortID {
-        let name = process.get_process_name();
+impl<'a, F: Fn(&'static str) -> u32> Compress for AppIdAssignerNames<'a, F> {
+    fn to_short_id(&self, process: &ProcessBinary) -> ShortID {
+        let name = process.header.get_package_name().unwrap_or("");
         let sum = (self.hasher)(name);
         match core::num::NonZeroU32::new(sum) {
             Some(id) => ShortID::Fixed(id),
@@ -367,7 +306,7 @@ impl<'a, F: Fn(&'static str) -> u32> Compress for AppCheckerNames<'a, F> {
 /// ID collisions and version numbers.
 pub struct AppCheckerRsaSimulated<'a> {
     deferred_call: DeferredCall,
-    client: OptionalCell<&'a dyn Client<'a>>,
+    client: OptionalCell<&'a dyn AppCredentialsPolicyClient<'a>>,
     credentials: OptionalCell<TbfFooterV2Credentials>,
     binary: OptionalCell<&'a [u8]>,
 }
@@ -410,7 +349,7 @@ impl<'a> DeferredCallClient for AppCheckerRsaSimulated<'a> {
     }
 }
 
-impl<'a> AppCredentialsChecker<'a> for AppCheckerRsaSimulated<'a> {
+impl<'a> AppCredentialsPolicy<'a> for AppCheckerRsaSimulated<'a> {
     fn require_credentials(&self) -> bool {
         true
     }
@@ -430,57 +369,7 @@ impl<'a> AppCredentialsChecker<'a> for AppCheckerRsaSimulated<'a> {
         }
     }
 
-    fn set_client(&self, client: &'a dyn Client<'a>) {
+    fn set_client(&self, client: &'a dyn AppCredentialsPolicyClient<'a>) {
         self.client.replace(client);
-    }
-}
-
-impl AppUniqueness for AppCheckerRsaSimulated<'_> {
-    fn different_identifier(&self, process_a: &dyn Process, process_b: &dyn Process) -> bool {
-        let cred_a = process_a.get_credentials();
-        let cred_b = process_b.get_credentials();
-
-        // If it doesn't have credentials, it is by definition
-        // different. It should not be runnable (this checker requires
-        // credentials), but if this returned false it could block
-        // runnable processes from running.
-        cred_a.map_or(true, |a| {
-            cred_b.map_or(true, |b| {
-                // Two IDs are different if they have a different format,
-                // different length (should not happen, but worth checking for
-                // the next test), or any byte of them differs.
-                if a.format() != b.format() {
-                    true
-                } else if a.data().len() != b.data().len() {
-                    true
-                } else {
-                    for (aval, bval) in a.data().iter().zip(b.data().iter()) {
-                        if aval != bval {
-                            return true;
-                        }
-                    }
-                    false
-                }
-            })
-        })
-    }
-}
-
-impl Compress for AppCheckerRsaSimulated<'_> {
-    fn to_short_id(&self, _process: &dyn Process, credentials: &TbfFooterV2Credentials) -> ShortID {
-        // Should never trigger, as we only approve RSA3072 and RSA4096 credentials.
-        let data = credentials.data();
-        if data.len() < 4 {
-            return ShortID::LocallyUnique;
-        }
-        let id: u32 = 0x8000000_u32
-            | (data[0] as u32) << 24
-            | (data[1] as u32) << 16
-            | (data[2] as u32) << 8
-            | (data[3] as u32);
-        match core::num::NonZeroU32::new(id) {
-            Some(nzid) => ShortID::Fixed(nzid),
-            None => ShortID::LocallyUnique, // Should never be generated
-        }
     }
 }
