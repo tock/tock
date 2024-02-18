@@ -8,6 +8,8 @@ use crate::tests::run_kernel_op;
 use crate::SHA256SOFT;
 use capsules_extra::test::sha256::TestSha256;
 use kernel::debug;
+use kernel::hil::digest::DigestAlgorithm;
+use kernel::hil::digest::Sha256Hash;
 use kernel::static_init;
 
 #[test_case]
@@ -36,7 +38,15 @@ fn sha256software_verify() {
         )
     };
 
-    let test = unsafe { static_init!(TestSha256, TestSha256::new(sha, lstring, lhash, true)) };
+    let lhash_buffer = unsafe { static_init!(Sha256Hash, Sha256Hash::default()) };
+    lhash_buffer.as_mut_slice()[..32].copy_from_slice(&lhash[..32]);
+
+    let test = unsafe {
+        static_init!(
+            TestSha256,
+            TestSha256::new(sha, lstring, lhash_buffer, true)
+        )
+    };
     test.run();
 
     run_kernel_op(1000);

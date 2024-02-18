@@ -25,7 +25,7 @@ use capsules_extra::net::ipv6::ip_utils::IPAddr;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::deferred_call::DeferredCallClient;
-use kernel::hil::digest::Digest;
+use kernel::hil::digest::{Digest, Sha256Hash};
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::radio;
 #[allow(unused_imports)]
@@ -179,7 +179,6 @@ struct Imix {
 static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 static mut RF233_REG_WRITE: [u8; 2] = [0x00; 2];
 static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
-static mut SHA256_CHECKER_BUF: [u8; 32] = [0; 32];
 
 impl SyscallDriverLookup for Imix {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
@@ -380,10 +379,8 @@ pub unsafe fn main() {
     let sha = static_init!(Sha256Software<'static>, Sha256Software::new());
     kernel::deferred_call::DeferredCallClient::register(sha);
 
-    let checker = static_init!(
-        AppCheckerSha256,
-        AppCheckerSha256::new(sha, &mut SHA256_CHECKER_BUF)
-    );
+    let sha_buffer = static_init!(Sha256Hash, Sha256Hash::default());
+    let checker = static_init!(AppCheckerSha256, AppCheckerSha256::new(sha, sha_buffer));
     sha.set_client(checker);
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));

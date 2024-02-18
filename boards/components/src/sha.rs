@@ -23,42 +23,39 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::digest;
+use kernel::hil::digest::DigestAlgorithm;
 
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! sha_component_static {
-    ($A:ty, $L:expr$(,)?) => {{
-        let sha_driver = kernel::static_buf!(
-            capsules_extra::sha::ShaDriver<
-                'static,
-                capsules_core::virtualizers::virtual_sha::VirtualMuxSha<'static, $A, $L>,
-                $L,
-            >
-        );
+    ($A:ty, $D:ty $(,)?) => {{
+        let sha_driver = kernel::static_buf!(capsules_extra::sha::ShaDriver<'static, $A, $D>);
 
         let data_buffer = kernel::static_buf!([u8; 64]);
-        let dest_buffer = kernel::static_buf!([u8; $L]);
+        let dest_buffer = kernel::static_buf!($D);
 
         (sha_driver, data_buffer, dest_buffer)
     };};
 }
 
-pub struct ShaComponent<A: 'static + digest::Digest<'static, L>, const L: usize> {
+pub struct ShaComponent<A: 'static + digest::Digest<'static, D>, D: DigestAlgorithm> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     sha: &'static A,
+    _phantom: core::marker::PhantomData<D>,
 }
 
-impl<A: 'static + digest::Digest<'static, L>, const L: usize> ShaComponent<A, L> {
+impl<A: 'static + digest::Digest<'static, D>, D: DigestAlgorithm> ShaComponent<A, D> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
         sha: &'static A,
-    ) -> ShaComponent<A, L> {
+    ) -> ShaComponent<A, D> {
         ShaComponent {
             board_kernel,
             driver_num,
             sha,
+            _phantom: core::marker::PhantomData,
         }
     }
 }
@@ -68,23 +65,23 @@ impl<
             + digest::Sha384
             + digest::Sha512
             + 'static
-            + digest::Digest<'static, L>,
-        const L: usize,
-    > Component for ShaComponent<A, L>
+            + digest::Digest<'static, D>,
+        D: DigestAlgorithm + 'static,
+    > Component for ShaComponent<A, D>
 {
     type StaticInput = (
-        &'static mut MaybeUninit<ShaDriver<'static, A, L>>,
+        &'static mut MaybeUninit<ShaDriver<'static, A, D>>,
         &'static mut MaybeUninit<[u8; 64]>,
-        &'static mut MaybeUninit<[u8; L]>,
+        &'static mut MaybeUninit<D>,
     );
 
-    type Output = &'static ShaDriver<'static, A, L>;
+    type Output = &'static ShaDriver<'static, A, D>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let data_buffer = s.1.write([0; 64]);
-        let dest_buffer = s.2.write([0; L]);
+        let dest_buffer = s.2.write(D::default());
 
         let sha = s.0.write(capsules_extra::sha::ShaDriver::new(
             self.sha,

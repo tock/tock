@@ -181,7 +181,11 @@ struct EarlGrey {
         'static,
         VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static, ChipConfig>>,
     >,
-    hmac: &'static capsules_extra::hmac::HmacDriver<'static, lowrisc::hmac::Hmac<'static>, 32>,
+    hmac: &'static capsules_extra::hmac::HmacDriver<
+        'static,
+        lowrisc::hmac::Hmac<'static>,
+        hil::digest::HmacSha256Hmac,
+    >,
     lldb: &'static capsules_core::low_level_debug::LowLevelDebug<
         'static,
         capsules_core::virtualizers::virtual_uart::UartDevice<'static>,
@@ -520,7 +524,10 @@ unsafe fn setup() -> (
         capsules_extra::hmac::DRIVER_NUM,
         &peripherals.hmac,
     )
-    .finalize(components::hmac_component_static!(lowrisc::hmac::Hmac, 32));
+    .finalize(components::hmac_component_static!(
+        lowrisc::hmac::Hmac,
+        hil::digest::HmacSha256Hmac
+    ));
 
     let i2c_master_buffer = static_init!(
         [u8; capsules_core::i2c_master::BUFFER_LENGTH],

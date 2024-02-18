@@ -14,14 +14,13 @@ use capsules_extra::sha256::Sha256Software;
 use capsules_extra::test::hmac_sha256::TestHmacSha256;
 use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::digest::Digest;
+use kernel::hil::digest::{DigestAlgorithm, HmacSha256Hmac, Sha256Hash};
 use kernel::static_init;
 
 pub unsafe fn run_hmacsha256() {
     let t = static_init_test_hmacsha256();
     t.run();
 }
-
-pub static mut DIGEST_DATA: [u8; 32] = [0; 32];
 
 // Test from https://en.wikipedia.org/wiki/HMAC#Examples
 pub static mut WIKI_STR: [u8; 43] = *b"The quick brown fox jumps over the lazy dog";
@@ -37,11 +36,17 @@ unsafe fn static_init_test_hmacsha256() -> &'static TestHmacSha256 {
     let sha256 = static_init!(Sha256Software<'static>, Sha256Software::new());
     sha256.register();
 
-    let hmacsha256_verify_buf = static_init!([u8; 32], [0; 32]);
+    let sha256_buf = static_init!(Sha256Hash, Sha256Hash::default());
+    let hmacsha256_verify_buf = static_init!(HmacSha256Hmac, HmacSha256Hmac::default());
+
+    let hmacsha256_data_buf = static_init!(HmacSha256Hmac, HmacSha256Hmac::default());
+
+    let hmacsha256_correct_buf = static_init!(HmacSha256Hmac, HmacSha256Hmac::default());
+    hmacsha256_correct_buf.as_mut_slice()[..32].copy_from_slice(&WIKI_HMAC[..32]);
 
     let hmacsha256 = static_init!(
         HmacSha256Software<'static, Sha256Software<'static>>,
-        HmacSha256Software::new(sha256, sha256_hash_buf, hmacsha256_verify_buf)
+        HmacSha256Software::new(sha256, sha256_hash_buf, sha256_buf, hmacsha256_verify_buf)
     );
     sha256.set_client(hmacsha256);
 
@@ -51,8 +56,8 @@ unsafe fn static_init_test_hmacsha256() -> &'static TestHmacSha256 {
             hmacsha256,
             &mut WIKI_KEY,
             &mut WIKI_STR,
-            &mut DIGEST_DATA,
-            &WIKI_HMAC
+            hmacsha256_data_buf,
+            hmacsha256_correct_buf
         )
     );
 

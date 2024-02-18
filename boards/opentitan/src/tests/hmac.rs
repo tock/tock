@@ -8,8 +8,9 @@ use core::cell::Cell;
 #[allow(unused_imports)] // Can be unused if software only test
 use kernel::hil::digest::DigestData;
 use kernel::hil::digest::{self, Digest, DigestVerify, HmacSha256};
+use kernel::hil::digest::{DigestAlgorithm, HmacSha256Hmac};
 use kernel::static_init;
-use kernel::utilities::cells::TakeCell;
+use kernel::utilities::cells::{MapCell, TakeCell};
 use kernel::utilities::leasable_buffer::SubSlice;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::{debug, ErrorCode};
@@ -20,18 +21,18 @@ struct HmacTestCallback {
     add_mut_data_done: Cell<bool>,
     verification_done: Cell<bool>,
     input_buffer: TakeCell<'static, [u8]>,
-    digest_buffer: TakeCell<'static, [u8; 32]>,
+    digest_buffer: MapCell<&'static mut HmacSha256Hmac>,
 }
 
 unsafe impl Sync for HmacTestCallback {}
 
 impl<'a> HmacTestCallback {
-    fn new(input_buffer: &'static mut [u8], digest_buffer: &'static mut [u8; 32]) -> Self {
+    fn new(input_buffer: &'static mut [u8], digest_buffer: &'static mut HmacSha256Hmac) -> Self {
         HmacTestCallback {
             add_mut_data_done: Cell::new(false),
             verification_done: Cell::new(false),
             input_buffer: TakeCell::new(input_buffer),
-            digest_buffer: TakeCell::new(digest_buffer),
+            digest_buffer: MapCell::new(digest_buffer),
         }
     }
 
@@ -41,7 +42,7 @@ impl<'a> HmacTestCallback {
     }
 }
 
-impl<'a> digest::ClientData<32> for HmacTestCallback {
+impl<'a> digest::ClientData<HmacSha256Hmac> for HmacTestCallback {
     fn add_mut_data_done(&self, result: Result<(), ErrorCode>, data: SubSliceMut<'static, u8>) {
         self.add_mut_data_done.set(true);
         // Check that all of the data was accepted and the active slice is length 0
@@ -56,14 +57,18 @@ impl<'a> digest::ClientData<32> for HmacTestCallback {
     }
 }
 
-impl<'a> digest::ClientHash<32> for HmacTestCallback {
-    fn hash_done(&self, _result: Result<(), ErrorCode>, _digest: &'static mut [u8; 32]) {
+impl<'a> digest::ClientHash<HmacSha256Hmac> for HmacTestCallback {
+    fn hash_done(&self, _result: Result<(), ErrorCode>, _digest: &'static mut HmacSha256Hmac) {
         unimplemented!()
     }
 }
 
-impl<'a> digest::ClientVerify<32> for HmacTestCallback {
-    fn verification_done(&self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; 32]) {
+impl<'a> digest::ClientVerify<HmacSha256Hmac> for HmacTestCallback {
+    fn verification_done(
+        &self,
+        result: Result<bool, ErrorCode>,
+        compare: &'static mut HmacSha256Hmac,
+    ) {
         self.digest_buffer.replace(compare);
         self.verification_done.set(true);
         assert_eq!(result, Ok(true));
@@ -84,9 +89,12 @@ macro_rules! static_init_test_cb {
             ]
         );
 
+        let digest_buf = static_init!(HmacSha256Hmac, HmacSha256Hmac::default());
+        digest_buf.as_mut_slice()[..32].copy_from_slice(&digest_data[..32]);
+
         static_init!(
             HmacTestCallback,
-            HmacTestCallback::new(input_data, digest_data)
+            HmacTestCallback::new(input_data, digest_buf)
         )
     }};
 }
@@ -142,7 +150,7 @@ fn hmac_check_verify() {
     callback.reset();
 
     /* Get digest from callback digest buffer */
-    assert_eq!(hmac.verify(callback.digest_buffer.take().unwrap()), Ok(()));
+    assert!(hmac.verify(callback.digest_buffer.take().unwrap()) == Ok(()));
 
     run_kernel_op(1000);
     #[cfg(feature = "hardware_tests")]
