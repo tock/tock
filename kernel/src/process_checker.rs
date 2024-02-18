@@ -15,6 +15,7 @@ use core::fmt;
 
 use crate::config;
 use crate::debug;
+use crate::process::Process;
 use crate::process::ShortID;
 use crate::process_binary::ProcessBinary;
 use crate::utilities::cells::{NumericCellExt, OptionalCell};
@@ -22,18 +23,18 @@ use crate::ErrorCode;
 use tock_tbf::types::TbfFooterV2Credentials;
 use tock_tbf::types::TbfParseError;
 
+/// Error from checking process credentials.
 pub enum ProcessCheckError {
-    /// The application checker requires credentials, but the TBF did
-    /// not include a credentials that meets the checker's
-    /// requirements. This can be either because the TBF has no
-    /// credentials or the checker policy did not accept any of the
-    /// credentials it has.
+    /// The application checker requires credentials, but the TBF did not
+    /// include a credentials that meets the checker's requirements. This can be
+    /// either because the TBF has no credentials or the checker policy did not
+    /// accept any of the credentials it has.
     CredentialsNotAccepted,
 
     /// The process contained a credentials which was rejected by the verifier.
-    /// The u32 indicates which credentials was rejected: the first credentials
-    /// after the application binary is 0, and each subsequent credentials
-    /// increments this counter.
+    /// The `u32` indicates which credentials was rejected: the first
+    /// credentials after the application binary is 0, and each subsequent
+    /// credentials increments this counter.
     CredentialsRejected(u32),
 
     /// Error in the kernel implementation.
@@ -70,7 +71,9 @@ pub enum CheckResult {
 }
 
 /// Receives callbacks on whether a credential was accepted or not.
-pub trait Client<'a> {
+pub trait AppCredentialsPolicyClient<'a> {
+    /// The check for a particular credential is complete. Result of the check
+    /// is in `result`.
     fn check_done(
         &self,
         result: Result<CheckResult, ErrorCode>,
@@ -80,30 +83,25 @@ pub trait Client<'a> {
 }
 
 /// Implements a Credentials Checking Policy.
-pub trait AppCredentialsChecker<'a> {
-    fn set_client(&self, _client: &'a dyn Client<'a>);
+pub trait AppCredentialsPolicy<'a> {
+    /// Set the client which gets notified after the credential check completes.
+    fn set_client(&self, client: &'a dyn AppCredentialsPolicyClient<'a>);
+
+    /// Whether credentials are required or not.
+    ///
+    /// If this returns `true`, then a process will only be executed if one
+    /// credential was accepted. If this returns `false` then a process will be
+    /// executed even if no credentials are accepted.
     fn require_credentials(&self) -> bool;
+
+    /// Check a particular credential.
+    ///
+    /// If credential checking started successfully then this returns `Ok()`.
     fn check_credentials(
         &self,
         credentials: TbfFooterV2Credentials,
         integrity_region: &'a [u8],
     ) -> Result<(), (ErrorCode, TbfFooterV2Credentials, &'a [u8])>;
-}
-
-/// Default implementation.
-impl<'a> AppCredentialsChecker<'a> for () {
-    fn set_client(&self, _client: &'a dyn Client<'a>) {}
-    fn require_credentials(&self) -> bool {
-        false
-    }
-
-    fn check_credentials(
-        &self,
-        credentials: TbfFooterV2Credentials,
-        binary: &'a [u8],
-    ) -> Result<(), (ErrorCode, TbfFooterV2Credentials, &'a [u8])> {
-        Err((ErrorCode::NOSUPPORT, credentials, binary))
-    }
 }
 
 /// Whether two processes have the same Application Identifier; two
@@ -113,6 +111,24 @@ pub trait AppUniqueness {
     /// and so can run concurrently. If this returns `false`, the kernel
     /// will not run `process_a` and `process_b` at the same time.
     fn different_identifier(&self, process_a: &ProcessBinary, process_b: &ProcessBinary) -> bool;
+
+    /// Returns whether `process_a` and `process_b` have a different identifier,
+    /// and so can run concurrently. If this returns `false`, the kernel
+    /// will not run `process_a` and `process_b` at the same time.
+    fn different_identifier_process(
+        &self,
+        process_a: &ProcessBinary,
+        process_b: &dyn Process,
+    ) -> bool;
+
+    /// Returns whether `process_a` and `process_b` have a different identifier,
+    /// and so can run concurrently. If this returns `false`, the kernel
+    /// will not run `process_a` and `process_b` at the same time.
+    fn different_identifier_processes(
+        &self,
+        process_a: &dyn Process,
+        process_b: &dyn Process,
+    ) -> bool;
 }
 
 /// Default implementation.
@@ -120,10 +136,27 @@ impl AppUniqueness for () {
     fn different_identifier(&self, _process_a: &ProcessBinary, _process_b: &ProcessBinary) -> bool {
         true
     }
+
+    fn different_identifier_process(
+        &self,
+        _process_a: &ProcessBinary,
+        _process_b: &dyn Process,
+    ) -> bool {
+        true
+    }
+
+    fn different_identifier_processes(
+        &self,
+        _process_a: &dyn Process,
+        _process_b: &dyn Process,
+    ) -> bool {
+        true
+    }
 }
 
 /// Transforms Application Credentials into a corresponding ShortID.
 pub trait Compress {
+    /// Create a `ShortID` for `process`.
     fn to_short_id(&self, process: &ProcessBinary) -> ShortID;
 }
 
@@ -133,17 +166,8 @@ impl Compress for () {
     }
 }
 
-pub trait CredentialsCheckingPolicy<'a>:
-    AppCredentialsChecker<'a> + Compress + AppUniqueness
-{
-}
-impl<'a, T: AppCredentialsChecker<'a> + Compress + AppUniqueness> CredentialsCheckingPolicy<'a>
-    for T
-{
-}
-
-struct KernelProcessApprovalCapability {}
-unsafe impl crate::capabilities::ProcessApprovalCapability for KernelProcessApprovalCapability {}
+pub trait AppIdPolicy: AppUniqueness + Compress {}
+impl<T: AppUniqueness + Compress> AppIdPolicy for T {}
 
 /// Client interface for the outcome of a process credential check.
 pub trait ProcessCheckerMachineClient {
@@ -175,7 +199,7 @@ pub struct ProcessCheckerMachine {
     /// Client for receiving the outcome of the check.
     client: OptionalCell<&'static dyn ProcessCheckerMachineClient>,
     /// Policy for checking credentials.
-    policy: OptionalCell<&'static dyn CredentialsCheckingPolicy<'static>>,
+    policy: OptionalCell<&'static dyn AppCredentialsPolicy<'static>>,
     /// Hold the process binary during checking.
     process_binary: OptionalCell<ProcessBinary>,
     /// Keep track of which footer is being parsed.
@@ -183,7 +207,7 @@ pub struct ProcessCheckerMachine {
 }
 
 impl ProcessCheckerMachine {
-    pub fn new(policy: &'static dyn CredentialsCheckingPolicy<'static>) -> Self {
+    pub fn new(policy: &'static dyn AppCredentialsPolicy<'static>) -> Self {
         Self {
             footer_index: Cell::new(0),
             policy: OptionalCell::new(policy),
@@ -196,7 +220,7 @@ impl ProcessCheckerMachine {
         self.client.set(client);
     }
 
-    pub fn set_policy(&self, policy: &'static dyn CredentialsCheckingPolicy<'static>) {
+    pub fn set_policy(&self, policy: &'static dyn AppCredentialsPolicy<'static>) {
         self.policy.replace(policy);
     }
 
@@ -273,7 +297,7 @@ impl ProcessCheckerMachine {
     // it reached the end of the footer region.
     fn check_footer(
         process_binary: &ProcessBinary,
-        policy: &'static dyn CredentialsCheckingPolicy<'static>,
+        policy: &'static dyn AppCredentialsPolicy<'static>,
         next_footer: usize,
     ) -> FooterCheckResult {
         if config::CONFIG.debug_process_credentials {
@@ -387,12 +411,12 @@ impl ProcessCheckerMachine {
     }
 }
 
-impl Client<'static> for ProcessCheckerMachine {
+impl AppCredentialsPolicyClient<'static> for ProcessCheckerMachine {
     fn check_done(
         &self,
         result: Result<CheckResult, ErrorCode>,
         _credentials: TbfFooterV2Credentials,
-        _binary: &'static [u8],
+        _integrity_region: &'static [u8],
     ) {
         if config::CONFIG.debug_process_credentials {
             debug!("Checking: check_done gave result {:?}", result);

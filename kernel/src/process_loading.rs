@@ -23,7 +23,7 @@ use crate::kernel::Kernel;
 use crate::platform::chip::Chip;
 use crate::process::{Process, ShortID};
 use crate::process_binary::{ProcessBinary, ProcessBinaryError};
-use crate::process_checker::{CredentialsCheckingPolicy, ProcessCheckError, ProcessCheckerMachine};
+use crate::process_checker::{AppIdPolicy, ProcessCheckError, ProcessCheckerMachine};
 use crate::process_policies::ProcessFaultPolicy;
 use crate::process_standard::ProcessStandard;
 use crate::utilities::cells::{MapCell, OptionalCell};
@@ -444,7 +444,7 @@ pub struct SequentialProcessLoaderMachine<C: Chip + 'static> {
     /// Reference to the Chip object for creating Processes.
     chip: &'static C,
     /// The policy to use when determining ShortIDs and process uniqueness.
-    policy: OptionalCell<&'static dyn CredentialsCheckingPolicy<'static>>,
+    policy: OptionalCell<&'static dyn AppIdPolicy>,
     /// The fault policy to assign to each created Process.
     fault_policy: &'static dyn ProcessFaultPolicy,
     /// Current mode of the loading machine.
@@ -465,7 +465,7 @@ impl<C: Chip> SequentialProcessLoaderMachine<C> {
         flash: &'static [u8],
         app_memory: &'static mut [u8],
         fault_policy: &'static dyn ProcessFaultPolicy,
-        policy: &'static dyn CredentialsCheckingPolicy<'static>,
+        policy: &'static dyn AppIdPolicy,
         _capability_management: &dyn ProcessManagementCapability,
     ) -> Self {
         Self {
@@ -489,7 +489,7 @@ impl<C: Chip> SequentialProcessLoaderMachine<C> {
         self.client.set(client);
     }
 
-    pub fn set_policy(&self, policy: &'static dyn CredentialsCheckingPolicy<'static>) {
+    pub fn set_policy(&self, policy: &'static dyn AppIdPolicy) {
         self.policy.replace(policy);
     }
 
