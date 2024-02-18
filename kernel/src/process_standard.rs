@@ -35,7 +35,7 @@ use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
 use crate::upcall::UpcallId;
 use crate::utilities::cells::{MapCell, NumericCellExt, OptionalCell};
 
-use tock_tbf::types::{CommandPermissions, TbfFooterV2Credentials};
+use tock_tbf::types::CommandPermissions;
 
 /// State for helping with debugging apps.
 ///
@@ -185,9 +185,6 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
     /// Collection of pointers to the TBF header in flash.
     header: tock_tbf::types::TbfHeader,
 
-    /// Credentials that were accepted to make this process runnable.
-    credentials: OptionalCell<TbfFooterV2Credentials>,
-
     /// State saved on behalf of the process each time the app switches to the
     /// kernel.
     stored_state:
@@ -293,12 +290,6 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         }
 
         ret
-    }
-
-    fn get_credentials(&self) -> Option<TbfFooterV2Credentials> {
-        let c = self.credentials.take();
-        self.credentials.insert(c);
-        c
     }
 
     fn ready(&self) -> bool {
@@ -1639,8 +1630,6 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         process.kernel_memory_break = Cell::new(kernel_memory_break);
         process.app_break = Cell::new(initial_app_brk);
         process.grant_pointers = MapCell::new(grant_pointers);
-
-        process.credentials = OptionalCell::empty();
 
         process.footers = pb.footers;
         process.flash = pb.flash;

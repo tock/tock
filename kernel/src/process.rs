@@ -19,7 +19,7 @@ use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::storage_permissions;
 use crate::syscall::{self, Syscall, SyscallReturn};
 use crate::upcall::UpcallId;
-use tock_tbf::types::{CommandPermissions, TbfFooterV2Credentials};
+use tock_tbf::types::CommandPermissions;
 
 // Export all process related types via `kernel::process::`.
 pub use crate::process_binary::ProcessBinary;
@@ -332,10 +332,6 @@ pub trait Process {
     ///   there is insufficient space in the internal task queue. is returned.
     /// Other return values must be treated as kernel-internal errors.
     fn enqueue_task(&self, task: Task) -> Result<(), ErrorCode>;
-
-    /// Return the credentials which have made this process runnable, or `None`
-    /// if it was not made runnable or allowed to run without credentials.
-    fn get_credentials(&self) -> Option<TbfFooterV2Credentials>;
 
     /// Returns whether this process is ready to execute.
     fn ready(&self) -> bool;
