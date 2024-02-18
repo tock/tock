@@ -54,7 +54,7 @@ use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::digest;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
-use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::SubSlice;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::{ErrorCode, ProcessId};
@@ -65,7 +65,7 @@ enum ShaOperation {
     Sha512,
 }
 
-pub struct ShaDriver<'a, H: digest::Digest<'a, L>, const L: usize> {
+pub struct ShaDriver<'a, H: digest::Digest<'a, D>, D: digest::DigestAlgorithm + 'static> {
     sha: &'a H,
 
     active: Cell<bool>,
@@ -80,26 +80,26 @@ pub struct ShaDriver<'a, H: digest::Digest<'a, L>, const L: usize> {
 
     data_buffer: TakeCell<'static, [u8]>,
     data_copied: Cell<usize>,
-    dest_buffer: TakeCell<'static, [u8; L]>,
+    dest_buffer: MapCell<&'static mut D>,
 }
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
-        const L: usize,
-    > ShaDriver<'a, H, L>
+        H: digest::Digest<'a, D> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        D: digest::DigestAlgorithm,
+    > ShaDriver<'a, H, D>
 {
     pub fn new(
         sha: &'a H,
         data_buffer: &'static mut [u8],
-        dest_buffer: &'static mut [u8; L],
+        dest_buffer: &'static mut D,
         grant: Grant<
             App,
             UpcallCount<1>,
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
-    ) -> ShaDriver<'a, H, L> {
+    ) -> ShaDriver<'a, H, D> {
         ShaDriver {
             sha: sha,
             active: Cell::new(false),
@@ -107,7 +107,7 @@ impl<
             processid: OptionalCell::empty(),
             data_buffer: TakeCell::new(data_buffer),
             data_copied: Cell::new(0),
-            dest_buffer: TakeCell::new(dest_buffer),
+            dest_buffer: MapCell::new(dest_buffer),
         }
     }
 
@@ -221,9 +221,9 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
-        const L: usize,
-    > digest::ClientData<L> for ShaDriver<'a, H, L>
+        H: digest::Digest<'a, D> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        D: digest::DigestAlgorithm,
+    > digest::ClientData<D> for ShaDriver<'a, H, D>
 {
     // Because data needs to be copied from a userspace buffer into a kernel (RAM) one,
     // we always pass mut data; this callback should never be invoked.
@@ -320,7 +320,7 @@ impl<
                                     let mut static_buffer_len = 0;
                                     self.dest_buffer.map(|buf| {
                                         // Determine the size of the static buffer we have
-                                        static_buffer_len = buf.len();
+                                        static_buffer_len = buf.as_slice().len();
 
                                         if static_buffer_len > compare.len() {
                                             static_buffer_len = compare.len()
@@ -329,8 +329,9 @@ impl<
                                         self.data_copied.set(static_buffer_len);
 
                                         // Copy the data into the static buffer
-                                        compare[..static_buffer_len]
-                                            .copy_to_slice(&mut buf[..static_buffer_len]);
+                                        compare[..static_buffer_len].copy_to_slice(
+                                            &mut buf.as_mut_slice()[..static_buffer_len],
+                                        );
                                     });
                                 })
                             });
@@ -359,17 +360,17 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
-        const L: usize,
-    > digest::ClientHash<L> for ShaDriver<'a, H, L>
+        H: digest::Digest<'a, D> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        D: digest::DigestAlgorithm,
+    > digest::ClientHash<D> for ShaDriver<'a, H, D>
 {
-    fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]) {
+    fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut D) {
         self.processid.map(|id| {
             self.apps
                 .enter(id, |_, kernel_data| {
                     self.sha.clear_data();
 
-                    let pointer = digest.as_ref()[0] as *mut u8;
+                    let pointer = digest.as_slice()[0] as *mut u8;
 
                     let _ = kernel_data
                         .get_readwrite_processbuffer(rw_allow::DEST)
@@ -377,10 +378,11 @@ impl<
                             dest.mut_enter(|dest| {
                                 let len = dest.len();
 
-                                if len < L {
-                                    dest.copy_from_slice(&digest[0..len]);
+                                if len < core::mem::size_of::<D>() {
+                                    dest.copy_from_slice(&digest.as_slice()[0..len]);
                                 } else {
-                                    dest[0..L].copy_from_slice(digest);
+                                    dest[0..core::mem::size_of::<D>()]
+                                        .copy_from_slice(digest.as_slice());
                                 }
                             })
                         });
@@ -413,11 +415,11 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
-        const L: usize,
-    > digest::ClientVerify<L> for ShaDriver<'a, H, L>
+        H: digest::Digest<'a, D> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        D: digest::DigestAlgorithm,
+    > digest::ClientVerify<D> for ShaDriver<'a, H, D>
 {
-    fn verification_done(&self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; L]) {
+    fn verification_done(&self, result: Result<bool, ErrorCode>, compare: &'static mut D) {
         self.processid.map(|id| {
             self.apps
                 .enter(id, |_app, kernel_data| {
@@ -448,9 +450,9 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
-        const L: usize,
-    > SyscallDriver for ShaDriver<'a, H, L>
+        H: digest::Digest<'a, D> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        D: digest::DigestAlgorithm,
+    > SyscallDriver for ShaDriver<'a, H, D>
 {
     /// Setup and run the HMAC hardware
     ///
@@ -663,7 +665,7 @@ impl<
                                         let mut static_buffer_len = 0;
                                         self.dest_buffer.map(|buf| {
                                             // Determine the size of the static buffer we have
-                                            static_buffer_len = buf.len();
+                                            static_buffer_len = buf.as_slice().len();
 
                                             if static_buffer_len > compare.len() {
                                                 static_buffer_len = compare.len()
@@ -672,8 +674,9 @@ impl<
                                             self.data_copied.set(static_buffer_len);
 
                                             // Copy the data into the static buffer
-                                            compare[..static_buffer_len]
-                                                .copy_to_slice(&mut buf[..static_buffer_len]);
+                                            compare[..static_buffer_len].copy_to_slice(
+                                                &mut buf.as_mut_slice()[..static_buffer_len],
+                                            );
                                         });
                                     })
                                 });

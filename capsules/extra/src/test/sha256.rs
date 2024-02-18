@@ -14,17 +14,17 @@ use crate::sha256::Sha256Software;
 use kernel::debug;
 use kernel::hil::digest;
 use kernel::hil::digest::{Digest, DigestData, DigestVerify};
-use kernel::utilities::cells::TakeCell;
+use kernel::utilities::cells::{MapCell, TakeCell};
 use kernel::utilities::leasable_buffer::SubSlice;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
 
 pub struct TestSha256 {
     sha: &'static Sha256Software<'static>,
-    data: TakeCell<'static, [u8]>,     // The data to hash
-    hash: TakeCell<'static, [u8; 32]>, // The supplied hash
-    position: Cell<usize>,             // Keep track of position in data
-    correct: Cell<bool>,               // Whether supplied hash is correct
+    data: TakeCell<'static, [u8]>,                  // The data to hash
+    hash: MapCell<&'static mut digest::Sha256Hash>, // The supplied hash
+    position: Cell<usize>,                          // Keep track of position in data
+    correct: Cell<bool>,                            // Whether supplied hash is correct
 }
 
 // We add data in chunks of 12 bytes to ensure that the underlying
@@ -36,13 +36,13 @@ impl TestSha256 {
     pub fn new(
         sha: &'static Sha256Software<'static>,
         data: &'static mut [u8],
-        hash: &'static mut [u8; 32],
+        hash: &'static mut digest::Sha256Hash,
         correct: bool,
     ) -> Self {
         TestSha256 {
             sha: sha,
             data: TakeCell::new(data),
-            hash: TakeCell::new(hash),
+            hash: MapCell::new(hash),
             position: Cell::new(0),
             correct: Cell::new(correct),
         }
@@ -62,7 +62,7 @@ impl TestSha256 {
     }
 }
 
-impl digest::ClientData<32> for TestSha256 {
+impl digest::ClientData<digest::Sha256Hash> for TestSha256 {
     fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: SubSlice<'static, u8>) {
         unimplemented!()
     }
@@ -95,7 +95,7 @@ impl digest::ClientData<32> for TestSha256 {
                     Ok(()) => {
                         let v = self.sha.verify(self.hash.take().unwrap());
                         if v.is_err() {
-                            panic!("Sha256Test: failed to verify: {:?}", v);
+                            panic!("Sha256Test: failed to verify");
                         }
                     }
                     Err(e) => {
@@ -107,9 +107,13 @@ impl digest::ClientData<32> for TestSha256 {
     }
 }
 
-impl digest::ClientVerify<32> for TestSha256 {
-    fn verification_done(&self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; 32]) {
-        self.hash.put(Some(compare));
+impl digest::ClientVerify<digest::Sha256Hash> for TestSha256 {
+    fn verification_done(
+        &self,
+        result: Result<bool, ErrorCode>,
+        compare: &'static mut digest::Sha256Hash,
+    ) {
+        self.hash.put(compare);
         debug!("Sha256Test: Verification result: {:?}", result);
         match result {
             Ok(success) => {
@@ -128,6 +132,6 @@ impl digest::ClientVerify<32> for TestSha256 {
     }
 }
 
-impl digest::ClientHash<32> for TestSha256 {
-    fn hash_done(&self, _result: Result<(), ErrorCode>, _digest: &'static mut [u8; 32]) {}
+impl digest::ClientHash<digest::Sha256Hash> for TestSha256 {
+    fn hash_done(&self, _result: Result<(), ErrorCode>, _digest: &'static mut digest::Sha256Hash) {}
 }

@@ -54,7 +54,7 @@ use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::digest;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
-use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::SubSlice;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::{ErrorCode, ProcessId};
@@ -70,7 +70,7 @@ enum ShaOperation {
 // Needs to be able to accommodate the largest key sizes, e.g. 512
 const TMP_KEY_BUFFER_SIZE: usize = 512 / 8;
 
-pub struct HmacDriver<'a, H: digest::Digest<'a, L>, const L: usize> {
+pub struct HmacDriver<'a, H: digest::Digest<'a, D>, D: digest::DigestAlgorithm + 'static> {
     hmac: &'a H,
 
     active: Cell<bool>,
@@ -85,26 +85,26 @@ pub struct HmacDriver<'a, H: digest::Digest<'a, L>, const L: usize> {
 
     data_buffer: TakeCell<'static, [u8]>,
     data_copied: Cell<usize>,
-    dest_buffer: TakeCell<'static, [u8; L]>,
+    dest_buffer: MapCell<&'static mut D>,
 }
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
-        const L: usize,
-    > HmacDriver<'a, H, L>
+        H: digest::Digest<'a, D> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
+        D: digest::DigestAlgorithm,
+    > HmacDriver<'a, H, D>
 {
     pub fn new(
         hmac: &'a H,
         data_buffer: &'static mut [u8],
-        dest_buffer: &'static mut [u8; L],
+        dest_buffer: &'static mut D,
         grant: Grant<
             App,
             UpcallCount<1>,
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
-    ) -> HmacDriver<'a, H, L> {
+    ) -> HmacDriver<'a, H, D> {
         HmacDriver {
             hmac: hmac,
             active: Cell::new(false),
@@ -112,7 +112,7 @@ impl<
             processid: OptionalCell::empty(),
             data_buffer: TakeCell::new(data_buffer),
             data_copied: Cell::new(0),
-            dest_buffer: TakeCell::new(dest_buffer),
+            dest_buffer: MapCell::new(dest_buffer),
         }
     }
 
@@ -247,9 +247,9 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
-        const L: usize,
-    > digest::ClientData<L> for HmacDriver<'a, H, L>
+        H: digest::Digest<'a, D> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
+        D: digest::DigestAlgorithm,
+    > digest::ClientData<D> for HmacDriver<'a, H, D>
 {
     // Because data needs to be copied from a userspace buffer into a kernel (RAM) one,
     // we always pass mut data; this callback should never be invoked.
@@ -345,7 +345,7 @@ impl<
                                     let mut static_buffer_len = 0;
                                     self.dest_buffer.map(|buf| {
                                         // Determine the size of the static buffer we have
-                                        static_buffer_len = buf.len();
+                                        static_buffer_len = buf.as_slice().len();
 
                                         if static_buffer_len > compare.len() {
                                             static_buffer_len = compare.len()
@@ -354,8 +354,9 @@ impl<
                                         self.data_copied.set(static_buffer_len);
 
                                         // Copy the data into the static buffer
-                                        compare[..static_buffer_len]
-                                            .copy_to_slice(&mut buf[..static_buffer_len]);
+                                        compare[..static_buffer_len].copy_to_slice(
+                                            &mut buf.as_mut_slice()[..static_buffer_len],
+                                        );
                                     });
                                 })
                             });
@@ -384,17 +385,17 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
-        const L: usize,
-    > digest::ClientHash<L> for HmacDriver<'a, H, L>
+        H: digest::Digest<'a, D> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
+        D: digest::DigestAlgorithm,
+    > digest::ClientHash<D> for HmacDriver<'a, H, D>
 {
-    fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]) {
+    fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut D) {
         self.processid.map(|id| {
             self.apps
                 .enter(id, |_, kernel_data| {
                     self.hmac.clear_data();
 
-                    let pointer = digest[0] as *mut u8;
+                    let pointer = digest.as_slice()[0] as *mut u8;
 
                     let _ = kernel_data
                         .get_readwrite_processbuffer(rw_allow::DEST)
@@ -402,10 +403,11 @@ impl<
                             dest.mut_enter(|dest| {
                                 let len = dest.len();
 
-                                if len < L {
-                                    dest.copy_from_slice(&digest[0..len]);
+                                if len < core::mem::size_of::<D>() {
+                                    dest.copy_from_slice(&digest.as_slice()[0..len]);
                                 } else {
-                                    dest[0..L].copy_from_slice(digest);
+                                    dest[0..core::mem::size_of::<D>()]
+                                        .copy_from_slice(digest.as_slice());
                                 }
                             })
                         });
@@ -436,11 +438,11 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
-        const L: usize,
-    > digest::ClientVerify<L> for HmacDriver<'a, H, L>
+        H: digest::Digest<'a, D> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
+        D: digest::DigestAlgorithm,
+    > digest::ClientVerify<D> for HmacDriver<'a, H, D>
 {
-    fn verification_done(&self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; L]) {
+    fn verification_done(&self, result: Result<bool, ErrorCode>, compare: &'static mut D) {
         self.processid.map(|id| {
             self.apps
                 .enter(id, |_app, kernel_data| {
@@ -486,9 +488,9 @@ impl<
 ///        the `hash_done` callback.
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
-        const L: usize,
-    > SyscallDriver for HmacDriver<'a, H, L>
+        H: digest::Digest<'a, D> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
+        D: digest::DigestAlgorithm,
+    > SyscallDriver for HmacDriver<'a, H, D>
 {
     // Subscribe to HmacDriver events.
     //
@@ -711,7 +713,7 @@ impl<
                                         let mut static_buffer_len = 0;
                                         self.dest_buffer.map(|buf| {
                                             // Determine the size of the static buffer we have
-                                            static_buffer_len = buf.len();
+                                            static_buffer_len = buf.as_slice().len();
 
                                             if static_buffer_len > compare.len() {
                                                 static_buffer_len = compare.len()
@@ -720,8 +722,9 @@ impl<
                                             self.data_copied.set(static_buffer_len);
 
                                             // Copy the data into the static buffer
-                                            compare[..static_buffer_len]
-                                                .copy_to_slice(&mut buf[..static_buffer_len]);
+                                            compare[..static_buffer_len].copy_to_slice(
+                                                &mut buf.as_mut_slice()[..static_buffer_len],
+                                            );
                                         });
                                     })
                                 });

@@ -12,10 +12,10 @@
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 
-use kernel::hil::digest::Sha256;
 use kernel::hil::digest::{Client, ClientData, ClientHash, ClientVerify};
 use kernel::hil::digest::{ClientDataHash, ClientDataVerify, DigestDataHash, DigestDataVerify};
 use kernel::hil::digest::{Digest, DigestData, DigestHash, DigestVerify};
+use kernel::hil::digest::{DigestAlgorithm, Sha256, Sha256Hash};
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::leasable_buffer::SubSlice;
 use kernel::utilities::leasable_buffer::SubSliceMut;
@@ -34,7 +34,6 @@ pub enum State {
 }
 
 const SHA_BLOCK_LEN_BYTES: usize = 64;
-const SHA_256_OUTPUT_LEN_BYTES: usize = 32;
 const NUM_ROUND_CONSTANTS: usize = 64;
 
 const ROUND_CONSTANTS: [u32; NUM_ROUND_CONSTANTS] = [
@@ -51,14 +50,14 @@ const ROUND_CONSTANTS: [u32; NUM_ROUND_CONSTANTS] = [
 pub struct Sha256Software<'a> {
     state: Cell<State>,
 
-    client: OptionalCell<&'a dyn Client<SHA_256_OUTPUT_LEN_BYTES>>,
+    client: OptionalCell<&'a dyn Client<Sha256Hash>>,
     input_data: OptionalCell<SubSliceMutImmut<'static, u8>>,
     data_buffer: MapCell<[u8; SHA_BLOCK_LEN_BYTES]>,
     buffered_length: Cell<usize>,
     total_length: Cell<usize>,
 
     // Used to store the hash or the hash to compare against with verify
-    output_data: Cell<Option<&'static mut [u8; SHA_256_OUTPUT_LEN_BYTES]>>,
+    output_data: Cell<Option<&'static mut Sha256Hash>>,
 
     hash_values: Cell<[u32; 8]>,
     deferred_call: DeferredCall,
@@ -296,7 +295,7 @@ impl<'a> Sha256Software<'a> {
     }
 }
 
-impl<'a> DigestData<'a, 32> for Sha256Software<'a> {
+impl<'a> DigestData<'a, Sha256Hash> for Sha256Software<'a> {
     fn add_data(
         &self,
         data: SubSlice<'static, u8>,
@@ -331,16 +330,16 @@ impl<'a> DigestData<'a, 32> for Sha256Software<'a> {
         self.initialize();
     }
 
-    fn set_data_client(&'a self, _client: &'a (dyn ClientData<32> + 'a)) {
+    fn set_data_client(&'a self, _client: &'a (dyn ClientData<Sha256Hash> + 'a)) {
         unimplemented!()
     }
 }
 
-impl<'a> DigestHash<'a, 32> for Sha256Software<'a> {
+impl<'a> DigestHash<'a, Sha256Hash> for Sha256Software<'a> {
     fn run(
         &'a self,
-        digest: &'static mut [u8; 32],
-    ) -> Result<(), (ErrorCode, &'static mut [u8; 32])> {
+        digest: &'static mut Sha256Hash,
+    ) -> Result<(), (ErrorCode, &'static mut Sha256Hash)> {
         if self.busy() {
             Err((ErrorCode::BUSY, digest))
         } else {
@@ -348,10 +347,10 @@ impl<'a> DigestHash<'a, 32> for Sha256Software<'a> {
             self.complete_sha256();
             for i in 0..8 {
                 let val = self.hash_values.get()[i];
-                digest[4 * i + 3] = (val >> 0 & 0xff) as u8;
-                digest[4 * i + 2] = (val >> 8 & 0xff) as u8;
-                digest[4 * i + 1] = (val >> 16 & 0xff) as u8;
-                digest[4 * i + 0] = (val >> 24 & 0xff) as u8;
+                digest.as_mut_slice()[4 * i + 3] = (val >> 0 & 0xff) as u8;
+                digest.as_mut_slice()[4 * i + 2] = (val >> 8 & 0xff) as u8;
+                digest.as_mut_slice()[4 * i + 1] = (val >> 16 & 0xff) as u8;
+                digest.as_mut_slice()[4 * i + 0] = (val >> 24 & 0xff) as u8;
             }
             self.output_data.set(Some(digest));
             self.deferred_call.set();
@@ -359,16 +358,16 @@ impl<'a> DigestHash<'a, 32> for Sha256Software<'a> {
         }
     }
 
-    fn set_hash_client(&'a self, _client: &'a (dyn ClientHash<32> + 'a)) {
+    fn set_hash_client(&'a self, _client: &'a (dyn ClientHash<Sha256Hash> + 'a)) {
         unimplemented!()
     }
 }
 
-impl<'a> DigestVerify<'a, 32> for Sha256Software<'a> {
+impl<'a> DigestVerify<'a, Sha256Hash> for Sha256Software<'a> {
     fn verify(
         &'a self,
-        compare: &'static mut [u8; 32],
-    ) -> Result<(), (ErrorCode, &'static mut [u8; 32])> {
+        compare: &'static mut Sha256Hash,
+    ) -> Result<(), (ErrorCode, &'static mut Sha256Hash)> {
         if self.busy() {
             Err((ErrorCode::BUSY, compare))
         } else {
@@ -380,13 +379,13 @@ impl<'a> DigestVerify<'a, 32> for Sha256Software<'a> {
         }
     }
 
-    fn set_verify_client(&'a self, _client: &'a (dyn ClientVerify<32> + 'a)) {
+    fn set_verify_client(&'a self, _client: &'a (dyn ClientVerify<Sha256Hash> + 'a)) {
         unimplemented!()
     }
 }
 
-impl<'a> Digest<'a, 32> for Sha256Software<'a> {
-    fn set_client(&'a self, client: &'a dyn Client<32>) {
+impl<'a> Digest<'a, Sha256Hash> for Sha256Software<'a> {
+    fn set_client(&'a self, client: &'a dyn Client<Sha256Hash>) {
         self.client.set(client);
     }
 }
@@ -404,10 +403,10 @@ impl<'a> DeferredCallClient for Sha256Software<'a> {
                 let mut pass = true;
                 for i in 0..8 {
                     let hashval = self.hash_values.get()[i];
-                    if output[4 * i + 3] != (hashval >> 0 & 0xff) as u8
-                        || output[4 * i + 2] != (hashval >> 8 & 0xff) as u8
-                        || output[4 * i + 1] != (hashval >> 16 & 0xff) as u8
-                        || output[4 * i + 0] != (hashval >> 24 & 0xff) as u8
+                    if output.as_slice()[4 * i + 3] != (hashval >> 0 & 0xff) as u8
+                        || output.as_slice()[4 * i + 2] != (hashval >> 8 & 0xff) as u8
+                        || output.as_slice()[4 * i + 1] != (hashval >> 16 & 0xff) as u8
+                        || output.as_slice()[4 * i + 0] != (hashval >> 24 & 0xff) as u8
                     {
                         pass = false;
                         break;
@@ -493,14 +492,14 @@ impl Sha256 for Sha256Software<'_> {
     }
 }
 
-impl<'a> DigestDataHash<'a, 32> for Sha256Software<'a> {
-    fn set_client(&'a self, _client: &'a dyn ClientDataHash<32>) {
+impl<'a> DigestDataHash<'a, Sha256Hash> for Sha256Software<'a> {
+    fn set_client(&'a self, _client: &'a dyn ClientDataHash<Sha256Hash>) {
         unimplemented!()
     }
 }
 
-impl<'a> DigestDataVerify<'a, 32> for Sha256Software<'a> {
-    fn set_client(&'a self, _client: &'a dyn ClientDataVerify<32>) {
+impl<'a> DigestDataVerify<'a, Sha256Hash> for Sha256Software<'a> {
+    fn set_client(&'a self, _client: &'a dyn ClientDataVerify<Sha256Hash>) {
         unimplemented!()
     }
 }

@@ -7,7 +7,7 @@
 use core::cell::Cell;
 use core::ops::Index;
 use kernel::hil;
-use kernel::hil::digest::{self, DigestData, DigestHash};
+use kernel::hil::digest::{self, DigestAlgorithm, DigestData, DigestHash, HmacSha256Hmac};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::SubSlice;
 use kernel::utilities::leasable_buffer::SubSliceMut;
@@ -77,10 +77,10 @@ register_bitfields![u32,
 
 pub struct Hmac<'a> {
     registers: StaticRef<HmacRegisters>,
-    client: OptionalCell<&'a dyn hil::digest::Client<32>>,
+    client: OptionalCell<&'a dyn hil::digest::Client<HmacSha256Hmac>>,
     data: Cell<Option<SubSliceMutImmut<'static, u8>>>,
     verify: Cell<bool>,
-    digest: Cell<Option<&'static mut [u8; 32]>>,
+    digest: Cell<Option<&'static mut HmacSha256Hmac>>,
     cancelled: Cell<bool>,
     busy: Cell<bool>,
 }
@@ -176,10 +176,10 @@ impl Hmac<'_> {
 
                         let idx = i * 4;
 
-                        if digest[idx + 0] != d[0]
-                            || digest[idx + 1] != d[1]
-                            || digest[idx + 2] != d[2]
-                            || digest[idx + 3] != d[3]
+                        if digest.as_slice()[idx + 0] != d[0]
+                            || digest.as_slice()[idx + 1] != d[1]
+                            || digest.as_slice()[idx + 2] != d[2]
+                            || digest.as_slice()[idx + 3] != d[3]
                         {
                             equal = false;
                         }
@@ -200,10 +200,10 @@ impl Hmac<'_> {
 
                         let idx = i * 4;
 
-                        digest[idx + 0] = d[0];
-                        digest[idx + 1] = d[1];
-                        digest[idx + 2] = d[2];
-                        digest[idx + 3] = d[3];
+                        digest.as_mut_slice()[idx + 0] = d[0];
+                        digest.as_mut_slice()[idx + 1] = d[1];
+                        digest.as_mut_slice()[idx + 2] = d[2];
+                        digest.as_mut_slice()[idx + 3] = d[3];
                     }
                     if self.cancelled.get() {
                         self.clear_data();
@@ -260,7 +260,7 @@ impl Hmac<'_> {
     }
 }
 
-impl<'a> hil::digest::DigestData<'a, 32> for Hmac<'a> {
+impl<'a> hil::digest::DigestData<'a, HmacSha256Hmac> for Hmac<'a> {
     fn add_data(
         &self,
         data: SubSlice<'static, u8>,
@@ -320,16 +320,16 @@ impl<'a> hil::digest::DigestData<'a, 32> for Hmac<'a> {
         self.cancelled.set(true);
     }
 
-    fn set_data_client(&'a self, _client: &'a (dyn digest::ClientData<32> + 'a)) {
+    fn set_data_client(&'a self, _client: &'a (dyn digest::ClientData<HmacSha256Hmac> + 'a)) {
         unimplemented!()
     }
 }
 
-impl<'a> hil::digest::DigestHash<'a, 32> for Hmac<'a> {
+impl<'a> hil::digest::DigestHash<'a, HmacSha256Hmac> for Hmac<'a> {
     fn run(
         &'a self,
-        digest: &'static mut [u8; 32],
-    ) -> Result<(), (ErrorCode, &'static mut [u8; 32])> {
+        digest: &'static mut HmacSha256Hmac,
+    ) -> Result<(), (ErrorCode, &'static mut HmacSha256Hmac)> {
         let regs = self.registers;
 
         // Enable interrupts
@@ -346,28 +346,28 @@ impl<'a> hil::digest::DigestHash<'a, 32> for Hmac<'a> {
         Ok(())
     }
 
-    fn set_hash_client(&'a self, _client: &'a (dyn digest::ClientHash<32> + 'a)) {
+    fn set_hash_client(&'a self, _client: &'a (dyn digest::ClientHash<HmacSha256Hmac> + 'a)) {
         unimplemented!()
     }
 }
 
-impl<'a> hil::digest::DigestVerify<'a, 32> for Hmac<'a> {
+impl<'a> hil::digest::DigestVerify<'a, HmacSha256Hmac> for Hmac<'a> {
     fn verify(
         &'a self,
-        compare: &'static mut [u8; 32],
-    ) -> Result<(), (ErrorCode, &'static mut [u8; 32])> {
+        compare: &'static mut HmacSha256Hmac,
+    ) -> Result<(), (ErrorCode, &'static mut HmacSha256Hmac)> {
         self.verify.set(true);
 
         self.run(compare)
     }
 
-    fn set_verify_client(&'a self, _client: &'a (dyn digest::ClientVerify<32> + 'a)) {
+    fn set_verify_client(&'a self, _client: &'a (dyn digest::ClientVerify<HmacSha256Hmac> + 'a)) {
         unimplemented!()
     }
 }
 
-impl<'a> hil::digest::Digest<'a, 32> for Hmac<'a> {
-    fn set_client(&'a self, client: &'a dyn digest::Client<32>) {
+impl<'a> hil::digest::Digest<'a, HmacSha256Hmac> for Hmac<'a> {
+    fn set_client(&'a self, client: &'a dyn digest::Client<HmacSha256Hmac>) {
         self.client.set(client);
     }
 }
