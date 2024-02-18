@@ -403,9 +403,7 @@ pub trait Process {
     /// this will return `Some(Some(completion_code))`.
     fn get_completion_code(&self) -> Option<Option<u32>>;
 
-    /// Stop and clear a process's state. If the process was running or has
-    /// passed credentials checks, put it into the `Terminated` state. This
-    /// method has no effect on processes in the `CredentialsFailed` state.
+    /// Stop and clear a process's state and put it into the `Terminated` state.
     ///
     /// This will end the process, but does not reset it such that it could be
     /// restarted and run again. This function instead frees grants and any
@@ -875,11 +873,9 @@ pub enum State {
     /// clean up its state).
     Faulted,
 
-    /// The process's credentials have been approved but it is not running: it
-    /// exited with the `exit-terminate` system call or was terminated for some
-    /// other reason (e.g., by the process console).  Processes in the
-    /// `Terminated` state can be transitioned into `CredentialsApproved` to run
-    /// again.
+    /// The process is not running: it exited with the `exit-terminate` system
+    /// call or was terminated for some other reason (e.g., by the process
+    /// console). Processes in the `Terminated` state can be run again.
     Terminated,
 }
 

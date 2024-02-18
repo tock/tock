@@ -396,19 +396,12 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     }
 
     fn terminate(&self, completion_code: Option<u32>) {
-        // A process can be terminated if it is running, in the
-        // Faulted state, or in the CredentialsApproved state;
-        // otherwise, you cannot terminate it and this method
-        // return early.
+        // A process can be terminated if it is running or in the `Faulted`
+        // state. Otherwise, you cannot terminate it and this method return
+        // early.
         //
-        // The kernel can terminate in the Faulted state to return the
-        // process to a state in which it can run again (e.g., reset
-        // it).
-        //
-        // The kernel can terminate in the CredentialsApproved state
-        // because this state means the process is ready to run and
-        // will be started in a future core scheduler loop; terminate
-        // allows the kernel to prevent this before it starts running.
+        // The kernel can terminate in the `Faulted` state to return the process
+        // to a state in which it can run again (e.g., reset it).
         if !self.is_running() && self.get_state() != State::Faulted {
             return;
         }
