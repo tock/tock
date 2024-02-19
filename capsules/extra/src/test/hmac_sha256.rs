@@ -9,7 +9,7 @@ use crate::hmac_sha256::HmacSha256Software;
 use crate::sha256::Sha256Software;
 use kernel::hil::digest;
 use kernel::hil::digest::HmacSha256;
-use kernel::hil::digest::{DigestData, DigestDataHash, DigestHash};
+use kernel::hil::digest::{DigestData, DigestHash};
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::leasable_buffer::SubSlice;
 use kernel::utilities::leasable_buffer::SubSliceMut;
@@ -41,7 +41,8 @@ impl TestHmacSha256 {
     }
 
     pub fn run(&'static self) {
-        self.hmac.set_client(self);
+        kernel::hil::digest::Digest::set_client(self.hmac, self);
+
         let key = self.key.take().unwrap();
         let r = self.hmac.set_mode_hmacsha256(key);
         if r.is_err() {
@@ -79,5 +80,10 @@ impl digest::ClientHash<32> for TestHmacSha256 {
             }
         }
         kernel::debug!("HMAC-SHA256 matches!");
+    }
+}
+
+impl digest::ClientVerify<32> for TestHmacSha256 {
+    fn verification_done(&self, _result: Result<bool, ErrorCode>, _compare: &'static mut [u8; 32]) {
     }
 }
