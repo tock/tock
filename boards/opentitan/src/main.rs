@@ -20,6 +20,7 @@ use crate::pinmux_layout::BoardPinmuxLayout;
 use capsules_aes_gcm::aes_gcm;
 use capsules_core::virtualizers::virtual_aes_ccm;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use components::i2c::I2CMasterDriverComponent;
 use core::ptr::{addr_of, addr_of_mut};
 use earlgrey::chip::EarlGreyDefaultPeripherals;
 use earlgrey::chip_config::EarlGreyConfig;
@@ -29,7 +30,6 @@ use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::entropy::Entropy32;
 use kernel::hil::hasher::Hasher;
-use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::rng::Rng;
 use kernel::hil::symmetric_encryption::AES128;
@@ -189,8 +189,10 @@ struct EarlGrey {
         'static,
         capsules_core::virtualizers::virtual_uart::UartDevice<'static>,
     >,
-    i2c_master:
-        &'static capsules_core::i2c_master::I2CMasterDriver<'static, lowrisc::i2c::I2c<'static>>,
+    i2c_master: &'static capsules_core::i2c_master::I2CMasterDriver<
+        'static,
+        capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, lowrisc::i2c::I2c<'static>>,
+    >,
     spi_controller: &'static capsules_core::spi_controller::Spi<
         'static,
         capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
@@ -524,23 +526,15 @@ unsafe fn setup() -> (
     )
     .finalize(components::hmac_component_static!(lowrisc::hmac::Hmac, 32));
 
-    let i2c_master_buffer = static_init!(
-        [u8; capsules_core::i2c_master::BUFFER_LENGTH],
-        [0; capsules_core::i2c_master::BUFFER_LENGTH]
-    );
-    let i2c_master = static_init!(
-        capsules_core::i2c_master::I2CMasterDriver<'static, lowrisc::i2c::I2c<'static>>,
-        capsules_core::i2c_master::I2CMasterDriver::new(
-            &peripherals.i2c0,
-            i2c_master_buffer,
-            board_kernel.create_grant(
-                capsules_core::i2c_master::DRIVER_NUM,
-                &memory_allocation_cap
-            )
-        )
+    let mux_i2c = components::i2c::I2CMuxComponent::new(&peripherals.i2c0, None).finalize(
+        components::i2c_mux_component_static!(lowrisc::i2c::I2c<'static>),
     );
 
-    peripherals.i2c0.set_master_client(i2c_master);
+    let i2c_master =
+        I2CMasterDriverComponent::new(mux_i2c, board_kernel, capsules_core::i2c_master::DRIVER_NUM)
+            .finalize(components::i2c_master_component_static!(
+                lowrisc::i2c::I2c<'static>
+            ));
 
     //SPI
     let mux_spi = components::spi::SpiMuxComponent::new(&peripherals.spi_host0).finalize(
