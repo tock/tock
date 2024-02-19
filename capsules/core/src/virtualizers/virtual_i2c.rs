@@ -82,7 +82,7 @@ impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> MuxI2C<'a, I, S> {
             mnode.map(|node| {
                 node.buffer.take().map(|buf| {
                     match node.operation.get() {
-                        Op::Write(len) => match self.i2c.write(node.addr, buf, len) {
+                        Op::Write(len) => match self.i2c.write(node.addr.get(), buf, len) {
                             Ok(()) => {}
                             Err((error, buffer)) => {
                                 node.buffer.replace(buffer);
@@ -90,7 +90,7 @@ impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> MuxI2C<'a, I, S> {
                                 node.mux.do_next_op_async();
                             }
                         },
-                        Op::Read(len) => match self.i2c.read(node.addr, buf, len) {
+                        Op::Read(len) => match self.i2c.read(node.addr.get(), buf, len) {
                             Ok(()) => {}
                             Err((error, buffer)) => {
                                 node.buffer.replace(buffer);
@@ -99,7 +99,7 @@ impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> MuxI2C<'a, I, S> {
                             }
                         },
                         Op::WriteRead(wlen, rlen) => {
-                            match self.i2c.write_read(node.addr, buf, wlen, rlen) {
+                            match self.i2c.write_read(node.addr.get(), buf, wlen, rlen) {
                                 Ok(()) => {}
                                 Err((error, buffer)) => {
                                     node.buffer.replace(buffer);
@@ -127,7 +127,7 @@ impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> MuxI2C<'a, I, S> {
                 mnode.map(|node| {
                     node.buffer.take().map(|buf| match node.operation.get() {
                         Op::Write(len) => {
-                            match self.smbus.unwrap().smbus_write(node.addr, buf, len) {
+                            match self.smbus.unwrap().smbus_write(node.addr.get(), buf, len) {
                                 Ok(()) => {}
                                 Err(e) => {
                                     node.buffer.replace(e.1);
@@ -137,7 +137,7 @@ impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> MuxI2C<'a, I, S> {
                             };
                         }
                         Op::Read(len) => {
-                            match self.smbus.unwrap().smbus_read(node.addr, buf, len) {
+                            match self.smbus.unwrap().smbus_read(node.addr.get(), buf, len) {
                                 Ok(()) => {}
                                 Err(e) => {
                                     node.buffer.replace(e.1);
@@ -147,11 +147,12 @@ impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> MuxI2C<'a, I, S> {
                             };
                         }
                         Op::WriteRead(wlen, rlen) => {
-                            match self
-                                .smbus
-                                .unwrap()
-                                .smbus_write_read(node.addr, buf, wlen, rlen)
-                            {
+                            match self.smbus.unwrap().smbus_write_read(
+                                node.addr.get(),
+                                buf,
+                                wlen,
+                                rlen,
+                            ) {
                                 Ok(()) => {}
                                 Err(e) => {
                                     node.buffer.replace(e.1);
@@ -205,7 +206,7 @@ enum Op {
 
 pub struct I2CDevice<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a> = NoSMBus> {
     mux: &'a MuxI2C<'a, I, S>,
-    addr: u8,
+    addr: Cell<u8>,
     enabled: Cell<bool>,
     buffer: TakeCell<'static, [u8]>,
     operation: Cell<Op>,
@@ -217,7 +218,7 @@ impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> I2CDevice<'a, I, S> {
     pub fn new(mux: &'a MuxI2C<'a, I, S>, addr: u8) -> I2CDevice<'a, I, S> {
         I2CDevice {
             mux,
-            addr,
+            addr: Cell::new(addr),
             enabled: Cell::new(false),
             buffer: TakeCell::empty(),
             operation: Cell::new(Op::Idle),
@@ -304,11 +305,15 @@ impl<'a, I: i2c::I2CMaster<'a>> i2c::I2CDevice for I2CDevice<'a, I> {
             Err((Error::ArbitrationLost, buffer))
         }
     }
+
+    fn set_address(&self, addr: u8) {
+        self.addr.set(addr);
+    }
 }
 
 pub struct SMBusDevice<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> {
     mux: &'a MuxI2C<'a, I, S>,
-    addr: u8,
+    addr: Cell<u8>,
     enabled: Cell<bool>,
     buffer: TakeCell<'static, [u8]>,
     operation: Cell<Op>,
@@ -324,7 +329,7 @@ impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> SMBusDevice<'a, I, S> {
 
         SMBusDevice {
             mux,
-            addr,
+            addr: Cell::new(addr),
             enabled: Cell::new(false),
             buffer: TakeCell::empty(),
             operation: Cell::new(Op::Idle),
@@ -410,6 +415,10 @@ impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> i2c::I2CDevice for SMBu
         } else {
             Err((Error::ArbitrationLost, buffer))
         }
+    }
+
+    fn set_address(&self, addr: u8) {
+        self.addr.set(addr);
     }
 }
 
