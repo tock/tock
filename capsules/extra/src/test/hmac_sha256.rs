@@ -7,9 +7,11 @@
 
 use crate::hmac_sha256::HmacSha256Software;
 use crate::sha256::Sha256Software;
+use capsules_core::test::capsule_test::{CapsuleTest, CapsuleTestClient};
 use kernel::hil::digest;
 use kernel::hil::digest::HmacSha256;
 use kernel::hil::digest::{DigestData, DigestHash};
+use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::leasable_buffer::SubSlice;
 use kernel::utilities::leasable_buffer::SubSliceMut;
@@ -21,6 +23,7 @@ pub struct TestHmacSha256 {
     data: TakeCell<'static, [u8]>,       // The data to hash
     digest: TakeCell<'static, [u8; 32]>, // The supplied hash
     correct: &'static [u8; 32],          // The supplied hash
+    client: OptionalCell<&'static dyn CapsuleTestClient>,
 }
 
 impl TestHmacSha256 {
@@ -37,6 +40,7 @@ impl TestHmacSha256 {
             data: TakeCell::new(data),
             digest: TakeCell::new(digest),
             correct,
+            client: OptionalCell::empty(),
         }
     }
 
@@ -80,10 +84,20 @@ impl digest::ClientHash<32> for TestHmacSha256 {
             }
         }
         kernel::debug!("HMAC-SHA256 matches!");
+
+        self.client.map(|client| {
+            client.done(Ok(()));
+        });
     }
 }
 
 impl digest::ClientVerify<32> for TestHmacSha256 {
     fn verification_done(&self, _result: Result<bool, ErrorCode>, _compare: &'static mut [u8; 32]) {
+    }
+}
+
+impl CapsuleTest for TestHmacSha256 {
+    fn set_client(&self, client: &'static dyn CapsuleTestClient) {
+        self.client.set(client);
     }
 }
