@@ -179,11 +179,11 @@ impl KeyDescriptor {
 
 /// Denotes the type of pending transmission. A `Parse(..)` PendingTX
 /// indicates that the 15.4 framer will need to form the packet header
-/// from the provided address and security level. A `Direct` PendingTX
+/// from the provided address and security level. A `Raw` PendingTX
 /// is formed by the userprocess and passes through the Framer unchanged.
 enum PendingTX {
     Parse(u16, Option<(SecurityLevel, KeyId)>),
-    Direct,
+    Raw,
     Empty,
 }
 
@@ -459,7 +459,7 @@ impl<'a> RadioDriver<'a> {
             // At a high level, we must form a Frame from the provided userproceess data,
             // place this frame into a static buffer, and then transmit the frame. This is
             // somewhat complicated by the need to error handle each of these steps and also
-            // provide Direct and Parse sending modes (i.e. Direct mode userprocess fully forms
+            // provide Raw and Parse sending modes (i.e. Raw mode userprocess fully forms
             // 15.4 packet and Parse mode the 15.4 framer forms the packet from the userprocess
             // parameters and payload). Because we first take this kernel buffer, we must
             // replace the `kernel_tx` buffer upon handling any error.
@@ -468,7 +468,7 @@ impl<'a> RadioDriver<'a> {
                     PendingTX::Empty => {
                         unreachable!("PendingTX::Empty should have been handled earlier with guard statement.")
                     }
-                    PendingTX::Direct => {
+                    PendingTX::Raw => {
                         // Here we form an empty frame from the buffer to later be filled by the specified
                         // userprocess frame data. Note, we must allocate the needed buffer for the frame,
                         // but set the `len` field to 0 as the frame is empty.
@@ -500,7 +500,7 @@ impl<'a> RadioDriver<'a> {
 
             // Obtain the payload from the userprocess, append the "payload" to the previously formed frame
             // and pass the frame to be transmitted. Note, the term "payload" is somewhat misleading in the
-            // case of Direct transmission as the payload is the entire 15.4 frame.
+            // case of Raw transmission as the payload is the entire 15.4 frame.
             kernel_data
             .get_readonly_processbuffer(ro_allow::WRITE)
             .and_then(|write| write.enter(|payload|
@@ -678,7 +678,7 @@ impl SyscallDriver for RadioDriver<'_> {
     /// - `25`: Remove the key at an index.
     /// - `26`: Transmit a frame (parse required). Take the provided payload and
     ///        parameters to encrypt, form headers, and transmit the frame.
-    /// - `27`: Transmit a frame (direct). Transmit preformed 15.4 frame (i.e.
+    /// - `27`: Transmit a frame (raw). Transmit preformed 15.4 frame (i.e.
     ///        headers and security etc completed by userprocess).
     fn command(
         &self,
@@ -981,7 +981,7 @@ impl SyscallDriver for RadioDriver<'_> {
                             // Cannot support more than one pending tx per process.
                             return Err(ErrorCode::BUSY);
                         }
-                        app.pending_tx = PendingTX::Direct;
+                        app.pending_tx = PendingTX::Raw;
                         Ok(())
                     })
                     .map_or_else(
