@@ -230,6 +230,7 @@ pub trait I2CDevice {
     fn write(&self, data: &'static mut [u8], len: usize) -> Result<(), (Error, &'static mut [u8])>;
     fn read(&self, buffer: &'static mut [u8], len: usize)
         -> Result<(), (Error, &'static mut [u8])>;
+    fn set_address(&self, addr: u8);
 }
 
 pub trait SMBusDevice: I2CDevice {
