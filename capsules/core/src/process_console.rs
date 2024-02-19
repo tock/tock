@@ -1304,7 +1304,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                     // not to permit accumulation of the text
                                     if COMMAND_HISTORY_LEN > 1 {
                                         self.command_history.map(|ht| {
-                                            ht.cmds[0].delete_byte(cursor - 1);
+                                            ht.cmds[0].delete_byte(cursor);
                                         });
                                     }
                                 }
