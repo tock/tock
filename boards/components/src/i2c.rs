@@ -243,7 +243,6 @@ impl<I: 'static + i2c::I2CMaster<'static>> Component for I2CMasterDriverComponen
             ));
 
         userspace_device.set_client(i2c_master);
-        i2c::I2CDevice::enable(userspace_device);
 
         i2c_master
     }

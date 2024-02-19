@@ -90,14 +90,17 @@ impl<'a, I: i2c::I2CDevice> I2CMasterDriver<'a, I> {
                                 return Err(ErrorCode::INVAL);
                             }
                             Cmd::Write => {
+                                self.i2c.enable();
                                 self.i2c.set_address(addr);
                                 self.i2c.write(buffer, wlen)
                             }
                             Cmd::Read => {
+                                self.i2c.enable();
                                 self.i2c.set_address(addr);
                                 self.i2c.read(buffer, rlen)
                             }
                             Cmd::WriteRead => {
+                                self.i2c.enable();
                                 self.i2c.set_address(addr);
                                 self.i2c.write_read(buffer, wlen, rlen)
                             }
@@ -226,6 +229,8 @@ impl<'a, I: i2c::I2CDevice> i2c::I2CClient for I2CMasterDriver<'a, I> {
                     .ok();
             })
         });
+
+        self.i2c.disable();
 
         //recover buffer
         self.buf.put(Some(buffer));
