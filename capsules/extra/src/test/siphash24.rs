@@ -8,8 +8,9 @@
 //! Digest trait.
 
 use crate::sip_hash::SipHasher24;
-use kernel::debug;
+use capsules_core::test::capsule_test::{CapsuleTest, CapsuleTestClient};
 use kernel::hil::hasher::{Client, Hasher};
+use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::leasable_buffer::{SubSlice, SubSliceMut};
 use kernel::ErrorCode;
@@ -19,6 +20,7 @@ pub struct TestSipHash24 {
     data: TakeCell<'static, [u8]>,            // The data to hash
     hash: TakeCell<'static, [u8; 8]>,         // The supplied hash
     correct_hash: TakeCell<'static, [u8; 8]>, // The correct hash
+    client: OptionalCell<&'static dyn CapsuleTestClient>,
 }
 
 impl TestSipHash24 {
@@ -33,6 +35,7 @@ impl TestSipHash24 {
             data: TakeCell::new(data),
             hash: TakeCell::new(hash),
             correct_hash: TakeCell::new(correct_hash),
+            client: OptionalCell::empty(),
         }
     }
 
@@ -56,10 +59,29 @@ impl Client<8> for TestSipHash24 {
     fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: SubSlice<'static, u8>) {}
 
     fn hash_done(&self, _result: Result<(), ErrorCode>, digest: &'static mut [u8; 8]) {
-        debug!("hashed result:   {:?}", digest);
-        debug!("expected result: {:?}", self.correct_hash.take().unwrap());
+        let correct = self.correct_hash.take().unwrap();
+
+        let mut matches = true;
+        for i in 0..8 {
+            if correct[i] != digest[i] {
+                matches = false;
+                kernel::debug!("TestSipHash24: incorrect hash output!");
+            }
+        }
+        kernel::debug!("TestSipHash24 matches!");
 
         self.hash.replace(digest);
         self.hasher.clear_data();
+
+        self.client.map(|client| {
+            let res = if matches { Ok(()) } else { Err(()) };
+            client.done(res);
+        });
+    }
+}
+
+impl CapsuleTest for TestSipHash24 {
+    fn set_client(&self, client: &'static dyn CapsuleTestClient) {
+        self.client.set(client);
     }
 }
