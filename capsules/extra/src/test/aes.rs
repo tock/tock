@@ -4,12 +4,14 @@
 
 //! Test the AES hardware.
 
+use capsules_core::test::capsule_test::{CapsuleTest, CapsuleTestClient};
 use core::cell::Cell;
 use kernel::debug;
 use kernel::hil;
 use kernel::hil::symmetric_encryption::{
     AES128Ctr, AES128, AES128CBC, AES128ECB, AES128_BLOCK_SIZE, AES128_KEY_SIZE,
 };
+use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 
 pub struct TestAes128Ctr<'a, A: 'a> {
@@ -22,6 +24,8 @@ pub struct TestAes128Ctr<'a, A: 'a> {
 
     encrypting: Cell<bool>,
     use_source: Cell<bool>,
+
+    client: OptionalCell<&'static dyn CapsuleTestClient>,
 }
 
 pub struct TestAes128Cbc<'a, A: 'a> {
@@ -34,6 +38,8 @@ pub struct TestAes128Cbc<'a, A: 'a> {
 
     encrypting: Cell<bool>,
     use_source: Cell<bool>,
+
+    client: OptionalCell<&'static dyn CapsuleTestClient>,
 }
 
 pub struct TestAes128Ecb<'a, A: 'a> {
@@ -45,6 +51,8 @@ pub struct TestAes128Ecb<'a, A: 'a> {
 
     encrypting: Cell<bool>,
     use_source: Cell<bool>,
+
+    client: OptionalCell<&'static dyn CapsuleTestClient>,
 }
 
 const DATA_OFFSET: usize = AES128_BLOCK_SIZE;
@@ -66,6 +74,8 @@ impl<'a, A: AES128<'a> + AES128ECB> TestAes128Ecb<'a, A> {
 
             encrypting: Cell::new(true),
             use_source: Cell::new(true),
+
+            client: OptionalCell::empty(),
         }
     }
 
@@ -139,6 +149,12 @@ impl<'a, A: AES128<'a> + AES128ECB> TestAes128Ecb<'a, A> {
     }
 }
 
+impl<'a, A: AES128<'a> + AES128ECB> CapsuleTest for TestAes128Ecb<'a, A> {
+    fn set_client(&self, client: &'static dyn CapsuleTestClient) {
+        self.client.set(client);
+    }
+}
+
 impl<'a, A: AES128<'a> + AES128Ctr> TestAes128Ctr<'a, A> {
     pub fn new(
         aes: &'a A,
@@ -157,6 +173,8 @@ impl<'a, A: AES128<'a> + AES128Ctr> TestAes128Ctr<'a, A> {
 
             encrypting: Cell::new(true),
             use_source: Cell::new(true),
+
+            client: OptionalCell::empty(),
         }
     }
 
@@ -292,8 +310,18 @@ impl<'a, A: AES128<'a> + AES128Ctr> hil::symmetric_encryption::Client<'a> for Te
                 self.encrypting.set(false);
                 self.use_source.set(true);
                 self.run();
+            } else {
+                self.client.map(|client| {
+                    client.done(Ok(()));
+                });
             }
         }
+    }
+}
+
+impl<'a, A: AES128<'a> + AES128Ctr> CapsuleTest for TestAes128Ctr<'a, A> {
+    fn set_client(&self, client: &'static dyn CapsuleTestClient) {
+        self.client.set(client);
     }
 }
 
@@ -315,6 +343,8 @@ impl<'a, A: AES128<'a> + AES128CBC> TestAes128Cbc<'a, A> {
 
             encrypting: Cell::new(true),
             use_source: Cell::new(true),
+
+            client: OptionalCell::empty(),
         }
     }
 
@@ -449,8 +479,18 @@ impl<'a, A: AES128<'a> + AES128CBC> hil::symmetric_encryption::Client<'a> for Te
                 self.encrypting.set(false);
                 self.use_source.set(true);
                 self.run();
+            } else {
+                self.client.map(|client| {
+                    client.done(Ok(()));
+                });
             }
         }
+    }
+}
+
+impl<'a, A: AES128<'a> + AES128CBC> CapsuleTest for TestAes128Cbc<'a, A> {
+    fn set_client(&self, client: &'static dyn CapsuleTestClient) {
+        self.client.set(client);
     }
 }
 
@@ -504,6 +544,10 @@ impl<'a, A: AES128<'a> + AES128ECB> hil::symmetric_encryption::Client<'a> for Te
                 self.encrypting.set(false);
                 self.use_source.set(true);
                 self.run();
+            } else {
+                self.client.map(|client| {
+                    client.done(Ok(()));
+                });
             }
         }
     }
