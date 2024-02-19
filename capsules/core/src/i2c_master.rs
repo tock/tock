@@ -37,14 +37,14 @@ struct Transaction {
     read_len: OptionalCell<usize>,
 }
 
-pub struct I2CMasterDriver<'a, I: i2c::I2CMaster<'a>> {
+pub struct I2CMasterDriver<'a, I: i2c::I2CDevice> {
     i2c: &'a I,
     buf: TakeCell<'static, [u8]>,
     tx: MapCell<Transaction>,
     apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<{ rw_allow::COUNT }>>,
 }
 
-impl<'a, I: i2c::I2CMaster<'a>> I2CMasterDriver<'a, I> {
+impl<'a, I: i2c::I2CDevice> I2CMasterDriver<'a, I> {
     pub fn new(
         i2c: &'a I,
         buf: &'static mut [u8],
@@ -89,9 +89,18 @@ impl<'a, I: i2c::I2CMaster<'a>> I2CMasterDriver<'a, I> {
                                 self.buf.put(Some(buffer));
                                 return Err(ErrorCode::INVAL);
                             }
-                            Cmd::Write => self.i2c.write(addr, buffer, wlen),
-                            Cmd::Read => self.i2c.read(addr, buffer, rlen),
-                            Cmd::WriteRead => self.i2c.write_read(addr, buffer, wlen, rlen),
+                            Cmd::Write => {
+                                self.i2c.set_address(addr);
+                                self.i2c.write(buffer, wlen)
+                            }
+                            Cmd::Read => {
+                                self.i2c.set_address(addr);
+                                self.i2c.read(buffer, rlen)
+                            }
+                            Cmd::WriteRead => {
+                                self.i2c.set_address(addr);
+                                self.i2c.write_read(buffer, wlen, rlen)
+                            }
                         };
                         match res {
                             Ok(()) => Ok(()),
@@ -119,7 +128,7 @@ pub enum Cmd {
 }
 }
 
-impl<'a, I: i2c::I2CMaster<'a>> SyscallDriver for I2CMasterDriver<'a, I> {
+impl<'a, I: i2c::I2CDevice> SyscallDriver for I2CMasterDriver<'a, I> {
     /// Setup shared buffers.
     ///
     /// ### `allow_num`
@@ -190,7 +199,7 @@ impl<'a, I: i2c::I2CMaster<'a>> SyscallDriver for I2CMasterDriver<'a, I> {
     }
 }
 
-impl<'a, I: i2c::I2CMaster<'a>> i2c::I2CHwMasterClient for I2CMasterDriver<'a, I> {
+impl<'a, I: i2c::I2CDevice> i2c::I2CClient for I2CMasterDriver<'a, I> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         self.tx.take().map(|tx| {
             self.apps.enter(tx.processid, |_, kernel_data| {
