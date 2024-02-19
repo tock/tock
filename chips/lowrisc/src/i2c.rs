@@ -258,7 +258,7 @@ impl<'a> hil::i2c::I2CMaster<'a> for I2c<'a> {
     fn enable(&self) {
         let regs = self.registers;
 
-        self.timing_parameter_init(self.clock_period_nanos);
+        self.timing_parameter_init(self.clock_period_nanos.max(1));
         self.fifo_reset();
 
         // Enable all interrupts
