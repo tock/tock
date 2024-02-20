@@ -373,13 +373,14 @@ impl<'a, S: hil::digest::DigestDataHash<'a, Sha256Hash>> hil::digest::ClientData
                 State::OuterHashAddKey => {
                     // We just added the key, now we add the result of the first
                     // hash.
-                    self.digest_buffer.take().map(|digest_buf| {
+                    self.sha_buffer.take().map(|sha_buf| {
                         let data_buf = data.take();
 
                         // Copy the digest result into our data buffer. We must
                         // use our data buffer because it does not have a fixed
                         // size and we can use it with `SubSliceMut`.
-                        data_buf[..32].copy_from_slice(&digest_buf.as_slice()[..32]);
+                        data_buf[..32].copy_from_slice(&sha_buf.as_slice()[..32]);
+                        self.sha_buffer.replace(sha_buf);
 
                         let mut lease_buf = SubSliceMut::new(data_buf);
                         lease_buf.slice(0..32);
@@ -387,14 +388,15 @@ impl<'a, S: hil::digest::DigestDataHash<'a, Sha256Hash>> hil::digest::ClientData
                         match self.sha256.add_mut_data(lease_buf) {
                             Ok(()) => {
                                 self.state.set(State::OuterHashAddHash);
-                                self.digest_buffer.replace(digest_buf);
                             }
                             Err((e, leased_data_buf)) => {
                                 self.data_buffer.replace(leased_data_buf.take());
                                 self.clear_data();
                                 // self.data_client.map(|c| {
                                 self.client.map(|c| {
-                                    c.hash_done(Err(e), digest_buf);
+                                    self.digest_buffer.take().map(|digest_buf| {
+                                        c.hash_done(Err(e), digest_buf);
+                                    })
                                 });
                             }
                         }
@@ -506,28 +508,33 @@ impl<'a, S: hil::digest::DigestDataHash<'a, Sha256Hash>> hil::digest::ClientHash
                 }
 
                 State::OuterHash => {
-                    match self.mode.get() {
-                        RunMode::Hash => {
-                            self.digest_buffer.take().map(|digest_buffer| {
-                                // self.hash_client.map(|c| {
-                                self.client.map(|c| {
-                                    c.hash_done(Ok(()), digest_buffer);
-                                });
-                            });
-                        }
+                    self.sha_buffer.map(|sha_buf| {
+                        self.digest_buffer.take().map(|digest_buf| {
+                            // Copy final digest from the SHA buffer to the HMAC
+                            // digest buffer.
+                            digest_buf.as_mut_slice()[..32]
+                                .copy_from_slice(&sha_buf.as_slice()[..32]);
 
-                        RunMode::Verify => {
-                            self.digest_buffer.take().map(|digest_buffer| {
-                                let compare = self.verify_buffer.take().unwrap();
-                                let res = compare == digest_buffer;
-                                self.verify_buffer.replace(digest_buffer);
-                                // self.verify_client.map(|c| {
-                                self.client.map(|c| {
-                                    c.verification_done(Ok(res), compare);
-                                });
-                            });
-                        }
-                    }
+                            match self.mode.get() {
+                                RunMode::Hash => {
+                                    // self.hash_client.map(|c| {
+                                    self.client.map(|c| {
+                                        c.hash_done(Ok(()), digest_buf);
+                                    });
+                                }
+
+                                RunMode::Verify => {
+                                    let compare = self.verify_buffer.take().unwrap();
+                                    let res = compare == digest_buf;
+                                    self.verify_buffer.replace(digest_buf);
+                                    // self.verify_client.map(|c| {
+                                    self.client.map(|c| {
+                                        c.verification_done(Ok(res), compare);
+                                    });
+                                }
+                            }
+                        });
+                    });
                 }
                 _ => {}
             }
