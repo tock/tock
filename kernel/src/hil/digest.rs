@@ -16,6 +16,9 @@ pub trait DigestAlgorithm {
     type Digest: AsRef<[u8]> + AsMut<[u8]> + Default;
 }
 
+/// A specific SHA algorithm.
+pub trait ShaAlgorithm {}
+
 /// Helper object so we can construct a default `[u8; 48]`.
 pub struct DigestBuffer48([u8; 48]);
 impl Default for DigestBuffer48 {
@@ -57,40 +60,44 @@ pub struct Sha224;
 impl DigestAlgorithm for Sha224 {
     type Digest = [u8; 28];
 }
+impl ShaAlgorithm for Sha224 {}
 
 /// SHA256 Hash
 pub struct Sha256;
 impl DigestAlgorithm for Sha256 {
     type Digest = [u8; 32];
 }
+impl ShaAlgorithm for Sha256 {}
 
 /// SHA384 Hash
 pub struct Sha384;
 impl DigestAlgorithm for Sha384 {
     type Digest = DigestBuffer48;
 }
+impl ShaAlgorithm for Sha384 {}
 
 /// SHA512 Hash
 pub struct Sha512;
 impl DigestAlgorithm for Sha512 {
     type Digest = DigestBuffer64;
 }
+impl ShaAlgorithm for Sha512 {}
 
 /// SHA256 HMAC
-pub struct HmacSha256Hmac;
-impl DigestAlgorithm for HmacSha256Hmac {
+pub struct HmacSha256;
+impl DigestAlgorithm for HmacSha256 {
     type Digest = [u8; 32];
 }
 
 /// SHA384 HMAC
-pub struct HmacSha384Hmac;
-impl DigestAlgorithm for HmacSha384Hmac {
+pub struct HmacSha384;
+impl DigestAlgorithm for HmacSha384 {
     type Digest = DigestBuffer48;
 }
 
 /// SHA512 HMAC
-pub struct HmacSha512Hmac;
-impl DigestAlgorithm for HmacSha512Hmac {
+pub struct HmacSha512;
+impl DigestAlgorithm for HmacSha512 {
     type Digest = DigestBuffer64;
 }
 
@@ -345,23 +352,10 @@ pub trait DigestDataVerify<'a, D: DigestAlgorithm>:
     fn set_client(&'a self, client: &'a dyn ClientDataVerify<D>);
 }
 
-pub trait HmacSha256 {
-    /// Call before adding data to perform HMACSha256
+/// Compute HMAC-SHA digests.
+pub trait HmacSha<D: ShaAlgorithm> {
+    /// Call before adding data to set the HMAC key.
     ///
     /// The key used for the HMAC is passed to this function.
-    fn set_mode_hmacsha256(&self, key: &[u8]) -> Result<(), ErrorCode>;
-}
-
-pub trait HmacSha384 {
-    /// Call before adding data to perform HMACSha384
-    ///
-    /// The key used for the HMAC is passed to this function.
-    fn set_mode_hmacsha384(&self, key: &[u8]) -> Result<(), ErrorCode>;
-}
-
-pub trait HmacSha512 {
-    /// Call before adding data to perform HMACSha512
-    ///
-    /// The key used for the HMAC is passed to this function.
-    fn set_mode_hmacsha512(&self, key: &[u8]) -> Result<(), ErrorCode>;
+    fn set_key(&self, key: &[u8]) -> Result<(), ErrorCode>;
 }
