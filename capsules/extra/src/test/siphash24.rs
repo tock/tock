@@ -8,7 +8,7 @@
 //! Digest trait.
 
 use crate::sip_hash::SipHasher24;
-use capsules_core::test::capsule_test::{CapsuleTest, CapsuleTestClient};
+use capsules_core::test::capsule_test::{CapsuleTest, CapsuleTestClient, CapsuleTestError};
 use kernel::hil::hasher::{Client, Hasher};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
@@ -74,7 +74,11 @@ impl Client<8> for TestSipHash24 {
         self.hasher.clear_data();
 
         self.client.map(|client| {
-            let res = if matches { Ok(()) } else { Err(()) };
+            let res = if matches {
+                Ok(())
+            } else {
+                Err(CapsuleTestError::IncorrectResult)
+            };
             client.done(res);
         });
     }
