@@ -59,18 +59,17 @@ use kernel::utilities::leasable_buffer::SubSlice;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::{ErrorCode, ProcessId};
 
-enum ShaOperation {
-    Sha256,
-    Sha384,
-    Sha512,
-}
-
 // Temporary buffer to copy the keys from userspace into
 //
 // Needs to be able to accommodate the largest key sizes, e.g. 512
 const TMP_KEY_BUFFER_SIZE: usize = 512 / 8;
 
-pub struct HmacDriver<'a, H: digest::Digest<'a, D>, D: digest::DigestAlgorithm + 'static> {
+pub struct HmacDriver<
+    'a,
+    H: digest::Digest<'a, D>,
+    D: digest::DigestAlgorithm + 'static,
+    S: digest::ShaAlgorithm,
+> {
     hmac: &'a H,
 
     active: Cell<bool>,
@@ -86,13 +85,16 @@ pub struct HmacDriver<'a, H: digest::Digest<'a, D>, D: digest::DigestAlgorithm +
     data_buffer: TakeCell<'static, [u8]>,
     data_copied: Cell<usize>,
     dest_buffer: MapCell<&'static mut D::Digest>,
+
+    _phantom: core::marker::PhantomData<S>,
 }
 
 impl<
         'a,
-        H: digest::Digest<'a, D> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
+        H: digest::Digest<'a, D> + digest::HmacSha<S>,
         D: digest::DigestAlgorithm,
-    > HmacDriver<'a, H, D>
+        S: digest::ShaAlgorithm,
+    > HmacDriver<'a, H, D, S>
 {
     pub fn new(
         hmac: &'a H,
@@ -104,7 +106,7 @@ impl<
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
-    ) -> HmacDriver<'a, H, D> {
+    ) -> HmacDriver<'a, H, D, S> {
         HmacDriver {
             hmac: hmac,
             active: Cell::new(false),
@@ -113,37 +115,24 @@ impl<
             data_buffer: TakeCell::new(data_buffer),
             data_copied: Cell::new(0),
             dest_buffer: MapCell::new(dest_buffer),
+            _phantom: core::marker::PhantomData,
         }
     }
 
     fn run(&self) -> Result<(), ErrorCode> {
         self.processid.map_or(Err(ErrorCode::RESERVE), |processid| {
             self.apps
-                .enter(processid, |app, kernel_data| {
+                .enter(processid, |_app, kernel_data| {
                     kernel_data
                         .get_readonly_processbuffer(ro_allow::KEY)
                         .and_then(|key| {
                             key.enter(|k| {
-                                if let Some(op) = &app.sha_operation {
-                                    let mut tmp_key_buffer: [u8; TMP_KEY_BUFFER_SIZE] =
-                                        [0; TMP_KEY_BUFFER_SIZE];
-                                    let key_len = core::cmp::min(k.len(), TMP_KEY_BUFFER_SIZE);
-                                    k[..key_len].copy_to_slice(&mut tmp_key_buffer[..key_len]);
+                                let mut tmp_key_buffer: [u8; TMP_KEY_BUFFER_SIZE] =
+                                    [0; TMP_KEY_BUFFER_SIZE];
+                                let key_len = core::cmp::min(k.len(), TMP_KEY_BUFFER_SIZE);
+                                k[..key_len].copy_to_slice(&mut tmp_key_buffer[..key_len]);
 
-                                    match op {
-                                        ShaOperation::Sha256 => self
-                                            .hmac
-                                            .set_mode_hmacsha256(&tmp_key_buffer[..key_len]),
-                                        ShaOperation::Sha384 => self
-                                            .hmac
-                                            .set_mode_hmacsha384(&tmp_key_buffer[..key_len]),
-                                        ShaOperation::Sha512 => self
-                                            .hmac
-                                            .set_mode_hmacsha512(&tmp_key_buffer[..key_len]),
-                                    }
-                                } else {
-                                    Err(ErrorCode::INVAL)
-                                }
+                                self.hmac.set_key(&tmp_key_buffer[..key_len])
                             })
                         })
                         .unwrap_or(Err(ErrorCode::RESERVE))?;
@@ -247,9 +236,10 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, D> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
+        H: digest::Digest<'a, D> + digest::HmacSha<S>,
         D: digest::DigestAlgorithm,
-    > digest::ClientData<D> for HmacDriver<'a, H, D>
+        S: digest::ShaAlgorithm,
+    > digest::ClientData<D> for HmacDriver<'a, H, D, S>
 {
     // Because data needs to be copied from a userspace buffer into a kernel (RAM) one,
     // we always pass mut data; this callback should never be invoked.
@@ -384,9 +374,10 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, D> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
+        H: digest::Digest<'a, D> + digest::HmacSha<S>,
         D: digest::DigestAlgorithm,
-    > digest::ClientHash<D> for HmacDriver<'a, H, D>
+        S: digest::ShaAlgorithm,
+    > digest::ClientHash<D> for HmacDriver<'a, H, D, S>
 {
     fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut D::Digest) {
         self.processid.map(|id| {
@@ -437,9 +428,10 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, D> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
+        H: digest::Digest<'a, D> + digest::HmacSha<S>,
         D: digest::DigestAlgorithm,
-    > digest::ClientVerify<D> for HmacDriver<'a, H, D>
+        S: digest::ShaAlgorithm,
+    > digest::ClientVerify<D> for HmacDriver<'a, H, D, S>
 {
     fn verification_done(&self, result: Result<bool, ErrorCode>, compare: &'static mut D::Digest) {
         self.processid.map(|id| {
@@ -487,9 +479,10 @@ impl<
 ///        the `hash_done` callback.
 impl<
         'a,
-        H: digest::Digest<'a, D> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
+        H: digest::Digest<'a, D> + digest::HmacSha<S>,
         D: digest::DigestAlgorithm,
-    > SyscallDriver for HmacDriver<'a, H, D>
+        S: digest::ShaAlgorithm,
+    > SyscallDriver for HmacDriver<'a, H, D, S>
 {
     // Subscribe to HmacDriver events.
     //
@@ -522,7 +515,7 @@ impl<
     fn command(
         &self,
         command_num: usize,
-        data1: usize,
+        _data1: usize,
         _data2: usize,
         processid: ProcessId,
     ) -> CommandReturn {
@@ -613,27 +606,8 @@ impl<
         self.apps
             .enter(processid, |app, kernel_data| {
                 match command_num {
-                    // set_algorithm
-                    0 => {
-                        match data1 {
-                            // SHA256
-                            0 => {
-                                app.sha_operation = Some(ShaOperation::Sha256);
-                                CommandReturn::success()
-                            }
-                            // SHA384
-                            1 => {
-                                app.sha_operation = Some(ShaOperation::Sha384);
-                                CommandReturn::success()
-                            }
-                            // SHA512
-                            2 => {
-                                app.sha_operation = Some(ShaOperation::Sha512);
-                                CommandReturn::success()
-                            }
-                            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
-                        }
-                    }
+                    // Exists
+                    0 => CommandReturn::success(),
 
                     // run
                     1 => {
@@ -763,6 +737,5 @@ enum UserSpaceOp {
 #[derive(Default)]
 pub struct App {
     pending_run_app: Option<ProcessId>,
-    sha_operation: Option<ShaOperation>,
     op: Cell<Option<UserSpaceOp>>,
 }

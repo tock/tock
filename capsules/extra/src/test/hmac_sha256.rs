@@ -8,7 +8,8 @@
 use crate::hmac_sha256::HmacSha256Software;
 use crate::sha256::Sha256Software;
 use kernel::hil::digest;
-use kernel::hil::digest::{DigestAlgorithm, HmacSha256, HmacSha256Hmac};
+use kernel::hil::digest::HmacSha;
+use kernel::hil::digest::{DigestAlgorithm, HmacSha256};
 use kernel::hil::digest::{DigestData, DigestDataHash, DigestHash};
 use kernel::utilities::cells::{MapCell, TakeCell};
 use kernel::utilities::leasable_buffer::SubSlice;
@@ -19,8 +20,8 @@ pub struct TestHmacSha256 {
     hmac: &'static HmacSha256Software<'static, Sha256Software<'static>>,
     key: TakeCell<'static, [u8]>,  // The key to use for HMAC
     data: TakeCell<'static, [u8]>, // The data to hash
-    digest: MapCell<&'static mut <HmacSha256Hmac as DigestAlgorithm>::Digest>, // The supplied hash
-    correct: &'static mut <HmacSha256Hmac as DigestAlgorithm>::Digest, // The correct hash output
+    digest: MapCell<&'static mut <HmacSha256 as DigestAlgorithm>::Digest>, // The supplied hash
+    correct: &'static mut <HmacSha256 as DigestAlgorithm>::Digest, // The correct hash output
 }
 
 impl TestHmacSha256 {
@@ -28,8 +29,8 @@ impl TestHmacSha256 {
         hmac: &'static HmacSha256Software<'static, Sha256Software<'static>>,
         key: &'static mut [u8],
         data: &'static mut [u8],
-        digest: &'static mut <HmacSha256Hmac as DigestAlgorithm>::Digest,
-        correct: &'static mut <HmacSha256Hmac as DigestAlgorithm>::Digest,
+        digest: &'static mut <HmacSha256 as DigestAlgorithm>::Digest,
+        correct: &'static mut <HmacSha256 as DigestAlgorithm>::Digest,
     ) -> Self {
         TestHmacSha256 {
             hmac,
@@ -43,7 +44,7 @@ impl TestHmacSha256 {
     pub fn run(&'static self) {
         self.hmac.set_client(self);
         let key = self.key.take().unwrap();
-        let r = self.hmac.set_mode_hmacsha256(key);
+        let r = self.hmac.set_key(key);
         if r.is_err() {
             panic!("HmacSha256Test: failed to set key: {:?}", r);
         }
@@ -56,7 +57,7 @@ impl TestHmacSha256 {
     }
 }
 
-impl digest::ClientData<HmacSha256Hmac> for TestHmacSha256 {
+impl digest::ClientData<HmacSha256> for TestHmacSha256 {
     fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: SubSlice<'static, u8>) {
         unimplemented!()
     }
@@ -71,11 +72,11 @@ impl digest::ClientData<HmacSha256Hmac> for TestHmacSha256 {
     }
 }
 
-impl digest::ClientHash<HmacSha256Hmac> for TestHmacSha256 {
+impl digest::ClientHash<HmacSha256> for TestHmacSha256 {
     fn hash_done(
         &self,
         _result: Result<(), ErrorCode>,
-        digest: &'static mut <HmacSha256Hmac as DigestAlgorithm>::Digest,
+        digest: &'static mut <HmacSha256 as DigestAlgorithm>::Digest,
     ) {
         for i in 0..32 {
             if self.correct[i] != digest[i] {

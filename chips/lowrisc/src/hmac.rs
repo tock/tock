@@ -7,7 +7,7 @@
 use core::cell::Cell;
 use core::ops::Index;
 use kernel::hil;
-use kernel::hil::digest::{self, DigestAlgorithm, DigestData, DigestHash, HmacSha256Hmac};
+use kernel::hil::digest::{self, DigestAlgorithm, DigestData, DigestHash, HmacSha256};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::SubSlice;
 use kernel::utilities::leasable_buffer::SubSliceMut;
@@ -77,10 +77,10 @@ register_bitfields![u32,
 
 pub struct Hmac<'a> {
     registers: StaticRef<HmacRegisters>,
-    client: OptionalCell<&'a dyn hil::digest::Client<HmacSha256Hmac>>,
+    client: OptionalCell<&'a dyn hil::digest::Client<HmacSha256>>,
     data: Cell<Option<SubSliceMutImmut<'static, u8>>>,
     verify: Cell<bool>,
-    digest: Cell<Option<&'static mut <HmacSha256Hmac as DigestAlgorithm>::Digest>>,
+    digest: Cell<Option<&'static mut <HmacSha256 as DigestAlgorithm>::Digest>>,
     cancelled: Cell<bool>,
     busy: Cell<bool>,
 }
@@ -260,7 +260,7 @@ impl Hmac<'_> {
     }
 }
 
-impl<'a> hil::digest::DigestData<'a, HmacSha256Hmac> for Hmac<'a> {
+impl<'a> hil::digest::DigestData<'a, HmacSha256> for Hmac<'a> {
     fn add_data(
         &self,
         data: SubSlice<'static, u8>,
@@ -320,20 +320,20 @@ impl<'a> hil::digest::DigestData<'a, HmacSha256Hmac> for Hmac<'a> {
         self.cancelled.set(true);
     }
 
-    fn set_data_client(&'a self, _client: &'a (dyn digest::ClientData<HmacSha256Hmac> + 'a)) {
+    fn set_data_client(&'a self, _client: &'a (dyn digest::ClientData<HmacSha256> + 'a)) {
         unimplemented!()
     }
 }
 
-impl<'a> hil::digest::DigestHash<'a, HmacSha256Hmac> for Hmac<'a> {
+impl<'a> hil::digest::DigestHash<'a, HmacSha256> for Hmac<'a> {
     fn run(
         &'a self,
-        digest: &'static mut <HmacSha256Hmac as DigestAlgorithm>::Digest,
+        digest: &'static mut <HmacSha256 as DigestAlgorithm>::Digest,
     ) -> Result<
         (),
         (
             ErrorCode,
-            &'static mut <HmacSha256Hmac as DigestAlgorithm>::Digest,
+            &'static mut <HmacSha256 as DigestAlgorithm>::Digest,
         ),
     > {
         let regs = self.registers;
@@ -352,20 +352,20 @@ impl<'a> hil::digest::DigestHash<'a, HmacSha256Hmac> for Hmac<'a> {
         Ok(())
     }
 
-    fn set_hash_client(&'a self, _client: &'a (dyn digest::ClientHash<HmacSha256Hmac> + 'a)) {
+    fn set_hash_client(&'a self, _client: &'a (dyn digest::ClientHash<HmacSha256> + 'a)) {
         unimplemented!()
     }
 }
 
-impl<'a> hil::digest::DigestVerify<'a, HmacSha256Hmac> for Hmac<'a> {
+impl<'a> hil::digest::DigestVerify<'a, HmacSha256> for Hmac<'a> {
     fn verify(
         &'a self,
-        compare: &'static mut <HmacSha256Hmac as DigestAlgorithm>::Digest,
+        compare: &'static mut <HmacSha256 as DigestAlgorithm>::Digest,
     ) -> Result<
         (),
         (
             ErrorCode,
-            &'static mut <HmacSha256Hmac as DigestAlgorithm>::Digest,
+            &'static mut <HmacSha256 as DigestAlgorithm>::Digest,
         ),
     > {
         self.verify.set(true);
@@ -373,19 +373,19 @@ impl<'a> hil::digest::DigestVerify<'a, HmacSha256Hmac> for Hmac<'a> {
         self.run(compare)
     }
 
-    fn set_verify_client(&'a self, _client: &'a (dyn digest::ClientVerify<HmacSha256Hmac> + 'a)) {
+    fn set_verify_client(&'a self, _client: &'a (dyn digest::ClientVerify<HmacSha256> + 'a)) {
         unimplemented!()
     }
 }
 
-impl<'a> hil::digest::Digest<'a, HmacSha256Hmac> for Hmac<'a> {
-    fn set_client(&'a self, client: &'a dyn digest::Client<HmacSha256Hmac>) {
+impl<'a> hil::digest::Digest<'a, HmacSha256> for Hmac<'a> {
+    fn set_client(&'a self, client: &'a dyn digest::Client<HmacSha256>) {
         self.client.set(client);
     }
 }
 
-impl hil::digest::HmacSha256 for Hmac<'_> {
-    fn set_mode_hmacsha256(&self, key: &[u8]) -> Result<(), ErrorCode> {
+impl hil::digest::HmacSha<hil::digest::Sha256> for Hmac<'_> {
+    fn set_key(&self, key: &[u8]) -> Result<(), ErrorCode> {
         if self.busy.get() {
             return Err(ErrorCode::BUSY);
         }
@@ -429,17 +429,5 @@ impl hil::digest::HmacSha256 for Hmac<'_> {
         }
 
         Ok(())
-    }
-}
-
-impl hil::digest::HmacSha384 for Hmac<'_> {
-    fn set_mode_hmacsha384(&self, _key: &[u8]) -> Result<(), ErrorCode> {
-        Err(ErrorCode::NOSUPPORT)
-    }
-}
-
-impl hil::digest::HmacSha512 for Hmac<'_> {
-    fn set_mode_hmacsha512(&self, _key: &[u8]) -> Result<(), ErrorCode> {
-        Err(ErrorCode::NOSUPPORT)
     }
 }
