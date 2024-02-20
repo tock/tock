@@ -11,113 +11,87 @@ use crate::ErrorCode;
 
 /// A specific digest algorithm and the buffer needed to hold the output of that
 /// algorithm.
-pub trait DigestAlgorithm: Default {
-    /// Get slice to underlying data.
-    fn as_slice(&self) -> &[u8];
-    /// Get mutable slice to underlying data.
-    fn as_mut_slice(&mut self) -> &mut [u8];
+pub trait DigestAlgorithm {
+    /// Buffer to store the output of the algorithm, i.e., the actual digest.
+    type Digest: AsRef<[u8]> + AsMut<[u8]> + Default;
+}
+
+/// Helper object so we can construct a default `[u8; 48]`.
+pub struct DigestBuffer48([u8; 48]);
+impl Default for DigestBuffer48 {
+    fn default() -> Self {
+        Self([0; 48])
+    }
+}
+impl AsRef<[u8]> for DigestBuffer48 {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+impl AsMut<[u8]> for DigestBuffer48 {
+    fn as_mut(&mut self) -> &mut [u8] {
+        &mut self.0
+    }
+}
+
+/// Helper object so we can construct a default `[u8; 64]`.
+pub struct DigestBuffer64([u8; 64]);
+impl Default for DigestBuffer64 {
+    fn default() -> Self {
+        Self([0; 64])
+    }
+}
+impl AsRef<[u8]> for DigestBuffer64 {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+impl AsMut<[u8]> for DigestBuffer64 {
+    fn as_mut(&mut self) -> &mut [u8] {
+        &mut self.0
+    }
 }
 
 /// SHA224 Hash
-#[derive(Default)]
-pub struct Sha224Hash([u8; 28]);
-impl DigestAlgorithm for Sha224Hash {
-    fn as_slice(&self) -> &[u8] {
-        &self.0
-    }
-    fn as_mut_slice(&mut self) -> &mut [u8] {
-        &mut self.0
-    }
+pub struct Sha224;
+impl DigestAlgorithm for Sha224 {
+    type Digest = [u8; 28];
 }
 
 /// SHA256 Hash
-#[derive(Default)]
-pub struct Sha256Hash([u8; 32]);
-impl DigestAlgorithm for Sha256Hash {
-    fn as_slice(&self) -> &[u8] {
-        &self.0
-    }
-    fn as_mut_slice(&mut self) -> &mut [u8] {
-        &mut self.0
-    }
+pub struct Sha256;
+impl DigestAlgorithm for Sha256 {
+    type Digest = [u8; 32];
 }
 
 /// SHA384 Hash
-pub struct Sha384Hash([u8; 48]);
-impl DigestAlgorithm for Sha384Hash {
-    fn as_slice(&self) -> &[u8] {
-        &self.0
-    }
-    fn as_mut_slice(&mut self) -> &mut [u8] {
-        &mut self.0
-    }
-}
-impl Default for Sha384Hash {
-    fn default() -> Self {
-        Sha384Hash([0; 48])
-    }
+pub struct Sha384;
+impl DigestAlgorithm for Sha384 {
+    type Digest = DigestBuffer48;
 }
 
 /// SHA512 Hash
-pub struct Sha512Hash([u8; 64]);
-impl DigestAlgorithm for Sha512Hash {
-    fn as_slice(&self) -> &[u8] {
-        &self.0
-    }
-    fn as_mut_slice(&mut self) -> &mut [u8] {
-        &mut self.0
-    }
-}
-impl Default for Sha512Hash {
-    fn default() -> Self {
-        Sha512Hash([0; 64])
-    }
+pub struct Sha512;
+impl DigestAlgorithm for Sha512 {
+    type Digest = DigestBuffer64;
 }
 
 /// SHA256 HMAC
-#[derive(Eq, PartialEq, Default)]
-pub struct HmacSha256Hmac([u8; 32]);
+pub struct HmacSha256Hmac;
 impl DigestAlgorithm for HmacSha256Hmac {
-    fn as_slice(&self) -> &[u8] {
-        &self.0
-    }
-    fn as_mut_slice(&mut self) -> &mut [u8] {
-        &mut self.0
-    }
+    type Digest = [u8; 32];
 }
 
 /// SHA384 HMAC
-#[derive(Eq, PartialEq)]
-pub struct HmacSha384Hmac([u8; 48]);
+pub struct HmacSha384Hmac;
 impl DigestAlgorithm for HmacSha384Hmac {
-    fn as_slice(&self) -> &[u8] {
-        &self.0
-    }
-    fn as_mut_slice(&mut self) -> &mut [u8] {
-        &mut self.0
-    }
-}
-impl Default for HmacSha384Hmac {
-    fn default() -> Self {
-        HmacSha384Hmac([0; 48])
-    }
+    type Digest = DigestBuffer48;
 }
 
 /// SHA512 HMAC
-#[derive(Eq, PartialEq)]
-pub struct HmacSha512Hmac([u8; 64]);
+pub struct HmacSha512Hmac;
 impl DigestAlgorithm for HmacSha512Hmac {
-    fn as_slice(&self) -> &[u8] {
-        &self.0
-    }
-    fn as_mut_slice(&mut self) -> &mut [u8] {
-        &mut self.0
-    }
-}
-impl Default for HmacSha512Hmac {
-    fn default() -> Self {
-        HmacSha512Hmac([0; 64])
-    }
+    type Digest = DigestBuffer64;
 }
 
 /// Implement this trait and use `set_client()` in order to receive callbacks
@@ -176,7 +150,7 @@ pub trait ClientHash<D: DigestAlgorithm> {
     ///  - NOSUPPORT: the requested digest algorithm is not supported,
     ///  or one was not requested.
     ///  - FAIL: an internal failure.
-    fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut D);
+    fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut D::Digest);
 }
 
 /// Implement this trait and use `set_client()` in order to receive callbacks when
@@ -199,7 +173,7 @@ pub trait ClientVerify<D: DigestAlgorithm> {
     ///  - NOSUPPORT: the requested digest algorithm is not supported,
     ///  or one was not requested.
     ///  - FAIL: an internal failure.
-    fn verification_done(&self, result: Result<bool, ErrorCode>, compare: &'static mut D);
+    fn verification_done(&self, result: Result<bool, ErrorCode>, compare: &'static mut D::Digest);
 }
 
 pub trait Client<D: DigestAlgorithm>: ClientData<D> + ClientHash<D> + ClientVerify<D> {}
@@ -295,7 +269,10 @@ pub trait DigestHash<'a, D: DigestAlgorithm> {
     /// there is only one digest supported this should be used. If there is no
     /// suitable or obvious default option, the implementation can return
     /// `ErrorCode::NOSUPPORT`.
-    fn run(&'a self, digest: &'static mut D) -> Result<(), (ErrorCode, &'static mut D)>;
+    fn run(
+        &'a self,
+        digest: &'static mut D::Digest,
+    ) -> Result<(), (ErrorCode, &'static mut D::Digest)>;
 }
 
 /// Verifies a digest (cryptographic hash) over data provided through a
@@ -328,7 +305,10 @@ pub trait DigestVerify<'a, D: DigestAlgorithm> {
     /// there is only one digest supported this should be used. If there is no
     /// suitable or obvious default option, the implementation can return
     /// `ErrorCode::NOSUPPORT`.
-    fn verify(&'a self, compare: &'static mut D) -> Result<(), (ErrorCode, &'static mut D)>;
+    fn verify(
+        &'a self,
+        compare: &'static mut D::Digest,
+    ) -> Result<(), (ErrorCode, &'static mut D::Digest)>;
 }
 
 /// Computes a digest (cryptographic hash) over data or performs verification.
