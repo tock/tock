@@ -184,7 +184,8 @@ struct EarlGrey {
     hmac: &'static capsules_extra::hmac::HmacDriver<
         'static,
         lowrisc::hmac::Hmac<'static>,
-        hil::digest::HmacSha256Hmac,
+        hil::digest::HmacSha256,
+        hil::digest::Sha256,
     >,
     lldb: &'static capsules_core::low_level_debug::LowLevelDebug<
         'static,
@@ -526,7 +527,8 @@ unsafe fn setup() -> (
     )
     .finalize(components::hmac_component_static!(
         lowrisc::hmac::Hmac,
-        hil::digest::HmacSha256Hmac
+        hil::digest::HmacSha256,
+        hil::digest::Sha256
     ));
 
     let i2c_master_buffer = static_init!(

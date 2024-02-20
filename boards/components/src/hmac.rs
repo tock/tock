@@ -23,12 +23,12 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil::digest;
-use kernel::hil::digest::{DigestAlgorithm, HmacSha256Hmac, Sha256};
+use kernel::hil::digest::{DigestAlgorithm, HmacSha256, Sha256, ShaAlgorithm};
 
 #[macro_export]
 macro_rules! hmac_component_static {
-    ($A:ty, $D:ty $(,)?) => {{
-        let hmac = kernel::static_buf!(capsules_extra::hmac::HmacDriver<'static, $A, $D>);
+    ($H:ty, $D:ty, $S:ty $(,)?) => {{
+        let hmac = kernel::static_buf!(capsules_extra::hmac::HmacDriver<'static, $H, $D, $S>);
 
         let data_buffer = kernel::static_buf!([u8; 64]);
         let dest_buffer = kernel::static_buf!(<$D as kernel::hil::digest::DigestAlgorithm>::Digest);
@@ -37,45 +37,46 @@ macro_rules! hmac_component_static {
     };};
 }
 
-pub type HmacComponentType<H, D> = capsules_extra::hmac::HmacDriver<'static, H, D>;
+pub type HmacComponentType<H, D, S> = capsules_extra::hmac::HmacDriver<'static, H, D, S>;
 
-pub struct HmacComponent<A: 'static + digest::Digest<'static, D>, D: DigestAlgorithm> {
+pub struct HmacComponent<
+    H: 'static + digest::Digest<'static, D>,
+    D: DigestAlgorithm,
+    S: ShaAlgorithm,
+> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
-    hmac: &'static A,
-    _phantom: core::marker::PhantomData<D>,
+    hmac: &'static H,
+    _phantom_d: core::marker::PhantomData<D>,
+    _phantom_s: core::marker::PhantomData<S>,
 }
 
-impl<A: 'static + digest::Digest<'static, D>, D: DigestAlgorithm> HmacComponent<A, D> {
-    pub fn new(
-        board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
-        hmac: &'static A,
-    ) -> HmacComponent<A, D> {
-        HmacComponent {
+impl<H: 'static + digest::Digest<'static, D>, D: DigestAlgorithm, S: ShaAlgorithm>
+    HmacComponent<H, D, S>
+{
+    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize, hmac: &'static H) -> Self {
+        Self {
             board_kernel,
             driver_num,
             hmac,
-            _phantom: core::marker::PhantomData,
+            _phantom_d: core::marker::PhantomData,
+            _phantom_s: core::marker::PhantomData,
         }
     }
 }
 
 impl<
-        A: kernel::hil::digest::HmacSha256
-            + digest::HmacSha384
-            + digest::HmacSha512
-            + 'static
-            + digest::Digest<'static, D>,
+        H: digest::Digest<'static, D> + digest::HmacSha<S> + 'static,
         D: DigestAlgorithm + 'static,
-    > Component for HmacComponent<A, D>
+        S: ShaAlgorithm + 'static,
+    > Component for HmacComponent<H, D, S>
 {
     type StaticInput = (
-        &'static mut MaybeUninit<HmacDriver<'static, A, D>>,
+        &'static mut MaybeUninit<HmacDriver<'static, H, D, S>>,
         &'static mut MaybeUninit<[u8; 64]>,
         &'static mut MaybeUninit<D::Digest>,
     );
-    type Output = &'static HmacDriver<'static, A, D>;
+    type Output = &'static HmacDriver<'static, H, D, S>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -104,7 +105,7 @@ macro_rules! hmac_sha256_software_component_static {
 
         let data_buffer = kernel::static_buf!([u8; 64]);
         let sha_buffer = kernel::static_buf!(kernel::hil::digest::Sha256Hash);
-        let verify_buffer = kernel::static_buf!(kernel::hil::digest::HmacSha256Hmac);
+        let verify_buffer = kernel::static_buf!(kernel::hil::digest::HmacSha256);
 
         (hmac_sha256, data_buffer, sha_buffer, verify_buffer)
     };};
@@ -134,7 +135,7 @@ impl<S: digest::DigestDataHash<'static, Sha256> + digest::Digest<'static, Sha256
         &'static mut MaybeUninit<capsules_extra::hmac_sha256::HmacSha256Software<'static, S>>,
         &'static mut MaybeUninit<[u8; 64]>,
         &'static mut MaybeUninit<<Sha256 as DigestAlgorithm>::Digest>,
-        &'static mut MaybeUninit<<HmacSha256Hmac as DigestAlgorithm>::Digest>,
+        &'static mut MaybeUninit<<HmacSha256 as DigestAlgorithm>::Digest>,
     );
     type Output = &'static capsules_extra::hmac_sha256::HmacSha256Software<'static, S>;
 
@@ -142,7 +143,7 @@ impl<S: digest::DigestDataHash<'static, Sha256> + digest::Digest<'static, Sha256
         let data_buffer = s.1.write([0; 64]);
         let sha_buffer = s.2.write(<Sha256 as DigestAlgorithm>::Digest::default());
         let verify_buffer =
-            s.3.write(<HmacSha256Hmac as DigestAlgorithm>::Digest::default());
+            s.3.write(<HmacSha256 as DigestAlgorithm>::Digest::default());
 
         let hmac_sha256_sw =
             s.0.write(capsules_extra::hmac_sha256::HmacSha256Software::new(
