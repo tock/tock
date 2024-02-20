@@ -103,14 +103,14 @@ pub struct Frame {
 }
 
 /// This enum wraps the `FrameInfo` struct and allows each sending type
-/// (Parse or Direct) to only store the relevant information. In the
-/// case of a Direct send, the `FrameInfo` struct is irrelevant as the
-/// packet has been fully formed by the userprocess. For a direct send,
+/// (Parse or Raw) to only store the relevant information. In the
+/// case of a Raw send, the `FrameInfo` struct is irrelevant as the
+/// packet has been fully formed by the userprocess. For a Raw send,
 /// we only require knowledge on the frame length. In the case of a
 /// Parse send, the wrapper provides all required frame header information.
 #[derive(Eq, PartialEq, Debug)]
 enum FrameInfoWrap {
-    Direct(usize),
+    Raw(usize),
     Parse(FrameInfo),
 }
 
@@ -119,7 +119,7 @@ impl FrameInfoWrap {
     pub fn secured_length(&self) -> usize {
         match self {
             FrameInfoWrap::Parse(info) => info.secured_length(),
-            FrameInfoWrap::Direct(len) => *len,
+            FrameInfoWrap::Raw(len) => *len,
         }
     }
 
@@ -127,20 +127,20 @@ impl FrameInfoWrap {
     pub fn unsecured_length(&self) -> usize {
         match self {
             FrameInfoWrap::Parse(info) => info.secured_length(),
-            FrameInfoWrap::Direct(len) => *len,
+            FrameInfoWrap::Raw(len) => *len,
         }
     }
 
     /// Fetcher of the FrameInfo struct for Parse sending. Panics if
-    /// called for Direct sending.
+    /// called for Raw sending.
     pub fn expect(&self) -> FrameInfo {
         match self {
-            FrameInfoWrap::Direct(_) => {
-                // This should never be called for a Direct send. The Framer should never
-                // require information other than the Frame length for a Direct send. This
+            FrameInfoWrap::Raw(_) => {
+                // This should never be called for a Raw send. The Framer should never
+                // require information other than the Frame length for a Raw send. This
                 // warrants a panic condition as fetching the `FrameInfo` struct for a
-                // Direct send is undefined behavior.
-                panic!("FrameInfoWrap::Direct called when expecting FrameInfoWrap::Parse")
+                // Raw send is undefined behavior.
+                panic!("FrameInfoWrap::Raw called when expecting FrameInfoWrap::Parse")
             }
             FrameInfoWrap::Parse(info) => *info,
         }
@@ -190,7 +190,7 @@ impl Frame {
         let begin = radio::PSDU_OFFSET + self.info.unsecured_length();
         self.buf[begin..begin + payload.len()].copy_from_slice(payload);
         match self.info {
-            FrameInfoWrap::Direct(len) => self.info = FrameInfoWrap::Direct(len + payload.len()),
+            FrameInfoWrap::Raw(len) => self.info = FrameInfoWrap::Raw(len + payload.len()),
             FrameInfoWrap::Parse(mut info) => {
                 info.data_len += payload.len();
                 self.info = FrameInfoWrap::Parse(info);
@@ -211,9 +211,7 @@ impl Frame {
         let begin = radio::PSDU_OFFSET + self.info.unsecured_length();
         payload_buf.copy_to_slice(&mut self.buf[begin..begin + payload_buf.len()]);
         match self.info {
-            FrameInfoWrap::Direct(len) => {
-                self.info = FrameInfoWrap::Direct(len + payload_buf.len())
-            }
+            FrameInfoWrap::Raw(len) => self.info = FrameInfoWrap::Raw(len + payload_buf.len()),
             FrameInfoWrap::Parse(mut info) => {
                 info.data_len += payload_buf.len();
                 self.info = FrameInfoWrap::Parse(info);
@@ -447,7 +445,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
     ) -> TxState {
         let frame_info = match frame_info_wrap {
             FrameInfoWrap::Parse(info) => info,
-            FrameInfoWrap::Direct(_) => return TxState::ReadyToTransmit(frame_info_wrap, buf),
+            FrameInfoWrap::Raw(_) => return TxState::ReadyToTransmit(frame_info_wrap, buf),
         };
 
         // IEEE 802.15.4-2015: 9.2.1, outgoing frame security
@@ -908,7 +906,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
 
         Ok(Frame {
             buf: buf,
-            info: FrameInfoWrap::Direct(len),
+            info: FrameInfoWrap::Raw(len),
         })
     }
 
