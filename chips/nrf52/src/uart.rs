@@ -392,7 +392,7 @@ impl<'a> Uarte<'a> {
         self.registers.event_endtx.write(Event::READY::CLEAR);
         // precaution: copy value into variable with static lifetime
         BYTE = byte;
-        self.registers.txd_ptr.set((&BYTE as *const u8) as u32);
+        self.registers.txd_ptr.set(core::ptr::addr_of!(BYTE) as u32);
         self.registers.txd_maxcnt.write(Counter::COUNTER.val(1));
         self.registers.task_starttx.write(Task::ENABLE::SET);
     }
