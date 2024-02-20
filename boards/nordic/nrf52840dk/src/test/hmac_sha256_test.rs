@@ -14,7 +14,7 @@ use capsules_extra::sha256::Sha256Software;
 use capsules_extra::test::hmac_sha256::TestHmacSha256;
 use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::digest::Digest;
-use kernel::hil::digest::{DigestAlgorithm, HmacSha256Hmac, Sha256Hash};
+use kernel::hil::digest::{DigestAlgorithm, HmacSha256Hmac, Sha256};
 use kernel::static_init;
 
 pub unsafe fn run_hmacsha256() {
@@ -36,12 +36,24 @@ unsafe fn static_init_test_hmacsha256() -> &'static TestHmacSha256 {
     let sha256 = static_init!(Sha256Software<'static>, Sha256Software::new());
     sha256.register();
 
-    let sha256_buf = static_init!(Sha256Hash, Sha256Hash::default());
-    let hmacsha256_verify_buf = static_init!(HmacSha256Hmac, HmacSha256Hmac::default());
+    let sha256_buf = static_init!(
+        <Sha256 as DigestAlgorithm>::Digest,
+        <Sha256 as DigestAlgorithm>::Digest::default()
+    );
+    let hmacsha256_verify_buf = static_init!(
+        <HmacSha256Hmac as DigestAlgorithm>::Digest,
+        <HmacSha256Hmac as DigestAlgorithm>::Digest::default()
+    );
 
-    let hmacsha256_data_buf = static_init!(HmacSha256Hmac, HmacSha256Hmac::default());
+    let hmacsha256_data_buf = static_init!(
+        <HmacSha256Hmac as DigestAlgorithm>::Digest,
+        <HmacSha256Hmac as DigestAlgorithm>::Digest::default()
+    );
 
-    let hmacsha256_correct_buf = static_init!(HmacSha256Hmac, HmacSha256Hmac::default());
+    let hmacsha256_correct_buf = static_init!(
+        <HmacSha256Hmac as DigestAlgorithm>::Digest,
+        <HmacSha256Hmac as DigestAlgorithm>::Digest::default()
+    );
     hmacsha256_correct_buf.as_mut_slice()[..32].copy_from_slice(&WIKI_HMAC[..32]);
 
     let hmacsha256 = static_init!(

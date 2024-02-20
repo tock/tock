@@ -22,7 +22,7 @@
 
 use capsules_extra::sha256::Sha256Software;
 use capsules_extra::test::sha256::TestSha256;
-use kernel::hil::digest::{DigestAlgorithm, Sha256Hash};
+use kernel::hil::digest::{DigestAlgorithm, Sha256};
 use kernel::static_init;
 
 pub unsafe fn run_sha256() {
@@ -47,7 +47,10 @@ pub static mut LHASH: [u8; 32] = [
 ];
 
 unsafe fn static_init_test_sha256() -> &'static TestSha256 {
-    let lhash_buffer = static_init!(Sha256Hash, Sha256Hash::default());
+    let lhash_buffer = static_init!(
+        <Sha256 as DigestAlgorithm>::Digest,
+        <Sha256 as DigestAlgorithm>::Digest::default()
+    );
     lhash_buffer.as_mut_slice()[..32].copy_from_slice(&LHASH[..32]);
 
     let sha = static_init!(Sha256Software<'static>, Sha256Software::new());

@@ -32,7 +32,7 @@ macro_rules! sha_component_static {
         let sha_driver = kernel::static_buf!(capsules_extra::sha::ShaDriver<'static, $A, $D>);
 
         let data_buffer = kernel::static_buf!([u8; 64]);
-        let dest_buffer = kernel::static_buf!($D);
+        let dest_buffer = kernel::static_buf!(<$D>::Digest);
 
         (sha_driver, data_buffer, dest_buffer)
     };};
@@ -66,7 +66,7 @@ impl<A: digest::Digest<'static, D> + 'static, D: DigestAlgorithm + 'static> Comp
     type StaticInput = (
         &'static mut MaybeUninit<ShaDriver<'static, A, D>>,
         &'static mut MaybeUninit<[u8; 64]>,
-        &'static mut MaybeUninit<D>,
+        &'static mut MaybeUninit<D::Digest>,
     );
 
     type Output = &'static ShaDriver<'static, A, D>;
@@ -75,7 +75,7 @@ impl<A: digest::Digest<'static, D> + 'static, D: DigestAlgorithm + 'static> Comp
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let data_buffer = s.1.write([0; 64]);
-        let dest_buffer = s.2.write(D::default());
+        let dest_buffer = s.2.write(D::Digest::default());
 
         let sha = s.0.write(capsules_extra::sha::ShaDriver::new(
             self.sha,

@@ -25,7 +25,7 @@ use capsules_extra::net::ipv6::ip_utils::IPAddr;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::deferred_call::DeferredCallClient;
-use kernel::hil::digest::{Digest, Sha256Hash};
+use kernel::hil::digest::{Digest, DigestAlgorithm, Sha256};
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::radio;
 #[allow(unused_imports)]
@@ -379,7 +379,10 @@ pub unsafe fn main() {
     let sha = static_init!(Sha256Software<'static>, Sha256Software::new());
     kernel::deferred_call::DeferredCallClient::register(sha);
 
-    let sha_buffer = static_init!(Sha256Hash, Sha256Hash::default());
+    let sha_buffer = static_init!(
+        <Sha256 as DigestAlgorithm>::Digest,
+        <Sha256 as DigestAlgorithm>::Digest::default()
+    );
     let checker = static_init!(AppCheckerSha256, AppCheckerSha256::new(sha, sha_buffer));
     sha.set_client(checker);
 
