@@ -13,7 +13,7 @@ use core::cmp;
 use crate::sha256::Sha256Software;
 use kernel::debug;
 use kernel::hil::digest;
-use kernel::hil::digest::{Digest, DigestData, DigestVerify};
+use kernel::hil::digest::{Digest, DigestAlgorithm, DigestData, DigestVerify, Sha256};
 use kernel::utilities::cells::{MapCell, TakeCell};
 use kernel::utilities::leasable_buffer::SubSlice;
 use kernel::utilities::leasable_buffer::SubSliceMut;
@@ -21,10 +21,10 @@ use kernel::ErrorCode;
 
 pub struct TestSha256 {
     sha: &'static Sha256Software<'static>,
-    data: TakeCell<'static, [u8]>,                  // The data to hash
-    hash: MapCell<&'static mut digest::Sha256Hash>, // The supplied hash
-    position: Cell<usize>,                          // Keep track of position in data
-    correct: Cell<bool>,                            // Whether supplied hash is correct
+    data: TakeCell<'static, [u8]>, // The data to hash
+    hash: MapCell<&'static mut <Sha256 as DigestAlgorithm>::Digest>, // The supplied hash
+    position: Cell<usize>,         // Keep track of position in data
+    correct: Cell<bool>,           // Whether supplied hash is correct
 }
 
 // We add data in chunks of 12 bytes to ensure that the underlying
@@ -36,7 +36,7 @@ impl TestSha256 {
     pub fn new(
         sha: &'static Sha256Software<'static>,
         data: &'static mut [u8],
-        hash: &'static mut digest::Sha256Hash,
+        hash: &'static mut <Sha256 as DigestAlgorithm>::Digest,
         correct: bool,
     ) -> Self {
         TestSha256 {
@@ -62,7 +62,7 @@ impl TestSha256 {
     }
 }
 
-impl digest::ClientData<digest::Sha256Hash> for TestSha256 {
+impl digest::ClientData<digest::Sha256> for TestSha256 {
     fn add_data_done(&self, _result: Result<(), ErrorCode>, _data: SubSlice<'static, u8>) {
         unimplemented!()
     }
@@ -107,11 +107,11 @@ impl digest::ClientData<digest::Sha256Hash> for TestSha256 {
     }
 }
 
-impl digest::ClientVerify<digest::Sha256Hash> for TestSha256 {
+impl digest::ClientVerify<digest::Sha256> for TestSha256 {
     fn verification_done(
         &self,
         result: Result<bool, ErrorCode>,
-        compare: &'static mut digest::Sha256Hash,
+        compare: &'static mut <Sha256 as DigestAlgorithm>::Digest,
     ) {
         self.hash.put(compare);
         debug!("Sha256Test: Verification result: {:?}", result);
@@ -132,6 +132,11 @@ impl digest::ClientVerify<digest::Sha256Hash> for TestSha256 {
     }
 }
 
-impl digest::ClientHash<digest::Sha256Hash> for TestSha256 {
-    fn hash_done(&self, _result: Result<(), ErrorCode>, _digest: &'static mut digest::Sha256Hash) {}
+impl digest::ClientHash<digest::Sha256> for TestSha256 {
+    fn hash_done(
+        &self,
+        _result: Result<(), ErrorCode>,
+        _digest: &'static mut <Sha256 as DigestAlgorithm>::Digest,
+    ) {
+    }
 }

@@ -15,7 +15,7 @@ use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::digest::{Client, ClientData, ClientHash, ClientVerify};
 use kernel::hil::digest::{ClientDataHash, ClientDataVerify, DigestDataHash, DigestDataVerify};
 use kernel::hil::digest::{Digest, DigestData, DigestHash, DigestVerify};
-use kernel::hil::digest::{DigestAlgorithm, Sha256Hash};
+use kernel::hil::digest::{DigestAlgorithm, Sha256};
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::leasable_buffer::SubSlice;
 use kernel::utilities::leasable_buffer::SubSliceMut;
@@ -50,14 +50,14 @@ const ROUND_CONSTANTS: [u32; NUM_ROUND_CONSTANTS] = [
 pub struct Sha256Software<'a> {
     state: Cell<State>,
 
-    client: OptionalCell<&'a dyn Client<Sha256Hash>>,
+    client: OptionalCell<&'a dyn Client<Sha256>>,
     input_data: OptionalCell<SubSliceMutImmut<'static, u8>>,
     data_buffer: MapCell<[u8; SHA_BLOCK_LEN_BYTES]>,
     buffered_length: Cell<usize>,
     total_length: Cell<usize>,
 
     // Used to store the hash or the hash to compare against with verify
-    output_data: Cell<Option<&'static mut Sha256Hash>>,
+    output_data: Cell<Option<&'static mut <Sha256 as DigestAlgorithm>::Digest>>,
 
     hash_values: Cell<[u32; 8]>,
     deferred_call: DeferredCall,
@@ -295,7 +295,7 @@ impl<'a> Sha256Software<'a> {
     }
 }
 
-impl<'a> DigestData<'a, Sha256Hash> for Sha256Software<'a> {
+impl<'a> DigestData<'a, Sha256> for Sha256Software<'a> {
     fn add_data(
         &self,
         data: SubSlice<'static, u8>,
@@ -330,16 +330,16 @@ impl<'a> DigestData<'a, Sha256Hash> for Sha256Software<'a> {
         self.initialize();
     }
 
-    fn set_data_client(&'a self, _client: &'a (dyn ClientData<Sha256Hash> + 'a)) {
+    fn set_data_client(&'a self, _client: &'a (dyn ClientData<Sha256> + 'a)) {
         unimplemented!()
     }
 }
 
-impl<'a> DigestHash<'a, Sha256Hash> for Sha256Software<'a> {
+impl<'a> DigestHash<'a, Sha256> for Sha256Software<'a> {
     fn run(
         &'a self,
-        digest: &'static mut Sha256Hash,
-    ) -> Result<(), (ErrorCode, &'static mut Sha256Hash)> {
+        digest: &'static mut <Sha256 as DigestAlgorithm>::Digest,
+    ) -> Result<(), (ErrorCode, &'static mut <Sha256 as DigestAlgorithm>::Digest)> {
         if self.busy() {
             Err((ErrorCode::BUSY, digest))
         } else {
@@ -347,10 +347,10 @@ impl<'a> DigestHash<'a, Sha256Hash> for Sha256Software<'a> {
             self.complete_sha256();
             for i in 0..8 {
                 let val = self.hash_values.get()[i];
-                digest.as_mut_slice()[4 * i + 3] = (val >> 0 & 0xff) as u8;
-                digest.as_mut_slice()[4 * i + 2] = (val >> 8 & 0xff) as u8;
-                digest.as_mut_slice()[4 * i + 1] = (val >> 16 & 0xff) as u8;
-                digest.as_mut_slice()[4 * i + 0] = (val >> 24 & 0xff) as u8;
+                digest[4 * i + 3] = (val >> 0 & 0xff) as u8;
+                digest[4 * i + 2] = (val >> 8 & 0xff) as u8;
+                digest[4 * i + 1] = (val >> 16 & 0xff) as u8;
+                digest[4 * i + 0] = (val >> 24 & 0xff) as u8;
             }
             self.output_data.set(Some(digest));
             self.deferred_call.set();
@@ -358,16 +358,16 @@ impl<'a> DigestHash<'a, Sha256Hash> for Sha256Software<'a> {
         }
     }
 
-    fn set_hash_client(&'a self, _client: &'a (dyn ClientHash<Sha256Hash> + 'a)) {
+    fn set_hash_client(&'a self, _client: &'a (dyn ClientHash<Sha256> + 'a)) {
         unimplemented!()
     }
 }
 
-impl<'a> DigestVerify<'a, Sha256Hash> for Sha256Software<'a> {
+impl<'a> DigestVerify<'a, Sha256> for Sha256Software<'a> {
     fn verify(
         &'a self,
-        compare: &'static mut Sha256Hash,
-    ) -> Result<(), (ErrorCode, &'static mut Sha256Hash)> {
+        compare: &'static mut <Sha256 as DigestAlgorithm>::Digest,
+    ) -> Result<(), (ErrorCode, &'static mut <Sha256 as DigestAlgorithm>::Digest)> {
         if self.busy() {
             Err((ErrorCode::BUSY, compare))
         } else {
@@ -379,13 +379,13 @@ impl<'a> DigestVerify<'a, Sha256Hash> for Sha256Software<'a> {
         }
     }
 
-    fn set_verify_client(&'a self, _client: &'a (dyn ClientVerify<Sha256Hash> + 'a)) {
+    fn set_verify_client(&'a self, _client: &'a (dyn ClientVerify<Sha256> + 'a)) {
         unimplemented!()
     }
 }
 
-impl<'a> Digest<'a, Sha256Hash> for Sha256Software<'a> {
-    fn set_client(&'a self, client: &'a dyn Client<Sha256Hash>) {
+impl<'a> Digest<'a, Sha256> for Sha256Software<'a> {
+    fn set_client(&'a self, client: &'a dyn Client<Sha256>) {
         self.client.set(client);
     }
 }
@@ -485,14 +485,14 @@ impl<'a> DeferredCallClient for Sha256Software<'a> {
     }
 }
 
-impl<'a> DigestDataHash<'a, Sha256Hash> for Sha256Software<'a> {
-    fn set_client(&'a self, _client: &'a dyn ClientDataHash<Sha256Hash>) {
+impl<'a> DigestDataHash<'a, Sha256> for Sha256Software<'a> {
+    fn set_client(&'a self, _client: &'a dyn ClientDataHash<Sha256>) {
         unimplemented!()
     }
 }
 
-impl<'a> DigestDataVerify<'a, Sha256Hash> for Sha256Software<'a> {
-    fn set_client(&'a self, _client: &'a dyn ClientDataVerify<Sha256Hash>) {
+impl<'a> DigestDataVerify<'a, Sha256> for Sha256Software<'a> {
+    fn set_client(&'a self, _client: &'a dyn ClientDataVerify<Sha256>) {
         unimplemented!()
     }
 }

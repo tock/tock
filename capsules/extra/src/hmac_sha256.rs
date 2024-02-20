@@ -8,7 +8,7 @@ use core::cell::Cell;
 
 use kernel::hil;
 use kernel::hil::digest::DigestData;
-use kernel::hil::digest::{DigestAlgorithm, HmacSha256Hmac, Sha256Hash};
+use kernel::hil::digest::{DigestAlgorithm, HmacSha256Hmac, Sha256};
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::SubSlice;
 use kernel::utilities::leasable_buffer::SubSliceMut;
@@ -40,7 +40,7 @@ const OUTER_PAD_BYTE: u8 = 0x5c;
 
 const SHA_BLOCK_LEN_BYTES: usize = 64;
 
-pub struct HmacSha256Software<'a, S: hil::digest::DigestDataHash<'a, Sha256Hash>> {
+pub struct HmacSha256Software<'a, S: hil::digest::DigestDataHash<'a, Sha256>> {
     /// SHA256 hasher implementation.
     sha256: &'a S,
     /// The current operation for the internal state machine in this capsule.
@@ -58,15 +58,15 @@ pub struct HmacSha256Software<'a, S: hil::digest::DigestDataHash<'a, Sha256Hash>
     /// persistent if the user wants to do multiple HMACs with the same key.
     key_buffer: MapCell<[u8; SHA_BLOCK_LEN_BYTES]>,
     /// Hash digest buffer used by the SHA256 hasher.
-    sha_buffer: MapCell<&'static mut Sha256Hash>,
+    sha_buffer: MapCell<&'static mut <Sha256 as DigestAlgorithm>::Digest>,
     /// Holding cell for the output digest buffer while we calculate the HMAC.
-    digest_buffer: MapCell<&'static mut HmacSha256Hmac>,
+    digest_buffer: MapCell<&'static mut <HmacSha256Hmac as DigestAlgorithm>::Digest>,
     /// Buffer-slot used for a _verify_ operation. When not active, this
     /// contains a buffer to place the current digest in. On a call to `verify`,
     /// where the digest to compare to is provided in another buffer, this
     /// buffer is swapped into this TakeCell. When the operation completes, we
     /// swap them back and compare:
-    verify_buffer: MapCell<&'static mut HmacSha256Hmac>,
+    verify_buffer: MapCell<&'static mut <HmacSha256Hmac as DigestAlgorithm>::Digest>,
     /// Clients for callbacks.
     // error[E0658]: cannot cast `dyn kernel::hil::digest::Client<32>` to `dyn ClientData<32>`, trait upcasting coercion is experimental
     // data_client: OptionalCell<&'a dyn hil::digest::ClientData<HmacSha256Hmac>>,
@@ -75,12 +75,12 @@ pub struct HmacSha256Software<'a, S: hil::digest::DigestDataHash<'a, Sha256Hash>
     client: OptionalCell<&'a dyn hil::digest::Client<HmacSha256Hmac>>,
 }
 
-impl<'a, S: hil::digest::DigestDataHash<'a, Sha256Hash>> HmacSha256Software<'a, S> {
+impl<'a, S: hil::digest::DigestDataHash<'a, Sha256>> HmacSha256Software<'a, S> {
     pub fn new(
         sha256: &'a S,
         data_buffer: &'static mut [u8],
-        sha_buffer: &'static mut Sha256Hash,
-        verify_buffer: &'static mut HmacSha256Hmac,
+        sha_buffer: &'static mut <Sha256 as DigestAlgorithm>::Digest,
+        verify_buffer: &'static mut <HmacSha256Hmac as DigestAlgorithm>::Digest,
     ) -> Self {
         Self {
             sha256,
@@ -100,7 +100,7 @@ impl<'a, S: hil::digest::DigestDataHash<'a, Sha256Hash>> HmacSha256Software<'a, 
     }
 }
 
-impl<'a, S: hil::digest::DigestDataHash<'a, Sha256Hash>> hil::digest::DigestData<'a, HmacSha256Hmac>
+impl<'a, S: hil::digest::DigestDataHash<'a, Sha256>> hil::digest::DigestData<'a, HmacSha256Hmac>
     for HmacSha256Software<'a, S>
 {
     fn add_data(
@@ -230,13 +230,19 @@ impl<'a, S: hil::digest::DigestDataHash<'a, Sha256Hash>> hil::digest::DigestData
     }
 }
 
-impl<'a, S: hil::digest::DigestDataHash<'a, Sha256Hash>> hil::digest::DigestHash<'a, HmacSha256Hmac>
+impl<'a, S: hil::digest::DigestDataHash<'a, Sha256>> hil::digest::DigestHash<'a, HmacSha256Hmac>
     for HmacSha256Software<'a, S>
 {
     fn run(
         &'a self,
-        digest: &'static mut HmacSha256Hmac,
-    ) -> Result<(), (ErrorCode, &'static mut HmacSha256Hmac)> {
+        digest: &'static mut <HmacSha256Hmac as DigestAlgorithm>::Digest,
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            &'static mut <HmacSha256Hmac as DigestAlgorithm>::Digest,
+        ),
+    > {
         // User called run, we start with the inner hash.
         self.state.set(State::InnerHash);
         self.mode.set(RunMode::Hash);
@@ -262,13 +268,19 @@ impl<'a, S: hil::digest::DigestDataHash<'a, Sha256Hash>> hil::digest::DigestHash
     }
 }
 
-impl<'a, S: hil::digest::DigestDataHash<'a, Sha256Hash>>
-    hil::digest::DigestVerify<'a, HmacSha256Hmac> for HmacSha256Software<'a, S>
+impl<'a, S: hil::digest::DigestDataHash<'a, Sha256>> hil::digest::DigestVerify<'a, HmacSha256Hmac>
+    for HmacSha256Software<'a, S>
 {
     fn verify(
         &'a self,
-        compare: &'static mut HmacSha256Hmac,
-    ) -> Result<(), (ErrorCode, &'static mut HmacSha256Hmac)> {
+        compare: &'static mut <HmacSha256Hmac as DigestAlgorithm>::Digest,
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            &'static mut <HmacSha256Hmac as DigestAlgorithm>::Digest,
+        ),
+    > {
         // User called verify, we start with the inner hash.
         self.state.set(State::InnerHash);
         self.mode.set(RunMode::Verify);
@@ -296,8 +308,8 @@ impl<'a, S: hil::digest::DigestDataHash<'a, Sha256Hash>>
     }
 }
 
-impl<'a, S: hil::digest::DigestDataHash<'a, Sha256Hash>>
-    hil::digest::DigestDataHash<'a, HmacSha256Hmac> for HmacSha256Software<'a, S>
+impl<'a, S: hil::digest::DigestDataHash<'a, Sha256>> hil::digest::DigestDataHash<'a, HmacSha256Hmac>
+    for HmacSha256Software<'a, S>
 {
     fn set_client(&'a self, _client: &'a dyn hil::digest::ClientDataHash<HmacSha256Hmac>) {
         // self.data_client.set(client);
@@ -306,7 +318,7 @@ impl<'a, S: hil::digest::DigestDataHash<'a, Sha256Hash>>
     }
 }
 
-impl<'a, S: hil::digest::DigestDataHash<'a, Sha256Hash>> hil::digest::Digest<'a, HmacSha256Hmac>
+impl<'a, S: hil::digest::DigestDataHash<'a, Sha256>> hil::digest::Digest<'a, HmacSha256Hmac>
     for HmacSha256Software<'a, S>
 {
     fn set_client(&'a self, client: &'a dyn hil::digest::Client<HmacSha256Hmac>) {
@@ -317,7 +329,7 @@ impl<'a, S: hil::digest::DigestDataHash<'a, Sha256Hash>> hil::digest::Digest<'a,
     }
 }
 
-impl<'a, S: hil::digest::DigestDataHash<'a, Sha256Hash>> hil::digest::ClientData<Sha256Hash>
+impl<'a, S: hil::digest::DigestDataHash<'a, Sha256>> hil::digest::ClientData<Sha256>
     for HmacSha256Software<'a, S>
 {
     fn add_data_done(&self, result: Result<(), ErrorCode>, data: SubSlice<'static, u8>) {
@@ -438,14 +450,19 @@ impl<'a, S: hil::digest::DigestDataHash<'a, Sha256Hash>> hil::digest::ClientData
     }
 }
 
-impl<'a, S: hil::digest::DigestDataHash<'a, Sha256Hash>> hil::digest::ClientHash<Sha256Hash>
+impl<'a, S: hil::digest::DigestDataHash<'a, Sha256>> hil::digest::ClientHash<Sha256>
     for HmacSha256Software<'a, S>
 {
-    fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut Sha256Hash) {
+    fn hash_done(
+        &self,
+        result: Result<(), ErrorCode>,
+        digest: &'static mut <Sha256 as DigestAlgorithm>::Digest,
+    ) {
         self.sha_buffer.replace(digest);
 
         let hash_done_error =
-            |error: Result<(), ErrorCode>, error_digest: &'static mut HmacSha256Hmac| {
+            |error: Result<(), ErrorCode>,
+             error_digest: &'static mut <HmacSha256Hmac as DigestAlgorithm>::Digest| {
                 match self.mode.get() {
                     RunMode::Hash => {
                         // self.hash_client.map(|c| {
@@ -512,8 +529,7 @@ impl<'a, S: hil::digest::DigestDataHash<'a, Sha256Hash>> hil::digest::ClientHash
                         self.digest_buffer.take().map(|digest_buf| {
                             // Copy final digest from the SHA buffer to the HMAC
                             // digest buffer.
-                            digest_buf.as_mut_slice()[..32]
-                                .copy_from_slice(&sha_buf.as_slice()[..32]);
+                            digest_buf[..32].copy_from_slice(&sha_buf.as_slice()[..32]);
 
                             match self.mode.get() {
                                 RunMode::Hash => {
@@ -542,18 +558,18 @@ impl<'a, S: hil::digest::DigestDataHash<'a, Sha256Hash>> hil::digest::ClientHash
     }
 }
 
-impl<'a, S: hil::digest::DigestDataHash<'a, Sha256Hash>> hil::digest::ClientVerify<Sha256Hash>
+impl<'a, S: hil::digest::DigestDataHash<'a, Sha256>> hil::digest::ClientVerify<Sha256>
     for HmacSha256Software<'a, S>
 {
     fn verification_done(
         &self,
         _result: Result<bool, ErrorCode>,
-        _compare: &'static mut Sha256Hash,
+        _compare: &'static mut <Sha256 as DigestAlgorithm>::Digest,
     ) {
     }
 }
 
-impl<'a, S: hil::digest::DigestDataHash<'a, Sha256Hash>> hil::digest::HmacSha256
+impl<'a, S: hil::digest::DigestDataHash<'a, Sha256>> hil::digest::HmacSha256
     for HmacSha256Software<'a, S>
 {
     fn set_mode_hmacsha256(&self, key: &[u8]) -> Result<(), ErrorCode> {
@@ -580,7 +596,7 @@ impl<'a, S: hil::digest::DigestDataHash<'a, Sha256Hash>> hil::digest::HmacSha256
     }
 }
 
-impl<'a, S: hil::digest::DigestDataHash<'a, Sha256Hash>> hil::digest::HmacSha384
+impl<'a, S: hil::digest::DigestDataHash<'a, Sha256>> hil::digest::HmacSha384
     for HmacSha256Software<'a, S>
 {
     fn set_mode_hmacsha384(&self, _key: &[u8]) -> Result<(), ErrorCode> {
@@ -588,7 +604,7 @@ impl<'a, S: hil::digest::DigestDataHash<'a, Sha256Hash>> hil::digest::HmacSha384
     }
 }
 
-impl<'a, S: hil::digest::DigestDataHash<'a, Sha256Hash>> hil::digest::HmacSha512
+impl<'a, S: hil::digest::DigestDataHash<'a, Sha256>> hil::digest::HmacSha512
     for HmacSha256Software<'a, S>
 {
     fn set_mode_hmacsha512(&self, _key: &[u8]) -> Result<(), ErrorCode> {

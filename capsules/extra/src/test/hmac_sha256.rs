@@ -19,8 +19,8 @@ pub struct TestHmacSha256 {
     hmac: &'static HmacSha256Software<'static, Sha256Software<'static>>,
     key: TakeCell<'static, [u8]>,  // The key to use for HMAC
     data: TakeCell<'static, [u8]>, // The data to hash
-    digest: MapCell<&'static mut HmacSha256Hmac>, // The supplied hash
-    correct: &'static mut HmacSha256Hmac, // The supplied hash
+    digest: MapCell<&'static mut <HmacSha256Hmac as DigestAlgorithm>::Digest>, // The supplied hash
+    correct: &'static mut <HmacSha256Hmac as DigestAlgorithm>::Digest, // The correct hash output
 }
 
 impl TestHmacSha256 {
@@ -28,8 +28,8 @@ impl TestHmacSha256 {
         hmac: &'static HmacSha256Software<'static, Sha256Software<'static>>,
         key: &'static mut [u8],
         data: &'static mut [u8],
-        digest: &'static mut HmacSha256Hmac,
-        correct: &'static mut HmacSha256Hmac,
+        digest: &'static mut <HmacSha256Hmac as DigestAlgorithm>::Digest,
+        correct: &'static mut <HmacSha256Hmac as DigestAlgorithm>::Digest,
     ) -> Self {
         TestHmacSha256 {
             hmac,
@@ -72,9 +72,13 @@ impl digest::ClientData<HmacSha256Hmac> for TestHmacSha256 {
 }
 
 impl digest::ClientHash<HmacSha256Hmac> for TestHmacSha256 {
-    fn hash_done(&self, _result: Result<(), ErrorCode>, digest: &'static mut HmacSha256Hmac) {
+    fn hash_done(
+        &self,
+        _result: Result<(), ErrorCode>,
+        digest: &'static mut <HmacSha256Hmac as DigestAlgorithm>::Digest,
+    ) {
         for i in 0..32 {
-            if self.correct.as_slice()[i] != digest.as_slice()[i] {
+            if self.correct[i] != digest[i] {
                 panic!("HmacSha256Test: incorrect HMAC output!");
             }
         }

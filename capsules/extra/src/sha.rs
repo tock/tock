@@ -74,14 +74,14 @@ pub struct ShaDriver<'a, H: digest::Digest<'a, D>, D: digest::DigestAlgorithm + 
 
     data_buffer: TakeCell<'static, [u8]>,
     data_copied: Cell<usize>,
-    dest_buffer: MapCell<&'static mut D>,
+    dest_buffer: MapCell<&'static mut D::Digest>,
 }
 
 impl<'a, H: digest::Digest<'a, D>, D: digest::DigestAlgorithm> ShaDriver<'a, H, D> {
     pub fn new(
         sha: &'a H,
         data_buffer: &'static mut [u8],
-        dest_buffer: &'static mut D,
+        dest_buffer: &'static mut D::Digest,
         grant: Grant<
             App,
             UpcallCount<1>,
@@ -299,7 +299,7 @@ impl<'a, H: digest::Digest<'a, D>, D: digest::DigestAlgorithm> digest::ClientDat
                                     let mut static_buffer_len = 0;
                                     self.dest_buffer.map(|buf| {
                                         // Determine the size of the static buffer we have
-                                        static_buffer_len = buf.as_slice().len();
+                                        static_buffer_len = buf.as_ref().len();
 
                                         if static_buffer_len > compare.len() {
                                             static_buffer_len = compare.len()
@@ -308,9 +308,8 @@ impl<'a, H: digest::Digest<'a, D>, D: digest::DigestAlgorithm> digest::ClientDat
                                         self.data_copied.set(static_buffer_len);
 
                                         // Copy the data into the static buffer
-                                        compare[..static_buffer_len].copy_to_slice(
-                                            &mut buf.as_mut_slice()[..static_buffer_len],
-                                        );
+                                        compare[..static_buffer_len]
+                                            .copy_to_slice(&mut buf.as_mut()[..static_buffer_len]);
                                     });
                                 })
                             });
@@ -340,13 +339,13 @@ impl<'a, H: digest::Digest<'a, D>, D: digest::DigestAlgorithm> digest::ClientDat
 impl<'a, H: digest::Digest<'a, D>, D: digest::DigestAlgorithm> digest::ClientHash<D>
     for ShaDriver<'a, H, D>
 {
-    fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut D) {
+    fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut D::Digest) {
         self.processid.map(|id| {
             self.apps
                 .enter(id, |_, kernel_data| {
                     self.sha.clear_data();
 
-                    let pointer = digest.as_slice()[0] as *mut u8;
+                    let pointer = digest.as_ref()[0] as *mut u8;
 
                     let _ = kernel_data
                         .get_readwrite_processbuffer(rw_allow::DEST)
@@ -355,10 +354,10 @@ impl<'a, H: digest::Digest<'a, D>, D: digest::DigestAlgorithm> digest::ClientHas
                                 let len = dest.len();
 
                                 if len < core::mem::size_of::<D>() {
-                                    dest.copy_from_slice(&digest.as_slice()[0..len]);
+                                    dest.copy_from_slice(&digest.as_ref()[0..len]);
                                 } else {
                                     dest[0..core::mem::size_of::<D>()]
-                                        .copy_from_slice(digest.as_slice());
+                                        .copy_from_slice(digest.as_ref());
                                 }
                             })
                         });
@@ -392,7 +391,7 @@ impl<'a, H: digest::Digest<'a, D>, D: digest::DigestAlgorithm> digest::ClientHas
 impl<'a, H: digest::Digest<'a, D>, D: digest::DigestAlgorithm> digest::ClientVerify<D>
     for ShaDriver<'a, H, D>
 {
-    fn verification_done(&self, result: Result<bool, ErrorCode>, compare: &'static mut D) {
+    fn verification_done(&self, result: Result<bool, ErrorCode>, compare: &'static mut D::Digest) {
         self.processid.map(|id| {
             self.apps
                 .enter(id, |_app, kernel_data| {
@@ -618,7 +617,7 @@ impl<'a, H: digest::Digest<'a, D>, D: digest::DigestAlgorithm> SyscallDriver
                                         let mut static_buffer_len = 0;
                                         self.dest_buffer.map(|buf| {
                                             // Determine the size of the static buffer we have
-                                            static_buffer_len = buf.as_slice().len();
+                                            static_buffer_len = buf.as_ref().len();
 
                                             if static_buffer_len > compare.len() {
                                                 static_buffer_len = compare.len()
@@ -628,7 +627,7 @@ impl<'a, H: digest::Digest<'a, D>, D: digest::DigestAlgorithm> SyscallDriver
 
                                             // Copy the data into the static buffer
                                             compare[..static_buffer_len].copy_to_slice(
-                                                &mut buf.as_mut_slice()[..static_buffer_len],
+                                                &mut buf.as_mut()[..static_buffer_len],
                                             );
                                         });
                                     })

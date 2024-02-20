@@ -80,7 +80,7 @@ pub struct Hmac<'a> {
     client: OptionalCell<&'a dyn hil::digest::Client<HmacSha256Hmac>>,
     data: Cell<Option<SubSliceMutImmut<'static, u8>>>,
     verify: Cell<bool>,
-    digest: Cell<Option<&'static mut HmacSha256Hmac>>,
+    digest: Cell<Option<&'static mut <HmacSha256Hmac as DigestAlgorithm>::Digest>>,
     cancelled: Cell<bool>,
     busy: Cell<bool>,
 }
@@ -176,10 +176,10 @@ impl Hmac<'_> {
 
                         let idx = i * 4;
 
-                        if digest.as_slice()[idx + 0] != d[0]
-                            || digest.as_slice()[idx + 1] != d[1]
-                            || digest.as_slice()[idx + 2] != d[2]
-                            || digest.as_slice()[idx + 3] != d[3]
+                        if digest[idx + 0] != d[0]
+                            || digest[idx + 1] != d[1]
+                            || digest[idx + 2] != d[2]
+                            || digest[idx + 3] != d[3]
                         {
                             equal = false;
                         }
@@ -203,7 +203,7 @@ impl Hmac<'_> {
                         digest.as_mut_slice()[idx + 0] = d[0];
                         digest.as_mut_slice()[idx + 1] = d[1];
                         digest.as_mut_slice()[idx + 2] = d[2];
-                        digest.as_mut_slice()[idx + 3] = d[3];
+                        digest[idx + 3] = d[3];
                     }
                     if self.cancelled.get() {
                         self.clear_data();
@@ -328,8 +328,14 @@ impl<'a> hil::digest::DigestData<'a, HmacSha256Hmac> for Hmac<'a> {
 impl<'a> hil::digest::DigestHash<'a, HmacSha256Hmac> for Hmac<'a> {
     fn run(
         &'a self,
-        digest: &'static mut HmacSha256Hmac,
-    ) -> Result<(), (ErrorCode, &'static mut HmacSha256Hmac)> {
+        digest: &'static mut <HmacSha256Hmac as DigestAlgorithm>::Digest,
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            &'static mut <HmacSha256Hmac as DigestAlgorithm>::Digest,
+        ),
+    > {
         let regs = self.registers;
 
         // Enable interrupts
@@ -354,8 +360,14 @@ impl<'a> hil::digest::DigestHash<'a, HmacSha256Hmac> for Hmac<'a> {
 impl<'a> hil::digest::DigestVerify<'a, HmacSha256Hmac> for Hmac<'a> {
     fn verify(
         &'a self,
-        compare: &'static mut HmacSha256Hmac,
-    ) -> Result<(), (ErrorCode, &'static mut HmacSha256Hmac)> {
+        compare: &'static mut <HmacSha256Hmac as DigestAlgorithm>::Digest,
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            &'static mut <HmacSha256Hmac as DigestAlgorithm>::Digest,
+        ),
+    > {
         self.verify.set(true);
 
         self.run(compare)
