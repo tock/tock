@@ -126,7 +126,7 @@ impl FrameInfoWrap {
     /// Obtain unsecured_length of the Frame
     pub fn unsecured_length(&self) -> usize {
         match self {
-            FrameInfoWrap::Parse(info) => info.secured_length(),
+            FrameInfoWrap::Parse(info) => info.unsecured_length(),
             FrameInfoWrap::Raw(len) => *len,
         }
     }
