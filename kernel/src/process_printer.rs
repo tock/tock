@@ -145,7 +145,7 @@ impl ProcessPrinter for ProcessPrinterText {
 
         let _ = match process.get_completion_code() {
             Some(opt_cc) => match opt_cc {
-                Some(cc) => bww.write_fmt(format_args!(" Completion Code: {}\r\n", cc)),
+                Some(cc) => bww.write_fmt(format_args!(" Completion Code: {}\r\n", cc as isize)),
                 None => bww.write_str(" Completion Code: Faulted\r\n"),
             },
             None => bww.write_str(" Completion Code: None\r\n"),
