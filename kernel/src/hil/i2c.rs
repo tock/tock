@@ -6,7 +6,6 @@
 
 use crate::ErrorCode;
 
-use core::convert::Into;
 use core::fmt;
 use core::fmt::{Display, Formatter};
 

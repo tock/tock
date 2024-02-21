@@ -5,11 +5,9 @@
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use core::str;
-use e310_g003;
 use kernel::debug;
 use kernel::debug::IoWrite;
 use kernel::hil::led;
-use rv32i;
 
 use crate::CHIP;
 use crate::PROCESSES;

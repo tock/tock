@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use cortexm0p;
 use cortexm0p::support::atomic;
 use kernel::hil;
 use kernel::hil::time::{Alarm, Ticks, Ticks32, Time};

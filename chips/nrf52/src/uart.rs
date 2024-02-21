@@ -10,7 +10,6 @@
 //! * Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
 //! * Date: March 10 2018
 
-use core;
 use core::cell::Cell;
 use core::cmp::min;
 use kernel::hil::uart;

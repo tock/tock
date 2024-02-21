@@ -5,11 +5,9 @@
 //! High-level setup and interrupt mapping for the chip.
 
 use core::fmt::Write;
-use kernel;
 use kernel::debug;
 use kernel::platform::chip::Chip;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use rv32i;
 use rv32i::csr;
 use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
 use rv32i::pmp::{simple::SimplePMP, PMPUserMPU};

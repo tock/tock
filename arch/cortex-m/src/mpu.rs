@@ -10,7 +10,6 @@ use core::cmp;
 use core::fmt;
 use core::num::NonZeroUsize;
 
-use kernel;
 use kernel::platform::mpu;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::math;

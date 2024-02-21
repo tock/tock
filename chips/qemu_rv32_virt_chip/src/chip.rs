@@ -6,14 +6,12 @@
 
 use core::fmt::Write;
 
-use kernel;
 use kernel::debug;
 use kernel::hil::time::Freq10MHz;
 use kernel::platform::chip::{Chip, InterruptService};
 
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 
-use rv32i;
 use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
 
 use crate::plic::PLIC;

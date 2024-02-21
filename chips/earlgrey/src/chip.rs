@@ -6,7 +6,6 @@
 
 use core::fmt::{Display, Write};
 use core::marker::PhantomData;
-use kernel;
 use kernel::platform::chip::{Chip, InterruptService};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use rv32i::csr::{mcause, mie::mie, mtvec::mtvec, CSR};

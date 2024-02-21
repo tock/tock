@@ -5,7 +5,6 @@
 //! Core low-level operations.
 
 use crate::csr::{mstatus::mstatus, CSR};
-use core::ops::FnOnce;
 
 #[cfg(all(target_arch = "riscv32", target_os = "none"))]
 #[inline(always)]

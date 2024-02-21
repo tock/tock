@@ -8,7 +8,6 @@
 //! checking whether they are allowed to be loaded, and if so initializing a process
 //! structure to run it.
 
-use core::convert::TryInto;
 use core::fmt;
 
 use crate::capabilities::{ProcessApprovalCapability, ProcessManagementCapability};

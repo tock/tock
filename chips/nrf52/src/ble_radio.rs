@@ -38,7 +38,6 @@
 //! * CRC - 3 bytes
 
 use core::cell::Cell;
-use core::convert::TryFrom;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
 use kernel::utilities::cells::OptionalCell;

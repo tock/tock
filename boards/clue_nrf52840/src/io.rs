@@ -6,7 +6,6 @@ use core::fmt::Write;
 use core::panic::PanicInfo;
 use kernel::ErrorCode;
 
-use cortexm4;
 use kernel::debug;
 use kernel::debug::IoWrite;
 use kernel::hil::led;

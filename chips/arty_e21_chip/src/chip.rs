@@ -3,12 +3,10 @@
 // Copyright Tock Contributors 2022.
 
 use core::fmt::Write;
-use kernel;
 use kernel::debug;
 use kernel::hil::time::Freq32KHz;
 use kernel::platform::chip::InterruptService;
 use kernel::utilities::registers::interfaces::Readable;
-use rv32i;
 
 use crate::clint;
 use crate::interrupts;

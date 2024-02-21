@@ -11,7 +11,6 @@ use kernel::hil::led;
 use kernel::hil::uart;
 use kernel::hil::uart::Configure;
 
-use stm32f303xc;
 use stm32f303xc::gpio::PinId;
 
 use crate::CHIP;

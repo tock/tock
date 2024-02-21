@@ -3,7 +3,6 @@
 // Copyright Tock Contributors 2022.
 
 use core::sync::atomic::{AtomicU32, Ordering};
-use cortexm7;
 use cortexm7::support::atomic;
 use kernel::hil;
 use kernel::hil::time::{Ticks, Ticks32, Time};
