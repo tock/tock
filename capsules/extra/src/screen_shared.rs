@@ -26,8 +26,6 @@
 //! screen config settings (brightness, invert) as those operations affect the
 //! entire screen.
 
-use core::convert::From;
-
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
 use kernel::processbuffer::ReadableProcessBuffer;
