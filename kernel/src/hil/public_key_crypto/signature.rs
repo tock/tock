@@ -10,10 +10,10 @@ use crate::ErrorCode;
 pub trait ClientVerify<const HL: usize, const SL: usize> {
     /// Called when the verification is complete.
     ///
-    /// If the verification operation did not encounter any errors, `result`
-    /// will be set to `Ok()`. If the signature was correctly verified `result`
-    /// will be `Ok(true)`. If the signature did not match the hash `result`
-    /// will be `Ok(false)`.
+    /// If the verification operation encounters an error, result will be a
+    /// `Result::Err()` specifying the ErrorCode. Otherwise, result will be a
+    /// `Result::Ok` set to `Ok(true)` if the signature was correctly verified
+    /// and `Ok(false)` otherwise.
     ///
     /// If verification operation did encounter errors `result` will be `Err()`
     /// with an appropriate `ErrorCode`. Valid `ErrorCode`s include:
