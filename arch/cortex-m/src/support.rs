@@ -3,7 +3,6 @@
 // Copyright Tock Contributors 2022.
 
 use crate::scb;
-use core::ops::FnOnce;
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[inline(always)]

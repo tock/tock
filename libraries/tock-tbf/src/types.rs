@@ -4,7 +4,6 @@
 
 //! Types and Data Structures for TBFs.
 
-use core::convert::TryInto;
 use core::fmt;
 use core::mem::size_of;
 

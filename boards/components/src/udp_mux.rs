@@ -27,7 +27,6 @@
 // Author: Hudson Ayers <hayers@stanford.edu>
 // Last Modified: 5/21/2019
 
-use capsules_core;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules_extra::ieee802154::device::MacDevice;
 use capsules_extra::net::ieee802154::MacAddress;
@@ -46,7 +45,6 @@ use capsules_extra::net::udp::udp_recv::MuxUdpReceiver;
 use capsules_extra::net::udp::udp_send::MuxUdpSender;
 use capsules_extra::net::udp::UDPHeader;
 use core::mem::MaybeUninit;
-use kernel;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;

@@ -10,7 +10,6 @@ use kernel::utilities::registers::interfaces::Writeable;
 use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
-use nrf5x;
 
 #[repr(C)]
 struct PwmRegisters {

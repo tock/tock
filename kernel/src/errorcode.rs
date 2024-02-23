@@ -4,8 +4,6 @@
 
 //! Standard errors in Tock.
 
-use core::convert::TryFrom;
-
 /// Standard errors in Tock.
 ///
 /// In contrast to [`Result<(), ErrorCode>`](crate::Result<(), ErrorCode>) this

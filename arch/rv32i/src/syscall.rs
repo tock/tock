@@ -4,13 +4,11 @@
 
 //! Kernel-userland system call interface for RISC-V architecture.
 
-use core::convert::TryInto;
 use core::fmt::Write;
 use core::mem::size_of;
 use core::ops::Range;
 
 use crate::csr::mcause;
-use kernel;
 use kernel::errorcode::ErrorCode;
 use kernel::syscall::ContextSwitchReason;
 

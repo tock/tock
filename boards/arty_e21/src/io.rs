@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use arty_e21_chip;
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use core::str;
@@ -10,8 +9,6 @@ use kernel::debug;
 use kernel::debug::IoWrite;
 use kernel::hil::gpio;
 use kernel::hil::led;
-use rv32i;
-use sifive;
 
 use crate::CHIP;
 use crate::PROCESSES;

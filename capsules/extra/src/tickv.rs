@@ -39,7 +39,7 @@ use kernel::hil::hasher::{self, Hasher};
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::{SubSlice, SubSliceMut};
 use kernel::ErrorCode;
-use tickv::{self, AsyncTicKV};
+use tickv::AsyncTicKV;
 
 /// The type of keys, this should define the output size of the digest
 /// operations.

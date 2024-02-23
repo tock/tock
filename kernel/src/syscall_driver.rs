@@ -77,8 +77,6 @@
 //! kernel (the scheduler and syscall dispatcher) is responsible for
 //! encoding these types into the Tock system call ABI specification.
 
-use core::convert::TryFrom;
-
 use crate::errorcode::ErrorCode;
 use crate::process;
 use crate::process::ProcessId;

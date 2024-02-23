@@ -5,7 +5,6 @@
 //! High-level setup and interrupt mapping for the chip.
 
 use core::fmt::Write;
-use kernel;
 use kernel::platform::chip::{Chip, InterruptService};
 use kernel::utilities::cells::VolatileCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};

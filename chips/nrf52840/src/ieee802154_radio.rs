@@ -6,8 +6,6 @@
 
 use crate::timer::TimerAlarm;
 use core::cell::Cell;
-use core::convert::TryFrom;
-use kernel;
 use kernel::hil::radio::{self, PowerClient, RadioData};
 use kernel::hil::time::{Alarm, AlarmClient, Time};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -16,7 +14,6 @@ use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, Writ
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
-use nrf52;
 use nrf52::constants::TxPower;
 
 // This driver implements a subset of 802.15.4 sending and receiving for the

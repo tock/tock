@@ -82,7 +82,7 @@ use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, 
 use nrf52832::gpio::Pin;
 use nrf52832::interrupt_service::Nrf52832DefaultPeripherals;
 use nrf52832::rtc::Rtc;
-use nrf52_components::{self, UartChannel, UartPins};
+use nrf52_components::{UartChannel, UartPins};
 
 // The nRF52 DK LEDs (see back of board)
 const LED1_PIN: Pin = Pin::P0_17;
