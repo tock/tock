@@ -122,8 +122,6 @@ impl IoWrite for Writer {
     }
 }
 
-/// Default panic handler for the Nano 33 Board.
-///
 /// We just use the standard default provided by the debug module in the kernel.
 #[cfg(not(test))]
 #[no_mangle]
