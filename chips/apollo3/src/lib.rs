@@ -104,7 +104,7 @@ pub unsafe fn init() {
 }
 
 // Mock implementation for tests
-#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe fn init() {
     // Prevent unused code warning.
     scb::disable_fpca();

@@ -50,13 +50,13 @@ where
 }
 
 // Mock implementations for tests on Travis-CI.
-#[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+#[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
 /// NOP instruction (mock)
 pub fn nop() {
     unimplemented!()
 }
 
-#[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+#[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
 /// WFI instruction (mock)
 pub unsafe fn wfi() {
     unimplemented!()

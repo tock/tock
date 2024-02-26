@@ -1059,7 +1059,7 @@ impl Clocks {
         }
     }
 
-    #[cfg(not(any(target_arch = "arm", target_os = "none")))]
+    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
     fn loop_3_cycles(&self, _clock: Clock) {
         unimplemented!()
     }

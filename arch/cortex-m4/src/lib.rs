@@ -41,7 +41,7 @@ impl cortexm::CortexMVariant for CortexM4 {
         cortexv7m::switch_to_user_arm_v7m(user_stack, process_regs)
     }
 
-    #[cfg(not(any(target_arch = "arm", target_os = "none")))]
+    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
     unsafe fn switch_to_user(
         _user_stack: *const usize,
         _process_regs: &mut [usize; 8],

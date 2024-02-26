@@ -181,7 +181,7 @@ pub unsafe fn configure_trap_handler(mode: PermissionMode) {
 }
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+#[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
 pub extern "C" fn _start_trap() {
     unimplemented!()
 }
@@ -475,7 +475,7 @@ pub unsafe fn semihost_command(command: usize, arg0: usize, arg1: usize) -> usiz
 }
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+#[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
 pub unsafe fn semihost_command(_command: usize, _arg0: usize, _arg1: usize) -> usize {
     unimplemented!()
 }
