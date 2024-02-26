@@ -79,14 +79,26 @@ impl<
     fn add_mut_data_done(&self, _result: Result<(), ErrorCode>, _data: SubSliceMut<'static, u8>) {}
 
     fn add_data_done(&self, result: Result<(), ErrorCode>, data: SubSlice<'static, u8>) {
+        self.binary.set(data.take());
+
         // We added the binary data to the hasher, now we can compute the hash.
         match result {
-            Err(_e) => {}
+            Err(e) => {
+                self.client.map(|c| {
+                    let binary = self.binary.take().unwrap();
+                    let cred = self.credentials.take().unwrap();
+                    c.check_done(Err(e), cred, binary)
+                });
+            }
             Ok(()) => {
-                self.binary.set(data.take());
-
                 self.hash.take().map(|h| match self.hasher.run(h) {
-                    Err((_e, _)) => {}
+                    Err((e, _)) => {
+                        self.client.map(|c| {
+                            let binary = self.binary.take().unwrap();
+                            let cred = self.credentials.take().unwrap();
+                            c.check_done(Err(e), cred, binary)
+                        });
+                    }
                     Ok(()) => {}
                 });
             }
@@ -104,13 +116,35 @@ impl<
 {
     fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut [u8; HL]) {
         match result {
-            Err(_e) => {}
+            Err(e) => {
+                self.hash.replace(digest);
+                self.client.map(|c| {
+                    let binary = self.binary.take().unwrap();
+                    let cred = self.credentials.take().unwrap();
+                    c.check_done(Err(e), cred, binary)
+                });
+            }
             Ok(()) => match self.signature.take() {
                 Some(sig) => match self.verifier.verify(digest, sig) {
-                    Err((_e, _, _)) => {}
+                    Err((e, d, s)) => {
+                        self.hash.replace(d);
+                        self.signature.replace(s);
+                        self.client.map(|c| {
+                            let binary = self.binary.take().unwrap();
+                            let cred = self.credentials.take().unwrap();
+                            c.check_done(Err(e), cred, binary)
+                        });
+                    }
                     Ok(()) => {}
                 },
-                None => {}
+                None => {
+                    self.hash.replace(digest);
+                    self.client.map(|c| {
+                        let binary = self.binary.take().unwrap();
+                        let cred = self.credentials.take().unwrap();
+                        c.check_done(Err(ErrorCode::FAIL), cred, binary)
+                    });
+                }
             },
         }
     }
