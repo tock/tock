@@ -18,4 +18,4 @@ thiserror = "1.0.44"
 [dependencies.syntect]
 default-features = false
 features = ["default-syntaxes", "regex-onig", "yaml-load"]
-version = "5.0.0"
+version = "5.2.0"
