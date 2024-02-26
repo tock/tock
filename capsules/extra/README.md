@@ -58,6 +58,7 @@ These drivers provide support for various ICs.
 - **[MAX17205](src/max17205.rs)**: Battery fuel gauge.
 - **[MCP230xx](src/mcp230xx.rs)**: I2C GPIO extender.
 - **[MX25r6435F](src/mx25r6435f.rs)**: SPI flash chip.
+- **[NMEA I2C](src/nmea_i2c_mt.rs)**: I2C GNSS receivers.
 - **[PCA9544A](src/pca9544a.rs)**: Multiple port I2C selector.
 - **[SD Card](src/sdcard.rs)**: Support for SD cards.
 - **[Seven Segment Display](src/seven_segment.rs)**: Seven segment displays.

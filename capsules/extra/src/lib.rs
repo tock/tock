@@ -64,6 +64,7 @@ pub mod mcp230xx;
 pub mod mlx90614;
 pub mod mx25r6435f;
 pub mod ninedof;
+pub mod nmea_i2c;
 pub mod nonvolatile_storage_driver;
 pub mod nonvolatile_to_pages;
 pub mod nrf51822_serialization;
