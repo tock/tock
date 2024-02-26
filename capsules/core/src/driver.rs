@@ -66,6 +66,7 @@ pub enum NUM {
     SoundPressure         = 0x60006,
     AirQuality            = 0x60007,
     Pressure              = 0x60008,
+    Nmea                  = 0x60009,
 
     // Sensor ICs
     Tsl2561               = 0x70000,
