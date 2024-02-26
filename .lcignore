@@ -30,3 +30,7 @@
 /tools/license-checker/testdata/many_errors.rs
 /tools/license-checker/testdata/no_copyright.rs
 /tools/license-checker/testdata/no_spdx.rs
+
+# Files that the license checker currently incorrectly assumes as not
+# supporting any comments:
+/tools/tockbot/requirements.txt
