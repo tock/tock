@@ -124,6 +124,7 @@ These provide common and better abstractions for userspace.
 - **[Humidity](src/humidity.rs)**: Query humidity sensors.
 - **[Key-Value Store](src/kv_driver.rs)**: Store key-value data.
 - **[LED Matrix](src/led_matrix.rs)**: Control a 2D array of LEDs.
+- **[NMEA](src/nmea.rs)**: NMEA sentences.
 - **[Pressure](src/pressure.rs)**: Pressure sensors.
 - **[Proximity](src/proximity.rs)**: Proximity sensors.
 - **[PWM](src/pwm.rs)**: Pulse-width modulation support.

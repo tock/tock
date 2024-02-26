@@ -60,7 +60,7 @@ pub mod ltc294x;
 pub mod mlx90614;
 pub mod mx25r6435f;
 pub mod ninedof;
-pub mod nmea_i2c;
+pub mod nmea;
 pub mod nonvolatile_storage;
 pub mod nrf51822;
 pub mod panic_button;
