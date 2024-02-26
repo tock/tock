@@ -47,6 +47,7 @@ use capsules_core::virtualizers::virtual_alarm::MuxAlarm;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::bme280::Bme280Component;
 use components::ccs811::Ccs811Component;
+use components::nmea::I2cNmeaComponent;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil::i2c::I2CMaster;
@@ -155,6 +156,7 @@ struct LoRaThingsPlus {
     temperature: &'static TemperatureDriver,
     humidity: &'static HumidityDriver,
     air_quality: &'static capsules_extra::air_quality::AirQualitySensor<'static>,
+    nmea: &'static capsules_extra::nmea::Nmea<'static>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
@@ -178,6 +180,7 @@ impl SyscallDriverLookup for LoRaThingsPlus {
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules_extra::humidity::DRIVER_NUM => f(Some(self.humidity)),
             capsules_extra::air_quality::DRIVER_NUM => f(Some(self.air_quality)),
+            capsules_extra::nmea::DRIVER_NUM => f(Some(self.nmea)),
             _ => f(None),
         }
     }
@@ -379,6 +382,12 @@ unsafe fn setup() -> (
     .finalize(components::air_quality_component_static!());
     CCS811 = Some(ccs811);
 
+    let gnss = I2cNmeaComponent::new(mux_i2c, 0x10)
+        .finalize(components::nmea_i2c_component_static!(apollo3::iom::Iom));
+    let nmea =
+        components::nmea::NmeaComponent::new(board_kernel, capsules_extra::nmea::DRIVER_NUM, gnss)
+            .finalize(components::nmea_component_static!());
+
     // Init the broken out SPI controller
     let external_mux_spi = components::spi::SpiMuxComponent::new(&peripherals.iom2).finalize(
         components::spi_mux_component_static!(apollo3::iom::Iom<'static>),
@@ -483,6 +492,7 @@ unsafe fn setup() -> (
             temperature,
             humidity,
             air_quality,
+            nmea,
             scheduler,
             systick,
         }
