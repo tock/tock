@@ -133,7 +133,7 @@ impl FrameInfoWrap {
 
     /// Fetcher of the FrameInfo struct for Parse sending. Panics if
     /// called for Raw sending.
-    pub fn expect(&self) -> FrameInfo {
+    pub fn get_info(&self) -> FrameInfo {
         match self {
             FrameInfoWrap::Raw(_) => {
                 // This should never be called for a Raw send. The Framer should never
@@ -578,14 +578,14 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                 let (next_state, result) = match state {
                     TxState::Idle => (TxState::Idle, Ok(())),
                     TxState::ReadyToEncrypt(info, buf) => {
-                        match info.expect().security_params {
+                        match info.get_info().security_params {
                             None => {
                                 // `ReadyToEncrypt` should only be entered when
                                 // `security_params` is not `None`.
                                 (TxState::Idle, Err((ErrorCode::FAIL, buf)))
                             }
                             Some((level, key, nonce)) => {
-                                let (m_off, m_len) = info.expect().ccm_encrypt_ranges();
+                                let (m_off, m_len) = info.get_info().ccm_encrypt_ranges();
                                 let (a_off, m_off) =
                                     (radio::PSDU_OFFSET, radio::PSDU_OFFSET + m_off);
 
@@ -600,7 +600,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                                         a_off,
                                         m_off,
                                         m_len,
-                                        info.expect().mic_len,
+                                        info.get_info().mic_len,
                                         level.encryption_needed(),
                                         true,
                                     );
@@ -646,14 +646,14 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
             let next_state = match state {
                 RxState::Idle => RxState::Idle,
                 RxState::ReadyToDecrypt(info, buf) => {
-                    match info.expect().security_params {
+                    match info.get_info().security_params {
                         None => {
                             // `ReadyToDecrypt` should only be entered when
                             // `security_params` is not `None`.
                             RxState::Idle
                         }
                         Some((level, key, nonce)) => {
-                            let (m_off, m_len) = info.expect().ccm_encrypt_ranges();
+                            let (m_off, m_len) = info.get_info().ccm_encrypt_ranges();
                             let (a_off, m_off) = (radio::PSDU_OFFSET, radio::PSDU_OFFSET + m_off);
 
                             // Crypto setup failed; fail receiving packet and return to idle
@@ -684,7 +684,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                                         a_off,
                                         m_off,
                                         m_len,
-                                        info.expect().mic_len,
+                                        info.get_info().mic_len,
                                         level.encryption_needed(),
                                         true,
                                     )

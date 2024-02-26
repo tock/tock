@@ -195,11 +195,11 @@ impl Default for PendingTX {
 }
 
 impl PendingTX {
-    /// Returns true if the PendingTX is not `Empty`
-    fn is_some(&self) -> bool {
+    /// Returns true if the PendingTX state is `Empty`
+    fn is_empty(&self) -> bool {
         match self {
-            PendingTX::Empty => false,
-            _ => true,
+            PendingTX::Empty => true,
+            _ => false,
         }
     }
 
@@ -415,7 +415,7 @@ impl<'a> RadioDriver<'a> {
         for app in self.apps.iter() {
             let processid = app.processid();
             app.enter(|app, _| {
-                if app.pending_tx.is_some() {
+                if !app.pending_tx.is_empty() {
                     pending_app = Some(processid);
                 }
             });
@@ -919,7 +919,7 @@ impl SyscallDriver for RadioDriver<'_> {
             26 => {
                 self.apps
                     .enter(processid, |app, kernel_data| {
-                        if app.pending_tx.is_some() {
+                        if !app.pending_tx.is_empty() {
                             // Cannot support more than one pending tx per process.
                             return Err(ErrorCode::BUSY);
                         }
@@ -977,7 +977,7 @@ impl SyscallDriver for RadioDriver<'_> {
             27 => {
                 self.apps
                     .enter(processid, |app, _| {
-                        if app.pending_tx.is_some() {
+                        if !app.pending_tx.is_empty() {
                             // Cannot support more than one pending tx per process.
                             return Err(ErrorCode::BUSY);
                         }
