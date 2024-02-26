@@ -1,0 +1,134 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2024.
+
+name: "Tockbot"
+
+on:
+  schedule:
+  - cron: "0 0 * * *"
+  workflow_dispatch:
+    inputs:
+      dispatch-job:
+        description: 'Which job to execute (choose between "all", "maint-nightly")'
+        required: true
+        default: 'all'
+      dry-run:
+        description: 'Whether to execute the jobs as dry-run'
+        required: true
+        default: true
+
+jobs:
+  dispatcher:
+    runs-on: ubuntu-latest
+
+    # This job determines which other jobs should be run:
+    outputs:
+      run-maint-nightly: ${{ steps.dispatch-logic.outputs.run-maint-nightly }}
+      dry-run: ${{ steps.dispatch-logic.outputs.dry-run }}
+
+    steps:
+      # On pushes we want to check whether any changes have been made
+      # to the Tockbot code base. Disabled for now:
+      - uses: actions/checkout@v4
+
+      # Dispatcher business logic:
+      - name: Dispatch Tockbot Jobs
+        id: dispatch-logic
+        env:
+          DISPATCH_JOB: ${{ github.event.inputs.dispatch-job }}
+          DISPATCH_DRY_RUN: ${{ github.event.inputs.dry-run }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]; then
+            if [ "$DISPATCH_DRY_RUN" == "true" ]; then
+              echo "dry-run=true" >> $GITHUB_OUTPUT
+            elif [ "$DISPATCH_DRY_RUN" == "false" ]; then
+              echo "dry-run=false" >> $GITHUB_OUTPUT
+            else
+              echo "Error: dry-run not a boolean: \"$DISPATCH_DRY_RUN\"" >&2
+              exit 1
+            fi
+
+            if [ "$DISPATCH_JOB" == "all" ]; then
+              echo "run-maint-nightly=true" >> $GITHUB_OUTPUT
+            elif [ "$DISPATCH_JOB" == "maint-nightly" ]; then
+              echo "run-maint-nightly=true" >> $GITHUB_OUTPUT
+            else
+              echo "Error: unknown job \"$DISPATCH_JOB\"" >&2
+              exit 1
+            fi
+          elif [ "$GITHUB_EVENT_NAME" == "pull_request" ]; then
+            echo "dry-run=true" >> $GITHUB_OUTPUT
+            echo "run-maint-nightly=true" >> $GITHUB_OUTPUT
+          elif [ "$GITHUB_EVENT_NAME" == "schedule" ]; then
+            echo "dry-run=false" >> $GITHUB_OUTPUT
+            echo "run-maint-nightly=true" >> $GITHUB_OUTPUT
+          else
+            echo "Error: unknown event name \"$GITHUB_EVENT_NAME\"" >&2
+            exit 1
+          fi
+
+  maint-nightly:
+    runs-on: ubuntu-latest
+
+    # Only run this job if the dispatcher determined to schedule the
+    # "maint-nightly" or "dry-run" jobs:
+    needs: dispatcher
+    if: ${{ needs.dispatcher.outputs.run-maint-nightly == 'true' && needs.dispatcher.outputs.dry-run != 'true' }}
+
+    permissions:
+      # Give GITHUB_TOKEN write permissions to modify PRs and issues:
+      pull-requests: write
+      issues: write
+
+    steps:
+      # Requires a tock checkout to run from:
+      - uses: actions/checkout@v4
+
+      # Setup Python and install dependencies:
+      - uses: actions/setup-python@v5
+      - name: Install Python Dependencies
+        run: pip install -r tools/tockbot/requirements.txt
+
+      # Run nightly tockbot maintenance:
+      - name: Nightly Tockbot Maintenance
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: ${{ needs.dispatcher.outputs.dry-run == 'true' && '-n' || '' }}
+        run: |
+          cd tools/tockbot/
+          ./tockbot.py -v $DRY_RUN maint-nightly -c ./maint_nightly.yaml
+
+  # We'd like to avoid duplicating this, either by using conditionals in the
+  # permissions key, or by using YAML anchors, neither of which are supported by
+  # GH Actions...
+  maint-nightly-dry-run:
+    runs-on: ubuntu-latest
+
+    # Only run this job if the dispatcher determined to schedule the
+    # "maint-nightly" or "dry-run" jobs:
+    needs: dispatcher
+    if: ${{ needs.dispatcher.outputs.run-maint-nightly == 'true' && needs.dispatcher.outputs.dry-run == 'true' }}
+
+    permissions:
+      # Dry-run, read-only access:
+      pull-requests: read
+      issues: read
+
+    steps:
+      # Requires a tock checkout to run from:
+      - uses: actions/checkout@v4
+
+      # Setup Python and install dependencies:
+      - uses: actions/setup-python@v5
+      - name: Install Python Dependencies
+        run: pip install -r tools/tockbot/requirements.txt
+
+      # Run nightly tockbot maintenance:
+      - name: Nightly Tockbot Maintenance
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: ${{ needs.dispatcher.outputs.dry-run == 'true' && '-n' || '' }}
+        run: |
+          cd tools/tockbot/
+          ./tockbot.py -v $DRY_RUN maint-nightly -c ./maint_nightly.yaml
