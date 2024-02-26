@@ -7,7 +7,7 @@ cattrs==23.2.3
 certifi==2023.11.17
 cffi==1.16.0
 charset-normalizer==3.3.2
-cryptography==42.0.1
+cryptography==42.0.4
 Deprecated==1.2.14
 idna==3.6
 platformdirs==4.2.0
