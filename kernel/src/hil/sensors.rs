@@ -233,3 +233,41 @@ pub trait PressureClient {
     /// Returns the value in hPa.
     fn callback(&self, pressure: Result<u32, ErrorCode>);
 }
+
+/// Client for receiving NMEA sentences
+pub trait NmeaClient {
+    /// Called when a full NMEA sentence has been found, or if an error
+    /// occurs.
+    ///
+    /// The possible errors are:
+    /// - `BUSY`: Indicates that the hardware is busy with an existing
+    ///           operation or initialisation/calibration.
+    /// - `NOACK`: Failed to correctly communicate over communication protocol.
+    /// - `NOSUPPORT`: Indicates that this data type isn't supported.
+    fn callback(&self, buffer: &'static mut [u8], len: usize, status: Result<(), ErrorCode>);
+}
+
+/// A basic interface for a Nmea sentence reader
+pub trait NmeaDriver<'a> {
+    /// Set the client
+    fn set_client(&self, client: &'a dyn NmeaClient);
+
+    /// Read a full NMEA sentence, including the first `$`.
+    /// As NMEA sentences are variable lengths this will return
+    /// the first sentence that fits inside `buffer`. If a sentence
+    /// doesn't fit it will be silently dropped. This allows callers to
+    /// use smaller buffers if they are only interested in certain data
+    /// types.
+    ///
+    /// When the sentence is read the `NmeaClient` callback will be called.
+    ///
+    /// This function might return the following errors:
+    /// - `BUSY`: Indicates that the hardware is busy with an existing
+    ///           operation or initialisation/calibration.
+    /// - `NOACK`: Failed to correctly communicate over communication protocol.
+    /// - `NOSUPPORT`: Indicates that the received NMEA message was not valid UTF-8 data.
+    fn read_sentence(
+        &self,
+        buffer: &'static mut [u8],
+    ) -> Result<(), (ErrorCode, &'static mut [u8])>;
+}
