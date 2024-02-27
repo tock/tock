@@ -8,7 +8,7 @@ mkShell {
   name = "mirrorcheck-shell";
   buildInputs = [
     (python3.withPackages (pypkgs: with pypkgs; [
-      pygithub pyyaml
+      requests-cache pygithub pyyaml
     ]))
   ];
 }
