@@ -40,10 +40,15 @@ class CallbackFilter:
             else:
                 self.filtered_cb(item)
 
-def ignore_prs_filter(config, prs, logger):
-    if "ignored_label" in config:
-        ignored_label = config["ignored_label"]
-        return CallbackFilter(
+def ignore_prs_filter(config, task_config, prs, logger):
+    filtered = prs
+
+    # Build a chain of filters over each of the labels:
+    for ignored_label in (
+        config.get("ignored_labels", [])
+        + task_config.get("ignored_labels", [])
+    ):
+        filtered = CallbackFilter(
             lambda pr: not any(map(
                 lambda l: l.name == ignored_label,
                 pr.get_labels()
@@ -52,10 +57,10 @@ def ignore_prs_filter(config, prs, logger):
                 f"-> Filtered #{filtered.number}, is ignored by label "
                 + f"\"{ignored_label}\"."
             ),
-            prs
+            filtered
         )
-    else:
-        return prs
+
+    return filtered
 
 def verbose_pr_stream(prs, log):
     def verbose_pr_stream_log(pr, log):
@@ -78,7 +83,7 @@ def task_stale_pr_assign(config, task_config, gh, repo, rand, log, dry_run):
     )
 
     # Filter out PRs that are marked as ignored by this tool:
-    prs = ignore_prs_filter(config, prs, log)
+    prs = ignore_prs_filter(config, task_config, prs, log)
 
     # Filter out PRs that are assigned to one or more users:
     prs = CallbackFilter(
