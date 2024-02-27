@@ -12,8 +12,6 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use core::arch::global_asm;
-
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use components::led::LedsComponent;
@@ -167,7 +165,7 @@ extern "C" {
 }
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
-global_asm!(
+core::arch::global_asm!(
     "
     .section .jump_to_bootloader, \"ax\"
     .global jump_to_bootloader
