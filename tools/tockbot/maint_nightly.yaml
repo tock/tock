@@ -27,7 +27,8 @@ repo:
   name: tock
 
 # Ignore all PRs and issues that have the tockbot-ignore label:
-ignored_label: tockbot-ignore
+ignored_labels:
+  - tockbot-ignore
 
 tasks:
   - type: stale_pr_assign
@@ -44,3 +45,10 @@ tasks:
     assignee_cnt: 1
     assignee_candidates: *active_reviewers
 
+    # Ignore PRs that are marked as "blocked" or "blocked-upstream". Those
+    # should not necessarily be assigned a reviewer, but be staged for
+    # "check-in" in a core-WG call after being stale for some time (e.g., a
+    # month).
+    ignored_labels:
+      - blocked
+      - blocked-upstream
