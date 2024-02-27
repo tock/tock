@@ -79,6 +79,11 @@ type Bmp280Sensor = components::bmp280::Bmp280ComponentType<
 >;
 type TemperatureDriver = components::temperature::TemperatureComponentType<Bmp280Sensor>;
 
+type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<
+    nrf52840::ieee802154_radio::Radio<'static>,
+    nrf52840::aes::AesECB<'static>,
+>;
+
 /// Supported drivers by the platform
 pub struct Platform {
     temperature: &'static TemperatureDriver,
@@ -87,7 +92,7 @@ pub struct Platform {
         nrf52840::ble_radio::Radio<'static>,
         VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
     >,
-    ieee802154_radio: &'static capsules_extra::ieee802154::RadioDriver<'static>,
+    ieee802154_radio: &'static Ieee802154Driver,
     button: &'static capsules_core::button::Button<'static, nrf52840::gpio::GPIOPin<'static>>,
     pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,

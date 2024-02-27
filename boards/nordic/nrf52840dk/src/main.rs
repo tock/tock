@@ -185,6 +185,15 @@ type KVDriver = components::kv::KVDriverComponentType<VirtualKVPermissions>;
 type TemperatureDriver =
     components::temperature::TemperatureComponentType<nrf52840::temperature::Temp<'static>>;
 
+type Ieee802154MacDevice = components::ieee802154::Ieee802154ComponentMacDeviceType<
+    nrf52840::ieee802154_radio::Radio<'static>,
+    nrf52840::aes::AesECB<'static>,
+>;
+type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<
+    nrf52840::ieee802154_radio::Radio<'static>,
+    nrf52840::aes::AesECB<'static>,
+>;
+
 /// Supported drivers by the platform
 pub struct Platform {
     ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
@@ -192,7 +201,7 @@ pub struct Platform {
         nrf52840::ble_radio::Radio<'static>,
         VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
     >,
-    ieee802154_radio: &'static capsules_extra::ieee802154::RadioDriver<'static>,
+    ieee802154_radio: &'static Ieee802154Driver,
     button: &'static capsules_core::button::Button<'static, nrf52840::gpio::GPIOPin<'static>>,
     pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
@@ -598,7 +607,10 @@ pub unsafe fn start() -> (
         local_ip_ifaces,
         mux_alarm,
     )
-    .finalize(components::udp_mux_component_static!(nrf52840::rtc::Rtc));
+    .finalize(components::udp_mux_component_static!(
+        nrf52840::rtc::Rtc,
+        Ieee802154MacDevice
+    ));
 
     // UDP driver initialization happens here
     let udp_driver = components::udp_driver::UDPDriverComponent::new(

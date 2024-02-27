@@ -67,8 +67,18 @@ pub struct LowpanICMPTest<'a, A: time::Alarm<'a>> {
     net_cap: &'static NetworkCapability,
 }
 
+type Rf233 = capsules_extra::rf233::RF233<
+    'static,
+    capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
+        'static,
+        sam4l::spi::SpiHw<'static>,
+    >,
+>;
+type Ieee802154MacDevice =
+    components::ieee802154::Ieee802154ComponentMacDeviceType<Rf233, sam4l::aes::Aes<'static>>;
+
 pub unsafe fn run(
-    mux_mac: &'static capsules_extra::ieee802154::virtual_mac::MuxMac<'static>,
+    mux_mac: &'static capsules_extra::ieee802154::virtual_mac::MuxMac<'static, Ieee802154MacDevice>,
     mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>,
 ) {
     let create_cap = create_capability!(NetworkCapabilityCreationCapability);
@@ -81,7 +91,7 @@ pub unsafe fn run(
         IpVisibilityCapability::new(&create_cap)
     );
     let radio_mac = static_init!(
-        capsules_extra::ieee802154::virtual_mac::MacUser<'static>,
+        capsules_extra::ieee802154::virtual_mac::MacUser<'static, Ieee802154MacDevice>,
         capsules_extra::ieee802154::virtual_mac::MacUser::new(mux_mac)
     );
     mux_mac.add_user(radio_mac);
