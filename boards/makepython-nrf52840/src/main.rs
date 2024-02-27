@@ -113,6 +113,15 @@ type ScreenDriver = components::screen::ScreenSharedComponentType<Screen>;
 
 type Checker = kernel::process_checker::basic::AppCheckerNames<'static, fn(&'static str) -> u32>;
 
+type Ieee802154MacDevice = components::ieee802154::Ieee802154ComponentMacDeviceType<
+    nrf52840::ieee802154_radio::Radio<'static>,
+    nrf52840::aes::AesECB<'static>,
+>;
+type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<
+    nrf52840::ieee802154_radio::Radio<'static>,
+    nrf52840::aes::AesECB<'static>,
+>;
+
 /// Supported drivers by the platform
 pub struct Platform {
     ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
@@ -123,7 +132,7 @@ pub struct Platform {
             nrf52::rtc::Rtc<'static>,
         >,
     >,
-    ieee802154_radio: &'static capsules_extra::ieee802154::RadioDriver<'static>,
+    ieee802154_radio: &'static Ieee802154Driver,
     console: &'static capsules_core::console::Console<'static>,
     pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
@@ -605,7 +614,10 @@ pub unsafe fn start() -> (
         local_ip_ifaces,
         mux_alarm,
     )
-    .finalize(components::udp_mux_component_static!(nrf52840::rtc::Rtc));
+    .finalize(components::udp_mux_component_static!(
+        nrf52840::rtc::Rtc,
+        Ieee802154MacDevice
+    ));
 
     // UDP driver initialization happens here
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
