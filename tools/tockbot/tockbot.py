@@ -69,6 +69,14 @@ def task_stale_pr_assign(config, task_config, gh, repo, rand, log, dry_run):
     # Get the list of open PRs:
     prs = verbose_pr_stream(repo.get_pulls(state="open"), log)
 
+    # Ignore all draft PRs:
+    prs = CallbackFilter(
+        lambda pr: pr.draft == False,
+        lambda filtered: log.debug(
+            f"-> Filtered #{filtered.number}, is a draft PR."),
+        prs,
+    )
+
     # Filter out PRs that are marked as ignored by this tool:
     prs = ignore_prs_filter(config, prs, log)
 
