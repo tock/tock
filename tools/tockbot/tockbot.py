@@ -22,14 +22,36 @@ install_cache(
     },
 )
 
+class CallbackFilter:
+    def __init__(self, function, filtered_cb, sequence):
+        self.function = function
+        self.sequence = sequence
+        self.filtered_cb = filtered_cb
 
-def ignore_prs_filter(config, prs):
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        # Let any StopIteration exception bubble up the call stack
+        while True:
+            item = next(self.sequence)
+            if self.function(item):
+                return item
+            else:
+                self.filtered_cb(item)
+
+def ignore_prs_filter(config, prs, logger):
     if "ignored_label" in config:
-        return filter(
+        ignored_label = config["ignored_label"]
+        return CallbackFilter(
             lambda pr: not any(map(
-                lambda l: l.name == config["ignored_label"],
+                lambda l: l.name == ignored_label,
                 pr.get_labels()
             )),
+            lambda ignored: logger.debug(
+                f"-> Filtered #{filtered.number}, is ignored by label "
+                + f"\"{ignored_label}\"."
+            ),
             prs
         )
     else:
@@ -48,17 +70,22 @@ def task_stale_pr_assign(config, task_config, gh, repo, rand, log, dry_run):
     prs = verbose_pr_stream(repo.get_pulls(state="open"), log)
 
     # Filter out PRs that are marked as ignored by this tool:
-    prs = ignore_prs_filter(config, prs)
+    prs = ignore_prs_filter(config, prs, log)
 
     # Filter out PRs that are assigned to one or more users:
-    prs = filter(lambda pr: len(pr.assignees) == 0, prs)
+    prs = CallbackFilter(
+        lambda pr: len(pr.assignees) == 0,
+        lambda filtered: log.debug(
+            f"-> Filtered #{filtered.number}, has assignees."),
+        prs,
+    )
 
     # Filter out PRs which have received reviews that are not dismissed
     # (optionally filted by a designated group of people, if the config is not
     # an empty list):
     no_reviews_cond = task_config.get("no_reviews_by", None)
     if no_reviews_cond is not None:
-        prs = filter(
+        prs = CallbackFilter(
             lambda pr: not any(map(
                 lambda review: (
                     # Only keep PRs that do not have any review where the
@@ -71,6 +98,8 @@ def task_stale_pr_assign(config, task_config, gh, repo, rand, log, dry_run):
                 ),
                 pr.get_reviews(),
             )),
+            lambda filtered: log.debug(
+                f"-> Filtered #{filtered.number}, has current reviews."),
             prs
         )
 
@@ -80,7 +109,7 @@ def task_stale_pr_assign(config, task_config, gh, repo, rand, log, dry_run):
         comments_since = datetime.now(timezone.utc) \
             - timedelta(seconds=task_config["staleness_time"])
 
-        prs = filter(
+        prs = CallbackFilter(
             lambda pr: (
                 (
                     # Keep PRs that do _not_ have at least one review comment or
@@ -92,6 +121,8 @@ def task_stale_pr_assign(config, task_config, gh, repo, rand, log, dry_run):
                     pr.created_at < comments_since
                 )
             ),
+            lambda filtered: log.debug(
+                f"-> Filtered #{filtered.number}, not stale."),
             prs
         )
 
