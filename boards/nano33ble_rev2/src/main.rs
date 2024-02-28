@@ -29,9 +29,6 @@ use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
 
-#[allow(dead_code)]
-mod test;
-
 // Three-color LED.
 const LED_RED_PIN: Pin = Pin::P0_24;
 const LED_GREEN_PIN: Pin = Pin::P0_16;
@@ -115,6 +112,20 @@ fn baud_rate_reset_bootloader_enter() {
     }
 }
 
+type HS3003Sensor = components::hs3003::Hs3003ComponentType<
+    capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52840::i2c::TWI<'static>>,
+>;
+type TemperatureDriver = components::temperature::TemperatureComponentType<HS3003Sensor>;
+type HumidityDriver = components::humidity::HumidityComponentType<HS3003Sensor>;
+type Ieee802154MacDevice = components::ieee802154::Ieee802154ComponentMacDeviceType<
+    nrf52840::ieee802154_radio::Radio<'static>,
+    nrf52840::aes::AesECB<'static>,
+>;
+type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<
+    nrf52840::ieee802154_radio::Radio<'static>,
+    nrf52840::aes::AesECB<'static>,
+>;
+
 /// Supported drivers by the platform
 pub struct Platform {
     ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
@@ -125,7 +136,7 @@ pub struct Platform {
             nrf52::rtc::Rtc<'static>,
         >,
     >,
-    ieee802154_radio: &'static capsules_extra::ieee802154::RadioDriver<'static>,
+    ieee802154_radio: &'static Ieee802154Driver,
     console: &'static capsules_core::console::Console<'static>,
     pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
@@ -147,8 +158,8 @@ pub struct Platform {
             >,
         >,
     >,
-    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
-    humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
+    temperature: &'static TemperatureDriver,
+    humidity: &'static HumidityDriver,
     ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
     gpio: &'static capsules_core::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
     led: &'static capsules_core::led::LedDriver<
@@ -526,17 +537,17 @@ pub unsafe fn start() -> (
         capsules_extra::temperature::DRIVER_NUM,
         hs3003,
     )
-    .finalize(components::temperature_component_static!());
+    .finalize(components::temperature_component_static!(HS3003Sensor));
     let humidity = components::humidity::HumidityComponent::new(
         board_kernel,
         capsules_extra::humidity::DRIVER_NUM,
         hs3003,
     )
-    .finalize(components::humidity_component_static!());
+    .finalize(components::humidity_component_static!(HS3003Sensor));
 
     let bmm150 = components::bmm150::BMM150Component::new(sensors_i2c_bus, 0x10)
         .finalize(components::bmm150_component_static!(nrf52840::i2c::TWI));
-     let bmi270 = components::bmi270::BMI270Component::new(sensors_i2c_bus, 0x68)
+    let bmi270 = components::bmi270::BMI270Component::new(sensors_i2c_bus, 0x68)
         .finalize(components::bmi270_component_static!(nrf5240::i2c::TWI));
     let ninedof = components::ninedof::NineDofComponent::new(
         board_kernel,
