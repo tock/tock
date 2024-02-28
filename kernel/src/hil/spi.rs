@@ -14,7 +14,6 @@
 // Author: Amit Aryeh Levy <amit@amitlevy.com>
 
 use crate::ErrorCode;
-use core::option::Option;
 
 /// Data order defines the order of bits sent over the wire: most
 /// significant first, or least significant first.

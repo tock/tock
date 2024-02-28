@@ -9,7 +9,6 @@
 //! - error types
 //! - interface trait for context switches
 
-use core::convert::TryFrom;
 use core::fmt::Write;
 
 use crate::errorcode::ErrorCode;

@@ -143,15 +143,15 @@ impl<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>> Component
         // pointers to them.
         let kernel_addresses = unsafe {
             process_console::KernelAddresses {
-                stack_start: &_sstack as *const u8,
-                stack_end: &_estack as *const u8,
-                text_start: &_stext as *const u8,
-                text_end: &_etext as *const u8,
-                read_only_data_start: &_srodata as *const u8,
-                relocations_start: &_srelocate as *const u8,
-                relocations_end: &_erelocate as *const u8,
-                bss_start: &_szero as *const u8,
-                bss_end: &_ezero as *const u8,
+                stack_start: core::ptr::addr_of!(_sstack),
+                stack_end: core::ptr::addr_of!(_estack),
+                text_start: core::ptr::addr_of!(_stext),
+                text_end: core::ptr::addr_of!(_etext),
+                read_only_data_start: core::ptr::addr_of!(_srodata),
+                relocations_start: core::ptr::addr_of!(_srelocate),
+                relocations_end: core::ptr::addr_of!(_erelocate),
+                bss_start: core::ptr::addr_of!(_szero),
+                bss_end: core::ptr::addr_of!(_ezero),
             }
         };
 

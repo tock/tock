@@ -77,6 +77,7 @@ pub mod si7021;
 pub mod siphash;
 pub mod sound_pressure;
 pub mod spi;
+pub mod ssd1306;
 pub mod st77xx;
 pub mod temperature;
 pub mod temperature_rp2040;

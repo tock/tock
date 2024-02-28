@@ -8,7 +8,6 @@
 
 use core::cell::Cell;
 use core::cmp::min;
-use core::convert::From;
 use core::fmt;
 
 use kernel::hil::usb::TransferType;

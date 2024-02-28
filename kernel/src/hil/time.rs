@@ -16,7 +16,7 @@
 //! into these more general ones.
 
 use crate::ErrorCode;
-use core::cmp::{Eq, Ord, Ordering, PartialOrd};
+use core::cmp::Ordering;
 use core::fmt;
 
 /// An integer type defining the width of a time value, which allows

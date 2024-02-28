@@ -316,7 +316,7 @@ pub unsafe fn disable_fpca() {
 }
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe fn disable_fpca() {
     // Dummy read register, to satisfy the `Readable` trait import on
     // non-ARM platforms.

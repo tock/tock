@@ -104,6 +104,15 @@ impl<'a, C: Chip> Scheduler<C> for RoundRobinSched<'a> {
                 }
             }
         }
+
+        let next = match next {
+            Some(p) => p,
+            None => {
+                // No processes on the system
+                return SchedulingDecision::TrySleep;
+            }
+        };
+
         let timeslice = if self.last_rescheduled.get() {
             self.time_remaining.get()
         } else {
@@ -113,9 +122,7 @@ impl<'a, C: Chip> Scheduler<C> for RoundRobinSched<'a> {
         };
         assert!(timeslice != 0);
 
-        // next will not be None, because if we make a full iteration and nothing
-        // is ready we return early
-        SchedulingDecision::RunProcess((next.unwrap(), Some(timeslice)))
+        SchedulingDecision::RunProcess((next, Some(timeslice)))
     }
 
     fn result(&self, result: StoppedExecutingReason, execution_time_us: Option<u32>) {

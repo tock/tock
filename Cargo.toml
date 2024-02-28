@@ -29,6 +29,7 @@ members = [
     "boards/msp_exp432p401r",
     "boards/microbit_v2",
     "boards/wm1110dev",
+    "boards/makepython-nrf52840",
     "boards/nordic/nrf52840dk",
     "boards/nordic/nrf52840_dongle",
     "boards/nordic/nrf52dk",

@@ -24,8 +24,6 @@
 //! - Pinmux Pin/Select Names
 //! - Power Manager Wakeups
 
-use core::convert::TryFrom;
-
 /// Peripheral base address for uart0 in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped

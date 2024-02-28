@@ -171,7 +171,10 @@ impl<R: RegisterLongName, const V: usize> ReadWriteRiscvCsr<usize, R, V> {
     /// instruction where `rs1 = in(reg) value_to_set` and `rd =
     /// out(reg) <return value>`.
     // Mock implementations for tests on Travis-CI.
-    #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64", target_os = "none")))]
+    #[cfg(not(all(
+        any(target_arch = "riscv32", target_arch = "riscv64"),
+        target_os = "none"
+    )))]
     pub fn atomic_replace(&self, _value_to_set: usize) -> usize {
         unimplemented!("RISC-V CSR {} Atomic Read/Write", V)
     }
@@ -204,7 +207,10 @@ impl<R: RegisterLongName, const V: usize> ReadWriteRiscvCsr<usize, R, V> {
     /// instruction where `rs1 = in(reg) bitmask` and `rd = out(reg)
     /// <return value>`.
     // Mock implementations for tests on Travis-CI.
-    #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64", target_os = "none")))]
+    #[cfg(not(all(
+        any(target_arch = "riscv32", target_arch = "riscv64"),
+        target_os = "none"
+    )))]
     pub fn read_and_set_bits(&self, bitmask: usize) -> usize {
         unimplemented!(
             "RISC-V CSR {} Atomic Read and Set Bits, bitmask {:04x}",
@@ -241,7 +247,10 @@ impl<R: RegisterLongName, const V: usize> ReadWriteRiscvCsr<usize, R, V> {
     /// instruction where `rs1 = in(reg) bitmask` and `rd = out(reg)
     /// <return value>`.
     // Mock implementations for tests on Travis-CI.
-    #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64", target_os = "none")))]
+    #[cfg(not(all(
+        any(target_arch = "riscv32", target_arch = "riscv64"),
+        target_os = "none"
+    )))]
     pub fn read_and_clear_bits(&self, bitmask: usize) -> usize {
         unimplemented!(
             "RISC-V CSR {} Atomic Read and Clear Bits, bitmask {:04x}",
@@ -294,7 +303,10 @@ impl<R: RegisterLongName, const V: usize> Readable for ReadWriteRiscvCsr<usize, 
     }
 
     // Mock implementations for tests on Travis-CI.
-    #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64", target_os = "none")))]
+    #[cfg(not(all(
+        any(target_arch = "riscv32", target_arch = "riscv64"),
+        target_os = "none"
+    )))]
     fn get(&self) -> usize {
         unimplemented!("reading RISC-V CSR {}", V)
     }
@@ -316,7 +328,10 @@ impl<R: RegisterLongName, const V: usize> Writeable for ReadWriteRiscvCsr<usize,
         }
     }
 
-    #[cfg(not(any(target_arch = "riscv32", target_arch = "riscv64", target_os = "none")))]
+    #[cfg(not(all(
+        any(target_arch = "riscv32", target_arch = "riscv64"),
+        target_os = "none"
+    )))]
     fn set(&self, _val_to_set: usize) {
         unimplemented!("writing RISC-V CSR {}", V)
     }

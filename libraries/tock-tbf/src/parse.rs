@@ -4,8 +4,6 @@
 
 //! Tock Binary Format parsing code.
 
-use core::convert::TryInto;
-use core::iter::Iterator;
 use core::{mem, str};
 
 use crate::types;

@@ -15,7 +15,6 @@
 //! ```
 
 use core::cell::Cell;
-use core::convert::From;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;

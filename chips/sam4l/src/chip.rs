@@ -7,7 +7,7 @@
 use crate::pm;
 
 use core::fmt::Write;
-use cortexm4::{self, CortexM4, CortexMVariant};
+use cortexm4::{CortexM4, CortexMVariant};
 use kernel::platform::chip::{Chip, InterruptService};
 
 pub struct Sam4l<I: InterruptService + 'static> {

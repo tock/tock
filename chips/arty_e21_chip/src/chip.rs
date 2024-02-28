@@ -3,12 +3,10 @@
 // Copyright Tock Contributors 2022.
 
 use core::fmt::Write;
-use kernel;
 use kernel::debug;
 use kernel::hil::time::Freq32KHz;
 use kernel::platform::chip::InterruptService;
 use kernel::utilities::registers::interfaces::Readable;
-use rv32i;
 
 use crate::clint;
 use crate::interrupts;
@@ -134,7 +132,7 @@ impl<'a, I: InterruptService + 'a> ArtyExx<'a, I> {
     }
 
     // Mock implementation for tests on Travis-CI.
-    #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+    #[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
     pub unsafe fn configure_trap_handler(&self) {
         unimplemented!()
     }

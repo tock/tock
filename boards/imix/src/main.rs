@@ -115,6 +115,13 @@ type SI7021Sensor = components::si7021::SI7021ComponentType<
 type TemperatureDriver = components::temperature::TemperatureComponentType<SI7021Sensor>;
 type HumidityDriver = components::humidity::HumidityComponentType<SI7021Sensor>;
 
+type Rf233 = capsules_extra::rf233::RF233<
+    'static,
+    VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw<'static>>,
+>;
+type Ieee802154MacDevice =
+    components::ieee802154::Ieee802154ComponentMacDeviceType<Rf233, sam4l::aes::Aes<'static>>;
+
 struct Imix {
     pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
@@ -671,10 +678,10 @@ pub unsafe fn main() {
         board_kernel,
         capsules_extra::nonvolatile_storage_driver::DRIVER_NUM,
         &peripherals.flash_controller,
-        0x60000,                          // Start address for userspace accessible region
-        0x20000,                          // Length of userspace accessible region
-        &_sstorage as *const u8 as usize, //start address of kernel region
-        &_estorage as *const u8 as usize - &_sstorage as *const u8 as usize, // length of kernel region
+        0x60000, // Start address for userspace accessible region
+        0x20000, // Length of userspace accessible region
+        core::ptr::addr_of!(_sstorage) as usize, //start address of kernel region
+        core::ptr::addr_of!(_estorage) as usize - core::ptr::addr_of!(_sstorage) as usize, // length of kernel region
     )
     .finalize(components::nonvolatile_storage_component_static!(
         sam4l::flashcalw::FLASHCALW
@@ -705,7 +712,10 @@ pub unsafe fn main() {
         local_ip_ifaces,
         mux_alarm,
     )
-    .finalize(components::udp_mux_component_static!(sam4l::ast::Ast));
+    .finalize(components::udp_mux_component_static!(
+        sam4l::ast::Ast,
+        Ieee802154MacDevice
+    ));
 
     // UDP driver initialization happens here
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
@@ -826,12 +836,12 @@ pub unsafe fn main() {
         &imix,
         chip,
         core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
         ),
         core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+            core::ptr::addr_of_mut!(_sappmem),
+            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
         &mut PROCESSES,
         &FAULT_RESPONSE,

@@ -143,7 +143,7 @@ register_bitfields![u32,
 
 // for use by dma1
 pub(crate) fn get_address_dr(regs: StaticRef<SpiRegisters>) -> u32 {
-    &regs.dr as *const ReadWrite<u32, DR::Register> as u32
+    core::ptr::addr_of!(regs.dr) as u32
 }
 
 pub const SPI3_BASE: StaticRef<SpiRegisters> =

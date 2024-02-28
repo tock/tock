@@ -27,7 +27,6 @@
 //! option.
 
 use core::cell::Cell;
-use core::convert::TryInto;
 use core::{cmp, mem};
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::hasher::{Client, Hasher, SipHash};

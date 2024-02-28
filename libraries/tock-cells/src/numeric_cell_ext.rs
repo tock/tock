@@ -17,7 +17,6 @@
 //! ```
 
 use core::cell::Cell;
-use core::marker::Copy;
 use core::ops::{Add, Sub};
 
 pub trait NumericCellExt<T>

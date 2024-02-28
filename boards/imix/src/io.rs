@@ -4,12 +4,10 @@
 
 use core::fmt::Write;
 use core::panic::PanicInfo;
-use cortexm4;
 use kernel::debug;
 use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart::{self, Configure};
-use sam4l;
 
 use crate::CHIP;
 use crate::PROCESSES;

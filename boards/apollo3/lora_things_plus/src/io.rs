@@ -8,7 +8,6 @@ use core::panic::PanicInfo;
 use crate::CHIP;
 use crate::PROCESSES;
 use crate::PROCESS_PRINTER;
-use apollo3;
 use kernel::debug;
 use kernel::debug::IoWrite;
 use kernel::hil::led;

@@ -8,6 +8,7 @@
 //! See the [AppID TRD](../../doc/reference/trd-appid.md).
 
 pub mod basic;
+pub mod signature;
 
 use crate::config;
 use crate::debug;

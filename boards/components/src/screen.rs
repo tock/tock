@@ -31,10 +31,12 @@
 //! ```
 
 use capsules_extra::screen::Screen;
+use capsules_extra::screen_shared::ScreenShared;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
+use kernel::hil;
 
 #[macro_export]
 macro_rules! screen_component_static {
@@ -95,6 +97,74 @@ impl<const SCREEN_BUF_LEN: usize> Component for ScreenComponent<SCREEN_BUF_LEN> 
         if let Some(screen_setup) = self.screen_setup {
             kernel::hil::screen::ScreenSetup::set_client(screen_setup, screen);
         }
+
+        screen
+    }
+}
+
+#[macro_export]
+macro_rules! screen_shared_component_static {
+    ($s:literal, $S:ty $(,)?) => {{
+        let buffer = kernel::static_buf!([u8; $s]);
+        let screen = kernel::static_buf!(capsules_extra::screen_shared::ScreenShared<$S>);
+
+        (buffer, screen)
+    };};
+}
+
+pub type ScreenSharedComponentType<S> = capsules_extra::screen_shared::ScreenShared<'static, S>;
+
+pub struct ScreenSharedComponent<
+    const SCREEN_BUF_LEN: usize,
+    S: hil::screen::Screen<'static> + 'static,
+> {
+    board_kernel: &'static kernel::Kernel,
+    driver_num: usize,
+    screen: &'static S,
+    apps_regions: &'static [capsules_extra::screen_shared::AppScreenRegion],
+}
+
+impl<const SCREEN_BUF_LEN: usize, S: hil::screen::Screen<'static>>
+    ScreenSharedComponent<SCREEN_BUF_LEN, S>
+{
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        driver_num: usize,
+        screen: &'static S,
+        apps_regions: &'static [capsules_extra::screen_shared::AppScreenRegion],
+    ) -> ScreenSharedComponent<SCREEN_BUF_LEN, S> {
+        ScreenSharedComponent {
+            board_kernel,
+            driver_num,
+            screen,
+            apps_regions,
+        }
+    }
+}
+
+impl<const SCREEN_BUF_LEN: usize, S: hil::screen::Screen<'static>> Component
+    for ScreenSharedComponent<SCREEN_BUF_LEN, S>
+{
+    type StaticInput = (
+        &'static mut MaybeUninit<[u8; SCREEN_BUF_LEN]>,
+        &'static mut MaybeUninit<ScreenShared<'static, S>>,
+    );
+    type Output = &'static ScreenShared<'static, S>;
+
+    fn finalize(self, static_input: Self::StaticInput) -> Self::Output {
+        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+        let grant_screen = self.board_kernel.create_grant(self.driver_num, &grant_cap);
+
+        let buffer = static_input.0.write([0; SCREEN_BUF_LEN]);
+
+        let screen = static_input.1.write(ScreenShared::new(
+            self.screen,
+            grant_screen,
+            buffer,
+            self.apps_regions,
+        ));
+
+        kernel::hil::screen::Screen::set_client(self.screen, screen);
 
         screen
     }

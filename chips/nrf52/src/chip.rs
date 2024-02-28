@@ -3,7 +3,7 @@
 // Copyright Tock Contributors 2022.
 
 use core::fmt::Write;
-use cortexm4::{self, nvic, CortexM4, CortexMVariant};
+use cortexm4::{nvic, CortexM4, CortexMVariant};
 use kernel::platform::chip::InterruptService;
 
 pub struct NRF52<'a, I: InterruptService + 'a> {
