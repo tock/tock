@@ -37,6 +37,8 @@ macro_rules! hs3003_component_static {
     };};
 }
 
+pub type Hs3003ComponentType<I> = Hs3003<'static, I>;
+
 pub struct Hs3003Component<I: 'static + i2c::I2CMaster<'static>> {
     i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,
