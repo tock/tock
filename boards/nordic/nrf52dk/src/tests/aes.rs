@@ -30,6 +30,6 @@ unsafe fn static_init_test(
 
     static_init!(
         TestAes128Ctr<'static, AesECB>,
-        TestAes128Ctr::new(aesecb, key, iv, source, data)
+        TestAes128Ctr::new(aesecb, key, iv, source, data, true)
     )
 }

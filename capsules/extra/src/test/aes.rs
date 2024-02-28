@@ -19,6 +19,7 @@ pub struct TestAes128Ctr<'a, A: 'a> {
     iv: TakeCell<'a, [u8]>,
     source: TakeCell<'static, [u8]>,
     data: TakeCell<'static, [u8]>,
+    test_decrypt: bool,
 
     encrypting: Cell<bool>,
     use_source: Cell<bool>,
@@ -31,6 +32,7 @@ pub struct TestAes128Cbc<'a, A: 'a> {
     iv: TakeCell<'a, [u8]>,
     source: TakeCell<'static, [u8]>,
     data: TakeCell<'static, [u8]>,
+    test_decrypt: bool,
 
     encrypting: Cell<bool>,
     use_source: Cell<bool>,
@@ -42,6 +44,7 @@ pub struct TestAes128Ecb<'a, A: 'a> {
     key: TakeCell<'a, [u8]>,
     source: TakeCell<'static, [u8]>,
     data: TakeCell<'static, [u8]>,
+    test_decrypt: bool,
 
     encrypting: Cell<bool>,
     use_source: Cell<bool>,
@@ -56,6 +59,7 @@ impl<'a, A: AES128<'a> + AES128ECB> TestAes128Ecb<'a, A> {
         key: &'a mut [u8],
         source: &'static mut [u8],
         data: &'static mut [u8],
+        test_decrypt: bool,
     ) -> Self {
         TestAes128Ecb {
             aes: aes,
@@ -63,6 +67,7 @@ impl<'a, A: AES128<'a> + AES128ECB> TestAes128Ecb<'a, A> {
             key: TakeCell::new(key),
             source: TakeCell::new(source),
             data: TakeCell::new(data),
+            test_decrypt,
 
             encrypting: Cell::new(true),
             use_source: Cell::new(true),
@@ -146,6 +151,7 @@ impl<'a, A: AES128<'a> + AES128Ctr> TestAes128Ctr<'a, A> {
         iv: &'a mut [u8],
         source: &'static mut [u8],
         data: &'static mut [u8],
+        test_decrypt: bool,
     ) -> Self {
         TestAes128Ctr {
             aes: aes,
@@ -154,6 +160,7 @@ impl<'a, A: AES128<'a> + AES128Ctr> TestAes128Ctr<'a, A> {
             iv: TakeCell::new(iv),
             source: TakeCell::new(source),
             data: TakeCell::new(data),
+            test_decrypt,
 
             encrypting: Cell::new(true),
             use_source: Cell::new(true),
@@ -288,7 +295,7 @@ impl<'a, A: AES128<'a> + AES128Ctr> hil::symmetric_encryption::Client<'a> for Te
             self.use_source.set(false);
             self.run();
         } else {
-            if self.encrypting.get() {
+            if self.encrypting.get() && self.test_decrypt {
                 self.encrypting.set(false);
                 self.use_source.set(true);
                 self.run();
@@ -304,6 +311,7 @@ impl<'a, A: AES128<'a> + AES128CBC> TestAes128Cbc<'a, A> {
         iv: &'a mut [u8],
         source: &'static mut [u8],
         data: &'static mut [u8],
+        test_decrypt: bool,
     ) -> Self {
         TestAes128Cbc {
             aes: aes,
@@ -312,6 +320,7 @@ impl<'a, A: AES128<'a> + AES128CBC> TestAes128Cbc<'a, A> {
             iv: TakeCell::new(iv),
             source: TakeCell::new(source),
             data: TakeCell::new(data),
+            test_decrypt,
 
             encrypting: Cell::new(true),
             use_source: Cell::new(true),
@@ -445,7 +454,7 @@ impl<'a, A: AES128<'a> + AES128CBC> hil::symmetric_encryption::Client<'a> for Te
             self.use_source.set(false);
             self.run();
         } else {
-            if self.encrypting.get() {
+            if self.encrypting.get() && self.test_decrypt {
                 self.encrypting.set(false);
                 self.use_source.set(true);
                 self.run();
@@ -500,7 +509,7 @@ impl<'a, A: AES128<'a> + AES128ECB> hil::symmetric_encryption::Client<'a> for Te
             self.use_source.set(false);
             self.run();
         } else {
-            if self.encrypting.get() {
+            if self.encrypting.get() && self.test_decrypt {
                 self.encrypting.set(false);
                 self.use_source.set(true);
                 self.run();
