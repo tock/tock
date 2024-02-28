@@ -127,8 +127,3 @@ impl CapsuleTest for TestHmacSha256 {
         self.client.set(client);
     }
 }
-
-impl digest::ClientVerify<32> for TestHmacSha256 {
-    fn verification_done(&self, _result: Result<bool, ErrorCode>, _compare: &'static mut [u8; 32]) {
-    }
-}
