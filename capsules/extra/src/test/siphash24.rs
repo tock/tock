@@ -61,12 +61,9 @@ impl Client<8> for TestSipHash24 {
     fn hash_done(&self, _result: Result<(), ErrorCode>, digest: &'static mut [u8; 8]) {
         let correct = self.correct_hash.take().unwrap();
 
-        let mut matches = true;
-        for i in 0..8 {
-            if correct[i] != digest[i] {
-                matches = false;
-                kernel::debug!("TestSipHash24: incorrect hash output!");
-            }
+        let matches = correct != digest;
+        if !matches {
+            kernel::debug!("TestSipHash24: incorrect hash output!");
         }
         kernel::debug!("TestSipHash24 matches!");
 
