@@ -18,6 +18,7 @@ pub use cortexm::nvic;
 pub use cortexm::scb;
 pub use cortexm::support;
 pub use cortexm::systick;
+pub use cortexm::unhandled_interrupt;
 pub use cortexm::CortexMVariant;
 
 // Enum with no variants to ensure that this type is not instantiable. It is
