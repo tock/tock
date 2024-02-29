@@ -121,6 +121,7 @@ type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<
     nrf52840::ieee802154_radio::Radio<'static>,
     nrf52840::aes::AesECB<'static>,
 >;
+type RngDriver = components::rng::RngComponentType<nrf52840::trng::Trng<'static>>;
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -150,7 +151,7 @@ pub struct Platform {
         1,
     >,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
-    rng: &'static capsules_core::rng::RngDriver<'static>,
+    rng: &'static RngDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     alarm: &'static AlarmDriver,
     button: &'static capsules_core::button::Button<'static, nrf52840::gpio::GPIOPin<'static>>,
@@ -421,7 +422,7 @@ pub unsafe fn start() -> (
         capsules_core::rng::DRIVER_NUM,
         &base_peripherals.trng,
     )
-    .finalize(components::rng_component_static!());
+    .finalize(components::rng_component_static!(nrf52840::trng::Trng));
 
     //--------------------------------------------------------------------------
     // ADC

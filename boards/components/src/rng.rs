@@ -27,27 +27,31 @@ use kernel::hil::rng::Rng;
 
 #[macro_export]
 macro_rules! rng_component_static {
-    () => {{
-        let etr = kernel::static_buf!(capsules_core::rng::Entropy32ToRandom<'static>);
-        let rng = kernel::static_buf!(capsules_core::rng::RngDriver<'static>);
+    ($E: ty $(,)?) => {{
+        let etr = kernel::static_buf!(capsules_core::rng::Entropy32ToRandom<'static, $E>);
+        let rng = kernel::static_buf!(
+            capsules_core::rng::RngDriver<
+                'static,
+                capsules_core::rng::Entropy32ToRandom<'static, $E>,
+            >
+        );
 
         (etr, rng)
     };};
 }
 
-pub struct RngComponent {
+pub type RngComponentType<E> =
+    rng::RngDriver<'static, capsules_core::rng::Entropy32ToRandom<'static, E>>;
+
+pub struct RngComponent<E: Entropy32<'static> + 'static> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
-    trng: &'static dyn Entropy32<'static>,
+    trng: &'static E,
 }
 
-impl RngComponent {
-    pub fn new(
-        board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
-        trng: &'static dyn Entropy32<'static>,
-    ) -> RngComponent {
-        RngComponent {
+impl<E: Entropy32<'static>> RngComponent<E> {
+    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize, trng: &'static E) -> Self {
+        Self {
             board_kernel: board_kernel,
             driver_num: driver_num,
             trng: trng,
@@ -55,12 +59,18 @@ impl RngComponent {
     }
 }
 
-impl Component for RngComponent {
+impl<E: Entropy32<'static>> Component for RngComponent<E> {
     type StaticInput = (
-        &'static mut MaybeUninit<capsules_core::rng::Entropy32ToRandom<'static>>,
-        &'static mut MaybeUninit<capsules_core::rng::RngDriver<'static>>,
+        &'static mut MaybeUninit<capsules_core::rng::Entropy32ToRandom<'static, E>>,
+        &'static mut MaybeUninit<
+            capsules_core::rng::RngDriver<
+                'static,
+                capsules_core::rng::Entropy32ToRandom<'static, E>,
+            >,
+        >,
     );
-    type Output = &'static rng::RngDriver<'static>;
+    type Output =
+        &'static rng::RngDriver<'static, capsules_core::rng::Entropy32ToRandom<'static, E>>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);

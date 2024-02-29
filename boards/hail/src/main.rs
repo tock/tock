@@ -54,6 +54,7 @@ type SI7021Sensor = components::si7021::SI7021ComponentType<
 >;
 type TemperatureDriver = components::temperature::TemperatureComponentType<SI7021Sensor>;
 type HumidityDriver = components::humidity::HumidityComponentType<SI7021Sensor>;
+type RngDriver = components::rng::RngComponentType<sam4l::trng::Trng<'static>>;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -86,7 +87,7 @@ struct Hail {
         3,
     >,
     button: &'static capsules_core::button::Button<'static, sam4l::gpio::GPIOPin<'static>>,
-    rng: &'static capsules_core::rng::RngDriver<'static>,
+    rng: &'static RngDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     crc: &'static capsules_extra::crc::CrcDriver<'static, sam4l::crccu::Crccu<'static>>,
     dac: &'static capsules_extra::dac::Dac<'static>,
@@ -435,7 +436,7 @@ unsafe fn start() -> (
         capsules_core::rng::DRIVER_NUM,
         &peripherals.trng,
     )
-    .finalize(components::rng_component_static!());
+    .finalize(components::rng_component_static!(sam4l::trng::Trng));
 
     // set GPIO driver controlling remaining GPIO pins
     let gpio = components::gpio::GpioComponent::new(
