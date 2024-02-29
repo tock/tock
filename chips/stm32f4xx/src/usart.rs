@@ -499,6 +499,63 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
             }
         }
     }
+
+    fn set_baud_rate(&self, baud_rate: u32) -> Result<(), ErrorCode> {
+        // USARTDIV calculation based on stm32-rs stm32f4xx-hal:
+        // https://github.com/stm32-rs/stm32f4xx-hal/blob/v0.20.0/src/serial/uart_impls.rs#L145
+        //
+        // The equation to calculate USARTDIV is this:
+        //
+        // (Taken from STM32F411xC/E Reference Manual, Section 19.3.4, Equation 1)
+        //
+        // 16 bit oversample: OVER8 = 0
+        // 8 bit oversample:  OVER8 = 1
+        //
+        // USARTDIV =          (pclk)
+        //            ------------------------
+        //            8 x (2 - OVER8) x (baud)
+        //
+        // BUT, the USARTDIV has 4 "fractional" bits, which effectively means that we need to
+        // "correct" the equation as follows:
+        //
+        // USARTDIV =      (pclk) * 16
+        //            ------------------------
+        //            8 x (2 - OVER8) x (baud)
+        //
+        // When OVER8 is enabled, we can only use the lowest three fractional bits, so we'll need
+        // to shift those last four bits right one bit
+
+        let pclk_freq = self.clock.0.get_frequency();
+
+        let (mantissa, fraction) = if (pclk_freq / 16) >= baud_rate {
+            // We have the ability to oversample to 16 bits, take advantage of it.
+            //
+            // We also add `baud / 2` to the `pclk_freq` to ensure rounding of values to the
+            // closest scale, rather than the floored behavior of normal integer division.
+            let div = (pclk_freq + (baud_rate / 2)) / baud_rate;
+
+            self.registers.cr1.modify(CR1::OVER8::CLEAR);
+
+            (div >> 4, div & 0x0F)
+        } else if (pclk_freq / 8) >= baud_rate {
+            // We are close enough to pclk where we can only
+            // oversample 8.
+
+            // See note above regarding `baud` and rounding.
+            let div = ((pclk_freq * 2) + (baud_rate / 2)) / baud_rate;
+
+            self.registers.cr1.modify(CR1::OVER8::SET);
+
+            // Ensure the the fractional bits (only 3) are right-aligned.
+            (div >> 4, (div & 0x0F) >> 1)
+        } else {
+            return Err(ErrorCode::INVAL);
+        };
+
+        self.registers.brr.modify(BRR::DIV_Mantissa.val(mantissa));
+        self.registers.brr.modify(BRR::DIV_Fraction.val(fraction));
+        Ok(())
+    }
 }
 
 impl<'a, DMA: dma::StreamServer<'a>> DeferredCallClient for Usart<'a, DMA> {
@@ -577,15 +634,12 @@ impl<'a, DMA: dma::StreamServer<'a>> hil::uart::Transmit<'a> for Usart<'a, DMA> 
 
 impl<'a, DMA: dma::StreamServer<'a>> hil::uart::Configure for Usart<'a, DMA> {
     fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
-        if params.baud_rate != 115200
-            || params.stop_bits != hil::uart::StopBits::One
+        if params.stop_bits != hil::uart::StopBits::One
             || params.parity != hil::uart::Parity::None
             || params.hw_flow_control
             || params.width != hil::uart::Width::Eight
         {
-            panic!(
-                "Currently we only support uart setting of 115200bps 8N1, no hardware flow control"
-            );
+            panic!("Currently we only support uart setting of 8N1, no hardware flow control");
         }
 
         // Configure the word length - 0: 1 Start bit, 8 Data bits, n Stop bits
@@ -597,13 +651,7 @@ impl<'a, DMA: dma::StreamServer<'a>> hil::uart::Configure for Usart<'a, DMA> {
         // Set no parity
         self.registers.cr1.modify(CR1::PCE::CLEAR);
 
-        // Set the baud rate. By default OVER8 is 0 (oversampling by 16) and
-        // PCLK1 is at 16Mhz. The desired baud rate is 115.2KBps. So according
-        // to Table 149 of reference manual, the value for BRR is 8.6875
-        // DIV_Fraction = 0.6875 * 16 = 11 = 0xB
-        // DIV_Mantissa = 8 = 0x8
-        self.registers.brr.modify(BRR::DIV_Fraction.val(0xB_u32));
-        self.registers.brr.modify(BRR::DIV_Mantissa.val(0x8_u32));
+        self.set_baud_rate(params.baud_rate)?;
 
         // Enable transmit block
         self.registers.cr1.modify(CR1::TE::SET);
