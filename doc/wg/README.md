@@ -6,23 +6,23 @@ particular aspect of Tock.
 
 ## Motivation
 
-Tock relies on contributions from developers with across a variety of
-organizations, physical distance, timezones, and engagement. It has
+Tock relies on contributions from developers across a variety of
+organizations, physical distance, time zones, and engagement. It has
 also grown large in scope. This has resulted in strain on maintainers
 to regularly keep up with contributions while ensuring quality and
 important global policies like safety and security. It has also
 resulted in contributors' work going unaddressed for long periods of
 time.
 
-Tock encompases a large and varied set of subsystems, architectures,
+Tock encompasses a large and varied set of subsystems, architectures,
 focus areas, libraries, ancillary tools, and documentation. Most
 contributors have expertise and stake in a subset of these. Moreover,
 it is impractical for any maintainer to keep up with the discussions
 and direction of each part of the project. Finally, different parts of
 the project should be able to move at different paces, with different
 levels of scrutiny. For example, a soundness bug or performance
-regression in the kernel crate can catestrophically impact all users
-and should be avoided if at all possible, while a sub-optimal design
+regression in the kernel crate can catastrophically impact all users
+and should be avoided if at all possible, while a suboptimal design
 decision in an experimental user-space library is not a big deal.
 
 To facilitate this, working groups take on responsibility for specific
@@ -35,11 +35,11 @@ etc.
 
 Tock development organizes around a core working group as well as
 additional area-specific working groups. The core working group
-oversees the project wholistically, defining high-level design goals
+oversees the project holistically, defining high-level design goals
 and project direction, establishing working groups, and facilitating
 work that spans multiple working groups. Other working groups
 facilitate contributions to specific sub-areas of the project, with
-devolved decision making resposibility for accepting contributions,
+devolved decision-making responsibility for accepting contributions,
 design, and direction.
 
 While working groups *oversee* development, working group members are
@@ -60,13 +60,13 @@ Core Working Group member need not be the working group Lead.
 
 Each working group, including the Core Working Group, establishes its
 own rules and procedures for accepting contributions, communicating,
-meeting, and making decisions. In absense of such rules, working
+meeting, and making decisions. In absence of such rules, working
 groups make decisions by consensus, have weekly voice calls, make
 meeting notes available publicly, and communicate asynchronously via a
 mailing list.
 
 However, working groups are encouraged to avoid consensus-based
-decision making as quickly as possible and establish appropriate
+decision-making as quickly as possible and establish appropriate
 meeting frequency and communication mode for their needs and
 membership.
 
@@ -90,8 +90,8 @@ The Core Working Group's duties are:
 - Managing and overseeing code, documentation, testing, and releases
   for the Tock project.
   - Defining and communicating overall project goals and direction.
-  - Establishing and delegating responsility over components and
-    sub-projects to working groups.
+  - Establishing and delegating responsibility over components and
+    subprojects to working groups.
   - Ensuring that working groups have the people and resources needed
     to accomplish their work.
   - Ensuring working groups are accountable to their delegated
