@@ -2,12 +2,13 @@
 
 ## Attendees
 
+- Amit Levy
 - Phil Levis
 - Hudson Ayers
 - Leon Schuermann
 - Branden Ghena
 - Pat Pannuto
-- Alexandru
+- Alexandru Radovici
 - Johnathan Van Why
 - Brad Campbell
 - Andrew Imwalle
