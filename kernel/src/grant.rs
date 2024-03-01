@@ -622,6 +622,10 @@ impl<'a> GrantKernelData<'a> {
     /// Returns a lifetime limited reference to the requested
     /// `ReadOnlyProcessBuffer`.
     ///
+    /// The len of the returned `ReadOnlyProcessBuffer` must be checked by the caller
+    /// to ensure that a buffer has in fact been allocated. An unallocated buffer will
+    /// be returned as a `ReadOnlyProcessBuffer` of length 0.
+    ///
     /// The `ReadOnlyProcessBuffer` is only valid for as long as this object is
     /// valid, i.e. the lifetime of the app enter closure.
     ///
@@ -656,6 +660,10 @@ impl<'a> GrantKernelData<'a> {
 
     /// Returns a lifetime limited reference to the requested
     /// `ReadWriteProcessBuffer`.
+    ///
+    /// The len of the returned `ReadWriteProcessBuffer` must be checked by the caller
+    /// to ensure that a buffer has in fact been allocated. An unallocated buffer will
+    /// be returned as a `ReadWriteProcessBuffer` of length 0.
     ///
     /// The ReadWriteProcessBuffer is only value for as long as this object is
     /// valid, i.e. the lifetime of the app enter closure.
