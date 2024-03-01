@@ -23,10 +23,11 @@ install_cache(
 )
 
 class CallbackFilter:
-    def __init__(self, function, filtered_cb, sequence):
+    def __init__(self, function, filtered_cb, sequence, passthrough_cb=None):
         self.function = function
         self.sequence = sequence
         self.filtered_cb = filtered_cb
+        self.passthrough_cb = passthrough_cb
 
     def __iter__(self):
         return self
@@ -36,6 +37,8 @@ class CallbackFilter:
         while True:
             item = next(self.sequence)
             if self.function(item):
+                if self.passthrough_cb is not None:
+                    self.passthrough_cb(item)
                 return item
             else:
                 self.filtered_cb(item)
@@ -43,22 +46,29 @@ class CallbackFilter:
 def ignore_prs_filter(config, task_config, prs, logger):
     filtered = prs
 
-    # Build a chain of filters over each of the labels:
-    for ignored_label in (
-        config.get("ignored_labels", [])
-        + task_config.get("ignored_labels", [])
-    ):
-        filtered = CallbackFilter(
+    def build_filter(ignored_label, sequence):
+        return CallbackFilter(
             lambda pr: not any(map(
                 lambda l: l.name == ignored_label,
                 pr.get_labels()
             )),
             lambda ignored: logger.debug(
-                f"-> Filtered #{filtered.number}, is ignored by label "
+                f"-> Filtered #{ignored.number}, is ignored by label "
                 + f"\"{ignored_label}\"."
             ),
-            filtered
+            filtered,
+            passthrough_cb=lambda pr: logger.debug(
+                f"-> Passing through #{pr.number}, does not have label "
+                + f"\"{ignored_label}\"."
+            ),
         )
+
+    # Build a chain of filters over each of the labels:
+    for ignored_label in (
+        config.get("ignored_labels", [])
+        + task_config.get("ignored_labels", [])
+    ):
+        filtered = build_filter(ignored_label, filtered)
 
     return filtered
 
