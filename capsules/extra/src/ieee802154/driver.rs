@@ -7,16 +7,63 @@
 //! Implements a userspace interface for sending and receiving IEEE 802.15.4
 //! frames. Also provides a minimal list-based interface for managing keys and
 //! known link neighbors, which is needed for 802.15.4 security.
+//!
+//! The driver functionality can be divided into three aspects: sending
+//! packets, receiving packets, and managing the 15.4 state (i.e. keys, neighbors,
+//! buffers, addressing, etc). The general design and procedure for sending and
+//! receiving is discussed below.
+//!
+//! Sending - The driver supports two modes of sending: Raw and Parse. In Raw mode,
+//! the userprocess fully forms the 15.4 frame and passes it to the driver. In Parse
+//! mode, the userprocess provides the payload and relevant metadata. From this
+//! the driver forms the 15.4 header and secures the payload. To send a packet,
+//! the userprocess issues the respective send command syscall (corresponding to
+//! raw or parse mode of sending). The 15.4 capsule will then schedule an upcall,
+//! upon completion of the transmission, to notify the process.
+//!
+//! Receiving - The driver receives 15.4 frames and passes them to the userprocess.
+//! To accomplish this, the userprocess must first `allow` a read/write ring buffer
+//! to the kernel. The kernel will then fill this buffer with received frames and
+//! schedule an upcall upon receipt of the first packet. When handling the upcall
+//! the userprocess must first `unallow` the buffer as described in section 4.4 of
+//! TRD104-syscalls. After unallowing the buffer, the userprocess then must immediately
+//! issue a command syscall (command 28) to notify the capsule that the upcall
+//! has been handled. Because the userprocess provides the buffer, it is responsible
+//! for adhering to this procedure. Failure to comply may result in dropped or malformed
+//! packets.
+//!
+//! The ring buffer provided by the userprocess must be of the form:
+//!
+//! | read index | write index | user_frame 0 | user_frame 1 | ... | user_frame n |
+//!
+//! `user_frame` denotes the 15.4 frame in addition to the relevant 3 bytes of
+//! metadata (offset to data payload, length of data payload, and the MIC len). The
+//! capsule assumes that this is the form of the buffer. Errors or deviation in
+//! the form of the provided buffer will likely result in incomplete or dropped packets.
+//!
+//! Because the scheduled receive upcall must be handled by the userprocess, there is
+//! no guarantee as to when this will occur and if additional packets will be received
+//! prior to the upcall being handled. Without a ring buffer (or some equivalent data
+//! structure), the original packet will be lost. The ring buffer allows for the upcall
+//! to be scheduled and for all received packets to be passed to the process. Because
+//! the 15.4 driver allows two upcalls (one for sending, one for receiving), we must
+//! ensure that only one upcall is scheduled upon receipt of a packet. This is
+//! accomplished using a  pending_rx flag in the app data. This flag is set upon
+//! scheduling the first upcall and is only to be cleared by the userprocess using the
+//! command syscall (command 28) upon handling the upcall. The ring buffer is designed
+//! to overwrite old packets if the buffer becomes full. If the userprocess notices a
+//! high number of "dropped" packets, this may be the cause. The userproceess can mitigate
+//! this issue by increasing the size of the ring buffer provided to the capsule.
 
 use crate::ieee802154::{device, framer};
 use crate::net::ieee802154::{AddressMode, Header, KeyId, MacAddress, PanID, SecurityLevel};
 use crate::net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResult};
 
 use core::cell::Cell;
-use core::cmp::min;
 
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
+use kernel::hil::radio::{MAX_FRAME_SIZE, PSDU_OFFSET};
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
@@ -24,6 +71,9 @@ use kernel::{ErrorCode, ProcessId};
 
 const MAX_NEIGHBORS: usize = 4;
 const MAX_KEYS: usize = 4;
+
+const USER_FRAME_MAX_SIZE: usize = USER_FRAME_METADATA_SIZE + MAX_FRAME_SIZE; // 127B max payload + 3B metadata
+const USER_FRAME_METADATA_SIZE: usize = 3; // 3B metadata (offset, len, mic_len)
 
 /// IDs for subscribed upcalls.
 mod upcall {
@@ -212,6 +262,7 @@ impl PendingTX {
 #[derive(Default)]
 pub struct App {
     pending_tx: PendingTX,
+    pending_rx: bool,
 }
 
 pub struct RadioDriver<'a, M: device::MacDevice<'a>> {
@@ -680,6 +731,7 @@ impl<'a, M: device::MacDevice<'a>> SyscallDriver for RadioDriver<'a, M> {
     ///        parameters to encrypt, form headers, and transmit the frame.
     /// - `27`: Transmit a frame (raw). Transmit preformed 15.4 frame (i.e.
     ///        headers and security etc completed by userprocess).
+    /// - `28`: Notify the capsule that the upcall has been handled by process.
     fn command(
         &self,
         command_number: usize,
@@ -989,6 +1041,13 @@ impl<'a, M: device::MacDevice<'a>> SyscallDriver for RadioDriver<'a, M> {
                         |_| self.do_next_tx_sync(processid).into(),
                     )
             }
+            28 => self
+                .apps
+                .enter(processid, |app, _| {
+                    app.pending_rx = false;
+                    CommandReturn::success()
+                })
+                .unwrap_or(CommandReturn::failure(ErrorCode::INVAL)),
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
@@ -1037,17 +1096,68 @@ fn encode_address(addr: &Option<MacAddress>) -> usize {
 
 impl<'a, M: device::MacDevice<'a>> device::RxClient for RadioDriver<'a, M> {
     fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
-        self.apps.each(|_, _, kernel_data| {
+        self.apps.each(|_, app, kernel_data| {
             let read_present = kernel_data
                 .get_readwrite_processbuffer(rw_allow::READ)
                 .and_then(|read| {
                     read.mut_enter(|rbuf| {
-                        let len = min(rbuf.len(), data_offset + data_len);
-                        // Copy the entire frame over to userland, preceded by two
-                        // bytes: the data offset and the data length.
-                        rbuf[..len].copy_from_slice(&buf[..len]);
-                        rbuf[0].set(data_offset as u8);
-                        rbuf[1].set(data_len as u8);
+                        ///////////////////////////////////////////////////////////////////////////////////////////
+                        // NOTE: context for the ring buffer and assumptions regarding the ring buffer
+                        // format and usage can be found in the detailed comment at the top of this file.
+                        //      Ring buffer format:
+                        //          | read index | write index | user_frame 0 | user_frame 1 | ... | user_frame n |
+                        //      user_frame format:
+                        //          | data_offset | data_len | mic_len | 15.4 frame |
+                        ///////////////////////////////////////////////////////////////////////////////////////////
+
+                        // 2 bytes for the readwrite buffer metadata (read / write index)
+                        const RING_BUF_METADATA_SIZE: usize = 2;
+
+                        // Confirm the availability of the buffer. A buffer of len 0 is indicative
+                        // of the userprocess not allocating a readwrite buffer. We must also
+                        // confirm that the userprocess correctly formatted the buffer to be of length
+                        // 2 + n * USER_FRAME_MAX_SIZE, where n is the number of user frames that the
+                        // buffer can store.
+                        if rbuf.len() == 0
+                            || (rbuf.len() - RING_BUF_METADATA_SIZE) % USER_FRAME_MAX_SIZE != 0
+                        {
+                            // kernel::debug!("[15.4 Driver] Error - improperly formatted readwrite buffer provided");
+                            return false;
+                        }
+
+                        let mic_len = header.security.map_or(0, |sec| sec.level.mic_len());
+                        let frame_len = data_offset + data_len + mic_len;
+
+                        // Frame length incorporates the PSDU offset, so we must subtract this value
+                        // in addition to incorporating the user frame metadata size to obtain the
+                        // length of the user frame.
+                        let user_frame_len = frame_len + USER_FRAME_METADATA_SIZE - PSDU_OFFSET;
+
+                        let read_index = rbuf[0].get() as usize;
+                        let mut write_index = rbuf[1].get() as usize;
+
+                        let max_pending_rx =
+                            (rbuf.len() - RING_BUF_METADATA_SIZE) / USER_FRAME_MAX_SIZE;
+                        let offset = RING_BUF_METADATA_SIZE + (write_index * USER_FRAME_MAX_SIZE);
+
+                        // Copy the entire frame over to userland, preceded by three metadata bytes:
+                        // the data offset, the data length, and the MIC length.
+                        rbuf[(offset + USER_FRAME_METADATA_SIZE)..(offset + user_frame_len)]
+                            .copy_from_slice(&buf[PSDU_OFFSET..frame_len]);
+                        rbuf[offset].set(data_offset as u8);
+                        rbuf[offset + 1].set(data_len as u8);
+                        rbuf[offset + 2].set(mic_len as u8);
+
+                        // Prepare the ring buffer for the next write. The current design favors newness;
+                        // newly received packets will begin to overwrite the oldest data in the event
+                        // of the buffer becoming full.
+                        write_index = (write_index + 1) % max_pending_rx;
+                        if write_index == read_index {
+                            // kernel::debug!("[15.4 driver] Provided RX buffer is full");
+                        }
+
+                        rbuf[0].set(read_index as u8);
+                        rbuf[1].set(write_index as u8);
                         true
                     })
                 })
@@ -1057,9 +1167,22 @@ impl<'a, M: device::MacDevice<'a>> device::RxClient for RadioDriver<'a, M> {
                 let pans = encode_pans(&header.dst_pan, &header.src_pan);
                 let dst_addr = encode_address(&header.dst_addr);
                 let src_addr = encode_address(&header.src_addr);
-                kernel_data
-                    .schedule_upcall(upcall::FRAME_RECEIVED, (pans, dst_addr, src_addr))
-                    .ok();
+
+                // If an upcall is not already pending, schedule one. In the case
+                // of `schedule_upcall` failing, we do not need to do anything as
+                // the pending_rx remains false. In failing to schedule the upcall,
+                // the packet will be dropped from the perspective of the userprocess.
+                // However, the packet will be stored within the ring buffer and may
+                // be received if a later packet is received and the capsule attempts
+                // to schedule an upcall at a later timepoint.
+                if !app.pending_rx {
+                    kernel_data
+                        .schedule_upcall(upcall::FRAME_RECEIVED, (pans, dst_addr, src_addr))
+                        .map(|()| {
+                            app.pending_rx = true;
+                        })
+                        .ok();
+                }
             }
         });
     }
