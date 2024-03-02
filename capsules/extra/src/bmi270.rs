@@ -53,8 +53,8 @@ use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::NINEDOF as usize;
 
 // Time constants
-const ALARM_TIME_20000: u32 = 20000 as u32;
-const ALARM_TIME_450: u32 = 450 as u32;
+const ALARM_TIME_20000: u32 = 20000_u32;
+const ALARM_TIME_450: u32 = 450_u32;
 
 /// Register values
 
@@ -481,7 +481,7 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> I2CClient for BMI270<'a, A, I> {
                 }
             }
             State::Done => {
-                let gravity_earth = 9.80665 as f32;
+                let gravity_earth = 9.80665_f32;
                 let half_scale = 32768.0;
 
                 let accel_data_x = ((buffer[1] as i16) << 8) | (buffer[0] as i16);
