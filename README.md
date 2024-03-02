@@ -18,6 +18,16 @@ kernel.
 
 [tock-ci]: https://github.com/tock/tock/actions?query=branch%3Amaster+workflow%3Atock-ci
 
+TockWorld 2024!
+---------------
+
+Join the community of industry professionals, operating system developers,
+academics, and interested developers for the annual [TockWorld
+conference][TockWorld7]. This event in San Diego, CA will take place June 26-28,
+2024. Get your [tickets][TockWorld7] today!
+
+[TockWorld7]: https://world.tockos.org/
+
 Tock 2.x!
 ---------
 
