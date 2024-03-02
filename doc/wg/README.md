@@ -65,9 +65,11 @@ their needs and membership.
 
 The Core Working Group shepherds and oversees the Tock OS and related
 tools and libraries. Importantly, it serves as a backstop for managing
-contributions that fall outside the purview of existing working
-groups. It also establishes new working groups to handle such
-contributions, and dissolves or re-organizes existing working groups.
+contributions that fall outside the purview of existing working groups
+and for resolving conflicts about contributions that fall under the
+purview of multiple working groups. It also establishes new working
+groups to handle such contributions, and dissolves or re-organizes
+existing working groups.
 
 Formally, the Core Working Group controls who can directly commit to
 all Tock project repositories and devolves the ability to commit to
