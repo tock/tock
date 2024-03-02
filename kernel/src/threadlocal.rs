@@ -98,7 +98,7 @@ unsafe impl<T> ThreadLocalDyn<T> for ThreadLocal<0, T> {
 pub struct SingleThread<T>(ThreadLocal<1, T>);
 
 impl<T> SingleThread<T> {
-    pub fn new(val: T) -> Self {
+    pub unsafe fn new(val: T) -> Self {
         SingleThread(ThreadLocal::new([val]))
     }
 }
@@ -108,5 +108,13 @@ unsafe impl<T> ThreadLocalDyn<T> for SingleThread<T> {
         <ThreadLocal<1, T> as ThreadLocalAccess<ConstThreadId<0>, T>>::get_mut(&self.0, unsafe {
             ConstThreadId::<0>::new()
         })
+    }
+}
+
+impl<T> core::ops::Deref for SingleThread<T> {
+    type Target = ThreadLocal<1, T>;
+
+    fn deref(&self) -> &Self::Target {
+	&self.0
     }
 }
