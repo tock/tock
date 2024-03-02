@@ -42,7 +42,6 @@
 //! ```
 
 use core::cell::Cell;
-use kernel::debug;
 use kernel::hil::i2c::{self, I2CClient, I2CDevice};
 use kernel::hil::sensors::{NineDof, NineDofClient};
 use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
@@ -52,6 +51,10 @@ use kernel::ErrorCode;
 /// Syscall driver number
 use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::NINEDOF as usize;
+
+// Time constants
+const ALARM_TIME_20000: u32 = 20000 as u32;
+const ALARM_TIME_450: u32 = 450 as u32;
 
 /// Register values
 
@@ -189,7 +192,7 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> BMI270<'a, A, I> {
                             self.buffer.replace(buffer);
                             self.i2c.disable();
                         } else {
-                            self.state.set(State::WaitingForAlarm(450));
+                            self.state.set(State::WaitingForAlarm(ALARM_TIME_450));
                         }
                     }
                     State::Idle => {
@@ -213,7 +216,7 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> BMI270<'a, A, I> {
     fn handle_alarm(&self) {
         let _ = self.buffer.take().map(|buffer| match self.state.get() {
             State::WaitingForAlarm(us) => {
-                if us == 450 {
+                if us == ALARM_TIME_450 {
                     buffer[0] = Registers::InitCtrl as u8;
                     buffer[1] = 0x00_u8;
 
@@ -225,7 +228,7 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> BMI270<'a, A, I> {
                     } else {
                         self.state.set(State::InitWriteConfig);
                     }
-                } else if us == 20000 {
+                } else if us == ALARM_TIME_20000 {
                     buffer[0] = Registers::InternalStatus as u8;
 
                     if let Err((i2c_err, buffer)) = self.i2c.write_read(buffer, 1, 1) {
@@ -321,9 +324,9 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> I2CClient for BMI270<'a, A, I> {
             }
             State::InitWriteConfig => {
                 self.config_file.take().map(|config_file| {
-                    if let Err((i2c_err, buffer)) = self.i2c.write(config_file, 8193) {
+                    if let Err((i2c_err, buffer)) = self.i2c.write(config_file, config_file.len()) {
                         self.state.set(State::Sleep);
-                        self.buffer.replace(buffer);
+                        self.config_file.replace(buffer);
                         self.ninedof_client
                             .map(|client| client.callback(i2c_err as usize, 0, 0));
                     } else {
@@ -341,7 +344,7 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> I2CClient for BMI270<'a, A, I> {
                     self.ninedof_client
                         .map(|client| client.callback(i2c_err as usize, 0, 0));
                 } else {
-                    self.state.set(State::WaitingForAlarm(20000));
+                    self.state.set(State::WaitingForAlarm(ALARM_TIME_20000));
                 }
             }
             State::CheckStatus => {
