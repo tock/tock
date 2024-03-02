@@ -434,7 +434,7 @@ pub unsafe fn set_debug_writer_wrappers(
 // gives clear bounds on the limits of the reentrancy requirement.
 unsafe fn with_debug_writer<R, F: FnOnce(&mut DebugWriterWrapper) -> R>(f: F) -> Option<R> {
     let threadlocal: &'static dyn ThreadLocalDyn<_> = *core::ptr::addr_of!(DEBUG_WRITER);
-    threadlocal.get_mut().map(move |ptr| f(&mut *ptr))
+    threadlocal.get_mut().map(move |v| v.enter_nonreentrant(f))
 }
 
 unsafe fn with_debug_writer_panic<R, F: FnOnce(&mut DebugWriterWrapper) -> R>(f: F) -> R {

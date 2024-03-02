@@ -189,6 +189,14 @@ unsafe fn start() -> (
     // Basic setup of the RISC-V IMAC platform
     rv32i::configure_trap_handler();
 
+    // Initialize the kernel's deferred call infrastructure for a
+    // single-threaded platform configuration:
+    let deferred_call_state = static_init!(
+	kernel::threadlocal::SingleThread<kernel::deferred_call::ThreadLocalDeferredCallState>,
+	kernel::threadlocal::SingleThread::new(kernel::deferred_call::DEFAULT_DEFERRED_CALL_STATE),
+    );
+    kernel::deferred_call::initialize_global_deferred_call_state(deferred_call_state);
+
     // Set up memory protection immediately after setting the trap handler, to
     // ensure that much of the board initialization routine runs with ePMP
     // protection.

@@ -57,16 +57,16 @@ impl<const NUM_THREADS: usize, T> ThreadLocal<NUM_THREADS, T> {
 }
 
 unsafe trait ThreadLocalAccess<ID: ThreadId, T> {
-    fn get_mut(&self, _id: ID) -> Option<*mut T>;
+    fn get_mut<'a>(&'a self, _id: ID) -> Option<NonReentrant<'a, T>>;
 }
 
 unsafe impl<const NUM_THREADS: usize, const THREAD_ID: usize, T>
     ThreadLocalAccess<ConstThreadId<THREAD_ID>, T> for ThreadLocal<NUM_THREADS, T>
 {
     #[inline(always)]
-    fn get_mut(&self, _id: ConstThreadId<THREAD_ID>) -> Option<*mut T> {
+    fn get_mut<'a>(&'a self, _id: ConstThreadId<THREAD_ID>) -> Option<NonReentrant<'a, T>> {
         let _: () = assert!(THREAD_ID < NUM_THREADS);
-        Some(self.get_cell_slice()[THREAD_ID].get())
+        Some(NonReentrant(&self.get_cell_slice()[THREAD_ID]))
     }
 }
 
@@ -74,8 +74,13 @@ unsafe impl<const NUM_THREADS: usize, T> ThreadLocalAccess<DynThreadId, T>
     for ThreadLocal<NUM_THREADS, T>
 {
     #[inline(always)]
-    fn get_mut(&self, id: DynThreadId) -> Option<*mut T> {
-        self.get_cell_slice().get(id.0).map(|uc| uc.get())
+    fn get_mut<'a>(&'a self, id: DynThreadId) -> Option<NonReentrant<'a, T>> {
+	// if let Some(uc) = self.get_cell_slice().get(id.0) {
+	//     Some(NonReentrant(uc))
+	// } else {
+	//     None
+	// }
+        self.get_cell_slice().get(id.0).map(move |uc| NonReentrant(uc))
     }
 }
 
@@ -85,12 +90,16 @@ unsafe impl<const NUM_THREADS: usize, T> Sync for ThreadLocal<NUM_THREADS, T> {}
 // Needs to be unsafe, because will return a pointer that is going to
 // be dereferenced.
 pub unsafe trait ThreadLocalDyn<T> {
-    fn get_mut(&self) -> Option<*mut T>;
+    fn get_mut<'a>(&'a self) -> Option<NonReentrant<'a, T>>;
+}
+
+pub trait ThreadLocalDynInit<T>: ThreadLocalDyn<T> {
+    unsafe fn init(init: T) -> Self;
 }
 
 // Can implement directly if we have no threads:
 unsafe impl<T> ThreadLocalDyn<T> for ThreadLocal<0, T> {
-    fn get_mut(&self) -> Option<*mut T> {
+    fn get_mut<'a>(&'a self) -> Option<NonReentrant<'a, T>> {
         None
     }
 }
@@ -104,10 +113,16 @@ impl<T> SingleThread<T> {
 }
 
 unsafe impl<T> ThreadLocalDyn<T> for SingleThread<T> {
-    fn get_mut(&self) -> Option<*mut T> {
+    fn get_mut<'a>(&'a self) -> Option<NonReentrant<'a, T>> {
         <ThreadLocal<1, T> as ThreadLocalAccess<ConstThreadId<0>, T>>::get_mut(&self.0, unsafe {
             ConstThreadId::<0>::new()
         })
+    }
+}
+
+impl<T: Copy> ThreadLocalDynInit<T> for SingleThread<T> {
+    unsafe fn init(init: T) -> Self {
+	SingleThread(ThreadLocal::new([init]))
     }
 }
 
@@ -116,5 +131,16 @@ impl<T> core::ops::Deref for SingleThread<T> {
 
     fn deref(&self) -> &Self::Target {
 	&self.0
+    }
+}
+
+
+// -----------------------------------------------------------------------------
+
+pub struct NonReentrant<'a, T>(&'a UnsafeCell<T>);
+
+impl<'a, T> NonReentrant<'a, T> {
+    pub unsafe fn enter_nonreentrant<R, F: FnOnce(&mut T) -> R>(&self, f: F) -> R {
+	f(&mut *self.0.get())
     }
 }
