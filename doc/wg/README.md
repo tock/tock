@@ -6,14 +6,6 @@ particular aspect of Tock.
 
 ## Motivation
 
-Tock relies on contributions from developers across a variety of
-organizations, physical distance, time zones, and engagement. It has
-also grown large in scope. This has resulted in strain on maintainers
-to regularly keep up with contributions while ensuring quality and
-important global policies like safety and security. It has also
-resulted in contributors' work going unaddressed for long periods of
-time.
-
 Tock encompasses a large and varied set of subsystems, architectures,
 focus areas, libraries, ancillary tools, and documentation. Most
 contributors have expertise and stake in a subset of these. Moreover,
@@ -65,10 +57,9 @@ groups make decisions by consensus, have weekly voice calls, make
 meeting notes available publicly, and communicate asynchronously via a
 mailing list.
 
-However, working groups are encouraged to avoid consensus-based
-decision-making as quickly as possible and establish appropriate
-meeting frequency and communication mode for their needs and
-membership.
+However, working groups are encouraged to establish appropriate
+decision-making rules, meeting frequency and communication mode for
+their needs and membership.
 
 ## Core Working Group
 
@@ -84,25 +75,6 @@ specific repositories or components of repositories to other working
 groups. The Core Working Group, like other working groups, establishes
 its own rules for deciding how to accept contributions as well as how
 to establish and disband working groups.
-
-The Core Working Group's duties are:
-
-- Managing and overseeing code, documentation, testing, and releases
-  for the Tock project.
-  - Defining and communicating overall project goals and direction.
-  - Establishing and delegating responsibility over components and
-    subprojects to working groups.
-  - Ensuring that working groups have the people and resources needed
-    to accomplish their work.
-  - Ensuring working groups are accountable to their delegated
-    responsibilities and the project as a whole.
-  - Coordinating decisions including (but not limited to) code,
-    documentation, testing, and releases that affect purviews
-    delegated to more than one working group.
-  - Facilitating communication channels and consensus among working
-    groups.
-  - Coordinating project-wide changes to teams, structures, or
-    processes.
 
 Existing Working Groups
 -----------------------
