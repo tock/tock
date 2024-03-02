@@ -81,6 +81,10 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 // debug mode requires more stack space
 // pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
+type TemperatureDriver =
+    components::temperature::TemperatureComponentType<nrf52::temperature::Temp<'static>>;
+type RngDriver = components::rng::RngComponentType<nrf52833::trng::Trng<'static>>;
+
 /// Supported drivers by the platform
 pub struct MicroBit {
     ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
@@ -106,13 +110,13 @@ pub struct MicroBit {
         25,
     >,
     button: &'static capsules_core::button::Button<'static, nrf52::gpio::GPIOPin<'static>>,
-    rng: &'static capsules_core::rng::RngDriver<'static>,
+    rng: &'static RngDriver,
     ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
     lsm303agr: &'static capsules_extra::lsm303agr::Lsm303agrI2C<
         'static,
         capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52833::i2c::TWI<'static>>,
     >,
-    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temperature: &'static TemperatureDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
     alarm: &'static capsules_core::alarm::AlarmDriver<
@@ -431,7 +435,7 @@ unsafe fn start() -> (
         capsules_core::rng::DRIVER_NUM,
         &base_peripherals.trng,
     )
-    .finalize(components::rng_component_static!());
+    .finalize(components::rng_component_static!(nrf52833::trng::Trng));
 
     //--------------------------------------------------------------------------
     // SENSORS
@@ -485,7 +489,9 @@ unsafe fn start() -> (
         capsules_extra::temperature::DRIVER_NUM,
         &base_peripherals.temp,
     )
-    .finalize(components::temperature_component_static!());
+    .finalize(components::temperature_component_static!(
+        nrf52833::temperature::Temp
+    ));
 
     //--------------------------------------------------------------------------
     // ADC
@@ -541,7 +547,7 @@ unsafe fn start() -> (
         nrf52833::gpio::GPIOPin
     ));
 
-    let _ = &nrf52833_peripherals.gpio_port[LED_MICROPHONE_PIN].set_high_drive(true);
+    nrf52833_peripherals.gpio_port[LED_MICROPHONE_PIN].set_high_drive(true);
 
     let sound_pressure = components::sound_pressure::SoundPressureComponent::new(
         board_kernel,
@@ -758,12 +764,12 @@ unsafe fn start() -> (
         board_kernel,
         chip,
         core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
         ),
         core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+            core::ptr::addr_of_mut!(_sappmem),
+            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
         &mut PROCESSES,
         &FAULT_RESPONSE,

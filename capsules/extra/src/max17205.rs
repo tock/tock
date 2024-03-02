@@ -230,7 +230,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for MAX17205<'_, I> {
                     client.status(
                         status,
                         match error {
-                            Ok(_) => Ok(()),
+                            Ok(()) => Ok(()),
                             Err(e) => Err(e.into()),
                         },
                     )
@@ -281,7 +281,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for MAX17205<'_, I> {
                         self.soc_mah.get(),
                         full_mah,
                         match error {
-                            Ok(_) => Ok(()),
+                            Ok(()) => Ok(()),
                             Err(e) => Err(e.into()),
                         },
                     );
@@ -305,7 +305,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for MAX17205<'_, I> {
                     client.coulomb(
                         coulomb,
                         match error {
-                            Ok(_) => Ok(()),
+                            Ok(()) => Ok(()),
                             Err(e) => Err(e.into()),
                         },
                     );
@@ -352,7 +352,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for MAX17205<'_, I> {
                         self.voltage.get(),
                         current,
                         match error {
-                            Ok(_) => Ok(()),
+                            Ok(()) => Ok(()),
                             Err(e) => Err(e.into()),
                         },
                     )
@@ -380,7 +380,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for MAX17205<'_, I> {
                     client.romid(
                         rid,
                         match error {
-                            Ok(_) => Ok(()),
+                            Ok(()) => Ok(()),
                             Err(e) => Err(e.into()),
                         },
                     )

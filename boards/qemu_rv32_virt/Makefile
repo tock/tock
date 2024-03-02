@@ -67,6 +67,7 @@ QEMU_BASE_CMDLINE := \
   $(QEMU_CMD) \
     -machine virt \
     -semihosting \
+    -global driver=riscv-cpu,property=smepmp,value=true \
     -global virtio-mmio.force-legacy=false \
     -device virtio-rng-device \
     $(QEMU_NETDEV_CMDLINE) \

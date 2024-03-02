@@ -4,13 +4,11 @@
 
 //! Kernel-userland system call interface for RISC-V architecture.
 
-use core::convert::TryInto;
 use core::fmt::Write;
 use core::mem::size_of;
 use core::ops::Range;
 
 use crate::csr::mcause;
-use kernel;
 use kernel::errorcode::ErrorCode;
 use kernel::syscall::ContextSwitchReason;
 
@@ -214,7 +212,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     }
 
     // Mock implementation for tests on Travis-CI.
-    #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+    #[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
     unsafe fn switch_to_process(
         &self,
         _accessible_memory_start: *const u8,

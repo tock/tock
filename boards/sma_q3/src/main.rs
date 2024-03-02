@@ -73,15 +73,27 @@ static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText>
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
+type Bmp280Sensor = components::bmp280::Bmp280ComponentType<
+    VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+    capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52840::i2c::TWI<'static>>,
+>;
+type TemperatureDriver = components::temperature::TemperatureComponentType<Bmp280Sensor>;
+type RngDriver = components::rng::RngComponentType<nrf52840::trng::Trng<'static>>;
+
+type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<
+    nrf52840::ieee802154_radio::Radio<'static>,
+    nrf52840::aes::AesECB<'static>,
+>;
+
 /// Supported drivers by the platform
 pub struct Platform {
-    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temperature: &'static TemperatureDriver,
     ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
         'static,
         nrf52840::ble_radio::Radio<'static>,
         VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
     >,
-    ieee802154_radio: &'static capsules_extra::ieee802154::RadioDriver<'static>,
+    ieee802154_radio: &'static Ieee802154Driver,
     button: &'static capsules_core::button::Button<'static, nrf52840::gpio::GPIOPin<'static>>,
     pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
@@ -96,7 +108,7 @@ pub struct Platform {
         LedHigh<'static, nrf52840::gpio::GPIOPin<'static>>,
         2,
     >,
-    rng: &'static capsules_core::rng::RngDriver<'static>,
+    rng: &'static RngDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     analog_comparator: &'static capsules_extra::analog_comparator::AnalogComparator<
         'static,
@@ -360,7 +372,9 @@ pub unsafe fn main() {
         capsules_extra::temperature::DRIVER_NUM,
         &base_peripherals.temp,
     )
-    .finalize(components::temperature_component_static!());
+    .finalize(components::temperature_component_static!(
+        nrf52840::temperature::Temp
+    ));
 
     let sensors_i2c_bus = static_init!(
         capsules_core::virtualizers::virtual_i2c::MuxI2C<'static, nrf52840::i2c::TWI>,
@@ -389,14 +403,14 @@ pub unsafe fn main() {
         capsules_extra::temperature::DRIVER_NUM,
         bmp280,
     )
-    .finalize(components::temperature_component_static!());
+    .finalize(components::temperature_component_static!(Bmp280Sensor));
 
     let rng = components::rng::RngComponent::new(
         board_kernel,
         capsules_core::rng::DRIVER_NUM,
         &base_peripherals.trng,
     )
-    .finalize(components::rng_component_static!());
+    .finalize(components::rng_component_static!(nrf52840::trng::Trng));
 
     // Initialize AC using AIN5 (P0.29) as VIN+ and VIN- as AIN0 (P0.02)
     // These are hardcoded pin assignments specified in the driver
@@ -466,12 +480,12 @@ pub unsafe fn main() {
                 board_kernel,
                 chip,
                 core::slice::from_raw_parts(
-                    &_sapps as *const u8,
-                    &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+                    core::ptr::addr_of!(_sapps),
+                    core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
                 ),
                 core::slice::from_raw_parts_mut(
-                    &mut _sappmem as *mut u8,
-                    &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+                    core::ptr::addr_of_mut!(_sappmem),
+                    core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
                 ),
                 &mut PROCESSES,
                 &FAULT_RESPONSE,

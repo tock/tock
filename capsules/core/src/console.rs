@@ -240,11 +240,16 @@ impl<'a> Console<'a> {
         } else {
             // Note: We have ensured above that rx_buffer is present
             app.read_len = read_len;
-            self.rx_buffer.take().map(|buffer| {
-                self.rx_in_progress.set(processid);
-                let _ = self.uart.receive_buffer(buffer, app.read_len);
-            });
-            Ok(())
+            self.rx_buffer
+                .take()
+                .map_or(Err(ErrorCode::INVAL), |buffer| {
+                    self.rx_in_progress.set(processid);
+                    if let Err((e, buf)) = self.uart.receive_buffer(buffer, app.read_len) {
+                        self.rx_buffer.replace(buf);
+                        return Err(e);
+                    }
+                    Ok(())
+                })
         }
     }
 }

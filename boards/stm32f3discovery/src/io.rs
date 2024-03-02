@@ -11,7 +11,6 @@ use kernel::hil::led;
 use kernel::hil::uart;
 use kernel::hil::uart::Configure;
 
-use stm32f303xc;
 use stm32f303xc::gpio::PinId;
 
 use crate::CHIP;
@@ -68,7 +67,7 @@ impl IoWrite for Writer {
 /// Panic handler.
 #[no_mangle]
 #[panic_handler]
-pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
+pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
     // User LD3 is connected to PE09
     // Have to reinitialize several peripherals because otherwise can't access them here.
     let rcc = stm32f303xc::rcc::Rcc::new();

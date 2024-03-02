@@ -5,7 +5,7 @@
 //! Chip trait setup.
 
 use core::fmt::Write;
-use cortexm7::{self, CortexM7, CortexMVariant};
+use cortexm7::{CortexM7, CortexMVariant};
 use kernel::debug;
 use kernel::platform::chip::{Chip, InterruptService};
 

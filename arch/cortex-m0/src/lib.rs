@@ -6,10 +6,12 @@
 
 #![crate_name = "cortexm0"]
 #![crate_type = "rlib"]
-#![feature(naked_functions)]
 #![no_std]
 
 use core::fmt::Write;
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+use core::arch::global_asm;
 
 // Re-export the base generic cortex-m functions here as they are
 // valid on cortex-m0.
@@ -17,18 +19,6 @@ pub use cortexm::support;
 
 pub use cortexm::nvic;
 pub use cortexm::syscall;
-
-extern "C" {
-    // _estack is not really a function, but it makes the types work
-    // You should never actually invoke it!!
-    fn _estack();
-    static mut _sstack: u32;
-    static mut _szero: u32;
-    static mut _ezero: u32;
-    static mut _etext: u32;
-    static mut _srelocate: u32;
-    static mut _erelocate: u32;
-}
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 struct HardFaultStackedRegisters {
@@ -43,8 +33,9 @@ struct HardFaultStackedRegisters {
 }
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
-#[inline(never)]
-unsafe fn kernel_hardfault(faulting_stack: *mut u32) {
+/// Handle a hard fault that occurred in the kernel. This function is invoked
+/// by the naked hard_fault_handler function.
+unsafe extern "C" fn hard_fault_handler_kernel(faulting_stack: *mut u32) -> ! {
     let hardfault_stacked_registers = HardFaultStackedRegisters {
         r0: *faulting_stack.offset(0),
         r1: *faulting_stack.offset(1),
@@ -80,84 +71,25 @@ unsafe fn kernel_hardfault(faulting_stack: *mut u32) {
     );
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
-/// Continue the hardfault handler. This function is not `#[naked]`, meaning we
-/// can mix `asm!()` and Rust. We separate this logic to not have to write the
-/// entire fault handler entirely in assembly.
-unsafe extern "C" fn hard_fault_handler_continued(faulting_stack: *mut u32, kernel_stack: u32) {
-    use core::arch::asm;
-    if kernel_stack != 0 {
-        kernel_hardfault(faulting_stack);
-    } else {
-        // hard fault occurred in an app, not the kernel. The app should be
-        // marked as in an error state and handled by the kernel
-        asm!(
-            "
-            ldr r0, =APP_HARD_FAULT
-            movs r1, #1 /* Fault */
-            str r1, [r0, #0]
-
-            /*
-            * NOTE:
-            * -----
-            *
-            * Even though ARMv6-M SCB and Control registers
-            * are different from ARMv7-M, they are still compatible
-            * with each other. So, we can keep the same code as
-            * ARMv7-M.
-            *
-            * ARMv6-M however has no _privileged_ mode.
-            */
-
-            /* Read the SCB registers. */
-            ldr r0, =SCB_REGISTERS
-            ldr r1, =0xE000ED14
-            ldr r2, [r1, #0] /* CCR */
-            str r2, [r0, #0]
-            ldr r2, [r1, #20] /* CFSR */
-            str r2, [r0, #4]
-            ldr r2, [r1, #24] /* HFSR */
-            str r2, [r0, #8]
-            ldr r2, [r1, #32] /* MMFAR */
-            str r2, [r0, #12]
-            ldr r2, [r1, #36] /* BFAR */
-            str r2, [r0, #16]
-
-            /* Set thread mode to privileged */
-            movs r0, #0
-            msr CONTROL, r0
-            /* No ISB required on M0 */
-            /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
-
-            ldr r0, 100f
-            mov lr, r0
-            b 200f // freturn
-    .align 4
-    100: // FEXC_RETURN_MSP
-      .word 0xFFFFFFF9
-    200: // freturn
-        ",
-            out("r1") _,
-            out("r0") _,
-            out("r2") _,
-            options(nostack),
-        );
-    }
-}
-
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 unsafe extern "C" fn generic_isr() {
     unimplemented!()
 }
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
-#[naked]
-/// All ISRs are caught by this handler which disables the NVIC and switches to the kernel.
-unsafe extern "C" fn generic_isr() {
-    use core::arch::asm;
-    asm!(
-        "
+extern "C" {
+    /// All ISRs are caught by this handler which disables the NVIC and switches to the kernel.
+    pub fn generic_isr();
+}
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+global_asm!(
+    "
+    .section .generic_isr, \"ax\"
+    .global generic_isr
+    .thumb_func
+  generic_isr:
     /* Skip saving process state if not coming from user-space */
     ldr r0, 300f // MEXC_RETURN_PSP
     cmp lr, r0
@@ -231,29 +163,34 @@ unsafe extern "C" fn generic_isr() {
 200: // MEXC_RETURN_MSP
   .word 0xFFFFFFF9
 300: // MEXC_RETURN_PSP
-  .word 0xFFFFFFFD",
-        options(noreturn)
-    );
-}
+  .word 0xFFFFFFFD"
+);
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(any(target_arch = "arm", target_os = "none")))]
-unsafe extern "C" fn systick_handler() {
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
+unsafe extern "C" fn systick_handler_m0() {
     unimplemented!()
 }
 
-/// The `systick_handler` is called when the systick interrupt occurs, signaling
-/// that an application executed for longer than its timeslice. This interrupt
-/// handler is no longer responsible for signaling to the kernel thread that an
-/// interrupt has occurred, but is slightly more efficient than the
-/// `generic_isr` handler on account of not needing to mark the interrupt as
-/// pending.
 #[cfg(all(target_arch = "arm", target_os = "none"))]
-#[naked]
-unsafe extern "C" fn systick_handler() {
-    use core::arch::asm;
-    asm!(
-        "
+extern "C" {
+    /// The `systick_handler` is called when the systick interrupt occurs, signaling
+    /// that an application executed for longer than its timeslice. This interrupt
+    /// handler is no longer responsible for signaling to the kernel thread that an
+    /// interrupt has occurred, but is slightly more efficient than the
+    /// `generic_isr` handler on account of not needing to mark the interrupt as
+    /// pending.
+    pub fn systick_handler_m0();
+}
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+global_asm!(
+    "
+    .section .systick_handler_m0, \"ax\"
+    .global systick_handler_m0
+    .thumb_func
+  systick_handler_m0:
+
     // Set thread mode to privileged to switch back to kernel mode.
     movs r0, #0
     msr CONTROL, r0
@@ -269,23 +206,27 @@ unsafe extern "C" fn systick_handler() {
 .align 4
 100: // ST_EXC_RETURN_MSP
   .word 0xFFFFFFF9
-    ",
-        options(noreturn)
-    );
-}
+    "
+);
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 unsafe extern "C" fn svc_handler() {
     unimplemented!()
 }
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
-#[naked]
-unsafe extern "C" fn svc_handler() {
-    use core::arch::asm;
-    asm!(
-        "
+extern "C" {
+    pub fn svc_handler();
+}
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+global_asm!(
+    "
+  .section .svc_handler, \"ax\"
+  .global svc_handler
+  .thumb_func
+svc_handler:
   ldr r0, 200f // EXC_RETURN_MSP
   cmp lr, r0
   bne 100f
@@ -304,23 +245,29 @@ unsafe extern "C" fn svc_handler() {
   .word 0xFFFFFFF9
 300: // EXC_RETURN_PSP
   .word 0xFFFFFFFD
-  ",
-        options(noreturn)
-    );
-}
+  "
+);
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 unsafe extern "C" fn hard_fault_handler() {
     unimplemented!()
 }
+
 #[cfg(all(target_arch = "arm", target_os = "none"))]
-#[naked]
-unsafe extern "C" fn hard_fault_handler() {
-    use core::arch::asm;
-    // If `kernel_stack` is non-zero, then hard-fault occurred in
-    // kernel, otherwise the hard-fault occurred in user.
-    asm!("
+extern "C" {
+    pub fn hard_fault_handler();
+}
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+// If `kernel_stack` is non-zero, then hard-fault occurred in
+// kernel, otherwise the hard-fault occurred in user.
+global_asm!(
+"
+    .section .hard_fault_handler, \"ax\"
+    .global hard_fault_handler
+    .thumb_func
+  hard_fault_handler:
     /*
      * Will be incremented to 1 when we determine that it was a fault
      * in the kernel
@@ -345,13 +292,66 @@ unsafe extern "C" fn hard_fault_handler() {
 
 200: // _hardfault_exit
 
-    b {}    // Branch to the non-naked fault handler.
-    bx lr   // If continued function returns, we need to manually branch to
-            // link register.
+    // If the hard-fault occurred while executing the kernel (r1 != 0),
+    // jump to the non-naked kernel hard fault handler. This handler
+    // MUST NOT return. The faulting stack is passed as the first argument
+    // (r0).
+    cmp r1, #0                           // Check if app (r1==0) or kernel (r1==1) fault.
+    beq 400f                             // If app fault, skip to app handling.
+    ldr r2, ={kernel_hard_fault_handler} // Load address of fault handler.
+    bx r2                                // Branch to the non-naked fault handler.
+
+400: // _hardfault_app
+    // Otherwise, store that a hardfault occurred in an app, store some CPU
+    // state and finally return to the kernel stack:
+    ldr r0, =APP_HARD_FAULT
+    movs r1, #1 /* Fault */
+    str r1, [r0, #0]
+
+    /*
+    * NOTE:
+    * -----
+    *
+    * Even though ARMv6-M SCB and Control registers
+    * are different from ARMv7-M, they are still compatible
+    * with each other. So, we can keep the same code as
+    * ARMv7-M.
+    *
+    * ARMv6-M however has no _privileged_ mode.
+    */
+
+    /* Read the SCB registers. */
+    ldr r0, =SCB_REGISTERS
+    ldr r1, =0xE000ED14
+    ldr r2, [r1, #0] /* CCR */
+    str r2, [r0, #0]
+    ldr r2, [r1, #20] /* CFSR */
+    str r2, [r0, #4]
+    ldr r2, [r1, #24] /* HFSR */
+    str r2, [r0, #8]
+    ldr r2, [r1, #32] /* MMFAR */
+    str r2, [r0, #12]
+    ldr r2, [r1, #36] /* BFAR */
+    str r2, [r0, #16]
+
+    /* Set thread mode to privileged */
+    movs r0, #0
+    msr CONTROL, r0
+    /* No ISB required on M0 */
+    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+
+    // Load the FEXC_RETURN_MSP LR address and return to it, to switch to the
+    // kernel (MSP) stack:
+    ldr r0, 300f
+    mov lr, r0
+    bx lr
+
+    .align 4
+300: // FEXC_RETURN_MSP
+    .word 0xFFFFFFF9
     ",
-    sym hard_fault_handler_continued,
-    options(noreturn));
-}
+    kernel_hard_fault_handler = sym hard_fault_handler_kernel,
+);
 
 // Enum with no variants to ensure that this type is not instantiable. It is
 // only used to pass architecture-specific constants and functions via the
@@ -360,12 +360,12 @@ pub enum CortexM0 {}
 
 impl cortexm::CortexMVariant for CortexM0 {
     const GENERIC_ISR: unsafe extern "C" fn() = generic_isr;
-    const SYSTICK_HANDLER: unsafe extern "C" fn() = systick_handler;
+    const SYSTICK_HANDLER: unsafe extern "C" fn() = systick_handler_m0;
     const SVC_HANDLER: unsafe extern "C" fn() = svc_handler;
     const HARD_FAULT_HANDLER: unsafe extern "C" fn() = hard_fault_handler;
 
     // Mock implementation for tests on Travis-CI.
-    #[cfg(not(any(target_arch = "arm", target_os = "none")))]
+    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
     unsafe fn switch_to_user(
         _user_stack: *const usize,
         _process_regs: &mut [usize; 8],

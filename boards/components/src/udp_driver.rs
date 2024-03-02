@@ -21,7 +21,6 @@
 //!     .finalize(components::udp_driver_component_static!());
 //! ```
 
-use capsules_core;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use capsules_extra::net::ipv6::ip_utils::IPAddr;
 use capsules_extra::net::ipv6::ipv6_send::IP6SendStruct;
@@ -33,7 +32,6 @@ use capsules_extra::net::udp::udp_recv::MuxUdpReceiver;
 use capsules_extra::net::udp::udp_recv::UDPReceiver;
 use capsules_extra::net::udp::udp_send::{MuxUdpSender, UDPSendStruct, UDPSender};
 use core::mem::MaybeUninit;
-use kernel;
 use kernel::capabilities;
 use kernel::capabilities::NetworkCapabilityCreationCapability;
 use kernel::component::Component;

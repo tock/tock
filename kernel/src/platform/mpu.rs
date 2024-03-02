@@ -8,7 +8,7 @@ use core::cmp;
 use core::fmt::{self, Display};
 
 /// User mode access permissions.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum Permissions {
     ReadWriteExecute,
     ReadWriteOnly,
@@ -91,14 +91,6 @@ pub trait MPU {
     /// created, and `Display` so that the `panic!()` output can display the
     /// current state to help with debugging.
     type MpuConfig: Display;
-
-    /// Clears the MPU.
-    ///
-    /// This function will clear any access control enforced by the
-    /// MPU where possible.
-    /// On some hardware it is impossible to reset the MPU after it has
-    /// been locked, in this case this function wont change those regions.
-    fn clear_mpu(&self);
 
     /// Enables the MPU for userspace apps.
     ///
@@ -273,8 +265,6 @@ pub trait MPU {
 impl MPU for () {
     type MpuConfig = MpuConfigDefault;
 
-    fn clear_mpu(&self) {}
-
     fn enable_app_mpu(&self) {}
 
     fn disable_app_mpu(&self) {}
@@ -348,85 +338,4 @@ impl MPU for () {
     }
 
     fn configure_mpu(&self, _config: &Self::MpuConfig) {}
-}
-
-/// The generic trait that particular kernel level memory protection unit
-/// implementations need to implement.
-///
-/// This trait provides generic functionality to extend the MPU trait above
-/// to also allow the kernel to protect itself. It is expected that only a
-/// limited number of SoCs can support this, which is why it is a seperate
-/// implementation.
-pub trait KernelMPU {
-    /// MPU-specific state that defines a particular configuration for the kernel
-    /// MPU.
-    /// That is, this should contain all of the required state such that the
-    /// implementation can be passed an object of this type and it should be
-    /// able to correctly and entirely configure the MPU.
-    ///
-    /// It is `Default` so we can create empty state when the kernel is
-    /// created, and `Display` so that the `panic!()` output can display the
-    /// current state to help with debugging.
-    type KernelMpuConfig: Display;
-
-    /// Creates a new kernel MPU configuration.
-    ///
-    /// The underlying implementation may only be able to allocate a finite
-    /// number of MPU configurations. It may return `None` if this resource is
-    /// exhausted.
-    fn new_kernel_config(&self) -> Option<Self::KernelMpuConfig>;
-
-    /// Mark a region of memory that the Tock kernel owns.
-    ///
-    /// This function will optionally set the MPU to enforce the specified
-    /// constraints for all accessess (even from the kernel).
-    /// This should be used to mark read/write/execute areas of the Tock
-    /// kernel to have the hardware enforce those permissions.
-    ///
-    /// If the KernelMPU trait is supported a board should use this function
-    /// to set permissions for all areas of memory the kernel will use.
-    /// Once all regions of memory have been allocated, the board must call
-    /// enable_kernel_mpu(). After enable_kernel_mpu() is called no changes
-    /// to kernel level code permissions can be made.
-    ///
-    /// Note that kernel level permissions also apply to apps, although apps
-    /// will have more constraints applied on top of the kernel ones as
-    /// specified by the `MPU` trait.
-    ///
-    /// Not all architectures support this, so don't assume this will be
-    /// implemented.
-    ///
-    /// # Arguments
-    ///
-    /// - `memory_start`:             start of memory region
-    /// - `memory_size`:              size of unallocated memory
-    /// - `permissions`:              permissions for the region
-    /// - `config`:                   MPU region configuration
-    ///
-    /// # Return Value
-    ///
-    /// Returns the start and size of the requested memory region. If it is
-    /// infeasible to allocate the MPU region, returns None. If None is
-    /// returned no changes are made.
-    #[allow(unused_variables)]
-    fn allocate_kernel_region(
-        &self,
-        memory_start: *const u8,
-        memory_size: usize,
-        permissions: Permissions,
-        config: &mut Self::KernelMpuConfig,
-    ) -> Option<Region>;
-
-    /// Enables the MPU for the kernel.
-    ///
-    /// This function must enable the permission restrictions on the various
-    /// kernel regions specified by `allocate_kernel_region()` protected by
-    /// the MPU.
-    ///
-    /// It is expected that this function is called in `main()`.
-    ///
-    /// Once enabled this cannot be disabled. It is expected there won't be any
-    /// changes to the kernel regions after this is enabled.
-    #[allow(unused_variables)]
-    fn enable_kernel_mpu(&self, config: &mut Self::KernelMpuConfig);
 }

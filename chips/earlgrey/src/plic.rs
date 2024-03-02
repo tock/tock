@@ -17,12 +17,13 @@ pub const PLIC_BASE: StaticRef<PlicRegisters> =
 pub static mut PLIC: Plic = Plic::new(PLIC_BASE);
 
 pub const PLIC_REGS: usize = 6;
+pub const PLIC_IRQ_NUM: usize = 185;
 
 register_structs! {
     pub PlicRegisters {
         /// Interrupt Priority Registers
-        (0x000 => priority: [ReadWrite<u32, priority::Register>; 181]),
-        (0x2d4 => _reserved0),
+        (0x000 => priority: [ReadWrite<u32, priority::Register>; PLIC_IRQ_NUM]),
+        (0x2e4 => _reserved0),
         /// Interrupt Pending Register
         (0x1000 => pending: [ReadOnly<u32>; PLIC_REGS]),
         (0x1018 => _reserved1),
@@ -44,7 +45,7 @@ register_structs! {
 
 register_bitfields![u32,
     priority [
-        Priority OFFSET(0) NUMBITS(3) []
+        Priority OFFSET(0) NUMBITS(2) []
     ]
 ];
 
@@ -91,24 +92,11 @@ impl Plic {
 
     /// Disable specific interrupt.
     pub fn disable(&self, index: u32) {
-        let offset = if index < 32 {
-            0
-        } else if index < 64 {
-            1
-        } else if index < 96 {
-            2
-        } else if index < 128 {
-            3
-        } else if index < 160 {
-            4
-        } else if index < 192 {
-            5
-        } else {
+        if index >= PLIC_IRQ_NUM as u32 {
             panic!("Invalid IRQ: {}", index);
         };
-
-        let irq = index % 32;
-        let mask = !(1 << irq);
+        let offset = (index / 32) as usize;
+        let mask = !(1 << (index % 32));
 
         self.registers.enable[offset].set(self.registers.enable[offset].get() & mask);
     }
@@ -138,25 +126,14 @@ impl Plic {
     /// Saved interrupts can be retrieved by calling `get_saved_interrupts()`.
     /// Saved interrupts are cleared when `'complete()` is called.
     pub unsafe fn save_interrupt(&self, index: u32) {
-        let offset = if index < 32 {
-            0
-        } else if index < 64 {
-            1
-        } else if index < 96 {
-            2
-        } else if index < 128 {
-            3
-        } else if index < 160 {
-            4
-        } else if index < 192 {
-            5
-        } else {
+        if index >= PLIC_IRQ_NUM as u32 {
             panic!("Invalid IRQ: {}", index);
         };
-        let irq = index % 32;
+        let offset = (index / 32) as usize;
+        let mask = 1 << (index % 32);
 
         // OR the current saved state with the new value
-        let new_saved = self.saved[offset].get().get() | 1 << irq;
+        let new_saved = self.saved[offset].get().get() | mask;
 
         // Set the new state
         self.saved[offset].set(LocalRegisterCopy::new(new_saved));
@@ -172,7 +149,6 @@ impl Plic {
                 return Some(saved.trailing_zeros() + (i as u32 * 32));
             }
         }
-
         None
     }
 
@@ -181,26 +157,14 @@ impl Plic {
     /// Interrupts must be disabled before this is called.
     pub unsafe fn complete(&self, index: u32) {
         self.registers.claim.set(index);
-
-        let offset = if index < 32 {
-            0
-        } else if index < 64 {
-            1
-        } else if index < 96 {
-            2
-        } else if index < 128 {
-            3
-        } else if index < 160 {
-            4
-        } else if index < 192 {
-            5
-        } else {
+        if index >= PLIC_IRQ_NUM as u32 {
             panic!("Invalid IRQ: {}", index);
         };
-        let irq = index % 32;
+        let offset = (index / 32) as usize;
+        let mask = !(1 << (index % 32));
 
         // OR the current saved state with the new value
-        let new_saved = self.saved[offset].get().get() & !(1 << irq);
+        let new_saved = self.saved[offset].get().get() & mask;
 
         // Set the new state
         self.saved[offset].set(LocalRegisterCopy::new(new_saved));

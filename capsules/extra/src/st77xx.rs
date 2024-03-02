@@ -42,6 +42,7 @@ use kernel::hil::screen::{
 };
 use kernel::hil::time::{self, Alarm, ConvertTicks};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
 
 pub const BUFFER_SIZE: usize = 24;
@@ -161,7 +162,6 @@ const COLMOD: Command = Command {
 
 const MADCTL: Command = Command {
     id: 0x36,
-    /// Default Parameters:
     parameters: Some(&[0x00]),
     delay: 0,
 };
@@ -526,7 +526,8 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
                             self.client.map(|client| {
                                 if self.write_buffer.is_some() {
                                     self.write_buffer.take().map(|buffer| {
-                                        client.write_complete(buffer, Ok(()));
+                                        let data = SubSliceMut::new(buffer);
+                                        client.write_complete(data, Ok(()));
                                     });
                                 } else {
                                     client.command_complete(Ok(()));
@@ -600,7 +601,8 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
                     self.client.map(|client| {
                         if self.write_buffer.is_some() {
                             self.write_buffer.take().map(|buffer| {
-                                client.write_complete(buffer, Err(error));
+                                let data = SubSliceMut::new(buffer);
+                                client.write_complete(data, Err(error));
                             });
                         } else {
                             client.command_complete(Err(error));
@@ -682,12 +684,8 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
 }
 
 impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::ScreenSetup<'a> for ST77XX<'a, A, B, P> {
-    fn set_client(&self, setup_client: Option<&'a dyn ScreenSetupClient>) {
-        if let Some(setup_client) = setup_client {
-            self.setup_client.set(setup_client);
-        } else {
-            self.setup_client.clear();
-        }
+    fn set_client(&self, setup_client: &'a dyn ScreenSetupClient) {
+        self.setup_client.set(setup_client);
     }
 
     fn set_resolution(&self, resolution: (usize, usize)) -> Result<(), ErrorCode> {
@@ -792,53 +790,49 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::Screen<'a> for ST77XX<'a, A, 
         }
     }
 
-    fn write(&self, buffer: &'static mut [u8], len: usize) -> Result<(), ErrorCode> {
+    fn write(&self, data: SubSliceMut<'static, u8>, continue_write: bool) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             self.setup_command.set(false);
-            self.write_buffer.replace(buffer);
-            let buffer_len = self.buffer.map_or_else(
-                || panic!("st77xx: buffer is not available"),
-                |buffer| buffer.len(),
-            );
-            if buffer_len > 0 {
-                // set buffer
-                self.sequence_buffer.map_or_else(
-                    || panic!("st77xx: write no sequence buffer"),
-                    |sequence| {
-                        sequence[0] = SendCommand::Slice(&WRITE_RAM, len);
-                        self.sequence_len.set(1);
-                    },
+            let len = data.len();
+            self.write_buffer.replace(data.take());
+
+            if !continue_write {
+                // Writing new data for the first time, make sure to reset
+                // the screen buffer location to the beginning.
+
+                let buffer_len = self.buffer.map_or_else(
+                    || panic!("st77xx: buffer is not available"),
+                    |buffer| buffer.len(),
                 );
-                let _ = self.send_sequence_buffer();
-                Ok(())
+                if buffer_len > 0 {
+                    // set buffer
+                    self.sequence_buffer.map_or_else(
+                        || panic!("st77xx: write no sequence buffer"),
+                        |sequence| {
+                            sequence[0] = SendCommand::Slice(&WRITE_RAM, len);
+                            self.sequence_len.set(1);
+                        },
+                    );
+                    let _ = self.send_sequence_buffer();
+                    Ok(())
+                } else {
+                    Err(ErrorCode::NOMEM)
+                }
             } else {
-                Err(ErrorCode::NOMEM)
+                // Continuing the previous write.
+                self.send_parameters_slice(len);
+                Ok(())
             }
         } else {
             Err(ErrorCode::BUSY)
         }
     }
 
-    fn write_continue(&self, buffer: &'static mut [u8], len: usize) -> Result<(), ErrorCode> {
-        if self.status.get() == Status::Idle {
-            self.setup_command.set(false);
-            self.write_buffer.replace(buffer);
-            self.send_parameters_slice(len);
-            Ok(())
-        } else {
-            Err(ErrorCode::BUSY)
-        }
+    fn set_client(&self, client: &'a dyn ScreenClient) {
+        self.client.set(client);
     }
 
-    fn set_client(&self, client: Option<&'a dyn ScreenClient>) {
-        if let Some(client) = client {
-            self.client.set(client);
-        } else {
-            self.client.clear();
-        }
-    }
-
-    fn set_brightness(&self, _brightness: usize) -> Result<(), ErrorCode> {
+    fn set_brightness(&self, _brightness: u16) -> Result<(), ErrorCode> {
         Ok(())
     }
 
@@ -892,84 +886,73 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> bus::Client for ST77XX<'a, A, B, P> {
 #[allow(dead_code)]
 const GAMSET: Command = Command {
     id: 0x26,
-    /// Default parameters: Gama Set
+    // Default parameters: Gama Set
     parameters: Some(&[0]),
     delay: 0,
 };
 
 const FRMCTR1: Command = Command {
     id: 0xB1,
-    /// Default Parameters:
     parameters: Some(&[0x01, 0x2C, 0x2D]),
     delay: 0,
 };
 
 const FRMCTR2: Command = Command {
     id: 0xB2,
-    /// Default Parameters:
     parameters: Some(&[0x01, 0x2C, 0x2D]),
     delay: 0,
 };
 
 const FRMCTR3: Command = Command {
     id: 0xB3,
-    /// Default Parameters:
     parameters: Some(&[0x01, 0x2C, 0x2D, 0x01, 0x2C, 0x2D]),
     delay: 0,
 };
 
 const INVCTR: Command = Command {
     id: 0xB4,
-    /// Default Parameters:
     parameters: Some(&[0x07]),
     delay: 0,
 };
 
 const PWCTR1: Command = Command {
     id: 0xC0,
-    /// Default Parameters:
     parameters: Some(&[0xA2, 0x02, 0x84]),
     delay: 0,
 };
 
 const PWCTR2: Command = Command {
     id: 0xC1,
-    /// Default Parameters:
     parameters: Some(&[0xC5]),
     delay: 0,
 };
 
 const PWCTR3: Command = Command {
     id: 0xC2,
-    /// Default Parameters:
     parameters: Some(&[0x0A, 0x00]),
     delay: 0,
 };
 
 const PWCTR4: Command = Command {
     id: 0xC3,
-    /// Default Parameters:
     parameters: Some(&[0x8A, 0x2A]),
     delay: 0,
 };
 
 const PWCTR5: Command = Command {
     id: 0xC4,
-    /// Default Parameters:
     parameters: Some(&[0x8A, 0xEE]),
     delay: 0,
 };
 
 const VMCTR1: Command = Command {
     id: 0xC5,
-    /// Default Parameters:
     parameters: Some(&[0x0E]),
     delay: 0,
 };
 
 const GMCTRP1: Command = Command {
     id: 0xE0,
-    /// Default Parameters:
     parameters: Some(&[
         0x02, 0x1c, 0x07, 0x12, 0x37, 0x32, 0x29, 0x2d, 0x29, 0x25, 0x2B, 0x39, 0x00, 0x01, 0x03,
         0x10,
@@ -979,7 +962,6 @@ const GMCTRP1: Command = Command {
 
 const GMCTRN1: Command = Command {
     id: 0xE1,
-    /// Default Parameters:
     parameters: Some(&[
         0x03, 0x1d, 0x07, 0x06, 0x2E, 0x2C, 0x29, 0x2D, 0x2E, 0x2E, 0x37, 0x3F, 0x00, 0x00, 0x02,
         0x10,

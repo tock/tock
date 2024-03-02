@@ -109,8 +109,8 @@ fn otbn_run_rsa_binary() {
         crate::otbn::find_app(
             "otbn-rsa",
             core::slice::from_raw_parts(
-                &_sapps as *const u8,
-                &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+                core::ptr::addr_of!(_sapps),
+                core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
             ),
         )
     } {

@@ -19,10 +19,9 @@ for more details.
 Supported version
 -----------------
 
-The OpenTitan project is producing its first chip, _Earlgrey_, from release
-[`Earlgrey-M2.5.2-RC0`](https://github.com/lowRISC/opentitan/releases/tag/Earlgrey-M2.5.2-RC0).
+The OpenTitan project is producing its first chip, _Earlgrey_.
 You should use either an FPGA
-[bitstream](https://storage.googleapis.com/opentitan-bitstreams/master/bitstream-21ce4e9761abdf5c919b46e5ae64a5a8e24992f7.tar.gz)
+[bitstream](https://storage.googleapis.com/opentitan-bitstreams/earlgrey_es/bitstream-edf5e35f5d50a5377641c90a315109a351de7635.tar.gz)
 or simulator built from that version of the OpenTitan codebase.
 
 Programming

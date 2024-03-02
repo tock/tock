@@ -25,7 +25,6 @@
 
 use capsules_extra::analog_comparator::AnalogComparator;
 use core::mem::MaybeUninit;
-use kernel;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;

@@ -7,7 +7,7 @@ name = "qemu_rv32_virt"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-build = "build.rs"
+build = "../build.rs"
 
 [dependencies]
 components = { path = "../components" }

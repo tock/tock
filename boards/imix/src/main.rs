@@ -108,6 +108,21 @@ static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText>
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
+type SI7021Sensor = components::si7021::SI7021ComponentType<
+    capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+    capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, sam4l::i2c::I2CHw<'static>>,
+>;
+type TemperatureDriver = components::temperature::TemperatureComponentType<SI7021Sensor>;
+type HumidityDriver = components::humidity::HumidityComponentType<SI7021Sensor>;
+type RngDriver = components::rng::RngComponentType<sam4l::trng::Trng<'static>>;
+
+type Rf233 = capsules_extra::rf233::RF233<
+    'static,
+    VirtualSpiMasterDevice<'static, sam4l::spi::SpiHw<'static>>,
+>;
+type Ieee802154MacDevice =
+    components::ieee802154::Ieee802154ComponentMacDeviceType<Rf233, sam4l::aes::Aes<'static>>;
+
 struct Imix {
     pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
@@ -124,8 +139,8 @@ struct Imix {
     >,
     gpio: &'static capsules_core::gpio::GPIO<'static, sam4l::gpio::GPIOPin<'static>>,
     alarm: &'static AlarmDriver<'static, VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>>,
-    temp: &'static capsules_extra::temperature::TemperatureSensor<'static>,
-    humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
+    temp: &'static TemperatureDriver,
+    humidity: &'static HumidityDriver,
     ambient_light: &'static capsules_extra::ambient_light::AmbientLight<'static>,
     adc: &'static capsules_core::adc::AdcDedicated<'static, sam4l::adc::Adc<'static>>,
     led: &'static capsules_core::led::LedDriver<
@@ -134,7 +149,7 @@ struct Imix {
         1,
     >,
     button: &'static capsules_core::button::Button<'static, sam4l::gpio::GPIOPin<'static>>,
-    rng: &'static capsules_core::rng::RngDriver<'static>,
+    rng: &'static RngDriver,
     analog_comparator: &'static capsules_extra::analog_comparator::AnalogComparator<
         'static,
         sam4l::acifc::Acifc<'static>,
@@ -461,13 +476,13 @@ pub unsafe fn main() {
         capsules_extra::temperature::DRIVER_NUM,
         si7021,
     )
-    .finalize(components::temperature_component_static!());
+    .finalize(components::temperature_component_static!(SI7021Sensor));
     let humidity = components::humidity::HumidityComponent::new(
         board_kernel,
         capsules_extra::humidity::DRIVER_NUM,
         si7021,
     )
-    .finalize(components::humidity_component_static!());
+    .finalize(components::humidity_component_static!(SI7021Sensor));
 
     let fxos8700 = components::fxos8700::Fxos8700Component::new(mux_i2c, 0x1e, &peripherals.pc[13])
         .finalize(components::fxos8700_component_static!(
@@ -607,7 +622,7 @@ pub unsafe fn main() {
         capsules_core::rng::DRIVER_NUM,
         &peripherals.trng,
     )
-    .finalize(components::rng_component_static!());
+    .finalize(components::rng_component_static!(sam4l::trng::Trng));
 
     // For now, assign the 802.15.4 MAC address on the device as
     // simply a 16-bit short address which represents the last 16 bits
@@ -664,10 +679,10 @@ pub unsafe fn main() {
         board_kernel,
         capsules_extra::nonvolatile_storage_driver::DRIVER_NUM,
         &peripherals.flash_controller,
-        0x60000,                          // Start address for userspace accessible region
-        0x20000,                          // Length of userspace accessible region
-        &_sstorage as *const u8 as usize, //start address of kernel region
-        &_estorage as *const u8 as usize - &_sstorage as *const u8 as usize, // length of kernel region
+        0x60000, // Start address for userspace accessible region
+        0x20000, // Length of userspace accessible region
+        core::ptr::addr_of!(_sstorage) as usize, //start address of kernel region
+        core::ptr::addr_of!(_estorage) as usize - core::ptr::addr_of!(_sstorage) as usize, // length of kernel region
     )
     .finalize(components::nonvolatile_storage_component_static!(
         sam4l::flashcalw::FLASHCALW
@@ -698,7 +713,10 @@ pub unsafe fn main() {
         local_ip_ifaces,
         mux_alarm,
     )
-    .finalize(components::udp_mux_component_static!(sam4l::ast::Ast));
+    .finalize(components::udp_mux_component_static!(
+        sam4l::ast::Ast,
+        Ieee802154MacDevice
+    ));
 
     // UDP driver initialization happens here
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
@@ -819,12 +837,12 @@ pub unsafe fn main() {
         &imix,
         chip,
         core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
         ),
         core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+            core::ptr::addr_of_mut!(_sappmem),
+            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
         &mut PROCESSES,
         &FAULT_RESPONSE,

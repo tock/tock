@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! Traits and types for application credentials checkers, used to
-//! decide whether an application can be loaded. See
-//| the [AppID TRD](../../doc/reference/trd-appid.md).
+//! Traits and types for application credentials checkers, used to decide
+//! whether an application can be loaded.
+//!
+//! See the [AppID TRD](../../doc/reference/trd-appid.md).
 
 pub mod basic;
+pub mod signature;
 
 use crate::config;
 use crate::debug;
@@ -171,11 +173,15 @@ impl AppUniqueness for () {
 
 /// Transforms Application Credentials into a corresponding ShortID.
 pub trait Compress {
-    fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> ShortID;
+    fn to_short_id(&self, process: &dyn Process, credentials: &TbfFooterV2Credentials) -> ShortID;
 }
 
 impl Compress for () {
-    fn to_short_id(&self, _credentials: &TbfFooterV2Credentials) -> ShortID {
+    fn to_short_id(
+        &self,
+        _process: &dyn Process,
+        _credentials: &TbfFooterV2Credentials,
+    ) -> ShortID {
         ShortID::LocallyUnique
     }
 }

@@ -3,7 +3,7 @@
 // Copyright Tock Contributors 2022.
 
 use core::fmt::Write;
-use cortexm4::{self, nvic, CortexM4, CortexMVariant};
+use cortexm4::{nvic, CortexM4, CortexMVariant};
 use kernel::platform::chip::InterruptService;
 
 pub struct NRF52<'a, I: InterruptService + 'a> {
@@ -63,7 +63,7 @@ impl<'a> Nrf52DefaultPeripherals<'a> {
             timer0: crate::timer::TimerAlarm::new(0),
             timer1: crate::timer::TimerAlarm::new(1),
             timer2: crate::timer::Timer::new(2),
-            uarte0: crate::uart::Uarte::new(),
+            uarte0: crate::uart::Uarte::new(crate::uart::UARTE0_BASE),
             spim0: crate::spi::SPIM::new(0),
             twi0: crate::i2c::TWI::new_twi0(),
             spim1: crate::spi::SPIM::new(1),

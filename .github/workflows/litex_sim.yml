@@ -45,43 +45,19 @@ jobs:
       - name: Update packages and install dependencies
         run: |
           sudo apt update
-          sudo apt install python3-pip python3-venv \
+          sudo apt install python3-pip python3-venv gcc-riscv64-unknown-elf \
             verilator libevent-dev libjson-c-dev libz-dev libzmq3-dev
-
-      # Uses a custom RISCV toolchain containing the required headers. This
-      # follows the libtock-c GitHub actions definition.
-      - name: Setup RISC-V GCC toolchain
-        run: |
-          RISCV_TOOLCHAIN_MIRRORS=(\
-            "http://www.cs.virginia.edu/~bjc8c/archive/gcc-riscv64-unknown-elf-8.3.0-ubuntu.zip" \
-            "https://alpha.mirror.svc.schuermann.io/files/2023-08-17_gcc-riscv64-unknown-elf-8.3.0-ubuntu.zip"\
-          )
-          pushd $HOME
-          for MIRROR in ${RISCV_TOOLCHAIN_MIRRORS[@]}; do
-            echo "Fetching RISC-V toolchain from ${MIRROR}..."
-            wget -Oriscv-toolchain.zip -q "$MIRROR" &&\
-              (echo "2c82a8f3ac77bf2b24d66abff3aa5e873750c76de24c77e12dae91b9d2f4da27 riscv-toolchain.zip" |\
-                sha256sum -c)
-            if [ $? -ne 0 ]; then
-              echo "WARNING: Fetching RISC-V from mirror $MIRROR failed!" >&2
-            else
-              break
-            fi
-          done
-          unzip riscv-toolchain.zip
-          echo "$HOME/gcc-riscv64-unknown-elf-8.3.0-ubuntu/bin" >> $GITHUB_PATH
-          popd
 
       # Install elf2tab to be able to build userspace apps
       - name: Install elf2tab
         run: |
-          cargo install elf2tab@0.10.2
+          cargo install elf2tab@0.12.0
 
       # Install tockloader, which is used to prepare binaries with userspace
       # applications.
       - name: Install tockloader
         run: |
-          pip3 install tockloader==1.9.0
+          pip3 install tockloader==1.11.0
 
       # Clone tock-litex support repository under ./tock-litex, check out the
       # targeted release.
@@ -92,7 +68,7 @@ jobs:
           # The pinned revision is different from the targeted release as
           # documented in the LiteX boards, as the CI requires special patches
           # to LiteX for interacting with the simulation:
-          ref: 2022081701-tock-ci-0
+          ref: 2024011101-tock-ci-1
           path: tock-litex
 
       # Install all of the required Python packages from the tock-litex'
@@ -128,8 +104,8 @@ jobs:
           # bugs fixed in libtock-c, backwards-incompatible changes in
           # Tock or new tests this might need to be updated.
           #
-          # libtock-c of Sep 8, 2022, 5:42 PM EDT
-          ref: ad372e599e5a9e664f12c7757576cb28c8b40412
+          # libtock-c of Feb 9, 2024, 3:08 PM EST
+          ref: 0e72c922e13cd83a1aaae7a5f587099d45815e6a
           path: libtock-c
 
       - name: Build libtock-c apps
@@ -138,8 +114,8 @@ jobs:
           # memory addresses such that tockloader can place the non-PIC apps
           # into the kernel binary properly.
           export TOCK_TARGETS="\
-            rv32imc|rv32imc.0x00080060.0x40008000|0x00080060|0x40008000
-            rv32imc|rv32imc.0x00088060.0x40010000|0x00088060|0x40010000"
+            rv32imc|rv32imc.0x00080080.0x40008000|0x00080080|0x40008000
+            rv32imc|rv32imc.0x00088080.0x40010000|0x00088080|0x40010000"
           export LIBTOCK_C_APPS="\
             c_hello \
             tests/console_timeout \

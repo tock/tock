@@ -37,7 +37,7 @@ impl IoWrite for Writer {
 #[cfg(not(test))]
 #[no_mangle]
 #[panic_handler]
-pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
+pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let writer = &mut WRITER;
 
     debug::panic_banner(writer, pi);
@@ -52,7 +52,7 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
 #[cfg(test)]
 #[no_mangle]
 #[panic_handler]
-pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
+pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let writer = &mut WRITER;
 
     debug::panic_print(

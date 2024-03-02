@@ -325,7 +325,7 @@ impl<'a, T> SubSliceMut<'a, T> {
         let end = match range.end_bound() {
             Bound::Included(e) => *e + 1,
             Bound::Excluded(e) => *e,
-            Bound::Unbounded => self.active_range.end,
+            Bound::Unbounded => self.active_range.end - self.active_range.start,
         };
 
         let new_start = self.active_range.start + start;
@@ -429,7 +429,7 @@ impl<'a, T> SubSlice<'a, T> {
     ///
     /// ```rust,ignore
     /// let buffer = unsafe {
-    ///    core::slice::from_raw_parts(&_ptr_in_flash as *const u8, 1500)
+    ///    core::slice::from_raw_parts(core::ptr::addr_of!(_ptr_in_flash), 1500)
     /// };
     /// let s = SubSlice::new(buffer);
     /// s.slice(0..250);
@@ -445,7 +445,7 @@ impl<'a, T> SubSlice<'a, T> {
         let end = match range.end_bound() {
             Bound::Included(e) => *e + 1,
             Bound::Excluded(e) => *e,
-            Bound::Unbounded => self.active_range.end,
+            Bound::Unbounded => self.active_range.end - self.active_range.start,
         };
 
         let new_start = self.active_range.start + start;

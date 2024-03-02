@@ -69,9 +69,12 @@ pub mod macros;
 #[cfg(feature = "register_types")]
 pub mod registers;
 
+pub mod debug;
+
 mod local_register;
 pub use local_register::LocalRegisterCopy;
 
+use core::fmt::Debug;
 use core::ops::{BitAnd, BitOr, BitOrAssign, Not, Shl, Shr};
 
 /// Trait representing the base type of registers.
@@ -93,6 +96,7 @@ pub trait UIntLike:
     + Shl<usize, Output = Self>
     + Copy
     + Clone
+    + Debug
 {
     /// Return the representation of the value `0` in the implementing
     /// type.

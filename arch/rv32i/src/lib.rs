@@ -6,15 +6,16 @@
 
 #![crate_name = "rv32i"]
 #![crate_type = "rlib"]
-#![feature(naked_functions)]
 #![no_std]
 
 use core::fmt::Write;
 
+#[cfg(all(target_arch = "riscv32", target_os = "none"))]
+use core::arch::global_asm;
+
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 
 pub mod clic;
-pub mod epmp;
 pub mod machine_timer;
 pub mod pmp;
 pub mod support;
@@ -46,24 +47,27 @@ extern "C" {
     static __global_pointer: usize;
 }
 
-/// Entry point of all programs (`_start`).
-///
-/// This assembly does three functions:
-///
-/// 1. It initializes the stack pointer, the frame pointer (needed for closures
-///    to work in start_rust) and the global pointer.
-/// 2. It initializes the .bss and .data RAM segments. This must be done before
-///    any Rust code runs. See https://github.com/tock/tock/issues/2222 for more
-///    information.
-/// 3. Finally it calls `main()`, the main entry point for Tock boards.
 #[cfg(all(target_arch = "riscv32", target_os = "none"))]
-#[link_section = ".riscv.start"]
-#[export_name = "_start"]
-#[naked]
-pub extern "C" fn _start() {
-    use core::arch::asm;
-    unsafe {
-        asm! ("
+extern "C" {
+    // Entry point of all programs (`_start`).
+    ///
+    /// This assembly does three functions:
+    ///
+    /// 1. It initializes the stack pointer, the frame pointer (needed for closures
+    ///    to work in start_rust) and the global pointer.
+    /// 2. It initializes the .bss and .data RAM segments. This must be done before
+    ///    any Rust code runs. See https://github.com/tock/tock/issues/2222 for more
+    ///    information.
+    /// 3. Finally it calls `main()`, the main entry point for Tock boards.
+    pub fn _start();
+}
+
+#[cfg(all(target_arch = "riscv32", target_os = "none"))]
+global_asm! ("
+            .section .riscv.start, \"ax\"
+            .globl _start
+          _start:
+
             // Set the global pointer register using the variable defined in the
             // linker script. This register is only set once. The global pointer
             // is a method for sharing state between the linker and the CPU so
@@ -133,17 +137,14 @@ pub extern "C" fn _start() {
             // code, likely defined in a board's main.rs.
             j main
         ",
-        gp = sym __global_pointer,
-        estack = sym _estack,
-        sbss = sym _szero,
-        ebss = sym _ezero,
-        sdata = sym _srelocate,
-        edata = sym _erelocate,
-        etext = sym _etext,
-        options(noreturn)
-        );
-    }
-}
+gp = sym __global_pointer,
+estack = sym _estack,
+sbss = sym _szero,
+ebss = sym _ezero,
+sdata = sym _srelocate,
+edata = sym _erelocate,
+etext = sym _etext,
+);
 
 /// The various privilege levels in RISC-V.
 pub enum PermissionMode {
@@ -180,34 +181,37 @@ pub unsafe fn configure_trap_handler(mode: PermissionMode) {
 }
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+#[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
 pub extern "C" fn _start_trap() {
     unimplemented!()
 }
 
-/// This is the trap handler function. This code is called on all traps,
-/// including interrupts, exceptions, and system calls from applications.
-///
-/// Tock uses only the single trap handler, and does not use any vectored
-/// interrupts or other exception handling. The trap handler has to determine
-/// why the trap handler was called, and respond accordingly. Generally, there
-/// are two reasons the trap handler gets called: an interrupt occurred or an
-/// application called a syscall.
-///
-/// In the case of an interrupt while the kernel was executing we only need to
-/// save the kernel registers and then run whatever interrupt handling code we
-/// need to. If the trap happens while and application was executing, we have to
-/// save the application state and then resume the `switch_to()` function to
-/// correctly return back to the kernel.
 #[cfg(all(target_arch = "riscv32", target_os = "none"))]
-#[link_section = ".riscv.trap"]
-#[export_name = "_start_trap"]
-#[naked]
-pub extern "C" fn _start_trap() {
-    use core::arch::asm;
-    unsafe {
-        asm!(
-            "
+extern "C" {
+    /// This is the trap handler function. This code is called on all traps,
+    /// including interrupts, exceptions, and system calls from applications.
+    ///
+    /// Tock uses only the single trap handler, and does not use any vectored
+    /// interrupts or other exception handling. The trap handler has to determine
+    /// why the trap handler was called, and respond accordingly. Generally, there
+    /// are two reasons the trap handler gets called: an interrupt occurred or an
+    /// application called a syscall.
+    ///
+    /// In the case of an interrupt while the kernel was executing we only need to
+    /// save the kernel registers and then run whatever interrupt handling code we
+    /// need to. If the trap happens while and application was executing, we have to
+    /// save the application state and then resume the `switch_to()` function to
+    /// correctly return back to the kernel.
+    pub fn _start_trap();
+}
+
+#[cfg(all(target_arch = "riscv32", target_os = "none"))]
+global_asm!(
+    "
+            .section .riscv.trap, \"ax\"
+            .globl _start_trap
+          _start_trap:
+
             // The first thing we have to do is determine if we came from user
             // mode or kernel mode, as we need to save state and proceed
             // differently. We cannot, however, use any registers because we do
@@ -432,12 +436,9 @@ pub extern "C" fn _start_trap() {
             // switching code.
             mret
         ",
-            estack = sym _estack,
-            sstack = sym _sstack,
-            options(noreturn)
-        );
-    }
-}
+    estack = sym _estack,
+    sstack = sym _sstack,
+);
 
 /// RISC-V semihosting needs three exact instructions in uncompressed form.
 ///
@@ -474,7 +475,7 @@ pub unsafe fn semihost_command(command: usize, arg0: usize, arg1: usize) -> usiz
 }
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+#[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
 pub unsafe fn semihost_command(_command: usize, _arg0: usize, _arg1: usize) -> usize {
     unimplemented!()
 }

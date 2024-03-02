@@ -15,6 +15,7 @@ MEMORY
    * and 0x2009_0000 to 0x2010_0000 is for flash storage.
    */
   prog  (rx)  : ORIGIN = 0x20060000, LENGTH = 0x30000
+  fs (r)      : ORIGIN = 0x20090000, LENGTH = 0x70000
   /* The first 0x650 bytes of RAM are reserved for the boot
    * ROM, so we have to ignore that space.
    * See https://github.com/lowRISC/opentitan/blob/master/sw/device/silicon_creator/lib/base/static_critical.ld
@@ -24,6 +25,17 @@ MEMORY
 }
 
 SECTIONS {
+    /* Export the start & end of SRAM and flash as symbols for setting
+     * up the ePMP. Flash includes rom, prog and flash storage, such
+     * that we can use a single NAPOT region. The .text section will
+     * be made executable by a separate PMP region.
+     */
+    _sflash = ORIGIN(rom);
+    _eflash = ORIGIN(fs) + LENGTH(fs);
+
+    _ssram  = ORIGIN(ram) - 0x650;
+    _esram  = ORIGIN(ram) + LENGTH(ram);
+
     .manifest ORIGIN(rom):
     {
         _manifest = .;

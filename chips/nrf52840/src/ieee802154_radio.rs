@@ -6,8 +6,6 @@
 
 use crate::timer::TimerAlarm;
 use core::cell::Cell;
-use core::convert::TryFrom;
-use kernel;
 use kernel::hil::radio::{self, PowerClient, RadioData};
 use kernel::hil::time::{Alarm, AlarmClient, Time};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -16,7 +14,6 @@ use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, Writ
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
-use nrf52;
 use nrf52::constants::TxPower;
 
 // This driver implements a subset of 802.15.4 sending and receiving for the
@@ -1303,7 +1300,7 @@ impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
 
     fn set_channel(&self, chan: u8) -> Result<(), ErrorCode> {
         match RadioChannel::try_from(chan) {
-            Err(_) => Err(ErrorCode::NOSUPPORT),
+            Err(()) => Err(ErrorCode::NOSUPPORT),
             Ok(res) => {
                 self.channel.set(res);
                 Ok(())
@@ -1315,7 +1312,7 @@ impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
         // Convert u8 to TxPower
         match nrf52::constants::TxPower::try_from(tx_power as u8) {
             // Invalid transmitting power, propogate error
-            Err(_) => Err(ErrorCode::NOSUPPORT),
+            Err(()) => Err(ErrorCode::NOSUPPORT),
             // Valid transmitting power, propogate success
             Ok(res) => {
                 self.tx_power.set(res);

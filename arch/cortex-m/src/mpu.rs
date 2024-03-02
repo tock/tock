@@ -10,7 +10,6 @@ use core::cmp;
 use core::fmt;
 use core::num::NonZeroUsize;
 
-use kernel;
 use kernel::platform::mpu;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::math;
@@ -152,6 +151,12 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> MPU<NUM_REGIONS, MI
             config_count: Cell::new(NonZeroUsize::MIN),
             hardware_is_configured_for: OptionalCell::empty(),
         }
+    }
+
+    // Function useful for boards where the bootloader sets up some
+    // MPU configuration that conflicts with Tock's configuration:
+    pub unsafe fn clear_mpu(&self) {
+        self.registers.ctrl.write(Control::ENABLE::CLEAR);
     }
 }
 
@@ -369,10 +374,6 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
     for MPU<NUM_REGIONS, MIN_REGION_SIZE>
 {
     type MpuConfig = CortexMConfig<NUM_REGIONS>;
-
-    fn clear_mpu(&self) {
-        self.registers.ctrl.write(Control::ENABLE::CLEAR);
-    }
 
     fn enable_app_mpu(&self) {
         // Enable the MPU, disable it during HardFault/NMI handlers, and allow

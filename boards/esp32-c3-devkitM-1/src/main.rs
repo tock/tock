@@ -67,6 +67,8 @@ static mut ALARM: Option<&'static MuxAlarm<'static, esp32_c3::timg::TimG<'static
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x900] = [0; 0x900];
 
+type RngDriver = components::rng::RngComponentType<esp32_c3::rng::Rng<'static>>;
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct Esp32C3Board {
@@ -78,7 +80,7 @@ struct Esp32C3Board {
     >,
     scheduler: &'static PrioritySched,
     scheduler_timer: &'static VirtualSchedulerTimer<esp32_c3::timg::TimG<'static>>,
-    rng: &'static capsules_core::rng::RngDriver<'static>,
+    rng: &'static RngDriver,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -288,7 +290,7 @@ unsafe fn setup() -> (
         capsules_core::rng::DRIVER_NUM,
         &peripherals.rng,
     )
-    .finalize(components::rng_component_static!());
+    .finalize(components::rng_component_static!(esp32_c3::rng::Rng));
 
     let esp32_c3_board = static_init!(
         Esp32C3Board,
@@ -306,12 +308,12 @@ unsafe fn setup() -> (
         board_kernel,
         chip,
         core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
         ),
         core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+            core::ptr::addr_of_mut!(_sappmem),
+            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
         &mut PROCESSES,
         &FAULT_RESPONSE,

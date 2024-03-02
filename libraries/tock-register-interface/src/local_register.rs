@@ -115,6 +115,17 @@ impl<T: UIntLike, R: RegisterLongName> LocalRegisterCopy<T, R> {
     pub fn bitand(&self, rhs: T) -> LocalRegisterCopy<T, R> {
         LocalRegisterCopy::new(self.value & rhs)
     }
+
+    #[inline]
+    pub fn debug(&self) -> crate::debug::RegisterDebugValue<T, R>
+    where
+        R: crate::debug::RegisterDebugInfo<T>,
+    {
+        crate::debug::RegisterDebugValue {
+            data: self.get(),
+            _reg: core::marker::PhantomData,
+        }
+    }
 }
 
 impl<T: UIntLike + fmt::Debug, R: RegisterLongName> fmt::Debug for LocalRegisterCopy<T, R> {

@@ -4,7 +4,6 @@
 
 use core::fmt::Write;
 use core::panic::PanicInfo;
-use cortexm4;
 use kernel::debug;
 use kernel::debug::IoWrite;
 use kernel::hil::led;
@@ -74,7 +73,7 @@ impl IoWrite for Writer {
 #[no_mangle]
 #[panic_handler]
 /// Panic handler
-pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
+pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     // The display LEDs (see back of board)
     let led_kernel_pin = &nrf52840::gpio::GPIOPin::new(Pin::P0_13);
     let led = &mut led::LedLow::new(led_kernel_pin);

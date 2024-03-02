@@ -46,6 +46,19 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
+//------------------------------------------------------------------------------
+// SYSCALL DRIVER TYPE DEFINITIONS
+//------------------------------------------------------------------------------
+
+type TemperatureSTMSensor = components::temperature_stm::TemperatureSTMComponentType<
+    capsules_core::virtualizers::virtual_adc::AdcDevice<'static, stm32f429zi::adc::Adc<'static>>,
+>;
+type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureSTMSensor>;
+type RngDriver = components::rng::RngComponentType<stm32f429zi::trng::Trng<'static>>;
+
+/// Nucleo F429ZI HSE frequency in MHz
+pub const NUCLEO_F429ZI_HSE_FREQUENCY_MHZ: usize = 8;
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct NucleoF429ZI {
@@ -58,13 +71,14 @@ struct NucleoF429ZI {
     >,
     button: &'static capsules_core::button::Button<'static, stm32f429zi::gpio::Pin<'static>>,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
+    dac: &'static capsules_extra::dac::Dac<'static>,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, stm32f429zi::tim2::Tim2<'static>>,
     >,
-    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temperature: &'static TemperatureDriver,
     gpio: &'static capsules_core::gpio::GPIO<'static, stm32f429zi::gpio::Pin<'static>>,
-    rng: &'static capsules_core::rng::RngDriver<'static>,
+    rng: &'static RngDriver,
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
@@ -92,6 +106,7 @@ impl SyscallDriverLookup for NucleoF429ZI {
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules_extra::can::DRIVER_NUM => f(Some(self.can)),
+            capsules_extra::dac::DRIVER_NUM => f(Some(self.dac)),
             capsules_extra::date_time::DRIVER_NUM => f(Some(self.date_time)),
             _ => f(None),
         }
@@ -260,6 +275,11 @@ unsafe fn set_pin_primary_functions(
         // AF9 is CAN_TX
         pin.set_alternate_function(AlternateFunction::AF9);
     });
+
+    // DAC Channel 1
+    gpio_ports.get_pin(PinId::PA04).map(|pin| {
+        pin.set_mode(stm32f429zi::gpio::Mode::AnalogMode);
+    });
 }
 
 /// Helper function for miscellaneous peripheral functions
@@ -287,17 +307,17 @@ unsafe fn setup_peripherals(
     rtc.enable_clock();
 }
 
-/// Statically initialize the core peripherals for the chip.
-///
 /// This is in a separate, inline(never) function so that its stack frame is
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn create_peripherals() -> (
-    &'static mut Stm32f429ziDefaultPeripherals<'static>,
-    &'static stm32f429zi::syscfg::Syscfg<'static>,
-    &'static stm32f429zi::dma::Dma1<'static>,
+unsafe fn start() -> (
+    &'static kernel::Kernel,
+    NucleoF429ZI,
+    &'static stm32f429zi::chip::Stm32f4xx<'static, Stm32f429ziDefaultPeripherals<'static>>,
 ) {
+    stm32f429zi::init();
+
     // We use the default HSI 16Mhz clock
     let rcc = static_init!(stm32f429zi::rcc::Rcc, stm32f429zi::rcc::Rcc::new());
 
@@ -316,17 +336,6 @@ unsafe fn create_peripherals() -> (
         Stm32f429ziDefaultPeripherals,
         Stm32f429ziDefaultPeripherals::new(rcc, exti, dma1, dma2)
     );
-    (peripherals, syscfg, dma1)
-}
-
-/// Main function.
-///
-/// This is called after RAM initialization is complete.
-#[no_mangle]
-pub unsafe fn main() {
-    stm32f429zi::init();
-
-    let (peripherals, syscfg, dma1) = create_peripherals();
     peripherals.init();
     let base_peripherals = &peripherals.stm32f4;
 
@@ -365,7 +374,6 @@ pub unsafe fn main() {
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
 
@@ -536,15 +544,15 @@ pub unsafe fn main() {
     .finalize(components::temperature_stm_adc_component_static!(
         stm32f429zi::adc::Adc
     ));
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let grant_temperature =
-        board_kernel.create_grant(capsules_extra::temperature::DRIVER_NUM, &grant_cap);
 
-    let temp = static_init!(
-        capsules_extra::temperature::TemperatureSensor<'static>,
-        capsules_extra::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
-    );
-    kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
+    let temp = components::temperature::TemperatureComponent::new(
+        board_kernel,
+        capsules_extra::temperature::DRIVER_NUM,
+        temp_sensor,
+    )
+    .finalize(components::temperature_component_static!(
+        TemperatureSTMSensor
+    ));
 
     let adc_channel_0 =
         components::adc::AdcComponent::new(adc_mux, stm32f429zi::adc::Channel::Channel3)
@@ -580,13 +588,17 @@ pub unsafe fn main() {
         .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
+    // DAC
+    let dac = components::dac::DacComponent::new(&base_peripherals.dac)
+        .finalize(components::dac_component_static!());
+
     // RNG
     let rng = components::rng::RngComponent::new(
         board_kernel,
         capsules_core::rng::DRIVER_NUM,
         &peripherals.trng,
     )
-    .finalize(components::rng_component_static!());
+    .finalize(components::rng_component_static!(stm32f429zi::trng::Trng));
 
     // CAN
     let can = components::can::CanComponent::new(
@@ -637,6 +649,7 @@ pub unsafe fn main() {
             &memory_allocation_capability,
         ),
         adc: adc_syscall,
+        dac: dac,
         led: led,
         temperature: temp,
         button: button,
@@ -673,12 +686,12 @@ pub unsafe fn main() {
         board_kernel,
         chip,
         core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
         ),
         core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+            core::ptr::addr_of_mut!(_sappmem),
+            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
         &mut PROCESSES,
         &FAULT_RESPONSE,
@@ -694,10 +707,14 @@ pub unsafe fn main() {
     .finalize(components::multi_alarm_test_component_buf!(stm32f429zi::tim2::Tim2))
     .run();*/
 
-    board_kernel.kernel_loop(
-        &nucleo_f429zi,
-        chip,
-        Some(&nucleo_f429zi.ipc),
-        &main_loop_capability,
-    );
+    (board_kernel, nucleo_f429zi, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, platform, chip) = start();
+    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }

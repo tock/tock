@@ -163,7 +163,7 @@ impl<A: 'static + Alarm<'static>> LogTest<A> {
                 }
 
                 match self.log.read(buffer, buffer.len()) {
-                    Ok(_) => debug_verbose!("Dispatched asynchronous read operation."),
+                    Ok(()) => debug_verbose!("Dispatched asynchronous read operation."),
                     Err((return_code, buffer)) => {
                         self.buffer.replace(buffer);
                         match return_code {

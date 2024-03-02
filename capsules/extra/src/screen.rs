@@ -15,7 +15,6 @@
 //! ```
 
 use core::cell::Cell;
-use core::convert::From;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
@@ -23,6 +22,7 @@ use kernel::hil::screen::{ScreenPixelFormat, ScreenRotation};
 use kernel::processbuffer::ReadableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
@@ -60,7 +60,7 @@ fn screen_pixel_format_from(screen_pixel_format: usize) -> Option<ScreenPixelFor
 #[derive(Clone, Copy, PartialEq)]
 enum ScreenCommand {
     Nop,
-    SetBrightness(usize),
+    SetBrightness(u16),
     SetPower(bool),
     SetInvert(bool),
     SetRotation(ScreenRotation),
@@ -201,73 +201,81 @@ impl<'a> Screen<'a> {
                     Err(ErrorCode::NOSUPPORT)
                 }
             }
-            ScreenCommand::Fill => match self
-                .apps
-                .enter(process_id, |app, kernel_data| {
-                    let len = kernel_data
-                        .get_readonly_processbuffer(ro_allow::SHARED)
-                        .map_or(0, |shared| shared.len());
-                    // Ensure we have a buffer that is the correct size
-                    if len == 0 {
-                        Err(ErrorCode::NOMEM)
-                    } else if !self.is_len_multiple_color_depth(len) {
-                        Err(ErrorCode::INVAL)
-                    } else {
-                        app.write_position = 0;
-                        app.write_len = pixels_in_bytes(
-                            app.width * app.height,
-                            self.pixel_format.get().get_bits_per_pixel(),
-                        );
-                        Ok(())
-                    }
-                })
-                .unwrap_or_else(|err| err.into())
-            {
-                Err(e) => Err(e),
-                Ok(()) => self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
-                    let len = self.fill_next_buffer_for_write(buffer);
-                    if len > 0 {
-                        self.screen.write(buffer, len)
-                    } else {
-                        self.buffer.replace(buffer);
-                        self.run_next_command(kernel::errorcode::into_statuscode(Ok(())), 0, 0);
-                        Ok(())
-                    }
-                }),
-            },
+            ScreenCommand::Fill => {
+                match self
+                    .apps
+                    .enter(process_id, |app, kernel_data| {
+                        let len = kernel_data
+                            .get_readonly_processbuffer(ro_allow::SHARED)
+                            .map_or(0, |shared| shared.len());
+                        // Ensure we have a buffer that is the correct size
+                        if len == 0 {
+                            Err(ErrorCode::NOMEM)
+                        } else if !self.is_len_multiple_color_depth(len) {
+                            Err(ErrorCode::INVAL)
+                        } else {
+                            app.write_position = 0;
+                            app.write_len = pixels_in_bytes(
+                                app.width * app.height,
+                                self.pixel_format.get().get_bits_per_pixel(),
+                            );
+                            Ok(())
+                        }
+                    })
+                    .unwrap_or_else(|err| err.into())
+                {
+                    Err(e) => Err(e),
+                    Ok(()) => self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
+                        let len = self.fill_next_buffer_for_write(buffer);
+                        if len > 0 {
+                            let mut data = SubSliceMut::new(buffer);
+                            data.slice(..len);
+                            self.screen.write(data, false)
+                        } else {
+                            self.buffer.replace(buffer);
+                            self.run_next_command(kernel::errorcode::into_statuscode(Ok(())), 0, 0);
+                            Ok(())
+                        }
+                    }),
+                }
+            }
 
-            ScreenCommand::Write(data_len) => match self
-                .apps
-                .enter(process_id, |app, kernel_data| {
-                    let len = kernel_data
-                        .get_readonly_processbuffer(ro_allow::SHARED)
-                        .map_or(0, |shared| shared.len())
-                        .min(data_len);
-                    // Ensure we have a buffer that is the correct size
-                    if len == 0 {
-                        Err(ErrorCode::NOMEM)
-                    } else if !self.is_len_multiple_color_depth(len) {
-                        Err(ErrorCode::INVAL)
-                    } else {
-                        app.write_position = 0;
-                        app.write_len = len;
-                        Ok(())
-                    }
-                })
-                .unwrap_or_else(|err| err.into())
-            {
-                Ok(()) => self.buffer.take().map_or(Err(ErrorCode::FAIL), |buffer| {
-                    let len = self.fill_next_buffer_for_write(buffer);
-                    if len > 0 {
-                        self.screen.write(buffer, len)
-                    } else {
-                        self.buffer.replace(buffer);
-                        self.run_next_command(kernel::errorcode::into_statuscode(Ok(())), 0, 0);
-                        Ok(())
-                    }
-                }),
-                Err(e) => Err(e),
-            },
+            ScreenCommand::Write(data_len) => {
+                match self
+                    .apps
+                    .enter(process_id, |app, kernel_data| {
+                        let len = kernel_data
+                            .get_readonly_processbuffer(ro_allow::SHARED)
+                            .map_or(0, |shared| shared.len())
+                            .min(data_len);
+                        // Ensure we have a buffer that is the correct size
+                        if len == 0 {
+                            Err(ErrorCode::NOMEM)
+                        } else if !self.is_len_multiple_color_depth(len) {
+                            Err(ErrorCode::INVAL)
+                        } else {
+                            app.write_position = 0;
+                            app.write_len = len;
+                            Ok(())
+                        }
+                    })
+                    .unwrap_or_else(|err| err.into())
+                {
+                    Ok(()) => self.buffer.take().map_or(Err(ErrorCode::FAIL), |buffer| {
+                        let len = self.fill_next_buffer_for_write(buffer);
+                        if len > 0 {
+                            let mut data = SubSliceMut::new(buffer);
+                            data.slice(..len);
+                            self.screen.write(data, false)
+                        } else {
+                            self.buffer.replace(buffer);
+                            self.run_next_command(kernel::errorcode::into_statuscode(Ok(())), 0, 0);
+                            Ok(())
+                        }
+                    }),
+                    Err(e) => Err(e),
+                }
+            }
             ScreenCommand::SetWriteFrame {
                 x,
                 y,
@@ -418,11 +426,14 @@ impl<'a> hil::screen::ScreenClient for Screen<'a> {
         self.run_next_command(kernel::errorcode::into_statuscode(r), 0, 0);
     }
 
-    fn write_complete(&self, buffer: &'static mut [u8], r: Result<(), ErrorCode>) {
+    fn write_complete(&self, data: SubSliceMut<'static, u8>, r: Result<(), ErrorCode>) {
+        let buffer = data.take();
         let len = self.fill_next_buffer_for_write(buffer);
 
         if r == Ok(()) && len > 0 {
-            let _ = self.screen.write_continue(buffer, len);
+            let mut data = SubSliceMut::new(buffer);
+            data.slice(..len);
+            let _ = self.screen.write(data, true);
         } else {
             self.buffer.replace(buffer);
             self.run_next_command(kernel::errorcode::into_statuscode(r), 0, 0);
@@ -456,7 +467,7 @@ impl<'a> SyscallDriver for Screen<'a> {
             // Set power
             2 => self.enqueue_command(ScreenCommand::SetPower(data1 != 0), process_id),
             // Set Brightness
-            3 => self.enqueue_command(ScreenCommand::SetBrightness(data1), process_id),
+            3 => self.enqueue_command(ScreenCommand::SetBrightness(data1 as u16), process_id),
             // Invert on (deprecated)
             4 => self.enqueue_command(ScreenCommand::SetInvert(true), process_id),
             // Invert off (deprecated)

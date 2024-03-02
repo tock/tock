@@ -102,7 +102,7 @@ mod vexriscv_irq_raw {
     /// defined in litex/soc/cores/cpu/vexriscv/csr-defs.h
     const CSR_IRQ_PENDING: usize = 0xFC0;
 
-    #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+    #[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
     pub unsafe fn irq_getmask() -> usize {
         0
     }
@@ -117,7 +117,7 @@ mod vexriscv_irq_raw {
         mask
     }
 
-    #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+    #[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
     pub unsafe fn irq_setmask(_mask: usize) {}
 
     #[cfg(all(target_arch = "riscv32", target_os = "none"))]
@@ -128,7 +128,7 @@ mod vexriscv_irq_raw {
         asm!("csrw 0xBC0, {mask}", mask = in(reg) mask);
     }
 
-    #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+    #[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
     pub unsafe fn irq_pending() -> usize {
         0
     }

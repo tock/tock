@@ -20,72 +20,29 @@ with builtins;
 let
   inherit (pkgs) stdenv lib;
 
-  # Use builtins.fromTOML if available, otherwise use remarshal to
-  # generate JSON which can be read. Code taken from
-  # nixpkgs/pkgs/development/tools/poetry2nix/poetry2nix/lib.nix.
-  fromTOML = pkgs: builtins.fromTOML or (
-    toml: builtins.fromJSON (
-      builtins.readFile (
-        pkgs.runCommand "from-toml"
-          {
-            inherit toml;
-            allowSubstitutes = false;
-            preferLocalBuild = true;
-          }
-          ''
-            ${pkgs.remarshal}/bin/remarshal \
-              -if toml \
-              -i <(echo "$toml") \
-              -of json \
-              -o $out
-          ''
-      )
-    )
-  );
-
-  # Tockloader v1.10.0
+  # Tockloader v1.11.0
   tockloader = import (pkgs.fetchFromGitHub {
     owner = "tock";
     repo = "tockloader";
-    # TODO: change to tag once there is a Tockloader release with
-    # `default.nix` included.
-    rev = "6f37412d5608d9bb48510c98a929cc3f96f8cc8f";
-    sha256 = "sha256-0WobupjSqJ36+nME9YO9wcEx4X6jE+edSn4PNM+aDUo=";
+    rev = "v1.11.0";
+    sha256 = "sha256-bPEfpfOZOjOiazqRgn1cnqe4ohLPvocuENKoZx/Qw80=";
   }) { inherit pkgs withUnfreePkgs; };
 
-  moz_overlay = import (builtins.fetchTarball https://github.com/mozilla/nixpkgs-mozilla/archive/master.tar.gz);
-  nixpkgs = import <nixpkgs> { overlays = [ moz_overlay ]; };
+  rust_overlay = import "${pkgs.fetchFromGitHub {
+    owner = "nix-community";
+    repo = "fenix";
+    rev = "1a92c6d75963fd594116913c23041da48ed9e020";
+    sha256 = "sha256-L3vZfifHmog7sJvzXk8qiKISkpyltb+GaThqMJ7PU9Y=";
+  }}/overlay.nix";
+
+  nixpkgs = import <nixpkgs> { overlays = [ rust_overlay ]; };
 
   # Get a custom cross-compile capable Rust install of a specific channel and
   # build. Tock expects a specific version of Rust with a selection of targets
   # and components to be present.
   rustBuild = (
-    nixpkgs.rustChannelOf (
-      let
-        # Read the ./rust-toolchain (and trim whitespace) so we can extrapolate
-        # the channel and date information. This makes it more convenient to
-        # update the Rust toolchain used.
-        rustToolchain = (
-          fromTOML pkgs (
-            builtins.readFile ./rust-toolchain.toml
-          )
-        ).toolchain;
-      in
-        {
-          channel = lib.head (lib.splitString "-" rustToolchain.channel);
-          date = lib.concatStringsSep "-" (lib.tail (lib.splitString "-" rustToolchain.channel));
-        }
-    )
-  ).rust.override {
-    targets = [
-      "thumbv7em-none-eabi" "thumbv7em-none-eabihf" "thumbv6m-none-eabi"
-      "riscv32imac-unknown-none-elf" "riscv32imc-unknown-none-elf" "riscv32i-unknown-none-elf"
-    ];
-    extensions = [
-      "rust-src" # required to compile the core library
-      "llvm-tools-preview" # currently required to support recently added flags
-    ];
-  };
+    nixpkgs.fenix.fromToolchainFile { file = ./rust-toolchain.toml; }
+  );
 
 in
   pkgs.mkShell {
@@ -106,6 +63,18 @@ in
 
       # --- CI support packages ---
       qemu
+      
+      # --- Flashing tools ---
+      # If your board requires J-Link to flash and you are on NixOS,
+      # add these lines to your system wide configuration.
+
+      # Enable udev rules from segger-jlink package
+      # services.udev.packages = [
+      #     pkgs.segger-jlink
+      # ];
+
+      # Add "segger-jlink" to your system packages and accept the EULA:
+      # nixpkgs.config.segger-jlink.acceptLicense = true;
     ];
 
     LD_LIBRARY_PATH="${stdenv.cc.cc.lib}/lib64:$LD_LIBRARY_PATH";

@@ -63,7 +63,6 @@
 //! ```
 
 use core::cell::Cell;
-use core::convert::TryFrom;
 use core::mem::size_of;
 use core::unreachable;
 

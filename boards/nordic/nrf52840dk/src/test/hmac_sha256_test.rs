@@ -13,7 +13,6 @@ use capsules_extra::hmac_sha256::HmacSha256Software;
 use capsules_extra::sha256::Sha256Software;
 use capsules_extra::test::hmac_sha256::TestHmacSha256;
 use kernel::deferred_call::DeferredCallClient;
-use kernel::hil::digest::Digest;
 use kernel::static_init;
 
 pub unsafe fn run_hmacsha256() {
@@ -43,7 +42,7 @@ unsafe fn static_init_test_hmacsha256() -> &'static TestHmacSha256 {
         HmacSha256Software<'static, Sha256Software<'static>>,
         HmacSha256Software::new(sha256, sha256_hash_buf, hmacsha256_verify_buf)
     );
-    sha256.set_client(hmacsha256);
+    kernel::hil::digest::Digest::set_client(sha256, hmacsha256);
 
     let test = static_init!(
         TestHmacSha256,

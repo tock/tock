@@ -8,7 +8,6 @@
 
 use core::cell::Cell;
 use core::cmp::min;
-use core::convert::From;
 use core::fmt;
 
 use kernel::hil::usb::TransferType;
@@ -30,7 +29,7 @@ pub struct Buffer64 {
 impl Default for Buffer64 {
     fn default() -> Self {
         Self {
-            buf: [(); 64].map(|_| VolatileCell::default()),
+            buf: [(); 64].map(|()| VolatileCell::default()),
         }
     }
 }

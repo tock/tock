@@ -4,7 +4,6 @@
 
 //! Helper functions for common mathematical operations.
 
-use core::convert::{From, Into};
 use core::f32;
 
 /// Get closest power of two greater than the given number.

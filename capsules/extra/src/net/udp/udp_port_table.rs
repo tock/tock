@@ -274,7 +274,7 @@ impl UdpPortManager {
                             .unwrap()
                     }
                 }
-                Err(_) => Err(socket),
+                Err(()) => Err(socket),
             }
         } else {
             Err(socket)

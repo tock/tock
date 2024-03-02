@@ -25,18 +25,25 @@ use kernel::hil::spi::SpiMasterDevice;
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! l3gd20_component_static {
-    ($A:ty $(,)?) => {{
+    ($S:ty $(,)?) => {{
         let txbuffer = kernel::static_buf!([u8; capsules_extra::l3gd20::TX_BUF_LEN]);
         let rxbuffer = kernel::static_buf!([u8; capsules_extra::l3gd20::RX_BUF_LEN]);
 
         let spi = kernel::static_buf!(
-            capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $A>
+            capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $S>
         );
-        let l3gd20spi = kernel::static_buf!(capsules_extra::l3gd20::L3gd20Spi<'static>);
+        let l3gd20spi = kernel::static_buf!(
+            capsules_extra::l3gd20::L3gd20Spi<
+                'static,
+                capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $S>,
+            >
+        );
 
         (spi, l3gd20spi, txbuffer, rxbuffer)
     };};
 }
+
+pub type L3gd20ComponentType<S> = capsules_extra::l3gd20::L3gd20Spi<'static, S>;
 
 pub struct L3gd20Component<S: 'static + spi::SpiMaster<'static>> {
     spi_mux: &'static MuxSpiMaster<'static, S>,
@@ -64,11 +71,11 @@ impl<S: 'static + spi::SpiMaster<'static>> L3gd20Component<S> {
 impl<S: 'static + spi::SpiMaster<'static>> Component for L3gd20Component<S> {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualSpiMasterDevice<'static, S>>,
-        &'static mut MaybeUninit<L3gd20Spi<'static>>,
+        &'static mut MaybeUninit<L3gd20Spi<'static, VirtualSpiMasterDevice<'static, S>>>,
         &'static mut MaybeUninit<[u8; capsules_extra::l3gd20::TX_BUF_LEN]>,
         &'static mut MaybeUninit<[u8; capsules_extra::l3gd20::RX_BUF_LEN]>,
     );
-    type Output = &'static L3gd20Spi<'static>;
+    type Output = &'static L3gd20Spi<'static, VirtualSpiMasterDevice<'static, S>>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);

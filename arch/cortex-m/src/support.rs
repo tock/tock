@@ -3,7 +3,6 @@
 // Copyright Tock Contributors 2022.
 
 use crate::scb;
-use core::ops::FnOnce;
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 #[inline(always)]
@@ -40,19 +39,19 @@ where
 }
 
 // Mock implementations for tests on Travis-CI.
-#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 /// NOP instruction (mock)
 pub fn nop() {
     unimplemented!()
 }
 
-#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 /// WFI instruction (mock)
 pub unsafe fn wfi() {
     unimplemented!()
 }
 
-#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe fn atomic<F, R>(_f: F) -> R
 where
     F: FnOnce() -> R,

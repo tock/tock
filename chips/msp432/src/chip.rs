@@ -3,7 +3,7 @@
 // Copyright Tock Contributors 2022.
 
 use core::fmt::Write;
-use cortexm4::{self, CortexM4, CortexMVariant};
+use cortexm4::{CortexM4, CortexMVariant};
 use kernel::platform::chip::Chip;
 
 use crate::nvic;

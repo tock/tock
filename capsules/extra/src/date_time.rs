@@ -234,7 +234,7 @@ impl<'a, DateTime: date_time::DateTime<'a>> DateTimeCapsule<'a, DateTime> {
         if self.in_progress.is_none() {
             match grant_enter_res {
                 Ok(_) => match self.call_driver(command, processid) {
-                    Ok(_) => CommandReturn::success(),
+                    Ok(()) => CommandReturn::success(),
                     Err(e) => CommandReturn::failure(e),
                 },
                 Err(_e) => CommandReturn::failure(ErrorCode::FAIL),
@@ -254,7 +254,7 @@ impl<'a, DateTime: date_time::DateTime<'a>> DateTimeCapsule<'a, DateTime> {
                 app.task.map_or(None, |command| {
                     let command_return = self.call_driver(command, processid);
                     match command_return {
-                        Ok(_) => Some(()),
+                        Ok(()) => Some(()),
                         Err(e) => {
                             let upcall_status = into_statuscode(Err(e));
                             kernel.schedule_upcall(0, (upcall_status, 0, 0)).ok();

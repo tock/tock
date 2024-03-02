@@ -10,7 +10,6 @@
 //! * Author: Niklas Adolfsson <niklasadolfsson1@gmail.com>
 //! * Date: March 10 2018
 
-use core;
 use core::cell::Cell;
 use core::cmp::min;
 use kernel::hil::uart;
@@ -25,11 +24,11 @@ const UARTE_MAX_BUFFER_SIZE: u32 = 0xff;
 
 static mut BYTE: u8 = 0;
 
-const UARTE_BASE: StaticRef<UarteRegisters> =
+pub const UARTE0_BASE: StaticRef<UarteRegisters> =
     unsafe { StaticRef::new(0x40002000 as *const UarteRegisters) };
 
 #[repr(C)]
-struct UarteRegisters {
+pub struct UarteRegisters {
     task_startrx: WriteOnly<u32, Task::Register>,
     task_stoprx: WriteOnly<u32, Task::Register>,
     task_starttx: WriteOnly<u32, Task::Register>,
@@ -184,9 +183,9 @@ pub struct UARTParams {
 impl<'a> Uarte<'a> {
     /// Constructor
     // This should only be constructed once
-    pub fn new() -> Uarte<'a> {
+    pub fn new(regs: StaticRef<UarteRegisters>) -> Uarte<'a> {
         Uarte {
-            registers: UARTE_BASE,
+            registers: regs,
             tx_client: OptionalCell::empty(),
             tx_buffer: kernel::utilities::cells::TakeCell::empty(),
             tx_len: Cell::new(0),
@@ -392,7 +391,7 @@ impl<'a> Uarte<'a> {
         self.registers.event_endtx.write(Event::READY::CLEAR);
         // precaution: copy value into variable with static lifetime
         BYTE = byte;
-        self.registers.txd_ptr.set((&BYTE as *const u8) as u32);
+        self.registers.txd_ptr.set(core::ptr::addr_of!(BYTE) as u32);
         self.registers.txd_maxcnt.write(Counter::COUNTER.val(1));
         self.registers.task_starttx.write(Task::ENABLE::SET);
     }

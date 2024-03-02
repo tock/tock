@@ -27,8 +27,9 @@ macro_rules! create_capability {
 }
 
 /// Count the number of passed expressions.
+///
 /// Useful for constructing variable sized arrays in other macros.
-/// Taken from the Little Book of Rust Macros
+/// Taken from the Little Book of Rust Macros.
 ///
 /// ```ignore
 /// use kernel:count_expressions;
@@ -40,4 +41,24 @@ macro_rules! count_expressions {
     () => (0usize);
     ($head:expr $(,)?) => (1usize);
     ($head:expr, $($tail:expr),* $(,)?) => (1usize + count_expressions!($($tail),*));
+}
+
+/// Compute a POSIX-style CRC32 checksum of a slice.
+///
+/// Online calculator: <https://crccalc.com/>
+pub fn crc32_posix(b: &[u8]) -> u32 {
+    let mut crc: u32 = 0;
+
+    for c in b {
+        crc ^= (*c as u32) << 24;
+
+        for _i in 0..8 {
+            if crc & (0b1 << 31) > 0 {
+                crc = (crc << 1) ^ 0x04c11db7;
+            } else {
+                crc <<= 1;
+            }
+        }
+    }
+    !crc
 }

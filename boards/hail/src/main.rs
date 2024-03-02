@@ -48,6 +48,14 @@ static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText>
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
+type SI7021Sensor = components::si7021::SI7021ComponentType<
+    capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
+    capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, sam4l::i2c::I2CHw<'static>>,
+>;
+type TemperatureDriver = components::temperature::TemperatureComponentType<SI7021Sensor>;
+type HumidityDriver = components::humidity::HumidityComponentType<SI7021Sensor>;
+type RngDriver = components::rng::RngComponentType<sam4l::trng::Trng<'static>>;
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct Hail {
@@ -61,9 +69,9 @@ struct Hail {
         >,
     >,
     ambient_light: &'static capsules_extra::ambient_light::AmbientLight<'static>,
-    temp: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temp: &'static TemperatureDriver,
     ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
-    humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
+    humidity: &'static HumidityDriver,
     spi: &'static capsules_core::spi_controller::Spi<
         'static,
         capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
@@ -79,7 +87,7 @@ struct Hail {
         3,
     >,
     button: &'static capsules_core::button::Button<'static, sam4l::gpio::GPIOPin<'static>>,
-    rng: &'static capsules_core::rng::RngDriver<'static>,
+    rng: &'static RngDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     crc: &'static capsules_extra::crc::CrcDriver<'static, sam4l::crccu::Crccu<'static>>,
     dac: &'static capsules_extra::dac::Dac<'static>,
@@ -328,13 +336,13 @@ unsafe fn start() -> (
         capsules_extra::temperature::DRIVER_NUM,
         si7021,
     )
-    .finalize(components::temperature_component_static!());
+    .finalize(components::temperature_component_static!(SI7021Sensor));
     let humidity = components::humidity::HumidityComponent::new(
         board_kernel,
         capsules_extra::humidity::DRIVER_NUM,
         si7021,
     )
-    .finalize(components::humidity_component_static!());
+    .finalize(components::humidity_component_static!(SI7021Sensor));
 
     // Configure the ISL29035, device address 0x44
     let isl29035 = components::isl29035::Isl29035Component::new(sensors_i2c, mux_alarm).finalize(
@@ -428,7 +436,7 @@ unsafe fn start() -> (
         capsules_core::rng::DRIVER_NUM,
         &peripherals.trng,
     )
-    .finalize(components::rng_component_static!());
+    .finalize(components::rng_component_static!(sam4l::trng::Trng));
 
     // set GPIO driver controlling remaining GPIO pins
     let gpio = components::gpio::GpioComponent::new(
@@ -536,12 +544,12 @@ unsafe fn start() -> (
         board_kernel,
         chip,
         core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
         ),
         core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+            core::ptr::addr_of_mut!(_sappmem),
+            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
         &mut PROCESSES,
         fault_policy,

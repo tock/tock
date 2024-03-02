@@ -9,7 +9,6 @@
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules_extra::segger_rtt::SeggerRtt;
-use components;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use nrf52::gpio::Pin;
