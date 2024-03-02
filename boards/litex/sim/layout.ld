@@ -11,4 +11,17 @@ MEMORY
   ram (rwx) : ORIGIN = 0x40000000, LENGTH = 0x10000000
 }
 
+SECTIONS {
+    /* Export the start & end of SRAM and flash as symbols for setting up the
+     * PMP. Flash includes rom and prog, such that we can use a single NAPOT
+     * region. The .text section will be made executable by a separate PMP
+     * region.
+     */
+    _sflash = ORIGIN(rom);
+    _eflash = ORIGIN(prog) + LENGTH(prog);
+
+    _ssram  = ORIGIN(ram);
+    _esram  = ORIGIN(ram) + LENGTH(ram);
+}
+
 INCLUDE ../../kernel_layout.ld

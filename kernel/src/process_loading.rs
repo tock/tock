@@ -8,7 +8,6 @@
 //! checking whether they are allowed to be loaded, and if so initializing a process
 //! structure to run it.
 
-use core::convert::TryInto;
 use core::fmt;
 
 use crate::capabilities::{ProcessApprovalCapability, ProcessManagementCapability};
@@ -356,7 +355,7 @@ fn load_processes_from_flash<C: Chip>(
 /// (if they pass the checker policy) or `CredentialsFailed` state (if
 /// they do not pass the checker policy). When the kernel encounters a
 /// process in the `CredentialsApproved` state, it starts the process
-/// by enqueueing a stack frame to run the initialization function as
+/// by enqueuing a stack frame to run the initialization function as
 /// indicated in the TBF header.
 #[inline(always)]
 fn check_processes<KR: KernelResources<C>, C: Chip>(

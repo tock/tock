@@ -370,6 +370,9 @@ impl<'a> SpiHost<'a> {
             txfifo_num_bytes
         };
 
+        self.enable_interrupts();
+        self.enable_tx_interrupt();
+
         //Flush all data in TXFIFO and assert CSAAT for all
         // but the last transfer segment.
         if self.tx_offset.get() >= self.tx_len.get() {
@@ -387,8 +390,6 @@ impl<'a> SpiHost<'a> {
                     + command::SPEED.val(SPI_HOST_CMD_STANDARD_SPI),
             );
         }
-        self.enable_interrupts();
-        self.enable_tx_interrupt();
     }
 
     /// Reset the soft internal state, should be called once
@@ -630,8 +631,7 @@ impl<'a> hil::spi::SpiMaster<'a> for SpiHost<'a> {
         //Hold rx_buf for later
 
         rx_buf.map(|rx_buf_t| {
-            self.rx_len
-                .set(cmp::min(self.tx_len.get(), rx_buf_t.len()) as usize);
+            self.rx_len.set(cmp::min(self.tx_len.get(), rx_buf_t.len()));
             self.rx_buf.replace(rx_buf_t);
         });
 

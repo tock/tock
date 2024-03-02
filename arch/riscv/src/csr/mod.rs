@@ -43,38 +43,38 @@ pub mod utvec;
 // something (as it would be if compiled for a host OS).
 
 pub struct CSR {
-    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    #[cfg(not(target_arch = "riscv64"))]
     pub minstreth: ReadWriteRiscvCsr<usize, minstret::minstreth::Register, MINSTRETH>,
     pub minstret: ReadWriteRiscvCsr<usize, minstret::minstret::Register, MINSTRET>,
 
-    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    #[cfg(not(target_arch = "riscv64"))]
     pub mcycleh: ReadWriteRiscvCsr<usize, mcycle::mcycleh::Register, MCYCLEH>,
     pub mcycle: ReadWriteRiscvCsr<usize, mcycle::mcycle::Register, MCYCLE>,
 
-    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    #[cfg(not(target_arch = "riscv64"))]
     pub pmpcfg0: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG0>,
-    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    #[cfg(not(target_arch = "riscv64"))]
     pub pmpcfg1: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG1>,
     pub pmpcfg2: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG2>,
-    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    #[cfg(not(target_arch = "riscv64"))]
     pub pmpcfg3: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG3>,
     pub pmpcfg4: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG4>,
-    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    #[cfg(not(target_arch = "riscv64"))]
     pub pmpcfg5: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG5>,
     pub pmpcfg6: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG6>,
-    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    #[cfg(not(target_arch = "riscv64"))]
     pub pmpcfg7: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG7>,
     pub pmpcfg8: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG8>,
-    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    #[cfg(not(target_arch = "riscv64"))]
     pub pmpcfg9: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG9>,
     pub pmpcfg10: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG10>,
-    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    #[cfg(not(target_arch = "riscv64"))]
     pub pmpcfg11: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG11>,
     pub pmpcfg12: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG12>,
-    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    #[cfg(not(target_arch = "riscv64"))]
     pub pmpcfg13: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG13>,
     pub pmpcfg14: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG14>,
-    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    #[cfg(not(target_arch = "riscv64"))]
     pub pmpcfg15: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG15>,
 
     pub pmpaddr0: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR0>,
@@ -152,7 +152,7 @@ pub struct CSR {
     pub mstatus: ReadWriteRiscvCsr<usize, mstatus::mstatus::Register, MSTATUS>,
 
     pub mseccfg: ReadWriteRiscvCsr<usize, mseccfg::mseccfg::Register, MSECCFG>,
-    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    #[cfg(not(target_arch = "riscv64"))]
     pub mseccfgh: ReadWriteRiscvCsr<usize, mseccfg::mseccfgh::Register, MSECCFGH>,
 
     pub utvec: ReadWriteRiscvCsr<usize, utvec::utvec::Register, UTVEC>,
@@ -161,37 +161,37 @@ pub struct CSR {
 
 // Define the "addresses" of each CSR register.
 pub const CSR: &CSR = &CSR {
-    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    #[cfg(not(target_arch = "riscv64"))]
     minstreth: ReadWriteRiscvCsr::new(),
     minstret: ReadWriteRiscvCsr::new(),
 
-    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    #[cfg(not(target_arch = "riscv64"))]
     mcycleh: ReadWriteRiscvCsr::new(),
     mcycle: ReadWriteRiscvCsr::new(),
 
     pmpcfg0: ReadWriteRiscvCsr::new(),
-    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    #[cfg(not(target_arch = "riscv64"))]
     pmpcfg1: ReadWriteRiscvCsr::new(),
     pmpcfg2: ReadWriteRiscvCsr::new(),
-    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    #[cfg(not(target_arch = "riscv64"))]
     pmpcfg3: ReadWriteRiscvCsr::new(),
     pmpcfg4: ReadWriteRiscvCsr::new(),
-    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    #[cfg(not(target_arch = "riscv64"))]
     pmpcfg5: ReadWriteRiscvCsr::new(),
     pmpcfg6: ReadWriteRiscvCsr::new(),
-    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    #[cfg(not(target_arch = "riscv64"))]
     pmpcfg7: ReadWriteRiscvCsr::new(),
     pmpcfg8: ReadWriteRiscvCsr::new(),
-    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    #[cfg(not(target_arch = "riscv64"))]
     pmpcfg9: ReadWriteRiscvCsr::new(),
     pmpcfg10: ReadWriteRiscvCsr::new(),
-    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    #[cfg(not(target_arch = "riscv64"))]
     pmpcfg11: ReadWriteRiscvCsr::new(),
     pmpcfg12: ReadWriteRiscvCsr::new(),
-    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    #[cfg(not(target_arch = "riscv64"))]
     pmpcfg13: ReadWriteRiscvCsr::new(),
     pmpcfg14: ReadWriteRiscvCsr::new(),
-    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    #[cfg(not(target_arch = "riscv64"))]
     pmpcfg15: ReadWriteRiscvCsr::new(),
 
     pmpaddr0: ReadWriteRiscvCsr::new(),
@@ -269,7 +269,7 @@ pub const CSR: &CSR = &CSR {
     mstatus: ReadWriteRiscvCsr::new(),
 
     mseccfg: ReadWriteRiscvCsr::new(),
-    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    #[cfg(not(target_arch = "riscv64"))]
     mseccfgh: ReadWriteRiscvCsr::new(),
 
     utvec: ReadWriteRiscvCsr::new(),
@@ -278,7 +278,7 @@ pub const CSR: &CSR = &CSR {
 
 impl CSR {
     // resets the cycle counter to 0
-    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    #[cfg(not(target_arch = "riscv64"))]
     pub fn reset_cycle_counter(&self) {
         // Write lower first so that we don't overflow before writing the upper
         CSR.mcycle.write(mcycle::mcycle::mcycle.val(0));
@@ -292,7 +292,7 @@ impl CSR {
     }
 
     // reads the cycle counter
-    #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+    #[cfg(not(target_arch = "riscv64"))]
     pub fn read_cycle_counter(&self) -> u64 {
         let (mut top, mut bot): (usize, usize);
 
@@ -319,28 +319,28 @@ impl CSR {
     pub fn pmpconfig_get(&self, index: usize) -> usize {
         match index {
             0 => self.pmpcfg0.get(),
-            #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+            #[cfg(not(target_arch = "riscv64"))]
             1 => self.pmpcfg1.get(),
             2 => self.pmpcfg2.get(),
-            #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+            #[cfg(not(target_arch = "riscv64"))]
             3 => self.pmpcfg3.get(),
             4 => self.pmpcfg4.get(),
-            #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+            #[cfg(not(target_arch = "riscv64"))]
             5 => self.pmpcfg5.get(),
             6 => self.pmpcfg6.get(),
-            #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+            #[cfg(not(target_arch = "riscv64"))]
             7 => self.pmpcfg7.get(),
             8 => self.pmpcfg8.get(),
-            #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+            #[cfg(not(target_arch = "riscv64"))]
             9 => self.pmpcfg9.get(),
             10 => self.pmpcfg10.get(),
-            #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+            #[cfg(not(target_arch = "riscv64"))]
             11 => self.pmpcfg11.get(),
             12 => self.pmpcfg12.get(),
-            #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+            #[cfg(not(target_arch = "riscv64"))]
             13 => self.pmpcfg13.get(),
             14 => self.pmpcfg14.get(),
-            #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+            #[cfg(not(target_arch = "riscv64"))]
             15 => self.pmpcfg15.get(),
             _ => unreachable!(),
         }
@@ -349,28 +349,28 @@ impl CSR {
     pub fn pmpconfig_set(&self, index: usize, value: usize) {
         match index {
             0 => self.pmpcfg0.set(value),
-            #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+            #[cfg(not(target_arch = "riscv64"))]
             1 => self.pmpcfg1.set(value),
             2 => self.pmpcfg2.set(value),
-            #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+            #[cfg(not(target_arch = "riscv64"))]
             3 => self.pmpcfg3.set(value),
             4 => self.pmpcfg4.set(value),
-            #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+            #[cfg(not(target_arch = "riscv64"))]
             5 => self.pmpcfg5.set(value),
             6 => self.pmpcfg6.set(value),
-            #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+            #[cfg(not(target_arch = "riscv64"))]
             7 => self.pmpcfg7.set(value),
             8 => self.pmpcfg8.set(value),
-            #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+            #[cfg(not(target_arch = "riscv64"))]
             9 => self.pmpcfg9.set(value),
             10 => self.pmpcfg10.set(value),
-            #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+            #[cfg(not(target_arch = "riscv64"))]
             11 => self.pmpcfg11.set(value),
             12 => self.pmpcfg12.set(value),
-            #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+            #[cfg(not(target_arch = "riscv64"))]
             13 => self.pmpcfg13.set(value),
             14 => self.pmpcfg14.set(value),
-            #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+            #[cfg(not(target_arch = "riscv64"))]
             15 => self.pmpcfg15.set(value),
             _ => unreachable!(),
         }
@@ -383,28 +383,28 @@ impl CSR {
     ) {
         match index {
             0 => self.pmpcfg0.modify(field),
-            #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+            #[cfg(not(target_arch = "riscv64"))]
             1 => self.pmpcfg1.modify(field),
             2 => self.pmpcfg2.modify(field),
-            #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+            #[cfg(not(target_arch = "riscv64"))]
             3 => self.pmpcfg3.modify(field),
             4 => self.pmpcfg4.modify(field),
-            #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+            #[cfg(not(target_arch = "riscv64"))]
             5 => self.pmpcfg5.modify(field),
             6 => self.pmpcfg6.modify(field),
-            #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+            #[cfg(not(target_arch = "riscv64"))]
             7 => self.pmpcfg7.modify(field),
             8 => self.pmpcfg8.modify(field),
-            #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+            #[cfg(not(target_arch = "riscv64"))]
             9 => self.pmpcfg9.modify(field),
             10 => self.pmpcfg10.modify(field),
-            #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+            #[cfg(not(target_arch = "riscv64"))]
             11 => self.pmpcfg11.modify(field),
             12 => self.pmpcfg12.modify(field),
-            #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+            #[cfg(not(target_arch = "riscv64"))]
             13 => self.pmpcfg13.modify(field),
             14 => self.pmpcfg14.modify(field),
-            #[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+            #[cfg(not(target_arch = "riscv64"))]
             15 => self.pmpcfg15.modify(field),
             _ => unreachable!(),
         }

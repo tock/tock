@@ -52,7 +52,7 @@ pub(crate) enum State {
     /// Invalidating a key
     InvalidateKey(KeyState),
     /// Zeroizing a key
-    ZeroizeKey(KeyState),
+    ZeroiseKey(KeyState),
     /// Running garbage collection
     GarbageCollect(RubbishState),
 }
@@ -876,7 +876,21 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
         }
     }
 
-    /// Zeroizes the key in flash storage
+    /// Zeroises the key in flash storage.
+    ///
+    /// This is similar to the `invalidate_key()` function, but instead will
+    /// change all `1`s in the value and checksum to `0`s. This does
+    /// not remove the header, as that is required for garbage collection
+    /// later on, so the length and hashed key will still be preserved.
+    ///
+    /// The values will be changed by a single write operation to the flash.
+    /// The values are not securley overwritten to make restoring data
+    /// difficult.
+    ///
+    /// Users will need to check with the hardware specifications to determine
+    /// if this is cryptographically secure for their use case.
+    ///
+    /// <https://en.wikipedia.org/wiki/Zeroisation>
     ///
     /// `hash`: A hashed key.
     ///
@@ -885,8 +899,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
     ///
     /// If a power loss occurs before success is returned the data is
     /// assumed to be lost.
-    /// Changes valid bit in addition to zeroizing the entry
-    pub fn zeroize_key(&self, hash: u64) -> Result<SuccessCode, ErrorCode> {
+    pub fn zeroise_key(&self, hash: u64) -> Result<SuccessCode, ErrorCode> {
         let region = self.get_region(hash);
 
         let mut region_offset: isize = 0;
@@ -895,7 +908,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
             // Get the data from that region
             let new_region = match self.state.get() {
                 State::None => (region as isize + region_offset) as usize,
-                State::ZeroizeKey(key_state) => match key_state {
+                State::ZeroiseKey(key_state) => match key_state {
                     KeyState::ReadRegion(reg) => reg,
                 },
                 _ => unreachable!(),
@@ -903,13 +916,13 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
 
             // Get the data from that region
             let region_data = self.read_buffer.take().unwrap();
-            if self.state.get() != State::ZeroizeKey(KeyState::ReadRegion(new_region)) {
+            if self.state.get() != State::ZeroiseKey(KeyState::ReadRegion(new_region)) {
                 match self.controller.read_region(new_region, 0, region_data) {
                     Ok(()) => {}
                     Err(e) => {
                         self.read_buffer.replace(Some(region_data));
                         if let ErrorCode::ReadNotReady(reg) = e {
-                            self.state.set(State::ZeroizeKey(KeyState::ReadRegion(reg)));
+                            self.state.set(State::ZeroiseKey(KeyState::ReadRegion(reg)));
                         }
                         return Err(e);
                     }
@@ -924,16 +937,18 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                         .ok_or(ErrorCode::CorruptData)? &= !0x80;
 
                     // Replace Value with 0s
-                    for i in HEADER_LENGTH..data_len as usize {
+                    for i in HEADER_LENGTH..(data_len as usize + HEADER_LENGTH) {
                         *region_data
                             .get_mut(offset + i)
                             .ok_or(ErrorCode::RegionFull)? = 0;
                     }
 
+                    let write_len = data_len as usize;
+
                     if let Err(e) = self.controller.write(
-                        S * new_region + offset + LEN_OFFSET,
+                        S * new_region + offset,
                         region_data
-                            .get(offset + LEN_OFFSET..offset + LEN_OFFSET + 1)
+                            .get(offset..offset + write_len)
                             .ok_or(ErrorCode::ObjectTooLarge)?,
                     ) {
                         self.read_buffer.replace(Some(region_data));

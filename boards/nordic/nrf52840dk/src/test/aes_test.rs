@@ -63,7 +63,7 @@ unsafe fn static_init_test_ctr(
 
     static_init!(
         TestAes128Ctr<'static, AesECB>,
-        TestAes128Ctr::new(aes, key, iv, source, data)
+        TestAes128Ctr::new(aes, key, iv, source, data, true)
     )
 }
 
@@ -77,7 +77,7 @@ unsafe fn static_init_test_cbc(
 
     static_init!(
         TestAes128Cbc<'static, AesECB>,
-        TestAes128Cbc::new(aes, key, iv, source, data)
+        TestAes128Cbc::new(aes, key, iv, source, data, false)
     )
 }
 
@@ -90,6 +90,6 @@ unsafe fn static_init_test_ecb(
 
     static_init!(
         TestAes128Ecb<'static, AesECB>,
-        TestAes128Ecb::new(aes, key, source, data)
+        TestAes128Ecb::new(aes, key, source, data, false)
     )
 }

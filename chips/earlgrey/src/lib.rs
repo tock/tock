@@ -4,7 +4,6 @@
 
 //! Drivers and chip support for EarlGrey.
 
-#![feature(naked_functions)]
 #![no_std]
 #![crate_name = "earlgrey"]
 #![crate_type = "rlib"]
@@ -13,12 +12,15 @@
 #![recursion_limit = "256"]
 
 pub mod chip_config;
+pub mod pinmux_config;
+
 mod interrupts;
 
 pub mod aes;
 pub mod aon_timer;
 pub mod chip;
 pub mod csrng;
+pub mod epmp;
 pub mod flash_ctrl;
 pub mod gpio;
 pub mod hmac;

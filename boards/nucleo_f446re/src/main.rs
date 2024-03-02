@@ -52,6 +52,11 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
+type TemperatureSTMSensor = components::temperature_stm::TemperatureSTMComponentType<
+    capsules_core::virtualizers::virtual_adc::AdcDevice<'static, stm32f446re::adc::Adc<'static>>,
+>;
+type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureSTMSensor>;
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct NucleoF446RE {
@@ -69,7 +74,7 @@ struct NucleoF446RE {
         VirtualMuxAlarm<'static, stm32f446re::tim2::Tim2<'static>>,
     >,
 
-    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temperature: &'static TemperatureDriver,
     gpio: &'static capsules_core::gpio::GPIO<'static, stm32f446re::gpio::Pin<'static>>,
 
     scheduler: &'static RoundRobinSched<'static>,
@@ -252,17 +257,17 @@ unsafe fn setup_peripherals(tim2: &stm32f446re::tim2::Tim2) {
     cortexm4::nvic::Nvic::new(stm32f446re::nvic::TIM2).enable();
 }
 
-/// Statically initialize the core peripherals for the chip.
-///
 /// This is in a separate, inline(never) function so that its stack frame is
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn create_peripherals() -> (
-    &'static mut Stm32f446reDefaultPeripherals<'static>,
-    &'static stm32f446re::syscfg::Syscfg<'static>,
-    &'static stm32f446re::dma::Dma1<'static>,
+unsafe fn start() -> (
+    &'static kernel::Kernel,
+    NucleoF446RE,
+    &'static stm32f446re::chip::Stm32f4xx<'static, Stm32f446reDefaultPeripherals<'static>>,
 ) {
+    stm32f446re::init();
+
     // We use the default HSI 16Mhz clock
     let rcc = static_init!(stm32f446re::rcc::Rcc, stm32f446re::rcc::Rcc::new());
     let syscfg = static_init!(
@@ -280,17 +285,6 @@ unsafe fn create_peripherals() -> (
         Stm32f446reDefaultPeripherals,
         Stm32f446reDefaultPeripherals::new(rcc, exti, dma1, dma2)
     );
-    (peripherals, syscfg, dma1)
-}
-
-/// Main function.
-///
-/// This is called after RAM initialization is complete.
-#[no_mangle]
-pub unsafe fn main() {
-    stm32f446re::init();
-
-    let (peripherals, syscfg, dma1) = create_peripherals();
     peripherals.init();
     let base_peripherals = &peripherals.stm32f4;
 
@@ -326,7 +320,6 @@ pub unsafe fn main() {
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
 
@@ -391,15 +384,15 @@ pub unsafe fn main() {
     .finalize(components::temperature_stm_adc_component_static!(
         stm32f446re::adc::Adc
     ));
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let grant_temperature =
-        board_kernel.create_grant(capsules_extra::temperature::DRIVER_NUM, &grant_cap);
 
-    let temp = static_init!(
-        capsules_extra::temperature::TemperatureSensor<'static>,
-        capsules_extra::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
-    );
-    kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
+    let temp = components::temperature::TemperatureComponent::new(
+        board_kernel,
+        capsules_extra::temperature::DRIVER_NUM,
+        temp_sensor,
+    )
+    .finalize(components::temperature_component_static!(
+        TemperatureSTMSensor
+    ));
 
     let adc_channel_0 =
         components::adc::AdcComponent::new(adc_mux, stm32f446re::adc::Channel::Channel0)
@@ -534,12 +527,12 @@ pub unsafe fn main() {
         board_kernel,
         chip,
         core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
         ),
         core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+            core::ptr::addr_of_mut!(_sappmem),
+            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
         &mut PROCESSES,
         &FAULT_RESPONSE,
@@ -554,10 +547,15 @@ pub unsafe fn main() {
     /*components::test::multi_alarm_test::MultiAlarmTestComponent::new(mux_alarm)
     .finalize(components::multi_alarm_test_component_buf!(stm32f446re::tim2::Tim2))
     .run();*/
-    board_kernel.kernel_loop(
-        &nucleo_f446re,
-        chip,
-        Some(&nucleo_f446re.ipc),
-        &main_loop_capability,
-    );
+
+    (board_kernel, nucleo_f446re, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, platform, chip) = start();
+    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }

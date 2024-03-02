@@ -5,15 +5,12 @@
 use core::fmt::Write;
 use core::panic::PanicInfo;
 
-use cortexm4;
-
 use kernel::debug;
 use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart;
 use kernel::hil::uart::Configure;
 
-use stm32f446re;
 use stm32f446re::gpio::PinId;
 
 use crate::CHIP;
@@ -70,7 +67,7 @@ impl IoWrite for Writer {
 /// Panic handler.
 #[no_mangle]
 #[panic_handler]
-pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
+pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
     // User LD2 is connected to PA05
     // Have to reinitialize several peripherals because otherwise can't access them here.
     let rcc = stm32f446re::rcc::Rcc::new();

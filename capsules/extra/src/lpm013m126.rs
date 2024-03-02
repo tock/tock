@@ -21,6 +21,7 @@ use kernel::hil::screen::{Screen, ScreenClient, ScreenPixelFormat, ScreenRotatio
 use kernel::hil::spi::{SpiMasterClient, SpiMasterDevice};
 use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
 
 /// Monochrome frame buffer bytes.
@@ -347,9 +348,10 @@ where
     fn handle_write_complete_callback(&self) {
         self.client.map(|client| {
             self.write_complete_pending_call.map(|pend| {
-                self.buffer
-                    .take()
-                    .map(|buffer| client.write_complete(buffer, pend));
+                self.buffer.take().map(|buffer| {
+                    let data = SubSliceMut::new(buffer);
+                    client.write_complete(data, pend)
+                });
             });
             self.write_complete_pending_call.take();
         });
@@ -422,7 +424,14 @@ where
         ret
     }
 
-    fn write(&self, buffer: &'static mut [u8], len: usize) -> Result<(), ErrorCode> {
+    fn write(
+        &self,
+        data: SubSliceMut<'static, u8>,
+        _continue_write: bool,
+    ) -> Result<(), ErrorCode> {
+        let len = data.len();
+        let buffer = data.take();
+
         let ret = match self.state.get() {
             State::Uninitialized | State::Off => Err(ErrorCode::OFF),
             State::InitializingPixelMemory | State::InitializingRest => Err(ErrorCode::BUSY),
@@ -464,21 +473,8 @@ where
         ret
     }
 
-    fn write_continue(&self, buffer: &'static mut [u8], len: usize) -> Result<(), ErrorCode> {
-        // Not TODO: this can be avoided entirely
-        // at the cost of a minor layering violation.
-        // https://github.com/tock/tock/pull/3011#issuecomment-1087766745
-        self.write(buffer, len)?;
-        // TODO: move position
-        Ok(())
-    }
-
-    fn set_client(&self, client: Option<&'a dyn ScreenClient>) {
-        if let Some(client) = client {
-            self.client.set(client);
-        } else {
-            self.client.clear();
-        }
+    fn set_client(&self, client: &'a dyn ScreenClient) {
+        self.client.set(client);
     }
 
     fn set_power(&self, enable: bool) -> Result<(), ErrorCode> {
@@ -498,7 +494,7 @@ where
         }
     }
 
-    fn set_brightness(&self, _brightness: usize) -> Result<(), ErrorCode> {
+    fn set_brightness(&self, _brightness: u16) -> Result<(), ErrorCode> {
         // TODO: add LED PWM
         Err(ErrorCode::NOSUPPORT)
     }
@@ -597,9 +593,10 @@ impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> SpiMasterClient for Lpm01
 
         // Device frame buffer is now up to date, return pixel buffer to client.
         self.client.map(|client| {
-            self.buffer
-                .take()
-                .map(|buf| client.write_complete(buf, status))
+            self.buffer.take().map(|buf| {
+                let data = SubSliceMut::new(buf);
+                client.write_complete(data, status)
+            })
         });
     }
 }

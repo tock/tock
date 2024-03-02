@@ -87,7 +87,7 @@ use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
-use nrf52_components::{self, UartChannel, UartPins};
+use nrf52_components::{UartChannel, UartPins};
 
 #[allow(dead_code)]
 mod test;
@@ -161,6 +161,7 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 //------------------------------------------------------------------------------
 
 type AlarmDriver = components::alarm::AlarmDriverComponentType<nrf52840::rtc::Rtc<'static>>;
+type RngDriver = components::rng::RngComponentType<nrf52840::trng::Trng<'static>>;
 
 // TicKV
 type Mx25r6435f = components::mx25r6435f::Mx25r6435fComponentType<
@@ -181,6 +182,19 @@ type KVStorePermissions = components::kv::KVStorePermissionsComponentType<TicKVK
 type VirtualKVPermissions = components::kv::VirtualKVPermissionsComponentType<KVStorePermissions>;
 type KVDriver = components::kv::KVDriverComponentType<VirtualKVPermissions>;
 
+// Temperature
+type TemperatureDriver =
+    components::temperature::TemperatureComponentType<nrf52840::temperature::Temp<'static>>;
+
+type Ieee802154MacDevice = components::ieee802154::Ieee802154ComponentMacDeviceType<
+    nrf52840::ieee802154_radio::Radio<'static>,
+    nrf52840::aes::AesECB<'static>,
+>;
+type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<
+    nrf52840::ieee802154_radio::Radio<'static>,
+    nrf52840::aes::AesECB<'static>,
+>;
+
 /// Supported drivers by the platform
 pub struct Platform {
     ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
@@ -188,7 +202,7 @@ pub struct Platform {
         nrf52840::ble_radio::Radio<'static>,
         VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
     >,
-    ieee802154_radio: &'static capsules_extra::ieee802154::RadioDriver<'static>,
+    ieee802154_radio: &'static Ieee802154Driver,
     button: &'static capsules_core::button::Button<'static, nrf52840::gpio::GPIOPin<'static>>,
     pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
@@ -203,9 +217,9 @@ pub struct Platform {
         kernel::hil::led::LedLow<'static, nrf52840::gpio::GPIOPin<'static>>,
         4,
     >,
-    rng: &'static capsules_core::rng::RngDriver<'static>,
+    rng: &'static RngDriver,
     adc: &'static capsules_core::adc::AdcDedicated<'static, nrf52840::adc::Adc<'static>>,
-    temp: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temp: &'static TemperatureDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     analog_comparator: &'static capsules_extra::analog_comparator::AnalogComparator<
         'static,
@@ -213,6 +227,10 @@ pub struct Platform {
     >,
     alarm: &'static AlarmDriver,
     udp_driver: &'static capsules_extra::net::udp::UDPDriver<'static>,
+    thread_driver: &'static capsules_extra::net::thread::driver::ThreadNetworkDriver<
+        'static,
+        VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+    >,
     i2c_master_slave: &'static capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver<
         'static,
         nrf52840::i2c::TWI<'static>,
@@ -250,28 +268,11 @@ impl SyscallDriverLookup for Platform {
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
+            capsules_extra::net::thread::driver::DRIVER_NUM => f(Some(self.thread_driver)),
             capsules_extra::kv_driver::DRIVER_NUM => f(Some(self.kv_driver)),
             _ => f(None),
         }
     }
-}
-
-/// This is in a separate, inline(never) function so that its stack frame is
-/// removed when this function returns. Otherwise, the stack space used for
-/// these static_inits is wasted.
-#[inline(never)]
-unsafe fn create_peripherals() -> &'static mut Nrf52840DefaultPeripherals<'static> {
-    let ieee802154_ack_buf = static_init!(
-        [u8; nrf52840::ieee802154_radio::ACK_BUF_SIZE],
-        [0; nrf52840::ieee802154_radio::ACK_BUF_SIZE]
-    );
-    // Initialize chip peripheral drivers
-    let nrf52840_peripherals = static_init!(
-        Nrf52840DefaultPeripherals,
-        Nrf52840DefaultPeripherals::new(ieee802154_ack_buf)
-    );
-
-    nrf52840_peripherals
 }
 
 impl KernelResources<nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>>
@@ -312,9 +313,15 @@ impl KernelResources<nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'
     }
 }
 
-/// Main function called after RAM initialized.
-#[no_mangle]
-pub unsafe fn main() {
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+pub unsafe fn start() -> (
+    &'static kernel::Kernel,
+    Platform,
+    &'static nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>,
+) {
     //--------------------------------------------------------------------------
     // INITIAL SETUP
     //--------------------------------------------------------------------------
@@ -324,7 +331,15 @@ pub unsafe fn main() {
 
     // Set up peripheral drivers. Called in separate function to reduce stack
     // usage.
-    let nrf52840_peripherals = create_peripherals();
+    let ieee802154_ack_buf = static_init!(
+        [u8; nrf52840::ieee802154_radio::ACK_BUF_SIZE],
+        [0; nrf52840::ieee802154_radio::ACK_BUF_SIZE]
+    );
+    // Initialize chip peripheral drivers
+    let nrf52840_peripherals = static_init!(
+        Nrf52840DefaultPeripherals,
+        Nrf52840DefaultPeripherals::new(ieee802154_ack_buf)
+    );
 
     // Set up circular peripheral dependencies.
     nrf52840_peripherals.init();
@@ -386,7 +401,6 @@ pub unsafe fn main() {
     // functions.
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
     let gpio_port = &nrf52840_peripherals.gpio_port;
 
@@ -574,10 +588,7 @@ pub unsafe fn main() {
     let local_ip_ifaces = static_init!(
         [IPAddr; 3],
         [
-            IPAddr([
-                0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
-                0x0e, 0x0f,
-            ]),
+            IPAddr::generate_from_mac(capsules_extra::net::ieee802154::MacAddress::Long(device_id)),
             IPAddr([
                 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
                 0x1e, 0x1f,
@@ -593,11 +604,14 @@ pub unsafe fn main() {
         DEFAULT_CTX_PREFIX_LEN,
         DEFAULT_CTX_PREFIX,
         DST_MAC_ADDR,
-        MacAddress::Short(device_id_bottom_16),
+        MacAddress::Long(device_id),
         local_ip_ifaces,
         mux_alarm,
     )
-    .finalize(components::udp_mux_component_static!(nrf52840::rtc::Rtc));
+    .finalize(components::udp_mux_component_static!(
+        nrf52840::rtc::Rtc,
+        Ieee802154MacDevice
+    ));
 
     // UDP driver initialization happens here
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
@@ -610,6 +624,24 @@ pub unsafe fn main() {
     )
     .finalize(components::udp_driver_component_static!(nrf52840::rtc::Rtc));
 
+    let thread_driver = components::thread_network::ThreadNetworkComponent::new(
+        board_kernel,
+        capsules_extra::net::thread::driver::DRIVER_NUM,
+        udp_send_mux,
+        udp_recv_mux,
+        udp_port_table,
+        aes_mux,
+        device_id,
+        mux_alarm,
+    )
+    .finalize(components::thread_network_component_static!(
+        nrf52840::rtc::Rtc,
+        nrf52840::aes::AesECB<'static>
+    ));
+
+    ieee802154_radio.set_key_procedure(thread_driver);
+    ieee802154_radio.set_device_procedure(thread_driver);
+
     //--------------------------------------------------------------------------
     // TEMPERATURE (internal)
     //--------------------------------------------------------------------------
@@ -619,7 +651,9 @@ pub unsafe fn main() {
         capsules_extra::temperature::DRIVER_NUM,
         &base_peripherals.temp,
     )
-    .finalize(components::temperature_component_static!());
+    .finalize(components::temperature_component_static!(
+        nrf52840::temperature::Temp
+    ));
 
     //--------------------------------------------------------------------------
     // RANDOM NUMBER GENERATOR
@@ -630,7 +664,7 @@ pub unsafe fn main() {
         capsules_core::rng::DRIVER_NUM,
         &base_peripherals.trng,
     )
-    .finalize(components::rng_component_static!());
+    .finalize(components::rng_component_static!(nrf52840::trng::Trng));
 
     //--------------------------------------------------------------------------
     // ADC
@@ -842,19 +876,19 @@ pub unsafe fn main() {
     // ctap.enable();
     // ctap.attach();
 
-    // Keyboard HID Example
-    //
+    // // Keyboard HID Example
+    // type UsbHw = nrf52840::usbd::Usbd<'static>;
+    // let usb_device = &nrf52840_peripherals.usbd;
+
     // let (keyboard_hid, keyboard_hid_driver) = components::keyboard_hid::KeyboardHidComponent::new(
     //     board_kernel,
     //     capsules_core::driver::NUM::KeyboardHid as usize,
-    //     &nrf52840_peripherals.usbd,
+    //     usb_device,
     //     0x1915, // Nordic Semiconductor
     //     0x503a,
     //     strings,
     // )
-    // .finalize(components::keyboard_hid_component_static!(
-    //     nrf52840::usbd::Usbd
-    // ));
+    // .finalize(components::keyboard_hid_component_static!(UsbHw));
 
     // keyboard_hid.enable();
     // keyboard_hid.attach();
@@ -879,6 +913,7 @@ pub unsafe fn main() {
         temp,
         alarm,
         analog_comparator,
+        thread_driver,
         udp_driver,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
@@ -920,12 +955,12 @@ pub unsafe fn main() {
         board_kernel,
         chip,
         core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
         ),
         core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+            core::ptr::addr_of_mut!(_sappmem),
+            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
         &mut PROCESSES,
         &FAULT_RESPONSE,
@@ -936,5 +971,14 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
+    (board_kernel, platform, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, platform, chip) = start();
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }

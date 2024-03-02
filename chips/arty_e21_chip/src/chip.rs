@@ -3,16 +3,14 @@
 // Copyright Tock Contributors 2022.
 
 use core::fmt::Write;
-use kernel;
 use kernel::debug;
 use kernel::hil::time::Freq32KHz;
 use kernel::platform::chip::InterruptService;
 use kernel::utilities::registers::interfaces::Readable;
-use rv32i;
 
 use crate::clint;
 use crate::interrupts;
-use rv32i::pmp::PMP;
+use rv32i::pmp::{simple::SimplePMP, PMPUserMPU};
 
 extern "C" {
     fn _start_trap();
@@ -21,7 +19,7 @@ extern "C" {
 pub type ArtyExxClint<'a> = sifive::clint::Clint<'a, Freq32KHz>;
 
 pub struct ArtyExx<'a, I: InterruptService + 'a> {
-    pmp: PMP<2>,
+    pmp: PMPUserMPU<2, SimplePMP<4>>,
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     clic: rv32i::clic::Clic,
     machinetimer: &'a ArtyExxClint<'a>,
@@ -87,7 +85,7 @@ impl<'a, I: InterruptService + 'a> ArtyExx<'a, I> {
         let in_use_interrupts: u64 = 0x1FFFF0080;
 
         Self {
-            pmp: PMP::new(),
+            pmp: PMPUserMPU::new(SimplePMP::new().unwrap()),
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
             clic: rv32i::clic::Clic::new(in_use_interrupts),
             machinetimer,
@@ -134,7 +132,7 @@ impl<'a, I: InterruptService + 'a> ArtyExx<'a, I> {
     }
 
     // Mock implementation for tests on Travis-CI.
-    #[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+    #[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
     pub unsafe fn configure_trap_handler(&self) {
         unimplemented!()
     }
@@ -149,7 +147,7 @@ impl<'a, I: InterruptService + 'a> ArtyExx<'a, I> {
 }
 
 impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for ArtyExx<'a, I> {
-    type MPU = PMP<2>;
+    type MPU = PMPUserMPU<2, SimplePMP<4>>;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
 
     fn mpu(&self) -> &Self::MPU {

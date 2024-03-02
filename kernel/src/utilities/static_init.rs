@@ -11,7 +11,7 @@
 /// proper type, and then returns a `&'static mut` reference to it.
 ///
 /// Note: Because this instantiates a static object, you generally cannot pass
-/// a type with generic paramters. github.com/tock/tock/issues/2995 for detail.
+/// a type with generic parameters. github.com/tock/tock/issues/2995 for detail.
 ///
 /// # Safety
 ///

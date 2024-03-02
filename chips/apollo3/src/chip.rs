@@ -5,7 +5,7 @@
 //! Chip trait setup.
 
 use core::fmt::Write;
-use cortexm4::{self, CortexM4, CortexMVariant};
+use cortexm4::{CortexM4, CortexMVariant};
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
@@ -40,6 +40,7 @@ pub struct Apollo3DefaultPeripherals {
     pub iom3: crate::iom::Iom<'static>,
     pub iom4: crate::iom::Iom<'static>,
     pub iom5: crate::iom::Iom<'static>,
+    pub ios: crate::ios::Ios<'static>,
     pub ble: crate::ble::Ble<'static>,
 }
 
@@ -56,6 +57,7 @@ impl Apollo3DefaultPeripherals {
             iom3: crate::iom::Iom::new3(),
             iom4: crate::iom::Iom::new4(),
             iom5: crate::iom::Iom::new5(),
+            ios: crate::ios::Ios::new(),
             ble: crate::ble::Ble::new(),
         }
     }
@@ -75,6 +77,7 @@ impl kernel::platform::chip::InterruptService for Apollo3DefaultPeripherals {
             nvic::IOMSTR3 => self.iom3.handle_interrupt(),
             nvic::IOMSTR4 => self.iom4.handle_interrupt(),
             nvic::IOMSTR5 => self.iom5.handle_interrupt(),
+            nvic::IOSLAVE | nvic::IOSLAVEACC => self.ios.handle_interrupt(),
             nvic::BLE => self.ble.handle_interrupt(),
             _ => return false,
         }

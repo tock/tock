@@ -11,9 +11,6 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
-#![feature(naked_functions)]
-
-use core::arch::asm;
 
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
@@ -66,6 +63,11 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 static mut CHIP: Option<&'static Rp2040<Rp2040DefaultPeripherals>> = None;
 static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 
+type TemperatureRp2040Sensor = components::temperature_rp2040::TemperatureRp2040ComponentType<
+    capsules_core::virtualizers::virtual_adc::AdcDevice<'static, rp2040::adc::Adc<'static>>,
+>;
+type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureRp2040Sensor>;
+
 /// Supported drivers by the platform
 pub struct NanoRP2040Connect {
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
@@ -77,7 +79,7 @@ pub struct NanoRP2040Connect {
     gpio: &'static capsules_core::gpio::GPIO<'static, RPGpioPin<'static>>,
     led: &'static capsules_core::led::LedDriver<'static, LedHigh<'static, RPGpioPin<'static>>, 1>,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
-    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temperature: &'static TemperatureDriver,
     ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
     lsm6dsoxtr: &'static capsules_extra::lsm6dsoxtr::Lsm6dsoxtrI2C<
         'static,
@@ -147,31 +149,36 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Nan
     }
 }
 
-/// Entry point used for debuger
-///
-/// When loaded using gdb, the Arduino Nano RP2040 Connect is not reset
-/// by default. Without this function, gdb sets the PC to the
-/// beginning of the flash. This is not correct, as the RP2040
-/// has a more complex boot process.
-///
-/// This function is set to be the entry point for gdb and is used
-/// to send the RP2040 back in the bootloader so that all the boot
-/// sqeuence is performed.
-#[no_mangle]
-#[naked]
-pub unsafe extern "C" fn jump_to_bootloader() {
-    asm!(
-        "
+#[allow(dead_code)]
+extern "C" {
+    /// Entry point used for debugger
+    ///
+    /// When loaded using gdb, the Arduino Nano RP2040 Connect is not reset
+    /// by default. Without this function, gdb sets the PC to the
+    /// beginning of the flash. This is not correct, as the RP2040
+    /// has a more complex boot process.
+    ///
+    /// This function is set to be the entry point for gdb and is used
+    /// to send the RP2040 back in the bootloader so that all the boot
+    /// sequence is performed.
+    fn jump_to_bootloader();
+}
+
+#[cfg(all(target_arch = "arm", target_os = "none"))]
+core::arch::global_asm!(
+    "
+    .section .jump_to_bootloader, \"ax\"
+    .global jump_to_bootloader
+    .thumb_func
+  jump_to_bootloader:
     movs r0, #0
     ldr r1, =(0xe0000000 + 0x0000ed08)
     str r0, [r1]
     ldmia r0!, {{r1, r2}}
     msr msp, r1
     bx r2
-    ",
-        options(noreturn)
-    );
-}
+    "
+);
 
 fn init_clocks(peripherals: &Rp2040DefaultPeripherals) {
     // Start tick in watchdog
@@ -468,14 +475,14 @@ pub unsafe fn main() {
     )
     .finalize(components::ninedof_component_static!(lsm6dsoxtr));
 
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let grant_temperature =
-        board_kernel.create_grant(capsules_extra::temperature::DRIVER_NUM, &grant_cap);
-
-    let temp = static_init!(
-        capsules_extra::temperature::TemperatureSensor<'static>,
-        capsules_extra::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
-    );
+    let temp = components::temperature::TemperatureComponent::new(
+        board_kernel,
+        capsules_extra::temperature::DRIVER_NUM,
+        temp_sensor,
+    )
+    .finalize(components::temperature_component_static!(
+        TemperatureRp2040Sensor
+    ));
 
     let _ = lsm6dsoxtr
         .configure(
@@ -590,12 +597,12 @@ pub unsafe fn main() {
         board_kernel,
         chip,
         core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
         ),
         core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+            core::ptr::addr_of_mut!(_sappmem),
+            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
         &mut PROCESSES,
         &FAULT_RESPONSE,

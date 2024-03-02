@@ -51,6 +51,7 @@ impl<'a> ListNode<'a, RoundRobinProcessNode<'a>> for RoundRobinProcessNode<'a> {
 /// Round Robin Scheduler
 pub struct RoundRobinSched<'a> {
     time_remaining: Cell<u32>,
+    timeslice_length: u32,
     pub processes: List<'a, RoundRobinProcessNode<'a>>,
     last_rescheduled: Cell<bool>,
 }
@@ -59,8 +60,13 @@ impl<'a> RoundRobinSched<'a> {
     /// How long a process can run before being pre-empted
     const DEFAULT_TIMESLICE_US: u32 = 10000;
     pub const fn new() -> RoundRobinSched<'a> {
+        Self::new_with_time(Self::DEFAULT_TIMESLICE_US)
+    }
+
+    pub const fn new_with_time(time_us: u32) -> RoundRobinSched<'a> {
         RoundRobinSched {
-            time_remaining: Cell::new(Self::DEFAULT_TIMESLICE_US),
+            time_remaining: Cell::new(time_us),
+            timeslice_length: time_us,
             processes: List::new(),
             last_rescheduled: Cell::new(false),
         }
@@ -98,18 +104,25 @@ impl<'a, C: Chip> Scheduler<C> for RoundRobinSched<'a> {
                 }
             }
         }
+
+        let next = match next {
+            Some(p) => p,
+            None => {
+                // No processes on the system
+                return SchedulingDecision::TrySleep;
+            }
+        };
+
         let timeslice = if self.last_rescheduled.get() {
             self.time_remaining.get()
         } else {
             // grant a fresh timeslice
-            self.time_remaining.set(Self::DEFAULT_TIMESLICE_US);
-            Self::DEFAULT_TIMESLICE_US
+            self.time_remaining.set(self.timeslice_length);
+            self.timeslice_length
         };
         assert!(timeslice != 0);
 
-        // next will not be None, because if we make a full iteration and nothing
-        // is ready we return early
-        SchedulingDecision::RunProcess((next.unwrap(), Some(timeslice)))
+        SchedulingDecision::RunProcess((next, Some(timeslice)))
     }
 
     fn result(&self, result: StoppedExecutingReason, execution_time_us: Option<u32>) {

@@ -8,7 +8,6 @@ use core::panic::PanicInfo;
 use crate::CHIP;
 use crate::PROCESSES;
 use crate::PROCESS_PRINTER;
-use apollo3;
 use kernel::debug;
 use kernel::debug::IoWrite;
 use kernel::hil::led;
@@ -37,7 +36,7 @@ impl IoWrite for Writer {
 /// Panic handler.
 #[no_mangle]
 #[panic_handler]
-pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
+pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
     // just create a new pin reference here instead of using global
     let led_pin = &mut apollo3::gpio::GpioPin::new(
         kernel::utilities::StaticRef::new(

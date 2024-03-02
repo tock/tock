@@ -731,6 +731,8 @@ pub(crate) const DEFAULT_PLLQ_VALUE: PLLQ = match DEFAULT_PLLM_VALUE {
     PLLM::DivideBy8 => PLLQ::DivideBy8,
 };
 
+const HSI_FREQUENCY: usize = 16_000_000;
+
 pub struct Rcc {
     registers: StaticRef<RccRegisters>,
 }
@@ -778,7 +780,7 @@ impl Rcc {
     pub(crate) fn get_sys_clock_source(&self) -> SysClockSource {
         match self.registers.cfgr.read(CFGR::SWS) {
             0b00 => SysClockSource::HSI,
-            //0b01 => SysClockSource::HSE, Uncomment this when HSE support is added
+            0b01 => SysClockSource::HSE,
             _ => SysClockSource::PLL,
             // Uncomment this when PPLLR support is added. Also change the above match arm to
             // 0b10 => SysClockSource::PLL,
@@ -800,6 +802,27 @@ impl Rcc {
                 && self.registers.pllcfgr.read(PLLCFGR::PLLSRC) == PllSource::HSI as u32
     }
 
+    pub(crate) fn is_hse_clock_system_clock(&self) -> bool {
+        let system_clock_source = self.get_sys_clock_source();
+        system_clock_source == SysClockSource::HSE
+            || system_clock_source == SysClockSource::PLL
+                && self.registers.pllcfgr.read(PLLCFGR::PLLSRC) == PllSource::HSE as u32
+    }
+
+    /// Get the current system clock frequency in Hz
+    pub(crate) fn get_sys_clock_frequency(&self) -> usize {
+        //TODO: this should be moved to clocks.rs module which already controls the clock sources
+        // (e.g. sets/gets HSE settings).
+        // However peripherals can currently access Rcc only
+        let src_freq = match self.get_sys_clock_source() {
+            SysClockSource::HSI => HSI_FREQUENCY,
+            SysClockSource::HSE => todo!(),
+            SysClockSource::PLL => self.get_pll_clocks_frequency(),
+        };
+        let prescaler: usize = self.get_ahb_prescaler().into();
+        src_freq / prescaler
+    }
+
     /* HSI clock */
     // The HSI clock must not be configured as the system clock, either directly or indirectly.
     pub(crate) fn disable_hsi_clock(&self) {
@@ -817,6 +840,29 @@ impl Rcc {
     // Indicates whether the HSI oscillator is stable
     pub(crate) fn is_ready_hsi_clock(&self) -> bool {
         self.registers.cr.is_set(CR::HSIRDY)
+    }
+
+    /* HSE clock */
+    pub(crate) fn disable_hse_clock(&self) {
+        self.registers.cr.modify(CR::HSEON::CLEAR);
+        self.registers.cr.modify(CR::HSEBYP::CLEAR);
+    }
+
+    pub(crate) fn enable_hse_clock_bypass(&self) {
+        self.registers.cr.modify(CR::HSEBYP::SET);
+    }
+
+    pub(crate) fn enable_hse_clock(&self) {
+        self.registers.cr.modify(CR::HSEON::SET);
+    }
+
+    pub(crate) fn is_enabled_hse_clock(&self) -> bool {
+        self.registers.cr.is_set(CR::HSEON)
+    }
+
+    // Indicates whether the HSE oscillator is stable
+    pub(crate) fn is_ready_hse_clock(&self) -> bool {
+        self.registers.cr.is_set(CR::HSERDY)
     }
 
     /* Main PLL clock*/
@@ -839,6 +885,13 @@ impl Rcc {
         self.registers.cr.is_set(CR::PLLRDY)
     }
 
+    pub(crate) fn get_pll_clocks_source(&self) -> PllSource {
+        match self.registers.pllcfgr.read(PLLCFGR::PLLSRC) {
+            0b0 => PllSource::HSI,
+            _ => PllSource::HSE,
+        }
+    }
+
     // This method must be called only when all PLL clocks are disabled
     pub(crate) fn set_pll_clocks_source(&self, source: PllSource) {
         self.registers
@@ -846,9 +899,21 @@ impl Rcc {
             .modify(PLLCFGR::PLLSRC.val(source as u32));
     }
 
+    pub(crate) fn get_pll_clocks_m_divider(&self) -> PLLM {
+        match self.registers.pllcfgr.read(PLLCFGR::PLLM) {
+            8 => PLLM::DivideBy8,
+            16 => PLLM::DivideBy16,
+            _ => panic!("Unexpected PLLM divider"),
+        }
+    }
+
     // This method must be called only when all PLL clocks are disabled
     pub(crate) fn set_pll_clocks_m_divider(&self, m: PLLM) {
         self.registers.pllcfgr.modify(PLLCFGR::PLLM.val(m as u32));
+    }
+
+    pub(crate) fn get_pll_clocks_n_multiplier(&self) -> usize {
+        self.registers.pllcfgr.read(PLLCFGR::PLLN) as usize
     }
 
     // This method must be called only if the main PLL clock is disabled
@@ -856,14 +921,48 @@ impl Rcc {
         self.registers.pllcfgr.modify(PLLCFGR::PLLN.val(n as u32));
     }
 
+    pub(crate) fn get_pll_clocks_p_divider(&self) -> PLLP {
+        match self.registers.pllcfgr.read(PLLCFGR::PLLP) {
+            0b00 => PLLP::DivideBy2,
+            0b01 => PLLP::DivideBy4,
+            0b10 => PLLP::DivideBy6,
+            _ => PLLP::DivideBy8,
+        }
+    }
+
     // This method must be called only if the main PLL clock is disabled
     pub(crate) fn set_pll_clock_p_divider(&self, p: PLLP) {
         self.registers.pllcfgr.modify(PLLCFGR::PLLP.val(p as u32));
     }
 
+    pub(crate) fn _get_pll_clocks_q_divider(&self) -> PLLQ {
+        match self.registers.pllcfgr.read(PLLCFGR::PLLQ) {
+            3 => PLLQ::DivideBy3,
+            4 => PLLQ::DivideBy4,
+            5 => PLLQ::DivideBy5,
+            6 => PLLQ::DivideBy6,
+            7 => PLLQ::DivideBy7,
+            8 => PLLQ::DivideBy8,
+            9 => PLLQ::DivideBy9,
+            _ => panic!("Unexpected PLLQ divider"),
+        }
+    }
+
     // This method must be called only if the main PLL clock is disabled
     pub(crate) fn set_pll_clock_q_divider(&self, q: PLLQ) {
         self.registers.pllcfgr.modify(PLLCFGR::PLLQ.val(q as u32));
+    }
+
+    // Get the pll frequency in Hz
+    pub(crate) fn get_pll_clocks_frequency(&self) -> usize {
+        let src_freq = match self.get_pll_clocks_source() {
+            PllSource::HSI => HSI_FREQUENCY,
+            PllSource::HSE => todo!(),
+        };
+        let pllm = self.get_pll_clocks_m_divider() as usize;
+        let plln = self.get_pll_clocks_n_multiplier();
+        let pllp: usize = self.get_pll_clocks_p_divider().into();
+        src_freq / pllm * plln / pllp
     }
 
     /* AHB prescaler */
@@ -933,7 +1032,7 @@ impl Rcc {
             0b00 => MCO1Source::HSI,
             // When LSE or HSE are added, uncomment the following lines
             //0b01 => MCO1Source::LSE,
-            //0b10 => MCO1Source::HSE,
+            0b10 => MCO1Source::HSE,
             // 0b11 corresponds to MCO1Source::PLL
             _ => MCO1Source::PLL,
         }
@@ -1226,6 +1325,20 @@ impl Rcc {
         self.registers.apb2enr.modify(APB2ENR::ADC1EN::CLEAR)
     }
 
+    // DAC clock
+
+    fn is_enabled_dac_clock(&self) -> bool {
+        self.registers.apb1enr.is_set(APB1ENR::DACEN)
+    }
+
+    fn enable_dac_clock(&self) {
+        self.registers.apb1enr.modify(APB1ENR::DACEN::SET)
+    }
+
+    fn disable_dac_clock(&self) {
+        self.registers.apb1enr.modify(APB1ENR::DACEN::CLEAR)
+    }
+
     // RNG clock
 
     fn is_enabled_rng_clock(&self) -> bool {
@@ -1325,12 +1438,6 @@ impl Rcc {
     }
 }
 
-// NOTE: HSE is not yet supported as source clock.
-pub(crate) enum PllSource {
-    HSI = 0b0,
-    //HSE = 0b1,
-}
-
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub(crate) enum PLLP {
     DivideBy2 = 0b00,
@@ -1370,16 +1477,21 @@ pub(crate) enum PLLQ {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum SysClockSource {
     HSI = 0b00,
-    //HSE = 0b01, Uncomment this when support for HSE is added
+    HSE = 0b01,
     PLL = 0b10,
     // NOTE: not all STM32F4xx boards support this source.
     //PPLLR = 0b11, Uncomment this when support for PPLLR is added
 }
 
+pub enum PllSource {
+    HSI = 0b0,
+    HSE = 0b1,
+}
+
 pub enum MCO1Source {
     HSI = 0b00,
     //LSE = 0b01, // When support for LSE is added, uncomment this
-    //HSE = 0b10, // When support for HSE is added, uncomment this
+    HSE = 0b10,
     PLL = 0b11,
 }
 
@@ -1389,6 +1501,13 @@ pub enum MCO1Divider {
     DivideBy3 = 0b101,
     DivideBy4 = 0b110,
     DivideBy5 = 0b111,
+}
+
+/// HSE Mode
+#[derive(PartialEq)]
+pub enum HseMode {
+    BYPASS,
+    CRYSTAL,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -1490,6 +1609,7 @@ pub enum PCLK1 {
     SPI3,
     I2C1,
     CAN1,
+    DAC,
 }
 
 /// Peripherals clocked by PCLK2
@@ -1506,6 +1626,50 @@ impl<'a> PeripheralClock<'a> {
 
     pub fn configure_rng_clock(&self) {
         self.rcc.configure_rng_clock();
+    }
+
+    pub fn get_frequency(&self) -> u32 {
+        #[inline(always)]
+        fn tim_freq(rcc: &Rcc, hclk_freq: usize, prescaler: APBPrescaler) -> usize {
+            // Reference Manual RM0090 section 6.2
+            // When TIMPRE bit of the RCC_DCKCFGR register is reset, if APBx prescaler is 1, then
+            // TIMxCLK = PCLKx, otherwise TIMxCLK = 2x PCLKx.
+            // When TIMPRE bit in the RCC_DCKCFGR register is set, if APBx prescaler is 1,2 or 4,
+            // then TIMxCLK = HCLK, otherwise TIMxCLK = 4x PCLKx.
+            if !rcc.registers.dckcfgr.is_set(DCKCFGR::TIMPRE) {
+                match prescaler {
+                    APBPrescaler::DivideBy1 | APBPrescaler::DivideBy2 => hclk_freq,
+                    _ => hclk_freq / usize::from(prescaler) * 2,
+                }
+            } else {
+                match prescaler {
+                    APBPrescaler::DivideBy1 | APBPrescaler::DivideBy2 | APBPrescaler::DivideBy4 => {
+                        hclk_freq
+                    }
+                    _ => hclk_freq / usize::from(prescaler) * 4,
+                }
+            }
+        }
+        let hclk_freq = self.rcc.get_sys_clock_frequency();
+        match self.clock {
+            PeripheralClockType::AHB1(_)
+            | PeripheralClockType::AHB2(_)
+            | PeripheralClockType::AHB3(_) => hclk_freq as u32,
+            PeripheralClockType::APB1(ref v) => {
+                let prescaler = self.rcc.get_apb1_prescaler();
+                match v {
+                    PCLK1::TIM2 => tim_freq(self.rcc, hclk_freq, prescaler) as u32,
+                    _ => (hclk_freq / usize::from(prescaler)) as u32,
+                }
+            }
+            PeripheralClockType::APB2(_) => {
+                let prescaler = self.rcc.get_apb2_prescaler();
+                (hclk_freq / usize::from(prescaler)) as u32
+            }
+            //TODO: implement clock frequency retrieval for RTC and PWR peripherals
+            PeripheralClockType::RTC => todo!(),
+            PeripheralClockType::PWR => todo!(),
+        }
     }
 }
 
@@ -1538,6 +1702,7 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
                 PCLK1::I2C1 => self.rcc.is_enabled_i2c1_clock(),
                 PCLK1::SPI3 => self.rcc.is_enabled_spi3_clock(),
                 PCLK1::CAN1 => self.rcc.is_enabled_can1_clock(),
+                PCLK1::DAC => self.rcc.is_enabled_dac_clock(),
             },
             PeripheralClockType::APB2(ref v) => match v {
                 PCLK2::USART1 => self.rcc.is_enabled_usart1_clock(),
@@ -1612,6 +1777,9 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
                 }
                 PCLK1::CAN1 => {
                     self.rcc.enable_can1_clock();
+                }
+                PCLK1::DAC => {
+                    self.rcc.enable_dac_clock();
                 }
             },
             PeripheralClockType::APB2(ref v) => match v {
@@ -1693,6 +1861,9 @@ impl<'a> ClockInterface for PeripheralClock<'a> {
                 }
                 PCLK1::CAN1 => {
                     self.rcc.disable_can1_clock();
+                }
+                PCLK1::DAC => {
+                    self.rcc.disable_dac_clock();
                 }
             },
             PeripheralClockType::APB2(ref v) => match v {

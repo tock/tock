@@ -15,12 +15,13 @@ provided syscalls, and the driver specific interfaces (using `allow`,
   * [Base](#base)
   * [Kernel](#kernel)
   * [Hardware Access](#hardware-access)
-  * [Radio](#radio)
+  * [Networking](#networking)
   * [Cryptography](#cryptography)
   * [Storage](#storage)
   * [Sensors](#sensors)
   * [Sensor ICs](#sensor-ics)
   * [Other ICs](#other-ics)
+  * [Display](#display)
   * [Miscellaneous](#miscellaneous)
 
 <!-- tocstop -->
@@ -47,17 +48,13 @@ stabilized or not (a "✓" indicates stability) in the Tock 2.0 release.
 | ✓ | 0x00001       | [Console](00001_console.md) | UART console                               |
 | ✓ | 0x00002       | [LED](00002_leds.md)        | Control LEDs on board                      |
 | ✓ | 0x00003       | [Button](00003_buttons.md)  | Get interrupts from buttons on the board   |
-| ✓ | 0x00005       | [ADC](00005_adc.md)         | Sample analog-to-digital converter pins    |
-|   | 0x00006       | DAC                         | Digital to analog converter                |
-|   | 0x00007       | [AnalogComparator](00007_analog_comparator.md) | Analog Comparator       |
 |   | 0x00008       | [Low-Level Debug](00008_low_level_debug.md) | Low-level debugging tools  |
-|   | 0x00009       | [ROS](00009_ros.md)         | Read Only State, access system information |
-|   | 0x00010       | [PWM](00010_pwm.md)         | Control PWM pins                           |
 
 ### Kernel
 
 |2.0| Driver Number | Driver           | Description                                |
 |---|---------------|------------------|--------------------------------------------|
+|   | 0x00009       | [ROS](00009_ros.md) | Read Only State, access system information |
 |   | 0x10000       | IPC              | Inter-process communication                |
 
 ### Hardware Access
@@ -65,6 +62,10 @@ stabilized or not (a "✓" indicates stability) in the Tock 2.0 release.
 |2.0| Driver Number | Driver           | Description                                |
 |---|---------------|------------------|--------------------------------------------|
 |   | 0x00004       | [GPIO](00004_gpio.md) | Set and read GPIO pins                |
+| ✓ | 0x00005       | [ADC](00005_adc.md)| Sample analog-to-digital converter pins  |
+|   | 0x00006       | DAC              | Digital to analog converter                |
+|   | 0x00007       | [AnalogComparator](00007_analog_comparator.md) | Analog Comparator |
+|   | 0x00010       | [PWM](00010_pwm.md)| Control PWM pins                         |
 |   | 0x20000       | UART             | UART                                       |
 |   | 0x20001       | SPI              | Raw SPI Master interface                   |
 |   | 0x20002       | SPI Slave        | Raw SPI slave interface                    |
@@ -75,7 +76,7 @@ stabilized or not (a "✓" indicates stability) in the Tock 2.0 release.
 
 _Note:_ GPIO is slated for re-numbering in Tock 2.0.
 
-### Radio
+### Networking
 
 |2.0| Driver Number | Driver           | Description                                |
 |---|---------------|------------------|--------------------------------------------|
@@ -98,6 +99,7 @@ _Note:_ GPIO is slated for re-numbering in Tock 2.0.
 |   | 0x50000       | App Flash        | Allow apps to write their own flash        |
 |   | 0x50001       | Nonvolatile Storage | Generic interface for persistent storage |
 |   | 0x50002       | SDCard           | Raw block access to an SD card             |
+|   | 0x50003       | [Key-Value](50003_key_value.md) | Access to a key-value storage database |
 
 ### Sensors
 
@@ -106,10 +108,11 @@ _Note:_ GPIO is slated for re-numbering in Tock 2.0.
 | ✓ | 0x60000       | [Ambient Temp.](60000_ambient_temperature.md) | Ambient temperature (centigrate)           |
 | ✓ | 0x60001       | [Humidity](60001_humidity.md)                 | Humidity Sensor (percent)                  |
 | ✓ | 0x60002       | [Luminance](60002_luminance.md)               | Ambient Light Sensor (lumens)              |
-|   | 0x60003       | Pressure         | Pressure sensor                            |
-|   | 0x60004       | Ninedof          | Virtualized accelerometer/magnetometer/gyroscope |
-|   | 0x60005       | Proximity        | Proximity Sensor                                                        |
-|   | 0x60006       | SoundPressure    | Sound Pressure Sensor                                                   |
+|   | 0x60003       | Pressure                                      | Pressure sensor                            |
+|   | 0x60004       | Ninedof                                       | Virtualized accelerometer/magnetometer/gyroscope |
+|   | 0x60005       | Proximity                                     | Proximity Sensor                           |
+|   | 0x60006       | SoundPressure                                 | Sound Pressure Sensor                      |
+|   | 0x90002       | [Touch](90002_touch.md)                       | Multi Touch Panel                          |
 
 ### Sensor ICs
 
@@ -131,11 +134,15 @@ _Note:_ GPIO is slated for re-numbering in Tock 2.0.
 |   | 0x80003       | GPIO Async       | Asynchronous GPIO pins                     |
 |   | 0x80004       | nRF51822         | nRF serialization link to nRF51822 BLE SoC |
 
+### Display
+
+|2.0| Driver Number | Driver                                  | Description                                |
+|---|---------------|-----------------------------------------|--------------------------------------------|
+|   | 0x90001       | [Screen](90001_screen.md)               | Graphic Screen                             |
+|   | 0x90003       | [Text Screen](90003_text_screen.md)     | Text Screen                                |
+
 ### Miscellaneous
 
 |2.0| Driver Number | Driver                                  | Description                                |
 |---|---------------|-----------------------------------------|--------------------------------------------|
 |   | 0x90000       | Buzzer                                  | Buzzer                                     |
-|   | 0x90001       | [Screen](90001_screen.md)               | Graphic Screen                             |
-|   | 0x90002       | [Touch](90002_touch.md)                 | Multi Touch Panel                          |
-|   | 0x90003       | [Text Screen](90003_text_screen.md)     | Text Screen                                |

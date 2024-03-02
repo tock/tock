@@ -6,16 +6,13 @@
 
 use core::fmt::Write;
 
-use kernel;
 use kernel::debug;
 use kernel::hil::time::Freq10MHz;
 use kernel::platform::chip::{Chip, InterruptService};
 
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 
-use rv32i;
 use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
-use rv32i::pmp::PMP;
 
 use crate::plic::PLIC;
 use sifive::plic::Plic;
@@ -24,7 +21,10 @@ use crate::interrupts;
 
 use virtio::transports::mmio::VirtIOMMIODevice;
 
-type QemuRv32VirtPMP = PMP<8>;
+type QemuRv32VirtPMP = rv32i::pmp::PMPUserMPU<
+    5,
+    rv32i::pmp::kernel_protection_mml_epmp::KernelProtectionMMLEPMP<16, 5>,
+>;
 
 pub type QemuRv32VirtClint<'a> = sifive::clint::Clint<'a, Freq10MHz>;
 
@@ -78,10 +78,14 @@ impl<'a> InterruptService for QemuRv32VirtDefaultPeripherals<'a> {
 }
 
 impl<'a, I: InterruptService + 'a> QemuRv32VirtChip<'a, I> {
-    pub unsafe fn new(plic_interrupt_service: &'a I, timer: &'a QemuRv32VirtClint<'a>) -> Self {
+    pub unsafe fn new(
+        plic_interrupt_service: &'a I,
+        timer: &'a QemuRv32VirtClint<'a>,
+        pmp: rv32i::pmp::kernel_protection_mml_epmp::KernelProtectionMMLEPMP<16, 5>,
+    ) -> Self {
         Self {
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
-            pmp: PMP::new(),
+            pmp: rv32i::pmp::PMPUserMPU::new(pmp),
             plic: &PLIC,
             timer,
             plic_interrupt_service,
@@ -170,6 +174,7 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
 
     unsafe fn print_state(&self, writer: &mut dyn Write) {
         rv32i::print_riscv_state(writer);
+        let _ = writer.write_fmt(format_args!("{}", self.pmp.pmp));
     }
 }
 

@@ -16,11 +16,9 @@ use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::adc::Adc;
 use kernel::hil::buzzer::Buzzer;
-use kernel::hil::entropy::Entropy32;
 use kernel::hil::gpio::{Configure, InterruptWithValue, Output};
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedLow;
-use kernel::hil::rng::Rng;
 use kernel::hil::time::{Alarm, Counter};
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
@@ -59,6 +57,10 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
+type TemperatureDriver =
+    components::temperature::TemperatureComponentType<nrf52832::temperature::Temp<'static>>;
+type RngDriver = components::rng::RngComponentType<nrf52832::trng::Trng<'static>>;
+
 /// Supported drivers by the platform
 pub struct Platform {
     ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
@@ -74,8 +76,8 @@ pub struct Platform {
         LedLow<'static, nrf52832::gpio::GPIOPin<'static>>,
         4,
     >,
-    rng: &'static capsules_core::rng::RngDriver<'static>,
-    temp: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    rng: &'static RngDriver,
+    temp: &'static TemperatureDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
@@ -172,22 +174,17 @@ impl KernelResources<nrf52832::chip::NRF52<'static, Nrf52832DefaultPeripherals<'
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn create_peripherals() -> &'static mut Nrf52832DefaultPeripherals<'static> {
-    // Initialize chip peripheral drivers
+unsafe fn start() -> (
+    &'static kernel::Kernel,
+    Platform,
+    &'static nrf52832::chip::NRF52<'static, Nrf52832DefaultPeripherals<'static>>,
+) {
+    nrf52832::init();
+
     let nrf52832_peripherals = static_init!(
         Nrf52832DefaultPeripherals,
         Nrf52832DefaultPeripherals::new()
     );
-
-    nrf52832_peripherals
-}
-
-/// Main function called after RAM initialized.
-#[no_mangle]
-pub unsafe fn main() {
-    nrf52832::init();
-
-    let nrf52832_peripherals = create_peripherals();
 
     // set up circular peripheral dependencies
     nrf52832_peripherals.init();
@@ -197,7 +194,6 @@ pub unsafe fn main() {
     // functions.
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
@@ -473,41 +469,25 @@ pub unsafe fn main() {
     //
 
     // Setup internal temperature sensor
-    let temp = static_init!(
-        capsules_extra::temperature::TemperatureSensor<'static>,
-        capsules_extra::temperature::TemperatureSensor::new(
-            &base_peripherals.temp,
-            board_kernel.create_grant(
-                capsules_extra::temperature::DRIVER_NUM,
-                &memory_allocation_capability
-            )
-        )
-    );
-    kernel::hil::sensors::TemperatureDriver::set_client(&base_peripherals.temp, temp);
+    let temp = components::temperature::TemperatureComponent::new(
+        board_kernel,
+        capsules_extra::temperature::DRIVER_NUM,
+        &base_peripherals.temp,
+    )
+    .finalize(components::temperature_component_static!(
+        nrf52832::temperature::Temp
+    ));
 
     //
     // RNG
     //
 
-    // Convert hardware RNG to the Random interface.
-    let entropy_to_random = static_init!(
-        capsules_core::rng::Entropy32ToRandom<'static>,
-        capsules_core::rng::Entropy32ToRandom::new(&base_peripherals.trng)
-    );
-    base_peripherals.trng.set_client(entropy_to_random);
-
-    // Setup RNG for userspace
-    let rng = static_init!(
-        capsules_core::rng::RngDriver<'static>,
-        capsules_core::rng::RngDriver::new(
-            entropy_to_random,
-            board_kernel.create_grant(
-                capsules_core::rng::DRIVER_NUM,
-                &memory_allocation_capability
-            )
-        )
-    );
-    entropy_to_random.set_client(rng);
+    let rng = components::rng::RngComponent::new(
+        board_kernel,
+        capsules_core::rng::DRIVER_NUM,
+        &base_peripherals.trng,
+    )
+    .finalize(components::rng_component_static!(nrf52832::trng::Trng));
 
     //
     // Light Sensor
@@ -673,12 +653,12 @@ pub unsafe fn main() {
         board_kernel,
         chip,
         core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
         ),
         core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+            core::ptr::addr_of_mut!(_sappmem),
+            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
         &mut PROCESSES,
         &FAULT_RESPONSE,
@@ -689,5 +669,14 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
+    (board_kernel, platform, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, board, chip) = start();
+    board_kernel.kernel_loop(&board, chip, Some(&board.ipc), &main_loop_capability);
 }

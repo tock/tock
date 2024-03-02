@@ -7,7 +7,7 @@ name = "lora_things_plus"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-build = "build.rs"
+build = "../../build.rs"
 
 
 [dependencies]

@@ -37,6 +37,7 @@ tests = {
     "deleting":             (-1, "not_executed"),
     "cariage_return":	    (-1, "not_executed"),
     "newline_return":       (-1, "not_executed"),
+    "command_history_edit": (-1, "not_executed"),
 }
 
 colors = ["\033[92m", "\033[91m", "\033[00m"]
@@ -479,6 +480,91 @@ def test_newline_return(port: SerialPort):
 
     pass_test("newline_return")
 
+def test_command_history_edit(port: SerialPort):
+    ''' Tests basic editing of commands in history '''
+    print_title("Testing basic command history editing:")
+    fail_test("command_history_edit")
+
+    def test_inserting():
+        print("Inserting 'FooBar'")
+        port.send_input("FooBar\r\n")
+        port.clear_input()
+
+        print("Moving up in history 1 time")
+        port.send_input(commands["up"])
+
+        print("Moving to the start of the command")
+        port.send_input(commands["home"])
+
+        print("Insert to the start 'Dummy'")
+        port.send_input("Dummy")
+
+        print("Moving to the end of the command")
+        port.send_input(commands["end"])
+
+        print("Insert to the end 'Dummy'")
+        port.send_input("Dummy")
+
+        print("Moving to the beginning of the middle 'Dummy'")
+        port.send_input(commands["left"] * 8)
+
+        print("Insert in the middle 'Dummy'")
+        port.send_input("Dummy")
+
+        print("Moving down in history 1 time")
+        port.send_input(commands["down"])
+
+        out = port.recv_output()
+
+        exit_if_condition(out != "DummyFooDummyBarDummy",
+                        "[ERROR] Command does not match")
+
+
+    def test_deleting_with(delete_char: str):
+        print("Moving up in history 1 time")
+        port.send_input(commands["up"])
+
+        print("Moving to the start of the command")
+        port.send_input(commands["home"])
+
+        print("Delete first 'Dummy'")
+        port.send_input(delete_char * 5)
+
+        print("Moving to the end of the command")
+        port.send_input(commands["end"])
+
+        print("Delete last 'Dummy'")
+        port.send_input(commands["backspace"] * 5)
+
+        print("Moving to the begining of the middle 'Dummy'")
+        port.send_input(commands["left"] * 8)
+
+        print("Delete middle 'Dummy'")
+        port.send_input(delete_char * 5)
+
+        print("Moving down in history 1 time")
+        port.send_input(commands["down"])
+
+        out = port.recv_output()
+
+        exit_if_condition(out != "FooBar",
+                        "[ERROR] Command does not match")
+
+    test_inserting()
+    out = port.send_input("\r\n")
+    port.clear_input()
+
+    print("Testing with ANSI Escpae Sequence...")
+    test_deleting_with(commands["delete"])
+    port.clear_input()
+
+    print("Testing with ASCII character...")
+    test_deleting_with(commands["delete-ascii"])
+
+    out = port.send_input("\r\n")
+    port.clear_input()
+    pass_test("command_history_edit")
+
 
 def read_serial_port_name():
     ''' Fetches the serial port name from the user '''
@@ -503,6 +589,7 @@ def main():
     test_deleting(port)
     test_cariage_return(port)
     test_newline_return(port)
+    test_command_history_edit(port)
 
     port.finish()
 

@@ -46,6 +46,11 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
+type TemperatureSTMSensor = components::temperature_stm::TemperatureSTMComponentType<
+    capsules_core::virtualizers::virtual_adc::AdcDevice<'static, stm32f429zi::adc::Adc<'static>>,
+>;
+type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureSTMSensor>;
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct STM32F429IDiscovery {
@@ -62,7 +67,7 @@ struct STM32F429IDiscovery {
         'static,
         VirtualMuxAlarm<'static, stm32f429zi::tim2::Tim2<'static>>,
     >,
-    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temperature: &'static TemperatureDriver,
     gpio: &'static capsules_core::gpio::GPIO<'static, stm32f429zi::gpio::Pin<'static>>,
 
     scheduler: &'static RoundRobinSched<'static>,
@@ -510,15 +515,15 @@ pub unsafe fn main() {
     .finalize(components::temperature_stm_adc_component_static!(
         stm32f429zi::adc::Adc
     ));
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let grant_temperature =
-        board_kernel.create_grant(capsules_extra::temperature::DRIVER_NUM, &grant_cap);
 
-    let temp = static_init!(
-        capsules_extra::temperature::TemperatureSensor<'static>,
-        capsules_extra::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
-    );
-    kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
+    let temp = components::temperature::TemperatureComponent::new(
+        board_kernel,
+        capsules_extra::temperature::DRIVER_NUM,
+        temp_sensor,
+    )
+    .finalize(components::temperature_component_static!(
+        TemperatureSTMSensor
+    ));
 
     let adc_channel_0 =
         components::adc::AdcComponent::new(adc_mux, stm32f429zi::adc::Channel::Channel3)
@@ -616,12 +621,12 @@ pub unsafe fn main() {
         board_kernel,
         chip,
         core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
         ),
         core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+            core::ptr::addr_of_mut!(_sappmem),
+            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
         &mut PROCESSES,
         &FAULT_RESPONSE,

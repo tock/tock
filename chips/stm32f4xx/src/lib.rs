@@ -17,6 +17,7 @@ pub mod nvic;
 // Peripherals
 pub mod adc;
 pub mod can;
+pub mod dac;
 pub mod dbg;
 pub mod dma;
 pub mod exti;

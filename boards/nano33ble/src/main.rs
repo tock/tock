@@ -20,7 +20,6 @@ use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
 use kernel::hil::usb::Client;
 use kernel::platform::chip::Chip;
-use kernel::platform::mpu::MPU;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
@@ -115,6 +114,21 @@ fn baud_rate_reset_bootloader_enter() {
     }
 }
 
+type HTS221Sensor = components::hts221::Hts221ComponentType<
+    capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52840::i2c::TWI<'static>>,
+>;
+type TemperatureDriver = components::temperature::TemperatureComponentType<HTS221Sensor>;
+type HumidityDriver = components::humidity::HumidityComponentType<HTS221Sensor>;
+type Ieee802154MacDevice = components::ieee802154::Ieee802154ComponentMacDeviceType<
+    nrf52840::ieee802154_radio::Radio<'static>,
+    nrf52840::aes::AesECB<'static>,
+>;
+type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<
+    nrf52840::ieee802154_radio::Radio<'static>,
+    nrf52840::aes::AesECB<'static>,
+>;
+type RngDriver = components::rng::RngComponentType<nrf52840::trng::Trng<'static>>;
+
 /// Supported drivers by the platform
 pub struct Platform {
     ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
@@ -125,7 +139,7 @@ pub struct Platform {
             nrf52::rtc::Rtc<'static>,
         >,
     >,
-    ieee802154_radio: &'static capsules_extra::ieee802154::RadioDriver<'static>,
+    ieee802154_radio: &'static Ieee802154Driver,
     console: &'static capsules_core::console::Console<'static>,
     pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
@@ -137,8 +151,8 @@ pub struct Platform {
         components::process_console::Capability,
     >,
     proximity: &'static capsules_extra::proximity::ProximitySensor<'static>,
-    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
-    humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
+    temperature: &'static TemperatureDriver,
+    humidity: &'static HumidityDriver,
     gpio: &'static capsules_core::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
     led: &'static capsules_core::led::LedDriver<
         'static,
@@ -146,7 +160,7 @@ pub struct Platform {
         3,
     >,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
-    rng: &'static capsules_core::rng::RngDriver<'static>,
+    rng: &'static RngDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
@@ -402,7 +416,7 @@ pub unsafe fn start() -> (
         capsules_core::rng::DRIVER_NUM,
         &base_peripherals.trng,
     )
-    .finalize(components::rng_component_static!());
+    .finalize(components::rng_component_static!(nrf52840::trng::Trng));
 
     //--------------------------------------------------------------------------
     // ADC
@@ -476,8 +490,8 @@ pub unsafe fn start() -> (
         nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
     );
 
-    let _ = &nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].make_output();
-    let _ = &nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].set();
+    nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].make_output();
+    nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].set();
 
     let apds9960 = components::apds9960::Apds9960Component::new(
         sensors_i2c_bus,
@@ -499,13 +513,13 @@ pub unsafe fn start() -> (
         capsules_extra::temperature::DRIVER_NUM,
         hts221,
     )
-    .finalize(components::temperature_component_static!());
+    .finalize(components::temperature_component_static!(HTS221Sensor));
     let humidity = components::humidity::HumidityComponent::new(
         board_kernel,
         capsules_extra::humidity::DRIVER_NUM,
         hts221,
     )
-    .finalize(components::humidity_component_static!());
+    .finalize(components::humidity_component_static!(HTS221Sensor));
 
     //--------------------------------------------------------------------------
     // WIRELESS
@@ -572,7 +586,10 @@ pub unsafe fn start() -> (
         local_ip_ifaces,
         mux_alarm,
     )
-    .finalize(components::udp_mux_component_static!(nrf52840::rtc::Rtc));
+    .finalize(components::udp_mux_component_static!(
+        nrf52840::rtc::Rtc,
+        Ieee802154MacDevice
+    ));
 
     // UDP driver initialization happens here
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
@@ -667,12 +684,12 @@ pub unsafe fn start() -> (
         board_kernel,
         chip,
         core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
         ),
         core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+            core::ptr::addr_of_mut!(_sappmem),
+            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
         &mut PROCESSES,
         &FAULT_RESPONSE,

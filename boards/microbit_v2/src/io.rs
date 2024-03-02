@@ -5,12 +5,12 @@
 use core::fmt::Write;
 use core::panic::PanicInfo;
 
-use cortexm4;
 use kernel::debug;
 use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart;
 use nrf52833::gpio::{self, Pin};
+use nrf52833::uart::{Uarte, UARTE0_BASE};
 
 use kernel::hil::gpio::{Configure, Input, Output};
 
@@ -42,7 +42,7 @@ impl Write for Writer {
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) -> usize {
-        let uart = nrf52833::uart::Uarte::new();
+        let uart = Uarte::new(UARTE0_BASE);
 
         use kernel::hil::uart::Configure;
 
@@ -98,7 +98,7 @@ impl led::Led for MatrixLed {
 #[cfg(not(test))]
 #[no_mangle]
 #[panic_handler]
-pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
+pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     // MicroBit v2 has an LED matrix, use the upper left LED
     // let mut led = Led (&gpio::PORT[Pin::P0_28], );
 

@@ -88,7 +88,7 @@ impl IoWrite for Writer {
 #[cfg(not(test))]
 #[no_mangle]
 #[panic_handler]
-pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
+pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     // LED is conneted to GPIO 25
     let led_kernel_pin = &RPGpioPin::new(RPGpio::GPIO25);
     let led = &mut LedHigh::new(led_kernel_pin);

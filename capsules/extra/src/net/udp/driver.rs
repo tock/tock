@@ -21,8 +21,6 @@ use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
 use crate::net::util::host_slice_to_u16;
 
 use core::cell::Cell;
-use core::convert::TryFrom;
-use core::convert::TryInto;
 use core::mem::size_of;
 use core::{cmp, mem};
 
@@ -259,7 +257,7 @@ impl<'a> UDPDriver<'a> {
                                     self.driver_send_cap,
                                     self.net_cap,
                                 ) {
-                                    Ok(_) => Ok(()),
+                                    Ok(()) => Ok(()),
                                     Err(mut buf) => {
                                         buf.reset();
                                         self.kernel_buffer.replace(buf);
@@ -469,7 +467,7 @@ impl<'a> SyscallDriver for UDPDriver<'a> {
                     })
                     .unwrap_or_else(|err| Err(err.into()));
                 match res {
-                    Ok(_) => self.do_next_tx_immediate(processid).map_or_else(
+                    Ok(()) => self.do_next_tx_immediate(processid).map_or_else(
                         |err| CommandReturn::failure(err),
                         |v| CommandReturn::success_u32(v),
                     ),
@@ -544,7 +542,7 @@ impl<'a> SyscallDriver for UDPDriver<'a> {
                                             })
                                     }
                                 }
-                                Err(_) => CommandReturn::failure(ErrorCode::FAIL), //error in port table
+                                Err(()) => CommandReturn::failure(ErrorCode::FAIL), //error in port table
                             }
                         })
                     }

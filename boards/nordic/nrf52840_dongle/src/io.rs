@@ -4,12 +4,12 @@
 
 use core::fmt::Write;
 use core::panic::PanicInfo;
-use cortexm4;
 use kernel::debug;
 use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart::{self, Configure};
 use nrf52840::gpio::Pin;
+use nrf52840::uart::{Uarte, UARTE0_BASE};
 
 use crate::CHIP;
 use crate::PROCESSES;
@@ -33,7 +33,7 @@ impl IoWrite for Writer {
         // Here, we create a second instance of the Uarte struct.
         // This is okay because we only call this during a panic, and
         // we will never actually process the interrupts
-        let uart = nrf52840::uart::Uarte::new();
+        let uart = Uarte::new(UARTE0_BASE);
         if !self.initialized {
             self.initialized = true;
             let _ = uart.configure(uart::Parameters {
@@ -58,7 +58,7 @@ impl IoWrite for Writer {
 #[no_mangle]
 #[panic_handler]
 /// Panic handler
-pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
+pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     // The nRF52840 Dongle LEDs (see back of board)
     let led_kernel_pin = &nrf52840::gpio::GPIOPin::new(Pin::P0_06);
     let led = &mut led::LedLow::new(led_kernel_pin);

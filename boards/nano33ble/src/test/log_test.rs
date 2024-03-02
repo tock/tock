@@ -305,7 +305,7 @@ impl<A: 'static + Alarm<'static>> LogTest<A> {
             .take()
             .map(
                 move |buffer| match self.log.read(buffer, buffer.len() + 1) {
-                    Ok(_) => panic!("Read with too-large max read length succeeded unexpectedly!"),
+                    Ok(()) => panic!("Read with too-large max read length succeeded unexpectedly!"),
                     Err((error, original_buffer)) => {
                         self.buffer.replace(original_buffer);
                         assert_eq!(error, ErrorCode::INVAL);
@@ -318,7 +318,7 @@ impl<A: 'static + Alarm<'static>> LogTest<A> {
         self.buffer
             .take()
             .map(move |buffer| match self.log.read(buffer, BUFFER_LEN - 1) {
-                Ok(_) => panic!("Read with too-small buffer succeeded unexpectedly!"),
+                Ok(()) => panic!("Read with too-small buffer succeeded unexpectedly!"),
                 Err((error, original_buffer)) => {
                     self.buffer.replace(original_buffer);
                     if self.read_val.get() == self.write_val.get() {
@@ -360,7 +360,7 @@ impl<A: 'static + Alarm<'static>> LogTest<A> {
         self.buffer
             .take()
             .map(move |buffer| match self.log.append(buffer, 0) {
-                Ok(_) => panic!("Appending entry of size 0 succeeded unexpectedly!"),
+                Ok(()) => panic!("Appending entry of size 0 succeeded unexpectedly!"),
                 Err((error, original_buffer)) => {
                     self.buffer.replace(original_buffer);
                     assert_eq!(error, ErrorCode::INVAL);
@@ -373,7 +373,7 @@ impl<A: 'static + Alarm<'static>> LogTest<A> {
             .take()
             .map(
                 move |buffer| match self.log.append(buffer, buffer.len() + 1) {
-                    Ok(_) => panic!("Appending with too-small buffer succeeded unexpectedly!"),
+                    Ok(()) => panic!("Appending with too-small buffer succeeded unexpectedly!"),
                     Err((error, original_buffer)) => {
                         self.buffer.replace(original_buffer);
                         assert_eq!(error, ErrorCode::INVAL);
@@ -385,7 +385,7 @@ impl<A: 'static + Alarm<'static>> LogTest<A> {
         // Ensure failure if entry is too large to fit within a single flash page.
         unsafe {
             match self.log.append(&mut DUMMY_BUFFER, DUMMY_BUFFER.len()) {
-                Ok(_) => panic!("Appending with too-small buffer succeeded unexpectedly!"),
+                Ok(()) => panic!("Appending with too-small buffer succeeded unexpectedly!"),
                 Err((error, _original_buffer)) => assert_eq!(error, ErrorCode::SIZE),
             }
         }

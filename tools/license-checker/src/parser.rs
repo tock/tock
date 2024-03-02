@@ -29,6 +29,12 @@ const FALLBACK_NAME: &str = "fallback";
 pub struct Cache {
     is_comment: ScopeSelector,
     is_punctuation: ScopeSelector,
+    // Syntect's plain text syntax does not mark anything as comments, which
+    // causes the license check to fail. Instead, plain text files should use
+    // the fallback parser. This stores the name of the plain text syntax, so
+    // that Parser can detect when syntect has returned the plain text syntax
+    // for a file.
+    plain_text_name: String,
     syntax_set: SyntaxSet,
 }
 
@@ -42,10 +48,12 @@ impl Default for Cache {
             SyntaxDefinition::load_from_str(FALLBACK_SYNTAX, true, Some(FALLBACK_NAME))
                 .expect("Failed to parse fallback syntax"),
         );
+        let syntax_set = builder.build();
         Self {
             is_comment: ScopeSelector::from_str(COMMENT_SELECTOR).unwrap(),
             is_punctuation: ScopeSelector::from_str("punctuation.definition.comment").unwrap(),
-            syntax_set: builder.build(),
+            plain_text_name: syntax_set.find_syntax_plain_text().name.clone(),
+            syntax_set,
         }
     }
 }
@@ -104,8 +112,8 @@ impl<'cache> Parser<'cache> {
         let syntax = match cache.syntax_set.find_syntax_for_file(path) {
             Err(error) if error.kind() == ErrorKind::InvalidData => return Err(ParseError::Binary),
             Err(error) => return Err(error.into()),
-            Ok(Some(syntax)) => syntax,
-            Ok(None) => cache.syntax_set.find_syntax_by_name(FALLBACK_NAME).unwrap(),
+            Ok(Some(syntax)) if syntax.name != cache.plain_text_name => syntax,
+            Ok(_) => cache.syntax_set.find_syntax_by_name(FALLBACK_NAME).unwrap(),
         };
 
         Ok(Self {
@@ -341,7 +349,7 @@ mod tests {
     }
 
     #[test]
-    fn plain_text() {
+    fn plain_text_no_extension() {
         const EXPECTED: &[LineContents] = &[
             Comment("Licensed under the Apache License, Version 2.0 or the MIT License."),
             Comment("SPDX-License-Identifier: Apache-2.0 OR MIT"),
@@ -351,7 +359,23 @@ mod tests {
             Comment("This is a plain text file; the license checker should recognize that it does"),
             Comment("# not use a common comment syntax."),
         ];
-        let path = Path::new("testdata/plain_text");
+        let path = Path::new("testdata/plain_text_no_extension");
+        assert_produces(Parser::new(&Cache::default(), path), EXPECTED);
+    }
+
+    #[test]
+    fn plain_text_txt() {
+        const EXPECTED: &[LineContents] = &[
+            Comment("Licensed under the Apache License, Version 2.0 or the MIT License."),
+            Comment("SPDX-License-Identifier: Apache-2.0 OR MIT"),
+            Comment("Copyright Tock Contributors 2024."),
+            Comment("Copyright Google LLC 2024."),
+            Comment(""),
+            Comment("This is a plain text file with the .txt extension. The license checker"),
+            Comment("should use the fallback parser, even though syntect may recognize it as a"),
+            Comment("plain text file."),
+        ];
+        let path = Path::new("testdata/plain_text.txt");
         assert_produces(Parser::new(&Cache::default(), path), EXPECTED);
     }
 

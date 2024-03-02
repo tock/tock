@@ -89,7 +89,12 @@ static mut MAIN_CAP: Option<&dyn kernel::capabilities::MainLoopCapability> = Non
 // Test access to alarm
 static mut ALARM: Option<&'static MuxAlarm<'static, apollo3::stimer::STimer<'static>>> = None;
 // Test access to sensors
-static mut BME280: Option<&'static capsules_extra::bme280::Bme280<'static>> = None;
+static mut BME280: Option<
+    &'static capsules_extra::bme280::Bme280<
+        'static,
+        capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, apollo3::iom::Iom<'static>>,
+    >,
+> = None;
 static mut CCS811: Option<&'static capsules_extra::ccs811::Ccs811<'static>> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
@@ -99,6 +104,12 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 const LORA_SPI_DRIVER_NUM: usize = capsules_core::driver::NUM::LoRaPhySPI as usize;
 const LORA_GPIO_DRIVER_NUM: usize = capsules_core::driver::NUM::LoRaPhyGPIO as usize;
+
+type BME280Sensor = components::bme280::Bme280ComponentType<
+    capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, apollo3::iom::Iom<'static>>,
+>;
+type TemperatureDriver = components::temperature::TemperatureComponentType<BME280Sensor>;
+type HumidityDriver = components::humidity::HumidityComponentType<BME280Sensor>;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -136,8 +147,8 @@ struct LoRaThingsPlus {
         apollo3::ble::Ble<'static>,
         VirtualMuxAlarm<'static, apollo3::stimer::STimer<'static>>,
     >,
-    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
-    humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
+    temperature: &'static TemperatureDriver,
+    humidity: &'static HumidityDriver,
     air_quality: &'static capsules_extra::air_quality::AirQualitySensor<'static>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
@@ -234,27 +245,27 @@ unsafe fn setup() -> (
     pwr_ctrl.enable_iom3();
 
     // Enable PinCfg
-    let _ = &peripherals
+    peripherals
         .gpio_port
         .enable_uart(&peripherals.gpio_port[48], &peripherals.gpio_port[49]);
     // Enable SDA and SCL for I2C (exposed via Qwiic)
-    let _ = &peripherals
+    peripherals
         .gpio_port
         .enable_i2c(&peripherals.gpio_port[6], &peripherals.gpio_port[5]);
     // Enable Main SPI
-    let _ = &peripherals.gpio_port.enable_spi(
+    peripherals.gpio_port.enable_spi(
         &peripherals.gpio_port[27],
         &peripherals.gpio_port[28],
         &peripherals.gpio_port[25],
     );
     // Enable SPI for SX1262
-    let _ = &peripherals.gpio_port.enable_spi(
+    peripherals.gpio_port.enable_spi(
         &peripherals.gpio_port[42],
         &peripherals.gpio_port[38],
         &peripherals.gpio_port[43],
     );
     // Enable the radio pins
-    let _ = &peripherals.gpio_port.enable_sx1262_radio_pins();
+    peripherals.gpio_port.enable_sx1262_radio_pins();
 
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(Some(&peripherals.gpio_port[26]), None, None);
@@ -332,8 +343,8 @@ unsafe fn setup() -> (
         )
     );
 
-    let _ = &peripherals.iom0.set_master_client(i2c_master);
-    let _ = &peripherals.iom0.enable();
+    peripherals.iom0.set_master_client(i2c_master);
+    peripherals.iom0.enable();
 
     let mux_i2c = components::i2c::I2CMuxComponent::new(&peripherals.iom0, None).finalize(
         components::i2c_mux_component_static!(apollo3::iom::Iom<'static>),
@@ -347,13 +358,13 @@ unsafe fn setup() -> (
         capsules_extra::temperature::DRIVER_NUM,
         bme280,
     )
-    .finalize(components::temperature_component_static!());
+    .finalize(components::temperature_component_static!(BME280Sensor));
     let humidity = components::humidity::HumidityComponent::new(
         board_kernel,
         capsules_extra::humidity::DRIVER_NUM,
         bme280,
     )
-    .finalize(components::humidity_component_static!());
+    .finalize(components::humidity_component_static!(BME280Sensor));
     BME280 = Some(bme280);
 
     let ccs811 = Ccs811Component::new(mux_i2c, 0x5B).finalize(
@@ -419,10 +430,10 @@ unsafe fn setup() -> (
     mcu_ctrl.enable_ble();
     clkgen.enable_ble();
     pwr_ctrl.enable_ble();
-    let _ = &peripherals.ble.setup_clocks();
+    peripherals.ble.setup_clocks();
     mcu_ctrl.reset_ble();
-    let _ = &peripherals.ble.power_up();
-    let _ = &peripherals.ble.ble_initialise();
+    peripherals.ble.power_up();
+    peripherals.ble.ble_initialise();
 
     let ble_radio = components::ble::BLEComponent::new(
         board_kernel,
@@ -486,12 +497,12 @@ unsafe fn setup() -> (
         board_kernel,
         chip,
         core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
         ),
         core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+            core::ptr::addr_of_mut!(_sappmem),
+            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
         &mut PROCESSES,
         &FAULT_RESPONSE,

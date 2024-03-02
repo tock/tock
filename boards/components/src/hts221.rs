@@ -37,6 +37,8 @@ macro_rules! hts221_component_static {
     };};
 }
 
+pub type Hts221ComponentType<I> = capsules_extra::hts221::Hts221<'static, I>;
+
 pub struct Hts221Component<I: 'static + i2c::I2CMaster<'static>> {
     i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,

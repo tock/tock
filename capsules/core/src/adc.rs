@@ -54,7 +54,6 @@
 
 use core::cell::Cell;
 use core::cmp;
-use core::convert::TryFrom;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;

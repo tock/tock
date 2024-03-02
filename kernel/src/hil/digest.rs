@@ -185,7 +185,7 @@ pub trait DigestHash<'a, const L: usize> {
         -> Result<(), (ErrorCode, &'static mut [u8; L])>;
 }
 
-/// Computes a digest (cryptographic hash) over data provided through a
+/// Verifies a digest (cryptographic hash) over data provided through a
 /// separate trait
 ///
 /// 'L' is the length of the 'u8' array to store the digest output.

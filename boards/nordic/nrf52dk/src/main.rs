@@ -82,7 +82,7 @@ use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, 
 use nrf52832::gpio::Pin;
 use nrf52832::interrupt_service::Nrf52832DefaultPeripherals;
 use nrf52832::rtc::Rtc;
-use nrf52_components::{self, UartChannel, UartPins};
+use nrf52_components::{UartChannel, UartPins};
 
 // The nRF52 DK LEDs (see back of board)
 const LED1_PIN: Pin = Pin::P0_17;
@@ -134,6 +134,10 @@ static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText>
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
+type TemperatureDriver =
+    components::temperature::TemperatureComponentType<nrf52832::temperature::Temp<'static>>;
+type RngDriver = components::rng::RngComponentType<nrf52832::trng::Trng<'static>>;
+
 /// Supported drivers by the platform
 pub struct Platform {
     ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
@@ -155,8 +159,8 @@ pub struct Platform {
         LedLow<'static, nrf52832::gpio::GPIOPin<'static>>,
         4,
     >,
-    rng: &'static capsules_core::rng::RngDriver<'static>,
-    temp: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    rng: &'static RngDriver,
+    temp: &'static TemperatureDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     analog_comparator: &'static capsules_extra::analog_comparator::AnalogComparator<
         'static,
@@ -236,22 +240,17 @@ impl KernelResources<nrf52832::chip::NRF52<'static, Nrf52832DefaultPeripherals<'
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn create_peripherals() -> &'static mut Nrf52832DefaultPeripherals<'static> {
-    // Initialize chip peripheral drivers
+pub unsafe fn start() -> (
+    &'static kernel::Kernel,
+    Platform,
+    &'static nrf52832::chip::NRF52<'static, Nrf52832DefaultPeripherals<'static>>,
+) {
+    nrf52832::init();
+
     let nrf52832_peripherals = static_init!(
         Nrf52832DefaultPeripherals,
         Nrf52832DefaultPeripherals::new()
     );
-
-    nrf52832_peripherals
-}
-
-/// Main function called after RAM initialized.
-#[no_mangle]
-pub unsafe fn main() {
-    nrf52832::init();
-
-    let nrf52832_peripherals = create_peripherals();
 
     // set up circular peripheral dependencies
     nrf52832_peripherals.init();
@@ -340,7 +339,6 @@ pub unsafe fn main() {
     // functions.
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
     let gpio_port = &nrf52832_peripherals.gpio_port;
@@ -415,14 +413,16 @@ pub unsafe fn main() {
         capsules_extra::temperature::DRIVER_NUM,
         &base_peripherals.temp,
     )
-    .finalize(components::temperature_component_static!());
+    .finalize(components::temperature_component_static!(
+        nrf52832::temperature::Temp
+    ));
 
     let rng = components::rng::RngComponent::new(
         board_kernel,
         capsules_core::rng::DRIVER_NUM,
         &base_peripherals.trng,
     )
-    .finalize(components::rng_component_static!());
+    .finalize(components::rng_component_static!(nrf52832::trng::Trng));
 
     // Initialize AC using AIN5 (P0.29) as VIN+ and VIN- as AIN0 (P0.02)
     // These are hardcoded pin assignments specified in the driver
@@ -484,12 +484,12 @@ pub unsafe fn main() {
         board_kernel,
         chip,
         core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
         ),
         core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+            core::ptr::addr_of_mut!(_sappmem),
+            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
         &mut PROCESSES,
         &FAULT_RESPONSE,
@@ -500,5 +500,14 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
+    (board_kernel, platform, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, platform, chip) = start();
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }

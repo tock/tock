@@ -38,7 +38,6 @@
 //! * CRC - 3 bytes
 
 use core::cell::Cell;
-use core::convert::TryFrom;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
 use kernel::utilities::cells::OptionalCell;
@@ -822,7 +821,7 @@ impl ble_advertising::BleConfig for Radio<'_> {
         // Convert u8 to TxPower
         match nrf5x::constants::TxPower::try_from(tx_power) {
             // Invalid transmitting power, propogate error
-            Err(_) => Err(ErrorCode::NOSUPPORT),
+            Err(()) => Err(ErrorCode::NOSUPPORT),
             // Valid transmitting power, propogate success
             Ok(res) => {
                 self.tx_power.set(res);

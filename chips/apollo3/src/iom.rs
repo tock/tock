@@ -400,7 +400,15 @@ impl<'a> Iom<'_> {
     fn i2c_reset_fifo(&self) {
         let regs = self.registers;
 
+        // Set the value low to reset
         regs.fifoctrl.modify(FIFOCTRL::FIFORSTN::CLEAR);
+
+        // Wait a few cycles to ensure the reset completes
+        for _i in 0..30 {
+            cortexm4::support::nop();
+        }
+
+        // Exit the reset state
         regs.fifoctrl.modify(FIFOCTRL::FIFORSTN::SET);
     }
 
@@ -521,6 +529,56 @@ impl<'a> Iom<'_> {
 
         while regs.status.read(STATUS::IDLESET) != 1 {}
 
+        if irqs.is_set(INT::NAK) {
+            if self.op.get() == Operation::I2C {
+                // Disable interrupts
+                regs.inten.set(0x00);
+                self.i2c_reset_fifo();
+
+                self.i2c_master_client.map(|client| {
+                    self.buffer.take().map(|buffer| {
+                        client.command_complete(buffer, Err(i2c::Error::DataNak));
+                    });
+                });
+
+                // Finished with SMBus
+                if self.smbus.get() {
+                    // Setup 400kHz
+                    regs.clkcfg.write(
+                        CLKCFG::TOTPER.val(0x1D)
+                            + CLKCFG::LOWPER.val(0xE)
+                            + CLKCFG::DIVEN.val(1)
+                            + CLKCFG::DIV3.val(0)
+                            + CLKCFG::FSEL.val(2)
+                            + CLKCFG::IOCLKEN::SET,
+                    );
+
+                    self.smbus.set(false);
+                }
+            } else {
+                // Disable interrupts
+                regs.inten.set(0x00);
+
+                // Clear CS
+                self.spi_cs.map(|cs| cs.set());
+
+                self.op.set(Operation::None);
+
+                self.spi_master_client.map(|client| {
+                    self.buffer.take().map(|buffer| {
+                        let read_buffer = self.spi_read_buffer.take();
+                        client.read_write_done(
+                            buffer,
+                            read_buffer,
+                            self.write_len.get(),
+                            Err(ErrorCode::NOACK),
+                        );
+                    });
+                });
+            }
+            return;
+        }
+
         if self.op.get() == Operation::SPI {
             if let Some(buf) = self.spi_read_buffer.take() {
                 while self.registers.fifoptr.read(FIFOPTR::FIFO1SIZ) > 0 {
@@ -575,60 +633,67 @@ impl<'a> Iom<'_> {
 
         if irqs.is_set(INT::CMDCMP) || irqs.is_set(INT::THR) {
             if self.op.get() == Operation::I2C {
-                if regs.fifothr.read(FIFOTHR::FIFOWTHR) > 0 {
-                    let remaining = self.write_len.get() - self.write_index.get();
+                if irqs.is_set(INT::THR) {
+                    if regs.fifothr.read(FIFOTHR::FIFOWTHR) > 0 {
+                        let remaining = self.write_len.get() - self.write_index.get();
 
-                    if remaining > 4 {
-                        regs.fifothr.write(
-                            FIFOTHR::FIFORTHR.val(0) + FIFOTHR::FIFOWTHR.val(remaining as u32 / 2),
-                        );
-                    } else {
-                        regs.fifothr
-                            .write(FIFOTHR::FIFORTHR.val(0) + FIFOTHR::FIFOWTHR.val(1));
+                        if remaining > 4 {
+                            regs.fifothr.write(
+                                FIFOTHR::FIFORTHR.val(0)
+                                    + FIFOTHR::FIFOWTHR.val(remaining as u32 / 2),
+                            );
+                        } else {
+                            regs.fifothr
+                                .write(FIFOTHR::FIFORTHR.val(0) + FIFOTHR::FIFOWTHR.val(1));
+                        }
+
+                        self.i2c_write_data();
+                    } else if regs.fifothr.read(FIFOTHR::FIFORTHR) > 0 {
+                        let remaining = self.read_len.get() - self.read_index.get();
+
+                        if remaining > 4 {
+                            regs.fifothr.write(
+                                FIFOTHR::FIFORTHR.val(remaining as u32 / 2)
+                                    + FIFOTHR::FIFOWTHR.val(0),
+                            );
+                        } else {
+                            regs.fifothr
+                                .write(FIFOTHR::FIFORTHR.val(1) + FIFOTHR::FIFOWTHR.val(0));
+                        }
+
+                        self.i2c_read_data();
                     }
-
-                    self.i2c_write_data();
-                } else if regs.fifothr.read(FIFOTHR::FIFORTHR) > 0 {
-                    let remaining = self.read_len.get() - self.read_index.get();
-
-                    if remaining > 4 {
-                        regs.fifothr.write(
-                            FIFOTHR::FIFORTHR.val(remaining as u32 / 2) + FIFOTHR::FIFOWTHR.val(0),
-                        );
-                    } else {
-                        regs.fifothr
-                            .write(FIFOTHR::FIFORTHR.val(1) + FIFOTHR::FIFOWTHR.val(0));
-                    }
-
-                    self.i2c_read_data();
                 }
 
-                if (self.read_len.get() > 0 && self.read_index.get() == self.read_len.get())
-                    || (self.write_len.get() > 0 && self.write_index.get() == self.write_len.get())
-                {
-                    // Disable interrupts
-                    regs.inten.set(0x00);
-                    self.i2c_reset_fifo();
+                if irqs.is_set(INT::CMDCMP) || regs.intstat.is_set(INT::CMDCMP) {
+                    if (self.read_len.get() > 0 && self.read_index.get() == self.read_len.get())
+                        || (self.write_len.get() > 0
+                            && self.write_index.get() == self.write_len.get())
+                    {
+                        // Disable interrupts
+                        regs.inten.set(0x00);
+                        self.i2c_reset_fifo();
 
-                    self.i2c_master_client.map(|client| {
-                        self.buffer.take().map(|buffer| {
-                            client.command_complete(buffer, Ok(()));
+                        self.i2c_master_client.map(|client| {
+                            self.buffer.take().map(|buffer| {
+                                client.command_complete(buffer, Ok(()));
+                            });
                         });
-                    });
 
-                    // Finished with SMBus
-                    if self.smbus.get() {
-                        // Setup 400kHz
-                        regs.clkcfg.write(
-                            CLKCFG::TOTPER.val(0x1D)
-                                + CLKCFG::LOWPER.val(0xE)
-                                + CLKCFG::DIVEN.val(1)
-                                + CLKCFG::DIV3.val(0)
-                                + CLKCFG::FSEL.val(2)
-                                + CLKCFG::IOCLKEN::SET,
-                        );
+                        // Finished with SMBus
+                        if self.smbus.get() {
+                            // Setup 400kHz
+                            regs.clkcfg.write(
+                                CLKCFG::TOTPER.val(0x1D)
+                                    + CLKCFG::LOWPER.val(0xE)
+                                    + CLKCFG::DIVEN.val(1)
+                                    + CLKCFG::DIV3.val(0)
+                                    + CLKCFG::FSEL.val(2)
+                                    + CLKCFG::IOCLKEN::SET,
+                            );
 
-                        self.smbus.set(false);
+                            self.smbus.set(false);
+                        }
                     }
                 }
             } else {

@@ -15,6 +15,7 @@ pub mod chip;
 pub mod clkgen;
 pub mod gpio;
 pub mod iom;
+pub mod ios;
 pub mod mcuctrl;
 pub mod nvic;
 pub mod pwrctrl;
@@ -103,7 +104,7 @@ pub unsafe fn init() {
 }
 
 // Mock implementation for tests
-#[cfg(not(any(target_arch = "arm", target_os = "none")))]
+#[cfg(not(all(target_arch = "arm", target_os = "none")))]
 pub unsafe fn init() {
     // Prevent unused code warning.
     scb::disable_fpca();

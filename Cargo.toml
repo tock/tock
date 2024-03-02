@@ -5,6 +5,7 @@
 [workspace]
 members = [
     "arch/cortex-m",
+    "arch/cortex-v7m",
     "arch/cortex-m0",
     "arch/cortex-m0p",
     "arch/cortex-m3",
@@ -27,6 +28,8 @@ members = [
     "boards/litex/sim",
     "boards/msp_exp432p401r",
     "boards/microbit_v2",
+    "boards/wm1110dev",
+    "boards/makepython-nrf52840",
     "boards/nordic/nrf52840dk",
     "boards/nordic/nrf52840_dongle",
     "boards/nordic/nrf52dk",
@@ -36,6 +39,7 @@ members = [
     "boards/particle_boron",
     "boards/pico_explorer_base",
     "boards/raspberry_pi_pico",
+    "boards/apollo3/redboard_artemis_atp",
     "boards/apollo3/redboard_artemis_nano",
     "boards/apollo3/lora_things_plus",
     "boards/redboard_redv",

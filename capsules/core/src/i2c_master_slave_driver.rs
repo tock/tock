@@ -106,7 +106,7 @@ impl<'a, I: hil::i2c::I2CMasterSlave<'a>> hil::i2c::I2CHwMasterClient
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), hil::i2c::Error>) {
         // Map I2C error to a number we can pass back to the application
         let status = kernel::errorcode::into_statuscode(match status {
-            Ok(_) => Ok(()),
+            Ok(()) => Ok(()),
             Err(e) => Err(e.into()),
         });
 

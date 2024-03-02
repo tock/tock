@@ -33,7 +33,7 @@ use crate::process::{self, ProcessId};
 use crate::ErrorCode;
 
 /// Convert a process buffer's internal representation to a
-/// ReadableProcessSlice.
+/// [`ReadableProcessSlice`].
 ///
 /// This function will automatically convert zero-length process
 /// buffers into valid zero-sized Rust slices regardless of the value
@@ -84,7 +84,7 @@ unsafe fn raw_processbuf_to_roprocessslice<'a>(
 }
 
 /// Convert an process buffers's internal representation to a
-/// WriteableProcessSlice.
+/// [`WriteableProcessSlice`].
 ///
 /// This function will automatically convert zero-length process
 /// buffers into valid zero-sized Rust slices regardless of the value
@@ -218,7 +218,7 @@ pub trait WriteableProcessBuffer: ReadableProcessBuffer {
         F: FnOnce(&WriteableProcessSlice) -> R;
 }
 
-/// Read-only buffer shared by a userspace process
+/// Read-only buffer shared by a userspace process.
 ///
 /// This struct is provided to capsules when a process `allow`s a
 /// particular section of its memory to the kernel and gives the
@@ -309,11 +309,13 @@ impl ReadOnlyProcessBuffer {
 }
 
 impl ReadableProcessBuffer for ReadOnlyProcessBuffer {
+    /// Return the length of the buffer in bytes.
     fn len(&self) -> usize {
         self.process_id
             .map_or(0, |pid| pid.kernel.process_map_or(0, pid, |_| self.len))
     }
 
+    /// Return the pointer to the start of the buffer.
     fn ptr(&self) -> *const u8 {
         if self.len == 0 {
             core::ptr::null::<u8>()
@@ -322,6 +324,10 @@ impl ReadableProcessBuffer for ReadOnlyProcessBuffer {
         }
     }
 
+    /// Access the contents of the buffer in a closure.
+    ///
+    /// This verifies the process is still valid before accessing the underlying
+    /// memory.
     fn enter<F, R>(&self, fun: F) -> Result<R, process::Error>
     where
         F: FnOnce(&ReadableProcessSlice) -> R,
@@ -365,7 +371,7 @@ impl Default for ReadOnlyProcessBuffer {
     }
 }
 
-/// Provides access to a ReadOnlyProcessBuffer with a restricted lifetime.
+/// Provides access to a [`ReadOnlyProcessBuffer`] with a restricted lifetime.
 /// This automatically dereferences into a ReadOnlyProcessBuffer
 pub struct ReadOnlyProcessBufferRef<'a> {
     buf: ReadOnlyProcessBuffer,
@@ -397,7 +403,7 @@ impl Deref for ReadOnlyProcessBufferRef<'_> {
     }
 }
 
-/// Read-writable buffer shared by a userspace process
+/// Read-writable buffer shared by a userspace process.
 ///
 /// This struct is provided to capsules when a process `allows` a
 /// particular section of its memory to the kernel and gives the
@@ -510,11 +516,13 @@ impl ReadWriteProcessBuffer {
 }
 
 impl ReadableProcessBuffer for ReadWriteProcessBuffer {
+    /// Return the length of the buffer in bytes.
     fn len(&self) -> usize {
         self.process_id
             .map_or(0, |pid| pid.kernel.process_map_or(0, pid, |_| self.len))
     }
 
+    /// Return the pointer to the start of the buffer.
     fn ptr(&self) -> *const u8 {
         if self.len == 0 {
             core::ptr::null::<u8>()
@@ -523,6 +531,10 @@ impl ReadableProcessBuffer for ReadWriteProcessBuffer {
         }
     }
 
+    /// Access the contents of the buffer in a closure.
+    ///
+    /// This verifies the process is still valid before accessing the underlying
+    /// memory.
     fn enter<F, R>(&self, fun: F) -> Result<R, process::Error>
     where
         F: FnOnce(&ReadableProcessSlice) -> R,
@@ -596,7 +608,7 @@ impl Default for ReadWriteProcessBuffer {
     }
 }
 
-/// Provides access to a ReadWriteProcessBuffer with a restricted lifetime.
+/// Provides access to a [`ReadWriteProcessBuffer`] with a restricted lifetime.
 /// This automatically dereferences into a ReadWriteProcessBuffer
 pub struct ReadWriteProcessBufferRef<'a> {
     buf: ReadWriteProcessBuffer,
@@ -665,7 +677,7 @@ impl ReadableProcessByte {
     }
 }
 
-/// Readable and accessible slice of memory of a process buffer
+/// Readable and accessible slice of memory of a process buffer.
 ///
 ///
 /// The only way to obtain this struct is through a
@@ -768,14 +780,17 @@ impl ReadableProcessSlice {
         }
     }
 
+    /// Return the length of the slice in bytes.
     pub fn len(&self) -> usize {
         self.slice.len()
     }
 
+    /// Return an iterator over the bytes of the slice.
     pub fn iter(&self) -> core::slice::Iter<'_, ReadableProcessByte> {
         self.slice.iter()
     }
 
+    /// Iterate the slice in chunks.
     pub fn chunks(
         &self,
         chunk_size: usize,
@@ -785,6 +800,8 @@ impl ReadableProcessSlice {
             .map(cast_byte_slice_to_process_slice)
     }
 
+    /// Access a portion of the slice with bounds checking. If the access is not
+    /// within the slice then `None` is returned.
     pub fn get(&self, range: Range<usize>) -> Option<&ReadableProcessSlice> {
         if let Some(slice) = self.slice.get(range) {
             Some(cast_byte_slice_to_process_slice(slice))
@@ -793,6 +810,8 @@ impl ReadableProcessSlice {
         }
     }
 
+    /// Access a portion of the slice with bounds checking. If the access is not
+    /// within the slice then `None` is returned.
     pub fn get_from(&self, range: RangeFrom<usize>) -> Option<&ReadableProcessSlice> {
         if let Some(slice) = self.slice.get(range) {
             Some(cast_byte_slice_to_process_slice(slice))
@@ -801,6 +820,8 @@ impl ReadableProcessSlice {
         }
     }
 
+    /// Access a portion of the slice with bounds checking. If the access is not
+    /// within the slice then `None` is returned.
     pub fn get_to(&self, range: RangeTo<usize>) -> Option<&ReadableProcessSlice> {
         if let Some(slice) = self.slice.get(range) {
             Some(cast_byte_slice_to_process_slice(slice))
@@ -996,14 +1017,17 @@ impl WriteableProcessSlice {
         }
     }
 
+    /// Return the length of the slice in bytes.
     pub fn len(&self) -> usize {
         self.slice.len()
     }
 
+    /// Return an iterator over the slice.
     pub fn iter(&self) -> core::slice::Iter<'_, Cell<u8>> {
         self.slice.iter()
     }
 
+    /// Iterate over the slice in chunks.
     pub fn chunks(
         &self,
         chunk_size: usize,
@@ -1013,6 +1037,8 @@ impl WriteableProcessSlice {
             .map(cast_cell_slice_to_process_slice)
     }
 
+    /// Access a portion of the slice with bounds checking. If the access is not
+    /// within the slice then `None` is returned.
     pub fn get(&self, range: Range<usize>) -> Option<&WriteableProcessSlice> {
         if let Some(slice) = self.slice.get(range) {
             Some(cast_cell_slice_to_process_slice(slice))
@@ -1021,6 +1047,8 @@ impl WriteableProcessSlice {
         }
     }
 
+    /// Access a portion of the slice with bounds checking. If the access is not
+    /// within the slice then `None` is returned.
     pub fn get_from(&self, range: RangeFrom<usize>) -> Option<&WriteableProcessSlice> {
         if let Some(slice) = self.slice.get(range) {
             Some(cast_cell_slice_to_process_slice(slice))
@@ -1029,6 +1057,8 @@ impl WriteableProcessSlice {
         }
     }
 
+    /// Access a portion of the slice with bounds checking. If the access is not
+    /// within the slice then `None` is returned.
     pub fn get_to(&self, range: RangeTo<usize>) -> Option<&WriteableProcessSlice> {
         if let Some(slice) = self.slice.get(range) {
             Some(cast_cell_slice_to_process_slice(slice))

@@ -24,7 +24,7 @@ const NUM_GPIOTE: usize = 4;
 const NUM_GPIOTE: usize = 8;
 // Dummy value for testing on Travis-CI.
 #[cfg(all(
-    not(any(target_arch = "arm", target_os = "none")),
+    not(all(target_arch = "arm", target_os = "none")),
     not(feature = "nrf51"),
     not(feature = "nrf52"),
 ))]
@@ -388,6 +388,16 @@ impl<'a> GPIOPin<'a> {
         } else {
             PinConfig::DRIVE::S0S1
         });
+    }
+
+    // This sets the specified pin cfg as per the TRM for i2c pin usage.
+    pub fn set_i2c_pin_cfg(&self) {
+        self.gpio_registers.pin_cnf[self.pin as usize].modify(
+            PinConfig::DIR::Input
+                + PinConfig::INPUT::Disconnect
+                + PinConfig::DRIVE::S0D1
+                + PinConfig::SENSE::Disabled,
+        );
     }
 }
 

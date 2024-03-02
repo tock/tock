@@ -7,7 +7,7 @@ name = "redboard_artemis_nano"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-build = "build.rs"
+build = "../../build.rs"
 
 [dependencies]
 components = { path = "../../components" }

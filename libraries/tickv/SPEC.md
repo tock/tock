@@ -175,15 +175,22 @@ If all the objects in a region are no longer valid then that region will be
 erased when `garbage_collect()` is called. Note that even if the flash is
 full `garbage_collect()` will not be called automatically.
 
-### Zeroizing keys
+### Zeroising keys
 
-This function leverages the ability in flash to change a `1` to a `0` to
-remove the data in flash. Calling `zeroize_key()` will mark the will mark the 
-`valid` boolean for that object as `false` (0), and will also change all other
-values outside of the header to a 0, including the checksum.
+This is similar to the `invalidate_key()` function, but instead will
+change all `1`s in the value and checksum to `0`s. This does not remove
+the header, as that is required for garbage collection later on, so the
+length and hashed key will still be preserved.
+
+The values will be changed by a single write operation to the flash.
+The values are not securley overwritten to make restoring data
+difficult.
+
+Users will need to check with the hardware specifications to determine
+if this is cryptographically secure for their use case.
 
 As this data is marked as invalid, `garbage_collect()` will function as normal
-removing both zeroized keys as well as invalid keys.
+removing both zeroised keys as well as invalid keys.
 
 ### Initialisation
 
@@ -410,9 +417,9 @@ flash will be the `valid` flag. The object header for ONE will now look like:
 No changes will happen in flash until key TWO has also been invalidated.
 At which point `garbage_collect()` can erase the region.
 
-### Zeroizing a key
+### Zeroising a key
 
-When the key ONE is zeroized with `zeroize_key()`, the only change in
+When the key ONE is zeroised with `zeroise_key()`, the only change in
 the header will be the `valid` flag. The rest of the object will become
 zeros. The object ONE will now look like:
 
@@ -444,7 +451,7 @@ zeros. The object ONE will now look like:
 ```
 
 No changes will happen in flash until key TWO has also been invalidated.
-At which point `garbage_collect()` can erase the region.
+At which point `garbage_collect()` can erase the region once it is run.
 
 ## Limitations of TicKV
 
