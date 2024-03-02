@@ -160,7 +160,6 @@ pub struct Platform {
     >,
     temperature: &'static TemperatureDriver,
     humidity: &'static HumidityDriver,
-    ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
     gpio: &'static capsules_core::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
     led: &'static capsules_core::led::LedDriver<
         'static,
@@ -193,7 +192,6 @@ impl SyscallDriverLookup for Platform {
             capsules_extra::pressure::DRIVER_NUM => f(Some(self.pressure)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules_extra::humidity::DRIVER_NUM => f(Some(self.humidity)),
-            capsules_extra::ninedof::DRIVER_NUM => f(Some(self.ninedof)),
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
@@ -545,16 +543,6 @@ pub unsafe fn start() -> (
     )
     .finalize(components::humidity_component_static!(HS3003Sensor));
 
-    let bmm150 = components::bmm150::BMM150Component::new(sensors_i2c_bus, 0x10)
-        .finalize(components::bmm150_component_static!(nrf52840::i2c::TWI));
-    let bmi270 = components::bmi270::BMI270Component::new(sensors_i2c_bus, 0x68)
-        .finalize(components::bmi270_component_static!(nrf5240::i2c::TWI));
-    let ninedof = components::ninedof::NineDofComponent::new(
-        board_kernel,
-        capsules_extra::ninedof::DRIVER_NUM,
-    )
-    .finalize(components::ninedof_component_static!(bmm150, bmi270));
-
     //--------------------------------------------------------------------------
     // WIRELESS
     //--------------------------------------------------------------------------
@@ -653,7 +641,6 @@ pub unsafe fn start() -> (
         pressure,
         temperature,
         humidity,
-        ninedof,
         adc: adc_syscall,
         led,
         gpio,
