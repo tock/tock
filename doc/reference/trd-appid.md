@@ -48,7 +48,7 @@ To remain flexible and support many use cases, the Tock kernel makes
 minimal assumptions on the structure and form of _application credentials_
 and corresponding _application identifiers_.
 Application credentials are arbitrary k-byte sequences that
-are stored in an userspace binary's Tock binary format (TBF)
+are stored in a userspace binary's Tock binary format (TBF)
 footers.
 Before a process is eligible to execute, a Tock board uses an AppID (application
 identifier) checker to determine the AppIDs of each userspace binary available
