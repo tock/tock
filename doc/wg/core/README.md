@@ -3,20 +3,37 @@ Tock Core Working Group (core)
 
 - Working Group Charter
 - Adopted 3/31/2020
+- Amended 3/01/2024
 
 ## Goals
 
 The core team manages and guides the development of Tock. Its responsibilities
-are to:
+are:
 
-- Design, implement, and maintain the Tock kernel and its interfaces, including
-  system calls, hardware interface layers, and internal kernel APIs,
-- Decide when to update the Rust compiler toolchain that Tock uses,
-- Decide on the formation, scope, and lifetime of other Tock working groups,
-- Decide on, articulate, and promote core principles of Tock kernel software and
-  its development,
-- Support any code in the Tock repository that is not supported by another
-  working group.
+
+- Managing and overseeing code, documentation, testing, and releases
+  for the Tock project.
+
+- Defining and communicating overall project goals and direction.
+
+- Establishing and delegating responsibility over components and
+  subprojects to working groups.
+
+- Ensuring that working groups have the people and resources needed to
+  accomplish their work.
+
+- Ensuring working groups are accountable to their delegated
+  responsibilities and the project as a whole.
+
+- Coordinating decisions including (but not limited to) code,
+  documentation, testing, and releases that affect purviews delegated
+  to more than one working group.
+
+- Facilitating communication channels and consensus among working
+  groups.
+
+- Coordinating project-wide changes to teams, structures, or
+  processes.
 
 ## Members
 
@@ -24,7 +41,7 @@ are to:
 - Brad Campbell, [bradjc](https://github.com/bradjc), UVA
 - Branden Ghena, [brghena](https://github.com/brghena), Northwestern
 - Philip Levis, [phil-levis](https://github.com/phil-levis), Stanford
-- Amit Levy (chair), [alevy](https://github.com/alevy), Princeton University
+- Amit Levy (Lead), [alevy](https://github.com/alevy), Princeton University
 - Pat Pannuto, [ppannuto](https://github.com/ppannuto), UCSD
 - Alexandru Radovici [alexandruradovici](https://github.com/alexandruradovici), Politehnica Bucharest & OxidOS
 - Leon Schuermann, [lschuermann](https://github.com/lschuermann), Princeton University
@@ -71,14 +88,3 @@ within a week of a call. This delay is to give participants an opportunity to
 correct any errors or better explain points that came up. They are intended to
 be a communication mechanism of the group, its discussions, the technical
 issues, and decisions, not a literal transcription of what is said.
-
-## Code Purview
-
-The core working group is in charge of (responsible for reviewing, approving,
-and merging pull requests for) all code directories that are not under the
-purview of another working group. The following directories are expected to
-remain under the sole purview of the core working group:
-
-- `capsules`, although other working groups may have subdirectories
-- `kernel`
-- `libraries`
