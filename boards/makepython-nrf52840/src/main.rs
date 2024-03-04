@@ -111,8 +111,6 @@ type AlarmDriver = components::alarm::AlarmDriverComponentType<nrf52840::rtc::Rt
 type Screen = components::ssd1306::Ssd1306ComponentType<nrf52840::i2c::TWI<'static>>;
 type ScreenDriver = components::screen::ScreenSharedComponentType<Screen>;
 
-type Checker = kernel::process_checker::basic::AppCheckerNames<'static, fn(&'static str) -> u32>;
-
 type Ieee802154MacDevice = components::ieee802154::Ieee802154ComponentMacDeviceType<
     nrf52840::ieee802154_radio::Radio<'static>,
     nrf52840::aes::AesECB<'static>,
@@ -158,7 +156,6 @@ pub struct Platform {
     screen: &'static ScreenDriver,
     udp_driver: &'static capsules_extra::net::udp::UDPDriver<'static>,
     scheduler: &'static RoundRobinSched<'static>,
-    checker: &'static Checker,
     systick: cortexm4::systick::SysTick,
 }
 
@@ -191,7 +188,6 @@ impl KernelResources<nrf52::chip::NRF52<'static, Nrf52840DefaultPeripherals<'sta
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type CredentialsCheckingPolicy = Checker;
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
@@ -205,9 +201,6 @@ impl KernelResources<nrf52::chip::NRF52<'static, Nrf52840DefaultPeripherals<'sta
     }
     fn process_fault(&self) -> &Self::ProcessFault {
         &()
-    }
-    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
-        self.checker
     }
     fn scheduler(&self) -> &Self::Scheduler {
         self.scheduler
@@ -264,6 +257,12 @@ pub unsafe fn start() -> (
         &base_peripherals.nvmc,
     )
     .finalize(());
+
+    let chip = static_init!(
+        nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+        nrf52840::chip::NRF52::new(nrf52840_peripherals)
+    );
+    CHIP = Some(chip);
 
     //--------------------------------------------------------------------------
     // CAPABILITIES
@@ -635,11 +634,65 @@ pub unsafe fn start() -> (
     // APP ID CHECKING
     //--------------------------------------------------------------------------
 
-    let checker = static_init!(
-        kernel::process_checker::basic::AppCheckerNames<fn(&'static str) -> u32>,
-        kernel::process_checker::basic::AppCheckerNames::new(&(crc as fn(&'static str) -> u32))
+    // Create the software-based SHA engine.
+    let sha = components::sha::ShaSoftware256Component::new()
+        .finalize(components::sha_software_256_component_static!());
+
+    // Create the credential checker.
+    let checking_policy = components::appid::checker_sha::AppCheckerSha256Component::new(sha)
+        .finalize(components::app_checker_sha256_component_static!());
+
+    // Create the AppID assigner.
+    let assigner = components::appid::assigner_name::AppIdAssignerNamesComponent::new()
+        .finalize(components::appid_assigner_names_component_static!());
+
+    // Create the process checking machine.
+    let checker = components::appid::checker::ProcessCheckerMachineComponent::new(checking_policy)
+        .finalize(components::process_checker_machine_component_static!());
+
+    // These symbols are defined in the linker script.
+    extern "C" {
+        /// Beginning of the ROM region containing app images.
+        static _sapps: u8;
+        /// End of the ROM region containing app images.
+        static _eapps: u8;
+        /// Beginning of the RAM region for app memory.
+        static mut _sappmem: u8;
+        /// End of the RAM region for app memory.
+        static _eappmem: u8;
+    }
+
+    let process_binary_array = static_init!(
+        [Option<kernel::process::ProcessBinary>; NUM_PROCS],
+        [None, None, None, None, None, None, None, None]
     );
-    kernel::deferred_call::DeferredCallClient::register(checker);
+
+    let loader = static_init!(
+        kernel::process::SequentialProcessLoaderMachine<
+            nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+        >,
+        kernel::process::SequentialProcessLoaderMachine::new(
+            checker,
+            &mut PROCESSES,
+            process_binary_array,
+            board_kernel,
+            chip,
+            core::slice::from_raw_parts(
+                &_sapps as *const u8,
+                &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            ),
+            core::slice::from_raw_parts_mut(
+                &mut _sappmem as *mut u8,
+                &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+            ),
+            &FAULT_RESPONSE,
+            assigner,
+            &process_management_capability
+        )
+    );
+
+    checker.set_client(loader);
+    loader.start();
 
     //--------------------------------------------------------------------------
     // FINAL SETUP AND BOARD BOOT
@@ -671,15 +724,8 @@ pub unsafe fn start() -> (
             &memory_allocation_capability,
         ),
         scheduler,
-        checker,
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
     };
-
-    let chip = static_init!(
-        nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
-        nrf52840::chip::NRF52::new(nrf52840_peripherals)
-    );
-    CHIP = Some(chip);
 
     // Configure the USB stack to enable a serial port over CDC-ACM.
     cdc.enable();
@@ -705,39 +751,6 @@ pub unsafe fn start() -> (
     //--------------------------------------------------------------------------
     // PROCESSES AND MAIN LOOP
     //--------------------------------------------------------------------------
-
-    // These symbols are defined in the linker script.
-    extern "C" {
-        /// Beginning of the ROM region containing app images.
-        static _sapps: u8;
-        /// End of the ROM region containing app images.
-        static _eapps: u8;
-        /// Beginning of the RAM region for app memory.
-        static mut _sappmem: u8;
-        /// End of the RAM region for app memory.
-        static _eappmem: u8;
-    }
-
-    kernel::process::load_and_check_processes(
-        board_kernel,
-        &platform,
-        chip,
-        core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
-        ),
-        core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
-        ),
-        &mut PROCESSES,
-        &FAULT_RESPONSE,
-        &process_management_capability,
-    )
-    .unwrap_or_else(|err| {
-        debug!("Error loading processes!");
-        debug!("{:?}", err);
-    });
 
     (board_kernel, platform, chip)
 }
