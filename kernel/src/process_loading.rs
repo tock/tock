@@ -205,7 +205,7 @@ fn load_processes_from_flash<C: Chip>(
     let mut index = 0;
     let num_procs = procs.len();
     while index < num_procs {
-        let load_binary_result = load_process_binary(remaining_flash);
+        let load_binary_result = discover_process_binary(remaining_flash);
 
         match load_binary_result {
             Ok((new_flash, process_binary)) => {
@@ -275,7 +275,7 @@ fn load_processes_from_flash<C: Chip>(
 
 /// Find a process binary stored at the beginning of `flash` and create a
 /// `ProcessBinary` object if the process is viable to run on this kernel.
-fn load_process_binary(
+fn discover_process_binary(
     flash: &'static [u8],
 ) -> Result<(&'static [u8], ProcessBinary), (&'static [u8], ProcessBinaryError)> {
     if config::CONFIG.debug_load_processes {
@@ -538,7 +538,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
     }
 
     fn load_and_check(&self) {
-        let ret = self.load_process_binary();
+        let ret = self.discover_process_binary();
         match ret {
             Ok(pb) => match self.checker.check(pb) {
                 Ok(()) => {}
@@ -577,7 +577,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
     ///
     /// Returns the process binary object or an error if a valid process
     /// binary could not be extracted.
-    fn load_process_binary(&self) -> Result<ProcessBinary, ProcessBinaryError> {
+    fn discover_process_binary(&self) -> Result<ProcessBinary, ProcessBinaryError> {
         let flash = self.flash.get();
 
         if config::CONFIG.debug_load_processes {
