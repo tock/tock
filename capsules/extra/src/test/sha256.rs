@@ -11,10 +11,11 @@ use core::cell::Cell;
 use core::cmp;
 
 use crate::sha256::Sha256Software;
+use capsules_core::test::capsule_test::{CapsuleTest, CapsuleTestClient};
 use kernel::debug;
 use kernel::hil::digest;
 use kernel::hil::digest::{Digest, DigestData, DigestVerify};
-use kernel::utilities::cells::TakeCell;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::SubSlice;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
@@ -25,6 +26,7 @@ pub struct TestSha256 {
     hash: TakeCell<'static, [u8; 32]>, // The supplied hash
     position: Cell<usize>,             // Keep track of position in data
     correct: Cell<bool>,               // Whether supplied hash is correct
+    client: OptionalCell<&'static dyn CapsuleTestClient>,
 }
 
 // We add data in chunks of 12 bytes to ensure that the underlying
@@ -45,6 +47,7 @@ impl TestSha256 {
             hash: TakeCell::new(hash),
             position: Cell::new(0),
             correct: Cell::new(correct),
+            client: OptionalCell::empty(),
         }
     }
 
@@ -119,6 +122,10 @@ impl digest::ClientVerify<32> for TestSha256 {
                         self.correct.get(),
                         success
                     );
+                } else {
+                    self.client.map(|client| {
+                        client.done(Ok(()));
+                    });
                 }
             }
             Err(e) => {
@@ -130,4 +137,10 @@ impl digest::ClientVerify<32> for TestSha256 {
 
 impl digest::ClientHash<32> for TestSha256 {
     fn hash_done(&self, _result: Result<(), ErrorCode>, _digest: &'static mut [u8; 32]) {}
+}
+
+impl CapsuleTest for TestSha256 {
+    fn set_client(&self, client: &'static dyn CapsuleTestClient) {
+        self.client.set(client);
+    }
 }
