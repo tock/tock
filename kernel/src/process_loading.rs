@@ -110,6 +110,10 @@ impl fmt::Debug for ProcessLoadError {
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// SYNCHRONOUS PROCESS LOADING
+////////////////////////////////////////////////////////////////////////////////
+
 /// Load processes (stored as TBF objects in flash) into runnable process
 /// structures stored in the `procs` array and mark all successfully loaded
 /// processes as runnable. This method does not check the cryptographic
@@ -265,6 +269,10 @@ fn load_processes_from_flash<C: Chip>(
     Ok(())
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// HELPER FUNCTIONS
+////////////////////////////////////////////////////////////////////////////////
+
 /// Find a process binary stored at the beginning of `flash` and create a
 /// `ProcessBinary` object if the process is viable to run on this kernel.
 fn load_process_binary(
@@ -393,12 +401,16 @@ fn load_process<C: Chip>(
     Ok((unused_memory, process_option))
 }
 
-/// Client for the sequential process loader.
+////////////////////////////////////////////////////////////////////////////////
+// ASYNCHRONOUS PROCESS LOADING
+////////////////////////////////////////////////////////////////////////////////
+
+/// Client for asynchronous process loading.
 ///
 /// This supports a client that is notified after trying to load each process in
 /// flash. Also there is a callback for after all processes have been
 /// discovered.
-pub trait SequentialProcessLoaderMachineClient {
+pub trait ProcessLoadingAsyncClient {
     /// A process was successfully found in flash, checked, and loaded into a
     /// `ProcessStandard` object.
     fn process_loaded(&self, result: Result<(), ProcessLoadError>);
@@ -407,9 +419,28 @@ pub trait SequentialProcessLoaderMachineClient {
     fn process_loading_finished(&self);
 }
 
+/// Asynchronous process loading.
+///
+/// Machines which implement this trait perform asynchronous process loading and
+/// signal completion through `ProcessLoadingAsyncClient`.
+///
+/// Various process loaders may exist. This includes a loader from a MCU's
+/// integrated flash, or a loader from an external flash chip.
+pub trait ProcessLoadingAsync<'a> {
+    /// Set the client to receive callbacks about process loading and when
+    /// process loading has finished.
+    fn set_client(&self, client: &'a dyn ProcessLoadingAsyncClient);
+
+    /// Set the credential checking policy for the loader.
+    fn set_policy(&self, policy: &'a dyn AppIdPolicy);
+
+    /// Start the process loading operation.
+    fn start(&self);
+}
+
 /// Operating mode of the loader.
 #[derive(Clone, Copy)]
-enum State {
+enum SequentialProcessLoaderMachineState {
     /// Phase of discovering `ProcessBinary` objects in flash.
     DiscoverProcessBinaries,
     /// Phase of loading `ProcessBinary`s into `Process`s.
@@ -422,9 +453,9 @@ enum State {
 /// structures stored in the `procs` array. This machine scans the footers in
 /// the TBF for cryptographic credentials for binary integrity, passing them to
 /// the checker to decide whether the process has sufficient credentials to run.
-pub struct SequentialProcessLoaderMachine<C: Chip + 'static> {
+pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static> {
     /// Client to notify as processes are loaded and process loading finishes.
-    client: OptionalCell<&'static dyn SequentialProcessLoaderMachineClient>,
+    client: OptionalCell<&'a dyn ProcessLoadingAsyncClient>,
     /// Machine to use to check process credentials.
     checker: &'static ProcessCheckerMachine,
     /// Array of stored process references for loaded processes.
@@ -442,14 +473,14 @@ pub struct SequentialProcessLoaderMachine<C: Chip + 'static> {
     /// Reference to the Chip object for creating Processes.
     chip: &'static C,
     /// The policy to use when determining ShortIDs and process uniqueness.
-    policy: OptionalCell<&'static dyn AppIdPolicy>,
+    policy: OptionalCell<&'a dyn AppIdPolicy>,
     /// The fault policy to assign to each created Process.
     fault_policy: &'static dyn ProcessFaultPolicy,
     /// Current mode of the loading machine.
-    state: OptionalCell<State>,
+    state: OptionalCell<SequentialProcessLoaderMachineState>,
 }
 
-impl<C: Chip> SequentialProcessLoaderMachine<C> {
+impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
     /// This function is made `pub` so that board files can use it, but loading
     /// processes from slices of flash an memory is fundamentally unsafe.
     /// Therefore, we require the `ProcessManagementCapability` to call this
@@ -480,25 +511,6 @@ impl<C: Chip> SequentialProcessLoaderMachine<C> {
             fault_policy,
             state: OptionalCell::empty(),
         }
-    }
-
-    /// Configure the client.
-    pub fn set_client(&self, client: &'static dyn SequentialProcessLoaderMachineClient) {
-        self.client.set(client);
-    }
-
-    pub fn set_policy(&self, policy: &'static dyn AppIdPolicy) {
-        self.policy.replace(policy);
-    }
-
-    /// Start loading processes from flash.
-    ///
-    /// This returns nothing as all operations are asynchronous and a callback
-    /// is guaranteed.
-    pub fn start(&self) {
-        self.state.set(State::DiscoverProcessBinaries);
-        // Start an asynchronous flow so we can issue a callback on error.
-        self.deferred_call.set();
     }
 
     /// Find a slot in the `PROCESSES` array to store this process.
@@ -542,7 +554,8 @@ impl<C: Chip> SequentialProcessLoaderMachine<C> {
                 // flash. Now we can move to actually loading process binaries
                 // into full processes.
 
-                self.state.set(State::LoadProcesses);
+                self.state
+                    .set(SequentialProcessLoaderMachineState::LoadProcesses);
                 self.deferred_call.set();
             }
             Err(e) => {
@@ -842,14 +855,31 @@ impl<C: Chip> SequentialProcessLoaderMachine<C> {
     }
 }
 
-impl<C: Chip> DeferredCallClient for SequentialProcessLoaderMachine<C> {
+impl<'a, C: Chip> ProcessLoadingAsync<'a> for SequentialProcessLoaderMachine<'a, C> {
+    fn set_client(&self, client: &'a dyn ProcessLoadingAsyncClient) {
+        self.client.set(client);
+    }
+
+    fn set_policy(&self, policy: &'a dyn AppIdPolicy) {
+        self.policy.replace(policy);
+    }
+
+    fn start(&self) {
+        self.state
+            .set(SequentialProcessLoaderMachineState::DiscoverProcessBinaries);
+        // Start an asynchronous flow so we can issue a callback on error.
+        self.deferred_call.set();
+    }
+}
+
+impl<'a, C: Chip> DeferredCallClient for SequentialProcessLoaderMachine<'a, C> {
     fn handle_deferred_call(&self) {
         // We use deferred calls to start the operation in the async loop.
         match self.state.get() {
-            Some(State::DiscoverProcessBinaries) => {
+            Some(SequentialProcessLoaderMachineState::DiscoverProcessBinaries) => {
                 self.load_and_check();
             }
-            Some(State::LoadProcesses) => {
+            Some(SequentialProcessLoaderMachineState::LoadProcesses) => {
                 let ret = self.load_process_objects();
                 match ret {
                     Ok(()) => {}
@@ -871,8 +901,8 @@ impl<C: Chip> DeferredCallClient for SequentialProcessLoaderMachine<C> {
     }
 }
 
-impl<C: Chip> crate::process_checker::ProcessCheckerMachineClient
-    for SequentialProcessLoaderMachine<C>
+impl<'a, C: Chip> crate::process_checker::ProcessCheckerMachineClient
+    for SequentialProcessLoaderMachine<'a, C>
 {
     fn done(
         &self,
