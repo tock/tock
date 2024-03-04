@@ -5,9 +5,8 @@
 //! Signature credential checker for checking process credentials.
 
 use crate::hil;
-use crate::process::{Process, ShortID};
-use crate::process_checker::{AppCredentialsChecker, AppUniqueness};
-use crate::process_checker::{CheckResult, Client, Compress};
+use crate::process_checker::CheckResult;
+use crate::process_checker::{AppCredentialsPolicy, AppCredentialsPolicyClient};
 use crate::utilities::cells::MapCell;
 use crate::utilities::cells::OptionalCell;
 use crate::utilities::leasable_buffer::{SubSlice, SubSliceMut};
@@ -34,7 +33,7 @@ pub struct AppCheckerSignature<
     verifier: &'a S,
     hash: MapCell<&'static mut [u8; HL]>,
     signature: MapCell<&'static mut [u8; SL]>,
-    client: OptionalCell<&'static dyn Client<'static>>,
+    client: OptionalCell<&'static dyn AppCredentialsPolicyClient<'static>>,
     credential_type: TbfFooterV2CredentialsType,
     credentials: OptionalCell<TbfFooterV2Credentials>,
     binary: OptionalCell<&'static [u8]>,
@@ -202,7 +201,7 @@ impl<
         H: hil::digest::DigestDataHash<'a, HL>,
         const HL: usize,
         const SL: usize,
-    > AppCredentialsChecker<'static> for AppCheckerSignature<'a, S, H, HL, SL>
+    > AppCredentialsPolicy<'static> for AppCheckerSignature<'a, S, H, HL, SL>
 {
     fn require_credentials(&self) -> bool {
         true
@@ -232,71 +231,7 @@ impl<
         }
     }
 
-    fn set_client(&self, client: &'static dyn Client<'static>) {
+    fn set_client(&self, client: &'static dyn AppCredentialsPolicyClient<'static>) {
         self.client.replace(client);
-    }
-}
-
-impl<
-        'a,
-        S: hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>,
-        H: hil::digest::DigestDataHash<'a, HL>,
-        const HL: usize,
-        const SL: usize,
-    > AppUniqueness for AppCheckerSignature<'a, S, H, HL, SL>
-{
-    fn different_identifier(&self, process_a: &dyn Process, process_b: &dyn Process) -> bool {
-        let cred_a = process_a.get_credentials();
-        let cred_b = process_b.get_credentials();
-
-        // If it doesn't have credentials, it is by definition
-        // different. It should not be runnable (this checker requires
-        // credentials), but if this returned false it could block
-        // runnable processes from running.
-        cred_a.map_or(true, |a| {
-            cred_b.map_or(true, |b| {
-                // Two IDs are different if they have a different format,
-                // different length (should not happen, but worth checking for
-                // the next test), or any byte of them differs.
-                if a.format() != b.format() {
-                    true
-                } else if a.data().len() != b.data().len() {
-                    true
-                } else {
-                    for (aval, bval) in a.data().iter().zip(b.data().iter()) {
-                        if aval != bval {
-                            return true;
-                        }
-                    }
-                    false
-                }
-            })
-        })
-    }
-}
-
-impl<
-        'a,
-        S: hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>,
-        H: hil::digest::DigestDataHash<'a, HL>,
-        const HL: usize,
-        const SL: usize,
-    > Compress for AppCheckerSignature<'a, S, H, HL, SL>
-{
-    fn to_short_id(&self, _process: &dyn Process, credentials: &TbfFooterV2Credentials) -> ShortID {
-        let data = credentials.data();
-        if data.len() < 4 {
-            // Should never trigger, as we only approve signature credentials.
-            return ShortID::LocallyUnique;
-        }
-        let id: u32 = 0x8000000_u32
-            | (data[0] as u32) << 24
-            | (data[1] as u32) << 16
-            | (data[2] as u32) << 8
-            | (data[3] as u32);
-        match core::num::NonZeroU32::new(id) {
-            Some(nzid) => ShortID::Fixed(nzid),
-            None => ShortID::LocallyUnique, // Should never be generated
-        }
     }
 }
