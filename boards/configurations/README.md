@@ -19,18 +19,18 @@ Directory Structure and Naming
 ------------------------------
 
 Boards in this `boards/configurations` directory should be organized by the root
-board type. For example:
+board type. The name must be `<board>-test-[configuration]`. For example:
 
 ```
 boards/configurations/
   nrf52840dk/
-    nrf52840k-[configuration1]
-    nrf52840k-[configuration2]
+    nrf52840k-test-[configuration1]
+    nrf52840k-test-[configuration2]
   imix/
-    imix-[configuration1]
-    imix-[configuration2]
+    imix-test-[configuration1]
+    imix-test-[configuration2]
 ```
 
 Each specific board configuration for each root board should have a descriptive
 name. For example, if a configuration of the nrf52840dk is designed for running
-kernel tests, the board might be called `nrf52840dk/nrf52840dk-kernel-tests`.
+kernel tests, the board might be called `nrf52840dk/nrf52840dk-test-kernel`.

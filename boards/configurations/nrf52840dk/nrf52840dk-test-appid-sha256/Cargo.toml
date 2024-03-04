@@ -3,7 +3,7 @@
 # Copyright Tock Contributors 2024.
 
 [package]
-name = "nrf52840dk-appid-sha256"
+name = "nrf52840dk-test-appid-sha256"
 version.workspace = true
 authors.workspace = true
 build = "../../../build.rs"

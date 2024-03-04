@@ -5,7 +5,7 @@
 # Makefile for building the tock kernel for the nRF development kit
 
 TARGET=thumbv7em-none-eabi
-PLATFORM=nrf52840dk-appid-sha256
+PLATFORM=nrf52840dk-test-appid-sha256
 
 include ../../../Makefile.common
 
