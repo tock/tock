@@ -117,9 +117,9 @@ pub unsafe fn panic_print<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
     process_printer: &'static Option<&'static PP>,
 ) {
     panic_begin(nop);
-    panic_banner(writer, panic_info);
     // Flush debug buffer if needed
     flush(writer);
+    panic_banner(writer, panic_info);
     panic_cpu_state(chip, writer);
 
     // Some systems may enforce memory protection regions for the
