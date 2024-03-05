@@ -6,11 +6,11 @@
 //! device connected via I2C.
 //!
 
+use crate::nmea::{NmeaClient, NmeaDriver};
 use crate::nmea_i2c::i2c::I2CClient;
 use core::cell::Cell;
 use core::str;
 use kernel::hil::i2c::{self, I2CDevice};
-use kernel::hil::sensors::{NmeaClient, NmeaDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 

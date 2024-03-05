@@ -6,11 +6,47 @@
 
 use kernel::errorcode::into_statuscode;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
-use kernel::hil;
 use kernel::processbuffer::WriteableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::TakeCell;
 use kernel::{ErrorCode, ProcessId};
+
+/// Client for receiving NMEA sentences
+pub trait NmeaClient {
+    /// Called when a full NMEA sentence has been found, or if an error
+    /// occurs.
+    ///
+    /// The possible errors are:
+    /// - `BUSY`: Indicates that the hardware is busy with an existing
+    ///           operation or initialisation/calibration.
+    /// - `NOACK`: Failed to correctly communicate over communication protocol.
+    /// - `NOSUPPORT`: Indicates that the received NMEA message was not valid UTF-8 data.
+    fn callback(&self, buffer: &'static mut [u8], len: usize, status: Result<(), ErrorCode>);
+}
+
+/// A basic interface for a Nmea sentence reader
+pub trait NmeaDriver<'a> {
+    /// Set the client
+    fn set_client(&self, client: &'a dyn NmeaClient);
+
+    /// Read a full NMEA sentence, including the first `$`.
+    /// As NMEA sentences are variable lengths this will return
+    /// the first sentence that fits inside `buffer`. If a sentence
+    /// doesn't fit it will be silently dropped. This allows callers to
+    /// user smaller buffers if they are only interested in certain data
+    /// types.
+    ///
+    /// When the sentence is read the `NmeaClient` callback will be called.
+    ///
+    /// This function might return the following errors:
+    /// - `BUSY`: Indicates that the hardware is busy with an existing
+    ///           operation or initialisation/calibration.
+    /// - `NOACK`: Failed to correctly communicate over communication protocol.
+    fn read_sentence(
+        &self,
+        buffer: &'static mut [u8],
+    ) -> Result<(), (ErrorCode, &'static mut [u8])>;
+}
 
 /// Syscall driver number.
 use capsules_core::driver;
@@ -29,14 +65,14 @@ pub struct App {
 }
 
 pub struct Nmea<'a> {
-    driver: &'a dyn hil::sensors::NmeaDriver<'a>,
+    driver: &'a dyn NmeaDriver<'a>,
     apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<1>>,
     buffer: TakeCell<'static, [u8]>,
 }
 
 impl<'a> Nmea<'a> {
     pub fn new(
-        driver: &'a dyn hil::sensors::NmeaDriver<'a>,
+        driver: &'a dyn NmeaDriver<'a>,
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<1>>,
         buffer: &'static mut [u8],
     ) -> Nmea<'a> {
@@ -48,7 +84,7 @@ impl<'a> Nmea<'a> {
     }
 }
 
-impl hil::sensors::NmeaClient for Nmea<'_> {
+impl NmeaClient for Nmea<'_> {
     fn callback(&self, buffer: &'static mut [u8], len: usize, status: Result<(), ErrorCode>) {
         for cntr in self.apps.iter() {
             cntr.enter(|app, kernel_data| {
