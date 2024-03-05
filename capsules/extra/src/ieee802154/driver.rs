@@ -1138,6 +1138,13 @@ impl<'a, M: device::MacDevice<'a>> device::RxClient for RadioDriver<'a, M> {
 
                         let max_pending_rx =
                             (rbuf.len() - RING_BUF_METADATA_SIZE) / USER_FRAME_MAX_SIZE;
+
+                        // confirm user modifiable metadata is valid (i.e. within bounds of the provided buffer)
+                        if read_index > max_pending_rx || write_index > max_pending_rx {
+                            // kernel::debug!("[15.4 driver] Invalid read or write index");
+                            return false;
+                        }
+
                         let offset = RING_BUF_METADATA_SIZE + (write_index * USER_FRAME_MAX_SIZE);
 
                         // Copy the entire frame over to userland, preceded by three metadata bytes:
