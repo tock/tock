@@ -26,7 +26,7 @@ use crate::process::BinaryVersion;
 use crate::process::ProcessBinary;
 use crate::process::{Error, FunctionCall, FunctionCallSource, Process, State, Task};
 use crate::process::{FaultAction, ProcessCustomGrantIdentifier, ProcessId};
-use crate::process::{ProcessAddresses, ProcessSizes, ShortID};
+use crate::process::{ProcessAddresses, ProcessSizes, ShortId};
 use crate::process_loading::ProcessLoadError;
 use crate::process_policies::ProcessFaultPolicy;
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
@@ -105,9 +105,9 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
     /// table.
     process_id: Cell<ProcessId>,
 
-    /// An application ShortID, generated from process loading and
+    /// An application ShortId, generated from process loading and
     /// checking, which denotes the security identity of this process.
-    app_id: ShortID,
+    app_id: ShortId,
 
     /// Pointer to the main Kernel struct.
     kernel: &'static Kernel,
@@ -241,7 +241,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.process_id.get()
     }
 
-    fn short_app_id(&self) -> ShortID {
+    fn short_app_id(&self) -> ShortId {
         self.app_id
     }
 
@@ -1281,7 +1281,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         pb: ProcessBinary,
         remaining_memory: &'a mut [u8],
         fault_policy: &'static dyn ProcessFaultPolicy,
-        app_id: ShortID,
+        app_id: ShortId,
         index: usize,
     ) -> Result<(Option<&'static dyn Process>, &'a mut [u8]), (ProcessLoadError, &'a mut [u8])>
     {

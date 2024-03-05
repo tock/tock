@@ -21,7 +21,7 @@ use crate::debug;
 use crate::deferred_call::{DeferredCall, DeferredCallClient};
 use crate::kernel::Kernel;
 use crate::platform::chip::Chip;
-use crate::process::{Process, ShortID};
+use crate::process::{Process, ShortId};
 use crate::process_binary::{ProcessBinary, ProcessBinaryError};
 use crate::process_checker::{AppIdPolicy, ProcessCheckError, ProcessCheckerMachine};
 use crate::process_policies::ProcessFaultPolicy;
@@ -216,7 +216,7 @@ fn load_processes_from_flash<C: Chip>(
                     chip,
                     process_binary,
                     remaining_memory,
-                    ShortID::LocallyUnique,
+                    ShortId::LocallyUnique,
                     index,
                     fault_policy,
                 );
@@ -346,7 +346,7 @@ fn load_process<C: Chip>(
     chip: &'static C,
     process_binary: ProcessBinary,
     app_memory: &'static mut [u8],
-    app_id: ShortID,
+    app_id: ShortId,
     index: usize,
     fault_policy: &'static dyn ProcessFaultPolicy,
 ) -> Result<(&'static mut [u8], Option<&'static dyn Process>), (&'static mut [u8], ProcessLoadError)>
@@ -472,7 +472,7 @@ pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static> {
     kernel: &'static Kernel,
     /// Reference to the Chip object for creating Processes.
     chip: &'static C,
-    /// The policy to use when determining ShortIDs and process uniqueness.
+    /// The policy to use when determining ShortIds and process uniqueness.
     policy: OptionalCell<&'a dyn AppIdPolicy>,
     /// The fault policy to assign to each created Process.
     fault_policy: &'static dyn ProcessFaultPolicy,
@@ -706,9 +706,9 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
                     // If we get here it is ok to load the process.
                     match self.find_open_process_slot() {
                         Some(index) => {
-                            // Calculate the ShortID for this new process.
+                            // Calculate the ShortId for this new process.
                             let short_app_id =
-                                self.policy.map_or(ShortID::LocallyUnique, |policy| {
+                                self.policy.map_or(ShortId::LocallyUnique, |policy| {
                                     policy.to_short_id(&process_binary)
                                 });
 
@@ -790,7 +790,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
     ///
     /// `pb2` blocks `pb1` if:
     ///
-    /// - They both have the same AppID or they both have the same ShortID, and
+    /// - They both have the same AppID or they both have the same ShortId, and
     /// - `pb2` has a higher version number.
     fn is_blocked_from_loading_by(&self, pb1: &ProcessBinary, pb2: &ProcessBinary) -> bool {
         let same_app_id = self
@@ -822,10 +822,10 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
     /// `process` blocks `pb` if:
     ///
     /// - They both have the same AppID, or
-    /// - They both have the same ShortID
+    /// - They both have the same ShortId
     ///
     /// Since `process` is already loaded, we only have to enforce the AppID and
-    /// ShortID uniqueness guarantees.
+    /// ShortId uniqueness guarantees.
     fn is_blocked_from_loading_by_process(
         &self,
         pb: &ProcessBinary,

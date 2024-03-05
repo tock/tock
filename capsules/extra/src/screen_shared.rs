@@ -12,7 +12,7 @@
 //!
 //! ```
 //! AppScreenRegion {
-//!     app_id: kernel::process:ShortID::new(id),
+//!     app_id: kernel::process:ShortId::new(id),
 //!     frame: Frame {
 //!         x: 0,
 //!         y: 0,
@@ -76,13 +76,13 @@ pub struct Frame {
 }
 
 pub struct AppScreenRegion {
-    app_id: kernel::process::ShortID,
+    app_id: kernel::process::ShortId,
     frame: Frame,
 }
 
 impl AppScreenRegion {
     pub fn new(
-        app_id: kernel::process::ShortID,
+        app_id: kernel::process::ShortId,
         x: usize,
         y: usize,
         width: usize,

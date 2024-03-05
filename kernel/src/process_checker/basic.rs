@@ -9,7 +9,7 @@
 use crate::deferred_call::{DeferredCall, DeferredCallClient};
 use crate::hil::digest::{ClientData, ClientHash, ClientVerify};
 use crate::hil::digest::{DigestDataVerify, Sha256};
-use crate::process::{Process, ProcessBinary, ShortID};
+use crate::process::{Process, ProcessBinary, ShortId};
 use crate::process_checker::CheckResult;
 use crate::process_checker::{AppCredentialsPolicy, AppCredentialsPolicyClient};
 use crate::process_checker::{AppUniqueness, Compress};
@@ -116,8 +116,8 @@ impl AppUniqueness for AppIdAssignerSimulated {
 }
 
 impl Compress for AppIdAssignerSimulated {
-    fn to_short_id(&self, _process: &ProcessBinary) -> ShortID {
-        ShortID::LocallyUnique
+    fn to_short_id(&self, _process: &ProcessBinary) -> ShortId {
+        ShortId::LocallyUnique
     }
 }
 
@@ -238,9 +238,9 @@ impl ClientHash<32_usize> for AppCheckerSha256 {
 }
 
 /// A sample AppID Assignment tool that assigns pseudo-unique AppIDs and
-/// ShortIDs based on the process name.
+/// ShortIds based on the process name.
 ///
-/// ShortIDs are assigned as a non-secure hash of the process name.
+/// ShortIds are assigned as a non-secure hash of the process name.
 ///
 /// ### Usage
 ///
@@ -286,12 +286,12 @@ impl<'a, F: Fn(&'static str) -> u32> AppUniqueness for AppIdAssignerNames<'a, F>
 }
 
 impl<'a, F: Fn(&'static str) -> u32> Compress for AppIdAssignerNames<'a, F> {
-    fn to_short_id(&self, process: &ProcessBinary) -> ShortID {
+    fn to_short_id(&self, process: &ProcessBinary) -> ShortId {
         let name = process.header.get_package_name().unwrap_or("");
         let sum = (self.hasher)(name);
         match core::num::NonZeroU32::new(sum) {
-            Some(id) => ShortID::Fixed(id),
-            None => ShortID::LocallyUnique,
+            Some(id) => ShortId::Fixed(id),
+            None => ShortId::LocallyUnique,
         }
     }
 }
@@ -300,7 +300,7 @@ impl<'a, F: Fn(&'static str) -> u32> Compress for AppIdAssignerNames<'a, F> {
 /// Binaries that have RSA3072 or RSA4096 credentials. It uses the
 /// public key stored in the credentials as the Application
 /// Identifier, and the bottom 31 bits of the public key as the
-/// ShortID. WARNING: this policy does not actually check the RSA
+/// ShortId. WARNING: this policy does not actually check the RSA
 /// signature: it always blindly assumes it is correct. This checker
 /// exists to test that the Tock boot sequence correctly handles
 /// ID collisions and version numbers.

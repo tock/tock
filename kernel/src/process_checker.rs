@@ -16,7 +16,7 @@ use core::fmt;
 use crate::config;
 use crate::debug;
 use crate::process::Process;
-use crate::process::ShortID;
+use crate::process::ShortId;
 use crate::process_binary::ProcessBinary;
 use crate::utilities::cells::{NumericCellExt, OptionalCell};
 use crate::ErrorCode;
@@ -154,15 +154,15 @@ impl AppUniqueness for () {
     }
 }
 
-/// Transforms Application Credentials into a corresponding ShortID.
+/// Transforms Application Credentials into a corresponding ShortId.
 pub trait Compress {
-    /// Create a `ShortID` for `process`.
-    fn to_short_id(&self, process: &ProcessBinary) -> ShortID;
+    /// Create a `ShortId` for `process`.
+    fn to_short_id(&self, process: &ProcessBinary) -> ShortId;
 }
 
 impl Compress for () {
-    fn to_short_id(&self, _process: &ProcessBinary) -> ShortID {
-        ShortID::LocallyUnique
+    fn to_short_id(&self, _process: &ProcessBinary) -> ShortId {
+        ShortId::LocallyUnique
     }
 }
 

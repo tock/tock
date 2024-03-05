@@ -81,7 +81,7 @@ checkers are in the kernel crate, in the module
 
   * `kernel::process_checker::Compress` compresses application
   identifiers into short, 32-bit identifiers called
-  `ShortID`s. `ShortID`s provide a mechanism for fast comparison,
+  `ShortId`s. `ShortId`s provide a mechanism for fast comparison,
   e.g., for an application identifier against an access control list.
 
 Example implementations can be found in
@@ -666,7 +666,7 @@ access by comparing 32-bit integers rather than 384-byte keys.
 
 Short IDs support the concept of a "Locally Unique" identifier by
 having a special `LocallyUnique` value. All tests for equality with
-`ShortID::LocallyUnique` return false.
+`ShortId::LocallyUnique` return false.
 
 8.1 Short ID Properties and Examples
 -------------------------------
@@ -812,19 +812,19 @@ read data stored by the "dog" application.
 8.3 Short ID Format
 -------------------------------
 
-The 32-bit value MUST be non-zero. `ShortID` uses `core::num::NonZeroU32`
-so that an `ShortID` can be 32 bits in size, with 0 reserved
+The 32-bit value MUST be non-zero. `ShortId` uses `core::num::NonZeroU32`
+so that an `ShortId` can be 32 bits in size, with 0 reserved
 for `LocallyUnique`.
 
 ```rust
 #[derive(Clone, Copy)]
-enum ShortID {
+enum ShortId {
     LocallyUnique,
     Fixed(core::num::NonZeroU32),
 }
 
 pub trait Compress {
-    fn to_short_id(process: &ProcessBinary) -> ShortID;
+    fn to_short_id(process: &ProcessBinary) -> ShortId;
 }
 ```
 
@@ -837,16 +837,16 @@ also makes it less likely that the two are inconsistent.
 8.4 Short ID Considerations
 -------------------------------
 
-It is RECOMMENDED that the `Fixed` field of `ShortID` be completely
-hidden and unknown to modules that use `ShortID` to manage security
-policies. They should depend on obtaining `ShortID` values based on
+It is RECOMMENDED that the `Fixed` field of `ShortId` be completely
+hidden and unknown to modules that use `ShortId` to manage security
+policies. They should depend on obtaining `ShortId` values based on
 known names or methods. For example, the implementation of an
 Identifier Policy can define a method, `privileged_id`, which returns
 the Short ID associated with special privileges. Kernel modules which
 want to give these processes extra permissions can check whether the
-`ShortID` associated with a process matches the `ShortID` returned
+`ShortId` associated with a process matches the `ShortId` returned
 from `privileged_id`. Alternatively, when they are initialized, they
-can be passed a slice or array of `ShortID`s which are allowed; system
+can be passed a slice or array of `ShortId`s which are allowed; system
 initialization generates this set once and passes it into the module
 so it does not need to maintain a reference to the structure
 implementing `Compress`.
@@ -880,12 +880,12 @@ are given access to different regions of the display. These assignments should
 be persistent to main continuity for the user looking at the display, even if
 applications are added or removed.
 
-This is a very incomplete example but it shows the general use of ShortID within
-a capsule. Note that accessing a ShortID is done using `ProcessId`.
+This is a very incomplete example but it shows the general use of ShortId within
+a capsule. Note that accessing a ShortId is done using `ProcessId`.
 
 ```rust
 pub struct AppScreenRegion {
-    app_id: kernel::process::ShortID,
+    app_id: kernel::process::ShortId,
     frame: Frame,
 }
 

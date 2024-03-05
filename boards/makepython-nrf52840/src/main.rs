@@ -517,21 +517,21 @@ pub unsafe fn start() -> (
         [capsules_extra::screen_shared::AppScreenRegion; 3],
         [
             capsules_extra::screen_shared::AppScreenRegion::new(
-                kernel::process::ShortID::Fixed(core::num::NonZeroU32::new(crc("circle")).unwrap()),
+                kernel::process::ShortId::Fixed(core::num::NonZeroU32::new(crc("circle")).unwrap()),
                 0,     // x
                 0,     // y
                 8 * 8, // width
                 8 * 8  // height
             ),
             capsules_extra::screen_shared::AppScreenRegion::new(
-                kernel::process::ShortID::Fixed(core::num::NonZeroU32::new(crc("count")).unwrap()),
+                kernel::process::ShortId::Fixed(core::num::NonZeroU32::new(crc("count")).unwrap()),
                 8 * 8, // x
                 0,     // y
                 8 * 8, // width
                 4 * 8  // height
             ),
             capsules_extra::screen_shared::AppScreenRegion::new(
-                kernel::process::ShortID::Fixed(
+                kernel::process::ShortId::Fixed(
                     core::num::NonZeroU32::new(crc("tock-scroll")).unwrap()
                 ),
                 8 * 8, // x
