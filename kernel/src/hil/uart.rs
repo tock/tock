@@ -6,6 +6,7 @@
 //!
 //!
 
+use crate::utilities::packet_buffer;
 use crate::ErrorCode;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -66,13 +67,19 @@ pub enum Error {
 }
 
 pub trait Uart<'a>: Configure + Transmit<'a> + Receive<'a> {}
-pub trait UartData<'a>: Transmit<'a> + Receive<'a> {}
+pub trait UartData<'a, const HEAD: usize, const TAIL: usize>:
+    Transmit<'a, HEAD, TAIL> + Receive<'a>
+{
+}
 pub trait UartAdvanced<'a>: Configure + Transmit<'a> + ReceiveAdvanced<'a> {}
 pub trait Client: ReceiveClient + TransmitClient {}
 
 // Provide blanket implementations for all trait groups
 impl<'a, T: Configure + Transmit<'a> + Receive<'a>> Uart<'a> for T {}
-impl<'a, T: Transmit<'a> + Receive<'a>> UartData<'a> for T {}
+impl<'a, const HEAD: usize, const TAIL: usize, T: Transmit<'a, HEAD, TAIL> + Receive<'a>>
+    UartData<'a, HEAD, TAIL> for T
+{
+}
 impl<'a, T: Configure + Transmit<'a> + ReceiveAdvanced<'a>> UartAdvanced<'a> for T {}
 impl<T: ReceiveClient + TransmitClient> Client for T {}
 
@@ -87,7 +94,7 @@ pub trait Configure {
     fn configure(&self, params: Parameters) -> Result<(), ErrorCode>;
 }
 
-pub trait Transmit<'a> {
+pub trait Transmit<'a, const HEAD: usize = 0, const TAIL: usize = 0> {
     /// Set the transmit client, which will be called when transmissions
     /// complete.
     fn set_transmit_client(&self, client: &'a dyn TransmitClient);
@@ -117,9 +124,9 @@ pub trait Transmit<'a> {
     /// `transmit_buffer` or `transmit_word` operation will return BUSY.
     fn transmit_buffer(
         &self,
-        tx_buffer: &'static mut [u8],
+        tx_buffer: packet_buffer::PacketBufferMut<HEAD, TAIL>,
         tx_len: usize,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])>;
+    ) -> Result<(), (ErrorCode, packet_buffer::PacketBufferMut<HEAD, TAIL>)>;
 
     /// Transmit a single word of data asynchronously. The word length is
     /// determined by the UART configuration: it can be 6, 7, 8, or 9 bits long.
@@ -253,7 +260,7 @@ pub trait TransmitClient {
     ///   - FAIL if the transmission failed in some way.
     fn transmitted_buffer(
         &self,
-        tx_buffer: &'static mut [u8],
+        tx_buffer: &'static mut dyn packet_buffer::PacketBufferDyn,
         tx_len: usize,
         rval: Result<(), ErrorCode>,
     );
