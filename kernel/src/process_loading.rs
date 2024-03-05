@@ -332,7 +332,7 @@ fn discover_process_binary(
         .ok_or((flash, ProcessBinaryError::NotEnoughFlash))?;
 
     let pb = ProcessBinary::create(app_flash, header_length as usize, version, true)
-        .map_err(|e| (flash, e))?;
+        .map_err(|e| (remaining_flash, e))?;
 
     Ok((remaining_flash, pb))
 }
