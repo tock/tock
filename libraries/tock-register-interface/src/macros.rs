@@ -220,7 +220,7 @@ macro_rules! test_fields {
                     "Invalid size for struct ",
                     stringify!($struct),
                     " (expected ",
-                    $size,
+                    stringify!($size),
                     ", actual struct size differs)",
                 ),
             );
@@ -261,7 +261,7 @@ macro_rules! test_fields {
                         "Invalid start offset for field ",
                         stringify!($field),
                         " (expected ",
-                        $offset_start,
+                        stringify!($offset_start),
                         " but actual value differs)",
                     ),
                 );
@@ -296,7 +296,7 @@ macro_rules! test_fields {
                         "Invalid end offset for field ",
                         stringify!($field),
                         " (expected ",
-                        $offset_end,
+                        stringify!($offset_end),
                         " but actual value differs)",
                     ),
                 );
@@ -345,7 +345,7 @@ macro_rules! test_fields {
                         "Invalid start offset for padding ",
                         stringify!($padding),
                         " (expected ",
-                        $offset_start,
+                        stringify!($offset_start),
                         " but actual value differs)",
                     ),
                 );
