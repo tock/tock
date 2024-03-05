@@ -13,13 +13,8 @@ use core::arch::global_asm;
 
 // These constants are defined in the linker script.
 extern "C" {
-    static _estack: *const u32;
-    static _sstack: *const u32;
-    static _szero: *const u32;
-    static _ezero: *const u32;
-    static _etext: *const u32;
-    static _srelocate: *const u32;
-    static _erelocate: *const u32;
+    static _estack: u8;
+    static _sstack: u8;
 }
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
@@ -407,8 +402,8 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
             exception_number,
             ipsr_isr_number_to_str(exception_number),
             faulting_stack as u32,
-            _estack as u32,
-            _sstack as u32,
+            core::ptr::addr_of!(_estack) as u32,
+            core::ptr::addr_of!(_sstack) as u32,
             shcsr,
             cfsr,
             hfsr,
