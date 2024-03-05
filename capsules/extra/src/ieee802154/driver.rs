@@ -1140,7 +1140,7 @@ impl<'a, M: device::MacDevice<'a>> device::RxClient for RadioDriver<'a, M> {
                             (rbuf.len() - RING_BUF_METADATA_SIZE) / USER_FRAME_MAX_SIZE;
 
                         // confirm user modifiable metadata is valid (i.e. within bounds of the provided buffer)
-                        if read_index > max_pending_rx || write_index > max_pending_rx {
+                        if read_index >= max_pending_rx || write_index >= max_pending_rx {
                             // kernel::debug!("[15.4 driver] Invalid read or write index");
                             return false;
                         }
@@ -1163,7 +1163,8 @@ impl<'a, M: device::MacDevice<'a>> device::RxClient for RadioDriver<'a, M> {
                             // kernel::debug!("[15.4 driver] Provided RX buffer is full");
                         }
 
-                        rbuf[0].set(read_index as u8);
+                        // update write index metadata (we do not modify the read index
+                        // in the recv functionality so we do not need to update this metadata)
                         rbuf[1].set(write_index as u8);
                         true
                     })
