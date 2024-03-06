@@ -38,11 +38,11 @@
 - Tyler: Right now it's a pretty rudimentary data structure. The userspace unallows the buffer before making changes and allows the buffer back after copying data over to a separate userspace location. Long term, do you think we should implement a bigger fix now?
 - Leon: Wouldn't want to hold anything up on this. Your PR is probably a good first step. What I want is a general solution that's got stability guarantees. So I wouldn't want to blindly promote a solution for general use
 - Branden: What's left for OpenThread development then?
-- Tyler: "Works". Only on channel 26 right now. It keeps falling on the priority list, getting that to work has been challenging. Need to be able to switch channels, clean up PR and submit it. There is some hand-waving around signal-strength indication (currently just hard-code RSSI to -50 and link-quality indicator). This information doesn't make it up to the 15.4 part of the stack. Thread works by having a child issues a parent request, and chooses best parent based on the RSSI (so important for router selection). In my opinion, the most challenging part is getting the radio packets correctly parsed. It made me really happy to see that Thread works generally.
+- Tyler: "Works". Only on channel 26 right now. Getting channel switching implemented keeps falling on the priority list, getting sending / receiving to work has been challenging. Need to be able to switch channels, clean up PR and submit it. There is some hand-waving around signal-strength indication (currently just hard-code RSSI to -50 and link-quality indicator). This information doesn't make it up to the 15.4 part of the stack. Thread works by having a child issues a parent request, and chooses best parent based on the RSSI (so important for router selection). In my opinion, the most challenging part is getting the radio packets correctly parsed. It made me really happy to see that Thread works generally.
 
   Current architecture: in a loop: call "do thread work", then yield. When a packet arrives or alarm fires, there's a delay before yielding again and I didn't know if that would be okay.
   
-  Next steps: let device running, see whether it crashes or falls of the network.
+  Next steps: let device running, see whether it crashes or falls off the network.
 ### Remaining OpenThread Work
 - Branden: What's left for OT? Channel switching, RSSI, flash implementation, ...?
 - Tyler: Progress underway for the flash stuff by two students.
