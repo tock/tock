@@ -133,17 +133,13 @@ impl ProcessBinary {
         require_kernel_version: bool,
     ) -> Result<Self, ProcessBinaryError> {
         // Get a slice for just the app header.
-        let header_flash = match app_flash.get(0..header_length) {
-            Some(h) => h,
-            None => return Err(ProcessBinaryError::NotEnoughFlash),
-        };
+        let header_flash = app_flash
+            .get(0..header_length)
+            .ok_or(ProcessBinaryError::NotEnoughFlash)?;
 
         // Parse the full TBF header to see if this is a valid app. If the
         // header can't parse, we will error right here.
-        let tbf_header = match tock_tbf::parse::parse_tbf_header(header_flash, tbf_version) {
-            Ok(h) => h,
-            Err(err) => return Err(err.into()),
-        };
+        let tbf_header = tock_tbf::parse::parse_tbf_header(header_flash, tbf_version)?;
 
         // If this isn't an app (i.e. it is padding) then we can skip it and do
         // not create a `ProcessBinary` object.
@@ -222,10 +218,9 @@ impl ProcessBinary {
 
         // End of the portion of the application binary covered by integrity.
         // Now handle footers.
-        let footer_region = match app_flash.get(binary_end..total_size) {
-            Some(f) => f,
-            None => return Err(ProcessBinaryError::NotEnoughFlash),
-        };
+        let footer_region = app_flash
+            .get(binary_end..total_size)
+            .ok_or(ProcessBinaryError::NotEnoughFlash)?;
 
         // Check that the process is at the correct location in flash if the TBF
         // header specified a fixed address. If there is a mismatch we catch
