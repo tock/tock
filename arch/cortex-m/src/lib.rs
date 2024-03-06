@@ -22,8 +22,6 @@ pub mod systick;
 
 // These constants are defined in the linker script.
 extern "C" {
-    static _estack: *const u32;
-    static _sstack: *const u32;
     static _szero: *const u32;
     static _ezero: *const u32;
     static _etext: *const u32;
