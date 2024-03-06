@@ -476,43 +476,6 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderDriverPermission {
     }
 }
 
-impl<const L: usize> core::convert::TryFrom<&[u8]> for TbfHeaderV2Permissions<L> {
-    type Error = TbfParseError;
-
-    fn try_from(b: &[u8]) -> Result<TbfHeaderV2Permissions<L>, Self::Error> {
-        let number_perms = u16::from_le_bytes(
-            b.get(0..2)
-                .ok_or(TbfParseError::NotEnoughFlash)?
-                .try_into()?,
-        );
-
-        let mut perms: [TbfHeaderDriverPermission; L] = [TbfHeaderDriverPermission {
-            driver_number: 0,
-            offset: 0,
-            allowed_commands: 0,
-        }; L];
-        for i in 0..number_perms as usize {
-            let start = 2 + (i * size_of::<TbfHeaderDriverPermission>());
-            let end = start + size_of::<TbfHeaderDriverPermission>();
-            if let Some(perm) = perms.get_mut(i) {
-                *perm = b
-                    .get(start..end)
-                    .ok_or(TbfParseError::NotEnoughFlash)?
-                    .try_into()?;
-            } else {
-                return Err(TbfParseError::BadTlvEntry(
-                    TbfHeaderTypes::TbfHeaderPermissions as usize,
-                ));
-            }
-        }
-
-        Ok(TbfHeaderV2Permissions {
-            length: number_perms,
-            perms,
-        })
-    }
-}
-
 impl<const L: usize> core::convert::TryFrom<&[u8]> for TbfHeaderV2StoragePermissions<L> {
     type Error = TbfParseError;
 
@@ -667,7 +630,7 @@ pub struct TbfHeaderV2 {
     pub(crate) package_name: Option<&'static str>,
     pub(crate) writeable_regions: Option<&'static [u8]>,
     pub(crate) fixed_addresses: Option<&'static [u8]>,
-    pub(crate) permissions: Option<TbfHeaderV2Permissions<8>>,
+    pub(crate) permissions: Option<&'static [u8]>,
     pub(crate) storage_permissions: Option<TbfHeaderV2StoragePermissions<NUM_STORAGE_PERMISSIONS>>,
     pub(crate) kernel_version: Option<TbfHeaderV2KernelVersion>,
 }
@@ -872,24 +835,55 @@ impl TbfHeader {
     pub fn get_command_permissions(&self, driver_num: usize, offset: usize) -> CommandPermissions {
         match self {
             TbfHeader::TbfHeaderV2(hd) => match hd.permissions {
-                Some(permissions) => {
-                    let mut found_driver_num: bool = false;
-                    for perm in permissions.perms {
-                        if perm.driver_number == driver_num as u32 {
-                            found_driver_num = true;
-                            if perm.offset == offset as u32 {
-                                return CommandPermissions::Mask(perm.allowed_commands);
+                Some(permissions_tlv_slice) => {
+                    // Helper function to wrap the return in a Result.
+                    fn get_command_permissions_result(
+                        permissions_tlv_slice: &'static [u8],
+                        driver_num: usize,
+                        offset: usize,
+                    ) -> Result<CommandPermissions, ()> {
+                        let mut found_driver_num: bool = false;
+                        let perm_len = size_of::<TbfHeaderDriverPermission>();
+
+                        // Read the number of stored permissions.
+                        let number_perms = u16::from_le_bytes(
+                            permissions_tlv_slice
+                                .get(0..2)
+                                .ok_or(())?
+                                .try_into()
+                                .or(Err(()))?,
+                        );
+                        // Get the remaining slice of just the permissions.
+                        let permissions_slice = permissions_tlv_slice.get(2..).ok_or(())?;
+
+                        // Iterate the permissions to find a match.
+                        for i in 0..number_perms as usize {
+                            let perm: TbfHeaderDriverPermission = permissions_slice
+                                .get((i * perm_len)..((i + 1) * perm_len))
+                                .ok_or(())?
+                                .try_into()
+                                .or(Err(()))?;
+
+                            if perm.driver_number == driver_num as u32 {
+                                found_driver_num = true;
+                                if perm.offset == offset as u32 {
+                                    return Ok(CommandPermissions::Mask(perm.allowed_commands));
+                                }
                             }
                         }
+
+                        if found_driver_num {
+                            // We found this driver number but nothing matched the
+                            // requested offset. Since permissions are default off,
+                            // we can return a mask of all zeros.
+                            Ok(CommandPermissions::Mask(0))
+                        } else {
+                            Ok(CommandPermissions::NoPermsThisDriver)
+                        }
                     }
-                    if found_driver_num {
-                        // We found this driver number but nothing matched the
-                        // requested offset. Since permissions are default off,
-                        // we can return a mask of all zeros.
-                        CommandPermissions::Mask(0)
-                    } else {
-                        CommandPermissions::NoPermsThisDriver
-                    }
+
+                    get_command_permissions_result(permissions_tlv_slice, driver_num, offset)
+                        .unwrap_or(CommandPermissions::NoPermsAtAll)
                 }
                 _ => CommandPermissions::NoPermsAtAll,
             },

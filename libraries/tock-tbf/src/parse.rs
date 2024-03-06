@@ -132,7 +132,7 @@ pub fn parse_tbf_header(
                 let mut wfr_pointer: Option<&'static [u8]> = None;
                 let mut app_name_str = "";
                 let mut fixed_address_pointer: Option<&'static [u8]> = None;
-                let mut permissions_pointer: Option<types::TbfHeaderV2Permissions<8>> = None;
+                let mut permissions_pointer: Option<&'static [u8]> = None;
                 let mut storage_permissions_pointer: Option<
                     types::TbfHeaderV2StoragePermissions<8>,
                 > = None;
@@ -234,7 +234,11 @@ pub fn parse_tbf_header(
                         }
 
                         types::TbfHeaderTypes::TbfHeaderPermissions => {
-                            permissions_pointer = Some(remaining.try_into()?);
+                            permissions_pointer = Some(
+                                remaining
+                                    .get(0..tlv_header.length as usize)
+                                    .ok_or(types::TbfParseError::NotEnoughFlash)?,
+                            );
                         }
 
                         types::TbfHeaderTypes::TbfHeaderStoragePermissions => {
