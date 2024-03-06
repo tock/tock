@@ -665,7 +665,7 @@ pub struct TbfHeaderV2 {
     pub(crate) main: Option<TbfHeaderV2Main>,
     pub(crate) program: Option<TbfHeaderV2Program>,
     pub(crate) package_name: Option<&'static str>,
-    pub(crate) writeable_regions: Option<[Option<TbfHeaderV2WriteableFlashRegion>; 4]>,
+    pub(crate) writeable_regions: Option<&'static [u8]>,
     pub(crate) fixed_addresses: Option<TbfHeaderV2FixedAddresses>,
     pub(crate) permissions: Option<TbfHeaderV2Permissions<8>>,
     pub(crate) storage_permissions: Option<TbfHeaderV2StoragePermissions<NUM_STORAGE_PERMISSIONS>>,
@@ -791,9 +791,9 @@ impl TbfHeader {
     /// Get the number of flash regions this app has specified in its header.
     pub fn number_writeable_flash_regions(&self) -> usize {
         match *self {
-            TbfHeader::TbfHeaderV2(hd) => hd.writeable_regions.map_or(0, |wrs| {
-                wrs.iter()
-                    .fold(0, |acc, wr| if wr.is_some() { acc + 1 } else { acc })
+            TbfHeader::TbfHeaderV2(hd) => hd.writeable_regions.map_or(0, |wr_slice| {
+                let wfr_len = size_of::<TbfHeaderV2WriteableFlashRegion>();
+                wr_slice.len() / wfr_len
             }),
             _ => 0,
         }
@@ -802,13 +802,28 @@ impl TbfHeader {
     /// Get the offset and size of a given flash region.
     pub fn get_writeable_flash_region(&self, index: usize) -> (u32, u32) {
         match *self {
-            TbfHeader::TbfHeaderV2(hd) => hd.writeable_regions.map_or((0, 0), |wrs| {
-                wrs.get(index).unwrap_or(&None).map_or((0, 0), |wr| {
-                    (
+            TbfHeader::TbfHeaderV2(hd) => hd.writeable_regions.map_or((0, 0), |wr_slice| {
+                fn get_region(
+                    wr_slice: &'static [u8],
+                    index: usize,
+                ) -> Result<TbfHeaderV2WriteableFlashRegion, ()> {
+                    let wfr_len = size_of::<TbfHeaderV2WriteableFlashRegion>();
+
+                    let wfr = wr_slice
+                        .get(index * wfr_len..(index + 1) * wfr_len)
+                        .ok_or(())?
+                        .try_into()
+                        .or(Err(()))?;
+                    Ok(wfr)
+                }
+
+                match get_region(wr_slice, index) {
+                    Ok(wr) => (
                         wr.writeable_flash_region_offset,
                         wr.writeable_flash_region_size,
-                    )
-                })
+                    ),
+                    Err(()) => (0, 0),
+                }
             }),
             _ => (0, 0),
         }

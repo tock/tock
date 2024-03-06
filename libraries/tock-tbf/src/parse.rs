@@ -129,8 +129,7 @@ pub fn parse_tbf_header(
                 // options.
                 let mut main_pointer: Option<types::TbfHeaderV2Main> = None;
                 let mut program_pointer: Option<types::TbfHeaderV2Program> = None;
-                let mut wfr_pointer: [Option<types::TbfHeaderV2WriteableFlashRegion>; 4] =
-                    Default::default();
+                let mut wfr_pointer: Option<&'static [u8]> = None;
                 let mut app_name_str = "";
                 let mut fixed_address_pointer: Option<types::TbfHeaderV2FixedAddresses> = None;
                 let mut permissions_pointer: Option<types::TbfHeaderV2Permissions<8>> = None;
@@ -194,32 +193,12 @@ pub fn parse_tbf_header(
                                 % mem::size_of::<types::TbfHeaderV2WriteableFlashRegion>()
                                 == 0
                             {
-                                // Calculate how many writeable flash regions
-                                // there are specified in this header.
-                                let wfr_len =
-                                    mem::size_of::<types::TbfHeaderV2WriteableFlashRegion>();
-                                let mut number_regions = tlv_header.length as usize / wfr_len;
-
                                 // Capture a slice with just the wfr information.
                                 let wfr_slice = remaining
                                     .get(0..tlv_header.length as usize)
                                     .ok_or(types::TbfParseError::NotEnoughFlash)?;
 
-                                // To enable a static buffer, we only support up
-                                // to four writeable flash regions.
-                                if number_regions > 4 {
-                                    number_regions = 4;
-                                }
-
-                                // Convert and store each wfr.
-                                for i in 0..number_regions {
-                                    wfr_pointer[i] = Some(
-                                        wfr_slice
-                                            .get(i * wfr_len..(i + 1) * wfr_len)
-                                            .ok_or(types::TbfParseError::NotEnoughFlash)?
-                                            .try_into()?,
-                                    );
-                                }
+                                wfr_pointer = Some(wfr_slice);
                             } else {
                                 return Err(types::TbfParseError::BadTlvEntry(
                                     tlv_header.tipe as usize,
@@ -295,7 +274,7 @@ pub fn parse_tbf_header(
                     main: main_pointer,
                     program: program_pointer,
                     package_name: Some(app_name_str),
-                    writeable_regions: Some(wfr_pointer),
+                    writeable_regions: wfr_pointer,
                     fixed_addresses: fixed_address_pointer,
                     permissions: permissions_pointer,
                     storage_permissions: storage_permissions_pointer,
