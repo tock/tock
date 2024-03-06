@@ -131,7 +131,7 @@ pub fn parse_tbf_header(
                 let mut program_pointer: Option<types::TbfHeaderV2Program> = None;
                 let mut wfr_pointer: Option<&'static [u8]> = None;
                 let mut app_name_str = "";
-                let mut fixed_address_pointer: Option<types::TbfHeaderV2FixedAddresses> = None;
+                let mut fixed_address_pointer: Option<&'static [u8]> = None;
                 let mut permissions_pointer: Option<types::TbfHeaderV2Permissions<8>> = None;
                 let mut storage_permissions_pointer: Option<
                     types::TbfHeaderV2StoragePermissions<8>,
@@ -224,8 +224,7 @@ pub fn parse_tbf_header(
                                 fixed_address_pointer = Some(
                                     remaining
                                         .get(0..entry_len)
-                                        .ok_or(types::TbfParseError::NotEnoughFlash)?
-                                        .try_into()?,
+                                        .ok_or(types::TbfParseError::NotEnoughFlash)?,
                                 );
                             } else {
                                 return Err(types::TbfParseError::BadTlvEntry(

@@ -666,7 +666,7 @@ pub struct TbfHeaderV2 {
     pub(crate) program: Option<TbfHeaderV2Program>,
     pub(crate) package_name: Option<&'static str>,
     pub(crate) writeable_regions: Option<&'static [u8]>,
-    pub(crate) fixed_addresses: Option<TbfHeaderV2FixedAddresses>,
+    pub(crate) fixed_addresses: Option<&'static [u8]>,
     pub(crate) permissions: Option<TbfHeaderV2Permissions<8>>,
     pub(crate) storage_permissions: Option<TbfHeaderV2StoragePermissions<NUM_STORAGE_PERMISSIONS>>,
     pub(crate) kernel_version: Option<TbfHeaderV2KernelVersion>,
@@ -836,7 +836,8 @@ impl TbfHeader {
             TbfHeader::TbfHeaderV2(hd) => hd,
             _ => return None,
         };
-        match hd.fixed_addresses.as_ref()?.start_process_ram {
+        let fixed_addresses: TbfHeaderV2FixedAddresses = hd.fixed_addresses?.try_into().ok()?;
+        match fixed_addresses.start_process_ram {
             0xFFFFFFFF => None,
             start => Some(start),
         }
@@ -849,7 +850,8 @@ impl TbfHeader {
             TbfHeader::TbfHeaderV2(hd) => hd,
             _ => return None,
         };
-        match hd.fixed_addresses.as_ref()?.start_process_flash {
+        let fixed_addresses: TbfHeaderV2FixedAddresses = hd.fixed_addresses?.try_into().ok()?;
+        match fixed_addresses.start_process_flash {
             0xFFFFFFFF => None,
             start => Some(start),
         }
