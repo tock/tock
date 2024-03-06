@@ -631,7 +631,7 @@ pub struct TbfHeaderV2 {
     pub(crate) writeable_regions: Option<&'static [u8]>,
     pub(crate) fixed_addresses: Option<&'static [u8]>,
     pub(crate) permissions: Option<&'static [u8]>,
-    pub(crate) storage_permissions: Option<TbfHeaderV2StoragePermissions<NUM_STORAGE_PERMISSIONS>>,
+    pub(crate) storage_permissions: Option<&'static [u8]>,
     pub(crate) kernel_version: Option<TbfHeaderV2KernelVersion>,
 }
 
@@ -898,7 +898,13 @@ impl TbfHeader {
     pub fn get_storage_write_id(&self) -> Option<core::num::NonZeroU32> {
         match self {
             TbfHeader::TbfHeaderV2(hd) => match hd.storage_permissions {
-                Some(permissions) => permissions.write_id,
+                Some(storage_permissions_tlv_slice) => {
+                    let write_id = core::num::NonZeroU32::new(u32::from_le_bytes(
+                        storage_permissions_tlv_slice.get(0..4)?.try_into().ok()?,
+                    ));
+
+                    write_id
+                }
                 _ => None,
             },
             _ => None,
@@ -910,7 +916,16 @@ impl TbfHeader {
     pub fn get_storage_read_ids(&self) -> Option<(usize, [u32; NUM_STORAGE_PERMISSIONS])> {
         match self {
             TbfHeader::TbfHeaderV2(hd) => match hd.storage_permissions {
-                Some(permissions) => Some((permissions.read_length.into(), permissions.read_ids)),
+                Some(storage_permissions_tlv_slice) => {
+                    let storage_permissions: TbfHeaderV2StoragePermissions<
+                        NUM_STORAGE_PERMISSIONS,
+                    > = storage_permissions_tlv_slice.try_into().ok()?;
+
+                    Some((
+                        storage_permissions.read_length.into(),
+                        storage_permissions.read_ids,
+                    ))
+                }
                 _ => None,
             },
             _ => None,
@@ -922,8 +937,15 @@ impl TbfHeader {
     pub fn get_storage_modify_ids(&self) -> Option<(usize, [u32; NUM_STORAGE_PERMISSIONS])> {
         match self {
             TbfHeader::TbfHeaderV2(hd) => match hd.storage_permissions {
-                Some(permissions) => {
-                    Some((permissions.modify_length.into(), permissions.modify_ids))
+                Some(storage_permissions_tlv_slice) => {
+                    let storage_permissions: TbfHeaderV2StoragePermissions<
+                        NUM_STORAGE_PERMISSIONS,
+                    > = storage_permissions_tlv_slice.try_into().ok()?;
+
+                    Some((
+                        storage_permissions.modify_length.into(),
+                        storage_permissions.modify_ids,
+                    ))
                 }
                 _ => None,
             },
