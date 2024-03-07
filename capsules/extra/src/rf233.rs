@@ -488,7 +488,7 @@ impl<'a, S: spi::SpiMasterDevice<'a>> spi::SpiMasterClient for RF233<'a, S> {
                 );
             }
             InternalState::START_CTRL1_SET => {
-                let val = self.channel.get().get_channel_index() | PHY_CC_CCA_MODE_CS_OR_ED;
+                let val = self.channel.get().get_channel_number() | PHY_CC_CCA_MODE_CS_OR_ED;
                 self.state_transition_write(
                     RF233Register::PHY_CC_CCA,
                     val,
@@ -1004,7 +1004,7 @@ impl<'a, S: spi::SpiMasterDevice<'a>> spi::SpiMasterClient for RF233<'a, S> {
                 );
             }
             InternalState::CONFIG_POWER_SET => {
-                let val = self.channel.get().get_channel_index() | PHY_CC_CCA_MODE_CS_OR_ED;
+                let val = self.channel.get().get_channel_number() | PHY_CC_CCA_MODE_CS_OR_ED;
                 self.state_transition_write(
                     RF233Register::PHY_CC_CCA,
                     val,
@@ -1305,7 +1305,7 @@ impl<'a, S: spi::SpiMasterDevice<'a>> radio::RadioConfig<'a> for RF233<'a, S> {
     }
     /// The 802.15.4 channel
     fn get_channel(&self) -> u8 {
-        self.channel.get().get_channel_index()
+        self.channel.get().get_channel_number()
     }
 
     fn config_commit(&self) {

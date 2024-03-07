@@ -699,7 +699,7 @@ impl<'a> Radio<'a> {
             cca_count: Cell::new(0),
             cca_be: Cell::new(0),
             random_nonce: Cell::new(0xDEADBEEF),
-            channel: Cell::new(RadioChannel::DataChannel26),
+            channel: Cell::new(RadioChannel::Channel26),
             timer0: OptionalCell::empty(),
             state: Cell::new(RadioState::OFF),
         }
@@ -1210,7 +1210,7 @@ impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
     }
     /// The 802.15.4 channel
     fn get_channel(&self) -> u8 {
-        self.channel.get().get_channel_index()
+        self.channel.get().get_channel_number()
     }
 
     //#################################################
