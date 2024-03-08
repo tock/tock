@@ -104,7 +104,7 @@ pub trait RadioConfig<'a> {
     fn set_address_long(&self, addr: [u8; 8]);
     fn set_pan(&self, id: u16);
     fn set_tx_power(&self, power: i8) -> Result<(), ErrorCode>;
-    fn set_channel(&self, chan: u8) -> Result<(), ErrorCode>;
+    fn set_channel(&self, chan: RadioChannel);
 }
 
 pub trait RadioData<'a> {
@@ -117,4 +117,74 @@ pub trait RadioData<'a> {
         spi_buf: &'static mut [u8],
         frame_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])>;
+}
+
+#[derive(PartialEq, Debug, Copy, Clone)]
+pub enum RadioChannel {
+    Channel11 = 5,
+    Channel12 = 10,
+    Channel13 = 15,
+    Channel14 = 20,
+    Channel15 = 25,
+    Channel16 = 30,
+    Channel17 = 35,
+    Channel18 = 40,
+    Channel19 = 45,
+    Channel20 = 50,
+    Channel21 = 55,
+    Channel22 = 60,
+    Channel23 = 65,
+    Channel24 = 70,
+    Channel25 = 75,
+    Channel26 = 80,
+}
+
+impl RadioChannel {
+    /// Returns the u8 value of the channel, which is the IEEE 802.15.4 channel
+    pub fn get_channel_number(&self) -> u8 {
+        match *self {
+            RadioChannel::Channel11 => 11,
+            RadioChannel::Channel12 => 12,
+            RadioChannel::Channel13 => 13,
+            RadioChannel::Channel14 => 14,
+            RadioChannel::Channel15 => 15,
+            RadioChannel::Channel16 => 16,
+            RadioChannel::Channel17 => 17,
+            RadioChannel::Channel18 => 18,
+            RadioChannel::Channel19 => 19,
+            RadioChannel::Channel20 => 20,
+            RadioChannel::Channel21 => 21,
+            RadioChannel::Channel22 => 22,
+            RadioChannel::Channel23 => 23,
+            RadioChannel::Channel24 => 24,
+            RadioChannel::Channel25 => 25,
+            RadioChannel::Channel26 => 26,
+        }
+    }
+}
+
+impl TryFrom<u8> for RadioChannel {
+    type Error = ();
+    /// Returns the RadioChannel for the given u8 value, which is the IEEE 802.15.4 channel
+    fn try_from(val: u8) -> Result<RadioChannel, ()> {
+        match val {
+            11 => Ok(RadioChannel::Channel11),
+            12 => Ok(RadioChannel::Channel12),
+            13 => Ok(RadioChannel::Channel13),
+            14 => Ok(RadioChannel::Channel14),
+            15 => Ok(RadioChannel::Channel15),
+            16 => Ok(RadioChannel::Channel16),
+            17 => Ok(RadioChannel::Channel17),
+            18 => Ok(RadioChannel::Channel18),
+            19 => Ok(RadioChannel::Channel19),
+            20 => Ok(RadioChannel::Channel20),
+            21 => Ok(RadioChannel::Channel21),
+            22 => Ok(RadioChannel::Channel22),
+            23 => Ok(RadioChannel::Channel23),
+            24 => Ok(RadioChannel::Channel24),
+            25 => Ok(RadioChannel::Channel25),
+            26 => Ok(RadioChannel::Channel26),
+            _ => Err(()),
+        }
+    }
 }

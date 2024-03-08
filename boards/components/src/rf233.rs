@@ -25,8 +25,8 @@ use capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice;
 use capsules_extra::rf233::RF233;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
-use kernel::hil;
 use kernel::hil::spi::{SpiMaster, SpiMasterDevice};
+use kernel::hil::{self, radio};
 
 // Setup static space for the objects.
 #[macro_export]
@@ -47,7 +47,7 @@ pub struct RF233Component<S: SpiMaster<'static> + 'static> {
     sleep: &'static dyn hil::gpio::Pin,
     irq: &'static dyn hil::gpio::InterruptPin<'static>,
     ctl: &'static dyn hil::gpio::InterruptPin<'static>,
-    channel: u8,
+    channel: radio::RadioChannel,
 }
 
 impl<S: SpiMaster<'static> + 'static> RF233Component<S> {
@@ -57,7 +57,7 @@ impl<S: SpiMaster<'static> + 'static> RF233Component<S> {
         sleep: &'static dyn hil::gpio::Pin,
         irq: &'static dyn hil::gpio::InterruptPin<'static>,
         ctl: &'static dyn hil::gpio::InterruptPin<'static>,
-        channel: u8,
+        channel: radio::RadioChannel,
     ) -> Self {
         Self {
             spi,

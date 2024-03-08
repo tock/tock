@@ -6,7 +6,9 @@
 
 use crate::timer::TimerAlarm;
 use core::cell::Cell;
-use kernel::hil::radio::{self, PowerClient, RadioData};
+use core::convert::TryFrom;
+use kernel;
+use kernel::hil::radio::{self, PowerClient, RadioChannel, RadioData};
 use kernel::hil::time::{Alarm, AlarmClient, Time};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
@@ -91,77 +93,6 @@ pub const ACK_BUF_SIZE: usize = 6;
 // the buffer because then it would be lost forever when we tried
 // to return the frame buffer.
 const MIMIC_PSDU_OFFSET: u32 = 1;
-
-// IEEEStd 802.15.4-2011 Section 8.1.2.2
-// Frequency is 2405 + 5 * (k - 11) MHz, where k = 11, 12, ... , 26.
-#[derive(PartialEq, Debug, Copy, Clone)]
-pub enum RadioChannel {
-    DataChannel11 = 5,
-    DataChannel12 = 10,
-    DataChannel13 = 15,
-    DataChannel14 = 20,
-    DataChannel15 = 25,
-    DataChannel16 = 30,
-    DataChannel17 = 35,
-    DataChannel18 = 40,
-    DataChannel19 = 45,
-    DataChannel20 = 50,
-    DataChannel21 = 55,
-    DataChannel22 = 60,
-    DataChannel23 = 65,
-    DataChannel24 = 70,
-    DataChannel25 = 75,
-    DataChannel26 = 80,
-}
-
-impl RadioChannel {
-    pub fn get_channel_index(&self) -> u8 {
-        match *self {
-            RadioChannel::DataChannel11 => 11,
-            RadioChannel::DataChannel12 => 12,
-            RadioChannel::DataChannel13 => 13,
-            RadioChannel::DataChannel14 => 14,
-            RadioChannel::DataChannel15 => 15,
-            RadioChannel::DataChannel16 => 16,
-            RadioChannel::DataChannel17 => 17,
-            RadioChannel::DataChannel18 => 18,
-            RadioChannel::DataChannel19 => 19,
-            RadioChannel::DataChannel20 => 20,
-            RadioChannel::DataChannel21 => 21,
-            RadioChannel::DataChannel22 => 22,
-            RadioChannel::DataChannel23 => 23,
-            RadioChannel::DataChannel24 => 24,
-            RadioChannel::DataChannel25 => 25,
-            RadioChannel::DataChannel26 => 26,
-        }
-    }
-}
-
-impl TryFrom<u8> for RadioChannel {
-    type Error = ();
-
-    fn try_from(val: u8) -> Result<RadioChannel, ()> {
-        match val {
-            11 => Ok(RadioChannel::DataChannel11),
-            12 => Ok(RadioChannel::DataChannel12),
-            13 => Ok(RadioChannel::DataChannel13),
-            14 => Ok(RadioChannel::DataChannel14),
-            15 => Ok(RadioChannel::DataChannel15),
-            16 => Ok(RadioChannel::DataChannel16),
-            17 => Ok(RadioChannel::DataChannel17),
-            18 => Ok(RadioChannel::DataChannel18),
-            19 => Ok(RadioChannel::DataChannel19),
-            20 => Ok(RadioChannel::DataChannel20),
-            21 => Ok(RadioChannel::DataChannel21),
-            22 => Ok(RadioChannel::DataChannel22),
-            23 => Ok(RadioChannel::DataChannel23),
-            24 => Ok(RadioChannel::DataChannel24),
-            25 => Ok(RadioChannel::DataChannel25),
-            26 => Ok(RadioChannel::DataChannel26),
-            _ => Err(()),
-        }
-    }
-}
 
 #[repr(C)]
 struct RadioRegisters {
@@ -768,7 +699,7 @@ impl<'a> Radio<'a> {
             cca_count: Cell::new(0),
             cca_be: Cell::new(0),
             random_nonce: Cell::new(0xDEADBEEF),
-            channel: Cell::new(RadioChannel::DataChannel26),
+            channel: Cell::new(RadioChannel::Channel26),
             timer0: OptionalCell::empty(),
             state: Cell::new(RadioState::OFF),
         }
@@ -1279,7 +1210,7 @@ impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
     }
     /// The 802.15.4 channel
     fn get_channel(&self) -> u8 {
-        self.channel.get().get_channel_index()
+        self.channel.get().get_channel_number()
     }
 
     //#################################################
@@ -1298,14 +1229,8 @@ impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
         self.pan.set(id);
     }
 
-    fn set_channel(&self, chan: u8) -> Result<(), ErrorCode> {
-        match RadioChannel::try_from(chan) {
-            Err(()) => Err(ErrorCode::NOSUPPORT),
-            Ok(res) => {
-                self.channel.set(res);
-                Ok(())
-            }
-        }
+    fn set_channel(&self, chan: RadioChannel) {
+        self.channel.set(chan);
     }
 
     fn set_tx_power(&self, tx_power: i8) -> Result<(), ErrorCode> {
