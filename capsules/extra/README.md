@@ -19,9 +19,11 @@ These implement a driver to setup and read various physical sensors.
 - **[Analog Sensors](src/analog_sensor.rs)**: Single ADC pin sensors.
 - **[APDS9960](src/apds9960.rs)**: Proximity sensor.
 - **[BME280](src/bme280.rs)**: Humidity and air pressure sensor.
+- **[BMM150](src/bmm150.rs)**: Geomagnetic sensor.
 - **[BMP280](src/bmp280.rs)**: Temperature (and air pressure) sensor.
 - **[CCS811](src/ccs811.rs)**: VOC gas sensor.
 - **[FXOS8700CQ](src/fxos8700cq.rs)**: Accelerometer and magnetometer.
+- **[HS3003](src/hs3003.rs)**: Temperature and humidity sensor.
 - **[HTS221](src/hts221.rs)**: Temperature and humidity sensor.
 - **[ISL29035](src/isl29035.rs)**: Light sensor.
 - **[L3GD20](src/l3gd20.rs)**: MEMS 3 axys digital gyroscope and temperature
@@ -33,11 +35,13 @@ These implement a driver to setup and read various physical sensors.
     sensor.
 - **[LSM6DSOXTR](src/lsm6dsoxtr.rs)**: 3D accelerometer and 3D magnetometer
     sensor.
+- **[LPS22HB](src/lps22hb.rs)**: Pressure sensor.
 - **[LPS25HB](src/lps25hb.rs)**: Pressure sensor.
 - **[MLX90614](src/mlx90614.rs)**: Infrared temperature sensor.
 - **[RP2040 Temperature](src/temperature_rp2040.rs)**: Analog RP2040 temperature
   sensor.
-- **[SHT3x](src/sht3x.rs)**: SHT3x temperature and humidity sensor.
+- **[SHT3x](src/sht3x.rs)**: Temperature and humidity sensor.
+- **[SHT4x](src/sht4x.rs)**: Temperature and humidity sensor.
 - **[SI7021](src/si7021.rs)**: Temperature and humidity sensor.
 - **[STM32 Temperature](src/temperature_stm.rs)**: Analog STM32 temperature
   sensor.
@@ -45,6 +49,7 @@ These implement a driver to setup and read various physical sensors.
 
 These drivers provide support for various ICs.
 
+- **[AT24C32/64](src/at24c_eeprom.rs)**: EEPROM chip.
 - **[FM25CL](src/fm25cl.rs)**: FRAM chip.
 - **[FT6x06](src/ft6x06.rs)**: FT6x06 touch panel.
 - **[HD44780 LCD](src/hd44780.rs)**: HD44780 LCD screen.
@@ -56,6 +61,7 @@ These drivers provide support for various ICs.
 - **[PCA9544A](src/pca9544a.rs)**: Multiple port I2C selector.
 - **[SD Card](src/sdcard.rs)**: Support for SD cards.
 - **[Seven Segment Display](src/seven_segment.rs)**: Seven segment displays.
+- **[SSD1306](src/ssd1306.rs)**: SSD1306 OLED screen driver.
 - **[ST77xx](src/st77xx.rs)**: ST77xx IPS screen.
 
 
@@ -71,6 +77,7 @@ Support for wireless radios.
   advertisements.
 - **[LoRa Phy]**: Support for exposing Semtech devices to userspace
   See the lora_things_plus board for an example
+
 
 Libraries
 ---------
@@ -109,13 +116,17 @@ These provide common and better abstractions for userspace.
 - **[App Flash](src/app_flash_driver.rs)**: Allow applications to write their
   own flash.
 - **[Buzzer](src/buzzer_driver.rs)**: Simple buzzer.
-- **[CTAP](src/ctap.rs)**: Client to Authenticator Protocol (CTAP) support.
+- **[Date-Time](src/date_time.rs)**: Real time clock date/time support.
+- **[HMAC](src/hmac.rs)**: Hash-based Message Authentication Code support.
 - **[Humidity](src/humidity.rs)**: Query humidity sensors.
 - **[Key-Value Store](src/kv_driver.rs)**: Store key-value data.
 - **[LED Matrix](src/led_matrix.rs)**: Control a 2D array of LEDs.
+- **[Pressure](src/pressure.rs)**: Pressure sensors.
 - **[Proximity](src/proximity.rs)**: Proximity sensors.
+- **[PWM](src/pwm.rs)**: Pulse-width modulation support.
 - **[Read Only State](src/read_only_state.rs)**: Read-only state sharing.
 - **[Screen](src/screen.rs)**: Displays and screens.
+- **[Screen Shared](src/screen_shared.rs)**: App-specific screen windows.
 - **[SHA](src/sha.rs)**: SHA hashes.
 - **[Sound Pressure](src/sound_pressure.rs)**: Query sound pressure levels.
 - **[Temperature](src/temperature.rs)**: Query temperature sensors.
@@ -142,17 +153,19 @@ Utility Capsules
 
 Other capsules that implement reusable logic.
 
+- **[Bus Adapters](src/bus.rs)**: Generic abstraction for SPI/I2C/8080.
+- **[Buzzer PWM](src/buzzer_pwm.rs)**: Buzzer with a PWM pin.
+- **[HMAC-SHA256](src/hmac_sha256.rs)**: HMAC using SHA-256.
+- **[Key-Value Store with Permissions](src/kv_store_permissions.rs)**: Key-value
+  interface that requires read/write permissions.
+- **[Log Storage](src/log.rs)**: Log storage abstraction on flash devices.
 - **[Nonvolatile to Pages](src/nonvolatile_to_pages.rs)**: Map arbitrary reads
   and writes to flash pages.
-- **[HMAC](src/hmac.rs)**: Hash-based Message Authentication Code (HMAC) digest
-  engine.
-- **[Log Storage](src/log.rs)**: Log storage abstraction on top of flash
-  devices.
-- **[Bus Adapters](src/bus.rs)**: Generic abstraction for SPI/I2C/8080.
-- **[TicKV](src/tickv.rs)**: Key-value storage.
-- **[Key-Value Store](src/kv_store.rs)**: Key-value virtualized interface.
 - **[SHA256](src/sha256.rs)**: SHA256 software hash.
 - **[SipHash](src/sip_hash.rs)**: SipHash software hash.
+- **[TicKV](src/tickv.rs)**: Key-value storage.
+- **[TicKV KV Store](src/tickv_kv_store.rs)**: Provide `hil::kv::KV` with TickV.
+- **[Virtual KV](src/virtual_kv.rs)**: Virtualize access to KV with permissions.
 
 
 Debugging Capsules
