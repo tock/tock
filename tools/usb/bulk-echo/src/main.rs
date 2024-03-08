@@ -16,10 +16,12 @@
 //! USB device, which then echos all data back to the PC via a
 //! Bulk IN endpoint, and this utility will then send it to stdout:
 //!
+//! ```
 //!   stdin  >___                  ___< Bulk IN endpoint  <--\
 //!              \                /                           | Tock usbc_client
 //!                [this utility]                             | capsule echoes data
 //!   stdout <___/                \___> Bulk OUT endpoint -->/
+//! ```
 //!
 //! Thus, a useful test of the USB software on Tock is to pipe a file of data
 //! through the path show above, and confirm that the output is the same as the input.
