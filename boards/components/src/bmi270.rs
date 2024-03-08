@@ -25,7 +25,7 @@ use kernel::hil::time::Alarm;
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! bmi270_component_static {
-    ($A:ty $(,)?, $I:ty) => {{
+    ($A:ty, $I:ty $(,)?) => {{
         let i2c_device =
             kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<$I>);
         let alarm = kernel::static_buf!(
@@ -44,6 +44,8 @@ macro_rules! bmi270_component_static {
         (i2c_device, alarm, buffer, config_file, bmi270)
     };};
 }
+
+pub type BMI270ComponentType<A, I> = BMI270<'static, VirtualMuxAlarm<'static, A>, I2CDevice<'static, I>>;
 
 pub struct BMI270Component<A: 'static + Alarm<'static>, I: 'static + i2c::I2CMaster<'static>> {
     i2c_mux: &'static MuxI2C<'static, I>,

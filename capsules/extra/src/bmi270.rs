@@ -29,16 +29,13 @@
 //! -----
 //!
 //! ```rust
-//! # use kernel::static_init;
 //!
-//! let bmi270_i2c = static_init!(
-//!     capsules::virtual_i2c::I2CDevice,
-//!     capsules::virtual_i2c::I2CDevice::new(i2c_bus, 0x68));
-//! let bmi270 = static_init!(
-//!     capsules::bmi270::BMI270<'static>,
-//!     capsules::bmi270::BMI270::new(bmi270_i2c,
-//!         &mut capsules::bmi270::BUFFER));
-//! bmi270_i2c.set_client(bmi270);
+//! let bmi270 = BMI270Component::new(mux_i2c, 0x68, mux_alarm).finalize(
+//!     components::bmi270_component_static!(nrf52840::rtc::Rtc<'static>, nrf52840::i2c::TWI));
+//! bmi270.begin_reset();
+//! let ninedof = components::ninedof::NineDofComponent::new(board_kernel)
+//!     .finalize(components::ninedof_component_static!(bmi270));
+//! ```
 //! ```
 
 use core::cell::Cell;
@@ -148,6 +145,28 @@ enum Registers {
     Cmd = 0x7E,
 }
 
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum State {
+    Sleep,
+
+    WaitingForAlarm(u32),
+    InitWriteConfig,
+    InitDone,
+
+    CheckStatus,
+
+    ConfAccelRange,
+    ConfGyro,
+    ConfGyroRange,
+    ConfPower,
+    CheckConf,
+    Enable,
+    InitRead,
+    Read,
+    Done,
+    Idle,
+}
+
 pub struct BMI270<'a, A: Alarm<'a>, I: I2CDevice> {
     buffer: TakeCell<'static, [u8]>,
     config_file: TakeCell<'static, [u8]>,
@@ -178,7 +197,7 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> BMI270<'a, A, I> {
         }
     }
 
-    pub fn start_measurement(&self) -> Result<(), ErrorCode> {
+    fn start_measurement(&self) -> Result<(), ErrorCode> {
         self.buffer
             .take()
             .map(|buffer| {
@@ -255,7 +274,7 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> NineDof<'a> for BMI270<'a, A, I> {
         if !self.pending_accel.get() {
             self.pending_accel.set(true);
             if self.pending_gyro.get() {
-                Err(ErrorCode::BUSY)
+                Ok(())
             } else {
                 self.start_measurement()
             }
@@ -268,7 +287,7 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> NineDof<'a> for BMI270<'a, A, I> {
         if !self.pending_gyro.get() {
             self.pending_gyro.set(true);
             if self.pending_accel.get() {
-                Err(ErrorCode::BUSY)
+                Ok(())
             } else {
                 self.start_measurement()
             }
@@ -284,33 +303,18 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> AlarmClient for BMI270<'a, A, I> {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
-enum State {
-    Sleep,
-
-    WaitingForAlarm(u32),
-    InitWriteConfig,
-    InitDone,
-
-    CheckStatus,
-
-    ConfAccelRange,
-    ConfGyro,
-    ConfGyroRange,
-    ConfPower,
-    CheckConf,
-    Enable,
-    InitRead,
-    Read,
-    Done,
-    Idle,
-}
-
 impl<'a, A: Alarm<'a>, I: I2CDevice> I2CClient for BMI270<'a, A, I> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         if let Err(i2c_err) = status {
+            match self.state.get() {
+                State::InitWriteConfig => {
+                    self.config_file.replace(buffer);
+                }
+                _ => {
+                    self.buffer.replace(buffer);
+                }
+            }
             self.state.set(State::Sleep);
-            self.buffer.replace(buffer);
             self.ninedof_client
                 .map(|client| client.callback(i2c_err as usize, 0, 0));
             return;
@@ -335,17 +339,20 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> I2CClient for BMI270<'a, A, I> {
                 });
             }
             State::InitDone => {
-                buffer[0] = Registers::InitCtrl as u8;
-                buffer[1] = 0x01_u8;
-
-                if let Err((i2c_err, buffer)) = self.i2c.write(buffer, 2) {
-                    self.state.set(State::Sleep);
-                    self.buffer.replace(buffer);
-                    self.ninedof_client
-                        .map(|client| client.callback(i2c_err as usize, 0, 0));
-                } else {
-                    self.state.set(State::WaitingForAlarm(ALARM_TIME_20000));
-                }
+                self.config_file.replace(buffer);
+                self.buffer.take().map(|buffer| {
+                    buffer[0] = Registers::InitCtrl as u8;
+                    buffer[1] = 0x01_u8;
+    
+                    if let Err((i2c_err, buffer)) = self.i2c.write(buffer, 2) {
+                        self.state.set(State::Sleep);
+                        self.buffer.replace(buffer);
+                        self.ninedof_client
+                            .map(|client| client.callback(i2c_err as usize, 0, 0));
+                    } else {
+                        self.state.set(State::WaitingForAlarm(ALARM_TIME_20000));
+                    }
+                });
             }
             State::CheckStatus => {
                 if buffer[0] == 1 {
