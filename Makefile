@@ -289,7 +289,8 @@ ci-runner-github:\
 ci-runner-github-format:\
 	ci-job-format\
 	ci-job-clippy\
-	ci-job-markdown-toc
+	ci-job-markdown-toc\
+	ci-job-readme-check
 	$(call banner,CI-Runner: GitHub format runner DONE)
 
 .PHONY: ci-runner-github-build
@@ -373,6 +374,17 @@ endef
 .PHONY: ci-job-markdown-toc
 ci-job-markdown-toc: ci-setup-markdown-toc
 	$(if $(CI_JOB_MARKDOWN),$(call ci_job_markdown_toc))
+
+define ci_job_readme_check
+	$(call banner,CI-Job: README Validation)
+	tools/check_boards_readme.py
+	tools/check_capsule_readme.py
+	tools/check-for-readmes.sh
+endef
+
+.PHONY: ci-job-readme-check
+ci-job-readme-check:
+	$(call ci_job_readme_check)
 
 
 
