@@ -45,7 +45,8 @@ macro_rules! bmi270_component_static {
     };};
 }
 
-pub type BMI270ComponentType<A, I> = BMI270<'static, VirtualMuxAlarm<'static, A>, I2CDevice<'static, I>>;
+pub type BMI270ComponentType<A, I> =
+    BMI270<'static, VirtualMuxAlarm<'static, A>, I2CDevice<'static, I>>;
 
 pub struct BMI270Component<A: 'static + Alarm<'static>, I: 'static + i2c::I2CMaster<'static>> {
     i2c_mux: &'static MuxI2C<'static, I>,

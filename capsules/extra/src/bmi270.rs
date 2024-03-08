@@ -343,7 +343,7 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> I2CClient for BMI270<'a, A, I> {
                 self.buffer.take().map(|buffer| {
                     buffer[0] = Registers::InitCtrl as u8;
                     buffer[1] = 0x01_u8;
-    
+
                     if let Err((i2c_err, buffer)) = self.i2c.write(buffer, 2) {
                         self.state.set(State::Sleep);
                         self.buffer.replace(buffer);
