@@ -36,7 +36,6 @@
 //! let ninedof = components::ninedof::NineDofComponent::new(board_kernel)
 //!     .finalize(components::ninedof_component_static!(bmi270));
 //! ```
-//! ```
 
 use core::cell::Cell;
 use kernel::hil::i2c::{self, I2CClient, I2CDevice};
