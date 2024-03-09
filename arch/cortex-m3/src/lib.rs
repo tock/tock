@@ -14,6 +14,7 @@ pub mod mpu {
     pub type MPU = cortexm::mpu::MPU<8, 32>;
 }
 
+pub use cortexm::initialize_ram_jump_to_main;
 pub use cortexm::nvic;
 pub use cortexm::scb;
 pub use cortexm::support;
