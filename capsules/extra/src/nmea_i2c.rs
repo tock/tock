@@ -5,8 +5,10 @@
 //! A capsule for I2C NMEA. This is used to read NMEA sentences from a GPS/GNSS
 //! device connected via I2C.
 //!
+//! This has been tested against a MediaTek device. It is expected to work with
+//! and GNSS device that reports NMEA strings when reading from an I2C address.
 
-use crate::nmea::{NmeaClient, NmeaDriver};
+use crate::nmea::{NmeaClient, NmeaDevice};
 use crate::nmea_i2c::i2c::I2CClient;
 use core::cell::Cell;
 use core::str;
@@ -41,7 +43,7 @@ impl<'a, I: I2CDevice> I2cNmea<'a, I> {
     }
 }
 
-impl<'a, I: I2CDevice> NmeaDriver<'a> for I2cNmea<'a, I> {
+impl<'a, I: I2CDevice> NmeaDevice<'a> for I2cNmea<'a, I> {
     fn set_client(&self, client: &'a dyn NmeaClient) {
         self.client.set(client);
     }

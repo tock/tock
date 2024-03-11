@@ -77,13 +77,13 @@ macro_rules! nmea_component_static {
 
 pub type NmeaComponentType = Nmea<'static>;
 
-pub struct NmeaComponent<T: 'static + capsules_extra::nmea::NmeaDriver<'static>> {
+pub struct NmeaComponent<T: 'static + capsules_extra::nmea::NmeaDevice<'static>> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     driver: &'static T,
 }
 
-impl<T: 'static + capsules_extra::nmea::NmeaDriver<'static>> NmeaComponent<T> {
+impl<T: 'static + capsules_extra::nmea::NmeaDevice<'static>> NmeaComponent<T> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
@@ -97,7 +97,7 @@ impl<T: 'static + capsules_extra::nmea::NmeaDriver<'static>> NmeaComponent<T> {
     }
 }
 
-impl<T: 'static + capsules_extra::nmea::NmeaDriver<'static>> Component for NmeaComponent<T> {
+impl<T: 'static + capsules_extra::nmea::NmeaDevice<'static>> Component for NmeaComponent<T> {
     type StaticInput = (
         &'static mut MaybeUninit<Nmea<'static>>,
         &'static mut MaybeUninit<[u8; NMEA_BUFFER_LEN]>,
@@ -115,7 +115,7 @@ impl<T: 'static + capsules_extra::nmea::NmeaDriver<'static>> Component for NmeaC
             buffer,
         ));
 
-        capsules_extra::nmea::NmeaDriver::set_client(self.driver, nmea);
+        capsules_extra::nmea::NmeaDevice::set_client(self.driver, nmea);
         nmea
     }
 }
