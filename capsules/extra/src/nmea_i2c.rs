@@ -6,7 +6,7 @@
 //! device connected via I2C.
 //!
 
-use crate::nmea::{NmeaClient, NmeaDriver};
+use crate::nmea::{NmeaClient, NmeaDevice};
 use crate::nmea_i2c::i2c::I2CClient;
 use core::cell::Cell;
 use core::str;
@@ -41,7 +41,7 @@ impl<'a, I: I2CDevice> I2cNmea<'a, I> {
     }
 }
 
-impl<'a, I: I2CDevice> NmeaDriver<'a> for I2cNmea<'a, I> {
+impl<'a, I: I2CDevice> NmeaDevice<'a> for I2cNmea<'a, I> {
     fn set_client(&self, client: &'a dyn NmeaClient) {
         self.client.set(client);
     }
