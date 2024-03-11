@@ -24,7 +24,7 @@ pub trait NmeaClient {
 }
 
 /// A basic interface for a Nmea sentence reader
-pub trait NmeaDriver<'a> {
+pub trait NmeaDevice<'a> {
     /// Set the client
     fn set_client(&self, client: &'a dyn NmeaClient);
 
@@ -64,14 +64,14 @@ pub struct App {
 }
 
 pub struct Nmea<'a> {
-    driver: &'a dyn NmeaDriver<'a>,
+    driver: &'a dyn NmeaDevice<'a>,
     apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<1>>,
     buffer: TakeCell<'static, [u8]>,
 }
 
 impl<'a> Nmea<'a> {
     pub fn new(
-        driver: &'a dyn NmeaDriver<'a>,
+        driver: &'a dyn NmeaDevice<'a>,
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<1>>,
         buffer: &'static mut [u8],
     ) -> Nmea<'a> {
