@@ -1104,8 +1104,11 @@ impl<'a, M: device::MacDevice<'a>> device::RxClient for RadioDriver<'a, M> {
                         // of the userprocess not allocating a readwrite buffer. We must also
                         // confirm that the userprocess correctly formatted the buffer to be of length
                         // 2 + n * USER_FRAME_MAX_SIZE, where n is the number of user frames that the
-                        // buffer can store.
-                        if rbuf.len() == 0
+                        // buffer can store. We combine checking the buffer's non-zero length and the
+                        // case of the buffer being shorter than the `RING_BUF_METADATA_SIZE` as an
+                        // invalid buffer (e.g. of length 1) may otherwise errantly pass the second
+                        // conditional check (due to unsigned integer arithmetic).
+                        if rbuf.len() <= RING_BUF_METADATA_SIZE
                             || (rbuf.len() - RING_BUF_METADATA_SIZE) % USER_FRAME_MAX_SIZE != 0
                         {
                             // kernel::debug!("[15.4 Driver] Error - improperly formatted readwrite buffer provided");
