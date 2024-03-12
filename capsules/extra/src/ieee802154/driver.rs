@@ -26,11 +26,11 @@
 //! to the kernel. The kernel will then fill this buffer with received frames and
 //! schedule an upcall upon receipt of the first packet. When handling the upcall
 //! the userprocess must first `unallow` the buffer as described in section 4.4 of
-//! TRD104-syscalls. After unallowing the buffer, the userprocess then must immediately
-//! issue a command syscall (command 28) to notify the capsule that the upcall
-//! has been handled. Because the userprocess provides the buffer, it is responsible
-//! for adhering to this procedure. Failure to comply may result in dropped or malformed
-//! packets.
+//! TRD104-syscalls. After unallowing the buffer, the userprocess must then immediately
+//! clear all pending/scheduled receive upcalls. This is done by either unsubscribing
+//! the receive upcall or subscribing a new receive upcall. Because the userprocess
+//! provides the buffer, it is responsible for adhering to this procedure. Failure
+//! to comply may result in dropped or malformed packets.
 //!
 //! The ring buffer provided by the userprocess must be of the form:
 //!
@@ -45,15 +45,11 @@
 //! no guarantee as to when this will occur and if additional packets will be received
 //! prior to the upcall being handled. Without a ring buffer (or some equivalent data
 //! structure), the original packet will be lost. The ring buffer allows for the upcall
-//! to be scheduled and for all received packets to be passed to the process. Because
-//! the 15.4 driver allows two upcalls (one for sending, one for receiving), we must
-//! ensure that only one upcall is scheduled upon receipt of a packet. This is
-//! accomplished using a  pending_rx flag in the app data. This flag is set upon
-//! scheduling the first upcall and is only to be cleared by the userprocess using the
-//! command syscall (command 28) upon handling the upcall. The ring buffer is designed
-//! to overwrite old packets if the buffer becomes full. If the userprocess notices a
-//! high number of "dropped" packets, this may be the cause. The userproceess can mitigate
-//! this issue by increasing the size of the ring buffer provided to the capsule.
+//! to be scheduled and for all received packets to be passed to the process. The ring
+//! buffer is designed to overwrite old packets if the buffer becomes full. If the
+//! userprocess notices a high number of "dropped" packets, this may be the cause. The
+//! userproceess can mitigate this issue by increasing the size of the ring buffer
+//! provided to the capsule.
 
 use crate::ieee802154::{device, framer};
 use crate::net::ieee802154::{AddressMode, Header, KeyId, MacAddress, PanID, SecurityLevel};
@@ -262,7 +258,6 @@ impl PendingTX {
 #[derive(Default)]
 pub struct App {
     pending_tx: PendingTX,
-    pending_rx: bool,
 }
 
 pub struct RadioDriver<'a, M: device::MacDevice<'a>> {
@@ -731,7 +726,6 @@ impl<'a, M: device::MacDevice<'a>> SyscallDriver for RadioDriver<'a, M> {
     ///        parameters to encrypt, form headers, and transmit the frame.
     /// - `27`: Transmit a frame (raw). Transmit preformed 15.4 frame (i.e.
     ///        headers and security etc completed by userprocess).
-    /// - `28`: Notify the capsule that the upcall has been handled by process.
     fn command(
         &self,
         command_number: usize,
@@ -1041,13 +1035,6 @@ impl<'a, M: device::MacDevice<'a>> SyscallDriver for RadioDriver<'a, M> {
                         |_| self.do_next_tx_sync(processid).into(),
                     )
             }
-            28 => self
-                .apps
-                .enter(processid, |app, _| {
-                    app.pending_rx = false;
-                    CommandReturn::success()
-                })
-                .unwrap_or(CommandReturn::failure(ErrorCode::INVAL)),
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
@@ -1096,7 +1083,7 @@ fn encode_address(addr: &Option<MacAddress>) -> usize {
 
 impl<'a, M: device::MacDevice<'a>> device::RxClient for RadioDriver<'a, M> {
     fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
-        self.apps.each(|_, app, kernel_data| {
+        self.apps.each(|_, _, kernel_data| {
             let read_present = kernel_data
                 .get_readwrite_processbuffer(rw_allow::READ)
                 .and_then(|read| {
@@ -1175,22 +1162,9 @@ impl<'a, M: device::MacDevice<'a>> device::RxClient for RadioDriver<'a, M> {
                 let pans = encode_pans(&header.dst_pan, &header.src_pan);
                 let dst_addr = encode_address(&header.dst_addr);
                 let src_addr = encode_address(&header.src_addr);
-
-                // If an upcall is not already pending, schedule one. In the case
-                // of `schedule_upcall` failing, we do not need to do anything as
-                // the pending_rx remains false. In failing to schedule the upcall,
-                // the packet will be dropped from the perspective of the userprocess.
-                // However, the packet will be stored within the ring buffer and may
-                // be received if a later packet is received and the capsule attempts
-                // to schedule an upcall at a later timepoint.
-                if !app.pending_rx {
-                    kernel_data
-                        .schedule_upcall(upcall::FRAME_RECEIVED, (pans, dst_addr, src_addr))
-                        .map(|()| {
-                            app.pending_rx = true;
-                        })
-                        .ok();
-                }
+                kernel_data
+                    .schedule_upcall(upcall::FRAME_RECEIVED, (pans, dst_addr, src_addr))
+                    .ok();
             }
         });
     }
