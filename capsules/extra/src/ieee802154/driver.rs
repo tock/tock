@@ -34,7 +34,9 @@
 //!
 //! The ring buffer provided by the userprocess must be of the form:
 //!
+//! ```text
 //! | read index | write index | user_frame 0 | user_frame 1 | ... | user_frame n |
+//! ```
 //!
 //! `user_frame` denotes the 15.4 frame in addition to the relevant 3 bytes of
 //! metadata (offset to data payload, length of data payload, and the MIC len). The
@@ -1123,7 +1125,7 @@ impl<'a, M: device::MacDevice<'a>> device::RxClient for RadioDriver<'a, M> {
                         // length of the user frame.
                         let user_frame_len = frame_len + USER_FRAME_METADATA_SIZE - PSDU_OFFSET;
 
-                        let read_index = rbuf[0].get() as usize;
+                        let mut read_index = rbuf[0].get() as usize;
                         let mut write_index = rbuf[1].get() as usize;
 
                         let max_pending_rx =
@@ -1147,9 +1149,13 @@ impl<'a, M: device::MacDevice<'a>> device::RxClient for RadioDriver<'a, M> {
 
                         // Prepare the ring buffer for the next write. The current design favors newness;
                         // newly received packets will begin to overwrite the oldest data in the event
-                        // of the buffer becoming full.
+                        // of the buffer becoming full. The read index must always point to the "oldest"
+                        // data. If we have overwritten the oldest data, the next oldest data is now at
+                        // the read index + 1. We must update the read index to reflect this.
                         write_index = (write_index + 1) % max_pending_rx;
                         if write_index == read_index {
+                            read_index = (read_index + 1) % max_pending_rx;
+                            rbuf[0].set(read_index as u8);
                             // kernel::debug!("[15.4 driver] Provided RX buffer is full");
                         }
 
