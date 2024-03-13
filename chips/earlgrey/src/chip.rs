@@ -429,7 +429,8 @@ pub unsafe extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
 pub unsafe fn configure_trap_handler() {
     // The Ibex CPU does not support non-vectored trap entries.
     CSR.mtvec
-        .write(mtvec::trap_addr.val(_start_trap_vectored as usize >> 2) + mtvec::mode::Vectored)
+        .write(mtvec::trap_addr.val(_start_trap_vectored as usize >> 2) + mtvec::mode::Vectored);
+    CSR.mscratch.set(0);
 }
 
 // Mock implementation for crate tests that does not include the section

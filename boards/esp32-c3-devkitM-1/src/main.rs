@@ -146,7 +146,7 @@ unsafe fn setup() -> (
     use esp32_c3::sysreg::{CpuFrequency, PllFrequency};
 
     // only machine mode
-    rv32i::configure_trap_handler(rv32i::PermissionMode::Machine);
+    rv32i::configure_trap_handler();
 
     let peripherals = static_init!(Esp32C3DefaultPeripherals, Esp32C3DefaultPeripherals::new());
 

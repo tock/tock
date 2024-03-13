@@ -129,7 +129,7 @@ unsafe fn start() -> (
     &'static e310_g003::chip::E310x<'static, E310G003DefaultPeripherals<'static>>,
 ) {
     // only machine mode
-    rv32i::configure_trap_handler(rv32i::PermissionMode::Machine);
+    rv32i::configure_trap_handler();
 
     let peripherals = static_init!(
         E310G003DefaultPeripherals,
