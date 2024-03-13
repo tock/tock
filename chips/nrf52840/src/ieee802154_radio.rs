@@ -6,8 +6,6 @@
 
 use crate::timer::TimerAlarm;
 use core::cell::Cell;
-use core::convert::TryFrom;
-use kernel;
 use kernel::hil::radio::{self, PowerClient, RadioChannel, RadioData};
 use kernel::hil::time::{Alarm, AlarmClient, Time};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
