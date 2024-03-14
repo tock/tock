@@ -326,6 +326,7 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> I2CClient for BMI270<'a, A, I> {
                 self.alarm.set_alarm(self.alarm.now(), delay);
             }
             State::InitWriteConfig => {
+                self.buffer.replace(buffer);
                 self.config_file.take().map(|config_file| {
                     if let Err((i2c_err, buffer)) = self.i2c.write(config_file, config_file.len()) {
                         self.state.set(State::Sleep);
