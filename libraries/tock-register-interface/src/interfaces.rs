@@ -54,8 +54,9 @@
 //!           DUMMY OFFSET(0) NUMBITS(1) [],
 //!       ],
 //!   ];
+//!   let mut register_memory: u8 = 0;
 //!   let read_write_reg: &ReadWrite<u8, A::Register> = unsafe {
-//!       core::mem::transmute(Box::leak(Box::new(0_u8)))
+//!       core::mem::transmute(&mut register_memory)
 //!   };
 //!   ReadWriteable::modify(read_write_reg, A::DUMMY::SET);
 //!   ```
