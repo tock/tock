@@ -259,17 +259,15 @@ fn init_clocks(peripherals: &Rp2040DefaultPeripherals) {
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn create_peripherals() -> &'static mut Rp2040DefaultPeripherals<'static> {
-    static_init!(Rp2040DefaultPeripherals, Rp2040DefaultPeripherals::new())
-}
-
-/// Main function called after RAM initialized.
-#[no_mangle]
-pub unsafe fn main() {
+pub unsafe fn start() -> (
+    &'static kernel::Kernel,
+    PicoExplorerBase,
+    &'static rp2040::chip::Rp2040<'static, Rp2040DefaultPeripherals<'static>>,
+) {
     // Loads relocations and clears BSS
     rp2040::init();
 
-    let peripherals = create_peripherals();
+    let peripherals = static_init!(Rp2040DefaultPeripherals, Rp2040DefaultPeripherals::new());
     peripherals.resolve_dependencies();
 
     // Reset all peripherals except QSPI (we might be booting from Flash), PLL USB and PLL SYS
@@ -331,7 +329,6 @@ pub unsafe fn main() {
 
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
     let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.timer)
@@ -693,10 +690,14 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(
-        &pico_explorer_base,
-        chip,
-        Some(&pico_explorer_base.ipc),
-        &main_loop_capability,
-    );
+    (board_kernel, pico_explorer_base, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, platform, chip) = start();
+    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }

@@ -48,6 +48,8 @@ macro_rules! nonvolatile_storage_component_static {
     };};
 }
 
+pub type NonvolatileStorageComponentType = NonvolatileStorage<'static>;
+
 pub struct NonvolatileStorageComponent<
     F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
 > {

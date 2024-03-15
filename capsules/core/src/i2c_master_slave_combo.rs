@@ -4,7 +4,7 @@
 
 //! Combines two hardware devices into a single I2C master/slave device.
 //!
-//! If a chip provides a seperate hardware implementation for a I2C master and
+//! If a chip provides a separate hardware implementation for a I2C master and
 //! slave device, like the Apollo3 for example, this capsule can be used to
 //! combine them into a single `I2CMasterSlave` compatible implementation.
 //!

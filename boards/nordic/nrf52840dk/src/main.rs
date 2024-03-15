@@ -89,9 +89,6 @@ use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
 use nrf52_components::{UartChannel, UartPins};
 
-#[allow(dead_code)]
-mod test;
-
 // The nRF52840DK LEDs (see back of board)
 const LED1_PIN: Pin = Pin::P0_13;
 const LED2_PIN: Pin = Pin::P0_14;
@@ -834,15 +831,6 @@ pub unsafe fn start() -> (
     nrf52_components::NrfClockComponent::new(&base_peripherals.clock).finalize(());
 
     //--------------------------------------------------------------------------
-    // TESTS
-    //--------------------------------------------------------------------------
-
-    // let alarm_test_component =
-    //     components::test::multi_alarm_test::MultiAlarmTestComponent::new(&mux_alarm).finalize(
-    //         components::multi_alarm_test_component_buf!(nrf52840::rtc::Rtc),
-    //     );
-
-    //--------------------------------------------------------------------------
     // USB EXAMPLES
     //--------------------------------------------------------------------------
     // Uncomment to experiment with this.
@@ -926,14 +914,8 @@ pub unsafe fn start() -> (
     let _ = platform.pconsole.start();
     base_peripherals.adc.calibrate();
 
-    // test::aes_test::run_aes128_ctr(&base_peripherals.ecb);
-    // test::aes_test::run_aes128_cbc(&base_peripherals.ecb);
-    // test::aes_test::run_aes128_ecb(&base_peripherals.ecb);
-
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &nrf52840::ficr::FICR_INSTANCE);
-
-    // alarm_test_component.run();
 
     // These symbols are defined in the linker script.
     extern "C" {

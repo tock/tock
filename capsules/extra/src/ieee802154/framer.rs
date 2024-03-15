@@ -497,6 +497,10 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                         let key = match self.lookup_key(security.level, security.key_id) {
                             Some(key) => key,
                             None => {
+                                // Key not found -- pass raw encrypted packet to client
+                                self.rx_client.map(|client| {
+                                    client.receive(buf, header, radio::PSDU_OFFSET + data_offset, data_len);
+                                });
                                 return None;
                             }
                         };

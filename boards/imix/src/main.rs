@@ -25,7 +25,6 @@ use capsules_extra::net::ipv6::ip_utils::IPAddr;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::deferred_call::DeferredCallClient;
-use kernel::hil::digest::Digest;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::radio;
 #[allow(unused_imports)]
@@ -33,7 +32,6 @@ use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::symmetric_encryption::AES128;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessLoadingAsync;
-use kernel::process_checker::basic::AppCheckerSha256;
 use kernel::scheduler::round_robin::RoundRobinSched;
 
 //use kernel::hil::time::Alarm;
@@ -42,8 +40,6 @@ use kernel::hil::Controller;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_buf, static_init};
 use sam4l::chip::Sam4lDefaultPeripherals;
-
-use capsules_extra::sha256::Sha256Software;
 
 use components::alarm::{AlarmDriverComponent, AlarmMuxComponent};
 use components::console::{ConsoleOrderedComponent, UartMuxComponent};
@@ -186,7 +182,6 @@ struct Imix {
 static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 static mut RF233_REG_WRITE: [u8; 2] = [0x00; 2];
 static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
-static mut SHA256_CHECKER_BUF: [u8; 32] = [0; 32];
 
 impl SyscallDriverLookup for Imix {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
@@ -378,15 +373,6 @@ pub unsafe fn main() {
             trng: true,
         },
     );
-
-    let sha = static_init!(Sha256Software<'static>, Sha256Software::new());
-    kernel::deferred_call::DeferredCallClient::register(sha);
-
-    let checker = static_init!(
-        AppCheckerSha256,
-        AppCheckerSha256::new(sha, &mut SHA256_CHECKER_BUF)
-    );
-    sha.set_client(checker);
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
