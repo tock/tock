@@ -33,6 +33,7 @@ impl<'a> Stm32f429ziDefaultPeripherals<'a> {
     pub fn init(&'static self) {
         self.stm32f4.setup_circular_deps();
         kernel::deferred_call::DeferredCallClient::register(&self.can1);
+        kernel::deferred_call::DeferredCallClient::register(&self.rtc);
     }
 }
 impl<'a> kernel::platform::chip::InterruptService for Stm32f429ziDefaultPeripherals<'a> {
