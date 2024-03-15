@@ -240,11 +240,11 @@ impl DeferredCall {
         let ctr = unsafe { &CTR };
         let defcalls = unsafe { &DEFCALLS };
         let num_deferred_calls = ctr.get();
-        if num_deferred_calls >= defcalls.len()
-            || defcalls.iter().filter(|opt| opt.is_some()).count() != num_deferred_calls
-        {
+        let num_registered_calls = defcalls.iter().filter(|opt| opt.is_some()).count();
+        if num_deferred_calls >= defcalls.len() || num_registered_calls != num_deferred_calls {
             panic!(
-                "ERROR: > 32 deferred calls, or a component forgot to register a deferred call."
+                "ERROR: {} deferred calls, {} registered. A component may have forgotten to register a deferred call.",
+                num_deferred_calls, num_registered_calls
             );
         }
     }
