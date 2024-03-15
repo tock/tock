@@ -25,8 +25,10 @@ These capsules provide a `Driver` interface for common MCU peripherals.
 - **[Alarm](src/alarm.rs)**: Oneshot and periodic timers.
 - **[GPIO](src/gpio.rs)**: GPIO configuring and control.
 - **[I2C_MASTER](src/i2c_master.rs)**: I2C master access only.
-- **[I2C_MASTER_SLAVE](src/i2c_master_slave_driver.rs)**: I2C master and slave
+- **[I2C_MASTER_SLAVE](src/i2c_master_slave_combo.rs)**: I2C master and slave
   access.
+- **[I2C_MASTER_SLAVE Driver](src/i2c_master_slave_driver.rs)**: I2C master and
+  slave userspace access.
 - **[RNG](src/rng.rs)**: Random number generation.
 - **[SPI Controller](src/spi_controller.rs)**: SPI controller device (SPI
   master)
@@ -39,6 +41,8 @@ These provide common and better abstractions for userspace.
 
 - **[Button](src/button.rs)**: Detect button presses.
 - **[Console](src/console.rs)**: UART console support.
+- **[Console Ordered](src/console_ordered.rs)**: UART console ordered with
+  kernel `debug!()` prints.
 - **[LED](src/led.rs)**: Turn on and off LEDs.
 
 Debugging Capsules
@@ -47,7 +51,7 @@ Debugging Capsules
 These are selectively included on a board to help with testing and debugging
 various elements of Tock.
 
-- **[Low-Level Debug](src/low_level_debug/mod.rs)**: Provides system calls for
+- **[Low-Level Debug](src/low_level_debug)**: Provides system calls for
   low-level debugging tasks, such as debugging toolchain and relocation issues.
 - **[Process Console](src/process_console.rs)**: Provide a UART console to
   inspect the status of process and stop/start them.
@@ -60,13 +64,10 @@ These allow for multiple users of shared hardware resources in the kernel.
 - **[Virtual ADC](src/virtualizers/virtual_adc.rs)**: Shared single ADC channel.
 - **[Virtual AES-CCM](src/virtualizers/virtual_aes_ccm.rs)**: Shared AES-CCM engine.
 - **[Virtual Alarm](src/virtualizers/virtual_alarm.rs)**: Shared alarm resource.
-- **[Virtual Digest](src/virtualizers/virtual_digest.rs)**: Shared digest resource.
 - **[Virtual Flash](src/virtualizers/virtual_flash.rs)**: Shared flash resource.
-- **[Virtual HMAC](src/virtualizers/virtual_hmac.rs)**: Shared HMAC resource.
 - **[Virtual I2C](src/virtualizers/virtual_i2c.rs)**: Shared I2C and fixed addresses.
 - **[Virtual PWM](src/virtualizers/virtual_pwm.rs)**: Shared PWM hardware.
 - **[Virtual RNG](src/virtualizers/virtual_rng.rs)**: Shared random number generator.
-- **[Virtual SHA](src/virtualizers/virtual_sha.rs)**: Shared SHA hashes.
 - **[Virtual SPI](src/virtualizers/virtual_spi.rs)**: Shared SPI and fixed chip select pins.
 - **[Virtual Timer](src/virtualizers/virtual_timer.rs)**: Shared timer.
 - **[Virtual UART](src/virtualizers/virtual_uart.rs)**: Shared UART bus.

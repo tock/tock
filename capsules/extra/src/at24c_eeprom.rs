@@ -11,7 +11,7 @@
 //! > The AT24C32/64 provides 32,768/65,536 bits of serial electrically erasable and programmable
 //! > read only memory (EEPROM) organized as 4096/8192 words of 8 bits each. The device’s cascadable
 //! > feature allows up to 8 devices to share a common 2- wire bus. The device is optimized for use
-//! > in many industrial and commercial applica- tions where low power and low voltage operation are
+//! > in many industrial and commercial applications where low power and low voltage operation are
 //! > essential. The AT24C32/64 is available in space saving 8-pin JEDEC PDIP, 8-pin JEDEC SOIC,
 //! > 8-pin EIAJ SOIC, and 8-pin TSSOP (AT24C64) packages and is accessed via a 2-wire serial
 //! > interface.
