@@ -4,4 +4,5 @@
 
 pub(crate) mod aes_test;
 pub(crate) mod hmac_sha256_test;
+pub(crate) mod sha256_test;
 pub(crate) mod siphash24_test;
