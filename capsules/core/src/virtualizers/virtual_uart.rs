@@ -46,12 +46,13 @@
 //! ```
 
 use core::cell::Cell;
-use core::cmp;
+use core::{cmp, usize};
 
 use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::uart;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::packet_buffer::{self, PacketBufferDyn, PacketBufferMut, PacketSliceMut};
 use kernel::ErrorCode;
 
 pub const RX_BUF_LEN: usize = 64;
@@ -69,7 +70,7 @@ pub struct MuxUart<'a> {
 impl<'a> uart::TransmitClient for MuxUart<'a> {
     fn transmitted_buffer(
         &self,
-        tx_buffer: &'static mut [u8],
+        tx_buffer: &'static mut dyn PacketBufferDyn,
         tx_len: usize,
         rcode: Result<(), ErrorCode>,
     ) {
@@ -238,25 +239,36 @@ impl<'a> MuxUart<'a> {
             let mnode = self.devices.iter().find(|node| node.operation.is_some());
             mnode.map(|node| {
                 node.tx_buffer.take().map(|buf| {
-                    node.operation.take().map(move |op| match op {
-                        Operation::Transmit { len } => match self.uart.transmit_buffer(buf, len) {
-                            Ok(()) => {
-                                self.inflight.set(node);
-                            }
-                            Err((ecode, buf)) => {
-                                node.tx_client.map(move |client| {
-                                    node.transmitting.set(false);
-                                    client.transmitted_buffer(buf, 0, Err(ecode));
-                                });
-                            }
-                        },
-                        Operation::TransmitWord { word } => {
-                            let rcode = self.uart.transmit_word(word);
-                            if rcode != Ok(()) {
-                                node.tx_client.map(|client| {
-                                    node.transmitting.set(false);
-                                    client.transmitted_word(rcode);
-                                });
+                    node.operation.take().map(move |op| {
+                        let packet_slice = PacketSliceMut::new(buf).unwrap();
+
+                        match op {
+                            Operation::Transmit { len } => match self
+                                .uart
+                                .transmit_buffer(PacketBufferMut::new(packet_slice).unwrap(), len)
+                            {
+                                Ok(()) => {
+                                    self.inflight.set(node);
+                                }
+                                Err((ecode, buf)) => {
+                                    node.tx_client.map(move |client| {
+                                        node.transmitting.set(false);
+                                        client.transmitted_buffer(
+                                            buf.downcast::<PacketSliceMut>().unwrap(),
+                                            0,
+                                            Err(ecode),
+                                        );
+                                    });
+                                }
+                            },
+                            Operation::TransmitWord { word } => {
+                                let rcode = self.uart.transmit_word(word);
+                                if rcode != Ok(()) {
+                                    node.tx_client.map(|client| {
+                                        node.transmitting.set(false);
+                                        client.transmitted_word(rcode);
+                                    });
+                                }
                             }
                         }
                     });
@@ -379,7 +391,7 @@ impl<'a> UartDevice<'a> {
 impl<'a> uart::TransmitClient for UartDevice<'a> {
     fn transmitted_buffer(
         &self,
-        tx_buffer: &'static mut [u8],
+        tx_buffer: &'static mut dyn PacketBufferDyn,
         tx_len: usize,
         rcode: Result<(), ErrorCode>,
     ) {
@@ -417,7 +429,7 @@ impl<'a> ListNode<'a, UartDevice<'a>> for UartDevice<'a> {
     }
 }
 
-impl<'a> uart::Transmit<'a> for UartDevice<'a> {
+impl<'a, const HEAD: usize, const TAIL: usize> uart::Transmit<'a, HEAD, TAIL> for UartDevice<'a> {
     fn set_transmit_client(&self, client: &'a dyn uart::TransmitClient) {
         self.tx_client.set(client);
     }
@@ -429,13 +441,14 @@ impl<'a> uart::Transmit<'a> for UartDevice<'a> {
     /// Transmit data.
     fn transmit_buffer(
         &self,
-        tx_data: &'static mut [u8],
+        tx_data: PacketBufferMut<HEAD, TAIL>,
         tx_len: usize,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (ErrorCode, PacketBufferMut<HEAD, TAIL>)> {
         if self.transmitting.get() {
             Err((ErrorCode::BUSY, tx_data))
         } else {
-            self.tx_buffer.replace(tx_data);
+            self.tx_buffer
+                .replace(tx_data.downcast::<PacketSliceMut>().unwrap().into_inner());
             self.transmitting.set(true);
             self.operation.set(Operation::Transmit { len: tx_len });
             self.mux.do_next_op_async();

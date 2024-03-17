@@ -12,6 +12,7 @@ use core::cell::Cell;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::uart::{Transmit, TransmitClient};
 use kernel::syscall::CommandReturn;
+use kernel::utilities::packet_buffer::{self, PacketBufferDyn, PacketBufferMut, PacketSliceMut};
 use kernel::{ErrorCode, ProcessId};
 
 // LowLevelDebug requires a &mut [u8] buffer of length at least BUF_LEN.
@@ -73,10 +74,13 @@ impl<'u, U: Transmit<'u>> kernel::syscall::SyscallDriver for LowLevelDebug<'u, U
 impl<'u, U: Transmit<'u>> TransmitClient for LowLevelDebug<'u, U> {
     fn transmitted_buffer(
         &self,
-        tx_buffer: &'static mut [u8],
+        tx_buffer: &'static mut dyn packet_buffer::PacketBufferDyn,
         _tx_len: usize,
         _rval: Result<(), ErrorCode>,
     ) {
+        let buffer = (tx_buffer as &mut dyn core::any::Any)
+            .downcast_mut::<PacketSliceMut>()
+            .unwrap();
         // Identify and transmit the next queued entry. If there are no queued
         // entries remaining, store buffer.
 
@@ -84,13 +88,22 @@ impl<'u, U: Transmit<'u>> TransmitClient for LowLevelDebug<'u, U> {
         // debug entries.
         if self.grant_failed.take() {
             const MESSAGE: &[u8] = b"LowLevelDebug: grant init failed\n";
-            tx_buffer[..MESSAGE.len()].copy_from_slice(MESSAGE);
 
-            let _ = self.uart.transmit_buffer(tx_buffer, MESSAGE.len()).map_err(
-                |(_, returned_buffer)| {
-                    self.buffer.set(Some(returned_buffer));
-                },
-            );
+            // AMALIA: am folosit copy pentru a supra
+            // tx_buffer[..MESSAGE.len()].copy_from_slice(MESSAGE);
+            buffer.copy_from_slice_or_err(MESSAGE).unwrap();
+
+            let _ = self
+                .uart
+                .transmit_buffer(PacketBufferMut::new(buffer).unwrap(), MESSAGE.len())
+                .map_err(|(_, returned_buffer)| {
+                    self.buffer.set(Some(
+                        returned_buffer
+                            .downcast::<PacketSliceMut>()
+                            .unwrap()
+                            .into_inner(),
+                    ));
+                });
             return;
         }
 
@@ -107,7 +120,7 @@ impl<'u, U: Transmit<'u>> TransmitClient for LowLevelDebug<'u, U> {
             self.transmit_entry(tx_buffer, app_num, to_print);
             return;
         }
-        self.buffer.set(Some(tx_buffer));
+        self.buffer.set(Some(buffer.into_inner()));
     }
 }
 
@@ -122,7 +135,8 @@ impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
         use DebugEntry::Dropped;
 
         if let Some(buffer) = self.buffer.take() {
-            self.transmit_entry(buffer, processid.id(), entry);
+            let slice = PacketSliceMut::new(buffer).unwrap();
+            self.transmit_entry(slice, processid.id(), entry);
             return;
         }
 
@@ -151,16 +165,32 @@ impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
         }
     }
 
+    // AMALIA: am nevoie de toate cele 3 tipuri de buf
     // Immediately prints the provided entry to the UART.
-    fn transmit_entry(&self, buffer: &'static mut [u8], app_num: usize, entry: DebugEntry) {
-        let msg_len = fmt::format_entry(app_num, entry, buffer);
+    fn transmit_entry(
+        &self,
+        buffer: &'static mut dyn packet_buffer::PacketBufferDyn,
+        app_num: usize,
+        entry: DebugEntry,
+    ) {
+        let packet_buf = PacketBufferMut::new(buffer).unwrap();
+        let slice = packet_buf
+            .downcast::<PacketSliceMut>()
+            .unwrap()
+            .into_inner();
+        let msg_len = fmt::format_entry(app_num, entry, slice);
         // The uart's error message is ignored because we cannot do anything if
         // it fails anyway.
         let _ = self
             .uart
-            .transmit_buffer(buffer, msg_len)
+            .transmit_buffer(packet_buf, msg_len)
             .map_err(|(_, returned_buffer)| {
-                self.buffer.set(Some(returned_buffer));
+                let buf = returned_buffer
+                    .downcast::<PacketSliceMut>()
+                    .unwrap()
+                    .into_inner();
+
+                self.buffer.set(Some(buf));
             });
     }
 }

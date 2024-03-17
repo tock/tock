@@ -15,6 +15,9 @@ use kernel::capabilities::ProcessManagementCapability;
 use kernel::hil::time::ConvertTicks;
 use kernel::utilities::cells::MapCell;
 use kernel::utilities::cells::TakeCell;
+use kernel::utilities::packet_buffer::PacketBufferDyn;
+use kernel::utilities::packet_buffer::PacketBufferMut;
+use kernel::utilities::packet_buffer::PacketSliceMut;
 use kernel::ProcessId;
 
 use kernel::debug;
@@ -1056,7 +1059,10 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
             self.tx_in_progress.set(true);
             self.tx_buffer.take().map(|buffer| {
                 buffer[0] = byte;
-                let _ = self.uart.transmit_buffer(buffer, 1);
+                let packet_slice = PacketSliceMut::new(buffer).unwrap();
+                let _ = self
+                    .uart
+                    .transmit_buffer(PacketBufferMut::new(packet_slice).unwrap(), 1);
             });
             Ok(())
         }
@@ -1077,7 +1083,11 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                 let len = cmp::min(bytes.len(), buffer.len());
                 // Copy elements of `bytes` into `buffer`
                 (buffer[..len]).copy_from_slice(&bytes[..len]);
-                let _ = self.uart.transmit_buffer(buffer, len);
+
+                let packet_slice = PacketSliceMut::new(buffer).unwrap();
+                let _ = self
+                    .uart
+                    .transmit_buffer(PacketBufferMut::new(packet_slice).unwrap(), len);
             });
             Ok(())
         }
@@ -1118,7 +1128,10 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                     self.queue_size.set(remaining);
 
                     self.tx_in_progress.set(true);
-                    let _ = self.uart.transmit_buffer(txbuf, txlen);
+                    let packet_slice = PacketSliceMut::new(txbuf).unwrap();
+                    let _ = self
+                        .uart
+                        .transmit_buffer(PacketBufferMut::new(packet_slice).unwrap(), txlen);
                     Ok(txlen)
                 })
             } else {
@@ -1145,13 +1158,18 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
 {
     fn transmitted_buffer(
         &self,
-        buffer: &'static mut [u8],
+        buffer: &'static mut dyn PacketBufferDyn,
         _tx_len: usize,
         _rcode: Result<(), ErrorCode>,
     ) {
         // Reset state now that we no longer have an active transmission on the
         // UART.
-        self.tx_buffer.replace(buffer);
+        self.tx_buffer.replace(
+            (buffer as &mut dyn core::any::Any)
+                .downcast_mut::<PacketSliceMut>()
+                .unwrap()
+                .into_inner(),
+        );
         self.tx_in_progress.set(false);
 
         // Check if we have anything queued up. If we do, let the queue

@@ -67,7 +67,7 @@ pub enum Error {
 }
 
 pub trait Uart<'a>: Configure + Transmit<'a> + Receive<'a> {}
-pub trait UartData<'a, const HEAD: usize, const TAIL: usize>:
+pub trait UartData<'a, const HEAD: usize = 0, const TAIL: usize = 0>:
     Transmit<'a, HEAD, TAIL> + Receive<'a>
 {
 }

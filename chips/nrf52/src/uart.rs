@@ -14,9 +14,10 @@ use core::cell::Cell;
 use core::cmp::min;
 use kernel::hil::uart;
 use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::packet_buffer::{PacketBufferMut, PacketSliceMut};
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
-use kernel::utilities::StaticRef;
+use kernel::utilities::{packet_buffer, StaticRef};
 use kernel::ErrorCode;
 use nrf5x::pinmux;
 
@@ -446,15 +447,18 @@ impl<'a> uart::Transmit<'a> for Uarte<'a> {
 
     fn transmit_buffer(
         &self,
-        tx_data: &'static mut [u8],
+        tx_data: packet_buffer::PacketBufferMut<0, 0>,
         tx_len: usize,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+    ) -> Result<(), (ErrorCode, PacketBufferMut<0, 0>)> {
         if tx_len == 0 || tx_len > tx_data.len() {
             Err((ErrorCode::SIZE, tx_data))
         } else if self.tx_buffer.is_some() {
             Err((ErrorCode::BUSY, tx_data))
         } else {
-            self.setup_buffer_transmit(tx_data, tx_len);
+            // Am incercat sa obtin inner din tx_data
+            let buf = tx_data.downcast::<PacketSliceMut>().unwrap().into_inner();
+
+            self.setup_buffer_transmit(buf, tx_len);
             Ok(())
         }
     }

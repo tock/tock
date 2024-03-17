@@ -46,6 +46,7 @@ use kernel::hil::uart;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::packet_buffer::{PacketBufferDyn, PacketSliceMut};
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
@@ -312,13 +313,19 @@ impl SyscallDriver for Console<'_> {
 impl uart::TransmitClient for Console<'_> {
     fn transmitted_buffer(
         &self,
-        buffer: &'static mut [u8],
+        buffer: &'static mut dyn PacketBufferDyn,
         _tx_len: usize,
         _rcode: Result<(), ErrorCode>,
     ) {
         // Either print more from the AppSlice or send a callback to the
         // application.
-        self.tx_buffer.replace(buffer);
+        self.tx_buffer.replace(
+            (buffer as &mut dyn core::any::Any)
+                .downcast_mut::<PacketSliceMut>()
+                .unwrap()
+                .into_inner(),
+        );
+
         self.tx_in_progress.take().map(|processid| {
             self.apps.enter(processid, |app, kernel_data| {
                 match self.send_continue(processid, app, kernel_data) {
