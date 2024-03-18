@@ -1143,7 +1143,12 @@ impl<'a, M: device::MacDevice<'a>> device::RxClient for RadioDriver<'a, M> {
                         // the data offset, the data length, and the MIC length.
                         rbuf[(offset + USER_FRAME_METADATA_SIZE)..(offset + user_frame_len)]
                             .copy_from_slice(&buf[PSDU_OFFSET..frame_len]);
-                        rbuf[offset].set(data_offset as u8);
+
+                        // data_offset includes the PSDU offset, so we must subtract this value and add the
+                        // length of the metadata to obtain the data offset for the user frame.
+                        let user_frame_data_offset =
+                            data_offset - PSDU_OFFSET + USER_FRAME_METADATA_SIZE;
+                        rbuf[offset].set((user_frame_data_offset) as u8);
                         rbuf[offset + 1].set(data_len as u8);
                         rbuf[offset + 2].set(mic_len as u8);
 
