@@ -209,9 +209,11 @@ impl<'a, const HEAD: usize, const TAIL: usize> Console<'a, HEAD, TAIL> {
                     })
                     .unwrap_or(0);
                 app.write_remaining -= transaction_len;
-                let packet_buffer =
+                let mut packet_buffer =
                     PacketBufferMut::new(PacketSliceMut::new(buffer).unwrap()).unwrap();
-                let _ = self.uart.transmit_buffer(packet_buffer, transaction_len);
+                let _ = self
+                    .uart
+                    .transmit_buffer(&mut packet_buffer, transaction_len);
             });
         } else {
             app.pending_write = true;

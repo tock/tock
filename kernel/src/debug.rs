@@ -58,6 +58,8 @@ use core::fmt::{write, Arguments, Result, Write};
 use core::panic::PanicInfo;
 use core::str;
 
+use tock_cells::optional_cell::OptionalCell;
+
 use crate::collections::queue::Queue;
 use crate::collections::ring_buffer::RingBuffer;
 use crate::hil;
@@ -391,7 +393,7 @@ pub struct DebugWriter<const HEAD: usize, const TAIL: usize> {
     // What provides the actual writing mechanism.
     uart: &'static dyn hil::uart::Transmit<'static, HEAD, TAIL>,
     // The buffer that is passed to the writing mechanism.
-    output_buffer: TakeCell<'static, [u8]>,
+    output_buffer: OptionalCell<PacketBufferMut<HEAD, TAIL>>,
     // An internal buffer that is used to hold debug!() calls as they come in.
     internal_buffer: TakeCell<'static, RingBuffer<'static, u8>>,
     // Number of debug!() calls.
@@ -426,12 +428,12 @@ impl DebugWriterWrapper {
 impl<const HEAD: usize, const TAIL: usize> DebugWriter<HEAD, TAIL> {
     pub fn new(
         uart: &'static dyn hil::uart::Transmit<HEAD, TAIL>,
-        out_buffer: &'static mut [u8],
+        out_buffer: PacketBufferMut<HEAD, TAIL>,
         internal_buffer: &'static mut RingBuffer<'static, u8>,
     ) -> DebugWriter<HEAD, TAIL> {
         DebugWriter {
             uart: uart,
-            output_buffer: TakeCell::new(out_buffer),
+            output_buffer: OptionalCell::new(out_buffer),
             internal_buffer: TakeCell::new(internal_buffer),
             count: Cell::new(0), // how many debug! calls
         }
@@ -451,9 +453,11 @@ impl<const HEAD: usize, const TAIL: usize> DebugWriter<HEAD, TAIL> {
         // Can only publish if we have the output_buffer. If we don't that is
         // fine, we will do it when the transmit done callback happens.
         self.internal_buffer.map_or(0, |ring_buffer| {
-            if let Some(out_buffer) = self.output_buffer.take() {
-                let out_packet_slice: &'static mut PacketSliceMut =
-                    PacketSliceMut::new(out_buffer).unwrap();
+            if let Some(mut out_buffer) = self.output_buffer.take() {
+                // let out_packet_slice: &'static mut PacketSliceMut =
+                // PacketSliceMut::new(out_buffer).unwrap();
+
+                let out_packet_slice: &'static mut PacketSliceMut = out_buffer.downcast().unwrap();
                 out_packet_slice.reset(HEAD);
 
                 let mut count = 0;
@@ -482,15 +486,12 @@ impl<const HEAD: usize, const TAIL: usize> DebugWriter<HEAD, TAIL> {
                     //     .unwrap(),
                     //     0,
                     // );
-                    if let Err((_err, buf)) = self.uart.transmit_buffer(
-                        PacketBufferMut::new(out_packet_slice as &'static mut dyn PacketBufferDyn)
-                            .unwrap(),
-                        count,
-                    ) {
-                        self.output_buffer
-                            .put(Some(buf.downcast::<PacketSliceMut>().unwrap().into_inner()));
+                    let pb: PacketBufferMut<HEAD, TAIL> =
+                        PacketBufferMut::<HEAD, TAIL>::new(out_packet_slice).unwrap();
+                    if let Err((_err, buf)) = self.uart.transmit_buffer(pb, count) {
+                        self.output_buffer.set(buf);
                     } else {
-                        self.output_buffer.put(None);
+                        self.output_buffer.clear();
                     }
                 }
 
@@ -518,12 +519,11 @@ impl<const HEAD: usize, const TAIL: usize> hil::uart::TransmitClient for DebugWr
         _rcode: core::result::Result<(), ErrorCode>,
     ) {
         // Replace this buffer since we are done with it.
-        self.output_buffer.replace(
-            (buffer as &mut dyn core::any::Any)
-                .downcast_mut::<PacketSliceMut>()
-                .unwrap()
-                .into_inner(),
-        );
+        // let replacement: &'static PacketBufferMut<HEAD, TAIL> =
+        // &PacketBufferMut::<HEAD, TAIL>::new(buffer).unwrap();
+
+        self.output_buffer
+            .replace(PacketBufferMut::new(buffer).unwrap());
 
         if self.internal_buffer.map_or(false, |buf| buf.has_elements()) {
             // Buffer not empty, go around again

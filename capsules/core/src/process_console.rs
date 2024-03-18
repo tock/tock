@@ -1062,7 +1062,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                 let packet_slice = PacketSliceMut::new(buffer).unwrap();
                 let _ = self
                     .uart
-                    .transmit_buffer(PacketBufferMut::new(packet_slice).unwrap(), 1);
+                    .transmit_buffer(&mut PacketBufferMut::new(packet_slice).unwrap(), 1);
             });
             Ok(())
         }
@@ -1087,7 +1087,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                 let packet_slice = PacketSliceMut::new(buffer).unwrap();
                 let _ = self
                     .uart
-                    .transmit_buffer(PacketBufferMut::new(packet_slice).unwrap(), len);
+                    .transmit_buffer(&mut PacketBufferMut::new(packet_slice).unwrap(), len);
             });
             Ok(())
         }
@@ -1131,7 +1131,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                     let packet_slice = PacketSliceMut::new(txbuf).unwrap();
                     let _ = self
                         .uart
-                        .transmit_buffer(PacketBufferMut::new(packet_slice).unwrap(), txlen);
+                        .transmit_buffer(&mut PacketBufferMut::new(packet_slice).unwrap(), txlen);
                     Ok(txlen)
                 })
             } else {

@@ -129,7 +129,7 @@ impl<
             let _ = self
                 .uart
                 .transmit_buffer(
-                    PacketBufferMut::<HEAD_TRANSMIT, TAIL_TRANSMIT>::new(buffer).unwrap(),
+                    &mut PacketBufferMut::<HEAD_TRANSMIT, TAIL_TRANSMIT>::new(buffer).unwrap(),
                     MESSAGE.len(),
                 )
                 .map_err(|(_, returned_buffer)| {
@@ -234,7 +234,7 @@ impl<
         let _ = self
             .uart
             .transmit_buffer(
-                PacketBufferMut::new(PacketSliceMut::new(buffer).unwrap()).unwrap(),
+                &mut PacketBufferMut::new(PacketSliceMut::new(buffer).unwrap()).unwrap(),
                 msg_len,
             )
             .map_err(|(_, returned_buffer)| {

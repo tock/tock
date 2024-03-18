@@ -38,7 +38,8 @@ pub struct Nrf52DefaultPeripherals<'a> {
     pub timer0: crate::timer::TimerAlarm<'a>,
     pub timer1: crate::timer::TimerAlarm<'a>,
     pub timer2: crate::timer::Timer,
-    pub uarte0: crate::uart::Uarte<'a>,
+    // AMALIA: de specificat aici valorile corecte
+    pub uarte0: crate::uart::Uarte<'a, 0, 0>,
     pub spim0: crate::spi::SPIM<'a>,
     pub twi0: crate::i2c::TWI<'a>,
     pub spim1: crate::spi::SPIM<'a>,

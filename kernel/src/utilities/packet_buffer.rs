@@ -322,11 +322,11 @@ impl PacketSliceMut {
         }
     }
 
-    fn data_slice<'a>(&'a self) -> &'a [u8] {
+    pub fn data_slice<'a>(&'a self) -> &'a [u8] {
         &self.restore_inner_slice()[Self::DATA_SLICE]
     }
 
-    fn data_slice_mut<'a>(&'a mut self) -> &'a mut [u8] {
+    pub fn data_slice_mut<'a>(&'a mut self) -> &'a mut [u8] {
         unsafe { &mut self.restore_inner_slice_mut()[Self::DATA_SLICE] }
     }
 }

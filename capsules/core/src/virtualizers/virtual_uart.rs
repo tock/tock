@@ -243,10 +243,10 @@ impl<'a> MuxUart<'a> {
                         let packet_slice = PacketSliceMut::new(buf).unwrap();
 
                         match op {
-                            Operation::Transmit { len } => match self
-                                .uart
-                                .transmit_buffer(PacketBufferMut::new(packet_slice).unwrap(), len)
-                            {
+                            Operation::Transmit { len } => match self.uart.transmit_buffer(
+                                &mut PacketBufferMut::new(packet_slice).unwrap(),
+                                len,
+                            ) {
                                 Ok(()) => {
                                     self.inflight.set(node);
                                 }
@@ -441,9 +441,9 @@ impl<'a, const HEAD: usize, const TAIL: usize> uart::Transmit<'a, HEAD, TAIL> fo
     /// Transmit data.
     fn transmit_buffer(
         &self,
-        tx_data: PacketBufferMut<HEAD, TAIL>,
+        tx_data: &mut PacketBufferMut<HEAD, TAIL>,
         tx_len: usize,
-    ) -> Result<(), (ErrorCode, PacketBufferMut<HEAD, TAIL>)> {
+    ) -> Result<(), (ErrorCode, &'static mut PacketBufferMut<HEAD, TAIL>)> {
         if self.transmitting.get() {
             Err((ErrorCode::BUSY, tx_data))
         } else {

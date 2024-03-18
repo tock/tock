@@ -124,6 +124,7 @@ pub trait Transmit<'a, const HEAD: usize = 0, const TAIL: usize = 0> {
     /// `transmit_buffer` or `transmit_word` operation will return BUSY.
     fn transmit_buffer(
         &self,
+        // AMALIA: nu ar trebui sa fie referinta mutable aici????
         tx_buffer: packet_buffer::PacketBufferMut<HEAD, TAIL>,
         tx_len: usize,
     ) -> Result<(), (ErrorCode, packet_buffer::PacketBufferMut<HEAD, TAIL>)>;
