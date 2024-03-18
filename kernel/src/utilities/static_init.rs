@@ -58,6 +58,115 @@ macro_rules! static_init {
 /// [`static_buf!()`](crate::static_buf) are hidden within calls to
 /// [`static_init!()`](crate::static_init) or component helper macros, so start
 /// your search there.
+
+#[macro_export]
+macro_rules! thread_local_static_init {
+    ($N:expr, $ID:ty, $T:ty, $e:expr $(,)?) => {{
+        let mut buf = $crate::thread_local_static_buf!($N, $ID, $T);
+        buf.write($e)
+    }};
+}
+
+#[macro_export]
+macro_rules! thread_local_static_buf {
+    ($N:expr, $ID:ty, $T:ty $(,)?) => {{
+        use $crate::threadlocal::{ThreadLocal, ThreadLocalAccessStatic, ConstThreadId};
+        static mut BUF: (
+            ThreadLocal<$N, core::mem::MaybeUninit<$T>>,
+            ThreadLocal<$N, bool>
+        ) = unsafe {(
+            ThreadLocal::new(
+                core::mem::transmute::<core::mem::MaybeUninit<[$T; $N]>, [core::mem::MaybeUninit<$T>; $N]>(
+                    core::mem::MaybeUninit::uninit()
+                )
+            ),
+            ThreadLocal::init(false)
+        )};
+        $crate::utilities::static_init::static_buf_check_used(BUF.1.get_mut_static(ConstThreadId::<$ID>::new()));
+        BUF.0.get_mut_static(ConstThreadId::<$ID>::new())
+    }};
+}
+
+#[macro_export]
+macro_rules! thread_local_static {
+    ($N:expr, $VIS:vis $VAR:ident : $T:ty = $e:expr $(,)?) => {
+        $VIS static mut $VAR: (
+            $crate::threadlocal::ThreadLocal<$N, core::mem::MaybeUninit<$T>>,
+            $crate::threadlocal::ThreadLocal<$N, bool>,
+            fn() -> $T
+        ) = unsafe {(
+            $crate::threadlocal::ThreadLocal::new(
+                core::mem::transmute::<core::mem::MaybeUninit<[$T; $N]>, [core::mem::MaybeUninit<$T>; $N]>(
+                    core::mem::MaybeUninit::uninit()
+                )
+            ),
+            $crate::threadlocal::ThreadLocal::init(false),
+            || { $e },
+        )};
+    };
+}
+
+#[macro_export]
+macro_rules! thread_local_static_finalize {
+    ($VAR:ident, $ID:ty $(,)?) => {{
+        use $crate::threadlocal::ConstThreadId;
+        $crate::utilities::static_init::static_buf_check_used($VAR.1.get_mut_static(ConstThreadId::<$ID>::new()));
+        let mut buf = $VAR.0.get_mut_static(ConstThreadId::<$ID>::new());
+        buf.write($VAR.2())
+    }};
+}
+
+#[macro_export]
+macro_rules! thread_local_static_access {
+    ($VAR:ident, $ID:expr $(,)?) => {{
+        use $crate::threadlocal::ThreadLocalAccess;
+        match $VAR.1.get_mut($ID).map(|a| a.enter_nonreentrant(|&mut x| x)) {
+            Some(true) => {
+                $VAR.0.get_mut($ID).map(|a| a.enter_nonreentrant(|x| &*x.as_ptr()))
+            }
+            Some(false) => None,
+            _ => panic!("Invaid thread ID")
+        }
+    }};
+}
+
+// struct ThreadLocalStatic<const NUM_THREADS: usize, T> {
+//     data: crate::threadlocal::ThreadLocal<NUM_THREADS, core::mem::MaybeUninit<T>>,
+//     init: crate::threadlocal::ThreadLocal<NUM_THREADS, bool>,
+//     callback: fn() -> T,
+// }
+
+// impl<const NUM_THREADS: usize, T> ThreadLocalStatic<NUM_THREADS, T> {
+//     const unsafe fn new(callback: fn() -> T) -> ThreadLocalStatic<NUM_THREADS, T> {
+//         let data = crate::threadlocal::ThreadLocal::new(
+//             core::mem::transmute::<
+//                 core::mem::MaybeUninit<[T; 1]>,
+//                 [core::mem::MaybeUninit<T>; 1]
+//             >(core::mem::MaybeUninit::uninit())
+//         );
+//         let a =
+//             crate::threadlocal::ThreadLocal::new(
+//                 core::mem::transmute::<core::mem::MaybeUninit<[T; NUM_THREADS]>, [core::mem::MaybeUninit<T>; NUM_THREADS]>(
+//                     core::mem::MaybeUninit::uninit()
+//                 )
+//             );
+//         let init = crate::threadlocal::ThreadLocal::init(false);
+//         ThreadLocalStatic {
+//             data: a, init, callback
+//         }
+//     }
+// }
+
+
+/// An `#[inline(never)]` function that panics internally if the passed reference
+/// is `true`. This function is intended for use within
+/// the `static_buf!()` macro, which removes the size bloat of track_caller
+/// saving the location of every single call to `static_init!()`.
+/// If you hit this panic, you are either calling `static_buf!()` in
+/// a loop or calling a function multiple times which internally
+/// contains a call to `static_buf!()`. Typically, calls to
+/// `static_buf!()` are hidden within calls to `static_init!()` or
+/// component helper macros, so start your search there.
 #[inline(never)]
 pub fn static_buf_check_used(used: &mut bool) {
     // Check if this `BUF` has already been declared and initialized. If it

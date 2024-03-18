@@ -9,19 +9,18 @@ use core::num::NonZeroU32;
 
 use kernel::hil::time::{self, Alarm, ConvertTicks, Frequency, Ticks, Ticks64, Time};
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::interfaces::Writeable;
+use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{register_structs, ReadWrite};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
-use rv32i::machine_timer::MachineTimer;
+use rv32i::machine_timer::{MachineTimer, MachineTimerCompareRegister};
+use rv32i::csr;
 
 register_structs! {
     pub ClintRegisters {
-        (0x0000 => msip: ReadWrite<u32>),
-        (0x0004 => _reserved),
-        (0x4000 => compare_low: ReadWrite<u32>),
-        (0x4004 => compare_high: ReadWrite<u32>),
-        (0x4008 => _reserved2),
+        (0x0000 => msip: [ReadWrite<u32>; 4095]),
+        (0x3FFC => _reserved),
+        (0x4000 => compare: [MachineTimerCompareRegister; 4095]),
         (0xBFF8 => value_low: ReadWrite<u32>),
         (0xBFFC => value_high: ReadWrite<u32>),
         (0xC000 => @END),
@@ -41,8 +40,7 @@ impl<'a, F: Frequency> Clint<'a, F> {
             registers: *base,
             client: OptionalCell::empty(),
             mtimer: MachineTimer::new(
-                &base.compare_low,
-                &base.compare_high,
+                &base.compare,
                 &base.value_low,
                 &base.value_high,
             ),
@@ -51,16 +49,16 @@ impl<'a, F: Frequency> Clint<'a, F> {
     }
 
     pub fn handle_interrupt(&self) {
-        self.disable_machine_timer();
+        let context_id = csr::CSR.mhartid.extract().get();
+        self.disable_machine_timer(context_id);
 
         self.client.map(|client| {
             client.alarm();
         });
     }
 
-    pub fn disable_machine_timer(&self) {
-        self.registers.compare_high.set(0xFFFF_FFFF);
-        self.registers.compare_low.set(0xFFFF_FFFF);
+    pub fn disable_machine_timer(&self, context_id: usize) {
+        self.mtimer.disable_machine_timer(context_id);
     }
 }
 
@@ -79,19 +77,23 @@ impl<'a, F: Frequency> time::Alarm<'a> for Clint<'a, F> {
     }
 
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
-        self.mtimer.set_alarm(reference, dt)
+        let context_id = csr::CSR.mhartid.extract().get();
+        self.mtimer.set_alarm(context_id, reference, dt)
     }
 
     fn get_alarm(&self) -> Self::Ticks {
-        self.mtimer.get_alarm()
+        let context_id = csr::CSR.mhartid.extract().get();
+        self.mtimer.get_alarm(context_id)
     }
 
     fn disarm(&self) -> Result<(), ErrorCode> {
-        self.mtimer.disarm()
+        let context_id = csr::CSR.mhartid.extract().get();
+        self.mtimer.disarm(context_id)
     }
 
     fn is_armed(&self) -> bool {
-        self.mtimer.is_armed()
+        let context_id = csr::CSR.mhartid.extract().get();
+        self.mtimer.is_armed(context_id)
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
@@ -132,7 +134,8 @@ impl<F: Frequency> kernel::platform::scheduler_timer::SchedulerTimer for Clint<'
     }
 
     fn reset(&self) {
-        self.disable_machine_timer();
+        let context_id = csr::CSR.mhartid.extract().get();
+        self.disable_machine_timer(context_id);
     }
 
     fn arm(&self) {

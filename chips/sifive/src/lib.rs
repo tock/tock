@@ -5,8 +5,11 @@
 //! Implementations for generic SiFive MCU peripherals.
 
 #![no_std]
+#![feature(generic_const_exprs)]
 #![crate_name = "sifive"]
 #![crate_type = "rlib"]
+
+pub const MAX_THREADS: usize = 2;
 
 pub mod clint;
 pub mod gpio;

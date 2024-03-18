@@ -134,7 +134,7 @@ impl DynDefCallRef<'_> {
 // // This is a 256 byte array, but at least resides in `.bss`.
 // static mut DEFCALLS: [OptionalCell<DynDefCallRef<'static>>; 32] = [EMPTY; 32];
 
-pub const DEFAULT_DEFERRED_CALL_STATE: ThreadLocalDeferredCallState =ThreadLocalDeferredCallState {
+pub const DEFAULT_DEFERRED_CALL_STATE: ThreadLocalDeferredCallState = ThreadLocalDeferredCallState {
     ctr: 0,
     bitmask: 0,
     defcalls: [None; 32],
@@ -155,6 +155,27 @@ pub struct ThreadLocalDeferredCallState {
     // TODO: is still still true?
     defcalls: [Option<DynDefCallRef<'static>>; 32],
 }
+
+#[derive(Copy, Clone)]
+pub struct ThreadLocalDeferredCallStates<'a, const N: usize>(crate::threadlocal::DynThreadId, &'a ThreadLocal::<N, ThreadLocalDeferredCallState>);
+
+use crate::threadlocal::ThreadLocalAccess;
+
+// unsafe impl crate::threadlocal::ThreadLocalDyn<ThreadLocalDeferredCallState> for crate::threadlocal::ThreadLocal<2, ThreadLocalDeferredCallState> {
+//     fn get_mut<'a>(&'a self) -> Option<crate::threadlocal::NonReentrant<'a, ThreadLocalDeferredCallState>> {
+//         let id: usize = 0;
+//         unsafe {
+//         core::arch::asm!(
+//             "csrr {id}, mhartid",
+//             id = out(reg) _
+//         );
+//         ThreadLocalAccess::<crate::threadlocal::DynThreadId, ThreadLocalDeferredCallState>::get_mut(
+//             self,
+//             crate::threadlocal::DynThreadId::new(id)
+//         )
+//         }
+//     }
+// }
 
 static DEFAULT_DEFCALL_STATE: ThreadLocal::<0, ThreadLocalDeferredCallState> = ThreadLocal::new([]);
 static mut DEFCALL_STATE: &'static dyn ThreadLocalDyn<ThreadLocalDeferredCallState> = &DEFAULT_DEFCALL_STATE;

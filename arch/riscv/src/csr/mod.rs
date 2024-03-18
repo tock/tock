@@ -16,7 +16,7 @@ use riscv_csr::csr::{
     PMPADDR57, PMPADDR58, PMPADDR59, PMPADDR6, PMPADDR60, PMPADDR61, PMPADDR62, PMPADDR63,
     PMPADDR7, PMPADDR8, PMPADDR9, PMPCFG0, PMPCFG1, PMPCFG10, PMPCFG11, PMPCFG12, PMPCFG13,
     PMPCFG14, PMPCFG15, PMPCFG2, PMPCFG3, PMPCFG4, PMPCFG5, PMPCFG6, PMPCFG7, PMPCFG8, PMPCFG9,
-    STVEC, UTVEC,
+    STVEC, UTVEC, MHARTID,
 };
 use tock_registers::fields::FieldValue;
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -36,6 +36,7 @@ pub mod pmpaddr;
 pub mod pmpconfig;
 pub mod stvec;
 pub mod utvec;
+pub mod mhartid;
 
 // NOTE! We default to 32 bit if this is being compiled for debug/testing. We do
 // this by using `cfg` that check for either the architecture is `riscv32` (true
@@ -150,6 +151,7 @@ pub struct CSR {
     pub mip: ReadWriteRiscvCsr<usize, mip::mip::Register, MIP>,
     pub mtvec: ReadWriteRiscvCsr<usize, mtvec::mtvec::Register, MTVEC>,
     pub mstatus: ReadWriteRiscvCsr<usize, mstatus::mstatus::Register, MSTATUS>,
+    pub mhartid: ReadWriteRiscvCsr<usize, mhartid::mhartid::Register, MHARTID>,
 
     pub mseccfg: ReadWriteRiscvCsr<usize, mseccfg::mseccfg::Register, MSECCFG>,
     #[cfg(not(target_arch = "riscv64"))]
@@ -267,6 +269,7 @@ pub const CSR: &CSR = &CSR {
     mip: ReadWriteRiscvCsr::new(),
     mtvec: ReadWriteRiscvCsr::new(),
     mstatus: ReadWriteRiscvCsr::new(),
+    mhartid: ReadWriteRiscvCsr::new(),
 
     mseccfg: ReadWriteRiscvCsr::new(),
     #[cfg(not(target_arch = "riscv64"))]

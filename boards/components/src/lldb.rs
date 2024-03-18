@@ -45,6 +45,24 @@ macro_rules! low_level_debug_component_static {
     };};
 }
 
+#[macro_export]
+macro_rules! thread_local_low_level_debug_component_static {
+    ($N:expr, $ID:ty) => {{
+        let uart =
+            kernel::thread_local_static_buf!($N, $ID, capsules_core::virtualizers::virtual_uart::UartDevice<'static>);
+        let buffer = kernel::thread_local_static_buf!($N, $ID, [u8; capsules_core::low_level_debug::BUF_LEN]);
+        let lldb = kernel::thread_local_static_buf!(
+            $N, $ID,
+            capsules_core::low_level_debug::LowLevelDebug<
+                'static,
+                capsules_core::virtualizers::virtual_uart::UartDevice<'static>,
+            >
+        );
+
+        (uart, buffer, lldb)
+    };};
+}
+
 pub struct LowLevelDebugComponent {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,

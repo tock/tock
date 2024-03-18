@@ -52,6 +52,8 @@ members = [
     "boards/nano33ble",
     "boards/nano33ble_rev2",
     "boards/qemu_rv32_virt",
+    "boards/qemu_rv32_virt_smp",
+    "boards/swervolf",
     "boards/weact_f401ccu6/",
     "boards/configurations/nrf52840dk/nrf52840dk-test-appid-sha256",
     "boards/configurations/nrf52840dk/nrf52840dk-test-appid-tbf",

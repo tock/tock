@@ -33,6 +33,20 @@ macro_rules! cooperative_component_static {
     };};
 }
 
+#[macro_export]
+macro_rules! thread_local_cooperative_component_static {
+    ($NTHREADS:expr, $ID:ty, $N:expr $(,)?) => {{
+        let coop_sched =
+            kernel::thread_local_static_buf!($NTHREADS, $ID, kernel::scheduler::cooperative::CooperativeSched<'static>);
+        let coop_nodes = kernel::thread_local_static_buf!(
+            $NTHREADS, $ID,
+            [core::mem::MaybeUninit<kernel::scheduler::cooperative::CoopProcessNode<'static>>; $N]
+        );
+
+        (coop_sched, coop_nodes)
+    };};
+}
+
 pub struct CooperativeComponent<const NUM_PROCS: usize> {
     processes: &'static [Option<&'static dyn Process>],
 }

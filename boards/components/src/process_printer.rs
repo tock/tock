@@ -21,6 +21,13 @@ macro_rules! process_printer_text_component_static {
     };};
 }
 
+#[macro_export]
+macro_rules! thread_local_process_printer_text_component_static {
+    ($N:expr, $ID:ty) => {{
+        kernel::thread_local_static_buf!($N, $ID, kernel::process::ProcessPrinterText)
+    };};
+}
+
 pub struct ProcessPrinterTextComponent {}
 
 impl ProcessPrinterTextComponent {

@@ -9,31 +9,34 @@ use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::ReadWrite;
 use kernel::ErrorCode;
 
+#[repr(C)]
+pub struct MachineTimerCompareRegister {
+    low: ReadWrite<u32>,
+    high: ReadWrite<u32>,
+}
+
 pub struct MachineTimer<'a> {
-    compare_low: &'a ReadWrite<u32>,
-    compare_high: &'a ReadWrite<u32>,
+    compare: &'a [MachineTimerCompareRegister],
     value_low: &'a ReadWrite<u32>,
     value_high: &'a ReadWrite<u32>,
 }
 
 impl<'a> MachineTimer<'a> {
     pub const fn new(
-        compare_low: &'a ReadWrite<u32>,
-        compare_high: &'a ReadWrite<u32>,
+        compare: &'a [MachineTimerCompareRegister],
         value_low: &'a ReadWrite<u32>,
         value_high: &'a ReadWrite<u32>,
     ) -> Self {
         MachineTimer {
-            compare_low,
-            compare_high,
+            compare,
             value_low,
             value_high,
         }
     }
 
-    pub fn disable_machine_timer(&self) {
-        self.compare_high.set(0xFFFF_FFFF);
-        self.compare_low.set(0xFFFF_FFFF);
+    pub fn disable_machine_timer(&self, context_id: usize) {
+        self.compare[context_id].high.set(0xFFFF_FFFF);
+        self.compare[context_id].low.set(0xFFFF_FFFF);
     }
 
     pub fn now(&self) -> Ticks64 {
@@ -49,7 +52,7 @@ impl<'a> MachineTimer<'a> {
         Ticks64::from(((high as u64) << 32) | second_low as u64)
     }
 
-    pub fn set_alarm(&self, reference: Ticks64, dt: Ticks64) {
+    pub fn set_alarm(&self, context_id: usize, reference: Ticks64, dt: Ticks64) {
         // This does not handle the 64-bit wraparound case.
         // Because mtimer fires if the counter is >= the compare,
         // handling wraparound requires setting compare to the
@@ -71,26 +74,26 @@ impl<'a> MachineTimer<'a> {
 
         // Recommended approach for setting the two compare registers
         // (RISC-V Privileged Architectures 3.1.15) -pal 8/6/20
-        regs.compare_low.set(0xFFFF_FFFF);
-        regs.compare_high.set(high);
-        regs.compare_low.set(low);
+        regs.compare[context_id].low.set(0xFFFF_FFFF);
+        regs.compare[context_id].high.set(high);
+        regs.compare[context_id].low.set(low);
     }
 
-    pub fn get_alarm(&self) -> Ticks64 {
-        let mut val: u64 = (self.compare_high.get() as u64) << 32;
-        val |= self.compare_low.get() as u64;
+    pub fn get_alarm(&self, context_id: usize) -> Ticks64 {
+        let mut val: u64 = (self.compare[context_id].high.get() as u64) << 32;
+        val |= self.compare[context_id].low.get() as u64;
         Ticks64::from(val)
     }
 
-    pub fn disarm(&self) -> Result<(), ErrorCode> {
-        self.disable_machine_timer();
+    pub fn disarm(&self, context_id: usize) -> Result<(), ErrorCode> {
+        self.disable_machine_timer(context_id);
         Ok(())
     }
 
-    pub fn is_armed(&self) -> bool {
+    pub fn is_armed(&self, context_id: usize) -> bool {
         // Check if mtimecmp is the max value. If it is, then we are not armed,
         // otherwise we assume we have a value set.
-        self.compare_high.get() != 0xFFFF_FFFF || self.compare_low.get() != 0xFFFF_FFFF
+        self.compare[context_id].high.get() != 0xFFFF_FFFF || self.compare[context_id].low.get() != 0xFFFF_FFFF
     }
 
     pub fn minimum_dt(&self) -> Ticks64 {
