@@ -1,0 +1,20 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2022.
+
+[package]
+name = "qemu_rv32_virt_smp"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+build = "../build.rs"
+
+[dependencies]
+components = { path = "../components" }
+sifive = { path = "../../chips/sifive" }
+rv32i = { path = "../../arch/rv32i" }
+kernel = { path = "../../kernel" }
+qemu_rv32_virt_chip = { path = "../../chips/qemu_rv32_virt_chip" }
+
+capsules-core = { path = "../../capsules/core" }
+capsules-extra = { path = "../../capsules/extra" }
