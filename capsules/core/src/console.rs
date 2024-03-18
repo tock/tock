@@ -46,7 +46,7 @@ use kernel::hil::uart;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::packet_buffer::{PacketBufferDyn, PacketSliceMut};
+use kernel::utilities::packet_buffer::{PacketBufferDyn, PacketBufferMut, PacketSliceMut};
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
@@ -100,7 +100,7 @@ pub struct App {
     read_len: usize,
 }
 
-pub struct Console<'a> {
+pub struct Console<'a, const HEAD: usize, const TAIL: usize> {
     uart: &'a dyn uart::UartData<'a>,
     apps: Grant<
         App,
@@ -114,7 +114,7 @@ pub struct Console<'a> {
     rx_buffer: TakeCell<'static, [u8]>,
 }
 
-impl<'a> Console<'a> {
+impl<'a, const HEAD: usize, const TAIL: usize> Console<'a, HEAD, TAIL> {
     pub fn new(
         uart: &'a dyn uart::UartData<'a>,
         tx_buffer: &'static mut [u8],
@@ -125,7 +125,7 @@ impl<'a> Console<'a> {
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
-    ) -> Console<'a> {
+    ) -> Console<'a, HEAD, TAIL> {
         Console {
             uart: uart,
             apps: grant,
@@ -209,7 +209,9 @@ impl<'a> Console<'a> {
                     })
                     .unwrap_or(0);
                 app.write_remaining -= transaction_len;
-                let _ = self.uart.transmit_buffer(buffer, transaction_len);
+                let packet_buffer =
+                    PacketBufferMut::new(PacketSliceMut::new(buffer).unwrap()).unwrap();
+                let _ = self.uart.transmit_buffer(packet_buffer, transaction_len);
             });
         } else {
             app.pending_write = true;
@@ -255,7 +257,7 @@ impl<'a> Console<'a> {
     }
 }
 
-impl SyscallDriver for Console<'_> {
+impl<const HEAD: usize, const TAIL: usize> SyscallDriver for Console<'_, HEAD, TAIL> {
     /// Initiate serial transfers
     ///
     /// ### `command_num`
@@ -310,7 +312,7 @@ impl SyscallDriver for Console<'_> {
     }
 }
 
-impl uart::TransmitClient for Console<'_> {
+impl<const HEAD: usize, const TAIL: usize> uart::TransmitClient for Console<'_, HEAD, TAIL> {
     fn transmitted_buffer(
         &self,
         buffer: &'static mut dyn PacketBufferDyn,
@@ -365,7 +367,7 @@ impl uart::TransmitClient for Console<'_> {
     }
 }
 
-impl uart::ReceiveClient for Console<'_> {
+impl<const HEAD: usize, const TAIL: usize> uart::ReceiveClient for Console<'_, HEAD, TAIL> {
     fn received_buffer(
         &self,
         buffer: &'static mut [u8],

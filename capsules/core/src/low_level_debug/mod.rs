@@ -8,6 +8,7 @@
 mod fmt;
 
 use core::cell::Cell;
+use core::usize;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::uart::{Transmit, TransmitClient};
@@ -20,8 +21,15 @@ pub use fmt::BUF_LEN;
 
 pub const DRIVER_NUM: usize = crate::driver::NUM::LowLevelDebug as usize;
 
-pub struct LowLevelDebug<'u, U: Transmit<'u>> {
-    buffer: Cell<Option<&'static mut [u8]>>,
+pub struct LowLevelDebug<
+    'u,
+    U: Transmit<'u, HEAD_TRANSMIT, TAIL_TRANSMIT>,
+    const HEAD: usize,
+    const TAIL: usize,
+    const HEAD_TRANSMIT: usize,
+    const TAIL_TRANSMIT: usize,
+> {
+    buffer: Cell<Option<PacketBufferMut<HEAD, TAIL>>>,
     grant: Grant<AppData, UpcallCount<0>, AllowRoCount<0>, AllowRwCount<0>>,
     // grant_failed is set to true when LowLevelDebug fails to allocate an app's
     // grant region. When it has a chance, LowLevelDebug will print a message
@@ -33,12 +41,20 @@ pub struct LowLevelDebug<'u, U: Transmit<'u>> {
     uart: &'u U,
 }
 
-impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
+impl<
+        'u,
+        U: Transmit<'u, HEAD_TRANSMIT, TAIL_TRANSMIT>,
+        const HEAD: usize,
+        const TAIL: usize,
+        const HEAD_TRANSMIT: usize,
+        const TAIL_TRANSMIT: usize,
+    > LowLevelDebug<'u, U, HEAD, TAIL, HEAD_TRANSMIT, TAIL_TRANSMIT>
+{
     pub fn new(
-        buffer: &'static mut [u8],
+        buffer: PacketBufferMut<HEAD, TAIL>,
         uart: &'u U,
         grant: Grant<AppData, UpcallCount<0>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> LowLevelDebug<'u, U> {
+    ) -> LowLevelDebug<'u, U, HEAD, TAIL, HEAD_TRANSMIT, TAIL_TRANSMIT> {
         LowLevelDebug {
             buffer: Cell::new(Some(buffer)),
             grant,
@@ -48,7 +64,16 @@ impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
     }
 }
 
-impl<'u, U: Transmit<'u>> kernel::syscall::SyscallDriver for LowLevelDebug<'u, U> {
+impl<
+        'u,
+        U: Transmit<'u, HEAD_TRANSMIT, TAIL_TRANSMIT>,
+        const HEAD: usize,
+        const TAIL: usize,
+        const HEAD_TRANSMIT: usize,
+        const TAIL_TRANSMIT: usize,
+    > kernel::syscall::SyscallDriver
+    for LowLevelDebug<'u, U, HEAD, TAIL, HEAD_TRANSMIT, TAIL_TRANSMIT>
+{
     fn command(
         &self,
         minor_num: usize,
@@ -71,7 +96,15 @@ impl<'u, U: Transmit<'u>> kernel::syscall::SyscallDriver for LowLevelDebug<'u, U
     }
 }
 
-impl<'u, U: Transmit<'u>> TransmitClient for LowLevelDebug<'u, U> {
+impl<
+        'u,
+        U: Transmit<'u, HEAD_TRANSMIT, TAIL_TRANSMIT>,
+        const HEAD: usize,
+        const TAIL: usize,
+        const HEAD_TRANSMIT: usize,
+        const TAIL_TRANSMIT: usize,
+    > TransmitClient for LowLevelDebug<'u, U, HEAD, TAIL, HEAD_TRANSMIT, TAIL_TRANSMIT>
+{
     fn transmitted_buffer(
         &self,
         tx_buffer: &'static mut dyn packet_buffer::PacketBufferDyn,
@@ -95,14 +128,29 @@ impl<'u, U: Transmit<'u>> TransmitClient for LowLevelDebug<'u, U> {
 
             let _ = self
                 .uart
-                .transmit_buffer(PacketBufferMut::new(buffer).unwrap(), MESSAGE.len())
+                .transmit_buffer(
+                    PacketBufferMut::<HEAD_TRANSMIT, TAIL_TRANSMIT>::new(buffer).unwrap(),
+                    MESSAGE.len(),
+                )
                 .map_err(|(_, returned_buffer)| {
-                    self.buffer.set(Some(
-                        returned_buffer
-                            .downcast::<PacketSliceMut>()
-                            .unwrap()
-                            .into_inner(),
-                    ));
+                    let new_buf: PacketBufferMut<HEAD, TAIL> = if let Ok(pb) =
+                        returned_buffer.reclaim_headroom::<HEAD>()
+                    {
+                        let aux = if let Ok(pb2) = pb.reclaim_tailroom::<TAIL>() {
+                            pb2
+                        } else {
+                            // AMALIA: wtf do we do here if we cannot reclaim the headroom/tailroom????
+                            PacketBufferMut::new(PacketSliceMut::new(&mut MESSAGE).unwrap())
+                                .unwrap()
+                        };
+
+                        aux
+                    } else {
+                        // AMALIA: wtf do we do here if we cannot reclaim the headroom/tailroom????
+                        PacketBufferMut::new(PacketSliceMut::new(&mut MESSAGE).unwrap()).unwrap()
+                    };
+
+                    self.buffer.set(Some(new_buf));
                 });
             return;
         }
@@ -117,10 +165,11 @@ impl<'u, U: Transmit<'u>> TransmitClient for LowLevelDebug<'u, U> {
                 None => continue,
                 Some(to_print) => to_print,
             };
-            self.transmit_entry(tx_buffer, app_num, to_print);
+            self.transmit_entry(buffer.into_inner(), app_num, to_print);
             return;
         }
-        self.buffer.set(Some(buffer.into_inner()));
+        self.buffer
+            .set(Some(PacketBufferMut::<HEAD, TAIL>::new(buffer).unwrap()));
     }
 }
 
@@ -128,14 +177,26 @@ impl<'u, U: Transmit<'u>> TransmitClient for LowLevelDebug<'u, U> {
 // Implementation details below
 // -----------------------------------------------------------------------------
 
-impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
+impl<
+        'u,
+        U: Transmit<'u, HEAD_TRANSMIT, TAIL_TRANSMIT>,
+        const HEAD: usize,
+        const TAIL: usize,
+        const HEAD_TRANSMIT: usize,
+        const TAIL_TRANSMIT: usize,
+    > LowLevelDebug<'u, U, HEAD, TAIL, HEAD_TRANSMIT, TAIL_TRANSMIT>
+{
     // If the UART is not busy (the buffer is available), transmits the entry.
     // Otherwise, adds it to the app's queue.
     fn push_entry(&self, entry: DebugEntry, processid: ProcessId) {
         use DebugEntry::Dropped;
 
-        if let Some(buffer) = self.buffer.take() {
-            let slice = PacketSliceMut::new(buffer).unwrap();
+        if let Some(mut buffer) = self.buffer.take() {
+            // AMALIA: e ok??? am incercat sa obtin din packetbuffermut un buffer de u8
+            let slice = (&mut buffer as &mut dyn core::any::Any)
+                .downcast_mut::<PacketSliceMut>()
+                .unwrap()
+                .into_inner();
             self.transmit_entry(slice, processid.id(), entry);
             return;
         }
@@ -165,32 +226,27 @@ impl<'u, U: Transmit<'u>> LowLevelDebug<'u, U> {
         }
     }
 
-    // AMALIA: am nevoie de toate cele 3 tipuri de buf
     // Immediately prints the provided entry to the UART.
-    fn transmit_entry(
-        &self,
-        buffer: &'static mut dyn packet_buffer::PacketBufferDyn,
-        app_num: usize,
-        entry: DebugEntry,
-    ) {
-        let packet_buf = PacketBufferMut::new(buffer).unwrap();
-        let slice = packet_buf
-            .downcast::<PacketSliceMut>()
-            .unwrap()
-            .into_inner();
-        let msg_len = fmt::format_entry(app_num, entry, slice);
+    fn transmit_entry(&self, buffer: &'static mut [u8], app_num: usize, entry: DebugEntry) {
+        let msg_len = fmt::format_entry(app_num, entry, buffer);
         // The uart's error message is ignored because we cannot do anything if
         // it fails anyway.
         let _ = self
             .uart
-            .transmit_buffer(packet_buf, msg_len)
+            .transmit_buffer(
+                PacketBufferMut::new(PacketSliceMut::new(buffer).unwrap()).unwrap(),
+                msg_len,
+            )
             .map_err(|(_, returned_buffer)| {
                 let buf = returned_buffer
                     .downcast::<PacketSliceMut>()
                     .unwrap()
                     .into_inner();
 
-                self.buffer.set(Some(buf));
+                // AMALIA: asta sigur nu e ok. Aveam nevoie de un pbmut cu new head si in loc sa ii fac reclaim am facut altu :))))
+                let pb = PacketBufferMut::new(PacketSliceMut::new(buf).unwrap()).unwrap();
+
+                self.buffer.set(Some(pb));
             });
     }
 }

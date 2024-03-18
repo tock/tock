@@ -27,6 +27,8 @@ pub trait PacketBufferDyn: Any {
     /// indicates that the `PacketBufferDyn` was not modified.
     fn reclaim_headroom(&mut self, new_headroom: usize) -> bool;
 
+    fn reclaim_tailroom(&mut self, new_tailroom: usize) -> bool;
+
     /// Force-reset the buffer to length `0`, and set a new headroom
     /// pointer. This will ensure that a subsequent prepend operation starts at
     /// this new headroom pointer.
@@ -179,6 +181,17 @@ impl<const HEAD: usize, const TAIL: usize> PacketBufferMut<HEAD, TAIL> {
         self,
     ) -> Result<PacketBufferMut<NEW_HEAD, TAIL>, Self> {
         if self.inner.reclaim_headroom(NEW_HEAD) {
+            Ok(PacketBufferMut { inner: self.inner })
+        } else {
+            Err(self)
+        }
+    }
+
+    #[inline(always)]
+    pub fn reclaim_tailroom<const NEW_TAIL: usize>(
+        self,
+    ) -> Result<PacketBufferMut<HEAD, NEW_TAIL>, Self> {
+        if self.inner.reclaim_tailroom(NEW_TAIL) {
             Ok(PacketBufferMut { inner: self.inner })
         } else {
             Err(self)
@@ -371,6 +384,10 @@ impl PacketBufferDyn for PacketSliceMut {
     }
 
     fn reclaim_headroom(&mut self, _new_headroom: usize) -> bool {
+        unimplemented!()
+    }
+
+    fn reclaim_tailroom(&mut self, _new_tailroom: usize) -> bool {
         unimplemented!()
     }
 
