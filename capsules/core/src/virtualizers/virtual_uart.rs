@@ -432,7 +432,9 @@ impl<'a> uart::Transmit<'a> for UartDevice<'a> {
         tx_data: &'static mut [u8],
         tx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        if self.transmitting.get() {
+        if tx_len == 0 {
+            Err((ErrorCode::SIZE, tx_data))
+        } else if self.transmitting.get() {
             Err((ErrorCode::BUSY, tx_data))
         } else {
             self.tx_buffer.replace(tx_data);
