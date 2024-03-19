@@ -25,14 +25,13 @@ use capsules_extra::net::ipv6::ip_utils::IPAddr;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::deferred_call::DeferredCallClient;
-use kernel::hil::digest::Digest;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::radio;
 #[allow(unused_imports)]
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::symmetric_encryption::AES128;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::process_checker::basic::AppCheckerSha256;
+use kernel::process::ProcessLoadingAsync;
 use kernel::scheduler::round_robin::RoundRobinSched;
 
 //use kernel::hil::time::Alarm;
@@ -41,8 +40,6 @@ use kernel::hil::Controller;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_buf, static_init};
 use sam4l::chip::Sam4lDefaultPeripherals;
-
-use capsules_extra::sha256::Sha256Software;
 
 use components::alarm::{AlarmDriverComponent, AlarmMuxComponent};
 use components::console::{ConsoleOrderedComponent, UartMuxComponent};
@@ -171,8 +168,6 @@ struct Imix {
         &'static capsules_extra::nonvolatile_storage_driver::NonvolatileStorage<'static>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
-    credentials_checking_policy: &'static (),
-    //credentials_checking_policy: &'static AppCheckerSha256,
 }
 
 // The RF233 radio stack requires our buffers for its SPI operations:
@@ -187,7 +182,6 @@ struct Imix {
 static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 static mut RF233_REG_WRITE: [u8; 2] = [0x00; 2];
 static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
-static mut SHA256_CHECKER_BUF: [u8; 32] = [0; 32];
 
 impl SyscallDriverLookup for Imix {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
@@ -225,8 +219,6 @@ impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Imix {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type CredentialsCheckingPolicy = ();
-    //type CredentialsCheckingPolicy = AppCheckerSha256;
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
@@ -240,9 +232,6 @@ impl KernelResources<sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> for Imix {
     }
     fn process_fault(&self) -> &Self::ProcessFault {
         &()
-    }
-    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
-        self.credentials_checking_policy
     }
     fn scheduler(&self) -> &Self::Scheduler {
         self.scheduler
@@ -384,15 +373,6 @@ pub unsafe fn main() {
             trng: true,
         },
     );
-
-    let sha = static_init!(Sha256Software<'static>, Sha256Software::new());
-    kernel::deferred_call::DeferredCallClient::register(sha);
-
-    let checker = static_init!(
-        AppCheckerSha256,
-        AppCheckerSha256::new(sha, &mut SHA256_CHECKER_BUF)
-    );
-    sha.set_client(checker);
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
 
@@ -732,6 +712,65 @@ pub unsafe fn main() {
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
+    // Create the software-based SHA engine.
+    let sha = components::sha::ShaSoftware256Component::new()
+        .finalize(components::sha_software_256_component_static!());
+
+    // Create the credential checker.
+    let checking_policy = components::appid::checker_sha::AppCheckerSha256Component::new(sha)
+        .finalize(components::app_checker_sha256_component_static!());
+
+    // Create the AppID assigner.
+    let assigner = components::appid::assigner_name::AppIdAssignerNamesComponent::new()
+        .finalize(components::appid_assigner_names_component_static!());
+
+    // Create the process checking machine.
+    let checker = components::appid::checker::ProcessCheckerMachineComponent::new(checking_policy)
+        .finalize(components::process_checker_machine_component_static!());
+
+    // These symbols are defined in the linker script.
+    extern "C" {
+        /// Beginning of the ROM region containing app images.
+        static _sapps: u8;
+        /// End of the ROM region containing app images.
+        static _eapps: u8;
+        /// Beginning of the RAM region for app memory.
+        static mut _sappmem: u8;
+        /// End of the RAM region for app memory.
+        static _eappmem: u8;
+    }
+
+    let process_binary_array = static_init!(
+        [Option<kernel::process::ProcessBinary>; NUM_PROCS],
+        [None, None, None, None]
+    );
+
+    let loader = static_init!(
+        kernel::process::SequentialProcessLoaderMachine<
+            sam4l::chip::Sam4l<Sam4lDefaultPeripherals>,
+        >,
+        kernel::process::SequentialProcessLoaderMachine::new(
+            checker,
+            &mut PROCESSES,
+            process_binary_array,
+            board_kernel,
+            chip,
+            core::slice::from_raw_parts(
+                core::ptr::addr_of!(_sapps),
+                core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
+            ),
+            core::slice::from_raw_parts_mut(
+                core::ptr::addr_of_mut!(_sappmem),
+                core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
+            ),
+            &FAULT_RESPONSE,
+            assigner,
+            &process_mgmt_cap
+        )
+    );
+
+    checker.set_client(loader);
+
     let imix = Imix {
         pconsole,
         console,
@@ -755,8 +794,6 @@ pub unsafe fn main() {
         nonvolatile_storage,
         scheduler,
         systick: cortexm4::systick::SysTick::new(),
-        //credentials_checking_policy: checker,
-        credentials_checking_policy: &(),
     };
 
     // Need to initialize the UART for the nRF51 serialization.
@@ -820,38 +857,8 @@ pub unsafe fn main() {
 
     debug!("Initialization complete. Entering main loop");
 
-    // These symbols are defined in the linker script.
-    extern "C" {
-        /// Beginning of the ROM region containing app images.
-        static _sapps: u8;
-        /// End of the ROM region containing app images.
-        static _eapps: u8;
-        /// Beginning of the RAM region for app memory.
-        static mut _sappmem: u8;
-        /// End of the RAM region for app memory.
-        static _eappmem: u8;
-    }
-
-    kernel::process::load_and_check_processes(
-        board_kernel,
-        &imix,
-        chip,
-        core::slice::from_raw_parts(
-            core::ptr::addr_of!(_sapps),
-            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-        ),
-        core::slice::from_raw_parts_mut(
-            core::ptr::addr_of_mut!(_sappmem),
-            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
-        ),
-        &mut PROCESSES,
-        &FAULT_RESPONSE,
-        &process_mgmt_cap,
-    )
-    .unwrap_or_else(|err| {
-        debug!("Error loading processes!");
-        debug!("{:?}", err);
-    });
+    loader.register();
+    loader.start();
 
     board_kernel.kernel_loop(&imix, chip, Some(&imix.ipc), &main_cap);
 }

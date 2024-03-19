@@ -263,7 +263,6 @@ impl KernelResources<EarlGreyChip> for EarlGrey {
     type SyscallDriverLookup = Self;
     type SyscallFilter = TbfHeaderFilterDefaultAllow;
     type ProcessFault = ();
-    type CredentialsCheckingPolicy = ();
     type Scheduler = PrioritySched;
     type SchedulerTimer = VirtualSchedulerTimer<
         VirtualMuxAlarm<'static, earlgrey::timer::RvTimer<'static, ChipConfig>>,
@@ -278,9 +277,6 @@ impl KernelResources<EarlGreyChip> for EarlGrey {
         self.syscall_filter
     }
     fn process_fault(&self) -> &Self::ProcessFault {
-        &()
-    }
-    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {

@@ -11,11 +11,13 @@
 #![deny(missing_docs)]
 
 use kernel::component::Component;
+use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::process::ProcessLoadingAsync;
 use kernel::scheduler::round_robin::RoundRobinSched;
-use kernel::{capabilities, create_capability, debug, static_init};
+use kernel::{capabilities, create_capability, static_init};
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
 use nrf52_components::{self, UartChannel, UartPins};
@@ -70,7 +72,6 @@ pub struct Platform {
     alarm: &'static AlarmDriver,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
-    credentials_checking_policy: &'static kernel::process_checker::basic::AppCheckerSha256,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -111,7 +112,6 @@ impl KernelResources<nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type CredentialsCheckingPolicy = kernel::process_checker::basic::AppCheckerSha256;
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
@@ -125,9 +125,6 @@ impl KernelResources<nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'
     }
     fn process_fault(&self) -> &Self::ProcessFault {
         &()
-    }
-    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
-        self.credentials_checking_policy
     }
     fn scheduler(&self) -> &Self::Scheduler {
         self.scheduler
@@ -259,18 +256,64 @@ pub unsafe fn main() {
     // Credential Checking
     //--------------------------------------------------------------------------
 
-    let sha = static_init!(
-        capsules_extra::sha256::Sha256Software<'static>,
-        capsules_extra::sha256::Sha256Software::new()
-    );
-    kernel::deferred_call::DeferredCallClient::register(sha);
+    // Create the software-based SHA engine.
+    let sha = components::sha::ShaSoftware256Component::new()
+        .finalize(components::sha_software_256_component_static!());
 
-    let app_checker_sha256_buf = static_init!([u8; 32], [0; 32]);
-    let checker = static_init!(
-        kernel::process_checker::basic::AppCheckerSha256,
-        kernel::process_checker::basic::AppCheckerSha256::new(sha, app_checker_sha256_buf)
+    // Create the credential checker.
+    let checking_policy = components::appid::checker_sha::AppCheckerSha256Component::new(sha)
+        .finalize(components::app_checker_sha256_component_static!());
+
+    // Create the AppID assigner.
+    let assigner = components::appid::assigner_name::AppIdAssignerNamesComponent::new()
+        .finalize(components::appid_assigner_names_component_static!());
+
+    // Create the process checking machine.
+    let checker = components::appid::checker::ProcessCheckerMachineComponent::new(checking_policy)
+        .finalize(components::process_checker_machine_component_static!());
+
+    // These symbols are defined in the linker script.
+    extern "C" {
+        /// Beginning of the ROM region containing app images.
+        static _sapps: u8;
+        /// End of the ROM region containing app images.
+        static _eapps: u8;
+        /// Beginning of the RAM region for app memory.
+        static mut _sappmem: u8;
+        /// End of the RAM region for app memory.
+        static _eappmem: u8;
+    }
+
+    let process_binary_array = static_init!(
+        [Option<kernel::process::ProcessBinary>; NUM_PROCS],
+        [None, None, None, None, None, None, None, None]
     );
-    kernel::hil::digest::Digest::set_client(sha, checker);
+
+    let loader = static_init!(
+        kernel::process::SequentialProcessLoaderMachine<
+            nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+        >,
+        kernel::process::SequentialProcessLoaderMachine::new(
+            checker,
+            &mut PROCESSES,
+            process_binary_array,
+            board_kernel,
+            chip,
+            core::slice::from_raw_parts(
+                core::ptr::addr_of!(_sapps),
+                core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
+            ),
+            core::slice::from_raw_parts_mut(
+                core::ptr::addr_of_mut!(_sappmem),
+                core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
+            ),
+            &FAULT_RESPONSE,
+            assigner,
+            &process_management_capability
+        )
+    );
+
+    checker.set_client(loader);
 
     //--------------------------------------------------------------------------
     // PLATFORM SETUP, SCHEDULER, AND START KERNEL LOOP
@@ -285,41 +328,10 @@ pub unsafe fn main() {
         alarm,
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
-        credentials_checking_policy: checker,
     };
 
-    // These symbols are defined in the linker script.
-    extern "C" {
-        /// Beginning of the ROM region containing app images.
-        static _sapps: u8;
-        /// End of the ROM region containing app images.
-        static _eapps: u8;
-        /// Beginning of the RAM region for app memory.
-        static mut _sappmem: u8;
-        /// End of the RAM region for app memory.
-        static _eappmem: u8;
-    }
-
-    kernel::process::load_and_check_processes(
-        board_kernel,
-        &platform,
-        chip,
-        core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
-        ),
-        core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
-        ),
-        &mut PROCESSES,
-        &FAULT_RESPONSE,
-        &process_management_capability,
-    )
-    .unwrap_or_else(|err| {
-        debug!("Error loading processes!");
-        debug!("{:?}", err);
-    });
+    loader.register();
+    loader.start();
 
     board_kernel.kernel_loop(
         &platform,

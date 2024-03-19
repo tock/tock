@@ -19,11 +19,15 @@ use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::storage_permissions;
 use crate::syscall::{self, Syscall, SyscallReturn};
 use crate::upcall::UpcallId;
-use tock_tbf::types::{CommandPermissions, TbfFooterV2Credentials};
+use tock_tbf::types::CommandPermissions;
 
 // Export all process related types via `kernel::process::`.
+pub use crate::process_binary::ProcessBinary;
+pub use crate::process_checker::{ProcessCheckerMachine, ProcessCheckerMachineClient};
+pub use crate::process_loading::load_processes;
 pub use crate::process_loading::ProcessLoadError;
-pub use crate::process_loading::{load_and_check_processes, load_processes};
+pub use crate::process_loading::SequentialProcessLoaderMachine;
+pub use crate::process_loading::{ProcessLoadingAsync, ProcessLoadingAsyncClient};
 pub use crate::process_policies::{
     PanicFaultPolicy, ProcessFaultPolicy, RestartFaultPolicy, StopFaultPolicy,
     StopWithDebugFaultPolicy, ThresholdRestartFaultPolicy, ThresholdRestartThenPanicFaultPolicy,
@@ -180,17 +184,17 @@ impl ProcessId {
         self.identifier
     }
 
-    /// Get the `ShortID` for this application this process is an execution of.
+    /// Get the `ShortId` for this application this process is an execution of.
     ///
-    /// The `ShortID` is an identifier for the _application_, not the particular
-    /// execution (i.e. the currently running process). This makes `ShortID`
+    /// The `ShortId` is an identifier for the _application_, not the particular
+    /// execution (i.e. the currently running process). This makes `ShortId`
     /// distinct from `ProcessId`.
     ///
     /// This function is a helper function as capsules typically use `ProcessId`
     /// as a handle to the running process and corresponding app.
-    pub fn short_app_id(&self) -> ShortID {
+    pub fn short_app_id(&self) -> ShortId {
         self.kernel
-            .process_map_or(ShortID::LocallyUnique, *self, |process| {
+            .process_map_or(ShortId::LocallyUnique, *self, |process| {
                 process.short_app_id()
             })
     }
@@ -217,48 +221,48 @@ impl ProcessId {
 
 /// A compressed form of an Application Identifier.
 ///
-/// ShortIDs are useful for more efficient operations with app identifiers
+/// ShortIds are useful for more efficient operations with app identifiers
 /// within the kernel. They are guaranteed to be unique among all running
 /// processes on the same board. However, as they are only 32 bits they are not
 /// globally unique.
 ///
-/// ShortIDs are persistent across restarts of the same app (whereas ProcessIDs
+/// ShortIds are persistent across restarts of the same app (whereas ProcessIDs
 /// are not).
 ///
-/// As ShortIDs must be unique for each app on a board, and since not every
-/// platform may have a use for ShortIDs, the definition of a ShortID provides a
+/// As ShortIds must be unique for each app on a board, and since not every
+/// platform may have a use for ShortIds, the definition of a ShortId provides a
 /// convenient mechanism for meeting the uniqueness requirement without actually
 /// requiring assigning unique discrete values to each app. This is done with
 /// the `LocallyUnique` variant which is an abstract ID that is guaranteed to be
-/// unique (i.e. an equality comparison with any other ShortID will always
+/// unique (i.e. an equality comparison with any other ShortId will always
 /// return `false`). Platforms which have a use for an actual number for a
-/// `ShortID` should use the `Fixed(NonZeroU32)` variant. Note, for type space
-/// efficiency, we disallow using the number 0 as a fixed ShortID.
+/// `ShortId` should use the `Fixed(NonZeroU32)` variant. Note, for type space
+/// efficiency, we disallow using the number 0 as a fixed ShortId.
 ///
-/// ShortIDs are assigned to the app as part of the credential checking process.
+/// ShortIds are assigned to the app as part of the credential checking process.
 /// Specifically, an implementation of the `process_checker::Compress` trait
-/// assigns ShortIDs.
+/// assigns ShortIds.
 #[derive(Clone, Copy)]
-pub enum ShortID {
-    /// An abstract `ShortID` that is always guaranteed to be unique. As this is
+pub enum ShortId {
+    /// An abstract `ShortId` that is always guaranteed to be unique. As this is
     /// not an actual discrete value, it cannot be used for anything other than
     /// meeting the uniqueness requirement.
     LocallyUnique,
-    /// A 32 bit number `ShortID`. This fixed value is guaranteed to be unique
+    /// A 32 bit number `ShortId`. This fixed value is guaranteed to be unique
     /// among all running processes as the kernel will not start two processes
-    /// with the same ShortID.
+    /// with the same ShortId.
     Fixed(core::num::NonZeroU32),
 }
 
-impl PartialEq for ShortID {
+impl PartialEq for ShortId {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (ShortID::Fixed(a), ShortID::Fixed(b)) => a == b,
+            (ShortId::Fixed(a), ShortId::Fixed(b)) => a == b,
             _ => false,
         }
     }
 }
-impl Eq for ShortID {}
+impl Eq for ShortId {}
 
 /// Enum used to inform scheduler why a process stopped executing (aka why
 /// `do_process()` returned).
@@ -305,13 +309,27 @@ pub trait Process {
     /// Returns the process's identifier.
     fn processid(&self) -> ProcessId;
 
-    /// Returns the ShortID generated by the application binary checker at
+    /// Returns the ShortId generated by the application binary checker at
     /// loading.
-    fn short_app_id(&self) -> ShortID;
+    fn short_app_id(&self) -> ShortId;
 
     /// Returns the version number of the binary in this process, as specified
     /// in a TBF Program Header; if the binary has no version assigned, return [None]
     fn binary_version(&self) -> Option<BinaryVersion>;
+
+    /// Returns how many times this process has been restarted.
+    fn get_restart_count(&self) -> usize;
+
+    /// Get the name of the process. Used for IPC.
+    fn get_process_name(&self) -> &'static str;
+
+    /// Return if there are any Tasks (upcalls/IPC requests) enqueued for the
+    /// process.
+    fn has_tasks(&self) -> bool;
+
+    /// Returns the number of pending tasks. If 0 then `dequeue_task()` will
+    /// return `None` when called.
+    fn pending_tasks(&self) -> usize;
 
     /// Queue a `Task` for the process. This will be added to a per-process
     /// buffer and executed by the scheduler. `Task`s are some function the app
@@ -325,53 +343,6 @@ pub trait Process {
     /// Other return values must be treated as kernel-internal errors.
     fn enqueue_task(&self, task: Task) -> Result<(), ErrorCode>;
 
-    /// Enqueue a `Task` to execute the init function of the process. The
-    /// process must be in the the `Terminated` or `CredentialsApproved` state,
-    /// and invoking this method transitions it to the `Yielded` state before
-    /// enqueuing the task. This is the only method that transitions a process
-    /// from `Terminated` or `CredentialsApproved` to `Yielded`. Because
-    /// starting a process has security implications (e.g., that every running
-    /// process has a unique application identifier), this method requires a
-    /// Capability.
-    fn enqueue_init_task(
-        &self,
-        cap: &dyn capabilities::ProcessInitCapability,
-    ) -> Result<(), ErrorCode>;
-
-    /// Transition a loaded but unchecked process into the `CredentialsApproved`
-    /// state so it can run. Returns an error if the process was not in the
-    /// `Unchecked` state.
-    ///
-    /// The `credentials` argument is `None` if all credentials are `Pass`. If a
-    /// credential is `Accept`, it is passed in `credentials`.  The
-    /// `short_app_id` argument is the short ID generated by the Identifier
-    /// Policy.
-    ///
-    /// Transitioning a process to `CredentialsApproved` has security
-    /// implications because it means this application binary is permitted to
-    /// run on the system. This method therefore requires a Capability.
-    fn mark_credentials_pass(
-        &self,
-        credentials: Option<TbfFooterV2Credentials>,
-        short_app_id: ShortID,
-        capability: &dyn capabilities::ProcessApprovalCapability,
-    ) -> Result<(), ErrorCode>;
-
-    /// Transition a process into the `CredentialsFailed` state, indicating it
-    /// should never run.
-    fn mark_credentials_fail(&self, capability: &dyn capabilities::ProcessApprovalCapability);
-
-    /// Return the credentials which have made this process runnable, or `None`
-    /// if it was not made runnable or allowed to run without credentials.
-    fn get_credentials(&self) -> Option<TbfFooterV2Credentials>;
-
-    /// Returns whether this process is ready to execute.
-    fn ready(&self) -> bool;
-
-    /// Return if there are any Tasks (upcalls/IPC requests) enqueued for the
-    /// process.
-    fn has_tasks(&self) -> bool;
-
     /// Remove the scheduled operation from the front of the queue and return it
     /// to be handled by the scheduler.
     ///
@@ -379,16 +350,15 @@ pub trait Process {
     /// `None`.
     fn dequeue_task(&self) -> Option<Task>;
 
-    /// Returns the number of pending tasks. If 0 then `dequeue_task()` will
-    /// return `None` when called.
-    fn pending_tasks(&self) -> usize;
-
     /// Remove all scheduled upcalls for a given upcall id from the task queue.
     fn remove_pending_upcalls(&self, upcall_id: UpcallId);
 
     /// Returns the current state the process is in. Common states are "running"
     /// or "yielded".
     fn get_state(&self) -> State;
+
+    /// Returns whether this process is ready to execute.
+    fn ready(&self) -> bool;
 
     /// Returns whether the process is running (has active stack frames) or not
     /// (has never run, has faulted, or has completed).
@@ -417,27 +387,47 @@ pub trait Process {
     /// process.
     fn set_fault_state(&self);
 
-    /// Returns how many times this process has been restarted.
-    fn get_restart_count(&self) -> usize;
-
-    /// Get the name of the process. Used for IPC.
-    fn get_process_name(&self) -> &'static str;
-
-    /// Get the completion code if the process has previously terminated.
+    /// Start a terminated process. This function can only be called on a
+    /// terminated process.
     ///
-    /// If the process has never terminated then there has been no opportunity
-    /// for a completion code to be set, and this will return `None`.
-    ///
-    /// If the process has previously terminated this will return `Some()`. If
-    /// the last time the process terminated it did not provide a completion
-    /// code (e.g. the process faulted), then this will return `Some(None)`. If
-    /// the last time the process terminated it did provide a completion code,
-    /// this will return `Some(Some(completion_code))`.
-    fn get_completion_code(&self) -> Option<Option<u32>>;
+    /// The caller MUST verify this process is unique before calling this
+    /// function. This requires a capability to call to ensure that the caller
+    /// have verified that this process is unique before trying to start it.
+    fn start(&self, cap: &dyn crate::capabilities::ProcessStartCapability);
 
-    /// Stop and clear a process's state. If the process was running or has
-    /// passed credentials checks, put it into the `Terminated` state. This
-    /// method has no effect on processes in the `CredentialsFailed` state.
+    /// Terminates and attempts to restart the process. The process and current
+    /// application always terminate. The kernel may, based on its own policy,
+    /// restart the application using the same process, reuse the process for
+    /// another application, or simply terminate the process and application.
+    ///
+    /// This function can be called when the process is in any state except for
+    /// `Terminated`. It attempts to reset all process state and re-initialize
+    /// it so that it can be reused.
+    ///
+    /// Restarting an application can fail for three general reasons:
+    ///
+    /// 1. The process is already terminated. Use `start()` instead.
+    ///
+    /// 2. The kernel chooses not to restart the application, based on its
+    ///    policy.
+    ///
+    /// 3. The kernel decides to restart the application but fails to do so
+    ///    because some state can no long be configured for the process. For
+    ///    example, the syscall state for the process fails to initialize.
+    ///
+    /// After `restart()` runs the process will either be queued to run its the
+    /// application's `_start` function, terminated, or queued to run a
+    /// different application's `_start` function.
+    ///
+    /// As the process will be terminated before being restarted, this function
+    /// accepts an optional `completion_code`. If the process provided a
+    /// completion code (e.g. via the exit syscall), then this should be called
+    /// with `Some(u32)`. If the kernel is trying to restart the process and the
+    /// process did not provide a completion code, then this should be called
+    /// with `None`.
+    fn try_restart(&self, completion_code: Option<u32>);
+
+    /// Stop and clear a process's state and put it into the `Terminated` state.
     ///
     /// This will end the process, but does not reset it such that it could be
     /// restarted and run again. This function instead frees grants and any
@@ -452,35 +442,17 @@ pub trait Process {
     /// `None`.
     fn terminate(&self, completion_code: Option<u32>);
 
-    /// Terminates and attempts to restart the process. The process and current
-    /// application always terminate. The kernel may, based on its own policy,
-    /// restart the application using the same process, reuse the process for
-    /// another application, or simply terminate the process and application.
+    /// Get the completion code if the process has previously terminated.
     ///
-    /// This function can be called when the process is in any state. It
-    /// attempts to reset all process state and re-initialize it so that it can
-    /// be reused.
+    /// If the process has never terminated then there has been no opportunity
+    /// for a completion code to be set, and this will return `None`.
     ///
-    /// Restarting an application can fail for two general reasons:
-    ///
-    /// 1. The kernel chooses not to restart the application, based on its
-    ///    policy.
-    ///
-    /// 2. The kernel decides to restart the application but fails to do so
-    ///    because Some state can no long be configured for the process. For
-    ///    example, the syscall state for the process fails to initialize.
-    ///
-    /// After `restart()` runs the process will either be queued to run its the
-    /// application's `_start` function, terminated, or queued to run a
-    /// different application's `_start` function.
-    ///
-    /// As the process will be terminated before being restarted, this function
-    /// accepts an optional `completion_code`. If the process provided a
-    /// completion code (e.g. via the exit syscall), then this should be called
-    /// with `Some(u32)`. If the kernel is trying to restart the process and the
-    /// process did not provide a completion code, then this should be called
-    /// with `None`.
-    fn try_restart(&self, completion_code: Option<u32>);
+    /// If the process has previously terminated this will return `Some()`. If
+    /// the last time the process terminated it did not provide a completion
+    /// code (e.g. the process faulted), then this will return `Some(None)`. If
+    /// the last time the process terminated it did provide a completion code,
+    /// this will return `Some(Some(completion_code))`.
+    fn get_completion_code(&self) -> Option<Option<u32>>;
 
     // memop operations
 
@@ -867,33 +839,13 @@ impl From<Error> for ErrorCode {
 /// This is public so external implementations of `Process` can re-use these
 /// process states.
 ///
-/// When the kernel first creates a process structure, it places it in the
-/// `CredentialsUnchecked` state. If the process is able to load successfully,
-/// the kernel uses the Credentials Checking Policy to decide whether to place
-/// the process in the `CredentialsApproved` or `CredentialsFailed` state.
-///
-/// A process in the `CredentialsUnchecked` or `CredentialsFailed` state is not
-/// runnable and the kernel should never run it.
-///
-/// Once a process is placed in the `CredentialsApproved` state, the kernel
-/// interprets this that the process is ready to run. The kernel checks the
-/// Application ID, Short ID, and version number of the Userspace Binary to
-/// decide if the process can run given other processes in the system. If it can
-/// run, the kernel pushes its initial stack frame and transitions it to the
-/// `Yielded` state. If it cannot run because of the identifiers of other
-/// processes, the kernel transitions it to the `Terminated` state.
-///
-/// To start or restart a terminated process, the kernel transitions it into the
-/// `CredentialsApproved` state. This causes it to check whether it is runnable
-/// and then transition it as above.
-///
 /// While a process is running, it transitions between the `Running`, `Yielded`,
 /// `StoppedRunning`, and `StoppedYielded` states. If an error occurs (e.g., a
 /// memory access error), the kernel faults it and either leaves it in the
 /// `Faulted` state, restarts it, or takes some other action defined by the
 /// kernel fault policy. If the process issues an `exit-terminate` system call,
 /// it enters the `Terminated` state. If it issues an `exit-restart` system
-/// call, it terminates then tries to transition to `CredentialsApproved`.
+/// call, it terminates then tries to back to a runnable state.
 ///
 /// When a process faults, it enters the `Faulted` state. To be restarted, it
 /// must first transition to the `Terminated` state, which means that all of its
@@ -927,28 +879,10 @@ pub enum State {
     /// clean up its state).
     Faulted,
 
-    /// The process's credentials have been approved but it is not running: it
-    /// exited with the `exit-terminate` system call or was terminated for some
-    /// other reason (e.g., by the process console).  Processes in the
-    /// `Terminated` state can be transitioned into `CredentialsApproved` to run
-    /// again.
+    /// The process is not running: it exited with the `exit-terminate` system
+    /// call or was terminated for some other reason (e.g., by the process
+    /// console). Processes in the `Terminated` state can be run again.
     Terminated,
-
-    /// The process's credentials have not been checked to be allowed to run
-    /// yet: it needs to be checked by an `AppCredentialsChecker` to be
-    /// transitioned into the `CredentialsApproved` or `CredentialsFailed`
-    /// state. Processes in this state cannot be run.
-    CredentialsUnchecked,
-
-    /// The Userspace Binary's credentials have been approved by the Process
-    /// Checking Policy but the process is not running (does not have an active
-    /// stack). The kernel tries to run processes in this state, first checking
-    /// their Application Identifiers and Short IDs for uniqueness.
-    CredentialsApproved,
-
-    /// The Process failed verification: it was terminated before it was
-    /// verified. Processes in this state cannot be run.
-    CredentialsFailed,
 }
 
 /// The action the kernel should take when a process encounters a fault.

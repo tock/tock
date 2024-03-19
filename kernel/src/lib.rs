@@ -127,6 +127,7 @@ pub mod utilities;
 mod config;
 mod kernel;
 mod memop;
+mod process_binary;
 mod process_loading;
 mod process_policies;
 mod process_printer;

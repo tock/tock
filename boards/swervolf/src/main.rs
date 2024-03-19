@@ -77,7 +77,6 @@ impl KernelResources<swervolf_eh1::chip::SweRVolf<'static, SweRVolfDefaultPeriph
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type CredentialsCheckingPolicy = ();
     type Scheduler = CooperativeSched<'static>;
     type SchedulerTimer = swerv::eh1_timer::Timer<'static>;
     type WatchDog = ();
@@ -90,9 +89,6 @@ impl KernelResources<swervolf_eh1::chip::SweRVolf<'static, SweRVolfDefaultPeriph
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
-        &()
-    }
-    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {

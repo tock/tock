@@ -711,13 +711,13 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                             let _ = write(&mut console_writer, format_args!(" {:<7?}", process_id));
                             // Display short id.
                             match short_id {
-                                kernel::process::ShortID::LocallyUnique => {
+                                kernel::process::ShortId::LocallyUnique => {
                                     let _ = write(
                                         &mut console_writer,
                                         format_args!("{}", "Unique     ",),
                                     );
                                 }
-                                kernel::process::ShortID::Fixed(id) => {
+                                kernel::process::ShortId::Fixed(id) => {
                                     let _ =
                                         write(&mut console_writer, format_args!("0x{:<8x} ", id));
                                 }
