@@ -240,27 +240,30 @@ impl<'a> MuxUart<'a> {
             mnode.map(|node| {
                 node.tx_buffer.take().map(|buf| {
                     node.operation.take().map(move |op| {
-                        let packet_slice = PacketSliceMut::new(buf).unwrap();
+                        // let packet_slice = PacketSliceMut::new(buf).unwrap();
 
+                        // put some headers
+                        // let new_buffer = buf.prepand([...])
+                        let new_buffer = buf.reduce_headroom();
+                        // ----------------
                         match op {
-                            Operation::Transmit { len } => match self.uart.transmit_buffer(
-                                &mut PacketBufferMut::new(packet_slice).unwrap(),
-                                len,
-                            ) {
-                                Ok(()) => {
-                                    self.inflight.set(node);
+                            Operation::Transmit { len } => {
+                                match self.uart.transmit_buffer(new_buffer, len) {
+                                    Ok(()) => {
+                                        self.inflight.set(node);
+                                    }
+                                    Err((ecode, buf)) => {
+                                        node.tx_client.map(move |client| {
+                                            node.transmitting.set(false);
+                                            client.transmitted_buffer(
+                                                buf.reclaim_headroom(),
+                                                0,
+                                                Err(ecode),
+                                            );
+                                        });
+                                    }
                                 }
-                                Err((ecode, buf)) => {
-                                    node.tx_client.map(move |client| {
-                                        node.transmitting.set(false);
-                                        client.transmitted_buffer(
-                                            buf.downcast::<PacketSliceMut>().unwrap(),
-                                            0,
-                                            Err(ecode),
-                                        );
-                                    });
-                                }
-                            },
+                            }
                             Operation::TransmitWord { word } => {
                                 let rcode = self.uart.transmit_word(word);
                                 if rcode != Ok(()) {
@@ -353,7 +356,10 @@ pub struct UartDevice<'a> {
     state: Cell<UartDeviceReceiveState>,
     mux: &'a MuxUart<'a>,
     receiver: bool, // Whether or not to pass this UartDevice incoming messages.
-    tx_buffer: TakeCell<'static, [u8]>,
+
+    // tx_buffer: TakeCell<'static, [u8]>,
+    tx_buffer: OptionalCell<PacketBufferMut<HEAD, TAIL>>,
+
     transmitting: Cell<bool>,
     rx_buffer: TakeCell<'static, [u8]>,
     rx_position: Cell<usize>,
@@ -441,14 +447,13 @@ impl<'a, const HEAD: usize, const TAIL: usize> uart::Transmit<'a, HEAD, TAIL> fo
     /// Transmit data.
     fn transmit_buffer(
         &self,
-        tx_data: &mut PacketBufferMut<HEAD, TAIL>,
+        tx_data: PacketBufferMut<HEAD, TAIL>,
         tx_len: usize,
-    ) -> Result<(), (ErrorCode, &'static mut PacketBufferMut<HEAD, TAIL>)> {
+    ) -> Result<(), (ErrorCode, PacketBufferMut<HEAD, TAIL>)> {
         if self.transmitting.get() {
             Err((ErrorCode::BUSY, tx_data))
         } else {
-            self.tx_buffer
-                .replace(tx_data.downcast::<PacketSliceMut>().unwrap().into_inner());
+            self.tx_buffer.replace(tx_data);
             self.transmitting.set(true);
             self.operation.set(Operation::Transmit { len: tx_len });
             self.mux.do_next_op_async();

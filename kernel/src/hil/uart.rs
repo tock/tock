@@ -6,7 +6,7 @@
 //!
 //!
 
-use crate::utilities::packet_buffer;
+use crate::utilities::packet_buffer::{self, PacketBufferMut};
 use crate::ErrorCode;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -261,7 +261,7 @@ pub trait TransmitClient {
     ///   - FAIL if the transmission failed in some way.
     fn transmitted_buffer(
         &self,
-        tx_buffer: &'static mut dyn packet_buffer::PacketBufferDyn,
+        tx_buffer: PacketBufferMut<HEAD, TAIL>,
         tx_len: usize,
         rval: Result<(), ErrorCode>,
     );

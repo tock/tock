@@ -8,7 +8,7 @@ use crate::ErrorCode;
 ///
 /// This is a safe interface, but should not be used directly. Instead,
 /// manipulate `PacketBufferDyn`s using the [`PacketBufferMut`] container.
-pub trait PacketBufferDyn: Any {
+pub unsafe trait PacketBufferDyn: Any {
     /// Length of the allocated data in this buffer (excluding head- and
     /// tailroom).
     fn len(&self) -> usize;
@@ -42,6 +42,9 @@ pub trait PacketBufferDyn: Any {
     fn copy_from_slice_or_err(&mut self, src: &[u8]) -> Result<(), ErrorCode>;
 
     fn append_from_slice_max(&mut self, src: &[u8]) -> usize;
+
+    // has to be guaranteed to fit !!!!!
+    unsafe fn prepand_unchecked(&mut self, header: &[u8]);
 
     // fn iter_mut<'a>(&'a mut self) -> impl Iterator<Item = &mut u8> + 'a;
 }
@@ -202,6 +205,18 @@ impl<const HEAD: usize, const TAIL: usize> PacketBufferMut<HEAD, TAIL> {
     pub fn downcast<T: PacketBufferDyn>(self) -> Option<&'static mut T> {
         let any_buffer: &'static mut dyn Any = self.inner as _;
         any_buffer.downcast_mut::<T>()
+    }
+
+    pub fn prepand<const NEW_HEAD: usize, const N: usize>(
+        self,
+        header: &[u8; N],
+    ) -> PacketBufferMut<NEW_HEAD, TAIL> {
+        // used like this to be a compile time check
+        assert!(NEW_HEAD <= HEAD - N);
+        unsafe {
+            self.inner.prepand_unchecked(header);
+        }
+        self.reduce_headroom()
     }
 }
 
@@ -370,7 +385,7 @@ impl PacketSliceMut {
 //     }
 // }
 
-impl PacketBufferDyn for PacketSliceMut {
+unsafe impl PacketBufferDyn for PacketSliceMut {
     fn len(&self) -> usize {
         self.data_slice().len() - self.headroom() - self.tailroom()
     }
@@ -430,6 +445,13 @@ impl PacketBufferDyn for PacketSliceMut {
         self.set_tailroom(tailroom - count);
         count
     }
+
+    unsafe fn prepand_unchecked(&mut self, header: &[u8]) {
+        self.set_headroom(self.get_headroom().saturating_sub(header.len()));
+        self.data_slice_mut()[..header.len()].copy_from_slice(header);
+    }
+
+    // TODO same for tail
 
     // fn iter_mut<'a>(&'a mut self) -> impl core::slice::IterMut<Item = &mut u8> + 'a {
     // 	let headroom = self.get_headroom();
