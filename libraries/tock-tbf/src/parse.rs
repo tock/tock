@@ -8,13 +8,6 @@ use core::{mem, str};
 
 use crate::types;
 
-/// Takes a value and rounds it up to be aligned % 4
-macro_rules! align4 {
-    ($e:expr $(,)?) => {
-        ($e) + ((4 - (($e) % 4)) % 4)
-    };
-}
-
 /// Parse the TBF header length and the entire length of the TBF binary.
 ///
 /// ## Return
@@ -268,7 +261,7 @@ pub fn parse_tbf_header(
 
                     // All TLV blocks are padded to 4 bytes, so we need to skip
                     // more if the length is not a multiple of 4.
-                    let skip_len: usize = align4!(tlv_header.length as usize);
+                    let skip_len: usize = (tlv_header.length as usize).next_multiple_of(4);
                     remaining = remaining
                         .get(skip_len..)
                         .ok_or(types::TbfParseError::NotEnoughFlash)?;
