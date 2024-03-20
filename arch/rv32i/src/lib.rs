@@ -60,7 +60,6 @@ extern "C" {
 }
 
 #[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
-core::arch::global_asm!("
             .section .riscv.start, \"ax\"
             .globl _start
           _start:
@@ -84,6 +83,11 @@ core::arch::global_asm!("
 
             // Re-enable linker relaxations.
             .option pop
+
+          1: // Only use core 0
+            li a1, 1
+            csrr a0, mhartid
+            bne a0, a1, 1b
 
             // Initialize the stack pointer register. This comes directly from
             // the linker script.

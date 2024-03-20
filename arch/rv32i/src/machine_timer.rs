@@ -34,9 +34,9 @@ impl<'a> MachineTimer<'a> {
         }
     }
 
-    pub fn disable_machine_timer(&self, context_id: usize) {
-        self.compare[context_id].high.set(0xFFFF_FFFF);
-        self.compare[context_id].low.set(0xFFFF_FFFF);
+    pub fn disable_machine_timer(&self, hart_id: usize) {
+        self.compare[hart_id].high.set(0xFFFF_FFFF);
+        self.compare[hart_id].low.set(0xFFFF_FFFF);
     }
 
     pub fn now(&self) -> Ticks64 {
@@ -52,7 +52,7 @@ impl<'a> MachineTimer<'a> {
         Ticks64::from(((high as u64) << 32) | second_low as u64)
     }
 
-    pub fn set_alarm(&self, context_id: usize, reference: Ticks64, dt: Ticks64) {
+    pub fn set_alarm(&self, hart_id: usize, reference: Ticks64, dt: Ticks64) {
         // This does not handle the 64-bit wraparound case.
         // Because mtimer fires if the counter is >= the compare,
         // handling wraparound requires setting compare to the
@@ -74,26 +74,26 @@ impl<'a> MachineTimer<'a> {
 
         // Recommended approach for setting the two compare registers
         // (RISC-V Privileged Architectures 3.1.15) -pal 8/6/20
-        regs.compare[context_id].low.set(0xFFFF_FFFF);
-        regs.compare[context_id].high.set(high);
-        regs.compare[context_id].low.set(low);
+        regs.compare[hart_id].low.set(0xFFFF_FFFF);
+        regs.compare[hart_id].high.set(high);
+        regs.compare[hart_id].low.set(low);
     }
 
-    pub fn get_alarm(&self, context_id: usize) -> Ticks64 {
-        let mut val: u64 = (self.compare[context_id].high.get() as u64) << 32;
-        val |= self.compare[context_id].low.get() as u64;
+    pub fn get_alarm(&self, hart_id: usize) -> Ticks64 {
+        let mut val: u64 = (self.compare[hart_id].high.get() as u64) << 32;
+        val |= self.compare[hart_id].low.get() as u64;
         Ticks64::from(val)
     }
 
-    pub fn disarm(&self, context_id: usize) -> Result<(), ErrorCode> {
-        self.disable_machine_timer(context_id);
+    pub fn disarm(&self, hart_id: usize) -> Result<(), ErrorCode> {
+        self.disable_machine_timer(hart_id);
         Ok(())
     }
 
-    pub fn is_armed(&self, context_id: usize) -> bool {
+    pub fn is_armed(&self, hart_id: usize) -> bool {
         // Check if mtimecmp is the max value. If it is, then we are not armed,
         // otherwise we assume we have a value set.
-        self.compare[context_id].high.get() != 0xFFFF_FFFF || self.compare[context_id].low.get() != 0xFFFF_FFFF
+        self.compare[hart_id].high.get() != 0xFFFF_FFFF || self.compare[hart_id].low.get() != 0xFFFF_FFFF
     }
 
     pub fn minimum_dt(&self) -> Ticks64 {

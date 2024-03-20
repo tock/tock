@@ -9,8 +9,6 @@
 #![crate_name = "sifive"]
 #![crate_type = "rlib"]
 
-pub const MAX_THREADS: usize = 2;
-
 pub mod clint;
 pub mod gpio;
 pub mod plic;

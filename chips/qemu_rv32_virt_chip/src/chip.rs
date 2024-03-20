@@ -20,7 +20,7 @@ use sifive::plic::Plic;
 
 use crate::interrupts;
 use crate::plic::PLIC;
-use crate::{MAX_THREADS, plic::PLIC_BASE};
+use crate::{MAX_THREADS, MAX_CONTEXTS, plic::PLIC_BASE};
 
 use virtio::transports::mmio::VirtIOMMIODevice;
 
@@ -36,7 +36,7 @@ pub type QemuRv32VirtClint<'a> = sifive::clint::Clint<'a, Freq10MHz>;
 pub struct QemuRv32VirtChip<'a, I: InterruptService + 'a> {
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     pmp: QemuRv32VirtPMP,
-    plic: &'a Plic<MAX_THREADS>,
+    plic: &'a Plic<MAX_CONTEXTS>,
     timer: &'a QemuRv32VirtClint<'a>,
     plic_interrupt_service: &'a I,
 }
@@ -87,7 +87,7 @@ impl<'a, I: InterruptService + 'a> QemuRv32VirtChip<'a, I> {
         plic_interrupt_service: &'a I,
         timer: &'a QemuRv32VirtClint<'a>,
         pmp: rv32i::pmp::kernel_protection_mml_epmp::KernelProtectionMMLEPMP<16, 5>,
-        plic: &'a Plic<MAX_THREADS>,
+        plic: &'a Plic<MAX_CONTEXTS>,
     ) -> Self {
         Self {
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
@@ -99,14 +99,16 @@ impl<'a, I: InterruptService + 'a> QemuRv32VirtChip<'a, I> {
     }
 
     pub unsafe fn enable_plic_interrupts(&self) {
-        let context_id = CSR.mhartid.extract().get();
+        let hart_id = CSR.mhartid.extract().get();
+        let context_id = hart_id * 2;
         self.plic.disable_all(context_id);
         self.plic.clear_all_pending(context_id);
         self.plic.enable_all(context_id);
     }
 
     unsafe fn handle_plic_interrupts(&self) {
-        let context_id = CSR.mhartid.extract().get();
+        let hart_id = CSR.mhartid.extract().get();
+        let context_id = hart_id * 2;
         while let Some(interrupt) = self.plic.get_saved_interrupts() {
             if !self.plic_interrupt_service.service_interrupt(interrupt) {
                 debug!("Pidx {}", interrupt);
@@ -231,13 +233,14 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             // We received an interrupt, disable interrupts while we handle them
             CSR.mie.modify(mie::mext::CLEAR);
 
-            let context_id = CSR.mhartid.extract().get();
+            let hart_id = CSR.mhartid.extract().get();
+            let context_id = hart_id * 2;
 
             // Claim the interrupt, unwrap() as we know an interrupt exists
             // Once claimed this interrupt won't fire until it's completed
             // NOTE: The interrupt is no longer pending in the PLIC
             while let Some(plic) =
-                kernel::thread_local_static_access!(PLIC, DynThreadId::new(context_id))
+                kernel::thread_local_static_access!(PLIC, DynThreadId::new(hart_id))
             {
                 let interrupt = plic.next_pending(context_id);
 

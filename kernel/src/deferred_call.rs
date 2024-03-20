@@ -283,25 +283,25 @@ impl DeferredCall {
     /// Services and clears the next pending [`DeferredCall`], returns which
     /// index was serviced.
     pub fn service_next_pending() -> Option<usize> {
-	let closure = |defcall_state: &mut ThreadLocalDeferredCallState| -> Option<(DynDefCallRef<'static>, usize)> {
-	    let val = defcall_state.bitmask;
-	    if val == 0 {
-		None
+	    let closure = |defcall_state: &mut ThreadLocalDeferredCallState| -> Option<(DynDefCallRef<'static>, usize)> {
+	        let val = defcall_state.bitmask;
+	        if val == 0 {
+		        None
             } else {
-		let bit = val.trailing_zeros() as usize;
-		let new_val = val & !(1 << bit);
-		defcall_state.bitmask = new_val;
-		defcall_state.defcalls[bit].map(|dc| (dc, bit))
+		        let bit = val.trailing_zeros() as usize;
+		        let new_val = val & !(1 << bit);
+		        defcall_state.bitmask = new_val;
+		        defcall_state.defcalls[bit].map(|dc| (dc, bit))
             }
-	};
+	    };
 
-	// TODO: safety doc!
-	let res = unsafe { with_defcall_state_panic(closure) };
+	    // TODO: safety doc!
+	    let res = unsafe { with_defcall_state_panic(closure) };
 
-	res.map(|(dc, bit)| {
+	    res.map(|(dc, bit)| {
             dc.handle_deferred_call();
             bit
-	})
+	    })
 
         // // SAFETY: No accesses to BITMASK/DEFCALLS are via an &mut, and the Tock kernel is
         // // single-threaded so all accesses will occur from this thread.

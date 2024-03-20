@@ -49,16 +49,16 @@ impl<'a, F: Frequency> Clint<'a, F> {
     }
 
     pub fn handle_interrupt(&self) {
-        let context_id = csr::CSR.mhartid.extract().get();
-        self.disable_machine_timer(context_id);
+        let hart_id = csr::CSR.mhartid.extract().get();
+        self.disable_machine_timer(hart_id);
 
         self.client.map(|client| {
             client.alarm();
         });
     }
 
-    pub fn disable_machine_timer(&self, context_id: usize) {
-        self.mtimer.disable_machine_timer(context_id);
+    pub fn disable_machine_timer(&self, hart_id: usize) {
+        self.mtimer.disable_machine_timer(hart_id);
     }
 }
 
@@ -77,23 +77,23 @@ impl<'a, F: Frequency> time::Alarm<'a> for Clint<'a, F> {
     }
 
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
-        let context_id = csr::CSR.mhartid.extract().get();
-        self.mtimer.set_alarm(context_id, reference, dt)
+        let hart_id = csr::CSR.mhartid.extract().get();
+        self.mtimer.set_alarm(hart_id, reference, dt)
     }
 
     fn get_alarm(&self) -> Self::Ticks {
-        let context_id = csr::CSR.mhartid.extract().get();
-        self.mtimer.get_alarm(context_id)
+        let hart_id = csr::CSR.mhartid.extract().get();
+        self.mtimer.get_alarm(hart_id)
     }
 
     fn disarm(&self) -> Result<(), ErrorCode> {
-        let context_id = csr::CSR.mhartid.extract().get();
-        self.mtimer.disarm(context_id)
+        let hart_id = csr::CSR.mhartid.extract().get();
+        self.mtimer.disarm(hart_id)
     }
 
     fn is_armed(&self) -> bool {
-        let context_id = csr::CSR.mhartid.extract().get();
-        self.mtimer.is_armed(context_id)
+        let hart_id = csr::CSR.mhartid.extract().get();
+        self.mtimer.is_armed(hart_id)
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
@@ -134,8 +134,8 @@ impl<F: Frequency> kernel::platform::scheduler_timer::SchedulerTimer for Clint<'
     }
 
     fn reset(&self) {
-        let context_id = csr::CSR.mhartid.extract().get();
-        self.disable_machine_timer(context_id);
+        let hart_id = csr::CSR.mhartid.extract().get();
+        self.disable_machine_timer(hart_id);
     }
 
     fn arm(&self) {

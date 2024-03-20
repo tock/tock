@@ -8,8 +8,8 @@
 #![crate_name = "qemu_rv32_virt_chip"]
 #![crate_type = "rlib"]
 
-// TODO: remove this. Use the one defined in sifive lib
 pub const MAX_THREADS: usize = 2;
+pub const MAX_CONTEXTS: usize = MAX_THREADS * 2;
 
 pub use virtio;
 
