@@ -12,6 +12,9 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
+// Suppress warnings until we have a principled solution.
+// See: https://github.com/tock/tock/issues/3841
+#![allow(static_mut_refs)]
 
 use kernel::capabilities;
 use kernel::component::Component;

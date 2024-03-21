@@ -7,6 +7,9 @@
 #![crate_name = "cortexm"]
 #![crate_type = "rlib"]
 #![no_std]
+// Suppress warnings until we have a principled solution.
+// See: https://github.com/tock/tock/issues/3841
+#![allow(static_mut_refs)]
 
 use core::fmt::Write;
 
