@@ -1,61 +1,27 @@
 # Licensed under the Apache License, Version 2.0 or the MIT License.
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright Tock Contributors 2023.
+# Copyright Tock Contributors 2024.
 
-# This workflow contains all tock-ci, seperated into jobs
+name: tock-nightly-ci
 
-name: tock-ci
+on:
+  schedule:
+  - cron: "0 0 * * *"
+
 env:
   TERM: xterm # Makes tput work in actions output
-
-# Controls when the action will run. Triggers the workflow on push or pull request
-# events but only for the master branch
-on:
-  push: # Run CI for all branches except GitHub merge queue tmp branches
-    branches-ignore:
-    - "gh-readonly-queue/**"
-  pull_request: # Run CI for PRs on any branch
-  merge_group: # Run CI for the GitHub merge queue
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 # If you add additional jobs, remember to add them to bors.toml
 permissions:
   contents: read
+  issues: write
 
 jobs:
-  ci-format:
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-    # The type of runner that the job will run on
-    runs-on: ${{ matrix.os }}
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-      - name: ci-job-format
-        run:  make ci-job-format
-      - name: ci-markdown-toc
-        run: make ci-job-markdown-toc
-
-  ci-clippy:
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-    # The type of runner that the job will run on
-    runs-on: ${{ matrix.os }}
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
-    steps:
-      - uses: actions/checkout@v3
-      - name: ci-job-clippy
-        run:  make ci-job-clippy
-
   ci-build:
     strategy:
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -79,7 +45,7 @@ jobs:
   ci-tests:
     strategy:
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -91,6 +57,10 @@ jobs:
         run: |
           sudo apt install libudev-dev libzmq3-dev
         if: matrix.os == 'ubuntu-latest'
+      - name: Install dependencies for macos-latest
+        run: |
+          brew install zeromq
+        if: matrix.os == 'macos-latest'
       - uses: actions/checkout@v3
       - name: ci-job-libraries
         run: make ci-job-libraries
@@ -102,18 +72,17 @@ jobs:
         run: make ci-job-chips
       - name: ci-job-tools
         run: make ci-job-tools
-
-  ci-qemu:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Update package repositories
-        run: |
-          sudo apt update
-      - name: Install dependencies
-        continue-on-error: true
-        run: |
-          sudo apt install meson
-      - uses: actions/checkout@v3
-      - name: ci-job-qemu
-        run: make ci-job-qemu
+      - name: Create Issue on Failed workflow
+        if: ${{ failure() }}
+        uses: dacbd/create-issue-action@main
+        with:
+          token: ${{ github.token }}
+          title: Nightly CI failed
+          body: |
+            ### Context
+            [Failed Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            [Codebase](https://github.com/${{ github.repository }}/tree/${{ github.sha }})
+            Workflow name - `${{ github.workflow }}`
+            Job -           `${{ github.job }}`
+            status -        `${{ job.status }}`
+          assignees: "@tock/core-wg"
