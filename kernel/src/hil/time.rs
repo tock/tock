@@ -55,7 +55,7 @@ pub trait Ticks: Clone + Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     /// Returns the half the maximum value of this type, which should be (2^width-1).
     fn half_max_value() -> Self;
 
-    /// Coverts the specified val into this type if it fits otherwise the
+    /// Converts the specified val into this type if it fits otherwise the
     /// `max_value()` is returned
     fn from_or_max(val: u64) -> Self;
 
