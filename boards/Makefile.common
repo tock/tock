@@ -177,11 +177,14 @@ endif
 # Validate that rustup is new enough.
 MINIMUM_RUSTUP_VERSION := 1.23.0
 RUSTUP_VERSION := $(strip $(word 2, $(shell $(RUSTUP) --version 2> /dev/null)))
+# Check that the semver script exists.
+ifneq (,$(wildcard $(TOCK_ROOT_DIRECTORY)tools/semver.sh))
 ifeq ($(shell $(TOCK_ROOT_DIRECTORY)tools/semver.sh $(RUSTUP_VERSION) \< $(MINIMUM_RUSTUP_VERSION)), true)
   $(warning Required tool `$(RUSTUP)` is out-of-date.)
   $(warning Running `$(RUSTUP) update` in 3 seconds (ctrl-c to cancel))
-  $(shell sleep 3s)
+  $(shell sleep 3)
   DUMMY := $(shell $(RUSTUP) update)
+endif
 endif
 
 # Verify that various required Rust components are installed. All of these steps
