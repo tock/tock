@@ -14,6 +14,7 @@ use core::str;
 use kernel::capabilities::ProcessManagementCapability;
 use kernel::hil::time::ConvertTicks;
 use kernel::utilities::cells::MapCell;
+use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::packet_buffer::PacketBufferDyn;
 use kernel::utilities::packet_buffer::PacketBufferMut;
@@ -229,12 +230,14 @@ pub struct ProcessConsole<
     const COMMAND_HISTORY_LEN: usize,
     A: Alarm<'a>,
     C: ProcessManagementCapability,
+    const HEAD: usize,
+    const TAIL: usize,
 > {
     uart: &'a dyn uart::UartData<'a>,
     alarm: &'a A,
     process_printer: &'a dyn ProcessPrinter,
     tx_in_progress: Cell<bool>,
-    tx_buffer: TakeCell<'static, [u8]>,
+    tx_buffer: OptionalCell<PacketBufferMut<HEAD, TAIL>>,
     queue_buffer: TakeCell<'static, [u8]>,
     queue_size: Cell<usize>,
     writer_state: Cell<WriterState>,
@@ -436,14 +439,20 @@ impl BinaryWrite for ConsoleWriter {
     }
 }
 
-impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCapability>
-    ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
+impl<
+        'a,
+        const COMMAND_HISTORY_LEN: usize,
+        A: Alarm<'a>,
+        C: ProcessManagementCapability,
+        const HEAD: usize,
+        const TAIL: usize,
+    > ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C, HEAD, TAIL>
 {
     pub fn new(
         uart: &'a dyn uart::UartData<'a>,
         alarm: &'a A,
         process_printer: &'a dyn ProcessPrinter,
-        tx_buffer: &'static mut [u8],
+        tx_buffer: PacketBufferMut<HEAD, TAIL>,
         rx_buffer: &'static mut [u8],
         queue_buffer: &'static mut [u8],
         cmd_buffer: &'static mut [u8],
@@ -452,13 +461,13 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
         kernel_addresses: KernelAddresses,
         reset_function: Option<fn() -> !>,
         capability: C,
-    ) -> ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C> {
+    ) -> ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C, HEAD, TAIL> {
         ProcessConsole {
             uart: uart,
             alarm: alarm,
             process_printer,
             tx_in_progress: Cell::new(false),
-            tx_buffer: TakeCell::new(tx_buffer),
+            tx_buffer: OptionalCell::new(tx_buffer),
             queue_buffer: TakeCell::new(queue_buffer),
             queue_size: Cell::new(0),
             writer_state: Cell::new(WriterState::Empty),
@@ -1058,11 +1067,16 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
         } else {
             self.tx_in_progress.set(true);
             self.tx_buffer.take().map(|buffer| {
-                buffer[0] = byte;
-                let packet_slice = PacketSliceMut::new(buffer).unwrap();
-                let _ = self
-                    .uart
-                    .transmit_buffer(&mut PacketBufferMut::new(packet_slice).unwrap(), 1);
+                let buf = buffer
+                    .downcast::<PacketSliceMut>()
+                    .unwrap()
+                    .data_slice_mut();
+                buf[0] = byte;
+
+                let _ = self.uart.transmit_buffer(
+                    PacketBufferMut::new(PacketSliceMut::new(buf).unwrap()).unwrap(),
+                    1,
+                );
             });
             Ok(())
         }
@@ -1082,12 +1096,21 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
             self.tx_buffer.take().map(|buffer| {
                 let len = cmp::min(bytes.len(), buffer.len());
                 // Copy elements of `bytes` into `buffer`
-                (buffer[..len]).copy_from_slice(&bytes[..len]);
+                // (buffer[..len]).copy_from_slice(&bytes[..len]);
 
-                let packet_slice = PacketSliceMut::new(buffer).unwrap();
+                // AMALIA: nu stiu daca e ok varianta 1 sau varianta 2?? nu face slice[..len] in varianta 2
+                // let slice = buffer
+                //     .downcast::<PacketSliceMut>()
+                //     .unwrap()
+                //     .data_slice_mut();
+                // (slice[..len]).copy_from_slice(&bytes[..len]);
+
+                let slice = buffer.downcast::<PacketSliceMut>().unwrap();
+                slice.copy_from_slice_or_err(&bytes[..len]).unwrap();
+
                 let _ = self
                     .uart
-                    .transmit_buffer(&mut PacketBufferMut::new(packet_slice).unwrap(), len);
+                    .transmit_buffer(PacketBufferMut::new(slice).unwrap(), len);
             });
             Ok(())
         }
@@ -1114,7 +1137,10 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                     let txlen = cmp::min(qlen, txbuf.len());
 
                     // Copy elements of the queue into the TX buffer.
-                    (txbuf[..txlen]).copy_from_slice(&qbuf[..txlen]);
+                    // (txbuf[..txlen]).copy_from_slice(&qbuf[..txlen]);
+
+                    let slice = txbuf.downcast::<PacketSliceMut>().unwrap().data_slice_mut();
+                    (slice[..txlen]).copy_from_slice(&qbuf[..txlen]);
 
                     // TODO: If the queue needs to print over multiple TX
                     // buffers, we need to shift the remaining contents of the
@@ -1128,10 +1154,10 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                     self.queue_size.set(remaining);
 
                     self.tx_in_progress.set(true);
-                    let packet_slice = PacketSliceMut::new(txbuf).unwrap();
-                    let _ = self
-                        .uart
-                        .transmit_buffer(&mut PacketBufferMut::new(packet_slice).unwrap(), txlen);
+                    let _ = self.uart.transmit_buffer(
+                        PacketBufferMut::new(PacketSliceMut::new(slice).unwrap()).unwrap(),
+                        txlen,
+                    );
                     Ok(txlen)
                 })
             } else {
@@ -1142,8 +1168,14 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
     }
 }
 
-impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCapability> AlarmClient
-    for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
+impl<
+        'a,
+        const COMMAND_HISTORY_LEN: usize,
+        A: Alarm<'a>,
+        C: ProcessManagementCapability,
+        const HEAD: usize,
+        const TAIL: usize,
+    > AlarmClient for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C, HEAD, TAIL>
 {
     fn alarm(&self) {
         self.prompt();
@@ -1153,23 +1185,25 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
     }
 }
 
-impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCapability>
-    uart::TransmitClient for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
+impl<
+        'a,
+        const COMMAND_HISTORY_LEN: usize,
+        A: Alarm<'a>,
+        C: ProcessManagementCapability,
+        const HEAD: usize,
+        const TAIL: usize,
+    > uart::TransmitClient<HEAD, TAIL>
+    for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C, HEAD, TAIL>
 {
     fn transmitted_buffer(
         &self,
-        buffer: &'static mut dyn PacketBufferDyn,
+        buffer: PacketBufferMut<HEAD, TAIL>,
         _tx_len: usize,
         _rcode: Result<(), ErrorCode>,
     ) {
         // Reset state now that we no longer have an active transmission on the
         // UART.
-        self.tx_buffer.replace(
-            (buffer as &mut dyn core::any::Any)
-                .downcast_mut::<PacketSliceMut>()
-                .unwrap()
-                .into_inner(),
-        );
+        self.tx_buffer.replace(buffer);
         self.tx_in_progress.set(false);
 
         // Check if we have anything queued up. If we do, let the queue
@@ -1194,8 +1228,14 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
     }
 }
 
-impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCapability>
-    uart::ReceiveClient for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
+impl<
+        'a,
+        const COMMAND_HISTORY_LEN: usize,
+        A: Alarm<'a>,
+        C: ProcessManagementCapability,
+        const HEAD: usize,
+        const TAIL: usize,
+    > uart::ReceiveClient for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C, HEAD, TAIL>
 {
     fn received_buffer(
         &self,

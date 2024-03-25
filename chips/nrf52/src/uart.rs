@@ -165,9 +165,9 @@ register_bitfields! [u32,
 // is exported outside this module it must be `pub`
 pub struct Uarte<'a, const HEAD: usize, const TAIL: usize> {
     registers: StaticRef<UarteRegisters>,
-    tx_client: OptionalCell<&'a dyn uart::TransmitClient>,
-    // AMALIA: nu ma lasa compilatoru sa scot lifetime de aici. dc???
-    tx_buffer: TakeCell<'static, PacketBufferMut<HEAD, TAIL>>,
+    tx_client: OptionalCell<&'a dyn uart::TransmitClient<HEAD, TAIL>>,
+    // AMALIA: ultimu layer va tine un PacketSliceMut, restul vor tine PacketBufferMut
+    tx_buffer: TakeCell<'static, PacketSliceMut>,
     tx_len: Cell<usize>,
     tx_remaining_bytes: Cell<usize>,
     rx_client: OptionalCell<&'a dyn uart::ReceiveClient>,
@@ -308,9 +308,7 @@ impl<'a, const HEAD: usize, const TAIL: usize> Uarte<'a, HEAD, TAIL> {
                 self.tx_client.map(|client| {
                     self.tx_buffer.take().map(|tx_buffer| {
                         client.transmitted_buffer(
-                            (tx_buffer as &mut dyn core::any::Any)
-                                .downcast_mut::<PacketSliceMut>()
-                                .unwrap(),
+                            PacketBufferMut::new(tx_buffer).unwrap(),
                             self.tx_len.get(),
                             Ok(()),
                         );
@@ -416,14 +414,16 @@ impl<'a, const HEAD: usize, const TAIL: usize> Uarte<'a, HEAD, TAIL> {
 
     fn set_tx_dma_pointer_to_buffer(&self) {
         self.tx_buffer.map(|tx_buffer| {
-            let slice = (tx_buffer as &mut dyn core::any::Any)
-                .downcast_mut::<PacketSliceMut>()
-                .unwrap()
-                .data_slice_mut();
+            // let slice = (tx_buffer as &mut dyn core::any::Any)
+            //     .downcast_mut::<PacketSliceMut>()
+            //     .unwrap()
+            //     .data_slice_mut();
+
+            // let slice = tx_buffer
 
             self.registers
                 .txd_ptr
-                .set(slice[self.offset.get()..].as_ptr() as u32);
+                .set(tx_buffer.data_slice_mut()[self.offset.get()..].as_ptr() as u32);
         });
     }
 
@@ -436,30 +436,39 @@ impl<'a, const HEAD: usize, const TAIL: usize> Uarte<'a, HEAD, TAIL> {
     }
 
     // Helper function used by both transmit_word and transmit_buffer
-    fn setup_buffer_transmit(&self, buf: &mut PacketBufferMut<HEAD, TAIL>, tx_len: usize) {
-        self.tx_remaining_bytes.set(tx_len);
-        self.tx_len.set(tx_len);
+    fn setup_buffer_transmit(&self, buf: PacketBufferMut<HEAD, TAIL>) {
+        let len = buf.len();
+        // self.tx_remaining_bytes.set(tx_len);
+        self.tx_remaining_bytes.set(len);
+        // self.tx_len.set(tx_len);
+        self.tx_len.set(len);
         self.offset.set(0);
-        self.tx_buffer.replace(buf).unwrap();
+        // self.tx_buffer.replace(buf).unwrap();
+        self.tx_buffer.replace(buf.downcast().unwrap());
         self.set_tx_dma_pointer_to_buffer();
 
         self.registers
             .txd_maxcnt
-            .write(Counter::COUNTER.val(min(tx_len as u32, UARTE_MAX_BUFFER_SIZE)));
+            .write(Counter::COUNTER.val(min(len as u32, UARTE_MAX_BUFFER_SIZE)));
+
         self.registers.task_starttx.write(Task::ENABLE::SET);
 
         self.enable_tx_interrupts();
     }
 }
 
-impl<'a, const HEAD: usize, const TAIL: usize> uart::Transmit<'a> for Uarte<'a, HEAD, TAIL> {
-    fn set_transmit_client(&self, client: &'a dyn uart::TransmitClient) {
+impl<'a, const HEAD: usize, const TAIL: usize> uart::Transmit<'a, HEAD, TAIL>
+    for Uarte<'a, HEAD, TAIL>
+{
+    fn set_transmit_client(&self, client: &'a dyn uart::TransmitClient<HEAD, TAIL>) {
         self.tx_client.set(client);
     }
 
     fn transmit_buffer(
         &self,
-        tx_data: &mut packet_buffer::PacketBufferMut<HEAD, TAIL>,
+        tx_data: PacketBufferMut<HEAD, TAIL>,
+        // AMALIA: nu stiu daca pot sa scot tx_len de aici? care e diferenta intre tx_data.len si tx_len??
+        // _tx_len: usize,
         tx_len: usize,
     ) -> Result<(), (ErrorCode, PacketBufferMut<HEAD, TAIL>)> {
         if tx_len == 0 || tx_len > tx_data.len() {
@@ -467,7 +476,7 @@ impl<'a, const HEAD: usize, const TAIL: usize> uart::Transmit<'a> for Uarte<'a, 
         } else if self.tx_buffer.is_some() {
             Err((ErrorCode::BUSY, tx_data))
         } else {
-            self.setup_buffer_transmit(tx_data, tx_len);
+            self.setup_buffer_transmit(tx_data);
             Ok(())
         }
     }

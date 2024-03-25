@@ -101,7 +101,7 @@ pub struct App {
 }
 
 pub struct Console<'a, const HEAD: usize, const TAIL: usize> {
-    uart: &'a dyn uart::UartData<'a>,
+    uart: &'a dyn uart::UartData<'a, HEAD, TAIL>,
     apps: Grant<
         App,
         UpcallCount<{ upcall::COUNT }>,
@@ -109,15 +109,15 @@ pub struct Console<'a, const HEAD: usize, const TAIL: usize> {
         AllowRwCount<{ rw_allow::COUNT }>,
     >,
     tx_in_progress: OptionalCell<ProcessId>,
-    tx_buffer: TakeCell<'static, [u8]>,
+    tx_buffer: OptionalCell<PacketBufferMut<HEAD, TAIL>>,
     rx_in_progress: OptionalCell<ProcessId>,
     rx_buffer: TakeCell<'static, [u8]>,
 }
 
 impl<'a, const HEAD: usize, const TAIL: usize> Console<'a, HEAD, TAIL> {
     pub fn new(
-        uart: &'a dyn uart::UartData<'a>,
-        tx_buffer: &'static mut [u8],
+        uart: &'a dyn uart::UartData<'a, HEAD, TAIL>,
+        tx_buffer: PacketBufferMut<HEAD, TAIL>,
         rx_buffer: &'static mut [u8],
         grant: Grant<
             App,
@@ -130,7 +130,7 @@ impl<'a, const HEAD: usize, const TAIL: usize> Console<'a, HEAD, TAIL> {
             uart: uart,
             apps: grant,
             tx_in_progress: OptionalCell::empty(),
-            tx_buffer: TakeCell::new(tx_buffer),
+            tx_buffer: OptionalCell::new(tx_buffer),
             rx_in_progress: OptionalCell::empty(),
             rx_buffer: TakeCell::new(rx_buffer),
         }
@@ -209,11 +209,8 @@ impl<'a, const HEAD: usize, const TAIL: usize> Console<'a, HEAD, TAIL> {
                     })
                     .unwrap_or(0);
                 app.write_remaining -= transaction_len;
-                let mut packet_buffer =
-                    PacketBufferMut::new(PacketSliceMut::new(buffer).unwrap()).unwrap();
-                let _ = self
-                    .uart
-                    .transmit_buffer(&mut packet_buffer, transaction_len);
+
+                let _ = self.uart.transmit_buffer(buffer, transaction_len);
             });
         } else {
             app.pending_write = true;
@@ -314,21 +311,18 @@ impl<const HEAD: usize, const TAIL: usize> SyscallDriver for Console<'_, HEAD, T
     }
 }
 
-impl<const HEAD: usize, const TAIL: usize> uart::TransmitClient for Console<'_, HEAD, TAIL> {
+impl<const HEAD: usize, const TAIL: usize> uart::TransmitClient<HEAD, TAIL>
+    for Console<'_, HEAD, TAIL>
+{
     fn transmitted_buffer(
         &self,
-        buffer: &'static mut dyn PacketBufferDyn,
+        buffer: PacketBufferMut<HEAD, TAIL>,
         _tx_len: usize,
         _rcode: Result<(), ErrorCode>,
     ) {
         // Either print more from the AppSlice or send a callback to the
         // application.
-        self.tx_buffer.replace(
-            (buffer as &mut dyn core::any::Any)
-                .downcast_mut::<PacketSliceMut>()
-                .unwrap()
-                .into_inner(),
-        );
+        self.tx_buffer.replace(buffer);
 
         self.tx_in_progress.take().map(|processid| {
             self.apps.enter(processid, |app, kernel_data| {

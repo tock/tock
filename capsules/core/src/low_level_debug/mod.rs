@@ -8,6 +8,7 @@
 mod fmt;
 
 use core::cell::Cell;
+use core::iter::ByRefSized;
 use core::usize;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
@@ -103,17 +104,15 @@ impl<
         const TAIL: usize,
         const HEAD_TRANSMIT: usize,
         const TAIL_TRANSMIT: usize,
-    > TransmitClient for LowLevelDebug<'u, U, HEAD, TAIL, HEAD_TRANSMIT, TAIL_TRANSMIT>
+    > TransmitClient<HEAD_TRANSMIT, TAIL_TRANSMIT>
+    for LowLevelDebug<'u, U, HEAD, TAIL, HEAD_TRANSMIT, TAIL_TRANSMIT>
 {
     fn transmitted_buffer(
         &self,
-        tx_buffer: &'static mut dyn packet_buffer::PacketBufferDyn,
+        tx_buffer: PacketBufferMut<HEAD_TRANSMIT, TAIL_TRANSMIT>,
         _tx_len: usize,
         _rval: Result<(), ErrorCode>,
     ) {
-        let buffer = (tx_buffer as &mut dyn core::any::Any)
-            .downcast_mut::<PacketSliceMut>()
-            .unwrap();
         // Identify and transmit the next queued entry. If there are no queued
         // entries remaining, store buffer.
 
@@ -122,35 +121,33 @@ impl<
         if self.grant_failed.take() {
             const MESSAGE: &[u8] = b"LowLevelDebug: grant init failed\n";
 
-            // AMALIA: am folosit copy pentru a supra
             // tx_buffer[..MESSAGE.len()].copy_from_slice(MESSAGE);
-            buffer.copy_from_slice_or_err(MESSAGE).unwrap();
+
+            let buffer = tx_buffer
+                .downcast::<PacketSliceMut>()
+                .unwrap()
+                .data_slice_mut();
+            (buffer[..MESSAGE.len()]).copy_from_slice(MESSAGE);
 
             let _ = self
                 .uart
                 .transmit_buffer(
-                    &mut PacketBufferMut::<HEAD_TRANSMIT, TAIL_TRANSMIT>::new(buffer).unwrap(),
+                    PacketBufferMut::<HEAD_TRANSMIT, TAIL_TRANSMIT>::new(
+                        PacketSliceMut::new(buffer).unwrap(),
+                    )
+                    .unwrap(),
                     MESSAGE.len(),
                 )
                 .map_err(|(_, returned_buffer)| {
-                    let new_buf: PacketBufferMut<HEAD, TAIL> = if let Ok(pb) =
-                        returned_buffer.reclaim_headroom::<HEAD>()
+                    let try_reclaim_head = returned_buffer.reclaim_headroom::<HEAD>();
+
+                    if try_reclaim_head.is_ok()
+                        && let Ok(new_buf) = new_head_buf.reclaim_tailroom::<TAIL>()
                     {
-                        let aux = if let Ok(pb2) = pb.reclaim_tailroom::<TAIL>() {
-                            pb2
-                        } else {
-                            // AMALIA: wtf do we do here if we cannot reclaim the headroom/tailroom????
-                            PacketBufferMut::new(PacketSliceMut::new(&mut MESSAGE).unwrap())
-                                .unwrap()
-                        };
+                        self.buffer.set(Some(new_buf));
+                    }
 
-                        aux
-                    } else {
-                        // AMALIA: wtf do we do here if we cannot reclaim the headroom/tailroom????
-                        PacketBufferMut::new(PacketSliceMut::new(&mut MESSAGE).unwrap()).unwrap()
-                    };
-
-                    self.buffer.set(Some(new_buf));
+                    self.buffer.set(Some(buffer));
                 });
             return;
         }
@@ -234,7 +231,7 @@ impl<
         let _ = self
             .uart
             .transmit_buffer(
-                &mut PacketBufferMut::new(PacketSliceMut::new(buffer).unwrap()).unwrap(),
+                PacketBufferMut::new(PacketSliceMut::new(buffer).unwrap()).unwrap(),
                 msg_len,
             )
             .map_err(|(_, returned_buffer)| {

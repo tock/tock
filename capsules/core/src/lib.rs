@@ -5,7 +5,7 @@
 #![forbid(unsafe_code)]
 #![no_std]
 
-pub mod test;
+// pub mod test;
 
 #[macro_use]
 pub mod stream;

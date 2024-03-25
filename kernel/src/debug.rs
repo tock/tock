@@ -453,7 +453,7 @@ impl<const HEAD: usize, const TAIL: usize> DebugWriter<HEAD, TAIL> {
         // Can only publish if we have the output_buffer. If we don't that is
         // fine, we will do it when the transmit done callback happens.
         self.internal_buffer.map_or(0, |ring_buffer| {
-            if let Some(mut out_buffer) = self.output_buffer.take() {
+            if let Some(out_buffer) = self.output_buffer.take() {
                 // let out_packet_slice: &'static mut PacketSliceMut =
                 // PacketSliceMut::new(out_buffer).unwrap();
 
@@ -511,10 +511,12 @@ impl<const HEAD: usize, const TAIL: usize> DebugWriter<HEAD, TAIL> {
     }
 }
 
-impl<const HEAD: usize, const TAIL: usize> hil::uart::TransmitClient for DebugWriter<HEAD, TAIL> {
+impl<const HEAD: usize, const TAIL: usize> hil::uart::TransmitClient<HEAD, TAIL>
+    for DebugWriter<HEAD, TAIL>
+{
     fn transmitted_buffer(
         &self,
-        buffer: &'static mut dyn PacketBufferDyn,
+        buffer: PacketBufferMut<HEAD, TAIL>,
         _tx_len: usize,
         _rcode: core::result::Result<(), ErrorCode>,
     ) {
@@ -522,8 +524,7 @@ impl<const HEAD: usize, const TAIL: usize> hil::uart::TransmitClient for DebugWr
         // let replacement: &'static PacketBufferMut<HEAD, TAIL> =
         // &PacketBufferMut::<HEAD, TAIL>::new(buffer).unwrap();
 
-        self.output_buffer
-            .replace(PacketBufferMut::new(buffer).unwrap());
+        self.output_buffer.replace(buffer);
 
         if self.internal_buffer.map_or(false, |buf| buf.has_elements()) {
             // Buffer not empty, go around again
