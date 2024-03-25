@@ -139,15 +139,19 @@ impl<
                     MESSAGE.len(),
                 )
                 .map_err(|(_, returned_buffer)| {
-                    let try_reclaim_head = returned_buffer.reclaim_headroom::<HEAD>();
-
-                    if try_reclaim_head.is_ok()
-                        && let Ok(new_buf) = new_head_buf.reclaim_tailroom::<TAIL>()
-                    {
-                        self.buffer.set(Some(new_buf));
+                    let success = false;
+                    if let Ok(new_head_buf) = returned_buffer.reclaim_headroom::<HEAD>() {
+                        if let Ok(new_buf) = new_head_buf.reclaim_tailroom::<TAIL>() {
+                            success = true;
+                            self.buffer.set(Some(new_buf));
+                        }
                     }
 
-                    self.buffer.set(Some(buffer));
+                    if !success {
+                        // What if the reclaim_headroom does not succeed?
+                    }
+
+                    // self.buffer.set(Some(buffer));
                 });
             return;
         }
