@@ -22,8 +22,10 @@ use kernel::threadlocal;
 use kernel::threadlocal::ConstThreadId;
 use kernel::threadlocal::ThreadId;
 use kernel::threadlocal::ThreadLocalAccessStatic;
+use kernel::threadlocal::ThreadLocalDynInit;
 use kernel::utilities::registers::interfaces::ReadWriteable;
-use kernel::{create_capability, debug, static_init, thread_local_static_init, thread_local_static_finalize};
+use kernel::{create_capability, debug, static_init};
+use kernel::{thread_local_static_init, thread_local_static_finalize, thread_local_static, thread_local_static_access};
 use qemu_rv32_virt_chip::chip::{QemuRv32VirtChip, QemuRv32VirtDefaultPeripherals};
 use qemu_rv32_virt_chip::plic::PLIC;
 use qemu_rv32_virt_chip::plic::PLIC_BASE;
@@ -44,7 +46,11 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
     [None; NUM_PROCS];
 
 // Reference to the chip for panic dumps.
-static mut CHIP: Option<&'static QemuRv32VirtChip<QemuRv32VirtDefaultPeripherals>> = None;
+// static mut CHIP: Option<&'static QemuRv32VirtChip<QemuRv32VirtDefaultPeripherals>> = None;
+thread_local_static!(
+    MAX_THREADS,
+    CHIP: Option<&'static QemuRv32VirtChip<'static, QemuRv32VirtDefaultPeripherals<'static>>> = None
+);
 
 // Reference to the process printer for panic dumps.
 static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
@@ -210,16 +216,6 @@ unsafe fn thread_local_main<const ID: usize>() {
 
     // basic setup of the risc-v imac platform
     rv32i::configure_trap_handler(rv32i::PermissionMode::Machine);
-
-    // Initialize the kernel's deferred call infrastructure for a
-    // single-threaded platform configuration:
-    let deferred_call_state = static_init!(
-        kernel::threadlocal::SingleThread<kernel::deferred_call::ThreadLocalDeferredCallState>,
-        kernel::threadlocal::SingleThread::new(kernel::deferred_call::DEFAULT_DEFERRED_CALL_STATE),
-        // kernel::threadlocal::ThreadLocal<NUM_THREADS, kernel::deferred_call::ThreadLocalDeferredCallState>,
-        // kernel::threadlocal::ThreadLocal::init(kernel::deferred_call::DEFAULT_DEFERRED_CALL_STATE),
-    );
-    kernel::deferred_call::initialize_global_deferred_call_state(deferred_call_state);
 
     // Set up memory protection immediately after setting the trap handler, to
     // ensure that much of the board initialization routine runs with ePMP
@@ -526,7 +522,8 @@ unsafe fn thread_local_main<const ID: usize>() {
         QemuRv32VirtChip<QemuRv32VirtDefaultPeripherals>,
         QemuRv32VirtChip::new(peripherals, hardware_timer, epmp, plic),
     );
-    // CHIP = Some(chip); // TODO: Make it thread local!
+    let chip_local = thread_local_static_finalize!(CHIP, ID);
+    *chip_local = Some(chip);
 
     // Need to enable all interrupts for Tock Kernel
     chip.enable_plic_interrupts();
@@ -642,6 +639,17 @@ unsafe fn thread_local_main<const ID: usize>() {
 #[no_mangle]
 pub unsafe fn main() {
     let id = csr::CSR.mhartid.extract().get();
+
+    // Initialize the kernel's deferred call infrastructure for a
+    // single-threaded platform configuration:
+    let deferred_call_state = static_init!(
+        qemu_rv32_virt_chip::QemuRv32VirtThreadLocal<kernel::deferred_call::ThreadLocalDeferredCallState>,
+        qemu_rv32_virt_chip::QemuRv32VirtThreadLocal::init(kernel::deferred_call::DEFAULT_DEFERRED_CALL_STATE),
+    );
+
+    // let a = 1 + deferred_call_state;
+
+    kernel::deferred_call::initialize_global_deferred_call_state(deferred_call_state);
 
     match id {
         0 => thread_local_main::<0>(),

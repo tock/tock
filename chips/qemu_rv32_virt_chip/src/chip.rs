@@ -31,8 +31,6 @@ type QemuRv32VirtPMP = rv32i::pmp::PMPUserMPU<
 
 pub type QemuRv32VirtClint<'a> = sifive::clint::Clint<'a, Freq10MHz>;
 
-// pub type QemuRv32VirtPlic = sifive::plic::Plic<MAX_THREADS>;
-
 pub struct QemuRv32VirtChip<'a, I: InterruptService + 'a> {
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     pmp: QemuRv32VirtPMP,

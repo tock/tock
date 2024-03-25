@@ -20,3 +20,22 @@ pub mod chip;
 pub mod clint;
 pub mod plic;
 pub mod uart;
+
+pub struct QemuRv32VirtThreadLocal<T>(kernel::threadlocal::ThreadLocal<MAX_THREADS, T>);
+
+unsafe impl<T> kernel::threadlocal::ThreadLocalDyn<T> for QemuRv32VirtThreadLocal<T> {
+    fn get_mut<'a>(&'a self) -> Option<kernel::threadlocal::NonReentrant<'a, T>> {
+        use kernel::threadlocal::{ThreadLocal, ThreadLocalAccess, DynThreadId};
+        use kernel::utilities::registers::interfaces::Readable;
+        let id = rv32i::csr::CSR.mhartid.extract().get();
+        <ThreadLocal<MAX_THREADS, T> as ThreadLocalAccess<DynThreadId, T>>::get_mut(&self.0, unsafe {
+            DynThreadId::new(id)
+        })
+    }
+}
+
+impl<T: Copy> kernel::threadlocal::ThreadLocalDynInit<T> for QemuRv32VirtThreadLocal<T> {
+    unsafe fn init(init: T) -> Self {
+	    QemuRv32VirtThreadLocal(kernel::threadlocal::ThreadLocal::init(init))
+    }
+}

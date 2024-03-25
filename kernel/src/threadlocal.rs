@@ -69,7 +69,7 @@ impl<const NUM_THREADS: usize, T> ThreadLocal<NUM_THREADS, T> {
 }
 
 pub unsafe trait ThreadLocalAccess<ID: ThreadId, T> {
-    fn get_mut<'a>(&'a self, _id: ID) -> Option<NonReentrant<'a, T>>;
+    fn get_mut<'a>(&'a self, id: ID) -> Option<NonReentrant<'a, T>>;
 }
 
 // unsafe impl<const NUM_THREADS: usize, T, ID: ThreadId + Copy>

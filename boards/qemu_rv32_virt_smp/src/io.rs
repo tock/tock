@@ -8,6 +8,9 @@ use core::str;
 
 use kernel::debug;
 use kernel::debug::IoWrite;
+use kernel::thread_local_static_access;
+use kernel::threadlocal::DynThreadId;
+use kernel::utilities::registers::interfaces::Readable;
 
 use crate::CHIP;
 use crate::PROCESSES;
@@ -33,18 +36,21 @@ impl IoWrite for Writer {
 }
 
 /// Panic handler.
-#[cfg(not(test))]
+// #[cfg(not(test))]
 #[no_mangle]
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let writer = &mut WRITER;
+    let id = rv32i::csr::CSR.mhartid.extract().get();
+    let chip = thread_local_static_access!(CHIP, DynThreadId::new(id))
+        .expect("Invalid Thread ID");
 
     debug::panic_print::<_, _, _>(
         writer,
         pi,
         &rv32i::support::nop,
         &PROCESSES,
-        &CHIP,
+        &chip,
         &PROCESS_PRINTER,
     );
 
