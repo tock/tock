@@ -15,6 +15,7 @@ pub mod app_flash_driver;
 pub mod appid;
 pub mod ble;
 pub mod bme280;
+pub mod bmi270;
 pub mod bmm150;
 pub mod bmp280;
 pub mod bus;
