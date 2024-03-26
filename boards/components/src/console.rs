@@ -45,6 +45,7 @@ use kernel::create_capability;
 use kernel::hil;
 use kernel::hil::time::{self, Alarm};
 use kernel::hil::uart;
+use kernel::utilities::packet_buffer::{PacketBufferMut, PacketSliceMut};
 
 use capsules_core::console::DEFAULT_BUF_SIZE;
 
@@ -165,7 +166,7 @@ impl<const RX_BUF_LEN: usize, const TX_BUF_LEN: usize> Component
 
         let console = s.3.write(console::Console::new(
             console_uart,
-            write_buffer,
+            PacketBufferMut::new(PacketSliceMut::new(write_buffer).unwrap()).unwrap(),
             read_buffer,
             self.board_kernel.create_grant(self.driver_num, &grant_cap),
         ));

@@ -100,7 +100,7 @@ pub struct App {
     read_len: usize,
 }
 
-pub struct Console<'a, const HEAD: usize, const TAIL: usize> {
+pub struct Console<'a, const HEAD: usize = 0, const TAIL: usize = 0> {
     uart: &'a dyn uart::UartData<'a, HEAD, TAIL>,
     apps: Grant<
         App,

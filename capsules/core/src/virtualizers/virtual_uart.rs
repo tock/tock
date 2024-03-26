@@ -57,7 +57,7 @@ use kernel::ErrorCode;
 
 pub const RX_BUF_LEN: usize = 64;
 
-pub struct MuxUart<'a, const HEAD: usize, const TAIL: usize> {
+pub struct MuxUart<'a, const HEAD: usize = 0, const TAIL: usize = 0> {
     uart: &'a dyn uart::Uart<'a, HEAD, TAIL>,
     speed: u32,
     devices: List<'a, UartDevice<'a, HEAD, TAIL>>,
@@ -358,7 +358,7 @@ enum UartDeviceReceiveState {
     Aborting,
 }
 
-pub struct UartDevice<'a, const HEAD: usize, const TAIL: usize> {
+pub struct UartDevice<'a, const HEAD: usize = 0, const TAIL: usize = 0> {
     state: Cell<UartDeviceReceiveState>,
     mux: &'a MuxUart<'a, HEAD, TAIL>,
     receiver: bool, // Whether or not to pass this UartDevice incoming messages.

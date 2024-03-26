@@ -27,6 +27,7 @@ use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::time::Alarm;
 use kernel::process::ProcessPrinter;
+use kernel::utilities::packet_buffer::{PacketBufferMut, PacketSliceMut};
 
 #[macro_export]
 macro_rules! process_console_component_static {
@@ -178,7 +179,7 @@ impl<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>> Component
             console_uart,
             console_alarm,
             self.process_printer,
-            write_buffer,
+            PacketBufferMut::new(PacketSliceMut::new(write_buffer).unwrap()).unwrap(),
             read_buffer,
             queue_buffer,
             command_buffer,

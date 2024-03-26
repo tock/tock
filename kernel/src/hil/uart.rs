@@ -66,7 +66,7 @@ pub enum Error {
     Aborted,
 }
 
-pub trait Uart<'a, const HEAD: usize, const TAIL: usize>:
+pub trait Uart<'a, const HEAD: usize = 0, const TAIL: usize = 0>:
     Configure + Transmit<'a, HEAD, TAIL> + Receive<'a>
 {
 }

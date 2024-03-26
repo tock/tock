@@ -42,7 +42,7 @@ impl Write for Writer {
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) -> usize {
-        let uart = Uarte::new(UARTE0_BASE);
+        let uart = Uarte::<'_, 0, 0>::new(UARTE0_BASE);
 
         use kernel::hil::uart::Configure;
 

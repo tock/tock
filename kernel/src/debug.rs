@@ -384,12 +384,12 @@ macro_rules! debug_flush_queue {
 /// Wrapper type that we need a mutable reference to for the core::fmt::Write
 /// interface.
 pub struct DebugWriterWrapper {
-    dw: MapCell<&'static DebugWriter<4, 0>>,
+    dw: MapCell<&'static DebugWriter<0, 0>>,
 }
 
 /// Main type that we need an immutable reference to so we can share it with
 /// the UART provider and this debug module.
-pub struct DebugWriter<const HEAD: usize, const TAIL: usize> {
+pub struct DebugWriter<const HEAD: usize = 0, const TAIL: usize = 0> {
     // What provides the actual writing mechanism.
     uart: &'static dyn hil::uart::Transmit<'static, HEAD, TAIL>,
     // The buffer that is passed to the writing mechanism.
@@ -418,7 +418,7 @@ pub unsafe fn set_debug_writer_wrapper(debug_writer: &'static mut DebugWriterWra
 }
 
 impl DebugWriterWrapper {
-    pub fn new(dw: &'static DebugWriter<4, 0>) -> DebugWriterWrapper {
+    pub fn new(dw: &'static DebugWriter<0, 0>) -> DebugWriterWrapper {
         DebugWriterWrapper {
             dw: MapCell::new(dw),
         }

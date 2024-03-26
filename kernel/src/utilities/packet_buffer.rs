@@ -1,4 +1,5 @@
 use core::any::Any;
+use core::fmt::Debug;
 use core::ops::{Range, RangeFrom};
 
 use crate::ErrorCode;
@@ -8,7 +9,8 @@ use crate::ErrorCode;
 ///
 /// This is a safe interface, but should not be used directly. Instead,
 /// manipulate `PacketBufferDyn`s using the [`PacketBufferMut`] container.
-pub unsafe trait PacketBufferDyn: Any {
+
+pub unsafe trait PacketBufferDyn: Any + Debug {
     /// Length of the allocated data in this buffer (excluding head- and
     /// tailroom).
     fn len(&self) -> usize;
@@ -45,6 +47,8 @@ pub unsafe trait PacketBufferDyn: Any {
 
     // has to be guaranteed to fit !!!!!
     unsafe fn prepand_unchecked(&mut self, header: &[u8]);
+
+    fn capacity(&self) -> usize;
 
     // fn iter_mut<'a>(&'a mut self) -> impl Iterator<Item = &mut u8> + 'a;
 }
@@ -102,6 +106,9 @@ pub unsafe trait PacketBufferDyn: Any {
 /// method. It can also be destructed into its inner reference type using
 /// [`PacketBufferDyn::into_inner`].
 #[repr(transparent)]
+// TODO: should fix the debug trait
+#[derive(Debug)]
+
 pub struct PacketBufferMut<const HEAD: usize = 0, const TAIL: usize = 0> {
     // AMALIA: should remove default values!!!!!
     inner: &'static mut dyn PacketBufferDyn,
@@ -202,6 +209,17 @@ impl<const HEAD: usize, const TAIL: usize> PacketBufferMut<HEAD, TAIL> {
         }
     }
 
+    pub fn reset<const NEW_HEAD: usize, const NEW_TAIL: usize>(
+        self,
+    ) -> Result<PacketBufferMut<NEW_HEAD, NEW_TAIL>, Self> {
+        if NEW_HEAD + NEW_TAIL < self.inner.capacity() {
+            assert!(self.inner.reset(NEW_HEAD));
+            Ok(PacketBufferMut { inner: self.inner })
+        } else {
+            Err(self)
+        }
+    }
+
     #[inline(always)]
     pub fn downcast<T: PacketBufferDyn>(self) -> Option<&'static mut T> {
         let any_buffer: &'static mut dyn Any = self.inner as _;
@@ -226,6 +244,8 @@ impl<const HEAD: usize, const TAIL: usize> PacketBufferMut<HEAD, TAIL> {
 // slice by storing the slice's length in the first usize words and
 // never modifying that.
 #[repr(transparent)]
+// TODO: should fix the debug trait
+#[derive(Debug)]
 pub struct PacketSliceMut {
     // Use the first `core::mem::size_of<usize>()` bytes as the
     // original slice length, second word as headroom, and the third
@@ -399,8 +419,13 @@ unsafe impl PacketBufferDyn for PacketSliceMut {
         self.get_tailroom()
     }
 
-    fn reclaim_headroom(&mut self, _new_headroom: usize) -> bool {
-        unimplemented!()
+    fn reclaim_headroom(&mut self, new_headroom: usize) -> bool {
+        if new_headroom <= self.data_slice().len() - self.tailroom() {
+            self.set_headroom(new_headroom);
+            true
+        } else {
+            false
+        }
     }
 
     fn reclaim_tailroom(&mut self, _new_tailroom: usize) -> bool {
@@ -450,6 +475,10 @@ unsafe impl PacketBufferDyn for PacketSliceMut {
     unsafe fn prepand_unchecked(&mut self, header: &[u8]) {
         self.set_headroom(self.get_headroom().saturating_sub(header.len()));
         self.data_slice_mut()[..header.len()].copy_from_slice(header);
+    }
+
+    fn capacity(&self) -> usize {
+        self.data_slice().len()
     }
 
     // TODO same for tail

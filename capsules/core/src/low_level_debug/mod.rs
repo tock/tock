@@ -138,18 +138,7 @@ impl<
                     MESSAGE.len(),
                 )
                 .map_err(|(_, returned_buffer)| {
-                    let mut success = false;
-                    if let Ok(new_head_buf) = returned_buffer.reclaim_headroom::<HEAD>() {
-                        if let Ok(new_buf) = new_head_buf.reclaim_tailroom::<TAIL>() {
-                            success = true;
-                            self.buffer.set(Some(new_buf));
-                        }
-                    }
-
-                    if !success {
-                        // What if the reclaim_headroom does not succeed?
-                    }
-
+                    self.buffer.set(Some(returned_buffer.reset().unwrap()))
                     // self.buffer.set(Some(buffer));
                 });
             return;
@@ -174,18 +163,7 @@ impl<
             return;
         }
 
-        let mut success = false;
-        if let Ok(new_head_buf) = tx_buffer.reclaim_headroom::<HEAD>() {
-            if let Ok(new_buf) = new_head_buf.reclaim_tailroom::<TAIL>() {
-                success = true;
-                self.buffer.set(Some(new_buf));
-            }
-        }
-
-        if !success {
-            // What if the reclaim_headroom does not succeed?
-        }
-
+        self.buffer.set(Some(tx_buffer.reset().unwrap()))
         // self.buffer.set(Some(tx_buffer));
     }
 }

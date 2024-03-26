@@ -29,6 +29,7 @@ use kernel::collections::ring_buffer::RingBuffer;
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::uart;
+use kernel::utilities::packet_buffer::{PacketBufferMut, PacketSliceMut};
 
 // The sum of the output_buf and internal_buf is set to a multiple of 1024 bytes in order to avoid excessive
 // padding between kernel memory and application memory (which often needs to be aligned to at
@@ -117,7 +118,7 @@ impl<const BUF_SIZE_BYTES: usize> Component for DebugWriterComponent<BUF_SIZE_BY
         let ring_buffer = s.1.write(RingBuffer::new(internal_buf));
         let debugger = s.3.write(kernel::debug::DebugWriter::new(
             debugger_uart,
-            output_buf,
+            PacketBufferMut::new(PacketSliceMut::new(output_buf).unwrap()).unwrap(),
             ring_buffer,
         ));
         hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
@@ -167,7 +168,7 @@ impl<U: uart::Uart<'static> + uart::Transmit<'static> + 'static, const BUF_SIZE_
         let ring_buffer = s.0.write(RingBuffer::new(internal_buf));
         let debugger = s.2.write(kernel::debug::DebugWriter::new(
             self.uart,
-            output_buf,
+            PacketBufferMut::new(PacketSliceMut::new(output_buf).unwrap()).unwrap(),
             ring_buffer,
         ));
         hil::uart::Transmit::set_transmit_client(self.uart, debugger);

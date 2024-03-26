@@ -163,7 +163,7 @@ register_bitfields! [u32,
 /// UARTE
 // It should never be instanced outside this module but because a static mutable reference to it
 // is exported outside this module it must be `pub`
-pub struct Uarte<'a, const HEAD: usize, const TAIL: usize> {
+pub struct Uarte<'a, const HEAD: usize = 0, const TAIL: usize = 0> {
     registers: StaticRef<UarteRegisters>,
     tx_client: OptionalCell<&'a dyn uart::TransmitClient<HEAD, TAIL>>,
     // AMALIA: ultimu layer va tine un PacketSliceMut, restul vor tine PacketBufferMut

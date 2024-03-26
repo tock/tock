@@ -230,8 +230,8 @@ pub struct ProcessConsole<
     const COMMAND_HISTORY_LEN: usize,
     A: Alarm<'a>,
     C: ProcessManagementCapability,
-    const HEAD: usize,
-    const TAIL: usize,
+    const HEAD: usize = 0,
+    const TAIL: usize = 0,
 > {
     uart: &'a dyn uart::UartData<'a>,
     alarm: &'a A,
@@ -1067,16 +1067,12 @@ impl<
         } else {
             self.tx_in_progress.set(true);
             self.tx_buffer.take().map(|buffer| {
-                let buf = buffer
-                    .downcast::<PacketSliceMut>()
-                    .unwrap()
-                    .data_slice_mut();
-                buf[0] = byte;
+                let buf = buffer.downcast::<PacketSliceMut>().unwrap();
+                buf.data_slice_mut()[0] = byte;
 
-                let _ = self.uart.transmit_buffer(
-                    PacketBufferMut::new(PacketSliceMut::new(buf).unwrap()).unwrap(),
-                    1,
-                );
+                let _ = self
+                    .uart
+                    .transmit_buffer(PacketBufferMut::new(buf).unwrap(), 1);
             });
             Ok(())
         }
@@ -1139,8 +1135,8 @@ impl<
                     // Copy elements of the queue into the TX buffer.
                     // (txbuf[..txlen]).copy_from_slice(&qbuf[..txlen]);
 
-                    let slice = txbuf.downcast::<PacketSliceMut>().unwrap().data_slice_mut();
-                    (slice[..txlen]).copy_from_slice(&qbuf[..txlen]);
+                    let slice = txbuf.downcast::<PacketSliceMut>().unwrap();
+                    (slice.data_slice_mut()[..txlen]).copy_from_slice(&qbuf[..txlen]);
 
                     // TODO: If the queue needs to print over multiple TX
                     // buffers, we need to shift the remaining contents of the
@@ -1154,10 +1150,9 @@ impl<
                     self.queue_size.set(remaining);
 
                     self.tx_in_progress.set(true);
-                    let _ = self.uart.transmit_buffer(
-                        PacketBufferMut::new(PacketSliceMut::new(slice).unwrap()).unwrap(),
-                        txlen,
-                    );
+                    let _ = self
+                        .uart
+                        .transmit_buffer(PacketBufferMut::new(slice).unwrap(), txlen);
                     Ok(txlen)
                 })
             } else {
