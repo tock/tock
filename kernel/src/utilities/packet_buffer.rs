@@ -102,7 +102,8 @@ pub unsafe trait PacketBufferDyn: Any {
 /// method. It can also be destructed into its inner reference type using
 /// [`PacketBufferDyn::into_inner`].
 #[repr(transparent)]
-pub struct PacketBufferMut<const HEAD: usize, const TAIL: usize> {
+pub struct PacketBufferMut<const HEAD: usize = 0, const TAIL: usize = 0> {
+    // AMALIA: should remove default values!!!!!
     inner: &'static mut dyn PacketBufferDyn,
 }
 

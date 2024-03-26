@@ -32,6 +32,7 @@ use kernel::hil::uart;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::packet_buffer::PacketBufferMut;
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
@@ -271,7 +272,7 @@ impl uart::TransmitClient for Nrf51822Serialization<'_> {
     // Called when the UART TX has finished.
     fn transmitted_buffer(
         &self,
-        buffer: &'static mut [u8],
+        buffer: PacketBufferMut,
         _tx_len: usize,
         _rcode: Result<(), ErrorCode>,
     ) {

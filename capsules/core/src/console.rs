@@ -176,6 +176,11 @@ impl<'a, const HEAD: usize, const TAIL: usize> Console<'a, HEAD, TAIL> {
         if self.tx_in_progress.is_none() {
             self.tx_in_progress.set(processid);
             self.tx_buffer.take().map(|buffer| {
+                let slice = buffer
+                    .downcast::<PacketSliceMut>()
+                    .unwrap()
+                    .data_slice_mut();
+
                 let transaction_len = kernel_data
                     .get_readonly_processbuffer(ro_allow::WRITE)
                     .and_then(|write| {
@@ -198,19 +203,25 @@ impl<'a, const HEAD: usize, const TAIL: usize> Console<'a, HEAD, TAIL> {
                                     return 0;
                                 }
                             };
+
+                            // AMALIA: aici modific doar o referinta locala a slice-ului, nu modific cu adevarat ce este salvat in slice. eok??? cred ca da, ca oricum apelam take()
                             for (i, c) in remaining_data.iter().enumerate() {
-                                if buffer.len() <= i {
+                                if slice.len() <= i {
                                     return i; // Short circuit on partial send
                                 }
-                                buffer[i] = c.get();
+                                slice[i] = c.get();
                             }
+
                             app.write_remaining
                         })
                     })
                     .unwrap_or(0);
                 app.write_remaining -= transaction_len;
 
-                let _ = self.uart.transmit_buffer(buffer, transaction_len);
+                let _ = self.uart.transmit_buffer(
+                    PacketBufferMut::new(PacketSliceMut::new(slice).unwrap()).unwrap(),
+                    transaction_len,
+                );
             });
         } else {
             app.pending_write = true;

@@ -8,7 +8,6 @@
 mod fmt;
 
 use core::cell::Cell;
-use core::iter::ByRefSized;
 use core::usize;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
@@ -139,7 +138,7 @@ impl<
                     MESSAGE.len(),
                 )
                 .map_err(|(_, returned_buffer)| {
-                    let success = false;
+                    let mut success = false;
                     if let Ok(new_head_buf) = returned_buffer.reclaim_headroom::<HEAD>() {
                         if let Ok(new_buf) = new_head_buf.reclaim_tailroom::<TAIL>() {
                             success = true;
@@ -166,11 +165,28 @@ impl<
                 None => continue,
                 Some(to_print) => to_print,
             };
-            self.transmit_entry(buffer.into_inner(), app_num, to_print);
+
+            let slice = tx_buffer
+                .downcast::<PacketSliceMut>()
+                .unwrap()
+                .data_slice_mut();
+            self.transmit_entry(slice, app_num, to_print);
             return;
         }
-        self.buffer
-            .set(Some(PacketBufferMut::<HEAD, TAIL>::new(buffer).unwrap()));
+
+        let mut success = false;
+        if let Ok(new_head_buf) = tx_buffer.reclaim_headroom::<HEAD>() {
+            if let Ok(new_buf) = new_head_buf.reclaim_tailroom::<TAIL>() {
+                success = true;
+                self.buffer.set(Some(new_buf));
+            }
+        }
+
+        if !success {
+            // What if the reclaim_headroom does not succeed?
+        }
+
+        // self.buffer.set(Some(tx_buffer));
     }
 }
 
@@ -192,12 +208,17 @@ impl<
     fn push_entry(&self, entry: DebugEntry, processid: ProcessId) {
         use DebugEntry::Dropped;
 
-        if let Some(mut buffer) = self.buffer.take() {
+        if let Some(buffer) = self.buffer.take() {
             // AMALIA: e ok??? am incercat sa obtin din packetbuffermut un buffer de u8
-            let slice = (&mut buffer as &mut dyn core::any::Any)
-                .downcast_mut::<PacketSliceMut>()
+            // let slice = (&mut buffer as &mut dyn core::any::Any)
+            //     .downcast_mut::<PacketSliceMut>()
+            //     .unwrap()
+            //     .into_inner();
+
+            let slice = buffer
+                .downcast::<PacketSliceMut>()
                 .unwrap()
-                .into_inner();
+                .data_slice_mut();
             self.transmit_entry(slice, processid.id(), entry);
             return;
         }
