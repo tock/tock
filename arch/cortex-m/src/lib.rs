@@ -13,6 +13,8 @@ use core::fmt::Write;
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 use core::arch::global_asm;
 
+pub mod dcb;
+pub mod dwt;
 pub mod mpu;
 pub mod nvic;
 pub mod scb;

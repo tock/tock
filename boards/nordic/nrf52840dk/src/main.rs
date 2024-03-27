@@ -74,8 +74,10 @@
 #![deny(missing_docs)]
 
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
+use capsules_extra::cycle_count::CycleCount;
 use capsules_extra::net::ieee802154::MacAddress;
 use capsules_extra::net::ipv6::ip_utils::IPAddr;
+use cortexm4::dwt;
 use kernel::component::Component;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
@@ -242,6 +244,7 @@ pub struct Platform {
     kv_driver: &'static KVDriver,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
+    cycle_count: &'static CycleCount<'static, cortexm4::dwt::Dwt>,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -267,6 +270,7 @@ impl SyscallDriverLookup for Platform {
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
             capsules_extra::net::thread::driver::DRIVER_NUM => f(Some(self.thread_driver)),
             capsules_extra::kv_driver::DRIVER_NUM => f(Some(self.kv_driver)),
+            capsules_extra::cycle_count::DRIVER_NUM => f(Some(self.cycle_count)),
             _ => f(None),
         }
     }
@@ -884,6 +888,13 @@ pub unsafe fn start() -> (
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
+    let arm_dwt = static_init!(dwt::Dwt, dwt::Dwt::new());
+
+    let cycle_count = static_init!(
+        capsules_extra::cycle_count::CycleCount<dwt::Dwt>,
+        capsules_extra::cycle_count::CycleCount::new(arm_dwt)
+    );
+
     let platform = Platform {
         button,
         ble_radio,
@@ -909,6 +920,7 @@ pub unsafe fn start() -> (
         kv_driver,
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
+        cycle_count,
     };
 
     let _ = platform.pconsole.start();
@@ -929,25 +941,31 @@ pub unsafe fn start() -> (
         static _eappmem: u8;
     }
 
-    kernel::process::load_processes(
-        board_kernel,
-        chip,
-        core::slice::from_raw_parts(
-            core::ptr::addr_of!(_sapps),
-            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-        ),
-        core::slice::from_raw_parts_mut(
-            core::ptr::addr_of_mut!(_sappmem),
-            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
-        ),
-        &mut PROCESSES,
-        &FAULT_RESPONSE,
-        &process_management_capability,
-    )
-    .unwrap_or_else(|err| {
-        debug!("Error loading processes!");
-        debug!("{:?}", err);
+    use kernel::hil::hw_debug::CycleCounter;
+
+    let load_procs_cycles = arm_dwt.profile_closure(|| {
+        kernel::process::load_processes(
+            board_kernel,
+            chip,
+            core::slice::from_raw_parts(
+                core::ptr::addr_of!(_sapps),
+                core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
+            ),
+            core::slice::from_raw_parts_mut(
+                core::ptr::addr_of_mut!(_sappmem),
+                core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
+            ),
+            &mut PROCESSES,
+            &FAULT_RESPONSE,
+            &process_management_capability,
+        )
+        .unwrap_or_else(|err| {
+            debug!("Error loading processes!");
+            debug!("{:?}", err);
+        });
     });
+
+    kernel::debug!("cycles for load_processes: {}", load_procs_cycles);
 
     (board_kernel, platform, chip)
 }
