@@ -14,7 +14,7 @@
 //! through each frame for transmission.
 
 use crate::net::ieee802154::{Header, MacAddress};
-use kernel::hil::radio;
+use kernel::hil::radio::{self, MAX_FRAME_SIZE, PSDU_OFFSET};
 use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 
@@ -146,6 +146,19 @@ impl<'a, R: radio::Radio<'a>> Mac<'a> for AwakeMac<'a, R> {
         full_mac_frame: &'static mut [u8],
         frame_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        // We must add the PSDU_OFFSET required for the radio
+        // hardware. We first error check the provided arguments
+        // and then shift the 15.4 frame by the `PSDU_OFFSET`.
+
+        if full_mac_frame.len() < frame_len + PSDU_OFFSET {
+            return Err((ErrorCode::NOMEM, full_mac_frame));
+        }
+
+        if frame_len > MAX_FRAME_SIZE {
+            return Err((ErrorCode::INVAL, full_mac_frame));
+        }
+
+        full_mac_frame.copy_within(0..frame_len, PSDU_OFFSET);
         self.radio.transmit(full_mac_frame, frame_len)
     }
 }
