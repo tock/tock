@@ -45,7 +45,7 @@ pub enum Speed {
 }
 
 impl<'a> TWI<'a> {
-    fn new(registers: StaticRef<TwiRegisters>) -> Self {
+    const fn new(registers: StaticRef<TwiRegisters>) -> Self {
         Self {
             registers,
             client: OptionalCell::empty(),
@@ -55,11 +55,11 @@ impl<'a> TWI<'a> {
         }
     }
 
-    pub fn new_twi0() -> Self {
+    pub const fn new_twi0() -> Self {
         TWI::new(INSTANCES[0])
     }
 
-    pub fn new_twi1() -> Self {
+    pub const fn new_twi1() -> Self {
         TWI::new(INSTANCES[1])
     }
 

@@ -183,7 +183,7 @@ pub struct UARTParams {
 impl<'a> Uarte<'a> {
     /// Constructor
     // This should only be constructed once
-    pub fn new(regs: StaticRef<UarteRegisters>) -> Uarte<'a> {
+    pub const fn new(regs: StaticRef<UarteRegisters>) -> Uarte<'a> {
         Uarte {
             registers: regs,
             tx_client: OptionalCell::empty(),

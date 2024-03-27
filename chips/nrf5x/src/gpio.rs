@@ -578,7 +578,7 @@ impl<'a, const N: usize> IndexMut<Pin> for Port<'a, N> {
 }
 
 impl<'a, const N: usize> Port<'a, N> {
-    pub fn new(pins: [GPIOPin<'a>; N]) -> Self {
+    pub const fn new(pins: [GPIOPin<'a>; N]) -> Self {
         Self { pins }
     }
 

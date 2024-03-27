@@ -144,7 +144,7 @@ pub struct AesECB<'a> {
 }
 
 impl<'a> AesECB<'a> {
-    pub fn new() -> AesECB<'a> {
+    pub const fn new() -> AesECB<'a> {
         AesECB {
             registers: AESECB_BASE,
             mode: Cell::new(AESMode::CTR),
