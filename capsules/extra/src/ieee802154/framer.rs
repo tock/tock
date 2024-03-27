@@ -499,7 +499,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                             None => {
                                 // Key not found -- pass raw encrypted packet to client
                                 self.rx_client.map(|client| {
-                                    client.receive(buf, header, radio::PSDU_OFFSET + data_offset, data_len);
+                                    client.receive(&buf[PSDU_OFFSET..], header, data_offset, data_len);
                                 });
                                 return None;
                             }
