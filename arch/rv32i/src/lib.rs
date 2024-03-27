@@ -7,6 +7,7 @@
 #![crate_name = "rv32i"]
 #![crate_type = "rlib"]
 #![no_std]
+#![feature(asm_const)]
 
 use core::fmt::Write;
 
@@ -84,14 +85,22 @@ extern "C" {
             // Re-enable linker relaxations.
             .option pop
 
-          1: // Only use core 0
-            li a1, 1
-            csrr a0, mhartid
-            bne a0, a1, 1b
+            // Initialize the stack based on core ID
+            csrr a0, mhartid            // a0 = hart ID.
+            li   a1, {stack_size}       // a1 = the size of the stack.
 
             // Initialize the stack pointer register. This comes directly from
             // the linker script.
-            la sp, {estack}             // Set the initial stack pointer.
+            la  sp, {estack}            // Set the initial stack pointer to be the bottom
+                                        // of the stack section.
+
+          000:                          // Move the stack pointer to a proper position.
+            beqz a0, 001f
+            sub  sp, sp, a1
+            addi a0, a0, -1
+            j 000b
+
+          001:
 
             // Set s0 (the frame pointer) to the start of the stack.
             add  s0, sp, zero           // s0 = sp
@@ -100,39 +109,59 @@ extern "C" {
             // in the kernel. This is used for the check in the trap handler.
             csrw 0x340, zero            // CSR=0x340=mscratch
 
+            // Jump to initialize memory if core 0. Otherwise, spin wait until core 0
+            // finish memory initialization.
+            csrr a0, mhartid
+            beqz a0, 003f
+
+            la a0, {ebss}               // a0 = first address after .bss.
+            li a1, 1                    // a1 = non-zero value.
+            sw a1, -4(a0)               // Store a non-zero value to the last word of .bss.
+
+          002: // Memory initialize wait loop
+            beqz a1, 201f
+            lw a1, -4(a0)
+            j 002b
+
+          003: // Memory initialize begin
+
             // INITIALIZE MEMORY
 
-            // Start by initializing .bss memory. The Tock linker script defines
-            // `_szero` and `_ezero` to mark the .bss segment.
-            la a0, {sbss}               // a0 = first address of .bss
-            la a1, {ebss}               // a1 = first address after .bss
-
-          100: // bss_init_loop
-            beq  a0, a1, 101f           // If a0 == a1, we are done.
-            sw   zero, 0(a0)            // *a0 = 0. Write 0 to the memory location in a0.
-            addi a0, a0, 4              // a0 = a0 + 4. Increment pointer to next word.
-            j 100b                      // Continue the loop.
-
-          101: // bss_init_done
-
-
-            // Now initialize .data memory. This involves coping the values right at the
-            // end of the .text section (in flash) into the .data section (in RAM).
+            // Start by initializing .data memory. This involves coping the values right
+            // at the end of the .text section (in flash) into the .data section (in RAM).
             la a0, {sdata}              // a0 = first address of data section in RAM
             la a1, {edata}              // a1 = first address after data section in RAM
             la a2, {etext}              // a2 = address of stored data initial values
 
-          200: // data_init_loop
-            beq  a0, a1, 201f           // If we have reached the end of the .data
+          100: // data_init_loop
+            beq  a0, a1, 101f           // If we have reached the end of the .data
                                         // section then we are done.
             lw   a3, 0(a2)              // a3 = *a2. Load value from initial values into a3.
             sw   a3, 0(a0)              // *a0 = a3. Store initial value into
                                         // next place in .data.
             addi a0, a0, 4              // a0 = a0 + 4. Increment to next word in memory.
             addi a2, a2, 4              // a2 = a2 + 4. Increment to next word in flash.
+            j 100b                      // Continue the loop.
+
+          101: // data_init_done
+
+            // Now initialize .bss memory. The Tock linker script defines
+            // `_szero` and `_ezero` to mark the .bss segment.
+            la a0, {sbss}               // a0 = first address of .bss
+            la a1, {ebss}               // a1 = first address after .bss
+
+          200: // bss_init_loop
+            beq  a0, a1, 201f           // If a0 == a1, we are done.
+            sw   zero, 0(a0)            // *a0 = 0. Write 0 to the memory location in a0.
+            addi a0, a0, 4              // a0 = a0 + 4. Increment pointer to next word.
             j 200b                      // Continue the loop.
 
-          201: // data_init_done
+          201: // bss_init_done
+
+          1: // Debug: Only use core 0
+            li a1, 1
+            csrr a0, mhartid
+            bne a0, a1, 1b
 
             // With that initial setup out of the way, we now branch to the main
             // code, likely defined in a board's main.rs.
@@ -145,6 +174,7 @@ ebss = sym _ezero,
 sdata = sym _srelocate,
 edata = sym _erelocate,
 etext = sym _etext,
+stack_size = const (0x8000 / 2)
 );
 
 /// The various privilege levels in RISC-V.

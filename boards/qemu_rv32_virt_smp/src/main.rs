@@ -604,7 +604,7 @@ unsafe fn thread_local_main<const ID: usize>() {
     // Start the process console:
     let _ = platform.pconsole.start();
 
-    debug!("QEMU RISC-V 32-bit \"virt\" machine, initialization complete.");
+    debug!("QEMU RISC-V 32-bit \"virt\" machine core {ID}, initialization complete.");
     debug!("Entering main loop.");
 
     // ---------- PROCESS LOADING, SCHEDULER LOOP ----------
