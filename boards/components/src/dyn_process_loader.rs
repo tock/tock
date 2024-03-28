@@ -2,10 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! Component for non-volatile storage Drivers.
+//! Component for dynamic process loading.
 //!
 //! This provides one component, ProcessLoaderComponent, which provides
 //! a system call interface to DynamicProcessLoader.
+//!
+//!```rust
+//! # use kernel::static_init;
 //!
 //! let dynamic_process_loader = components::dyn_process_loader::ProcessLoaderComponent::new(
 //!     &mut PROCESSES,
