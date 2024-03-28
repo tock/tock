@@ -24,7 +24,7 @@ use tock_tbf::types::CommandPermissions;
 // Export all process related types via `kernel::process::`.
 pub use crate::process_binary::ProcessBinary;
 pub use crate::process_checker::{ProcessCheckerMachine, ProcessCheckerMachineClient};
-pub use crate::process_loading::load_processes;
+pub use crate::process_loading::{load_processes, load_processes_return_memory};
 pub use crate::process_loading::ProcessLoadError;
 pub use crate::process_loading::SequentialProcessLoaderMachine;
 pub use crate::process_loading::{ProcessLoadingAsync, ProcessLoadingAsyncClient};

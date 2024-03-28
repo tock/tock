@@ -239,6 +239,7 @@ pub struct Platform {
             nrf52840::spi::SPIM<'static>,
         >,
     >,
+    dynamic_app_loader: &'static capsules_extra::app_loader::AppLoader<'static>,
     kv_driver: &'static KVDriver,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
@@ -265,6 +266,7 @@ impl SyscallDriverLookup for Platform {
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
+            capsules_extra::app_loader::DRIVER_NUM => f(Some(self.dynamic_app_loader)),
             capsules_extra::net::thread::driver::DRIVER_NUM => f(Some(self.thread_driver)),
             capsules_extra::kv_driver::DRIVER_NUM => f(Some(self.kv_driver)),
             _ => f(None),
@@ -824,6 +826,35 @@ pub unsafe fn start() -> (
         nrf52840::acomp::Comparator
     ));
 
+
+    //--------------------------------------------------------------------------
+    // Dynamic App Load (OTA)
+    //-------------------------------------------------------------------------
+
+    let dynamic_process_loader = components::dyn_process_loader::ProcessLoaderComponent::new(
+        &mut PROCESSES,
+        board_kernel,
+        chip,
+        core::slice::from_raw_parts(
+            &_sapps as *const u8,
+            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+        ), 
+        &base_peripherals.nvmc,
+        &FAULT_RESPONSE,
+    )
+    .finalize(components::process_loader_component_static!(
+        nrf52840::nvmc::Nvmc,
+        nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>, 
+    ));
+
+    let dynamic_app_loader = components::app_loader::AppLoaderComponent::new(
+            board_kernel,
+            capsules_extra::app_loader::DRIVER_NUM,
+            dynamic_process_loader,
+        )
+        .finalize(components::app_loader_component_static!());
+
+
     //--------------------------------------------------------------------------
     // NRF CLOCK SETUP
     //--------------------------------------------------------------------------
@@ -906,6 +937,7 @@ pub unsafe fn start() -> (
         ),
         i2c_master_slave,
         spi_controller,
+        dynamic_app_loader,
         kv_driver,
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
@@ -929,7 +961,7 @@ pub unsafe fn start() -> (
         static _eappmem: u8;
     }
 
-    kernel::process::load_processes(
+    let remaining_memory = kernel::process::load_processes_return_memory(
         board_kernel,
         chip,
         core::slice::from_raw_parts(
@@ -944,10 +976,15 @@ pub unsafe fn start() -> (
         &FAULT_RESPONSE,
         &process_management_capability,
     )
-    .unwrap_or_else(|err| {
+    .unwrap_or_else(|(err, remaining_memory)| {
         debug!("Error loading processes!");
         debug!("{:?}", err);
+        remaining_memory
     });
+
+    dynamic_process_loader.flash_and_memory(remaining_memory, 
+        &_sapps as *const u8 as usize,
+        &_eapps as *const u8 as usize);
 
     (board_kernel, platform, chip)
 }

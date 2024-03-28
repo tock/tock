@@ -114,6 +114,134 @@ impl fmt::Debug for ProcessLoadError {
 // SYNCHRONOUS PROCESS LOADING
 ////////////////////////////////////////////////////////////////////////////////
 
+// load_processes_return_memory() and load_processes_from_flash_return are copies 
+// of load_processes_return_memory() and load_processes_from_flash(). These functions
+// are created so that they return the remaining memory to main.rs after loading 
+// all the apps initially. This remaining_memory value is then used by the 
+// dynamic process loader to find the right spot to load the new app because otherwise
+// we are not privy to this information.  
+
+#[inline(always)]
+pub fn load_processes_return_memory<C: Chip>(
+    kernel: &'static Kernel,
+    chip: &'static C,
+    app_flash: &'static [u8],
+    app_memory: &'static mut [u8],
+    mut procs: &'static mut [Option<&'static dyn Process>],
+    fault_policy: &'static dyn ProcessFaultPolicy,
+    _capability_management: &dyn ProcessManagementCapability,
+) -> Result<&'static mut [u8], (ProcessLoadError, &'static mut [u8])>{ // Result<(), ProcessLoadError> {
+    let remaining_memory = load_processes_from_flash_return(
+        kernel,
+        chip,
+        app_flash,
+        app_memory,
+        &mut procs,
+        fault_policy,
+    )?;
+
+    if config::CONFIG.debug_process_credentials {
+        debug!("Checking: no checking, load and run all processes");
+    }
+    for proc in procs.iter() {
+        proc.map(|p| {
+            if config::CONFIG.debug_process_credentials {
+                debug!("Running {}", p.get_process_name());
+            }
+        });
+    }
+    Ok(remaining_memory)
+}
+
+#[inline(always)]
+fn load_processes_from_flash_return<C: Chip>(
+    kernel: &'static Kernel,
+    chip: &'static C,
+    app_flash: &'static [u8],
+    app_memory: &'static mut [u8],
+    procs: &mut &'static mut [Option<&'static dyn Process>],
+    fault_policy: &'static dyn ProcessFaultPolicy,
+) -> Result<&'static mut [u8], (ProcessLoadError, &'static mut [u8])> {
+    if config::CONFIG.debug_load_processes {
+        debug!(
+            "Loading processes from flash={:#010X}-{:#010X} into sram={:#010X}-{:#010X}",
+            app_flash.as_ptr() as usize,
+            app_flash.as_ptr() as usize + app_flash.len() - 1,
+            app_memory.as_ptr() as usize,
+            app_memory.as_ptr() as usize + app_memory.len() - 1
+        );
+    }
+
+    let mut remaining_flash = app_flash;
+    let mut remaining_memory = app_memory;
+    // Try to discover up to `procs.len()` processes in flash.
+    let mut index = 0;
+    let num_procs = procs.len();
+    while index < num_procs {
+        let load_binary_result = discover_process_binary(remaining_flash);
+
+        match load_binary_result {
+            Ok((new_flash, process_binary)) => {
+                remaining_flash = new_flash;
+
+                let load_result = load_process(
+                    kernel,
+                    chip,
+                    process_binary,
+                    remaining_memory,
+                    ShortId::LocallyUnique,
+                    index,
+                    fault_policy,
+                );
+                match load_result {
+                    Ok((new_mem, proc)) => {
+                        remaining_memory = new_mem;
+                        if proc.is_some() {
+                            if config::CONFIG.debug_load_processes {
+                                proc.map(|p| debug!("Loaded process {}", p.get_process_name()));
+                            }
+                            procs[index] = proc;
+                            index += 1;
+                        } else {
+                            if config::CONFIG.debug_load_processes {
+                                debug!("No process loaded.");
+                            }
+                        }
+                    }
+                    Err((new_mem, err)) => {
+                        remaining_memory = new_mem;
+                        if config::CONFIG.debug_load_processes {
+                            debug!("Processes load error: {:?}.", err);
+                        }
+                    }
+                }
+            }
+            Err((new_flash, err)) => {
+                remaining_flash = new_flash;
+                match err {
+                    ProcessBinaryError::NotEnoughFlash | ProcessBinaryError::TbfHeaderNotFound => {
+                        if config::CONFIG.debug_load_processes {
+                            debug!("No more processes to load: {:?}.", err);
+                        }
+                        // No more processes to load.
+                        break;
+                    }
+
+                    ProcessBinaryError::TbfHeaderParseFailure(_)
+                    | ProcessBinaryError::IncompatibleKernelVersion { .. }
+                    | ProcessBinaryError::IncorrectFlashAddress { .. }
+                    | ProcessBinaryError::NotEnabledProcess
+                    | ProcessBinaryError::Padding => {
+                        // Skip this binary and move to the next one.
+                        continue;
+                    }
+                }
+            }
+        }
+    }
+    Ok(remaining_memory)
+}
+
 /// Load processes (stored as TBF objects in flash) into runnable process
 /// structures stored in the `procs` array and mark all successfully loaded
 /// processes as runnable. This method does not check the cryptographic
@@ -139,7 +267,7 @@ pub fn load_processes<C: Chip>(
     mut procs: &'static mut [Option<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
     _capability_management: &dyn ProcessManagementCapability,
-) -> Result<(), ProcessLoadError> {
+) -> Result<(), ProcessLoadError>{ // Result<(), ProcessLoadError> {
     load_processes_from_flash(
         kernel,
         chip,
