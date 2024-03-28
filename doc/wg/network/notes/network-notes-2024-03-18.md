@@ -14,7 +14,7 @@
 
 
 ## Updates
-- Alex: Leon and Amalie working on buffer management. Writing and re-writing code. Constant expressions would be really really helpful here. Overall, we're still figuring out how to best use the buffer management system, and also how to design it. It is progressing!
+- Alex: Leon and Amalia working on buffer management. Writing and re-writing code. Constant expressions would be really really helpful here. Overall, we're still figuring out how to best use the buffer management system, and also how to design it. It is progressing!
 
 
 ## Tutorial
