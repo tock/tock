@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2024.
 
-//! This capsule provides an interface between a dynamic loading userspace 
+//! This capsule provides an interface between a dynamic loading userspace
 //! app and the kernel.
 //!
-//! This is an initial implementation that gets the app size from the 
+//! This is an initial implementation that gets the app size from the
 //! userspace app and sets up the flash region in which the app will be
 //! written. Then the app is actually written to flash. Finally, the
 //! the userspace app sends a request for the app to be loaded.
@@ -13,7 +13,7 @@
 //!
 //! Here is a diagram of the expected stack with this capsule:
 //! Boxes are components and between the boxes are the traits that are the
-//! interfaces between components. 
+//! interfaces between components.
 //!
 //! ```text
 //! +-----------------------------------------------------------------+
@@ -53,12 +53,13 @@
 use core::cell::Cell;
 use core::cmp;
 
+use kernel::debug;
+use kernel::dynamic_process_loading;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
-use kernel::processbuffer::{ReadableProcessBuffer};
+use kernel::processbuffer::ReadableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::{ErrorCode, ProcessId};
-use kernel::dynamic_process_loading;
 
 /// Syscall driver number.
 use capsules_core::driver;
@@ -88,7 +89,7 @@ mod rw_allow {
     pub const COUNT: u8 = 1;
 }
 
-pub const BUF_LEN: usize = 512;             
+pub const BUF_LEN: usize = 512;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum NonvolatileCommand {
@@ -120,7 +121,6 @@ impl Default for App {
     }
 }
 
-
 pub struct AppLoader<'a> {
     // The underlying physical storage device.
     driver: &'a dyn dynamic_process_loading::DynamicProcessLoading,
@@ -130,7 +130,7 @@ pub struct AppLoader<'a> {
         UpcallCount<{ upcall::COUNT }>,
         AllowRoCount<{ ro_allow::COUNT }>,
         AllowRwCount<{ rw_allow::COUNT }>,
-    >, 
+    >,
 
     // Internal buffer for copying appslices into.
     buffer: TakeCell<'static, [u8]>,
@@ -147,7 +147,7 @@ impl<'a> AppLoader<'a> {
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
-        driver: &'a dyn dynamic_process_loading::DynamicProcessLoading, 
+        driver: &'a dyn dynamic_process_loading::DynamicProcessLoading,
         buffer: &'static mut [u8],
     ) -> AppLoader<'a> {
         AppLoader {
@@ -169,7 +169,6 @@ impl<'a> AppLoader<'a> {
         length: usize,
         processid: Option<ProcessId>,
     ) -> Result<(bool, usize, usize, ProcessId), ErrorCode> {
-
         match command {
             NonvolatileCommand::UserspaceRead | NonvolatileCommand::UserspaceWrite => {
                 // Userspace sees memory that starts at address 0 even if it
@@ -239,9 +238,8 @@ impl<'a> AppLoader<'a> {
                                             })
                                         });
                                 }
-                                Ok((app.pending_command ,offset, length, processid))   
-                             } 
-                            else {  
+                                Ok((app.pending_command, offset, length, processid))
+                            } else {
                                 // Some app is using the storage, we must wait.
                                 if app.pending_command {
                                     // No more room in the queue, nowhere to store this
@@ -254,7 +252,7 @@ impl<'a> AppLoader<'a> {
                                     app.offset = offset;
                                     app.length = active_len;
                                     //pending command is true, so the process loader won't do anything with it
-                                    Ok((app.pending_command, app.offset, app.length, processid))   
+                                    Ok((app.pending_command, app.offset, app.length, processid))
                                 }
                             }
                         })
@@ -266,35 +264,43 @@ impl<'a> AppLoader<'a> {
 
     fn check_queue(&self) {
         // Check all of the apps.
-            for cntr in self.apps.iter() {
-                let processid = cntr.processid();
-                let started_command = cntr.enter(|app, _| {
-                    if app.pending_command {
-                        app.pending_command = false;
-                        self.current_user.set(NonvolatileUser::App {
-                            processid: processid,
-                        });
-                        if let Ok(()) =
-                            self.buffer.take().map_or(Err(ErrorCode::RESERVE), |buffer|{
-                                self.driver.write_app_data(app.pending_command, buffer, app.offset, app.length, processid)
-                            })
-                        {
-                            true
-                        } else {
-                            false
-                        }
+        for cntr in self.apps.iter() {
+            let processid = cntr.processid();
+            let started_command = cntr.enter(|app, _| {
+                if app.pending_command {
+                    app.pending_command = false;
+                    self.current_user.set(NonvolatileUser::App {
+                        processid: processid,
+                    });
+                    if let Ok(()) = self
+                        .buffer
+                        .take()
+                        .map_or(Err(ErrorCode::RESERVE), |buffer| {
+                            self.driver.write_app_data(
+                                app.pending_command,
+                                buffer,
+                                app.offset,
+                                app.length,
+                                processid,
+                            )
+                        })
+                    {
+                        true
                     } else {
                         false
                     }
-                });
-                if started_command {
-                    break;
+                } else {
+                    false
                 }
+            });
+            if started_command {
+                break;
             }
+        }
     }
 }
 
-impl kernel::dynamic_process_loading::DynamicProcessLoadingClient for AppLoader<'_>{
+impl kernel::dynamic_process_loading::DynamicProcessLoadingClient for AppLoader<'_> {
     fn app_data_write_done(&self, buffer: &'static mut [u8], length: usize) {
         // Switch on which user of this capsule generated this callback.
         self.current_user.take().map(|user| {
@@ -302,7 +308,7 @@ impl kernel::dynamic_process_loading::DynamicProcessLoadingClient for AppLoader<
                 NonvolatileUser::App { processid } => {
                     let _ = self.apps.enter(processid, move |_app, kernel_data| {
                         // Replace the buffer we used to do this write.
-                        self.buffer.replace(buffer); 
+                        self.buffer.replace(buffer);
 
                         // And then signal the app.
                         kernel_data
@@ -316,7 +322,6 @@ impl kernel::dynamic_process_loading::DynamicProcessLoadingClient for AppLoader<
     }
 }
 
-
 /// Provide an interface for userland.
 impl SyscallDriver for AppLoader<'_> {
     /// Command interface.
@@ -326,18 +331,18 @@ impl SyscallDriver for AppLoader<'_> {
     /// ### `command_num`
     ///
     /// - `0`: Return Ok(()) if this driver is included on the platform.
-    /// - `1`: Request kernel to setup for loading app. 
-    ///        - Returns appsize if the kernel has available space 
+    /// - `1`: Request kernel to setup for loading app.
+    ///        - Returns appsize if the kernel has available space
     ///        - Returns ErrorCode::FAIL if the kernel is unable to allocate space for the new app
-    /// - `2`: Request kernel to write app data to the nonvolatile_storage. 
+    /// - `2`: Request kernel to write app data to the nonvolatile_storage.
     ///        - Returns Ok(()) when write is successful
     ///        - Returns ErrorCode::INVAL when the app is violating bounds
-    ///        - Returns ErrorCode::FAIL when the write fails 
+    ///        - Returns ErrorCode::FAIL when the write fails
     /// - `3`: Request kernel to load app.
     ///        - Returns Ok(()) when the process is successfully loaded
     ///        - Returns ErrorCode::FAIL if:
     ///            - The kernel is unable to create a process object for the application
-    ///            - The kernel fails to write a padding app (thereby potentially breaking the linkedlist) 
+    ///            - The kernel fails to write a padding app (thereby potentially breaking the linkedlist)
 
     fn command(
         &self,
@@ -352,13 +357,13 @@ impl SyscallDriver for AppLoader<'_> {
             1 => {
                 //setup phase
 
-                let res = self.driver.setup(arg1);     // pass the size of the app to the setup function
+                let res = self.driver.setup(arg1); // pass the size of the app to the setup function
                 match res {
                     Ok(app_len) => {
                         self.new_app_length.set(app_len);
                         CommandReturn::success()
-                    },
-                    
+                    }
+
                     Err(e) => CommandReturn::failure(e),
                 }
             }
@@ -367,25 +372,30 @@ impl SyscallDriver for AppLoader<'_> {
                 // Request kernel to write app to flash
 
                 let res = self.enqueue_command(
-                    NonvolatileCommand::UserspaceWrite, 
-                    arg1, 
+                    NonvolatileCommand::UserspaceWrite,
+                    arg1,
                     arg2,
-                    Some(processid));
+                    Some(processid),
+                );
                 match res {
                     Ok((flag, offset, len, pid)) => {
-                        let result = self.buffer.take().map_or(Err(ErrorCode::RESERVE), |buffer|{
-                            let res = self.driver.write_app_data(flag, buffer, offset, len, pid);
-                            match res {
-                                Ok(()) => Ok(()),
-                                Err(e) => Err(e),
-                            }
-                        });
+                        let result = self
+                            .buffer
+                            .take()
+                            .map_or(Err(ErrorCode::RESERVE), |buffer| {
+                                let res =
+                                    self.driver.write_app_data(flag, buffer, offset, len, pid);
+                                match res {
+                                    Ok(()) => Ok(()),
+                                    Err(e) => Err(e),
+                                }
+                            });
                         match result {
                             Ok(()) => CommandReturn::success(),
                             Err(e) => CommandReturn::failure(e),
                         }
                     }
-                    Err(e) => CommandReturn::failure(e)
+                    Err(e) => CommandReturn::failure(e),
                 }
             }
 
@@ -400,6 +410,7 @@ impl SyscallDriver for AppLoader<'_> {
                     }
                     Err(e) => {
                         self.new_app_length.set(0); // reset the app length
+                        debug!("Error: {:?}", e);
                         CommandReturn::failure(e)
                     }
                 }
@@ -412,5 +423,3 @@ impl SyscallDriver for AppLoader<'_> {
         self.apps.enter(processid, |_, _| {})
     }
 }
-
-

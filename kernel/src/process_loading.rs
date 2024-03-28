@@ -114,12 +114,12 @@ impl fmt::Debug for ProcessLoadError {
 // SYNCHRONOUS PROCESS LOADING
 ////////////////////////////////////////////////////////////////////////////////
 
-// load_processes_return_memory() and load_processes_from_flash_return are copies 
+// load_processes_return_memory() and load_processes_from_flash_return are copies
 // of load_processes_return_memory() and load_processes_from_flash(). These functions
-// are created so that they return the remaining memory to main.rs after loading 
-// all the apps initially. This remaining_memory value is then used by the 
+// are created so that they return the remaining memory to main.rs after loading
+// all the apps initially. This remaining_memory value is then used by the
 // dynamic process loader to find the right spot to load the new app because otherwise
-// we are not privy to this information.  
+// we are not privy to this information.
 
 #[inline(always)]
 pub fn load_processes_return_memory<C: Chip>(
@@ -130,7 +130,8 @@ pub fn load_processes_return_memory<C: Chip>(
     mut procs: &'static mut [Option<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
     _capability_management: &dyn ProcessManagementCapability,
-) -> Result<&'static mut [u8], (ProcessLoadError, &'static mut [u8])>{ // Result<(), ProcessLoadError> {
+) -> Result<&'static mut [u8], (ProcessLoadError, &'static mut [u8])> {
+    // Result<(), ProcessLoadError> {
     let remaining_memory = load_processes_from_flash_return(
         kernel,
         chip,
@@ -267,7 +268,8 @@ pub fn load_processes<C: Chip>(
     mut procs: &'static mut [Option<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
     _capability_management: &dyn ProcessManagementCapability,
-) -> Result<(), ProcessLoadError>{ // Result<(), ProcessLoadError> {
+) -> Result<(), ProcessLoadError> {
+    // Result<(), ProcessLoadError> {
     load_processes_from_flash(
         kernel,
         chip,

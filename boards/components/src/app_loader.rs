@@ -26,28 +26,24 @@ use kernel::component::Component;
 use kernel::create_capability;
 use kernel::dynamic_process_loading;
 
-
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! app_loader_component_static {
     () => {{
-        let al = kernel::static_buf!(
-            capsules_extra::app_loader::AppLoader<'static>
-        );
+        let al = kernel::static_buf!(capsules_extra::app_loader::AppLoader<'static>);
         let buffer = kernel::static_buf!([u8; capsules_extra::app_loader::BUF_LEN]);
 
         (al, buffer)
     };};
 }
 
-pub struct AppLoaderComponent{
+pub struct AppLoaderComponent {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     driver: &'static dyn dynamic_process_loading::DynamicProcessLoading,
 }
 
-impl AppLoaderComponent
-{
+impl AppLoaderComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
@@ -61,8 +57,7 @@ impl AppLoaderComponent
     }
 }
 
-impl Component for AppLoaderComponent
-{
+impl Component for AppLoaderComponent {
     type StaticInput = (
         &'static mut MaybeUninit<AppLoader<'static>>,
         &'static mut MaybeUninit<[u8; capsules_extra::app_loader::BUF_LEN]>,
@@ -81,8 +76,10 @@ impl Component for AppLoaderComponent
             self.driver,
             buffer,
         ));
-        kernel::dynamic_process_loading::DynamicProcessLoading::set_client(self.driver, dynamic_app_loader);
+        kernel::dynamic_process_loading::DynamicProcessLoading::set_client(
+            self.driver,
+            dynamic_app_loader,
+        );
         dynamic_app_loader
-
     }
 }

@@ -826,7 +826,6 @@ pub unsafe fn start() -> (
         nrf52840::acomp::Comparator
     ));
 
-
     //--------------------------------------------------------------------------
     // Dynamic App Load (OTA)
     //-------------------------------------------------------------------------
@@ -838,22 +837,21 @@ pub unsafe fn start() -> (
         core::slice::from_raw_parts(
             &_sapps as *const u8,
             &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
-        ), 
+        ),
         &base_peripherals.nvmc,
         &FAULT_RESPONSE,
     )
     .finalize(components::process_loader_component_static!(
         nrf52840::nvmc::Nvmc,
-        nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>, 
+        nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
     ));
 
     let dynamic_app_loader = components::app_loader::AppLoaderComponent::new(
-            board_kernel,
-            capsules_extra::app_loader::DRIVER_NUM,
-            dynamic_process_loader,
-        )
-        .finalize(components::app_loader_component_static!());
-
+        board_kernel,
+        capsules_extra::app_loader::DRIVER_NUM,
+        dynamic_process_loader,
+    )
+    .finalize(components::app_loader_component_static!());
 
     //--------------------------------------------------------------------------
     // NRF CLOCK SETUP
@@ -982,9 +980,11 @@ pub unsafe fn start() -> (
         remaining_memory
     });
 
-    dynamic_process_loader.flash_and_memory(remaining_memory, 
+    dynamic_process_loader.flash_and_memory(
+        remaining_memory,
         &_sapps as *const u8 as usize,
-        &_eapps as *const u8 as usize);
+        &_eapps as *const u8 as usize,
+    );
 
     (board_kernel, platform, chip)
 }
