@@ -520,7 +520,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
         app_memory: &'static mut [u8],
         _capability_management: &dyn ProcessManagementCapability,
     ) -> Result<(), ProcessLoadError> {
-        self.load_processes_from_flash(
+        let (remaining_memory, _remaining_flash) = self.load_processes_from_flash(
             app_flash,
             app_memory,
         )?;
@@ -537,6 +537,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
                 });
             }
         });
+        self.app_memory.set(remaining_memory);  // update our reference of remaining memory
         Ok(())
     }
 
@@ -544,7 +545,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
         &self,
         app_flash: &'static [u8],
         app_memory: &'static mut [u8],
-    ) -> Result<(), ProcessLoadError> {
+    ) -> Result<(&'static mut [u8], &'static [u8]), ProcessLoadError> {
         if config::CONFIG.debug_load_processes {
             debug!(
                 "Loading processes from flash={:#010X}-{:#010X} into sram={:#010X}-{:#010X}",
@@ -558,6 +559,14 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
         let mut remaining_flash = app_flash;
         let mut remaining_memory = app_memory;
         let index = self.find_open_process_slot().ok_or(ProcessLoadError::NoProcessSlot)?;  // find the open process slot
+
+        if config::CONFIG.debug_process_credentials {
+            debug!(
+            "Requested flash ={:#010X}-{:#010X}",
+            remaining_flash.as_ptr() as usize,
+                remaining_flash.as_ptr() as usize + remaining_flash.len() - 1
+            );
+        }
 
         let load_binary_result = self.discover_process_binary(remaining_flash);
 
@@ -612,12 +621,12 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
                     | ProcessBinaryError::NotEnabledProcess
                     | ProcessBinaryError::Padding => {
                         // Skip this binary and move to the next one.
+                        // add a return error here
                     }
                 }
             }
         }
-        self.app_memory.set(remaining_memory);  // update our reference of remaining memory
-        Ok(())
+        Ok((remaining_memory, remaining_flash))
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -904,7 +913,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
             remaining_memory,
             &capability,
         );
-        match res {
+        let _ = match res {
             Ok(()) => Ok(()), // maybe set the remaining memory here if we have to change the process_loading function anyway?
             Err(_) => Err(ErrorCode::FAIL),
         };
