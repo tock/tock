@@ -1084,7 +1084,14 @@ fn encode_address(addr: &Option<MacAddress>) -> usize {
 }
 
 impl<'a, M: device::MacDevice<'a>> device::RxClient for RadioDriver<'a, M> {
-    fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
+    fn receive<'b>(
+        &self,
+        buf: &'b [u8],
+        header: Header<'b>,
+        data_offset: usize,
+        data_len: usize,
+        _encrypted: bool,
+    ) {
         self.apps.each(|_, _, kernel_data| {
             let read_present = kernel_data
                 .get_readwrite_processbuffer(rw_allow::READ)

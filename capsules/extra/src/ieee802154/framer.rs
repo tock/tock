@@ -759,6 +759,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                                 header,
                                 data_offset,
                                 frame_len - data_offset,
+                                false,
                             );
                         });
                         self.crypt_buf.replace(SubSliceMut::new(buf));

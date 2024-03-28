@@ -133,5 +133,13 @@ pub trait RxClient {
     /// `buf`, so that the payload of the frame is contained in
     /// `buf[data_offset..data_offset + data_len]`.
     /// - `data_len`: Length of the data payload
-    fn receive<'a>(&self, buf: &'a [u8], header: Header<'a>, data_offset: usize, data_len: usize);
+    /// - `encrypted`: Flag to denote if the frame held in buffer is encrypted
+    fn receive<'a>(
+        &self,
+        buf: &'a [u8],
+        header: Header<'a>,
+        data_offset: usize,
+        data_len: usize,
+        encrypted: bool,
+    );
 }

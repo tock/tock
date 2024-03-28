@@ -60,9 +60,16 @@ impl<'a, M: device::MacDevice<'a>> device::TxClient for MuxMac<'a, M> {
 }
 
 impl<'a, M: device::MacDevice<'a>> device::RxClient for MuxMac<'a, M> {
-    fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
+    fn receive<'b>(
+        &self,
+        buf: &'b [u8],
+        header: Header<'b>,
+        data_offset: usize,
+        data_len: usize,
+        encrypted: bool,
+    ) {
         for user in self.users.iter() {
-            user.receive(buf, header, data_offset, data_len);
+            user.receive(buf, header, data_offset, data_len, encrypted);
         }
     }
 }
@@ -219,10 +226,17 @@ impl<'a, M: device::MacDevice<'a>> MacUser<'a, M> {
             .map(move |client| client.send_done(spi_buf, acked, result));
     }
 
-    fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
+    fn receive<'b>(
+        &self,
+        buf: &'b [u8],
+        header: Header<'b>,
+        data_offset: usize,
+        data_len: usize,
+        encrypted: bool,
+    ) {
         self.rx_client
             .get()
-            .map(move |client| client.receive(buf, header, data_offset, data_len));
+            .map(move |client| client.receive(buf, header, data_offset, data_len, encrypted));
     }
 }
 
