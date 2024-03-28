@@ -195,15 +195,13 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
         }
 
         // Calculate where we want to actually read from in the physical storage.
-        let physical_address: usize;
-        if !padding_flag {
-            physical_address = offset + self.new_app_start_addr.get(); // this offset comes from the app, so it starts from zero.
-                                                                       // thererfore we need to add the physical address of the new app
-        }
-        // for each write
-        else {
-            physical_address = offset; // for padding, the kernel passes the address, so no need to add an offset
-        }
+        let physical_address = if !padding_flag {
+            offset + self.new_app_start_addr.get() // this offset comes from the app, so it starts from zero.
+                                                   // thererfore we need to add the physical address of the new app
+                                                   // for each write
+        } else {
+            offset // for padding, the kernel passes the address, so no need to add an offset
+        };
 
         let active_len = cmp::min(length, user_buffer.len());
 
@@ -241,7 +239,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
 
             // we set the flags to 0
             for i in 8..12 {
-                buffer[i] = 0x00 as u8;
+                buffer[i] = 0x00_u8;
             }
 
             // xor of the previous values
@@ -251,7 +249,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
             buffer[15] = buffer[3] ^ buffer[7] ^ buffer[11];
 
             for i in 16..BUF_LEN {
-                buffer[i] = 0xff as u8; //creating the padding (probably unnecessary)
+                buffer[i] = 0xff_u8; //creating the padding (probably unnecessary)
             }
         });
 
@@ -332,7 +330,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
             return Ok(true);
         }
 
-        return Ok(false);
+        Ok(false)
     }
 
     fn check_for_empty_flash_region(
@@ -373,11 +371,11 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
                     return Ok((true, 0));
                 }
             };
-        return Ok((false, entry_length as usize)); // this means there is some data here, and we need to check if it is a remnant application
+        Ok((false, entry_length as usize)) // this means there is some data here, and we need to check if it is a remnant application
     }
 
     // check if our new app overlaps with existing apps
-    fn check_overlap_region(&self, new_app: &mut NewApp) -> Result<(), (usize, ProcessLoadError)> {
+    fn check_overlap_region(&self, new_app: &NewApp) -> Result<(), (usize, ProcessLoadError)> {
         let new_process_count = self.find_open_process_slot().unwrap_or_default(); // find the next open process slot
         let new_process_start_address = new_app.start_addr;
         let new_process_end_address = new_app.start_addr + new_app.size - 1;
@@ -423,9 +421,9 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
                     }
                 }
             }
-            return Ok(());
+            Ok(())
         });
-        return Ok(());
+        Ok(())
     }
 
     fn find_next_available_address(&self, new_app: &mut NewApp) -> Result<(), ErrorCode> {
@@ -437,7 +435,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
             let padding_result = self.check_for_padding_app(new_app); //check if there is a padding app in that space
             match padding_result {
                 Ok(padding_app) => {
-                    if padding_app == true {
+                    if padding_app {
                         is_padding_app = true;
                     }
                 }
@@ -451,7 +449,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
                 let empty_result = self.check_for_empty_flash_region(new_app); //check if the flash region is empty
                 match empty_result {
                     Ok((empty_space, size)) => {
-                        if empty_space == true {
+                        if empty_space {
                             is_empty_region = true;
                         } else {
                             let new_process_count =
@@ -481,28 +479,27 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
                 }
             }
 
-            if is_padding_app == true || is_empty_region == true || is_remnant_region == true {
+            if is_padding_app || is_empty_region || is_remnant_region {
                 let address_validity_check = self.check_overlap_region(new_app);
 
                 match address_validity_check {
                     Ok(()) => {
-                        return Ok(()); // this means we have found the perfect address for our new app
+                        // despite doing all these, if the new app's start address and size make it such that it will
+                        // cross the bounds of flash, we return a No Memory error. (this is currently untested)
+                        if new_app.start_addr + (new_app.size - 1) > self.flash_end.get() {
+                            return Err(ErrorCode::NOMEM);
+                        }
+                        // otherwise, we found the perfect address for our new app
+                        return Ok(());
                     }
                     Err((new_start_addr, _e)) => {
                         // We try again from the end of the overlapping app
                         new_app.start_addr = new_start_addr;
                     }
                 }
-
-                // despite doing all these, if the new app's start address and size make it such that it will
-                // cross the bounds of flash, we return a No Memory error. (this is currently untested)
-                if new_app.start_addr + (new_app.size - 1) > self.flash_end.get() {
-                    return Err(ErrorCode::NOMEM);
-                }
             }
-            return Ok(());
         }
-        return Err(ErrorCode::NOMEM);
+        Err(ErrorCode::NOMEM)
     }
 
     //********************* Loading Process into Process Array **************************//
@@ -853,7 +850,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
             }
         } else {
             // unimplemented!();   //when there are pending commands (the capsule currently returns something but we don't want it to do anything here)
-            return Err(ErrorCode::NOSUPPORT);
+            Err(ErrorCode::NOSUPPORT)
         }
     }
 
@@ -923,8 +920,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
             for (procs_index, value) in procs.iter().enumerate() {
                 match value {
                     Some(app) => {
-                        processes_start_addresses[procs_index] =
-                            app.get_addresses().flash_start as usize;
+                        processes_start_addresses[procs_index] = app.get_addresses().flash_start;
                     }
                     None => {
                         processes_start_addresses[procs_index] = 0;
@@ -940,13 +936,13 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
 
         if let Some(closest_neighbor) = processes_start_addresses
             .iter()
-            .filter(|&&x| x as usize > current_process_end_addr)
+            .filter(|&&x| x > current_process_end_addr)
             .min()
         {
-            next_app_start_addr = *closest_neighbor as usize; // we found the next closest app in flash
+            next_app_start_addr = *closest_neighbor; // we found the next closest app in flash
         } else {
-            next_app_start_addr = self.flash_end.get() as usize; // there are no more apps in flash, so we write padding until the end of flash
-                                                                 // should the padding be added only when there are other apps?
+            next_app_start_addr = self.flash_end.get(); // there are no more apps in flash, so we write padding until the end of flash
+                                                        // should the padding be added only when there are other apps?
         }
 
         // calculating the distance between our app and either the next app, or the end of the flash
@@ -955,10 +951,8 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
         let padding_result =
             self.write_padding_app(padding_app_length, current_process_end_addr, version);
         match padding_result {
-            Ok(()) => return Ok(()),
-            Err(_) => {
-                return Err(ErrorCode::FAIL);
-            } // this means we were unable to write the padding app
+            Ok(()) => Ok(()),
+            Err(_) => Err(ErrorCode::FAIL), // this means we were unable to write the padding app
         }
     }
 }
