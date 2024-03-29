@@ -53,7 +53,6 @@
 use core::cell::Cell;
 use core::cmp;
 
-use kernel::debug;
 use kernel::dynamic_process_loading;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::processbuffer::ReadableProcessBuffer;
@@ -168,7 +167,7 @@ impl<'a> AppLoader<'a> {
         offset: usize,
         length: usize,
         processid: Option<ProcessId>,
-    ) -> Result<(bool, usize, usize, ProcessId), ErrorCode> {
+    ) -> Result<(usize, usize, ProcessId), ErrorCode> {
         match command {
             NonvolatileCommand::UserspaceRead | NonvolatileCommand::UserspaceWrite => {
                 // Userspace sees memory that starts at address 0 even if it
@@ -238,13 +237,13 @@ impl<'a> AppLoader<'a> {
                                             })
                                         });
                                 }
-                                Ok((app.pending_command, offset, length, processid))
+                                // Ok((app.pending_command, offset, length, processid))
                             } else {
                                 // Some app is using the storage, we must wait.
                                 if app.pending_command {
                                     // No more room in the queue, nowhere to store this
                                     // request.
-                                    Err(ErrorCode::NOMEM)
+                                    return Err(ErrorCode::NOMEM);
                                 } else {
                                     // We can store this, so lets do it.
                                     app.pending_command = true;
@@ -252,9 +251,10 @@ impl<'a> AppLoader<'a> {
                                     app.offset = offset;
                                     app.length = active_len;
                                     //pending command is true, so the process loader won't do anything with it
-                                    Ok((app.pending_command, app.offset, app.length, processid))
+                                    // Ok((app.pending_command, app.offset, app.length, processid))
                                 }
                             }
+                            Ok((offset, length, processid))
                         })
                         .unwrap_or_else(|err| Err(err.into()))
                 })
@@ -276,13 +276,8 @@ impl<'a> AppLoader<'a> {
                         .buffer
                         .take()
                         .map_or(Err(ErrorCode::RESERVE), |buffer| {
-                            self.driver.write_app_data(
-                                app.pending_command,
-                                buffer,
-                                app.offset,
-                                app.length,
-                                processid,
-                            )
+                            self.driver
+                                .write_app_data(buffer, app.offset, app.length, processid)
                         })
                     {
                         true
@@ -378,13 +373,12 @@ impl SyscallDriver for AppLoader<'_> {
                     Some(processid),
                 );
                 match res {
-                    Ok((flag, offset, len, pid)) => {
+                    Ok((offset, len, pid)) => {
                         let result = self
                             .buffer
                             .take()
                             .map_or(Err(ErrorCode::RESERVE), |buffer| {
-                                let res =
-                                    self.driver.write_app_data(flag, buffer, offset, len, pid);
+                                let res = self.driver.write_app_data(buffer, offset, len, pid);
                                 match res {
                                     Ok(()) => Ok(()),
                                     Err(e) => Err(e),
@@ -410,7 +404,6 @@ impl SyscallDriver for AppLoader<'_> {
                     }
                     Err(e) => {
                         self.new_app_length.set(0); // reset the app length
-                        debug!("Error: {:?}", e);
                         CommandReturn::failure(e)
                     }
                 }

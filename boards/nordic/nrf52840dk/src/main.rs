@@ -980,11 +980,7 @@ pub unsafe fn start() -> (
         remaining_memory
     });
 
-    dynamic_process_loader.flash_and_memory(
-        remaining_memory,
-        &_sapps as *const u8 as usize,
-        &_eapps as *const u8 as usize,
-    );
+    dynamic_process_loader.set_memory(remaining_memory);
 
     (board_kernel, platform, chip)
 }
