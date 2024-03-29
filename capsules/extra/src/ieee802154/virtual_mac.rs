@@ -57,7 +57,6 @@ impl<'a, M: device::MacDevice<'a>> device::TxClient for MuxMac<'a, M> {
     }
 }
 
-// here
 impl<'a, M: device::MacDevice<'a>> device::RxClient for MuxMac<'a, M> {
     fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
         for user in self.users.iter() {

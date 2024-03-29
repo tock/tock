@@ -24,7 +24,7 @@ pub trait MacDevice<'a> {
     fn set_transmit_client(&self, client: &'a dyn TxClient);
     /// Sets the receive client of this MAC device
     fn set_receive_client(&self, client: &'a dyn RxClient);
-
+    /// Sets the raw receive client of this MAC device
     fn set_receive_raw_client(&self, client: &'a dyn RawRxClient);
 
     /// The short 16-bit address of the MAC device
@@ -135,7 +135,6 @@ pub trait RxClient {
     /// `buf`, so that the payload of the frame is contained in
     /// `buf[data_offset..data_offset + data_len]`.
     /// - `data_len`: Length of the data payload
-    /// - `encrypted`: Flag to denote if the frame held in buffer is encrypted
     fn receive<'a>(&self, buf: &'a [u8], header: Header<'a>, data_offset: usize, data_len: usize);
 }
 

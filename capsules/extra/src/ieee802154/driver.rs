@@ -56,6 +56,7 @@
 use crate::ieee802154::{device, framer};
 use crate::net::ieee802154::{AddressMode, Header, KeyId, MacAddress, PanID, SecurityLevel};
 use crate::net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResult};
+use device::RxClient;
 
 use core::cell::Cell;
 
@@ -1081,6 +1082,21 @@ fn encode_address(addr: &Option<MacAddress>) -> usize {
         _ => 0,
     };
     ((AddressMode::from(addr) as usize) << 16) | short_addr_only
+}
+
+impl<'a, M: device::MacDevice<'a>> device::RawRxClient for RadioDriver<'a, M> {
+    fn receive_raw<'b>(
+        &self,
+        buf: &'b [u8],
+        header: Header<'b>,
+        data_offset: usize,
+        data_len: usize,
+    ) {
+        // The current 15.4 userspace receive does not differentiate between
+        // raw and standard receive. As such, we can simply call the standard
+        // receive method of the RxClient trait.
+        self.receive(buf, header, data_offset, data_len)
+    }
 }
 
 impl<'a, M: device::MacDevice<'a>> device::RxClient for RadioDriver<'a, M> {
