@@ -186,7 +186,7 @@ impl Command {
                 1
             }
             Self::SetHigherColumnStartAddress { address } => {
-                buffer[0] = 0x10 | (address & 0xF);
+                buffer[0] = 0x10 | ((address >> 4) & 0xF);
                 1
             }
             Self::SetMemoryAddressingMode { mode } => {
