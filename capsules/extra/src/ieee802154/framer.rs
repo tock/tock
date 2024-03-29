@@ -75,7 +75,7 @@
 // TODO: Channel scanning
 //
 
-use crate::ieee802154::device::{MacDevice, RxClient, TxClient};
+use crate::ieee802154::device::{MacDevice, RawRxClient, RxClient, TxClient};
 use crate::ieee802154::mac::Mac;
 use crate::net::ieee802154::{
     FrameType, FrameVersion, Header, KeyId, MacAddress, PanID, Security, SecurityLevel,
@@ -394,6 +394,7 @@ pub struct Framer<'a, M: Mac<'a>, A: AES128CCM<'a>> {
     /// `None`, except when transitioning between states.
     rx_state: MapCell<RxState>,
     rx_client: OptionalCell<&'a dyn RxClient>,
+    raw_rx_client: OptionalCell<&'a dyn RawRxClient>,
     crypt_buf: MapCell<SubSliceMut<'static, u8>>,
 }
 
@@ -413,6 +414,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
             tx_client: OptionalCell::empty(),
             rx_state: MapCell::new(RxState::Idle),
             rx_client: OptionalCell::empty(),
+            raw_rx_client: OptionalCell::empty(),
             crypt_buf: MapCell::new(crypt_buf),
         }
     }
@@ -498,8 +500,8 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                             Some(key) => key,
                             None => {
                                 // Key not found -- pass raw encrypted packet to client
-                                self.rx_client.map(|client| {
-                                    client.receive(&buf[PSDU_OFFSET..], header, data_offset, data_len);
+                                self.raw_rx_client.map(|client| {
+                                    client.receive_raw(&buf[PSDU_OFFSET..], header, data_offset, data_len);
                                 });
                                 return None;
                             }
@@ -555,7 +557,11 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                 } else {
                     // No security needed, can yield the frame immediately
                     self.rx_client.map(|client| {
+<<<<<<< HEAD
                         client.receive(&buf[PSDU_OFFSET..], header, data_offset, data_len);
+=======
+                        client.receive(buf, header, radio::PSDU_OFFSET + data_offset, data_len);
+>>>>>>> 252890415 (Add RawRxClient)
                     });
                     None
                 }
@@ -759,7 +765,6 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                                 header,
                                 data_offset,
                                 frame_len - data_offset,
-                                false,
                             );
                         });
                         self.crypt_buf.replace(SubSliceMut::new(buf));
@@ -779,6 +784,10 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
 
     fn set_receive_client(&self, client: &'a dyn RxClient) {
         self.rx_client.set(client);
+    }
+
+    fn set_receive_raw_client(&self, client: &'a dyn super::device::RawRxClient) {
+        self.raw_rx_client.set(client);
     }
 
     fn get_address(&self) -> u16 {

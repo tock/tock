@@ -805,21 +805,7 @@ pub struct Sixlowpan<'a, A: time::Alarm<'a>, C: ContextStore> {
 
 // This function is called after receiving a frame
 impl<'a, A: time::Alarm<'a>, C: ContextStore> RxClient for Sixlowpan<'a, A, C> {
-    fn receive<'b>(
-        &self,
-        buf: &'b [u8],
-        header: Header<'b>,
-        data_offset: usize,
-        data_len: usize,
-        encrypted: bool,
-    ) {
-        // 6LoWPAN can only handle packets not possessing link layer security or packets
-        // that have been decrypted by the MAC layer. As such we drop packets that remain
-        // encrypted.
-        if encrypted {
-            return;
-        }
-
+    fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
         // We return if retcode is not valid, as it does not make sense to issue
         // a callback for an invalid frame reception
         // TODO: Handle the case where the addresses are None/elided - they
