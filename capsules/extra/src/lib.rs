@@ -79,6 +79,7 @@ pub mod screen_shared;
 pub mod sdcard;
 pub mod segger_rtt;
 pub mod seven_segment;
+pub mod sh1106;
 pub mod sha;
 pub mod sha256;
 pub mod sht3x;
