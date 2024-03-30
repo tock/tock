@@ -110,7 +110,7 @@ pub enum Command {
 }
 
 impl Command {
-    fn encode(self, buffer: &mut SubSliceMut<'static, u8>) {
+    pub fn encode(self, buffer: &mut SubSliceMut<'static, u8>) {
         let take = match self {
             Self::SetChargePump { enable } => {
                 buffer[0] = 0x8D;
