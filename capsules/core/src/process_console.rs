@@ -11,6 +11,7 @@ use core::cmp;
 use core::fmt;
 use core::fmt::write;
 use core::str;
+use cortex_m_semihosting::hprintln;
 use kernel::capabilities::ProcessManagementCapability;
 use kernel::hil::time::ConvertTicks;
 use kernel::utilities::cells::MapCell;
@@ -903,9 +904,18 @@ impl<
                                     });
                             });
                         } else if clean_str.starts_with("list") {
-                            let _ = self
-                                .write_bytes(b" PID    ShortID    Name                Quanta  ");
-                            let _ = self.write_bytes(b"Syscalls  Restarts  Grants  State\r\n");
+                            // hprintln!("PC: received list command, writing bytes");
+                            if let Err(error_code) =
+                                self.write_bytes(b" PID    ShortID    Name                Quanta  ")
+                            {
+                                // hprintln!("PC: writing the first line of list commnad returned error code {:?}", error_code);
+                            }
+                            // hprintln!("PC: received list command, writing second line of bytes");
+                            if let Err(error_code) =
+                                self.write_bytes(b"Syscalls  Restarts  Grants  State\r\n")
+                            {
+                                // hprintln!("PC: wiring the second line of list command returned error code {:?}", error_code);
+                            }
 
                             // Count the number of current processes.
                             let mut count = 0;
@@ -914,6 +924,7 @@ impl<
                             });
 
                             if count > 0 {
+                                // hprintln!("PC: we have more than 0 processed");
                                 // Start the state machine to print each separately.
                                 self.write_state(WriterState::List {
                                     index: -1,
@@ -1068,8 +1079,18 @@ impl<
             self.tx_in_progress.set(true);
             self.tx_buffer.take().map(|buffer| {
                 let buf = buffer.downcast::<PacketSliceMut>().unwrap();
-                buf.data_slice_mut()[0] = byte;
 
+                // buf.data_slice_mut()[0] = byte; ----> THIS IS NOT SAFE TO USE AS TAILROOM IS NOT DECREMENTING
+                let bytes = [byte];
+                if let Ok(()) = buf.copy_from_slice_or_err(&bytes) { // ---- > WHAT SHOULD WE DO ABOUT THE RESULT?
+                } else {
+                    // hprintln!("PC: size excedeed when copying from buffer");
+                }
+                // hprintln!(
+                //     "PROCESS CONSOLE: buf is {:?} buf len {}",
+                //     &buf.data_slice()[..10],
+                //     buf.len()
+                // );
                 let _ = self
                     .uart
                     .transmit_buffer(PacketBufferMut::new(buf).unwrap(), 1);
@@ -1079,6 +1100,7 @@ impl<
     }
 
     fn write_bytes(&self, bytes: &[u8]) -> Result<(), ErrorCode> {
+        // hprintln!("PC: wyte_bytes: received request to write bytes: {:?}", &bytes);
         if self.tx_in_progress.get() {
             self.queue_buffer.map(|buf| {
                 let size = self.queue_size.get();
@@ -1086,11 +1108,18 @@ impl<
                 (buf[size..size + len]).copy_from_slice(&bytes[..len]);
                 self.queue_size.set(size + len);
             });
+            // hprintln!("PC: writing bytes returned error code BUSY");
             Err(ErrorCode::BUSY)
         } else {
             self.tx_in_progress.set(true);
             self.tx_buffer.take().map(|buffer| {
-                let len = cmp::min(bytes.len(), buffer.len());
+                let slice = buffer.downcast::<PacketSliceMut>().unwrap();
+
+                // TODO AMALIA: ask leon why we needed capacity here instead of len??
+                let len = cmp::min(bytes.len(), slice.capacity());
+
+                // hprintln!("PC: write_bytes: minimum between received bytes len: {} and packet_buffer len: {} is {}", bytes.len(), slice.capacity(), len);
+
                 // Copy elements of `bytes` into `buffer`
                 // (buffer[..len]).copy_from_slice(&bytes[..len]);
 
@@ -1101,8 +1130,14 @@ impl<
                 //     .data_slice_mut();
                 // (slice[..len]).copy_from_slice(&bytes[..len]);
 
-                let slice = buffer.downcast::<PacketSliceMut>().unwrap();
+                // hprintln!("PC: write_bytes: slice first bytes before copy {:?}", &slice.data_slice()[..10]);
+
                 slice.copy_from_slice_or_err(&bytes[..len]).unwrap();
+
+                // hprintln!(
+                //     "PC: write_bytes: slice first bytes after copy {:?}. Sending them over",
+                //     &slice.data_slice()[..10]
+                // );
 
                 let _ = self
                     .uart
@@ -1130,13 +1165,26 @@ impl<
 
             if qlen > 0 {
                 self.tx_buffer.take().map_or(Err(ErrorCode::FAIL), |txbuf| {
-                    let txlen = cmp::min(qlen, txbuf.len());
+                    let slice = txbuf.downcast::<PacketSliceMut>().unwrap();
+
+                    let txlen = cmp::min(qlen, slice.capacity());
 
                     // Copy elements of the queue into the TX buffer.
                     // (txbuf[..txlen]).copy_from_slice(&qbuf[..txlen]);
 
-                    let slice = txbuf.downcast::<PacketSliceMut>().unwrap();
-                    (slice.data_slice_mut()[..txlen]).copy_from_slice(&qbuf[..txlen]);
+                    // (slice.data_slice_mut()[..txlen]).copy_from_slice(&qbuf[..txlen]);
+                    if let Err(error) = slice.copy_from_slice_or_err(&qbuf[..txlen]) {
+                        // hprintln!(
+                        //     "PC: error when copying from slice in handle queue {:?}",
+                        //     error
+                        // );
+                    } else {
+                        // hprintln!(
+                        //     "PC: succesfully copied qbuffer {:?} into process buffer {:?}",
+                        //     &qbuf[..txlen],
+                        //     &slice.data_slice()[..txlen]
+                        // );
+                    }
 
                     // TODO: If the queue needs to print over multiple TX
                     // buffers, we need to shift the remaining contents of the
@@ -1147,6 +1195,7 @@ impl<
 
                     // Mark that we sent at least some of the queue.
                     let remaining = qlen - txlen;
+                    // hprintln!("Remaining is {} = {} - {}", remaining, qlen, txlen);
                     self.queue_size.set(remaining);
 
                     self.tx_in_progress.set(true);
@@ -1157,6 +1206,7 @@ impl<
                 })
             } else {
                 // Queue was empty, nothing to do.
+                // hprintln!("Queue is empty");
                 Ok(0)
             }
         })
@@ -1196,6 +1246,7 @@ impl<
         _tx_len: usize,
         _rcode: Result<(), ErrorCode>,
     ) {
+        // hprintln!("PROCESS CONSOLE: in transmitted_buffer");
         // Reset state now that we no longer have an active transmission on the
         // UART.
         self.tx_buffer.replace(buffer);
@@ -1239,6 +1290,7 @@ impl<
         _rcode: Result<(), ErrorCode>,
         error: uart::Error,
     ) {
+        // hprintln!("PROCESS CONSOLE: Received buffer {:?}", read_buf);
         if error == uart::Error::None {
             match rx_len {
                 0 => debug!("ProcessConsole had read of 0 bytes"),
@@ -1428,6 +1480,7 @@ impl<
                             // which causes utf-8 decoding failure, so check byte is < 128. -pal
 
                             // Echo the typed byte
+                            // hprintln!("PROCESS CONSOLE: echoing the typed byte {}", read_buf[0]);
                             let _ = self.write_byte(read_buf[0]);
 
                             // Echo the rest of the bytes from the command

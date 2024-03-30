@@ -12,13 +12,14 @@
 
 use core::cell::Cell;
 use core::cmp::min;
+use cortex_m_semihosting::hprintln;
 use kernel::hil::uart;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::packet_buffer::{PacketBufferDyn, PacketBufferMut, PacketSliceMut};
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::utilities::{packet_buffer, StaticRef};
-use kernel::ErrorCode;
+use kernel::{debug, ErrorCode};
 use nrf5x::pinmux;
 
 const UARTE_MAX_BUFFER_SIZE: u32 = 0xff;
@@ -304,6 +305,7 @@ impl<'a, const HEAD: usize, const TAIL: usize> Uarte<'a, HEAD, TAIL> {
 
             // All bytes have been transmitted
             if rem == 0 {
+                // hprintln!("UARTE: received interruptions but remaining is 0");
                 // Signal client write done
                 self.tx_client.map(|client| {
                     self.tx_buffer.take().map(|tx_buffer| {
@@ -315,6 +317,7 @@ impl<'a, const HEAD: usize, const TAIL: usize> Uarte<'a, HEAD, TAIL> {
                     });
                 });
             } else {
+                // hprintln!("UARTE: printing remaining");
                 // Not all bytes have been transmitted then update offset and continue transmitting
                 self.offset.set(self.offset.get() + tx_bytes);
                 self.tx_remaining_bytes.set(rem);
@@ -421,6 +424,8 @@ impl<'a, const HEAD: usize, const TAIL: usize> Uarte<'a, HEAD, TAIL> {
 
             // let slice = tx_buffer
 
+            // hprintln!("UARTE: value of offset is {}", self.offset.get());
+
             self.registers
                 .txd_ptr
                 .set(tx_buffer.data_slice_mut()[self.offset.get()..].as_ptr() as u32);
@@ -471,11 +476,17 @@ impl<'a, const HEAD: usize, const TAIL: usize> uart::Transmit<'a, HEAD, TAIL>
         // _tx_len: usize,
         tx_len: usize,
     ) -> Result<(), (ErrorCode, PacketBufferMut<HEAD, TAIL>)> {
+        // hprintln!("UARTE: received buffer to write");
         if tx_len == 0 || tx_len > tx_data.len() {
+            // hprintln!("UARTE: SIZE");
+
             Err((ErrorCode::SIZE, tx_data))
         } else if self.tx_buffer.is_some() {
+            // hprintln!("UARTE: BUSY");
+
             Err((ErrorCode::BUSY, tx_data))
         } else {
+            // hprintln!("UARTE: transmiting buffer {:?}", tx_data);
             self.setup_buffer_transmit(tx_data);
             Ok(())
         }
@@ -520,6 +531,8 @@ impl<'a, const HEAD: usize, const TAIL: usize> uart::Receive<'a> for Uarte<'a, H
         rx_buf: &'static mut [u8],
         rx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        // panic!("Received buffer {:?}", rx_buf);
+        // hprintln!("CHIP UART: received buffer");
         if self.rx_buffer.is_some() {
             return Err((ErrorCode::BUSY, rx_buf));
         }

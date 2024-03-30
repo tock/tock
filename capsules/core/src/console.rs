@@ -41,11 +41,13 @@
 //! the driver. Successive writes must call `allow` each time a buffer is to be
 //! written.
 
+use cortex_m_semihosting::{hprint, hprintln};
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, GrantKernelData, UpcallCount};
 use kernel::hil::uart;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::copy_slice::CopyOrErr;
 use kernel::utilities::packet_buffer::{PacketBufferDyn, PacketBufferMut, PacketSliceMut};
 use kernel::{ErrorCode, ProcessId};
 
@@ -204,12 +206,20 @@ impl<'a, const HEAD: usize, const TAIL: usize> Console<'a, HEAD, TAIL> {
                                 }
                             };
 
+                            let mut buffer = [0u8; 1024];
                             // AMALIA: aici modific doar o referinta locala a slice-ului, nu modific cu adevarat ce este salvat in slice. eok??? cred ca da, ca oricum apelam take()
                             for (i, c) in remaining_data.iter().enumerate() {
-                                if slice.len() <= i {
+                                if buffer.len() <= i {
                                     return i; // Short circuit on partial send
                                 }
-                                slice[i] = c.get();
+                                buffer[i] = c.get();
+                            }
+
+                            if let Ok(()) =
+                                slice.copy_from_slice_or_err(&buffer[..remaining_data.len()])
+                            {
+                            } else {
+                                // hprintln!("CONSOLE: size exceeded when copying from buffer");
                             }
 
                             app.write_remaining

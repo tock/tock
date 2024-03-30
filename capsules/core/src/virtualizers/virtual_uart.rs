@@ -48,12 +48,13 @@
 use core::cell::Cell;
 use core::{cmp, usize};
 
+use cortex_m_semihosting::hprintln;
 use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::uart;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::utilities::packet_buffer::PacketBufferMut;
-use kernel::ErrorCode;
+use kernel::utilities::packet_buffer::{PacketBufferMut, PacketSliceMut};
+use kernel::{debug, ErrorCode};
 
 pub const RX_BUF_LEN: usize = 64;
 
@@ -92,6 +93,11 @@ impl<'a, const HEAD: usize, const TAIL: usize> uart::ReceiveClient for MuxUart<'
         rcode: Result<(), ErrorCode>,
         error: uart::Error,
     ) {
+        // panic!(
+        // "MUX UART: RECEIVED BUFFER {:?}",
+        // buffer.make_ascii_lowercase()
+        // );
+
         // Likely we will issue another receive in response to the previous one
         // finishing. `next_read_len` keeps track of the shortest outstanding
         // receive requested by any client. We start with the longest it can be,
@@ -241,6 +247,8 @@ impl<'a, const HEAD: usize, const TAIL: usize> MuxUart<'a, HEAD, TAIL> {
     }
 
     fn do_next_op(&self) {
+        // panic!("In do next op");
+        // hprintln!("In do next op");
         if self.inflight.is_none() {
             let mnode = self.devices.iter().find(|node| node.operation.is_some());
             mnode.map(|node| {
@@ -250,22 +258,23 @@ impl<'a, const HEAD: usize, const TAIL: usize> MuxUart<'a, HEAD, TAIL> {
 
                         // put some headers
                         // let new_buffer = buf.prepand([...])
-                        let new_buffer = buf.reduce_headroom();
+                        // let new_buffer = buf.reduce_headroom();
                         // ----------------
                         match op {
                             Operation::Transmit { len } => {
-                                match self.uart.transmit_buffer(new_buffer, len) {
+                                // hprintln!("MUX: transmitting buffer with len {}", len);
+                                match self.uart.transmit_buffer(buf, len) {
                                     Ok(()) => {
                                         self.inflight.set(node);
                                     }
                                     Err((ecode, buf)) => {
-                                        let buffer = buf
-                                            .reclaim_headroom()
-                                            .unwrap_or_else(|same_pb| same_pb);
+                                        // let buffer = buf
+                                        //     .reclaim_headroom()
+                                        //     .unwrap_or_else(|same_pb| same_pb);
 
                                         node.tx_client.map(move |client| {
                                             node.transmitting.set(false);
-                                            client.transmitted_buffer(buffer, 0, Err(ecode));
+                                            client.transmitted_buffer(buf, 0, Err(ecode));
                                         });
                                     }
                                 }
@@ -496,6 +505,7 @@ impl<'a, const HEAD: usize, const TAIL: usize> uart::Receive<'a> for UartDevice<
         rx_buffer: &'static mut [u8],
         rx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        // hprintln!("MUX: In receive buffer with buffer: {:?}", rx_buffer);
         if self.rx_buffer.is_some() {
             Err((ErrorCode::BUSY, rx_buffer))
         } else if rx_len > rx_buffer.len() {

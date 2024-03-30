@@ -2,6 +2,8 @@ use core::any::Any;
 use core::fmt::Debug;
 use core::ops::{Range, RangeFrom};
 
+use cortex_m_semihosting::{hprint, hprintln};
+
 use crate::ErrorCode;
 
 /// Internal `PacketBufferDyn` trait, shared across various packet buffer
@@ -111,7 +113,7 @@ pub unsafe trait PacketBufferDyn: Any + Debug {
 
 pub struct PacketBufferMut<const HEAD: usize = 0, const TAIL: usize = 0> {
     // AMALIA: should remove default values!!!!!
-    inner: &'static mut dyn PacketBufferDyn,
+    pub inner: &'static mut dyn PacketBufferDyn,
 }
 
 impl<const HEAD: usize, const TAIL: usize> PacketBufferMut<HEAD, TAIL> {
@@ -408,6 +410,12 @@ impl PacketSliceMut {
 
 unsafe impl PacketBufferDyn for PacketSliceMut {
     fn len(&self) -> usize {
+        // hprintln!(
+        //     "PB: len(): {} - {} - {}",
+        //     self.data_slice().len(),
+        //     self.headroom(),
+        //     self.tailroom()
+        // );
         self.data_slice().len() - self.headroom() - self.tailroom()
     }
 

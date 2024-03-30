@@ -58,6 +58,7 @@ use core::fmt::{write, Arguments, Result, Write};
 use core::panic::PanicInfo;
 use core::str;
 
+use cortex_m_semihosting::hprintln;
 use tock_cells::optional_cell::OptionalCell;
 
 use crate::collections::queue::Queue;
@@ -450,6 +451,7 @@ impl<const HEAD: usize, const TAIL: usize> DebugWriter<HEAD, TAIL> {
     /// Write as many of the bytes from the internal_buffer to the output
     /// mechanism as possible, returning the number written.
     fn publish_bytes(&self) -> usize {
+        // hprintln!("DEBUG WRITER: publish)bytes");
         // Can only publish if we have the output_buffer. If we don't that is
         // fine, we will do it when the transmit done callback happens.
         self.internal_buffer.map_or(0, |ring_buffer| {
@@ -469,7 +471,7 @@ impl<const HEAD: usize, const TAIL: usize> DebugWriter<HEAD, TAIL> {
                     match ring_buffer.dequeue() {
                         Some(src) => {
                             copied = out_packet_slice.append_from_slice_max(&[src]);
-                            count += copied;
+                            count += 1;
                         }
                         None => {
                             copied = 0;

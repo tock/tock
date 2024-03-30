@@ -12,6 +12,7 @@ edition.workspace = true
 tock-registers = { path = "../libraries/tock-register-interface" }
 tock-cells = { path = "../libraries/tock-cells" }
 tock-tbf = { path = "../libraries/tock-tbf" }
+cortex-m-semihosting = "0.5.0"
 
 # In general, Tock discourages the use of cargo features. However for certain
 # kernel crate configuration, we have not found reasonable alternatives to
