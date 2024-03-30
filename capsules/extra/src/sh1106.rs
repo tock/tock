@@ -148,7 +148,7 @@ impl<'a, I: hil::i2c::I2CDevice> Sh1106<'a, I> {
                     self.write_buffer.map_or(Err(ErrorCode::NOMEM), |data| {
                         // Calculate which part of the data buffer we need to
                         // write.
-                        let start_page_index = self.active_frame_x.get() / 8;
+                        let start_page_index = self.active_frame_y.get() / 8;
                         let buffer_start_index = ((page_index - start_page_index) as usize)
                             * self.active_frame_width.get() as usize;
                         let page_len = self.active_frame_width.get() as usize;
