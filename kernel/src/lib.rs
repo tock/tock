@@ -107,6 +107,7 @@ pub const KERNEL_MINOR_VERSION: u16 = 1;
 pub mod capabilities;
 pub mod collections;
 pub mod component;
+pub mod core_local;
 pub mod debug;
 pub mod deferred_call;
 pub mod errorcode;
@@ -136,6 +137,6 @@ mod syscall_driver;
 
 // Core resources exposed as `kernel::Type`.
 pub use crate::errorcode::ErrorCode;
-pub use crate::kernel::Kernel;
+pub use crate::kernel::{Kernel, StaticSlice};
 pub use crate::process::ProcessId;
 pub use crate::scheduler::Scheduler;

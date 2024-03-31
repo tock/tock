@@ -9,10 +9,15 @@
 //! etc.) is defined in the `scheduler` subcrate and selected by a board.
 
 use core::cell::Cell;
+use core::ops::Deref;
+use core::ops::DerefMut;
 use core::ptr::NonNull;
+
+use tock_cells::map_cell::MapCell;
 
 use crate::capabilities;
 use crate::config;
+use crate::core_local::CoreLocal;
 use crate::debug;
 use crate::deferred_call::DeferredCall;
 use crate::errorcode::ErrorCode;
@@ -40,10 +45,43 @@ use crate::utilities::cells::NumericCellExt;
 /// is less than this threshold.
 pub(crate) const MIN_QUANTA_THRESHOLD_US: u32 = 500;
 
+pub struct StaticSlice<T> {
+    len: usize,
+    base: *mut T,
+}
+
+impl<T> StaticSlice<T> {
+    pub fn new<const N: usize>(slice: &'static mut [T; N]) -> Self {
+        StaticSlice {
+            len: N,
+            base: slice.as_mut_ptr(),
+        }
+    }
+
+    pub(crate) fn len(&self) -> usize {
+        self.len
+    }
+}
+
+impl<T> Deref for StaticSlice<T> {
+    type Target = [T];
+
+    fn deref(&self) -> &Self::Target {
+        unsafe { core::slice::from_raw_parts(self.base, self.len) }
+    }
+}
+
+impl<T> DerefMut for StaticSlice<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { core::slice::from_raw_parts_mut(self.base, self.len) }
+    }
+}
+
 /// Main object for the kernel. Each board will need to create one.
 pub struct Kernel {
     /// This holds a pointer to the static array of Process pointers.
-    processes: &'static [Option<&'static dyn process::Process>],
+    pub(crate) processes:
+        &'static CoreLocal<MapCell<StaticSlice<Option<&'static dyn process::Process>>>>,
 
     /// A counter which keeps track of how many process identifiers have been
     /// created. This is used to create new unique identifiers for processes.
@@ -87,7 +125,9 @@ impl Kernel {
     /// Crucially, the processes included in the `processes` array MUST be valid
     /// to execute. Any credential checks or validation MUST happen before the
     /// `Process` object is included in this array.
-    pub fn new(processes: &'static [Option<&'static dyn process::Process>]) -> Kernel {
+    pub fn new(
+        processes: &'static CoreLocal<MapCell<StaticSlice<Option<&'static dyn process::Process>>>>,
+    ) -> Self {
         Kernel {
             processes,
             process_identifier_max: Cell::new(0),
@@ -103,18 +143,18 @@ impl Kernel {
         // However, we are not guaranteed that the app still exists at that
         // index in the processes array. To avoid additional overhead, we do the
         // lookup and check here, rather than calling `.index()`.
-        match self.processes.get(processid.index) {
-            Some(Some(process)) => {
-                // Check that the process stored here matches the identifier
-                // in the `processid`.
-                if process.processid() == processid {
-                    Some(*process)
-                } else {
-                    None
+        self.processes.with(|ps| {
+            ps.and_then(|ps| {
+                if let Some(Some(process)) = ps.get(processid.index) {
+                    // Check that the process stored here matches the identifier
+                    // in the `processid`.
+                    if process.processid() == processid {
+                        return Some(*process);
+                    }
                 }
-            }
-            _ => None,
-        }
+                return None;
+            })
+        })
     }
 
     /// Run a closure on a specific process if it exists. If the process with a
@@ -173,29 +213,18 @@ impl Kernel {
     where
         F: FnMut(&dyn process::Process),
     {
-        for process in self.processes.iter() {
-            match process {
-                Some(p) => {
-                    closure(*p);
+        self.processes.with(|ps| {
+            ps.map(|ps| {
+                for process in ps.iter() {
+                    match process {
+                        Some(p) => {
+                            closure(*p);
+                        }
+                        None => {}
+                    }
                 }
-                None => {}
-            }
-        }
-    }
-
-    /// Returns an iterator over all processes loaded by the kernel.
-    pub(crate) fn get_process_iter(
-        &self,
-    ) -> core::iter::FilterMap<
-        core::slice::Iter<Option<&dyn process::Process>>,
-        fn(&Option<&'static dyn process::Process>) -> Option<&'static dyn process::Process>,
-    > {
-        fn keep_some(
-            &x: &Option<&'static dyn process::Process>,
-        ) -> Option<&'static dyn process::Process> {
-            x
-        }
-        self.processes.iter().filter_map(keep_some)
+            })
+        });
     }
 
     /// Run a closure on every valid process. This will iterate the array of
@@ -211,14 +240,18 @@ impl Kernel {
     ) where
         F: FnMut(&dyn process::Process),
     {
-        for process in self.processes.iter() {
-            match process {
-                Some(p) => {
-                    closure(*p);
+        self.processes.with(|ps| {
+            ps.map(|ps| {
+                for process in ps.iter() {
+                    match process {
+                        Some(p) => {
+                            closure(*p);
+                        }
+                        None => {}
+                    }
                 }
-                None => {}
-            }
-        }
+            })
+        });
     }
 
     /// Run a closure on every process, but only continue if the closure returns
@@ -228,18 +261,22 @@ impl Kernel {
     where
         F: Fn(&dyn process::Process) -> Option<T>,
     {
-        for process in self.processes.iter() {
-            match process {
-                Some(p) => {
-                    let ret = closure(*p);
-                    if ret.is_some() {
-                        return ret;
+        self.processes.with(|ps| {
+            ps.map_or(None, |ps| {
+                for process in ps.iter() {
+                    match process {
+                        Some(p) => {
+                            let ret = closure(*p);
+                            if ret.is_some() {
+                                return ret;
+                            }
+                        }
+                        None => {}
                     }
                 }
-                None => {}
-            }
-        }
-        None
+                None
+            })
+        })
     }
 
     /// Checks if the provided [`ProcessId`] is still valid given the processes
@@ -249,8 +286,12 @@ impl Kernel {
     /// This is needed for `ProcessId` itself to implement the `.index()`
     /// command to verify that the referenced app is still at the correct index.
     pub(crate) fn processid_is_valid(&self, processid: &ProcessId) -> bool {
-        self.processes.get(processid.index).map_or(false, |p| {
-            p.map_or(false, |process| process.processid().id() == processid.id())
+        self.processes.with(|ps| {
+            ps.map_or(false, |ps| {
+                ps.get(processid.index).map_or(false, |p| {
+                    p.map_or(false, |process| process.processid().id() == processid.id())
+                })
+            })
         })
     }
 
@@ -334,11 +375,15 @@ impl Kernel {
     /// function, since capsules should not be able to arbitrarily restart all
     /// apps.
     pub fn hardfault_all_apps<C: capabilities::ProcessManagementCapability>(&self, _c: &C) {
-        for p in self.processes.iter() {
-            p.map(|process| {
-                process.set_fault_state();
-            });
-        }
+        self.processes.with(|ps| {
+            ps.map(|ps| {
+                for p in ps.iter() {
+                    p.map(|process| {
+                        process.set_fault_state();
+                    });
+                }
+            })
+        });
     }
 
     /// Perform one iteration of the core Tock kernel loop.

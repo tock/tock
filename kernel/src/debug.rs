@@ -118,24 +118,23 @@ pub unsafe fn panic_print<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
-    processes: &'static [Option<&'static dyn Process>],
-    chip: &'static Option<&'static C>,
-    process_printer: &'static Option<&'static PP>,
+    processes: &[Option<&'static dyn Process>],
+    chip: &'static C,
+    process_printer: &'static PP,
 ) {
+    use crate::platform::mpu::MPU;
     panic_begin(nop);
     // Flush debug buffer if needed
     flush(writer);
     panic_banner(writer, panic_info);
     panic_cpu_state(chip, writer);
 
-    // Some systems may enforce memory protection regions for the kernel, making
-    // application memory inaccessible. However, printing process information
-    // will attempt to access memory. If we are provided a chip reference,
-    // attempt to disable userspace memory protection first:
-    chip.map(|c| {
-        use crate::platform::mpu::MPU;
-        c.mpu().disable_app_mpu()
-    });
+    // Some systems may enforce memory protection regions for the
+    // kernel, making application memory inaccessible. However,
+    // priting process information will attempt to access memory. If
+    // we are provided a chip reference, attempt to disable userspace
+    // memory protection first:
+    chip.mpu().disable_app_mpu();
     panic_process_info(processes, process_printer, writer);
 }
 
@@ -150,9 +149,9 @@ pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip, PP: ProcessPr
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
-    processes: &'static [Option<&'static dyn Process>],
-    chip: &'static Option<&'static C>,
-    process_printer: &'static Option<&'static PP>,
+    processes: &[Option<&'static dyn Process>],
+    chip: &'static C,
+    process_printer: &'static PP,
 ) -> ! {
     // Call `panic_print` first which will print out the panic information and
     // return
@@ -193,38 +192,31 @@ pub unsafe fn panic_banner<W: Write>(writer: &mut W, panic_info: &PanicInfo) {
 /// Print current machine (CPU) state.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
-pub unsafe fn panic_cpu_state<W: Write, C: Chip>(
-    chip: &'static Option<&'static C>,
-    writer: &mut W,
-) {
-    chip.map(|c| {
-        c.print_state(writer);
-    });
+pub unsafe fn panic_cpu_state<W: Write, C: Chip>(chip: &'static C, writer: &mut W) {
+    chip.print_state(writer);
 }
 
 /// More detailed prints about all processes.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
 pub unsafe fn panic_process_info<PP: ProcessPrinter, W: Write>(
-    procs: &'static [Option<&'static dyn Process>],
-    process_printer: &'static Option<&'static PP>,
+    procs: &[Option<&'static dyn Process>],
+    printer: &'static PP,
     writer: &mut W,
 ) {
-    process_printer.map(|printer| {
-        // print data about each process
-        let _ = writer.write_fmt(format_args!("\r\n---| App Status |---\r\n"));
-        for proc in procs {
-            proc.map(|process| {
-                // Print the memory map and basic process info.
-                //
-                // Because we are using a synchronous printer we do not need to
-                // worry about looping on the print function.
-                printer.print_overview(process, &mut BinaryToWriteWrapper::new(writer), None);
-                // Print all of the process details.
-                process.print_full_process(writer);
-            });
-        }
-    });
+    // print data about each process
+    let _ = writer.write_fmt(format_args!("\r\n---| App Status |---\r\n"));
+    for idx in 0..procs.len() {
+        procs[idx].map(|process| {
+            // Print the memory map and basic process info.
+            //
+            // Because we are using a synchronous printer we do not need to
+            // worry about looping on the print function.
+            printer.print_overview(process, &mut BinaryToWriteWrapper::new(writer), None);
+            // Print all of the process details.
+            process.print_full_process(writer);
+        });
+    }
 }
 
 /// Blinks a recognizable pattern forever.

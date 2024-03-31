@@ -133,7 +133,10 @@ use core::ops::{Deref, DerefMut};
 use core::ptr::{write, NonNull};
 use core::slice;
 
-use crate::kernel::Kernel;
+use tock_cells::map_cell::MapCell;
+
+use crate::core_local::CoreLocal;
+use crate::kernel::{Kernel, StaticSlice};
 use crate::process::{Error, Process, ProcessCustomGrantIdentifier, ProcessId};
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::processbuffer::{ReadOnlyProcessBufferRef, ReadWriteProcessBufferRef};
@@ -1767,7 +1770,8 @@ impl<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSi
     pub fn iter(&self) -> Iter<T, Upcalls, AllowROs, AllowRWs> {
         Iter {
             grant: self,
-            subiter: self.kernel.get_process_iter(),
+            processes: self.kernel.processes,
+            iterator: 0,
         }
     }
 }
@@ -1783,11 +1787,8 @@ pub struct Iter<
     /// The grant type to use.
     grant: &'a Grant<T, Upcalls, AllowROs, AllowRWs>,
 
-    /// Iterator over valid processes.
-    subiter: core::iter::FilterMap<
-        core::slice::Iter<'a, Option<&'static dyn Process>>,
-        fn(&Option<&'static dyn Process>) -> Option<&'static dyn Process>,
-    >,
+    processes: &'a CoreLocal<MapCell<StaticSlice<Option<&'static dyn Process>>>>,
+    iterator: usize,
 }
 
 impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSize> Iterator
@@ -1800,7 +1801,17 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
         // Get the next `ProcessId` from the kernel processes array that is
         // setup to use this grant. Since the iterator itself is saved calling
         // this function again will start where we left off.
-        self.subiter
-            .find_map(|process| ProcessGrant::new_if_allocated(grant, process))
+        self.processes.with(|ps| {
+            ps.and_then(|ps| {
+                while self.iterator < ps.len() {
+                    let i = self.iterator;
+                    self.iterator += 1;
+                    if let Some(process) = ps[i] {
+                        return ProcessGrant::new_if_allocated(grant, process);
+                    }
+                }
+                None
+            })
+        })
     }
 }

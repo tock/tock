@@ -498,4 +498,4 @@ impl fmt::Display for Ficr {
 }
 
 /// Static instance for the board. Only one (read-only) set of factory registers.
-pub static mut FICR_INSTANCE: Ficr = Ficr::new();
+pub const FICR_INSTANCE: Ficr = Ficr::new();

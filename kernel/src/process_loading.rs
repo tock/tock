@@ -16,7 +16,7 @@ use core::cell::Cell;
 use core::fmt;
 
 use crate::capabilities::ProcessManagementCapability;
-use crate::config;
+use crate::core_local::CoreLocal;
 use crate::debug;
 use crate::deferred_call::{DeferredCall, DeferredCallClient};
 use crate::kernel::Kernel;
@@ -30,6 +30,7 @@ use crate::process_policies::ProcessStandardStoragePermissionsPolicy;
 use crate::process_standard::ProcessStandard;
 use crate::process_standard::{ProcessStandardDebug, ProcessStandardDebugFull};
 use crate::utilities::cells::{MapCell, OptionalCell};
+use crate::{config, StaticSlice};
 
 /// Errors that can occur when trying to load and create processes.
 pub enum ProcessLoadError {
@@ -139,7 +140,7 @@ pub fn load_processes<C: Chip>(
     chip: &'static C,
     app_flash: &'static [u8],
     app_memory: &'static mut [u8],
-    mut procs: &'static mut [Option<&'static dyn Process>],
+    procs: &CoreLocal<MapCell<StaticSlice<Option<&'static dyn Process>>>>,
     fault_policy: &'static dyn ProcessFaultPolicy,
     _capability_management: &dyn ProcessManagementCapability,
 ) -> Result<(), ProcessLoadError> {
@@ -148,20 +149,24 @@ pub fn load_processes<C: Chip>(
         chip,
         app_flash,
         app_memory,
-        &mut procs,
+        procs,
         fault_policy,
     )?;
 
     if config::CONFIG.debug_process_credentials {
         debug!("Checking: no checking, load and run all processes");
     }
-    for proc in procs.iter() {
-        proc.map(|p| {
-            if config::CONFIG.debug_process_credentials {
-                debug!("Running {}", p.get_process_name());
+    procs.with(|procs| {
+        procs.map(|procs| {
+            for proc in procs.iter() {
+                proc.map(|p| {
+                    if config::CONFIG.debug_process_credentials {
+                        debug!("Running {}", p.get_process_name());
+                    }
+                });
             }
-        });
-    }
+        })
+    });
     Ok(())
 }
 
@@ -189,94 +194,99 @@ fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
     chip: &'static C,
     app_flash: &'static [u8],
     app_memory: &'static mut [u8],
-    procs: &mut &'static mut [Option<&'static dyn Process>],
+    procs: &CoreLocal<MapCell<StaticSlice<Option<&'static dyn Process>>>>,
     fault_policy: &'static dyn ProcessFaultPolicy,
 ) -> Result<(), ProcessLoadError> {
-    if config::CONFIG.debug_load_processes {
-        debug!(
-            "Loading processes from flash={:#010X}-{:#010X} into sram={:#010X}-{:#010X}",
-            app_flash.as_ptr() as usize,
-            app_flash.as_ptr() as usize + app_flash.len() - 1,
-            app_memory.as_ptr() as usize,
-            app_memory.as_ptr() as usize + app_memory.len() - 1
-        );
-    }
-
-    let mut remaining_flash = app_flash;
-    let mut remaining_memory = app_memory;
-    // Try to discover up to `procs.len()` processes in flash.
-    let mut index = 0;
-    let num_procs = procs.len();
-    while index < num_procs {
-        let load_binary_result = discover_process_binary(remaining_flash);
-
-        match load_binary_result {
-            Ok((new_flash, process_binary)) => {
-                remaining_flash = new_flash;
-
-                let load_result = load_process::<C, D>(
-                    kernel,
-                    chip,
-                    process_binary,
-                    remaining_memory,
-                    ShortId::LocallyUnique,
-                    index,
-                    fault_policy,
-                    &(),
+    procs.with(|procs| {
+        procs.map(|procs| {
+            if config::CONFIG.debug_load_processes {
+                debug!(
+                    "Loading processes from flash={:#010X}-{:#010X} into sram={:#010X}-{:#010X}",
+                    app_flash.as_ptr() as usize,
+                    app_flash.as_ptr() as usize + app_flash.len() - 1,
+                    app_memory.as_ptr() as usize,
+                    app_memory.as_ptr() as usize + app_memory.len() - 1
                 );
-                match load_result {
-                    Ok((new_mem, proc)) => {
-                        remaining_memory = new_mem;
-                        match proc {
-                            Some(p) => {
-                                if config::CONFIG.debug_load_processes {
-                                    debug!("Loaded process {}", p.get_process_name())
+            }
+
+            let mut remaining_flash = app_flash;
+            let mut remaining_memory = app_memory;
+            // Try to discover up to `procs.len()` processes in flash.
+            let mut index = 0;
+            let num_procs = procs.len();
+            while index < num_procs {
+                let load_binary_result = discover_process_binary(remaining_flash);
+
+                match load_binary_result {
+                    Ok((new_flash, process_binary)) => {
+                        remaining_flash = new_flash;
+
+                        let load_result = load_process::<C, D>(
+                            kernel,
+                            chip,
+                            process_binary,
+                            remaining_memory,
+                            ShortId::LocallyUnique,
+                            index,
+                            fault_policy,
+                            &(),
+                        );
+                        match load_result {
+                            Ok((new_mem, proc)) => {
+                                remaining_memory = new_mem;
+                                match proc {
+                                    Some(p) => {
+                                        if config::CONFIG.debug_load_processes {
+                                            debug!("Loaded process {}", p.get_process_name())
+                                        }
+                                        procs[index] = proc;
+                                        index += 1;
+                                    }
+                                    None => {
+                                        if config::CONFIG.debug_load_processes {
+                                            debug!("No process loaded.");
+                                        }
+                                    }
                                 }
-                                procs[index] = proc;
-                                index += 1;
                             }
-                            None => {
+                            Err((new_mem, err)) => {
+                                remaining_memory = new_mem;
                                 if config::CONFIG.debug_load_processes {
-                                    debug!("No process loaded.");
+                                    debug!("Processes load error: {:?}.", err);
                                 }
                             }
                         }
                     }
-                    Err((new_mem, err)) => {
-                        remaining_memory = new_mem;
-                        if config::CONFIG.debug_load_processes {
-                            debug!("Processes load error: {:?}.", err);
+                    Err((new_flash, err)) => {
+                        remaining_flash = new_flash;
+                        match err {
+                            ProcessBinaryError::NotEnoughFlash
+                            | ProcessBinaryError::TbfHeaderNotFound => {
+                                if config::CONFIG.debug_load_processes {
+                                    debug!("No more processes to load: {:?}.", err);
+                                }
+                                // No more processes to load.
+                                break;
+                            }
+
+                            ProcessBinaryError::TbfHeaderParseFailure(_)
+                            | ProcessBinaryError::IncompatibleKernelVersion { .. }
+                            | ProcessBinaryError::IncorrectFlashAddress { .. }
+                            | ProcessBinaryError::NotEnabledProcess
+                            | ProcessBinaryError::Padding => {
+                                if config::CONFIG.debug_load_processes {
+                                    debug!("Unable to use process binary: {:?}.", err);
+                                }
+
+                                // Skip this binary and move to the next one.
+                                continue;
+                            }
                         }
                     }
                 }
             }
-            Err((new_flash, err)) => {
-                remaining_flash = new_flash;
-                match err {
-                    ProcessBinaryError::NotEnoughFlash | ProcessBinaryError::TbfHeaderNotFound => {
-                        if config::CONFIG.debug_load_processes {
-                            debug!("No more processes to load: {:?}.", err);
-                        }
-                        // No more processes to load.
-                        break;
-                    }
-
-                    ProcessBinaryError::TbfHeaderParseFailure(_)
-                    | ProcessBinaryError::IncompatibleKernelVersion { .. }
-                    | ProcessBinaryError::IncorrectFlashAddress { .. }
-                    | ProcessBinaryError::NotEnabledProcess
-                    | ProcessBinaryError::Padding => {
-                        if config::CONFIG.debug_load_processes {
-                            debug!("Unable to use process binary: {:?}.", err);
-                        }
-
-                        // Skip this binary and move to the next one.
-                        continue;
-                    }
-                }
-            }
-        }
-    }
+        })
+    });
     Ok(())
 }
 

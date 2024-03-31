@@ -70,18 +70,19 @@
 #![no_std]
 #![deny(missing_docs)]
 
-use core::ptr::addr_of;
-
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules_extra::net::ieee802154::MacAddress;
 use capsules_extra::net::ipv6::ip_utils::IPAddr;
 use kernel::component::Component;
+use kernel::core_local::CoreLocal;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
 #[allow(unused_imports)]
 use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
+use kernel::utilities::cells::MapCell;
+use kernel::StaticSlice;
 #[allow(unused_imports)]
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf52840::gpio::Pin;
@@ -140,13 +141,20 @@ pub type Chip = nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'stati
 /// Number of concurrent processes this platform supports.
 pub const NUM_PROCS: usize = 8;
 
-/// Process array of this platform.
-pub static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
-    [None; NUM_PROCS];
+/// TODO
+pub struct DebugInfo {
+    /// TODO
+    pub chip: &'static nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>,
+    /// TODO
+    pub processes:
+        &'static CoreLocal<MapCell<StaticSlice<Option<&'static dyn kernel::process::Process>>>>,
+    /// TODO
+    pub process_printer: &'static capsules_system::process_printer::ProcessPrinterText,
+}
 
-static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>> = None;
-static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
-    None;
+/// TODO
+pub static DEBUG_INFO: CoreLocal<MapCell<DebugInfo>> =
+    unsafe { CoreLocal::new_single_core(MapCell::empty()) };
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -400,6 +408,7 @@ pub unsafe fn start() -> (
     &'static kernel::Kernel,
     Platform,
     &'static Chip,
+    &'static CoreLocal<MapCell<StaticSlice<Option<&'static dyn kernel::process::Process>>>>,
     &'static Nrf52840DefaultPeripherals<'static>,
     &'static MuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
 ) {
@@ -453,13 +462,19 @@ pub unsafe fn start() -> (
         UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD))
     };
 
+    let processes = static_init!(
+        CoreLocal<MapCell<StaticSlice<Option<&'static dyn kernel::process::Process>>>>,
+        CoreLocal::new_single_core(MapCell::new(StaticSlice::new(static_init!(
+            [Option<&'static dyn kernel::process::Process>; NUM_PROCS],
+            [None; NUM_PROCS]
+        ))))
+    );
     // Setup space to store the core kernel data structure.
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes));
 
     // Create (and save for panic debugging) a chip object to setup low-level
     // resources (e.g. MPU, systick).
     let chip = static_init!(Chip, nrf52840::chip::NRF52::new(nrf52840_peripherals));
-    CHIP = Some(chip);
 
     // Do nRF configuration and setup. This is shared code with other nRF-based
     // platforms.
@@ -591,7 +606,6 @@ pub unsafe fn start() -> (
     // Tool for displaying information about processes.
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
-    PROCESS_PRINTER = Some(process_printer);
 
     // Virtualize the UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(uart_channel, 115200)
@@ -819,7 +833,7 @@ pub unsafe fn start() -> (
         &base_peripherals.acomp,
         components::analog_comparator_component_helper!(
             nrf52840::acomp::Channel,
-            &*addr_of!(nrf52840::acomp::CHANNEL_AC0)
+            &nrf52840::acomp::CHANNEL_AC0,
         ),
         board_kernel,
         capsules_extra::analog_comparator::DRIVER_NUM,
@@ -885,7 +899,7 @@ pub unsafe fn start() -> (
     // PLATFORM SETUP, SCHEDULER, AND START KERNEL LOOP
     //--------------------------------------------------------------------------
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let platform = Platform {
@@ -916,12 +930,21 @@ pub unsafe fn start() -> (
     base_peripherals.adc.calibrate();
 
     debug!("Initialization complete. Entering main loop\r");
-    debug!("{}", &*addr_of!(nrf52840::ficr::FICR_INSTANCE));
+    debug!("{}", nrf52840::ficr::FICR_INSTANCE);
+
+    DEBUG_INFO.with(|debug_info| {
+        debug_info.put(DebugInfo {
+            chip,
+            processes,
+            process_printer,
+        })
+    });
 
     (
         board_kernel,
         platform,
         chip,
+        processes,
         nrf52840_peripherals,
         mux_alarm,
     )

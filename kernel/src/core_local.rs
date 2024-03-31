@@ -62,14 +62,17 @@ impl<T> CoreLocal<T> {
     /// scopes that are inaccessible to ISRs or signal handler,
     /// e.g. in module-private or function-local scopes.
     pub const unsafe fn new_single_core(val: T) -> Self {
-	CoreLocal(UnsafeCell::new(val))
+        CoreLocal(UnsafeCell::new(val))
     }
 }
 
 impl<T> CoreLocal<T> {
     /// Aquires a reference to value in [`CoreLocal`].
-    pub fn with<F, R>(&self, f: F) -> R where F: FnOnce(&T) -> R {
-	f(unsafe { &*self.0.get() })
+    pub fn with<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&T) -> R,
+    {
+        f(unsafe { &*self.0.get() })
     }
 }
 

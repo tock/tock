@@ -45,7 +45,7 @@ pub struct Channel {
 /// Only one channel
 #[derive(Copy, Clone, Debug)]
 #[repr(u8)]
-enum ChannelNumber {
+pub enum ChannelNumber {
     AC0 = 0x00,
 }
 
@@ -54,7 +54,7 @@ impl Channel {
     /// Create a new AC channel.
     ///
     /// - `channel`: Channel enum representing the channel number
-    const fn new(channel: ChannelNumber) -> Channel {
+    pub const fn new(channel: ChannelNumber) -> Channel {
         Channel {
             _chan_num: (channel as u32) & 0x0F,
         }
@@ -62,7 +62,7 @@ impl Channel {
 }
 
 /// Uses only comparator, with VIN+=AIN5 and VIN-=AIN0
-pub static mut CHANNEL_AC0: Channel = Channel::new(ChannelNumber::AC0);
+pub const CHANNEL_AC0: Channel = Channel::new(ChannelNumber::AC0);
 
 register_structs! {
     CompRegisters {
