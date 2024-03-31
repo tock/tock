@@ -334,7 +334,7 @@ pub unsafe fn ieee802154_udp(
     // 802.15.4
     //--------------------------------------------------------------------------
 
-    let device_id = nrf52840::ficr::FICR_INSTANCE.id();
+    let device_id = nrf52840::ficr::FICR_INSTANCE.with(|fi| fi.id());
     let device_id_bottom_16: u16 = u16::from_le_bytes([device_id[0], device_id[1]]);
 
     let eui64_driver = components::eui64::Eui64Component::new(u64::from_le_bytes(device_id))
@@ -930,7 +930,7 @@ pub unsafe fn start() -> (
     base_peripherals.adc.calibrate();
 
     debug!("Initialization complete. Entering main loop\r");
-    debug!("{}", nrf52840::ficr::FICR_INSTANCE);
+    nrf52840::ficr::FICR_INSTANCE.with(|fi| debug!("{}", fi));
 
     DEBUG_INFO.with(|debug_info| {
         debug_info.put(DebugInfo {

@@ -12,6 +12,7 @@
 //! - Date: November 27, 2017
 
 use core::fmt;
+use kernel::core_local::CoreLocal;
 use kernel::utilities::registers::interfaces::Readable;
 use kernel::utilities::registers::{register_bitfields, ReadOnly};
 use kernel::utilities::StaticRef;
@@ -498,4 +499,4 @@ impl fmt::Display for Ficr {
 }
 
 /// Static instance for the board. Only one (read-only) set of factory registers.
-pub const FICR_INSTANCE: Ficr = Ficr::new();
+pub static FICR_INSTANCE: CoreLocal<Ficr> = unsafe { CoreLocal::new_single_core(Ficr::new()) };

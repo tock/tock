@@ -264,13 +264,13 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
 
         // Check to see if the fault handler was called while the process was
         // running.
-        let app_fault = read_volatile(&*addr_of!(APP_HARD_FAULT));
-        write_volatile(&mut *addr_of_mut!(APP_HARD_FAULT), 0);
+        let app_fault = read_volatile(addr_of!(APP_HARD_FAULT));
+        write_volatile(addr_of_mut!(APP_HARD_FAULT), 0);
 
         // Check to see if the svc_handler was called and the process called a
         // syscall.
-        let syscall_fired = read_volatile(&*addr_of!(SYSCALL_FIRED));
-        write_volatile(&mut *addr_of_mut!(SYSCALL_FIRED), 0);
+        let syscall_fired = read_volatile(addr_of!(SYSCALL_FIRED));
+        write_volatile(addr_of_mut!(SYSCALL_FIRED), 0);
 
         // Now decide the reason based on which flags were set.
         let switch_reason = if app_fault == 1 || invalid_stack_pointer {

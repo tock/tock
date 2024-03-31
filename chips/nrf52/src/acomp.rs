@@ -62,7 +62,7 @@ impl Channel {
 }
 
 /// Uses only comparator, with VIN+=AIN5 and VIN-=AIN0
-pub const CHANNEL_AC0: Channel = Channel::new(ChannelNumber::AC0);
+pub static CHANNEL_AC0: Channel = Channel::new(ChannelNumber::AC0);
 
 register_structs! {
     CompRegisters {
