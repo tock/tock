@@ -25,17 +25,12 @@ use crate::process_loading::ProcessLoadError;
 use crate::process_policies::ProcessFaultPolicy;
 use crate::process_standard::ProcessStandard;
 use crate::utilities::cells::{MapCell, OptionalCell, TakeCell};
+use crate::utilities::leasable_buffer::SubSliceMut;
 use crate::ErrorCode;
 
 const TBF_HEADER_LENGTH: usize = 16;
 pub const BUF_LEN: usize = 512;
 const MAX_PROCS: usize = 10; //need this to store the start addresses of processes to write padding
-
-#[derive(Clone, Copy, PartialEq)]
-pub enum NonvolatileCommand {
-    UserspaceRead,
-    UserspaceWrite,
-}
 
 #[derive(Clone, Copy)]
 pub enum State {
@@ -65,9 +60,8 @@ pub trait DynamicProcessLoading {
     ///This is used to write both userland apps and padding apps
     fn write_app_data(
         &self,
-        buffer: &'static mut [u8],
+        buffer: SubSliceMut<'static, u8>,
         offset: usize,
-        app_size: usize,
         processid: ProcessId,
     ) -> Result<(), ErrorCode>;
 
@@ -133,7 +127,11 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
         }
     }
 
-    // Needs to be set separately, or breaks grants allocation
+    // Needs to be set separately. When we instantiate the dynamic process loader instance,
+    // the board has not finished setting up the pre-existing processes. Doing so will result
+    // in the board reporting the amount of RAM the dynamic process loader has to work with.
+    // Therefore, we first let the board load all the processes and then tell us how much
+    // RAM is available for future apps separate from the instantiation.
     pub fn set_memory(&self, app_memory: &'static mut [u8]) {
         self.app_memory.set(app_memory);
     }
@@ -150,92 +148,54 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
         })
     }
 
-    /******************************************* NVM Stuff **********************************************************/
+    /******************************************* NVM Logic **********************************************************/
 
-    // This function checks whether the new app will fit in the bounds dictated by the start address and length provided
-    // during the setup phase. This function then also computes where in flash the data should be written based on whether
-    // the call is coming during the app writing phase, or the padding phase.
-    //
-    // This function returns the physical address in flash where the write is supposed to happen.
-    fn compute_bounds_and_offset(
-        &self,
-        command: NonvolatileCommand,
-        offset: usize,
-        length: usize,
-    ) -> Result<usize, ErrorCode> {
-        let mut address: usize = 0;
-
-        let mut state_flag = false; // false if state should be set to AppWrite, true if it should be set to PaddingWrite
-                                    // this is very unelegant but it is a stopgap measure
-
-        self.state.take().map(|state| {
-            match state {
-                State::AppWrite => {
-                    match command {
-                        NonvolatileCommand::UserspaceRead | NonvolatileCommand::UserspaceWrite => {
-                            // need to account for overflow
-                            if offset >= self.new_app_start_addr.get()
-                                || length > self.new_app_length.get()
-                                || offset + length > self.new_app_length.get()
-                            {
-                                // this means the app is out of bounds
-                                return Err(ErrorCode::INVAL);
-                            }
-                        }
-                    }
-                    address = offset + self.new_app_start_addr.get();
-                    state_flag = true;
+    /// This function checks whether the new app will fit in the bounds dictated by the start address and length provided
+    /// during the setup phase. This function then also computes where in flash the data should be written based on whether
+    /// the call is coming during the app writing phase, or the padding phase.
+    ///
+    /// This function returns the physical address in flash where the write is supposed to happen.
+    fn compute_address(&self, offset: usize, length: usize) -> Result<usize, ErrorCode> {
+        let address = match self.state.get() {
+            Some(State::AppWrite) => {
+                // need to account for overflow
+                if length > self.new_app_length.get() || offset + length > self.new_app_length.get()
+                {
+                    // this means the app is out of bounds
+                    return Err(ErrorCode::INVAL);
                 }
-                State::PaddingWrite => {
-                    address = offset;
-                    state_flag = false;
-                }
-                State::Setup => {
-                    // Ideally we should never come here. We aren't supposed to be able to write unless we are in one of the two write states
-                    unimplemented!();
-                }
-                State::Load => {
-                    // Ideally we should never come here. We aren't supposed to be able to write unless we are in one of the two write states
-                    unimplemented!();
-                }
+                offset + self.new_app_start_addr.get()
             }
-            Ok(())
-        });
-        if state_flag {
-            self.state.set(State::AppWrite);
-        } else {
-            self.state.set(State::PaddingWrite);
-        }
+            Some(State::PaddingWrite) => offset,
+            Some(State::Setup) => {
+                // Ideally we should never come here. We aren't supposed to be able to write unless we are in one of the two write states
+                return Err(ErrorCode::FAIL);
+            }
+            Some(State::Load) => {
+                // Ideally we should never come here. We aren't supposed to be able to write unless we are in one of the two write states
+                return Err(ErrorCode::FAIL);
+            }
+            None => {
+                // Ideally we should never come here. We aren't supposed to be able to write unless we are in one of the two write states
+                return Err(ErrorCode::FAIL);
+            }
+        };
         Ok(address)
     }
 
     // Compute the physical address where we should write the data and then write it.
     //
     // This function calls write_done() when the Nonvolatile Driver invokes the callback.
-    fn write(
-        &self,
-        command: NonvolatileCommand,
-        user_buffer: &'static mut [u8],
-        offset: usize,
-        length: usize,
-    ) -> Result<(), ErrorCode> {
-        let physical_address = match self.compute_bounds_and_offset(command, offset, length) {
+    fn write(&self, user_buffer: SubSliceMut<'static, u8>, offset: usize) -> Result<(), ErrorCode> {
+        let length = user_buffer.len();
+        let physical_address = match self.compute_address(offset, length) {
             Ok(address) => address,
             Err(e) => return Err(e),
         };
 
-        let active_len = cmp::min(length, user_buffer.len());
-
-        match command {
-            NonvolatileCommand::UserspaceRead => {
-                self.flash_driver
-                    .read(user_buffer, physical_address, active_len) // change this to no support error code?
-            }
-            NonvolatileCommand::UserspaceWrite => {
-                self.flash_driver
-                    .write(user_buffer, physical_address, active_len)
-            }
-        }
+        let length = user_buffer.len();
+        self.flash_driver
+            .write(user_buffer.take(), physical_address, length)
     }
 
     fn write_padding_app(
@@ -271,21 +231,15 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
             buffer[13] = buffer[1] ^ buffer[5] ^ buffer[9];
             buffer[14] = buffer[2] ^ buffer[6] ^ buffer[10];
             buffer[15] = buffer[3] ^ buffer[7] ^ buffer[11];
-
-            for i in 16..BUF_LEN {
-                buffer[i] = 0xff_u8; //creating the padding (probably unnecessary)
-            }
         });
 
         let result = self.buffer.take().map_or(Err(ErrorCode::BUSY), |buffer| {
             if flash_end - offset >= TBF_HEADER_LENGTH {
                 //write the header only if there are more than 16 bytes available in the flash
-                let res = self.write(
-                    NonvolatileCommand::UserspaceWrite,
-                    buffer,
-                    offset,
-                    TBF_HEADER_LENGTH,
-                ); //we are only writing the header, so 16 bytes is enough
+
+                let mut padding_slice = SubSliceMut::new(buffer);
+                padding_slice.slice(..TBF_HEADER_LENGTH);
+                let res = self.write(padding_slice, offset); //we are only writing the header, so 16 bytes is enough
                 match res {
                     Ok(()) => Ok(()),
                     Err(e) => Err(e),
@@ -300,7 +254,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
         }
     }
 
-    /******************************************* Process Load Stuff **********************************************************/
+    /******************************************* Process Load Logic **********************************************************/
 
     fn check_for_padding_app(&self, new_start_address: usize) -> Result<bool, ProcessBinaryError> {
         //We only need tbf header information to get the size of app which is already loaded
@@ -863,13 +817,12 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
 
     fn write_app_data(
         &self,
-        buffer: &'static mut [u8],
+        buffer: SubSliceMut<'static, u8>,
         offset: usize,
-        length: usize,
         _processid: ProcessId,
     ) -> Result<(), ErrorCode> {
         self.state.set(State::AppWrite);
-        let res = self.write(NonvolatileCommand::UserspaceWrite, buffer, offset, length);
+        let res = self.write(buffer, offset);
         match res {
             Ok(()) => Ok(()),
             Err(e) => Err(e),

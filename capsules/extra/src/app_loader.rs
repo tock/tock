@@ -58,6 +58,7 @@ use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::processbuffer::ReadableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
@@ -174,7 +175,7 @@ impl<'a> AppLoader<'a> {
                 // is offset in the physical memory.
                 if length > self.new_app_length.get() || offset + length > self.new_app_length.get()
                 {
-                    return Err(ErrorCode::INVAL);
+                    return Err(ErrorCode::INVAL); // this means the app is trying to write beyond the region allocated for it
                 }
             }
         }
@@ -237,7 +238,6 @@ impl<'a> AppLoader<'a> {
                                             })
                                         });
                                 }
-                                // Ok((app.pending_command, offset, length, processid))
                             } else {
                                 // Some app is using the storage, we must wait.
                                 if app.pending_command {
@@ -250,8 +250,6 @@ impl<'a> AppLoader<'a> {
                                     app.command = command;
                                     app.offset = offset;
                                     app.length = active_len;
-                                    //pending command is true, so the process loader won't do anything with it
-                                    // Ok((app.pending_command, app.offset, app.length, processid))
                                 }
                             }
                             Ok((offset, length, processid))
@@ -276,8 +274,10 @@ impl<'a> AppLoader<'a> {
                         .buffer
                         .take()
                         .map_or(Err(ErrorCode::RESERVE), |buffer| {
+                            let mut write_buffer = SubSliceMut::new(buffer);
+                            write_buffer.slice(..write_buffer.len());
                             self.driver
-                                .write_app_data(buffer, app.offset, app.length, processid)
+                                .write_app_data(write_buffer, app.offset, processid)
                         })
                     {
                         true
@@ -373,12 +373,14 @@ impl SyscallDriver for AppLoader<'_> {
                     Some(processid),
                 );
                 match res {
-                    Ok((offset, len, pid)) => {
+                    Ok((offset, _len, pid)) => {
                         let result = self
                             .buffer
                             .take()
                             .map_or(Err(ErrorCode::RESERVE), |buffer| {
-                                let res = self.driver.write_app_data(buffer, offset, len, pid);
+                                let mut write_buffer = SubSliceMut::new(buffer);
+                                write_buffer.slice(..write_buffer.len());
+                                let res = self.driver.write_app_data(write_buffer, offset, pid);
                                 match res {
                                     Ok(()) => Ok(()),
                                     Err(e) => Err(e),
