@@ -60,6 +60,14 @@ impl<'a, F: Frequency> Clint<'a, F> {
     pub fn disable_machine_timer(&self, hart_id: usize) {
         self.mtimer.disable_machine_timer(hart_id);
     }
+
+    pub fn set_soft_interrupt(&self, hart_id: usize) {
+        self.registers.msip[hart_id].set(0x1);
+    }
+
+    pub fn clear_soft_interrupt(&self, hart_id: usize) {
+        self.registers.msip[hart_id].set(0x0);
+    }
 }
 
 impl<F: Frequency> Time for Clint<'_, F> {

@@ -8,8 +8,12 @@
 #![crate_type = "rlib"]
 #![no_std]
 #![feature(asm_const)]
+#![feature(naked_functions)]
 
 use core::fmt::Write;
+
+#[cfg(all(target_arch = "riscv32", target_os = "none"))]
+use core::arch::{asm, global_asm};
 
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 
@@ -85,47 +89,41 @@ extern "C" {
             // Re-enable linker relaxations.
             .option pop
 
-            // Initialize the stack based on core ID
-            csrr a0, mhartid            // a0 = hart ID.
-            li   a1, {stack_size}       // a1 = the size of the stack.
-
-            // Initialize the stack pointer register. This comes directly from
-            // the linker script.
-            la  sp, {estack}            // Set the initial stack pointer to be the bottom
-                                        // of the stack section.
-
-          000:                          // Move the stack pointer to a proper position.
-            beqz a0, 001f
-            sub  sp, sp, a1
-            addi a0, a0, -1
-            j 000b
-
-          001:
-
-            // Set s0 (the frame pointer) to the start of the stack.
-            add  s0, sp, zero           // s0 = sp
-
-            // Initialize mscratch to 0 so that we know that we are currently
-            // in the kernel. This is used for the check in the trap handler.
-            csrw 0x340, zero            // CSR=0x340=mscratch
-
-            // Jump to initialize memory if core 0. Otherwise, spin wait until core 0
-            // finish memory initialization.
+            // We choose core 0 to initialize memory and be responsible to notify other
+            // cores that they are safe to go. If the current core is core 0, we jump directly
+            // to begin memory initialization.
             csrr a0, mhartid
-            beqz a0, 003f
+            beqz a0, 002f
 
+            // Other cores wait for a machine software interrupt from core 0 which indicates
+            // the completion of the initialization. This is because we cannot safely rely
+            // on the memory since we have no knowledge of its initial state. First, we need
+            // to enable interrupts and set up a temporary trap to enter the entry point.
+            la   t0, _entry_trap         // Store the temporary trap address to trap vector
+            csrw mtvec, t0               // base address register.
+
+            li  t1, 8                    // Enable global machine interupts.
+            csrs mstatus, t1
+
+            li  t2, 8                    // Enable the machine software interrupt.
+            csrw mie, t2
+
+            // li  t3, {clint_base}
+            // li  t4, 1
+            // sw  t4, 4(t3)
+
+          001: // infinite loop
+            wfi
+            j 001b // Continue the loop.
+
+          002: // Memory initialize begin
+
+            // INITIALIZE MEMORY
+
+            // First lock the region by marking the last word non-zero.
             la a0, {ebss}               // a0 = first address after .bss.
             li a1, 1                    // a1 = non-zero value.
             sw a1, -4(a0)               // Store a non-zero value to the last word of .bss.
-
-          002: // Memory initialize wait loop
-            beqz a1, 201f
-            lw a1, -4(a0)
-            j 002b
-
-          003: // Memory initialize begin
-
-            // INITIALIZE MEMORY
 
             // Start by initializing .data memory. This involves coping the values right
             // at the end of the .text section (in flash) into the .data section (in RAM).
@@ -158,24 +156,80 @@ extern "C" {
 
           201: // bss_init_done
 
-          1: // Debug: Only use core 0
-            li a1, 1
-            csrr a0, mhartid
-            bne a0, a1, 1b
+          // 300: // Debug: Only use core 0
+          //   li a1, 0
+          //   csrr a0, mhartid
+          //   bne a0, a1, 300b
 
-            // With that initial setup out of the way, we now branch to the main
+            // With that initial setup out of the way, we now branch to the entry
             // code, likely defined in a board's main.rs.
-            j main
+            csrr a0, mhartid
+            j entry
         ",
 gp = sym __global_pointer,
-estack = sym _estack,
 sbss = sym _szero,
 ebss = sym _ezero,
 sdata = sym _srelocate,
 edata = sym _erelocate,
 etext = sym _etext,
-stack_size = const (0x8000 / 2)
+clint_base = const 0x0200_0000,
 );
+
+#[naked]
+#[export_name = "_entry_trap"]
+#[cfg(all(target_arch = "riscv32", target_os = "none"))]
+pub unsafe fn entry_trap() {
+    asm!("
+        .balign 0x4                // Trap handler is 4-byte alignment.
+
+        // The first thing we want to do is to check the cause of this
+        // trap. When the trap is caused by a machine software interrupt,
+        // we assume a core has completed memory initialization. This is
+        // to avoid race condition when initializing memory.
+        csrr t0, mcause            // t0 = machine trap cause.
+
+        li   t1, 1                 // t1 = machine soft interrupt exception code.
+        slli t1, t1, 31
+        addi t1, t1, 3
+
+        bne  t0, t1, 200f          // Do nothing if the trap is not a machine soft
+                                   // interrupt. TODO: Should we fail?
+
+
+        // Disable all interrupts.
+        csrw mtvec, x0             // Reset trap vector base address.
+        li  t1, 8                  // Disable global machine interupts.
+        csrc mstatus, t1
+        csrw mie, x0               // Disable the machine software interrupt.
+
+        // TODO: We might want to move this to the entry code as
+        // this can be board-dependent.
+        // Find the local MSIP register and clear the interrupt.
+        csrr t3, mhartid
+        li   t4, {clint_base}
+        beqz t3, 100f
+        addi t3, t3, -1
+        addi t4, t4, 4
+      100:
+        sw  x0, 0(t4)
+
+        // We now can safely return to the entry code.
+        la   t2, entry
+        csrw mepc, t2
+        csrr a0, mhartid
+
+      200:
+        mret
+        ",
+        clint_base = const 0x0200_0000,
+        options(noreturn)
+    );
+}
+
+#[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
+pub unsafe fn entry_trap() {
+    unimplemented!()
+}
 
 /// The various privilege levels in RISC-V.
 pub enum PermissionMode {
