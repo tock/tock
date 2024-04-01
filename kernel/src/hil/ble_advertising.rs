@@ -54,8 +54,17 @@
 use crate::ErrorCode;
 
 pub trait BleAdvertisementDriver<'a> {
-    fn transmit_advertisement(&self, buf: &'static mut [u8], len: usize, channel: RadioChannel);
-    fn receive_advertisement(&self, channel: RadioChannel);
+    fn transmit_advertisement(
+        &self,
+        buf: &'static mut [u8],
+        len: usize,
+        channel: RadioChannel,
+    ) -> &'static mut [u8];
+    fn receive_advertisement(
+        &self,
+        channel: RadioChannel,
+        buffer: &'static mut [u8],
+    ) -> &'static mut [u8];
     fn set_receive_client(&self, client: &'a dyn RxClient);
     fn set_transmit_client(&self, client: &'a dyn TxClient);
 }

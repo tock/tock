@@ -38,11 +38,11 @@
 //! * CRC - 3 bytes
 
 use core::cell::Cell;
-use core::ptr::addr_of_mut;
+use core::slice;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::cells::TakeCell;
+use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
@@ -531,15 +531,11 @@ register_bitfields! [u32,
     ]
 ];
 
-static mut PAYLOAD: [u8; nrf5x::constants::RADIO_PAYLOAD_LENGTH] =
-    [0x00; nrf5x::constants::RADIO_PAYLOAD_LENGTH];
-
 pub struct Radio<'a> {
     registers: StaticRef<RadioRegisters>,
     tx_power: Cell<TxPower>,
     rx_client: OptionalCell<&'a dyn ble_advertising::RxClient>,
     tx_client: OptionalCell<&'a dyn ble_advertising::TxClient>,
-    buffer: TakeCell<'static, [u8]>,
 }
 
 impl<'a> Radio<'a> {
@@ -549,7 +545,6 @@ impl<'a> Radio<'a> {
             tx_power: Cell::new(TxPower::ZerodBm),
             rx_client: OptionalCell::empty(),
             tx_client: OptionalCell::empty(),
-            buffer: TakeCell::empty(),
         }
     }
 
@@ -593,9 +588,23 @@ impl<'a> Radio<'a> {
         self.registers.txpower.set(self.tx_power.get() as u32);
     }
 
-    fn set_dma_ptr(&self) {
+    fn replace_dma_ptr(&self, buf: &'static mut [u8]) -> &'static mut [u8] {
         unsafe {
-            self.registers.packetptr.set(PAYLOAD.as_ptr() as u32);
+            // Get buffer encoded in in DMA registers. If it's a null
+            // pointer, the length should also be zero. Otherwise, use
+            // the configured length as the old length.
+            // This should be the only place these registers are modified or read.
+            let old_base = self.registers.packetptr.get() as usize as *mut u8;
+            let old_len = if old_base.is_null() {
+                0
+            } else {
+                self.registers.pcnf1.read(PacketConfiguration1::MAXLEN) as usize
+            };
+            self.registers.packetptr.set(buf.as_ptr() as u32);
+            self.registers
+                .pcnf1
+                .modify(PacketConfiguration1::MAXLEN.val(buf.len() as u32));
+            slice::from_raw_parts_mut(old_base, old_len)
         }
     }
 
@@ -632,26 +641,22 @@ impl<'a> Radio<'a> {
                 | nrf5x::constants::RADIO_STATE_TXDISABLE
                 | nrf5x::constants::RADIO_STATE_TX => {
                     self.radio_off();
+                    let buf = self.replace_dma_ptr(&mut []);
                     self.tx_client
-                        .map(|client| client.transmit_event(self.buffer.take().unwrap(), result));
+                        .map(|client| client.transmit_event(buf, result));
                 }
                 nrf5x::constants::RADIO_STATE_RXRU
                 | nrf5x::constants::RADIO_STATE_RXIDLE
                 | nrf5x::constants::RADIO_STATE_RXDISABLE
                 | nrf5x::constants::RADIO_STATE_RX => {
                     self.radio_off();
-                    unsafe {
-                        self.rx_client.map(|client| {
-                            // Length is: S0 (1 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
-                            // And because the length field is directly read from the packet
-                            // We need to add 2 to length to get the total length
-                            client.receive_event(
-                                &mut *addr_of_mut!(PAYLOAD),
-                                PAYLOAD[1] + 2,
-                                result,
-                            )
-                        });
-                    }
+                    let buffer = self.replace_dma_ptr(&mut []);
+                    self.rx_client.map(|client| {
+                        // Length is: S0 (1 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
+                        // And because the length field is directly read from the packet
+                        // We need to add 2 to length to get the total length
+                        client.receive_event(buffer, buffer[1] + 2, result)
+                    });
                 }
                 // Radio state - Disabled
                 _ => (),
@@ -682,16 +687,6 @@ impl<'a> Radio<'a> {
         self.registers.intenclr.set(0xffffffff);
     }
 
-    fn replace_radio_buffer(&self, buf: &'static mut [u8]) -> &'static mut [u8] {
-        // set payload
-        for (i, c) in buf.as_ref().iter().enumerate() {
-            unsafe {
-                PAYLOAD[i] = *c;
-            }
-        }
-        buf
-    }
-
     fn ble_initialize(&self, channel: RadioChannel) {
         self.radio_on();
 
@@ -710,7 +705,7 @@ impl<'a> Radio<'a> {
 
         self.ble_set_crc_config();
 
-        self.set_dma_ptr();
+        self.replace_dma_ptr(&mut []);
     }
 
     // BLUETOOTH SPECIFICATION Version 4.2 [Vol 6, Part B], section 3.1.1 CRC Generation
@@ -758,7 +753,7 @@ impl<'a> Radio<'a> {
                 + PacketConfiguration1::ENDIAN::LITTLE
                 + PacketConfiguration1::BALEN.val(3)
                 + PacketConfiguration1::STATLEN::CLEAR
-                + PacketConfiguration1::MAXLEN.val(255),
+                + PacketConfiguration1::MAXLEN.val(0),
         );
     }
 
@@ -796,18 +791,29 @@ impl<'a> Radio<'a> {
 }
 
 impl<'a> ble_advertising::BleAdvertisementDriver<'a> for Radio<'a> {
-    fn transmit_advertisement(&self, buf: &'static mut [u8], _len: usize, channel: RadioChannel) {
-        let res = self.replace_radio_buffer(buf);
-        self.buffer.replace(res);
+    fn transmit_advertisement(
+        &self,
+        buf: &'static mut [u8],
+        _len: usize,
+        channel: RadioChannel,
+    ) -> &'static mut [u8] {
+        let res = self.replace_dma_ptr(buf);
         self.ble_initialize(channel);
         self.tx();
         self.enable_interrupts();
+        res
     }
 
-    fn receive_advertisement(&self, channel: RadioChannel) {
+    fn receive_advertisement(
+        &self,
+        channel: RadioChannel,
+        buffer: &'static mut [u8],
+    ) -> &'static mut [u8] {
+        let old_buf = self.replace_dma_ptr(buffer);
         self.ble_initialize(channel);
         self.rx();
         self.enable_interrupts();
+        old_buf
     }
 
     fn set_receive_client(&self, client: &'a dyn ble_advertising::RxClient) {

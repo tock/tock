@@ -469,8 +469,12 @@ impl<'a> ble_advertising::BleAdvertisementDriver<'a> for Ble<'a> {
         }
     }
 
-    fn receive_advertisement(&self, _channel: RadioChannel) {
-        unimplemented!();
+    fn receive_advertisement(
+        &self,
+        _channel: RadioChannel,
+        _buffer: &'static mut [u8],
+    ) -> &'static mut [u8] {
+        unimplemented!()
     }
 
     fn set_receive_client(&self, client: &'a dyn ble_advertising::RxClient) {
