@@ -239,7 +239,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
             // Pass the first eight bytes of the tbf header to parse out the length
             // of the header and app. We then use those values to see if the app
             // is going to be valid.
-            let (version, _header_length, entry_length) =
+            let (_version, _header_length, entry_length) =
                 match tock_tbf::parse::parse_tbf_header_lengths(
                     test_header_slice.try_into().or(Err(ErrorCode::FAIL))?,
                 ) {
@@ -256,9 +256,8 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
 
             // check if the length in the header is matching what the app requested during the setup phase
             // also check if the kernel version matches the version indicated in the new application
-            if !entry_length as usize == self.new_app_length.get()
-                || version != crate::KERNEL_MAJOR_VERSION
-            {
+            // debug!("entry_length");
+            if entry_length as usize != self.new_app_length.get() {
                 return Err(ErrorCode::INVAL);
             }
         }
@@ -925,11 +924,12 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
                     Ok(()) => Ok(()),
                     Err(e) => {
                         // if we fail here, let us erase the app we just wrote
-                        self.state.set(State::Fail);
+                        self.state.set(State::PaddingWrite);
                         let _ = self.write_padding_app(
                             self.new_app_length.get(),
                             self.new_app_start_addr.get(),
                         );
+                        self.reset_process_loading_metadata(); // clear out new app size, start address, current offset and state
                         Err(e)
                     }
                 }
@@ -947,11 +947,12 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
                     Ok(()) => Ok(()),
                     Err(e) => {
                         // if we fail here, let us erase the app we just wrote
-                        self.state.set(State::Fail);
+                        self.state.set(State::PaddingWrite);
                         let _ = self.write_padding_app(
                             self.new_app_length.get(),
                             self.new_app_start_addr.get(),
                         );
+                        self.reset_process_loading_metadata(); // clear out new app size, start address, current offset and state
                         Err(e)
                     }
                 }
