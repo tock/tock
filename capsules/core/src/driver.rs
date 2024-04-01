@@ -42,6 +42,7 @@ pub enum NUM {
     LoRaPhySPI            = 0x30003,
     LoRaPhyGPIO           = 0x30004,
     Thread                = 0x30005,
+    Eui64                 = 0x30006,
 
     // Cryptography
     Rng                   = 0x40001,
