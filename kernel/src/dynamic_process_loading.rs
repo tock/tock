@@ -28,11 +28,11 @@ use crate::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use crate::utilities::leasable_buffer::SubSliceMut;
 use crate::ErrorCode;
 
-const TBF_HEADER_LENGTH: usize = 16;
-pub const BUF_LEN: usize = 512;
 const MAX_PROCS: usize = 10; //need this to store the start addresses of processes to write padding
+pub const BUF_LEN: usize = 512;
+const TBF_HEADER_LENGTH: usize = 16;
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum State {
     Setup,
     FirstWrite,
@@ -200,18 +200,9 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
             // If we are going to write the padding header, we already know where to write in flash,
             // so we don't have to add the start address
             Some(State::PaddingWrite) => offset,
-            // Ideally we should never come here. We aren't supposed to be able to write unless we
-            // are in one of the two write states
-            Some(State::LastWrite) => {
-                return Err(ErrorCode::FAIL);
-            }
-            Some(State::Setup) => {
-                return Err(ErrorCode::FAIL);
-            }
-            Some(State::Load) => {
-                return Err(ErrorCode::FAIL);
-            }
-            None => {
+            // We aren't supposed to be able to write unless we
+            // are in one of the first two write states
+            Some(State::LastWrite) | Some(State::Setup) | Some(State::Load) | None => {
                 return Err(ErrorCode::FAIL);
             }
         };
@@ -819,11 +810,7 @@ impl<'a, C: 'static + Chip> NonvolatileStorageClient for DynamicProcessLoader<'a
                     self.reset_process_loading_metadata(); // the final reset after the padding write callback
                     self.buffer.replace(buffer);
                 }
-                State::Setup => {
-                    // Ideally we should never come here. We aren't supposed to be able to write unless we are in one of the two write states
-                    unimplemented!();
-                }
-                State::Load => {
+                State::Setup | State::Load => {
                     // Ideally we should never come here. We aren't supposed to be able to write unless we are in one of the two write states
                     unimplemented!();
                 }
@@ -865,7 +852,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
                     Ok(app_length)
                 }
                 Err(_err) => {
-                    self.state.take(); // reset the state to None
+                    self.state.take(); // reset the state to None because we did not find any available address for this app
                     Err(ErrorCode::FAIL)
                 }
             }
@@ -884,16 +871,14 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
             Some(State::FirstWrite) => {
                 if offset != self.next_offset.get() {
                     // self.next_offset should be 0 at this stage.
+                    self.reset_process_loading_metadata(); // clear out new app size, start address, current offset and state
                     return Err(ErrorCode::INVAL); // this means the app is trying to write to an address that is not the
                                                   // start address assigned to it after setup. Return an Invalid error.
                 }
                 let res = self.write(buffer, offset);
                 match res {
                     Ok(()) => Ok(()),
-                    Err(e) => {
-                        self.reset_process_loading_metadata(); // clear out new app size, start address, current offset and state
-                        Err(e)
-                    }
+                    Err(e) => Err(e),
                 }
             }
             Some(State::AppWrite) => {
@@ -914,126 +899,135 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
                 }
             }
             // We should never enter write for the rest of the conditions, so return a Busy error.
-            Some(State::LastWrite) => Err(ErrorCode::BUSY),
-            Some(State::Setup) => Err(ErrorCode::BUSY),
-            Some(State::Load) => Err(ErrorCode::BUSY),
-            Some(State::PaddingWrite) => Err(ErrorCode::BUSY),
-            None => Err(ErrorCode::BUSY),
+            Some(State::LastWrite)
+            | Some(State::Setup)
+            | Some(State::Load)
+            | Some(State::PaddingWrite)
+            | None => Err(ErrorCode::BUSY),
         }
     }
 
     fn load(&self) -> Result<(), ErrorCode> {
-        let process_flash = self.new_process_flash.take().ok_or(ErrorCode::FAIL)?;
-        let remaining_memory = self.app_memory.take().ok_or(ErrorCode::FAIL)?;
-        let flash_end = self.flash.get().as_ptr() as usize + self.flash.get().len();
+        match self.state.get() {
+            Some(State::Load) => {
+                let process_flash = self.new_process_flash.take().ok_or(ErrorCode::FAIL)?;
+                let remaining_memory = self.app_memory.take().ok_or(ErrorCode::FAIL)?;
+                let flash_end = self.flash.get().as_ptr() as usize + self.flash.get().len();
 
-        // Get the first eight bytes of flash to check if there is another app.
-        let test_header_slice = match process_flash.get(0..8) {
-            Some(s) => s,
-            None => {
-                // There is no header here
-                self.reset_process_loading_metadata(); // clear out new app size, start address and current offset
-                return Err(ErrorCode::FAIL);
-            }
-        };
-
-        // Pass the first eight bytes of the tbfheader to parse out the length of
-        // the tbf header and app. We then use those values to see if we have
-        // enough flash remaining to parse the remainder of the header.
-        let (version, _header_length, entry_length) =
-            match tock_tbf::parse::parse_tbf_header_lengths(
-                test_header_slice.try_into().or(Err(ErrorCode::FAIL))?,
-            ) {
-                Ok((v, hl, el)) => (v, hl, el),
-                Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(_entry_length)) => {
-                    // If we could not parse the header, then we want to skip over
-                    // this app and look for the next one.
-                    self.reset_process_loading_metadata(); // clear out new app size, start address and current offset
-                    return Err(ErrorCode::FAIL);
-                }
-                Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => {
-                    // Since Tock apps use a linked list, it is very possible the
-                    // header we started to parse is intentionally invalid to signal
-                    // the end of apps. This is ok and just means we have finished
-                    // loading apps.
-                    self.reset_process_loading_metadata(); // clear out new app size, start address and current offset
-                    return Err(ErrorCode::FAIL);
-                }
-            };
-
-        // need to verify if the header is valid
-
-        // Now we can get a slice which only encompasses the length of flash
-        // described by this tbf header.  We will either parse this as an actual
-        // app, or skip over this region.
-        let entry_flash = process_flash
-            .get(0..entry_length as usize)
-            .ok_or(ErrorCode::FAIL)?;
-
-        let capability = create_capability!(crate::capabilities::ProcessManagementCapability);
-
-        let res = self.load_processes(entry_flash, remaining_memory, &capability);
-        let _ = match res {
-            Ok(()) => {
-                //reset the start address and length of the app
-                self.state.set(State::PaddingWrite);
-                Ok(())
-            } // maybe set the remaining memory here if we have to change the process_loading function anyway?
-            Err(_) => {
-                self.reset_process_loading_metadata(); // clear out new app size, start address and current offset
-                Err(ErrorCode::FAIL)
-            }
-        };
-
-        let current_process_end_addr = entry_flash.as_ptr() as usize + entry_flash.len(); // the end address of our newly loaded application
-        let next_app_start_addr: usize; // to store the address until which we need to write the padding app
-
-        let mut processes_start_addresses: [usize; MAX_PROCS] = [0; MAX_PROCS];
-
-        self.procs.map(|procs| {
-            for (procs_index, value) in procs.iter().enumerate() {
-                match value {
-                    Some(app) => {
-                        processes_start_addresses[procs_index] = app.get_addresses().flash_start;
-                    }
+                // Get the first eight bytes of flash to check if there is another app.
+                let test_header_slice = match process_flash.get(0..8) {
+                    Some(s) => s,
                     None => {
-                        processes_start_addresses[procs_index] = 0;
+                        // There is no header here
+                        self.reset_process_loading_metadata(); // clear out new app size, start address and current offset
+                        return Err(ErrorCode::FAIL);
+                    }
+                };
+
+                // Pass the first eight bytes of the tbfheader to parse out the length of
+                // the tbf header and app. We then use those values to see if we have
+                // enough flash remaining to parse the remainder of the header.
+                let (version, _header_length, entry_length) =
+                    match tock_tbf::parse::parse_tbf_header_lengths(
+                        test_header_slice.try_into().or(Err(ErrorCode::FAIL))?,
+                    ) {
+                        Ok((v, hl, el)) => (v, hl, el),
+                        Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(
+                            _entry_length,
+                        )) => {
+                            // Invalid header, return Fail error.
+                            self.reset_process_loading_metadata(); // clear out new app size, start address and current offset
+                            return Err(ErrorCode::FAIL);
+                        }
+                        Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => {
+                            // We are unable to parse the header, which is bad because this is the app we just flashed
+                            self.reset_process_loading_metadata(); // clear out new app size, start address and current offset
+                            return Err(ErrorCode::FAIL);
+                        }
+                    };
+
+                // Now we can get a slice which only encompasses the length of flash
+                // described by this tbf header.  We will either parse this as an actual
+                // app, or skip over this region.
+                let entry_flash = process_flash
+                    .get(0..entry_length as usize)
+                    .ok_or(ErrorCode::FAIL)?;
+
+                let capability =
+                    create_capability!(crate::capabilities::ProcessManagementCapability);
+
+                let res = self.load_processes(entry_flash, remaining_memory, &capability);
+                let _ = match res {
+                    Ok(()) => {
+                        //reset the start address and length of the app
+                        self.state.set(State::PaddingWrite);
+                        Ok(())
+                    } // maybe set the remaining memory here if we have to change the process_loading function anyway?
+                    Err(_) => {
+                        self.reset_process_loading_metadata(); // clear out new app size, start address and current offset
+                        Err(ErrorCode::FAIL)
+                    }
+                };
+
+                let current_process_end_addr = entry_flash.as_ptr() as usize + entry_flash.len(); // the end address of our newly loaded application
+                let next_app_start_addr: usize; // to store the address until which we need to write the padding app
+
+                let mut processes_start_addresses: [usize; MAX_PROCS] = [0; MAX_PROCS];
+
+                self.procs.map(|procs| {
+                    for (procs_index, value) in procs.iter().enumerate() {
+                        match value {
+                            Some(app) => {
+                                processes_start_addresses[procs_index] =
+                                    app.get_addresses().flash_start;
+                            }
+                            None => {
+                                processes_start_addresses[procs_index] = 0;
+                            }
+                        }
+                    }
+                });
+
+                // We compute the closest neighbor to our app such that:
+                // 1. the neighbor app has to be placed in flash after our newly loaded app
+                // 2. in the event of multiple apps in the flash after our app, we choose the one with the lowest starting address
+                // If there are no apps after ours in the process array, we simply pad till the end of flash
+
+                if let Some(closest_neighbor) = processes_start_addresses
+                    .iter()
+                    .filter(|&&x| x > current_process_end_addr)
+                    .min()
+                {
+                    next_app_start_addr = *closest_neighbor; // we found the next closest app in flash
+                } else {
+                    next_app_start_addr = flash_end; // there are no more apps in flash, so we write padding until the end of flash
+                                                     // should the padding be added only when there are other apps?
+                }
+
+                // calculating the distance between our app and either the next app, or the end of the flash
+                let padding_app_length = next_app_start_addr - current_process_end_addr;
+
+                let padding_result = self.write_padding_app(
+                    padding_app_length,
+                    current_process_end_addr,
+                    version,
+                    flash_end,
+                );
+                match padding_result {
+                    Ok(()) => Ok(()),
+                    Err(_) => {
+                        self.reset_process_loading_metadata();
+                        Err(ErrorCode::FAIL) // this means we were unable to write the padding app
                     }
                 }
             }
-        });
-
-        // We compute the closest neighbor to our app such that:
-        // 1. the neighbor app has to be placed in flash after our newly loaded app
-        // 2. in the event of multiple apps in the flash after our app, we choose the one with the lowest starting address
-        // If there are no apps after ours in the process array, we simply pad till the end of flash
-
-        if let Some(closest_neighbor) = processes_start_addresses
-            .iter()
-            .filter(|&&x| x > current_process_end_addr)
-            .min()
-        {
-            next_app_start_addr = *closest_neighbor; // we found the next closest app in flash
-        } else {
-            next_app_start_addr = flash_end; // there are no more apps in flash, so we write padding until the end of flash
-                                             // should the padding be added only when there are other apps?
-        }
-
-        // calculating the distance between our app and either the next app, or the end of the flash
-        let padding_app_length = next_app_start_addr - current_process_end_addr;
-
-        let padding_result = self.write_padding_app(
-            padding_app_length,
-            current_process_end_addr,
-            version,
-            flash_end,
-        );
-        match padding_result {
-            Ok(()) => Ok(()),
-            Err(_) => {
-                self.reset_process_loading_metadata();
-                Err(ErrorCode::FAIL) // this means we were unable to write the padding app
-            }
+            // We should never enter write for the rest of the conditions, so return a Busy error.
+            Some(State::Setup)
+            | Some(State::FirstWrite)
+            | Some(State::AppWrite)
+            | Some(State::LastWrite)
+            | Some(State::PaddingWrite)
+            | None => Err(ErrorCode::BUSY),
         }
     }
 }
