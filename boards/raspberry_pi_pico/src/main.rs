@@ -12,8 +12,6 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use core::ptr::{addr_of, addr_of_mut};
-
 use capsules_core::i2c_master::I2CMasterDriver;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::date_time_component_static;
@@ -21,7 +19,7 @@ use components::gpio::GpioComponent;
 use components::led::LedsComponent;
 use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
-use kernel::debug;
+use kernel::core_local::CoreLocal;
 use kernel::hil::gpio::{Configure, FloatingState};
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
@@ -29,7 +27,9 @@ use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::syscall::SyscallDriver;
+use kernel::utilities::cells::MapCell;
 use kernel::{capabilities, create_capability, static_init, Kernel};
+use kernel::{debug, StaticSlice};
 
 use rp2040::adc::{Adc, Channel};
 use rp2040::chip::{Rp2040, Rp2040DefaultPeripherals};
@@ -65,13 +65,6 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
-
-static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
-    [None; NUM_PROCS];
-
-static mut CHIP: Option<&'static Rp2040<Rp2040DefaultPeripherals>> = None;
-static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
-    None;
 
 type TemperatureRp2040Sensor = components::temperature_rp2040::TemperatureRp2040ComponentType<
     capsules_core::virtualizers::virtual_adc::AdcDevice<'static, rp2040::adc::Adc<'static>>,
@@ -294,7 +287,7 @@ pub unsafe fn start() -> (
     peripherals.resets.unreset_all_except(&[], true);
 
     // Set the UART used for panic
-    io::WRITER.set_uart(&peripherals.uart0);
+    io::WRITER.with(|writer| writer.map(|w| w.set_uart(&peripherals.uart0)));
 
     //set RX and TX pins in UART mode
     let gpio_tx = peripherals.pins.get_pin(RPGpio::GPIO0);
@@ -315,9 +308,14 @@ pub unsafe fn start() -> (
         Rp2040::new(peripherals, &peripherals.sio)
     );
 
-    CHIP = Some(chip);
-
-    let board_kernel = static_init!(Kernel, Kernel::new(&*addr_of!(PROCESSES)));
+    let processes = static_init!(
+        CoreLocal<MapCell<StaticSlice<Option<&'static dyn kernel::process::Process>>>>,
+        CoreLocal::new_single_core(MapCell::new(StaticSlice::new(static_init!(
+            [Option<&'static dyn kernel::process::Process>; NUM_PROCS],
+            [None; NUM_PROCS]
+        ))))
+    );
+    let board_kernel = static_init!(Kernel, Kernel::new(processes));
 
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
@@ -496,7 +494,6 @@ pub unsafe fn start() -> (
     // PROCESS CONSOLE
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
-    PROCESS_PRINTER = Some(process_printer);
 
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
@@ -536,7 +533,7 @@ pub unsafe fn start() -> (
     i2c0.init(10 * 1000);
     i2c0.set_master_client(i2c);
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let raspberry_pi_pico = RaspberryPiPico {
@@ -562,6 +559,14 @@ pub unsafe fn start() -> (
         sysinfo::Platform::Asic => "ASIC",
         sysinfo::Platform::Fpga => "FPGA",
     };
+
+    io::DEBUG_INFO.with(|debug_info| {
+        debug_info.put(io::DebugInfo {
+            chip,
+            processes,
+            process_printer,
+        })
+    });
 
     debug!(
         "RP2040 Revision {} {}",
@@ -594,7 +599,7 @@ pub unsafe fn start() -> (
             core::ptr::addr_of_mut!(_sappmem),
             core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut *addr_of_mut!(PROCESSES),
+        processes,
         &FAULT_RESPONSE,
         &process_management_capability,
     )
