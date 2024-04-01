@@ -159,9 +159,9 @@ impl<'a> AppLoader<'a> {
         }
     }
 
-    // Check so see if we are doing something. If not, go ahead and do this
-    // command. If so, this is queued and will be run when the pending
-    // command completes.
+    /// Check so see if we are doing something. If not, go ahead and do this
+    /// command. If so, this is queued and will be run when the pending
+    /// command completes.
     fn enqueue_command(
         &self,
         command: NonvolatileCommand,
@@ -173,9 +173,17 @@ impl<'a> AppLoader<'a> {
             NonvolatileCommand::UserspaceRead | NonvolatileCommand::UserspaceWrite => {
                 // Userspace sees memory that starts at address 0 even if it
                 // is offset in the physical memory.
-                if length > self.new_app_length.get() || offset + length > self.new_app_length.get()
-                {
-                    return Err(ErrorCode::INVAL); // this means the app is trying to write beyond the region allocated for it
+                match offset.checked_add(length) {
+                    Some(result) => {
+                        if length > self.new_app_length.get() || result > self.new_app_length.get()
+                        {
+                            // this means the app is out of bounds
+                            return Err(ErrorCode::INVAL);
+                        }
+                    }
+                    None => {
+                        return Err(ErrorCode::INVAL); // untested
+                    }
                 }
             }
         }
@@ -222,8 +230,6 @@ impl<'a> AppLoader<'a> {
                                                 self.buffer.map(|kernel_buffer| {
                                                     // Check that the internal buffer and the buffer that was
                                                     // allowed are long enough.
-
-                                                    // also check for tbf header validity (TODO)
                                                     let write_len =
                                                         cmp::min(active_len, kernel_buffer.len());
 
@@ -359,7 +365,10 @@ impl SyscallDriver for AppLoader<'_> {
                         CommandReturn::success()
                     }
 
-                    Err(e) => CommandReturn::failure(e),
+                    Err(e) => {
+                        self.new_app_length.set(0);
+                        CommandReturn::failure(e)
+                    }
                 }
             }
 
@@ -388,10 +397,16 @@ impl SyscallDriver for AppLoader<'_> {
                             });
                         match result {
                             Ok(()) => CommandReturn::success(),
-                            Err(e) => CommandReturn::failure(e),
+                            Err(e) => {
+                                self.new_app_length.set(0);
+                                CommandReturn::failure(e)
+                            }
                         }
                     }
-                    Err(e) => CommandReturn::failure(e),
+                    Err(e) => {
+                        self.new_app_length.set(0);
+                        CommandReturn::failure(e)
+                    }
                 }
             }
 
