@@ -172,16 +172,24 @@ impl
     }
 }
 
+#[repr(C)]
+enum ThreadType {
+    Main,
+    Application,
+}
+
 /// Main function.
 ///
 /// This function is called from the arch crate after some very basic
 /// RISC-V setup and RAM initialization.
 #[no_mangle]
-pub unsafe fn main(id: usize) {
-    match id {
-        0 => threads::main_thread::spawn::<0>(),
-        1 => {
-            rv32i::semihost_command(0x18, 1, 0);
+pub unsafe fn main(thread_type: ThreadType) {
+    use ThreadType as T;
+    match thread_type {
+        T::Main => threads::main_thread::spawn::<{T::Main as usize}>(),
+        T::Application => {
+            threads::app_thread::spawn::<{T::Application as usize}>()
+            // rv32i::semihost_command(0x18, 1, 0);
         },
         _ => panic!("Invalid Thread ID")
     }
