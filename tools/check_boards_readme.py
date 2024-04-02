@@ -12,7 +12,7 @@ import os
 import re
 import sys
 
-SKIP = ["boards/components", "boards/nordic/nrf52_components"]
+SKIP = ["boards/components", "boards/nordic/nrf52_components", "boards/configurations"]
 
 
 documented_boards = []
@@ -62,11 +62,11 @@ if len(removed) > 0:
 
 
 if len(missing) > 0:
-    print("ERROR: Boards missing documentation")
+    print("ERROR: Boards missing documentation in the main boards/README.md")
     sys.exit(-1)
 
 if len(removed) > 0:
-    print("ERROR: Boards documented that are missing")
+    print("ERROR: Boards that do not exist are documented in boards/README.md ")
     sys.exit(-1)
 
 print("Board documentation up to date.")
