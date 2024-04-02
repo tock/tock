@@ -70,8 +70,8 @@ use kernel::{ErrorCode, ProcessId};
 const MAX_NEIGHBORS: usize = 4;
 const MAX_KEYS: usize = 4;
 
-const USER_FRAME_MAX_SIZE: usize = USER_FRAME_METADATA_SIZE + radio::MAX_FRAME_SIZE; // 127B max payload + 3B metadata
 const USER_FRAME_METADATA_SIZE: usize = 3; // 3B metadata (offset, len, mic_len)
+const USER_FRAME_MAX_SIZE: usize = USER_FRAME_METADATA_SIZE + radio::MAX_FRAME_SIZE; // 3B metadata + 127B max payload
 
 /// IDs for subscribed upcalls.
 mod upcall {
