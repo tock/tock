@@ -32,7 +32,7 @@ const MAX_PROCS: usize = 10; //need this to store the start addresses of process
 pub const BUF_LEN: usize = 512;
 const TBF_HEADER_LENGTH: usize = 16;
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum State {
     Setup,
     FirstWrite,
@@ -256,7 +256,6 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
 
             // check if the length in the header is matching what the app requested during the setup phase
             // also check if the kernel version matches the version indicated in the new application
-            // debug!("entry_length");
             if entry_length as usize != self.new_app_length.get() {
                 return Err(ErrorCode::INVAL);
             }
@@ -963,16 +962,12 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
             | Some(State::Load)
             | Some(State::PaddingWrite)
             | Some(State::Fail)
-            | None => {
-                self.state.set(State::Fail);
-                let _ = self
-                    .write_padding_app(self.new_app_length.get(), self.new_app_start_addr.get());
-                Err(ErrorCode::BUSY)
-            }
+            | None => Err(ErrorCode::BUSY),
         }
     }
 
     fn load(&self) -> Result<(), ErrorCode> {
+        self.state.set(State::Load); // We have finished writing the last user data segment, next step is to load the process
         match self.state.get() {
             Some(State::Load) => {
                 let process_flash = self.new_process_flash.take().ok_or(ErrorCode::FAIL)?;
@@ -1103,7 +1098,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
                 match padding_result {
                     Ok(()) => Ok(()),
                     Err(_) => {
-                        // if we fail here, let us erase the app we just wrote (should we?)
+                        // if we fail here, let us erase the app we just wrote or it might break the linkedlist
                         // there is a chance the previous PaddingWrite callback might fire before
                         // this PaddingWrite has a chance to go through in the write_callback()
                         self.state.set(State::Fail);
@@ -1123,12 +1118,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
             | Some(State::LastWrite)
             | Some(State::PaddingWrite)
             | Some(State::Fail)
-            | None => {
-                self.state.set(State::PaddingWrite);
-                let _ = self
-                    .write_padding_app(self.new_app_length.get(), self.new_app_start_addr.get());
-                Err(ErrorCode::BUSY)
-            }
+            | None => Err(ErrorCode::BUSY),
         }
     }
 }
