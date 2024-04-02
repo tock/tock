@@ -229,6 +229,10 @@ pub trait I2CDevice {
     fn write(&self, data: &'static mut [u8], len: usize) -> Result<(), (Error, &'static mut [u8])>;
     fn read(&self, buffer: &'static mut [u8], len: usize)
         -> Result<(), (Error, &'static mut [u8])>;
+}
+
+/// Extend the I2CDevice to add support for targetting multiple `I2CDevice`s.
+pub trait I2CMultiDevice: I2CDevice {
     fn set_address(&self, addr: u8);
 }
 

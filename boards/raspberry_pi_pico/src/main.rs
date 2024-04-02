@@ -90,7 +90,7 @@ pub struct RaspberryPiPico {
     temperature: &'static TemperatureDriver,
     i2c: &'static capsules_core::i2c_master::I2CMasterDriver<
         'static,
-        capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, I2c<'static, 'static>>,
+        capsules_core::virtualizers::virtual_i2c::I2CMultiDevice<'static, I2c<'static, 'static>>,
     >,
 
     date_time:

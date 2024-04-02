@@ -191,7 +191,10 @@ struct EarlGrey {
     >,
     i2c_master: &'static capsules_core::i2c_master::I2CMasterDriver<
         'static,
-        capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, lowrisc::i2c::I2c<'static>>,
+        capsules_core::virtualizers::virtual_i2c::I2CMultiDevice<
+            'static,
+            lowrisc::i2c::I2c<'static>,
+        >,
     >,
     spi_controller: &'static capsules_core::spi_controller::Spi<
         'static,
