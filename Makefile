@@ -7,7 +7,7 @@
 
 ################################################################################
 ##
-## Interal support that needs to run first
+## Internal support that needs to run first
 ##
 
 # First, need to fill out some variables that the Makefile will use
@@ -274,12 +274,14 @@ ci: ci-help
 ## These each correspond to a 'status check' line in GitHub PR UX.
 ##
 ## These recipes *must not* contain rules, they simply collect jobs.
-
-# n.b. This *replicates* configuration in the github workflow file
-# to allow the GitHub UX to show these subtasks correctly
+##
+## NOTE: If you modify these, you must also modify the ci.yml CI workflow file
+##       in `.github/workflows`. This *replicates* configuration in the github
+##       workflow file to allow the GitHub UX to show these subtasks correctly.
 .PHONY: ci-runner-github
 ci-runner-github:\
 	ci-runner-github-format\
+	ci-runner-github-clippy\
 	ci-runner-github-build\
 	ci-runner-github-tests\
 	ci-runner-github-qemu
@@ -288,18 +290,21 @@ ci-runner-github:\
 .PHONY: ci-runner-github-format
 ci-runner-github-format:\
 	ci-job-format\
-	ci-job-clippy\
 	ci-job-markdown-toc\
 	ci-job-readme-check
 	$(call banner,CI-Runner: GitHub format runner DONE)
+
+.PHONY: ci-runner-github-clippy
+ci-runner-github-clippy:\
+	ci-job-clippy
+	$(call banner,CI-Runner: GitHub clippy runner DONE)
 
 .PHONY: ci-runner-github-build
 ci-runner-github-build:\
 	ci-job-syntax\
 	ci-job-compilation\
 	ci-job-debug-support-targets\
-	ci-job-collect-artifacts\
-	ci-job-cargo-test-build
+	ci-job-collect-artifacts
 	$(call banner,CI-Runner: GitHub build runner DONE)
 
 .PHONY: ci-runner-github-tests
@@ -310,7 +315,8 @@ ci-runner-github-tests:\
 	ci-job-capsules\
 	ci-job-chips\
 	ci-job-tools\
-	ci-job-miri
+	ci-job-cargo-test-build\
+	ci-job-miri # EXPERIMENTAL
 	$(call banner,CI-Runner: GitHub tests runner DONE)
 
 .PHONY: ci-runner-github-qemu
@@ -348,11 +354,6 @@ ci-job-format: licensecheck
 	$(call banner,CI-Job: Format Check)
 	@NOWARNINGS=true TOCK_FORMAT_MODE=diff $(MAKE) format
 
-.PHONY: ci-job-clippy
-ci-job-clippy:
-	$(call banner,CI-Job: Clippy)
-	@NOWARNINGS=true ./tools/run_clippy.sh
-
 define ci_setup_markdown_toc
 	$(call banner,CI-Setup: Install markdown-toc)
 	npm install markdown-toc
@@ -385,6 +386,14 @@ endef
 .PHONY: ci-job-readme-check
 ci-job-readme-check:
 	$(call ci_job_readme_check)
+
+
+
+### ci-runner-github-clippy jobs:
+.PHONY: ci-job-clippy
+ci-job-clippy:
+	$(call banner,CI-Job: Clippy)
+	@NOWARNINGS=true ./tools/run_clippy.sh
 
 
 
@@ -524,8 +533,9 @@ ci-job-cargo-test-build:
 	@$(MAKE) NO_RUN="--no-run" -C "boards/opentitan/earlgrey-cw310" test
 	@$(MAKE) NO_RUN="--no-run" -C "boards/esp32-c3-devkitM-1" test
 
-### ci-runner-github-qemu jobs:
 
+
+### ci-runner-github-qemu jobs:
 QEMU_COMMIT_HASH=1600b9f46b1bd08b00fe86c46ef6dbb48cbe10d6
 define ci_setup_qemu_riscv
 	$(call banner,CI-Setup: Build QEMU)
@@ -547,8 +557,6 @@ ci-setup-qemu:
 		CI_JOB_QEMU_RISCV)
 	$(if $(CI_JOB_QEMU_RISCV),$(eval CI_JOB_QEMU := true))
 
-
-
 define ci_job_qemu
 	$(call banner,CI-Job: QEMU)
 	@cd tools/qemu-runner;\
@@ -563,10 +571,6 @@ endef
 ci-job-qemu: ci-setup-qemu
 	$(if $(CI_JOB_QEMU),$(call ci_job_qemu))
 
-.PHONY: board-release-test
-board-release-test:
-	@cd tools/board-runner;\
-		cargo run ${TARGET}
 
 
 ### ci-runner-netlify jobs:
@@ -577,4 +581,9 @@ ci-job-rustdoc:
 
 ## End CI rules
 ##
-###################################################################
+################################################################################
+
+.PHONY: board-release-test
+board-release-test:
+	@cd tools/board-runner;\
+		cargo run ${TARGET}
