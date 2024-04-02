@@ -85,7 +85,7 @@ use crate::net::stream::{encode_bytes, encode_u32, encode_u8};
 
 use core::cell::Cell;
 
-use kernel::hil::radio;
+use kernel::hil::radio::{self, PSDU_OFFSET};
 use kernel::hil::symmetric_encryption::{CCMClient, AES128CCM};
 use kernel::processbuffer::ReadableProcessSlice;
 use kernel::utilities::cells::{MapCell, OptionalCell};
@@ -179,7 +179,7 @@ impl Frame {
 
     /// Calculates how much more data this frame can hold
     pub fn remaining_data_capacity(&self) -> usize {
-        self.buf.len() - radio::PSDU_OFFSET - radio::MFR_SIZE - self.info.secured_length()
+        self.buf.len() - self.info.secured_length()
     }
 
     /// Appends payload bytes into the frame if possible
@@ -187,7 +187,7 @@ impl Frame {
         if payload.len() > self.remaining_data_capacity() {
             return Err(ErrorCode::NOMEM);
         }
-        let begin = radio::PSDU_OFFSET + self.info.unsecured_length();
+        let begin = self.info.unsecured_length();
         self.buf[begin..begin + payload.len()].copy_from_slice(payload);
         match self.info {
             FrameInfoWrap::Raw(len) => self.info = FrameInfoWrap::Raw(len + payload.len()),
@@ -208,7 +208,7 @@ impl Frame {
         if payload_buf.len() > self.remaining_data_capacity() {
             return Err(ErrorCode::NOMEM);
         }
-        let begin = radio::PSDU_OFFSET + self.info.unsecured_length();
+        let begin = self.info.unsecured_length();
         payload_buf.copy_to_slice(&mut self.buf[begin..begin + payload_buf.len()]);
         match self.info {
             FrameInfoWrap::Raw(len) => self.info = FrameInfoWrap::Raw(len + payload_buf.len()),
@@ -499,7 +499,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                             None => {
                                 // Key not found -- pass raw encrypted packet to client
                                 self.rx_client.map(|client| {
-                                    client.receive(buf, header, radio::PSDU_OFFSET + data_offset, data_len);
+                                    client.receive(&buf[PSDU_OFFSET..], header, data_offset, data_len);
                                 });
                                 return None;
                             }
@@ -555,7 +555,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                 } else {
                     // No security needed, can yield the frame immediately
                     self.rx_client.map(|client| {
-                        client.receive(buf, header, radio::PSDU_OFFSET + data_offset, data_len);
+                        client.receive(&buf[PSDU_OFFSET..], header, data_offset, data_len);
                     });
                     None
                 }
@@ -755,9 +755,9 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                         // always receiving the frame payload in plaintext.
                         self.rx_client.map(|client| {
                             client.receive(
-                                buf,
+                                &buf[PSDU_OFFSET..],
                                 header,
-                                radio::PSDU_OFFSET + data_offset,
+                                data_offset,
                                 frame_len - data_offset,
                             );
                         });
@@ -881,7 +881,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
             payload_ies_len: 0,
         };
 
-        match header.encode(&mut buf[radio::PSDU_OFFSET..], true).done() {
+        match header.encode(buf, true).done() {
             Some((data_offset, mac_payload_offset)) => Ok(Frame {
                 buf: buf,
                 info: FrameInfoWrap::Parse(FrameInfo {

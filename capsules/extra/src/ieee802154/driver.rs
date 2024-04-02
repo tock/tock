@@ -61,7 +61,7 @@ use core::cell::Cell;
 
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
-use kernel::hil::radio::{MAX_FRAME_SIZE, PSDU_OFFSET};
+use kernel::hil::radio;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
@@ -70,8 +70,8 @@ use kernel::{ErrorCode, ProcessId};
 const MAX_NEIGHBORS: usize = 4;
 const MAX_KEYS: usize = 4;
 
-const USER_FRAME_MAX_SIZE: usize = USER_FRAME_METADATA_SIZE + MAX_FRAME_SIZE; // 127B max payload + 3B metadata
 const USER_FRAME_METADATA_SIZE: usize = 3; // 3B metadata (offset, len, mic_len)
+const USER_FRAME_MAX_SIZE: usize = USER_FRAME_METADATA_SIZE + radio::MAX_FRAME_SIZE; // 3B metadata + 127B max payload
 
 /// IDs for subscribed upcalls.
 mod upcall {
@@ -1096,7 +1096,7 @@ impl<'a, M: device::MacDevice<'a>> device::RxClient for RadioDriver<'a, M> {
                         //      Ring buffer format:
                         //          | read index | write index | user_frame 0 | user_frame 1 | ... | user_frame n |
                         //      user_frame format:
-                        //          | data_offset | data_len | mic_len | 15.4 frame |
+                        //          | header_len | payload_len | mic_len | 15.4 frame |
                         ///////////////////////////////////////////////////////////////////////////////////////////
 
                         // 2 bytes for the readwrite buffer metadata (read / write index)
@@ -1120,11 +1120,6 @@ impl<'a, M: device::MacDevice<'a>> device::RxClient for RadioDriver<'a, M> {
                         let mic_len = header.security.map_or(0, |sec| sec.level.mic_len());
                         let frame_len = data_offset + data_len + mic_len;
 
-                        // Frame length incorporates the PSDU offset, so we must subtract this value
-                        // in addition to incorporating the user frame metadata size to obtain the
-                        // length of the user frame.
-                        let user_frame_len = frame_len + USER_FRAME_METADATA_SIZE - PSDU_OFFSET;
-
                         let mut read_index = rbuf[0].get() as usize;
                         let mut write_index = rbuf[1].get() as usize;
 
@@ -1140,9 +1135,11 @@ impl<'a, M: device::MacDevice<'a>> device::RxClient for RadioDriver<'a, M> {
                         let offset = RING_BUF_METADATA_SIZE + (write_index * USER_FRAME_MAX_SIZE);
 
                         // Copy the entire frame over to userland, preceded by three metadata bytes:
-                        // the data offset, the data length, and the MIC length.
-                        rbuf[(offset + USER_FRAME_METADATA_SIZE)..(offset + user_frame_len)]
-                            .copy_from_slice(&buf[PSDU_OFFSET..frame_len]);
+                        // the header length, the data length, and the MIC length.
+                        rbuf[(offset + USER_FRAME_METADATA_SIZE)
+                            ..(offset + frame_len + USER_FRAME_METADATA_SIZE)]
+                            .copy_from_slice(&buf[..frame_len]);
+
                         rbuf[offset].set(data_offset as u8);
                         rbuf[offset + 1].set(data_len as u8);
                         rbuf[offset + 2].set(mic_len as u8);
