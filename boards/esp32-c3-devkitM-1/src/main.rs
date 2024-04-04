@@ -360,8 +360,10 @@ fn test_runner(tests: &[&dyn Fn()]) {
         BOARD = Some(board_kernel);
         PLATFORM = Some(&esp32_c3_board);
         PERIPHERALS = Some(peripherals);
-        SCHEDULER =
-            Some(components::sched::priority::PriorityComponent::new(board_kernel).finalize(()));
+        SCHEDULER = Some(
+            components::sched::priority::PriorityComponent::new(board_kernel)
+                .finalize(components::priority_component_static!()),
+        );
         MAIN_CAP = Some(&create_capability!(capabilities::MainLoopCapability));
 
         PLATFORM.map(|p| {
