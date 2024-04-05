@@ -18,9 +18,7 @@ use kernel::component::Component;
 #[macro_export]
 macro_rules! eui64_component_static {
     () => {{
-        let eui64_driver = kernel::static_buf!(capsules_extra::eui64::Eui64);
-        let eui64_val = kernel::static_buf!(u64);
-        (eui64_driver, eui64_val)
+        kernel::static_buf!(capsules_extra::eui64::Eui64)
     };};
 }
 
@@ -37,14 +35,10 @@ impl Eui64Component {
 }
 
 impl Component for Eui64Component {
-    type StaticInput = (
-        &'static mut MaybeUninit<Eui64>,
-        &'static mut MaybeUninit<u64>,
-    );
+    type StaticInput = &'static mut MaybeUninit<Eui64>;
     type Output = &'static Eui64;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let eui64_val = s.1.write(self.eui64);
-        s.0.write(Eui64::new(eui64_val))
+        s.write(Eui64::new(self.eui64))
     }
 }

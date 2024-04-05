@@ -11,11 +11,11 @@ use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::{ErrorCode, ProcessId};
 
 pub struct Eui64 {
-    eui64: &'static u64,
+    eui64: u64,
 }
 
 impl Eui64 {
-    pub fn new(eui64: &'static u64) -> Eui64 {
+    pub fn new(eui64: u64) -> Eui64 {
         Eui64 { eui64: eui64 }
     }
 }
@@ -30,7 +30,7 @@ impl SyscallDriver for Eui64 {
     fn command(&self, command_num: usize, _: usize, _: usize, _: ProcessId) -> CommandReturn {
         match command_num {
             0 => CommandReturn::success(),
-            1 => CommandReturn::success_u64(*self.eui64),
+            1 => CommandReturn::success_u64(self.eui64),
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
