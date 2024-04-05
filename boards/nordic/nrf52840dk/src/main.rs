@@ -183,6 +183,7 @@ type KVDriver = components::kv::KVDriverComponentType<VirtualKVPermissions>;
 type TemperatureDriver =
     components::temperature::TemperatureComponentType<nrf52840::temperature::Temp<'static>>;
 
+// IEEE 802.15.4
 type Ieee802154MacDevice = components::ieee802154::Ieee802154ComponentMacDeviceType<
     nrf52840::ieee802154_radio::Radio<'static>,
     nrf52840::aes::AesECB<'static>,
@@ -192,6 +193,9 @@ type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<
     nrf52840::aes::AesECB<'static>,
 >;
 
+// EUI64
+type Eui64Driver = components::eui64::Eui64ComponentType;
+
 /// Supported drivers by the platform
 pub struct Platform {
     ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
@@ -200,6 +204,7 @@ pub struct Platform {
         VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
     >,
     ieee802154_radio: &'static Ieee802154Driver,
+    eui64: &'static Eui64Driver,
     button: &'static capsules_core::button::Button<'static, nrf52840::gpio::GPIOPin<'static>>,
     pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
@@ -259,6 +264,7 @@ impl SyscallDriverLookup for Platform {
             capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules_extra::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
+            capsules_extra::eui64::DRIVER_NUM => f(Some(self.eui64)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temp)),
             capsules_extra::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
             capsules_extra::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
@@ -564,6 +570,10 @@ pub unsafe fn start() -> (
 
     let device_id = nrf52840::ficr::FICR_INSTANCE.id();
     let device_id_bottom_16: u16 = u16::from_le_bytes([device_id[0], device_id[1]]);
+
+    let eui64 = components::eui64::Eui64Component::new(u64::from_le_bytes(device_id))
+        .finalize(components::eui64_component_static!());
+
     let (ieee802154_radio, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
         capsules_extra::ieee802154::DRIVER_NUM,
@@ -888,6 +898,7 @@ pub unsafe fn start() -> (
         button,
         ble_radio,
         ieee802154_radio,
+        eui64,
         pconsole,
         console,
         led,

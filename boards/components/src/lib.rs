@@ -29,6 +29,7 @@ pub mod dac;
 pub mod date_time;
 pub mod debug_queue;
 pub mod debug_writer;
+pub mod eui64;
 pub mod flash;
 pub mod fm25cl;
 pub mod ft6x06;
