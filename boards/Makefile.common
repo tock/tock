@@ -248,7 +248,7 @@ RUSTDOC_FLAGS_TOCK ?= -D warnings
 #   rustdoc API documentation.
 ifneq ($(USE_STABLE_RUST),1)
   CARGO_FLAGS_TOCK += \
-    -Zbuild-std=core,compiler_builtins
+    -Z build-std=core,compiler_builtins
   RUSTDOC_FLAGS_TOCK += -Z unstable-options --document-hidden-items
 endif
 
