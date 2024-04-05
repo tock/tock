@@ -7,57 +7,44 @@
 //! Usage
 //! -----
 //! ```rust
-//! let eui64 = components::eui64::Eui64Component::new(
-//!     board_kernel,
-//!     capsules_extra::eui64::DRIVER_NUM,
-//!     device_id)
-//! .finalize(components::eui64_component_static!());
+//!let eui64 = components::eui64::Eui64Component::new(u64::from_le_bytes(device_id))
+//!     .finalize(components::eui64_component_static!());
 //! ```
 
-use capsules_extra::eui64::{Eui64, EUI64_BUF_SIZE};
+use capsules_extra::eui64::Eui64;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
-use kernel::{capabilities, create_capability};
 
 #[macro_export]
 macro_rules! eui64_component_static {
     () => {{
-        let eui64 = kernel::static_buf!(capsules_extra::eui64::Eui64);
-        let eui64_buf = kernel::static_buf!([u8; capsules_extra::eui64::EUI64_BUF_SIZE]);
-        (eui64, eui64_buf)
+        let eui64_driver = kernel::static_buf!(capsules_extra::eui64::Eui64);
+        let eui64_val = kernel::static_buf!(u64);
+        (eui64_driver, eui64_val)
     };};
 }
 
 pub type Eui64ComponentType = capsules_extra::eui64::Eui64;
 
 pub struct Eui64Component {
-    board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
-    eui64: [u8; 8],
+    eui64: u64,
 }
 
 impl Eui64Component {
-    pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize, eui64: [u8; 8]) -> Self {
-        Self {
-            board_kernel,
-            driver_num,
-            eui64,
-        }
+    pub fn new(eui64: u64) -> Self {
+        Self { eui64 }
     }
 }
 
 impl Component for Eui64Component {
     type StaticInput = (
         &'static mut MaybeUninit<Eui64>,
-        &'static mut MaybeUninit<[u8; EUI64_BUF_SIZE]>,
+        &'static mut MaybeUninit<u64>,
     );
     type Output = &'static Eui64;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-        let grant = self.board_kernel.create_grant(self.driver_num, &grant_cap);
-        let eui64_buf = s.1.write(self.eui64) as &[u8; EUI64_BUF_SIZE];
-
-        s.0.write(Eui64::new(eui64_buf, grant))
+        let eui64_val = s.1.write(self.eui64);
+        s.0.write(Eui64::new(eui64_val))
     }
 }

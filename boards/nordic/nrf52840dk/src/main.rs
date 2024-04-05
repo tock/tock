@@ -571,12 +571,8 @@ pub unsafe fn start() -> (
     let device_id = nrf52840::ficr::FICR_INSTANCE.id();
     let device_id_bottom_16: u16 = u16::from_le_bytes([device_id[0], device_id[1]]);
 
-    let eui64 = components::eui64::Eui64Component::new(
-        board_kernel,
-        capsules_extra::eui64::DRIVER_NUM,
-        device_id,
-    )
-    .finalize(components::eui64_component_static!());
+    let eui64 = components::eui64::Eui64Component::new(u64::from_le_bytes(device_id))
+        .finalize(components::eui64_component_static!());
 
     let (ieee802154_radio, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
