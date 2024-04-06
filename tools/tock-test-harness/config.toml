@@ -1,0 +1,8 @@
+title = "test1"
+
+[env]
+board = "nrf52dk"
+path = "nordic/nrf52840dk"
+harness_id = "3"
+communication_protocol = "jlink"
+i2c_on_boot = "yes"
