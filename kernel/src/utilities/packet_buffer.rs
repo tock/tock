@@ -23,6 +23,11 @@ pub unsafe trait PacketBufferDyn: Any + Debug {
     /// Available tailroom in the underlying buffer.
     fn tailroom(&self) -> usize;
 
+    /// Length of the writeable data in this buffer
+    ///
+    /// Equal to payload size + headroom available + tailroom available
+    fn capacity(&self) -> usize;
+
     /// Force-reclaim a given amount of headroom in this buffer. This will
     /// ignore any current data stored in the buffer (but not immediately
     /// overwrite it). It will not move past the tailroom marker.
@@ -33,7 +38,7 @@ pub unsafe trait PacketBufferDyn: Any + Debug {
 
     fn reclaim_tailroom(&mut self, new_tailroom: usize) -> bool;
 
-    /// Force-reset the buffer to length `0`, and set a new headroom
+    /// Force-reset the payload to length `0`, and set a new headroom
     /// pointer. This will ensure that a subsequent prepend operation starts at
     /// this new headroom pointer.
     ///
@@ -50,7 +55,7 @@ pub unsafe trait PacketBufferDyn: Any + Debug {
     // has to be guaranteed to fit !!!!!
     unsafe fn prepand_unchecked(&mut self, header: &[u8]);
 
-    fn capacity(&self) -> usize;
+    fn payload(&mut self) -> &mut [u8];
 
     // fn iter_mut<'a>(&'a mut self) -> impl Iterator<Item = &mut u8> + 'a;
 }
@@ -126,6 +131,9 @@ impl<const HEAD: usize, const TAIL: usize> PacketBufferMut<HEAD, TAIL> {
         }
     }
 
+    /// Length of the allocated space for the structure
+    ///
+    ///
     /// Length of the allocated data in this buffer (excluding head- and
     /// tailroom).
     #[inline(always)]
@@ -147,6 +155,10 @@ impl<const HEAD: usize, const TAIL: usize> PacketBufferMut<HEAD, TAIL> {
         self.inner.headroom()
     }
 
+    pub fn capacity(&self) -> usize {
+        self.inner.capacity()
+    }
+
     /// Reduce the advertised headroom of this buffer, without modifying the
     /// underlying reference.
     ///
@@ -161,6 +173,12 @@ impl<const HEAD: usize, const TAIL: usize> PacketBufferMut<HEAD, TAIL> {
     #[inline(always)]
     pub fn reduce_headroom<const NEW_HEAD: usize>(self) -> PacketBufferMut<NEW_HEAD, TAIL> {
         let _: () = assert!(NEW_HEAD <= HEAD);
+        PacketBufferMut { inner: self.inner }
+    }
+
+    #[inline(always)]
+    pub fn reduce_tailroom<const NEW_TAIL: usize>(self) -> PacketBufferMut<HEAD, NEW_TAIL> {
+        let _: () = assert!(NEW_TAIL <= TAIL);
         PacketBufferMut { inner: self.inner }
     }
 
@@ -228,7 +246,7 @@ impl<const HEAD: usize, const TAIL: usize> PacketBufferMut<HEAD, TAIL> {
         any_buffer.downcast_mut::<T>()
     }
 
-    pub fn prepand<const NEW_HEAD: usize, const N: usize>(
+    pub fn prepend<const NEW_HEAD: usize, const N: usize>(
         self,
         header: &[u8; N],
     ) -> PacketBufferMut<NEW_HEAD, TAIL> {
@@ -237,7 +255,22 @@ impl<const HEAD: usize, const TAIL: usize> PacketBufferMut<HEAD, TAIL> {
         unsafe {
             self.inner.prepand_unchecked(header);
         }
+
         self.reduce_headroom()
+    }
+
+    pub fn append<const NEW_TAIL: usize, const N: usize>(
+        self,
+        tail: &[u8; N],
+    ) -> PacketBufferMut<HEAD, NEW_TAIL> {
+        assert!(NEW_TAIL <= TAIL - N);
+
+        self.inner.append_from_slice_max(tail);
+        self.reduce_tailroom()
+    }
+
+    pub fn payload(&mut self) -> &mut [u8] {
+        self.inner.payload()
     }
 }
 
@@ -410,13 +443,8 @@ impl PacketSliceMut {
 
 unsafe impl PacketBufferDyn for PacketSliceMut {
     fn len(&self) -> usize {
-        // hprintln!(
-        //     "PB: len(): {} - {} - {}",
-        //     self.data_slice().len(),
-        //     self.headroom(),
-        //     self.tailroom()
-        // );
-        self.data_slice().len() - self.headroom() - self.tailroom()
+        // self.data_slice().len() - self.headroom() - self.tailroom()
+        self.get_inner_slice_length()
     }
 
     fn headroom(&self) -> usize {
@@ -425,6 +453,10 @@ unsafe impl PacketBufferDyn for PacketSliceMut {
 
     fn tailroom(&self) -> usize {
         self.get_tailroom()
+    }
+
+    fn capacity(&self) -> usize {
+        self.data_slice().len()
     }
 
     fn reclaim_headroom(&mut self, new_headroom: usize) -> bool {
@@ -485,10 +517,13 @@ unsafe impl PacketBufferDyn for PacketSliceMut {
         self.data_slice_mut()[..header.len()].copy_from_slice(header);
     }
 
-    fn capacity(&self) -> usize {
-        self.data_slice().len()
-    }
+    fn payload(&mut self) -> &mut [u8] {
+        let headroom = self.headroom();
+        let tailroom = self.tailroom();
+        let capacity = self.capacity();
 
+        &mut self.data_slice_mut()[headroom..(capacity - tailroom)]
+    }
     // TODO same for tail
 
     // fn iter_mut<'a>(&'a mut self) -> impl core::slice::IterMut<Item = &mut u8> + 'a {
