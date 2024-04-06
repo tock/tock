@@ -107,6 +107,8 @@ pub struct DynamicProcessLoader<'a, C: 'static + Chip> {
     buffer: TakeCell<'static, [u8]>,
     new_app_start_addr: Cell<usize>,
     new_app_length: Cell<usize>,
+    previous_app_end_addr: Cell<usize>,
+    next_app_start_addr: Cell<usize>,
     next_offset: Cell<usize>,
     client: OptionalCell<&'static dyn DynamicProcessLoadingClient>,
     state: OptionalCell<State>,
@@ -135,6 +137,8 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
             buffer: TakeCell::new(buffer),
             new_app_start_addr: Cell::new(0),
             new_app_length: Cell::new(0),
+            previous_app_end_addr: Cell::new(0),
+            next_app_start_addr: Cell::new(0),
             next_offset: Cell::new(0),
             client: OptionalCell::empty(),
             state: OptionalCell::empty(),
@@ -164,6 +168,8 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
     }
 
     fn reset_process_loading_metadata(&self) {
+        self.previous_app_end_addr.set(0);
+        self.next_app_start_addr.set(0);
         self.padding_requirement.take();
         self.new_app_start_addr.set(0);
         self.new_app_length.set(0);
@@ -337,7 +343,16 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
         }
     }
 
-    fn check_padding_requirements(&self) -> (usize, usize, usize) {
+    /// This function checks if there is a need to pad either before or after the new app to preserve
+    /// the linked list.
+    /// When do we pad?
+    ///     1. When there is a process in the processes array which is located in flash after the new app
+    ///        but not immediately after, we need to add padding between the new app and the existing app.
+    ///     2. Due to MPU alignment, the new app may be similarly placed not immediately after an existing
+    ///        process, in that case, we need to add padding between the previous app and the new app.
+    ///     3. If both the above conditions are met, we add both a prepadding and a postpadding.
+    ///     4. If either of these conditions are not met, we don't pad.
+    fn check_padding_requirements(&self) {
         // We have finished setting up for the new app successfully, so let us write the padding app
         let new_app_start_address = self.new_app_start_addr.get();
         let app_length = self.new_app_length.get();
@@ -368,6 +383,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
         // 2. Once we compute these values, we determine if we need to write a pre pad header, or a post pad header, or both
         // 3. If there are no apps after ours in the process array, we don't do anything
 
+        // postpad requirement
         if let Some(next_closest_neighbor) = processes_start_addresses
             .iter()
             .filter(|&&x| x > new_app_end_address - 1)
@@ -405,11 +421,8 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
                 debug!("No Previous App Found, so not prepadding the new app.");
             }
         }
-        (
-            previous_app_end_addr,
-            new_app_end_address,
-            next_app_start_addr,
-        )
+        self.previous_app_end_addr.set(previous_app_end_addr);
+        self.next_app_start_addr.set(next_app_start_addr);
     }
 
     /******************************************* Process Load Logic **********************************************************/
@@ -996,37 +1009,34 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
                     self.new_app_length.set(app_length);
 
                     // check what kind of padding we have to write, no padding, pre padding, post padding or both pre and post padding
-                    let res = self.check_padding_requirements();
-                    match res {
-                        (_previous_app_end_addr, new_app_end_address, next_app_start_addr) => {
-                            match self.padding_requirement.get() {
-                                // if we decided we need to write a padding app after the new app, we go ahead and do it
-                                Some(PaddingRequirement::PostPad)
-                                | Some(PaddingRequirement::PreAndPostPad) => {
-                                    // calculating the distance between our app and either the next appd
-                                    let post_pad_length = next_app_start_addr - new_app_end_address;
+                    self.check_padding_requirements();
+                    match self.padding_requirement.get() {
+                        // if we decided we need to write a padding app after the new app, we go ahead and do it
+                        Some(PaddingRequirement::PostPad)
+                        | Some(PaddingRequirement::PreAndPostPad) => {
+                            // calculating the distance between our app and either the next app
+                            let new_app_end_address = new_app_start_address + app_length;
+                            let post_pad_length =
+                                self.next_app_start_addr.get() - new_app_end_address;
 
-                                    // what if the apps are right next to each other?
-                                    let padding_result = self
-                                        .write_padding_app(post_pad_length, new_app_end_address);
-                                    let _ = match padding_result {
-                                        Ok(()) => Ok(()),
-                                        Err(e) => {
-                                            self.reset_process_loading_metadata();
-                                            Err(e) // this means we were unable to write the padding app
-                                        }
-                                    };
-                                }
-                                // Otherwise we let the client know we are done with the setup, and we are ready to write the app to flash
-                                None | Some(PaddingRequirement::PrePad) => {
-                                    self.state.set(State::FirstWrite);
-                                    self.client.map(|client| {
-                                        client.setup_done();
-                                    });
+                            let padding_result =
+                                self.write_padding_app(post_pad_length, new_app_end_address);
+                            let _ = match padding_result {
+                                Ok(()) => Ok(()),
+                                Err(e) => {
+                                    self.reset_process_loading_metadata();
+                                    Err(e) // this means we were unable to write the padding app
                                 }
                             };
                         }
-                    }
+                        // Otherwise we let the client know we are done with the setup, and we are ready to write the app to flash
+                        None | Some(PaddingRequirement::PrePad) => {
+                            self.state.set(State::FirstWrite);
+                            self.client.map(|client| {
+                                client.setup_done();
+                            });
+                        }
+                    };
                     Ok(app_length)
                 }
                 Err(_err) => {
@@ -1105,40 +1115,34 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
         self.state.set(State::Load); // We have finished writing the last user data segment, next step is to load the process
         match self.state.get() {
             Some(State::Load) => {
-                let res = self.check_padding_requirements();
-                match res {
-                    (previous_app_end_addr, _new_app_end_address, _next_app_start_addr) => {
-                        match self.padding_requirement.get() {
-                            // if we decided we need to write a padding app before the new app, we go ahead and do it
-                            Some(PaddingRequirement::PrePad)
-                            | Some(PaddingRequirement::PreAndPostPad) => {
-                                // calculating the distance between our app and the previous app
-                                let pre_pad_length =
-                                    self.new_app_start_addr.get() - previous_app_end_addr;
-                                let padding_result =
-                                    self.write_padding_app(pre_pad_length, previous_app_end_addr);
-                                match padding_result {
-                                    Ok(()) => {
-                                        if config::CONFIG.debug_load_processes {
-                                            debug!("Successfully writing prepadding app");
-                                        }
-                                    }
-                                    Err(_e) => {
-                                        // this means we were unable to write the padding app
-                                        self.reset_process_loading_metadata();
-                                    }
-                                };
-                            }
-                            // We should never reach here if we are not writing a prepad app
-                            None | Some(PaddingRequirement::PostPad) => {
+                self.check_padding_requirements();
+                match self.padding_requirement.get() {
+                    // if we decided we need to write a padding app before the new app, we go ahead and do it
+                    Some(PaddingRequirement::PrePad) | Some(PaddingRequirement::PreAndPostPad) => {
+                        // calculating the distance between our app and the previous app
+                        let previous_app_end_addr = self.previous_app_end_addr.get();
+                        let pre_pad_length = self.new_app_start_addr.get() - previous_app_end_addr;
+                        let padding_result =
+                            self.write_padding_app(pre_pad_length, previous_app_end_addr);
+                        match padding_result {
+                            Ok(()) => {
                                 if config::CONFIG.debug_load_processes {
-                                    debug!("No PrePad app to write.");
+                                    debug!("Successfully writing prepadding app");
                                 }
+                            }
+                            Err(_e) => {
+                                // this means we were unable to write the padding app
+                                self.reset_process_loading_metadata();
                             }
                         };
                     }
-                }
-
+                    // We should never reach here if we are not writing a prepad app
+                    None | Some(PaddingRequirement::PostPad) => {
+                        if config::CONFIG.debug_load_processes {
+                            debug!("No PrePad app to write.");
+                        }
+                    }
+                };
                 // we've written a prepad header if required, so now it is time to load the app into the
                 // process array
                 let process_flash = self.new_process_flash.take().ok_or(ErrorCode::FAIL)?;
@@ -1155,7 +1159,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
                             self.new_app_length.get(),
                             self.new_app_start_addr.get(),
                         );
-                        self.reset_process_loading_metadata(); // clear out new app size, start address , current offset, state and padding requirement
+                        self.reset_process_loading_metadata(); // clear all metadata specific to this load
                         return Err(ErrorCode::FAIL);
                     }
                 };
@@ -1178,7 +1182,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
                                 self.new_app_length.get(),
                                 self.new_app_start_addr.get(),
                             );
-                            self.reset_process_loading_metadata(); // clear out new app size, start address , current offset, state and padding requirement
+                            self.reset_process_loading_metadata(); // clear all metadata specific to this load
                             return Err(ErrorCode::FAIL);
                         }
                         Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => {
@@ -1189,7 +1193,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
                                 self.new_app_length.get(),
                                 self.new_app_start_addr.get(),
                             );
-                            self.reset_process_loading_metadata(); // clear out new app size, start address , current offset, state and padding requirement
+                            self.reset_process_loading_metadata(); // clear all metadata specific to this load
                             return Err(ErrorCode::FAIL);
                         }
                     };
@@ -1207,7 +1211,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
                 let res = self.load_processes(entry_flash, remaining_memory, &capability);
                 match res {
                     Ok(()) => {
-                        self.reset_process_loading_metadata(); // clear out new app size, start address , current offset, state and padding requirement
+                        self.reset_process_loading_metadata(); // clear all metadata specific to this load
                         Ok(())
                     } // maybe set the remaining memory here if we have to change the process_loading function anyway?
                     Err(_) => {
@@ -1217,7 +1221,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
                             self.new_app_length.get(),
                             self.new_app_start_addr.get(),
                         );
-                        self.reset_process_loading_metadata(); // clear out new app size, start address , current offset, state and padding requirement
+                        self.reset_process_loading_metadata(); // clear all metadata specific to this load
                         Err(ErrorCode::FAIL)
                     }
                 }
