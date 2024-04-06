@@ -67,10 +67,12 @@ pub const DRIVER_NUM: usize = driver::NUM::AppLoader as usize;
 
 /// IDs for subscribed upcalls.
 mod upcall {
+    /// Setup Done callback
+    pub const SETUP_DONE: usize = 0;
     /// Write done callback.
-    pub const WRITE_DONE: usize = 0;
+    pub const WRITE_DONE: usize = 1;
     /// Number of upcalls.
-    pub const COUNT: u8 = 1;
+    pub const COUNT: u8 = 2;
 }
 
 // Ids for read-only allow buffers
@@ -302,6 +304,23 @@ impl<'a> AppLoader<'a> {
 }
 
 impl kernel::dynamic_process_loading::DynamicProcessLoadingClient for AppLoader<'_> {
+    // let the app know that we are done setting up for the new app
+    fn setup_done(&self) {
+        // Switch on which user of this capsule generated this callback.
+        self.current_user.take().map(|user| {
+            match user {
+                NonvolatileUser::App { processid } => {
+                    let _ = self.apps.enter(processid, move |_app, kernel_data| {
+                        // Signal the app.
+                        kernel_data
+                            .schedule_upcall(upcall::SETUP_DONE, (0, 0, 0))
+                            .ok();
+                    });
+                }
+            }
+        });
+    }
+
     fn app_data_write_done(&self, buffer: &'static mut [u8], length: usize) {
         // Switch on which user of this capsule generated this callback.
         self.current_user.take().map(|user| {
@@ -357,7 +376,13 @@ impl SyscallDriver for AppLoader<'_> {
 
             1 => {
                 //setup phase
-
+                if self.current_user.is_none() {
+                    // No app is currently using the underlying storage.
+                    // Mark this app as active, and then execute the command.
+                    self.current_user.set(NonvolatileUser::App {
+                        processid: processid,
+                    });
+                }
                 let res = self.driver.setup(arg1); // pass the size of the app to the setup function
                 match res {
                     Ok(app_len) => {

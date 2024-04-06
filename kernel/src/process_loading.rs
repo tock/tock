@@ -121,7 +121,6 @@ impl fmt::Debug for ProcessLoadError {
 // dynamic process loader to find the right spot to load the new app because otherwise
 // we are not privy to this information.
 
-#[inline(always)]
 pub fn load_processes_return_memory<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
@@ -131,7 +130,6 @@ pub fn load_processes_return_memory<C: Chip>(
     fault_policy: &'static dyn ProcessFaultPolicy,
     _capability_management: &dyn ProcessManagementCapability,
 ) -> Result<&'static mut [u8], (ProcessLoadError, &'static mut [u8])> {
-    // Result<(), ProcessLoadError> {
     let remaining_memory = load_processes_from_flash_return(
         kernel,
         chip,
@@ -154,7 +152,6 @@ pub fn load_processes_return_memory<C: Chip>(
     Ok(remaining_memory)
 }
 
-#[inline(always)]
 fn load_processes_from_flash_return<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
