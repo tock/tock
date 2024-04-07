@@ -108,7 +108,7 @@ impl<
 {
     fn transmitted_buffer(
         &self,
-        tx_buffer: PacketBufferMut<HEAD_TRANSMIT, TAIL_TRANSMIT>,
+        mut tx_buffer: PacketBufferMut<HEAD_TRANSMIT, TAIL_TRANSMIT>,
         _tx_len: usize,
         _rval: Result<(), ErrorCode>,
     ) {
@@ -121,26 +121,15 @@ impl<
             const MESSAGE: &[u8] = b"LowLevelDebug: grant init failed\n";
 
             // tx_buffer[..MESSAGE.len()].copy_from_slice(MESSAGE);
+            // TODO: device whether we should do something in case of failure or not
+            let _ = tx_buffer.copy_from_slice_or_err(MESSAGE);
 
-            let buffer = tx_buffer
-                .downcast::<PacketSliceMut>()
-                .unwrap()
-                .data_slice_mut();
-            (buffer[..MESSAGE.len()]).copy_from_slice(MESSAGE);
-
-            let _ = self
-                .uart
-                .transmit_buffer(
-                    PacketBufferMut::<HEAD_TRANSMIT, TAIL_TRANSMIT>::new(
-                        PacketSliceMut::new(buffer).unwrap(),
-                    )
-                    .unwrap(),
-                    MESSAGE.len(),
-                )
-                .map_err(|(_, returned_buffer)| {
+            let _ = self.uart.transmit_buffer(tx_buffer, MESSAGE.len()).map_err(
+                |(_, returned_buffer)| {
                     self.buffer.set(Some(returned_buffer.reset().unwrap()))
                     // self.buffer.set(Some(buffer));
-                });
+                },
+            );
             return;
         }
 
@@ -155,11 +144,14 @@ impl<
                 Some(to_print) => to_print,
             };
 
-            let slice = tx_buffer
-                .downcast::<PacketSliceMut>()
-                .unwrap()
-                .data_slice_mut();
-            self.transmit_entry(slice, app_num, to_print);
+            // let headroom = tx_buffer.headroom();
+            // let tailroom = tx_buffer.tailroom();
+            // let capacity = tx_buffer.capacity();
+            // let slice = tx_buffer
+            //     .downcast::<PacketSliceMut>()
+            //     .unwrap()
+            //     .data_slice_mut();
+            self.transmit_entry(tx_buffer, app_num, to_print);
             return;
         }
 
@@ -187,17 +179,14 @@ impl<
         use DebugEntry::Dropped;
 
         if let Some(buffer) = self.buffer.take() {
-            // AMALIA: e ok??? am incercat sa obtin din packetbuffermut un buffer de u8
-            // let slice = (&mut buffer as &mut dyn core::any::Any)
-            //     .downcast_mut::<PacketSliceMut>()
+            // let headroom = buffer.headroom();
+            // let tailroom = buffer.tailroom();
+            // let slice = buffer
+            //     .downcast::<PacketSliceMut>()
             //     .unwrap()
-            //     .into_inner();
-
-            let slice = buffer
-                .downcast::<PacketSliceMut>()
-                .unwrap()
-                .data_slice_mut();
-            self.transmit_entry(slice, processid.id(), entry);
+            //     .data_slice_mut();
+            let new_head_buf = buffer.reduce_headroom().reduce_tailroom();
+            self.transmit_entry(new_head_buf, processid.id(), entry);
             return;
         }
 
@@ -227,21 +216,26 @@ impl<
     }
 
     // Immediately prints the provided entry to the UART.
-    fn transmit_entry(&self, buffer: &'static mut [u8], app_num: usize, entry: DebugEntry) {
-        let msg_len = fmt::format_entry(app_num, entry, buffer);
+    fn transmit_entry(
+        &self,
+        mut buffer: PacketBufferMut<HEAD_TRANSMIT, TAIL_TRANSMIT>,
+        app_num: usize,
+        entry: DebugEntry,
+    ) {
+        let msg_len = fmt::format_entry(app_num, entry, &mut buffer.payload_mut());
         // The uart's error message is ignored because we cannot do anything if
         // it fails anyway.
         let _ = self
             .uart
-            .transmit_buffer(
-                PacketBufferMut::new(PacketSliceMut::new(buffer).unwrap()).unwrap(),
-                msg_len,
-            )
+            .transmit_buffer(buffer, msg_len)
             .map_err(|(_, returned_buffer)| {
                 let buf = returned_buffer
                     .downcast::<PacketSliceMut>()
                     .unwrap()
                     .into_inner();
+
+                // let new_head_buf = returned_buffer.restore_headroom().unwrap();
+                // let new_buf = new_head_buf.restore_tailroom().unwrap();
 
                 // AMALIA: asta sigur nu e ok. Aveam nevoie de un pbmut cu new head si in loc sa ii fac reclaim am facut altu :))))
                 let pb = PacketBufferMut::new(PacketSliceMut::new(buf).unwrap()).unwrap();

@@ -177,12 +177,7 @@ impl<'a, const HEAD: usize, const TAIL: usize> Console<'a, HEAD, TAIL> {
     fn send(&self, processid: ProcessId, app: &mut App, kernel_data: &GrantKernelData) {
         if self.tx_in_progress.is_none() {
             self.tx_in_progress.set(processid);
-            self.tx_buffer.take().map(|buffer| {
-                let slice = buffer
-                    .downcast::<PacketSliceMut>()
-                    .unwrap()
-                    .data_slice_mut();
-
+            self.tx_buffer.take().map(|mut tx_buffer| {
                 let transaction_len = kernel_data
                     .get_readonly_processbuffer(ro_allow::WRITE)
                     .and_then(|write| {
@@ -207,7 +202,6 @@ impl<'a, const HEAD: usize, const TAIL: usize> Console<'a, HEAD, TAIL> {
                             };
 
                             let mut buffer = [0u8; 1024];
-                            // AMALIA: aici modific doar o referinta locala a slice-ului, nu modific cu adevarat ce este salvat in slice. eok??? cred ca da, ca oricum apelam take()
                             for (i, c) in remaining_data.iter().enumerate() {
                                 if buffer.len() <= i {
                                     return i; // Short circuit on partial send
@@ -215,12 +209,9 @@ impl<'a, const HEAD: usize, const TAIL: usize> Console<'a, HEAD, TAIL> {
                                 buffer[i] = c.get();
                             }
 
-                            if let Ok(()) =
-                                slice.copy_from_slice_or_err(&buffer[..remaining_data.len()])
-                            {
-                            } else {
-                                // hprintln!("CONSOLE: size exceeded when copying from buffer");
-                            }
+                            // TODO: decide whether we should do somthing in case of error or not
+                            let _ =
+                                tx_buffer.copy_from_slice_or_err(&buffer[..remaining_data.len()]);
 
                             app.write_remaining
                         })
@@ -228,10 +219,7 @@ impl<'a, const HEAD: usize, const TAIL: usize> Console<'a, HEAD, TAIL> {
                     .unwrap_or(0);
                 app.write_remaining -= transaction_len;
 
-                let _ = self.uart.transmit_buffer(
-                    PacketBufferMut::new(PacketSliceMut::new(slice).unwrap()).unwrap(),
-                    transaction_len,
-                );
+                let _ = self.uart.transmit_buffer(tx_buffer, transaction_len);
             });
         } else {
             app.pending_write = true;

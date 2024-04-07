@@ -55,7 +55,9 @@ pub unsafe trait PacketBufferDyn: Any + Debug {
     // has to be guaranteed to fit !!!!!
     unsafe fn prepand_unchecked(&mut self, header: &[u8]);
 
-    fn payload(&mut self) -> &mut [u8];
+    fn payload(&self) -> &[u8];
+
+    fn payload_mut(&mut self) -> &mut [u8];
 
     // fn iter_mut<'a>(&'a mut self) -> impl Iterator<Item = &mut u8> + 'a;
 }
@@ -152,7 +154,7 @@ impl<const HEAD: usize, const TAIL: usize> PacketBufferMut<HEAD, TAIL> {
     /// equal to the `TAIL` parameter.
     #[inline(always)]
     pub fn tailroom(&self) -> usize {
-        self.inner.headroom()
+        self.inner.tailroom()
     }
 
     pub fn capacity(&self) -> usize {
@@ -259,18 +261,24 @@ impl<const HEAD: usize, const TAIL: usize> PacketBufferMut<HEAD, TAIL> {
         self.reduce_headroom()
     }
 
-    pub fn append<const NEW_TAIL: usize, const N: usize>(
-        self,
-        tail: &[u8; N],
-    ) -> PacketBufferMut<HEAD, NEW_TAIL> {
-        assert!(NEW_TAIL <= TAIL - N);
+    // pub fn append<const NEW_TAIL: usize, const N: usize>(
+    pub fn append<const NEW_TAIL: usize>(self, tail: &[u8]) -> PacketBufferMut<HEAD, NEW_TAIL> {
+        assert!(NEW_TAIL <= TAIL - tail.len());
 
         self.inner.append_from_slice_max(tail);
         self.reduce_tailroom()
     }
 
-    pub fn payload(&mut self) -> &mut [u8] {
+    pub fn copy_from_slice_or_err(&mut self, src: &[u8]) -> Result<(), ErrorCode> {
+        self.inner.copy_from_slice_or_err(src)
+    }
+
+    pub fn payload(&self) -> &[u8] {
         self.inner.payload()
+    }
+
+    pub fn payload_mut(&mut self) -> &mut [u8] {
+        self.inner.payload_mut()
     }
 }
 
@@ -394,7 +402,11 @@ impl PacketSliceMut {
     }
 
     pub fn data_slice<'a>(&'a self) -> &'a [u8] {
-        &self.restore_inner_slice()[Self::DATA_SLICE]
+        let slice = self.restore_inner_slice();
+        // hprintln!("Full data slice: {:?}", slice);
+        // hprintln!("Smaller data slice {:?}", &slice[Self::DATA_SLICE]);
+
+        &slice[Self::DATA_SLICE]
     }
 
     pub fn data_slice_mut<'a>(&'a mut self) -> &'a mut [u8] {
@@ -517,7 +529,23 @@ unsafe impl PacketBufferDyn for PacketSliceMut {
         self.data_slice_mut()[..header.len()].copy_from_slice(header);
     }
 
-    fn payload(&mut self) -> &mut [u8] {
+    fn payload(&self) -> &[u8] {
+        let headroom = self.headroom();
+        let tailroom = self.tailroom();
+        let capacity = self.capacity();
+
+        // hprintln!(
+        //     "Whole len {} Capacity {} Headroom {} Tailroom {}",
+        //     self.data_slice().len(),
+        //     capacity,
+        //     headroom,
+        //     tailroom
+        // );
+
+        &self.data_slice()[headroom..(capacity - tailroom)]
+    }
+
+    fn payload_mut(&mut self) -> &mut [u8] {
         let headroom = self.headroom();
         let tailroom = self.tailroom();
         let capacity = self.capacity();

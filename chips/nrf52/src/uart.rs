@@ -417,18 +417,24 @@ impl<'a, const HEAD: usize, const TAIL: usize> Uarte<'a, HEAD, TAIL> {
 
     fn set_tx_dma_pointer_to_buffer(&self) {
         self.tx_buffer.map(|tx_buffer| {
-            // let slice = (tx_buffer as &mut dyn core::any::Any)
-            //     .downcast_mut::<PacketSliceMut>()
-            //     .unwrap()
-            //     .data_slice_mut();
-
-            // let slice = tx_buffer
-
             // hprintln!("UARTE: value of offset is {}", self.offset.get());
 
-            self.registers
-                .txd_ptr
-                .set(tx_buffer.data_slice_mut()[self.offset.get()..].as_ptr() as u32);
+            // TODO: idk what should go in here ???
+
+            // --> v2
+            let headroom = tx_buffer.headroom();
+            let tailroom = tx_buffer.tailroom();
+            let capacity = tx_buffer.capacity();
+            self.registers.txd_ptr.set(
+                tx_buffer.data_slice_mut()[headroom + self.offset.get()..capacity - tailroom]
+                    .as_ptr() as u32,
+            );
+
+            // --> v1
+
+            // self.registers
+            //     .txd_ptr
+            //     .set(tx_buffer.data_slice_mut()[self.offset.get()..].as_ptr() as u32);
         });
     }
 
@@ -442,7 +448,14 @@ impl<'a, const HEAD: usize, const TAIL: usize> Uarte<'a, HEAD, TAIL> {
 
     // Helper function used by both transmit_word and transmit_buffer
     fn setup_buffer_transmit(&self, buf: PacketBufferMut<HEAD, TAIL>) {
-        let len = buf.len();
+        let len = buf.payload().len();
+        // hprintln!(
+        //     "Setup buffer transmit: len {} - {} - {} and buffer {:?}",
+        //     buf.capacity(),
+        //     buf.headroom(),
+        //     buf.tailroom(),
+        //     buf.payload()
+        // );
         // self.tx_remaining_bytes.set(tx_len);
         self.tx_remaining_bytes.set(len);
         // self.tx_len.set(tx_len);
@@ -477,7 +490,10 @@ impl<'a, const HEAD: usize, const TAIL: usize> uart::Transmit<'a, HEAD, TAIL>
         tx_len: usize,
     ) -> Result<(), (ErrorCode, PacketBufferMut<HEAD, TAIL>)> {
         // hprintln!("UARTE: received buffer to write");
-        if tx_len == 0 || tx_len > tx_data.len() {
+
+        // TODO: should we use capacity instead of len?
+        // if tx_len == 0 || tx_len > tx_data.len() {
+        if tx_len == 0 || tx_len > tx_data.capacity() {
             // hprintln!("UARTE: SIZE");
 
             Err((ErrorCode::SIZE, tx_data))

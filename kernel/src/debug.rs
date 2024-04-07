@@ -460,7 +460,6 @@ impl<const HEAD: usize, const TAIL: usize> DebugWriter<HEAD, TAIL> {
                 // PacketSliceMut::new(out_buffer).unwrap();
 
                 let out_packet_slice: &'static mut PacketSliceMut = out_buffer.downcast().unwrap();
-                out_packet_slice.reset(HEAD);
 
                 let mut count = 0;
 
@@ -470,6 +469,14 @@ impl<const HEAD: usize, const TAIL: usize> DebugWriter<HEAD, TAIL> {
                 while copied != 0 {
                     match ring_buffer.dequeue() {
                         Some(src) => {
+                            // BIG TODO: we need a different mechanism here
+                            // the actual append meth in PBMut is not returning usize, but new PBMut with new tail
+                            // in this mechanism, if no space is available in the buffer, append would return 0 and the copy
+                            // mechanism would stop
+                            //
+                            // if we use the append from PbMut we would need to know the new tail each time and we would not know if the op failed
+                            //
+                            // maybe this is a case where downcast is really needed
                             copied = out_packet_slice.append_from_slice_max(&[src]);
                             count += 1;
                         }

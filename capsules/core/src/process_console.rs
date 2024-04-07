@@ -234,7 +234,7 @@ pub struct ProcessConsole<
     const HEAD: usize = 0,
     const TAIL: usize = 0,
 > {
-    uart: &'a dyn uart::UartData<'a>,
+    uart: &'a dyn uart::UartData<'a, HEAD, TAIL>,
     alarm: &'a A,
     process_printer: &'a dyn ProcessPrinter,
     tx_in_progress: Cell<bool>,
@@ -450,7 +450,7 @@ impl<
     > ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C, HEAD, TAIL>
 {
     pub fn new(
-        uart: &'a dyn uart::UartData<'a>,
+        uart: &'a dyn uart::UartData<'a, HEAD, TAIL>,
         alarm: &'a A,
         process_printer: &'a dyn ProcessPrinter,
         tx_buffer: PacketBufferMut<HEAD, TAIL>,
@@ -1068,6 +1068,7 @@ impl<
         self.create_state_buffer(self.writer_state.get());
     }
 
+    /// AMALIA: Here we should append the byte to the buffer that we currently have
     fn write_byte(&self, byte: u8) -> Result<(), ErrorCode> {
         if self.tx_in_progress.get() {
             self.queue_buffer.map(|buf| {
@@ -1077,30 +1078,33 @@ impl<
             Err(ErrorCode::BUSY)
         } else {
             self.tx_in_progress.set(true);
-            self.tx_buffer.take().map(|buffer| {
-                let buf = buffer.downcast::<PacketSliceMut>().unwrap();
+            self.tx_buffer.take().map(|mut buffer| {
+                // let buf = buffer.downcast::<PacketSliceMut>().unwrap();
 
                 // buf.data_slice_mut()[0] = byte; ----> THIS IS NOT SAFE TO USE AS TAILROOM IS NOT DECREMENTING
                 let bytes = [byte];
-                if let Ok(()) = buf.copy_from_slice_or_err(&bytes) { // ---- > WHAT SHOULD WE DO ABOUT THE RESULT?
-                } else {
-                    // hprintln!("PC: size excedeed when copying from buffer");
-                }
+                // if let Ok(()) = buffer.copy_from_slice_or_err(&bytes) { // ---- > WHAT SHOULD WE DO ABOUT THE RESULT?
+                // } else {
+                //     // hprintln!("PC: size excedeed when copying from buffer");
+                // }
+                buffer.copy_from_slice_or_err(bytes.as_slice()).unwrap();
+                // buf.append_from_slice_max(&bytes);
                 // hprintln!(
                 //     "PROCESS CONSOLE: buf is {:?} buf len {}",
                 //     &buf.data_slice()[..10],
                 //     buf.len()
                 // );
-                let _ = self
-                    .uart
-                    .transmit_buffer(PacketBufferMut::new(buf).unwrap(), 1);
+                let _ = self.uart.transmit_buffer(buffer, 1);
             });
             Ok(())
         }
     }
 
     fn write_bytes(&self, bytes: &[u8]) -> Result<(), ErrorCode> {
-        // hprintln!("PC: wyte_bytes: received request to write bytes: {:?}", &bytes);
+        hprintln!(
+            "PC: wyte_bytes: received request to write bytes: {:?}",
+            &bytes
+        );
         if self.tx_in_progress.get() {
             self.queue_buffer.map(|buf| {
                 let size = self.queue_size.get();
@@ -1112,36 +1116,24 @@ impl<
             Err(ErrorCode::BUSY)
         } else {
             self.tx_in_progress.set(true);
-            self.tx_buffer.take().map(|buffer| {
-                let slice = buffer.downcast::<PacketSliceMut>().unwrap();
-
-                // TODO AMALIA: ask leon why we needed capacity here instead of len??
-                let len = cmp::min(bytes.len(), slice.capacity());
-
-                // hprintln!("PC: write_bytes: minimum between received bytes len: {} and packet_buffer len: {} is {}", bytes.len(), slice.capacity(), len);
+            self.tx_buffer.take().map(|mut buffer| {
+                // Check whether we have enough capacity in our buffer to fit the length
+                // of the desired buffer
+                //
+                // Removing the space allocated to the headroom, since we are writing bytes
+                // into the buffer only after the bytes allocated for the header
+                let len = cmp::min(bytes.len(), buffer.capacity() - buffer.headroom());
 
                 // Copy elements of `bytes` into `buffer`
-                // (buffer[..len]).copy_from_slice(&bytes[..len]);
+                hprintln!("PC: write_bytes: before copy buf {:?}", buffer.payload());
+                buffer.copy_from_slice_or_err(&bytes[..len]).unwrap();
+                hprintln!(
+                    "PC: write_bytes: len {} and buf {:?}",
+                    len,
+                    buffer.payload()
+                );
 
-                // AMALIA: nu stiu daca e ok varianta 1 sau varianta 2?? nu face slice[..len] in varianta 2
-                // let slice = buffer
-                //     .downcast::<PacketSliceMut>()
-                //     .unwrap()
-                //     .data_slice_mut();
-                // (slice[..len]).copy_from_slice(&bytes[..len]);
-
-                // hprintln!("PC: write_bytes: slice first bytes before copy {:?}", &slice.data_slice()[..10]);
-
-                slice.copy_from_slice_or_err(&bytes[..len]).unwrap();
-
-                // hprintln!(
-                //     "PC: write_bytes: slice first bytes after copy {:?}. Sending them over",
-                //     &slice.data_slice()[..10]
-                // );
-
-                let _ = self
-                    .uart
-                    .transmit_buffer(PacketBufferMut::new(slice).unwrap(), len);
+                let _ = self.uart.transmit_buffer(buffer, len);
             });
             Ok(())
         }
@@ -1164,49 +1156,41 @@ impl<
             let qlen = self.queue_size.get();
 
             if qlen > 0 {
-                self.tx_buffer.take().map_or(Err(ErrorCode::FAIL), |txbuf| {
-                    let slice = txbuf.downcast::<PacketSliceMut>().unwrap();
+                self.tx_buffer
+                    .take()
+                    .map_or(Err(ErrorCode::FAIL), |mut txbuf| {
+                        // Check whether we have enough capacity in our buffer to fit the length
+                        // of the desired buffer
+                        //
+                        // Removing the space allocated to the headroom, since we are writing bytes
+                        // into the buffer only after the bytes allocated for the header
+                        let txlen = cmp::min(qlen, txbuf.capacity() - txbuf.headroom());
 
-                    let txlen = cmp::min(qlen, slice.capacity());
+                        // Copy elements of the queue into the TX buffer.
+                        // (txbuf[..txlen]).copy_from_slice(&qbuf[..txlen]);
 
-                    // Copy elements of the queue into the TX buffer.
-                    // (txbuf[..txlen]).copy_from_slice(&qbuf[..txlen]);
+                        // (slice.data_slice_mut()[..txlen]).copy_from_slice(&qbuf[..txlen]);
+                        // TODO: decide whether we should do something in case of failure
+                        let _ = txbuf.copy_from_slice_or_err(&qbuf[..txlen]);
 
-                    // (slice.data_slice_mut()[..txlen]).copy_from_slice(&qbuf[..txlen]);
-                    if let Err(error) = slice.copy_from_slice_or_err(&qbuf[..txlen]) {
-                        // hprintln!(
-                        //     "PC: error when copying from slice in handle queue {:?}",
-                        //     error
-                        // );
-                    } else {
-                        // hprintln!(
-                        //     "PC: succesfully copied qbuffer {:?} into process buffer {:?}",
-                        //     &qbuf[..txlen],
-                        //     &slice.data_slice()[..txlen]
-                        // );
-                    }
+                        // TODO: If the queue needs to print over multiple TX
+                        // buffers, we need to shift the remaining contents of the
+                        // queue back to index 0.
+                        // if qlen > txlen {
+                        //     (&mut qbuf[txlen..qlen]).copy_from_slice(&qbuf[txlen..qlen]);
+                        // }
 
-                    // TODO: If the queue needs to print over multiple TX
-                    // buffers, we need to shift the remaining contents of the
-                    // queue back to index 0.
-                    // if qlen > txlen {
-                    //     (&mut qbuf[txlen..qlen]).copy_from_slice(&qbuf[txlen..qlen]);
-                    // }
+                        // Mark that we sent at least some of the queue.
+                        let remaining = qlen - txlen;
+                        // hprintln!("Remaining is {} = {} - {}", remaining, qlen, txlen);
+                        self.queue_size.set(remaining);
 
-                    // Mark that we sent at least some of the queue.
-                    let remaining = qlen - txlen;
-                    // hprintln!("Remaining is {} = {} - {}", remaining, qlen, txlen);
-                    self.queue_size.set(remaining);
-
-                    self.tx_in_progress.set(true);
-                    let _ = self
-                        .uart
-                        .transmit_buffer(PacketBufferMut::new(slice).unwrap(), txlen);
-                    Ok(txlen)
-                })
+                        self.tx_in_progress.set(true);
+                        let _ = self.uart.transmit_buffer(txbuf, txlen);
+                        Ok(txlen)
+                    })
             } else {
                 // Queue was empty, nothing to do.
-                // hprintln!("Queue is empty");
                 Ok(0)
             }
         })
