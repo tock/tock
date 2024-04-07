@@ -9,7 +9,6 @@
 //! device.
 
 use core::cell::Cell;
-use core::cmp;
 
 use crate::capabilities::ProcessManagementCapability;
 use crate::config;
@@ -623,14 +622,18 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
                                                 // indicates there is an active process whose binary is stored here
                                                 // so let us get the size of the process's binary and add that to our current
                                                 // address
-                                                let existing_app_size = value
-                                                    .unwrap()
-                                                    .get_addresses()
-                                                    .flash_end
-                                                    - value.unwrap().get_addresses().flash_start;
+                                                let existing_app_end_addr =
+                                                    value.unwrap().get_addresses().flash_end;
 
-                                                new_address +=
-                                                    cmp::max(app_length, existing_app_size); // just go to the end of this process and see if we fit there
+                                                // check if the new app will be aligned with its size at the end of previous app
+                                                // if not, find the address where it will be aligned
+                                                let result = existing_app_end_addr % app_length;
+                                                new_address = if result == 0 {
+                                                    existing_app_end_addr
+                                                } else {
+                                                    existing_app_end_addr + (app_length - result)
+                                                };
+
                                                 is_remnant_region = false;
                                             }
                                         }
