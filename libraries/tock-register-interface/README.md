@@ -3,129 +3,117 @@
 This crate provides an interface and types for defining and
 manipulating registers and bitfields.
 
-## Defining registers
+## Defining peripherals
 
-The crate provides three types for working with memory mapped registers:
-`ReadWrite`, `ReadOnly`, and `WriteOnly`, providing read-write, read-only, and
-write-only functionality, respectively. These types implement the `Readable`,
-`Writeable` and `ReadWriteable` traits.
+Note: This README introduces the `peripheral!` macro and describes its
+most-commonly-used features. `peripheral!` has several more pieces of
+functionality that are not described in this document; see its Rustdoc for
+complete documentation.
 
-Defining the registers is done with the `register_structs` macro, which expects
-for each register an offset, a field name, and a type. Registers must be
-declared in increasing order of offsets and contiguously. Gaps when defining the
-registers must be explicitly annotated with an offset and gap identifier (by
-convention using a field named `_reservedN`), but without a type. The macro will
-then automatically take care of calculating the gap size and inserting a
-suitable filler struct. The end of the struct is marked with its size and the
-`@END` keyword, effectively pointing to the offset immediately past the list of
-registers.
+An MMIO peripheral is defined using the `peripheral!` macro:
 
 ```rust
-use tock_registers::registers::{ReadOnly, ReadWrite, WriteOnly};
-
-register_structs! {
+tock_registers::peripheral! {
+    /// Documentation for `Registers`.
     Registers {
-        // Control register: read-write
-        // The 'Control' parameter constrains this register to only use fields from
-        // a certain group (defined below in the bitfields section).
-        (0x000 => cr: ReadWrite<u8, Control::Register>),
+        // Control register: read-write. `u8` specifies the data type of the
+        // memory-mapped register, and the `Control` parameter specifies how
+        // bitfields within the register should be accessed.
+        0x000 => cr: u8(Control::Register) { Read, Write },
 
-        // Status register: read-only
-        (0x001 => s: ReadOnly<u8, Status::Register>),
+        // Status register: read-only. Registers can have documentation
+        // comments, like:
+        /// Status register
+        0x001 => s: u8(Status::Register) { Read },
 
-        // Registers can be bytes, halfwords, or words:
-        // Note that the second type parameter can be omitted, meaning that there
-        // are no bitfields defined for these registers.
-        (0x002 => byte0: ReadWrite<u8>),
-        (0x003 => byte1: ReadWrite<u8>),
-        (0x004 => short: ReadWrite<u16>),
+        // Registers can have different sizes. The bitfield parameter is
+        // optional:
+        0x002 => byte0: u8 { Read, Write },
+        0x003 => byte1: u8 { Read, Write },
+        0x004 => short: u16 { Read, Write },
 
         // Empty space between registers must be marked with a padding field,
-        // declared as follows. The length of this padding is automatically
-        // computed by the macro.
-        (0x006 => _reserved),
-        (0x008 => word: ReadWrite<u32>),
+        // specified by naming the field _ and omitting the rest of the
+        // specification. The length of the padding field will be inferred. In
+        // practice, padding fields remove the check that two successive
+        // registers are adjacent in the address space.
+        0x006 => _,
 
-        // The type for a register can be anything. Conveniently, you can use an
-        // array when there are a bunch of similar registers.
-        (0x00C => array: [ReadWrite<u32>; 4]),
-        (0x01C => ... ),
+        // If you have several adjacent registers, you can specify an array
+        // register:
+        0x00C => gpio_pins: [u32; 4] { Read, Write },
 
-        // Etc.
-
-        // The end of the struct is marked as follows.
-        (0x100 => @END),
+        // Array registers can have bitfields as well
+        0x01C => port_ctrl: [u8; 4](PortCtrl::Register) { Read, Write },
     }
 }
 ```
 
-This generates a C-style struct of the following form.
+The `peripheral!` macro tests that you specified the fields (registers and
+padding) in increasing order, with no gaps.
+
+The macro generates a trait representing the peripheral with one method for each
+register:
 
 ```rust
-#[repr(C)]
-struct Registers {
-    // Control register: read-write
-    // The 'Control' parameter constrains this register to only use fields from
-    // a certain group (defined below in the bitfields section).
-    cr: ReadWrite<u8, Control::Register>,
-
-    // Status register: read-only
-    s: ReadOnly<u8, Status::Register>
-
-    // Registers can be bytes, halfwords, or words:
-    // Note that the second type parameter can be omitted, meaning that there
-    // are no bitfields defined for these registers.
-    byte0: ReadWrite<u8>,
-    byte1: ReadWrite<u8>,
-    short: ReadWrite<u16>,
-
-    // The padding length was automatically computed as 0x008 - 0x006.
-    _reserved: [u8; 2],
-    word: ReadWrite<u32>,
-
-    // Arrays are expanded as-is, like any other type.
-    array: [ReadWrite<u32>; 4],
-
-    // Etc.
+trait Registers {
+    // Type aliases (cr, s, byte0, ...) omitted for brevity, they will be
+    // explained later.
+    fn cr(&self) -> Self::cr<'_> { ... }
+    fn s(&self) -> Self::s<'_> { ... }
+    fn byte0(&self) -> Self::byte0<'_> { ... }
+    fn byte1(&self) -> Self::byte1<'_> { ... }
+    fn short(&self) -> Self::short <'_>{ ... }
+    fn gpio_pins(&self) -> Self::gpio_pins<'_> { ... }
+    fn port_ctrl(&self) -> Self::port_ctrl<'_> { ... }
 }
 ```
 
-This crate will generate additional, compile time (`const`) assertions
-to validate various invariants of the register structs, such as
-
-- proper start offset of padding fields,
-- proper start and end offsets of actual fields,
-- invalid alignment of field types,
-- the `@END` marker matching the size of the struct.
-
-For more information on the generated assertions, check out the [`test_fields!`
-macro documentation](https://docs.tockos.org/tock_registers/macro.test_fields.html).
-
-By default, the visibility of the generated structs and fields is private. You
-can make them public using the `pub` keyword, just before the struct name or the
-field identifier.
-
-For example, the following call to the macro:
+The types returned by the `Registers` methods implement traits defined in the
+`tock_registers::register_traits` module. `peripheral!` also generates an
+implementation of the trait for use on the real chip:
 
 ```rust
-register_structs! {
-    pub Registers {
-        (0x000 => foo: ReadOnly<u32>),
-        (0x004 => pub bar: ReadOnly<u32>),
-        (0x008 => @END),
+struct RealRegisters { ... }
+
+impl Registers for RealRegisters { ... }
+```
+
+Drivers can use the trait to work with both the real hardware and with fake
+hardware for unit testing:
+
+```rust
+struct Driver<R: Registers> {
+    registers: R,
+}
+
+// Real systems will use Driver<RealRegisters>
+
+// Unit tests will provide:
+struct Fake { ... }
+impl Registers for Fake {
+    type cr<'s> = tock_registers::FakeRegister<'s, u8, Control::Register,
+            tock_registers::Safe, tock_registers::Safe> where Self: 's;
+    fn cr(&self) => Self::cr<'_> {
+        tock_registers::FakeRegister::with_data(self)
+            .on_read(|this| ...)
+            .on_write(|this| ...)
     }
+
+    /* One type and fn for each register */
 }
+// then use Driver<Fake>.
 ```
 
-will generate the following struct.
+It also generates a `macro_rules!` macro with the same name as the trait:
 
 ```rust
-#[repr(C)]
-pub struct Registers {
-    foo: ReadOnly<u32>,
-    pub bar: ReadOnly<u32>,
-}
+#[macro_export]
+macro_rules! Registers { ... }
 ```
+
+This macro does not currently do anything, but is generated for future
+compatibility.
 
 ## Defining bitfields
 
@@ -190,71 +178,85 @@ register_bitfields! [
 ]
 ```
 
-## Register Interface Summary
+## Register Trait Bounds
 
-There are four types provided by the register interface: `ReadOnly`,
-`WriteOnly`, `ReadWrite`, and `Aliased`. They expose the following
-methods, through the implementations of the `Readable`, `Writeable`
-and `ReadWriteable` traits respectively:
+Earlier, we omitted the bounds on the register types. For the following
+peripheral definition:
 
 ```rust
-ReadOnly<T: UIntLike, R: RegisterLongName = ()>: Readable
-.get() -> T                                    // Get the raw register value
-.read(field: Field<T, R>) -> T                 // Read the value of the given field
-.read_as_enum<E>(field: Field<T, R>) -> Option<E> // Read value of the given field as a enum member
-.is_set(field: Field<T, R>) -> bool            // Check if one or more bits in a field are set
-.any_matching_bits_set(value: FieldValue<T, R>) -> bool  // Check if any bits corresponding to the mask in the passed field are set
-.matches_all(value: FieldValue<T, R>) -> bool  // Check if all specified parts of a field match
-.matches_any(&self, fields: &[FieldValue<T, R>]) -> bool // Check if any specified parts of a field match
-.extract() -> LocalRegisterCopy<T, R>          // Make local copy of register
-
-WriteOnly<T: UIntLike, R: RegisterLongName = ()>: Writeable
-.set(value: T)                                 // Set the raw register value
-.write(value: FieldValue<T, R>)                // Write the value of one or more fields,
-                                               //  overwriting other fields to zero
-ReadWrite<T: UIntLike, R: RegisterLongName = ()>: Readable + Writeable + ReadWriteable
-.get() -> T                                    // Get the raw register value
-.set(value: T)                                 // Set the raw register value
-.read(field: Field<T, R>) -> T                 // Read the value of the given field
-.read_as_enum<E>(field: Field<T, R>) -> Option<E> // Read value of the given field as a enum member
-.write(value: FieldValue<T, R>)                // Write the value of one or more fields,
-                                               //  overwriting other fields to zero
-.modify(value: FieldValue<T, R>)               // Write the value of one or more fields,
-                                               //  leaving other fields unchanged
-.modify_no_read(                               // Write the value of one or more fields,
-      original: LocalRegisterCopy<T, R>,       //  leaving other fields unchanged, but pass in
-      value: FieldValue<T, R>)                 //  the original value, instead of doing a register read
-.is_set(field: Field<T, R>) -> bool            // Check if one or more bits in a field are set
-.any_matching_bits_set(value: FieldValue<T, R>) -> bool  // Check if any bits corresponding to the mask in the passed field are set
-.matches_all(value: FieldValue<T, R>) -> bool  // Check if all specified parts of a field match
-.matches_any(&self, fields: &[FieldValue<T, R>]) -> bool // Check if any specified parts of a field match
-.extract() -> LocalRegisterCopy<T, R>          // Make local copy of register
-
-Aliased<T: UIntLike, R: RegisterLongName = (), W: RegisterLongName = ()>: Readable + Writeable
-.get() -> T                                    // Get the raw register value
-.set(value: T)                                 // Set the raw register value
-.read(field: Field<T, R>) -> T                 // Read the value of the given field
-.read_as_enum<E>(field: Field<T, R>) -> Option<E> // Read value of the given field as a enum member
-.write(value: FieldValue<T, W>)                // Write the value of one or more fields,
-                                               //  overwriting other fields to zero
-.is_set(field: Field<T, R>) -> bool            // Check if one or more bits in a field are set
-.any_matching_bits_set(value: FieldValue<T, R>) -> bool  // Check if any bits corresponding to the mask in the passed field are set
-.matches_all(value: FieldValue<T, R>) -> bool  // Check if all specified parts of a field match
-.matches_any(&self, fields: &[FieldValue<T, R>]) -> bool // Check if any specified parts of a field match
-.extract() -> LocalRegisterCopy<T, R>          // Make local copy of register
+tock_registers::peripheral! {
+    Registers {
+        0x0 => a: u8 { Read, Write },
+        0x1 => b: u32(Ctrl::Register) { Read, Write },
+    }
+}
 ```
 
-The `Aliased` type represents cases where read-only and write-only registers,
-with different meanings, are aliased to the same memory location.
+`peripheral!` generates:
 
-The first type parameter (the `UIntLike` type) is `u8`, `u16`, `u32`,
-`u64`, `u128` or `usize`.
+```rust
+trait Registers {
+    type a<'s>: tock_registers::Register<DataType = u8> +
+            tock_registers::Read<LongName = ()> +
+            tock_registers::Write<LongName = ()> where Self: 's;
+    fn a(&self) -> Self::a<'_>;
+
+    type b<'s>: tock_registers::Register<DataType = u32> +
+            tock_registers::Read<LongName = Ctrl::Register> +
+            tock_registers::Write<LongName = Ctrl::Register> where Self: 's;
+    fn b(&self) -> Self::b<'_>;
+}
+
+struct RealRegisters<M: ...> { ... }
+
+impl<M: ...> Registers for RealRegisters<M> {
+    type a<'s> = tock_registers::RealRegister<
+        's,
+        M,
+        u8,
+        (),
+        tock_registers::Safe,
+        tock_registers::Safe,
+    >;
+    fn a(&self) -> Self::a<'_> { ... }
+
+    type b<'s> = tock_registers::RealRegister<
+        's,
+        M,
+        u32,
+        Ctrl::Register,
+        tock_registers::Safe,
+        tock_registers::Safe,
+    >;
+    fn b(&self) -> Self::b<'_> { ... }
+}
+```
+
+In short: all registers have a `Register<...>` bound. If a register as `Read`,
+`Write`, `UnsafeRead`, and/or `UnsafeWrite`, then it will have corresponding
+trait bounds.
 
 ## Example: Using registers and bitfields
 
-Assuming we have defined a `Registers` struct and the corresponding bitfields as
-in the previous two sections. We also have an immutable reference to the
-`Registers` struct, named `registers`.
+Assuming we have defined bitfields as in the previous section, and the following `peripheral!` invocation:
+
+```rust
+tock_registers::peripheral! {
+    Registers {
+        // Bitfields are specified by putting them in parenthesis after the
+        // register's data type.
+        0x000 => cr: u8(Control::Register) { Read, Write },
+        0x001 => s: u8(Status::Register) { Read },
+        0x002 => byte0: u8 { Read, Write },
+        0x003 => byte1: u8 { Read, Write },
+        0x004 => short: u16 { Read, Write },
+        0x006 => _,
+        0x00C => array: [u32; 4] { Read, Write },
+    }
+}
+```
+
+and `registers` is a `&RealRegisters`:
 
 ```rust
 // -----------------------------------------------------------------------------
@@ -262,7 +264,7 @@ in the previous two sections. We also have an immutable reference to the
 // -----------------------------------------------------------------------------
 
 // Get or set the raw value of the register directly. Nothing fancy:
-registers.cr.set(registers.cr.get() + 1);
+registers.cr().set(registers.cr().get() + 1);
 
 
 // -----------------------------------------------------------------------------
@@ -271,10 +273,10 @@ registers.cr.set(registers.cr.get() + 1);
 
 // `range` will contain the value of the RANGE field, e.g. 0, 1, 2, or 3.
 // The type annotation is not necessary, but provided for clarity here.
-let range: u8 = registers.cr.read(Control::RANGE);
+let range: u8 = registers.cr().read(Control::RANGE);
 
 // Or one can read `range` as a enum and `match` over it.
-let range = registers.cr.read_as_enum(Control::RANGE);
+let range = registers.cr().read_as_enum(Control::RANGE);
 match range {
     Some(Control::RANGE::Value::VeryHigh) => { /* ... */ }
     Some(Control::RANGE::Value::High) => { /* ... */ }
@@ -284,7 +286,7 @@ match range {
 }
 
 // `en` will be 0 or 1
-let en: u8 = registers.cr.read(Control::EN);
+let en: u8 = registers.cr().read(Control::EN);
 
 
 // -----------------------------------------------------------------------------
@@ -292,32 +294,32 @@ let en: u8 = registers.cr.read(Control::EN);
 // -----------------------------------------------------------------------------
 
 // Write a value to a bitfield without altering the values in other fields:
-registers.cr.modify(Control::RANGE.val(2)); // Leaves EN, INT unchanged
+registers.cr().modify(Control::RANGE.val(2)); // Leaves EN, INT unchanged
 
 // Named constants can be used instead of the raw values:
-registers.cr.modify(Control::RANGE::VeryHigh);
+registers.cr().modify(Control::RANGE::VeryHigh);
 
 // Enum values can also be used:
-registers.cr.modify(Control::RANGE::Value::VeryHigh.into())
+registers.cr().modify(Control::RANGE::Value::VeryHigh.into())
 
 // Another example of writing a field with a raw value:
-registers.cr.modify(Control::EN.val(0)); // Leaves RANGE, INT unchanged
+registers.cr().modify(Control::EN.val(0)); // Leaves RANGE, INT unchanged
 
 // For one-bit fields, the named values SET and CLEAR are automatically
 // defined:
-registers.cr.modify(Control::EN::SET);
+registers.cr().modify(Control::EN::SET);
 
 // Write multiple values at once, without altering other fields:
-registers.cr.modify(Control::EN::CLEAR + Control::RANGE::Low); // INT unchanged
+registers.cr().modify(Control::EN::CLEAR + Control::RANGE::Low); // INT unchanged
 
 // Any number of non-overlapping fields can be combined:
-registers.cr.modify(Control::EN::CLEAR + Control::RANGE::High + CR::INT::SET);
+registers.cr().modify(Control::EN::CLEAR + Control::RANGE::High + CR::INT::SET);
 
 // In some cases (such as a protected register) .modify() may not be appropriate.
 // To enable updating a register without coupling the read and write, use
 // modify_no_read():
-let original = registers.cr.extract();
-registers.cr.modify_no_read(original, Control::EN::CLEAR);
+let original = registers.cr().extract();
+registers.cr().modify_no_read(original, Control::EN::CLEAR);
 
 
 // -----------------------------------------------------------------------------
@@ -325,14 +327,14 @@ registers.cr.modify_no_read(original, Control::EN::CLEAR);
 // -----------------------------------------------------------------------------
 
 // Same interface as modify, except that all unspecified fields are overwritten to zero.
-registers.cr.write(Control::RANGE.val(1)); // implictly sets all other bits to zero
+registers.cr().write(Control::RANGE.val(1)); // implictly sets all other bits to zero
 
 // -----------------------------------------------------------------------------
 // BITFLAGS
 // -----------------------------------------------------------------------------
 
 // For one-bit fields, easily check if they are set or clear:
-let txcomplete: bool = registers.s.is_set(Status::TXCOMPLETE);
+let txcomplete: bool = registers.s().is_set(Status::TXCOMPLETE);
 
 // -----------------------------------------------------------------------------
 // MATCHING
@@ -342,28 +344,30 @@ let txcomplete: bool = registers.s.is_set(Status::TXCOMPLETE);
 // `any_matching_bits_set` or `matches_any`:
 
 // Doesn't care about the state of any field except TXCOMPLETE and MODE:
-let ready: bool = registers.s.matches_all(Status::TXCOMPLETE:SET +
-                                     Status::MODE::FullDuplex);
+let ready: bool = registers.s().matches_all(Status::TXCOMPLETE:SET +
+                                            Status::MODE::FullDuplex);
 
 // This is very useful for awaiting for a specific condition:
-while !registers.s.matches_all(Status::TXCOMPLETE::SET +
-                          Status::RXCOMPLETE::SET +
-                          Status::TXINTERRUPT::CLEAR) {}
+while !registers.s().matches_all(Status::TXCOMPLETE::SET +
+                                 Status::RXCOMPLETE::SET +
+                                 Status::TXINTERRUPT::CLEAR) {}
 
 // Or for checking whether any interrupts are enabled:
-let any_ints = registers.s.any_matching_bits_set(Status::TXINTERRUPT + Status::RXINTERRUPT);
+let any_ints = registers.s().any_matching_bits_set(Status::TXINTERRUPT + Status::RXINTERRUPT);
 
 // Or for checking whether any completion states are cleared:
-let any_cleared = registers.s.matches_any(&[Status::TXCOMPLETE::CLEAR, Status::RXCOMPLETE::CLEAR]);
+let any_cleared = registers.s().matches_any(
+    &[Status::TXCOMPLETE::CLEAR, Status::RXCOMPLETE::CLEAR]);
 
 // Or for checking if a multi-bit field matches one of several modes:
-let sub_word_size = registers.s.matches_any(&[Size::Halfword, Size::Word]);
+let sub_word_size = registers.s().matches_any(&[Size::Halfword, Size::Word]);
 
 // Or for checking if any of several fields exactly match in the register:
-let not_supported_mode = registers.s.matches_any(&[Status::Mode::HalfDuplex, Status::Mode::VARSYNC, Status::MODE::NOPARITY]);
+let not_supported_mode = registers.s().matches_any(
+    &[Status::Mode::HalfDuplex, Status::Mode::VARSYNC, Status::MODE::NOPARITY]);
 
 // Also you can read a register with set of enumerated values as a enum and `match` over it:
-let mode = registers.cr.read_as_enum(Status::MODE);
+let mode = registers.cr().read_as_enum(Status::MODE);
 
 match mode {
     Some(Status::MODE::Value::FullDuplex) => { /* ... */ }
@@ -381,7 +385,7 @@ match mode {
 // local copy.
 
 // Create a copy of the register value as a local variable.
-let local = registers.cr.extract();
+let local = registers.cr().extract();
 
 // Now all the functions for a ReadOnly register work.
 let txcomplete: bool = local.is_set(Status::TXCOMPLETE);
@@ -427,11 +431,11 @@ etc). For instance, if we have the bitfields and registers as defined above,
 ```rust
 // This line compiles, because registers.cr is associated with the Control group
 // of bitfields.
-registers.cr.modify(Control::RANGE.val(1));
+registers.cr().modify(Control::RANGE.val(1));
 
 // This line will not compile, because registers.s is associated with the Status
 // group, not the Control group.
-let range = registers.s.read(Control::RANGE);
+let range = registers.s().read(Control::RANGE);
 ```
 
 ## Naming conventions
@@ -444,9 +448,12 @@ use tock_registers::registers::ReadWrite;
 
 #[repr(C)]
 struct Registers {
-    // The register name in the struct should be a lowercase version of the
-    // register abbreviation, as written in the datasheet:
-    cr: ReadWrite<u8, Control::Register>,
+tock_registers::peripheral! {
+    Registers {
+        // The register name in the struct should be a lowercase version of the
+        // register abbreviation, as written in the datasheet:
+        0x0 => cr: u8(Control::Register) { Read, Write },
+    }
 }
 
 register_bitfields! [
@@ -474,13 +481,13 @@ By default, if you print the value of a register, you will get the raw value as 
 
 How ever, you can use the `debug` method to get a more human readable output.
 
-This is implemented in `LocalRegisterCopy` and in using `Debuggable` registers which is auto implemented with `Readable`.
+This is implemented in `LocalRegisterCopy` and in using `Debuggable` registers which is auto implemented with `Read`.
 
 Example:
 
 ```rust
 // Create a copy of the register value as a local variable.
-let local = registers.cr.extract();
+let local = registers.cr().extract();
 
 println!("cr: {:#?}", local.debug());
 ```
@@ -501,18 +508,6 @@ Similarly it works directly on the register:
 // require `Debuggable` trait
 use tock_registers::interfaces::Debuggable;
 
-println!("cr: {:#?}", registers.cr.debug());
+println!("cr: {:#?}", registers.cr().debug());
 ```
 > Do note this will issue a read to the register once.
-
-## Implementing custom register types
-
-The `Readable`, `Writeable` and `ReadWriteable` traits make it
-possible to implement custom register types, even outside of this
-crate. A particularly useful application area for this are CPU
-registers, such as ARM SPSRs or RISC-V CSRs. It is sufficient to
-implement the `Readable::get` and `Writeable::set` methods for the
-rest of the API to be automatically implemented by the crate-provided
-traits. For more in-depth documentation on how this works, [refer to
-the `interfaces` module
-documentation](https://docs.tockos.org/tock_registers/index.html).
