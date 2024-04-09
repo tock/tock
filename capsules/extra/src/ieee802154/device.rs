@@ -25,7 +25,7 @@ pub trait MacDevice<'a> {
     /// Sets the receive client of this MAC device
     fn set_receive_client(&self, client: &'a dyn RxClient);
     /// Sets the raw receive client of this MAC device
-    fn set_receive_raw_client(&self, client: &'a dyn RawRxClient);
+    fn set_receive_raw_client(&self, client: &'a dyn SecuredFrameNoDecryptRxClient);
 
     /// The short 16-bit address of the MAC device
     fn get_address(&self) -> u16;
@@ -143,9 +143,10 @@ pub trait RxClient {
 /// have not been decrypted). This allows the client to perform decryption
 /// on the frame. The callback is trigger whenever a valid frame is received.
 /// In this context, raw refers to receiving frames without processing the
-/// security of the frame. The RawRxClient should not be used to pass frames
-/// to the higher layers of the network stack that expect unsecured frames.
-pub trait RawRxClient {
+/// security of the frame. The SecuredFrameNoDecryptRxClient should not be
+/// used to pass frames to the higher layers of the network stack that expect
+/// unsecured frames.
+pub trait SecuredFrameNoDecryptRxClient {
     /// When a frame is received, this callback is triggered. The client only
     /// receives an immutable borrow of the buffer. All frames, regardless of
     /// their secured state, are exposed to the client.

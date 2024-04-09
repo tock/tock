@@ -1084,7 +1084,7 @@ fn encode_address(addr: &Option<MacAddress>) -> usize {
     ((AddressMode::from(addr) as usize) << 16) | short_addr_only
 }
 
-impl<'a, M: device::MacDevice<'a>> device::RawRxClient for RadioDriver<'a, M> {
+impl<'a, M: device::MacDevice<'a>> device::SecuredFrameNoDecryptRxClient for RadioDriver<'a, M> {
     fn receive_raw<'b>(
         &self,
         buf: &'b [u8],
