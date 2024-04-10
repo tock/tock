@@ -117,6 +117,7 @@ These provide common and better abstractions for userspace.
   own flash.
 - **[Buzzer](src/buzzer_driver.rs)**: Simple buzzer.
 - **[Date-Time](src/date_time.rs)**: Real time clock date/time support.
+- **[EUI64](src/eui64.rs)**: Query device's extended unique ID.
 - **[HMAC](src/hmac.rs)**: Hash-based Message Authentication Code support.
 - **[Humidity](src/humidity.rs)**: Query humidity sensors.
 - **[Key-Value Store](src/kv_driver.rs)**: Store key-value data.
