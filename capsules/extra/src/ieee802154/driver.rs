@@ -1085,15 +1085,15 @@ fn encode_address(addr: &Option<MacAddress>) -> usize {
 }
 
 impl<'a, M: device::MacDevice<'a>> device::SecuredFrameNoDecryptRxClient for RadioDriver<'a, M> {
-    fn receive_raw<'b>(
+    fn receive_secured_frame<'b>(
         &self,
         buf: &'b [u8],
         header: Header<'b>,
         data_offset: usize,
         data_len: usize,
     ) {
-        // The current 15.4 userspace receive does not differentiate between
-        // raw and standard receive. As such, we can simply call the standard
+        // The current 15.4 userspace receive accepts both secured and
+        // unsecured frames. As such, we can simply call the standard
         // receive method of the RxClient trait.
         self.receive(buf, header, data_offset, data_len)
     }

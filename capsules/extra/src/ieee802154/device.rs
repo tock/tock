@@ -24,8 +24,11 @@ pub trait MacDevice<'a> {
     fn set_transmit_client(&self, client: &'a dyn TxClient);
     /// Sets the receive client of this MAC device
     fn set_receive_client(&self, client: &'a dyn RxClient);
-    /// Sets the raw receive client of this MAC device
-    fn set_receive_raw_client(&self, client: &'a dyn SecuredFrameNoDecryptRxClient);
+    /// Sets the secure frame no decrypt receive client of this MAC device
+    fn set_receive_secured_frame_no_decrypt_client(
+        &self,
+        client: &'a dyn SecuredFrameNoDecryptRxClient,
+    );
 
     /// The short 16-bit address of the MAC device
     fn get_address(&self) -> u16;
@@ -158,7 +161,7 @@ pub trait SecuredFrameNoDecryptRxClient {
     /// `buf`, so that the payload of the frame is contained in
     /// `buf[data_offset..data_offset + data_len]`.
     /// - `data_len`: Length of the data payload
-    fn receive_raw<'a>(
+    fn receive_secured_frame<'a>(
         &self,
         buf: &'a [u8],
         header: Header<'a>,

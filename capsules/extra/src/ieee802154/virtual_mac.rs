@@ -66,7 +66,7 @@ impl<'a, M: device::MacDevice<'a>> device::RxClient for MuxMac<'a, M> {
 }
 
 impl<'a, M: device::MacDevice<'a>> device::SecuredFrameNoDecryptRxClient for MuxMac<'a, M> {
-    fn receive_raw<'b>(
+    fn receive_secured_frame<'b>(
         &self,
         buf: &'b [u8],
         header: Header<'b>,
@@ -74,7 +74,7 @@ impl<'a, M: device::MacDevice<'a>> device::SecuredFrameNoDecryptRxClient for Mux
         data_len: usize,
     ) {
         for user in self.users.iter() {
-            user.receive_raw(buf, header, data_offset, data_len);
+            user.receive_secured_frame(buf, header, data_offset, data_len);
         }
     }
 }
@@ -239,7 +239,7 @@ impl<'a, M: device::MacDevice<'a>> MacUser<'a, M> {
             .map(move |client| client.receive(buf, header, data_offset, data_len));
     }
 
-    fn receive_raw<'b>(
+    fn receive_secured_frame<'b>(
         &self,
         buf: &'b [u8],
         header: Header<'b>,
@@ -248,7 +248,7 @@ impl<'a, M: device::MacDevice<'a>> MacUser<'a, M> {
     ) {
         self.secure_frame_no_decrypt_rx_client
             .get()
-            .map(move |client| client.receive_raw(buf, header, data_offset, data_len));
+            .map(move |client| client.receive_secured_frame(buf, header, data_offset, data_len));
     }
 }
 
@@ -267,7 +267,10 @@ impl<'a, M: device::MacDevice<'a>> device::MacDevice<'a> for MacUser<'a, M> {
         self.rx_client.set(client);
     }
 
-    fn set_receive_raw_client(&self, client: &'a dyn device::SecuredFrameNoDecryptRxClient) {
+    fn set_receive_secured_frame_no_decrypt_client(
+        &self,
+        client: &'a dyn device::SecuredFrameNoDecryptRxClient,
+    ) {
         self.secure_frame_no_decrypt_rx_client.set(client);
     }
 

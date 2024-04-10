@@ -394,7 +394,7 @@ pub struct Framer<'a, M: Mac<'a>, A: AES128CCM<'a>> {
     /// `None`, except when transitioning between states.
     rx_state: MapCell<RxState>,
     rx_client: OptionalCell<&'a dyn RxClient>,
-    raw_rx_client: OptionalCell<&'a dyn SecuredFrameNoDecryptRxClient>,
+    secured_frame_no_decrypt_rx_client: OptionalCell<&'a dyn SecuredFrameNoDecryptRxClient>,
     crypt_buf: MapCell<SubSliceMut<'static, u8>>,
 }
 
@@ -414,7 +414,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
             tx_client: OptionalCell::empty(),
             rx_state: MapCell::new(RxState::Idle),
             rx_client: OptionalCell::empty(),
-            raw_rx_client: OptionalCell::empty(),
+            secured_frame_no_decrypt_rx_client: OptionalCell::empty(),
             crypt_buf: MapCell::new(crypt_buf),
         }
     }
@@ -500,8 +500,8 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                             Some(key) => key,
                             None => {
                                 // Key not found -- pass raw encrypted packet to client
-                                self.raw_rx_client.map(|client| {
-                                    client.receive_raw(&buf[PSDU_OFFSET..], header, data_offset, data_len);
+                                self.secured_frame_no_decrypt_rx_client.map(|client| {
+                                    client.receive_secured_frame(&buf[PSDU_OFFSET..], header, data_offset, data_len);
                                 });
                                 return None;
                             }
@@ -557,11 +557,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                 } else {
                     // No security needed, can yield the frame immediately
                     self.rx_client.map(|client| {
-<<<<<<< HEAD
                         client.receive(&buf[PSDU_OFFSET..], header, data_offset, data_len);
-=======
-                        client.receive(buf, header, radio::PSDU_OFFSET + data_offset, data_len);
->>>>>>> 252890415 (Add RawRxClient)
                     });
                     None
                 }
@@ -786,8 +782,11 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
         self.rx_client.set(client);
     }
 
-    fn set_receive_raw_client(&self, client: &'a dyn super::device::SecuredFrameNoDecryptRxClient) {
-        self.raw_rx_client.set(client);
+    fn set_receive_secured_frame_no_decrypt_client(
+        &self,
+        client: &'a dyn super::device::SecuredFrameNoDecryptRxClient,
+    ) {
+        self.secured_frame_no_decrypt_rx_client.set(client);
     }
 
     fn get_address(&self) -> u16 {
