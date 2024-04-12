@@ -61,6 +61,7 @@ These drivers provide support for various ICs.
 - **[PCA9544A](src/pca9544a.rs)**: Multiple port I2C selector.
 - **[SD Card](src/sdcard.rs)**: Support for SD cards.
 - **[Seven Segment Display](src/seven_segment.rs)**: Seven segment displays.
+- **[SH1106](src/sh1106.rs)**: SH1106 OLED screen driver.
 - **[SSD1306](src/ssd1306.rs)**: SSD1306 OLED screen driver.
 - **[ST77xx](src/st77xx.rs)**: ST77xx IPS screen.
 
