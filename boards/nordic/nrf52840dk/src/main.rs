@@ -73,6 +73,8 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use core::ptr::{addr_of, addr_of_mut};
+
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use capsules_extra::net::ieee802154::MacAddress;
 use capsules_extra::net::ipv6::ip_utils::IPAddr;
@@ -372,7 +374,7 @@ pub unsafe fn start() -> (
     };
 
     // Setup space to store the core kernel data structure.
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
 
     // Create (and save for panic debugging) a chip object to setup low-level
     // resources (e.g. MPU, systick).
@@ -825,7 +827,7 @@ pub unsafe fn start() -> (
         &base_peripherals.acomp,
         components::analog_comparator_component_helper!(
             nrf52840::acomp::Channel,
-            &nrf52840::acomp::CHANNEL_AC0
+            &*addr_of!(nrf52840::acomp::CHANNEL_AC0)
         ),
         board_kernel,
         capsules_extra::analog_comparator::DRIVER_NUM,
@@ -891,7 +893,7 @@ pub unsafe fn start() -> (
     // PLATFORM SETUP, SCHEDULER, AND START KERNEL LOOP
     //--------------------------------------------------------------------------
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let platform = Platform {
@@ -926,7 +928,7 @@ pub unsafe fn start() -> (
     base_peripherals.adc.calibrate();
 
     debug!("Initialization complete. Entering main loop\r");
-    debug!("{}", &nrf52840::ficr::FICR_INSTANCE);
+    debug!("{}", &*addr_of!(nrf52840::ficr::FICR_INSTANCE));
 
     // These symbols are defined in the linker script.
     extern "C" {
@@ -951,7 +953,7 @@ pub unsafe fn start() -> (
             core::ptr::addr_of_mut!(_sappmem),
             core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut PROCESSES,
+        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_management_capability,
     )

@@ -5,6 +5,7 @@
 //! High-level setup and interrupt mapping for the chip.
 
 use core::fmt::Write;
+use core::ptr::addr_of;
 
 use kernel::platform::chip::{Chip, InterruptService};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -81,7 +82,7 @@ impl<'a, I: InterruptService + 'a> Esp32C3<'a, I> {
         Self {
             userspace_kernel_boundary: SysCall::new(),
             pmp: PMPUserMPU::new(SimplePMP::new().unwrap()),
-            intc: &INTC,
+            intc: &*addr_of!(INTC),
             pic_interrupt_service,
         }
     }

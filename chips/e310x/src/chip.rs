@@ -5,6 +5,7 @@
 //! High-level setup and interrupt mapping for the chip.
 
 use core::fmt::Write;
+use core::ptr::addr_of;
 use kernel::debug;
 use kernel::platform::chip::Chip;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
@@ -72,7 +73,7 @@ impl<'a, I: InterruptService + 'a> E310x<'a, I> {
         Self {
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
             pmp: PMPUserMPU::new(SimplePMP::new().unwrap()),
-            plic: &PLIC,
+            plic: &*addr_of!(PLIC),
             timer,
             plic_interrupt_service,
         }

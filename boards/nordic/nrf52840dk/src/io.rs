@@ -4,6 +4,8 @@
 
 use core::fmt::Write;
 use core::panic::PanicInfo;
+use core::ptr::addr_of;
+use core::ptr::addr_of_mut;
 use kernel::debug;
 use kernel::debug::IoWrite;
 use kernel::hil::led;
@@ -101,14 +103,14 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     // The nRF52840DK LEDs (see back of board)
     let led_kernel_pin = &nrf52840::gpio::GPIOPin::new(Pin::P0_13);
     let led = &mut led::LedLow::new(led_kernel_pin);
-    let writer = &mut WRITER;
+    let writer = &mut *addr_of_mut!(WRITER);
     debug::panic(
         &mut [led],
         writer,
         pi,
         &cortexm4::support::nop,
-        &PROCESSES,
-        &CHIP,
-        &PROCESS_PRINTER,
+        &*addr_of!(PROCESSES),
+        &*addr_of!(CHIP),
+        &*addr_of!(PROCESS_PRINTER),
     )
 }
