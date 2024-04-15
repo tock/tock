@@ -39,12 +39,12 @@
 * Alex: Const generic expressions would help. But not stabilizing anytime soon
 * Alex: I was unsure whether generics are worth it for the buffer
 * Leon: Generics make it hard and ugly to instantiate things, but they do allow us to be composable
-* Alex: Well, just for the buffer
+* Alex: Well, just for the buffer it might not be worth, we can always use a struct with variables.
 * Leon: That would be the linux kernel's skbuffer. But it wouldn't be compile-time validated. And some operations can work without run-time checks.
 * Alex: I agree. I do think this is worth it. But if we ever get simple const-generic-expressions, that will make this even more valuable
-* Alex: It's going to be pretty ugly to instantiate. I hope there are some type aliases or something to clean that up. The HIL takes a dynamic trait
+* Alex: It's going to be pretty ugly to instantiate. I hope there are some type aliases or something to clean that up.
 * Leon: We could pass the dynamic trait object. We might consider whether the upcall path should avoid arguments with const generics, and just takes the trait object
-* Alex: The constants won't be in the type on the upcall path anyways. On the downcall, it's got a UartData, but going up because it's a dynamic trait object it requires the headroom of all the layers that it will pass up through.
+* Alex: The constants won't be in the type on the upcall path anyways.
 * Leon: Okay, we should definitely do trait objects on the way up. And there's a helper function that does that
 * Alex: Yeah, better than a string of like 6 constants. It's important for everything using this to take generics instead of trait objects though
 * Leon: To summarize: we have a problem that the way we compose layers is with proper generic types, avoiding dynamic trait objects. So something like the Debug writer takes a generic type that implements the uart transmit trait, like the mux. So each layer needs to know how much headroom the layers above and below take. But that seems fine because what we could do is have all of these types represented as type aliases. On the upcall path, we would need to know how much headroom to restore on each additional layer, so the trait object would need ALL of the headroom from all of the layers. These buffers are wrapped in a type that has the generic arguments. So we could unwrap at each layer and pass the non-generic types up the stack instead.
