@@ -5,9 +5,6 @@
 use core::mem::size_of;
 use core::num::Wrapping;
 
-use core::{i16, i32, i64, i8, isize};
-use core::{u16, u32, u64, u8, usize};
-
 /// A generic trait for converting a value to a number.
 pub trait ToPrimitive {
     /// Converts the value of `self` to an `isize`.
