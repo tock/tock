@@ -13,6 +13,8 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 
+use core::ptr::{addr_of, addr_of_mut};
+
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use e310_g002::interrupt_service::E310G002DefaultPeripherals;
 use kernel::capabilities;
@@ -157,7 +159,7 @@ pub unsafe fn main() {
 
     let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
 
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
@@ -286,7 +288,7 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
+    let scheduler = components::sched::cooperative::CooperativeComponent::new(&*addr_of!(PROCESSES))
         .finalize(components::cooperative_component_static!(NUM_PROCS));
 
     let scheduler_timer = static_init!(
@@ -307,14 +309,14 @@ pub unsafe fn main() {
         board_kernel,
         chip,
         core::slice::from_raw_parts(
-            core::ptr::addr_of!(_sapps),
-            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
+            addr_of!(_sapps),
+            addr_of!(_eapps) as usize - addr_of!(_sapps) as usize,
         ),
         core::slice::from_raw_parts_mut(
-            core::ptr::addr_of_mut!(_sappmem),
-            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
+            addr_of_mut!(_sappmem),
+            addr_of!(_eappmem) as usize - addr_of!(_sappmem) as usize,
         ),
-        &mut PROCESSES,
+        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_mgmt_cap,
     )

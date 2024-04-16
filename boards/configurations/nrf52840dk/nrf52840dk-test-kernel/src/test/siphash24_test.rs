@@ -8,6 +8,8 @@
 //! test::siphash24_test::run_siphash24();
 //! ```
 
+use core::ptr::addr_of_mut;
+
 use capsules_core::test::capsule_test::{CapsuleTest, CapsuleTestClient};
 use capsules_extra::sip_hash::SipHasher24;
 use capsules_extra::test::siphash24::TestSipHash24;
@@ -36,7 +38,7 @@ unsafe fn static_init_test_siphash24(
     }
     let test = static_init!(
         TestSipHash24,
-        TestSipHash24::new(sha, &mut HBUF, &mut HHASH, &mut CHASH)
+        TestSipHash24::new(sha, &mut *addr_of_mut!(HBUF), &mut *addr_of_mut!(HHASH), &mut *addr_of_mut!(CHASH))
     );
 
     test.set_client(client);
