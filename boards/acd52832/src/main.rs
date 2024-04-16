@@ -602,17 +602,17 @@ unsafe fn start() -> (
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let platform = Platform {
-        button: button,
-        ble_radio: ble_radio,
-        console: console,
-        led: led,
-        gpio: gpio,
-        rng: rng,
-        temp: temp,
-        alarm: alarm,
-        gpio_async: gpio_async,
-        light: light,
-        buzzer: buzzer,
+        button,
+        ble_radio,
+        console,
+        led,
+        gpio,
+        rng,
+        temp,
+        alarm,
+        gpio_async,
+        light,
+        buzzer,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
