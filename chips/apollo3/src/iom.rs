@@ -578,10 +578,20 @@ impl<'a> Iom<'_> {
         }
 
         if self.op.get() == Operation::SPI {
+            // Read the incoming data
             if let Some(buf) = self.spi_read_buffer.take() {
                 while self.registers.fifoptr.read(FIFOPTR::FIFO1SIZ) > 0 {
-                    let d = self.registers.fifopop.get().to_ne_bytes();
+                    // The IOM doesn't correctly pop the data if we read it too fast
+                    // there are a few erratas against the IOM when reading data
+                    // from the FIFO (compared to DMA). Adding a small delay here is
+                    // enough to ensure the fifoptr values update before the next
+                    // iteration.
+                    // See: https://ambiq.com/wp-content/uploads/2022/01/Apollo3-Blue-Errata-List.pdf
+                    for _i in 0..3000 {
+                        cortexm4::support::nop();
+                    }
 
+                    let d = self.registers.fifopop.get().to_ne_bytes();
                     let data_idx = self.read_index.get();
 
                     if let Some(b) = buf.get_mut(data_idx + 0) {
@@ -603,13 +613,85 @@ impl<'a> Iom<'_> {
                 }
 
                 self.spi_read_buffer.replace(buf);
+
+                if self.read_len.get() > self.read_index.get() {
+                    let remaining_bytes = (self.read_len.get() - self.read_index.get()).min(32);
+                    self.registers
+                        .fifothr
+                        .modify(FIFOTHR::FIFORTHR.val(remaining_bytes as u32));
+                } else {
+                    self.registers.fifothr.modify(FIFOTHR::FIFORTHR.val(0));
+                }
             } else {
                 while self.registers.fifoptr.read(FIFOPTR::FIFO1SIZ) > 0 {
+                    // The IOM doesn't correctly pop the data if we read it too fast
+                    // there are a few erratas against the IOM when reading data
+                    // from the FIFO (compared to DMA). Adding a small delay here is
+                    // enough to ensure the fifoptr values update before the next
+                    // iteration.
+                    // See: https://ambiq.com/wp-content/uploads/2022/01/Apollo3-Blue-Errata-List.pdf
+                    for _i in 0..3000 {
+                        cortexm4::support::nop();
+                    }
+
                     let _d = self.registers.fifopop.get().to_ne_bytes();
                 }
+
+                self.registers.fifothr.modify(FIFOTHR::FIFORTHR.val(0));
             }
 
-            if self.write_len.get() > 0 && self.write_index.get() >= self.write_len.get() {
+            // Write more data out
+            if self.write_index.get() < self.write_len.get() {
+                if let Some(write_buffer) = self.buffer.take() {
+                    let mut transfered_bytes = 0;
+
+                    // While there is some free space in FIFO0 (writing to the SPI bus) and
+                    // at least 4 bytes free in FIFO1 (reading from the SPI bus to the
+                    // hardware FIFO) we write up to 24 bytes of data.
+                    //
+                    // The `> 4` really could be `>= 4` but > gives us a little wiggle room
+                    // as the hardware does seem a little slow at updating the FIFO size
+                    // registers.
+                    //
+                    // The 24 byte limit is along the same lines, of just making sure we
+                    // don't write too much data. I don't have a good answer of why it should
+                    // be 24, but that seems to work reliably from testing.
+                    //
+                    // There isn't a specific errata for this issue, but the official HAL
+                    // uses DMA so there aren't a lot of FIFO users for large transfers like
+                    // this.
+                    while self.registers.fifoptr.read(FIFOPTR::FIFO0REM) > 0
+                        && self.registers.fifoptr.read(FIFOPTR::FIFO1REM) > 4
+                        && self.write_index.get() < self.write_len.get()
+                        && transfered_bytes < 24
+                    {
+                        let idx = self.write_index.get();
+                        let data = u32::from_le_bytes(
+                            write_buffer[idx..(idx + 4)].try_into().unwrap_or([0; 4]),
+                        );
+
+                        self.registers.fifopush.set(data);
+                        self.write_index.set(idx + 4);
+                        transfered_bytes += 4;
+                    }
+
+                    self.buffer.replace(write_buffer);
+                }
+
+                let remaining_bytes = (self.write_len.get() - self.write_index.get()).min(32);
+                self.registers
+                    .fifothr
+                    .modify(FIFOTHR::FIFOWTHR.val(remaining_bytes as u32));
+            } else {
+                self.registers.fifothr.modify(FIFOTHR::FIFOWTHR.val(0));
+            }
+
+            if (self.write_len.get() > 0
+                && self.write_index.get() >= self.write_len.get()
+                && self.read_len.get() > 0
+                && self.read_index.get() >= self.read_len.get())
+                || irqs.is_set(INT::CMDCMP)
+            {
                 // Disable interrupts
                 regs.inten.set(0x00);
 
@@ -1143,8 +1225,6 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
             0
         };
 
-        let burst_len = write_len.min(32);
-
         // Disable DMA as we don't support it
         self.registers.dmacfg.write(DMACFG::DMAEN::CLEAR);
 
@@ -1162,7 +1242,7 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
 
         // Start the transfer
         self.registers.cmd.write(
-            CMD::TSIZE.val(burst_len as u32)
+            CMD::TSIZE.val(write_len as u32)
                 + CMD::CMDSEL.val(1)
                 + CMD::CONT::CLEAR
                 + CMD::CMD::WRITE
@@ -1170,9 +1250,33 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
                 + CMD::OFFSETLO.val(0),
         );
 
-        while self.registers.fifoptr.read(FIFOPTR::FIFO0REM) > 4
-            && self.registers.fifoptr.read(FIFOPTR::FIFO1SIZ) < 32
-            && self.write_index.get() < burst_len
+        if let Some(buf) = read_buffer {
+            self.spi_read_buffer.replace(buf);
+        }
+
+        while self.registers.cmdstat.read(CMDSTAT::CMDSTAT) == 0x02 {}
+
+        let mut transfered_bytes = 0;
+
+        // While there is some free space in FIFO0 (writing to the SPI bus) and
+        // at least 4 bytes free in FIFO1 (reading from the SPI bus to the
+        // hardware FIFO) we write up to 24 bytes of data.
+        //
+        // The `> 4` really could be `>= 4` but > gives us a little wiggle room
+        // as the hardware does seem a little slow at updating the FIFO size
+        // registers.
+        //
+        // The 24 byte limit is along the same lines, of just making sure we
+        // don't write too much data. I don't have a good answer of why it should
+        // be 24, but that seems to work reliably from testing.
+        //
+        // There isn't a specific errata for this issue, but the official HAL
+        // uses DMA so there aren't a lot of FIFO users for large transfers like
+        // this.
+        while self.registers.fifoptr.read(FIFOPTR::FIFO0REM) > 0
+            && self.registers.fifoptr.read(FIFOPTR::FIFO1REM) > 4
+            && self.write_index.get() < write_len
+            && transfered_bytes < 24
         {
             let idx = self.write_index.get();
             let data =
@@ -1180,26 +1284,29 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
 
             self.registers.fifopush.set(data);
             self.write_index.set(idx + 4);
-        }
+            transfered_bytes += 4;
 
-        if let Some(buf) = read_buffer {
-            while self.registers.fifoptr.read(FIFOPTR::FIFO1SIZ) > 0 {
-                let d = self.registers.fifopop.get().to_ne_bytes();
+            if let Some(buf) = self.spi_read_buffer.take() {
+                if self.registers.fifoptr.read(FIFOPTR::FIFO1SIZ) > 0
+                    && self.read_index.get() < read_len
+                {
+                    let d = self.registers.fifopop.get().to_ne_bytes();
 
-                let data_idx = self.read_index.get();
+                    let data_idx = self.read_index.get();
 
-                buf[data_idx + 0] = d[0];
-                buf[data_idx + 1] = d[1];
-                buf[data_idx + 2] = d[2];
-                buf[data_idx + 3] = d[3];
+                    buf[data_idx + 0] = d[0];
+                    buf[data_idx + 1] = d[1];
+                    buf[data_idx + 2] = d[2];
+                    buf[data_idx + 3] = d[3];
 
-                self.read_index.set(data_idx + 4);
-            }
+                    self.read_index.set(data_idx + 4);
+                }
 
-            self.spi_read_buffer.replace(buf);
-        } else {
-            while self.registers.fifoptr.read(FIFOPTR::FIFO1SIZ) > 0 {
-                let _d = self.registers.fifopop.get().to_ne_bytes();
+                self.spi_read_buffer.replace(buf);
+            } else {
+                if self.registers.fifoptr.read(FIFOPTR::FIFO1SIZ) > 0 {
+                    let _d = self.registers.fifopop.get();
+                }
             }
         }
 
@@ -1208,6 +1315,25 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
         self.write_len.set(write_len);
         self.read_len.set(read_len);
         self.op.set(Operation::SPI);
+
+        if read_len > self.read_index.get() {
+            let remaining_bytes = (read_len - self.read_index.get()).min(32);
+            self.registers
+                .fifothr
+                .modify(FIFOTHR::FIFORTHR.val(remaining_bytes as u32));
+        } else {
+            self.registers.fifothr.modify(FIFOTHR::FIFORTHR.val(0));
+        }
+
+        if write_len > self.write_index.get() {
+            let remaining_bytes = (self.write_len.get() - self.write_index.get()).min(32);
+
+            self.registers
+                .fifothr
+                .modify(FIFOTHR::FIFOWTHR.val(remaining_bytes as u32));
+        } else {
+            self.registers.fifothr.modify(FIFOTHR::FIFOWTHR.val(0));
+        }
 
         // Enable interrupts
         self.registers.inten.set(0xFFFF_FFFF);
