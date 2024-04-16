@@ -527,8 +527,6 @@ impl<'a> Iom<'_> {
         // Ensure interrupts remain enabled
         regs.inten.set(0xFFFF_FFFF);
 
-        while regs.status.read(STATUS::IDLESET) != 1 {}
-
         if irqs.is_set(INT::NAK) {
             if self.op.get() == Operation::I2C {
                 // Disable interrupts
@@ -626,9 +624,9 @@ impl<'a> Iom<'_> {
                         client.read_write_done(buffer, read_buffer, self.write_len.get(), Ok(()));
                     });
                 });
-
-                return;
             }
+
+            return;
         }
 
         if irqs.is_set(INT::CMDCMP) || irqs.is_set(INT::THR) {
@@ -1138,7 +1136,6 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
         read_buffer: Option<&'static mut [u8]>,
         len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8], Option<&'static mut [u8]>)> {
-        let addr = write_buffer[0];
         let write_len = write_buffer.len().min(len);
         let read_len = if let Some(ref buffer) = read_buffer {
             buffer.len().min(len)
@@ -1150,11 +1147,6 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
 
         // Disable DMA as we don't support it
         self.registers.dmacfg.write(DMACFG::DMAEN::CLEAR);
-
-        // Set the address
-        self.registers
-            .devcfg
-            .write(DEVCFG::DEVADDR.val(addr as u32));
 
         // Set the DCX
         self.registers.dcx.set(0);
@@ -1229,8 +1221,6 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
         // Disable DMA as we don't support it
         self.registers.dmacfg.write(DMACFG::DMAEN::CLEAR);
 
-        // We don't set an address, as we don't have one
-
         // Set the DCX
         self.registers.dcx.set(0);
 
@@ -1262,8 +1252,6 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
 
         // Disable DMA as we don't support it
         self.registers.dmacfg.write(DMACFG::DMAEN::CLEAR);
-
-        // We don't set an address, as we don't have one
 
         // Set the DCX
         self.registers.dcx.set(0);
@@ -1301,8 +1289,6 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
 
         // Disable DMA as we don't support it
         self.registers.dmacfg.write(DMACFG::DMAEN::CLEAR);
-
-        // We don't set an address, as we don't have one
 
         // Set the DCX
         self.registers.dcx.set(0);
