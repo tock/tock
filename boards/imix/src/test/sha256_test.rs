@@ -20,6 +20,8 @@
 //! 72 bytes long. As SHA uses 64-byte/512 bit blocks, this verifies
 //! that multi-block hashes work correctly.
 
+use core::ptr::addr_of_mut;
+
 use capsules_extra::sha256::Sha256Software;
 use capsules_extra::test::sha256::TestSha256;
 use kernel::static_init;
@@ -57,7 +59,7 @@ unsafe fn static_init_test_sha256() -> &'static TestSha256 {
     // We expect LSTRING to hash to LHASH, so final argument is true
     let test = static_init!(
         TestSha256,
-        TestSha256::new(sha, &mut LSTRING, &mut LHASH, true)
+        TestSha256::new(sha, &mut *addr_of_mut!(LSTRING), &mut *addr_of_mut!(LHASH), true)
     );
 
     test

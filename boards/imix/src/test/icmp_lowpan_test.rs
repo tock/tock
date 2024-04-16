@@ -30,6 +30,7 @@ use kernel::ErrorCode;
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
+use core::ptr::addr_of_mut;
 use kernel::capabilities::NetworkCapabilityCreationCapability;
 use kernel::create_capability;
 use kernel::debug;
@@ -125,7 +126,7 @@ pub unsafe fn run(
 
     let ip_pyld: IPPayload = IPPayload {
         header: TransportHeader::ICMP(icmp_hdr),
-        payload: &mut ICMP_PAYLOAD,
+        payload: &mut *addr_of_mut!(ICMP_PAYLOAD),
     };
 
     let ip6_dg = static_init!(IP6Packet<'static>, IP6Packet::new(ip_pyld));
@@ -135,7 +136,7 @@ pub unsafe fn run(
         IP6SendStruct::new(
             ip6_dg,
             ipsender_virtual_alarm,
-            &mut RF233_BUF,
+            &mut *addr_of_mut!(RF233_BUF),
             sixlowpan_tx,
             radio_mac,
             DST_MAC_ADDR,
@@ -254,7 +255,7 @@ impl<'a, A: time::Alarm<'a>> LowpanICMPTest<'a, A> {
         let icmp_hdr = ICMP6Header::new(ICMP6Type::Type128); // Echo Request
         let _ = unsafe {
             self.icmp_sender
-                .send(DST_ADDR, icmp_hdr, &mut ICMP_PAYLOAD, self.net_cap)
+                .send(DST_ADDR, icmp_hdr, &mut *addr_of_mut!(ICMP_PAYLOAD), self.net_cap)
         };
     }
 }

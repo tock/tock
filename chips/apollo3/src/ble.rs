@@ -5,6 +5,7 @@
 //! BLE driver.
 
 use core::cell::Cell;
+use core::ptr::addr_of_mut;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
 use kernel::utilities::cells::OptionalCell;
@@ -420,7 +421,7 @@ impl<'a> Ble<'a> {
                         i += 4;
                     }
 
-                    client.receive_event(&mut PAYLOAD, 10, Ok(()));
+                    client.receive_event(&mut *addr_of_mut!(PAYLOAD), 10, Ok(()));
                 }
             });
         }

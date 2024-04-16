@@ -4,6 +4,8 @@
 
 use core::fmt::Write;
 use core::panic::PanicInfo;
+use core::ptr::addr_of;
+use core::ptr::addr_of_mut;
 
 use crate::CHIP;
 use crate::PROCESSES;
@@ -45,15 +47,15 @@ pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
         apollo3::gpio::Pin::Pin19,
     );
     let led = &mut led::LedLow::new(led_pin);
-    let writer = &mut WRITER;
+    let writer = &mut *addr_of_mut!(WRITER);
 
     debug::panic(
         &mut [led],
         writer,
         info,
         &cortexm4::support::nop,
-        &PROCESSES,
-        &CHIP,
-        &PROCESS_PRINTER,
+        &*addr_of!(PROCESSES),
+        &*addr_of!(CHIP),
+        &*addr_of!(PROCESS_PRINTER),
     )
 }

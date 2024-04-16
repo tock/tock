@@ -20,6 +20,7 @@
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules_extra::log;
 use core::cell::Cell;
+use core::ptr::addr_of_mut;
 use kernel::debug;
 use kernel::hil::flash;
 use kernel::hil::log::{LogRead, LogReadClient, LogWrite, LogWriteClient};
@@ -59,7 +60,7 @@ pub unsafe fn run(
     // Create and run test for log storage.
     let test = static_init!(
         LogTest<VirtualMuxAlarm<'static, Ast>>,
-        LogTest::new(log, &mut BUFFER, alarm, &TEST_OPS)
+        LogTest::new(log, &mut *addr_of_mut!(BUFFER), alarm, &TEST_OPS)
     );
     log.set_read_client(test);
     log.set_append_client(test);

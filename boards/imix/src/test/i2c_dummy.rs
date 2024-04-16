@@ -5,6 +5,7 @@
 //! A dummy I2C client
 
 use core::cell::Cell;
+use core::ptr::addr_of_mut;
 use kernel::debug;
 use kernel::hil;
 use kernel::hil::i2c::{Error, I2CMaster};
@@ -61,7 +62,7 @@ pub fn i2c_scan_slaves(i2c_master: &'static dyn I2CMaster<'static>) {
     dev.enable();
 
     debug!("Scanning for I2C devices...");
-    dev.write(i2c_client.dev_id.get(), unsafe { &mut DATA }, 2)
+    dev.write(i2c_client.dev_id.get(), unsafe { &mut *addr_of_mut!(DATA) }, 2)
         .unwrap();
 }
 
@@ -156,7 +157,7 @@ pub fn i2c_accel_test(i2c_master: &'static dyn I2CMaster<'static>) {
     dev.set_master_client(i2c_client);
     dev.enable();
 
-    let buf = unsafe { &mut DATA };
+    let buf = unsafe { &mut *addr_of_mut!(DATA) };
     debug!("Reading Accel's WHOAMI...");
     buf[0] = 0x0D_u8; // 0x0D == WHOAMI register
     dev.write_read(0x1e, buf, 1, 1).unwrap();
@@ -228,7 +229,7 @@ pub fn i2c_li_test(i2c_master: &'static dyn I2CMaster<'static>) {
     dev.set_master_client(i2c_client);
     dev.enable();
 
-    let buf = unsafe { &mut DATA };
+    let buf = unsafe { &mut *addr_of_mut!(DATA) };
     debug!("Enabling LI...");
     buf[0] = 0;
     buf[1] = 0b10100000;

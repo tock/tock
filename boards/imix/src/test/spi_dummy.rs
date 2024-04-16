@@ -4,6 +4,8 @@
 
 //! A dummy SPI client to test the SPI implementation
 
+use core::ptr::addr_of_mut;
+
 use kernel::hil::gpio::Configure;
 use kernel::hil::spi::{self, SpiMaster};
 use kernel::ErrorCode;
@@ -37,7 +39,7 @@ impl spi::SpiMasterClient for DummyCB {
         unsafe {
             // do actual stuff
             // TODO verify SPI return value
-            let _ = self.spi.read_write_bytes(&mut A5, None, A5.len());
+            let _ = self.spi.read_write_bytes(&mut *addr_of_mut!(A5), None, A5.len());
 
             // FLOP = !FLOP;
             // let len: usize = BUF1.len();
@@ -83,7 +85,7 @@ pub unsafe fn spi_dummy_test(spi: &'static sam4l::spi::SpiHw<'static>) {
     spi.set_baud_rate(200000);
 
     let len = BUF2.len();
-    if spi.read_write_bytes(&mut BUF2, Some(&mut BUF1), len) != Ok(()) {
+    if spi.read_write_bytes(&mut *addr_of_mut!(BUF2), Some(&mut *addr_of_mut!(BUF1)), len) != Ok(()) {
         loop {
             spi.write_byte(0xA5).unwrap();
         }

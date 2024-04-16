@@ -4,6 +4,8 @@
 
 use core::fmt::Write;
 use core::panic::PanicInfo;
+use core::ptr::addr_of;
+use core::ptr::addr_of_mut;
 use core::str;
 use kernel::debug;
 use kernel::debug::IoWrite;
@@ -64,15 +66,15 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
         sifive::gpio::pins::pin22::CLEAR,
     );
     let led_red = &mut led::LedLow::new(&led_red_pin);
-    let writer = &mut WRITER;
+    let writer = &mut *addr_of_mut!(WRITER);
 
     debug::panic(
         &mut [led_red],
         writer,
         pi,
         &rv32i::support::nop,
-        &PROCESSES,
-        &CHIP,
-        &PROCESS_PRINTER,
+        &*addr_of!(PROCESSES),
+        &*addr_of!(CHIP),
+        &*addr_of!(PROCESS_PRINTER),
     )
 }

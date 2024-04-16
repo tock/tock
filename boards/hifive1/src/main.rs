@@ -13,6 +13,8 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 
+use core::ptr::{addr_of, addr_of_mut};
+
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use e310_g002::interrupt_service::E310G002DefaultPeripherals;
 use kernel::capabilities;
@@ -161,7 +163,7 @@ fn load_processes_not_inlined<C: Chip>(board_kernel: &'static Kernel, chip: &'st
         chip,
         app_flash,
         app_memory,
-        unsafe { &mut PROCESSES },
+        unsafe { &mut *addr_of_mut!(PROCESSES) },
         &FAULT_RESPONSE,
         &process_mgmt_cap,
     )
@@ -202,7 +204,7 @@ unsafe fn start() -> (
         .prci
         .set_clock_frequency(sifive::prci::ClockFrequency::Freq344Mhz);
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
 
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
@@ -323,7 +325,7 @@ unsafe fn start() -> (
     debug!("HiFive1 initialization complete.");
     debug!("Entering main loop.");
 
-    let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
+    let scheduler = components::sched::cooperative::CooperativeComponent::new(&*addr_of!(PROCESSES))
         .finalize(components::cooperative_component_static!(NUM_PROCS));
 
     let scheduler_timer = static_init!(

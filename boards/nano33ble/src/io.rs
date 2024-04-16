@@ -4,6 +4,7 @@
 
 use core::fmt::Write;
 use core::panic::PanicInfo;
+use core::ptr::{addr_of, addr_of_mut};
 
 use kernel::debug;
 use kernel::debug::IoWrite;
@@ -96,8 +97,8 @@ impl IoWrite for Writer {
                 //   mutate it.
                 let usb = &mut cdc.controller();
                 STATIC_PANIC_BUF[..max].copy_from_slice(&buf[..max]);
-                let static_buf = &mut STATIC_PANIC_BUF;
-                cdc.set_transmit_client(&DUMMY);
+                let static_buf = &mut *addr_of_mut!(STATIC_PANIC_BUF);
+                cdc.set_transmit_client(& *addr_of!(DUMMY));
                 let _ = cdc.transmit_buffer(static_buf, max);
                 loop {
                     if let Some(interrupt) = cortexm4::nvic::next_pending() {
@@ -130,14 +131,14 @@ impl IoWrite for Writer {
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let led_kernel_pin = &nrf52840::gpio::GPIOPin::new(Pin::P0_13);
     let led = &mut led::LedLow::new(led_kernel_pin);
-    let writer = &mut WRITER;
+    let writer = &mut *addr_of_mut!(WRITER);
     debug::panic(
         &mut [led],
         writer,
         pi,
         &cortexm4::support::nop,
-        &PROCESSES,
-        &CHIP,
-        &PROCESS_PRINTER,
+        &*addr_of!(PROCESSES),
+        &*addr_of!(CHIP),
+        &*addr_of!(PROCESS_PRINTER),
     )
 }

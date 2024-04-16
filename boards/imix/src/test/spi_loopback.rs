@@ -17,6 +17,7 @@
 use capsules_core::virtualizers::virtual_spi::MuxSpiMaster;
 use components::spi::SpiComponent;
 use core::cell::Cell;
+use core::ptr::addr_of_mut;
 use kernel::component::Component;
 use kernel::debug;
 use kernel::hil::spi::{self, SpiMasterDevice};
@@ -96,7 +97,7 @@ pub unsafe fn spi_loopback_test(
         .expect("Failed to set SPI speed in SPI loopback test.");
 
     let len = WBUF.len();
-    if let Err((e, _, _)) = spi.read_write_bytes(&mut WBUF, Some(&mut RBUF), len) {
+    if let Err((e, _, _)) = spi.read_write_bytes(&mut *addr_of_mut!(WBUF), Some(&mut *addr_of_mut!(RBUF)), len) {
         panic!(
             "Could not start SPI test, error on read_write_bytes is {:?}",
             e
@@ -124,7 +125,7 @@ pub unsafe fn spi_two_loopback_test(mux: &'static MuxSpiMaster<'static, sam4l::s
     spi_slow.set_client(spicb_slow);
 
     let len = WBUF.len();
-    if let Err((e, _, _)) = spi_fast.read_write_bytes(&mut WBUF, Some(&mut RBUF), len) {
+    if let Err((e, _, _)) = spi_fast.read_write_bytes(&mut *addr_of_mut!(WBUF), Some(&mut *addr_of_mut!(RBUF)), len) {
         panic!(
             "Could not start SPI test, error on read_write_bytes is {:?}",
             e
@@ -132,7 +133,7 @@ pub unsafe fn spi_two_loopback_test(mux: &'static MuxSpiMaster<'static, sam4l::s
     }
 
     let len = WBUF2.len();
-    if let Err((e, _, _)) = spi_slow.read_write_bytes(&mut WBUF2, Some(&mut RBUF2), len) {
+    if let Err((e, _, _)) = spi_slow.read_write_bytes(&mut *addr_of_mut!(WBUF2), Some(&mut *addr_of_mut!(RBUF2)), len) {
         panic!(
             "Could not start SPI test, error on read_write_bytes is {:?}",
             e

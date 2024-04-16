@@ -6,6 +6,7 @@
 
 use core::fmt::{Display, Write};
 use core::marker::PhantomData;
+use core::ptr::addr_of;
 use kernel::platform::chip::{Chip, InterruptService};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use rv32i::csr::{mcause, mie::mie, mtvec::mtvec, CSR};
@@ -153,7 +154,7 @@ impl<
         Self {
             userspace_kernel_boundary: SysCall::new(),
             mpu: PMPUserMPU::new(pmp),
-            plic: &PLIC,
+            plic: &*addr_of!(PLIC),
             pwrmgr: lowrisc::pwrmgr::PwrMgr::new(crate::pwrmgr::PWRMGR_BASE),
             timer,
             plic_interrupt_service,
