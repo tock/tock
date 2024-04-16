@@ -21,7 +21,7 @@ use kernel::{capabilities, create_capability, static_init};
 use nrf52840::chip::Nrf52DefaultPeripherals;
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
-use nrf52_components::{self, UartChannel, UartPins};
+use nrf52_components::{UartChannel, UartPins};
 
 mod test;
 
