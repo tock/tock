@@ -127,8 +127,6 @@ impl IoWrite for Writer {
 #[no_mangle]
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
-    use core::ptr::{addr_of, addr_of_mut};
-
     let led_kernel_pin = &nrf52840::gpio::GPIOPin::new(Pin::P1_10);
     let led = &mut led::LedLow::new(led_kernel_pin);
     let writer = &mut *addr_of_mut!(WRITER);
