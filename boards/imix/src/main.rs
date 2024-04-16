@@ -624,7 +624,11 @@ pub unsafe fn main() {
     peripherals.aes.set_client(aes_mux);
 
     // Can this initialize be pushed earlier, or into component? -pal
-    let _ = rf233.initialize(&mut *addr_of_mut!(RF233_BUF), &mut *addr_of_mut!(RF233_REG_WRITE), &mut *addr_of_mut!(RF233_REG_READ));
+    let _ = rf233.initialize(
+        &mut *addr_of_mut!(RF233_BUF),
+        &mut *addr_of_mut!(RF233_REG_WRITE),
+        &mut *addr_of_mut!(RF233_REG_READ),
+    );
     let (_, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
         capsules_extra::ieee802154::DRIVER_NUM,

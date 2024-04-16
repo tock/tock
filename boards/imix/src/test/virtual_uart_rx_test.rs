@@ -72,8 +72,8 @@ unsafe fn static_init_test_receive_small(
     device.setup();
     let test = static_init!(
         TestVirtualUartReceive,
-        TestVirtualUartReceive::new(device, &mut *addr_of_mut!(SMALL)
-    ));
+        TestVirtualUartReceive::new(device, &mut *addr_of_mut!(SMALL))
+    );
     device.set_receive_client(test);
     test
 }

@@ -98,7 +98,7 @@ impl IoWrite for Writer {
                 let usb = &mut cdc.controller();
                 STATIC_PANIC_BUF[..max].copy_from_slice(&buf[..max]);
                 let static_buf = &mut *addr_of_mut!(STATIC_PANIC_BUF);
-                cdc.set_transmit_client(& *addr_of!(DUMMY));
+                cdc.set_transmit_client(&*addr_of!(DUMMY));
                 let _ = cdc.transmit_buffer(static_buf, max);
                 loop {
                     if let Some(interrupt) = cortexm4::nvic::next_pending() {

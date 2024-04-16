@@ -651,8 +651,9 @@ pub unsafe fn main() {
 
     debug!("Verilated LiteX+VexRiscv: initialization complete, entering main loop.");
 
-    let scheduler = components::sched::cooperative::CooperativeComponent::new(&*addr_of!(PROCESSES))
-        .finalize(components::cooperative_component_static!(NUM_PROCS));
+    let scheduler =
+        components::sched::cooperative::CooperativeComponent::new(&*addr_of!(PROCESSES))
+            .finalize(components::cooperative_component_static!(NUM_PROCS));
 
     let litex_sim = LiteXSim {
         gpio_driver: gpio_driver,

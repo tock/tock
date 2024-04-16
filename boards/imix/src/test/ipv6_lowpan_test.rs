@@ -149,7 +149,10 @@ pub unsafe fn initialize_all(
         capsules_extra::ieee802154::virtual_mac::MacUser::new(mux_mac)
     );
     mux_mac.add_user(radio_mac);
-    let default_rx_state = static_init!(RxState<'static>, RxState::new(&mut *addr_of_mut!(RX_STATE_BUF)));
+    let default_rx_state = static_init!(
+        RxState<'static>,
+        RxState::new(&mut *addr_of_mut!(RX_STATE_BUF))
+    );
 
     let sixlo_alarm = static_init!(
         VirtualMuxAlarm<sam4l::ast::Ast>,

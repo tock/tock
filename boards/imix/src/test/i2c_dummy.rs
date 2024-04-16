@@ -62,8 +62,12 @@ pub fn i2c_scan_slaves(i2c_master: &'static dyn I2CMaster<'static>) {
     dev.enable();
 
     debug!("Scanning for I2C devices...");
-    dev.write(i2c_client.dev_id.get(), unsafe { &mut *addr_of_mut!(DATA) }, 2)
-        .unwrap();
+    dev.write(
+        i2c_client.dev_id.get(),
+        unsafe { &mut *addr_of_mut!(DATA) },
+        2,
+    )
+    .unwrap();
 }
 
 // ===========================================

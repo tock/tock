@@ -385,7 +385,10 @@ impl<A: 'static + Alarm<'static>> LogTest<A> {
 
         // Ensure failure if entry is too large to fit within a single flash page.
         unsafe {
-            match self.log.append(&mut *addr_of_mut!(DUMMY_BUFFER), DUMMY_BUFFER.len()) {
+            match self
+                .log
+                .append(&mut *addr_of_mut!(DUMMY_BUFFER), DUMMY_BUFFER.len())
+            {
                 Ok(()) => panic!("Appending with too-small buffer succeeded unexpectedly!"),
                 Err((error, _original_buffer)) => assert_eq!(error, ErrorCode::SIZE),
             }

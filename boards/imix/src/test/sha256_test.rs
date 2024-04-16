@@ -59,7 +59,12 @@ unsafe fn static_init_test_sha256() -> &'static TestSha256 {
     // We expect LSTRING to hash to LHASH, so final argument is true
     let test = static_init!(
         TestSha256,
-        TestSha256::new(sha, &mut *addr_of_mut!(LSTRING), &mut *addr_of_mut!(LHASH), true)
+        TestSha256::new(
+            sha,
+            &mut *addr_of_mut!(LSTRING),
+            &mut *addr_of_mut!(LHASH),
+            true
+        )
     );
 
     test

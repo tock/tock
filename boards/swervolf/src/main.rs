@@ -217,8 +217,9 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    let scheduler = components::sched::cooperative::CooperativeComponent::new(&*addr_of!(PROCESSES))
-        .finalize(components::cooperative_component_static!(NUM_PROCS));
+    let scheduler =
+        components::sched::cooperative::CooperativeComponent::new(&*addr_of!(PROCESSES))
+            .finalize(components::cooperative_component_static!(NUM_PROCS));
 
     let swervolf = SweRVolf {
         console,

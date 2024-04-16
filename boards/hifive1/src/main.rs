@@ -325,8 +325,9 @@ unsafe fn start() -> (
     debug!("HiFive1 initialization complete.");
     debug!("Entering main loop.");
 
-    let scheduler = components::sched::cooperative::CooperativeComponent::new(&*addr_of!(PROCESSES))
-        .finalize(components::cooperative_component_static!(NUM_PROCS));
+    let scheduler =
+        components::sched::cooperative::CooperativeComponent::new(&*addr_of!(PROCESSES))
+            .finalize(components::cooperative_component_static!(NUM_PROCS));
 
     let scheduler_timer = static_init!(
         VirtualSchedulerTimer<VirtualMuxAlarm<'static, e310_g002::chip::E310xClint<'static>>>,

@@ -38,7 +38,12 @@ unsafe fn static_init_test_siphash24(
     }
     let test = static_init!(
         TestSipHash24,
-        TestSipHash24::new(sha, &mut *addr_of_mut!(HBUF), &mut *addr_of_mut!(HHASH), &mut *addr_of_mut!(CHASH))
+        TestSipHash24::new(
+            sha,
+            &mut *addr_of_mut!(HBUF),
+            &mut *addr_of_mut!(HHASH),
+            &mut *addr_of_mut!(CHASH)
+        )
     );
 
     test.set_client(client);
