@@ -83,7 +83,7 @@ impl<'a> AppCredentialsPolicy<'a> for AppCheckerSimulated<'a> {
     }
 }
 
-struct AppIdAssignerSimulated {}
+pub struct AppIdAssignerSimulated {}
 
 impl AppUniqueness for AppIdAssignerSimulated {
     // This checker doesn't allow you to run two processes with the
