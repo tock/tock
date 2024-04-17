@@ -14,6 +14,8 @@
 #![deny(missing_docs)]
 
 mod imix_components;
+use core::ptr::{addr_of, addr_of_mut};
+
 use capsules_core::alarm::AlarmDriver;
 use capsules_core::console_ordered::ConsoleOrdered;
 use capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM;
@@ -374,7 +376,7 @@ pub unsafe fn main() {
         },
     );
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
 
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
@@ -622,7 +624,11 @@ pub unsafe fn main() {
     peripherals.aes.set_client(aes_mux);
 
     // Can this initialize be pushed earlier, or into component? -pal
-    let _ = rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
+    let _ = rf233.initialize(
+        &mut *addr_of_mut!(RF233_BUF),
+        &mut *addr_of_mut!(RF233_REG_WRITE),
+        &mut *addr_of_mut!(RF233_REG_READ),
+    );
     let (_, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
         capsules_extra::ieee802154::DRIVER_NUM,
@@ -709,7 +715,7 @@ pub unsafe fn main() {
     )
     .finalize(components::udp_driver_component_static!(sam4l::ast::Ast));
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     // Create the software-based SHA engine.
@@ -751,7 +757,7 @@ pub unsafe fn main() {
         >,
         kernel::process::SequentialProcessLoaderMachine::new(
             checker,
-            &mut PROCESSES,
+            &mut *addr_of_mut!(PROCESSES),
             process_binary_array,
             board_kernel,
             chip,

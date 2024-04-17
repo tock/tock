@@ -12,6 +12,7 @@
 
 use capsules_core::test::capsule_test::{CapsuleTestClient, CapsuleTestError};
 use core::cell::Cell;
+use core::ptr::addr_of;
 use kernel::component::Component;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -175,7 +176,7 @@ pub unsafe fn main() {
     let base_peripherals = &nrf52840_peripherals.nrf52;
 
     // Setup space to store the core kernel data structure.
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
 
     // Create (and save for panic debugging) a chip object to setup low-level
     // resources (e.g. MPU, systick).
@@ -243,7 +244,7 @@ pub unsafe fn main() {
     // PLATFORM AND SCHEDULER
     //--------------------------------------------------------------------------
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let platform = Platform {

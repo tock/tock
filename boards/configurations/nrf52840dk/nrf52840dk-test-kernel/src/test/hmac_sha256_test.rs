@@ -4,6 +4,8 @@
 
 //! This tests a software HMAC-SHA256 implementation.
 
+use core::ptr::{addr_of, addr_of_mut};
+
 use capsules_core::test::capsule_test::{CapsuleTest, CapsuleTestClient};
 use capsules_extra::hmac_sha256::HmacSha256Software;
 use capsules_extra::sha256::Sha256Software;
@@ -46,10 +48,10 @@ unsafe fn static_init_test_hmacsha256(
         TestHmacSha256,
         TestHmacSha256::new(
             hmacsha256,
-            &mut WIKI_KEY,
-            &mut WIKI_STR,
-            &mut DIGEST_DATA,
-            &WIKI_HMAC
+            &mut *addr_of_mut!(WIKI_KEY),
+            &mut *addr_of_mut!(WIKI_STR),
+            &mut *addr_of_mut!(DIGEST_DATA),
+            &*addr_of!(WIKI_HMAC)
         )
     );
     test.set_client(client);

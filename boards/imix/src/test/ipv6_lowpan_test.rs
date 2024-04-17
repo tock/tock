@@ -43,6 +43,7 @@ use capsules_extra::net::sixlowpan::sixlowpan_state::{
 };
 use capsules_extra::net::udp::UDPHeader;
 use core::cell::Cell;
+use core::ptr::addr_of_mut;
 use kernel::debug;
 use kernel::hil::radio;
 use kernel::hil::time::{self, Alarm, ConvertTicks};
@@ -148,7 +149,10 @@ pub unsafe fn initialize_all(
         capsules_extra::ieee802154::virtual_mac::MacUser::new(mux_mac)
     );
     mux_mac.add_user(radio_mac);
-    let default_rx_state = static_init!(RxState<'static>, RxState::new(&mut RX_STATE_BUF));
+    let default_rx_state = static_init!(
+        RxState<'static>,
+        RxState::new(&mut *addr_of_mut!(RX_STATE_BUF))
+    );
 
     let sixlo_alarm = static_init!(
         VirtualMuxAlarm<sam4l::ast::Ast>,
@@ -212,7 +216,7 @@ pub unsafe fn initialize_all(
 
     let ip_pyld: IPPayload = IPPayload {
         header: tr_hdr,
-        payload: &mut UDP_DGRAM,
+        payload: &mut *addr_of_mut!(UDP_DGRAM),
     };
 
     let mut ip6_dg: IP6Packet = IP6Packet {
@@ -418,7 +422,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
     }
 
     unsafe fn send_ipv6_packet(&self, _: &[u8]) {
-        self.send_next(&mut RF233_BUF);
+        self.send_next(&mut *addr_of_mut!(RF233_BUF));
     }
 
     fn send_next(&self, tx_buf: &'static mut [u8]) {

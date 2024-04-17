@@ -5,6 +5,7 @@
 //! High-level setup and interrupt mapping for the chip.
 
 use core::fmt::Write;
+use core::ptr::addr_of;
 use kernel::platform::chip::{Chip, InterruptService};
 use kernel::utilities::cells::VolatileCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
@@ -72,7 +73,7 @@ impl<'a, I: InterruptService + 'a> SweRVolf<'a, I> {
     ) -> Self {
         Self {
             userspace_kernel_boundary: SysCall::new(),
-            pic: &PIC,
+            pic: &*addr_of!(PIC),
             scheduler_timer: swerv::eh1_timer::Timer::new(swerv::eh1_timer::TimerNumber::ZERO),
             mtimer,
             pic_interrupt_service,

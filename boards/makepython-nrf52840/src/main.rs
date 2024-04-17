@@ -12,6 +12,8 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use core::ptr::{addr_of, addr_of_mut};
+
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil::led::LedLow;
@@ -247,7 +249,7 @@ pub unsafe fn start() -> (
     // bootloader.
     NRF52_POWER = Some(&base_peripherals.pwr_clk);
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
 
     // Do nRF configuration and setup. This is shared code with other nRF-based
     // platforms.
@@ -674,7 +676,7 @@ pub unsafe fn start() -> (
         >,
         kernel::process::SequentialProcessLoaderMachine::new(
             checker,
-            &mut PROCESSES,
+            &mut *addr_of_mut!(PROCESSES),
             process_binary_array,
             board_kernel,
             chip,
@@ -683,8 +685,8 @@ pub unsafe fn start() -> (
                 &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
             ),
             core::slice::from_raw_parts_mut(
-                &mut _sappmem as *mut u8,
-                &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+                addr_of_mut!(_sappmem),
+                &_eappmem as *const u8 as usize - addr_of!(_sappmem) as usize,
             ),
             &FAULT_RESPONSE,
             assigner,
@@ -703,7 +705,7 @@ pub unsafe fn start() -> (
     // approach than this.
     nrf52_components::NrfClockComponent::new(&base_peripherals.clock).finalize(());
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let platform = Platform {
