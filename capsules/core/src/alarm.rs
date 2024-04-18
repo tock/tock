@@ -161,10 +161,12 @@ impl<'a, A: Alarm<'a>> SyscallDriver for AlarmDriver<'a, A> {
     ///
     /// - `0`: Driver existence check.
     /// - `1`: Return the clock frequency in Hz.
-    /// - `2`: Read the the current clock value
+    /// - `2`: Read the current clock value
     /// - `3`: Stop the alarm if it is outstanding
-    /// - `4`: Set an alarm to fire at a given clock value `time`.
-    /// - `5`: Set an alarm to fire at a given clock value `time` relative to `now` (EXPERIMENTAL).
+    /// - `4`: Deprecated
+    /// - `5`: Set an alarm to fire at a given clock value `time` relative to `now`
+    /// - `6`: Set an alarm to fire at a given clock value `time` relative to a provided
+    ///        reference point.
     fn command(
         &self,
         cmd_type: usize,
