@@ -215,7 +215,7 @@ impl Component for UartChannelComponent {
         //     SeggerRtt<'static, VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>>,
         // >,
     );
-    type Output = &'static dyn kernel::hil::uart::Uart<'static>;
+    type Output = &'static dyn kernel::hil::uart::Uart<'static, 0, 0>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         match self.uart_channel {

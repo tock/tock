@@ -55,7 +55,7 @@ macro_rules! uart_mux_component_static {
     ($rx_buffer_len: expr) => {{
         use capsules_core::virtualizers::virtual_uart::MuxUart;
         use kernel::static_buf;
-        let UART_MUX = static_buf!(MuxUart<'static>);
+        let UART_MUX = static_buf!(MuxUart<'static, 0, 0, 1, 1>);
         let RX_BUF = static_buf!([u8; $rx_buffer_len]);
         (UART_MUX, RX_BUF)
     }};
@@ -68,13 +68,13 @@ macro_rules! uart_mux_component_static {
 }
 
 pub struct UartMuxComponent<const RX_BUF_LEN: usize> {
-    uart: &'static dyn uart::Uart<'static>,
+    uart: &'static dyn uart::Uart<'static, 0, 0>,
     baud_rate: u32,
 }
 
 impl<const RX_BUF_LEN: usize> UartMuxComponent<RX_BUF_LEN> {
     pub fn new(
-        uart: &'static dyn uart::Uart<'static>,
+        uart: &'static dyn uart::Uart<'static, 0, 0>,
         baud_rate: u32,
     ) -> UartMuxComponent<RX_BUF_LEN> {
         UartMuxComponent { uart, baud_rate }
@@ -83,10 +83,10 @@ impl<const RX_BUF_LEN: usize> UartMuxComponent<RX_BUF_LEN> {
 
 impl<const RX_BUF_LEN: usize> Component for UartMuxComponent<RX_BUF_LEN> {
     type StaticInput = (
-        &'static mut MaybeUninit<MuxUart<'static>>,
+        &'static mut MaybeUninit<MuxUart<'static, 0, 0, 1, 1>>,
         &'static mut MaybeUninit<[u8; RX_BUF_LEN]>,
     );
-    type Output = &'static MuxUart<'static>;
+    type Output = &'static MuxUart<'static, 0, 0, 1, 1>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let rx_buf = s.1.write([0; RX_BUF_LEN]);
@@ -111,8 +111,8 @@ macro_rules! console_component_static {
         let read_buf = static_buf!([u8; $rx_buffer_len]);
         let write_buf = static_buf!([u8; $tx_buffer_len]);
         // Create virtual device for console.
-        let console_uart = static_buf!(UartDevice);
-        let console = static_buf!(Console<'static>);
+        let console_uart = static_buf!(UartDevice<1, 1, 0,0>);
+        let console = static_buf!(Console<'static, 2, 1, 1, 1>);
         (write_buf, read_buf, console_uart, console)
     }};
     () => {
@@ -126,14 +126,14 @@ macro_rules! console_component_static {
 pub struct ConsoleComponent<const RX_BUF_LEN: usize, const TX_BUF_LEN: usize> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
-    uart_mux: &'static MuxUart<'static>,
+    uart_mux: &'static MuxUart<'static, 0, 0, 1, 1>,
 }
 
 impl<const RX_BUF_LEN: usize, const TX_BUF_LEN: usize> ConsoleComponent<RX_BUF_LEN, TX_BUF_LEN> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
-        uart_mux: &'static MuxUart,
+        uart_mux: &'static MuxUart<0, 0, 1, 1>,
     ) -> ConsoleComponent<RX_BUF_LEN, TX_BUF_LEN> {
         ConsoleComponent {
             board_kernel: board_kernel,
@@ -149,10 +149,10 @@ impl<const RX_BUF_LEN: usize, const TX_BUF_LEN: usize> Component
     type StaticInput = (
         &'static mut MaybeUninit<[u8; TX_BUF_LEN]>,
         &'static mut MaybeUninit<[u8; RX_BUF_LEN]>,
-        &'static mut MaybeUninit<UartDevice<'static>>,
-        &'static mut MaybeUninit<console::Console<'static>>,
+        &'static mut MaybeUninit<UartDevice<'static, 1, 1, 0, 0>>,
+        &'static mut MaybeUninit<console::Console<'static, 2, 1, 1, 1>>,
     );
-    type Output = &'static console::Console<'static>;
+    type Output = &'static console::Console<'static, 2, 1, 1, 1>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -164,9 +164,12 @@ impl<const RX_BUF_LEN: usize, const TX_BUF_LEN: usize> Component
         let console_uart = s.2.write(UartDevice::new(self.uart_mux, true));
         console_uart.setup();
 
+        let ps = PacketSliceMut::new(write_buffer, 5).unwrap();
+        // ps.set_headroom(10);
+
         let console = s.3.write(console::Console::new(
             console_uart,
-            PacketBufferMut::new(PacketSliceMut::new(write_buffer).unwrap()).unwrap(),
+            PacketBufferMut::new(ps).unwrap(),
             read_buffer,
             self.board_kernel.create_grant(self.driver_num, &grant_cap),
         ));
@@ -188,70 +191,70 @@ macro_rules! console_ordered_component_static {
     };};
 }
 
-pub struct ConsoleOrderedComponent<A: 'static + time::Alarm<'static>> {
-    board_kernel: &'static kernel::Kernel,
-    driver_num: usize,
-    uart_mux: &'static MuxUart<'static>,
-    alarm_mux: &'static MuxAlarm<'static, A>,
-    atomic_size: usize,
-    retry_timer: u32,
-    write_timer: u32,
-}
+// pub struct ConsoleOrderedComponent<A: 'static + time::Alarm<'static>> {
+//     board_kernel: &'static kernel::Kernel,
+//     driver_num: usize,
+//     uart_mux: &'static MuxUart<'static>,
+//     alarm_mux: &'static MuxAlarm<'static, A>,
+//     atomic_size: usize,
+//     retry_timer: u32,
+//     write_timer: u32,
+// }
 
-impl<A: 'static + time::Alarm<'static>> ConsoleOrderedComponent<A> {
-    pub fn new(
-        board_kernel: &'static kernel::Kernel,
-        driver_num: usize,
-        uart_mux: &'static MuxUart<'static>,
-        alarm_mux: &'static MuxAlarm<'static, A>,
-        atomic_size: usize,
-        retry_timer: u32,
-        write_timer: u32,
-    ) -> ConsoleOrderedComponent<A> {
-        ConsoleOrderedComponent {
-            board_kernel: board_kernel,
-            driver_num: driver_num,
-            uart_mux: uart_mux,
-            alarm_mux: alarm_mux,
-            atomic_size: atomic_size,
-            retry_timer: retry_timer,
-            write_timer: write_timer,
-        }
-    }
-}
+// impl<A: 'static + time::Alarm<'static>> ConsoleOrderedComponent<A> {
+//     pub fn new(
+//         board_kernel: &'static kernel::Kernel,
+//         driver_num: usize,
+//         uart_mux: &'static MuxUart<'static>,
+//         alarm_mux: &'static MuxAlarm<'static, A>,
+//         atomic_size: usize,
+//         retry_timer: u32,
+//         write_timer: u32,
+//     ) -> ConsoleOrderedComponent<A> {
+//         ConsoleOrderedComponent {
+//             board_kernel: board_kernel,
+//             driver_num: driver_num,
+//             uart_mux: uart_mux,
+//             alarm_mux: alarm_mux,
+//             atomic_size: atomic_size,
+//             retry_timer: retry_timer,
+//             write_timer: write_timer,
+//         }
+//     }
+// }
 
-impl<A: 'static + time::Alarm<'static>> Component for ConsoleOrderedComponent<A> {
-    type StaticInput = (
-        &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
-        &'static mut MaybeUninit<[u8; DEFAULT_BUF_SIZE]>,
-        &'static mut MaybeUninit<UartDevice<'static>>,
-        &'static mut MaybeUninit<ConsoleOrdered<'static, VirtualMuxAlarm<'static, A>>>,
-    );
-    type Output = &'static ConsoleOrdered<'static, VirtualMuxAlarm<'static, A>>;
+// impl<A: 'static + time::Alarm<'static>> Component for ConsoleOrderedComponent<A> {
+//     type StaticInput = (
+//         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
+//         &'static mut MaybeUninit<[u8; DEFAULT_BUF_SIZE]>,
+//         &'static mut MaybeUninit<UartDevice<'static>>,
+//         &'static mut MaybeUninit<ConsoleOrdered<'static, VirtualMuxAlarm<'static, A>>>,
+//     );
+//     type Output = &'static ConsoleOrdered<'static, VirtualMuxAlarm<'static, A>>;
 
-    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+//     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+//         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
-        let virtual_alarm1 = static_buffer.0.write(VirtualMuxAlarm::new(self.alarm_mux));
-        virtual_alarm1.setup();
+//         let virtual_alarm1 = static_buffer.0.write(VirtualMuxAlarm::new(self.alarm_mux));
+//         virtual_alarm1.setup();
 
-        let read_buffer = static_buffer.1.write([0; DEFAULT_BUF_SIZE]);
+//         let read_buffer = static_buffer.1.write([0; DEFAULT_BUF_SIZE]);
 
-        let console_uart = static_buffer.2.write(UartDevice::new(self.uart_mux, true));
-        console_uart.setup();
+//         let console_uart = static_buffer.2.write(UartDevice::new(self.uart_mux, true));
+//         console_uart.setup();
 
-        let console = static_buffer.3.write(ConsoleOrdered::new(
-            console_uart,
-            virtual_alarm1,
-            read_buffer,
-            self.board_kernel.create_grant(self.driver_num, &grant_cap),
-            self.atomic_size,
-            self.retry_timer,
-            self.write_timer,
-        ));
+//         let console = static_buffer.3.write(ConsoleOrdered::new(
+//             console_uart,
+//             virtual_alarm1,
+//             read_buffer,
+//             self.board_kernel.create_grant(self.driver_num, &grant_cap),
+//             self.atomic_size,
+//             self.retry_timer,
+//             self.write_timer,
+//         ));
 
-        virtual_alarm1.set_alarm_client(console);
-        hil::uart::Receive::set_receive_client(console_uart, console);
-        console
-    }
-}
+//         virtual_alarm1.set_alarm_client(console);
+//         hil::uart::Receive::set_receive_client(console_uart, console);
+//         console
+//     }
+// }

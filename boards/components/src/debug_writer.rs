@@ -24,6 +24,7 @@
 
 use capsules_core::virtualizers::virtual_uart::{MuxUart, UartDevice};
 use core::mem::MaybeUninit;
+use cortex_m_semihosting::hprintln;
 use kernel::capabilities;
 use kernel::collections::ring_buffer::RingBuffer;
 use kernel::component::Component;
@@ -48,10 +49,10 @@ const DEBUG_BUFFER_SPLIT: usize = 64;
 #[macro_export]
 macro_rules! debug_writer_component_static {
     ($BUF_SIZE_KB:expr) => {{
-        let uart = kernel::static_buf!(capsules_core::virtualizers::virtual_uart::UartDevice);
+        let uart = kernel::static_buf!(capsules_core::virtualizers::virtual_uart::UartDevice<1,1,0,0>);
         let ring = kernel::static_buf!(kernel::collections::ring_buffer::RingBuffer<'static, u8>);
         let buffer = kernel::static_buf!([u8; 1024 * $BUF_SIZE_KB]);
-        let debug = kernel::static_buf!(kernel::debug::DebugWriter);
+        let debug = kernel::static_buf!(kernel::debug::DebugWriter<2,1,1,1>);
         let debug_wrapper = kernel::static_buf!(kernel::debug::DebugWriterWrapper);
 
         (uart, ring, buffer, debug, debug_wrapper)
@@ -81,12 +82,12 @@ macro_rules! debug_writer_no_mux_component_static {
 }
 
 pub struct DebugWriterComponent<const BUF_SIZE_BYTES: usize> {
-    uart_mux: &'static MuxUart<'static>,
+    uart_mux: &'static MuxUart<'static, 0, 0, 1, 1>,
     marker: core::marker::PhantomData<[u8; BUF_SIZE_BYTES]>,
 }
 
 impl<const BUF_SIZE_BYTES: usize> DebugWriterComponent<BUF_SIZE_BYTES> {
-    pub fn new(uart_mux: &'static MuxUart) -> Self {
+    pub fn new(uart_mux: &'static MuxUart<0, 0, 1, 1>) -> Self {
         Self {
             uart_mux,
             marker: core::marker::PhantomData,
@@ -99,26 +100,28 @@ unsafe impl capabilities::ProcessManagementCapability for Capability {}
 
 impl<const BUF_SIZE_BYTES: usize> Component for DebugWriterComponent<BUF_SIZE_BYTES> {
     type StaticInput = (
-        &'static mut MaybeUninit<UartDevice<'static>>,
+        &'static mut MaybeUninit<UartDevice<'static, 1, 1, 0, 0>>,
         &'static mut MaybeUninit<RingBuffer<'static, u8>>,
         &'static mut MaybeUninit<[u8; BUF_SIZE_BYTES]>,
-        &'static mut MaybeUninit<kernel::debug::DebugWriter>,
+        &'static mut MaybeUninit<kernel::debug::DebugWriter<2, 1, 1, 1>>,
         &'static mut MaybeUninit<kernel::debug::DebugWriterWrapper>,
     );
     type Output = ();
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let buf = s.2.write([0; BUF_SIZE_BYTES]);
-
         let (output_buf, internal_buf) = buf.split_at_mut(DEBUG_BUFFER_SPLIT);
 
         // Create virtual device for kernel debug.
         let debugger_uart = s.0.write(UartDevice::new(self.uart_mux, false));
         debugger_uart.setup();
         let ring_buffer = s.1.write(RingBuffer::new(internal_buf));
+        hprintln!("Debug buffer size {}", output_buf.len());
+        let ps = PacketSliceMut::new(output_buf, 5).unwrap();
+        // ps.set_headroom(10);
         let debugger = s.3.write(kernel::debug::DebugWriter::new(
             debugger_uart,
-            PacketBufferMut::new(PacketSliceMut::new(output_buf).unwrap()).unwrap(),
+            PacketBufferMut::new(ps).unwrap(),
             ring_buffer,
         ));
         hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
@@ -130,60 +133,60 @@ impl<const BUF_SIZE_BYTES: usize> Component for DebugWriterComponent<BUF_SIZE_BY
     }
 }
 
-pub struct DebugWriterNoMuxComponent<
-    U: uart::Uart<'static> + uart::Transmit<'static> + 'static,
-    const BUF_SIZE_BYTES: usize,
-> {
-    uart: &'static U,
-    marker: core::marker::PhantomData<[u8; BUF_SIZE_BYTES]>,
-}
+// pub struct DebugWriterNoMuxComponent<
+//     U: uart::Uart<'static> + uart::Transmit<'static> + 'static,
+//     const BUF_SIZE_BYTES: usize,
+// > {
+//     uart: &'static U,
+//     marker: core::marker::PhantomData<[u8; BUF_SIZE_BYTES]>,
+// }
 
-impl<U: uart::Uart<'static> + uart::Transmit<'static> + 'static, const BUF_SIZE_BYTES: usize>
-    DebugWriterNoMuxComponent<U, BUF_SIZE_BYTES>
-{
-    pub fn new(uart: &'static U) -> Self {
-        Self {
-            uart,
-            marker: core::marker::PhantomData,
-        }
-    }
-}
+// impl<U: uart::Uart<'static> + uart::Transmit<'static> + 'static, const BUF_SIZE_BYTES: usize>
+//     DebugWriterNoMuxComponent<U, BUF_SIZE_BYTES>
+// {
+//     pub fn new(uart: &'static U) -> Self {
+//         Self {
+//             uart,
+//             marker: core::marker::PhantomData,
+//         }
+//     }
+// }
 
-impl<U: uart::Uart<'static> + uart::Transmit<'static> + 'static, const BUF_SIZE_BYTES: usize>
-    Component for DebugWriterNoMuxComponent<U, BUF_SIZE_BYTES>
-{
-    type StaticInput = (
-        &'static mut MaybeUninit<RingBuffer<'static, u8>>,
-        &'static mut MaybeUninit<[u8; BUF_SIZE_BYTES]>,
-        &'static mut MaybeUninit<kernel::debug::DebugWriter>,
-        &'static mut MaybeUninit<kernel::debug::DebugWriterWrapper>,
-    );
-    type Output = ();
+// impl<U: uart::Uart<'static> + uart::Transmit<'static> + 'static, const BUF_SIZE_BYTES: usize>
+//     Component for DebugWriterNoMuxComponent<U, BUF_SIZE_BYTES>
+// {
+//     type StaticInput = (
+//         &'static mut MaybeUninit<RingBuffer<'static, u8>>,
+//         &'static mut MaybeUninit<[u8; BUF_SIZE_BYTES]>,
+//         &'static mut MaybeUninit<kernel::debug::DebugWriter>,
+//         &'static mut MaybeUninit<kernel::debug::DebugWriterWrapper>,
+//     );
+//     type Output = ();
 
-    fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        let buf = s.1.write([0; BUF_SIZE_BYTES]);
-        let (output_buf, internal_buf) = buf.split_at_mut(DEBUG_BUFFER_SPLIT);
+//     fn finalize(self, s: Self::StaticInput) -> Self::Output {
+//         let buf = s.1.write([0; BUF_SIZE_BYTES]);
+//         let (output_buf, internal_buf) = buf.split_at_mut(DEBUG_BUFFER_SPLIT);
 
-        // Create virtual device for kernel debug.
-        let ring_buffer = s.0.write(RingBuffer::new(internal_buf));
-        let debugger = s.2.write(kernel::debug::DebugWriter::new(
-            self.uart,
-            PacketBufferMut::new(PacketSliceMut::new(output_buf).unwrap()).unwrap(),
-            ring_buffer,
-        ));
-        hil::uart::Transmit::set_transmit_client(self.uart, debugger);
+//         // Create virtual device for kernel debug.
+//         let ring_buffer = s.0.write(RingBuffer::new(internal_buf));
+//         let debugger = s.2.write(kernel::debug::DebugWriter::new(
+//             self.uart,
+//             PacketBufferMut::new(PacketSliceMut::new(output_buf).unwrap()).unwrap(),
+//             ring_buffer,
+//         ));
+//         hil::uart::Transmit::set_transmit_client(self.uart, debugger);
 
-        let debug_wrapper = s.3.write(kernel::debug::DebugWriterWrapper::new(debugger));
-        unsafe {
-            kernel::debug::set_debug_writer_wrapper(debug_wrapper);
-        }
+//         let debug_wrapper = s.3.write(kernel::debug::DebugWriterWrapper::new(debugger));
+//         unsafe {
+//             kernel::debug::set_debug_writer_wrapper(debug_wrapper);
+//         }
 
-        let _ = self.uart.configure(uart::Parameters {
-            baud_rate: 115200,
-            width: uart::Width::Eight,
-            stop_bits: uart::StopBits::One,
-            parity: uart::Parity::None,
-            hw_flow_control: false,
-        });
-    }
-}
+//         let _ = self.uart.configure(uart::Parameters {
+//             baud_rate: 115200,
+//             width: uart::Width::Eight,
+//             stop_bits: uart::StopBits::One,
+//             parity: uart::Parity::None,
+//             hw_flow_control: false,
+//         });
+//     }
+// }
