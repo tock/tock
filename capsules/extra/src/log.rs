@@ -217,7 +217,7 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
     /// Reconstructs a log from flash.
     fn reconstruct(&self) {
         // Read page headers, get IDs of oldest and newest pages.
-        let mut oldest_page_id: EntryID = core::usize::MAX;
+        let mut oldest_page_id: EntryID = usize::MAX;
         let mut newest_page_id: EntryID = 0;
         for header_pos in (0..self.volume.len()).step_by(self.page_size) {
             let page_id = {
@@ -240,7 +240,7 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
 
         // Reconstruct log if at least one valid page was found (meaning oldest page ID was set to
         // something not usize::MAX).
-        if oldest_page_id != core::usize::MAX {
+        if oldest_page_id != usize::MAX {
             // Walk entries in last (newest) page to calculate last page length.
             let mut last_page_len = PAGE_HEADER_SIZE;
             loop {

@@ -625,8 +625,8 @@ impl<'a> Adc<'a> {
         self.registers.ie0.set(0);
 
         // Clear all pending interrupts
-        self.registers.clrifg0.set(core::u32::MAX);
-        self.registers.clrifg1.set(core::u32::MAX);
+        self.registers.clrifg0.set(u32::MAX);
+        self.registers.clrifg1.set(u32::MAX);
     }
 
     fn setup(&self) {

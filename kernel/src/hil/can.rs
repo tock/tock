@@ -241,7 +241,7 @@ impl<T: Configure> StandardBitTiming for T {
             875
         };
         let mut sample_point_err;
-        let mut sample_point_err_min = core::u16::MAX;
+        let mut sample_point_err_min = u16::MAX;
         let mut ts: u32 = (Self::MAX_BIT_TIMINGS.propagation
             + Self::MAX_BIT_TIMINGS.segment1
             + Self::MAX_BIT_TIMINGS.segment2
