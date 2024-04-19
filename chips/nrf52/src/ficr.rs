@@ -479,7 +479,7 @@ impl Ficr {
         buf[16] = h[((lo >> 0) & 0xf) as usize];
 
         // Safe because we use only ascii characters in this buffer.
-        unsafe { &*(buf as *const [u8] as *const str) }
+        unsafe { &*(core::ptr::from_ref::<[u8]>(buf) as *const str) }
     }
 }
 

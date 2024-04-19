@@ -681,12 +681,12 @@ pub unsafe fn start() -> (
             board_kernel,
             chip,
             core::slice::from_raw_parts(
-                &_sapps as *const u8,
-                &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+                core::ptr::addr_of!(_sapps),
+                core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
             ),
             core::slice::from_raw_parts_mut(
-                addr_of_mut!(_sappmem),
-                &_eappmem as *const u8 as usize - addr_of!(_sappmem) as usize,
+                core::ptr::addr_of_mut!(_sappmem),
+                core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
             ),
             &FAULT_RESPONSE,
             assigner,

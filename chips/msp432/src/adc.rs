@@ -940,7 +940,8 @@ impl<'a> hil::adc::AdcHighSpeed<'a> for Adc<'a> {
         );
 
         let adc_reg =
-            (&self.registers.mem[*channel as usize] as *const ReadWrite<u32>).cast::<()>();
+            (core::ptr::from_ref::<ReadWrite<u32>>(&self.registers.mem[*channel as usize]))
+                .cast::<()>();
 
         // Convert the [u16] into an [u8] since the DMA works only with [u8]
         let buf1 = unsafe { buf_u16_to_buf_u8(buffer1) };
