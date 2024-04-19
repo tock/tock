@@ -9,10 +9,8 @@ use kernel::debug;
 use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart;
-use nrf52833::gpio::{self, Pin};
+use nrf52833::gpio::Pin;
 use nrf52833::uart::{Uarte, UARTE0_BASE};
-
-use kernel::hil::gpio::{Configure, Input, Output};
 
 use crate::CHIP;
 use crate::PROCESSES;
@@ -67,31 +65,6 @@ impl IoWrite for Writer {
     }
 }
 
-struct MatrixLed(
-    &'static gpio::GPIOPin<'static>,
-    &'static gpio::GPIOPin<'static>,
-);
-
-impl led::Led for MatrixLed {
-    fn init(&self) {
-        self.0.make_output();
-        self.1.make_output();
-        self.1.clear();
-    }
-    fn on(&self) {
-        self.1.set();
-    }
-    fn off(&self) {
-        self.1.clear();
-    }
-    fn toggle(&self) {
-        self.1.toggle();
-    }
-    fn read(&self) -> bool {
-        self.1.read()
-    }
-}
-
 /// Default panic handler for the microbit board.
 ///
 /// We just use the standard default provided by the debug module in the kernel.
@@ -107,7 +80,6 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     use core::ptr::{addr_of, addr_of_mut};
     let led_kernel_pin = &nrf52833::gpio::GPIOPin::new(Pin::P0_20);
     let led = &mut led::LedLow::new(led_kernel_pin);
-    // MatrixLed(&gpio::PORT[Pin::P0_28], &gpio::PORT[Pin::P0_21]);
     let writer = &mut *addr_of_mut!(WRITER);
     debug::panic(
         &mut [led],
