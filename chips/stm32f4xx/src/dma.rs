@@ -854,7 +854,7 @@ impl<'a, DMA: StreamServer<'a>> Stream<'a, DMA> {
         // 2
         self.set_peripheral_address();
         // 3
-        self.set_memory_address(&buf[0] as *const u8 as u32);
+        self.set_memory_address(core::ptr::from_ref::<u8>(&buf[0]) as u32);
         // 4
         self.set_data_items(len as u32);
         // 5

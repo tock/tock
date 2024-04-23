@@ -625,8 +625,8 @@ impl<'a> Adc<'a> {
         self.registers.ie0.set(0);
 
         // Clear all pending interrupts
-        self.registers.clrifg0.set(core::u32::MAX);
-        self.registers.clrifg1.set(core::u32::MAX);
+        self.registers.clrifg0.set(u32::MAX);
+        self.registers.clrifg1.set(u32::MAX);
     }
 
     fn setup(&self) {
@@ -940,7 +940,8 @@ impl<'a> hil::adc::AdcHighSpeed<'a> for Adc<'a> {
         );
 
         let adc_reg =
-            (&self.registers.mem[*channel as usize] as *const ReadWrite<u32>).cast::<()>();
+            (core::ptr::from_ref::<ReadWrite<u32>>(&self.registers.mem[*channel as usize]))
+                .cast::<()>();
 
         // Convert the [u16] into an [u8] since the DMA works only with [u8]
         let buf1 = unsafe { buf_u16_to_buf_u8(buffer1) };

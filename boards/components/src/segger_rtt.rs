@@ -66,7 +66,7 @@ pub struct SeggerRttMemoryRefs<'a> {
 
 impl<'a> SeggerRttMemoryRefs<'a> {
     pub unsafe fn get_rtt_memory_ptr(&mut self) -> *mut SeggerRttMemory<'a> {
-        self.rtt_memory as *mut _
+        core::ptr::from_mut(self.rtt_memory)
     }
 }
 

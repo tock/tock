@@ -119,7 +119,7 @@ static TEST_OPS: [TestOp; 24] = [
     // Try bad seeks, should fail and not change read entry ID.
     TestOp::Write,
     TestOp::BadSeek(0),
-    TestOp::BadSeek(core::usize::MAX),
+    TestOp::BadSeek(usize::MAX),
     TestOp::Read,
     // Try bad write, nothing should change.
     TestOp::BadWrite,
