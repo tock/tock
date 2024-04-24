@@ -134,11 +134,19 @@ pub trait RxClient {
     /// - `header`: A fully-parsed representation of the MAC header, with the
     /// caveat that the auxiliary security header is still included if the frame
     /// was previously secured.
+    /// - `lqi`: The link quality indicator of the received frame.
     /// - `data_offset`: Offset of the data payload relative to
     /// `buf`, so that the payload of the frame is contained in
     /// `buf[data_offset..data_offset + data_len]`.
     /// - `data_len`: Length of the data payload
-    fn receive<'a>(&self, buf: &'a [u8], header: Header<'a>, data_offset: usize, data_len: usize);
+    fn receive<'a>(
+        &self,
+        buf: &'a [u8],
+        header: Header<'a>,
+        lqi: u8,
+        data_offset: usize,
+        data_len: usize,
+    );
 }
 
 /// Trait to be implemented by users of the IEEE 802.15.4 device that wish to
@@ -157,6 +165,7 @@ pub trait SecuredFrameNoDecryptRxClient {
     /// - `buf`: The entire buffer containing the frame, potentially also
     /// including extra bytes in front used for the physical layer.
     /// - `header`: A fully-parsed representation of the MAC header.
+    /// - `lqi`: The link quality indicator of the received frame.
     /// - `data_offset`: Offset of the data payload relative to
     /// `buf`, so that the payload of the frame is contained in
     /// `buf[data_offset..data_offset + data_len]`.
@@ -165,6 +174,7 @@ pub trait SecuredFrameNoDecryptRxClient {
         &self,
         buf: &'a [u8],
         header: Header<'a>,
+        lqi: u8,
         data_offset: usize,
         data_len: usize,
     );

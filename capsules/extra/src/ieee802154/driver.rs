@@ -1070,6 +1070,7 @@ impl<'a, M: device::MacDevice<'a>> device::TxClient for RadioDriver<'a, M> {
 
 /// Encode two PAN IDs into a single usize.
 #[inline]
+#[allow(dead_code)]
 fn encode_pans(dst_pan: &Option<PanID>, src_pan: &Option<PanID>) -> usize {
     ((dst_pan.unwrap_or(0) as usize) << 16) | (src_pan.unwrap_or(0) as usize)
 }
@@ -1089,18 +1090,29 @@ impl<'a, M: device::MacDevice<'a>> device::SecuredFrameNoDecryptRxClient for Rad
         &self,
         buf: &'b [u8],
         header: Header<'b>,
+        lqi: u8,
         data_offset: usize,
         data_len: usize,
     ) {
         // The current 15.4 userspace receive accepts both secured and
         // unsecured frames. As such, we can simply call the standard
         // receive method of the RxClient trait.
-        self.receive(buf, header, data_offset, data_len)
+        self.receive(buf, header, lqi, data_offset, data_len)
     }
 }
 
 impl<'a, M: device::MacDevice<'a>> device::RxClient for RadioDriver<'a, M> {
-    fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
+    fn receive<'b>(
+        &self,
+        buf: &'b [u8],
+        header: Header<'b>,
+        lqi: u8,
+        data_offset: usize,
+        data_len: usize,
+    ) {
+        kernel::debug!("LQI: {}", lqi);
+        // kernel::debug!("RECV BUF {:02x?}", buf);
+        kernel::debug!("RECV BUF LEN {}", buf.len());
         self.apps.each(|_, _, kernel_data| {
             let read_present = kernel_data
                 .get_readwrite_processbuffer(rw_allow::READ)
@@ -1160,6 +1172,7 @@ impl<'a, M: device::MacDevice<'a>> device::RxClient for RadioDriver<'a, M> {
                         rbuf[offset + 1].set(data_len as u8);
                         rbuf[offset + 2].set(mic_len as u8);
 
+                        // kernel::debug!("RECV BUF APP {:02x?}", &buf[..frame_len]);
                         // Prepare the ring buffer for the next write. The current design favors newness;
                         // newly received packets will begin to overwrite the oldest data in the event
                         // of the buffer becoming full. The read index must always point to the "oldest"
@@ -1180,12 +1193,11 @@ impl<'a, M: device::MacDevice<'a>> device::RxClient for RadioDriver<'a, M> {
                 })
                 .unwrap_or(false);
             if read_present {
-                // Encode useful parts of the header in 3 usizes
-                let pans = encode_pans(&header.dst_pan, &header.src_pan);
+                // Encode lqi and useful parts of the header in 3 usizes
                 let dst_addr = encode_address(&header.dst_addr);
                 let src_addr = encode_address(&header.src_addr);
                 kernel_data
-                    .schedule_upcall(upcall::FRAME_RECEIVED, (pans, dst_addr, src_addr))
+                    .schedule_upcall(upcall::FRAME_RECEIVED, (lqi as usize, dst_addr, src_addr))
                     .ok();
             }
         });

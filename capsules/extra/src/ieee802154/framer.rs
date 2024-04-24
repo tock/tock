@@ -356,14 +356,16 @@ enum RxState {
     /// There is no frame that has been received.
     Idle,
     /// There is a secured frame that needs to be decrypted.
-    ReadyToDecrypt(FrameInfoWrap, &'static mut [u8]),
+    /// ReadyToDecrypt(FrameInfoWrap, buf, lqi)
+    ReadyToDecrypt(FrameInfoWrap, &'static mut [u8], u8),
     /// A secured frame is currently being decrypted by the decryption facility.
+    /// Decrypting(FrameInfoWrap, lqi)
     #[allow(dead_code)]
-    Decrypting(FrameInfoWrap),
+    Decrypting(FrameInfoWrap, u8),
     /// There is an unsecured frame that needs to be re-parsed and exposed to
-    /// the client.
+    /// the client. ReadyToYield(FrameInfoWrap, buf, lqi)
     #[allow(dead_code)]
-    ReadyToYield(FrameInfoWrap, &'static mut [u8]),
+    ReadyToYield(FrameInfoWrap, &'static mut [u8], u8),
 }
 
 /// This struct wraps an IEEE 802.15.4 radio device `kernel::hil::radio::Radio`
@@ -468,13 +470,18 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
     }
 
     /// IEEE 802.15.4-2015, 9.2.3, incoming frame security procedure
-    fn incoming_frame_security(&self, buf: &'static mut [u8], frame_len: usize) -> RxState {
+    fn incoming_frame_security(
+        &self,
+        buf: &'static mut [u8],
+        frame_len: usize,
+        lqi: u8,
+    ) -> RxState {
         // Try to decode the MAC header. Three possible results can occur:
         // 1) The frame should be dropped and the buffer returned to the radio
         // 2) The frame is unsecured. We immediately expose the frame to the
         //    user and queue the buffer for returning to the radio.
         // 3) The frame needs to be unsecured.
-        let result = Header::decode(&buf[radio::PSDU_OFFSET..], false)
+        let result = Header::decode(&buf[radio::PSDU_OFFSET..(radio::PSDU_OFFSET+radio::MAX_FRAME_SIZE)], false)
             .done()
             .and_then(|(data_offset, (header, mac_payload_offset))| {
                 // Note: there is a complication here regarding the offsets.
@@ -501,7 +508,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                             None => {
                                 // Key not found -- pass raw encrypted packet to client
                                 self.secured_frame_no_decrypt_rx_client.map(|client| {
-                                    client.receive_secured_frame(&buf[PSDU_OFFSET..], header, data_offset, data_len);
+                                    client.receive_secured_frame(&buf[PSDU_OFFSET..(radio::PSDU_OFFSET+radio::MAX_FRAME_SIZE)], header, lqi, data_offset, data_len);
                                 });
                                 return None;
                             }
@@ -557,7 +564,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                 } else {
                     // No security needed, can yield the frame immediately
                     self.rx_client.map(|client| {
-                        client.receive(&buf[PSDU_OFFSET..], header, data_offset, data_len);
+                        client.receive(&buf[PSDU_OFFSET..(radio::PSDU_OFFSET+radio::MAX_FRAME_SIZE)], header, lqi, data_offset, data_len);
                     });
                     None
                 }
@@ -570,7 +577,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                 self.mac.set_receive_buffer(buf);
                 RxState::Idle
             }
-            Some(frame_info) => RxState::ReadyToDecrypt(FrameInfoWrap::Parse(frame_info), buf),
+            Some(frame_info) => RxState::ReadyToDecrypt(FrameInfoWrap::Parse(frame_info), buf, lqi),
         }
     }
 
@@ -651,7 +658,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
         self.rx_state.take().map(|state| {
             let next_state = match state {
                 RxState::Idle => RxState::Idle,
-                RxState::ReadyToDecrypt(info, buf) => {
+                RxState::ReadyToDecrypt(info, buf, lqi) => {
                     match info.get_info().security_params {
                         None => {
                             // `ReadyToDecrypt` should only be entered when
@@ -711,11 +718,11 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                                     // Scenario 1
                                     Some(Ok(())) => {
                                         self.mac.set_receive_buffer(buf);
-                                        RxState::Decrypting(info)
+                                        RxState::Decrypting(info, lqi)
                                     }
                                     // Scenario 2
                                     Some(Err((ErrorCode::BUSY, buf))) => {
-                                        RxState::ReadyToDecrypt(info, buf)
+                                        RxState::ReadyToDecrypt(info, buf, lqi)
                                     }
                                     // Scenario 3
                                     Some(Err((_, fail_crypt_buf))) => {
@@ -733,20 +740,23 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                         }
                     }
                 }
-                RxState::Decrypting(info) => {
+                RxState::Decrypting(info, lqi) => {
                     // This state should be advanced only by the hardware
                     // encryption callback.
-                    RxState::Decrypting(info)
+                    RxState::Decrypting(info, lqi)
                 }
-                RxState::ReadyToYield(info, buf) => {
+                RxState::ReadyToYield(info, buf, lqi) => {
                     // Between the secured and unsecured frames, the
                     // unsecured frame length remains constant but the data
                     // offsets may change due to the presence of PayloadIEs.
                     // Hence, we can only use the unsecured length from the
                     // frame info, but not the offsets.
                     let frame_len = info.unsecured_length();
-                    if let Some((data_offset, (header, _))) =
-                        Header::decode(&buf[radio::PSDU_OFFSET..], true).done()
+                    if let Some((data_offset, (header, _))) = Header::decode(
+                        &buf[radio::PSDU_OFFSET..(radio::PSDU_OFFSET + radio::MAX_FRAME_SIZE)],
+                        true,
+                    )
+                    .done()
                     {
                         // IEEE 802.15.4-2015 specifies that unsecured
                         // frames do not have auxiliary security headers,
@@ -757,8 +767,9 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                         // always receiving the frame payload in plaintext.
                         self.rx_client.map(|client| {
                             client.receive(
-                                &buf[PSDU_OFFSET..],
+                                &buf[PSDU_OFFSET..(radio::PSDU_OFFSET + radio::MAX_FRAME_SIZE)],
                                 header,
+                                lqi,
                                 data_offset,
                                 frame_len - data_offset,
                             );
@@ -959,6 +970,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> radio::RxClient for Framer<'a, M, A> {
         &self,
         buf: &'static mut [u8],
         frame_len: usize,
+        lqi: u8,
         crc_valid: bool,
         _: Result<(), ErrorCode>,
     ) {
@@ -973,7 +985,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> radio::RxClient for Framer<'a, M, A> {
                 RxState::Idle => {
                     // We can start processing a new received frame only if
                     // the reception pipeline is free
-                    self.incoming_frame_security(buf, frame_len)
+                    self.incoming_frame_security(buf, frame_len, lqi)
                 }
                 other_state => {
                     // This should never occur unless something other than
@@ -1049,9 +1061,9 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> CCMClient for Framer<'a, M, A> {
         if let Some(buf) = opt_buf {
             self.rx_state.take().map(|state| {
                 match state {
-                    RxState::Decrypting(info) => {
+                    RxState::Decrypting(info, lqi) => {
                         let next_state = if tag_is_valid {
-                            RxState::ReadyToYield(info, buf)
+                            RxState::ReadyToYield(info, buf, lqi)
                         } else {
                             // The CRC tag is invalid, meaning the packet was corrupted. Drop this packet
                             // and reset reception pipeline
@@ -1063,7 +1075,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> CCMClient for Framer<'a, M, A> {
                     }
                     other_state => {
                         rx_waiting = match other_state {
-                            RxState::ReadyToDecrypt(_, _) => true,
+                            RxState::ReadyToDecrypt(_, _, _) => true,
                             _ => false,
                         };
                         self.rx_state.replace(other_state);

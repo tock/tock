@@ -22,6 +22,7 @@ pub trait RxClient {
         &self,
         buf: &'static mut [u8],
         frame_len: usize,
+        lqi: u8,
         crc_valid: bool,
         result: Result<(), ErrorCode>,
     );
@@ -63,7 +64,8 @@ pub const MIN_FRAME_SIZE: usize = MIN_MHR_SIZE + MFR_SIZE;
 pub const MAX_FRAME_SIZE: usize = MAX_MTU;
 
 pub const PSDU_OFFSET: usize = 2;
-pub const MAX_BUF_SIZE: usize = PSDU_OFFSET + MAX_MTU;
+pub const LQI_SIZE: usize = 1;
+pub const MAX_BUF_SIZE: usize = PSDU_OFFSET + MAX_MTU + LQI_SIZE;
 pub const MIN_PAYLOAD_OFFSET: usize = PSDU_OFFSET + MIN_MHR_SIZE;
 
 pub trait Radio<'a>: RadioConfig<'a> + RadioData<'a> {}

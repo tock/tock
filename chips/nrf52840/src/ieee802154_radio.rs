@@ -801,7 +801,14 @@ impl<'a> Radio<'a> {
                     // or some instance in  driver taking buffer without properly replacing).
                     let rbuf = self.rx_buf.take().unwrap();
 
-                    let frame_len = rbuf[MIMIC_PSDU_OFFSET as usize] as usize - radio::MFR_SIZE;
+                    // data buffer format: | PSDU OFFSET | FRAME | LQI |
+                    // length of received data transferred to buffer (including PSDU)
+                    let data_len = rbuf[MIMIC_PSDU_OFFSET as usize] as usize;
+
+                    // lqi is found just after the data received
+                    let lqi = rbuf[data_len];
+
+                    let frame_len = data_len - radio::MFR_SIZE;
                     // Length is: S0 (0 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
                     // And because the length field is directly read from the packet
                     // We need to add 2 to length to get the total length
@@ -843,6 +850,7 @@ impl<'a> Radio<'a> {
                                     client.receive(
                                         self.rx_buf.take().unwrap(),
                                         frame_len,
+                                        lqi,
                                         self.registers.crcstatus.get() == 1,
                                         result,
                                     );
@@ -861,6 +869,7 @@ impl<'a> Radio<'a> {
                             client.receive(
                                 rbuf,
                                 frame_len,
+                                lqi,
                                 self.registers.crcstatus.get() == 1,
                                 result,
                             );
@@ -977,7 +986,15 @@ impl<'a> Radio<'a> {
                         let rbuf = self.rx_buf.take().unwrap();
 
                         let result = self.crc_check();
-                        let frame_len = rbuf[MIMIC_PSDU_OFFSET as usize] as usize - radio::MFR_SIZE;
+
+                        // data buffer format: | PSDU OFFSET | FRAME | LQI |
+                        // length of received data transferred to buffer (including PSDU)
+                        let data_len = rbuf[MIMIC_PSDU_OFFSET as usize] as usize;
+
+                        // lqi is found just after the data received
+                        let lqi = rbuf[data_len];
+
+                        let frame_len = data_len - radio::MFR_SIZE;
                         // Length is: S0 (0 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
                         // And because the length field is directly read from the packet
                         // We need to add 2 to length to get the total length
@@ -985,6 +1002,7 @@ impl<'a> Radio<'a> {
                         client.receive(
                             rbuf,
                             frame_len,
+                            lqi,
                             self.registers.crcstatus.get() == 1,
                             result,
                         );
