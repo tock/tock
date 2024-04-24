@@ -913,16 +913,10 @@ impl<'a, S: spi::SpiMasterDevice<'a>> spi::SpiMasterClient for RF233<'a, S> {
                 }
                 self.rx_client.map(|client| {
                     let rbuf = self.rx_buf.take().unwrap();
+                    let frame_len = rbuf[1] as usize - radio::MFR_SIZE;
 
-                    // data buffer format: | PSDU OFFSET | FRAME | LQI |
-                    // length of received data transferred to buffer (including PSDU)
-                    let data_len = rbuf[1] as usize;
-
-                    // LQI value is byte following the data
-                    let lqi: u8 = rbuf[data_len];
-
-                    let frame_len = data_len - radio::MFR_SIZE;
-                    client.receive(rbuf, frame_len, lqi, self.crc_valid.get(), Ok(()));
+                    // lqi is currently unimplemented for rf233 and is subsequently hardcoded to zero
+                    client.receive(rbuf, frame_len, 0, self.crc_valid.get(), Ok(()));
                 });
             }
 

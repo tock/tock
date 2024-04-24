@@ -1110,9 +1110,6 @@ impl<'a, M: device::MacDevice<'a>> device::RxClient for RadioDriver<'a, M> {
         data_offset: usize,
         data_len: usize,
     ) {
-        kernel::debug!("LQI: {}", lqi);
-        // kernel::debug!("RECV BUF {:02x?}", buf);
-        kernel::debug!("RECV BUF LEN {}", buf.len());
         self.apps.each(|_, _, kernel_data| {
             let read_present = kernel_data
                 .get_readwrite_processbuffer(rw_allow::READ)
@@ -1172,7 +1169,6 @@ impl<'a, M: device::MacDevice<'a>> device::RxClient for RadioDriver<'a, M> {
                         rbuf[offset + 1].set(data_len as u8);
                         rbuf[offset + 2].set(mic_len as u8);
 
-                        // kernel::debug!("RECV BUF APP {:02x?}", &buf[..frame_len]);
                         // Prepare the ring buffer for the next write. The current design favors newness;
                         // newly received packets will begin to overwrite the oldest data in the event
                         // of the buffer becoming full. The read index must always point to the "oldest"
