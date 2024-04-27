@@ -8,7 +8,7 @@
 use core::cell::Cell;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
-use kernel::hil::time::{self, Alarm, Frequency, Ticks, Ticks32};
+use kernel::hil::time::{self, Alarm, Ticks, Ticks32};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::{ErrorCode, ProcessId};
 
@@ -184,26 +184,37 @@ impl<'a, A: Alarm<'a>> SyscallDriver for AlarmDriver<'a, A> {
                     if let Expiration::Disabled = td.expiration {
                         self.num_armed.set(self.num_armed.get() + 1);
                     }
+
                     td.expiration = Expiration::Enabled {
                         reference: reference as u32,
                         dt: dt as u32,
                     };
-                    (
-                        CommandReturn::success_u32(reference.wrapping_add(dt) as u32),
-                        true,
-                    )
+
+                    reference.wrapping_add(dt) as u32
                 };
+
                 let now = self.alarm.now();
                 match cmd_type {
                     0 => (CommandReturn::success(), false),
                     1 => {
-                        // Get clock frequency
-                        let freq = <A::Frequency>::frequency();
-                        (CommandReturn::success_u32(freq), false)
+                        // Get clock frequency. We return a frequency scaled by
+                        // the amount of padding we add to the `ticks` value
+                        // returned in command 2 ("capture time"), such that
+                        // userspace knows when the timer will wrap and can
+                        // accurately determine the duration of a single tick.
+                        let scaled_freq =
+                            <A::Ticks>::u32_left_justified_scale_freq::<A::Frequency>();
+                        (CommandReturn::success_u32(scaled_freq), false)
                     }
                     2 => {
-                        // capture time
-                        (CommandReturn::success_u32(now.into_u32()), false)
+                        // Capture time. We pad the underlying timer's ticks to
+                        // wrap at exactly `(2 ** 32) - 1`. This predictable
+                        // wrapping value allows userspace to build long running
+                        // timers beyond `2 ** now.width()` ticks.
+                        (
+                            CommandReturn::success_u32(now.into_u32_left_justified()),
+                            false,
+                        )
                     }
                     3 => {
                         // Stop
@@ -225,17 +236,63 @@ impl<'a, A: Alarm<'a>> SyscallDriver for AlarmDriver<'a, A> {
                         (CommandReturn::failure(ErrorCode::NOSUPPORT), false)
                     }
                     5 => {
-                        // Set relative expiration
+                        // Set relative expiration.  We provided userspace a
+                        // potentially padded version of our in-kernel Ticks
+                        // object, and as such we have to invert that operation
+                        // here.
                         let reference = now.into_u32() as usize;
-                        let dt = data;
+
+                        // We do not want to switch back to userspace *before*
+                        // the timer fires. As such, when userspace gives us
+                        // reference and ticks values with a precision
+                        // unrepresentible using our Ticks object, we round up:
+                        let dt = if data & ((1 << A::Ticks::u32_padding()) - 1) != 0 {
+                            // By right-shifting, we would decrease the
+                            // requested dt value. Add one to compensate:
+                            (data >> A::Ticks::u32_padding()) + 1
+                        } else {
+                            // dt does not need to be shifted or contains no
+                            // unrepresentable precision:
+                            data >> A::Ticks::u32_padding()
+                        };
+
                         // if previously unarmed, but now will become armed
-                        rearm(reference, dt)
+                        (
+                            CommandReturn::success_u32(
+                                rearm(reference, dt) << A::Ticks::u32_padding(),
+                            ),
+                            true,
+                        )
                     }
                     6 => {
-                        // Set absolute expiration with reference point
-                        let reference = data;
-                        let dt = data2;
-                        rearm(reference, dt)
+                        // Set absolute expiration with reference point. We
+                        // provided userspace a potentially padded version of
+                        // our in-kernel Ticks object, and as such we have to
+                        // invert that operation here.
+                        //
+                        // We do not want to switch back to userspace *before*
+                        // the timer fires. As such, when userspace gives us
+                        // reference and ticks values with a precision
+                        // unrepresentible using our Ticks object, we round
+                        // `reference` down, and `dt` up (ensuring that the
+                        // timer cannot fire earlier than requested).
+                        let reference = data >> A::Ticks::u32_padding();
+                        let dt = if data2 & ((1 << A::Ticks::u32_padding()) - 1) != 0 {
+                            // By right-shifting, we would decrease the
+                            // requested dt value. Add one to compensate:
+                            (data2 >> A::Ticks::u32_padding()) + 1
+                        } else {
+                            // dt does not need to be shifted or contains no
+                            // unrepresentable precision:
+                            data2 >> A::Ticks::u32_padding()
+                        };
+
+                        (
+                            CommandReturn::success_u32(
+                                rearm(reference, dt) << A::Ticks::u32_padding(),
+                            ),
+                            true,
+                        )
                     }
                     _ => (CommandReturn::failure(ErrorCode::NOSUPPORT), false),
                 }
@@ -258,7 +315,7 @@ impl<'a, A: Alarm<'a>> SyscallDriver for AlarmDriver<'a, A> {
 
 impl<'a, A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
     fn alarm(&self) {
-        let now: Ticks32 = Ticks32::from(self.alarm.now().into_u32());
+        let now: Ticks32 = Ticks32::from(self.alarm.now().into_u32_left_justified());
         self.app_alarms.each(|_processid, alarm, upcalls| {
             if let Expiration::Enabled { reference, dt } = alarm.expiration {
                 // Now is not within reference, reference + ticks; this timer
@@ -273,7 +330,7 @@ impl<'a, A: Alarm<'a>> time::AlarmClient for AlarmDriver<'a, A> {
                         .schedule_upcall(
                             ALARM_CALLBACK_NUM,
                             (
-                                now.into_u32() as usize,
+                                now.into_u32_left_justified() as usize,
                                 reference.wrapping_add(dt) as usize,
                                 0,
                             ),
