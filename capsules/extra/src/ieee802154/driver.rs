@@ -1077,6 +1077,7 @@ fn encode_pans(dst_pan: &Option<PanID>, src_pan: &Option<PanID>) -> usize {
 
 /// Encodes as much as possible about an address into a single usize.
 #[inline]
+#[allow(dead_code)]
 fn encode_address(addr: &Option<MacAddress>) -> usize {
     let short_addr_only = match *addr {
         Some(MacAddress::Short(addr)) => addr as usize,
@@ -1189,11 +1190,9 @@ impl<'a, M: device::MacDevice<'a>> device::RxClient for RadioDriver<'a, M> {
                 })
                 .unwrap_or(false);
             if read_present {
-                // Encode lqi and useful parts of the header in 3 usizes
-                let dst_addr = encode_address(&header.dst_addr);
-                let src_addr = encode_address(&header.src_addr);
+                // Place lqi as argument to be included in upcall.
                 kernel_data
-                    .schedule_upcall(upcall::FRAME_RECEIVED, (lqi as usize, dst_addr, src_addr))
+                    .schedule_upcall(upcall::FRAME_RECEIVED, (lqi as usize, 0, 0))
                     .ok();
             }
         });
