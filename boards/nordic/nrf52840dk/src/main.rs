@@ -249,6 +249,7 @@ pub struct Platform {
     kv_driver: &'static KVDriver,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
+    nonvolatile_storage: &'static capsules_extra::nonvolatile_storage_driver::NonvolatileStorage<'static>,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -275,6 +276,7 @@ impl SyscallDriverLookup for Platform {
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
             capsules_extra::net::thread::driver::DRIVER_NUM => f(Some(self.thread_driver)),
             capsules_extra::kv_driver::DRIVER_NUM => f(Some(self.kv_driver)),
+            capsules_extra::nonvolatile_storage_driver::DRIVER_NUM => f(Some(self.nonvolatile_storage)),
             _ => f(None),
         }
     }
@@ -648,6 +650,41 @@ pub unsafe fn start() -> (
     ieee802154_radio.set_device_procedure(thread_driver);
 
     //--------------------------------------------------------------------------
+    // NONVOLATILE STORAGE
+    //--------------------------------------------------------------------------
+    
+    // Kernel storage region, allocated with the storage_volume!
+    // macro in common/utils.rs
+    extern "C" {
+        /// Beginning on the ROM region containing app images.
+        static _sstorage: u8;
+        static _estorage: u8;
+        static _etext: u8;
+    }
+ 
+    // Using the linker script symbols, we define the region we provide
+    // to the nonvolatile storage capsule to be read and written to. Note
+    // this region does not possess protection and is readable and writeable
+    // by all applications.
+    let rw_app_flash_len = 0x2000;
+    let rw_app_flash_start_addr = &_etext as *const u8 as usize - rw_app_flash_len;
+    let kernel_start_addr = &_sstorage as *const u8 as usize;
+    let kernel_len = &_estorage as *const u8 as usize - &_sstorage as *const u8 as usize;
+
+    let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
+        board_kernel,
+        capsules_extra::nonvolatile_storage_driver::DRIVER_NUM,
+        &nrf52840_peripherals.nrf52.nvmc,
+        rw_app_flash_start_addr,
+        rw_app_flash_len,
+        kernel_start_addr,
+        kernel_len,
+    )
+    .finalize(components::nonvolatile_storage_component_static!(
+        nrf52840::nvmc::Nvmc
+    ));
+
+    //--------------------------------------------------------------------------
     // TEMPERATURE (internal)
     //--------------------------------------------------------------------------
 
@@ -922,6 +959,7 @@ pub unsafe fn start() -> (
         kv_driver,
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
+        nonvolatile_storage: nonvolatile_storage,
     };
 
     let _ = platform.pconsole.start();
