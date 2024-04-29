@@ -385,14 +385,19 @@ macro_rules! debug_flush_queue {
 /// Wrapper type that we need a mutable reference to for the core::fmt::Write
 /// interface.
 pub struct DebugWriterWrapper {
-    dw: MapCell<&'static DebugWriter<0, 0>>,
+    dw: MapCell<&'static DebugWriter<2, 1, 1, 1>>,
 }
 
 /// Main type that we need an immutable reference to so we can share it with
 /// the UART provider and this debug module.
-pub struct DebugWriter<const HEAD: usize = 0, const TAIL: usize = 0> {
+pub struct DebugWriter<
+    const HEAD: usize,
+    const TAIL: usize,
+    const L_HEAD: usize,
+    const L_TAIL: usize,
+> {
     // What provides the actual writing mechanism.
-    uart: &'static dyn hil::uart::Transmit<'static, HEAD, TAIL>,
+    uart: &'static dyn hil::uart::Transmit<'static, L_HEAD, L_TAIL>,
     // The buffer that is passed to the writing mechanism.
     output_buffer: OptionalCell<PacketBufferMut<HEAD, TAIL>>,
     // An internal buffer that is used to hold debug!() calls as they come in.
@@ -419,19 +424,21 @@ pub unsafe fn set_debug_writer_wrapper(debug_writer: &'static mut DebugWriterWra
 }
 
 impl DebugWriterWrapper {
-    pub fn new(dw: &'static DebugWriter<0, 0>) -> DebugWriterWrapper {
+    pub fn new(dw: &'static DebugWriter<2, 1, 1, 1>) -> DebugWriterWrapper {
         DebugWriterWrapper {
             dw: MapCell::new(dw),
         }
     }
 }
 
-impl<const HEAD: usize, const TAIL: usize> DebugWriter<HEAD, TAIL> {
+impl<const HEAD: usize, const TAIL: usize, const L_HEAD: usize, const L_TAIL: usize>
+    DebugWriter<HEAD, TAIL, L_HEAD, L_TAIL>
+{
     pub fn new(
-        uart: &'static dyn hil::uart::Transmit<HEAD, TAIL>,
+        uart: &'static dyn hil::uart::Transmit<L_HEAD, L_TAIL>,
         out_buffer: PacketBufferMut<HEAD, TAIL>,
         internal_buffer: &'static mut RingBuffer<'static, u8>,
-    ) -> DebugWriter<HEAD, TAIL> {
+    ) -> DebugWriter<HEAD, TAIL, L_HEAD, L_TAIL> {
         DebugWriter {
             uart: uart,
             output_buffer: OptionalCell::new(out_buffer),
@@ -477,6 +484,10 @@ impl<const HEAD: usize, const TAIL: usize> DebugWriter<HEAD, TAIL> {
                             // if we use the append from PbMut we would need to know the new tail each time and we would not know if the op failed
                             //
                             // maybe this is a case where downcast is really needed
+                            // hprintln!(
+                            //     "Inner tailroom before append {}",
+                            //     out_packet_slice.get_tailroom()
+                            // );
                             copied = out_packet_slice.append_from_slice_max(&[src]);
                             count += 1;
                         }
@@ -488,17 +499,19 @@ impl<const HEAD: usize, const TAIL: usize> DebugWriter<HEAD, TAIL> {
 
                 if count != 0 {
                     // Transmit the data in the output buffer.
-                    // let _ = self.uart.transmit_buffer(
-                    //     PacketBufferMut::new(
-                    //         out_packet_slice as &'static mut dyn PacketBufferDyn,
-                    //     )
-                    //     .unwrap(),
-                    //     0,
-                    // );
+                    // let pb: PacketBufferMut<L_HEAD, L_TAIL> =
+                    // PacketBufferMut::<L_HEAD, L_TAIL>::new(out_packet_slice).unwrap();
+
                     let pb: PacketBufferMut<HEAD, TAIL> =
-                        PacketBufferMut::<HEAD, TAIL>::new(out_packet_slice).unwrap();
-                    if let Err((_err, buf)) = self.uart.transmit_buffer(pb, count) {
-                        self.output_buffer.set(buf);
+                        PacketBufferMut::new(out_packet_slice).unwrap();
+                    // let pid: i32 = 1;
+                    let header = [0 as u8];
+                    let new_pb = pb.prepend::<L_HEAD, 1>(&header).reduce_tailroom();
+
+                    if let Err((_err, buf)) = self.uart.transmit_buffer(new_pb, count) {
+                        let new_head_pb = buf.restore_headroom::<HEAD>().unwrap();
+                        let new_pb = new_head_pb.restore_tailroom().unwrap();
+                        self.output_buffer.set(new_pb);
                     } else {
                         self.output_buffer.clear();
                     }
@@ -520,12 +533,12 @@ impl<const HEAD: usize, const TAIL: usize> DebugWriter<HEAD, TAIL> {
     }
 }
 
-impl<const HEAD: usize, const TAIL: usize> hil::uart::TransmitClient<HEAD, TAIL>
-    for DebugWriter<HEAD, TAIL>
+impl<const HEAD: usize, const TAIL: usize, const L_HEAD: usize, const L_TAIL: usize>
+    hil::uart::TransmitClient<L_HEAD, L_TAIL> for DebugWriter<HEAD, TAIL, L_HEAD, L_TAIL>
 {
     fn transmitted_buffer(
         &self,
-        buffer: PacketBufferMut<HEAD, TAIL>,
+        buffer: PacketBufferMut<L_HEAD, L_TAIL>,
         _tx_len: usize,
         _rcode: core::result::Result<(), ErrorCode>,
     ) {
@@ -533,7 +546,12 @@ impl<const HEAD: usize, const TAIL: usize> hil::uart::TransmitClient<HEAD, TAIL>
         // let replacement: &'static PacketBufferMut<HEAD, TAIL> =
         // &PacketBufferMut::<HEAD, TAIL>::new(buffer).unwrap();
 
-        self.output_buffer.replace(buffer);
+        let new_buf = buffer
+            .restore_headroom::<HEAD>()
+            .unwrap()
+            .restore_tailroom::<TAIL>()
+            .unwrap();
+        self.output_buffer.replace(new_buf);
 
         if self.internal_buffer.map_or(false, |buf| buf.has_elements()) {
             // Buffer not empty, go around again

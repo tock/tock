@@ -462,6 +462,7 @@ impl<'a, const HEAD: usize, const TAIL: usize> Uarte<'a, HEAD, TAIL> {
         self.tx_len.set(len);
         self.offset.set(0);
         // self.tx_buffer.replace(buf).unwrap();
+        // hprintln!("buffer {:?}", buf.payload());
         self.tx_buffer.replace(buf.downcast().unwrap());
         self.set_tx_dma_pointer_to_buffer();
 

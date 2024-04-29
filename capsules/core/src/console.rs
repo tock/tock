@@ -102,8 +102,14 @@ pub struct App {
     read_len: usize,
 }
 
-pub struct Console<'a, const HEAD: usize = 0, const TAIL: usize = 0> {
-    uart: &'a dyn uart::UartData<'a, HEAD, TAIL>,
+pub struct Console<
+    'a,
+    const HEAD: usize,
+    const TAIL: usize,
+    const LOWER_HEAD: usize,
+    const LOWER_TAIL: usize,
+> {
+    uart: &'a dyn uart::UartData<'a, LOWER_HEAD, LOWER_TAIL>,
     apps: Grant<
         App,
         UpcallCount<{ upcall::COUNT }>,
@@ -116,9 +122,16 @@ pub struct Console<'a, const HEAD: usize = 0, const TAIL: usize = 0> {
     rx_buffer: TakeCell<'static, [u8]>,
 }
 
-impl<'a, const HEAD: usize, const TAIL: usize> Console<'a, HEAD, TAIL> {
+impl<
+        'a,
+        const HEAD: usize,
+        const TAIL: usize,
+        const LOWER_HEAD: usize,
+        const LOWER_TAIL: usize,
+    > Console<'a, HEAD, TAIL, LOWER_HEAD, LOWER_TAIL>
+{
     pub fn new(
-        uart: &'a dyn uart::UartData<'a, HEAD, TAIL>,
+        uart: &'a dyn uart::UartData<'a, LOWER_HEAD, LOWER_TAIL>,
         tx_buffer: PacketBufferMut<HEAD, TAIL>,
         rx_buffer: &'static mut [u8],
         grant: Grant<
@@ -127,7 +140,7 @@ impl<'a, const HEAD: usize, const TAIL: usize> Console<'a, HEAD, TAIL> {
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
-    ) -> Console<'a, HEAD, TAIL> {
+    ) -> Console<'a, HEAD, TAIL, LOWER_HEAD, LOWER_TAIL> {
         Console {
             uart: uart,
             apps: grant,
@@ -210,6 +223,10 @@ impl<'a, const HEAD: usize, const TAIL: usize> Console<'a, HEAD, TAIL> {
                             }
 
                             // TODO: decide whether we should do somthing in case of error or not
+                            // hprintln!(
+                            //     "CONSOLE: copying from slice {:?}",
+                            //     &buffer[..remaining_data.len()]
+                            // );
                             let _ =
                                 tx_buffer.copy_from_slice_or_err(&buffer[..remaining_data.len()]);
 
@@ -219,7 +236,20 @@ impl<'a, const HEAD: usize, const TAIL: usize> Console<'a, HEAD, TAIL> {
                     .unwrap_or(0);
                 app.write_remaining -= transaction_len;
 
-                let _ = self.uart.transmit_buffer(tx_buffer, transaction_len);
+                // let buf = tx_buffer
+                //     .reduce_headroom::<LOWER_HEAD>()
+                //     .reduce_tailroom::<LOWER_TAIL>();
+
+                // TODO: Check and make sure that the process id should not be greater than 256
+                let process_id: [u8; 1] = (5 as u8).to_ne_bytes();
+                // let header = process_id.first().unwrap();
+                // let header
+                // hprintln!("Prepanding process id {}", processid.id());
+                let buf = tx_buffer
+                    .prepend::<LOWER_HEAD, 1>(&process_id)
+                    .reduce_tailroom();
+                // hprint!("^ Current payload: {:?}", buf.payload());
+                let _ = self.uart.transmit_buffer(buf, transaction_len);
             });
         } else {
             app.pending_write = true;
@@ -265,7 +295,9 @@ impl<'a, const HEAD: usize, const TAIL: usize> Console<'a, HEAD, TAIL> {
     }
 }
 
-impl<const HEAD: usize, const TAIL: usize> SyscallDriver for Console<'_, HEAD, TAIL> {
+impl<const HEAD: usize, const TAIL: usize, const LOWER_HEAD: usize, const LOWER_TAIL: usize>
+    SyscallDriver for Console<'_, HEAD, TAIL, LOWER_HEAD, LOWER_TAIL>
+{
     /// Initiate serial transfers
     ///
     /// ### `command_num`
@@ -320,18 +352,35 @@ impl<const HEAD: usize, const TAIL: usize> SyscallDriver for Console<'_, HEAD, T
     }
 }
 
-impl<const HEAD: usize, const TAIL: usize> uart::TransmitClient<HEAD, TAIL>
-    for Console<'_, HEAD, TAIL>
+impl<const HEAD: usize, const TAIL: usize, const LOWER_HEAD: usize, const LOWER_TAIL: usize>
+    uart::TransmitClient<LOWER_HEAD, LOWER_TAIL>
+    for Console<'_, HEAD, TAIL, LOWER_HEAD, LOWER_TAIL>
 {
     fn transmitted_buffer(
         &self,
-        buffer: PacketBufferMut<HEAD, TAIL>,
+        buffer: PacketBufferMut<LOWER_HEAD, LOWER_TAIL>,
         _tx_len: usize,
         _rcode: Result<(), ErrorCode>,
     ) {
         // Either print more from the AppSlice or send a callback to the
         // application.
-        self.tx_buffer.replace(buffer);
+
+        // hprintln!(
+        //     "Received PB with real headroom {}, trying to restore HEAD {}",
+        //     buffer.headroom(),
+        //     HEAD
+        // );
+        // hprintln!("^ Payload is {:?}", buffer.payload());
+        // let new_buf = buffer
+        //     .restore_headroom::<HEAD>()
+        //     .unwrap()
+        //     .restore_tailroom::<TAIL>()
+        //     .unwrap();
+
+        // hprintln!("PB head beofre reset is {}", buffer.headroom());
+        let new_buf = buffer.reset::<HEAD, TAIL>().unwrap();
+        // hprintln!("PB head after reset is {}", new_buf.headroom());
+        self.tx_buffer.replace(new_buf);
 
         self.tx_in_progress.take().map(|processid| {
             self.apps.enter(processid, |app, kernel_data| {
@@ -372,7 +421,9 @@ impl<const HEAD: usize, const TAIL: usize> uart::TransmitClient<HEAD, TAIL>
     }
 }
 
-impl<const HEAD: usize, const TAIL: usize> uart::ReceiveClient for Console<'_, HEAD, TAIL> {
+impl<const HEAD: usize, const TAIL: usize, const LOWER_HEAD: usize, const LOWER_TAIL: usize>
+    uart::ReceiveClient for Console<'_, HEAD, TAIL, LOWER_HEAD, LOWER_TAIL>
+{
     fn received_buffer(
         &self,
         buffer: &'static mut [u8],

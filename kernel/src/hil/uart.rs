@@ -66,16 +66,22 @@ pub enum Error {
     Aborted,
 }
 
-pub trait Uart<'a, const HEAD: usize = 0, const TAIL: usize = 0>:
+pub trait Uart<'a, const HEAD: usize, const TAIL: usize>:
     Configure + Transmit<'a, HEAD, TAIL> + Receive<'a>
 {
 }
-pub trait UartData<'a, const HEAD: usize = 0, const TAIL: usize = 0>:
+pub trait UartData<'a, const HEAD: usize, const TAIL: usize>:
     Transmit<'a, HEAD, TAIL> + Receive<'a>
 {
 }
-pub trait UartAdvanced<'a>: Configure + Transmit<'a> + ReceiveAdvanced<'a> {}
-pub trait Client: ReceiveClient + TransmitClient {}
+pub trait UartAdvanced<'a, const HEAD: usize, const TAIL: usize>:
+    Configure + Transmit<'a, HEAD, TAIL> + ReceiveAdvanced<'a>
+{
+}
+pub trait Client<const HEAD: usize, const TAIL: usize>:
+    ReceiveClient + TransmitClient<HEAD, TAIL>
+{
+}
 
 // Provide blanket implementations for all trait groups
 impl<
@@ -90,8 +96,18 @@ impl<'a, const HEAD: usize, const TAIL: usize, T: Transmit<'a, HEAD, TAIL> + Rec
     UartData<'a, HEAD, TAIL> for T
 {
 }
-impl<'a, T: Configure + Transmit<'a> + ReceiveAdvanced<'a>> UartAdvanced<'a> for T {}
-impl<T: ReceiveClient + TransmitClient> Client for T {}
+impl<
+        'a,
+        const HEAD: usize,
+        const TAIL: usize,
+        T: Configure + Transmit<'a, HEAD, TAIL> + ReceiveAdvanced<'a>,
+    > UartAdvanced<'a, HEAD, TAIL> for T
+{
+}
+impl<const HEAD: usize, const TAIL: usize, T: ReceiveClient + TransmitClient<HEAD, TAIL>>
+    Client<HEAD, TAIL> for T
+{
+}
 
 /// Trait for configuring a UART.
 pub trait Configure {
@@ -104,7 +120,7 @@ pub trait Configure {
     fn configure(&self, params: Parameters) -> Result<(), ErrorCode>;
 }
 
-pub trait Transmit<'a, const HEAD: usize = 0, const TAIL: usize = 0> {
+pub trait Transmit<'a, const HEAD: usize, const TAIL: usize> {
     /// Set the transmit client, which will be called when transmissions
     /// complete.
     fn set_transmit_client(&self, client: &'a dyn TransmitClient<HEAD, TAIL>);
@@ -238,7 +254,7 @@ pub trait Receive<'a> {
 
 /// Trait implemented by a UART transmitter to receive callbacks when
 /// operations complete.
-pub trait TransmitClient<const HEAD: usize = 0, const TAIL: usize = 0> {
+pub trait TransmitClient<const HEAD: usize, const TAIL: usize> {
     /// A call to `Transmit::transmit_word` completed. The `Result<(), ErrorCode>`
     /// indicates whether the word was successfully transmitted. A call
     /// to `transmit_word` or `transmit_buffer` made within this callback

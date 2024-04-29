@@ -229,16 +229,22 @@ impl<
             .uart
             .transmit_buffer(buffer, msg_len)
             .map_err(|(_, returned_buffer)| {
-                let buf = returned_buffer
-                    .downcast::<PacketSliceMut>()
+                // let buf = returned_buffer
+                //     .downcast::<PacketSliceMut>()
+                //     .unwrap()
+                //     .into_inner();
+
+                let pb = returned_buffer
+                    .restore_headroom()
                     .unwrap()
-                    .into_inner();
+                    .restore_tailroom()
+                    .unwrap();
 
                 // let new_head_buf = returned_buffer.restore_headroom().unwrap();
                 // let new_buf = new_head_buf.restore_tailroom().unwrap();
 
                 // AMALIA: asta sigur nu e ok. Aveam nevoie de un pbmut cu new head si in loc sa ii fac reclaim am facut altu :))))
-                let pb = PacketBufferMut::new(PacketSliceMut::new(buf).unwrap()).unwrap();
+                // let pb = PacketBufferMut::new(PacketSliceMut::new(buf).unwrap()).unwrap();
 
                 self.buffer.set(Some(pb));
             });

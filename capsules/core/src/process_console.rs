@@ -231,10 +231,12 @@ pub struct ProcessConsole<
     const COMMAND_HISTORY_LEN: usize,
     A: Alarm<'a>,
     C: ProcessManagementCapability,
-    const HEAD: usize = 0,
-    const TAIL: usize = 0,
+    const HEAD: usize,
+    const TAIL: usize,
+    const LOWER_HEAD: usize,
+    const LOWER_TAIL: usize,
 > {
-    uart: &'a dyn uart::UartData<'a, HEAD, TAIL>,
+    uart: &'a dyn uart::UartData<'a, LOWER_HEAD, LOWER_TAIL>,
     alarm: &'a A,
     process_printer: &'a dyn ProcessPrinter,
     tx_in_progress: Cell<bool>,
@@ -447,10 +449,12 @@ impl<
         C: ProcessManagementCapability,
         const HEAD: usize,
         const TAIL: usize,
-    > ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C, HEAD, TAIL>
+        const LOWER_HEAD: usize,
+        const LOWER_TAIL: usize,
+    > ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C, HEAD, TAIL, LOWER_HEAD, LOWER_TAIL>
 {
     pub fn new(
-        uart: &'a dyn uart::UartData<'a, HEAD, TAIL>,
+        uart: &'a dyn uart::UartData<'a, LOWER_HEAD, LOWER_TAIL>,
         alarm: &'a A,
         process_printer: &'a dyn ProcessPrinter,
         tx_buffer: PacketBufferMut<HEAD, TAIL>,
@@ -462,7 +466,7 @@ impl<
         kernel_addresses: KernelAddresses,
         reset_function: Option<fn() -> !>,
         capability: C,
-    ) -> ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C, HEAD, TAIL> {
+    ) -> ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C, HEAD, TAIL, LOWER_HEAD, LOWER_TAIL> {
         ProcessConsole {
             uart: uart,
             alarm: alarm,
@@ -1094,17 +1098,23 @@ impl<
                 //     &buf.data_slice()[..10],
                 //     buf.len()
                 // );
-                let _ = self.uart.transmit_buffer(buffer, 1);
+
+                // let new_buf = buffer
+                // .reduce_headroom::<LOWER_HEAD>()
+                // .reduce_tailroom::<LOWER_TAIL>();
+
+                let new_buf = buffer.prepend(&[1 as u8]).reduce_tailroom();
+                let _ = self.uart.transmit_buffer(new_buf, 1);
             });
             Ok(())
         }
     }
 
     fn write_bytes(&self, bytes: &[u8]) -> Result<(), ErrorCode> {
-        hprintln!(
-            "PC: wyte_bytes: received request to write bytes: {:?}",
-            &bytes
-        );
+        // hprintln!(
+        //     "PC: wyte_bytes: received request to write bytes: {:?}",
+        //     &bytes
+        // );
         if self.tx_in_progress.get() {
             self.queue_buffer.map(|buf| {
                 let size = self.queue_size.get();
@@ -1125,15 +1135,22 @@ impl<
                 let len = cmp::min(bytes.len(), buffer.capacity() - buffer.headroom());
 
                 // Copy elements of `bytes` into `buffer`
-                hprintln!("PC: write_bytes: before copy buf {:?}", buffer.payload());
+                // hprintln!("PC: write_bytes: before copy buf {:?}", buffer.payload());
                 buffer.copy_from_slice_or_err(&bytes[..len]).unwrap();
-                hprintln!(
-                    "PC: write_bytes: len {} and buf {:?}",
-                    len,
-                    buffer.payload()
-                );
+                // hprintln!(
+                //     "PC: write_bytes: len {} and buf {:?}",
+                //     len,
+                //     buffer.payload()
+                // );
 
-                let _ = self.uart.transmit_buffer(buffer, len);
+                // let new_buf = buffer
+                //     .reduce_headroom::<LOWER_HEAD>()
+                //     .reduce_tailroom::<LOWER_TAIL>();
+
+                let new_buf = buffer
+                    .prepend::<LOWER_HEAD, 1>(&[1 as u8])
+                    .reduce_tailroom();
+                let _ = self.uart.transmit_buffer(new_buf, len);
             });
             Ok(())
         }
@@ -1186,7 +1203,11 @@ impl<
                         self.queue_size.set(remaining);
 
                         self.tx_in_progress.set(true);
-                        let _ = self.uart.transmit_buffer(txbuf, txlen);
+                        // let new_buf = txbuf
+                        //     .reduce_headroom::<LOWER_HEAD>()
+                        //     .reduce_tailroom::<LOWER_TAIL>();
+                        let new_buf = txbuf.prepend(&[1 as u8]).reduce_tailroom();
+                        let _ = self.uart.transmit_buffer(new_buf, txlen);
                         Ok(txlen)
                     })
             } else {
@@ -1204,7 +1225,10 @@ impl<
         C: ProcessManagementCapability,
         const HEAD: usize,
         const TAIL: usize,
-    > AlarmClient for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C, HEAD, TAIL>
+        const LOWER_HEAD: usize,
+        const LOWER_TAIL: usize,
+    > AlarmClient
+    for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C, HEAD, TAIL, LOWER_HEAD, LOWER_TAIL>
 {
     fn alarm(&self) {
         self.prompt();
@@ -1221,19 +1245,27 @@ impl<
         C: ProcessManagementCapability,
         const HEAD: usize,
         const TAIL: usize,
-    > uart::TransmitClient<HEAD, TAIL>
-    for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C, HEAD, TAIL>
+        const LOWER_HEAD: usize,
+        const LOWER_TAIL: usize,
+    > uart::TransmitClient<LOWER_HEAD, LOWER_TAIL>
+    for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C, HEAD, TAIL, LOWER_HEAD, LOWER_TAIL>
 {
     fn transmitted_buffer(
         &self,
-        buffer: PacketBufferMut<HEAD, TAIL>,
+        buffer: PacketBufferMut<LOWER_HEAD, LOWER_TAIL>,
         _tx_len: usize,
         _rcode: Result<(), ErrorCode>,
     ) {
         // hprintln!("PROCESS CONSOLE: in transmitted_buffer");
         // Reset state now that we no longer have an active transmission on the
         // UART.
-        self.tx_buffer.replace(buffer);
+        // let new_buf = buffer
+        //     .restore_headroom::<HEAD>()
+        //     .unwrap()
+        //     .restore_tailroom::<TAIL>()
+        //     .unwrap();
+        let new_buf = buffer.reset().unwrap();
+        self.tx_buffer.replace(new_buf);
         self.tx_in_progress.set(false);
 
         // Check if we have anything queued up. If we do, let the queue
@@ -1265,7 +1297,10 @@ impl<
         C: ProcessManagementCapability,
         const HEAD: usize,
         const TAIL: usize,
-    > uart::ReceiveClient for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C, HEAD, TAIL>
+        const LOWER_HEAD: usize,
+        const LOWER_TAIL: usize,
+    > uart::ReceiveClient
+    for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C, HEAD, TAIL, LOWER_HEAD, LOWER_TAIL>
 {
     fn received_buffer(
         &self,
