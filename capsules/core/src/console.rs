@@ -241,7 +241,7 @@ impl<
                 //     .reduce_tailroom::<LOWER_TAIL>();
 
                 // TODO: Check and make sure that the process id should not be greater than 256
-                let process_id: [u8; 1] = (5 as u8).to_ne_bytes();
+                let process_id: [u8; 1] = (processid.id() as u8).to_ne_bytes();
                 // let header = process_id.first().unwrap();
                 // let header
                 // hprintln!("Prepanding process id {}", processid.id());
