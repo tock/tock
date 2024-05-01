@@ -745,7 +745,7 @@ impl<'a> Iom<'_> {
                     }
                 }
 
-                if irqs.is_set(INT::CMDCMP) || regs.intstat.is_set(INT::CMDCMP) {
+                if irqs.is_set(INT::CMDCMP) {
                     if (self.read_len.get() > 0 && self.read_index.get() == self.read_len.get())
                         || (self.write_len.get() > 0
                             && self.write_index.get() == self.write_len.get())
