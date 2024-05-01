@@ -54,7 +54,7 @@
 //! provided to the capsule.
 
 use crate::ieee802154::{device, framer};
-use crate::net::ieee802154::{AddressMode, Header, KeyId, MacAddress, PanID, SecurityLevel};
+use crate::net::ieee802154::{Header, KeyId, MacAddress, SecurityLevel};
 use crate::net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResult};
 use device::RxClient;
 
@@ -1066,24 +1066,6 @@ impl<'a, M: device::MacDevice<'a>> device::TxClient for RadioDriver<'a, M> {
         });
         self.do_next_tx_async();
     }
-}
-
-/// Encode two PAN IDs into a single usize.
-#[inline]
-#[allow(dead_code)]
-fn encode_pans(dst_pan: &Option<PanID>, src_pan: &Option<PanID>) -> usize {
-    ((dst_pan.unwrap_or(0) as usize) << 16) | (src_pan.unwrap_or(0) as usize)
-}
-
-/// Encodes as much as possible about an address into a single usize.
-#[inline]
-#[allow(dead_code)]
-fn encode_address(addr: &Option<MacAddress>) -> usize {
-    let short_addr_only = match *addr {
-        Some(MacAddress::Short(addr)) => addr as usize,
-        _ => 0,
-    };
-    ((AddressMode::from(addr) as usize) << 16) | short_addr_only
 }
 
 impl<'a, M: device::MacDevice<'a>> device::SecuredFrameNoDecryptRxClient for RadioDriver<'a, M> {
