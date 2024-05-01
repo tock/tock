@@ -176,6 +176,8 @@ Debugging Capsules
 These are selectively included on a board to help with testing and debugging
 various elements of Tock.
 
+- **[Cycle Counter](src/cycle_count.rs)**: Start, stop, reset, and read a hardware cycle
+  counter from userspace.
 - **[Debug Process Restart](src/debug_process_restart.rs)**: Force all processes
   to enter a fault state when a button is pressed.
 - **[Panic Button](src/panic_button.rs)**: Use a button to force a `panic!()`.
