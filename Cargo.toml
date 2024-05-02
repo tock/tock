@@ -19,6 +19,7 @@ members = [
     "boards/opentitan/earlgrey-cw310",
     "boards/esp32-c3-devkitM-1",
     "boards/clue_nrf52840",
+    "boards/veer_el2_sim",
     "boards/hail",
     "boards/hifive_inventor",
     "boards/hifive1",
