@@ -182,7 +182,7 @@ impl Pic {
     /// Interrupts must be disabled before this is called.
     /// Saved interrupts can be retrieved by calling `get_saved_interrupts()`.
     /// Saved interrupts are cleared when `'complete()` is called.
-    pub unsafe fn save_interrupt(&self, index: u32) {
+    pub fn save_interrupt(&self, index: u32) {
         let offset = if index < 32 {
             0
         } else if index < 64 {
@@ -218,6 +218,10 @@ impl Pic {
     /// Signal that an interrupt is finished being handled. In Tock, this should be
     /// called from the normal main loop (not the interrupt handler).
     /// Interrupts must be disabled before this is called.
+    ///
+    /// # Safety
+    ///
+    /// access to memory-mapped registers
     pub unsafe fn complete(&self, index: u32) {
         // Clear the interrupt
         self.registers.meigwclr[index as usize - 1].set(0);

@@ -92,6 +92,7 @@ members = [
     "chips/stm32f4xx",
     "chips/swerv",
     "chips/swervolf-eh1",
+    "chips/veer_el2",
     "chips/virtio",
     "kernel",
     "libraries/enum_primitive",
