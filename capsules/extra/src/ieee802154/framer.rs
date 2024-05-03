@@ -85,7 +85,7 @@ use crate::net::stream::{encode_bytes, encode_u32, encode_u8};
 
 use core::cell::Cell;
 
-use kernel::hil::radio::{self, PSDU_OFFSET};
+use kernel::hil::radio::{self, LQI_SIZE};
 use kernel::hil::symmetric_encryption::{CCMClient, AES128CCM};
 use kernel::processbuffer::ReadableProcessSlice;
 use kernel::utilities::cells::{MapCell, OptionalCell};
@@ -481,7 +481,12 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
         // 2) The frame is unsecured. We immediately expose the frame to the
         //    user and queue the buffer for returning to the radio.
         // 3) The frame needs to be unsecured.
-        let result = Header::decode(&buf[radio::PSDU_OFFSET..(radio::PSDU_OFFSET+radio::MAX_FRAME_SIZE)], false)
+
+        // The buffer containing the 15.4 packet also contains the PSDU bytes and an LQI
+        // byte. We only pass the 15.4 packet up the stack and slice buf accordingly.
+        let frame_buffer = &buf[radio::PSDU_OFFSET..(buf.len() - LQI_SIZE)];
+
+        let result = Header::decode(frame_buffer, false)
             .done()
             .and_then(|(data_offset, (header, mac_payload_offset))| {
                 // Note: there is a complication here regarding the offsets.
@@ -508,7 +513,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                             None => {
                                 // Key not found -- pass raw encrypted packet to client
                                 self.secured_frame_no_decrypt_rx_client.map(|client| {
-                                    client.receive_secured_frame(&buf[PSDU_OFFSET..(radio::PSDU_OFFSET+radio::MAX_FRAME_SIZE)], header, lqi, data_offset, data_len);
+                                    client.receive_secured_frame(frame_buffer, header, lqi, data_offset, data_len);
                                 });
                                 return None;
                             }
@@ -563,8 +568,12 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                     }
                 } else {
                     // No security needed, can yield the frame immediately
+
+                    // The buffer containing the 15.4 packet also contains the PSDU bytes and an LQI
+                    // byte. We only pass the 15.4 packet up the stack and slice buf accordingly.
+                    let frame_buffer = &buf[radio::PSDU_OFFSET..(buf.len() - LQI_SIZE)];
                     self.rx_client.map(|client| {
-                        client.receive(&buf[PSDU_OFFSET..(radio::PSDU_OFFSET+radio::MAX_FRAME_SIZE)], header, lqi, data_offset, data_len);
+                        client.receive(frame_buffer, header, lqi, data_offset, data_len);
                     });
                     None
                 }
@@ -765,9 +774,14 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                         // This is so that it is possible to tell if the
                         // frame was secured or unsecured, while still
                         // always receiving the frame payload in plaintext.
+                        //
+                        // The buffer containing the 15.4 packet also contains
+                        // the PSDU bytes and an LQI byte. We only pass the
+                        // 15.4 packet up the stack and slice buf accordingly.
+                        let frame_buffer = &buf[radio::PSDU_OFFSET..(buf.len() - LQI_SIZE)];
                         self.rx_client.map(|client| {
                             client.receive(
-                                &buf[PSDU_OFFSET..(radio::PSDU_OFFSET + radio::MAX_FRAME_SIZE)],
+                                frame_buffer,
                                 header,
                                 lqi,
                                 data_offset,
