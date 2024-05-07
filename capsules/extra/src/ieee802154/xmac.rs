@@ -307,6 +307,7 @@ impl<'a, R: radio::Radio<'a>, A: Alarm<'a>> XMac<'a, R, A> {
         &self,
         buf: &'static mut [u8],
         len: usize,
+        lqi: u8,
         crc_valid: bool,
         result: Result<(), ErrorCode>,
     ) {
@@ -314,7 +315,7 @@ impl<'a, R: radio::Radio<'a>, A: Alarm<'a>> XMac<'a, R, A> {
         self.sleep();
 
         self.rx_client.map(move |c| {
-            c.receive(buf, len, crc_valid, result);
+            c.receive(buf, len, lqi, crc_valid, result);
         });
     }
 }
@@ -573,6 +574,7 @@ impl<'a, R: radio::Radio<'a>, A: Alarm<'a>> radio::RxClient for XMac<'a, R, A> {
         &self,
         buf: &'static mut [u8],
         frame_len: usize,
+        lqi: u8,
         crc_valid: bool,
         result: Result<(), ErrorCode>,
     ) {
@@ -634,7 +636,7 @@ impl<'a, R: radio::Radio<'a>, A: Alarm<'a>> radio::RxClient for XMac<'a, R, A> {
 
         if data_received {
             self.rx_pending.set(false);
-            self.call_rx_client(buf, frame_len, crc_valid, result);
+            self.call_rx_client(buf, frame_len, lqi, crc_valid, result);
         } else {
             self.radio.set_receive_buffer(buf);
         }

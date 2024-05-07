@@ -54,7 +54,7 @@
 //! provided to the capsule.
 
 use crate::ieee802154::{device, framer};
-use crate::net::ieee802154::{AddressMode, Header, KeyId, MacAddress, PanID, SecurityLevel};
+use crate::net::ieee802154::{Header, KeyId, MacAddress, SecurityLevel};
 use crate::net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResult};
 use device::RxClient;
 
@@ -1068,39 +1068,31 @@ impl<'a, M: device::MacDevice<'a>> device::TxClient for RadioDriver<'a, M> {
     }
 }
 
-/// Encode two PAN IDs into a single usize.
-#[inline]
-fn encode_pans(dst_pan: &Option<PanID>, src_pan: &Option<PanID>) -> usize {
-    ((dst_pan.unwrap_or(0) as usize) << 16) | (src_pan.unwrap_or(0) as usize)
-}
-
-/// Encodes as much as possible about an address into a single usize.
-#[inline]
-fn encode_address(addr: &Option<MacAddress>) -> usize {
-    let short_addr_only = match *addr {
-        Some(MacAddress::Short(addr)) => addr as usize,
-        _ => 0,
-    };
-    ((AddressMode::from(addr) as usize) << 16) | short_addr_only
-}
-
 impl<'a, M: device::MacDevice<'a>> device::SecuredFrameNoDecryptRxClient for RadioDriver<'a, M> {
     fn receive_secured_frame<'b>(
         &self,
         buf: &'b [u8],
         header: Header<'b>,
+        lqi: u8,
         data_offset: usize,
         data_len: usize,
     ) {
         // The current 15.4 userspace receive accepts both secured and
         // unsecured frames. As such, we can simply call the standard
         // receive method of the RxClient trait.
-        self.receive(buf, header, data_offset, data_len)
+        self.receive(buf, header, lqi, data_offset, data_len)
     }
 }
 
 impl<'a, M: device::MacDevice<'a>> device::RxClient for RadioDriver<'a, M> {
-    fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
+    fn receive<'b>(
+        &self,
+        buf: &'b [u8],
+        header: Header<'b>,
+        lqi: u8,
+        data_offset: usize,
+        data_len: usize,
+    ) {
         self.apps.each(|_, _, kernel_data| {
             let read_present = kernel_data
                 .get_readwrite_processbuffer(rw_allow::READ)
@@ -1180,12 +1172,9 @@ impl<'a, M: device::MacDevice<'a>> device::RxClient for RadioDriver<'a, M> {
                 })
                 .unwrap_or(false);
             if read_present {
-                // Encode useful parts of the header in 3 usizes
-                let pans = encode_pans(&header.dst_pan, &header.src_pan);
-                let dst_addr = encode_address(&header.dst_addr);
-                let src_addr = encode_address(&header.src_addr);
+                // Place lqi as argument to be included in upcall.
                 kernel_data
-                    .schedule_upcall(upcall::FRAME_RECEIVED, (pans, dst_addr, src_addr))
+                    .schedule_upcall(upcall::FRAME_RECEIVED, (lqi as usize, 0, 0))
                     .ok();
             }
         });

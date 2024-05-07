@@ -58,9 +58,16 @@ impl<'a, M: device::MacDevice<'a>> device::TxClient for MuxMac<'a, M> {
 }
 
 impl<'a, M: device::MacDevice<'a>> device::RxClient for MuxMac<'a, M> {
-    fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
+    fn receive<'b>(
+        &self,
+        buf: &'b [u8],
+        header: Header<'b>,
+        lqi: u8,
+        data_offset: usize,
+        data_len: usize,
+    ) {
         for user in self.users.iter() {
-            user.receive(buf, header, data_offset, data_len);
+            user.receive(buf, header, lqi, data_offset, data_len);
         }
     }
 }
@@ -70,11 +77,12 @@ impl<'a, M: device::MacDevice<'a>> device::SecuredFrameNoDecryptRxClient for Mux
         &self,
         buf: &'b [u8],
         header: Header<'b>,
+        lqi: u8,
         data_offset: usize,
         data_len: usize,
     ) {
         for user in self.users.iter() {
-            user.receive_secured_frame(buf, header, data_offset, data_len);
+            user.receive_secured_frame(buf, header, lqi, data_offset, data_len);
         }
     }
 }
@@ -233,22 +241,32 @@ impl<'a, M: device::MacDevice<'a>> MacUser<'a, M> {
             .map(move |client| client.send_done(spi_buf, acked, result));
     }
 
-    fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
+    fn receive<'b>(
+        &self,
+        buf: &'b [u8],
+        header: Header<'b>,
+        lqi: u8,
+        data_offset: usize,
+        data_len: usize,
+    ) {
         self.rx_client
             .get()
-            .map(move |client| client.receive(buf, header, data_offset, data_len));
+            .map(move |client| client.receive(buf, header, lqi, data_offset, data_len));
     }
 
     fn receive_secured_frame<'b>(
         &self,
         buf: &'b [u8],
         header: Header<'b>,
+        lqi: u8,
         data_offset: usize,
         data_len: usize,
     ) {
         self.secure_frame_no_decrypt_rx_client
             .get()
-            .map(move |client| client.receive_secured_frame(buf, header, data_offset, data_len));
+            .map(move |client| {
+                client.receive_secured_frame(buf, header, lqi, data_offset, data_len)
+            });
     }
 }
 

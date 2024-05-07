@@ -176,6 +176,7 @@ impl<'a, R: radio::Radio<'a>> radio::RxClient for AwakeMac<'a, R> {
         &self,
         buf: &'static mut [u8],
         frame_len: usize,
+        lqi: u8,
         crc_valid: bool,
         result: Result<(), ErrorCode>,
     ) {
@@ -195,7 +196,7 @@ impl<'a, R: radio::Radio<'a>> radio::RxClient for AwakeMac<'a, R> {
         if addr_match {
             // debug!("[AwakeMAC] Rcvd a 15.4 frame addressed to this device");
             self.rx_client.map(move |c| {
-                c.receive(buf, frame_len, crc_valid, result);
+                c.receive(buf, frame_len, lqi, crc_valid, result);
             });
         } else {
             // debug!("[AwakeMAC] Received a packet, but not addressed to us");
