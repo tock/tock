@@ -535,6 +535,11 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
                     self.operation.set(Operation::None);
                 }
                 Ok(tickv::success_codes::SuccessCode::Queued) => {}
+                Err(tickv::error_codes::ErrorCode::ReadNotReady(_))
+                | Err(tickv::error_codes::ErrorCode::WriteNotReady(_))
+                | Err(tickv::error_codes::ErrorCode::EraseNotReady(_)) => {
+                    // Need to do another flash operation.
+                }
                 Err(e) => {
                     self.operation.set(Operation::None);
 
