@@ -206,9 +206,11 @@ impl<'a, A: time::Alarm<'a>> ThreadNetworkDriver<'a, A> {
                         // Thread send failed sending parent req so we terminate and return
                         // to a detached state.
                         self.state.replace(ThreadState::Detached);
-                        kernel::debug!(
-                            "[Thread] Failed sending MLE parent request - crypto operation error."
-                        );
+
+                        // UNCOMMENT TO DEBUG THREAD //
+                        // kernel::debug!(
+                        //     "[Thread] Failed sending MLE parent request - crypto operation error."
+                        // );
                         self.terminate_child_join(Err(code));
                     });
             }
@@ -334,7 +336,8 @@ impl<'a, A: time::Alarm<'a>> ThreadNetworkDriver<'a, A> {
         // Obtain and unwrap frame counter
         let frame_counter = security.frame_counter;
         if frame_counter.is_none() {
-            kernel::debug!("[Thread] Malformed auxiliary security header");
+            // UNCOMMENT TO DEBUG THREAD //
+            // kernel::debug!("[Thread] Malformed auxiliary security header");
             return Err((ErrorCode::INVAL, buf));
         }
 
@@ -351,12 +354,14 @@ impl<'a, A: time::Alarm<'a>> ThreadNetworkDriver<'a, A> {
                 if self.aes_crypto.set_key(&netkey.mle_key).is_err()
                     || self.aes_crypto.set_nonce(&nonce).is_err()
                 {
-                    kernel::debug!("[Thread] Failure setting networkkey and/or nonce.");
+                    // UNCOMMENT TO DEBUG THREAD //
+                    // kernel::debug!("[Thread] Failure setting networkkey and/or nonce.");
                     return Err((ErrorCode::FAIL, buf));
                 }
             }
             None => {
-                kernel::debug!("[Thread] Attempt to access networkkey when no networkkey set.");
+                // UNCOMMENT TO DEBUG THREAD //
+                // kernel::debug!("[Thread] Attempt to access networkkey when no networkkey set.");
                 return Err((ErrorCode::NOSUPPORT, buf));
             }
         }
@@ -390,7 +395,8 @@ impl<'a, A: time::Alarm<'a>> ThreadNetworkDriver<'a, A> {
 
         // Error check on result from encoding, failure likely means buf was not large enough
         if encode_res.is_none() {
-            kernel::debug!("[Thread] Error encoding cryptographic data into buffer");
+            // UNCOMMENT TO DEBUG THREAD //
+            // kernel::debug!("[Thread] Error encoding cryptographic data into buffer");
             return Err((ErrorCode::FAIL, buf));
         }
 
@@ -413,9 +419,10 @@ impl<'a, A: time::Alarm<'a>> ThreadNetworkDriver<'a, A> {
         // The sizelock is empty except when a crypto operation
         // is underway. If the sizelock is not empty, return error
         if self.crypto_sizelock.is_some() {
-            kernel::debug!(
-                "[Thread] Error - cryptographic resources in use; crypto_sizelock occupied"
-            );
+            // UNCOMMENT TO DEBUG THREAD //
+            // kernel::debug!(
+            //     "[Thread] Error - cryptographic resources in use; crypto_sizelock occupied"
+            // );
             return Err((ErrorCode::BUSY, buf));
         }
 
@@ -580,7 +587,8 @@ impl<'a, A: time::Alarm<'a>> UDPRecvClient for ThreadNetworkDriver<'a, A> {
             // Tock's current implementation of Thread ignores all messages that do not possess MLE encryption. This
             // is due to the Thread spec stating "Except for when specifically indicated, incoming
             // messages that are not secured with either MLE or link-layer security SHOULD be ignored." (v.1.3.0 sect 4.10)
-            kernel::debug!("[Thread] DROPPED PACKET - Received unencrypted MLE packet.");
+            // UNCOMMENT TO DEBUG THREAD //
+            // kernel::debug!("[Thread] DROPPED PACKET - Received unencrypted MLE packet.");
         }
 
         // decode aux security header from packet into Security data type
@@ -588,7 +596,8 @@ impl<'a, A: time::Alarm<'a>> UDPRecvClient for ThreadNetworkDriver<'a, A> {
 
         // Guard statement for improperly formated aux sec header
         if sec_res.is_none() {
-            kernel::debug!("[Thread] DROPPED PACKET - Malformed auxiliary security header.");
+            // UNCOMMENT TO DEBUG THREAD //
+            // kernel::debug!("[Thread] DROPPED PACKET - Malformed auxiliary security header.");
             return;
         }
 
@@ -598,7 +607,10 @@ impl<'a, A: time::Alarm<'a>> UDPRecvClient for ThreadNetworkDriver<'a, A> {
         // initiates encoding all relevant auth data, setting crypto engine and initiating the
         // crypto operation.
         self.recv_buffer.take().map_or_else(
-            || kernel::debug!("[Thread] DROPPED PACKET - Receive buffer not available"),
+            || {
+                // UNCOMMENT TO DEBUG THREAD //
+                // kernel::debug!("[Thread] DROPPED PACKET - Receive buffer not available")
+            },
             |recv_buf| {
                 self.perform_crypt_op(
                     src_addr,
@@ -612,11 +624,12 @@ impl<'a, A: time::Alarm<'a>> UDPRecvClient for ThreadNetworkDriver<'a, A> {
                     // Error check on crypto operation. If the crypto operation
                     // fails, we log the error and replace the receive buffer for
                     // future receptions
-                    |(code, buf)| {
-                        kernel::debug!(
-                            "[Thread] DROPPED PACKET - Crypto Operation Error *{:?}",
-                            code
-                        );
+                    |(_code, buf)| {
+                        // UNCOMMENT TO DEBUG THREAD alter _code to code//
+                        // kernel::debug!(
+                        //     "[Thread] DROPPED PACKET - Crypto Operation Error *{:?}",
+                        //     code
+                        // );
                         self.recv_buffer.replace(SubSliceMut::new(buf));
                     },
                     |()| (),
