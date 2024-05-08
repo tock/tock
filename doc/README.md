@@ -18,6 +18,7 @@ Tock Policies
 ### Tock Setup and Development
 - **[Getting Started](Getting_Started.md)** - Installing the Tock toolchain and programming hardware.
 - **[Repository Structure](Repository.md)** - How the tock/ repo is organized.
+- **[Nested Boards](NestedBoards.md)** - How Tock supports nesting board platforms.
 - **[Out of Tree Boards](OutOfTree.md)** - Best practices for maintaining boards not in Tock master.
 - **[Style](Style.md)** - Stylistic aspects of Tock code.
 - **[External Dependencies](ExternalDependencies.md)** - Policy for including external dependencies.
