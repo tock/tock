@@ -136,6 +136,9 @@ pub mod io;
 // - Set to true to use Segger RTT over USB.
 const USB_DEBUGGING: bool = false;
 
+/// This platform's chip type:
+pub type Chip = nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>;
+
 /// Number of concurrent processes this platform supports.
 pub const NUM_PROCS: usize = 8;
 
@@ -277,9 +280,7 @@ impl SyscallDriverLookup for Platform {
     }
 }
 
-impl KernelResources<nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>>
-    for Platform
-{
+impl KernelResources<Chip> for Platform {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
@@ -318,7 +319,7 @@ impl KernelResources<nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'
 pub unsafe fn start() -> (
     &'static kernel::Kernel,
     Platform,
-    &'static nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>,
+    &'static Chip,
     &'static Nrf52DefaultPeripherals<'static>,
 ) {
     //--------------------------------------------------------------------------
@@ -376,10 +377,7 @@ pub unsafe fn start() -> (
 
     // Create (and save for panic debugging) a chip object to setup low-level
     // resources (e.g. MPU, systick).
-    let chip = static_init!(
-        nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
-        nrf52840::chip::NRF52::new(nrf52840_peripherals)
-    );
+    let chip = static_init!(Chip, nrf52840::chip::NRF52::new(nrf52840_peripherals));
     CHIP = Some(chip);
 
     // Do nRF configuration and setup. This is shared code with other nRF-based
