@@ -10,7 +10,7 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use core::ptr::{addr_of, addr_of_mut};
+use core::ptr::addr_of_mut;
 
 use kernel::component::Component;
 use kernel::debug;
@@ -19,16 +19,6 @@ use kernel::{capabilities, create_capability};
 use nrf52840::gpio::Pin;
 use nrf52840dk_lib::{self, PROCESSES};
 
-fn crc(s: &'static str) -> u32 {
-    kernel::utilities::helpers::crc32_posix(s.as_bytes())
-}
-
-#[cfg(feature = "screen_ssd1306")]
-type Screen = components::ssd1306::Ssd1306ComponentType<nrf52840::i2c::TWI<'static>>;
-#[cfg(feature = "screen_sh1106")]
-type Screen = components::sh1106::Sh1106ComponentType<nrf52840::i2c::TWI<'static>>;
-
-// type ScreenDriver = components::screen::ScreenSharedComponentType<Screen>;
 type ScreenDriver = components::screen::ScreenComponentType;
 
 // State for loading and holding applications.
@@ -127,44 +117,6 @@ pub unsafe fn main() {
     #[cfg(feature = "screen_sh1106")]
     let ssd1306_sh1106 = components::sh1106::Sh1106Component::new(ssd1306_sh1106_i2c, true)
         .finalize(components::sh1106_component_static!(nrf52840::i2c::TWI));
-
-    // // Assign screen regions to specific apps.
-    // let apps_regions = static_init!(
-    //     [capsules_extra::screen_shared::AppScreenRegion; 3],
-    //     [
-    //         capsules_extra::screen_shared::AppScreenRegion::new(
-    //             kernel::process::ShortID::Fixed(core::num::NonZeroU32::new(crc("circle")).unwrap()),
-    //             0,     // x
-    //             0,     // y
-    //             8 * 8, // width
-    //             8 * 8  // height
-    //         ),
-    //         capsules_extra::screen_shared::AppScreenRegion::new(
-    //             kernel::process::ShortID::Fixed(core::num::NonZeroU32::new(crc("count")).unwrap()),
-    //             8 * 8, // x
-    //             0,     // y
-    //             8 * 8, // width
-    //             4 * 8  // height
-    //         ),
-    //         capsules_extra::screen_shared::AppScreenRegion::new(
-    //             kernel::process::ShortID::Fixed(
-    //                 core::num::NonZeroU32::new(crc("tock-scroll")).unwrap()
-    //             ),
-    //             8 * 8, // x
-    //             4 * 8, // y
-    //             8 * 8, // width
-    //             4 * 8  // height
-    //         )
-    //     ]
-    // );
-
-    // let screen = components::screen::ScreenSharedComponent::new(
-    //     board_kernel,
-    //     capsules_extra::screen::DRIVER_NUM,
-    //     ssd1306,
-    //     apps_regions,
-    // )
-    // .finalize(components::screen_shared_component_static!(1032, Screen));
 
     let screen = components::screen::ScreenComponent::new(
         board_kernel,

@@ -417,8 +417,13 @@ pub unsafe fn start() -> (
             5 => &nrf52840_peripherals.gpio_port[Pin::P1_06],
             6 => &nrf52840_peripherals.gpio_port[Pin::P1_07],
             7 => &nrf52840_peripherals.gpio_port[Pin::P1_08],
-            8 => &nrf52840_peripherals.gpio_port[Pin::P1_10],
-            9 => &nrf52840_peripherals.gpio_port[Pin::P1_11],
+            // Avoid exposing the I2C pins to userspace, as these are used in
+            // some tutorials (e.g., `nrf52840dk-thread-tutorial`).
+            //
+            // In the future we might want to make this configurable.
+            //
+            // 8 => &nrf52840_peripherals.gpio_port[Pin::P1_10],
+            // 9 => &nrf52840_peripherals.gpio_port[Pin::P1_11],
             10 => &nrf52840_peripherals.gpio_port[Pin::P1_12],
             11 => &nrf52840_peripherals.gpio_port[Pin::P1_13],
             12 => &nrf52840_peripherals.gpio_port[Pin::P1_14],
