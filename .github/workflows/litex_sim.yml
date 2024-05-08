@@ -57,7 +57,7 @@ jobs:
       # applications.
       - name: Install tockloader
         run: |
-          pip3 install tockloader==1.11.0
+          pip3 install tockloader==1.12.0
 
       # Clone tock-litex support repository under ./tock-litex, check out the
       # targeted release.
