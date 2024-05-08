@@ -9,6 +9,13 @@ authors.workspace = true
 build = "../../build.rs"
 edition.workspace = true
 
+[lib]
+name = "nrf52840dk_lib"
+
+[[bin]]
+name = "nrf52840dk"
+path = "src/main.rs"
+
 [dependencies]
 components = { path = "../../components" }
 cortexm4 = { path = "../../../arch/cortex-m4" }
