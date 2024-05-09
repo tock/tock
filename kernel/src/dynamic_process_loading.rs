@@ -17,7 +17,7 @@ use crate::debug;
 use crate::hil::nonvolatile_storage::{NonvolatileStorage, NonvolatileStorageClient};
 use crate::kernel::Kernel;
 use crate::platform::chip::Chip;
-use crate::process::ProcessId;
+// use crate::process::ProcessId;
 use crate::process::{self, Process, ShortId};
 use crate::process_binary::{ProcessBinary, ProcessBinaryError};
 use crate::process_loading::ProcessLoadError;
@@ -33,10 +33,9 @@ const TBF_HEADER_LENGTH: usize = 16;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum State {
+    Idle,
     Setup,
-    FirstWrite,
     AppWrite,
-    LastWrite,
     Load,
     PaddingWrite,
     Fail,
@@ -65,13 +64,11 @@ pub trait DynamicProcessLoading {
     fn setup(&self, app_length: usize) -> Result<usize, ErrorCode>;
 
     /// Instruct the kernel to write data to the flash
-    ///
-    ///This is used to write both userland apps and padding apps
+    /// This is used to write both userland apps and padding apps
     fn write_app_data(
         &self,
         buffer: SubSliceMut<'static, u8>,
         offset: usize,
-        processid: ProcessId,
     ) -> Result<(), ErrorCode>;
 
     /// Instruct the kernel to load and execute the process.
@@ -108,9 +105,8 @@ pub struct DynamicProcessLoader<'a, C: 'static + Chip> {
     new_app_length: Cell<usize>,
     previous_app_end_addr: Cell<usize>,
     next_app_start_addr: Cell<usize>,
-    next_offset: Cell<usize>,
     client: OptionalCell<&'static dyn DynamicProcessLoadingClient>,
-    state: OptionalCell<State>,
+    state: Cell<State>,
     padding_requirement: OptionalCell<PaddingRequirement>,
 }
 
@@ -138,9 +134,8 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
             new_app_length: Cell::new(0),
             previous_app_end_addr: Cell::new(0),
             next_app_start_addr: Cell::new(0),
-            next_offset: Cell::new(0),
             client: OptionalCell::empty(),
-            state: OptionalCell::empty(),
+            state: Cell::new(State::Idle),
             padding_requirement: OptionalCell::empty(),
         }
     }
@@ -166,14 +161,14 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
         })
     }
 
+    /// Function to reset variables and states
     fn reset_process_loading_metadata(&self) {
         self.previous_app_end_addr.set(0);
         self.next_app_start_addr.set(0);
         self.padding_requirement.take();
         self.new_app_start_addr.set(0);
         self.new_app_length.set(0);
-        self.next_offset.set(0);
-        self.state.take();
+        self.state.set(State::Idle);
     }
 
     /******************************************* NVM Logic **********************************************************/
@@ -185,7 +180,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
     /// This function returns the physical address in flash where the write is supposed to happen.
     fn compute_address(&self, offset: usize, length: usize) -> Result<usize, ErrorCode> {
         let address = match self.state.get() {
-            Some(State::FirstWrite) | Some(State::AppWrite) => {
+            State::AppWrite => {
                 // Check if there is an overflow while adding length and offset.
                 // If there is no overflow, then we check if the length of the new write block
                 // goes over the total size alloted to the new application.
@@ -209,10 +204,10 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
             }
             // If we are going to write the padding header, we already know where to write in flash,
             // so we don't have to add the start address
-            Some(State::Setup) | Some(State::Load) | Some(State::PaddingWrite) => offset,
+            State::Setup | State::Load | State::PaddingWrite => offset,
             // We aren't supposed to be able to write unless we
             // are in one of the first two write states
-            Some(State::Fail) | Some(State::LastWrite) | None => {
+            _ => {
                 return Err(ErrorCode::FAIL);
             }
         };
@@ -222,26 +217,72 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
     /// Compute the physical address where we should write the data and then write it.
     ///
     /// This function calls write_done() when the Nonvolatile Driver invokes the callback.
+    ///
+    /// Current limitation: There are two limitations with the current implementation of how
+    /// tock looks for and loads apps.
+    /// Assuming the flash looks like this:
+    ///          ____________________________________________________
+    ///         |             |    |            |          |         |
+    ///         |     App1    | H? |   NewApp?  |   Pad    |   App2  |
+    ///         |_____________|____|____________|__________|_________|
+    ///
+    /// Assuming the new app goes in between App 1 and App 2 which are existing processes, we
+    /// write the padding after the new app during setup phase.
+    /// Issue 1:        If there is a power cycle as we try to write the header for the
+    ///                 new app, during the flash erase part of the flash write,
+    ///                 we might end up with a break in the linkedlist when the device
+    ///                 reboots and we never boot app 2.
+    /// Potential Fix:  Reserve a section of flash to hold an index/repository of valid headers
+    ///                 of current processes as a fall back mechanism in case we end up with
+    ///                 corrupt headers.
+    ///
+    /// Issue 2:        If the header is written successfully, but there is a power cycle as the
+    ///                 rest of the app binary is being written, we could end up with the situation
+    ///                 where because the header is valid, we could end up with memory fragmentation.
+    /// Potential Fix:  Create a processes monitoring process that is able to clean up after corrupt
+    ///                 apps and defragment memory?
+
     fn write(&self, user_buffer: SubSliceMut<'static, u8>, offset: usize) -> Result<(), ErrorCode> {
         let length = user_buffer.len();
         let buffer = user_buffer.take(); // for us to perform tbf header validation and write with
+
         let physical_address = match self.compute_address(offset, length) {
             Ok(address) => address,
             Err(e) => return Err(e),
         };
 
-        if self.state.get() == Some(State::FirstWrite) {
+        // The kernel needs to check if the app is trying to write/overwrite the header. So the app can only
+        // write to the first 8 bytes if the app is writing all 8 bytes. Else, the kernel must raise an error.
+        // The app is not allowed to write from say, offset 4 because we have to ensure the validity
+        // of the header.
+
+        // This means the app is trying to manipulate the space where the TBF header should go.
+        // Ideally, we want the app to only write the complete set of 8 bytes which is used to determine
+        // if the header is valid.
+        // We don't apps to do this, so we return an error.
+
+        if offset < 8 && offset != 0 {
+            return Err(ErrorCode::INVAL);
+        }
+
+        if offset == 0 {
+            // The app is not allowed to manipulate parts of the TBF header, so if it is trying
+            // to write at the very beginning of the promised flash region, we require the app
+            // writes the entire 8 bytes of the header. This header is then checked for validity.
+
+            if length < 8 {
+                return Err(ErrorCode::INVAL);
+            }
             // Get a slice of the first 8 bytes
             static mut HEADER_SLICE: [u8; 8] = [0; 8];
-            unsafe {
-                HEADER_SLICE.copy_from_slice(&buffer[..8]);
-            }
+            unsafe { HEADER_SLICE.copy_from_slice(&buffer[..8]) };
 
             // Convert it to an immutable slice
             let header_info: &[u8] = unsafe { &HEADER_SLICE };
 
+            // check if there is valid information in the slice (non None values)
             let test_header_slice = match header_info.get(0..8) {
-                Some(s) => s,
+                Some(slice) => slice,
                 None => {
                     // This means this is probably not a header, so return an error
                     return Err(ErrorCode::INVAL);
@@ -271,20 +312,6 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
             if entry_length as usize != self.new_app_length.get() {
                 return Err(ErrorCode::INVAL);
             }
-        }
-
-        if self.state.get() == Some(State::FirstWrite)
-            || self.state.get() == Some(State::AppWrite)
-            || self.state.get() == Some(State::LastWrite)
-        {
-            if offset == self.new_app_length.get() - BUF_LEN
-                && self.state.get() != Some(State::PaddingWrite)
-            {
-                // should this be BUF_LEN or length?
-                // we are in the final write cycle, so we set the state to LastWrite
-                self.state.set(State::LastWrite);
-            }
-            self.next_offset.set(offset + BUF_LEN); // set the next offset we want to compare the offset the app supplies against
         }
         self.flash_driver.write(buffer, physical_address, length)
     }
@@ -351,9 +378,8 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
     ///        process, in that case, we need to add padding between the previous app and the new app.
     ///     3. If both the above conditions are met, we add both a prepadding and a postpadding.
     ///     4. If either of these conditions are not met, we don't pad.
-    fn check_padding_requirements(&self) {
+    fn compute_padding_requirement_and_neighbors(&self, new_app_start_address: usize) {
         // We have finished setting up for the new app successfully, so let us write the padding app
-        let new_app_start_address = self.new_app_start_addr.get();
         let app_length = self.new_app_length.get();
         let new_app_end_address = new_app_start_address + app_length; // the end address of our newly loaded application
         let mut next_app_start_addr = 0; // to store the address until which we need to write the padding app
@@ -362,6 +388,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
         let mut processes_start_addresses: [usize; MAX_PROCS] = [0; MAX_PROCS];
         let mut processes_end_addresses: [usize; MAX_PROCS] = [0; MAX_PROCS];
 
+        // get the start and end addresses in flash of existing processes
         self.procs.map(|procs| {
             for (procs_index, value) in procs.iter().enumerate() {
                 match value {
@@ -389,7 +416,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
             .min()
         {
             next_app_start_addr = *next_closest_neighbor; // we found the next closest app in flash
-            if self.padding_requirement.is_none() && next_app_start_addr != 0 {
+            if next_app_start_addr != 0 {
                 self.padding_requirement.set(PaddingRequirement::PostPad);
             }
         } else {
@@ -404,10 +431,8 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
             .filter(|&&x| x < new_app_start_address + 1)
             .max()
         {
-            previous_app_end_addr = *previous_closest_neighbor; // we found the next closest app in flash
-            if self.padding_requirement.is_none()
-                && new_app_start_address - previous_app_end_addr != 0
-            {
+            previous_app_end_addr = *previous_closest_neighbor; // we found the previous closest app in flash
+            if new_app_start_address - previous_app_end_addr != 0 {
                 if self.padding_requirement.get() == Some(PaddingRequirement::PostPad) {
                     self.padding_requirement
                         .set(PaddingRequirement::PreAndPostPad);
@@ -417,7 +442,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
             }
         } else {
             if config::CONFIG.debug_load_processes {
-                debug!("No Previous App Found, so not prepadding the new app.");
+                debug!("No Previous App Found, so not padding before the new app.");
             }
         }
         self.previous_app_end_addr.set(previous_app_end_addr);
@@ -426,6 +451,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
 
     /******************************************* Process Load Logic **********************************************************/
 
+    /// Check if there is a padding app at the address
     fn check_for_padding_app(&self, new_start_address: usize) -> Result<bool, ProcessBinaryError> {
         //We only need tbf header information to get the size of app which is already loaded
         let header_info = unsafe { core::slice::from_raw_parts(new_start_address as *const u8, 8) };
@@ -457,8 +483,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
                 Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => {
                     // Since Tock apps use a linked list, it is very possible the
                     // header we started to parse is intentionally invalid to signal
-                    // the end of apps. This is ok and just means we have finished
-                    // loading apps.
+                    // the end of apps.
                     return Ok(false);
                 }
             };
@@ -478,6 +503,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
         Ok(false)
     }
 
+    /// Check if the flash is empty at the address
     fn check_for_empty_flash_region(
         &self,
         new_start_address: usize,
@@ -509,8 +535,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
                 Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => {
                     // Since Tock apps use a linked list, it is very possible the
                     // header we started to parse is intentionally invalid to signal
-                    // the end of apps. This is ok and just means we have finished
-                    // loading apps.
+                    // the end of apps.
                     // This points to a viable start address for a new app
                     return Ok(true);
                 }
@@ -518,7 +543,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
         Ok(false) // this means there is some data here, and we need to check if it is a remnant application
     }
 
-    /// check if our new app overlaps with existing apps
+    /// Check if our new app overlaps with existing apps
     fn check_overlap_region(
         &self,
         new_start_address: usize,
@@ -574,6 +599,9 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
         Ok(())
     }
 
+    /// This function takes in the available flash slice and the app length specified for the new app,
+    /// and returns a valid address where the new app can be flashed such that the linked list and
+    /// memory alignment rules are preserved
     fn find_next_available_address(
         &self,
         flash: &'static [u8],
@@ -654,11 +682,15 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
                 match address_validity_check {
                     Ok(()) => {
                         // despite doing all these, if the new app's start address and size make it such that it will
-                        // cross the bounds of flash, we return a No Memory error. (this is currently untested)
+                        // cross the bounds of flash, we return a No Memory error.
                         if new_address + (app_length - 1) > flash_end {
                             return Err(ErrorCode::NOMEM);
                         }
-                        // otherwise, we found the perfect address for our new app
+                        // otherwise, we found the perfect address for our new app, let us
+                        // check what kind of padding we have to write, no padding, pre padding,
+                        // post padding or both pre and post padding
+                        self.compute_padding_requirement_and_neighbors(new_address);
+
                         return Ok(new_address);
                     }
                     Err((new_start_addr, _e)) => {
@@ -930,55 +962,44 @@ impl<'a, C: 'static + Chip> NonvolatileStorageClient for DynamicProcessLoader<'a
     }
 
     fn write_done(&self, buffer: &'static mut [u8], length: usize) {
-        // Switch on which user generated this callback.
-        self.state.take().map(|user| {
-            match user {
-                State::FirstWrite => {
-                    // We have finished writing the first segment, so we set the state to AppWrite
-                    self.state.set(State::AppWrite);
-                    self.client.map(|client| {
-                        client.app_data_write_done(buffer, length);
-                    });
-                }
-                State::AppWrite => {
-                    // Trigger client callback
-                    self.state.set(State::AppWrite);
-                    self.client.map(|client| {
-                        client.app_data_write_done(buffer, length);
-                    });
-                }
-                State::LastWrite => {
-                    self.state.set(State::Load); // We have finished writing the last user data segment, next step is to load the process
-                    self.client.map(|client| {
-                        client.app_data_write_done(buffer, length);
-                    });
-                }
-                State::PaddingWrite => {
-                    // replace the buffer after the padding is written
-                    self.reset_process_loading_metadata(); // the final reset after the padding write callback
-                    self.buffer.replace(buffer);
-                }
-                State::Fail => {
-                    // If we failed at any of writing, we want to set the state to PaddingWrite
-                    // so that the callback after writing the padding app will get triggererd
-                    self.state.set(State::PaddingWrite);
-                    self.buffer.replace(buffer);
-                }
-                State::Setup => {
-                    // We have finished writing the post app padding
-                    self.buffer.replace(buffer);
-                    self.state.set(State::FirstWrite);
-                    // let the client know we are done setting up
-                    self.client.map(|client| {
-                        client.setup_done();
-                    });
-                }
-                State::Load => {
-                    // We finished writing pre-padding and we need to Load the app
-                    self.buffer.replace(buffer);
-                }
+        match self.state.get() {
+            State::AppWrite => {
+                self.state.set(State::AppWrite);
+                // Switch on which user generated this callback and trigger client callback
+                self.client.map(|client| {
+                    client.app_data_write_done(buffer, length);
+                });
             }
-        });
+            State::PaddingWrite => {
+                // replace the buffer after the padding is written
+                self.reset_process_loading_metadata(); // the final reset after the padding write callback
+                self.buffer.replace(buffer);
+            }
+            State::Fail => {
+                // If we failed at any of writing, we want to set the state to PaddingWrite
+                // so that the callback after writing the padding app will get triggererd
+                self.state.set(State::PaddingWrite);
+                self.buffer.replace(buffer);
+            }
+            State::Setup => {
+                // We have finished writing the post app padding
+                self.buffer.replace(buffer);
+                self.state.set(State::AppWrite);
+                // let the client know we are done setting up
+                self.client.map(|client| {
+                    client.setup_done();
+                });
+            }
+            State::Load => {
+                // We finished writing pre-padding and we need to Load the app
+                self.buffer.replace(buffer);
+            }
+            State::Idle => {
+                self.state.set(State::Fail);
+                self.state.set(State::PaddingWrite);
+                self.buffer.replace(buffer);
+            }
+        }
     }
 }
 
@@ -996,8 +1017,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
         let flash_start = self.flash.get().as_ptr() as usize; //start of the flash region
         let flash = self.flash.get();
 
-        if self.state.is_none() {
-            self.state.set(State::Setup);
+        if self.state.get() == State::Idle {
             match self.find_next_available_address(flash, app_length) {
                 Ok(new_app_start_address) => {
                     let offset = new_app_start_address - flash_start;
@@ -1011,8 +1031,6 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
                     self.new_app_start_addr.set(new_app_start_address);
                     self.new_app_length.set(app_length);
 
-                    // check what kind of padding we have to write, no padding, pre padding, post padding or both pre and post padding
-                    self.check_padding_requirements();
                     match self.padding_requirement.get() {
                         // if we decided we need to write a padding app after the new app, we go ahead and do it
                         Some(PaddingRequirement::PostPad)
@@ -1034,7 +1052,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
                         }
                         // Otherwise we let the client know we are done with the setup, and we are ready to write the app to flash
                         None | Some(PaddingRequirement::PrePad) => {
-                            self.state.set(State::FirstWrite);
+                            self.state.set(State::AppWrite);
                             self.client.map(|client| {
                                 client.setup_done();
                             });
@@ -1056,39 +1074,9 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
         &self,
         buffer: SubSliceMut<'static, u8>,
         offset: usize,
-        _processid: ProcessId,
     ) -> Result<(), ErrorCode> {
         match self.state.get() {
-            Some(State::FirstWrite) => {
-                if offset != self.next_offset.get() {
-                    // self.next_offset should be 0 at this stage.
-                    self.reset_process_loading_metadata(); // clear out new app size, start address, current offset and state
-                    return Err(ErrorCode::INVAL); // this means the app is trying to write to an address that is not the
-                                                  // start address assigned to it after setup. Return an Invalid error.
-                }
-                let res = self.write(buffer, offset);
-                match res {
-                    Ok(()) => Ok(()),
-                    Err(e) => {
-                        // if we fail here, let us erase the app we just wrote
-                        self.state.set(State::PaddingWrite);
-                        let _ = self.write_padding_app(
-                            self.new_app_length.get(),
-                            self.new_app_start_addr.get(),
-                        );
-                        self.reset_process_loading_metadata(); // clear out new app size, start address, current offset and state
-                        Err(e)
-                    }
-                }
-            }
-            Some(State::AppWrite) => {
-                // the app is trying to write to an address that is not the immediate continuation of where
-                // the previous write left off. Return an Invalid error.
-                if offset != self.next_offset.get() {
-                    // check if the app is trying to write to the correct offset
-                    self.reset_process_loading_metadata(); // clear out new app size, start address, current offset and state
-                    return Err(ErrorCode::INVAL);
-                }
+            State::AppWrite => {
                 let res = self.write(buffer, offset);
                 match res {
                     Ok(()) => Ok(()),
@@ -1105,20 +1093,14 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
                 }
             }
             // We should never enter write for the rest of the conditions, so return a Busy error.
-            Some(State::LastWrite)
-            | Some(State::Setup)
-            | Some(State::Load)
-            | Some(State::PaddingWrite)
-            | Some(State::Fail)
-            | None => Err(ErrorCode::BUSY),
+            _ => Err(ErrorCode::BUSY),
         }
     }
 
     fn load(&self) -> Result<(), ErrorCode> {
         self.state.set(State::Load); // We have finished writing the last user data segment, next step is to load the process
         match self.state.get() {
-            Some(State::Load) => {
-                self.check_padding_requirements();
+            State::Load => {
                 match self.padding_requirement.get() {
                     // if we decided we need to write a padding app before the new app, we go ahead and do it
                     Some(PaddingRequirement::PrePad) | Some(PaddingRequirement::PreAndPostPad) => {
@@ -1230,13 +1212,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
                 }
             }
             // We should never enter Load for the rest of the conditions, so return a Busy error.
-            Some(State::Setup)
-            | Some(State::FirstWrite)
-            | Some(State::AppWrite)
-            | Some(State::LastWrite)
-            | Some(State::PaddingWrite)
-            | Some(State::Fail)
-            | None => Err(ErrorCode::BUSY),
+            _ => Err(ErrorCode::BUSY),
         }
     }
 }

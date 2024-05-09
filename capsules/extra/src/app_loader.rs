@@ -53,6 +53,7 @@
 use core::cell::Cell;
 use core::cmp;
 
+// use kernel::debug;
 use kernel::dynamic_process_loading;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::processbuffer::ReadableProcessBuffer;
@@ -83,61 +84,26 @@ mod ro_allow {
     pub const COUNT: u8 = 1;
 }
 
-/// Ids for read-write allow buffers
-mod rw_allow {
-    /// Setup a buffer to read from the nonvolatile storage into.
-    pub const READ: usize = 0;
-    /// The number of allow buffers the kernel stores for this grant
-    pub const COUNT: u8 = 1;
-}
-
 pub const BUF_LEN: usize = 512;
 
-#[derive(Clone, Copy, PartialEq)]
-pub enum NonvolatileCommand {
-    UserspaceRead,
-    UserspaceWrite,
-}
-
-#[derive(Clone, Copy)]
-pub enum NonvolatileUser {
-    App { processid: ProcessId },
-}
-
-// struct to store pending commands for future execution
-pub struct App {
-    pending_command: bool,
-    command: NonvolatileCommand,
-    offset: usize,
-    length: usize,
-}
-
-impl Default for App {
-    fn default() -> App {
-        App {
-            pending_command: false,
-            command: NonvolatileCommand::UserspaceRead,
-            offset: 0,
-            length: 0,
-        }
-    }
-}
+#[derive(Default)]
+pub struct App {}
 
 pub struct AppLoader<'a> {
-    // The underlying physical storage device.
+    // The underlying driver for the process flashing and loading.
     driver: &'a dyn dynamic_process_loading::DynamicProcessLoading,
     // Per-app state.
     apps: Grant<
         App,
         UpcallCount<{ upcall::COUNT }>,
         AllowRoCount<{ ro_allow::COUNT }>,
-        AllowRwCount<{ rw_allow::COUNT }>,
+        AllowRwCount<0>,
     >,
 
     // Internal buffer for copying appslices into.
     buffer: TakeCell<'static, [u8]>,
     // What issued the currently executing call.
-    current_user: OptionalCell<NonvolatileUser>,
+    current_process: OptionalCell<ProcessId>,
     new_app_length: Cell<usize>,
 }
 
@@ -147,7 +113,7 @@ impl<'a> AppLoader<'a> {
             App,
             UpcallCount<{ upcall::COUNT }>,
             AllowRoCount<{ ro_allow::COUNT }>,
-            AllowRwCount<{ rw_allow::COUNT }>,
+            AllowRwCount<0>,
         >,
         driver: &'a dyn dynamic_process_loading::DynamicProcessLoading,
         buffer: &'static mut [u8],
@@ -156,189 +122,104 @@ impl<'a> AppLoader<'a> {
             driver: driver,
             apps: grant,
             buffer: TakeCell::new(buffer),
-            current_user: OptionalCell::empty(),
+            current_process: OptionalCell::empty(),
             new_app_length: Cell::new(0),
         }
     }
 
-    /// Check so see if we are doing something. If not, go ahead and do this
-    /// command. If so, this is queued and will be run when the pending
-    /// command completes.
-    fn enqueue_command(
-        &self,
-        command: NonvolatileCommand,
-        offset: usize,
-        length: usize,
-        processid: Option<ProcessId>,
-    ) -> Result<(usize, usize, ProcessId), ErrorCode> {
-        match command {
-            NonvolatileCommand::UserspaceRead | NonvolatileCommand::UserspaceWrite => {
-                // Userspace sees memory that starts at address 0 even if it
-                // is offset in the physical memory.
-                match offset.checked_add(length) {
-                    Some(result) => {
-                        if length > self.new_app_length.get() || result > self.new_app_length.get()
-                        {
-                            // this means the app is out of bounds
-                            return Err(ErrorCode::INVAL);
-                        }
-                    }
-                    None => {
-                        return Err(ErrorCode::INVAL); // untested
-                    }
+    /// Copy data from the shared buffer with app and request kernel to
+    /// write the app data to flash.
+    fn write(&self, offset: usize, length: usize, processid: ProcessId) -> Result<(), ErrorCode> {
+        // Userspace sees memory that starts at address 0 even if it
+        // is offset in the physical memory.
+        match offset.checked_add(length) {
+            Some(result) => {
+                if length > self.new_app_length.get() || result > self.new_app_length.get() {
+                    // this means the app is out of bounds
+                    return Err(ErrorCode::INVAL);
                 }
             }
-        }
-
-        match command {
-            NonvolatileCommand::UserspaceRead | NonvolatileCommand::UserspaceWrite => {
-                processid.map_or(Err(ErrorCode::FAIL), |processid| {
-                    self.apps
-                        .enter(processid, |app, kernel_data| {
-                            // Get the length of the correct allowed buffer.
-                            let allow_buf_len = match command {
-                                NonvolatileCommand::UserspaceRead => kernel_data
-                                    .get_readwrite_processbuffer(rw_allow::READ)
-                                    .map_or(0, |read| read.len()),
-                                NonvolatileCommand::UserspaceWrite => kernel_data
-                                    .get_readonly_processbuffer(ro_allow::WRITE)
-                                    .map_or(0, |read| read.len()),
-                            };
-
-                            // Check that it exists.
-                            if allow_buf_len == 0 || self.buffer.is_none() {
-                                return Err(ErrorCode::RESERVE);
-                            }
-
-                            // Shorten the length if the application gave us nowhere to
-                            // put it.
-                            let active_len = cmp::min(length, allow_buf_len);
-
-                            // First need to determine if we can execute this or must
-                            // queue it.
-                            if self.current_user.is_none() {
-                                // No app is currently using the underlying storage.
-                                // Mark this app as active, and then execute the command.
-                                self.current_user.set(NonvolatileUser::App {
-                                    processid: processid,
-                                });
-
-                                // Need to copy bytes if this is a write!
-                                if command == NonvolatileCommand::UserspaceWrite {
-                                    let _ = kernel_data
-                                        .get_readonly_processbuffer(ro_allow::WRITE)
-                                        .and_then(|write| {
-                                            write.enter(|app_buffer| {
-                                                self.buffer.map(|kernel_buffer| {
-                                                    // Check that the internal buffer and the buffer that was
-                                                    // allowed are long enough.
-                                                    let write_len =
-                                                        cmp::min(active_len, kernel_buffer.len());
-
-                                                    let buf_data = &app_buffer[0..write_len];
-                                                    for (i, c) in kernel_buffer[0..write_len]
-                                                        .iter_mut()
-                                                        .enumerate()
-                                                    {
-                                                        *c = buf_data[i].get();
-                                                    }
-                                                });
-                                            })
-                                        });
-                                }
-                            } else {
-                                // Some app is using the storage, we must wait.
-                                if app.pending_command {
-                                    // No more room in the queue, nowhere to store this
-                                    // request.
-                                    return Err(ErrorCode::NOMEM);
-                                } else {
-                                    // We can store this, so lets do it.
-                                    app.pending_command = true;
-                                    app.command = command;
-                                    app.offset = offset;
-                                    app.length = active_len;
-                                }
-                            }
-                            Ok((offset, length, processid))
-                        })
-                        .unwrap_or_else(|err| Err(err.into()))
-                })
+            None => {
+                return Err(ErrorCode::INVAL);
             }
         }
-    }
+        self.apps
+            .enter(processid, |_app, kernel_data| {
+                // Get the length of the correct allowed buffer.
+                let allow_buf_len = kernel_data
+                    .get_readonly_processbuffer(ro_allow::WRITE)
+                    .map_or(0, |read| read.len());
 
-    fn check_queue(&self) {
-        // Check all of the apps.
-        for cntr in self.apps.iter() {
-            let processid = cntr.processid();
-            let started_command = cntr.enter(|app, _| {
-                if app.pending_command {
-                    app.pending_command = false;
-                    self.current_user.set(NonvolatileUser::App {
-                        processid: processid,
+                // Check that it exists.
+                if allow_buf_len == 0 || self.buffer.is_none() {
+                    return Err(ErrorCode::RESERVE);
+                }
+
+                // Shorten the length if the application gave us nowhere to
+                // put it.
+                let active_len = cmp::min(length, allow_buf_len);
+
+                // copy data into the kernel buffer!
+                let _ = kernel_data
+                    .get_readonly_processbuffer(ro_allow::WRITE)
+                    .and_then(|write| {
+                        write.enter(|app_buffer| {
+                            self.buffer.map(|kernel_buffer| {
+                                // Check that the internal buffer and the buffer that was
+                                // allowed are long enough.
+                                let write_len = cmp::min(active_len, kernel_buffer.len());
+
+                                let buf_data = &app_buffer[0..write_len];
+                                for (i, c) in kernel_buffer[0..write_len].iter_mut().enumerate() {
+                                    *c = buf_data[i].get();
+                                }
+                            });
+                        })
                     });
-                    if let Ok(()) = self
-                        .buffer
-                        .take()
-                        .map_or(Err(ErrorCode::RESERVE), |buffer| {
-                            let mut write_buffer = SubSliceMut::new(buffer);
-                            write_buffer.slice(..write_buffer.len());
-                            self.driver
-                                .write_app_data(write_buffer, app.offset, processid)
-                        })
-                    {
-                        true
-                    } else {
-                        false
-                    }
-                } else {
-                    false
-                }
-            });
-            if started_command {
-                break;
-            }
-        }
+                self.buffer
+                    .take()
+                    .map_or(Err(ErrorCode::RESERVE), |buffer| {
+                        let mut write_buffer = SubSliceMut::new(buffer);
+                        write_buffer.slice(..length); // should be the length supported by the app (currently only powers of 2 work)
+                        let res = self.driver.write_app_data(write_buffer, offset);
+                        match res {
+                            Ok(()) => Ok(()),
+                            Err(e) => Err(e),
+                        }
+                    })
+            })
+            .unwrap_or_else(|err| Err(err.into()))
     }
 }
 
 impl kernel::dynamic_process_loading::DynamicProcessLoadingClient for AppLoader<'_> {
-    // let the app know that we are done setting up for the new app
+    /// Let the app know we are done setting up for the new app
     fn setup_done(&self) {
         // Switch on which user of this capsule generated this callback.
-        self.current_user.take().map(|user| {
-            match user {
-                NonvolatileUser::App { processid } => {
-                    let _ = self.apps.enter(processid, move |_app, kernel_data| {
-                        // Signal the app.
-                        kernel_data
-                            .schedule_upcall(upcall::SETUP_DONE, (0, 0, 0))
-                            .ok();
-                    });
-                }
-            }
+        self.current_process.map(|processid| {
+            let _ = self.apps.enter(processid, move |_app, kernel_data| {
+                // Signal the app.
+                kernel_data
+                    .schedule_upcall(upcall::SETUP_DONE, (0, 0, 0))
+                    .ok();
+            });
         });
     }
 
+    /// Let the app know we are done writing the block of data
     fn app_data_write_done(&self, buffer: &'static mut [u8], length: usize) {
         // Switch on which user of this capsule generated this callback.
-        self.current_user.take().map(|user| {
-            match user {
-                NonvolatileUser::App { processid } => {
-                    let _ = self.apps.enter(processid, move |_app, kernel_data| {
-                        // Replace the buffer we used to do this write.
-                        self.buffer.replace(buffer);
+        self.current_process.map(|processid| {
+            let _ = self.apps.enter(processid, move |_app, kernel_data| {
+                // Replace the buffer we used to do this write.
+                self.buffer.replace(buffer);
 
-                        // And then signal the app.
-                        kernel_data
-                            .schedule_upcall(upcall::WRITE_DONE, (length, 0, 0))
-                            .ok();
-                    });
-                }
-            }
+                // And then signal the app.
+                kernel_data
+                    .schedule_upcall(upcall::WRITE_DONE, (length, 0, 0))
+                    .ok();
+            });
         });
-        self.check_queue();
     }
 }
 
@@ -371,18 +252,23 @@ impl SyscallDriver for AppLoader<'_> {
         arg2: usize,
         processid: ProcessId,
     ) -> CommandReturn {
+        // Check if this driver is free, or already dedicated to this process.
+        let match_or_nonexistent = self.current_process.map_or(true, |current_process| {
+            self.apps
+                .enter(current_process, |_, _| current_process == processid)
+                .unwrap_or(true)
+        });
+        if match_or_nonexistent {
+            self.current_process.set(processid);
+        } else {
+            return CommandReturn::failure(ErrorCode::NOMEM);
+        }
+
         match command_num {
             0 => CommandReturn::success(),
 
             1 => {
                 //setup phase
-                if self.current_user.is_none() {
-                    // No app is currently using the underlying storage.
-                    // Mark this app as active, and then execute the command.
-                    self.current_user.set(NonvolatileUser::App {
-                        processid: processid,
-                    });
-                }
                 let res = self.driver.setup(arg1); // pass the size of the app to the setup function
                 match res {
                     Ok(app_len) => {
@@ -392,6 +278,7 @@ impl SyscallDriver for AppLoader<'_> {
 
                     Err(e) => {
                         self.new_app_length.set(0);
+                        self.current_process.take();
                         CommandReturn::failure(e)
                     }
                 }
@@ -400,36 +287,12 @@ impl SyscallDriver for AppLoader<'_> {
             2 => {
                 // Request kernel to write app to flash
 
-                let res = self.enqueue_command(
-                    NonvolatileCommand::UserspaceWrite,
-                    arg1,
-                    arg2,
-                    Some(processid),
-                );
+                let res = self.write(arg1, arg2, processid);
                 match res {
-                    Ok((offset, _len, pid)) => {
-                        let result = self
-                            .buffer
-                            .take()
-                            .map_or(Err(ErrorCode::RESERVE), |buffer| {
-                                let mut write_buffer = SubSliceMut::new(buffer);
-                                write_buffer.slice(..write_buffer.len());
-                                let res = self.driver.write_app_data(write_buffer, offset, pid);
-                                match res {
-                                    Ok(()) => Ok(()),
-                                    Err(e) => Err(e),
-                                }
-                            });
-                        match result {
-                            Ok(()) => CommandReturn::success(),
-                            Err(e) => {
-                                self.new_app_length.set(0);
-                                CommandReturn::failure(e)
-                            }
-                        }
-                    }
+                    Ok(()) => CommandReturn::success(),
                     Err(e) => {
                         self.new_app_length.set(0);
+                        self.current_process.take();
                         CommandReturn::failure(e)
                     }
                 }
@@ -442,10 +305,12 @@ impl SyscallDriver for AppLoader<'_> {
                 match res {
                     Ok(()) => {
                         self.new_app_length.set(0); // reset the app length
+                        self.current_process.take();
                         CommandReturn::success()
                     }
                     Err(e) => {
                         self.new_app_length.set(0); // reset the app length
+                        self.current_process.take();
                         CommandReturn::failure(e)
                     }
                 }
