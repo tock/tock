@@ -805,7 +805,7 @@ impl<'a> Radio<'a> {
                     // length of received data transferred to buffer (including PSDU)
                     let data_len = rbuf[MIMIC_PSDU_OFFSET as usize] as usize;
 
-                    // Check if the received packet is valid and as a last resort
+                    // Check if the received packet has a valid CRC and as a last resort
                     // confirm that the received packet length field is in compliance
                     // with the maximum packet length. If not, drop the packet.
                     if !result.is_ok() || data_len >= MAX_FRAME_SIZE + PSDU_OFFSET {
@@ -999,7 +999,7 @@ impl<'a> Radio<'a> {
                         // length of received data transferred to buffer (including PSDU)
                         let data_len = rbuf[MIMIC_PSDU_OFFSET as usize] as usize;
 
-                        // Check if the received packet is valid and as a last resort
+                        // Check if the received packet has a valid CRC and as a last resort
                         // confirm that the received packet length field is in compliance
                         // with the maximum packet length. If not, drop the packet.
                         if !result.is_ok() || data_len >= MAX_FRAME_SIZE + PSDU_OFFSET {
