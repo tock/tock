@@ -3,20 +3,11 @@
 // Copyright Tock Contributors 2022.
 
 use core::fmt::Write;
-use core::panic::PanicInfo;
-use core::ptr::addr_of;
-use core::ptr::addr_of_mut;
-use kernel::debug;
 use kernel::debug::IoWrite;
-use kernel::hil::led;
 use kernel::hil::uart;
 use kernel::hil::uart::Configure;
-use nrf52840::gpio::Pin;
-use nrf52840::uart::{Uarte, UARTE0_BASE};
 
-use crate::CHIP;
-use crate::PROCESSES;
-use crate::PROCESS_PRINTER;
+use nrf52840::uart::{Uarte, UARTE0_BASE};
 
 enum Writer {
     WriterUart(/* initialized */ bool),
@@ -99,7 +90,16 @@ impl IoWrite for Writer {
 #[no_mangle]
 #[panic_handler]
 /// Panic handler
-pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
+pub unsafe fn panic_fmt(pi: &core::panic::PanicInfo) -> ! {
+    use core::ptr::{addr_of, addr_of_mut};
+    use kernel::debug;
+    use kernel::hil::led;
+    use nrf52840::gpio::Pin;
+
+    use crate::CHIP;
+    use crate::PROCESSES;
+    use crate::PROCESS_PRINTER;
+
     // The nRF52840DK LEDs (see back of board)
     let led_kernel_pin = &nrf52840::gpio::GPIOPin::new(Pin::P0_13);
     let led = &mut led::LedLow::new(led_kernel_pin);
