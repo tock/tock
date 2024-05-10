@@ -12,7 +12,12 @@ import os
 import re
 import sys
 
-SKIP = ["boards/components", "boards/nordic/nrf52_components", "boards/configurations"]
+SKIP = [
+    "boards/components",
+    "boards/nordic/nrf52_components",
+    "boards/configurations",
+    "boards/tutorials",
+]
 
 
 documented_boards = []
