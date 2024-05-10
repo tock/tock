@@ -6,7 +6,7 @@
 
 use crate::timer::TimerAlarm;
 use core::cell::Cell;
-use kernel::hil::radio::{self, PowerClient, RadioChannel, RadioData};
+use kernel::hil::radio::{self, PowerClient, RadioChannel, RadioData, MAX_FRAME_SIZE, PSDU_OFFSET};
 use kernel::hil::time::{Alarm, AlarmClient, Time};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
@@ -805,6 +805,14 @@ impl<'a> Radio<'a> {
                     // length of received data transferred to buffer (including PSDU)
                     let data_len = rbuf[MIMIC_PSDU_OFFSET as usize] as usize;
 
+                    // Check if the received packet has a valid CRC and as a last resort
+                    // confirm that the received packet length field is in compliance
+                    // with the maximum packet length. If not, drop the packet.
+                    if !result.is_ok() || data_len >= MAX_FRAME_SIZE + PSDU_OFFSET {
+                        self.rx_buf.replace(rbuf);
+                        return
+                    }
+
                     // lqi is found just after the data received
                     let lqi = rbuf[data_len];
 
@@ -990,6 +998,14 @@ impl<'a> Radio<'a> {
                         // data buffer format: | PSDU OFFSET | FRAME | LQI |
                         // length of received data transferred to buffer (including PSDU)
                         let data_len = rbuf[MIMIC_PSDU_OFFSET as usize] as usize;
+
+                        // Check if the received packet has a valid CRC and as a last resort
+                        // confirm that the received packet length field is in compliance
+                        // with the maximum packet length. If not, drop the packet.
+                        if !result.is_ok() || data_len >= MAX_FRAME_SIZE + PSDU_OFFSET {
+                            self.rx_buf.replace(rbuf);
+                            return
+                        }
 
                         // lqi is found just after the data received
                         let lqi = rbuf[data_len];
