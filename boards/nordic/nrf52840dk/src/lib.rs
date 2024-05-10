@@ -128,7 +128,6 @@ const DEFAULT_CTX_PREFIX_LEN: u8 = 8; //Length of context for 6LoWPAN compressio
 const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0_u8; 16]; //Context for 6LoWPAN Compression
 
 /// Debug Writer
-#[allow(unused)] // TODO: this throws unused warnings in `make ci-job-capsules`
 pub mod io;
 
 // Whether to use UART debugging or Segger RTT (USB) debugging.

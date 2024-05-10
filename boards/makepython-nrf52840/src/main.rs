@@ -16,6 +16,7 @@ use core::ptr::{addr_of, addr_of_mut};
 
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
 use kernel::hil::usb::Client;
@@ -695,6 +696,7 @@ pub unsafe fn start() -> (
     );
 
     checker.set_client(loader);
+    loader.register();
     loader.start();
 
     //--------------------------------------------------------------------------
