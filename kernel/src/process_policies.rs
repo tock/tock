@@ -63,6 +63,19 @@ impl ProcessFaultPolicy for RestartFaultPolicy {
     }
 }
 
+/// Always restart the process if it faults, but print a debug message:
+pub struct RestartWithDebugFaultPolicy {}
+
+impl ProcessFaultPolicy for RestartWithDebugFaultPolicy {
+    fn action(&self, process: &dyn Process) -> process::FaultAction {
+        crate::debug!(
+            "Process {} faulted and will be restarted.",
+            process.get_process_name()
+        );
+        process::FaultAction::Restart
+    }
+}
+
 /// Implementation of `ProcessFaultPolicy` that uses a threshold to decide
 /// whether to restart a process when it faults. If the process has been
 /// restarted more times than the threshold then the process will be stopped

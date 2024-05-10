@@ -29,8 +29,9 @@ pub use crate::process_loading::ProcessLoadError;
 pub use crate::process_loading::SequentialProcessLoaderMachine;
 pub use crate::process_loading::{ProcessLoadingAsync, ProcessLoadingAsyncClient};
 pub use crate::process_policies::{
-    PanicFaultPolicy, ProcessFaultPolicy, RestartFaultPolicy, StopFaultPolicy,
-    StopWithDebugFaultPolicy, ThresholdRestartFaultPolicy, ThresholdRestartThenPanicFaultPolicy,
+    PanicFaultPolicy, ProcessFaultPolicy, RestartFaultPolicy, RestartWithDebugFaultPolicy,
+    StopFaultPolicy, StopWithDebugFaultPolicy, ThresholdRestartFaultPolicy,
+    ThresholdRestartThenPanicFaultPolicy,
 };
 pub use crate::process_printer::{ProcessPrinter, ProcessPrinterContext, ProcessPrinterText};
 pub use crate::process_standard::ProcessStandard;
