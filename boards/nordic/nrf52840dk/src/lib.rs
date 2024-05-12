@@ -135,6 +135,9 @@ pub mod io;
 // - Set to true to use Segger RTT over USB.
 const USB_DEBUGGING: bool = false;
 
+/// This platform's chip type:
+pub type Chip = nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>;
+
 /// Number of concurrent processes this platform supports.
 pub const NUM_PROCS: usize = 8;
 
@@ -276,9 +279,7 @@ impl SyscallDriverLookup for Platform {
     }
 }
 
-impl KernelResources<nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>>
-    for Platform
-{
+impl KernelResources<Chip> for Platform {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
@@ -317,7 +318,7 @@ impl KernelResources<nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'
 pub unsafe fn start() -> (
     &'static kernel::Kernel,
     Platform,
-    &'static nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>,
+    &'static Chip,
     &'static Nrf52DefaultPeripherals<'static>,
 ) {
     //--------------------------------------------------------------------------
@@ -375,10 +376,7 @@ pub unsafe fn start() -> (
 
     // Create (and save for panic debugging) a chip object to setup low-level
     // resources (e.g. MPU, systick).
-    let chip = static_init!(
-        nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
-        nrf52840::chip::NRF52::new(nrf52840_peripherals)
-    );
+    let chip = static_init!(Chip, nrf52840::chip::NRF52::new(nrf52840_peripherals));
     CHIP = Some(chip);
 
     // Do nRF configuration and setup. This is shared code with other nRF-based
@@ -418,8 +416,13 @@ pub unsafe fn start() -> (
             5 => &nrf52840_peripherals.gpio_port[Pin::P1_06],
             6 => &nrf52840_peripherals.gpio_port[Pin::P1_07],
             7 => &nrf52840_peripherals.gpio_port[Pin::P1_08],
-            8 => &nrf52840_peripherals.gpio_port[Pin::P1_10],
-            9 => &nrf52840_peripherals.gpio_port[Pin::P1_11],
+            // Avoid exposing the I2C pins to userspace, as these are used in
+            // some tutorials (e.g., `nrf52840dk-thread-tutorial`).
+            //
+            // In the future we might want to make this configurable.
+            //
+            // 8 => &nrf52840_peripherals.gpio_port[Pin::P1_10],
+            // 9 => &nrf52840_peripherals.gpio_port[Pin::P1_11],
             10 => &nrf52840_peripherals.gpio_port[Pin::P1_12],
             11 => &nrf52840_peripherals.gpio_port[Pin::P1_13],
             12 => &nrf52840_peripherals.gpio_port[Pin::P1_14],
