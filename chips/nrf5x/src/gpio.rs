@@ -364,6 +364,7 @@ pub struct GPIOPin<'a> {
     client: OptionalCell<&'a dyn hil::gpio::Client>,
     gpiote_registers: StaticRef<GpioteRegisters>,
     gpio_registers: StaticRef<GpioRegisters>,
+    allocated_channel: OptionalCell<usize>,
 }
 
 impl<'a> GPIOPin<'a> {
@@ -379,6 +380,7 @@ impl<'a> GPIOPin<'a> {
                 )
             },
             gpiote_registers: GPIOTE_BASE,
+            allocated_channel: OptionalCell::empty(),
         }
     }
 
@@ -495,7 +497,7 @@ impl<'a> hil::gpio::Interrupt<'a> for GPIOPin<'a> {
     }
 
     fn is_pending(&self) -> bool {
-        if let Ok(channel) = self.find_channel(self.pin) {
+        if let Some(channel) = self.allocated_channel.get() {
             let ev = &self.gpiote_registers.event_in[channel];
             ev.any_matching_bits_set(EventsIn::EVENT::Ready)
         } else {
@@ -504,26 +506,41 @@ impl<'a> hil::gpio::Interrupt<'a> for GPIOPin<'a> {
     }
 
     fn enable_interrupts(&self, mode: hil::gpio::InterruptEdge) {
-        if let Ok(channel) = self.allocate_channel() {
-            let polarity = match mode {
-                hil::gpio::InterruptEdge::EitherEdge => Config::POLARITY::Toggle,
-                hil::gpio::InterruptEdge::RisingEdge => Config::POLARITY::LoToHi,
-                hil::gpio::InterruptEdge::FallingEdge => Config::POLARITY::HiToLo,
-            };
-            let pin: u32 = (GPIO_PER_PORT as u32 * self.port as u32) + self.pin as u32;
-            self.gpiote_registers.config[channel]
-                .write(Config::MODE::Event + Config::PSEL.val(pin) + polarity);
-            self.gpiote_registers.intenset.set(1 << channel);
+        let channel = if let Some(chan) = self.allocated_channel.get() {
+            // We only support one interrupt mode per pin, despite the
+            // hardware supporting multiple. This is to comply with
+            // expectations in other Tock components, such as the button
+            // driver which re-registers interrupts for a restarted app,
+            // assuming the old ones to be overwritten.
+            chan
+        } else if let Ok(chan) = self.allocate_channel() {
+            // Don't have a channel yet, got a new one:
+            chan
         } else {
             debug!("No available GPIOTE interrupt channels");
-        }
+            return;
+        };
+
+        // Remember that we have allocated this channel for this pin:
+        self.allocated_channel.set(channel);
+
+        let polarity = match mode {
+            hil::gpio::InterruptEdge::EitherEdge => Config::POLARITY::Toggle,
+            hil::gpio::InterruptEdge::RisingEdge => Config::POLARITY::LoToHi,
+            hil::gpio::InterruptEdge::FallingEdge => Config::POLARITY::HiToLo,
+        };
+        let pin: u32 = (GPIO_PER_PORT as u32 * self.port as u32) + self.pin as u32;
+        self.gpiote_registers.config[channel]
+            .write(Config::MODE::Event + Config::PSEL.val(pin) + polarity);
+        self.gpiote_registers.intenset.set(1 << channel);
     }
 
     fn disable_interrupts(&self) {
-        if let Ok(channel) = self.find_channel(self.pin) {
+        if let Some(channel) = self.allocated_channel.get() {
             self.gpiote_registers.config[channel]
                 .write(Config::MODE::CLEAR + Config::PSEL::CLEAR + Config::POLARITY::CLEAR);
             self.gpiote_registers.intenclr.set(1 << channel);
+            self.allocated_channel.clear();
         }
     }
 }
@@ -534,18 +551,6 @@ impl GPIOPin<'_> {
     fn allocate_channel(&self) -> Result<usize, ()> {
         for (i, ch) in self.gpiote_registers.config.iter().enumerate() {
             if ch.matches_all(Config::MODE::Disabled) {
-                return Ok(i);
-            }
-        }
-        Err(())
-    }
-
-    /// Return which channel is allocated to a pin,
-    /// If the channel is not found return an error instead
-    fn find_channel(&self, pin: u8) -> Result<usize, ()> {
-        for (i, ch) in self.gpiote_registers.config.iter().enumerate() {
-            let encoded_pin = (GPIO_PER_PORT as u32 * self.port as u32) + pin as u32;
-            if ch.matches_all(Config::PSEL.val(encoded_pin)) {
                 return Ok(i);
             }
         }
