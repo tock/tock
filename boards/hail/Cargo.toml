@@ -17,3 +17,4 @@ sam4l = { path = "../../chips/sam4l" }
 
 capsules-core = { path = "../../capsules/core" }
 capsules-extra = { path = "../../capsules/extra" }
+capsules-system = { path = "../../capsules/system" }
