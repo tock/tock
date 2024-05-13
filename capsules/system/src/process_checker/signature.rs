@@ -4,13 +4,13 @@
 
 //! Signature credential checker for checking process credentials.
 
-use crate::hil;
-use crate::process_checker::CheckResult;
-use crate::process_checker::{AppCredentialsPolicy, AppCredentialsPolicyClient};
-use crate::utilities::cells::MapCell;
-use crate::utilities::cells::OptionalCell;
-use crate::utilities::leasable_buffer::{SubSlice, SubSliceMut};
-use crate::ErrorCode;
+use kernel::hil;
+use kernel::process_checker::CheckResult;
+use kernel::process_checker::{AppCredentialsPolicy, AppCredentialsPolicyClient};
+use kernel::utilities::cells::MapCell;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::leasable_buffer::{SubSlice, SubSliceMut};
+use kernel::ErrorCode;
 use tock_tbf::types::TbfFooterV2Credentials;
 use tock_tbf::types::TbfFooterV2CredentialsType;
 

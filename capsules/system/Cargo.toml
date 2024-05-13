@@ -10,3 +10,4 @@ edition.workspace = true
 
 [dependencies]
 kernel = { path = "../../kernel" }
+tock-tbf = { path = "../../libraries/tock-tbf" }

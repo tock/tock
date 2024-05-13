@@ -7,9 +7,6 @@
 //!
 //! See the [AppID TRD](../../doc/reference/trd-appid.md).
 
-pub mod basic;
-pub mod signature;
-
 use core::cell::Cell;
 use core::fmt;
 

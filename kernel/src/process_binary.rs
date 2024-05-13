@@ -114,15 +114,15 @@ impl fmt::Debug for ProcessBinaryError {
 pub struct ProcessBinary {
     /// Process flash segment. This is the entire region of nonvolatile flash
     /// that the process occupies.
-    pub(crate) flash: &'static [u8],
+    pub flash: &'static [u8],
 
     /// The footers of the process binary (may be zero-sized), which are metadata
     /// about the process not covered by integrity. Used, among other things, to
     /// store signatures.
-    pub(crate) footers: &'static [u8],
+    pub footers: &'static [u8],
 
     /// Collection of pointers to the TBF header in flash.
-    pub(crate) header: tock_tbf::types::TbfHeader,
+    pub header: tock_tbf::types::TbfHeader,
 }
 
 impl ProcessBinary {
