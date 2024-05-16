@@ -301,7 +301,8 @@ impl<
         let radio_rx_buf = static_buffer.7.write([0; radio::MAX_BUF_SIZE]);
         let awake_mac = static_buffer.1.write(AwakeMac::new(self.radio));
         self.radio.set_transmit_client(awake_mac);
-        self.radio.set_receive_client(awake_mac, radio_rx_buf);
+        self.radio.set_receive_client(awake_mac);
+        self.radio.set_receive_buffer(radio_rx_buf);
 
         let radio_rx_crypt_buf = static_buffer.9.write([0; MAX_BUF_SIZE]);
 

@@ -1338,9 +1338,8 @@ impl<'a, S: spi::SpiMasterDevice<'a>> radio::RadioData<'a> for RF233<'a, S> {
         self.tx_client.set(client);
     }
 
-    fn set_receive_client(&self, client: &'a dyn radio::RxClient, buffer: &'static mut [u8]) {
+    fn set_receive_client(&self, client: &'a dyn radio::RxClient) {
         self.rx_client.set(client);
-        self.rx_buf.replace(buffer);
     }
 
     fn set_receive_buffer(&self, buffer: &'static mut [u8]) {

@@ -1280,9 +1280,8 @@ impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
 }
 
 impl<'a> kernel::hil::radio::RadioData<'a> for Radio<'a> {
-    fn set_receive_client(&self, client: &'a dyn radio::RxClient, buffer: &'static mut [u8]) {
+    fn set_receive_client(&self, client: &'a dyn radio::RxClient) {
         self.rx_client.set(client);
-        self.rx_buf.replace(buffer);
     }
 
     fn set_receive_buffer(&self, buffer: &'static mut [u8]) {
