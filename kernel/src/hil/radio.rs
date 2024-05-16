@@ -74,14 +74,7 @@ impl<'a, T: RadioConfig<'a> + RadioData<'a>> Radio<'a> for T {}
 
 /// Configure the 802.15.4 radio.
 pub trait RadioConfig<'a> {
-    /// buf must be at least MAX_BUF_SIZE in length, and
-    /// reg_read and reg_write must be 2 bytes.
-    fn initialize(
-        &self,
-        spi_buf: &'static mut [u8],
-        reg_write: &'static mut [u8],
-        reg_read: &'static mut [u8],
-    ) -> Result<(), ErrorCode>;
+    fn initialize(&self) -> Result<(), ErrorCode>;
     fn reset(&self) -> Result<(), ErrorCode>;
     fn start(&self) -> Result<(), ErrorCode>;
     fn stop(&self) -> Result<(), ErrorCode>;
