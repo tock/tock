@@ -51,7 +51,7 @@
 //! //      radio for transmitting preamble packets
 //! static mut MAC_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
 //! // ...
-//! let xmac: &XMacDevice = static_init!(XMacDevice, xmac::XMac::new(rf233, alarm, rng));
+//! let xmac: &XMacDevice = static_init!(XMacDevice, xmac::XMac::new(rf233, alarm, rng, &mut MAC_BUF));
 //! rng.set_client(xmac);
 //! alarm.set_client(xmac);
 //!
@@ -60,7 +60,7 @@
 //! rf233.set_receive_client(xmac, &mut RF233_RX_BUF);
 //! rf233.set_power_client(xmac);
 //!
-//! xmac.initialize(&mut MAC_BUF);
+//! xmac.initialize();
 //!
 //! // We can now use the XMac driver to instantiate a MacDevice like a Framer
 //! let mac_device = static_init!(
@@ -169,7 +169,12 @@ pub struct XMac<'a, R: radio::Radio<'a>, A: Alarm<'a>> {
 }
 
 impl<'a, R: radio::Radio<'a>, A: Alarm<'a>> XMac<'a, R, A> {
-    pub fn new(radio: &'a R, alarm: &'a A, rng: &'a dyn Rng<'a>) -> XMac<'a, R, A> {
+    pub fn new(
+        radio: &'a R,
+        alarm: &'a A,
+        rng: &'a dyn Rng<'a>,
+        mac_buf: &'static mut [u8],
+    ) -> XMac<'a, R, A> {
         XMac {
             radio: radio,
             alarm: alarm,
@@ -183,7 +188,7 @@ impl<'a, R: radio::Radio<'a>, A: Alarm<'a>> XMac<'a, R, A> {
             tx_len: Cell::new(0),
             tx_preamble_pending: Cell::new(false),
             tx_preamble_seq_num: Cell::new(0),
-            tx_preamble_buf: TakeCell::empty(),
+            tx_preamble_buf: TakeCell::new(mac_buf),
             rx_pending: Cell::new(false),
         }
     }
@@ -350,8 +355,7 @@ impl<'a, R: radio::Radio<'a>, A: Alarm<'a>> rng::Client for XMac<'a, R, A> {
 
 // The vast majority of these calls pass through to the underlying radio driver.
 impl<'a, R: radio::Radio<'a>, A: Alarm<'a>> Mac<'a> for XMac<'a, R, A> {
-    fn initialize(&self, mac_buf: &'static mut [u8]) -> Result<(), ErrorCode> {
-        self.tx_preamble_buf.replace(mac_buf);
+    fn initialize(&self) -> Result<(), ErrorCode> {
         self.state.set(XMacState::STARTUP);
         Ok(())
     }
