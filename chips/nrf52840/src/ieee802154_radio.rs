@@ -763,6 +763,8 @@ impl<'a> Radio<'a> {
     }
 
     fn radio_off(&self) {
+        self.state.set(RadioState::OFF);
+
         self.registers.power.write(Task::ENABLE::CLEAR);
     }
 
@@ -1206,7 +1208,6 @@ impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
 
     fn stop(&self) -> Result<(), ErrorCode> {
         self.radio_off();
-        self.state.set(RadioState::OFF);
 
         // Configure deferred call to trigger callback.
         self.deferred_call_operation
