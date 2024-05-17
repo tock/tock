@@ -1181,7 +1181,6 @@ impl<'a> Radio<'a> {
 
 impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
     fn initialize(&self) -> Result<(), ErrorCode> {
-        self.radio_initialize();
         Ok(())
     }
 
