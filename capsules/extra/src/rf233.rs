@@ -164,7 +164,7 @@ enum InternalState {
 // packet-length buffers.  Since the SPI callback does not distinguish
 // which buffers are being used, the read_write_done callback checks
 // which state the stack is in and places the buffers back
-// accodingly. A bug here would mean a memory leak and later panic
+// accordingly. A bug here would mean a memory leak and later panic
 // when a buffer that should be present has been lost.
 //
 // The finite state machine is tricky for two reasons. First, the
@@ -188,6 +188,8 @@ enum InternalState {
 // any point in the TX state machine, the stack moves to the RX state
 // and waits for the interrupt specifying the entire packet has been
 // received.
+
+pub const SPI_REGISTER_TRANSACTION_LENGTH: usize = 2;
 
 pub struct RF233<'a, S: spi::SpiMasterDevice<'a>> {
     spi: &'a S,
@@ -1033,6 +1035,9 @@ impl<'a, S: spi::SpiMasterDevice<'a>> gpio::Client for RF233<'a, S> {
 impl<'a, S: spi::SpiMasterDevice<'a>> RF233<'a, S> {
     pub fn new(
         spi: &'a S,
+        spi_buf: &'static mut [u8],
+        reg_write: &'static mut [u8; SPI_REGISTER_TRANSACTION_LENGTH],
+        reg_read: &'static mut [u8; SPI_REGISTER_TRANSACTION_LENGTH],
         reset: &'a dyn gpio::Pin,
         sleep: &'a dyn gpio::Pin,
         irq: &'a dyn gpio::InterruptPin<'a>,
@@ -1067,9 +1072,9 @@ impl<'a, S: spi::SpiMasterDevice<'a>> RF233<'a, S> {
             pan: Cell::new(0),
             tx_power: Cell::new(setting_to_power(PHY_TX_PWR)),
             channel: Cell::new(channel),
-            spi_rx: TakeCell::empty(),
-            spi_tx: TakeCell::empty(),
-            spi_buf: TakeCell::empty(),
+            spi_rx: TakeCell::new(reg_read),
+            spi_tx: TakeCell::new(reg_write),
+            spi_buf: TakeCell::new(spi_buf),
         }
     }
 
@@ -1174,18 +1179,7 @@ impl<'a, S: spi::SpiMasterDevice<'a>> RF233<'a, S> {
 }
 
 impl<'a, S: spi::SpiMasterDevice<'a>> radio::RadioConfig<'a> for RF233<'a, S> {
-    fn initialize(
-        &self,
-        buf: &'static mut [u8],
-        reg_write: &'static mut [u8],
-        reg_read: &'static mut [u8],
-    ) -> Result<(), ErrorCode> {
-        if (buf.len() < radio::MAX_BUF_SIZE || reg_read.len() != 2 || reg_write.len() != 2) {
-            return Err(ErrorCode::SIZE);
-        }
-        self.spi_buf.replace(buf);
-        self.spi_rx.replace(reg_read);
-        self.spi_tx.replace(reg_write);
+    fn initialize(&self) -> Result<(), ErrorCode> {
         Ok(())
     }
 

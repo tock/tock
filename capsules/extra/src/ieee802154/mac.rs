@@ -19,9 +19,8 @@ use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 
 pub trait Mac<'a> {
-    /// Initializes the layer; may require a buffer to temporarily retaining frames to be
-    /// transmitted
-    fn initialize(&self, mac_buf: &'static mut [u8]) -> Result<(), ErrorCode>;
+    /// Initializes the layer.
+    fn initialize(&self) -> Result<(), ErrorCode>;
 
     /// Sets the notified client for configuration changes
     fn set_config_client(&self, client: &'a dyn radio::ConfigClient);
@@ -88,7 +87,7 @@ impl<'a, R: radio::Radio<'a>> AwakeMac<'a, R> {
 }
 
 impl<'a, R: radio::Radio<'a>> Mac<'a> for AwakeMac<'a, R> {
-    fn initialize(&self, _mac_buf: &'static mut [u8]) -> Result<(), ErrorCode> {
+    fn initialize(&self) -> Result<(), ErrorCode> {
         // do nothing, extra buffer unnecessary
         Ok(())
     }

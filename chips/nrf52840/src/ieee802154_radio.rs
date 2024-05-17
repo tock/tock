@@ -28,7 +28,7 @@ use nrf52::constants::TxPower;
 // basic 15.4 libtock-c apps.
 //
 // To aid in future implementations, a simplified and concise version of the nrf52840 radio
-// state machine specification is described. Additionally, the state machine this driver seperately
+// state machine specification is described. Additionally, the state machine this driver separately
 // maintains is also described.
 //
 // To interact with the radio, tasks are issued to the radio which in turn trigger interrupt events.
@@ -1166,12 +1166,7 @@ impl<'a> Radio<'a> {
 }
 
 impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
-    fn initialize(
-        &self,
-        _spi_buf: &'static mut [u8],
-        _reg_write: &'static mut [u8],
-        _reg_read: &'static mut [u8],
-    ) -> Result<(), ErrorCode> {
+    fn initialize(&self) -> Result<(), ErrorCode> {
         self.radio_initialize();
         Ok(())
     }

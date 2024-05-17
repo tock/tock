@@ -172,19 +172,6 @@ struct Imix {
     systick: cortexm4::systick::SysTick,
 }
 
-// The RF233 radio stack requires our buffers for its SPI operations:
-//
-//   1. buf: a packet-sized buffer for SPI operations, which is
-//      used as the read buffer when it writes a packet passed to it and the write
-//      buffer when it reads a packet into a buffer passed to it.
-//   2. rx_buf: buffer to receive packets into
-//   3 + 4: two small buffers for performing registers
-//      operations (one read, one write).
-
-static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
-static mut RF233_REG_WRITE: [u8; 2] = [0x00; 2];
-static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
-
 impl SyscallDriverLookup for Imix {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
@@ -623,12 +610,6 @@ pub unsafe fn main() {
     aes_mux.register();
     peripherals.aes.set_client(aes_mux);
 
-    // Can this initialize be pushed earlier, or into component? -pal
-    let _ = rf233.initialize(
-        &mut *addr_of_mut!(RF233_BUF),
-        &mut *addr_of_mut!(RF233_REG_WRITE),
-        &mut *addr_of_mut!(RF233_REG_READ),
-    );
     let (_, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
         capsules_extra::ieee802154::DRIVER_NUM,
