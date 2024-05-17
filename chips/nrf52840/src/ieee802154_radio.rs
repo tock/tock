@@ -1263,9 +1263,9 @@ impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
     fn set_tx_power(&self, tx_power: i8) -> Result<(), ErrorCode> {
         // Convert u8 to TxPower
         match nrf52::constants::TxPower::try_from(tx_power as u8) {
-            // Invalid transmitting power, propogate error
+            // Invalid transmitting power, propagate error
             Err(()) => Err(ErrorCode::NOSUPPORT),
-            // Valid transmitting power, propogate success
+            // Valid transmitting power, propagate success
             Ok(res) => {
                 self.tx_power.set(res);
                 Ok(())
@@ -1294,9 +1294,9 @@ impl<'a> kernel::hil::radio::RadioData<'a> for Radio<'a> {
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.tx_buf.is_some() {
             // tx_buf TakeCell is only occupied when a transmission is underway. This
-            // check insures we do not interrupt an ungoing transmission
+            // check insures we do not interrupt an ongoing transmission.
             return Err((ErrorCode::BUSY, buf));
-        } else if radio::PSDU_OFFSET + frame_len >= buf.len() {
+        } else if radio::MFR_SIZE + frame_len >= buf.len() {
             // Not enough room for CRC
             return Err((ErrorCode::SIZE, buf));
         }
