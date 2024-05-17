@@ -111,7 +111,8 @@ pub trait RadioConfig<'a> {
 
 pub trait RadioData<'a> {
     fn set_transmit_client(&self, client: &'a dyn TxClient);
-    fn set_receive_client(&self, client: &'a dyn RxClient, receive_buffer: &'static mut [u8]);
+    fn set_receive_client(&self, client: &'a dyn RxClient);
+
     fn set_receive_buffer(&self, receive_buffer: &'static mut [u8]);
 
     fn transmit(
