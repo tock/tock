@@ -39,7 +39,7 @@ macro_rules! rf233_component_static {
                 capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $S>,
             >
         );
-        // The RF233 radio stack requires our buffers for its SPI operations:
+        // The RF233 radio stack requires four buffers for its SPI operations:
         //
         //   1. buf: a packet-sized buffer for SPI operations, which is
         //      used as the read buffer when it writes a packet passed to it and the write
@@ -48,8 +48,10 @@ macro_rules! rf233_component_static {
         //   3 + 4: two small buffers for performing registers
         //      operations (one read, one write).
         let rf233_buf = kernel::static_buf!([u8; kernel::hil::radio::MAX_BUF_SIZE]);
-        let rf233_reg_write = kernel::static_buf!([u8; 2]);
-        let rf233_reg_read = kernel::static_buf!([u8; 2]);
+        let rf233_reg_write =
+            kernel::static_buf!([u8; capsules_extra::rf233::SPI_REGISTER_TRANSACTION_LENGTH]);
+        let rf233_reg_read =
+            kernel::static_buf!([u8; capsules_extra::rf233::SPI_REGISTER_TRANSACTION_LENGTH]);
 
         (spi_device, rf233_buf, rf233_reg_write, rf233_reg_read)
     };};
@@ -88,15 +90,17 @@ impl<S: SpiMaster<'static> + 'static> Component for RF233Component<S> {
     type StaticInput = (
         &'static mut MaybeUninit<RF233<'static, VirtualSpiMasterDevice<'static, S>>>,
         &'static mut MaybeUninit<[u8; hil::radio::MAX_BUF_SIZE]>,
-        &'static mut MaybeUninit<[u8; 2]>,
-        &'static mut MaybeUninit<[u8; 2]>,
+        &'static mut MaybeUninit<[u8; capsules_extra::rf233::SPI_REGISTER_TRANSACTION_LENGTH]>,
+        &'static mut MaybeUninit<[u8; capsules_extra::rf233::SPI_REGISTER_TRANSACTION_LENGTH]>,
     );
     type Output = &'static RF233<'static, VirtualSpiMasterDevice<'static, S>>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let rf233_buf = s.1.write([0; hil::radio::MAX_BUF_SIZE]);
-        let rf233_reg_write = s.2.write([0; 2]);
-        let rf233_reg_read = s.3.write([0; 2]);
+        let rf233_reg_write =
+            s.2.write([0; capsules_extra::rf233::SPI_REGISTER_TRANSACTION_LENGTH]);
+        let rf233_reg_read =
+            s.3.write([0; capsules_extra::rf233::SPI_REGISTER_TRANSACTION_LENGTH]);
         let rf233 = s.0.write(RF233::new(
             self.spi,
             rf233_buf,

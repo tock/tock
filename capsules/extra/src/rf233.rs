@@ -189,6 +189,8 @@ enum InternalState {
 // and waits for the interrupt specifying the entire packet has been
 // received.
 
+pub const SPI_REGISTER_TRANSACTION_LENGTH: usize = 2;
+
 pub struct RF233<'a, S: spi::SpiMasterDevice<'a>> {
     spi: &'a S,
     radio_on: Cell<bool>,
@@ -1034,8 +1036,8 @@ impl<'a, S: spi::SpiMasterDevice<'a>> RF233<'a, S> {
     pub fn new(
         spi: &'a S,
         spi_buf: &'static mut [u8],
-        reg_write: &'static mut [u8; 2],
-        reg_read: &'static mut [u8; 2],
+        reg_write: &'static mut [u8; SPI_REGISTER_TRANSACTION_LENGTH],
+        reg_read: &'static mut [u8; SPI_REGISTER_TRANSACTION_LENGTH],
         reset: &'a dyn gpio::Pin,
         sleep: &'a dyn gpio::Pin,
         irq: &'a dyn gpio::InterruptPin<'a>,
