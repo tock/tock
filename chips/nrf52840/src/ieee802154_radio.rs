@@ -1343,17 +1343,15 @@ impl<'a> kernel::hil::radio::RadioData<'a> for Radio<'a> {
         buf: &'static mut [u8],
         frame_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        if self.tx_buf.is_some() {
+        if self.state.get() == RadioState::OFF {
+            return Err((ErrorCode::OFF, buf));
+        } else if self.tx_buf.is_some() {
             // tx_buf is only occupied when a transmission is underway. This
             // check insures we do not interrupt an ongoing transmission.
             return Err((ErrorCode::BUSY, buf));
         } else if buf.len() < radio::PSDU_OFFSET + frame_len + radio::MFR_SIZE {
             // Not enough room for CRC
             return Err((ErrorCode::SIZE, buf));
-        }
-
-        if self.state.get() == RadioState::OFF {
-            self.radio_initialize();
         }
 
         // Insert the PHR which is the PDSU length.
