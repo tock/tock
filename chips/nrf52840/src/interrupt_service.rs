@@ -34,6 +34,7 @@ impl<'a> Nrf52840DefaultPeripherals<'a> {
         self.nrf52.timer0.set_alarm_client(&self.ieee802154_radio);
         self.nrf52.pwr_clk.set_usb_client(&self.usbd);
         self.usbd.set_power_ref(&self.nrf52.pwr_clk);
+        kernel::deferred_call::DeferredCallClient::register(&self.ieee802154_radio);
         self.nrf52.init();
     }
 }

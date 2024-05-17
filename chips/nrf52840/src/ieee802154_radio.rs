@@ -65,6 +65,7 @@
 
 use crate::timer::TimerAlarm;
 use core::cell::Cell;
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::radio::{self, PowerClient, RadioChannel, RadioData, MAX_FRAME_SIZE, PSDU_OFFSET};
 use kernel::hil::time::{Alarm, AlarmClient, Time};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -656,11 +657,30 @@ register_bitfields! [u32,
     ]
 ];
 
+#[derive(Debug, Clone, Copy)]
+enum RadioState {
+    OFF,
+    TX,
+    RX,
+    ACK,
+}
+
+/// We use a single deferred call for two operations: triggering config clients
+/// and power change clients. This allows us to track which operation we need to
+/// perform when we get the deferred call callback.
+#[derive(Debug, Clone, Copy)]
+enum DeferredOperation {
+    ConfigClientCallback,
+    PowerClientCallback,
+}
+
 pub struct Radio<'a> {
     registers: StaticRef<RadioRegisters>,
-    tx_power: Cell<TxPower>,
     rx_client: OptionalCell<&'a dyn radio::RxClient>,
     tx_client: OptionalCell<&'a dyn radio::TxClient>,
+    config_client: OptionalCell<&'a dyn radio::ConfigClient>,
+    power_client: OptionalCell<&'a dyn radio::PowerClient>,
+    tx_power: Cell<TxPower>,
     tx_buf: TakeCell<'static, [u8]>,
     rx_buf: TakeCell<'static, [u8]>,
     ack_buf: TakeCell<'static, [u8]>,
@@ -673,6 +693,8 @@ pub struct Radio<'a> {
     channel: Cell<RadioChannel>,
     timer0: OptionalCell<&'a TimerAlarm<'a>>,
     state: Cell<RadioState>,
+    deferred_call: DeferredCall,
+    deferred_call_operation: OptionalCell<DeferredOperation>,
 }
 
 impl<'a> AlarmClient for Radio<'a> {
@@ -682,21 +704,16 @@ impl<'a> AlarmClient for Radio<'a> {
         self.registers.task_ccastart.write(Task::ENABLE::SET);
     }
 }
-#[derive(Debug, Clone, Copy)]
-enum RadioState {
-    OFF,
-    TX,
-    RX,
-    ACK,
-}
 
 impl<'a> Radio<'a> {
     pub fn new(ack_buf: &'static mut [u8; ACK_BUF_SIZE]) -> Self {
         Self {
             registers: RADIO_BASE,
-            tx_power: Cell::new(TxPower::ZerodBm),
             rx_client: OptionalCell::empty(),
             tx_client: OptionalCell::empty(),
+            config_client: OptionalCell::empty(),
+            power_client: OptionalCell::empty(),
+            tx_power: Cell::new(TxPower::ZerodBm),
             tx_buf: TakeCell::empty(),
             rx_buf: TakeCell::empty(),
             ack_buf: TakeCell::new(ack_buf),
@@ -709,6 +726,8 @@ impl<'a> Radio<'a> {
             channel: Cell::new(RadioChannel::Channel26),
             timer0: OptionalCell::empty(),
             state: Cell::new(RadioState::OFF),
+            deferred_call: DeferredCall::new(),
+            deferred_call_operation: OptionalCell::empty(),
         }
     }
 
@@ -737,18 +756,6 @@ impl<'a> Radio<'a> {
         self.registers.task_rxen.write(Task::ENABLE::SET);
     }
 
-    fn set_rx_address(&self) {
-        self.registers
-            .rxaddresses
-            .write(ReceiveAddresses::ADDRESS.val(1));
-    }
-
-    fn set_tx_address(&self) {
-        self.registers
-            .txaddress
-            .write(TransmitAddress::ADDRESS.val(0));
-    }
-
     fn radio_on(&self) {
         // reset and enable power
         self.registers.power.write(Task::ENABLE::CLEAR);
@@ -759,8 +766,8 @@ impl<'a> Radio<'a> {
         self.registers.power.write(Task::ENABLE::CLEAR);
     }
 
-    fn set_tx_power(&self) {
-        self.registers.txpower.set(self.tx_power.get() as u32);
+    fn radio_is_on(&self) -> bool {
+        self.registers.power.is_set(Task::ENABLE)
     }
 
     fn set_dma_ptr(&self, buffer: &'static mut [u8]) -> &'static mut [u8] {
@@ -1088,10 +1095,7 @@ impl<'a> Radio<'a> {
 
         self.ieee802154_set_tx_power();
 
-        self.ieee802154_set_channel_freq(self.channel.get());
-
-        self.set_tx_address();
-        self.set_rx_address();
+        self.ieee802154_set_channel_freq();
 
         // Begin receiving procedure
         self.enable_interrupts();
@@ -1144,14 +1148,15 @@ impl<'a> Radio<'a> {
         self.registers.mode.write(Mode::MODE::IEEE802154_250KBIT);
     }
 
-    fn ieee802154_set_channel_freq(&self, channel: RadioChannel) {
+    fn ieee802154_set_channel_freq(&self) {
+        let channel = self.channel.get();
         self.registers
             .frequency
             .write(Frequency::FREQUENCY.val(channel as u32));
     }
 
     fn ieee802154_set_tx_power(&self) {
-        self.set_tx_power();
+        self.registers.txpower.set(self.tx_power.get() as u32);
     }
 
     pub fn startup(&self) -> Result<(), ErrorCode> {
@@ -1180,25 +1185,40 @@ impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
         Ok(())
     }
 
-    fn set_power_client(&self, _client: &'a dyn PowerClient) {
-        //
+    fn set_power_client(&self, client: &'a dyn PowerClient) {
+        self.power_client.set(client);
     }
 
     fn reset(&self) -> Result<(), ErrorCode> {
         self.radio_initialize();
         Ok(())
     }
+
     fn start(&self) -> Result<(), ErrorCode> {
         self.radio_initialize();
+
+        // Configure deferred call to trigger callback.
+        self.deferred_call_operation
+            .set(DeferredOperation::PowerClientCallback);
+        self.deferred_call.set();
+
         Ok(())
     }
+
     fn stop(&self) -> Result<(), ErrorCode> {
         self.radio_off();
         self.state.set(RadioState::OFF);
+
+        // Configure deferred call to trigger callback.
+        self.deferred_call_operation
+            .set(DeferredOperation::PowerClientCallback);
+        self.deferred_call.set();
+
         Ok(())
     }
+
     fn is_on(&self) -> bool {
-        self.registers.power.is_set(Task::ENABLE)
+        self.radio_is_on()
     }
 
     // Previous driver implementation //
@@ -1206,23 +1226,34 @@ impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
         false
     }
 
-    //#################################################
-    ///These methods are holdovers from when the radio HIL was mostly to an external
-    ///module over an interface
-    //#################################################
-
-    //fn set_power_client(&self, client: &'static radio::PowerClient){
-
-    //}
-    /// Commit the config calls to hardware, changing the address,
-    /// PAN ID, TX power, and channel to the specified values, issues
-    /// a callback to the config client when done.
-    fn config_commit(&self) {
-        self.radio_off();
-        self.radio_initialize();
+    fn set_config_client(&self, client: &'a dyn radio::ConfigClient) {
+        self.config_client.set(client);
     }
 
-    fn set_config_client(&self, _client: &'a dyn radio::ConfigClient) {}
+    /// Commit the config calls to hardware, changing (in theory):
+    ///
+    /// - the RX address
+    /// - PAN ID
+    /// - TX power
+    /// - channel
+    ///
+    /// to the specified values. **However**, the nRF52840 IEEE 802.15.4 radio
+    /// does not support hardware-level address filtering (see
+    /// [here](https://devzone.nordicsemi.com/f/nordic-q-a/19320/using-nrf52840-for-802-15-4)).
+    /// So setting the addresses and PAN ID have no meaning for this chip and
+    /// any filtering must be done in higher layers in software.
+    ///
+    /// Issues a callback to the config client when done.
+    fn config_commit(&self) {
+        // All we can configure is TX power and channel frequency.
+        self.ieee802154_set_tx_power();
+        self.ieee802154_set_channel_freq();
+
+        // Enable deferred call so we can generate a `ConfigClient` callback.
+        self.deferred_call_operation
+            .set(DeferredOperation::ConfigClientCallback);
+        self.deferred_call.set();
+    }
 
     //#################################################
     /// Accessors
@@ -1240,10 +1271,12 @@ impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
     fn get_pan(&self) -> u16 {
         self.pan.get()
     }
+
     /// The transmit power, in dBm
     fn get_tx_power(&self) -> i8 {
         self.tx_power.get() as i8
     }
+
     /// The 802.15.4 channel
     fn get_channel(&self) -> u8 {
         self.channel.get().get_channel_number()
@@ -1343,5 +1376,28 @@ impl<'a> kernel::hil::radio::RadioData<'a> for Radio<'a> {
         }
 
         Ok(())
+    }
+}
+
+impl DeferredCallClient for Radio<'_> {
+    fn handle_deferred_call(&self) {
+        // On deferred call we trigger the config or power callbacks. The
+        // `.take()` ensures we clear what is pending.
+        self.deferred_call_operation.take().map(|op| match op {
+            DeferredOperation::ConfigClientCallback => {
+                self.config_client.map(|client| {
+                    client.config_done(Ok(()));
+                });
+            }
+            DeferredOperation::PowerClientCallback => {
+                self.power_client.map(|client| {
+                    client.changed(self.radio_is_on());
+                });
+            }
+        });
+    }
+
+    fn register(&'static self) {
+        self.deferred_call.register(self);
     }
 }
