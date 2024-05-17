@@ -8,6 +8,7 @@
 //! Low-level CAN driver for STM32F4XX chips
 //!
 
+use crate::clocks::Stm32f4Clocks;
 use crate::rcc;
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
@@ -472,12 +473,12 @@ pub struct Can<'a> {
 }
 
 impl<'a> Can<'a> {
-    pub fn new(rcc: &'a rcc::Rcc, registers: StaticRef<Registers>) -> Can<'a> {
+    pub fn new(clocks: &'a dyn Stm32f4Clocks, registers: StaticRef<Registers>) -> Can<'a> {
         Can {
             registers: registers,
             clock: CanClock(rcc::PeripheralClock::new(
                 rcc::PeripheralClockType::APB1(rcc::PCLK1::CAN1),
-                rcc,
+                clocks,
             )),
             can_state: Cell::new(CanState::Sleep),
             error_interrupt_counter: Cell::new(0),

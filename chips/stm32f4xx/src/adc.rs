@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
+use crate::clocks::clocks::Stm32f4Clocks;
 use crate::rcc;
 use core::cell::Cell;
 use kernel::hil;
@@ -314,13 +315,13 @@ pub struct Adc<'a> {
 }
 
 impl<'a> Adc<'a> {
-    pub const fn new(rcc: &'a rcc::Rcc) -> Adc {
+    pub const fn new(clocks: &'a dyn Stm32f4Clocks) -> Adc {
         Adc {
             registers: ADC1_BASE,
             common_registers: ADC_COMMON_BASE,
             clock: AdcClock(rcc::PeripheralClock::new(
                 rcc::PeripheralClockType::APB2(rcc::PCLK2::ADC1),
-                rcc,
+                clocks,
             )),
             status: Cell::new(ADCStatus::Off),
             client: OptionalCell::empty(),

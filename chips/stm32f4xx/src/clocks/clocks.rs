@@ -186,7 +186,7 @@ pub struct Clocks<'a, ChipSpecs> {
 
 impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
     // The constructor must be called when the default peripherals are created
-    pub(crate) fn new(rcc: &'a Rcc) -> Self {
+    pub fn new(rcc: &'a Rcc) -> Self {
         Self {
             rcc,
             flash: OptionalCell::empty(),
@@ -512,6 +512,23 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
     /// Get MCO1 divider
     pub fn get_mco1_clock_divider(&self) -> MCO1Divider {
         self.rcc.get_mco1_clock_divider()
+    }
+}
+
+/// Stm32f4Clocks trait
+///
+/// This can be used to control clocks without the need to keep a reference of the chip specific
+/// Clocks struct, for instance by peripherals
+pub trait Stm32f4Clocks {
+    /// Get RCC instance
+    fn get_rcc(&self) -> &Rcc;
+
+    // Extend this to expose additional clock resources
+}
+
+impl<'a, ChipSpecs: ChipSpecsTrait> Stm32f4Clocks for Clocks<'a, ChipSpecs> {
+    fn get_rcc(&self) -> &'a Rcc {
+        self.rcc
     }
 }
 

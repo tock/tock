@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
+use crate::clocks::clocks::Stm32f4Clocks;
 use crate::rcc;
 use core::cell::Cell;
 use kernel::hil;
@@ -147,12 +148,12 @@ pub struct Dac<'a> {
 }
 
 impl<'a> Dac<'a> {
-    pub const fn new(rcc: &'a rcc::Rcc) -> Self {
+    pub const fn new(clocks: &'a dyn Stm32f4Clocks) -> Self {
         Self {
             registers: DAC_BASE,
             clock: DacClock(rcc::PeripheralClock::new(
                 rcc::PeripheralClockType::APB1(rcc::PCLK1::DAC),
-                rcc,
+                clocks,
             )),
             initialized: Cell::new(false),
             enabled: Cell::new(false),

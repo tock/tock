@@ -13,6 +13,7 @@ use kernel::hil::led;
 use kernel::hil::uart;
 use kernel::hil::uart::Configure;
 
+use stm32f401cc::chip_specs::Stm32f401Specs;
 use stm32f401cc::gpio::PinId;
 
 use crate::CHIP;
@@ -45,7 +46,9 @@ impl Write for Writer {
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) -> usize {
         let rcc = stm32f401cc::rcc::Rcc::new();
-        let uart = stm32f401cc::usart::Usart::new_usart2(&rcc);
+        let clocks: stm32f401cc::clocks::Clocks<Stm32f401Specs> =
+            stm32f401cc::clocks::Clocks::new(&rcc);
+        let uart = stm32f401cc::usart::Usart::new_usart2(&clocks);
 
         if !self.initialized {
             self.initialized = true;
@@ -73,10 +76,12 @@ pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
     // On-board LED C13 is connected to PC13
     // Have to reinitialize several peripherals because otherwise can't access them here.
     let rcc = stm32f401cc::rcc::Rcc::new();
-    let syscfg = stm32f401cc::syscfg::Syscfg::new(&rcc);
+    let clocks: stm32f401cc::clocks::Clocks<Stm32f401Specs> =
+        stm32f401cc::clocks::Clocks::new(&rcc);
+    let syscfg = stm32f401cc::syscfg::Syscfg::new(&clocks);
     let exti = stm32f401cc::exti::Exti::new(&syscfg);
     let pin = stm32f401cc::gpio::Pin::new(PinId::PC13, &exti);
-    let gpio_ports = stm32f401cc::gpio::GpioPorts::new(&rcc, &exti);
+    let gpio_ports = stm32f401cc::gpio::GpioPorts::new(&clocks, &exti);
     pin.set_ports_ref(&gpio_ports);
     let led = &mut led::LedLow::new(&pin);
 

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
+use crate::clocks::Stm32f4Clocks;
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
@@ -212,24 +213,24 @@ pub struct TxDMA<'a, DMA: dma::StreamServer<'a>>(pub &'a dma::Stream<'a, DMA>);
 pub struct RxDMA<'a, DMA: dma::StreamServer<'a>>(pub &'a dma::Stream<'a, DMA>);
 
 impl<'a> Usart<'a, dma::Dma1<'a>> {
-    pub fn new_usart2(rcc: &'a rcc::Rcc) -> Self {
+    pub fn new_usart2(clocks: &'a dyn Stm32f4Clocks) -> Self {
         Self::new(
             USART2_BASE,
             UsartClock(rcc::PeripheralClock::new(
                 rcc::PeripheralClockType::APB1(rcc::PCLK1::USART2),
-                rcc,
+                clocks,
             )),
             dma::Dma1Peripheral::USART2_TX,
             dma::Dma1Peripheral::USART2_RX,
         )
     }
 
-    pub fn new_usart3(rcc: &'a rcc::Rcc) -> Self {
+    pub fn new_usart3(clocks: &'a dyn Stm32f4Clocks) -> Self {
         Self::new(
             USART3_BASE,
             UsartClock(rcc::PeripheralClock::new(
                 rcc::PeripheralClockType::APB1(rcc::PCLK1::USART3),
-                rcc,
+                clocks,
             )),
             dma::Dma1Peripheral::USART3_TX,
             dma::Dma1Peripheral::USART3_RX,
@@ -238,12 +239,12 @@ impl<'a> Usart<'a, dma::Dma1<'a>> {
 }
 
 impl<'a> Usart<'a, dma::Dma2<'a>> {
-    pub fn new_usart1(rcc: &'a rcc::Rcc) -> Self {
+    pub fn new_usart1(clocks: &'a dyn Stm32f4Clocks) -> Self {
         Self::new(
             USART1_BASE,
             UsartClock(rcc::PeripheralClock::new(
                 rcc::PeripheralClockType::APB2(rcc::PCLK2::USART1),
-                rcc,
+                clocks,
             )),
             dma::Dma2Peripheral::USART1_TX,
             dma::Dma2Peripheral::USART1_RX,

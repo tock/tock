@@ -10,6 +10,7 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeabl
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
+use crate::clocks::Stm32f4Clocks;
 use crate::nvic;
 use crate::rcc;
 use crate::spi;
@@ -1542,12 +1543,12 @@ pub struct Dma1<'a> {
 }
 
 impl<'a> Dma1<'a> {
-    pub const fn new(rcc: &'a rcc::Rcc) -> Dma1 {
+    pub const fn new(clocks: &'a dyn Stm32f4Clocks) -> Dma1 {
         Dma1 {
             registers: DMA1_BASE,
             clock: DmaClock(rcc::PeripheralClock::new(
                 rcc::PeripheralClockType::AHB1(rcc::HCLK1::DMA1),
-                rcc,
+                clocks,
             )),
         }
     }
@@ -1663,12 +1664,12 @@ pub struct Dma2<'a> {
 }
 
 impl<'a> Dma2<'a> {
-    pub const fn new(rcc: &'a rcc::Rcc) -> Dma2 {
+    pub const fn new(clocks: &'a dyn Stm32f4Clocks) -> Dma2 {
         Dma2 {
             registers: DMA2_BASE,
             clock: DmaClock(rcc::PeripheralClock::new(
                 rcc::PeripheralClockType::AHB1(rcc::HCLK1::DMA2),
-                rcc,
+                clocks,
             )),
         }
     }

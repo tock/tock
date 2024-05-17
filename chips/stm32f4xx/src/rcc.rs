@@ -1560,9 +1560,11 @@ impl From<APBPrescaler> for usize {
     }
 }
 
+use crate::clocks::clocks::Stm32f4Clocks;
+
 pub struct PeripheralClock<'a> {
     pub clock: PeripheralClockType,
-    rcc: &'a Rcc,
+    clocks: &'a dyn Stm32f4Clocks,
 }
 
 /// Bus + Clock name for the peripherals
@@ -1620,12 +1622,12 @@ pub enum PCLK2 {
 }
 
 impl<'a> PeripheralClock<'a> {
-    pub const fn new(clock: PeripheralClockType, rcc: &'a Rcc) -> Self {
-        Self { clock, rcc }
+    pub const fn new(clock: PeripheralClockType, clocks: &'a dyn Stm32f4Clocks) -> Self {
+        Self { clock, clocks }
     }
 
     pub fn configure_rng_clock(&self) {
-        self.rcc.configure_rng_clock();
+        self.clocks.get_rcc().configure_rng_clock();
     }
 
     pub fn get_frequency(&self) -> u32 {
@@ -1650,20 +1652,21 @@ impl<'a> PeripheralClock<'a> {
                 }
             }
         }
-        let hclk_freq = self.rcc.get_sys_clock_frequency();
+        let rcc = self.clocks.get_rcc();
+        let hclk_freq = rcc.get_sys_clock_frequency();
         match self.clock {
             PeripheralClockType::AHB1(_)
             | PeripheralClockType::AHB2(_)
             | PeripheralClockType::AHB3(_) => hclk_freq as u32,
             PeripheralClockType::APB1(ref v) => {
-                let prescaler = self.rcc.get_apb1_prescaler();
+                let prescaler = rcc.get_apb1_prescaler();
                 match v {
-                    PCLK1::TIM2 => tim_freq(self.rcc, hclk_freq, prescaler) as u32,
+                    PCLK1::TIM2 => tim_freq(rcc, hclk_freq, prescaler) as u32,
                     _ => (hclk_freq / usize::from(prescaler)) as u32,
                 }
             }
             PeripheralClockType::APB2(_) => {
-                let prescaler = self.rcc.get_apb2_prescaler();
+                let prescaler = rcc.get_apb2_prescaler();
                 (hclk_freq / usize::from(prescaler)) as u32
             }
             //TODO: implement clock frequency retrieval for RTC and PWR peripherals
@@ -1675,210 +1678,213 @@ impl<'a> PeripheralClock<'a> {
 
 impl<'a> ClockInterface for PeripheralClock<'a> {
     fn is_enabled(&self) -> bool {
+        let rcc = self.clocks.get_rcc();
         match self.clock {
             PeripheralClockType::AHB1(ref v) => match v {
-                HCLK1::DMA1 => self.rcc.is_enabled_dma1_clock(),
-                HCLK1::DMA2 => self.rcc.is_enabled_dma2_clock(),
-                HCLK1::GPIOH => self.rcc.is_enabled_gpioh_clock(),
-                HCLK1::GPIOG => self.rcc.is_enabled_gpiog_clock(),
-                HCLK1::GPIOF => self.rcc.is_enabled_gpiof_clock(),
-                HCLK1::GPIOE => self.rcc.is_enabled_gpioe_clock(),
-                HCLK1::GPIOD => self.rcc.is_enabled_gpiod_clock(),
-                HCLK1::GPIOC => self.rcc.is_enabled_gpioc_clock(),
-                HCLK1::GPIOB => self.rcc.is_enabled_gpiob_clock(),
-                HCLK1::GPIOA => self.rcc.is_enabled_gpioa_clock(),
+                HCLK1::DMA1 => rcc.is_enabled_dma1_clock(),
+                HCLK1::DMA2 => rcc.is_enabled_dma2_clock(),
+                HCLK1::GPIOH => rcc.is_enabled_gpioh_clock(),
+                HCLK1::GPIOG => rcc.is_enabled_gpiog_clock(),
+                HCLK1::GPIOF => rcc.is_enabled_gpiof_clock(),
+                HCLK1::GPIOE => rcc.is_enabled_gpioe_clock(),
+                HCLK1::GPIOD => rcc.is_enabled_gpiod_clock(),
+                HCLK1::GPIOC => rcc.is_enabled_gpioc_clock(),
+                HCLK1::GPIOB => rcc.is_enabled_gpiob_clock(),
+                HCLK1::GPIOA => rcc.is_enabled_gpioa_clock(),
             },
             PeripheralClockType::AHB2(ref v) => match v {
-                HCLK2::RNG => self.rcc.is_enabled_rng_clock(),
-                HCLK2::OTGFS => self.rcc.is_enabled_otgfs_clock(),
+                HCLK2::RNG => rcc.is_enabled_rng_clock(),
+                HCLK2::OTGFS => rcc.is_enabled_otgfs_clock(),
             },
             PeripheralClockType::AHB3(ref v) => match v {
-                HCLK3::FMC => self.rcc.is_enabled_fmc_clock(),
+                HCLK3::FMC => rcc.is_enabled_fmc_clock(),
             },
             PeripheralClockType::APB1(ref v) => match v {
-                PCLK1::TIM2 => self.rcc.is_enabled_tim2_clock(),
-                PCLK1::USART2 => self.rcc.is_enabled_usart2_clock(),
-                PCLK1::USART3 => self.rcc.is_enabled_usart3_clock(),
-                PCLK1::I2C1 => self.rcc.is_enabled_i2c1_clock(),
-                PCLK1::SPI3 => self.rcc.is_enabled_spi3_clock(),
-                PCLK1::CAN1 => self.rcc.is_enabled_can1_clock(),
-                PCLK1::DAC => self.rcc.is_enabled_dac_clock(),
+                PCLK1::TIM2 => rcc.is_enabled_tim2_clock(),
+                PCLK1::USART2 => rcc.is_enabled_usart2_clock(),
+                PCLK1::USART3 => rcc.is_enabled_usart3_clock(),
+                PCLK1::I2C1 => rcc.is_enabled_i2c1_clock(),
+                PCLK1::SPI3 => rcc.is_enabled_spi3_clock(),
+                PCLK1::CAN1 => rcc.is_enabled_can1_clock(),
+                PCLK1::DAC => rcc.is_enabled_dac_clock(),
             },
             PeripheralClockType::APB2(ref v) => match v {
-                PCLK2::USART1 => self.rcc.is_enabled_usart1_clock(),
-                PCLK2::ADC1 => self.rcc.is_enabled_adc1_clock(),
-                PCLK2::SYSCFG => self.rcc.is_enabled_syscfg_clock(),
+                PCLK2::USART1 => rcc.is_enabled_usart1_clock(),
+                PCLK2::ADC1 => rcc.is_enabled_adc1_clock(),
+                PCLK2::SYSCFG => rcc.is_enabled_syscfg_clock(),
             },
-            PeripheralClockType::RTC => self.rcc.is_enabled_rtc_clock(),
-            PeripheralClockType::PWR => self.rcc.is_enabled_pwr_clock(),
+            PeripheralClockType::RTC => rcc.is_enabled_rtc_clock(),
+            PeripheralClockType::PWR => rcc.is_enabled_pwr_clock(),
         }
     }
 
     fn enable(&self) {
+        let rcc = self.clocks.get_rcc();
         match self.clock {
             PeripheralClockType::AHB1(ref v) => match v {
                 HCLK1::DMA1 => {
-                    self.rcc.enable_dma1_clock();
+                    rcc.enable_dma1_clock();
                 }
                 HCLK1::DMA2 => {
-                    self.rcc.enable_dma2_clock();
+                    rcc.enable_dma2_clock();
                 }
                 HCLK1::GPIOH => {
-                    self.rcc.enable_gpioh_clock();
+                    rcc.enable_gpioh_clock();
                 }
                 HCLK1::GPIOG => {
-                    self.rcc.enable_gpiog_clock();
+                    rcc.enable_gpiog_clock();
                 }
                 HCLK1::GPIOF => {
-                    self.rcc.enable_gpiof_clock();
+                    rcc.enable_gpiof_clock();
                 }
                 HCLK1::GPIOE => {
-                    self.rcc.enable_gpioe_clock();
+                    rcc.enable_gpioe_clock();
                 }
                 HCLK1::GPIOD => {
-                    self.rcc.enable_gpiod_clock();
+                    rcc.enable_gpiod_clock();
                 }
                 HCLK1::GPIOC => {
-                    self.rcc.enable_gpioc_clock();
+                    rcc.enable_gpioc_clock();
                 }
                 HCLK1::GPIOB => {
-                    self.rcc.enable_gpiob_clock();
+                    rcc.enable_gpiob_clock();
                 }
                 HCLK1::GPIOA => {
-                    self.rcc.enable_gpioa_clock();
+                    rcc.enable_gpioa_clock();
                 }
             },
             PeripheralClockType::AHB2(ref v) => match v {
                 HCLK2::RNG => {
-                    self.rcc.enable_rng_clock();
+                    rcc.enable_rng_clock();
                 }
                 HCLK2::OTGFS => {
-                    self.rcc.enable_otgfs_clock();
+                    rcc.enable_otgfs_clock();
                 }
             },
             PeripheralClockType::AHB3(ref v) => match v {
-                HCLK3::FMC => self.rcc.enable_fmc_clock(),
+                HCLK3::FMC => rcc.enable_fmc_clock(),
             },
             PeripheralClockType::APB1(ref v) => match v {
                 PCLK1::TIM2 => {
-                    self.rcc.enable_tim2_clock();
+                    rcc.enable_tim2_clock();
                 }
                 PCLK1::USART2 => {
-                    self.rcc.enable_usart2_clock();
+                    rcc.enable_usart2_clock();
                 }
                 PCLK1::USART3 => {
-                    self.rcc.enable_usart3_clock();
+                    rcc.enable_usart3_clock();
                 }
                 PCLK1::I2C1 => {
-                    self.rcc.enable_i2c1_clock();
+                    rcc.enable_i2c1_clock();
                 }
                 PCLK1::SPI3 => {
-                    self.rcc.enable_spi3_clock();
+                    rcc.enable_spi3_clock();
                 }
                 PCLK1::CAN1 => {
-                    self.rcc.enable_can1_clock();
+                    rcc.enable_can1_clock();
                 }
                 PCLK1::DAC => {
-                    self.rcc.enable_dac_clock();
+                    rcc.enable_dac_clock();
                 }
             },
             PeripheralClockType::APB2(ref v) => match v {
                 PCLK2::USART1 => {
-                    self.rcc.enable_usart1_clock();
+                    rcc.enable_usart1_clock();
                 }
                 PCLK2::ADC1 => {
-                    self.rcc.enable_adc1_clock();
+                    rcc.enable_adc1_clock();
                 }
                 PCLK2::SYSCFG => {
-                    self.rcc.enable_syscfg_clock();
+                    rcc.enable_syscfg_clock();
                 }
             },
-            PeripheralClockType::RTC => self.rcc.enable_rtc_clock(RtcClockSource::LSI),
-            PeripheralClockType::PWR => self.rcc.enable_pwr_clock(),
+            PeripheralClockType::RTC => rcc.enable_rtc_clock(RtcClockSource::LSI),
+            PeripheralClockType::PWR => rcc.enable_pwr_clock(),
         }
     }
 
     fn disable(&self) {
+        let rcc = self.clocks.get_rcc();
         match self.clock {
             PeripheralClockType::AHB1(ref v) => match v {
                 HCLK1::DMA1 => {
-                    self.rcc.disable_dma1_clock();
+                    rcc.disable_dma1_clock();
                 }
                 HCLK1::DMA2 => {
-                    self.rcc.disable_dma2_clock();
+                    rcc.disable_dma2_clock();
                 }
                 HCLK1::GPIOH => {
-                    self.rcc.disable_gpioh_clock();
+                    rcc.disable_gpioh_clock();
                 }
                 HCLK1::GPIOG => {
-                    self.rcc.disable_gpiog_clock();
+                    rcc.disable_gpiog_clock();
                 }
                 HCLK1::GPIOF => {
-                    self.rcc.disable_gpiof_clock();
+                    rcc.disable_gpiof_clock();
                 }
                 HCLK1::GPIOE => {
-                    self.rcc.disable_gpioe_clock();
+                    rcc.disable_gpioe_clock();
                 }
                 HCLK1::GPIOD => {
-                    self.rcc.disable_gpiod_clock();
+                    rcc.disable_gpiod_clock();
                 }
                 HCLK1::GPIOC => {
-                    self.rcc.disable_gpioc_clock();
+                    rcc.disable_gpioc_clock();
                 }
                 HCLK1::GPIOB => {
-                    self.rcc.disable_gpiob_clock();
+                    rcc.disable_gpiob_clock();
                 }
                 HCLK1::GPIOA => {
-                    self.rcc.disable_gpioa_clock();
+                    rcc.disable_gpioa_clock();
                 }
             },
             PeripheralClockType::AHB2(ref v) => match v {
                 HCLK2::RNG => {
-                    self.rcc.disable_rng_clock();
+                    rcc.disable_rng_clock();
                 }
                 HCLK2::OTGFS => {
-                    self.rcc.disable_otgfs_clock();
+                    rcc.disable_otgfs_clock();
                 }
             },
             PeripheralClockType::AHB3(ref v) => match v {
-                HCLK3::FMC => self.rcc.disable_fmc_clock(),
+                HCLK3::FMC => rcc.disable_fmc_clock(),
             },
             PeripheralClockType::APB1(ref v) => match v {
                 PCLK1::TIM2 => {
-                    self.rcc.disable_tim2_clock();
+                    rcc.disable_tim2_clock();
                 }
                 PCLK1::USART2 => {
-                    self.rcc.disable_usart2_clock();
+                    rcc.disable_usart2_clock();
                 }
                 PCLK1::USART3 => {
-                    self.rcc.disable_usart3_clock();
+                    rcc.disable_usart3_clock();
                 }
                 PCLK1::I2C1 => {
-                    self.rcc.disable_i2c1_clock();
+                    rcc.disable_i2c1_clock();
                 }
                 PCLK1::SPI3 => {
-                    self.rcc.disable_spi3_clock();
+                    rcc.disable_spi3_clock();
                 }
                 PCLK1::CAN1 => {
-                    self.rcc.disable_can1_clock();
+                    rcc.disable_can1_clock();
                 }
                 PCLK1::DAC => {
-                    self.rcc.disable_dac_clock();
+                    rcc.disable_dac_clock();
                 }
             },
             PeripheralClockType::APB2(ref v) => match v {
                 PCLK2::USART1 => {
-                    self.rcc.disable_usart1_clock();
+                    rcc.disable_usart1_clock();
                 }
                 PCLK2::ADC1 => {
-                    self.rcc.disable_adc1_clock();
+                    rcc.disable_adc1_clock();
                 }
                 PCLK2::SYSCFG => {
-                    self.rcc.disable_syscfg_clock();
+                    rcc.disable_syscfg_clock();
                 }
             },
-            PeripheralClockType::RTC => self.rcc.disable_rtc_clock(),
-            PeripheralClockType::PWR => self.rcc.disable_pwr_clock(),
+            PeripheralClockType::RTC => rcc.disable_rtc_clock(),
+            PeripheralClockType::PWR => rcc.disable_pwr_clock(),
         }
     }
 }

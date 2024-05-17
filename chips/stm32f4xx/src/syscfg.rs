@@ -9,6 +9,7 @@ use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
+use crate::clocks::Stm32f4Clocks;
 use crate::gpio;
 use crate::rcc;
 
@@ -125,12 +126,12 @@ pub struct Syscfg<'a> {
 }
 
 impl<'a> Syscfg<'a> {
-    pub const fn new(rcc: &'a rcc::Rcc) -> Self {
+    pub const fn new(clocks: &'a dyn Stm32f4Clocks) -> Self {
         Self {
             registers: SYSCFG_BASE,
             clock: SyscfgClock(rcc::PeripheralClock::new(
                 rcc::PeripheralClockType::APB2(rcc::PCLK2::SYSCFG),
-                rcc,
+                clocks,
             )),
         }
     }

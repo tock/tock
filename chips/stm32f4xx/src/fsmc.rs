@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
+use crate::clocks::clocks::Stm32f4Clocks;
 use crate::rcc;
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
@@ -172,13 +173,13 @@ pub struct Fsmc<'a> {
 }
 
 impl<'a> Fsmc<'a> {
-    pub fn new(bank_addr: [Option<StaticRef<FsmcBank>>; 4], rcc: &'a rcc::Rcc) -> Self {
+    pub fn new(bank_addr: [Option<StaticRef<FsmcBank>>; 4], clocks: &'a dyn Stm32f4Clocks) -> Self {
         Self {
             registers: FSMC_BASE,
             bank: bank_addr,
             clock: FsmcClock(rcc::PeripheralClock::new(
                 rcc::PeripheralClockType::AHB3(rcc::HCLK3::FMC),
-                rcc,
+                clocks,
             )),
             client: OptionalCell::empty(),
 

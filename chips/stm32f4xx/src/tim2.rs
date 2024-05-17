@@ -13,6 +13,7 @@ use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
+use crate::clocks::Stm32f4Clocks;
 use crate::nvic;
 use crate::rcc;
 
@@ -319,12 +320,12 @@ pub struct Tim2<'a> {
 }
 
 impl<'a> Tim2<'a> {
-    pub const fn new(rcc: &'a rcc::Rcc) -> Self {
+    pub const fn new(clocks: &'a dyn Stm32f4Clocks) -> Self {
         Self {
             registers: TIM2_BASE,
             clock: Tim2Clock(rcc::PeripheralClock::new(
                 rcc::PeripheralClockType::APB1(rcc::PCLK1::TIM2),
-                rcc,
+                clocks,
             )),
             client: OptionalCell::empty(),
             irqn: nvic::TIM2,

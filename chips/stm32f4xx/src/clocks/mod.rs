@@ -10,4 +10,4 @@ pub mod hsi;
 pub mod pll;
 
 pub use crate::clocks::clocks::tests;
-pub use crate::clocks::clocks::Clocks;
+pub use crate::clocks::clocks::{Clocks, Stm32f4Clocks};

@@ -25,6 +25,7 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, ReadWrite};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
+use stm32f4xx::clocks::Stm32f4Clocks;
 use stm32f4xx::rcc;
 
 /// Register block to control RTC
@@ -397,12 +398,12 @@ const RTC_BASE: StaticRef<RtcRegisters> =
     unsafe { StaticRef::new(0x40002800 as *const RtcRegisters) };
 
 impl<'a> Rtc<'a> {
-    pub fn new(rcc: &'a rcc::Rcc) -> Rtc<'a> {
+    pub fn new(clocks: &'a dyn Stm32f4Clocks) -> Rtc<'a> {
         Rtc {
             registers: RTC_BASE,
             client: OptionalCell::empty(),
-            clock: rcc::PeripheralClock::new(rcc::PeripheralClockType::RTC, rcc),
-            pwr_clock: rcc::PeripheralClock::new(rcc::PeripheralClockType::PWR, rcc),
+            clock: rcc::PeripheralClock::new(rcc::PeripheralClockType::RTC, clocks),
+            pwr_clock: rcc::PeripheralClock::new(rcc::PeripheralClockType::PWR, clocks),
             time: Cell::new(DateTimeValues {
                 year: 0,
                 month: Month::January,

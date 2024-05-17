@@ -23,6 +23,7 @@ use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
+use stm32f446re::chip_specs::Stm32f446Specs;
 use stm32f446re::gpio::{AlternateFunction, Mode, PinId, PortId};
 use stm32f446re::interrupt_service::Stm32f446reDefaultPeripherals;
 
@@ -270,20 +271,25 @@ unsafe fn start() -> (
 
     // We use the default HSI 16Mhz clock
     let rcc = static_init!(stm32f446re::rcc::Rcc, stm32f446re::rcc::Rcc::new());
+    let clocks = static_init!(
+        stm32f446re::clocks::Clocks<Stm32f446Specs>,
+        stm32f446re::clocks::Clocks::new(rcc)
+    );
+
     let syscfg = static_init!(
         stm32f446re::syscfg::Syscfg,
-        stm32f446re::syscfg::Syscfg::new(rcc)
+        stm32f446re::syscfg::Syscfg::new(clocks)
     );
     let exti = static_init!(
         stm32f446re::exti::Exti,
         stm32f446re::exti::Exti::new(syscfg)
     );
-    let dma1 = static_init!(stm32f446re::dma::Dma1, stm32f446re::dma::Dma1::new(rcc));
-    let dma2 = static_init!(stm32f446re::dma::Dma2, stm32f446re::dma::Dma2::new(rcc));
+    let dma1 = static_init!(stm32f446re::dma::Dma1, stm32f446re::dma::Dma1::new(clocks));
+    let dma2 = static_init!(stm32f446re::dma::Dma2, stm32f446re::dma::Dma2::new(clocks));
 
     let peripherals = static_init!(
         Stm32f446reDefaultPeripherals,
-        Stm32f446reDefaultPeripherals::new(rcc, exti, dma1, dma2)
+        Stm32f446reDefaultPeripherals::new(clocks, exti, dma1, dma2)
     );
     peripherals.init();
     let base_peripherals = &peripherals.stm32f4;
