@@ -36,37 +36,53 @@ pub trait PowerClient {
     fn changed(&self, on: bool);
 }
 
-/// These constants are used for interacting with the SPI buffer, which contains
-/// a 1-byte SPI command, a 1-byte PHY header, and then the 802.15.4 frame. In
-/// theory, the number of extra bytes in front of the frame can depend on the
-/// particular method used to communicate with the radio, but we leave this as a
-/// constant in this generic trait for now.
-///
-/// Furthermore, the minimum MHR size assumes that
-///
-/// - The source PAN ID is omitted
-/// - There is no auxiliary security header
-/// - There are no IEs
-///
-/// ```text
-/// +---------+-----+-----+-------------+-----+
-/// | SPI com | PHR | MHR | MAC payload | MFR |
-/// +---------+-----+-----+-------------+-----+
-/// \______ Static buffer rx/txed to SPI _____/
-///                 \__ PSDU / frame length __/
-/// \___ 2 bytes ___/
-/// ```
+// These constants are used for interacting with the SPI buffer, which contains
+// a 1-byte SPI command, a 1-byte PHY header, and then the 802.15.4 frame. In
+// theory, the number of extra bytes in front of the frame can depend on the
+// particular method used to communicate with the radio, but we leave this as a
+// constant in this generic trait for now.
+//
+// Furthermore, the minimum MHR size assumes that
+//
+// - The source PAN ID is omitted
+// - There is no auxiliary security header
+// - There are no IEs
+//
+// ```text
+// +---------+-----+--------+-------------+-----+-----+
+// | SPI com | PHR | MHR    | MAC payload | MFR | LQI |
+// +---------+-----+--------+-------------+-----+-----+
+// \______ Static buffer for implementation __________/
+//                 \_________ PSDU _____________/
+// \___ 2 bytes ___/                            \1byte/
+// ```
 
-pub const MIN_MHR_SIZE: usize = 9;
+/// Length of the physical layer header. This is the Frame length field.
+pub const PHR_SIZE: usize = 1;
+/// Length of the Frame Control field in the MAC header.
+pub const MHR_FC_SIZE: usize = 2;
+/// Length of the MAC footer. Contains the CRC.
 pub const MFR_SIZE: usize = 2;
+/// Maximum length of a MAC frame.
 pub const MAX_MTU: usize = 127;
-pub const MIN_FRAME_SIZE: usize = MIN_MHR_SIZE + MFR_SIZE;
+/// Minimum length of the MAC frame (except for acknowledgements). This is
+/// explained in Table 21 of the specification.
+pub const MIN_FRAME_SIZE: usize = 9;
+/// Maximum length of a MAC frame.
 pub const MAX_FRAME_SIZE: usize = MAX_MTU;
 
+/// Location in the buffer of the physical layer header. This is the location of
+/// the Frame length byte.
+pub const PHR_OFFSET: usize = 1;
+/// Location in the buffer of the PSDU. This is equivalent to the start of the
+/// MAC payload.
 pub const PSDU_OFFSET: usize = 2;
+/// Length of the reserved space in the buffer for a SPI command.
+pub const SPI_HEADER_SIZE: usize = 1;
+/// Length of the reserved space in the buffer for LQI information.
 pub const LQI_SIZE: usize = 1;
-pub const MAX_BUF_SIZE: usize = PSDU_OFFSET + MAX_MTU + LQI_SIZE;
-pub const MIN_PAYLOAD_OFFSET: usize = PSDU_OFFSET + MIN_MHR_SIZE;
+/// Required buffer size for implementations of this HIL.
+pub const MAX_BUF_SIZE: usize = SPI_HEADER_SIZE + PHR_SIZE + MAX_MTU + LQI_SIZE;
 
 pub trait Radio<'a>: RadioConfig<'a> + RadioData<'a> {}
 // Provide blanket implementations for trait group
