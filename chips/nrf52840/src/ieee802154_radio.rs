@@ -66,7 +66,7 @@
 use crate::timer::TimerAlarm;
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
-use kernel::hil::radio::{self, PowerClient, RadioChannel, RadioData, MAX_FRAME_SIZE, PSDU_OFFSET};
+use kernel::hil::radio::{self, PowerClient, RadioChannel, RadioData};
 use kernel::hil::time::{Alarm, AlarmClient, Time};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
@@ -87,20 +87,15 @@ pub const IEEE802154_ACK_TIME: usize = 512; //microseconds = 32 symbols
 pub const IEEE802154_MAX_POLLING_ATTEMPTS: u8 = 4;
 pub const IEEE802154_MIN_BE: u8 = 3;
 pub const IEEE802154_MAX_BE: u8 = 5;
-pub const RAM_LEN_BITS: usize = 8;
-pub const RAM_S1_BITS: usize = 0;
-pub const PREBUF_LEN_BYTES: usize = 2;
 pub const ACK_BUF_SIZE: usize = 6;
 
-// artifact of entanglement with rf233 implementation, mac layer
-// places packet data starting PSDU_OFFSET=2 bytes after start of
-// buffer to make room for 1 byte spi header required when communicating
-// with rf233 over SPI. nrf radio does not need this header, so we
-// have to pretend the frame buffer starts 1 byte later than the
-// frame passed by the mac layer. We can't just drop the byte from
-// the buffer because then it would be lost forever when we tried
-// to return the frame buffer.
-const MIMIC_PSDU_OFFSET: u32 = 1;
+/// Where the 15.4 packet from the radio is stored in the buffer. The HIL
+/// reserves one byte at the beginning of the buffer for use by the
+/// capsule/hardware. We have no use for this, but the upper layers expect it so
+/// we skip over it.
+// We can't just drop the byte from the buffer because then it would be lost
+// forever when we tried to return the frame buffer.
+const BUF_PREFIX_SIZE: u32 = 1;
 
 #[repr(C)]
 struct RadioRegisters {
@@ -657,11 +652,17 @@ register_bitfields! [u32,
     ]
 ];
 
-#[derive(Debug, Clone, Copy)]
+/// Operating mode of the radio.
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum RadioState {
+    /// Radio peripheral is off.
     OFF,
+    /// Currently transmitting a packet.
     TX,
+    /// Default state when radio is on. Radio is configured to be in RX mode
+    /// when the radio is turned on but not transmitting.
     RX,
+    /// Transmitting an acknowledgement packet.
     ACK,
 }
 
@@ -670,7 +671,10 @@ enum RadioState {
 /// perform when we get the deferred call callback.
 #[derive(Debug, Clone, Copy)]
 enum DeferredOperation {
+    /// Waiting to notify that the configuration operation is complete.
     ConfigClientCallback,
+    /// Waiting to notify that the power state of the radio changed (ie it
+    /// turned on or off).
     PowerClientCallback,
 }
 
@@ -775,7 +779,7 @@ impl<'a> Radio<'a> {
     fn set_dma_ptr(&self, buffer: &'static mut [u8]) -> &'static mut [u8] {
         self.registers
             .packetptr
-            .set(buffer.as_ptr() as u32 + MIMIC_PSDU_OFFSET);
+            .set(buffer.as_ptr() as u32 + BUF_PREFIX_SIZE);
         buffer
     }
 
@@ -801,7 +805,10 @@ impl<'a> Radio<'a> {
         match self.state.get() {
             // It should not be possible to receive an interrupt while the
             // tracked radio state is OFF.
-            RadioState::OFF => kernel::debug!("[ERROR]--15.4 state machine diverged from expected behavior. Received interrupt while off"),
+            RadioState::OFF => {
+                kernel::debug!("[ERROR]--15.4 state machine");
+                kernel::debug!("Received interrupt while off");
+            }
             RadioState::RX => {
                 ////////////////////////////////////////////////////////////////
                 // NOTE: This state machine assumes that the READY_START
@@ -816,60 +823,68 @@ impl<'a> Radio<'a> {
                 // Completed receiving a packet, now determine if we need to send ACK
                 if self.registers.event_end.is_set(Event::READY) {
                     self.registers.event_end.write(Event::READY::CLEAR);
-                    let result = self.crc_check();
+                    let crc = self.crc_check();
 
                     // Unwrap fail = Radio RX Buffer is missing (may be due to
                     // receive client not replacing in receive(...) method, or
-                    // some instance in  driver taking buffer without properly
+                    // some instance in driver taking buffer without properly
                     // replacing).
                     let rbuf = self.rx_buf.take().unwrap();
 
-                    // data buffer format: | PSDU OFFSET | FRAME | LQI |
-                    // length of received data transferred to buffer (including PSDU)
-                    let data_len = rbuf[MIMIC_PSDU_OFFSET as usize] as usize;
-
-                    // Check if the received packet has a valid CRC and as a
-                    // last resort confirm that the received packet length field
-                    // is in compliance with the maximum packet length. If not,
-                    // drop the packet.
-                    if !result.is_ok() || data_len >= MAX_FRAME_SIZE + PSDU_OFFSET {
-                        self.rx_buf.replace(rbuf);
-                        return
-                    }
+                    // Data buffer format: | PREFIX | PHR | PSDU | LQI |
+                    //
+                    // Retrieve the length of the PSDU (actual frame). The frame
+                    // length is only 7 bits, but of course the field is a byte.
+                    // The nRF52840 product specification says this about the
+                    // PHR byte (Version 1.8, section 6.20.12.1):
+                    //
+                    // > The most significant bit is reserved and is set to zero
+                    // > for frames that are standard compliant. The radio
+                    // > module will report all eight bits and it can
+                    // > potentially be used to carry some information.
+                    //
+                    // We are not using that for any information so we just
+                    // force it to zero. This ensures that `data_len` will not
+                    // be longer than our buffer.
+                    let data_len = (rbuf[radio::PHR_OFFSET] & 0x7F) as usize;
 
                     // LQI is found just after the data received.
                     let lqi = rbuf[data_len];
 
+                    // We drop the CRC bytes (the MFR) from our frame.
                     let frame_len = data_len - radio::MFR_SIZE;
-                    // Length is: S0 (0 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
-                    // And because the length field is directly read from the packet
-                    // We need to add 2 to length to get the total length
 
-                    // 6th bit in 2nd byte of received 15.4 packet determines if
-                    // sender requested ACK
-                    if rbuf[2] & ACK_FLAG != 0 && result.is_ok() {
+                    // 6th bit in the first byte of the MAC header determines if
+                    // sender requested ACK. If so send ACK first before handing
+                    // packet reception. This optimizes the time taken to send
+                    // an ACK. If we call the receive function here, there is a
+                    // non deterministic time required to complete the function
+                    // as it may be passed up the entirety of the networking
+                    // stack (leading to ACK timeout being exceeded).
+                    if rbuf[radio::PSDU_OFFSET] & ACK_FLAG != 0 && crc.is_ok() {
                         self.ack_buf
                             .take()
                             .map_or(Err(ErrorCode::NOMEM), |ack_buf| {
                                 // Entered ACK state //
                                 self.state.set(RadioState::ACK);
 
-                                // 4th byte of received packet is 15.4 sequence counter
-                                let sequence_counter = rbuf[4];
+                                // 4th byte of received packet is the 15.4
+                                // sequence number.
+                                let sequence_number = rbuf[radio::PSDU_OFFSET + radio::MHR_FC_SIZE];
 
                                 // The frame control field is hardcoded for now;
                                 // this is the only possible type of ACK
                                 // currently supported so it is reasonable to
                                 // hardcode this.
-                                let ack_buf_send = [2, 0, sequence_counter];
+                                ack_buf[radio::PSDU_OFFSET] = 2;
+                                ack_buf[radio::PSDU_OFFSET + 1] = 0;
+                                ack_buf[radio::PSDU_OFFSET + radio::MHR_FC_SIZE] = sequence_number;
 
-                                // Copy constructed packet into ACK buffer;
-                                // first two bytes left empty for
-                                // MIMIC_PSDU_OFFSET (see other comments).
-                                ack_buf[2..5].copy_from_slice(&ack_buf_send);
+                                // Ensure we replace our RX buffer for the time
+                                // being.
                                 self.rx_buf.replace(rbuf);
 
-                                // If the transmit function fails, return the
+                                // If the transmit function fails, replace the
                                 // buffer and return an error.
                                 if let Err((_, ret_buf)) = self.transmit(ack_buf, 3) {
                                     self.ack_buf.replace(ret_buf);
@@ -878,10 +893,10 @@ impl<'a> Radio<'a> {
                                     Ok(())
                                 }
                             })
-                            .unwrap_or_else(|_| {
+                            .unwrap_or_else(|err| {
                                 // The ACK was not sent; we do not need to drop
                                 // the packet, but print msg for debugging
-                                // purposes, notifiy receive client of packet,
+                                // purposes, notify receive client of packet,
                                 // and reset radio to receiving.
                                 self.rx_client.map(|client| {
                                     start_task = true;
@@ -889,8 +904,8 @@ impl<'a> Radio<'a> {
                                         self.rx_buf.take().unwrap(),
                                         frame_len,
                                         lqi,
-                                        self.registers.crcstatus.get() == 1,
-                                        result,
+                                        crc.is_ok(),
+                                        Err(err),
                                     );
                                 });
 
@@ -904,13 +919,7 @@ impl<'a> Radio<'a> {
                         // receiving state to listen for new packets.
                         self.rx_client.map(|client| {
                             start_task = true;
-                            client.receive(
-                                rbuf,
-                                frame_len,
-                                lqi,
-                                self.registers.crcstatus.get() == 1,
-                                result,
-                            );
+                            client.receive(rbuf, frame_len, lqi, crc.is_ok(), Ok(()));
                         });
                     }
                 }
@@ -945,10 +954,9 @@ impl<'a> Radio<'a> {
                 if self.registers.event_ccabusy.is_set(Event::READY) {
                     self.registers.event_ccabusy.write(Event::READY::CLEAR);
 
-                    //need to back off for a period of time outlined
-                    //in the IEEE 802.15.4 standard (see Figure 69 in
-                    //section 7.5.1.4 The CSMA-CA algorithm of the
-                    //standard).
+                    // Need to back off for a period of time outlined in the
+                    // IEEE 802.15.4 standard (see Figure 69 in section 7.5.1.4
+                    // The CSMA-CA algorithm of the standard).
                     if self.cca_count.get() < IEEE802154_MAX_POLLING_ATTEMPTS {
                         self.cca_count.set(self.cca_count.get() + 1);
                         self.cca_be.set(self.cca_be.get() + 1);
@@ -968,8 +976,6 @@ impl<'a> Radio<'a> {
                         // sending client.
 
                         let result = Err(ErrorCode::BUSY);
-                        //TODO: Acked is hardcoded to always return false; add
-                        //support to receive tx ACK.
                         self.tx_client.map(|client| {
                             // Unwrap fail = TX Buffer is missing and was
                             // mistakenly not replaced after completion of
@@ -1023,13 +1029,7 @@ impl<'a> Radio<'a> {
                     // Reset radio to proper receiving state
                     rx_init = true;
 
-                    // Notify receive client of packet. The client.receive(...)
-                    // function has been moved here to optimize the time taken
-                    // to send an ACK. If the receive function was called in the
-                    // RX state handler, there is a non deterministic time
-                    // required to complete the function as it may be passed up
-                    // the entirety of the networking stack (leading to ACK
-                    // timeout being exceeded).
+                    // Notify receive client of packet that triggered the ACK.
                     self.rx_client.map(|client| {
                         // Unwrap fail = Radio RX Buffer is missing (may be due
                         // to receive client not replacing in receive(...)
@@ -1037,36 +1037,16 @@ impl<'a> Radio<'a> {
                         // without properly replacing).
                         let rbuf = self.rx_buf.take().unwrap();
 
-                        let result = self.crc_check();
-
-                        // data buffer format: | PSDU OFFSET | FRAME | LQI |
-                        // length of received data transferred to buffer (including PSDU)
-                        let data_len = rbuf[MIMIC_PSDU_OFFSET as usize] as usize;
-
-                        // Check if the received packet has a valid CRC and as a
-                        // last resort confirm that the received packet length
-                        // field is in compliance with the maximum packet
-                        // length. If not, drop the packet.
-                        if !result.is_ok() || data_len >= MAX_FRAME_SIZE + PSDU_OFFSET {
-                            self.rx_buf.replace(rbuf);
-                            return
-                        }
-
-                        // lqi is found just after the data received
+                        // Data buffer format: | PREFIX | PHR | PSDU | LQI |
+                        //
+                        // See the RX case above for how these values are set.
+                        let data_len = (rbuf[radio::PHR_OFFSET] & 0x7F) as usize;
                         let lqi = rbuf[data_len];
-
                         let frame_len = data_len - radio::MFR_SIZE;
-                        // Length is: S0 (0 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
-                        // And because the length field is directly read from the packet
-                        // We need to add 2 to length to get the total length
 
-                        client.receive(
-                            rbuf,
-                            frame_len,
-                            lqi,
-                            self.registers.crcstatus.get() == 1,
-                            result,
-                        );
+                        // We know the CRC passed because otherwise we would not
+                        // have transmitted an ACK.
+                        client.receive(rbuf, frame_len, lqi, true, Ok(()));
                     });
                 }
             }
@@ -1250,9 +1230,9 @@ impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
         self.radio_is_on()
     }
 
-    // Previous driver implementation //
     fn busy(&self) -> bool {
-        false
+        // `tx_buf` is only occupied when a transmission is underway.
+        self.tx_buf.is_some()
     }
 
     fn set_config_client(&self, client: &'a dyn radio::ConfigClient) {
@@ -1364,19 +1344,20 @@ impl<'a> kernel::hil::radio::RadioData<'a> for Radio<'a> {
         frame_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.tx_buf.is_some() {
-            // tx_buf TakeCell is only occupied when a transmission is underway. This
+            // tx_buf is only occupied when a transmission is underway. This
             // check insures we do not interrupt an ongoing transmission.
             return Err((ErrorCode::BUSY, buf));
-        } else if radio::MFR_SIZE + frame_len >= buf.len() {
+        } else if buf.len() < radio::PSDU_OFFSET + frame_len + radio::MFR_SIZE {
             // Not enough room for CRC
             return Err((ErrorCode::SIZE, buf));
         }
 
-        if let RadioState::OFF = self.state.get() {
+        if self.state.get() == RadioState::OFF {
             self.radio_initialize();
         }
 
-        buf[MIMIC_PSDU_OFFSET as usize] = (frame_len + radio::MFR_SIZE) as u8;
+        // Insert the PHR which is the PDSU length.
+        buf[radio::PHR_OFFSET] = (frame_len + radio::MFR_SIZE) as u8;
 
         // The tx_buf does not possess static memory. This buffer only
         // temporarily holds a reference to another buffer passed as a function
