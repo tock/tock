@@ -24,11 +24,6 @@ pub trait MacDevice<'a> {
     fn set_transmit_client(&self, client: &'a dyn TxClient);
     /// Sets the receive client of this MAC device
     fn set_receive_client(&self, client: &'a dyn RxClient);
-    /// Sets the secure frame no decrypt receive client of this MAC device
-    fn set_receive_secured_frame_no_decrypt_client(
-        &self,
-        client: &'a dyn SecuredFrameNoDecryptRxClient,
-    );
 
     /// The short 16-bit address of the MAC device
     fn get_address(&self) -> u16;
@@ -129,8 +124,8 @@ pub trait RxClient {
     /// unsecured frames that have passed the incoming security procedure are
     /// exposed to the client.
     ///
-    /// - `buf`: The entire buffer containing the frame, potentially also
-    /// including extra bytes in front used for the physical layer.
+    /// - `buf`: The entire buffer containing the frame, including extra bytes
+    /// in front used for the physical layer.
     /// - `header`: A fully-parsed representation of the MAC header, with the
     /// caveat that the auxiliary security header is still included if the frame
     /// was previously secured.
@@ -140,37 +135,6 @@ pub trait RxClient {
     /// `buf[data_offset..data_offset + data_len]`.
     /// - `data_len`: Length of the data payload
     fn receive<'a>(
-        &self,
-        buf: &'a [u8],
-        header: Header<'a>,
-        lqi: u8,
-        data_offset: usize,
-        data_len: usize,
-    );
-}
-
-/// Trait to be implemented by users of the IEEE 802.15.4 device that wish to
-/// receive frames possessing link layer security that remain secured (i.e.
-/// have not been decrypted). This allows the client to perform decryption
-/// on the frame. The callback is trigger whenever a valid frame is received.
-/// In this context, raw refers to receiving frames without processing the
-/// security of the frame. The SecuredFrameNoDecryptRxClient should not be
-/// used to pass frames to the higher layers of the network stack that expect
-/// unsecured frames.
-pub trait SecuredFrameNoDecryptRxClient {
-    /// When a frame is received, this callback is triggered. The client only
-    /// receives an immutable borrow of the buffer. All frames, regardless of
-    /// their secured state, are exposed to the client.
-    ///
-    /// - `buf`: The entire buffer containing the frame, potentially also
-    /// including extra bytes in front used for the physical layer.
-    /// - `header`: A fully-parsed representation of the MAC header.
-    /// - `lqi`: The link quality indicator of the received frame.
-    /// - `data_offset`: Offset of the data payload relative to
-    /// `buf`, so that the payload of the frame is contained in
-    /// `buf[data_offset..data_offset + data_len]`.
-    /// - `data_len`: Length of the data payload
-    fn receive_secured_frame<'a>(
         &self,
         buf: &'a [u8],
         header: Header<'a>,

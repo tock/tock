@@ -325,7 +325,6 @@ impl<
             ));
         mac_device.set_transmit_client(mux_mac);
         mac_device.set_receive_client(mux_mac);
-        mac_device.set_receive_secured_frame_no_decrypt_client(mux_mac);
 
         let userspace_mac =
             static_buffer
@@ -349,7 +348,6 @@ impl<
         mac_device.set_device_procedure(radio_driver);
         userspace_mac.set_transmit_client(radio_driver);
         userspace_mac.set_receive_client(radio_driver);
-        userspace_mac.set_receive_secured_frame_no_decrypt_client(radio_driver);
         userspace_mac.set_pan(self.pan_id);
         userspace_mac.set_address(self.short_addr);
         userspace_mac.set_address_long(self.long_addr);
