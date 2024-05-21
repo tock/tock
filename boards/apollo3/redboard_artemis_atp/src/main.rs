@@ -231,11 +231,8 @@ unsafe fn setup() -> (
         capsules_core::gpio::DRIVER_NUM,
         components::gpio_component_helper!(
             apollo3::gpio::GpioPin,
-            0 => &peripherals.gpio_port[13],  // A0
-            1 => &peripherals.gpio_port[33],  // A1
-            2 => &peripherals.gpio_port[11],  // A2
-            3 => &peripherals.gpio_port[29],  // A3
-            5 => &peripherals.gpio_port[31]  // A5
+            0 => &peripherals.gpio_port[2],  // D2
+            1 => &peripherals.gpio_port[8],  // D8
         ),
     )
     .finalize(components::gpio_component_static!(apollo3::gpio::GpioPin));
