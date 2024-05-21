@@ -10,9 +10,8 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeabl
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
-use crate::clocks::Stm32f4Clocks;
+use crate::clocks::{phclk, Stm32f4Clocks};
 use crate::nvic;
-use crate::rcc;
 use crate::spi;
 use crate::usart;
 
@@ -1374,7 +1373,7 @@ pub trait StreamClient<'a, DMA: StreamServer<'a>> {
     fn transfer_done(&self, pid: DMA::Peripheral);
 }
 
-struct DmaClock<'a>(rcc::PeripheralClock<'a>);
+struct DmaClock<'a>(phclk::PeripheralClock<'a>);
 
 impl ClockInterface for DmaClock<'_> {
     fn is_enabled(&self) -> bool {
@@ -1546,8 +1545,8 @@ impl<'a> Dma1<'a> {
     pub const fn new(clocks: &'a dyn Stm32f4Clocks) -> Dma1 {
         Dma1 {
             registers: DMA1_BASE,
-            clock: DmaClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::AHB1(rcc::HCLK1::DMA1),
+            clock: DmaClock(phclk::PeripheralClock::new(
+                phclk::PeripheralClockType::AHB1(phclk::HCLK1::DMA1),
                 clocks,
             )),
         }
@@ -1667,8 +1666,8 @@ impl<'a> Dma2<'a> {
     pub const fn new(clocks: &'a dyn Stm32f4Clocks) -> Dma2 {
         Dma2 {
             registers: DMA2_BASE,
-            clock: DmaClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::AHB1(rcc::HCLK1::DMA2),
+            clock: DmaClock(phclk::PeripheralClock::new(
+                phclk::PeripheralClockType::AHB1(phclk::HCLK1::DMA2),
                 clocks,
             )),
         }

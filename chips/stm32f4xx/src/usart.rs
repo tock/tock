@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use crate::clocks::Stm32f4Clocks;
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
@@ -13,8 +12,8 @@ use kernel::utilities::registers::{register_bitfields, ReadWrite};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
+use crate::clocks::{phclk, Stm32f4Clocks};
 use crate::dma;
-use crate::rcc;
 
 /// Universal synchronous asynchronous receiver transmitter
 #[repr(C)]
@@ -216,8 +215,8 @@ impl<'a> Usart<'a, dma::Dma1<'a>> {
     pub fn new_usart2(clocks: &'a dyn Stm32f4Clocks) -> Self {
         Self::new(
             USART2_BASE,
-            UsartClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB1(rcc::PCLK1::USART2),
+            UsartClock(phclk::PeripheralClock::new(
+                phclk::PeripheralClockType::APB1(phclk::PCLK1::USART2),
                 clocks,
             )),
             dma::Dma1Peripheral::USART2_TX,
@@ -228,8 +227,8 @@ impl<'a> Usart<'a, dma::Dma1<'a>> {
     pub fn new_usart3(clocks: &'a dyn Stm32f4Clocks) -> Self {
         Self::new(
             USART3_BASE,
-            UsartClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB1(rcc::PCLK1::USART3),
+            UsartClock(phclk::PeripheralClock::new(
+                phclk::PeripheralClockType::APB1(phclk::PCLK1::USART3),
                 clocks,
             )),
             dma::Dma1Peripheral::USART3_TX,
@@ -242,8 +241,8 @@ impl<'a> Usart<'a, dma::Dma2<'a>> {
     pub fn new_usart1(clocks: &'a dyn Stm32f4Clocks) -> Self {
         Self::new(
             USART1_BASE,
-            UsartClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB2(rcc::PCLK2::USART1),
+            UsartClock(phclk::PeripheralClock::new(
+                phclk::PeripheralClockType::APB2(phclk::PCLK2::USART1),
                 clocks,
             )),
             dma::Dma2Peripheral::USART1_TX,
@@ -722,7 +721,7 @@ impl<'a> dma::StreamClient<'a, dma::Dma2<'a>> for Usart<'a, dma::Dma2<'a>> {
     }
 }
 
-struct UsartClock<'a>(rcc::PeripheralClock<'a>);
+struct UsartClock<'a>(phclk::PeripheralClock<'a>);
 
 impl ClockInterface for UsartClock<'_> {
     fn is_enabled(&self) -> bool {

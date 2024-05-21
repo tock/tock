@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use crate::clocks::clocks::Stm32f4Clocks;
-use crate::rcc;
+use crate::clocks::{phclk, Stm32f4Clocks};
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::bus8080::{Bus8080, BusWidth, Client};
@@ -177,8 +176,8 @@ impl<'a> Fsmc<'a> {
         Self {
             registers: FSMC_BASE,
             bank: bank_addr,
-            clock: FsmcClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::AHB3(rcc::HCLK3::FMC),
+            clock: FsmcClock(phclk::PeripheralClock::new(
+                phclk::PeripheralClockType::AHB3(phclk::HCLK3::FMC),
                 clocks,
             )),
             client: OptionalCell::empty(),
@@ -299,7 +298,7 @@ impl DeferredCallClient for Fsmc<'_> {
     }
 }
 
-struct FsmcClock<'a>(rcc::PeripheralClock<'a>);
+struct FsmcClock<'a>(phclk::PeripheralClock<'a>);
 
 impl ClockInterface for FsmcClock<'_> {
     fn is_enabled(&self) -> bool {

@@ -12,8 +12,7 @@ use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeabl
 use kernel::utilities::registers::{register_bitfields, ReadWrite};
 use kernel::utilities::StaticRef;
 
-use crate::clocks::Stm32f4Clocks;
-use crate::rcc;
+use crate::clocks::{phclk, Stm32f4Clocks};
 
 pub enum I2CSpeed {
     Speed100k,
@@ -214,8 +213,8 @@ impl<'a> I2C<'a> {
     pub fn new(clocks: &'a dyn Stm32f4Clocks) -> Self {
         Self {
             registers: I2C1_BASE,
-            clock: I2CClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB1(rcc::PCLK1::I2C1),
+            clock: I2CClock(phclk::PeripheralClock::new(
+                phclk::PeripheralClockType::APB1(phclk::PCLK1::I2C1),
                 clocks,
             )),
 
@@ -473,7 +472,7 @@ impl<'a> i2c::I2CMaster<'a> for I2C<'a> {
     }
 }
 
-struct I2CClock<'a>(rcc::PeripheralClock<'a>);
+struct I2CClock<'a>(phclk::PeripheralClock<'a>);
 
 impl ClockInterface for I2CClock<'_> {
     fn is_enabled(&self) -> bool {

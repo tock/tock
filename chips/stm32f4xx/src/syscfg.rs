@@ -9,9 +9,8 @@ use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
-use crate::clocks::Stm32f4Clocks;
+use crate::clocks::{phclk, Stm32f4Clocks};
 use crate::gpio;
-use crate::rcc;
 
 /// System configuration controller
 #[repr(C)]
@@ -129,8 +128,8 @@ impl<'a> Syscfg<'a> {
     pub const fn new(clocks: &'a dyn Stm32f4Clocks) -> Self {
         Self {
             registers: SYSCFG_BASE,
-            clock: SyscfgClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB2(rcc::PCLK2::SYSCFG),
+            clock: SyscfgClock(phclk::PeripheralClock::new(
+                phclk::PeripheralClockType::APB2(phclk::PCLK2::SYSCFG),
                 clocks,
             )),
         }
@@ -231,7 +230,7 @@ impl<'a> Syscfg<'a> {
     }
 }
 
-struct SyscfgClock<'a>(rcc::PeripheralClock<'a>);
+struct SyscfgClock<'a>(phclk::PeripheralClock<'a>);
 
 impl ClockInterface for SyscfgClock<'_> {
     fn is_enabled(&self) -> bool {

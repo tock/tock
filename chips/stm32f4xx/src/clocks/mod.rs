@@ -7,6 +7,7 @@
 pub mod clocks;
 pub mod hse;
 pub mod hsi;
+pub mod phclk;
 pub mod pll;
 
 pub use crate::clocks::clocks::tests;

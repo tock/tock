@@ -66,8 +66,10 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Stm32f4xxDefaultPeripherals<'a, ChipSpecs> {
             i2c1: crate::i2c::I2C::new(clocks),
             spi3: crate::spi::Spi::new(
                 crate::spi::SPI3_BASE,
-                crate::spi::SpiClock(crate::rcc::PeripheralClock::new(
-                    crate::rcc::PeripheralClockType::APB1(crate::rcc::PCLK1::SPI3),
+                crate::spi::SpiClock(crate::clocks::phclk::PeripheralClock::new(
+                    crate::clocks::phclk::PeripheralClockType::APB1(
+                        crate::clocks::phclk::PCLK1::SPI3,
+                    ),
                     clocks,
                 )),
                 dma::Dma1Peripheral::SPI3_TX,
