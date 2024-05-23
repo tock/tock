@@ -372,6 +372,24 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
         }
     }
 
+    /// Get the frequency in MHz of the PLL clock from RCC registers instead of using the cached
+    /// value.
+    ///
+    /// # Returns
+    ///
+    /// + [Some]\(frequency_mhz\): if the PLL clock is enabled.
+    /// + [None]: if the PLL clock is disabled.
+    pub fn get_frequency_mhz_no_cache(&self, source_frequency: usize) -> Option<usize> {
+        if self.is_enabled() {
+            let pllm = self.rcc.get_pll_clocks_m_divider() as usize;
+            let plln = self.rcc.get_pll_clock_n_multiplier();
+            let pllp: usize = self.rcc.get_pll_clock_p_divider().into();
+            Some(source_frequency / pllm * plln / pllp)
+        } else {
+            None
+        }
+    }
+
     /// Get the frequency in MHz of the PLL48 clock.
     ///
     /// **NOTE:** If the PLL clock was not configured with a frequency multiple of 48MHz, the

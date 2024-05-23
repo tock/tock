@@ -432,6 +432,27 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
         }
     }
 
+    /// Get the current system clock frequency in MHz from RCC registers instead of the cached
+    /// value. Used for debug only.
+    pub fn _get_sys_clock_frequency_mhz_no_cache(&self) -> usize {
+        match self.get_sys_clock_source() {
+            // These unwraps can't panic because set_sys_clock_frequency ensures that the source is
+            // enabled. Also, Hsi and Pll structs ensure that the clocks can't be disabled when
+            // they are configured as the system clock
+            SysClockSource::HSI => self.hsi.get_frequency_mhz().unwrap(),
+            SysClockSource::HSE => self.hse.get_frequency_mhz().unwrap(),
+            SysClockSource::PLL => {
+                let pll_source_frequency = match self.rcc.get_pll_clocks_source() {
+                    PllSource::HSI => self.hsi.get_frequency_mhz().unwrap(),
+                    PllSource::HSE => self.hse.get_frequency_mhz().unwrap(),
+                };
+                self.pll
+                    .get_frequency_mhz_no_cache(pll_source_frequency)
+                    .unwrap()
+            }
+        }
+    }
+
     /// Set the frequency of the PLL clock.
     ///
     /// # Parameters
@@ -523,12 +544,19 @@ pub trait Stm32f4Clocks {
     /// Get RCC instance
     fn get_rcc(&self) -> &Rcc;
 
+    /// Get current AHB clock (HCLK) frequency in Hz
+    fn get_ahb_frequency(&self) -> usize;
+
     // Extend this to expose additional clock resources
 }
 
 impl<'a, ChipSpecs: ChipSpecsTrait> Stm32f4Clocks for Clocks<'a, ChipSpecs> {
     fn get_rcc(&self) -> &'a Rcc {
         self.rcc
+    }
+
+    fn get_ahb_frequency(&self) -> usize {
+        self.get_ahb_frequency_mhz() * 1_000_000
     }
 }
 

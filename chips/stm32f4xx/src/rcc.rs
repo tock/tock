@@ -730,8 +730,6 @@ pub(crate) const DEFAULT_PLLQ_VALUE: PLLQ = match DEFAULT_PLLM_VALUE {
     PLLM::DivideBy8 => PLLQ::DivideBy8,
 };
 
-const HSI_FREQUENCY: usize = 16_000_000;
-
 pub struct Rcc {
     registers: StaticRef<RccRegisters>,
 }
@@ -806,20 +804,6 @@ impl Rcc {
         system_clock_source == SysClockSource::HSE
             || system_clock_source == SysClockSource::PLL
                 && self.registers.pllcfgr.read(PLLCFGR::PLLSRC) == PllSource::HSE as u32
-    }
-
-    /// Get the current system clock frequency in Hz
-    pub(crate) fn get_sys_clock_frequency(&self) -> usize {
-        //TODO: this should be moved to clocks.rs module which already controls the clock sources
-        // (e.g. sets/gets HSE settings).
-        // However peripherals can currently access Rcc only
-        let src_freq = match self.get_sys_clock_source() {
-            SysClockSource::HSI => HSI_FREQUENCY,
-            SysClockSource::HSE => todo!(),
-            SysClockSource::PLL => self.get_pll_clocks_frequency(),
-        };
-        let prescaler: usize = self.get_ahb_prescaler().into();
-        src_freq / prescaler
     }
 
     /* HSI clock */
@@ -950,18 +934,6 @@ impl Rcc {
     // This method must be called only if the main PLL clock is disabled
     pub(crate) fn set_pll_clock_q_divider(&self, q: PLLQ) {
         self.registers.pllcfgr.modify(PLLCFGR::PLLQ.val(q as u32));
-    }
-
-    // Get the pll frequency in Hz
-    pub(crate) fn get_pll_clocks_frequency(&self) -> usize {
-        let src_freq = match self.get_pll_clocks_source() {
-            PllSource::HSI => HSI_FREQUENCY,
-            PllSource::HSE => todo!(),
-        };
-        let pllm = self.get_pll_clocks_m_divider() as usize;
-        let plln = self.get_pll_clock_n_multiplier();
-        let pllp: usize = self.get_pll_clock_p_divider().into();
-        src_freq / pllm * plln / pllp
     }
 
     /* AHB prescaler */

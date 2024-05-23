@@ -97,7 +97,7 @@ impl<'a> PeripheralClock<'a> {
             }
         }
         let rcc = self.clocks.get_rcc();
-        let hclk_freq = rcc.get_sys_clock_frequency();
+        let hclk_freq = self.clocks.get_ahb_frequency();
         match self.clock {
             PeripheralClockType::AHB1(_)
             | PeripheralClockType::AHB2(_)
