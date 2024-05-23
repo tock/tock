@@ -66,7 +66,7 @@
 use crate::timer::TimerAlarm;
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
-use kernel::hil::radio::{self, PowerClient, RadioChannel, RadioData};
+use kernel::hil::radio::{self, PowerClient, RadioChannel, RadioConfig, RadioData};
 use kernel::hil::time::{Alarm, AlarmClient, Time};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
@@ -1345,9 +1345,7 @@ impl<'a> kernel::hil::radio::RadioData<'a> for Radio<'a> {
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.state.get() == RadioState::OFF {
             return Err((ErrorCode::OFF, buf));
-        } else if self.tx_buf.is_some() {
-            // tx_buf is only occupied when a transmission is underway. This
-            // check insures we do not interrupt an ongoing transmission.
+        } else if self.busy() {
             return Err((ErrorCode::BUSY, buf));
         } else if buf.len() < radio::PSDU_OFFSET + frame_len + radio::MFR_SIZE {
             // Not enough room for CRC
