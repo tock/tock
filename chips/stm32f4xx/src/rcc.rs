@@ -911,7 +911,7 @@ impl Rcc {
         self.registers.pllcfgr.modify(PLLCFGR::PLLM.val(m as u32));
     }
 
-    pub(crate) fn get_pll_clocks_n_multiplier(&self) -> usize {
+    pub(crate) fn get_pll_clock_n_multiplier(&self) -> usize {
         self.registers.pllcfgr.read(PLLCFGR::PLLN) as usize
     }
 
@@ -920,7 +920,7 @@ impl Rcc {
         self.registers.pllcfgr.modify(PLLCFGR::PLLN.val(n as u32));
     }
 
-    pub(crate) fn get_pll_clocks_p_divider(&self) -> PLLP {
+    pub(crate) fn get_pll_clock_p_divider(&self) -> PLLP {
         match self.registers.pllcfgr.read(PLLCFGR::PLLP) {
             0b00 => PLLP::DivideBy2,
             0b01 => PLLP::DivideBy4,
@@ -934,7 +934,7 @@ impl Rcc {
         self.registers.pllcfgr.modify(PLLCFGR::PLLP.val(p as u32));
     }
 
-    pub(crate) fn _get_pll_clocks_q_divider(&self) -> PLLQ {
+    pub(crate) fn _get_pll_clock_q_divider(&self) -> PLLQ {
         match self.registers.pllcfgr.read(PLLCFGR::PLLQ) {
             3 => PLLQ::DivideBy3,
             4 => PLLQ::DivideBy4,
@@ -959,8 +959,8 @@ impl Rcc {
             PllSource::HSE => todo!(),
         };
         let pllm = self.get_pll_clocks_m_divider() as usize;
-        let plln = self.get_pll_clocks_n_multiplier();
-        let pllp: usize = self.get_pll_clocks_p_divider().into();
+        let plln = self.get_pll_clock_n_multiplier();
+        let pllp: usize = self.get_pll_clock_p_divider().into();
         src_freq / pllm * plln / pllp
     }
 
