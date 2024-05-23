@@ -114,7 +114,6 @@ Virtual hardware platforms that are regularly tested as part of the CI.
 | [QEMU RISC-V 32 bit `virt` platform](qemu_rv32_virt/README.md)    | RISC-V RV32IMAC  | QEMU           | custom     | custom                      | Yes (7.2.0)   |
 | [LiteX on Digilent Arty A-7](litex/arty/README.md)                | RISC-V RV32IMC   | LiteX+VexRiscV | custom     | tockloader (flash-file)[^1] | No            |
 | [Verilated LiteX Simulation](litex/sim/README.md)                 | RISC-V RV32IMC   | LiteX+VexRiscv | custom     | tockloader (flash-file)[^1] | No            |
-| [SweRVolf](swervolf/README.md)                                    | RISC-V RV32IMC   | swervolf-eh1   | custom     | tockloader (flash-file)[^1] | No            |
 | [VeeR EL2 simulation](veer_el2_sim/README.md)                     | RISC-V RV32IMC   | VeeR EL2       | custom     | custom                      | No            |
 
 [^1]: Tockloader is not able to interact with this board directly, but

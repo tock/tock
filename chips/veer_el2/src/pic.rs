@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! Platform Level Interrupt Control peripheral driver for SweRV EH1.
+//! Platform Level Interrupt Control peripheral driver for VeeR.
+/* Currently no peripheral that would generate interupts is defined in the reference
+testbench for VeeR EL2, so the Pic is not expected to handle any interrupts. */
 
 use kernel::utilities::cells::VolatileCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};

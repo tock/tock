@@ -15,8 +15,8 @@ use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
 use rv32i::pmp::{simple::SimplePMP, PMPUserMPU};
 use rv32i::syscall::SysCall;
 
-use swerv::eh1_pic::Pic;
-use swerv::eh1_pic::PicRegisters;
+use crate::pic::Pic;
+use crate::pic::PicRegisters;
 
 pub const PIC_BASE: StaticRef<PicRegisters> =
     unsafe { StaticRef::new(0xf00c_0000 as *const PicRegisters) };
@@ -244,7 +244,7 @@ pub unsafe extern "C" fn start_trap_rust() {
 /// mcause is passed in, and this function should correctly handle disabling the
 /// interrupt that fired so that it does not trigger again.
 #[export_name = "_disable_interrupt_trap_rust_from_app"]
-pub extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
+pub unsafe extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
     match mcause::Trap::from(mcause_val as usize) {
         mcause::Trap::Interrupt(interrupt) => unsafe {
             handle_interrupt(interrupt);
