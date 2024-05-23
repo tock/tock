@@ -18,7 +18,8 @@ use nrf52840dk_lib::{self, PROCESSES};
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
+const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
+    capsules_system::process_policies::PanicFaultPolicy {};
 
 /// Main function called after RAM initialized.
 #[no_mangle]

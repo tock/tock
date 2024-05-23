@@ -49,7 +49,7 @@ pub trait BinaryWrite {
 ///     // Nothing left to print, we're done!
 /// }
 /// ```
-pub(crate) struct WriteToBinaryOffsetWrapper<'a> {
+pub struct WriteToBinaryOffsetWrapper<'a> {
     /// Binary writer implementation that is asynchronous and has a fixed sized
     /// buffer.
     binary_writer: &'a mut dyn BinaryWrite,
@@ -65,7 +65,7 @@ pub(crate) struct WriteToBinaryOffsetWrapper<'a> {
 }
 
 impl<'a> WriteToBinaryOffsetWrapper<'a> {
-    pub(crate) fn new(binary_writer: &'a mut dyn BinaryWrite) -> WriteToBinaryOffsetWrapper {
+    pub fn new(binary_writer: &'a mut dyn BinaryWrite) -> WriteToBinaryOffsetWrapper {
         WriteToBinaryOffsetWrapper {
             binary_writer,
             index: 0,
@@ -76,19 +76,19 @@ impl<'a> WriteToBinaryOffsetWrapper<'a> {
 
     /// Set the byte to start printing from on this iteration. Call this before
     /// calling `Write`.
-    pub(crate) fn set_offset(&mut self, offset: usize) {
+    pub fn set_offset(&mut self, offset: usize) {
         self.offset = offset;
     }
 
     /// After printing, get the index we left off on to use as the offset for
     /// the next iteration.
-    pub(crate) fn get_index(&self) -> usize {
+    pub fn get_index(&self) -> usize {
         self.index
     }
 
     /// After printing, check if there is more to print that the binary_writer
     /// did not print.
-    pub(crate) fn bytes_remaining(&self) -> bool {
+    pub fn bytes_remaining(&self) -> bool {
         self.bytes_remaining
     }
 }

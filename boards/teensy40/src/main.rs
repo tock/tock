@@ -35,7 +35,8 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
     [None; NUM_PROCS];
 
 /// What should we do if a process faults?
-const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
+const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
+    capsules_system::process_policies::PanicFaultPolicy {};
 
 /// Teensy 4 platform
 struct Teensy40 {
@@ -149,7 +150,8 @@ unsafe fn create_peripherals() -> &'static mut imxrt1060::chip::Imxrt10xxDefault
 
 type Chip = imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaultPeripherals>;
 static mut CHIP: Option<&'static Chip> = None;
-static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
+static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
+    None;
 
 /// Set the ARM clock frequency to 600MHz
 ///

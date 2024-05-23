@@ -23,7 +23,8 @@ type ScreenDriver = components::screen::ScreenComponentType;
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
+const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
+    capsules_system::process_policies::PanicFaultPolicy {};
 
 struct Platform {
     base: nrf52840dk_lib::Platform,

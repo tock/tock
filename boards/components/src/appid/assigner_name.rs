@@ -11,7 +11,7 @@ use kernel::component::Component;
 macro_rules! appid_assigner_names_component_static {
     () => {{
         kernel::static_buf!(
-            kernel::process_checker::basic::AppIdAssignerNames<fn(&'static str) -> u32>
+            capsules_system::process_checker::basic::AppIdAssignerNames<fn(&'static str) -> u32>
         )
     };};
 }
@@ -26,18 +26,23 @@ impl AppIdAssignerNamesComponent {
 
 impl Component for AppIdAssignerNamesComponent {
     type StaticInput = &'static mut MaybeUninit<
-        kernel::process_checker::basic::AppIdAssignerNames<'static, fn(&'static str) -> u32>,
+        capsules_system::process_checker::basic::AppIdAssignerNames<
+            'static,
+            fn(&'static str) -> u32,
+        >,
     >;
 
-    type Output = &'static kernel::process_checker::basic::AppIdAssignerNames<
+    type Output = &'static capsules_system::process_checker::basic::AppIdAssignerNames<
         'static,
         fn(&'static str) -> u32,
     >;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        s.write(kernel::process_checker::basic::AppIdAssignerNames::new(
-            &((|s| kernel::utilities::helpers::crc32_posix(s.as_bytes()))
-                as fn(&'static str) -> u32),
-        ))
+        s.write(
+            capsules_system::process_checker::basic::AppIdAssignerNames::new(
+                &((|s| kernel::utilities::helpers::crc32_posix(s.as_bytes()))
+                    as fn(&'static str) -> u32),
+            ),
+        )
     }
 }

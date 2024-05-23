@@ -17,3 +17,4 @@ stm32f446re = { path = "../../chips/stm32f446re" }
 
 capsules-core = { path = "../../capsules/core" }
 capsules-extra = { path = "../../capsules/extra" }
+capsules-system = { path = "../../capsules/system" }

@@ -18,3 +18,4 @@ swerv = { path = "../../chips/swerv" }
 
 capsules-core = { path = "../../capsules/core" }
 capsules-extra = { path = "../../capsules/extra" }
+capsules-system = { path = "../../capsules/system" }

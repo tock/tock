@@ -28,12 +28,8 @@ pub use crate::process_loading::load_processes;
 pub use crate::process_loading::ProcessLoadError;
 pub use crate::process_loading::SequentialProcessLoaderMachine;
 pub use crate::process_loading::{ProcessLoadingAsync, ProcessLoadingAsyncClient};
-pub use crate::process_policies::{
-    PanicFaultPolicy, ProcessFaultPolicy, RestartFaultPolicy, RestartWithDebugFaultPolicy,
-    StopFaultPolicy, StopWithDebugFaultPolicy, ThresholdRestartFaultPolicy,
-    ThresholdRestartThenPanicFaultPolicy,
-};
-pub use crate::process_printer::{ProcessPrinter, ProcessPrinterContext, ProcessPrinterText};
+pub use crate::process_policies::ProcessFaultPolicy;
+pub use crate::process_printer::{ProcessPrinter, ProcessPrinterContext};
 pub use crate::process_standard::ProcessStandard;
 
 /// Userspace process identifier.

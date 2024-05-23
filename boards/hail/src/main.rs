@@ -43,7 +43,8 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
     [None; NUM_PROCS];
 
 static mut CHIP: Option<&'static sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> = None;
-static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
+static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
+    None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -484,8 +485,8 @@ unsafe fn start() -> (
 
     // Configure application fault policy
     let fault_policy = static_init!(
-        kernel::process::ThresholdRestartThenPanicFaultPolicy,
-        kernel::process::ThresholdRestartThenPanicFaultPolicy::new(4)
+        capsules_system::process_policies::ThresholdRestartThenPanicFaultPolicy,
+        capsules_system::process_policies::ThresholdRestartThenPanicFaultPolicy::new(4)
     );
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))

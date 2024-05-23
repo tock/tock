@@ -17,3 +17,4 @@ stm32f429zi = { path = "../../chips/stm32f429zi" }
 
 capsules-core = { path = "../../capsules/core" }
 capsules-extra = { path = "../../capsules/extra" }
+capsules-system = { path = "../../capsules/system" }

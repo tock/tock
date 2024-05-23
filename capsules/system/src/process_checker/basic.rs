@@ -6,17 +6,17 @@
 //! to decide whether an application can be loaded. See
 //| the [AppID TRD](../../doc/reference/trd-appid.md).
 
-use crate::deferred_call::{DeferredCall, DeferredCallClient};
-use crate::hil::digest::{ClientData, ClientHash, ClientVerify};
-use crate::hil::digest::{DigestDataVerify, Sha256};
-use crate::process::{Process, ProcessBinary, ShortId};
-use crate::process_checker::CheckResult;
-use crate::process_checker::{AppCredentialsPolicy, AppCredentialsPolicyClient};
-use crate::process_checker::{AppUniqueness, Compress};
-use crate::utilities::cells::OptionalCell;
-use crate::utilities::cells::TakeCell;
-use crate::utilities::leasable_buffer::{SubSlice, SubSliceMut};
-use crate::ErrorCode;
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
+use kernel::hil::digest::{ClientData, ClientHash, ClientVerify};
+use kernel::hil::digest::{DigestDataVerify, Sha256};
+use kernel::process::{Process, ProcessBinary, ShortId};
+use kernel::process_checker::CheckResult;
+use kernel::process_checker::{AppCredentialsPolicy, AppCredentialsPolicyClient};
+use kernel::process_checker::{AppUniqueness, Compress};
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::cells::TakeCell;
+use kernel::utilities::leasable_buffer::{SubSlice, SubSliceMut};
+use kernel::ErrorCode;
 use tock_tbf::types::TbfFooterV2Credentials;
 use tock_tbf::types::TbfFooterV2CredentialsType;
 
