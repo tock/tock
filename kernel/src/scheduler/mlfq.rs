@@ -115,17 +115,14 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
                 // pop procs to back until we get to match
                 loop {
                     let cur = queue.pop_head();
-                    match cur {
-                        Some(node) => {
-                            if core::ptr::eq(node, next.unwrap()) {
-                                queue.push_head(node);
-                                // match! Put back on front
-                                return (next, idx);
-                            } else {
-                                queue.push_tail(node);
-                            }
+                    if let Some(node) = cur {
+                        if core::ptr::eq(node, next.unwrap()) {
+                            queue.push_head(node);
+                            // match! Put back on front
+                            return (next, idx);
+                        } else {
+                            queue.push_tail(node);
                         }
-                        None => {}
                     }
                 }
             }

@@ -46,7 +46,7 @@ impl<C: Chip> Scheduler<C> for PrioritySched {
             .kernel
             .get_process_iter()
             .find(|&proc| proc.ready())
-            .map_or(None, |proc| Some(proc.processid()));
+            .map(|proc| proc.processid());
         self.running.insert(next);
 
         next.map_or(SchedulingDecision::TrySleep, |next| {

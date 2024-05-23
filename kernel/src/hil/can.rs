@@ -111,15 +111,15 @@ pub enum Error {
     SetBySoftware,
 }
 
-impl Into<ErrorCode> for Error {
-    fn into(self) -> ErrorCode {
-        match self {
-            Self::ArbitrationLost => ErrorCode::RESERVE,
-            Self::BusOff => ErrorCode::OFF,
-            Self::Form => ErrorCode::INVAL,
-            Self::BitRecessive | Self::BitDominant => ErrorCode::BUSY,
-            Self::Ack | Self::Transmission => ErrorCode::NOACK,
-            Self::Crc | Self::SetBySoftware | Self::Warning | Self::Passive | Self::Stuff => {
+impl From<Error> for ErrorCode {
+    fn from(val: Error) -> Self {
+        match val {
+            Error::ArbitrationLost => ErrorCode::RESERVE,
+            Error::BusOff => ErrorCode::OFF,
+            Error::Form => ErrorCode::INVAL,
+            Error::BitRecessive | Error::BitDominant => ErrorCode::BUSY,
+            Error::Ack | Error::Transmission => ErrorCode::NOACK,
+            Error::Crc | Error::SetBySoftware | Error::Warning | Error::Passive | Error::Stuff => {
                 ErrorCode::FAIL
             }
         }

@@ -191,10 +191,7 @@ impl ClientData<32_usize> for AppCheckerSha256 {
             Ok(()) => {
                 self.binary.set(data.take());
                 let hash: &'static mut [u8; 32_usize] = self.hash.take().unwrap();
-                match self.hasher.verify(hash) {
-                    Err((e, _)) => panic!("Failed invoke hash verification in process credential checking: {:?}", e),
-                    Ok(()) => {},
-                }
+                if let Err((e, _)) = self.hasher.verify(hash) { panic!("Failed invoke hash verification in process credential checking: {:?}", e) }
             }
         }
     }

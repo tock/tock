@@ -144,14 +144,12 @@ impl ProcessBinary {
         // If this isn't an app (i.e. it is padding) then we can skip it and do
         // not create a `ProcessBinary` object.
         if !tbf_header.is_app() {
-            if config::CONFIG.debug_load_processes {
-                if !tbf_header.is_app() {
-                    debug!(
-                        "Padding in flash={:#010X}-{:#010X}",
-                        app_flash.as_ptr() as usize,
-                        app_flash.as_ptr() as usize + app_flash.len() - 1
-                    );
-                }
+            if config::CONFIG.debug_load_processes && !tbf_header.is_app() {
+                debug!(
+                    "Padding in flash={:#010X}-{:#010X}",
+                    app_flash.as_ptr() as usize,
+                    app_flash.as_ptr() as usize + app_flash.len() - 1
+                );
             }
             // Return no process and the full memory slice we were given.
             return Err(ProcessBinaryError::Padding);
@@ -197,20 +195,18 @@ impl ProcessBinary {
                     version: Some((major, minor)),
                 });
             }
-        } else {
-            if require_kernel_version {
-                // If enforcing the kernel version is requested, and the
-                // `KernelVersion` header is not present, we prevent the process
-                // from loading.
-                if config::CONFIG.debug_load_processes {
-                    debug!(
-                        "WARN process {} has no kernel version header",
-                        tbf_header.get_package_name().unwrap_or("")
-                    );
-                    debug!("Please upgrade to elf2tab >= 0.8.0");
-                }
-                return Err(ProcessBinaryError::IncompatibleKernelVersion { version: None });
+        } else if require_kernel_version {
+            // If enforcing the kernel version is requested, and the
+            // `KernelVersion` header is not present, we prevent the process
+            // from loading.
+            if config::CONFIG.debug_load_processes {
+                debug!(
+                    "WARN process {} has no kernel version header",
+                    tbf_header.get_package_name().unwrap_or("")
+                );
+                debug!("Please upgrade to elf2tab >= 0.8.0");
             }
+            return Err(ProcessBinaryError::IncompatibleKernelVersion { version: None });
         }
 
         let binary_end = tbf_header.get_binary_end() as usize;

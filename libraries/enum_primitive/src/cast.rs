@@ -102,8 +102,6 @@ macro_rules! impl_to_primitive_int {
                 fn to_i16 -> i16;
                 fn to_i32 -> i32;
                 fn to_i64 -> i64;
-                #[cfg(has_i128)]
-                fn to_i128 -> i128;
             }
 
             impl_to_primitive_int_to_uint! { $T:
@@ -112,8 +110,6 @@ macro_rules! impl_to_primitive_int {
                 fn to_u16 -> u16;
                 fn to_u32 -> u32;
                 fn to_u64 -> u64;
-                #[cfg(has_i128)]
-                fn to_u128 -> u128;
             }
         }
     };

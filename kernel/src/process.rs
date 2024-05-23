@@ -125,9 +125,9 @@ impl ProcessId {
     /// index in the processes array.
     pub(crate) fn new(kernel: &'static Kernel, identifier: usize, index: usize) -> ProcessId {
         ProcessId {
-            kernel: kernel,
-            identifier: identifier,
-            index: index,
+            kernel,
+            index,
+            identifier,
         }
     }
 
@@ -143,9 +143,9 @@ impl ProcessId {
         _capability: &dyn capabilities::ExternalProcessCapability,
     ) -> ProcessId {
         ProcessId {
-            kernel: kernel,
-            identifier: identifier,
-            index: index,
+            kernel,
+            index,
+            identifier,
         }
     }
 

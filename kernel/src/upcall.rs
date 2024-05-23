@@ -123,7 +123,7 @@ impl Upcall {
     /// case we could have `process` be an Option and just do the search with
     /// the stored process_id.
     pub(crate) fn schedule(
-        &mut self,
+        &self,
         process: &dyn process::Process,
         r0: usize,
         r1: usize,

@@ -17,7 +17,7 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
         RingBuffer {
             head: 0,
             tail: 0,
-            ring: ring,
+            ring,
         }
     }
 
