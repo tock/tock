@@ -1348,7 +1348,7 @@ impl<'a> kernel::hil::radio::RadioData<'a> for Radio<'a> {
         } else if self.busy() {
             return Err((ErrorCode::BUSY, buf));
         } else if buf.len() < radio::PSDU_OFFSET + frame_len + radio::MFR_SIZE {
-            // Not enough room for CRC
+            // Not enough room for CRC or PHR or reserved byte
             return Err((ErrorCode::SIZE, buf));
         }
 
