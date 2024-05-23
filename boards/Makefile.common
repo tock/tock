@@ -247,11 +247,15 @@ RUSTDOC_FLAGS_TOCK ?= -D warnings
 #   sizes, and makes debugging easier since debug information for the core
 #   library is included in the resulting .elf file. See
 #   https://github.com/tock/tock/pull/2847 for more details.
+# - `optimize_for_size`: Sets a feature flag in the core library that aims to
+#   produce smaller implementations for certain algorithms. See
+#   https://github.com/rust-lang/rust/pull/125011 for more details.
 # - `--document-hidden-items`: Document internal interfaces when building
 #   rustdoc API documentation.
 ifneq ($(USE_STABLE_RUST),1)
   CARGO_FLAGS_TOCK += \
-    -Z build-std=core,compiler_builtins
+    -Z build-std=core,compiler_builtins \
+    -Z build-std-features="core/optimize_for_size"
   RUSTDOC_FLAGS_TOCK += -Z unstable-options --document-hidden-items
 endif
 
@@ -277,7 +281,10 @@ PTMU_ARGS ?=
 
 # `cargo bloat` does not support `-Z build-std`, so we must remove it from cargo
 # flags. See https://github.com/RazrFalcon/cargo-bloat/issues/62.
+# As we aren't building the library we also remove the
+# `-Z build-std-features="core/optimize_for_size"` argument.
 CARGO_FLAGS_TOCK_NO_BUILD_STD := $(filter-out -Z build-std=core,$(CARGO_FLAGS_TOCK))
+CARGO_FLAGS_TOCK_NO_BUILD_STD := $(filter-out -Z build-std-features="core/optimize_for_size",$(CARGO_FLAGS_TOCK))
 
 # Check whether the system already has a sha256sum or shasum application
 # present. If not, use the custom shipped one.
