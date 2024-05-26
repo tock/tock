@@ -54,9 +54,9 @@ macro_rules! uart_mux_component_static {
     ($rx_buffer_len: expr) => {{
         use capsules_core::virtualizers::virtual_uart::MuxUart;
         use kernel::static_buf;
-        let UART_MUX = static_buf!(MuxUart<'static>);
-        let RX_BUF = static_buf!([u8; $rx_buffer_len]);
-        (UART_MUX, RX_BUF)
+        let uart_mux = static_buf!(MuxUart<'static>);
+        let rx_buf = static_buf!([u8; $rx_buffer_len]);
+        (uart_mux, rx_buf)
     }};
     () => {
         $crate::uart_mux_component_static!(capsules_core::virtualizers::virtual_uart::RX_BUF_LEN);
