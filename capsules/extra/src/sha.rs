@@ -7,7 +7,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! let sha = &earlgrey::sha::HMAC;
 //!
 //! let mux_sha = static_init!(MuxSha<'static, lowrisc::sha::Sha>, MuxSha::new(sha));

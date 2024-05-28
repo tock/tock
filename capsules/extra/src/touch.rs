@@ -10,7 +10,7 @@
 //! You need a touch that provides the `hil::touch::Touch` trait.
 //! An optional gesture client and a screen can be connected to it.
 //!
-//! ```rust
+//! ```rust,ignore
 //! let touch =
 //!     components::touch::TouchComponent::new(board_kernel, ts, Some(ts), Some(screen)).finalize(());
 //! ```

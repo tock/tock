@@ -10,7 +10,7 @@
 //! This capsule interfaces with flash and exposes the Tock `tickv::kv_system`
 //! interface to others.
 //!
-//! ```
+//! ```text
 //! +-----------------------+
 //! |  Capsule using K-V    |
 //! +-----------------------+

@@ -10,7 +10,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::{capabilities, static_init};
 //!
 //! struct ProcessMgmtCap;

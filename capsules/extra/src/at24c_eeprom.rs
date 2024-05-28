@@ -19,7 +19,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! let i2cmux = I2CMuxComponent::new(i2c0, None).finalize(components::i2c_mux_component_static!());
 //!
 //! let at24c_buffer = static_init!([u8; 34], [0; 34]);

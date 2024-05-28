@@ -9,7 +9,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! let mux_i2c = components::i2c::I2CMuxComponent::new(&earlgrey::i2c::I2C)
 //!     .finalize(components::i2c_mux_component_helper!());
 //!

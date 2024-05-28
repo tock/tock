@@ -67,7 +67,7 @@
 //! You need a device that provides the `kernel::BleAdvertisementDriver` trait along with a virtual
 //! timer to perform events and not block the entire kernel
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //! # use capsules::virtual_alarm::VirtualMuxAlarm;
 //!

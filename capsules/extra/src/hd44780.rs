@@ -27,7 +27,7 @@
 
 //! Usage
 //! -----
-//! ```rust
+//! ```rust,ignore
 //! let lcd = components::hd44780::HD44780Component::new(mux_alarm).finalize(
 //!     components::hd44780_component_helper!(
 //!         stm32f429zi::tim2::Tim2,

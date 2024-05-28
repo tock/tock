@@ -19,7 +19,7 @@
 //! `capsules::ieee802154::mac::Mac`. Suppose we have such an implementation of type
 //! `XMacDevice`.
 //!
-//! ```rust
+//! ```rust,ignore
 //! let xmac: &XMacDevice = /* ... */;
 //! let mac_device = static_init!(
 //!     capsules::ieee802154::mac::Framer<'static, XMacDevice>,
@@ -32,7 +32,7 @@
 //! The `mac_device` device is now set up. Users of the MAC device can now
 //! configure the underlying radio, prepare and send frames:
 //!
-//! ```rust
+//! ```rust,ignore
 //! mac_device.set_pan(0xABCD);
 //! mac_device.set_address(0x1008);
 //! mac_device.config_commit();
@@ -57,7 +57,7 @@
 //! You should also be able to set up the userspace driver for receiving/sending
 //! 802.15.4 frames:
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! let radio_capsule = static_init!(

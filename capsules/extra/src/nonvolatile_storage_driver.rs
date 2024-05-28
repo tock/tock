@@ -40,7 +40,7 @@
 //!
 //! Example instantiation:
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! let nonvolatile_storage = static_init!(

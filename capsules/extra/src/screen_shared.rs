@@ -10,7 +10,7 @@
 //! Boards should create an array of `AppScreenRegion` objects that assign apps
 //! to specific regions (frames) within the screen.
 //!
-//! ```
+//! ```rust,ignore
 //! AppScreenRegion {
 //!     app_id: kernel::process:ShortId::new(id),
 //!     frame: Frame {

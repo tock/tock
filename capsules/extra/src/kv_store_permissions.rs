@@ -6,7 +6,7 @@
 //!
 //! This capsule provides a KV interface with permissions and access control.
 //!
-//! ```
+//! ```rust,ignore
 //! +-----------------------+
 //! |  Capsule using K-V    |
 //! +-----------------------+

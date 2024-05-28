@@ -36,7 +36,7 @@
 //! a `kernel::hil::time::Alarm`, and a `kernel::hil::rng::Rng` device, the
 //! necessary modifications to the board configuration are shown below for `imix`s:
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! // main.rs

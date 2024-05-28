@@ -41,7 +41,7 @@
 //!
 //! You need a device that provides the `hil::sensors::HumidityDriver` trait.
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! let humidity = static_init!(

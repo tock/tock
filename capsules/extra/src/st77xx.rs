@@ -14,7 +14,7 @@
 //!
 //! SPI example
 //!
-//! ```rust
+//! ```rust,ignore
 //! let tft = components::st77xx::ST77XXComponent::new(mux_alarm,
 //!                                                    bus,
 //!                                                    Some(&nrf52840::gpio::PORT[GPIO_D3]),

@@ -17,7 +17,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! let apds9960_i2c = static_init!(
 //!    capsules::virtual_i2c::I2CDevice,
 //!    capsules::virtual_i2c::I2CDevice::new(sensors_i2c_bus, 0x39)

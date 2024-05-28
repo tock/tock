@@ -25,7 +25,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! let adc_channels = static_init!(
@@ -40,13 +40,13 @@
 //!     ]
 //! );
 //! let adc = static_init!(
-//!     capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
-//!     capsules::adc::AdcDedicated::new(
+//!     capsules_core::adc::AdcDedicated<'static, sam4l::adc::Adc>,
+//!     capsules_core::adc::AdcDedicated::new(
 //!         &mut sam4l::adc::ADC0,
 //!         adc_channels,
-//!         &mut capsules::adc::ADC_BUFFER1,
-//!         &mut capsules::adc::ADC_BUFFER2,
-//!         &mut capsules::adc::ADC_BUFFER3
+//!         &mut capsules_core::adc::ADC_BUFFER1,
+//!         &mut capsules_core::adc::ADC_BUFFER2,
+//!         &mut capsules_core::adc::ADC_BUFFER3
 //!     )
 //! );
 //! sam4l::adc::ADC0.set_client(adc);

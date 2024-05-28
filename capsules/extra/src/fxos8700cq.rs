@@ -12,7 +12,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! let fxos8700_i2c = static_init!(I2CDevice, I2CDevice::new(i2c_bus, 0x1e));

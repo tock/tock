@@ -16,7 +16,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! let mux_i2c = components::i2c::I2CMuxComponent::new(&stm32f3xx::i2c::I2C1)
 //!     .finalize(components::i2c_mux_component_helper!());
 //!
@@ -36,7 +36,7 @@
 //!
 //! NideDof Example
 //!
-//! ```rust
+//! ```rust,ignore
 //! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 //! let grant_ninedof = board_kernel.create_grant(&grant_cap);
 //!
@@ -59,7 +59,7 @@
 //!
 //! Temperature Example
 //!
-//! ```rust
+//! ```rust,ignore
 //! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 //! let grant_temp = board_kernel.create_grant(&grant_cap);
 //!

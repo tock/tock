@@ -14,7 +14,7 @@
 //!
 //! Alternatively, a low-level way of using the capsule is as follows.
 //!
-//! ```rust
+//! ```rust,ignore
 //! let panic_button = static_init!(
 //!     PanicButton,
 //!     PanicButton::new(

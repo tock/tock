@@ -13,7 +13,7 @@
 //! the USBC), as well as a `Grant` for managing application requests.  For
 //! example:
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! // Configure the USB controller

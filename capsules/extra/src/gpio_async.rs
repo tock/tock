@@ -11,7 +11,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! // Generate a list of ports to group into one userspace driver.

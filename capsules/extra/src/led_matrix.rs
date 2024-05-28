@@ -7,7 +7,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! let led_matrix = components::led_matrix_component_helper!(
 //!     nrf52833::gpio::GPIOPin,
 //!     nrf52::rtc::Rtc<'static>,
