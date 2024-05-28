@@ -357,3 +357,72 @@ impl<
         (radio_driver, mux_mac)
     }
 }
+
+// IEEE 802.15.4 RAW DRIVER
+
+// Setup static space for the objects.
+#[macro_export]
+macro_rules! ieee802154_raw_component_static {
+    ($R:ty $(,)?) => {{
+        let radio_driver =
+            kernel::static_buf!(capsules_extra::ieee802154::phy_driver::RadioDriver<$R>);
+        let tx_buffer = kernel::static_buf!([u8; kernel::hil::radio::MAX_BUF_SIZE]);
+        let rx_buffer = kernel::static_buf!([u8; kernel::hil::radio::MAX_BUF_SIZE]);
+
+        (radio_driver, tx_buffer, rx_buffer)
+    };};
+}
+
+pub type Ieee802154RawComponentType<R> =
+    capsules_extra::ieee802154::phy_driver::RadioDriver<'static, R>;
+
+pub struct Ieee802154RawComponent<R: 'static + kernel::hil::radio::Radio<'static>> {
+    board_kernel: &'static kernel::Kernel,
+    driver_num: usize,
+    radio: &'static R,
+}
+
+impl<R: 'static + kernel::hil::radio::Radio<'static>> Ieee802154RawComponent<R> {
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        driver_num: usize,
+        radio: &'static R,
+    ) -> Self {
+        Self {
+            board_kernel,
+            driver_num,
+            radio,
+        }
+    }
+}
+
+impl<R: 'static + kernel::hil::radio::Radio<'static>> Component for Ieee802154RawComponent<R> {
+    type StaticInput = (
+        &'static mut MaybeUninit<capsules_extra::ieee802154::phy_driver::RadioDriver<'static, R>>,
+        &'static mut MaybeUninit<[u8; radio::MAX_BUF_SIZE]>,
+        &'static mut MaybeUninit<[u8; radio::MAX_BUF_SIZE]>,
+    );
+    type Output = &'static capsules_extra::ieee802154::phy_driver::RadioDriver<'static, R>;
+
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+
+        let tx_buffer = static_buffer.1.write([0; MAX_BUF_SIZE]);
+        let radio_rx_buf = static_buffer.2.write([0; radio::MAX_BUF_SIZE]);
+
+        let radio_driver =
+            static_buffer
+                .0
+                .write(capsules_extra::ieee802154::phy_driver::RadioDriver::new(
+                    self.radio,
+                    self.board_kernel.create_grant(self.driver_num, &grant_cap),
+                    tx_buffer,
+                ));
+
+        self.radio.set_transmit_client(radio_driver);
+        self.radio.set_receive_client(radio_driver);
+        self.radio.set_receive_buffer(radio_rx_buf);
+
+        radio_driver
+    }
+}
