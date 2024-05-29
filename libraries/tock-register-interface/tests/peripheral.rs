@@ -10,7 +10,7 @@
 ::tock_registers::peripheral! {
     #[cfg(any())]
     CfgNoCompile {
-        0x0 => should_not_compile: u8(DoesNotExist) {},
+        0x0 => should_not_compile: DoesNotExist {},
     }
 }
 
@@ -18,7 +18,7 @@
 ::tock_registers::peripheral! {
     CfgNoField {
         #[cfg(any())]
-        0x0 => should_not_compile: u8(DoesNotExist) {},
+        0x0 => should_not_compile: DoesNotExist {},
     }
 }
 

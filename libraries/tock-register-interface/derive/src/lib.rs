@@ -76,38 +76,9 @@ impl FieldContents {
 #[cfg_attr(test, derive(Debug, PartialEq))]
 struct Register {
     pub data_type: Type,
-    pub long_names: LongNames,
     pub name: Ident,
     pub read: Option<Safety>,
     pub write: Option<Safety>,
-}
-
-#[cfg_attr(test, derive(Debug, PartialEq))]
-enum LongNames {
-    Single(Type),
-    Aliased(Aliased),
-}
-
-impl LongNames {
-    pub fn read(&self) -> &Type {
-        match self {
-            LongNames::Single(name) => name,
-            LongNames::Aliased(Aliased { read, .. }) => read,
-        }
-    }
-
-    pub fn write(&self) -> &Type {
-        match self {
-            LongNames::Single(name) => name,
-            LongNames::Aliased(Aliased { write, .. }) => write,
-        }
-    }
-}
-
-#[cfg_attr(test, derive(Debug, PartialEq))]
-struct Aliased {
-    pub read: Type,
-    pub write: Type,
 }
 
 #[cfg_attr(test, derive(Debug, PartialEq))]

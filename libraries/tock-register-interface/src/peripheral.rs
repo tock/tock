@@ -39,27 +39,27 @@
 /// #[allow(non_camel_case_types)]
 /// trait Foo {
 ///     type status<'s>: tock_registers::Register<DataType = u16>
-///         + tock_registers::Read<LongName = ()>
+///         + tock_registers::Read
 ///     where
 ///         Self: 's;
 ///     fn status(&self) -> Self::status<'_>;
 ///
 ///     type ctrl<'s>: tock_registers::Register<DataType = u16>
-///         + tock_registers::Read<LongName = ()>
-///         + tock_registers::Write<LongName = ()>
+///         + tock_registers::Read
+///         + tock_registers::Write
 ///     where
 ///         Self: 's;
 ///     fn ctrl(&self) -> Self::ctrl<'_>;
 ///
 ///     type transmit<'s>: tock_registers::Register<DataType = u8>
-///         + tock_registers::Write<LongName = ()>
+///         + tock_registers::Write
 ///     where
 ///         Self: 's;
 ///     fn transmit(&self) -> Self::transmit<'_>;
 ///
 ///     type leds<'s>: tock_registers::Register<DataType = [u8; 2]>
-///         + tock_registers::Read<LongName = ()>
-///         + tock_registers::Write<LongName = ()>
+///         + tock_registers::Read
+///         + tock_registers::Write
 ///     where
 ///         Self: 's;
 ///     fn leds(&self) -> Self::leds<'_>;
@@ -73,55 +73,63 @@
 /// impl<P: tock_registers::MmioPointer> Foo for RealFoo<P> { ... }
 /// ```
 ///
-/// # Registers with bitfields (LongNames)
-/// Registers can have LongNames, which specify the values of bitfields they
-/// contain:
+/// # Registers with bitfields (RegisterLongNames)
+/// Register data types can have bitfields:
 /// ```ignore
-/// tock_registers::register_bitfields![u32,
+/// use tock_registers::{Aliased, peripheral, register_bitfields};
+/// register_bitfields![u32,
 ///     Control [ ... ]
 ///     Pin [ ... ]
 ///     Status [ ... ]
 ///     Trigger [ ... ]
 /// ];
-/// tock_registers::peripheral! {
+/// peripheral! {
 ///     Foo {
-///         // A bitfield is specified by putting the bitfield type in parenthesis
-///         // after the register's data type:
-///         0x0 => control: u32(Control::Register) { Write },
+///         0x0 => control: Control::Register { Write },
 ///
 ///         // Array registers can have bitfields as well. The bitfield applies to
 ///         // each register in the array.
-///         0x4 => pins: [u8; 4](Pin::Register) { Read, Write },
+///         0x4 => pins: [Pin::Register; 4] { Read, Write },
 ///
 ///         // Registers can have different bitfields for read operations than for
-///         // write operations. In that case, specify the register's LongName on
-///         // the operation rather than the
-///         0x8 => aliased: u32 { Read(Status::Register), Write(Trigger::Register) },
+///         // write operations. In that case, specify the type as
+///         // Aliased<read bitfield, write bitfield>
+///         0x8 => aliased: Aliased<Status::Register, Trigger::Register> { Read, Write },
+///
+///         // Array registers can also be aliased:
+///         0xc => motors: [Aliased<Status::Register, Trigger::Register>; 4] { Read, Write },
 ///     }
 /// }
 /// ```
-/// Specifying bitfields changes the LongNames in the generated trait:
+/// The bitfields are encoded in the `DataType` for each register:
 /// ```ignore
 /// trait Foo {
-///     type control<'s> = tock_registers::Register<DataType = u32>
-///         + tock_registers::Write<LongName = Control::Register>
+///     type control<'s> =
+///         tock_registers::Register<DataType = Control::Register>
+///         + tock_registers::Write
 ///     where
 ///         Self: 's;
 ///     fn control(&self) -> Self::control<'_>;
 ///
-///     type pins<'s> = tock_registers::Register<DataType = [u8; 4]>
-///         + tock_registers::Read<LongName = Pins::Register>
-///         + tock_registers::Write<LongName = Pins::Register>
+///     type pins<'s> = tock_registers::Register<DataType = [Pin::Register; 4]>
+///         + tock_registers::Read + tock_registers::Write
 ///     where
 ///         Self: 's;
 ///     fn pins(&self) -> Self::pins<'_>;
 ///
-///     type aliased<'s> = tock_registers::Register<DataType = u32>
-///         + tock_registers::Read<LongName = Status::Register>
-///         + tock_registers::Write<LongName = Trigger::Register>
+///     type aliased<'s> =
+///         tock_registers::Register<DataType = Aliased<Status::Register, Trigger::Register>>
+///         + tock_registers::Read + tock_registers::Write
 ///     where
 ///         Self: 's;
 ///     fn aliased(&self) -> Self::aliased<'_>;
+///
+///     type motors<'s> =
+///         tock_registers::Register<DataType = [Aliased<Status::Register, Trigger::Register>; 4]>
+///         + tock_registers::Read + tock_registers::Write
+///     where
+///         Self: 's;
+///     fn motors(&self) -> Self::motors<'_>;
 /// }
 /// ```
 ///
@@ -228,8 +236,8 @@
 ///     }
 /// }
 /// ```
-/// These registers implement the [`UnsafeRead`] and [`UnsafeWrite`] traits
-/// instead of their safe equivalents.
+/// These registers implement the `UnsafeRead` and `UnsafeWrite` traits instead
+/// of their safe equivalents.
 ///
 /// # Doc comments and `cfg` attributes
 /// Peripheral declarations can have documentation comments and `cfg` attributes:

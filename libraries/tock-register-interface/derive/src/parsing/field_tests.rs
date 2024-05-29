@@ -6,9 +6,9 @@
 use crate::parsing::field::ParsedField;
 use crate::parsing::{
     assert_next_contains, MULTIPLE_SAME_OP, NOT_AN_OFFSET, NOT_A_DATA_TYPE, NOT_A_NAME,
-    OP_LONG_NAME_SINGLE_OP, SHARED_AND_OP_LONG_NAME, UNKNOWN_ATTRIBUTE, UNKNOWN_OP,
+    UNKNOWN_ATTRIBUTE, UNKNOWN_OP,
 };
-use crate::{Aliased, Field, FieldContents, LongNames, Register, Safety};
+use crate::{Field, FieldContents, Register, Safety};
 use pretty_assertions::assert_eq;
 use quote::quote;
 use syn::{parse2, parse_quote};
@@ -16,7 +16,7 @@ use syn::{parse2, parse_quote};
 #[test]
 fn aliased() {
     let ParsedField(result) = parse_quote! {
-        _ => ctrl: u8 { Read(Ctrl1), Write(Ctrl2) }
+        _ => ctrl: Aliased<Ctrl1, Ctrl2> { Read, Write }
     };
     assert_eq!(
         result.expect("parsing failed"),
@@ -24,11 +24,7 @@ fn aliased() {
             cfgs: vec![],
             comments: vec![],
             contents: FieldContents::Register(Register {
-                data_type: parse_quote![u8],
-                long_names: LongNames::Aliased(Aliased {
-                    read: parse_quote![Ctrl1],
-                    write: parse_quote![Ctrl2]
-                }),
+                data_type: parse_quote![Aliased<Ctrl1, Ctrl2>],
                 name: parse_quote![ctrl],
                 read: Some(Safety::Safe(parse_quote![Read])),
                 write: Some(Safety::Safe(parse_quote![Write])),
@@ -41,7 +37,7 @@ fn aliased() {
 #[test]
 fn aliased_unsafe_read() {
     let ParsedField(result) = parse_quote! {
-        _ => ctrl: u8 { UnsafeRead, Write(Ctrl) }
+        _ => ctrl: Aliased<u8, Ctrl> { UnsafeRead, Write }
     };
     assert_eq!(
         result.expect("parsing failed"),
@@ -49,11 +45,7 @@ fn aliased_unsafe_read() {
             cfgs: vec![],
             comments: vec![],
             contents: FieldContents::Register(Register {
-                data_type: parse_quote![u8],
-                long_names: LongNames::Aliased(Aliased {
-                    read: parse_quote![()],
-                    write: parse_quote![Ctrl]
-                }),
+                data_type: parse_quote![Aliased<u8, Ctrl>],
                 name: parse_quote![ctrl],
                 read: Some(Safety::Unsafe(parse_quote![UnsafeRead])),
                 write: Some(Safety::Safe(parse_quote![Write])),
@@ -66,7 +58,7 @@ fn aliased_unsafe_read() {
 #[test]
 fn aliased_unsafe_write() {
     let ParsedField(result) = parse_quote! {
-        _ => ctrl: u8 { Read(Ctrl), UnsafeWrite }
+        _ => ctrl: Aliased<Ctrl, u8> { Read, UnsafeWrite }
     };
     assert_eq!(
         result.expect("parsing failed"),
@@ -74,11 +66,7 @@ fn aliased_unsafe_write() {
             cfgs: vec![],
             comments: vec![],
             contents: FieldContents::Register(Register {
-                data_type: parse_quote![u8],
-                long_names: LongNames::Aliased(Aliased {
-                    read: parse_quote![Ctrl],
-                    write: parse_quote![()]
-                }),
+                data_type: parse_quote![Aliased<Ctrl, u8>],
                 name: parse_quote![ctrl],
                 read: Some(Safety::Safe(parse_quote![Read])),
                 write: Some(Safety::Unsafe(parse_quote![UnsafeWrite])),
@@ -164,31 +152,16 @@ fn bad_name() {
 }
 
 #[test]
-fn bad_shared_long_name() {
-    // Add a bad attr to confirm that prior errors are included.
-    let iter = &mut parse2::<ParsedField>(quote! {
-        #[unknown_attr]
-        _ => a: u32(1=2) {}
-    })
-    .expect_err("parsing should have failed")
-    .into_iter();
-    assert_next_contains(iter, UNKNOWN_ATTRIBUTE);
-    assert_next_contains(iter, NOT_A_DATA_TYPE);
-    assert!(iter.next().is_none());
-}
-
-#[test]
 fn many_errors_register() {
     let ParsedField(result) = parse_quote! {
         #[msg = "unknown attribute 1"]
         #[unknown_attr_2]
-        _ => ctrl: u32(Ctrl) { Read(Ctrl), UnknownOp }
+        _ => ctrl: Ctrl { Read, UnknownOp }
     };
     let iter = &mut result.expect_err("parsing should have failed").into_iter();
     assert_next_contains(iter, UNKNOWN_ATTRIBUTE);
     assert_next_contains(iter, UNKNOWN_ATTRIBUTE);
     assert_next_contains(iter, UNKNOWN_OP);
-    assert_next_contains(iter, OP_LONG_NAME_SINGLE_OP);
     assert!(iter.next().is_none());
 }
 
@@ -204,7 +177,6 @@ fn no_long_name() {
             comments: vec![],
             contents: FieldContents::Register(Register {
                 data_type: parse_quote![u8],
-                long_names: LongNames::Single(parse_quote![()]),
                 name: parse_quote![ctrl],
                 read: Some(Safety::Safe(parse_quote![Read])),
                 write: Some(Safety::Safe(parse_quote![Write])),
@@ -212,14 +184,6 @@ fn no_long_name() {
             offset: None,
         }
     );
-}
-
-#[test]
-fn op_long_name_single_op() {
-    let ParsedField(result) = parse_quote![_ => ctrl: u32 { Read(Ctrl) }];
-    let iter = &mut result.expect_err("no errors reported").into_iter();
-    assert_next_contains(iter, OP_LONG_NAME_SINGLE_OP);
-    assert!(iter.next().is_none());
 }
 
 #[test]
@@ -255,7 +219,7 @@ fn register() {
         #[cfg(feature = "a")]
         /// Doc comment 2
         #[cfg(not(feature = "b"))]
-        0x7 => ctrl: [u8; 4](Ctrl) { Read, UnsafeWrite }
+        0x7 => ctrl: [Ctrl; 4] { Read, UnsafeWrite }
     };
     assert_eq!(
         result.expect("parsing failed"),
@@ -269,8 +233,7 @@ fn register() {
                 parse_quote![#[doc = r" Doc comment 2"]]
             ],
             contents: FieldContents::Register(Register {
-                data_type: parse_quote![[u8; 4]],
-                long_names: LongNames::Single(parse_quote![Ctrl]),
+                data_type: parse_quote![[Ctrl; 4]],
                 name: parse_quote![ctrl],
                 read: Some(Safety::Safe(parse_quote![Read])),
                 write: Some(Safety::Unsafe(parse_quote![UnsafeWrite])),
@@ -287,14 +250,6 @@ fn register_no_ops() {
         .into_iter();
     assert_next_contains(iter, UNKNOWN_ATTRIBUTE);
     assert_next_contains(iter, "expected curly braces");
-    assert!(iter.next().is_none());
-}
-
-#[test]
-fn shared_and_op_long_name() {
-    let ParsedField(result) = parse_quote![_ => ctrl: u32(Ctrl) { Read(Ctrl), Write }];
-    let iter = &mut result.expect_err("no errors reported").into_iter();
-    assert_next_contains(iter, SHARED_AND_OP_LONG_NAME);
     assert!(iter.next().is_none());
 }
 
