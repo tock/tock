@@ -3,7 +3,7 @@
 // Copyright Tock Contributors 2024.
 // Copyright Google LLC 2024.
 
-use crate::{ArrayDataType, UIntLike};
+use crate::{ArrayDataType, DataType, ScalarDataType};
 
 mod read;
 mod write;
@@ -17,7 +17,7 @@ pub use write::Write;
 ///
 /// Registers are further divided into `ArrayRegister`s and `ScalarRegister`s.
 pub trait Register: Copy {
-    type DataType;
+    type DataType: DataType;
 }
 
 /// A register that can be read, but which is not memory-safe to read.
@@ -25,9 +25,9 @@ pub trait UnsafeRead: Register {
     /// # Safety
     /// Reading this register has hardware-specific safety requirements which
     /// the caller must comply with.
-    unsafe fn read(self) -> Self::DataType
+    unsafe fn read(self) -> <Self::DataType as DataType>::Value
     where
-        Self::DataType: UIntLike;
+        Self::DataType: ScalarDataType;
 
     /// Read from an unsafe array register. Instead of using `read_at_unchecked`
     /// directly, callers are encouraged to call `get()` to get an
@@ -37,7 +37,7 @@ pub trait UnsafeRead: Register {
     /// `index` must be less than `Self::LEN`.
     /// Reading this register has hardware-specific safety requirements which
     /// the caller must comply with.
-    unsafe fn read_at_unchecked(self, index: usize) -> <Self::DataType as ArrayDataType>::Element
+    unsafe fn read_at_unchecked(self, index: usize) -> <Self::DataType as DataType>::Value
     where
         Self::DataType: ArrayDataType;
 }
@@ -47,9 +47,9 @@ pub trait UnsafeWrite: Register {
     /// # Safety
     /// Writing this register has hardware-specific safety requirements which
     /// the caller must comply with.
-    unsafe fn write(self, value: Self::DataType)
+    unsafe fn write(self, value: <Self::DataType as DataType>::Value)
     where
-        Self::DataType: UIntLike;
+        Self::DataType: ScalarDataType;
 
     /// Write to an unsafe array register. Instead of using `write_at_unchecked`
     /// directly, callers are encouraged to call `get()` to get an
@@ -59,10 +59,7 @@ pub trait UnsafeWrite: Register {
     /// `index` must be less than `Self::LEN`.
     /// Writing this register has hardware-specific safety requirements which
     /// the caller must comply with.
-    unsafe fn write_at_unchecked(
-        self,
-        index: usize,
-        value: <Self::DataType as ArrayDataType>::Element,
-    ) where
+    unsafe fn write_at_unchecked(self, index: usize, value: <Self::DataType as DataType>::Value)
+    where
         Self::DataType: ArrayDataType;
 }

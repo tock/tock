@@ -16,18 +16,16 @@ An MMIO peripheral is defined using the `peripheral!` macro:
 tock_registers::peripheral! {
     /// Documentation for `Registers`.
     Registers {
-        // Control register: read-write. `u8` specifies the data type of the
-        // memory-mapped register, and the `Control` parameter specifies how
-        // bitfields within the register should be accessed.
-        0x000 => cr: u8(Control::Register) { Read, Write },
+        // Control register: read-write. Here, `Control` is a bitfield defined
+        // using the register_bitfields! macro.
+        0x000 => cr: Control::Register { Read, Write },
 
         // Status register: read-only. Registers can have documentation
         // comments, like:
         /// Status register
-        0x001 => s: u8(Status::Register) { Read },
+        0x001 => s: Status::Register { Read },
 
-        // Registers can have different sizes. The bitfield parameter is
-        // optional:
+        // Registers can have different sizes, and may have primitive types.
         0x002 => byte0: u8 { Read, Write },
         0x003 => byte1: u8 { Read, Write },
         0x004 => short: u16 { Read, Write },
@@ -44,7 +42,7 @@ tock_registers::peripheral! {
         0x00C => gpio_pins: [u32; 4] { Read, Write },
 
         // Array registers can have bitfields as well
-        0x01C => port_ctrl: [u8; 4](PortCtrl::Register) { Read, Write },
+        0x01C => port_ctrl: [PortCtrl::Register; 4] { Read, Write },
     }
 }
 ```
@@ -92,7 +90,7 @@ struct Driver<R: Registers> {
 // Unit tests will provide:
 struct Fake { ... }
 impl Registers for Fake {
-    type cr<'s> = tock_registers::FakeRegister<'s, u8, Control::Register,
+    type cr<'s> = tock_registers::FakeRegister<'s, Control::Register,
             tock_registers::Safe, tock_registers::Safe> where Self: 's;
     fn cr(&self) => Self::cr<'_> {
         tock_registers::FakeRegister::with_data(self)
@@ -187,7 +185,7 @@ peripheral definition:
 tock_registers::peripheral! {
     Registers {
         0x0 => a: u8 { Read, Write },
-        0x1 => b: u32(Ctrl::Register) { Read, Write },
+        0x1 => b: Ctrl::Register { Read, Write },
     }
 }
 ```
@@ -197,13 +195,13 @@ tock_registers::peripheral! {
 ```rust
 trait Registers {
     type a<'s>: tock_registers::Register<DataType = u8> +
-            tock_registers::Read<LongName = ()> +
-            tock_registers::Write<LongName = ()> where Self: 's;
+            tock_registers::Read +
+            tock_registers::Write where Self: 's;
     fn a(&self) -> Self::a<'_>;
 
-    type b<'s>: tock_registers::Register<DataType = u32> +
-            tock_registers::Read<LongName = Ctrl::Register> +
-            tock_registers::Write<LongName = Ctrl::Register> where Self: 's;
+    type b<'s>: tock_registers::Register<DataType = Ctrl::Register> +
+            tock_registers::Read +
+            tock_registers::Write where Self: 's;
     fn b(&self) -> Self::b<'_>;
 }
 
@@ -214,7 +212,6 @@ impl<M: ...> Registers for RealRegisters<M> {
         's,
         M,
         u8,
-        (),
         tock_registers::Safe,
         tock_registers::Safe,
     >;
@@ -223,7 +220,6 @@ impl<M: ...> Registers for RealRegisters<M> {
     type b<'s> = tock_registers::RealRegister<
         's,
         M,
-        u32,
         Ctrl::Register,
         tock_registers::Safe,
         tock_registers::Safe,
@@ -232,7 +228,7 @@ impl<M: ...> Registers for RealRegisters<M> {
 }
 ```
 
-In short: all registers have a `Register<...>` bound. If a register as `Read`,
+In short: all registers have a `Register<...>` bound. If a register is `Read`,
 `Write`, `UnsafeRead`, and/or `UnsafeWrite`, then it will have corresponding
 trait bounds.
 
@@ -243,10 +239,8 @@ Assuming we have defined bitfields as in the previous section, and the following
 ```rust
 tock_registers::peripheral! {
     Registers {
-        // Bitfields are specified by putting them in parenthesis after the
-        // register's data type.
-        0x000 => cr: u8(Control::Register) { Read, Write },
-        0x001 => s: u8(Status::Register) { Read },
+        0x000 => cr: Control::Register { Read, Write },
+        0x001 => s: Status::Register { Read },
         0x002 => byte0: u8 { Read, Write },
         0x003 => byte1: u8 { Read, Write },
         0x004 => short: u16 { Read, Write },
@@ -444,15 +438,11 @@ There are several related names in the register definitions. Below is a
 description of the naming convention for each:
 
 ```rust
-use tock_registers::registers::ReadWrite;
-
-#[repr(C)]
-struct Registers {
 tock_registers::peripheral! {
     Registers {
         // The register name in the struct should be a lowercase version of the
         // register abbreviation, as written in the datasheet:
-        0x0 => cr: u8(Control::Register) { Read, Write },
+        0x0 => cr: Control::Register { Read, Write },
     }
 }
 

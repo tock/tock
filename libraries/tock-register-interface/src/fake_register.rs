@@ -4,25 +4,23 @@
 // Copyright Google LLC 2024.
 
 use crate::{
-    Access, ArrayDataType, LongNames, NoAccess, OutOfBounds, Register, Safe, UIntLike, Unsafe,
+    Access, ArrayDataType, DataType, NoAccess, OutOfBounds, Register, Safe, ScalarDataType, Unsafe,
     UnsafeRead,
 };
-use core::marker::PhantomData;
 
 #[allow(private_bounds)]
-pub struct FakeRegister<Data: Copy, DT, LN: LongNames, Read: Access, Write: Access>
+pub struct FakeRegister<Data: Copy, DT: DataType, Read: Access, Write: Access>
 where
     (DT, Read): ReadFn,
     (DT, Write): WriteFn,
 {
     data: Data,
-    _phantom: PhantomData<LN>,
     read_fn: <(DT, Read) as ReadFn>::Fn<Data>,
     _write_fn: <(DT, Write) as WriteFn>::Fn<Data>,
 }
 
-impl<Data: Copy, DT, LN: LongNames, Read: Access, Write: Access> Clone
-    for FakeRegister<Data, DT, LN, Read, Write>
+impl<Data: Copy, DT: DataType, Read: Access, Write: Access> Clone
+    for FakeRegister<Data, DT, Read, Write>
 where
     (DT, Read): ReadFn,
     (DT, Write): WriteFn,
@@ -31,16 +29,16 @@ where
         *self
     }
 }
-impl<Data: Copy, DT, LN: LongNames, Read: Access, Write: Access> Copy
-    for FakeRegister<Data, DT, LN, Read, Write>
+impl<Data: Copy, DT: DataType, Read: Access, Write: Access> Copy
+    for FakeRegister<Data, DT, Read, Write>
 where
     (DT, Read): ReadFn,
     (DT, Write): WriteFn,
 {
 }
 
-impl<Data: Copy, DT, LN: LongNames, Read: Access, Write: Access> Register
-    for FakeRegister<Data, DT, LN, Read, Write>
+impl<Data: Copy, DT: DataType, Read: Access, Write: Access> Register
+    for FakeRegister<Data, DT, Read, Write>
 where
     (DT, Read): ReadFn,
     (DT, Write): WriteFn,
@@ -48,21 +46,20 @@ where
     type DataType = DT;
 }
 
-impl<Data: Copy, U: UIntLike, LN: LongNames, Write: Access> UnsafeRead
-    for FakeRegister<Data, U, LN, Unsafe, Write>
+impl<Data: Copy, DT: DataType, Write: Access> UnsafeRead for FakeRegister<Data, DT, Unsafe, Write>
 where
-    (U, Unsafe): ReadFn<Fn<Data> = unsafe fn(Data) -> U>,
-    (U, Write): WriteFn,
+    (DT, Unsafe): ReadFn<Fn<Data> = unsafe fn(Data) -> DT::Value>,
+    (DT, Write): WriteFn,
 {
-    unsafe fn read(self) -> U {
+    unsafe fn read(self) -> DT::Value {
         // Safety: The caller has complied with this register's
         // hardware-specific safety invariants.
         unsafe { (self.read_fn)(self.data) }
     }
 
-    unsafe fn read_at_unchecked(self, _index: usize) -> <U as ArrayDataType>::Element
+    unsafe fn read_at_unchecked(self, _index: usize) -> DT::Value
     where
-        U: ArrayDataType,
+        DT: ArrayDataType,
     {
         panic!("FakeRegister::unsafe_read_unchecked called on a scalar data type");
     }
@@ -76,30 +73,30 @@ impl<DT> ReadFn for (DT, NoAccess) {
     type Fn<Data> = ();
 }
 
-impl<U: UIntLike> ReadFn for (U, Safe) {
-    type Fn<Data> = fn(Data) -> U;
+impl<S: ScalarDataType> ReadFn for (S, Safe) {
+    type Fn<Data> = fn(Data) -> S::Value;
 }
 
-impl<U: UIntLike> ReadFn for (U, Unsafe) {
+impl<S: ScalarDataType> ReadFn for (S, Unsafe) {
     /// # Safety
     /// The caller must comply with this register's hardware-specific safety
     /// requirements. Note that the fake version of this peripheral may or may
     /// not actually be unsafe to use -- but `FakeRegister` doesn't know that
     /// and therefore has to assume it is unsafe.
-    type Fn<Data> = unsafe fn(Data) -> U;
+    type Fn<Data> = unsafe fn(Data) -> S::Value;
 }
 
-impl<U: UIntLike, const LEN: usize> ReadFn for ([U; LEN], Safe) {
-    type Fn<Data> = fn(Data, usize) -> Option<U>;
+impl<S: ScalarDataType, const LEN: usize> ReadFn for ([S; LEN], Safe) {
+    type Fn<Data> = fn(Data, usize) -> Option<S::Value>;
 }
 
-impl<U: UIntLike, const LEN: usize> ReadFn for ([U; LEN], Unsafe) {
+impl<S: ScalarDataType, const LEN: usize> ReadFn for ([S; LEN], Unsafe) {
     /// # Safety
     /// The caller must comply with this register's hardware-specific safety
     /// requirements. Note that the fake version of this peripheral may or may
     /// not actually be unsafe to use -- but `FakeRegister` doesn't know that
     /// and therefore has to assume it is unsafe.
-    type Fn<Data> = unsafe fn(Data, usize) -> Option<U>;
+    type Fn<Data> = unsafe fn(Data, usize) -> Option<S::Value>;
 }
 
 trait WriteFn {
@@ -110,28 +107,28 @@ impl<DT> WriteFn for (DT, NoAccess) {
     type Fn<Data> = ();
 }
 
-impl<U: UIntLike> WriteFn for (U, Safe) {
-    type Fn<Data> = fn(Data, U);
+impl<S: ScalarDataType> WriteFn for (S, Safe) {
+    type Fn<Data> = fn(Data, S);
 }
 
-impl<U: UIntLike> WriteFn for (U, Unsafe) {
+impl<S: ScalarDataType> WriteFn for (S, Unsafe) {
     /// # Safety
     /// The caller must comply with this register's hardware-specific safety
     /// requirements. Note that the fake version of this peripheral may or may
     /// not actually be unsafe to use -- but `FakeRegister` doesn't know that
     /// and therefore has to assume it is unsafe.
-    type Fn<Data> = unsafe fn(Data, U);
+    type Fn<Data> = unsafe fn(Data, S);
 }
 
-impl<U: UIntLike, const LEN: usize> WriteFn for ([U; LEN], Safe) {
-    type Fn<Data> = fn(Data, usize, U) -> Result<(), OutOfBounds>;
+impl<S: ScalarDataType, const LEN: usize> WriteFn for ([S; LEN], Safe) {
+    type Fn<Data> = fn(Data, usize, S::Value) -> Result<(), OutOfBounds>;
 }
 
-impl<U: UIntLike, const LEN: usize> WriteFn for ([U; LEN], Unsafe) {
+impl<S: ScalarDataType, const LEN: usize> WriteFn for ([S; LEN], Unsafe) {
     /// # Safety
     /// The caller must comply with this register's hardware-specific safety
     /// requirements. Note that the fake version of this peripheral may or may
     /// not actually be unsafe to use -- but `FakeRegister` doesn't know that
     /// and therefore has to assume it is unsafe.
-    type Fn<Data> = unsafe fn(Data, usize, U) -> Result<(), OutOfBounds>;
+    type Fn<Data> = unsafe fn(Data, usize, S::Value) -> Result<(), OutOfBounds>;
 }

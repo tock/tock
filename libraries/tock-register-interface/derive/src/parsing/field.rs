@@ -3,16 +3,14 @@
 // Copyright Tock Contributors 2024.
 // Copyright Google LLC 2024.
 
-use crate::parsing::{maybe_long_name, ErrorAccumulator, OpSpec};
+use crate::parsing::ErrorAccumulator;
 use crate::parsing::{
-    MULTIPLE_SAME_OP, NOT_AN_OFFSET, NOT_A_DATA_TYPE, NOT_A_NAME, OP_LONG_NAME_SINGLE_OP,
-    SHARED_AND_OP_LONG_NAME, UNKNOWN_ATTRIBUTE, UNKNOWN_OP,
+    MULTIPLE_SAME_OP, NOT_AN_OFFSET, NOT_A_DATA_TYPE, NOT_A_NAME, UNKNOWN_ATTRIBUTE, UNKNOWN_OP,
 };
 use crate::Safety::{Safe, Unsafe};
-use crate::{Aliased, Field, FieldContents, LongNames, Register};
+use crate::{Field, FieldContents, Register};
 use syn::parse::{Parse, ParseStream};
-use syn::spanned::Spanned;
-use syn::{braced, parse_quote, Attribute, Error, Meta, Result, Token};
+use syn::{braced, Attribute, Error, Ident, Meta, Result, Token};
 
 /// A field specification that has been completely parsed, but which may have
 /// errors. Note that there are two types of parsing errors:
@@ -38,22 +36,14 @@ pub struct ParsedField(pub Result<Field>);
 //
 // Register fields look like:
 // ```ignore
-// 0x1 => ctrl(Ctrl): u32 { Read, Write },
-// AAA    BBBBCCCCCC  DDD EEEEEEEEEEEEEEE
+// 0x1 => ctrl: u32 { Read, Write },
+// AAA    BBBB  CCC DDDDDDDDDDDDDDD
 // ```
 // Components:
 // A. Start offset. Like padding, this may be _ to infer the offset.
 // B. Register name.
-// C. Register long name (optional).
-// D. Register data type.
-// E. Operation list (required, but may be empty).
-//
-// Note that long names may be specified on the operation list instead of the
-// register type, which is necessary if the long name differs between operation
-// types:
-// ```ignore
-// 0x1 => fifo: u32 { Read(RxByte), Write(TxByte) },
-// ```
+// C. Register data type.
+// D. Operation list (required, but may be empty).
 impl Parse for ParsedField {
     fn parse(input: ParseStream) -> Result<ParsedField> {
         let mut errors = ErrorAccumulator::default();
@@ -99,87 +89,41 @@ impl Parse for ParsedField {
         let data_type = input
             .parse()
             .map_err(|_| errors.push_take(input.error(NOT_A_DATA_TYPE)))?;
-        let shared_long_name = maybe_long_name(input).map_err(|e| errors.push_take(e))?;
-        let op_specs = (|| {
-            let op_specs;
-            braced!(op_specs in input);
-            Ok(op_specs)
+        let ops = (|| {
+            let ops;
+            braced!(ops in input);
+            Ok(ops)
         })()
         .map_err(|e| errors.push_take(e))?
-        .parse_terminated(OpSpec::parse, Token![,])
+        .parse_terminated(Ident::parse, Token![,])
         .map_err(|e| errors.push_take(e))?;
-        // (Safety, long_name: Option<Type>)
         let mut read = None;
         let mut write = None;
-        for op_spec in op_specs {
-            let (var, safety) = match op_spec.name {
-                name if name == "Read" => (&mut read, Safe(name)),
-                name if name == "UnsafeRead" => (&mut read, Unsafe(name)),
-                name if name == "Write" => (&mut write, Safe(name)),
-                name if name == "UnsafeWrite" => (&mut write, Unsafe(name)),
-                name => {
-                    errors.push(Error::new(name.span(), UNKNOWN_OP));
+        for op in ops {
+            let (var, safety) = match op {
+                op if op == "Read" => (&mut read, Safe(op)),
+                op if op == "UnsafeRead" => (&mut read, Unsafe(op)),
+                op if op == "Write" => (&mut write, Safe(op)),
+                op if op == "UnsafeWrite" => (&mut write, Unsafe(op)),
+                op => {
+                    errors.push(Error::new(op.span(), UNKNOWN_OP));
                     continue;
                 }
             };
             if var.is_some() {
                 errors.push(Error::new(safety.span(), MULTIPLE_SAME_OP));
             }
-            *var = Some((safety, op_spec.long_name));
+            *var = Some(safety);
         }
-        let (read_safety, read_long_name) = read.unzip();
-        let (write_safety, write_long_name) = write.unzip();
-        // To determine the correct LongNames to use, we first look only at
-        // the operations list. If LongName(s) were specified in the
-        // operations list, this sets op_long_names to Some(...). If not,
-        // this sets op_long_names to None.
-        #[deny(clippy::match_overlapping_arm)]
-        let op_long_names = match (read_long_name, write_long_name) {
-            // Cases where no long name is specified.
-            (None | Some(None), None | Some(None)) => None,
-            // Cases where a single op was specified, and it has a long
-            // name.
-            (None, Some(Some(long_name))) | (Some(Some(long_name)), None) => {
-                errors.push(Error::new(long_name.span(), OP_LONG_NAME_SINGLE_OP));
-                None
-            }
-            // Cases where both ops were specified, and only one has a long
-            // name.
-            (Some(Some(read)), Some(None)) => Some(LongNames::Aliased(Aliased {
-                read,
-                write: parse_quote![()],
-            })),
-            (Some(None), Some(Some(write))) => Some(LongNames::Aliased(Aliased {
-                read: parse_quote![()],
-                write,
-            })),
-            // Case where both ops have long names.
-            (Some(Some(read)), Some(Some(write))) => {
-                Some(LongNames::Aliased(Aliased { read, write }))
-            }
-        };
-        // Second, combined the LongName specified on the data type with
-        // the LongName(s) specified in the operations list to compute the
-        // register's actual LongNames.
-        let long_names = match (shared_long_name, op_long_names) {
-            (None, None) => LongNames::Single(parse_quote![()]),
-            (None, Some(name)) => name,
-            (Some(name), None) => LongNames::Single(name),
-            (Some(name), Some(_)) => {
-                errors.push(Error::new(name.span(), SHARED_AND_OP_LONG_NAME));
-                LongNames::Single(name)
-            }
-        };
         Ok(ParsedField(match errors.into() {
             None => Ok(Field {
                 cfgs,
                 comments,
                 contents: FieldContents::Register(Register {
                     data_type,
-                    long_names,
                     name,
-                    read: read_safety,
-                    write: write_safety,
+                    read,
+                    write,
                 }),
                 offset,
             }),

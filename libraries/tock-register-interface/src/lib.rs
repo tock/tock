@@ -15,8 +15,8 @@
 //! // Register maps are specified like this:
 //! peripheral! {
 //!     Registers {
-//!         0x0 => cr: u32(Control::Register) { Read, Write },
-//!         0x4 => s: u32(Status::Register) { Read },
+//!         0x0 => cr: Control::Register { Read, Write },
+//!         0x4 => s: Status::Register { Read },
 //!     }
 //! }
 //!
@@ -63,7 +63,6 @@ mod data_type;
 mod fake_register;
 pub mod fields;
 pub mod interfaces;
-mod long_names;
 pub mod macros;
 mod peripheral;
 pub mod reexport;
@@ -79,9 +78,8 @@ pub use local_register::LocalRegisterCopy;
 
 pub use access::{Access, NoAccess, Safe, Unsafe};
 pub use bus_adapter::{BusAdapter, DirectBus};
-pub use data_type::ArrayDataType;
+pub use data_type::{Aliased, ArrayDataType, DataType, RegisterLongName, ScalarDataType};
 pub use fake_register::FakeRegister;
-pub use long_names::{Aliased, LongNames, RegisterLongName};
 pub use register_traits::{Read, Register, UnsafeRead, UnsafeWrite, Write};
 
 use core::fmt::Debug;

@@ -19,21 +19,13 @@ pub fn definition(input: &Input) -> TokenStream {
         let name = &register.name;
         let tock_registers = &input.tock_registers;
         let data_type = &register.data_type;
-        let read_bound = match register.read {
+        let read_bound = match &register.read {
             None => quote![],
-            Some(Safety::Safe(_)) => {
-                let long_name = register.long_names.read();
-                quote![+ #tock_registers::Read<LongName = #long_name>]
-            }
-            Some(Safety::Unsafe(_)) => quote![+ #tock_registers::UnsafeRead],
+            Some(Safety::Safe(op) | Safety::Unsafe(op)) => quote![+ #tock_registers::#op],
         };
-        let write_bound = match register.write {
+        let write_bound = match &register.write {
             None => quote![],
-            Some(Safety::Safe(_)) => {
-                let long_name = register.long_names.write();
-                quote![+ #tock_registers::Write<LongName = #long_name>]
-            }
-            Some(Safety::Unsafe(_)) => quote![+ #tock_registers::UnsafeWrite],
+            Some(Safety::Safe(op) | Safety::Unsafe(op)) => quote![+ #tock_registers::#op],
         };
         let comments = &field.comments;
         Some(quote! {
@@ -98,7 +90,7 @@ mod tests {
                     #[cfg(feature = "C")]
                     #[cfg(feature = "D")]
                     type a<'s>: tock_registers::Register<DataType = u32>
-                        + tock_registers::Read<LongName = ()>
+                        + tock_registers::Read
                     where
                         Self: 's;
                     /// Doc comment 3
@@ -110,7 +102,7 @@ mod tests {
                     #[cfg(feature = "G")]
                     #[cfg(feature = "H")]
                     type b<'s>: tock_registers::Register<DataType = [u8; 2]>
-                        + tock_registers::Write<LongName = ()>
+                        + tock_registers::Write
                     where
                         Self: 's;
                     /// Doc comment 7
@@ -132,11 +124,11 @@ mod tests {
                     0x1 => _,
                     0x2 => safe_write: u16 { Write },
                     _ => unsafe_write: u32 { UnsafeWrite },
-                    _ => safe_read: u64(A) { Read },
-                    _ => safe_rw: u8 { Read(B), Write(C) },
+                    _ => safe_read: A { Read },
+                    _ => safe_rw: Aliased<B, C> { Read, Write },
                     _ => read_unsafe_write: u16 { Read, UnsafeWrite },
                     _ => unsafe_read: u32 { UnsafeRead },
-                    _ => write_unsafe_read: u64(D) { UnsafeRead, Write },
+                    _ => write_unsafe_read: D { UnsafeRead, Write },
                     _ => unsafe_read_write: u8 { UnsafeRead, UnsafeWrite },
                 }
             }),
@@ -147,7 +139,7 @@ mod tests {
                     fn no_ops(&self) -> Self::no_ops<'_>;
 
                     type safe_write<'s>: tock_registers::Register<DataType = u16>
-                        + tock_registers::Write<LongName = ()>
+                        + tock_registers::Write
                     where
                         Self: 's;
                     fn safe_write(&self) -> Self::safe_write<'_>;
@@ -158,21 +150,21 @@ mod tests {
                         Self: 's;
                     fn unsafe_write(&self) -> Self::unsafe_write<'_>;
 
-                    type safe_read<'s>: tock_registers::Register<DataType = u64>
-                        + tock_registers::Read<LongName = A>
+                    type safe_read<'s>: tock_registers::Register<DataType = A>
+                        + tock_registers::Read
                     where
                         Self: 's;
                     fn safe_read(&self) -> Self::safe_read<'_>;
 
-                    type safe_rw<'s>: tock_registers::Register<DataType = u8>
-                        + tock_registers::Read<LongName = B>
-                        + tock_registers::Write<LongName = C>
+                    type safe_rw<'s>: tock_registers::Register<DataType = Aliased<B, C> >
+                        + tock_registers::Read
+                        + tock_registers::Write
                     where
                         Self: 's;
                     fn safe_rw(&self) -> Self::safe_rw<'_>;
 
                     type read_unsafe_write<'s>: tock_registers::Register<DataType = u16>
-                        + tock_registers::Read<LongName = ()>
+                        + tock_registers::Read
                         + tock_registers::UnsafeWrite
                     where
                         Self: 's;
@@ -184,9 +176,9 @@ mod tests {
                         Self: 's;
                     fn unsafe_read(&self) -> Self::unsafe_read<'_>;
 
-                    type write_unsafe_read<'s>: tock_registers::Register<DataType = u64>
+                    type write_unsafe_read<'s>: tock_registers::Register<DataType = D>
                         + tock_registers::UnsafeRead
-                        + tock_registers::Write<LongName = D>
+                        + tock_registers::Write
                     where
                         Self: 's;
                     fn write_unsafe_read(&self) -> Self::write_unsafe_read<'_>;

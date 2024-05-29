@@ -113,7 +113,7 @@ const UNSIZED_PADDING: &str = "padding must be followed by a field with a specif
 mod tests {
     use super::*;
     use crate::parsing::{assert_next_contains, NOT_A_DATA_TYPE};
-    use crate::{Field, FieldContents, LongNames, Register};
+    use crate::{Field, FieldContents, Register};
     use pretty_assertions::assert_eq;
     use quote::quote;
     use syn::{parse2, parse_quote};
@@ -173,7 +173,6 @@ mod tests {
                         comments: vec![],
                         contents: FieldContents::Register(Register {
                             data_type: parse_quote![u16],
-                            long_names: LongNames::Single(parse_quote![()]),
                             name: parse_quote![ctrl],
                             read: None,
                             write: None,
