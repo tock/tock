@@ -153,7 +153,9 @@ impl<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>> Component
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         // Create virtual device for console.
-        let console_uart = static_buffer.1.write(UartDevice::new(self.uart_mux, true));
+        let console_uart = static_buffer
+            .1
+            .write(UartDevice::new(self.uart_mux, true, false));
         console_uart.setup();
 
         // Get addresses of where the kernel is placed to enable additional

@@ -509,8 +509,11 @@ impl<const HEAD: usize, const TAIL: usize, const L_HEAD: usize, const L_TAIL: us
                     let new_pb = pb.prepend::<L_HEAD, 1>(&header).reduce_tailroom();
 
                     if let Err((_err, buf)) = self.uart.transmit_buffer(new_pb, count) {
-                        let new_head_pb = buf.restore_headroom::<HEAD>().unwrap();
-                        let new_pb = new_head_pb.restore_tailroom().unwrap();
+                        let new_pb = buf
+                            .reclaim_headroom::<HEAD>()
+                            .unwrap()
+                            .reclaim_tailroom()
+                            .unwrap();
                         self.output_buffer.set(new_pb);
                     } else {
                         self.output_buffer.clear();
@@ -547,9 +550,9 @@ impl<const HEAD: usize, const TAIL: usize, const L_HEAD: usize, const L_TAIL: us
         // &PacketBufferMut::<HEAD, TAIL>::new(buffer).unwrap();
 
         let new_buf = buffer
-            .restore_headroom::<HEAD>()
+            .reclaim_headroom::<HEAD>()
             .unwrap()
-            .restore_tailroom::<TAIL>()
+            .reclaim_tailroom::<TAIL>()
             .unwrap();
         self.output_buffer.replace(new_buf);
 

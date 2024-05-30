@@ -235,9 +235,9 @@ impl<
                 //     .into_inner();
 
                 let pb = returned_buffer
-                    .restore_headroom()
+                    .reclaim_headroom()
                     .unwrap()
-                    .restore_tailroom()
+                    .reclaim_tailroom()
                     .unwrap();
 
                 // let new_head_buf = returned_buffer.restore_headroom().unwrap();

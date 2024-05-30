@@ -202,6 +202,11 @@ impl<const HEAD: usize, const TAIL: usize> PacketBufferMut<HEAD, TAIL> {
     pub fn restore_headroom<const NEW_HEAD: usize>(
         self,
     ) -> Result<PacketBufferMut<NEW_HEAD, TAIL>, Self> {
+        // hprintln!(
+        //     "Old headroom {} and new head {}",
+        //     self.inner.headroom(),
+        //     NEW_HEAD
+        // );
         if self.inner.headroom() >= NEW_HEAD {
             Ok(PacketBufferMut { inner: self.inner })
         } else {

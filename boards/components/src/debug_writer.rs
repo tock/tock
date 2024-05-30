@@ -113,7 +113,7 @@ impl<const BUF_SIZE_BYTES: usize> Component for DebugWriterComponent<BUF_SIZE_BY
         let (output_buf, internal_buf) = buf.split_at_mut(DEBUG_BUFFER_SPLIT);
 
         // Create virtual device for kernel debug.
-        let debugger_uart = s.0.write(UartDevice::new(self.uart_mux, false));
+        let debugger_uart = s.0.write(UartDevice::new(self.uart_mux, false, false));
         debugger_uart.setup();
         let ring_buffer = s.1.write(RingBuffer::new(internal_buf));
         // hprintln!("Debug buffer size {}", output_buf.len());

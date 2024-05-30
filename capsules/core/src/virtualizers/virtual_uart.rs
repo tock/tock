@@ -301,8 +301,10 @@ impl<
                                 //     .reduce_headroom::<UART_HEAD>()
                                 //     .reduce_tailroom::<UART_TAIL>();
 
+                                let header = if node.is_console { 1_u8 } else { 0_u8 };
+
                                 let new_buf =
-                                    buf.reduce_headroom::<UART_HEAD>().append(&[255 as u8]);
+                                    buf.prepend::<UART_HEAD, 1>(&[header]).append(&[255 as u8]);
 
                                 match self.uart.transmit_buffer(new_buf, len) {
                                     Ok(()) => {
@@ -315,6 +317,7 @@ impl<
                                             .reclaim_tailroom()
                                             .unwrap();
 
+                                        // let buffer = buf.reset().unwrap();
                                         node.tx_client.map(move |client| {
                                             node.transmitting.set(false);
                                             client.transmitted_buffer(buffer, 0, Err(ecode));
@@ -426,6 +429,7 @@ pub struct UartDevice<
     state: Cell<UartDeviceReceiveState>,
     mux: &'a MuxUart<'a, UARTE_HEAD, UARTE_TAIL, HEAD, TAIL>,
     receiver: bool, // Whether or not to pass this UartDevice incoming messages.
+    is_console: bool,
 
     // tx_buffer: TakeCell<'static, [u8]>,
     tx_buffer: OptionalCell<PacketBufferMut<HEAD, TAIL>>,
@@ -451,11 +455,13 @@ impl<
     pub fn new(
         mux: &'a MuxUart<'a, UARTE_HEAD, UARTE_TAIL, HEAD, TAIL>,
         receiver: bool,
+        is_console: bool,
     ) -> UartDevice<'a, HEAD, TAIL, UARTE_HEAD, UARTE_TAIL> {
         UartDevice {
             state: Cell::new(UartDeviceReceiveState::Idle),
             mux: mux,
             receiver: receiver,
+            is_console: is_console,
             tx_buffer: OptionalCell::empty(),
             transmitting: Cell::new(false),
             rx_buffer: TakeCell::empty(),
@@ -492,8 +498,9 @@ impl<
         self.tx_client.map(move |client| {
             self.transmitting.set(false);
 
+            // hprintln!("")
             let new_buf = tx_buffer
-                .restore_headroom::<HEAD>()
+                .reclaim_headroom::<HEAD>()
                 .unwrap()
                 .reclaim_tailroom::<TAIL>()
                 .unwrap();

@@ -161,7 +161,7 @@ impl<const RX_BUF_LEN: usize, const TX_BUF_LEN: usize> Component
 
         let read_buffer = s.1.write([0; RX_BUF_LEN]);
 
-        let console_uart = s.2.write(UartDevice::new(self.uart_mux, true));
+        let console_uart = s.2.write(UartDevice::new(self.uart_mux, true, true));
         console_uart.setup();
 
         let ps = PacketSliceMut::new(write_buffer, 5).unwrap();
