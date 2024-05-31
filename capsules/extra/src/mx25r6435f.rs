@@ -19,7 +19,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //! # use capsules::virtual_alarm::VirtualMuxAlarm;
 //!
@@ -76,7 +76,7 @@ pub const PAGE_SIZE: u32 = 256;
 ///
 /// An example looks like:
 ///
-/// ```
+/// ```rust,ignore
 /// # use capsules::mx25r6435f::Mx25r6435fSector;
 ///
 /// static mut PAGEBUFFER: Mx25r6435fSector = Mx25r6435fSector::new();

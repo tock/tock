@@ -42,7 +42,7 @@
 //! Usage
 //! -----
 //!
-//! ```
+//! ```rust,ignore
 //!     storage_volume!(VOLUME, 2);
 //!     static mut PAGEBUFFER: sam4l::flashcalw::Sam4lPage = sam4l::flashcalw::Sam4lPage::new();
 //!

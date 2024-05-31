@@ -29,7 +29,7 @@
 //!
 //! Example usage:
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! // Configure the MCP230xx. Device address 0x20.

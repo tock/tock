@@ -24,7 +24,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::{hil, static_init};
 
 //! sam4l::flashcalw::FLASH_CONTROLLER.configure();

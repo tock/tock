@@ -6,7 +6,7 @@
 //!
 //! This capsule provides a virtualized Key-Value store interface.
 //!
-//! ```
+//! ```text
 //! +-------------------------+
 //! |  Capsule using K-V      |
 //! +-------------------------+

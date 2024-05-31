@@ -32,7 +32,7 @@
 //! -----
 //!
 //! You need a driver that implements the Can trait.
-//! ```rust
+//! ```rust,ignore
 //! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 //! let grant_can = self.board_kernel.create_grant(
 //!     capsules::can::CanCapsule::DRIVER_NUM, &grant_cap);

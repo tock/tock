@@ -15,19 +15,19 @@
 //! Usage
 //! -----
 //!
-//! ```
+//! ```rust,ignore
 //! # use kernel::{hil, static_init};
 //!
 //! // Create the mux.
 //! let mux_flash = static_init!(
-//!     capsules::virtual_flash::MuxFlash<'static, sam4l::flashcalw::FLASHCALW>,
-//!     capsules::virtual_flash::MuxFlash::new(&sam4l::flashcalw::FLASH_CONTROLLER));
+//!     capsules_core::virtual_flash::MuxFlash<'static, sam4l::flashcalw::FLASHCALW>,
+//!     capsules_core::virtual_flash::MuxFlash::new(&sam4l::flashcalw::FLASH_CONTROLLER));
 //! hil::flash::HasClient::set_client(&sam4l::flashcalw::FLASH_CONTROLLER, mux_flash);
 //!
 //! // Everything that then uses the virtualized flash must use one of these.
 //! let virtual_flash = static_init!(
-//!     capsules::virtual_flash::FlashUser<'static, sam4l::flashcalw::FLASHCALW>,
-//!     capsules::virtual_flash::FlashUser::new(mux_flash));
+//!     capsules_core::virtual_flash::FlashUser<'static, sam4l::flashcalw::FLASHCALW>,
+//!     capsules_core::virtual_flash::FlashUser::new(mux_flash));
 //! ```
 
 use core::cell::Cell;

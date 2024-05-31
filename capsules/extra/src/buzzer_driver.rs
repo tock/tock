@@ -15,7 +15,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! let virtual_pwm_buzzer = static_init!(

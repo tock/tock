@@ -9,9 +9,9 @@
 //!
 //! You need a device that provides the `hil::uart::UART` trait.
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
-//! # use capsules::console::Console;
+//! # use capsules_core::console::Console;
 //!
 //! let console = static_init!(
 //!     Console<usart::USART>,

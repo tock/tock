@@ -41,7 +41,7 @@
 //!
 //! You need a device that provides the `hil::sensors::TemperatureDriver` trait.
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);

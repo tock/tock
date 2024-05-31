@@ -66,7 +66,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! let mux_spi = components::spi::SpiMuxComponent::new(&stm32f3xx::spi::SPI1)
 //!     .finalize(components::spi_mux_component_helper!(stm32f3xx::spi::Spi));
 //!
@@ -77,7 +77,7 @@
 //!
 //! NineDof Example
 //!
-//! ```rust
+//! ```rust,ignore
 //! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 //! let grant_ninedof = board_kernel.create_grant(&grant_cap);
 //!
@@ -91,7 +91,7 @@
 //!
 //! Temperature Example
 //!
-//! ```rust
+//! ```rust,ignore
 //! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 //! let grant_temp = board_kernel.create_grant(&grant_cap);
 //!

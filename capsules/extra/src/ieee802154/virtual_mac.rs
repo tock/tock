@@ -15,7 +15,7 @@
 //! Usage
 //! -----
 //!
-//! ```
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! // Create the mux.

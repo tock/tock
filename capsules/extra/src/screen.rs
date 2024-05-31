@@ -9,7 +9,7 @@
 //!
 //! You need a screen that provides the `hil::screen::Screen` trait.
 //!
-//! ```rust
+//! ```rust,ignore
 //! let screen =
 //!     components::screen::ScreenComponent::new(board_kernel, tft).finalize();
 //! ```

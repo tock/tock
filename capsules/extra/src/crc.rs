@@ -11,7 +11,7 @@
 //! client of the hardware implementation. For example, using the SAM4L's `CrcU`
 //! driver:
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! let crc_buffer = static_init!([u8; 64], [0; 64]);
@@ -131,7 +131,7 @@ impl<'a, C: Crc<'a>> CrcDriver<'a, C> {
     ///
     /// ## Example
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// capsules::crc::Crc::new(&sam4l::crccu::CrcCU, board_kernel.create_grant(&grant_cap));
     /// ```
     ///

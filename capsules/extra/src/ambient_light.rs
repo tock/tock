@@ -6,7 +6,7 @@
 //!
 //! You need a device that provides the `hil::sensors::AmbientLight` trait.
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::{hil, static_init};
 //!
 //! let light = static_init!(

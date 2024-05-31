@@ -9,7 +9,7 @@
 //! Instantiate the capsule for use as a service capsule, using a virtual pwm buzzer
 //! and a virtual alarm. For example:
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! let mux_pwm = static_init!(

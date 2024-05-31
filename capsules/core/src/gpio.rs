@@ -15,7 +15,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! let gpio_pins = static_init!(
@@ -25,8 +25,8 @@
 //!      Option<&sam4l::gpio::PB[11]>,
 //!      Option<&sam4l::gpio::PB[12]>]);
 //! let gpio = static_init!(
-//!     capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
-//!     capsules::gpio::GPIO::new(gpio_pins));
+//!     capsules_core::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
+//!     capsules_core::gpio::GPIO::new(gpio_pins));
 //! for maybe_pin in gpio_pins.iter() {
 //!     if let Some(pin) = maybe_pin {
 //!         pin.set_client(gpio);

@@ -24,7 +24,7 @@
 //! //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! let bmm150_i2c = static_init!(

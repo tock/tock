@@ -16,7 +16,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! let led_pins = static_init!(
@@ -25,8 +25,8 @@
 //!      (&sam4l::gpio::PA[15], kernel::hil::gpio::ActivationMode::ActiveLow),   // Green
 //!      (&sam4l::gpio::PA[14], kernel::hil::gpio::ActivationMode::ActiveLow)]); // Blue
 //! let led = static_init!(
-//!     capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
-//!     capsules::led::LED::new(led_pins));
+//!     capsules_core::led::LED<'static, sam4l::gpio::GPIOPin>,
+//!     capsules_core::led::LED::new(led_pins));
 //! ```
 //!
 //! Syscall Interface

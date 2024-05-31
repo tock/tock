@@ -40,7 +40,7 @@
 //! You need a device that provides the `hil::sensors::ProximityDriver` trait.
 //! Here is an example of how to set up a proximity sensor with the apds9960 IC
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //!let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
