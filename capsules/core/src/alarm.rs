@@ -824,7 +824,6 @@ mod test {
     #[test]
     fn test_rearm_24bit_left_justified_noref_basic() {
         let mut expiration = None;
-        let armed_counter = Cell::new(0);
 
         assert!(Ticks24::u32_padding() == 8);
 
@@ -839,14 +838,11 @@ mod test {
                 // Reference to the `Option<Expiration>`, also used
                 // to update the counter of armed alarms:
                 &mut expiration,
-                // Reference to the count of currently armed alarms:
-                &armed_counter,
             );
 
         let expiration = expiration.unwrap();
 
         assert_eq!(armed_time, (1337 + 1234) << Ticks24::u32_padding());
-        assert_eq!(armed_counter.get(), 1);
         assert_eq!(expiration.reference.into_u32(), 1337);
         assert_eq!(expiration.dt.into_u32(), 1234);
     }
@@ -854,7 +850,6 @@ mod test {
     #[test]
     fn test_rearm_24bit_left_justified_noref_wrapping() {
         let mut expiration = None;
-        let armed_counter = Cell::new(0);
 
         let armed_time =
             AlarmDriver::<MockAlarm<Ticks24, Freq10MHz>>::rearm_u32_left_justified_expiration(
@@ -868,15 +863,12 @@ mod test {
                 // Reference to the `Option<Expiration>`, also used
                 // to update the counter of armed alarms:
                 &mut expiration,
-                // Reference to the count of currently armed alarms:
-                &armed_counter,
             );
 
         let expiration = expiration.unwrap();
 
         // (1337 + ((0xffffffff - (42 << 8)) >> 8) + 1) % 0x01000000 = 1295
         assert_eq!(armed_time, 1295 << Ticks24::u32_padding());
-        assert_eq!(armed_counter.get(), 1);
         assert_eq!(expiration.reference.into_u32(), 1337);
         assert_eq!(
             expiration.dt.into_u32(),
@@ -891,7 +883,6 @@ mod test {
             reference: 0_u32.into(),
             dt: 1_u32.into(),
         });
-        let armed_counter = Cell::new(111);
 
         assert!(Ticks32::u32_padding() == 0);
 
@@ -906,15 +897,11 @@ mod test {
                 // Reference to the `Option<Expiration>`, also used
                 // to update the counter of armed alarms:
                 &mut expiration,
-                // Reference to the count of currently armed alarms:
-                &armed_counter,
             );
 
         let expiration = expiration.unwrap();
 
         assert_eq!(armed_time, 1337 + 1234);
-        // counter must not be increased when the alarm was previously armed
-        assert_eq!(armed_counter.get(), 111);
         assert_eq!(expiration.reference.into_u32(), 1337);
         assert_eq!(expiration.dt.into_u32(), 1234);
     }
@@ -922,7 +909,6 @@ mod test {
     #[test]
     fn test_rearm_32bit_left_justified_noref_wrapping() {
         let mut expiration = None;
-        let armed_counter = Cell::new(0);
 
         let armed_time =
             AlarmDriver::<MockAlarm<Ticks32, Freq10MHz>>::rearm_u32_left_justified_expiration(
@@ -936,15 +922,12 @@ mod test {
                 // Reference to the `Option<Expiration>`, also used
                 // to update the counter of armed alarms:
                 &mut expiration,
-                // Reference to the count of currently armed alarms:
-                &armed_counter,
             );
 
         let expiration = expiration.unwrap();
 
         // (1337 + (0xffffffff - 42)) % 0x100000000 = 1294
         assert_eq!(armed_time, 1294);
-        assert_eq!(armed_counter.get(), 1);
         assert_eq!(expiration.reference.into_u32(), 1337);
         assert_eq!(expiration.dt.into_u32(), u32::MAX - 42);
     }
@@ -955,7 +938,6 @@ mod test {
             reference: 0_u32.into(),
             dt: 1_u32.into(),
         });
-        let armed_counter = Cell::new(111);
 
         assert!(Ticks64::u32_padding() == 0);
 
@@ -970,15 +952,11 @@ mod test {
                 // Reference to the `Option<Expiration>`, also used
                 // to update the counter of armed alarms:
                 &mut expiration,
-                // Reference to the count of currently armed alarms:
-                &armed_counter,
             );
 
         let expiration = expiration.unwrap();
 
         assert_eq!(armed_time, 0x9D9D8BDC_u32);
-        // counter must not be increased when the alarm was previously armed
-        assert_eq!(armed_counter.get(), 111);
         assert_eq!(expiration.reference.into_u64(), 0xDEADBEEFCAFE_u64);
         assert_eq!(expiration.dt.into_u64(), 0xDEADC0DE_u64);
     }
@@ -986,7 +964,6 @@ mod test {
     #[test]
     fn test_rearm_64bit_left_justified_refnowrap_dtnorwap() {
         let mut expiration = None;
-        let armed_counter = Cell::new(9999);
 
         // reference smaller than now & 0xffffffff, reference + dt don't wrap:
         let armed_time =
@@ -1000,15 +977,11 @@ mod test {
                 // Reference to the `Option<Expiration>`, also used
                 // to update the counter of armed alarms:
                 &mut expiration,
-                // Reference to the count of currently armed alarms:
-                &armed_counter,
             );
 
         let expiration = expiration.unwrap();
 
         assert_eq!(armed_time, 0xDA9D70E0_u32); // remains at 0xDEAD
-                                                // counter must not be increased when the alarm was previously armed
-        assert_eq!(armed_counter.get(), 10000);
         assert_eq!(expiration.reference.into_u64(), 0xDEADBEEFC0DE_u64);
         assert_eq!(expiration.dt.into_u64(), 0x1BADB002_u64);
     }
@@ -1019,7 +992,6 @@ mod test {
             reference: 0_u32.into(),
             dt: 1_u32.into(),
         });
-        let armed_counter = Cell::new(111);
 
         // reference smaller than now & 0xffffffff, reference + dt wrap:
         let armed_time =
@@ -1033,15 +1005,11 @@ mod test {
                 // Reference to the `Option<Expiration>`, also used
                 // to update the counter of armed alarms:
                 &mut expiration,
-                // Reference to the count of currently armed alarms:
-                &armed_counter,
             );
 
         let expiration = expiration.unwrap();
 
         assert_eq!(armed_time, 0x8A9BB0EB_u32); // wraps t0 0x0xDEAE
-                                                // counter must not be increased when the alarm was previously armed
-        assert_eq!(armed_counter.get(), 111);
         assert_eq!(expiration.reference.into_u64(), 0xDEAD8BADF00D_u64);
         assert_eq!(expiration.dt.into_u64(), 0xFEEDC0DE_u64);
     }
@@ -1049,7 +1017,6 @@ mod test {
     #[test]
     fn test_rearm_64bit_left_justified_refwrap_dtwrap() {
         let mut expiration = None;
-        let armed_counter = Cell::new(111);
 
         // reference larger than now & 0xffffffff, reference + dt wrap:
         let armed_time =
@@ -1064,15 +1031,11 @@ mod test {
                 // Reference to the `Option<Expiration>`, also used
                 // to update the counter of armed alarms:
                 &mut expiration,
-                // Reference to the count of currently armed alarms:
-                &armed_counter,
             );
 
         let expiration = expiration.unwrap();
 
         assert_eq!(armed_time, 0xC9EC7198_u32); // wraps to 0xDEAE
-                                                // counter must not be increased when the alarm was previously armed
-        assert_eq!(armed_counter.get(), 112);
         assert_eq!(expiration.reference.into_u64(), 0xDEACCAFEB0BA_u64);
         assert_eq!(expiration.dt.into_u64(), 0xFEEDC0DE_u64);
     }
@@ -1083,7 +1046,6 @@ mod test {
             reference: 0_u32.into(),
             dt: 1_u32.into(),
         });
-        let armed_counter = Cell::new(111);
 
         // reference larger than now & 0xffffffff, reference + dt don't wrap
         let armed_time =
@@ -1097,15 +1059,11 @@ mod test {
                 // Reference to the `Option<Expiration>`, also used
                 // to update the counter of armed alarms:
                 &mut expiration,
-                // Reference to the count of currently armed alarms:
-                &armed_counter,
             );
 
         let expiration = expiration.unwrap();
 
         assert_eq!(armed_time, 0xE6AC60BC_u32); // remains at 0xDEAD
-                                                // counter must not be increased when the alarm was previously armed
-        assert_eq!(armed_counter.get(), 111);
         assert_eq!(expiration.reference.into_u64(), 0xDEACCAFEB0BA_u64);
         assert_eq!(expiration.dt.into_u64(), 0x1BADB002_u64);
     }
