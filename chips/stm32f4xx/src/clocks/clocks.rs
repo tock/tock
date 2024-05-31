@@ -43,7 +43,7 @@
 //! ## Retrieve the AHB frequency:
 //!
 //! ```rust,ignore
-//! let ahb_frequency = clocks.get_ahb_frequency();
+//! let ahb_frequency = clocks.get_ahb_frequency_mhz();
 //! debug!("Current AHB frequency is {}MHz", ahb_frequency);
 //! ```
 //!
@@ -78,7 +78,7 @@
 //! ## Retrieve the system clock frequency:
 //!
 //! ```rust,ignore
-//! let sys_frequency = clocks.get_sys_clock_frequency();
+//! let sys_frequency = clocks.get_sys_clock_frequency_mhz();
 //! debug!("Current system clock frequency is {}MHz", sys_frequency);
 //! ```
 //!
@@ -102,7 +102,7 @@
 //!
 //! Then, configure its frequency and enable it
 //! ```rust,ignore
-//! pll.set_frequency(50);
+//! pll.set_frequency_mhz(50);
 //! pll.enable();
 //! ```
 //!
@@ -126,7 +126,7 @@
 //! As before, Pll clock is configured and enabled.
 //!
 //! ```rust,ignore
-//! pll.set_frequency(100);
+//! pll.set_frequency_mhz(100);
 //! pll.enable();
 //! ```
 //!
@@ -186,7 +186,7 @@ pub struct Clocks<'a, ChipSpecs> {
 
 impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
     // The constructor must be called when the default peripherals are created
-    pub(crate) fn new(rcc: &'a Rcc) -> Self {
+    pub fn new(rcc: &'a Rcc) -> Self {
         Self {
             rcc,
             flash: OptionalCell::empty(),
@@ -215,7 +215,7 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
         // Changing the AHB prescaler affects the APB frequencies. A check must be done to ensure
         // that the constraints are still valid
         let divider: usize = prescaler.into();
-        let new_ahb_frequency = self.get_sys_clock_frequency() / divider;
+        let new_ahb_frequency = self.get_sys_clock_frequency_mhz() / divider;
         if !self.check_apb1_frequency_limit(new_ahb_frequency)
             || !self.check_apb2_frequency_limit(new_ahb_frequency)
         {
@@ -239,9 +239,9 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
     }
 
     /// Get the frequency of the AHB
-    pub fn get_ahb_frequency(&self) -> usize {
+    pub fn get_ahb_frequency_mhz(&self) -> usize {
         let ahb_divider: usize = self.get_ahb_prescaler().into();
-        self.get_sys_clock_frequency() / ahb_divider
+        self.get_sys_clock_frequency_mhz() / ahb_divider
     }
 
     // APB1 frequency must not be higher than the maximum allowable frequency. This method is
@@ -263,7 +263,7 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
     /// + [Err]\([ErrorCode::FAIL]\) if the desired prescaler would break the APB1 frequency limit
     /// + [Err]\([ErrorCode::BUSY]\) if setting the prescaler took too long. Retry.
     pub fn set_apb1_prescaler(&self, prescaler: APBPrescaler) -> Result<(), ErrorCode> {
-        let ahb_frequency = self.get_ahb_frequency();
+        let ahb_frequency = self.get_ahb_frequency_mhz();
         let divider: usize = prescaler.into();
         if ahb_frequency / divider > ChipSpecs::APB1_FREQUENCY_LIMIT_MHZ {
             return Err(ErrorCode::FAIL);
@@ -286,10 +286,10 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
     }
 
     /// Get the current APB1 frequency
-    pub fn get_apb1_frequency(&self) -> usize {
+    pub fn get_apb1_frequency_mhz(&self) -> usize {
         // Every enum variant can be converted into a usize
         let divider: usize = self.rcc.get_apb1_prescaler().into();
-        self.get_ahb_frequency() / divider
+        self.get_ahb_frequency_mhz() / divider
     }
 
     // Same as for APB1, APB2 has a frequency limit that must be enforced by software
@@ -309,7 +309,7 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
     /// + [Err]\([ErrorCode::FAIL]\) if the desired prescaler would break the APB2 frequency limit
     /// + [Err]\([ErrorCode::BUSY]\) if setting the prescaler took too long. Retry.
     pub fn set_apb2_prescaler(&self, prescaler: APBPrescaler) -> Result<(), ErrorCode> {
-        let current_ahb_frequency = self.get_ahb_frequency();
+        let current_ahb_frequency = self.get_ahb_frequency_mhz();
         let divider: usize = prescaler.into();
         if current_ahb_frequency / divider > ChipSpecs::APB2_FREQUENCY_LIMIT_MHZ {
             return Err(ErrorCode::FAIL);
@@ -332,10 +332,10 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
     }
 
     /// Get the current APB2 frequency
-    pub fn get_apb2_frequency(&self) -> usize {
+    pub fn get_apb2_frequency_mhz(&self) -> usize {
         // Every enum variant can be converted into a usize
         let divider: usize = self.rcc.get_apb2_prescaler().into();
-        self.get_ahb_frequency() / divider
+        self.get_ahb_frequency_mhz() / divider
     }
 
     /// Set the system clock source
@@ -362,14 +362,14 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
             return Err(ErrorCode::FAIL);
         }
 
-        let current_frequency = self.get_sys_clock_frequency();
+        let current_frequency = self.get_sys_clock_frequency_mhz();
 
         // Get the frequency of the source to be configured
         let alternate_frequency = match source {
             // The unwrap can't fail because the source clock status was checked before
-            SysClockSource::HSI => self.hsi.get_frequency().unwrap(),
-            SysClockSource::HSE => self.hse.get_frequency().unwrap(),
-            SysClockSource::PLL => self.pll.get_frequency().unwrap(),
+            SysClockSource::HSI => self.hsi.get_frequency_mhz().unwrap(),
+            SysClockSource::HSE => self.hse.get_frequency_mhz().unwrap(),
+            SysClockSource::PLL => self.pll.get_frequency_mhz().unwrap(),
         };
 
         // Check the alternate frequency is not higher than the system clock limit
@@ -420,15 +420,36 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
         self.rcc.get_sys_clock_source()
     }
 
-    /// Get the current system clock frequency
-    pub fn get_sys_clock_frequency(&self) -> usize {
+    /// Get the current system clock frequency in MHz
+    pub fn get_sys_clock_frequency_mhz(&self) -> usize {
         match self.get_sys_clock_source() {
             // These unwraps can't panic because set_sys_clock_frequency ensures that the source is
             // enabled. Also, Hsi and Pll structs ensure that the clocks can't be disabled when
             // they are configured as the system clock
-            SysClockSource::HSI => self.hsi.get_frequency().unwrap(),
-            SysClockSource::HSE => self.hse.get_frequency().unwrap(),
-            SysClockSource::PLL => self.pll.get_frequency().unwrap(),
+            SysClockSource::HSI => self.hsi.get_frequency_mhz().unwrap(),
+            SysClockSource::HSE => self.hse.get_frequency_mhz().unwrap(),
+            SysClockSource::PLL => self.pll.get_frequency_mhz().unwrap(),
+        }
+    }
+
+    /// Get the current system clock frequency in MHz from RCC registers instead of the cached
+    /// value. Used for debug only.
+    pub fn _get_sys_clock_frequency_mhz_no_cache(&self) -> usize {
+        match self.get_sys_clock_source() {
+            // These unwraps can't panic because set_sys_clock_frequency ensures that the source is
+            // enabled. Also, Hsi and Pll structs ensure that the clocks can't be disabled when
+            // they are configured as the system clock
+            SysClockSource::HSI => self.hsi.get_frequency_mhz().unwrap(),
+            SysClockSource::HSE => self.hse.get_frequency_mhz().unwrap(),
+            SysClockSource::PLL => {
+                let pll_source_frequency = match self.rcc.get_pll_clocks_source() {
+                    PllSource::HSI => self.hsi.get_frequency_mhz().unwrap(),
+                    PllSource::HSE => self.hse.get_frequency_mhz().unwrap(),
+                };
+                self.pll
+                    .get_frequency_mhz_no_cache(pll_source_frequency)
+                    .unwrap()
+            }
         }
     }
 
@@ -445,17 +466,17 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
     ///
     /// + [Err]\([ErrorCode::INVAL]\): if the desired frequency can't be achieved
     /// + [Err]\([ErrorCode::FAIL]\): if the PLL clock is already enabled. It must be disabled before
-    pub fn set_pll_frequency(
+    pub fn set_pll_frequency_mhz(
         &self,
         pll_source: PllSource,
         desired_frequency_mhz: usize,
     ) -> Result<(), ErrorCode> {
         let source_frequency = match pll_source {
             PllSource::HSI => HSI_FREQUENCY_MHZ,
-            PllSource::HSE => self.hse.get_frequency().unwrap(),
+            PllSource::HSE => self.hse.get_frequency_mhz().unwrap(),
         };
         self.pll
-            .set_frequency(pll_source, source_frequency, desired_frequency_mhz)
+            .set_frequency_mhz(pll_source, source_frequency, desired_frequency_mhz)
     }
 
     /// Set the clock source for the microcontroller clock output 1 (MCO1)
@@ -512,6 +533,30 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
     /// Get MCO1 divider
     pub fn get_mco1_clock_divider(&self) -> MCO1Divider {
         self.rcc.get_mco1_clock_divider()
+    }
+}
+
+/// Stm32f4Clocks trait
+///
+/// This can be used to control clocks without the need to keep a reference of the chip specific
+/// Clocks struct, for instance by peripherals
+pub trait Stm32f4Clocks {
+    /// Get RCC instance
+    fn get_rcc(&self) -> &Rcc;
+
+    /// Get current AHB clock (HCLK) frequency in Hz
+    fn get_ahb_frequency(&self) -> usize;
+
+    // Extend this to expose additional clock resources
+}
+
+impl<'a, ChipSpecs: ChipSpecsTrait> Stm32f4Clocks for Clocks<'a, ChipSpecs> {
+    fn get_rcc(&self) -> &'a Rcc {
+        self.rcc
+    }
+
+    fn get_ahb_frequency(&self) -> usize {
+        self.get_ahb_frequency_mhz() * 1_000_000
     }
 }
 
@@ -605,9 +650,9 @@ pub mod tests {
         assert_eq!(Ok(()), clocks.set_ahb_prescaler(AHBPrescaler::DivideBy1));
         assert_eq!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy1));
         assert_eq!(Ok(()), clocks.set_apb2_prescaler(APBPrescaler::DivideBy1));
-        assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_sys_clock_frequency());
-        assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_apb1_frequency());
-        assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_apb2_frequency());
+        assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_sys_clock_frequency_mhz());
+        assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_apb1_frequency_mhz());
+        assert_eq!(HSI_FREQUENCY_MHZ, clocks.get_apb2_frequency_mhz());
     }
 
     // This macro ensure that the system clock frequency goes back to the default value to prevent
@@ -647,7 +692,7 @@ pub mod tests {
             Ok(()),
             clocks
                 .pll
-                .set_frequency(PllSource::HSI, HSI_FREQUENCY_MHZ, HIGH_FREQUENCY),
+                .set_frequency_mhz(PllSource::HSI, HSI_FREQUENCY_MHZ, HIGH_FREQUENCY),
             clocks
         );
         check_and_panic!(Ok(()), clocks.pll.enable(), clocks);
@@ -747,19 +792,23 @@ pub mod tests {
         check_and_panic!(SysClockSource::HSI, clocks.get_sys_clock_source(), clocks);
 
         // HSI frequency is 16MHz
-        check_and_panic!(HSI_FREQUENCY_MHZ, clocks.get_sys_clock_frequency(), clocks);
+        check_and_panic!(
+            HSI_FREQUENCY_MHZ,
+            clocks.get_sys_clock_frequency_mhz(),
+            clocks
+        );
 
         // APB1 default prescaler is 1
         check_and_panic!(APBPrescaler::DivideBy1, clocks.get_apb1_prescaler(), clocks);
 
         // APB1 default frequency is 16MHz
-        check_and_panic!(HSI_FREQUENCY_MHZ, clocks.get_apb1_frequency(), clocks);
+        check_and_panic!(HSI_FREQUENCY_MHZ, clocks.get_apb1_frequency_mhz(), clocks);
 
         // APB2 default prescaler is 1
         check_and_panic!(APBPrescaler::DivideBy1, clocks.get_apb1_prescaler(), clocks);
 
         // APB2 default frequency is 16MHz
-        check_and_panic!(HSI_FREQUENCY_MHZ, clocks.get_apb2_frequency(), clocks);
+        check_and_panic!(HSI_FREQUENCY_MHZ, clocks.get_apb2_frequency_mhz(), clocks);
 
         // Attempting to change the system clock source with a disabled source
         check_and_panic!(
@@ -781,7 +830,7 @@ pub mod tests {
             Ok(()),
             clocks
                 .pll
-                .set_frequency(PllSource::HSI, HSI_FREQUENCY_MHZ, LOW_FREQUENCY),
+                .set_frequency_mhz(PllSource::HSI, HSI_FREQUENCY_MHZ, LOW_FREQUENCY),
             clocks
         );
         check_and_panic!(Ok(()), clocks.pll.enable(), clocks);
@@ -793,11 +842,11 @@ pub mod tests {
         check_and_panic!(SysClockSource::PLL, clocks.get_sys_clock_source(), clocks);
 
         // Now the system clock frequency is equal to 25MHz
-        check_and_panic!(LOW_FREQUENCY, clocks.get_sys_clock_frequency(), clocks);
+        check_and_panic!(LOW_FREQUENCY, clocks.get_sys_clock_frequency_mhz(), clocks);
 
         // APB1 and APB2 frequencies must also be 25MHz
-        check_and_panic!(LOW_FREQUENCY, clocks.get_apb1_frequency(), clocks);
-        check_and_panic!(LOW_FREQUENCY, clocks.get_apb2_frequency(), clocks);
+        check_and_panic!(LOW_FREQUENCY, clocks.get_apb1_frequency_mhz(), clocks);
+        check_and_panic!(LOW_FREQUENCY, clocks.get_apb2_frequency_mhz(), clocks);
 
         // Attempting to disable PLL when it is configured as the system clock must fail
         check_and_panic!(Err(ErrorCode::FAIL), clocks.pll.disable(), clocks);
@@ -815,7 +864,7 @@ pub mod tests {
             Ok(()),
             clocks
                 .pll
-                .set_frequency(PllSource::HSI, HSI_FREQUENCY_MHZ, HIGH_FREQUENCY),
+                .set_frequency_mhz(PllSource::HSI, HSI_FREQUENCY_MHZ, HIGH_FREQUENCY),
             clocks
         );
         check_and_panic!(Ok(()), clocks.pll.enable(), clocks);
@@ -879,8 +928,8 @@ pub mod tests {
             clocks.set_sys_clock_source(SysClockSource::PLL),
             clocks
         );
-        check_and_panic!(HIGH_FREQUENCY / 4, clocks.get_apb1_frequency(), clocks);
-        check_and_panic!(HIGH_FREQUENCY / 2, clocks.get_apb2_frequency(), clocks);
+        check_and_panic!(HIGH_FREQUENCY / 4, clocks.get_apb1_frequency_mhz(), clocks);
+        check_and_panic!(HIGH_FREQUENCY / 2, clocks.get_apb2_frequency_mhz(), clocks);
 
         // Revert to default system clock configuration
         set_default_configuration(clocks);
@@ -897,9 +946,9 @@ pub mod tests {
             clocks.set_sys_clock_source(SysClockSource::PLL),
             clocks
         );
-        check_and_panic!(HIGH_FREQUENCY / 4, clocks.get_ahb_frequency(), clocks);
-        check_and_panic!(HIGH_FREQUENCY / 4, clocks.get_apb1_frequency(), clocks);
-        check_and_panic!(HIGH_FREQUENCY / 4, clocks.get_apb2_frequency(), clocks);
+        check_and_panic!(HIGH_FREQUENCY / 4, clocks.get_ahb_frequency_mhz(), clocks);
+        check_and_panic!(HIGH_FREQUENCY / 4, clocks.get_apb1_frequency_mhz(), clocks);
+        check_and_panic!(HIGH_FREQUENCY / 4, clocks.get_apb2_frequency_mhz(), clocks);
 
         // Revert to default configuration
         set_default_configuration(clocks);

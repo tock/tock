@@ -13,6 +13,7 @@ use kernel::hil::led;
 use kernel::hil::uart;
 use kernel::hil::uart::Configure;
 
+use stm32f429zi::chip_specs::Stm32f429Specs;
 use stm32f429zi::gpio::PinId;
 
 use crate::CHIP;
@@ -45,7 +46,9 @@ impl Write for Writer {
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) -> usize {
         let rcc = stm32f429zi::rcc::Rcc::new();
-        let uart = stm32f429zi::usart::Usart::new_usart3(&rcc);
+        let clocks: stm32f429zi::clocks::Clocks<Stm32f429Specs> =
+            stm32f429zi::clocks::Clocks::new(&rcc);
+        let uart = stm32f429zi::usart::Usart::new_usart3(&clocks);
 
         if !self.initialized {
             self.initialized = true;
@@ -73,10 +76,12 @@ pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
     // User LD2 is connected to PB07
     // Have to reinitialize several peripherals because otherwise can't access them here.
     let rcc = stm32f429zi::rcc::Rcc::new();
-    let syscfg = stm32f429zi::syscfg::Syscfg::new(&rcc);
+    let clocks: stm32f429zi::clocks::Clocks<Stm32f429Specs> =
+        stm32f429zi::clocks::Clocks::new(&rcc);
+    let syscfg = stm32f429zi::syscfg::Syscfg::new(&clocks);
     let exti = stm32f429zi::exti::Exti::new(&syscfg);
     let pin = stm32f429zi::gpio::Pin::new(PinId::PB07, &exti);
-    let gpio_ports = stm32f429zi::gpio::GpioPorts::new(&rcc, &exti);
+    let gpio_ports = stm32f429zi::gpio::GpioPorts::new(&clocks, &exti);
     pin.set_ports_ref(&gpio_ports);
     let led = &mut led::LedHigh::new(&pin);
 

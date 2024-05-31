@@ -24,6 +24,7 @@ use kernel::hil::screen::ScreenRotation;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
+use stm32f412g::chip_specs::Stm32f412Specs;
 use stm32f412g::interrupt_service::Stm32f412gDefaultPeripherals;
 
 /// Support routines for debugging I/O.
@@ -389,19 +390,24 @@ unsafe fn create_peripherals() -> (
     &'static stm32f412g::dma::Dma1<'static>,
 ) {
     let rcc = static_init!(stm32f412g::rcc::Rcc, stm32f412g::rcc::Rcc::new());
+    let clocks = static_init!(
+        stm32f412g::clocks::Clocks<Stm32f412Specs>,
+        stm32f412g::clocks::Clocks::new(rcc)
+    );
+
     let syscfg = static_init!(
         stm32f412g::syscfg::Syscfg,
-        stm32f412g::syscfg::Syscfg::new(rcc)
+        stm32f412g::syscfg::Syscfg::new(clocks)
     );
 
     let exti = static_init!(stm32f412g::exti::Exti, stm32f412g::exti::Exti::new(syscfg));
 
-    let dma1 = static_init!(stm32f412g::dma::Dma1, stm32f412g::dma::Dma1::new(rcc));
-    let dma2 = static_init!(stm32f412g::dma::Dma2, stm32f412g::dma::Dma2::new(rcc));
+    let dma1 = static_init!(stm32f412g::dma::Dma1, stm32f412g::dma::Dma1::new(clocks));
+    let dma2 = static_init!(stm32f412g::dma::Dma2, stm32f412g::dma::Dma2::new(clocks));
 
     let peripherals = static_init!(
         Stm32f412gDefaultPeripherals,
-        Stm32f412gDefaultPeripherals::new(rcc, exti, dma1, dma2)
+        Stm32f412gDefaultPeripherals::new(clocks, exti, dma1, dma2)
     );
     (peripherals, syscfg, dma1)
 }
