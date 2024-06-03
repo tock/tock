@@ -344,6 +344,15 @@ Generally, this means `cfg` directives should be an explicit list of chips or'd
 together. Rarely, if ever, is a `cfg(not ...)` the correct approach for anything
 outside of unit tests.
 
+Rust `cfg` features can also be used to disable code that isn't used in upstream
+Tock but might be used in private or public forks. Rust custom configs can also
+be used, but generally require changes to the lint configuration. See
+https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html#check-cfg-in-lintsrust-table
+for more details on getting the Rust lints to pass.
+
+It would be better to use Cargo feature flags then `cfg`s and avoinding compile
+time configuration at all would be best.
+
 #### Boards
 
 Changes to boards are generally left to the maintainer or original contributor

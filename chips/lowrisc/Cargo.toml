@@ -11,3 +11,7 @@ edition.workspace = true
 [dependencies]
 rv32i = { path = "../../arch/rv32i" }
 kernel = { path = "../../kernel" }
+
+[lints.rust]
+# These are unused and unsupported
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(aon_wkup_timer)'] }
