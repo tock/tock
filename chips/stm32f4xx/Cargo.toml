@@ -22,3 +22,9 @@ stm32f401 = []
 stm32f412 = []
 stm32f429 = []
 stm32f446 = []
+
+# These are unused and unsupported
+stm32f410 = []
+stm32f411 = []
+stm32f413 = []
+stm32f423 = []

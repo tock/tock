@@ -223,15 +223,18 @@ fn load_processes_from_flash<C: Chip>(
                 match load_result {
                     Ok((new_mem, proc)) => {
                         remaining_memory = new_mem;
-                        if proc.is_some() {
-                            if config::CONFIG.debug_load_processes {
-                                proc.map(|p| debug!("Loaded process {}", p.get_process_name()));
+                        match proc {
+                            Some(p) => {
+                                if config::CONFIG.debug_load_processes {
+                                    debug!("Loaded process {}", p.get_process_name())
+                                }
+                                procs[index] = proc;
+                                index += 1;
                             }
-                            procs[index] = proc;
-                            index += 1;
-                        } else {
-                            if config::CONFIG.debug_load_processes {
-                                debug!("No process loaded.");
+                            None => {
+                                if config::CONFIG.debug_load_processes {
+                                    debug!("No process loaded.");
+                                }
                             }
                         }
                     }
@@ -648,21 +651,43 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
         for i in 0..proc_binaries_len {
             // We are either going to load this process binary or discard it, so
             // we can use `take()` here.
-            match proc_binaries[i].take() {
-                Some(process_binary) => {
-                    // We assume the process can be loaded. This is not the case
-                    // if there is a conflicting process.
-                    let mut ok_to_load = true;
+            if let Some(process_binary) = proc_binaries[i].take() {
+                // We assume the process can be loaded. This is not the case
+                // if there is a conflicting process.
+                let mut ok_to_load = true;
 
-                    // Start by iterating all other process binaries and seeing
-                    // if any are in conflict (same AppID with newer version).
-                    for j in 0..proc_binaries_len {
-                        match &proc_binaries[j] {
-                            Some(other_process_binary) => {
-                                let blocked = self.is_blocked_from_loading_by(
-                                    &process_binary,
-                                    other_process_binary,
-                                );
+                // Start by iterating all other process binaries and seeing
+                // if any are in conflict (same AppID with newer version).
+                for j in 0..proc_binaries_len {
+                    match &proc_binaries[j] {
+                        Some(other_process_binary) => {
+                            let blocked = self
+                                .is_blocked_from_loading_by(&process_binary, other_process_binary);
+
+                            if blocked {
+                                ok_to_load = false;
+                                break;
+                            }
+                        }
+                        None => {}
+                    }
+                }
+
+                // Go to next ProcessBinary if we cannot load this process.
+                if !ok_to_load {
+                    continue;
+                }
+
+                // Now scan the already loaded processes and make sure this
+                // doesn't conflict with any of those. Since those processes
+                // are already loaded, we just need to check if this process
+                // binary has the same AppID as an already loaded process.
+                self.procs.map(|procs| {
+                    for proc in procs.iter() {
+                        match proc {
+                            Some(p) => {
+                                let blocked =
+                                    self.is_blocked_from_loading_by_process(&process_binary, *p);
 
                                 if blocked {
                                     ok_to_load = false;
@@ -672,67 +697,40 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
                             None => {}
                         }
                     }
+                });
 
-                    // Go to next ProcessBinary if we cannot load this process.
-                    if !ok_to_load {
-                        continue;
-                    }
+                if !ok_to_load {
+                    continue;
+                }
 
-                    // Now scan the already loaded processes and make sure this
-                    // doesn't conflict with any of those. Since those processes
-                    // are already loaded, we just need to check if this process
-                    // binary has the same AppID as an already loaded process.
-                    self.procs.map(|procs| {
-                        for proc in procs.iter() {
-                            match proc {
-                                Some(p) => {
-                                    let blocked = self
-                                        .is_blocked_from_loading_by_process(&process_binary, *p);
+                // If we get here it is ok to load the process.
+                match self.find_open_process_slot() {
+                    Some(index) => {
+                        // Calculate the ShortId for this new process.
+                        let short_app_id = self.policy.map_or(ShortId::LocallyUnique, |policy| {
+                            policy.to_short_id(&process_binary)
+                        });
 
-                                    if blocked {
-                                        ok_to_load = false;
-                                        break;
-                                    }
-                                }
-                                None => {}
-                            }
-                        }
-                    });
-
-                    if !ok_to_load {
-                        continue;
-                    }
-
-                    // If we get here it is ok to load the process.
-                    match self.find_open_process_slot() {
-                        Some(index) => {
-                            // Calculate the ShortId for this new process.
-                            let short_app_id =
-                                self.policy.map_or(ShortId::LocallyUnique, |policy| {
-                                    policy.to_short_id(&process_binary)
-                                });
-
-                            // Try to create a `Process` object.
-                            let load_result = load_process(
-                                self.kernel,
-                                self.chip,
-                                process_binary,
-                                self.app_memory.take(),
-                                short_app_id,
-                                index,
-                                self.fault_policy,
-                            );
-                            match load_result {
-                                Ok((new_mem, proc)) => {
-                                    self.app_memory.set(new_mem);
-                                    if proc.is_some() {
+                        // Try to create a `Process` object.
+                        let load_result = load_process(
+                            self.kernel,
+                            self.chip,
+                            process_binary,
+                            self.app_memory.take(),
+                            short_app_id,
+                            index,
+                            self.fault_policy,
+                        );
+                        match load_result {
+                            Ok((new_mem, proc)) => {
+                                self.app_memory.set(new_mem);
+                                match proc {
+                                    Some(p) => {
                                         if config::CONFIG.debug_load_processes {
-                                            proc.map(|p| {
-                                                debug!(
-                                                    "Loading: Loaded process {}",
-                                                    p.get_process_name()
-                                                )
-                                            });
+                                            debug!(
+                                                "Loading: Loaded process {}",
+                                                p.get_process_name()
+                                            )
                                         }
 
                                         // Store the `ProcessStandard` object in the `PROCESSES`
@@ -745,33 +743,33 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
                                         self.client.map(|client| {
                                             client.process_loaded(Ok(()));
                                         });
-                                    } else {
+                                    }
+                                    None => {
                                         if config::CONFIG.debug_load_processes {
                                             debug!("No process loaded.");
                                         }
                                     }
                                 }
-                                Err((new_mem, err)) => {
-                                    self.app_memory.set(new_mem);
-                                    if config::CONFIG.debug_load_processes {
-                                        debug!("Could not load process: {:?}.", err);
-                                    }
-
-                                    self.client.map(|client| {
-                                        client.process_loaded(Err(err));
-                                    });
+                            }
+                            Err((new_mem, err)) => {
+                                self.app_memory.set(new_mem);
+                                if config::CONFIG.debug_load_processes {
+                                    debug!("Could not load process: {:?}.", err);
                                 }
+
+                                self.client.map(|client| {
+                                    client.process_loaded(Err(err));
+                                });
                             }
                         }
-                        None => {
-                            // Nowhere to store the process.
-                            self.client.map(|client| {
-                                client.process_loaded(Err(ProcessLoadError::NoProcessSlot));
-                            });
-                        }
+                    }
+                    None => {
+                        // Nowhere to store the process.
+                        self.client.map(|client| {
+                            client.process_loaded(Err(ProcessLoadError::NoProcessSlot));
+                        });
                     }
                 }
-                None => {}
             }
         }
         self.proc_binaries.put(proc_binaries);

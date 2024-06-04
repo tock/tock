@@ -35,14 +35,14 @@ pub enum Error {
     Busy,
 }
 
-impl Into<ErrorCode> for Error {
-    fn into(self) -> ErrorCode {
-        match self {
-            Self::AddressNak | Self::DataNak => ErrorCode::NOACK,
-            Self::ArbitrationLost => ErrorCode::RESERVE,
-            Self::Overrun => ErrorCode::SIZE,
-            Self::NotSupported => ErrorCode::NOSUPPORT,
-            Self::Busy => ErrorCode::BUSY,
+impl From<Error> for ErrorCode {
+    fn from(val: Error) -> Self {
+        match val {
+            Error::AddressNak | Error::DataNak => ErrorCode::NOACK,
+            Error::ArbitrationLost => ErrorCode::RESERVE,
+            Error::Overrun => ErrorCode::SIZE,
+            Error::NotSupported => ErrorCode::NOSUPPORT,
+            Error::Busy => ErrorCode::BUSY,
         }
     }
 }

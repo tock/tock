@@ -104,6 +104,7 @@ CLIPPY_ARGS_STYLE="
 -A clippy::redundant_pattern_matching
 -A clippy::unusual-byte-groupings
 -A clippy::wrong-self-convention
+-A clippy::doc_lazy_continuation
 "
 
 # Disallow all perf lints, then re-allow each one Tock does not comply with.

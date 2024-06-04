@@ -494,7 +494,9 @@ impl Kernel {
         // point, the scheduler timer need not have an interrupt enabled after
         // `start()`.
         scheduler_timer.reset();
-        timeslice_us.map(|timeslice| scheduler_timer.start(timeslice));
+        if let Some(timeslice) = timeslice_us {
+            scheduler_timer.start(timeslice)
+        }
 
         // Need to track why the process is no longer executing so that we can
         // inform the scheduler.
@@ -654,16 +656,16 @@ impl Kernel {
 
         // Check how much time the process used while it was executing, and
         // return the value so we can provide it to the scheduler.
-        let time_executed_us = timeslice_us.map_or(None, |timeslice| {
+        let time_executed_us = timeslice_us.map(|timeslice| {
             // Note, we cannot call `.get_remaining_us()` again if it has previously
             // returned `None`, so we _must_ check the return reason first.
             if return_reason == process::StoppedExecutingReason::TimesliceExpired {
                 // used the whole timeslice
-                Some(timeslice)
+                timeslice
             } else {
                 match scheduler_timer.get_remaining_us() {
-                    Some(remaining) => Some(timeslice - remaining),
-                    None => Some(timeslice), // used whole timeslice
+                    Some(remaining) => timeslice - remaining,
+                    None => timeslice, // used whole timeslice
                 }
             }
         });
@@ -824,7 +826,7 @@ impl Kernel {
                         // > If the passed upcall is not valid (is outside process
                         // > executable memory...), the kernel...MUST immediately return
                         // > a failure with a error code of `INVALID`.
-                        let rval1 = ptr.map_or(None, |upcall_ptr_nonnull| {
+                        let rval1 = ptr.and_then(|upcall_ptr_nonnull| {
                             if !process.is_valid_upcall_function_pointer(upcall_ptr_nonnull) {
                                 Some(ErrorCode::INVAL)
                             } else {

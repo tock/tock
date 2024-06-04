@@ -755,7 +755,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             // panic.
             grant_pointers
                 .get(grant_num)
-                .map_or(None, |grant_entry| Some(!grant_entry.grant_ptr.is_null()))
+                .map(|grant_entry| !grant_entry.grant_ptr.is_null())
         })
     }
 
@@ -914,17 +914,14 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.grant_pointers.map(|grant_pointers| {
             // Implement `grant_pointers[grant_num]` without a chance of a
             // panic.
-            match grant_pointers.get_mut(grant_num) {
-                Some(grant_entry) => {
-                    // Get a copy of the actual grant pointer.
-                    let grant_ptr = grant_entry.grant_ptr;
+            if let Some(grant_entry) = grant_pointers.get_mut(grant_num) {
+                // Get a copy of the actual grant pointer.
+                let grant_ptr = grant_entry.grant_ptr;
 
-                    // Now, to mark that the grant has been released, we set the
-                    // lowest bit back to zero and save this as the grant
-                    // pointer.
-                    grant_entry.grant_ptr = (grant_ptr as usize & !0x1) as *mut u8;
-                }
-                None => {}
+                // Now, to mark that the grant has been released, we set the
+                // lowest bit back to zero and save this as the grant
+                // pointer.
+                grant_entry.grant_ptr = (grant_ptr as usize & !0x1) as *mut u8;
             }
         });
     }
@@ -1083,7 +1080,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
         // If the UKB implementation passed us a stack pointer, update our
         // debugging state. This is completely optional.
-        stack_pointer.map(|sp| {
+        if let Some(sp) = stack_pointer {
             self.debug.map(|debug| {
                 match debug.app_stack_min_pointer {
                     None => debug.app_stack_min_pointer = Some(sp),
@@ -1095,7 +1092,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                     }
                 }
             });
-        });
+        }
 
         switch_reason
     }
@@ -1662,8 +1659,8 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         process.process_name = process_name.unwrap_or("");
 
         process.debug = MapCell::new(ProcessStandardDebug {
-            fixed_address_flash: fixed_address_flash,
-            fixed_address_ram: fixed_address_ram,
+            fixed_address_flash,
+            fixed_address_ram,
             app_heap_start_pointer: None,
             app_stack_start_pointer: None,
             app_stack_min_pointer: None,

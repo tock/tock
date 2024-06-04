@@ -98,7 +98,7 @@ impl<'a, S: SpiMasterDevice<'a>> Spi<'a, S> {
         }
     }
 
-    pub fn config_buffers(&mut self, read: &'static mut [u8], write: &'static mut [u8]) {
+    pub fn config_buffers(&self, read: &'static mut [u8], write: &'static mut [u8]) {
         let len = cmp::min(read.len(), write.len());
         self.kernel_len.set(len);
         self.kernel_read.replace(read);

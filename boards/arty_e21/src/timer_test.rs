@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-#![allow(dead_code)]
-
 use kernel::debug;
 use kernel::hil::time::{self, Alarm, Ticks};
 

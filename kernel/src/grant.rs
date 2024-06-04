@@ -521,7 +521,7 @@ impl<'a, T: 'a + ?Sized> GrantData<'a, T> {
     /// Otherwise, there would be multiple mutable references to the same object
     /// which is undefined behavior.
     fn new(data: &'a mut T) -> GrantData<'a, T> {
-        GrantData { data: data }
+        GrantData { data }
     }
 }
 
@@ -605,7 +605,7 @@ impl<'a> GrantKernelData<'a> {
                 // We can create an `Upcall` object based on what is stored in
                 // the process grant and use that to add the upcall to the
                 // pending array for the process.
-                let mut upcall = Upcall::new(
+                let upcall = Upcall::new(
                     self.process.processid(),
                     UpcallId {
                         subscribe_num,
@@ -1119,39 +1119,36 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
         )?;
 
         // We can now do the initialization of T object if necessary.
-        match opt_raw_grant_ptr_nn {
-            Some(allocated_ptr) => {
-                // Grant type T
-                //
-                // # Safety
-                //
-                // This is safe because:
-                //
-                // 1. The pointer address is valid. The pointer is allocated
-                //    statically in process memory, and will exist for as long
-                //    as the process does. The grant is only accessible while
-                //    the process is still valid.
-                //
-                // 2. The pointer is correctly aligned. The newly allocated
-                //    grant is aligned for type T, and there is padding inserted
-                //    between the upcall array and the T object such that the T
-                //    object starts a multiple of `align_of<T>` from the
-                //    beginning of the allocation.
-                unsafe {
-                    // Convert untyped `*mut u8` allocation to allocated type.
-                    let new_region = NonNull::cast::<T>(allocated_ptr);
-                    // We use `ptr::write` to avoid `Drop`ping the uninitialized
-                    // memory in case `T` implements the `Drop` trait.
-                    write(new_region.as_ptr(), T::default());
-                }
+        if let Some(allocated_ptr) = opt_raw_grant_ptr_nn {
+            // Grant type T
+            //
+            // # Safety
+            //
+            // This is safe because:
+            //
+            // 1. The pointer address is valid. The pointer is allocated
+            //    statically in process memory, and will exist for as long
+            //    as the process does. The grant is only accessible while
+            //    the process is still valid.
+            //
+            // 2. The pointer is correctly aligned. The newly allocated
+            //    grant is aligned for type T, and there is padding inserted
+            //    between the upcall array and the T object such that the T
+            //    object starts a multiple of `align_of<T>` from the
+            //    beginning of the allocation.
+            unsafe {
+                // Convert untyped `*mut u8` allocation to allocated type.
+                let new_region = NonNull::cast::<T>(allocated_ptr);
+                // We use `ptr::write` to avoid `Drop`ping the uninitialized
+                // memory in case `T` implements the `Drop` trait.
+                write(new_region.as_ptr(), T::default());
             }
-            None => {} // Case if grant was already allocated.
         }
 
         // We have ensured the grant is already allocated or was just allocated,
         // so we can create and return the `ProcessGrant` type.
         Ok(ProcessGrant {
-            process: process,
+            process,
             driver_num: grant.driver_num,
             grant_num: grant.grant_num,
             _phantom: PhantomData,
@@ -1168,7 +1165,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
         if let Some(is_allocated) = process.grant_is_allocated(grant.grant_num) {
             if is_allocated {
                 Some(ProcessGrant {
-                    process: process,
+                    process,
                     driver_num: grant.driver_num,
                     grant_num: grant.grant_num,
                     _phantom: PhantomData,
@@ -1497,7 +1494,7 @@ impl<T> CustomGrant<T> {
     /// Because this function requires `&mut self`, it should be impossible to
     /// access the inner data of a given `CustomGrant` reentrantly. Thus the
     /// reentrance detection we use for non-custom grants is not needed here.
-    pub fn enter<F, R>(&mut self, fun: F) -> Result<R, Error>
+    pub fn enter<F, R>(&self, fun: F) -> Result<R, Error>
     where
         F: FnOnce(GrantData<'_, T>) -> R,
     {
@@ -1549,7 +1546,7 @@ impl GrantRegionAllocator {
     /// # Panic Safety
     ///
     /// If `init` panics, the freshly allocated memory may leak.
-    pub fn alloc_with<T, F>(&mut self, init: F) -> Result<CustomGrant<T>, Error>
+    pub fn alloc_with<T, F>(&self, init: F) -> Result<CustomGrant<T>, Error>
     where
         F: FnOnce() -> T,
     {
@@ -1579,7 +1576,7 @@ impl GrantRegionAllocator {
     /// If `val_func` panics, the freshly allocated memory and any values
     /// already written will be leaked.
     pub fn alloc_n_with<T, F, const NUM_ITEMS: usize>(
-        &mut self,
+        &self,
         mut init: F,
     ) -> Result<CustomGrant<[T; NUM_ITEMS]>, Error>
     where
@@ -1605,7 +1602,7 @@ impl GrantRegionAllocator {
     /// The caller must initialize the memory.
     ///
     /// Also returns a ProcessCustomGrantIdentifier to access the memory later.
-    fn alloc_raw<T>(&mut self) -> Result<(ProcessCustomGrantIdentifier, NonNull<T>), Error> {
+    fn alloc_raw<T>(&self) -> Result<(ProcessCustomGrantIdentifier, NonNull<T>), Error> {
         self.alloc_n_raw::<T>(1)
     }
 
@@ -1616,7 +1613,7 @@ impl GrantRegionAllocator {
     /// Returns memory appropriate for storing `num_items` contiguous instances
     /// of `T` and a ProcessCustomGrantIdentifier to access the memory later.
     fn alloc_n_raw<T>(
-        &mut self,
+        &self,
         num_items: usize,
     ) -> Result<(ProcessCustomGrantIdentifier, NonNull<T>), Error> {
         let (custom_grant_identifier, raw_ptr) =
@@ -1628,7 +1625,7 @@ impl GrantRegionAllocator {
 
     /// Helper to reduce code bloat by avoiding monomorphization.
     fn alloc_n_raw_inner(
-        &mut self,
+        &self,
         num_items: usize,
         single_alloc_size: usize,
         alloc_align: usize,
@@ -1685,8 +1682,8 @@ impl<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSi
     /// `grant_index` is a valid index.
     pub(crate) fn new(kernel: &'static Kernel, driver_num: usize, grant_index: usize) -> Self {
         Self {
-            kernel: kernel,
-            driver_num: driver_num,
+            kernel,
+            driver_num,
             grant_num: grant_index,
             ptr: PhantomData,
         }

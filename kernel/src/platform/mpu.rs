@@ -37,8 +37,8 @@ impl Region {
     /// Create a new MPU region with a given starting point and length in bytes.
     pub fn new(start_address: *const u8, size: usize) -> Region {
         Region {
-            start_address: start_address,
-            size: size,
+            start_address,
+            size,
         }
     }
 
