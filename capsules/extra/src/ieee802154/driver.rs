@@ -729,11 +729,13 @@ impl<'a, M: device::MacDevice<'a>> SyscallDriver for RadioDriver<'a, M> {
     ///        parameters to encrypt, form headers, and transmit the frame.
     /// - `27`: Transmit a frame (raw). Transmit preformed 15.4 frame (i.e.
     ///        headers and security etc completed by userprocess).
+    /// - `28`: Set long address.
+    /// - `29`: Get the long MAC address.
     fn command(
         &self,
         command_number: usize,
         arg1: usize,
-        _: usize,
+        arg2: usize,
         processid: ProcessId,
     ) -> CommandReturn {
         match command_number {
@@ -1037,6 +1039,17 @@ impl<'a, M: device::MacDevice<'a>> SyscallDriver for RadioDriver<'a, M> {
                         |err| CommandReturn::failure(err.into()),
                         |_| self.do_next_tx_sync(processid).into(),
                     )
+            }
+            28 => {
+                let addr_upper: u64 = arg2 as u64;
+                let addr_lower: u64 = arg1 as u64;
+                let addr = addr_upper << 32 | addr_lower;
+                self.mac.set_address_long(addr.to_be_bytes());
+                CommandReturn::success()
+            }
+            29 => {
+                let addr = u64::from_be_bytes(self.mac.get_address_long());
+                CommandReturn::success_u64(addr)
             }
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
