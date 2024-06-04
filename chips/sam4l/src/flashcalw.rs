@@ -422,16 +422,6 @@ pub struct FLASHCALW {
 // Few constants relating to module configuration.
 const PAGE_SIZE: u32 = 512;
 
-#[cfg(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE)]
-const FREQ_PS1_FWS_1_FWU_MAX_FREQ: u32 = 12000000;
-#[cfg(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE)]
-const FREQ_PS0_FWS_0_MAX_FREQ: u32 = 18000000;
-#[cfg(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE)]
-const FREQ_PS0_FWS_1_MAX_FREQ: u32 = 36000000;
-#[cfg(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE)]
-const FREQ_PS1_FWS_0_MAX_FREQ: u32 = 8000000;
-
-#[cfg(not(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE))]
 const FREQ_PS2_FWS_0_MAX_FREQ: u32 = 24000000;
 
 impl FLASHCALW {
@@ -597,7 +587,6 @@ impl FLASHCALW {
 
     //  By default, we are going with High Speed Enable (based on our device running
     //  in PS2).
-    #[cfg(not(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE))]
     fn set_flash_waitstate_and_readmode(&self, cpu_freq: u32, _ps_val: u32, _is_fwu_enabled: bool) {
         // ps_val and is_fwu_enabled not used in this implementation.
         if cpu_freq > FREQ_PS2_FWS_0_MAX_FREQ {
@@ -607,41 +596,6 @@ impl FLASHCALW {
         }
 
         self.issue_command(FlashCMD::HSEN, -1);
-    }
-
-    #[cfg(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE)]
-    fn set_flash_waitstate_and_readmode(
-        &mut self,
-        cpu_freq: u32,
-        ps_val: u32,
-        is_fwu_enabled: bool,
-    ) {
-        if ps_val == 0 {
-            if cpu_freq > FREQ_PS0_FWS_0_MAX_FREQ {
-                self.set_wait_state(1);
-                if cpu_freq <= FREQ_PS0_FWS_1_MAX_FREQ {
-                    self.issue_command(FlashCMD::HSDIS, -1);
-                } else {
-                    self.issue_command(FlashCMD::HSEN, -1);
-                }
-            } else {
-                if is_fwu_enabled && cpu_freq <= FREQ_PS1_FWS_1_FWU_MAX_FREQ {
-                    self.set_wait_state(1);
-                    self.issue_command(FlashCMD::HSDIS, -1);
-                } else {
-                    self.set_wait_state(0);
-                    self.issue_command(FlashCMD::HSDIS, -1);
-                }
-            }
-        } else {
-            // ps_val == 1
-            if cpu_freq > FREQ_PS1_FWS_0_MAX_FREQ {
-                self.set_wait_state(1);
-            } else {
-                self.set_wait_state(0);
-            }
-            self.issue_command(FlashCMD::HSDIS, -1);
-        }
     }
 
     /// Configure high-speed flash mode. This is taken from the ASF code
