@@ -89,7 +89,8 @@ pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
     // Create the base board:
-    let (board_kernel, base_platform, chip, base_peripherals) = nrf52840dk_lib::start();
+    let (board_kernel, base_platform, chip, nrf52840_peripherals, _mux_alarm) =
+        nrf52840dk_lib::start();
 
     //--------------------------------------------------------------------------
     // SCREEN
@@ -98,13 +99,16 @@ pub unsafe fn main() {
     const SCREEN_I2C_SDA_PIN: Pin = Pin::P1_10;
     const SCREEN_I2C_SCL_PIN: Pin = Pin::P1_11;
 
-    let i2c_bus = components::i2c::I2CMuxComponent::new(&base_peripherals.twi0, None)
+    let i2c_bus = components::i2c::I2CMuxComponent::new(&nrf52840_peripherals.nrf52.twi0, None)
         .finalize(components::i2c_mux_component_static!(nrf52840::i2c::TWI));
-    base_peripherals.twi0.configure(
+    nrf52840_peripherals.nrf52.twi0.configure(
         nrf52840::pinmux::Pinmux::new(SCREEN_I2C_SCL_PIN as u32),
         nrf52840::pinmux::Pinmux::new(SCREEN_I2C_SDA_PIN as u32),
     );
-    base_peripherals.twi0.set_speed(nrf52840::i2c::Speed::K400);
+    nrf52840_peripherals
+        .nrf52
+        .twi0
+        .set_speed(nrf52840::i2c::Speed::K400);
 
     // I2C address is b011110X, and on this board D/C̅ is GND.
     let ssd1306_sh1106_i2c = components::i2c::I2CComponent::new(i2c_bus, 0x3c)
@@ -139,7 +143,7 @@ pub unsafe fn main() {
     let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
         board_kernel,
         capsules_extra::nonvolatile_storage_driver::DRIVER_NUM,
-        &base_peripherals.nvmc,
+        &nrf52840_peripherals.nrf52.nvmc,
         core::ptr::addr_of!(APP_STORAGE) as usize,
         APP_STORAGE.len(),
         // No kernel-writeable flash:
