@@ -26,8 +26,13 @@ type ScreenDriver = components::screen::ScreenComponentType;
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
+type Ieee802154RawDriver =
+    components::ieee802154::Ieee802154RawComponentType<nrf52840::ieee802154_radio::Radio<'static>>;
+
 struct Platform {
     base: nrf52840dk_lib::Platform,
+    ieee802154: &'static Ieee802154RawDriver,
+    eui64: &'static nrf52840dk_lib::Eui64Driver,
     screen: &'static ScreenDriver,
     nonvolatile_storage:
         &'static capsules_extra::nonvolatile_storage_driver::NonvolatileStorage<'static>,
@@ -39,6 +44,8 @@ impl SyscallDriverLookup for Platform {
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
         match driver_num {
+            capsules_extra::eui64::DRIVER_NUM => f(Some(self.eui64)),
+            capsules_extra::ieee802154::DRIVER_NUM => f(Some(self.ieee802154)),
             capsules_extra::screen::DRIVER_NUM => f(Some(self.screen)),
             capsules_extra::nonvolatile_storage_driver::DRIVER_NUM => {
                 f(Some(self.nonvolatile_storage))
@@ -91,6 +98,24 @@ pub unsafe fn main() {
     // Create the base board:
     let (board_kernel, base_platform, chip, nrf52840_peripherals, _mux_alarm) =
         nrf52840dk_lib::start();
+
+    //--------------------------------------------------------------------------
+    // RAW 802.15.4
+    //--------------------------------------------------------------------------
+
+    let device_id = nrf52840::ficr::FICR_INSTANCE.id();
+
+    let eui64 = components::eui64::Eui64Component::new(u64::from_le_bytes(device_id))
+        .finalize(components::eui64_component_static!());
+
+    let ieee802154 = components::ieee802154::Ieee802154RawComponent::new(
+        board_kernel,
+        capsules_extra::ieee802154::DRIVER_NUM,
+        &nrf52840_peripherals.ieee802154_radio,
+    )
+    .finalize(components::ieee802154_raw_component_static!(
+        nrf52840::ieee802154_radio::Radio,
+    ));
 
     //--------------------------------------------------------------------------
     // SCREEN
@@ -160,6 +185,8 @@ pub unsafe fn main() {
 
     let platform = Platform {
         base: base_platform,
+        eui64,
+        ieee802154,
         screen,
         nonvolatile_storage,
     };
