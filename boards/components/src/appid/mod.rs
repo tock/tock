@@ -4,4 +4,5 @@
 
 pub mod assigner_name;
 pub mod checker;
+pub mod checker_null;
 pub mod checker_sha;

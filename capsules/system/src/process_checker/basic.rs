@@ -20,45 +20,16 @@ use kernel::ErrorCode;
 use tock_tbf::types::TbfFooterV2Credentials;
 use tock_tbf::types::TbfFooterV2CredentialsType;
 
-/// A sample Credentials Checking Policy that loads and runs Userspace
-/// Binaries with unique process names; if it encounters a Userspace
-/// Binary with the same process name as an existing one it fails the
-/// uniqueness check and is not run.
-pub struct AppCheckerSimulated<'a> {
-    deferred_call: DeferredCall,
-    client: OptionalCell<&'a dyn AppCredentialsPolicyClient<'a>>,
-    credentials: OptionalCell<TbfFooterV2Credentials>,
-    binary: OptionalCell<&'a [u8]>,
-}
+/// A sample Credentials Checking Policy that approves all apps.
+pub struct AppCheckerNull {}
 
-impl<'a> AppCheckerSimulated<'a> {
+impl AppCheckerNull {
     pub fn new() -> Self {
-        Self {
-            deferred_call: DeferredCall::new(),
-            client: OptionalCell::empty(),
-            credentials: OptionalCell::empty(),
-            binary: OptionalCell::empty(),
-        }
+        Self {}
     }
 }
 
-impl<'a> DeferredCallClient for AppCheckerSimulated<'a> {
-    fn handle_deferred_call(&self) {
-        self.client.map(|c| {
-            c.check_done(
-                Ok(CheckResult::Pass),
-                self.credentials.take().unwrap(),
-                self.binary.take().unwrap(),
-            )
-        });
-    }
-
-    fn register(&'static self) {
-        self.deferred_call.register(self);
-    }
-}
-
-impl<'a> AppCredentialsPolicy<'a> for AppCheckerSimulated<'a> {
+impl<'a> AppCredentialsPolicy<'a> for AppCheckerNull {
     fn require_credentials(&self) -> bool {
         false
     }
@@ -68,19 +39,10 @@ impl<'a> AppCredentialsPolicy<'a> for AppCheckerSimulated<'a> {
         credentials: TbfFooterV2Credentials,
         binary: &'a [u8],
     ) -> Result<(), (ErrorCode, TbfFooterV2Credentials, &'a [u8])> {
-        if self.credentials.is_none() {
-            self.credentials.replace(credentials);
-            self.binary.replace(binary);
-            self.deferred_call.set();
-            Ok(())
-        } else {
-            Err((ErrorCode::BUSY, credentials, binary))
-        }
+        Err((ErrorCode::NOSUPPORT, credentials, binary))
     }
 
-    fn set_client(&self, client: &'a dyn AppCredentialsPolicyClient<'a>) {
-        self.client.replace(client);
-    }
+    fn set_client(&self, _client: &'a dyn AppCredentialsPolicyClient<'a>) {}
 }
 
 pub struct AppIdAssignerSimulated {}
