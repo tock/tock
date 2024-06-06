@@ -75,7 +75,7 @@
 // TODO: Channel scanning
 //
 
-use crate::ieee802154::device::{MacDevice, RxClient, SecuredFrameNoDecryptRxClient, TxClient};
+use crate::ieee802154::device::{MacDevice, RxClient, TxClient};
 use crate::ieee802154::mac::Mac;
 use crate::net::ieee802154::{
     FrameType, FrameVersion, Header, KeyId, MacAddress, PanID, Security, SecurityLevel,
@@ -396,7 +396,6 @@ pub struct Framer<'a, M: Mac<'a>, A: AES128CCM<'a>> {
     /// `None`, except when transitioning between states.
     rx_state: MapCell<RxState>,
     rx_client: OptionalCell<&'a dyn RxClient>,
-    secured_frame_no_decrypt_rx_client: OptionalCell<&'a dyn SecuredFrameNoDecryptRxClient>,
     crypt_buf: MapCell<SubSliceMut<'static, u8>>,
 }
 
@@ -416,7 +415,6 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
             tx_client: OptionalCell::empty(),
             rx_state: MapCell::new(RxState::Idle),
             rx_client: OptionalCell::empty(),
-            secured_frame_no_decrypt_rx_client: OptionalCell::empty(),
             crypt_buf: MapCell::new(crypt_buf),
         }
     }
@@ -511,10 +509,6 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                         let key = match self.lookup_key(security.level, security.key_id) {
                             Some(key) => key,
                             None => {
-                                // Key not found -- pass raw encrypted packet to client
-                                self.secured_frame_no_decrypt_rx_client.map(|client| {
-                                    client.receive_secured_frame(frame_buffer, header, lqi, data_offset, data_len);
-                                });
                                 return None;
                             }
                         };
@@ -805,13 +799,6 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
 
     fn set_receive_client(&self, client: &'a dyn RxClient) {
         self.rx_client.set(client);
-    }
-
-    fn set_receive_secured_frame_no_decrypt_client(
-        &self,
-        client: &'a dyn super::device::SecuredFrameNoDecryptRxClient,
-    ) {
-        self.secured_frame_no_decrypt_rx_client.set(client);
     }
 
     fn get_address(&self) -> u16 {

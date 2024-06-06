@@ -56,7 +56,6 @@
 use crate::ieee802154::{device, framer};
 use crate::net::ieee802154::{Header, KeyId, MacAddress, SecurityLevel};
 use crate::net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResult};
-use device::RxClient;
 
 use core::cell::Cell;
 
@@ -1078,22 +1077,6 @@ impl<'a, M: device::MacDevice<'a>> device::TxClient for RadioDriver<'a, M> {
             });
         });
         self.do_next_tx_async();
-    }
-}
-
-impl<'a, M: device::MacDevice<'a>> device::SecuredFrameNoDecryptRxClient for RadioDriver<'a, M> {
-    fn receive_secured_frame<'b>(
-        &self,
-        buf: &'b [u8],
-        header: Header<'b>,
-        lqi: u8,
-        data_offset: usize,
-        data_len: usize,
-    ) {
-        // The current 15.4 userspace receive accepts both secured and
-        // unsecured frames. As such, we can simply call the standard
-        // receive method of the RxClient trait.
-        self.receive(buf, header, lqi, data_offset, data_len)
     }
 }
 

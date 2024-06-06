@@ -72,21 +72,6 @@ impl<'a, M: device::MacDevice<'a>> device::RxClient for MuxMac<'a, M> {
     }
 }
 
-impl<'a, M: device::MacDevice<'a>> device::SecuredFrameNoDecryptRxClient for MuxMac<'a, M> {
-    fn receive_secured_frame<'b>(
-        &self,
-        buf: &'b [u8],
-        header: Header<'b>,
-        lqi: u8,
-        data_offset: usize,
-        data_len: usize,
-    ) {
-        for user in self.users.iter() {
-            user.receive_secured_frame(buf, header, lqi, data_offset, data_len);
-        }
-    }
-}
-
 impl<'a, M: device::MacDevice<'a>> MuxMac<'a, M> {
     pub const fn new(mac: &'a M) -> MuxMac<'a, M> {
         MuxMac {
@@ -218,7 +203,6 @@ pub struct MacUser<'a, M: device::MacDevice<'a>> {
     next: ListLink<'a, MacUser<'a, M>>,
     tx_client: OptionalCell<&'a dyn device::TxClient>,
     rx_client: OptionalCell<&'a dyn device::RxClient>,
-    secure_frame_no_decrypt_rx_client: OptionalCell<&'a dyn device::SecuredFrameNoDecryptRxClient>,
 }
 
 impl<'a, M: device::MacDevice<'a>> MacUser<'a, M> {
@@ -229,7 +213,6 @@ impl<'a, M: device::MacDevice<'a>> MacUser<'a, M> {
             next: ListLink::empty(),
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
-            secure_frame_no_decrypt_rx_client: OptionalCell::empty(),
         }
     }
 }
@@ -253,21 +236,6 @@ impl<'a, M: device::MacDevice<'a>> MacUser<'a, M> {
             .get()
             .map(move |client| client.receive(buf, header, lqi, data_offset, data_len));
     }
-
-    fn receive_secured_frame<'b>(
-        &self,
-        buf: &'b [u8],
-        header: Header<'b>,
-        lqi: u8,
-        data_offset: usize,
-        data_len: usize,
-    ) {
-        self.secure_frame_no_decrypt_rx_client
-            .get()
-            .map(move |client| {
-                client.receive_secured_frame(buf, header, lqi, data_offset, data_len)
-            });
-    }
 }
 
 impl<'a, M: device::MacDevice<'a>> ListNode<'a, MacUser<'a, M>> for MacUser<'a, M> {
@@ -283,13 +251,6 @@ impl<'a, M: device::MacDevice<'a>> device::MacDevice<'a> for MacUser<'a, M> {
 
     fn set_receive_client(&self, client: &'a dyn device::RxClient) {
         self.rx_client.set(client);
-    }
-
-    fn set_receive_secured_frame_no_decrypt_client(
-        &self,
-        client: &'a dyn device::SecuredFrameNoDecryptRxClient,
-    ) {
-        self.secure_frame_no_decrypt_rx_client.set(client);
     }
 
     fn get_address(&self) -> u16 {
