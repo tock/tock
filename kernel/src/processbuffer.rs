@@ -26,6 +26,7 @@
 
 use core::cell::Cell;
 use core::marker::PhantomData;
+use core::mem::size_of;
 use core::ops::{Deref, Index, Range, RangeFrom, RangeTo};
 
 use crate::capabilities;
@@ -1097,6 +1098,70 @@ impl WriteableProcessSlice {
     #[deprecated = "Use WriteableProcessSlice::get instead"]
     pub fn get_to(&self, range: RangeTo<usize>) -> Option<&WriteableProcessSlice> {
         range.get(self)
+    }
+
+    /// Checks if the process buffer respects the ring buffer contract
+    ///
+    /// ringbuffer data format
+    // 0          1          2          3          4
+    // +----------+----------+----------+----------+-------------------...
+    // | len (u8) | len (u8) | len (u8) | xor (u8) | slice
+    // +----------+----------+----------+----------+-------------------...
+    // | length (24 bits little endian) | control  | data
+    //
+    // The first 3 bytes store the used space in little endian format
+    //
+    // The 4th bytes store a control value to validate if this is a correct ringbuffer
+    // to avoid missinterpretation of the first three bytes. It is computed by
+    // using XOR between the length's bytes.
+    pub fn ringbuffer_len(&self) -> Result<usize, ErrorCode> {
+        if self.slice.len() >= size_of::<u32>() {
+            let len = self.slice[0].get() as u32
+                | (self.slice[1].get() as u32 >> 8)
+                | (self.slice[2].get() as u32 >> 16);
+            let control = self.slice[3].get();
+            let computed_control = self.slice[0].get() ^ self.slice[1].get() ^ self.slice[2].get();
+            if computed_control == control {
+                Ok(len as usize)
+            } else {
+                Err(ErrorCode::INVAL)
+            }
+        } else {
+            Err(ErrorCode::SIZE)
+        }
+    }
+
+    fn set_ringbuffer_len(&self, len: usize) -> Result<(), ErrorCode> {
+        if self.slice.len() >= len + size_of::<u32>() {
+            if len << 24 > 0 {
+                Err(ErrorCode::INVAL)
+            } else {
+                let computed_control = ((len ^ (len << 8) ^ (len << 16)) & 0xff) as u8;
+                self.slice[0].set((len & 0xff) as u8);
+                self.slice[1].set(((len << 8) & 0xff) as u8);
+                self.slice[2].set(((len << 16) & 0xff) as u8);
+                self.slice[3].set(computed_control);
+                Ok(())
+            }
+        } else {
+            Err(ErrorCode::SIZE)
+        }
+    }
+
+    pub fn append_to_ringbuffer(&self, data: &[u8]) -> Result<(), ErrorCode> {
+        let len = self.ringbuffer_len()?;
+        if data.len() + len <= self.slice.len() {
+            self[len..len + data.len()].copy_from_slice(data);
+            self.set_ringbuffer_len(len + data.len())?;
+            Ok(())
+        } else {
+            Err(ErrorCode::SIZE)
+        }
+    }
+
+    #[inline(always)]
+    pub fn reset_ringbuffer(&self) -> Result<(), ErrorCode> {
+        self.set_ringbuffer_len(0)
     }
 }
 
