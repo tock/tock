@@ -231,10 +231,6 @@ pub struct Platform {
     >,
     alarm: &'static AlarmDriver,
     udp_driver: &'static capsules_extra::net::udp::UDPDriver<'static>,
-    thread_driver: &'static capsules_extra::net::thread::driver::ThreadNetworkDriver<
-        'static,
-        VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
-    >,
     i2c_master_slave: &'static capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver<
         'static,
         nrf52840::i2c::TWI<'static>,
@@ -273,7 +269,6 @@ impl SyscallDriverLookup for Platform {
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
-            capsules_extra::net::thread::driver::DRIVER_NUM => f(Some(self.thread_driver)),
             capsules_extra::kv_driver::DRIVER_NUM => f(Some(self.kv_driver)),
             _ => f(None),
         }
@@ -628,24 +623,6 @@ pub unsafe fn start() -> (
     )
     .finalize(components::udp_driver_component_static!(nrf52840::rtc::Rtc));
 
-    let thread_driver = components::thread_network::ThreadNetworkComponent::new(
-        board_kernel,
-        capsules_extra::net::thread::driver::DRIVER_NUM,
-        udp_send_mux,
-        udp_recv_mux,
-        udp_port_table,
-        aes_mux,
-        device_id,
-        mux_alarm,
-    )
-    .finalize(components::thread_network_component_static!(
-        nrf52840::rtc::Rtc,
-        nrf52840::aes::AesECB<'static>
-    ));
-
-    ieee802154_radio.set_key_procedure(thread_driver);
-    ieee802154_radio.set_device_procedure(thread_driver);
-
     //--------------------------------------------------------------------------
     // TEMPERATURE (internal)
     //--------------------------------------------------------------------------
@@ -909,7 +886,6 @@ pub unsafe fn start() -> (
         temp,
         alarm,
         analog_comparator,
-        thread_driver,
         udp_driver,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
