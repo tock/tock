@@ -72,7 +72,7 @@
 
 use core::ptr::addr_of;
 
-use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
+use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules_extra::net::ieee802154::MacAddress;
 use capsules_extra::net::ipv6::ip_utils::IPAddr;
 use kernel::component::Component;
@@ -84,7 +84,6 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
-use nrf52840::chip::Nrf52DefaultPeripherals;
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
 use nrf52_components::{UartChannel, UartPins};
@@ -189,13 +188,15 @@ type Ieee802154MacDevice = components::ieee802154::Ieee802154ComponentMacDeviceT
     nrf52840::ieee802154_radio::Radio<'static>,
     nrf52840::aes::AesECB<'static>,
 >;
-type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<
+/// Userspace 802.15.4 driver with in-kernel packet framing and MAC layer.
+pub type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<
     nrf52840::ieee802154_radio::Radio<'static>,
     nrf52840::aes::AesECB<'static>,
 >;
 
 // EUI64
-type Eui64Driver = components::eui64::Eui64ComponentType;
+/// Userspace EUI64 driver.
+pub type Eui64Driver = components::eui64::Eui64ComponentType;
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -204,8 +205,6 @@ pub struct Platform {
         nrf52840::ble_radio::Radio<'static>,
         VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
     >,
-    ieee802154_radio: &'static Ieee802154Driver,
-    eui64: &'static Eui64Driver,
     button: &'static capsules_core::button::Button<'static, nrf52840::gpio::GPIOPin<'static>>,
     pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
@@ -230,7 +229,6 @@ pub struct Platform {
         nrf52840::acomp::Comparator<'static>,
     >,
     alarm: &'static AlarmDriver,
-    udp_driver: &'static capsules_extra::net::udp::UDPDriver<'static>,
     i2c_master_slave: &'static capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver<
         'static,
         nrf52840::i2c::TWI<'static>,
@@ -261,11 +259,8 @@ impl SyscallDriverLookup for Platform {
             capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
-            capsules_extra::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
-            capsules_extra::eui64::DRIVER_NUM => f(Some(self.eui64)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temp)),
             capsules_extra::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
-            capsules_extra::net::udp::DRIVER_NUM => f(Some(self.udp_driver)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
@@ -307,6 +302,96 @@ impl KernelResources<Chip> for Platform {
     }
 }
 
+/// Create the capsules needed for the in-kernel UDP and 15.4 stack.
+pub unsafe fn ieee802154_udp(
+    board_kernel: &'static kernel::Kernel,
+    nrf52840_peripherals: &'static Nrf52840DefaultPeripherals<'static>,
+    mux_alarm: &'static MuxAlarm<nrf52840::rtc::Rtc>,
+) -> (
+    &'static Eui64Driver,
+    &'static Ieee802154Driver,
+    &'static capsules_extra::net::udp::UDPDriver<'static>,
+) {
+    //--------------------------------------------------------------------------
+    // AES
+    //--------------------------------------------------------------------------
+
+    let aes_mux =
+        components::ieee802154::MuxAes128ccmComponent::new(&nrf52840_peripherals.nrf52.ecb)
+            .finalize(components::mux_aes128ccm_component_static!(
+                nrf52840::aes::AesECB
+            ));
+
+    //--------------------------------------------------------------------------
+    // 802.15.4
+    //--------------------------------------------------------------------------
+
+    let device_id = nrf52840::ficr::FICR_INSTANCE.id();
+    let device_id_bottom_16: u16 = u16::from_le_bytes([device_id[0], device_id[1]]);
+
+    let eui64_driver = components::eui64::Eui64Component::new(u64::from_le_bytes(device_id))
+        .finalize(components::eui64_component_static!());
+
+    let (ieee802154_driver, mux_mac) = components::ieee802154::Ieee802154Component::new(
+        board_kernel,
+        capsules_extra::ieee802154::DRIVER_NUM,
+        &nrf52840_peripherals.ieee802154_radio,
+        aes_mux,
+        PAN_ID,
+        device_id_bottom_16,
+        device_id,
+    )
+    .finalize(components::ieee802154_component_static!(
+        nrf52840::ieee802154_radio::Radio,
+        nrf52840::aes::AesECB<'static>
+    ));
+
+    //--------------------------------------------------------------------------
+    // UDP
+    //--------------------------------------------------------------------------
+
+    let local_ip_ifaces = static_init!(
+        [IPAddr; 3],
+        [
+            IPAddr::generate_from_mac(capsules_extra::net::ieee802154::MacAddress::Long(device_id)),
+            IPAddr([
+                0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
+                0x1e, 0x1f,
+            ]),
+            IPAddr::generate_from_mac(capsules_extra::net::ieee802154::MacAddress::Short(
+                device_id_bottom_16
+            )),
+        ]
+    );
+
+    let (udp_send_mux, udp_recv_mux, udp_port_table) = components::udp_mux::UDPMuxComponent::new(
+        mux_mac,
+        DEFAULT_CTX_PREFIX_LEN,
+        DEFAULT_CTX_PREFIX,
+        DST_MAC_ADDR,
+        MacAddress::Long(device_id),
+        local_ip_ifaces,
+        mux_alarm,
+    )
+    .finalize(components::udp_mux_component_static!(
+        nrf52840::rtc::Rtc,
+        Ieee802154MacDevice
+    ));
+
+    // UDP driver initialization happens here
+    let udp_driver = components::udp_driver::UDPDriverComponent::new(
+        board_kernel,
+        capsules_extra::net::udp::driver::DRIVER_NUM,
+        udp_send_mux,
+        udp_recv_mux,
+        udp_port_table,
+        local_ip_ifaces,
+    )
+    .finalize(components::udp_driver_component_static!(nrf52840::rtc::Rtc));
+
+    (eui64_driver, ieee802154_driver, udp_driver)
+}
+
 /// This is in a separate, inline(never) function so that its stack frame is
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
@@ -315,7 +400,8 @@ pub unsafe fn start() -> (
     &'static kernel::Kernel,
     Platform,
     &'static Chip,
-    &'static Nrf52DefaultPeripherals<'static>,
+    &'static Nrf52840DefaultPeripherals<'static>,
+    &'static MuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
 ) {
     //--------------------------------------------------------------------------
     // INITIAL SETUP
@@ -537,15 +623,6 @@ pub unsafe fn start() -> (
         .finalize(components::debug_writer_component_static!());
 
     //--------------------------------------------------------------------------
-    // AES
-    //--------------------------------------------------------------------------
-
-    let aes_mux = components::ieee802154::MuxAes128ccmComponent::new(&base_peripherals.ecb)
-        .finalize(components::mux_aes128ccm_component_static!(
-            nrf52840::aes::AesECB
-        ));
-
-    //--------------------------------------------------------------------------
     // BLE
     //--------------------------------------------------------------------------
 
@@ -559,69 +636,6 @@ pub unsafe fn start() -> (
         nrf52840::rtc::Rtc,
         nrf52840::ble_radio::Radio
     ));
-
-    //--------------------------------------------------------------------------
-    // IEEE 802.15.4 and UDP
-    //--------------------------------------------------------------------------
-
-    let device_id = nrf52840::ficr::FICR_INSTANCE.id();
-    let device_id_bottom_16: u16 = u16::from_le_bytes([device_id[0], device_id[1]]);
-
-    let eui64 = components::eui64::Eui64Component::new(u64::from_le_bytes(device_id))
-        .finalize(components::eui64_component_static!());
-
-    let (ieee802154_radio, mux_mac) = components::ieee802154::Ieee802154Component::new(
-        board_kernel,
-        capsules_extra::ieee802154::DRIVER_NUM,
-        &nrf52840_peripherals.ieee802154_radio,
-        aes_mux,
-        PAN_ID,
-        device_id_bottom_16,
-        device_id,
-    )
-    .finalize(components::ieee802154_component_static!(
-        nrf52840::ieee802154_radio::Radio,
-        nrf52840::aes::AesECB<'static>
-    ));
-
-    let local_ip_ifaces = static_init!(
-        [IPAddr; 3],
-        [
-            IPAddr::generate_from_mac(capsules_extra::net::ieee802154::MacAddress::Long(device_id)),
-            IPAddr([
-                0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
-                0x1e, 0x1f,
-            ]),
-            IPAddr::generate_from_mac(capsules_extra::net::ieee802154::MacAddress::Short(
-                device_id_bottom_16
-            )),
-        ]
-    );
-
-    let (udp_send_mux, udp_recv_mux, udp_port_table) = components::udp_mux::UDPMuxComponent::new(
-        mux_mac,
-        DEFAULT_CTX_PREFIX_LEN,
-        DEFAULT_CTX_PREFIX,
-        DST_MAC_ADDR,
-        MacAddress::Long(device_id),
-        local_ip_ifaces,
-        mux_alarm,
-    )
-    .finalize(components::udp_mux_component_static!(
-        nrf52840::rtc::Rtc,
-        Ieee802154MacDevice
-    ));
-
-    // UDP driver initialization happens here
-    let udp_driver = components::udp_driver::UDPDriverComponent::new(
-        board_kernel,
-        capsules_extra::net::udp::driver::DRIVER_NUM,
-        udp_send_mux,
-        udp_recv_mux,
-        udp_port_table,
-        local_ip_ifaces,
-    )
-    .finalize(components::udp_driver_component_static!(nrf52840::rtc::Rtc));
 
     //--------------------------------------------------------------------------
     // TEMPERATURE (internal)
@@ -875,8 +889,6 @@ pub unsafe fn start() -> (
     let platform = Platform {
         button,
         ble_radio,
-        ieee802154_radio,
-        eui64,
         pconsole,
         console,
         led,
@@ -886,7 +898,6 @@ pub unsafe fn start() -> (
         temp,
         alarm,
         analog_comparator,
-        udp_driver,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
@@ -905,5 +916,11 @@ pub unsafe fn start() -> (
     debug!("Initialization complete. Entering main loop\r");
     debug!("{}", &*addr_of!(nrf52840::ficr::FICR_INSTANCE));
 
-    (board_kernel, platform, chip, base_peripherals)
+    (
+        board_kernel,
+        platform,
+        chip,
+        nrf52840_peripherals,
+        mux_alarm,
+    )
 }
