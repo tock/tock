@@ -99,52 +99,7 @@ use kernel::ErrorCode;
 #[derive(Eq, PartialEq, Debug)]
 pub struct Frame {
     buf: &'static mut [u8],
-    info: FrameInfoWrap,
-}
-
-/// This enum wraps the `FrameInfo` struct and allows each sending type
-/// (Parse or Raw) to only store the relevant information. In the
-/// case of a Raw send, the `FrameInfo` struct is irrelevant as the
-/// packet has been fully formed by the userprocess. For a Raw send,
-/// we only require knowledge on the frame length. In the case of a
-/// Parse send, the wrapper provides all required frame header information.
-#[derive(Eq, PartialEq, Debug)]
-enum FrameInfoWrap {
-    Raw(usize),
-    Parse(FrameInfo),
-}
-
-impl FrameInfoWrap {
-    /// Obtain secured_length of the Frame
-    pub fn secured_length(&self) -> usize {
-        match self {
-            FrameInfoWrap::Parse(info) => info.secured_length(),
-            FrameInfoWrap::Raw(len) => *len,
-        }
-    }
-
-    /// Obtain unsecured_length of the Frame
-    pub fn unsecured_length(&self) -> usize {
-        match self {
-            FrameInfoWrap::Parse(info) => info.unsecured_length(),
-            FrameInfoWrap::Raw(len) => *len,
-        }
-    }
-
-    /// Fetcher of the FrameInfo struct for Parse sending. Panics if
-    /// called for Raw sending.
-    pub fn get_info(&self) -> FrameInfo {
-        match self {
-            FrameInfoWrap::Raw(_) => {
-                // This should never be called for a Raw send. The Framer should never
-                // require information other than the Frame length for a Raw send. This
-                // warrants a panic condition as fetching the `FrameInfo` struct for a
-                // Raw send is undefined behavior.
-                panic!("FrameInfoWrap::Raw called when expecting FrameInfoWrap::Parse")
-            }
-            FrameInfoWrap::Parse(info) => *info,
-        }
-    }
+    info: FrameInfo,
 }
 
 /// This contains just enough information about a frame to determine
@@ -189,13 +144,8 @@ impl Frame {
         }
         let begin = self.info.unsecured_length();
         self.buf[begin..begin + payload.len()].copy_from_slice(payload);
-        match self.info {
-            FrameInfoWrap::Raw(len) => self.info = FrameInfoWrap::Raw(len + payload.len()),
-            FrameInfoWrap::Parse(mut info) => {
-                info.data_len += payload.len();
-                self.info = FrameInfoWrap::Parse(info);
-            }
-        }
+        self.info.data_len += payload.len();
+
         Ok(())
     }
 
@@ -210,13 +160,8 @@ impl Frame {
         }
         let begin = self.info.unsecured_length();
         payload_buf.copy_to_slice(&mut self.buf[begin..begin + payload_buf.len()]);
-        match self.info {
-            FrameInfoWrap::Raw(len) => self.info = FrameInfoWrap::Raw(len + payload_buf.len()),
-            FrameInfoWrap::Parse(mut info) => {
-                info.data_len += payload_buf.len();
-                self.info = FrameInfoWrap::Parse(info);
-            }
-        }
+        self.info.data_len += payload_buf.len();
+
         Ok(())
     }
 }
@@ -342,13 +287,13 @@ enum TxState {
     /// There is no frame to be transmitted.
     Idle,
     /// There is a valid frame that needs to be secured before transmission.
-    ReadyToEncrypt(FrameInfoWrap, &'static mut [u8]),
+    ReadyToEncrypt(FrameInfo, &'static mut [u8]),
     /// There is currently a frame being encrypted by the encryption facility.
     #[allow(dead_code)]
-    Encrypting(FrameInfoWrap),
+    Encrypting(FrameInfo),
     /// There is a frame that is completely secured or does not require
     /// security, and is waiting to be passed to the radio.
-    ReadyToTransmit(FrameInfoWrap, &'static mut [u8]),
+    ReadyToTransmit(FrameInfo, &'static mut [u8]),
 }
 
 #[derive(Eq, PartialEq, Debug)]
@@ -356,16 +301,16 @@ enum RxState {
     /// There is no frame that has been received.
     Idle,
     /// There is a secured frame that needs to be decrypted.
-    /// ReadyToDecrypt(FrameInfoWrap, buf, lqi)
-    ReadyToDecrypt(FrameInfoWrap, &'static mut [u8], u8),
+    /// ReadyToDecrypt(FrameInfo, buf, lqi)
+    ReadyToDecrypt(FrameInfo, &'static mut [u8], u8),
     /// A secured frame is currently being decrypted by the decryption facility.
-    /// Decrypting(FrameInfoWrap, lqi)
+    /// Decrypting(FrameInfo, lqi)
     #[allow(dead_code)]
-    Decrypting(FrameInfoWrap, u8),
+    Decrypting(FrameInfo, u8),
     /// There is an unsecured frame that needs to be re-parsed and exposed to
-    /// the client. ReadyToYield(FrameInfoWrap, buf, lqi)
+    /// the client. ReadyToYield(FrameInfo, buf, lqi)
     #[allow(dead_code)]
-    ReadyToYield(FrameInfoWrap, &'static mut [u8], u8),
+    ReadyToYield(FrameInfo, &'static mut [u8], u8),
 }
 
 /// This struct wraps an IEEE 802.15.4 radio device `kernel::hil::radio::Radio`
@@ -440,16 +385,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
     /// Performs the first checks in the security procedure. The rest of the
     /// steps are performed as part of the transmission pipeline.
     /// Returns the next `TxState` to enter.
-    fn outgoing_frame_security(
-        &self,
-        buf: &'static mut [u8],
-        frame_info_wrap: FrameInfoWrap,
-    ) -> TxState {
-        let frame_info = match frame_info_wrap {
-            FrameInfoWrap::Parse(info) => info,
-            FrameInfoWrap::Raw(_) => return TxState::ReadyToTransmit(frame_info_wrap, buf),
-        };
-
+    fn outgoing_frame_security(&self, buf: &'static mut [u8], frame_info: FrameInfo) -> TxState {
         // IEEE 802.15.4-2015: 9.2.1, outgoing frame security
         // Steps a-e have already been performed in the frame preparation step,
         // so we only need to dispatch on the security parameters in the frame info
@@ -458,12 +394,12 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                 if level == SecurityLevel::None {
                     // This case should never occur if the FrameInfo was
                     // prepared by prepare_data_frame
-                    TxState::ReadyToTransmit(frame_info_wrap, buf)
+                    TxState::ReadyToTransmit(frame_info, buf)
                 } else {
-                    TxState::ReadyToEncrypt(frame_info_wrap, buf)
+                    TxState::ReadyToEncrypt(frame_info, buf)
                 }
             }
-            None => TxState::ReadyToTransmit(frame_info_wrap, buf),
+            None => TxState::ReadyToTransmit(frame_info, buf),
         }
     }
 
@@ -580,7 +516,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                 self.mac.set_receive_buffer(buf);
                 RxState::Idle
             }
-            Some(frame_info) => RxState::ReadyToDecrypt(FrameInfoWrap::Parse(frame_info), buf, lqi),
+            Some(frame_info) => RxState::ReadyToDecrypt(frame_info, buf, lqi),
         }
     }
 
@@ -594,14 +530,14 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                 let (next_state, result) = match state {
                     TxState::Idle => (TxState::Idle, Ok(())),
                     TxState::ReadyToEncrypt(info, buf) => {
-                        match info.get_info().security_params {
+                        match info.security_params {
                             None => {
                                 // `ReadyToEncrypt` should only be entered when
                                 // `security_params` is not `None`.
                                 (TxState::Idle, Err((ErrorCode::FAIL, buf)))
                             }
                             Some((level, key, nonce)) => {
-                                let (m_off, m_len) = info.get_info().ccm_encrypt_ranges();
+                                let (m_off, m_len) = info.ccm_encrypt_ranges();
                                 let (a_off, m_off) =
                                     (radio::PSDU_OFFSET, radio::PSDU_OFFSET + m_off);
 
@@ -616,7 +552,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                                         a_off,
                                         m_off,
                                         m_len,
-                                        info.get_info().mic_len,
+                                        info.mic_len,
                                         level.encryption_needed(),
                                         true,
                                     );
@@ -662,14 +598,14 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
             let next_state = match state {
                 RxState::Idle => RxState::Idle,
                 RxState::ReadyToDecrypt(info, buf, lqi) => {
-                    match info.get_info().security_params {
+                    match info.security_params {
                         None => {
                             // `ReadyToDecrypt` should only be entered when
                             // `security_params` is not `None`.
                             RxState::Idle
                         }
                         Some((level, key, nonce)) => {
-                            let (m_off, m_len) = info.get_info().ccm_encrypt_ranges();
+                            let (m_off, m_len) = info.ccm_encrypt_ranges();
                             let (a_off, m_off) = (radio::PSDU_OFFSET, radio::PSDU_OFFSET + m_off);
 
                             // Crypto setup failed; fail receiving packet and return to idle
@@ -700,7 +636,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                                         a_off,
                                         m_off,
                                         m_len,
-                                        info.get_info().mic_len,
+                                        info.mic_len,
                                         level.encryption_needed(),
                                         true,
                                     )
@@ -905,34 +841,17 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
         match header.encode(buf, true).done() {
             Some((data_offset, mac_payload_offset)) => Ok(Frame {
                 buf: buf,
-                info: FrameInfoWrap::Parse(FrameInfo {
+                info: FrameInfo {
                     frame_type: FrameType::Data,
                     mac_payload_offset: mac_payload_offset,
                     data_offset: data_offset,
                     data_len: 0,
                     mic_len: mic_len,
                     security_params: security_desc.map(|(sec, key, nonce)| (sec.level, key, nonce)),
-                }),
+                },
             }),
             None => Err(buf),
         }
-    }
-
-    fn buf_to_frame(
-        &self,
-        buf: &'static mut [u8],
-        len: usize,
-    ) -> Result<Frame, (ErrorCode, &'static mut [u8])> {
-        // Error check input for compliance with max 15.4 buffer size and
-        // that the provided len is compatibile with the provided buffer.
-        if buf.len() < radio::MAX_BUF_SIZE || len > buf.len() {
-            return Err((ErrorCode::INVAL, buf));
-        }
-
-        Ok(Frame {
-            buf: buf,
-            info: FrameInfoWrap::Raw(len),
-        })
     }
 
     fn transmit(&self, frame: Frame) -> Result<(), (ErrorCode, &'static mut [u8])> {
