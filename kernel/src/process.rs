@@ -270,6 +270,19 @@ impl core::convert::From<Option<core::num::NonZeroU32>> for ShortId {
     }
 }
 
+impl core::fmt::Display for ShortId {
+    fn fmt(&self, fmt: &mut core::fmt::Formatter) -> fmt::Result {
+        match *self {
+            ShortId::LocallyUnique => {
+                write!(fmt, "Unique")
+            }
+            ShortId::Fixed(id) => {
+                write!(fmt, "0x{:<8x} ", id)
+            }
+        }
+    }
+}
+
 /// Enum used to inform scheduler why a process stopped executing (aka why
 /// `do_process()` returned).
 ///
