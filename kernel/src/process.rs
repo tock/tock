@@ -28,7 +28,7 @@ pub use crate::process_loading::load_processes;
 pub use crate::process_loading::ProcessLoadError;
 pub use crate::process_loading::SequentialProcessLoaderMachine;
 pub use crate::process_loading::{ProcessLoadingAsync, ProcessLoadingAsyncClient};
-pub use crate::process_policies::ProcessFaultPolicy;
+pub use crate::process_policies::{ProcessFaultPolicy, ProcessStandardStoragePermissionsPolicy};
 pub use crate::process_printer::{ProcessPrinter, ProcessPrinterContext};
 pub use crate::process_standard::ProcessStandard;
 
@@ -211,8 +211,9 @@ impl ProcessId {
     /// what the process is allowed to read and write. Returns `None` if the
     /// process has no storage permissions.
     pub fn get_storage_permissions(&self) -> Option<storage_permissions::StoragePermissions> {
-        self.kernel
-            .process_map_or(None, *self, |process| process.get_storage_permissions())
+        self.kernel.process_map_or(None, *self, |process| {
+            Some(process.get_storage_permissions())
+        })
     }
 }
 
@@ -587,7 +588,7 @@ pub trait Process {
     /// Get the storage permissions for the process.
     ///
     /// Returns `None` if the process has no storage permissions.
-    fn get_storage_permissions(&self) -> Option<storage_permissions::StoragePermissions>;
+    fn get_storage_permissions(&self) -> storage_permissions::StoragePermissions;
 
     // mpu
 
