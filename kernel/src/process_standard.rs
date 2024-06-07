@@ -30,7 +30,7 @@ use crate::process::{ProcessAddresses, ProcessSizes, ShortId};
 use crate::process::{State, StoppedState};
 use crate::process_loading::ProcessLoadError;
 use crate::process_policies::ProcessFaultPolicy;
-use crate::process_policies::ProcessStoragePermissionsPolicy;
+use crate::process_policies::ProcessStandardStoragePermissionsPolicy;
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::storage_permissions::StoragePermissions;
 use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
@@ -206,8 +206,8 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
     /// How to respond if this process faults.
     fault_policy: &'a dyn ProcessFaultPolicy,
 
-    /// How to assign storage permissions to processes.
-    storage_permission_policy: &'a dyn ProcessStoragePermissionsPolicy,
+    /// Storage permissions for this process.
+    storage_permissions: StoragePermissions,
 
     /// Configuration data for the MPU
     mpu_config: MapCell<<<C as Chip>::MPU as MPU>::MpuConfig>,
@@ -489,8 +489,8 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.header.get_command_permissions(driver_num, offset)
     }
 
-    fn get_storage_permissions(&self) -> &dyn StoragePermissions {
-        self.storage_permission_policy.get_permissions()
+    fn get_storage_permissions(&self) -> StoragePermissions {
+        self.storage_permissions
     }
 
     fn number_writeable_flash_regions(&self) -> usize {
@@ -1298,12 +1298,18 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     const PROCESS_STRUCT_OFFSET: usize = mem::size_of::<ProcessStandard<C>>();
 
     /// Create a `ProcessStandard` object based on the found `ProcessBinary`.
+    ///
+    /// The `storage_permissions_policy` is optional because any app without a
+    /// fixed `ShortId` cannot have storage permissions, so in cases where an
+    /// AppID assigner is not used it doesn't make sense to have a storage
+    /// permissions policy.
     pub(crate) unsafe fn create<'a>(
         kernel: &'static Kernel,
         chip: &'static C,
         pb: ProcessBinary,
         remaining_memory: &'a mut [u8],
         fault_policy: &'static dyn ProcessFaultPolicy,
+        storage_permissions_policy: Option<&'static dyn ProcessStandardStoragePermissionsPolicy<C>>,
         app_id: ShortId,
         index: usize,
     ) -> Result<(Option<&'static dyn Process>, &'a mut [u8]), (ProcessLoadError, &'a mut [u8])>
@@ -1695,6 +1701,12 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             dropped_upcall_count: 0,
             timeslice_expiration_count: 0,
         });
+
+        if let Some(storage_perm_policy) = storage_permissions_policy {
+            process.storage_permissions = storage_perm_policy.get_permissions(process);
+        } else {
+            process.storage_permissions = StoragePermissions::new_null();
+        }
 
         // Handle any architecture-specific requirements for a new process.
         //
