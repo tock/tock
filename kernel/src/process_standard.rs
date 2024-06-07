@@ -30,8 +30,9 @@ use crate::process::{ProcessAddresses, ProcessSizes, ShortId};
 use crate::process::{State, StoppedState};
 use crate::process_loading::ProcessLoadError;
 use crate::process_policies::ProcessFaultPolicy;
+use crate::process_policies::ProcessStoragePermissionsPolicy;
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
-use crate::storage_permissions;
+use crate::storage_permissions::StoragePermissions;
 use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
 use crate::upcall::UpcallId;
 use crate::utilities::cells::{MapCell, NumericCellExt, OptionalCell};
@@ -204,6 +205,9 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
 
     /// How to respond if this process faults.
     fault_policy: &'a dyn ProcessFaultPolicy,
+
+    /// How to assign storage permissions to processes.
+    storage_permission_policy: &'a dyn ProcessStoragePermissionsPolicy,
 
     /// Configuration data for the MPU
     mpu_config: MapCell<<<C as Chip>::MPU as MPU>::MpuConfig>,
@@ -485,21 +489,8 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.header.get_command_permissions(driver_num, offset)
     }
 
-    fn get_storage_permissions(&self) -> Option<storage_permissions::StoragePermissions> {
-        let (read_count, read_ids) = self.header.get_storage_read_ids().unwrap_or((0, [0; 8]));
-
-        let (modify_count, modify_ids) =
-            self.header.get_storage_modify_ids().unwrap_or((0, [0; 8]));
-
-        let write_id = self.header.get_storage_write_id();
-
-        Some(storage_permissions::StoragePermissions::new(
-            read_count,
-            read_ids,
-            modify_count,
-            modify_ids,
-            write_id,
-        ))
+    fn get_storage_permissions(&self) -> &dyn StoragePermissions {
+        self.storage_permission_policy.get_permissions()
     }
 
     fn number_writeable_flash_regions(&self) -> usize {
