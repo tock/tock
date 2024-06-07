@@ -25,6 +25,7 @@ use crate::process::{Process, ShortId};
 use crate::process_binary::{ProcessBinary, ProcessBinaryError};
 use crate::process_checker::{AppIdPolicy, ProcessCheckError, ProcessCheckerMachine};
 use crate::process_policies::ProcessFaultPolicy;
+use crate::process_policies::ProcessStandardStoragePermissionsPolicy;
 use crate::process_standard::ProcessStandard;
 use crate::utilities::cells::{MapCell, OptionalCell};
 
@@ -219,6 +220,7 @@ fn load_processes_from_flash<C: Chip>(
                     ShortId::LocallyUnique,
                     index,
                     fault_policy,
+                    None,
                 );
                 match load_result {
                     Ok((new_mem, proc)) => {
@@ -352,6 +354,7 @@ fn load_process<C: Chip>(
     app_id: ShortId,
     index: usize,
     fault_policy: &'static dyn ProcessFaultPolicy,
+    storage_policy: Option<&'static dyn ProcessStandardStoragePermissionsPolicy<C>>,
 ) -> Result<(&'static mut [u8], Option<&'static dyn Process>), (&'static mut [u8], ProcessLoadError)>
 {
     if config::CONFIG.debug_load_processes {
@@ -381,6 +384,7 @@ fn load_process<C: Chip>(
             process_binary,
             app_memory,
             fault_policy,
+            storage_policy,
             app_id,
             index,
         )
@@ -479,6 +483,8 @@ pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static> {
     policy: OptionalCell<&'a dyn AppIdPolicy>,
     /// The fault policy to assign to each created Process.
     fault_policy: &'static dyn ProcessFaultPolicy,
+    /// The storage permissions policy to assign to each created Process.
+    storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C>,
     /// Current mode of the loading machine.
     state: OptionalCell<SequentialProcessLoaderMachineState>,
 }
@@ -497,6 +503,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
         flash: &'static [u8],
         app_memory: &'static mut [u8],
         fault_policy: &'static dyn ProcessFaultPolicy,
+        storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C>,
         policy: &'static dyn AppIdPolicy,
         _capability_management: &dyn ProcessManagementCapability,
     ) -> Self {
@@ -512,6 +519,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
             app_memory: Cell::new(app_memory),
             policy: OptionalCell::new(policy),
             fault_policy,
+            storage_policy,
             state: OptionalCell::empty(),
         }
     }
@@ -720,6 +728,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
                             short_app_id,
                             index,
                             self.fault_policy,
+                            Some(self.storage_policy),
                         );
                         match load_result {
                             Ok((new_mem, proc)) => {
