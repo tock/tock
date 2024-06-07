@@ -46,25 +46,45 @@ persistent storage (e.g., flash, FRAM, etc.) or storage access abstractions
 (e.g., block-access, byte-access, etc.).
 
 
-3 Permissions
+3 Stored State Identifiers
+-------------------------------
+
+All shared persistent storage implementations must store a 32 bit identifier
+with each stored object to mark the application that created the stored object.
+
+When applications write data, their ShortId must be used as the identifier. When
+the kernel writes data, the identifier must be 0.
+
+
+4 Permissions
 -------------------------------
 
 All persistent application data is labeled based on the application which wrote
-the data. By default, applications can always read and modify data they wrote.
-Applications can read and modify data from other applications with suitable
+the data.
+Applications can read and modify data with suitable
 permissions.
 
 There are three types of permissions:
 
 1. **Write**: The application can write data.
-1. **Read**: The application can read other applications' data.
-1. **Modify**: The application can modify other applications' data.
+1. **Read**: The application can read data.
+1. **Modify**: The application can modify existing data.
 
 Each permission type is independent. For example, an application can be given
 read permission for specific data but not be able to write new data itself.
 
+Write is a boolean permission. An application either has permission to write or
+it does not.
 
-4 Requirements
+Read and Modify permissions are tuples of `(the permission type, stored state
+identifier)`. These permissions only exist as associated with a particular
+stored state identifier. That is, a Read permission gives an application
+permission to read only stored state marked with the associated stored state
+identifier, and a Modify permission gives an application permission to modify
+only stored state marked with the associated stored state identifier.
+
+
+5 Requirements
 -------------------------------
 
 The Tock storage model imposes the following requirements:
@@ -76,21 +96,10 @@ The Tock storage model imposes the following requirements:
    read/write/modify) any persistent storage.
 4. How permissions are mapped to applications must be customizable for different
    Tock kernels.
-5. Applications have read and modify permissions for data they wrote by default.
-   If an application should not be able to read and/or modify state it wrote,
-   the permission mechanism must make this explicit.
 
 Additionally, the kernel itself can be given permission to store state.
 
-### 4.1 Stored State Identifiers
-
-All shared persistent storage implementations must store a 32 bit identifier
-with each stored object to mark the application that created the stored object.
-
-When applications write data, their ShortId must be used as the identifier. When
-the kernel writes data, the identifier must be 0.
-
-### 4.2 ShortId Implications
+### 5.1 ShortId Implications
 
 As all persistent state written by applications is marked with the writing
 application's ShortId, the assignment mechanism for ShortIds is tightly coupled
@@ -111,7 +120,7 @@ In particular, two potentially problematic cases can arise:
    access to data it previously stored.
 
 
-5 Kernel Enforcement
+6 Kernel Enforcement
 -------------------------------
 
 It is not feasible to implement all persistent storage APIs through the core
@@ -142,7 +151,7 @@ trait StoragePermissions {
 ```
 
 
-6 Specifying Permissions
+7 Specifying Permissions
 -------------------------------
 
 Different users and different kernels will use different methods for determining
@@ -165,7 +174,7 @@ examples of how storage permissions may be specified.
    application.
 
 
-7 Authors' Addresses
+8 Authors' Addresses
 ===============================
 ```
 Brad Campbell <bradjc@virginia.edu>
