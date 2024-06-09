@@ -3,9 +3,8 @@ IEEE 802.15.4 Stack
 
 Tock supports two different implementations of an IEEE 802.15.4 stack in the
 kernel. The first version implements packet framing and a MAC layer, virtualizes
-the 15.4 interface, and provides a userspace interface. The second version
-provides a much more raw version and only provides userspace with direct access
-to the 15.4 radio.
+the 15.4 interface, and provides a multi-programmable userspace interface. The second version
+provides userspace with the ability to send/receive raw 802.15.4 frames as well as directly control the radio, and is appropriate for access by one process at a time.
 
 In-Kernel Stack
 ---------------
