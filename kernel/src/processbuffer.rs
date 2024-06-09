@@ -1112,7 +1112,7 @@ impl WriteableProcessSlice {
     // The first 3 bytes store the used space in little endian format
     //
     // The 4th bytes store a control value to validate if this is a correct ringbuffer
-    // to avoid missinterpretation of the first three bytes. It is computed by
+    // to avoid misinterpretation of the first three bytes. It is computed by
     // using XOR between the length's bytes.
     pub fn ringbuffer_len(&self) -> Result<usize, ErrorCode> {
         if self.slice.len() >= size_of::<u32>() {
