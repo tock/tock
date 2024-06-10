@@ -41,9 +41,10 @@ the storage permissions.
 -------------------------------
 
 This document only describes the permission architecture in Tock for supporting
-application persistent storage. This document does not include specific types of
-persistent storage (e.g., flash, FRAM, etc.) or storage access abstractions
-(e.g., block-access, byte-access, etc.).
+application persistent storage. This document does not prescribe specific types of
+persistent storage (e.g., flash, FRAM, etc.), storage access abstractions
+(e.g., block-access, byte-access, etc.),
+or storage interfaces (e.g., key-value, filesystems, logs, etc.).
 
 
 3 Stored State Identifiers
@@ -275,6 +276,40 @@ pub trait ProcessStoragePermissionsPolicy {
     fn get_permissions(&self, process: &dyn Process) -> &'static dyn StoragePermissions;
 }
 ```
+
+
+8 Storage Examples
+-------------------------------
+
+The permissions architecture is generic for storage in Tock, but this section
+describes some examples of how this architecture may be used for several storage
+abstractions. Note, these are just examples and not descriptions of actual Tock
+implementations nor requirements for how various storage abstractions must be
+implemented.
+
+1. Key-Value storage. Each key-value pair is stored as a triple: (key, value,
+   storage identifier). On `get()`, the storage identifier for the key-value
+   pair is checked. On `set()`, if the key already exists the modify permission
+   is used, and if the key does not exist the write permission is used.
+2. Logging. Loggers append to a shared log. Loggers can only append to the log
+   if the have the write permission. Each log entry includes the storage
+   identifier of the writing logger. Loggers do not have any read permission.
+   Log analyzers only have read permissions. The analyzers have multiple read
+   permissions to the log entries they need to analyze. The modify permission is
+   not used.
+3. Per-application nonvolatile storage. Each application is given a region of
+   nonvolatile storage. Applications only access their own storage region. The
+   storage implementation still checks and enforces read, write, and modify
+   permissions, but the expectation is that applications that have the write
+   permission also have modify and read permissions for their own stored state.
+   There is no API for accessing other application state, so maintaining lists
+   of read/modify permissions is not necessary.
+4. Global persistent configuration. The storage abstraction maintains a
+   persistent data store that multiple applications use. Only one application is
+   expected to have the write permission to initialize the configuration. Other
+   applications that use the configuration have read permission for the
+   initializing application's storage identifier, and may have modify permission
+   if they need to update the configuration.
 
 
 8 Authors' Addresses
