@@ -52,7 +52,7 @@ persistent storage (e.g., flash, FRAM, etc.) or storage access abstractions
 All shared persistent storage implementations must store a 32 bit identifier
 with each stored object to mark the application that created the stored object.
 
-When applications write data, their ShortId must be used as the identifier. When
+When applications write data, their [ShortId](../trd-appid.md) must be used as the identifier. When
 the kernel writes data, the identifier must be 0.
 
 
