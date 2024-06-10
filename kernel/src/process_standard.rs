@@ -2038,6 +2038,33 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         process_memory_end - identifier.offset
     }
 
+    /// Return the app's read and modify storage permissions from the TBF header
+    /// if it exists.
+    ///
+    /// If the header does not exist then return `None`. If the header does
+    /// exist, this returns a 5-tuple with:
+    ///
+    /// - `write_allowed`: bool. If this process should have write permissions.
+    /// - `read_count`: usize. How many read IDs are valid.
+    /// - `read_ids`: [u32]. The read IDs.
+    /// - `modify_count`: usze. How many modify IDs are valid.
+    /// - `modify_ids`: [u32]. The modify IDs.
+    pub fn get_tbf_storage_permissions(&self) -> Option<(bool, usize, [u32; 8], usize, [u32; 8])> {
+        let read_perms = self.header.get_storage_read_ids();
+        let modify_perms = self.header.get_storage_modify_ids();
+
+        match (read_perms, modify_perms) {
+            (Some((read_count, read_ids)), Some((modify_count, modify_ids))) => Some((
+                self.header.get_storage_write_id().is_some(),
+                read_count,
+                read_ids,
+                modify_count,
+                modify_ids,
+            )),
+            _ => None,
+        }
+    }
+
     /// The start address of allocated RAM for this process.
     fn mem_start(&self) -> *const u8 {
         self.memory_start
