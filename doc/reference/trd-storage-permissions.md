@@ -150,6 +150,90 @@ trait StoragePermissions {
 }
 ```
 
+### 6.1 Using Permissions in Capsules
+
+When writing storage capsules, capsule authors should include APIs which include
+`StoragePermissions` as an argument, and should check for permission before
+performing any storage operation.
+
+For example, a filing cabinet abstraction that identifies stored state based on
+a record name might have an (asynchronous) API like this:
+
+```rust
+pub trait FilingCabinet {
+    fn read(&self, record: &str, permissions: &dyn StoragePermissions) -> Result<(), ErrorCode>;
+    fn write(&self, record: &str, data: &[u8], permissions: &dyn StoragePermissions) -> Result<(), ErrorCode>;
+}
+```
+
+Inside the implementation for any storage abstraction, the implementation must
+consider three operations and check for permissions:
+
+1. The operation is a **read**. If there is no stored state that matches the
+   read request, the capsule should return `ErrorCode::NOSUPPORT`. If there is
+   stored state that matches the request, the capsule must call
+   `StoragePermissions::check_read_permission(stored_id)` with the identifier
+   associated with the stored record. If `check_read_permission()` returns
+   false, the capsule should return `ErrorCode::NOSUPPORT`. If
+   `check_read_permission()` returns true, the capsule should return the read
+   data.
+2. The operation is a **write**, and the write would store **new data**. The
+   capsule must call `StoragePermissions::get_write_id()`. If `get_write_id()`
+   returns `None`, the capsule should return `ErrorCode::NOSUPPORT`. If
+   `get_write_id()` returns `Some()`, the capsule should save the new data and
+   must use the returned `u32` identifier. It should then return `Ok(())`.
+3. The operation is a **write**, and the write would overwrite **existing
+   data**. The capsule must first retrieve the storage identifier for the
+   existing state. The the capsule must call
+   `StoragePermissions::check_modify_permission(stored_id)`. If
+   `check_modify_permission()` returns false, the capsule should return
+   `ErrorCode::NOSUPPORT`. If `check_modify_permission()` returns true, the
+   capsule should overwrite the data while not changing this stored identifier.
+   The capsule should then return `Ok(())`.
+
+For example, with the filing cabinet example:
+
+```rust
+pub trait FilingCabinet {
+    fn read(&self, record: &str, permissions: &dyn StoragePermissions) -> Result<[u8], ErrorCode> {
+        let obj = self.cabinet.read(record);
+        match obj {
+            Some(r) => {
+                if permissions.check_read_permission(r.id) {
+                    Ok(r.data)
+                } else {
+                    Err(ErrorCode::NOSUPPORT)
+                }
+            }
+            None => Err(ErrorCode::NOSUPPORT),
+        }
+    }
+
+    fn write(&self, record: &str, data: &[u8], permissions: &dyn StoragePermissions) -> Result<(), ErrorCode> {
+        let obj = self.cabinet.read(record);
+        match obj {
+            Some(r) => {
+                if permissions.check_modify_permission(r.id) {
+                    self.cabinet.write(record, r.id, data);
+                    Ok(())
+                } else {
+                    Err(ErrorCode::NOSUPPORT)
+                }
+            }
+            None => {
+                match permissions.get_write_id() {
+                    Some(id) => {
+                        self.cabinet.write(record, id, data);
+                        Ok(())
+                    }
+                    None => Err(ErrorCode::NOSUPPORT),
+                }
+            }
+        }
+    }
+}
+```
+
 
 7 Specifying Permissions
 -------------------------------
