@@ -306,6 +306,21 @@ pub unsafe fn main() {
     let checker = components::appid::checker::ProcessCheckerMachineComponent::new(checking_policy)
         .finalize(components::process_checker_machine_component_static!());
 
+    //--------------------------------------------------------------------------
+    // STORAGE PERMISSIONS
+    //--------------------------------------------------------------------------
+
+    let storage_permissions_policy =
+        components::storage_permissions::null::StoragePermissionsNullComponent::new().finalize(
+            components::storage_permissions_null_component_static!(
+                nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>
+            ),
+        );
+
+    //--------------------------------------------------------------------------
+    // PROCESS LOADING
+    //--------------------------------------------------------------------------
+
     // Create and start the asynchronous process loader.
     let loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
         checker,
@@ -314,6 +329,7 @@ pub unsafe fn main() {
         chip,
         &FAULT_RESPONSE,
         assigner,
+        storage_permissions_policy,
     )
     .finalize(components::process_loader_sequential_component_static!(
         nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
