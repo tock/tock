@@ -288,19 +288,23 @@ examples of how storage permissions may be specified.
 The core kernel allows individual boards to configure how permissions are
 assigned to applications. At runtime, the kernel needs to know what permissions
 each executing process has. To facilitate this, Tock uses the
-`ProcessStoragePermissionsPolicy` process policy. Each process, when created,
-will have a reference to a policy that specifies the storage permissions for
+`ProcessStandardStoragePermissionsPolicy` process policy. Each process, when created,
+will store a `StoragePermissions` object that specifies the storage permissions for
 that process.
-
 
 ```rust
 /// Generic trait for implementing a policy on how applications should be
 /// assigned storage permissions.
-pub trait ProcessStoragePermissionsPolicy {
+pub trait ProcessStandardStoragePermissionsPolicy<C: Chip> {
     /// Return the storage permissions for the specified `process`.
-    fn get_permissions(&self, process: &dyn Process) -> &'static dyn StoragePermissions;
+    fn get_permissions(&self, process: &ProcessStandard<C>) -> StoragePermissions;
 }
 ```
+
+This trait is specific to the `ProcessStandard` implementation of `Process` to
+enable policies to use TBF headers when assigning permissions.
+
+Several examples of policies are in the `capsules/system` crate.
 
 
 8 Storage Examples
