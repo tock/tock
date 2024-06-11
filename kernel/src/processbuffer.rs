@@ -1102,18 +1102,19 @@ impl WriteableProcessSlice {
 
     /// Checks if the process buffer respects the ring buffer contract
     ///
-    /// ringbuffer data format
-    // 0          1          2          3          4
-    // +----------+----------+----------+----------+-------------------...
-    // | len (u8) | len (u8) | len (u8) | xor (u8) | slice
-    // +----------+----------+----------+----------+-------------------...
-    // | length (24 bits little endian) | control  | data
-    //
-    // The first 3 bytes store the used space in little endian format
-    //
-    // The 4th bytes store a control value to validate if this is a correct ringbuffer
-    // to avoid misinterpretation of the first three bytes. It is computed by
-    // using XOR between the length's bytes.
+    /// The ringbuffer data format is described below:
+    /// ```text,ignore
+    /// 0          1          2          3          4
+    /// +----------+----------+----------+----------+-------------------...
+    /// | len (u8) | len (u8) | len (u8) | xor (u8) | slice
+    /// +----------+----------+----------+----------+-------------------...
+    /// | length (24 bits little endian) | control  | data
+    /// ```
+    ///
+    /// - the first 3 bytes store the used space in little endian format
+    /// - the 4th bytes store a control value to validate if this is a correct ringbuffer
+    ///   to avoid missinterpretation of the first three bytes. It is computed by
+    ///   using XOR between the length's bytes.
     pub fn ringbuffer_len(&self) -> Result<usize, ErrorCode> {
         if self.slice.len() >= size_of::<u32>() {
             let len = self.slice[0].get() as u32
