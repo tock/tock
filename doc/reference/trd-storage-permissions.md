@@ -128,28 +128,26 @@ It is not feasible to implement all persistent storage APIs through the core
 kernel (i.e., in trusted code). Instead, the kernel provides an API to retrieve
 the storage permissions for a specific process. Capsules then use these
 permissions to enforce restrictions on storage access.
-
-Storage permissions are objects that implement the `StoragePermissions` trait.
-The trait allows for storage implementations (e.g. capsules) to check
-per-application permissions for read and modify operations on stored state, as
-well as if the application has permission to write new state.
+The API consists of these functions:
 
 ```rust
-/// Interface for checking permissions to access persistent storage.
-trait StoragePermissions {
-    /// Check if these storage permissions grant read access to the stored state
-    /// marked with identifier `stored_id`.
-    fn check_read_permission(&self, stored_id: u32) -> bool;
+/// Check if these storage permissions grant read access to the stored state
+/// marked with identifier `stored_id`.
+pub fn check_read_permission(&self, stored_id: u32) -> bool;
 
-    /// Check if these storage permissions grant modify access to the stored
-    /// state marked with identifier `stored_id`.
-    fn check_modify_permission(&self, stored_id: u32) -> bool;
+/// Check if these storage permissions grant modify access to the stored
+/// state marked with identifier `stored_id`.
+pub fn check_modify_permission(&self, stored_id: u32) -> bool;
 
-    /// Retrieve the identifier to use when storing state, if the application
-    /// has permission to write. Returns `None` if the application cannot write.
-    fn get_write_id(&self) -> Option<u32>;
-}
+/// Retrieve the identifier to use when storing state, if the application
+/// has permission to write. Returns `None` if the application cannot write.
+pub fn get_write_id(&self) -> Option<u32>;
 ```
+
+This API is implemented for the `StoragePermissions` object (which is an
+`enum`). The `StoragePermissions` type can be stored per-process and passed in
+storage APIs to express the storage permissions of the caller of any storage
+operations.
 
 ### 6.1 Using Permissions in Capsules
 
@@ -234,6 +232,33 @@ pub trait FilingCabinet {
     }
 }
 ```
+
+### 6.2 `StoragePermissions` Type
+
+The kernel defines a `StoragePermissions` type which expresses the storage
+permissions of an application. This is implemented as a definite type rather
+than a trait interface so permissions can be passed in storage APIs without
+requiring a static object for every process in the system.
+
+The `StoragePermissions` type is capable of holding storage permissions in
+different formats. In general, the type looks like:
+
+```rust
+pub enum StoragePermissions {
+    SelfOnly(core::num::NonZeroU32),
+    FixedSize(FixedSizePermissions),
+    Listed(ListedPermissions),
+    Kernel,
+    Null,
+}
+```
+
+Each variant is a different method for representing and storing storage
+permissions. For example, `FixedSize` contains fixed size lists of permissions,
+where as `Null` grants no storage permissions.
+
+The `StoragePermissions` type includes multiple constructors for instantiating
+storage permissions.
 
 
 7 Specifying Permissions
