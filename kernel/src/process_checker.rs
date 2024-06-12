@@ -59,7 +59,11 @@ impl fmt::Debug for ProcessCheckError {
 #[derive(Debug)]
 pub enum CheckResult {
     /// Accept the credential and run the binary.
-    Accept,
+    ///
+    /// The associated value is an optional opaque nonzero usize the credential
+    /// checker can return to communication some information about the accepted
+    /// credential.
+    Accept(Option<core::num::NonZeroUsize>),
     /// Go to the next credential or in the case of the last one fall
     /// back to the default policy.
     Pass,
@@ -183,7 +187,10 @@ pub trait ProcessCheckerMachineClient {
     fn done(
         &self,
         process_binary: ProcessBinary,
-        result: Result<Option<TbfFooterV2Credentials>, ProcessCheckError>,
+        result: Result<
+            Option<(TbfFooterV2Credentials, Option<core::num::NonZeroUsize>)>,
+            ProcessCheckError,
+        >,
     );
 }
 
@@ -431,10 +438,10 @@ impl AppCredentialsPolicyClient<'static> for ProcessCheckerMachine {
             debug!("Checking: check_done gave result {:?}", result);
         }
         let cont = match result {
-            Ok(CheckResult::Accept) => {
+            Ok(CheckResult::Accept(opaque)) => {
                 self.client.map(|client| {
                     if let Some(pb) = self.process_binary.take() {
-                        client.done(pb, Ok(Some(credentials)))
+                        client.done(pb, Ok(Some((credentials, opaque))))
                     }
                 });
                 false

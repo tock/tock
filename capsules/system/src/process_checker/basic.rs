@@ -170,7 +170,7 @@ impl ClientVerify<32_usize> for AppCheckerSha256 {
             Ok(true) => {
                 self.client.map(|c| {
                     c.check_done(
-                        Ok(CheckResult::Accept),
+                        Ok(CheckResult::Accept(None)),
                         self.credentials.take().unwrap(),
                         self.binary.take().unwrap(),
                     );
@@ -294,7 +294,7 @@ impl<'a> DeferredCallClient for AppCheckerRsaSimulated<'a> {
             let result = if cred.format() == TbfFooterV2CredentialsType::Rsa3072Key
                 || cred.format() == TbfFooterV2CredentialsType::Rsa4096Key
             {
-                Ok(CheckResult::Accept)
+                Ok(CheckResult::Accept(None))
             } else {
                 Ok(CheckResult::Pass)
             };

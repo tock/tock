@@ -183,7 +183,7 @@ impl<
             let binary = self.binary.take().unwrap();
             let cred = self.credentials.take().unwrap();
             let check_result = if result.unwrap_or(false) {
-                Ok(CheckResult::Accept)
+                Ok(CheckResult::Accept(None))
             } else {
                 Ok(CheckResult::Pass)
             };

@@ -129,7 +129,7 @@ pub struct ProcessBinary {
     /// Optional credential that was used to approve this application. This is
     /// set if the process is checked by a credential checker and a specific
     /// credential was used to approve this process. Otherwise this is `None`.
-    pub credential: OptionalCell<TbfFooterV2Credentials>,
+    pub credential: OptionalCell<(TbfFooterV2Credentials, Option<core::num::NonZeroUsize>)>,
 }
 
 impl ProcessBinary {
@@ -249,7 +249,9 @@ impl ProcessBinary {
         })
     }
 
-    pub fn get_credential(&self) -> Option<TbfFooterV2Credentials> {
+    pub fn get_credential(
+        &self,
+    ) -> Option<(TbfFooterV2Credentials, Option<core::num::NonZeroUsize>)> {
         self.credential.get()
     }
 

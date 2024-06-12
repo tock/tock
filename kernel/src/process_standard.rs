@@ -189,7 +189,7 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
 
     /// Credential that was approved for this process, or `None` if the
     /// credential was permitted to run without an accepted credential.
-    credential: Option<TbfFooterV2Credentials>,
+    credential: Option<(TbfFooterV2Credentials, Option<core::num::NonZeroUsize>)>,
 
     /// State saved on behalf of the process each time the app switches to the
     /// kernel.
@@ -259,7 +259,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         }
     }
 
-    fn get_credential(&self) -> Option<TbfFooterV2Credentials> {
+    fn get_credential(&self) -> Option<(TbfFooterV2Credentials, Option<core::num::NonZeroUsize>)> {
         self.credential
     }
 

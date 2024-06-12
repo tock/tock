@@ -340,7 +340,7 @@ pub trait Process {
     /// Return the credential which the credential checker approved if the
     /// credential checker approved a credential. If the process was allowed to
     /// run without credentials, return `None`.
-    fn get_credential(&self) -> Option<TbfFooterV2Credentials>;
+    fn get_credential(&self) -> Option<(TbfFooterV2Credentials, Option<core::num::NonZeroUsize>)>;
 
     /// Returns how many times this process has been restarted.
     fn get_restart_count(&self) -> usize;

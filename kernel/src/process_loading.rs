@@ -906,7 +906,10 @@ impl<'a, C: Chip> crate::process_checker::ProcessCheckerMachineClient
     fn done(
         &self,
         process_binary: ProcessBinary,
-        result: Result<Option<TbfFooterV2Credentials>, crate::process_checker::ProcessCheckError>,
+        result: Result<
+            Option<(TbfFooterV2Credentials, Option<core::num::NonZeroUsize>)>,
+            crate::process_checker::ProcessCheckError,
+        >,
     ) {
         // Check if this process was approved by the checker.
         match result {
