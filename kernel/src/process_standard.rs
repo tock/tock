@@ -37,6 +37,7 @@ use crate::upcall::UpcallId;
 use crate::utilities::cells::{MapCell, NumericCellExt, OptionalCell};
 
 use tock_tbf::types::CommandPermissions;
+use tock_tbf::types::TbfFooterV2Credentials;
 
 /// State for helping with debugging apps.
 ///
@@ -186,6 +187,10 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
     /// Collection of pointers to the TBF header in flash.
     header: tock_tbf::types::TbfHeader,
 
+    /// Credential that was approved for this process, or `None` if the
+    /// credential was permitted to run without an accepted credential.
+    credential: Option<TbfFooterV2Credentials>,
+
     /// State saved on behalf of the process each time the app switches to the
     /// kernel.
     stored_state:
@@ -252,6 +257,10 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             Some(version_nonzero) => Some(BinaryVersion::new(version_nonzero)),
             None => None,
         }
+    }
+
+    fn get_credential(&self) -> Option<TbfFooterV2Credentials> {
+        self.credential
     }
 
     fn enqueue_task(&self, task: Task) -> Result<(), ErrorCode> {
@@ -1671,6 +1680,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         process.app_break = Cell::new(initial_app_brk);
         process.grant_pointers = MapCell::new(grant_pointers);
 
+        process.credential = pb.credential.get();
         process.footers = pb.footers;
         process.flash = pb.flash;
 
