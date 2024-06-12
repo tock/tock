@@ -11,6 +11,8 @@ use core::fmt;
 
 use crate::config;
 use crate::debug;
+use crate::utilities::cells::OptionalCell;
+use tock_tbf::types::TbfFooterV2Credentials;
 
 /// Errors resulting from trying to load a process binary structure from flash.
 pub enum ProcessBinaryError {
@@ -123,6 +125,11 @@ pub struct ProcessBinary {
 
     /// Collection of pointers to the TBF header in flash.
     pub header: tock_tbf::types::TbfHeader,
+
+    /// Optional credential that was used to approve this application. This is
+    /// set if the process is checked by a credential checker and a specific
+    /// credential was used to approve this process. Otherwise this is `None`.
+    pub credential: OptionalCell<TbfFooterV2Credentials>,
 }
 
 impl ProcessBinary {
@@ -238,6 +245,7 @@ impl ProcessBinary {
             header: tbf_header,
             footers: footer_region,
             flash: app_flash,
+            credential: OptionalCell::empty(),
         })
     }
 

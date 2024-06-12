@@ -154,6 +154,10 @@ impl AppUniqueness for () {
 /// Transforms Application Credentials into a corresponding ShortId.
 pub trait Compress {
     /// Create a `ShortId` for `process`.
+    ///
+    /// If the process was approved to run because of a specific credential, the
+    /// `ProcessBinary will have its `credential` filed set to `Some()` with
+    /// that credential.
     fn to_short_id(&self, process: &ProcessBinary) -> ShortId;
 }
 

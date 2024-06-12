@@ -921,6 +921,7 @@ impl<'a, C: Chip> crate::process_checker::ProcessCheckerMachineClient
                 match self.find_open_process_binary_slot() {
                     Some(index) => {
                         self.proc_binaries.map(|proc_binaries| {
+                            process_binary.credential.insert(optional_credential);
                             proc_binaries[index] = Some(process_binary);
                         });
                     }
