@@ -27,6 +27,7 @@ use crate::process_checker::{AppIdPolicy, ProcessCheckError, ProcessCheckerMachi
 use crate::process_policies::ProcessFaultPolicy;
 use crate::process_standard::ProcessStandard;
 use crate::utilities::cells::{MapCell, OptionalCell};
+use tock_tbf::types::TbfFooterV2Credentials;
 
 /// Errors that can occur when trying to load and create processes.
 pub enum ProcessLoadError {
@@ -905,11 +906,11 @@ impl<'a, C: Chip> crate::process_checker::ProcessCheckerMachineClient
     fn done(
         &self,
         process_binary: ProcessBinary,
-        result: Result<(), crate::process_checker::ProcessCheckError>,
+        result: Result<Option<TbfFooterV2Credentials>, crate::process_checker::ProcessCheckError>,
     ) {
         // Check if this process was approved by the checker.
         match result {
-            Ok(()) => {
+            Ok(optional_credential) => {
                 if config::CONFIG.debug_load_processes {
                     debug!(
                         "Loading: Check succeeded for process {}",

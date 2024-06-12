@@ -170,9 +170,17 @@ impl<T: AppUniqueness + Compress> AppIdPolicy for T {}
 pub trait ProcessCheckerMachineClient {
     /// Check is finished, and the check result is in `result`.0
     ///
-    /// If `result` is `Ok(())`, the credentials were accepted. If `result` is
-    /// `Err`, the credentials were not accepted.
-    fn done(&self, process_binary: ProcessBinary, result: Result<(), ProcessCheckError>);
+    /// If `result` is `Ok(Option<Credentials>)`, the credentials were either
+    /// accepted and the accepted credential is provided, or no credentials were
+    /// accepted but none is required.
+    ///
+    /// If `result` is `Err`, the credentials were not accepted and the policy
+    /// denied approving the app.
+    fn done(
+        &self,
+        process_binary: ProcessBinary,
+        result: Result<Option<TbfFooterV2Credentials>, ProcessCheckError>,
+    );
 }
 
 /// Outcome from checking a single footer credential.
@@ -268,7 +276,7 @@ impl ProcessCheckerMachine {
                         let result = if requires {
                             Err(ProcessCheckError::CredentialsNotAccepted)
                         } else {
-                            Ok(())
+                            Ok(None)
                         };
 
                         self.client.map(|client| client.done(pb, result));
@@ -412,7 +420,7 @@ impl AppCredentialsPolicyClient<'static> for ProcessCheckerMachine {
     fn check_done(
         &self,
         result: Result<CheckResult, ErrorCode>,
-        _credentials: TbfFooterV2Credentials,
+        credentials: TbfFooterV2Credentials,
         _integrity_region: &'static [u8],
     ) {
         if config::CONFIG.debug_process_credentials {
@@ -422,7 +430,7 @@ impl AppCredentialsPolicyClient<'static> for ProcessCheckerMachine {
             Ok(CheckResult::Accept) => {
                 self.client.map(|client| {
                     if let Some(pb) = self.process_binary.take() {
-                        client.done(pb, Ok(()))
+                        client.done(pb, Ok(Some(credentials)))
                     }
                 });
                 false
