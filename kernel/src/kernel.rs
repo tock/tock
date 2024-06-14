@@ -842,7 +842,7 @@ impl Kernel {
                         process.set_yielded_state();
                     }
 
-                    which if which == YieldCall::WaitForNoCallback as usize => {
+                    which if which == YieldCall::WaitFor as usize => {
                         let upcall_id = UpcallId {
                             driver_num: param1,
                             subscribe_num: param2,

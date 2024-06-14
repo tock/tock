@@ -55,7 +55,7 @@ pub enum SyscallClass {
 pub enum YieldCall {
     NoWait = 0,
     Wait = 1,
-    WaitForNoCallback = 2,
+    WaitFor = 2,
 }
 
 // Required as long as no solution to
