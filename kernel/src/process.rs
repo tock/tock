@@ -873,7 +873,7 @@ pub enum State {
     /// Process stopped executing and returned to the kernel because it called
     /// the `WaitFor` variant of the `yield` syscall. The process should not be
     /// scheduled until the specified driver attempts to execute the specified
-    /// subscribe.
+    /// upcall.
     YieldedFor(UpcallId),
 
     /// The process is stopped, and its previous state was Running. This is used
