@@ -356,33 +356,6 @@ All other yield number values are reserved. If an invalid yield number
 is passed the kernel MUST return immediately and MUST NOT
 use `yield-param-A`, `yield-param-B`, or `yield-param-C`.
 
-
-
-When a process calls a Yield system call, the kernel schedules one
-pending upcall (if any) to execute on the userspace stack.  If there
-are multiple pending upcalls, each one requires a separate Yield
-call to invoke. The kernel invokes upcalls only in response to Yield
-system calls.  This form of very limited preemption allows userspace
-to manage concurrent access to its variables.
-
-The Yield system call class has no return value. This is because
-invoking an upcall pushes that function call onto the stack, such
-that the return value of a call to yield system call may be the
-return value of the upcall.
-
-Yield variants which return a result to the caller will use one or more
-of the `yield-param-X` arguments to do so.  Allowing the kernel to pass
-a return value in a register back to userspace would require either
-re-entering the kernel or expensive execution architectures (e.g.,
-additional stacks or additional stack frames) for upcalls.
-
-
-
-
-
-
-
-
 The meaning of `yield-param-X` is specific to the yield type.
 
 
