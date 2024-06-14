@@ -101,7 +101,6 @@ pub enum Syscall {
         which: usize,
         param1: usize,
         param2: usize,
-        param3: usize,
     },
 
     /// Structure representing an invocation of the Subscribe system call class.
@@ -209,7 +208,6 @@ impl Syscall {
                 which: r0,
                 param1: r1,
                 param2: r2,
-                param3: r3,
             }),
             Ok(SyscallClass::Subscribe) => Some(Syscall::Subscribe {
                 driver_number: r0,

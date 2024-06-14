@@ -759,7 +759,6 @@ impl Kernel {
                 which: _,
                 param1: _,
                 param2: _,
-                param3: _,
             } => {} // Yield is not filterable.
             Syscall::Exit {
                 which: _,
@@ -808,7 +807,6 @@ impl Kernel {
                 which,
                 param1,
                 param2,
-                param3: _,
             } => {
                 if config::CONFIG.trace_syscalls {
                     debug!("[{:?}] yield. which: {}", process.processid(), which);
