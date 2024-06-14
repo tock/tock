@@ -53,9 +53,13 @@ or storage interfaces (e.g., key-value, filesystems, logs, etc.).
 All shared persistent storage implementations must store a 32 bit identifier
 with each stored object to mark the application that created the stored object.
 
-When applications write data, their [ShortId](../trd-appid.md) must be used as the identifier. When
-the kernel writes data, the identifier must be 0.
+When applications write data, their [ShortId](trd-appid.md) must be used as the
+identifier. When the kernel writes data, the identifier must be 0.
 
+The security, uniqueness, mapping policy, and other properties of ShortIds are
+allowed to vary based on board configuration. For storage use cases which have
+specific concerns or constraints around the policies for storage identifiers,
+users should consult the [properties of ShortIds afforded by AppId policy](trd-appid.md#8-short-ids-and-the-compress-trait).
 
 4 Permissions
 -------------------------------
