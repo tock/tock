@@ -757,8 +757,8 @@ impl Kernel {
         match syscall {
             Syscall::Yield {
                 which: _,
-                param1: _,
-                param2: _,
+                paramA: _,
+                paramB: _,
             } => {} // Yield is not filterable.
             Syscall::Exit {
                 which: _,
@@ -805,8 +805,8 @@ impl Kernel {
             }
             Syscall::Yield {
                 which,
-                param1,
-                param2,
+                paramA,
+                paramB,
             } => {
                 if config::CONFIG.trace_syscalls {
                     debug!("[{:?}] yield. which: {}", process.processid(), which);
@@ -827,7 +827,7 @@ impl Kernel {
                         // memory exist. We do not have a reference, so we can
                         // safely call `set_byte()`.
                         unsafe {
-                            let address = param1 as *mut u8;
+                            let address = paramA as *mut u8;
                             process.set_byte(address, has_tasks as u8);
                         }
 
@@ -842,8 +842,8 @@ impl Kernel {
 
                     Ok(YieldCall::WaitFor) => {
                         let upcall_id = UpcallId {
-                            driver_num: param1,
-                            subscribe_num: param2,
+                            driver_num: paramA,
+                            subscribe_num: paramB,
                         };
                         process.set_yielded_for_state(upcall_id);
                     }

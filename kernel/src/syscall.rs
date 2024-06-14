@@ -99,8 +99,8 @@ pub enum Syscall {
     /// `which` is the Yield identifier value and `address` is the no wait field.
     Yield {
         which: usize,
-        param1: usize,
-        param2: usize,
+        paramA: usize,
+        paramB: usize,
     },
 
     /// Structure representing an invocation of the Subscribe system call class.
@@ -206,8 +206,8 @@ impl Syscall {
         match SyscallClass::try_from(syscall_number) {
             Ok(SyscallClass::Yield) => Some(Syscall::Yield {
                 which: r0,
-                param1: r1,
-                param2: r2,
+                paramA: r1,
+                paramB: r2,
             }),
             Ok(SyscallClass::Subscribe) => Some(Syscall::Subscribe {
                 driver_number: r0,
