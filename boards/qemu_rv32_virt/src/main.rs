@@ -181,7 +181,7 @@ pub unsafe fn main() {
     // ---------- BASIC INITIALIZATION -----------
 
     // Basic setup of the RISC-V IMAC platform
-    rv32i::configure_trap_handler(rv32i::PermissionMode::Machine);
+    rv32i::configure_trap_handler();
 
     // Set up memory protection immediately after setting the trap handler, to
     // ensure that much of the board initialization routine runs with ePMP

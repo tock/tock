@@ -428,16 +428,22 @@ pub unsafe extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
 }
 
 pub unsafe fn configure_trap_handler() {
+    // The common _start_trap handler uses mscratch to determine
+    // whether we are executing kernel or process code. Set to `0` to
+    // indicate we're in the kernel right now.
+    CSR.mscratch.set(0);
+
     // The Ibex CPU does not support non-vectored trap entries.
-    CSR.mtvec
-        .write(mtvec::trap_addr.val(_start_trap_vectored as usize >> 2) + mtvec::mode::Vectored)
+    CSR.mtvec.write(
+        mtvec::trap_addr.val(_earlgrey_start_trap_vectored as usize >> 2) + mtvec::mode::Vectored,
+    );
 }
 
 // Mock implementation for crate tests that does not include the section
 // specifier, as the test will not use our linker script, and the host
 // compilation environment may not allow the section name.
 #[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
-pub extern "C" fn _start_trap_vectored() {
+pub extern "C" fn _earlgrey_start_trap_vectored() {
     use core::hint::unreachable_unchecked;
     unsafe {
         unreachable_unchecked();
@@ -446,7 +452,7 @@ pub extern "C" fn _start_trap_vectored() {
 
 #[cfg(all(target_arch = "riscv32", target_os = "none"))]
 extern "C" {
-    pub fn _start_trap_vectored();
+    pub fn _earlgrey_start_trap_vectored();
 }
 
 #[cfg(all(target_arch = "riscv32", target_os = "none"))]
@@ -461,39 +467,40 @@ core::arch::global_asm!(
     "
             .section .riscv.trap_vectored, \"ax\"
             .globl _start_trap_vectored
-          _start_trap_vectored:
+          _earlgrey_start_trap_vectored:
 
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-        "
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+            j {start_trap}
+    ",
+    start_trap = sym rv32i::_start_trap,
 );
