@@ -656,7 +656,37 @@ failure, the first `u32` is the passed upcall pointer and the second
 `u32` is the passed application data pointer. For the first successful
 call to Subscribe for a given upcall, the upcall pointer and
 application data pointer returned MUST be the Null Upcall (described
-in 5.1 below).
+below).
+
+4.2.1 The Null Upcall
+---------------------------------
+
+The Tock kernel defines an upcall pointer as the Null Upcall.
+The Null Upcall denotes an upcall that the kernel will never invoke.
+The Null Upcall is used for two reasons. First, a userspace process
+passing the Null Upcall as the upcall pointer for Subscribe
+indicates that there should be no more upcalls. Second, the first
+time a userspace process calls Subscribe for a particular upcall,
+the kernel needs to return upcall and application pointers indicating
+the current configuration; in this case, the kernel returns the Null
+Upcall. The Tock kernel MUST NOT invoke the Null Upcall.
+
+The Null Upcall upcall pointer MUST be 0x0. This means it is not possible
+for userspace to pass address 0x0 as a valid code entry point. Unlike
+systems with virtual memory, where 0x0 can be reserved a special meaning, in
+microcontrollers with only physical memory 0x0 is a valid memory location.
+It is possible that a Tock kernel is configured so its applications
+start at address 0x0. However, even if they do begin at 0x0, the
+Tock Binary Format for application images mean that the first address
+will not be executable code and so 0x0 will not be a valid function.
+In the case that 0x0 is valid application code and where the
+linker places an upcall function, the first instruction of the function
+should be a no-op and the address of the second instruction passed
+instead.
+
+If a userspace process invokes subscribe on a driver ID that is not
+installed in the kernel, the kernel MUST return a failure with an
+error code of `NODEVICE` and an upcall of the Null Upcall.
 
 4.3 Command (Class ID: 2)
 ---------------------------------
@@ -992,78 +1022,11 @@ value of an exit syscall is always `Failure`. `exit-restart` and
 `exit-terminate` MUST always succeed and so never return.
 
 
-5.0 Upcall Types
+5 libtock-c Userspace Library Methods
 =================================
 
-This section defines the Upcalls that are valid for the kernel to invoke
-on userspace. Applications are responsible for ensuring that references
-to Upcalls passed to the kernel adhere to the ABI.
-
-5.1 The Null Upcall
----------------------------------
-
-The Tock kernel defines a sentinel upcall pointer as the Null Upcall.
-The Null Upcall denotes an upcall that the kernel will never invoke.
-The Null Upcall is used for two reasons. First, a userspace process
-passing the Null Upcall as the upcall pointer for `Subscribe` indicates
-that there should be no more upcalls. Second, the first time a userspace
-process calls `Subscribe` for a particular upcall, the kernel needs to
-return upcall and application pointers indicating the current
-configuration; in this case, the kernel returns the Null Upcall. The
-Tock kernel MUST NOT invoke the Null Upcall.
-
-The Null Upcall upcall pointer MUST be `0x0`. This means it is not
-possible for userspace to pass address 0x0 as a valid code entry point.
-Unlike systems with virtual memory, where `0x0` can be reserved a
-special meaning, in microcontrollers with only physical memory `0x0` is
-a valid memory location.  It is possible that a Tock kernel is
-configured so its applications start at address `0x0`. However, even if
-they do begin at `0x0`, the Tock Binary Format for application images
-mean that the first address will not be executable code and so `0x0`
-will not be a valid function.  In the case that `0x0` is valid
-application code and where the linker places an upcall function, the
-first instruction of the function should be a no-op and the address of
-the second instruction passed instead.
-
-If a userspace process invokes subscribe on a driver ID that is not
-installed in the kernel, the kernel MUST return a failure with an
-error code of `NODEVICE` and an upcall of the Null Upcall.
-
-
-5.2 SubscribeUpcall
--------------------------------------
-
-A `SubscribeUpcall` is an upcall which is generated in response to an
-event an application has subscribed to using the `Subscribe` system
-call.
-
-The `SubscribeUpcall` uses all four Upcall Arguments.
-
-The values in r0-r2 are IMPLEMENTATION DEFINED. Their meaning is defined
-by the driver which is subscribed to. Some upcalls do not require all
-three of these arguments, and MAY only specify semantic meaning for some
-(or none) of r0-r2. Userspace MUST treat unspecified upcall arguments as
-RESERVED, and MUST NOT make any assumptions about the contents of such
-registers. Drivers SHOULD treat these as numeric arguments, i.e. of type
-`u32`, however they MAY document alternative types. Userspace
-implementations MUST consult driver documentation for each upcall they
-subscribe to. Low-level support libraries in userspace MUST tolerate
-(i.e. transparently pass-through values without modification) non-`u32`
-semantics for these arguments.
-
-The value in r3 MUST be the "Application Data" as supplied to the kernel
-in the `Subscribe` system call. In most cases, this is a pointer to
-somewhere in userspace, however applications MAY use this value however
-they like. The kernel MUST return exactly the value provided by
-userspace, and the kernel SHOULD NOT read or rely on the value.
-
-
-6 libtock-c Userspace Library Methods
-=================================
-
-This section describes the method signatures for system calls and
-upcalls in C, as an example of how they appear to application/userspace
-code.
+This section describes the method signatures for system calls and upcalls in C, as an example
+of how they appear to application/userspace code.
 
 Because C allows a single return value but Tock system calls can return multiple values,
 they do not easily map to idiomatic C. These low-level APIs are translated into standard C
@@ -1071,12 +1034,12 @@ code by the userspace library. The general calling convention is that the comple
 are returned as structs. Since these structs are composite types larger than a single word, the
 ARM and RISC-V calling conventions pass them on the stack.
 
-The system calls are implemented as inline assembly. This assembly moves
-arguments into the correct registers and invokes the system call, and on
-return copies the returned data into the return type on the stack.
+The system calls are implemented as inline assembly. This assembly moves arguments into the correct
+registers and invokes the system call, and on return copies the returned data into the return type
+on the stack.
 
 
-6.1 Yield
+5.1 Yield
 ---------------------------------
 
 The Yield system calls have these function prototypes:
@@ -1088,7 +1051,7 @@ void yield(void);
 
 `yield_no_wait` returns 1 if an upcall was invoked and 0 if one was not invoked.
 
-6.2 Subscribe
+5.2 Subscribe
 ---------------------------------
 
 The subscribe system call has this function prototype:
@@ -1111,7 +1074,7 @@ The `success` field indicates whether the call to subscribe succeeded.
 If it failed, the error code is stored in `error`. If it succeeded,
 the value in `error` is undefined.
 
-6.3 Command
+5.3 Command
 -----------------------------------
 
 The subscribe system call has this function prototype:
@@ -1130,7 +1093,7 @@ mapping of the return registers. `rtype` contains the value of `r0`, while
 `data[0]` contains what was passed in `r1`, `data[1]` contains was passed in `r2`,
 and `data[2]` contains what was passed in `r3`.
 
-6.4 Read-Write Allow
+5.4 Read-Write Allow
 ---------------------------------
 
 The read-write allow system call has this function prototype:
@@ -1152,7 +1115,7 @@ the value in `error` is undefined. `ptr` and `size` contain the pointer
 and size of the passed buffer.
 
 
-6.5 Read-Only Allow
+5.5 Read-Only Allow
 ---------------------------------
 
 The read-only allow system call has this function prototype:
@@ -1173,7 +1136,7 @@ If it failed, the error code is stored in `error`. If it succeeded,
 the value in `error` is undefined. `ptr` and `size` contain the pointer
 and size of the passed buffer.
 
-6.6 Memop
+5.6 Memop
 ---------------------------------
 
 Because the Memop system calls are defined by the kernel and not extensible, they are
@@ -1196,7 +1159,7 @@ They wrap around an underlying function which uses inline assembly:
 void* memop(uint32_t op_type, int arg1);
 ```
 
-6.7 Exit
+5.7 Exit
 ---------------------------------
 
 The Exit system calls have these function prototypes:
