@@ -416,8 +416,11 @@ pub enum SyscallReturn {
     /// pointer and application data.
     SubscribeFailure(ErrorCode, *const (), usize),
 
-    /// TODO
-    YieldForSubscribableUpcall(usize, usize, usize),
+    /// YieldFor return value. These arguments match the arguments to an upcall,
+    /// where the kernel does not define an error field. Therefore this does not
+    /// have success/failure versions because the kernel cannot know if the
+    /// upcall (i.e. YieldFor return value) represents success or failure.
+    YieldFor(usize, usize, usize),
 }
 
 impl SyscallReturn {
@@ -452,7 +455,7 @@ impl SyscallReturn {
             SyscallReturn::UserspaceReadableAllowFailure(_, _, _) => false,
             SyscallReturn::AllowReadOnlyFailure(_, _, _) => false,
             SyscallReturn::SubscribeFailure(_, _, _) => false,
-            SyscallReturn::YieldForSubscribableUpcall(_, _, _) => true,
+            SyscallReturn::YieldFor(_, _, _) => true,
         }
     }
 
@@ -560,7 +563,7 @@ impl SyscallReturn {
                 *a2 = ptr as u32;
                 *a3 = data as u32;
             }
-            SyscallReturn::YieldForSubscribableUpcall(data0, data1, data2) => {
+            SyscallReturn::YieldFor(data0, data1, data2) => {
                 *a0 = data0 as u32;
                 *a1 = data1 as u32;
                 *a2 = data2 as u32;

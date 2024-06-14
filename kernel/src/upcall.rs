@@ -131,14 +131,12 @@ impl Upcall {
     ) -> Result<(), UpcallError> {
         let enqueue_res = self.fn_ptr.map_or_else(
             || {
-                process.enqueue_task(process::Task::NullSubscribableUpcall(
-                    process::NullSubscribableUpcall {
-                        upcall_id: self.upcall_id,
-                        argument0: r0,
-                        argument1: r1,
-                        argument2: r2,
-                    },
-                ))
+                process.enqueue_task(process::Task::ReturnValue(process::ReturnArguments {
+                    upcall_id: self.upcall_id,
+                    argument0: r0,
+                    argument1: r1,
+                    argument2: r2,
+                }))
             },
             |fp| {
                 process.enqueue_task(process::Task::FunctionCall(process::FunctionCall {

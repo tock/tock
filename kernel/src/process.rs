@@ -928,13 +928,13 @@ pub enum FaultAction {
 /// This is public for external implementations of `Process`.
 #[derive(Copy, Clone)]
 pub enum Task {
-    /// A task that should not actually be executed. This is used to resume a
-    /// suspended process without invoking any callbacks in userspace (e.g.,
-    /// when YieldFor resolves to a Null Upcall).
-    NullSubscribableUpcall(NullSubscribableUpcall),
     /// Function pointer in the process to execute. Generally this is a upcall
     /// from a capsule.
     FunctionCall(FunctionCall),
+    /// Data to return to the process. This is used to resume a suspended
+    /// process without invoking any callbacks in userspace (e.g., in response
+    /// to a YieldFor).
+    ReturnValue(ReturnArguments),
     /// An IPC operation that needs additional setup to configure memory access.
     IPC((ProcessId, ipc::IPCUpcallType)),
 }
@@ -977,18 +977,20 @@ pub struct FunctionCall {
     pub pc: usize,
 }
 
-/// This is similar to `FunctionCall` but for the special case of the
-/// Null Upcall for a subscribe. This is used to pass around upcall parameters
-/// when there is no associated upcall to actually call or userdata for arg3.
+/// This is similar to `FunctionCall` but for the special case of the Null
+/// Upcall for a subscribe. Because there is no function pointer in a Null
+/// Upcall we can only return these values to userspace. This is used to pass
+/// around upcall parameters when there is no associated upcall to actually call
+/// or userdata for arg3.
 #[derive(Copy, Clone, Debug)]
-pub struct NullSubscribableUpcall {
+pub struct ReturnArguments {
     /// Which upcall generates this event.
     pub upcall_id: UpcallId,
-    /// The first argument to the function.
+    /// The first argument to return.
     pub argument0: usize,
-    /// The second argument to the function.
+    /// The second argument to return.
     pub argument1: usize,
-    /// The third argument to the function.
+    /// The third argument to return.
     pub argument2: usize,
 }
 

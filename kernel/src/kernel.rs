@@ -602,7 +602,7 @@ impl Kernel {
                     match process.dequeue_task() {
                         None => break,
                         Some(cb) => match cb {
-                            Task::NullSubscribableUpcall(_) => {
+                            Task::ReturnValue(_) => {
                                 // Per TRD104, Yield-Wait does not wake the
                                 // process for events that generate Null
                                 // Upcalls.
@@ -650,23 +650,21 @@ impl Kernel {
                     match process.dequeue_specific_upcall(upcall_id) {
                         None => break,
                         Some(task) => match task {
-                            Task::NullSubscribableUpcall(nu) => {
+                            Task::ReturnValue(rv) => {
                                 if config::CONFIG.trace_syscalls {
                                     debug!(
-                                        "[{:?}] Yield-NoCallback: [NSU] ({:#x}, {:#x}, {:#x})",
+                                        "[{:?}] Yield-NoCallback: [NU] ({:#x}, {:#x}, {:#x})",
                                         process.processid(),
-                                        nu.argument0,
-                                        nu.argument1,
-                                        nu.argument2,
+                                        rv.argument0,
+                                        rv.argument1,
+                                        rv.argument2,
                                     );
                                 }
-                                process.set_syscall_return_value(
-                                    SyscallReturn::YieldForSubscribableUpcall(
-                                        nu.argument0,
-                                        nu.argument1,
-                                        nu.argument2,
-                                    ),
-                                );
+                                process.set_syscall_return_value(SyscallReturn::YieldFor(
+                                    rv.argument0,
+                                    rv.argument1,
+                                    rv.argument2,
+                                ));
                             }
                             Task::FunctionCall(ccb) => {
                                 if config::CONFIG.trace_syscalls {
@@ -680,13 +678,11 @@ impl Kernel {
                                             ccb.argument3,
                                         );
                                 }
-                                process.set_syscall_return_value(
-                                    SyscallReturn::YieldForSubscribableUpcall(
-                                        ccb.argument0,
-                                        ccb.argument1,
-                                        ccb.argument2,
-                                    ),
-                                );
+                                process.set_syscall_return_value(SyscallReturn::YieldFor(
+                                    ccb.argument0,
+                                    ccb.argument1,
+                                    ccb.argument2,
+                                ));
                             }
                             Task::IPC(_) => todo!(),
                         },
