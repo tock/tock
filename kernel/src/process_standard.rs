@@ -463,7 +463,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                     _ => false,
                 },
                 Task::ReturnValue(rv) => rv.upcall_id == upcall_id,
-                Task::IPC(_) => todo!(),
+                Task::IPC(_) => false,
             })
         })
     }
