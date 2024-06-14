@@ -58,6 +58,19 @@ pub enum YieldCall {
     WaitFor = 2,
 }
 
+impl TryFrom<usize> for YieldCall {
+    type Error = usize;
+
+    fn try_from(yield_variant: usize) -> Result<YieldCall, usize> {
+        match yield_variant {
+            0 => Ok(YieldCall::NoWait),
+            1 => Ok(YieldCall::Wait),
+            2 => Ok(YieldCall::WaitFor),
+            i => Err(i),
+        }
+    }
+}
+
 // Required as long as no solution to
 // https://github.com/rust-lang/rfcs/issues/2783 is integrated into
 // the standard library

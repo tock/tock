@@ -813,8 +813,8 @@ impl Kernel {
                 if config::CONFIG.trace_syscalls {
                     debug!("[{:?}] yield. which: {}", process.processid(), which);
                 }
-                match which {
-                    which if which == YieldCall::NoWait as usize => {
+                match which.try_into() {
+                    Ok(YieldCall::NoWait) => {
                         // If this is a yield-no-wait AND there are no pending tasks,
                         // then return immediately. Otherwise, go into the yielded state
                         // and execute tasks now or when they arrive.
@@ -838,11 +838,11 @@ impl Kernel {
                         }
                     }
 
-                    which if which == YieldCall::Wait as usize => {
+                    Ok(YieldCall::Wait) => {
                         process.set_yielded_state();
                     }
 
-                    which if which == YieldCall::WaitFor as usize => {
+                    Ok(YieldCall::WaitFor) => {
                         let upcall_id = UpcallId {
                             driver_num: param1,
                             subscribe_num: param2,
