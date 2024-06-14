@@ -54,6 +54,7 @@ members = [
     "boards/weact_f401ccu6/",
     "boards/configurations/nrf52840dk/nrf52840dk-test-appid-sha256",
     "boards/configurations/nrf52840dk/nrf52840dk-test-kernel",
+    "boards/tutorials/nrf52840dk-hotp-tutorial",
     "boards/tutorials/nrf52840dk-thread-tutorial",
     "capsules/aes_gcm",
     "capsules/core",
