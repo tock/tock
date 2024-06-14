@@ -427,7 +427,7 @@ The specific upcall is identified by a Driver number and a Subscribe number
 
 This process will resume execution when an event in the kernel generates
 an upcall that matches the specified upcall. No userspace callback
-function will invoked by the kernel. Instead, the contents of r0-r3 will
+function will invoked by the kernel. Instead, the contents of r0-r2 will
 be set to the Upcall Arguments provided by the driver when the upcall is
 scheduled.
 
