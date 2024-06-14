@@ -320,7 +320,11 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn is_running(&self) -> bool {
         match self.state.get() {
-            State::Running | State::Yielded | State::StoppedRunning | State::StoppedYielded => true,
+            State::Running
+            | State::Yielded
+            | State::YieldedFor(_)
+            | State::StoppedRunning
+            | State::StoppedYielded => true,
             _ => false,
         }
     }
@@ -1013,6 +1017,13 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         }) {
             Some(Ok(())) => {
                 // If we get an `Ok` we are all set.
+
+                // The process is either already in the running state (having
+                // just called a nonblocking syscall like command) or needs to
+                // be moved to the running state having called Yield-WaitFor and
+                // now needing to be resumed. Either way we can set the state to
+                // running.
+                self.state.set(State::Running);
             }
 
             Some(Err(())) => {
