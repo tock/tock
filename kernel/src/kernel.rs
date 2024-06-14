@@ -653,14 +653,14 @@ impl Kernel {
                             Task::ReturnValue(rv) => {
                                 if config::CONFIG.trace_syscalls {
                                     debug!(
-                                        "[{:?}] Yield-NoCallback: [NU] ({:#x}, {:#x}, {:#x})",
+                                        "[{:?}] Yield-WaitFor: [NU] ({:#x}, {:#x}, {:#x})",
                                         process.processid(),
                                         rv.argument0,
                                         rv.argument1,
                                         rv.argument2,
                                     );
                                 }
-                                process.set_syscall_return_value(SyscallReturn::YieldFor(
+                                process.set_syscall_return_value(SyscallReturn::YieldWaitFor(
                                     rv.argument0,
                                     rv.argument1,
                                     rv.argument2,
@@ -669,7 +669,7 @@ impl Kernel {
                             Task::FunctionCall(ccb) => {
                                 if config::CONFIG.trace_syscalls {
                                     debug!(
-                                            "[{:?}] Yield-NoCallback [Suppressed function_call @{:#x}] ({:#x}, {:#x}, {:#x}, {:#x})",
+                                            "[{:?}] Yield-WaitFor [Suppressed function_call @{:#x}] ({:#x}, {:#x}, {:#x}, {:#x})",
                                             process.processid(),
                                             ccb.pc,
                                             ccb.argument0,
@@ -678,7 +678,7 @@ impl Kernel {
                                             ccb.argument3,
                                         );
                                 }
-                                process.set_syscall_return_value(SyscallReturn::YieldFor(
+                                process.set_syscall_return_value(SyscallReturn::YieldWaitFor(
                                     ccb.argument0,
                                     ccb.argument1,
                                     ccb.argument2,
