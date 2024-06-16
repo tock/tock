@@ -981,7 +981,7 @@ pub struct FunctionCall {
 /// Upcall for a subscribe. Because there is no function pointer in a Null
 /// Upcall we can only return these values to userspace. This is used to pass
 /// around upcall parameters when there is no associated upcall to actually call
-/// or userdata for arg3.
+/// or userdata.
 #[derive(Copy, Clone, Debug)]
 pub struct ReturnArguments {
     /// Which upcall generates this event.
