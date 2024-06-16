@@ -349,7 +349,7 @@ pub trait Process {
 
     /// Search the work queue for a specific upcall_id. If it is present,
     /// return the associated `Task`, otherwise return `None`.
-    fn dequeue_specific_upcall(&self, upcall_id: UpcallId) -> Option<Task>;
+    fn remove_upcall(&self, upcall_id: UpcallId) -> Option<Task>;
 
     /// Remove all scheduled upcalls for a given upcall id from the task queue.
     fn remove_pending_upcalls(&self, upcall_id: UpcallId);

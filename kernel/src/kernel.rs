@@ -647,7 +647,7 @@ impl Kernel {
                 process::State::YieldedFor(upcall_id) => {
                     // If this process is waiting for a specific upcall, see if
                     // it is ready. If so, dequeue and execute it, otherwise move on.
-                    match process.dequeue_specific_upcall(upcall_id) {
+                    match process.remove_upcall(upcall_id) {
                         None => break,
                         Some(task) => match task {
                             Task::ReturnValue(rv) => {

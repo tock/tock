@@ -459,9 +459,9 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.tasks.map_or(None, |tasks| tasks.dequeue())
     }
 
-    fn dequeue_specific_upcall(&self, upcall_id: UpcallId) -> Option<Task> {
+    fn remove_upcall(&self, upcall_id: UpcallId) -> Option<Task> {
         self.tasks.map_or(None, |tasks| {
-            tasks.dequeue_specific(|task| match task {
+            tasks.remove_first(|task| match task {
                 Task::FunctionCall(fc) => match fc.source {
                     FunctionCallSource::Driver(upid) => upid == upcall_id,
                     _ => false,

@@ -111,10 +111,7 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
         }
     }
 
-    // Search for an element and pull it out of the queue.
-    // The supplied function will be called for each object in the queue, and
-    // if it returns true, the entry will be removed and returned.
-    fn dequeue_specific<F>(&mut self, f: F) -> Option<T>
+    fn remove_first<F>(&mut self, f: F) -> Option<T>
     where
         F: Fn(&T) -> bool,
     {
