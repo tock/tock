@@ -645,12 +645,17 @@ impl Kernel {
                     }
                 }
                 process::State::YieldedFor(upcall_id) => {
-                    // If this process is waiting for a specific upcall, see if
-                    // it is ready. If so, dequeue and execute it, otherwise move on.
+                    // If this process is waiting for a specific
+                    // upcall, see if it is ready. If so, dequeue it
+                    // and return its values to the process without
+                    // scheduling the callback.
+
                     match process.remove_upcall(upcall_id) {
                         None => break,
                         Some(task) => {
                             let (a0, a1, a2) = match task {
+                                // There is no callback function registered, we just return the
+                                // values provided by the driver
                                 Task::ReturnValue(rv) => {
                                     if config::CONFIG.trace_syscalls {
                                         debug!(
@@ -663,6 +668,9 @@ impl Kernel {
                                     }
                                     (rv.argument0, rv.argument1, rv.argument2)
                                 }
+                                // There is a registered callback function, but since the process
+                                // used `Yield-WaitFor`, we do not execute it, we just return
+                                // its arguments values to the application
                                 Task::FunctionCall(ccb) => {
                                     if config::CONFIG.trace_syscalls {
                                         debug!(
