@@ -37,6 +37,7 @@ use rv32i::csr;
 
 use kernel::utilities::registers::interfaces::Readable;
 use kernel::threadlocal::DynThreadId;
+use kernel::platform::chip::{Chip, InterruptService};
 
 use qemu_rv32_virt_chip::MAX_THREADS;
 
@@ -54,7 +55,11 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 // static mut CHIP: Option<&'static QemuRv32VirtChip<QemuRv32VirtDefaultPeripherals>> = None;
 thread_local_static!(
     MAX_THREADS,
-    CHIP: Option<&'static QemuRv32VirtChip<'static, QemuRv32VirtDefaultPeripherals<'static>>> = None
+    // CHIP: Option<&'static QemuRv32VirtChip<'static, dyn InterruptService + 'static>> = None
+    CHIP: Option<&'static dyn Chip<
+        MPU = qemu_rv32_virt_chip::chip::QemuRv32VirtPMP,
+        UserspaceKernelBoundary = rv32i::syscall::SysCall,
+    >> = None
 );
 
 // Reference to the process printer for panic dumps.
@@ -70,107 +75,12 @@ const STACK_SIZE: usize = 0x8000;
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; STACK_SIZE] = [0; STACK_SIZE];
 
-/// A structure representing this platform that holds references to all
-/// capsules for this platform. We've included an alarm and console.
-struct QemuRv32VirtPlatform {
-    pconsole: &'static capsules_core::process_console::ProcessConsole<
-        'static,
-        { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-            'static,
-            qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>,
-        >,
-        components::process_console::Capability,
-    >,
-    console: &'static capsules_core::console::Console<'static>,
-    lldb: &'static capsules_core::low_level_debug::LowLevelDebug<
-        'static,
-        capsules_core::virtualizers::virtual_uart::UartDevice<'static>,
-    >,
-    alarm: &'static capsules_core::alarm::AlarmDriver<
-        'static,
-        VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
-    >,
-    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    scheduler: &'static CooperativeSched<'static>,
-    scheduler_timer: &'static VirtualSchedulerTimer<
-        VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
-    >,
-    virtio_rng: Option<
-        &'static capsules_core::rng::RngDriver<
-            'static,
-            qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng<'static, 'static>,
-        >,
-    >,
-}
+// Shared memory region
+pub static mut SHARED_COMM_BUFFER: [u8; 0x4000] = [0; 0x4000];
+pub static mut SHARED_APP_BUFFER: [u8; 0x4000] = [0; 0x4000];
 
-/// Mapping of integer syscalls to objects that implement syscalls.
-impl SyscallDriverLookup for QemuRv32VirtPlatform {
-    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
-    where
-        F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
-    {
-        match driver_num {
-            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
-            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules_core::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
-            capsules_core::rng::DRIVER_NUM => {
-                if let Some(rng_driver) = self.virtio_rng {
-                    f(Some(rng_driver))
-                } else {
-                    f(None)
-                }
-            }
-            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            _ => f(None),
-        }
-    }
-}
+pub static mut SHARED_BUFFER: [u8; 0x3] = [0; 0x3];
 
-impl
-    KernelResources<
-        qemu_rv32_virt_chip::chip::QemuRv32VirtChip<
-            'static,
-            QemuRv32VirtDefaultPeripherals<'static>,
-        >,
-    > for QemuRv32VirtPlatform
-{
-    type SyscallDriverLookup = Self;
-    type SyscallFilter = ();
-    type ProcessFault = ();
-    type CredentialsCheckingPolicy = ();
-    type Scheduler = CooperativeSched<'static>;
-    type SchedulerTimer = VirtualSchedulerTimer<
-        VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
-    >;
-    type WatchDog = ();
-    type ContextSwitchCallback = ();
-
-    fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
-        self
-    }
-    fn syscall_filter(&self) -> &Self::SyscallFilter {
-        &()
-    }
-    fn process_fault(&self) -> &Self::ProcessFault {
-        &()
-    }
-    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
-        &()
-    }
-    fn scheduler(&self) -> &Self::Scheduler {
-        self.scheduler
-    }
-    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
-        self.scheduler_timer
-    }
-    fn watchdog(&self) -> &Self::WatchDog {
-        &()
-    }
-    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
-        &()
-    }
-}
 
 #[repr(C)]
 enum ThreadType {

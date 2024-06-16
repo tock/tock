@@ -13,7 +13,7 @@ pub const MAX_CONTEXTS: usize = MAX_THREADS * 2;
 
 pub use virtio;
 
-mod interrupts;
+pub mod interrupts;
 pub mod virtio_mmio;
 
 pub mod chip;

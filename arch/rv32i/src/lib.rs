@@ -95,6 +95,11 @@ extern "C" {
             csrr a0, mhartid
             beqz a0, 002f
 
+          // 300: // Debug: Only use core 0
+          //   li a1, 0
+          //   csrr a0, mhartid
+          //   bne a0, a1, 300b
+
             // Other cores wait for a machine software interrupt from core 0 which indicates
             // the completion of the initialization. This is because we cannot safely rely
             // on the memory since we have no knowledge of its initial state. First, we need
@@ -107,10 +112,6 @@ extern "C" {
 
             li  t2, 8                    // Enable the machine software interrupt.
             csrw mie, t2
-
-            // li  t3, {clint_base}
-            // li  t4, 1
-            // sw  t4, 4(t3)
 
           001: // infinite loop
             wfi
@@ -156,11 +157,6 @@ extern "C" {
 
           201: // bss_init_done
 
-          // 300: // Debug: Only use core 0
-          //   li a1, 0
-          //   csrr a0, mhartid
-          //   bne a0, a1, 300b
-
             // With that initial setup out of the way, we now branch to the entry
             // code, likely defined in a board's main.rs.
             csrr a0, mhartid
@@ -172,13 +168,12 @@ ebss = sym _ezero,
 sdata = sym _srelocate,
 edata = sym _erelocate,
 etext = sym _etext,
-clint_base = const 0x0200_0000,
 );
 
 #[naked]
 #[export_name = "_entry_trap"]
 #[cfg(all(target_arch = "riscv32", target_os = "none"))]
-pub unsafe fn entry_trap() {
+pub unsafe extern "C" fn entry_trap() {
     asm!("
         .balign 0x4                // Trap handler is 4-byte alignment.
 

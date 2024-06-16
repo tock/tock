@@ -24,7 +24,6 @@ use kernel::threadlocal::DynThreadId;
 
 use qemu_rv32_virt_chip::MAX_THREADS;
 
-use crate::QemuRv32VirtPlatform;
 use crate::CHIP;
 
 pub const NUM_PROCS: usize = 4;
@@ -39,6 +38,108 @@ static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText>
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
+
+/// A structure representing this platform that holds references to all
+/// capsules for this platform. We've included an alarm and console.
+struct QemuRv32VirtPlatform {
+    pconsole: &'static capsules_core::process_console::ProcessConsole<
+        'static,
+        { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
+        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+            'static,
+            qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>,
+        >,
+        components::process_console::Capability,
+    >,
+    console: &'static capsules_core::console::Console<'static>,
+    lldb: &'static capsules_core::low_level_debug::LowLevelDebug<
+        'static,
+        capsules_core::virtualizers::virtual_uart::UartDevice<'static>,
+    >,
+    alarm: &'static capsules_core::alarm::AlarmDriver<
+        'static,
+        VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
+    >,
+    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
+    scheduler: &'static CooperativeSched<'static>,
+    scheduler_timer: &'static VirtualSchedulerTimer<
+        VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
+    >,
+    virtio_rng: Option<
+        &'static capsules_core::rng::RngDriver<
+            'static,
+            qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng<'static, 'static>,
+        >,
+    >,
+}
+
+/// Mapping of integer syscalls to objects that implement syscalls.
+impl SyscallDriverLookup for QemuRv32VirtPlatform {
+    fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
+    where
+        F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
+    {
+        match driver_num {
+            capsules_core::console::DRIVER_NUM => f(Some(self.console)),
+            capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
+            capsules_core::rng::DRIVER_NUM => {
+                if let Some(rng_driver) = self.virtio_rng {
+                    f(Some(rng_driver))
+                } else {
+                    f(None)
+                }
+            }
+            kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
+            _ => f(None),
+        }
+    }
+}
+
+impl
+    KernelResources<
+        qemu_rv32_virt_chip::chip::QemuRv32VirtChip<
+            'static,
+            QemuRv32VirtDefaultPeripherals<'static>,
+        >,
+    > for QemuRv32VirtPlatform
+{
+    type SyscallDriverLookup = Self;
+    type SyscallFilter = ();
+    type ProcessFault = ();
+    type CredentialsCheckingPolicy = ();
+    type Scheduler = CooperativeSched<'static>;
+    type SchedulerTimer = VirtualSchedulerTimer<
+        VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
+    >;
+    type WatchDog = ();
+    type ContextSwitchCallback = ();
+
+    fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
+        self
+    }
+    fn syscall_filter(&self) -> &Self::SyscallFilter {
+        &()
+    }
+    fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
+        &()
+    }
+    fn scheduler(&self) -> &Self::Scheduler {
+        self.scheduler
+    }
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        self.scheduler_timer
+    }
+    fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
+        &()
+    }
+}
 
 pub unsafe fn spawn<const ID: usize>() {
     // These symbols are defined in the linker script.
@@ -148,11 +249,6 @@ pub unsafe fn spawn<const ID: usize>() {
         qemu_rv32_virt_chip::chip::QemuRv32VirtClint,
         qemu_rv32_virt_chip::chip::QemuRv32VirtClint::new(&qemu_rv32_virt_chip::clint::CLINT_BASE)
     );
-
-    // Global initialization is done. Wake up all threads.
-    (0..MAX_THREADS)
-        .filter(|&id| id != ID)
-        .for_each(|id| hardware_timer.set_soft_interrupt(id));
 
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
@@ -444,8 +540,21 @@ pub unsafe fn spawn<const ID: usize>() {
     // Start the process console:
     let _ = platform.pconsole.start();
 
-    debug!("QEMU RISC-V 32-bit \"virt\" machine core {ID}, initialization complete.");
+    debug!("QEMU RISC-V 32-bit {MAX_THREADS}-SMP \"virt\" machine core {ID}, initialization complete.");
     debug!("Entering main loop.");
+
+    // Global initialization is done. Wake up all threads.
+    (0..MAX_THREADS)
+        .filter(|&id| id != ID)
+        .for_each(|id| hardware_timer.set_soft_interrupt(id));
+
+    // Send echo command to the app thread
+    hardware_timer.set_soft_interrupt(1);
+
+    loop {
+        hardware_timer.set_soft_interrupt(1);
+    }
+
 
     // ---------- PROCESS LOADING, SCHEDULER LOOP ----------
 
@@ -469,5 +578,5 @@ pub unsafe fn spawn<const ID: usize>() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap);
+    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap, Some(&crate::SHARED_BUFFER));
 }

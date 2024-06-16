@@ -50,13 +50,6 @@ pub trait Chip {
     /// chip and resumes the scheduler.
     fn sleep(&self);
 
-    /// Run a function in an atomic state, which means that interrupts are
-    /// disabled so that an interrupt will not fire during the passed in
-    /// function's execution.
-    unsafe fn atomic<F, R>(&self, f: F) -> R
-    where
-        F: FnOnce() -> R;
-
     /// Print out chip state (system registers) to a supplied
     /// writer. This does not print out the execution context
     /// (data registers), as this depends on how they are stored;
@@ -68,6 +61,16 @@ pub trait Chip {
     /// the Display trait.
     /// Used by panic.
     unsafe fn print_state(&self, writer: &mut dyn Write);
+}
+
+/// This is a separate trait as it is not trait object safe.
+pub trait ChipAtomic {
+    /// Run a function in an atomic state, which means that interrupts are
+    /// disabled so that an interrupt will not fire during the passed in
+    /// function's execution.
+    unsafe fn atomic<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce() -> R;
 }
 
 /// Interface for handling interrupts on a hardware chip.

@@ -9,7 +9,7 @@ use core::ptr::addr_of;
 
 use kernel::debug;
 use kernel::hil::time::Freq10MHz;
-use kernel::platform::chip::{Chip, InterruptService};
+use kernel::platform::chip::{Chip, ChipAtomic, InterruptService};
 
 use kernel::threadlocal::{DynThreadId, ThreadId};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
@@ -24,7 +24,7 @@ use crate::{MAX_THREADS, MAX_CONTEXTS, plic::PLIC_BASE};
 
 use virtio::transports::mmio::VirtIOMMIODevice;
 
-type QemuRv32VirtPMP = rv32i::pmp::PMPUserMPU<
+pub type QemuRv32VirtPMP = rv32i::pmp::PMPUserMPU<
     5,
     rv32i::pmp::kernel_protection_mml_epmp::KernelProtectionMMLEPMP<16, 5>,
 >;
@@ -122,6 +122,7 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
     type MPU = QemuRv32VirtPMP;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
 
+
     fn mpu(&self) -> &Self::MPU {
         &self.pmp
     }
@@ -173,18 +174,21 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
         }
     }
 
+    unsafe fn print_state(&self, writer: &mut dyn Write) {
+        rv32i::print_riscv_state(writer);
+        let _ = writer.write_fmt(format_args!("{}", self.pmp.pmp));
+    }
+}
+
+impl<'a, I: InterruptService + 'a> ChipAtomic for QemuRv32VirtChip<'a, I> {
     unsafe fn atomic<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {
         rv32i::support::atomic(f)
     }
-
-    unsafe fn print_state(&self, writer: &mut dyn Write) {
-        rv32i::print_riscv_state(writer);
-        let _ = writer.write_fmt(format_args!("{}", self.pmp.pmp));
-    }
 }
+
 
 fn handle_exception(exception: mcause::Exception) {
     match exception {

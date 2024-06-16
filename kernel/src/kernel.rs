@@ -19,7 +19,7 @@ use crate::errorcode::ErrorCode;
 use crate::grant::{AllowRoSize, AllowRwSize, Grant, UpcallSize};
 use crate::ipc;
 use crate::memop;
-use crate::platform::chip::Chip;
+use crate::platform::chip::{Chip, ChipAtomic};
 use crate::platform::mpu::MPU;
 use crate::platform::platform::ContextSwitchCallback;
 use crate::platform::platform::KernelResources;
@@ -358,7 +358,7 @@ impl Kernel {
     /// This function has one configuration option: `no_sleep`. If that argument
     /// is set to true, the kernel will never attempt to put the chip to sleep,
     /// and this function can be called again immediately.
-    pub fn kernel_loop_operation<KR: KernelResources<C>, C: Chip, const NUM_PROCS: u8>(
+    pub fn kernel_loop_operation<KR: KernelResources<C>, C: Chip + ChipAtomic, const NUM_PROCS: u8>(
         &self,
         resources: &KR,
         chip: &C,
@@ -425,18 +425,29 @@ impl Kernel {
     ///
     /// Most of the behavior of this loop is controlled by the [`Scheduler`]
     /// implementation in use.
-    pub fn kernel_loop<KR: KernelResources<C>, C: Chip, const NUM_PROCS: u8>(
+    pub fn kernel_loop<KR: KernelResources<C>, C: Chip + ChipAtomic, const NUM_PROCS: u8>(
         &self,
         resources: &KR,
         chip: &C,
         ipc: Option<&ipc::IPC<NUM_PROCS>>,
         capability: &dyn capabilities::MainLoopCapability,
+        buf: Option<&[u8]>,
     ) -> ! {
         resources.watchdog().setup();
+
+        let a: usize = 0;
+        let mut b: usize = 0;
+        unsafe {
+            core::arch::asm!("csrr {a}, mhartid", a = out(reg) _);
+        }
+
         // Before we begin, verify that deferred calls were soundly setup.
         DeferredCall::verify_setup();
         loop {
             self.kernel_loop_operation(resources, chip, ipc, false, capability);
+            if a == 0 {
+                debug!("stack buffer {:?}", buf);
+            }
         }
     }
 
