@@ -347,6 +347,10 @@ pub trait Process {
     /// `None`.
     fn dequeue_task(&self) -> Option<Task>;
 
+    /// Search the work queue for a specific upcall_id. If it is present,
+    /// return the associated `Task`, otherwise return `None`.
+    fn remove_upcall(&self, upcall_id: UpcallId) -> Option<Task>;
+
     /// Remove all scheduled upcalls for a given upcall id from the task queue.
     fn remove_pending_upcalls(&self, upcall_id: UpcallId);
 
@@ -366,6 +370,12 @@ pub trait Process {
     /// This will fail (i.e. not do anything) if the process was not previously
     /// running.
     fn set_yielded_state(&self);
+
+    /// Move this process from the running state to the yielded-for state.
+    ///
+    /// This will fail (i.e. not do anything) if the process was not previously
+    /// running.
+    fn set_yielded_for_state(&self, upcall_id: UpcallId);
 
     /// Move this process from running or yielded state into the stopped state.
     ///
@@ -860,6 +870,12 @@ pub enum State {
     /// scheduled again.
     Yielded,
 
+    /// Process stopped executing and returned to the kernel because it called
+    /// the `WaitFor` variant of the `yield` syscall. The process should not be
+    /// scheduled until the specified driver attempts to execute the specified
+    /// upcall.
+    YieldedFor(UpcallId),
+
     /// The process is stopped, and its previous state was Running. This is used
     /// if the kernel forcibly stops a process when it is in the `Running`
     /// state. This state indicates to the kernel not to schedule the process,
@@ -915,6 +931,10 @@ pub enum Task {
     /// Function pointer in the process to execute. Generally this is a upcall
     /// from a capsule.
     FunctionCall(FunctionCall),
+    /// Data to return to the process. This is used to resume a suspended
+    /// process without invoking any callbacks in userspace (e.g., in response
+    /// to a YieldFor).
+    ReturnValue(ReturnArguments),
     /// An IPC operation that needs additional setup to configure memory access.
     IPC((ProcessId, ipc::IPCUpcallType)),
 }
@@ -955,6 +975,23 @@ pub struct FunctionCall {
     pub argument3: usize,
     /// The PC of the function to execute.
     pub pc: usize,
+}
+
+/// This is similar to `FunctionCall` but for the special case of the Null
+/// Upcall for a subscribe. Because there is no function pointer in a Null
+/// Upcall we can only return these values to userspace. This is used to pass
+/// around upcall parameters when there is no associated upcall to actually call
+/// or userdata.
+#[derive(Copy, Clone, Debug)]
+pub struct ReturnArguments {
+    /// Which upcall generates this event.
+    pub upcall_id: UpcallId,
+    /// The first argument to return.
+    pub argument0: usize,
+    /// The second argument to return.
+    pub argument1: usize,
+    /// The third argument to return.
+    pub argument2: usize,
 }
 
 /// Collection of process state information related to the memory addresses of

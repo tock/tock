@@ -320,7 +320,11 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn is_running(&self) -> bool {
         match self.state.get() {
-            State::Running | State::Yielded | State::StoppedRunning | State::StoppedYielded => true,
+            State::Running
+            | State::Yielded
+            | State::YieldedFor(_)
+            | State::StoppedRunning
+            | State::StoppedYielded => true,
             _ => false,
         }
     }
@@ -332,6 +336,12 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     fn set_yielded_state(&self) {
         if self.state.get() == State::Running {
             self.state.set(State::Yielded);
+        }
+    }
+
+    fn set_yielded_for_state(&self, upcall_id: UpcallId) {
+        if self.state.get() == State::Running {
+            self.state.set(State::YieldedFor(upcall_id));
         }
     }
 
@@ -447,6 +457,19 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn dequeue_task(&self) -> Option<Task> {
         self.tasks.map_or(None, |tasks| tasks.dequeue())
+    }
+
+    fn remove_upcall(&self, upcall_id: UpcallId) -> Option<Task> {
+        self.tasks.map_or(None, |tasks| {
+            tasks.remove_first(|task| match task {
+                Task::FunctionCall(fc) => match fc.source {
+                    FunctionCallSource::Driver(upid) => upid == upcall_id,
+                    _ => false,
+                },
+                Task::ReturnValue(rv) => rv.upcall_id == upcall_id,
+                Task::IPC(_) => false,
+            })
+        })
     }
 
     fn pending_tasks(&self) -> usize {
@@ -994,6 +1017,13 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         }) {
             Some(Ok(())) => {
                 // If we get an `Ok` we are all set.
+
+                // The process is either already in the running state (having
+                // just called a nonblocking syscall like command) or needs to
+                // be moved to the running state having called Yield-WaitFor and
+                // now needing to be resumed. Either way we can set the state to
+                // running.
+                self.state.set(State::Running);
             }
 
             Some(Err(())) => {

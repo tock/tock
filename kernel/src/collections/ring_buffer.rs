@@ -111,6 +111,32 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
         }
     }
 
+    fn remove_first<F>(&mut self, f: F) -> Option<T>
+    where
+        F: Fn(&T) -> bool,
+    {
+        let len = self.ring.len();
+        let mut slot = self.head;
+        while slot != self.tail {
+            if f(&self.ring[slot]) {
+                // This is the desired element, remove it and return it
+                let val = self.ring[slot];
+
+                let mut next_slot = (slot + 1) % len;
+                // Move everything past this element forward in the ring
+                while next_slot != self.tail {
+                    self.ring[slot] = self.ring[next_slot];
+                    slot = next_slot;
+                    next_slot = (next_slot + 1) % len;
+                }
+                self.tail = slot;
+                return Some(val);
+            }
+            slot = (slot + 1) % len;
+        }
+        None
+    }
+
     fn empty(&mut self) {
         self.head = 0;
         self.tail = 0;
