@@ -649,26 +649,23 @@ impl Kernel {
                     // it is ready. If so, dequeue and execute it, otherwise move on.
                     match process.remove_upcall(upcall_id) {
                         None => break,
-                        Some(task) => match task {
-                            Task::ReturnValue(rv) => {
-                                if config::CONFIG.trace_syscalls {
-                                    debug!(
-                                        "[{:?}] Yield-WaitFor: [NU] ({:#x}, {:#x}, {:#x})",
-                                        process.processid(),
-                                        rv.argument0,
-                                        rv.argument1,
-                                        rv.argument2,
-                                    );
+                        Some(task) => {
+                            let (a0, a1, a2) = match task {
+                                Task::ReturnValue(rv) => {
+                                    if config::CONFIG.trace_syscalls {
+                                        debug!(
+                                            "[{:?}] Yield-WaitFor: [NU] ({:#x}, {:#x}, {:#x})",
+                                            process.processid(),
+                                            rv.argument0,
+                                            rv.argument1,
+                                            rv.argument2,
+                                        );
+                                    }
+                                    (rv.argument0, rv.argument1, rv.argument2)
                                 }
-                                process.set_syscall_return_value(SyscallReturn::YieldWaitFor(
-                                    rv.argument0,
-                                    rv.argument1,
-                                    rv.argument2,
-                                ));
-                            }
-                            Task::FunctionCall(ccb) => {
-                                if config::CONFIG.trace_syscalls {
-                                    debug!(
+                                Task::FunctionCall(ccb) => {
+                                    if config::CONFIG.trace_syscalls {
+                                        debug!(
                                             "[{:?}] Yield-WaitFor [Suppressed function_call @{:#x}] ({:#x}, {:#x}, {:#x}, {:#x})",
                                             process.processid(),
                                             ccb.pc,
@@ -677,15 +674,14 @@ impl Kernel {
                                             ccb.argument2,
                                             ccb.argument3,
                                         );
+                                    }
+                                    (ccb.argument0, ccb.argument1, ccb.argument2)
                                 }
-                                process.set_syscall_return_value(SyscallReturn::YieldWaitFor(
-                                    ccb.argument0,
-                                    ccb.argument1,
-                                    ccb.argument2,
-                                ));
-                            }
-                            Task::IPC(_) => todo!(),
-                        },
+                                Task::IPC(_) => todo!(),
+                            };
+                            process
+                                .set_syscall_return_value(SyscallReturn::YieldWaitFor(a0, a1, a2));
+                        }
                     }
                 }
                 process::State::Faulted | process::State::Terminated => {
