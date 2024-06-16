@@ -1,0 +1,13 @@
+[build]
+rustflags = [
+  "-C", "linker=rust-lld",
+  "-C", "linker-flavor=ld.lld",
+  "-C", "relocation-model=static",
+  "-C", "link-arg=-nmagic",
+  "-C", "link-arg=-icf=all",
+  "-C", "symbol-mangling-version=v0",
+]
+
+[unstable]
+unstable-options = true
+build-std = ["core", "alloc", "compiler_builtins" ]
