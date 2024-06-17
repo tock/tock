@@ -11,7 +11,7 @@ use kernel::component::Component;
 #[macro_export]
 macro_rules! app_checker_null_component_static {
     () => {{
-        kernel::static_buf!(capsules_system::process_checker::basic::AppCheckerNull);
+        kernel::static_buf!(capsules_system::process_checker::basic::AppCheckerNull)
     };};
 }
 

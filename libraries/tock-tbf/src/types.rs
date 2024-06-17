@@ -130,6 +130,7 @@ pub enum TbfHeaderTypes {
     TbfHeaderStoragePermissions = 7,
     TbfHeaderKernelVersion = 8,
     TbfHeaderProgram = 9,
+    TbfHeaderShortId = 10,
     TbfFooterCredentials = 128,
 
     /// Some field in the header that we do not understand. Since the TLV format
@@ -241,6 +242,14 @@ pub struct TbfHeaderV2KernelVersion {
     minor: u16,
 }
 
+/// The v2 ShortId for apps.
+///
+/// Header to specify a fixed ShortID for an app.
+#[derive(Clone, Copy, Debug)]
+pub struct TbfHeaderV2ShortId {
+    short_id: Option<core::num::NonZeroU32>,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TbfFooterV2CredentialsType {
     Reserved = 0,
@@ -319,6 +328,7 @@ impl core::convert::TryFrom<u16> for TbfHeaderTypes {
             7 => Ok(TbfHeaderTypes::TbfHeaderStoragePermissions),
             8 => Ok(TbfHeaderTypes::TbfHeaderKernelVersion),
             9 => Ok(TbfHeaderTypes::TbfHeaderProgram),
+            10 => Ok(TbfHeaderTypes::TbfHeaderShortId),
             128 => Ok(TbfHeaderTypes::TbfFooterCredentials),
             _ => Ok(TbfHeaderTypes::Unknown),
         }
@@ -563,6 +573,20 @@ impl core::convert::TryFrom<&[u8]> for TbfHeaderV2KernelVersion {
     }
 }
 
+impl core::convert::TryFrom<&[u8]> for TbfHeaderV2ShortId {
+    type Error = TbfParseError;
+
+    fn try_from(b: &[u8]) -> Result<TbfHeaderV2ShortId, Self::Error> {
+        Ok(TbfHeaderV2ShortId {
+            short_id: core::num::NonZeroU32::new(u32::from_le_bytes(
+                b.get(0..4)
+                    .ok_or(TbfParseError::InternalError)?
+                    .try_into()?,
+            )),
+        })
+    }
+}
+
 impl core::convert::TryFrom<&'static [u8]> for TbfFooterV2Credentials {
     type Error = TbfParseError;
 
@@ -633,6 +657,7 @@ pub struct TbfHeaderV2 {
     pub(crate) permissions: Option<&'static [u8]>,
     pub(crate) storage_permissions: Option<&'static [u8]>,
     pub(crate) kernel_version: Option<TbfHeaderV2KernelVersion>,
+    pub(crate) short_id: Option<TbfHeaderV2ShortId>,
 }
 
 /// Type that represents the fields of the Tock Binary Format header.
@@ -983,6 +1008,15 @@ impl TbfHeader {
         match self {
             TbfHeader::TbfHeaderV2(hd) => hd.program.map_or(0, |p| p.version),
             _ => 0,
+        }
+    }
+
+    /// Return the fixed ShortId of the application if it was specified in the
+    /// TBF header.
+    pub fn get_fixed_short_id(&self) -> Option<core::num::NonZeroU32> {
+        match self {
+            TbfHeader::TbfHeaderV2(hd) => hd.short_id.map_or(None, |si| si.short_id),
+            _ => None,
         }
     }
 }
