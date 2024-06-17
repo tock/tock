@@ -96,4 +96,24 @@ macro_rules! static_buf {
         // initialized.
         &mut BUF.0
     }};
+    ($T:ty, $N:expr) => {{
+        // Statically allocate a read-write buffer for the value without
+        // actually writing anything, as well as a flag to track if
+        // this memory has been initialized yet.
+	#[used]
+	#[no_mangle]
+	#[export_name = $N]
+	pub static mut BUF: (core::mem::MaybeUninit<$T>, bool) = (core::mem::MaybeUninit::uninit(), false);
+
+        // To minimize the amount of code duplicated across every invocation
+        // of this macro, all of the logic for checking if the buffer has been
+        // used is contained within the static_buf_check_used function,
+        // which panics if the passed boolean has been used and sets the
+        // boolean to true otherwise.
+        $crate::utilities::static_init::static_buf_check_used(&mut BUF.1);
+
+        // If we get to this point we can wrap our buffer to be eventually
+        // initialized.
+        &mut BUF.0
+    }};
 }
