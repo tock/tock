@@ -299,20 +299,21 @@ pub enum EarlGreyEPMPError {
 ///   |     0 | ------------------------------------------- | OFF   | X | ----- |
 ///   |     1 | Kernel .text section                        | TOR   | X | R/X   |
 ///   |       |                                             |       |   |       |
-///   |     2 | /                                         \ | OFF   |   |       |
-///   |     3 | \ Userspace TOR region #0                 / | TOR   |   | ????? |
+///   |     2 | ------------------------------------------- | OFF   | X |       |
+///   |       |                                             |       |   |       |
+///   |     3 | ------------------------------------------- | OFF   | X |       |
 ///   |       |                                             |       |   |       |
 ///   |     4 | /                                         \ | OFF   |   |       |
-///   |     5 | \ Userspace TOR region #1                 / | TOR   |   | ????? |
+///   |     5 | \ Userspace TOR region #0                 / | TOR   |   | ????? |
 ///   |       |                                             |       |   |       |
 ///   |     6 | /                                         \ | OFF   |   |       |
-///   |     7 | \ Userspace TOR region #2                 / | TOR   |   | ????? |
+///   |     7 | \ Userspace TOR region #1                 / | TOR   |   | ????? |
 ///   |       |                                             |       |   |       |
 ///   |     8 | /                                         \ | OFF   |   |       |
-///   |     9 | \ Userspace TOR region #3                 / | TOR   |   | ????? |
+///   |     9 | \ Userspace TOR region #2                 / | TOR   |   | ????? |
 ///   |       |                                             |       |   |       |
 ///   |    10 | /                                         \ | OFF   |   |       |
-///   |    11 | \ Userspace TOR region #4                 / | TOR   |   | ????? |
+///   |    11 | \ Userspace TOR region #3                 / | TOR   |   | ????? |
 ///   |       |                                             |       |   |       |
 ///   |    12 | ------------------------------------------- | OFF   | X | ----- |
 ///   |       |                                             |       |   |       |
@@ -496,15 +497,7 @@ impl<const HANDOVER_CONFIG_CHECK: bool> EarlGreyEPMP<{ HANDOVER_CONFIG_CHECK }, 
 
         // ---------- PMP machine CSRs configured, lock down the system
 
-        // Finally, unset the rule-lock bypass (RLB) bit. If we don't have a
-        // debug memory region provided, further set machine-mode lockdown (we
-        // can't enable MML and also have a R/W/X region). We also set MMWP for
-        // good measure, but that shouldn't make a difference -- it can't be
-        // cleared anyways as it is a sticky bit.
-        //
-        // Unsetting RLB with at least one locked region will mean that we can't
-        // set it again, thus actually enforcing the region lock bits.
-        //
+        // Finally, enable machine-mode lockdown.
         // Set RLB(2) = 0, MMWP(1) = 1, MML(0) = 1
         csr::CSR.mseccfg.set(0x00000003);
 
@@ -540,6 +533,7 @@ impl<const HANDOVER_CONFIG_CHECK: bool> EarlGreyEPMP<{ HANDOVER_CONFIG_CHECK }, 
             _pd: PhantomData,
         })
     }
+
     pub unsafe fn new_test_rom(
         flash: FlashRegion,
         ram: RAMRegion,
@@ -593,11 +587,13 @@ impl<const HANDOVER_CONFIG_CHECK: bool> EarlGreyEPMP<{ HANDOVER_CONFIG_CHECK }, 
         // Set the appropriate `pmpcfg0` register value:
         //
         // 0x80 = 0b10000000, for start address of the kernel .text TOR entry
+        //        and to disable regions 2 & 3 (to be compatible with the
+        //        non-test-rom constructor).
         //        setting L(7) = 1, A(4-3) = OFF, X(2) = 0, W(1) = 0, R(0) = 0
         //
         // 0x8d = 0b10001101, for kernel .text TOR region
         //        setting L(7) = 1, A(4-3) = TOR,   X(2) = 1, W(1) = 0, R(0) = 1
-        csr::CSR.pmpcfg0.set(0x00008d80);
+        csr::CSR.pmpcfg0.set(0x80808d80);
 
         // --> Continue with the "low-priority" ("accessability") section of the
         // ePMP configuration:
