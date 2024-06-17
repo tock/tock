@@ -23,11 +23,11 @@ use crate::kernel::Kernel;
 use crate::platform::chip::Chip;
 use crate::process::{Process, ShortId};
 use crate::process_binary::{ProcessBinary, ProcessBinaryError};
+use crate::process_checker::AcceptedCredential;
 use crate::process_checker::{AppIdPolicy, ProcessCheckError, ProcessCheckerMachine};
 use crate::process_policies::ProcessFaultPolicy;
 use crate::process_standard::ProcessStandard;
 use crate::utilities::cells::{MapCell, OptionalCell};
-use tock_tbf::types::TbfFooterV2Credentials;
 
 /// Errors that can occur when trying to load and create processes.
 pub enum ProcessLoadError {
@@ -906,10 +906,7 @@ impl<'a, C: Chip> crate::process_checker::ProcessCheckerMachineClient
     fn done(
         &self,
         process_binary: ProcessBinary,
-        result: Result<
-            Option<(TbfFooterV2Credentials, Option<core::num::NonZeroUsize>)>,
-            crate::process_checker::ProcessCheckError,
-        >,
+        result: Result<Option<AcceptedCredential>, crate::process_checker::ProcessCheckError>,
     ) {
         // Check if this process was approved by the checker.
         match result {

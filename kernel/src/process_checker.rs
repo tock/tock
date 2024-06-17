@@ -83,6 +83,25 @@ pub trait AppCredentialsPolicyClient<'a> {
     );
 }
 
+/// The accepted credential from the credential checker.
+///
+/// This combines both the credential as stored in the TBF footer with an
+/// optional opaque value provided by the checker when it accepted the
+/// credential. This value can be used when assigning an AppID to the
+/// application based on the how the credential was approved. For example, if
+/// the credential checker has a list of valid public keys used to verify
+/// signatures, it might set the optional value to the index of the public key
+/// in this list.
+#[derive(Copy, Clone)]
+pub struct AcceptedCredential {
+    /// The credential stored in the footer that the credential checker
+    /// accepted.
+    pub credential: TbfFooterV2Credentials,
+    /// An optional opaque value set by the credential checker to store metadata
+    /// about the accepted credential. This is credential checker specific.
+    pub metadata: Option<core::num::NonZeroUsize>,
+}
+
 /// Implements a Credentials Checking Policy.
 pub trait AppCredentialsPolicy<'a> {
     /// Set the client which gets notified after the credential check completes.
@@ -187,10 +206,7 @@ pub trait ProcessCheckerMachineClient {
     fn done(
         &self,
         process_binary: ProcessBinary,
-        result: Result<
-            Option<(TbfFooterV2Credentials, Option<core::num::NonZeroUsize>)>,
-            ProcessCheckError,
-        >,
+        result: Result<Option<AcceptedCredential>, ProcessCheckError>,
     );
 }
 
@@ -441,7 +457,13 @@ impl AppCredentialsPolicyClient<'static> for ProcessCheckerMachine {
             Ok(CheckResult::Accept(opaque)) => {
                 self.client.map(|client| {
                     if let Some(pb) = self.process_binary.take() {
-                        client.done(pb, Ok(Some((credentials, opaque))))
+                        client.done(
+                            pb,
+                            Ok(Some(AcceptedCredential {
+                                credential: credentials,
+                                metadata: opaque,
+                            })),
+                        )
                     }
                 });
                 false

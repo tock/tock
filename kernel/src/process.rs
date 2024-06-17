@@ -20,10 +20,10 @@ use crate::storage_permissions;
 use crate::syscall::{self, Syscall, SyscallReturn};
 use crate::upcall::UpcallId;
 use tock_tbf::types::CommandPermissions;
-use tock_tbf::types::TbfFooterV2Credentials;
 
 // Export all process related types via `kernel::process::`.
 pub use crate::process_binary::ProcessBinary;
+pub use crate::process_checker::AcceptedCredential;
 pub use crate::process_checker::{ProcessCheckerMachine, ProcessCheckerMachineClient};
 pub use crate::process_loading::load_processes;
 pub use crate::process_loading::ProcessLoadError;
@@ -340,7 +340,7 @@ pub trait Process {
     /// Return the credential which the credential checker approved if the
     /// credential checker approved a credential. If the process was allowed to
     /// run without credentials, return `None`.
-    fn get_credential(&self) -> Option<(TbfFooterV2Credentials, Option<core::num::NonZeroUsize>)>;
+    fn get_credential(&self) -> Option<AcceptedCredential>;
 
     /// Returns how many times this process has been restarted.
     fn get_restart_count(&self) -> usize;
