@@ -85,7 +85,7 @@ pub struct Bme280<'a, I: I2CDevice> {
     humidity_client: OptionalCell<&'a dyn HumidityClient>,
     state: Cell<DeviceState>,
     op: Cell<Operation>,
-    t_fine: Cell<usize>,
+    t_fine: Cell<i32>,
 }
 
 impl<'a, I: I2CDevice> Bme280<'a, I> {
@@ -270,9 +270,13 @@ impl<'a, I: I2CDevice> I2CClient for Bme280<'a, I> {
                     Operation::None => (),
                     Operation::Temp => {
                         let calib = self.calibration.get();
-                        let adc_temperature = (buffer[0] as usize) << 12
+
+                        // note: per datasheet, measurement is 20-bit two's complement
+                        let adc_temperature: i32 = ((((buffer[0] as usize) << 12
                             | (buffer[1] as usize) << 4
-                            | (((buffer[2] as usize) >> 4) & 0x0F);
+                            | (((buffer[2] as usize) >> 4) & 0x0F))
+                            << 12) as i32)
+                            >> 12; // ensure sign extension
 
                         if adc_temperature == 0 {
                             // We got a misread, try again
@@ -282,28 +286,28 @@ impl<'a, I: I2CDevice> I2CClient for Bme280<'a, I> {
                             return;
                         }
 
-                        let var1 = (((adc_temperature >> 3) - ((calib.temp1 as usize) << 1))
-                            * (calib.temp2 as usize))
+                        let var1 = (((adc_temperature >> 3) - ((calib.temp1 as i32) << 1))
+                            * (calib.temp2 as i32))
                             >> 11;
-                        let var2 = (((((adc_temperature >> 4) - (calib.temp1 as usize))
-                            * ((adc_temperature >> 4) - (calib.temp1 as usize)))
+                        let var2 = (((((adc_temperature >> 4) - (calib.temp1 as i32))
+                            * ((adc_temperature >> 4) - (calib.temp1 as i32)))
                             >> 12)
-                            * (calib.temp3 as usize))
+                            * (calib.temp3 as i32))
                             >> 14;
 
                         self.t_fine.set(var1 + var2);
 
-                        let temperature = ((self.t_fine.get() * 5 + 128) >> 8) / 100;
+                        let temperature = (self.t_fine.get() * 5 + 128) >> 8;
 
                         self.temperature_client
-                            .map(|client| client.callback(Ok(temperature as i32)));
+                            .map(|client| client.callback(Ok(temperature)));
                     }
                     Operation::Pressure => {
                         unimplemented!();
                     }
                     Operation::Humidity => {
                         let calib = self.calibration.get();
-                        let adc_hum = (buffer[0] as usize) << 8 | buffer[1] as usize;
+                        let adc_hum = (((buffer[0] as u32) << 8) | (buffer[1] as u32)) as i32;
 
                         if adc_hum == 0 {
                             // We got a misread, try again
@@ -317,23 +321,23 @@ impl<'a, I: I2CDevice> I2CClient for Bme280<'a, I> {
 
                         // This is straight from the datasheet
                         let var1 = ((((adc_hum << 14)
-                            - ((calib.hum4 as usize) << 20)
-                            - ((calib.hum5 as usize) * t_fine_offset))
+                            - ((calib.hum4 as i32) << 20)
+                            - ((calib.hum5 as i32) * t_fine_offset))
                             + 16384)
                             >> 15)
-                            * (((((((t_fine_offset * (calib.hum6 as usize)) >> 10)
-                                * (((t_fine_offset * (calib.hum3 as usize)) >> 11) + 32768))
+                            * (((((((t_fine_offset * (calib.hum6 as i32)) >> 10)
+                                * (((t_fine_offset * (calib.hum3 as i32)) >> 11) + 32768))
                                 >> 10)
                                 + 2097152)
-                                * (calib.hum2 as usize)
+                                * (calib.hum2 as i32)
                                 + 8192)
                                 >> 14);
                         let var2 = var1
-                            - (((((var1 >> 15) * (var1 >> 15)) >> 7) * (calib.hum1 as usize)) >> 4);
+                            - (((((var1 >> 15) * (var1 >> 15)) >> 7) * (calib.hum1 as i32)) >> 4);
 
                         let var6 = if var2 > 419430400 { 419430400 } else { var2 };
 
-                        let hum = (var6 >> 12) / 1024;
+                        let hum = ((var6 >> 12) / 1024) as usize;
 
                         self.humidity_client.map(|client| client.callback(hum));
                     }

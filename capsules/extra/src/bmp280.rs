@@ -77,8 +77,7 @@ impl CalibrationData {
         }
     }
 
-    fn temp_from_raw(&self, raw_temp: u32) -> i32 {
-        let temp = raw_temp as i32; // guaranteed to succeed because raw temp has only 20 significant bits maximum.
+    fn temp_from_raw(&self, temp: i32) -> i32 {
         let dig_t1 = self.dig_t1 as i32; // same, 16-bits
         let dig_t2 = self.dig_t2 as i32; // same, 16-bits
         let dig_t3 = self.dig_t3 as i32; // same, 16-bits
@@ -398,7 +397,8 @@ impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> i2c::I2CClient for Bmp280<'a, A, I> {
                     let msb = readout[0] as u32;
                     let lsb = readout[1] as u32;
                     let xlsb = readout[2] as u32;
-                    let raw_temp = (msb << 12) + (lsb << 4) + (xlsb >> 4);
+                    let raw_temp: i32 =
+                        ((((msb << 12) + (lsb << 4) + (xlsb >> 4)) << 12) as i32) >> 12; // ensure sign extention
                     temp_readout = Some(Ok(calibration.temp_from_raw(raw_temp)));
                     State::Idle(calibration)
                 }
