@@ -111,7 +111,14 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
         }
     }
 
-    fn remove_first<F>(&mut self, f: F) -> Option<T>
+    /// Removes the first element for which the provided closure returns `true`.
+    ///
+    /// This walks the ring buffer and, upon finding a matching element, removes
+    /// it. It then shifts all subsequent elements forward (filling the hole
+    /// created by removing the element).
+    ///
+    /// If an element was removed, this function returns it as `Some(elem)`.
+    fn remove_first_matching<F>(&mut self, f: F) -> Option<T>
     where
         F: Fn(&T) -> bool,
     {

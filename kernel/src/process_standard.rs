@@ -461,7 +461,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn remove_upcall(&self, upcall_id: UpcallId) -> Option<Task> {
         self.tasks.map_or(None, |tasks| {
-            tasks.remove_first(|task| match task {
+            tasks.remove_first_matching(|task| match task {
                 Task::FunctionCall(fc) => match fc.source {
                     FunctionCallSource::Driver(upid) => upid == upcall_id,
                     _ => false,
