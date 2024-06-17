@@ -24,7 +24,3 @@ rustflags = [
   # Enable link-time-optimization
   "-C", "lto",
 ]
-
-[unstable]
-unstable-options = true
-build-std = ["core", "alloc", "compiler_builtins" ]
