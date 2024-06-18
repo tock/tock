@@ -49,6 +49,7 @@ pub mod l3gd20;
 pub mod led;
 pub mod led_matrix;
 pub mod lldb;
+pub mod loader;
 pub mod lpm013m126;
 pub mod lps22hb;
 pub mod lps25hb;
