@@ -33,7 +33,6 @@ use kernel::hil::radio;
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::symmetric_encryption::AES128;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::process::ProcessLoadingAsync;
 use kernel::scheduler::round_robin::RoundRobinSched;
 
 //use kernel::hil::time::Alarm;
@@ -349,7 +348,6 @@ pub unsafe fn main() {
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
-    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let main_cap = create_capability!(capabilities::MainLoopCapability);
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
@@ -717,48 +715,19 @@ pub unsafe fn main() {
     let checker = components::appid::checker::ProcessCheckerMachineComponent::new(checking_policy)
         .finalize(components::process_checker_machine_component_static!());
 
-    // These symbols are defined in the linker script.
-    extern "C" {
-        /// Beginning of the ROM region containing app images.
-        static _sapps: u8;
-        /// End of the ROM region containing app images.
-        static _eapps: u8;
-        /// Beginning of the RAM region for app memory.
-        static mut _sappmem: u8;
-        /// End of the RAM region for app memory.
-        static _eappmem: u8;
-    }
-
-    let process_binary_array = static_init!(
-        [Option<kernel::process::ProcessBinary>; NUM_PROCS],
-        [None, None, None, None]
-    );
-
-    let loader = static_init!(
-        kernel::process::SequentialProcessLoaderMachine<
-            sam4l::chip::Sam4l<Sam4lDefaultPeripherals>,
-        >,
-        kernel::process::SequentialProcessLoaderMachine::new(
-            checker,
-            &mut *addr_of_mut!(PROCESSES),
-            process_binary_array,
-            board_kernel,
-            chip,
-            core::slice::from_raw_parts(
-                core::ptr::addr_of!(_sapps),
-                core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-            ),
-            core::slice::from_raw_parts_mut(
-                core::ptr::addr_of_mut!(_sappmem),
-                core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
-            ),
-            &FAULT_RESPONSE,
-            assigner,
-            &process_mgmt_cap
-        )
-    );
-
-    checker.set_client(loader);
+    // Create and start the asynchronous process loader.
+    let _loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
+        checker,
+        &mut *addr_of_mut!(PROCESSES),
+        board_kernel,
+        chip,
+        &FAULT_RESPONSE,
+        assigner,
+    )
+    .finalize(components::process_loader_sequential_component_static!(
+        sam4l::chip::Sam4l<Sam4lDefaultPeripherals>,
+        NUM_PROCS
+    ));
 
     let imix = Imix {
         pconsole,
@@ -845,9 +814,6 @@ pub unsafe fn main() {
     .run();*/
 
     debug!("Initialization complete. Entering main loop");
-
-    loader.register();
-    loader.start();
 
     board_kernel.kernel_loop(&imix, chip, Some(&imix.ipc), &main_cap);
 }
