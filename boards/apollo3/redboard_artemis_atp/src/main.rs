@@ -27,6 +27,7 @@ use kernel::component::Component;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::i2c::I2CSlave;
 use kernel::hil::led::LedHigh;
+use kernel::hil::passthrough::PassThroughDevice;
 use kernel::hil::time::Counter;
 use kernel::platform::{DevicePassthroughFilter, KernelResources, SyscallDriverLookup};
 use kernel::process::Process;
@@ -105,11 +106,7 @@ struct RedboardArtemisAtp {
             apollo3::iom::Iom<'static>,
         >,
     >,
-    ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
-        'static,
-        apollo3::ble::Ble<'static>,
-        VirtualMuxAlarm<'static, apollo3::stimer::STimer<'static>>,
-    >,
+    passthrough: &'static kernel::passthrough::PassThrough<'static, Self>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
@@ -127,7 +124,7 @@ impl SyscallDriverLookup for RedboardArtemisAtp {
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
             capsules_core::i2c_master_slave_driver::DRIVER_NUM => f(Some(self.i2c_master_slave)),
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.spi_controller)),
-            capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
+            kernel::passthrough::DRIVER_NUM => f(Some(self.passthrough)),
             _ => f(None),
         }
     }
@@ -145,9 +142,19 @@ impl DevicePassthroughFilter for RedboardArtemisAtp {
     fn filter_passthrough(
         &self,
         _process: &dyn Process,
-        _memory_start: usize,
-        _memory_size: usize,
+        memory_start: usize,
+        memory_size: usize,
     ) -> Result<(usize, usize), ErrorCode> {
+        // Check if an app is trying to use the BLE radio
+        if memory_start == 0x5000C000 && memory_size <= 0xD000 {
+            // The vendor HAL accesses the following devices
+            //    - BLE -> 0x5000C000 - 0x5000CFFF
+            //    - Flash OTP -> 0x50020000 - 0x5002FFFF
+            // So we just over allocate a bunch of memory.
+            // TODO: This can be reduced, but it works
+            return Ok((0x50000000, 0x80000));
+        }
+
         Err(ErrorCode::NOSUPPORT)
     }
 }
@@ -365,16 +372,16 @@ unsafe fn setup() -> (
     peripherals.ble.power_up();
     peripherals.ble.ble_initialise();
 
-    let ble_radio = components::ble::BLEComponent::new(
-        board_kernel,
-        capsules_extra::ble_advertising_driver::DRIVER_NUM,
-        &peripherals.ble,
-        mux_alarm,
-    )
-    .finalize(components::ble_component_static!(
-        apollo3::stimer::STimer,
-        apollo3::ble::Ble,
-    ));
+    let passthrough = static_init!(
+        kernel::passthrough::PassThrough<RedboardArtemisAtp>,
+        kernel::passthrough::PassThrough::new(
+            board_kernel,
+            kernel::passthrough::DRIVER_NUM,
+            &memory_allocation_cap,
+        )
+    );
+
+    peripherals.ble.set_client(passthrough);
 
     mcu_ctrl.print_chip_revision();
 
@@ -406,11 +413,13 @@ unsafe fn setup() -> (
             console,
             i2c_master_slave,
             spi_controller,
-            ble_radio,
+            passthrough,
             scheduler,
             systick,
         }
     );
+
+    artemis_atp.passthrough.set_resources(artemis_atp);
 
     let chip = static_init!(
         apollo3::chip::Apollo3<Apollo3DefaultPeripherals>,
