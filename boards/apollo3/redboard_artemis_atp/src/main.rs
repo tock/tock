@@ -28,8 +28,10 @@ use kernel::hil::i2c::I2CMaster;
 use kernel::hil::i2c::I2CSlave;
 use kernel::hil::led::LedHigh;
 use kernel::hil::time::Counter;
-use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::platform::{DevicePassthroughFilter, KernelResources, SyscallDriverLookup};
+use kernel::process::Process;
 use kernel::scheduler::round_robin::RoundRobinSched;
+use kernel::ErrorCode;
 use kernel::{create_capability, debug, static_init};
 
 /// Support routines for debugging I/O.
@@ -128,6 +130,25 @@ impl SyscallDriverLookup for RedboardArtemisAtp {
             capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             _ => f(None),
         }
+    }
+}
+
+impl DevicePassthroughFilter for RedboardArtemisAtp {
+    /// Check the platform-provided system call filter to determine if the
+    /// MMIO region specified between `memory_start` and `memory_size` is
+    /// allowed to be exposed directly to `process`.
+    ///
+    /// If the pass through is allowed for the provided process then
+    /// return `Ok(())`. Otherwise, return `Err()` with an `ErrorCode` that will
+    /// be returned to the calling application. The default implementation
+    /// blocks all requests.
+    fn filter_passthrough(
+        &self,
+        _process: &dyn Process,
+        _memory_start: usize,
+        _memory_size: usize,
+    ) -> Result<(usize, usize), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
     }
 }
 
