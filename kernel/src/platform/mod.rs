@@ -14,6 +14,7 @@ pub mod watchdog;
 pub(crate) mod platform;
 
 pub use self::platform::ContextSwitchCallback;
+pub use self::platform::DevivePassthroughFilter;
 pub use self::platform::KernelResources;
 pub use self::platform::ProcessFault;
 pub use self::platform::SyscallDriverLookup;

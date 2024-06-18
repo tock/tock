@@ -110,6 +110,7 @@ impl KernelResources<esp32_c3::chip::Esp32C3<'static, Esp32C3DefaultPeripherals<
     type SyscallFilter = ();
     type ProcessFault = ();
     type ContextSwitchCallback = ();
+    type DevivePassthroughFilter = ();
     type Scheduler = PrioritySched;
     type SchedulerTimer = VirtualSchedulerTimer<esp32_c3::timg::TimG<'static>>;
     type WatchDog = ();
@@ -133,6 +134,9 @@ impl KernelResources<esp32_c3::chip::Esp32C3<'static, Esp32C3DefaultPeripherals<
         &()
     }
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
+        &()
+    }
+    fn passthrough_filter(&self) -> &Self::DevivePassthroughFilter {
         &()
     }
 }
