@@ -22,6 +22,7 @@ use crate::memop;
 use crate::platform::chip::Chip;
 use crate::platform::mpu::MPU;
 use crate::platform::platform::ContextSwitchCallback;
+use crate::platform::platform::DevicePassthroughFilter;
 use crate::platform::platform::KernelResources;
 use crate::platform::platform::{ProcessFault, SyscallDriverLookup, SyscallFilter};
 use crate::platform::scheduler_timer::SchedulerTimer;
@@ -252,6 +253,30 @@ impl Kernel {
         self.processes.get(processid.index).map_or(false, |p| {
             p.map_or(false, |process| process.processid().id() == processid.id())
         })
+    }
+
+    /// Try to allocate a passthrough device for the specific process
+    /// specified for `processid`. This function first checks the
+    /// `filter_passthrough()` permissions specified by `resources`
+    /// (usually defined in the board main.rs) and if allowed will allocate
+    /// a region using the MPU. If that succeeds the region will be
+    /// allocated and this function will return success.
+    pub fn allocate_device_passthrough<F: DevicePassthroughFilter>(
+        &self,
+        filter: &F,
+        processid: &ProcessId,
+        address: usize,
+        size: usize,
+    ) -> Result<(), ErrorCode> {
+        if let Some(process) = self.get_process(*processid) {
+            let (new_address, new_size) = filter.filter_passthrough(process, address, size)?;
+
+            process.allocate_device_passthrough(new_address as *const u8, new_size)?;
+
+            Ok(())
+        } else {
+            Err(ErrorCode::INVAL)
+        }
     }
 
     /// Create a new grant. This is used in board initialization to setup grants

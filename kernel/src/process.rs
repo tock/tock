@@ -350,6 +350,15 @@ pub trait Process {
     /// Get the name of the process. Used for IPC.
     fn get_process_name(&self) -> &'static str;
 
+    /// Try to allocate a passthrough device in the MPU.
+    ///
+    /// This is a wrapper for the MPU `allocate_app_device_region()` function.
+    fn allocate_device_passthrough(
+        &self,
+        memory_start: *const u8,
+        memory_size: usize,
+    ) -> Result<(), ErrorCode>;
+
     /// Return if there are any Tasks (upcalls/IPC requests) enqueued for the
     /// process.
     fn has_tasks(&self) -> bool;
