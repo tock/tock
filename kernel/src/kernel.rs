@@ -697,11 +697,7 @@ impl Kernel {
                     // This is a potential security flaw: panic.
                     panic!("Attempted to schedule an unrunnable process");
                 }
-                process::State::StoppedRunning => {
-                    return_reason = process::StoppedExecutingReason::Stopped;
-                    break;
-                }
-                process::State::StoppedYielded => {
+                process::State::Stopped(_) => {
                     return_reason = process::StoppedExecutingReason::Stopped;
                     break;
                 }
