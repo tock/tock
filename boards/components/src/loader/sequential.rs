@@ -38,6 +38,7 @@ pub struct ProcessLoaderSequentialComponent<C: Chip + 'static, const NUM_PROCS: 
     chip: &'static C,
     fault_policy: &'static dyn kernel::process::ProcessFaultPolicy,
     appid_policy: &'static dyn kernel::process_checker::AppIdPolicy,
+    storage_policy: &'static dyn kernel::process::ProcessStandardStoragePermissionsPolicy<C>,
 }
 
 impl<C: Chip, const NUM_PROCS: usize> ProcessLoaderSequentialComponent<C, NUM_PROCS> {
@@ -48,6 +49,7 @@ impl<C: Chip, const NUM_PROCS: usize> ProcessLoaderSequentialComponent<C, NUM_PR
         chip: &'static C,
         fault_policy: &'static dyn kernel::process::ProcessFaultPolicy,
         appid_policy: &'static dyn kernel::process_checker::AppIdPolicy,
+        storage_policy: &'static dyn kernel::process::ProcessStandardStoragePermissionsPolicy<C>,
     ) -> Self {
         Self {
             checker,
@@ -56,6 +58,7 @@ impl<C: Chip, const NUM_PROCS: usize> ProcessLoaderSequentialComponent<C, NUM_PR
             chip,
             fault_policy,
             appid_policy,
+            storage_policy,
         }
     }
 }
@@ -103,6 +106,7 @@ impl<C: Chip, const NUM_PROCS: usize> Component for ProcessLoaderSequentialCompo
                     core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
                 ),
                 self.fault_policy,
+                self.storage_policy,
                 self.appid_policy,
                 &proc_manage_cap,
             ))
