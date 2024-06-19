@@ -1,6 +1,7 @@
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::deferred_call::DeferredCallClient;
 use kernel::hil;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::KernelResources;
@@ -38,6 +39,9 @@ static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText>
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
+
+use core::sync::atomic::{AtomicBool, Ordering};
+pub static mut APP_THREAD_READY: AtomicBool = AtomicBool::new(false);
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
@@ -176,6 +180,12 @@ pub unsafe fn spawn<const ID: usize>() {
     );
 
     kernel::deferred_call::initialize_global_deferred_call_state(deferred_call_state);
+
+    let channel = static_init!(
+        qemu_rv32_virt_chip::channel::QemuRv32VirtChannel,
+        qemu_rv32_virt_chip::channel::QemuRv32VirtChannel::new(),
+    );
+    kernel::deferred_call::DeferredCallClient::register(channel);
 
 
     // ---------- BASIC INITIALIZATION -----------
@@ -543,18 +553,31 @@ pub unsafe fn spawn<const ID: usize>() {
     debug!("QEMU RISC-V 32-bit {MAX_THREADS}-SMP \"virt\" machine core {ID}, initialization complete.");
     debug!("Entering main loop.");
 
+
+    // finalize the static mut before using it
+    let clic = thread_local_static_finalize!(qemu_rv32_virt_chip::clint::CLIC, ID);
+
     // Global initialization is done. Wake up all threads.
     (0..MAX_THREADS)
         .filter(|&id| id != ID)
         .for_each(|id| hardware_timer.set_soft_interrupt(id));
 
     // Send echo command to the app thread
-    hardware_timer.set_soft_interrupt(1);
-
-    loop {
-        hardware_timer.set_soft_interrupt(1);
+    use qemu_rv32_virt_chip::channel::SHARED_CHANNEL_BUFFER;
+    unsafe {
+        SHARED_CHANNEL_BUFFER[0] = 10;
+        SHARED_CHANNEL_BUFFER[1] = 5;
+        SHARED_CHANNEL_BUFFER[58] = 100;
     }
 
+    // Block until the app thread finishes initialization
+    while !APP_THREAD_READY.load(Ordering::SeqCst) {}
+
+    hardware_timer.set_soft_interrupt(1);
+
+    // loop {
+    //     hardware_timer.set_soft_interrupt(1);
+    // }
 
     // ---------- PROCESS LOADING, SCHEDULER LOOP ----------
 
@@ -578,5 +601,5 @@ pub unsafe fn spawn<const ID: usize>() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap, Some(&crate::SHARED_BUFFER));
+    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap, Some(&crate::SHARED_BUFFER), Some(&qemu_rv32_virt_chip::chip::MACHINE_SOFT_FIRED_COUNT));
 }

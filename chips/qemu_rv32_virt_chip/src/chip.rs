@@ -11,8 +11,10 @@ use kernel::debug;
 use kernel::hil::time::Freq10MHz;
 use kernel::platform::chip::{Chip, ChipAtomic, InterruptService};
 
-use kernel::threadlocal::{DynThreadId, ThreadId};
+use kernel::threadlocal::{DynThreadId, ThreadLocalAccess};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
+use kernel::deferred_call::DeferredCallThread;
+use kernel::thread_local_static_access;
 
 use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
 
@@ -20,7 +22,11 @@ use sifive::plic::Plic;
 
 use crate::interrupts;
 use crate::plic::PLIC;
+use crate::clint::CLIC;
 use crate::{MAX_THREADS, MAX_CONTEXTS, plic::PLIC_BASE};
+
+use crate::channel::{SHARED_CHANNEL_BUFFER, CHANNEL_BUFFER};
+use core::ptr;
 
 use virtio::transports::mmio::VirtIOMMIODevice;
 
@@ -212,6 +218,8 @@ fn handle_exception(exception: mcause::Exception) {
     }
 }
 
+pub static mut MACHINE_SOFT_FIRED_COUNT: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
+
 unsafe fn handle_interrupt(intr: mcause::Interrupt) {
     match intr {
         mcause::Interrupt::UserSoft
@@ -226,7 +234,40 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
         }
 
         mcause::Interrupt::MachineSoft => {
+            // Timing safety: We need to prevent from the app core sending
+            // interrupts to the communication core. We may need a pluggable
+            // policy instead.
+
+            // Disable IPI
             CSR.mie.modify(mie::msoft::CLEAR);
+
+            let hart_id = CSR.mhartid.extract().get();
+            if let Some(clic) = thread_local_static_access!(
+                CLIC, DynThreadId::new(hart_id)
+            ) {
+                // Step 1: Copy the message from the shared buffer to the
+                //         local buffer, active a special deferred call for
+                //         processing, and randomize the shared buffer.
+                //         Timing safety: This step needs to not depend on
+                //         secrets, meaning it must be handeled immediately
+                //         and in a non-secret dependent time.
+                // Step 2: The deferred call process the message and copy
+                //         the entrypted result back to the shared buffer.
+                //         Timing safety: This step should avoid blocking
+                //         or interfering the timing with the sending processor.
+                //         Need to address the concurrent access problem at
+                //         the kernel and the shared channel.
+                clic.clear_soft_interrupt(hart_id);
+                CHANNEL_BUFFER.get_mut(DynThreadId::new(hart_id))
+                        .expect("This thread does not have access to the channel buffer")
+                        .enter_nonreentrant(|buf| {
+                            ptr::copy_nonoverlapping(ptr::addr_of!(SHARED_CHANNEL_BUFFER), buf, 100);
+                        });
+                // Active the inter-thread communication processor
+                DeferredCallThread::set();
+            }
+
+            CSR.mie.modify(mie::msoft::SET);
         }
         mcause::Interrupt::MachineTimer => {
             CSR.mie.modify(mie::mtimer::CLEAR);

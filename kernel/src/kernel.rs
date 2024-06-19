@@ -432,21 +432,21 @@ impl Kernel {
         ipc: Option<&ipc::IPC<NUM_PROCS>>,
         capability: &dyn capabilities::MainLoopCapability,
         buf: Option<&[u8]>,
+        counter: Option<&core::sync::atomic::AtomicUsize>,
     ) -> ! {
         resources.watchdog().setup();
 
-        let a: usize = 0;
-        let mut b: usize = 0;
+        let mut hart_id: usize = 0;
         unsafe {
-            core::arch::asm!("csrr {a}, mhartid", a = out(reg) _);
+            core::arch::asm!("csrr {a}, mhartid", a = out(reg) hart_id);
         }
 
         // Before we begin, verify that deferred calls were soundly setup.
         DeferredCall::verify_setup();
         loop {
             self.kernel_loop_operation(resources, chip, ipc, false, capability);
-            if a == 0 {
-                debug!("stack buffer {:?}", buf);
+            if let Some(c) = counter {
+                debug!("counter = {:?}", c.load(core::sync::atomic::Ordering::Relaxed));
             }
         }
     }

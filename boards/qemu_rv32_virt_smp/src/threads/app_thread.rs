@@ -436,7 +436,28 @@ pub unsafe fn spawn<const ID: usize>() {
         ),
     };
 
+    // finalize the static mut before using it
+    let clic = thread_local_static_finalize!(qemu_rv32_virt_chip::clint::CLIC, ID);
+
+    // init channel receiver
+    let channel = static_init!(
+        qemu_rv32_virt_chip::channel::QemuRv32VirtChannel,
+        qemu_rv32_virt_chip::channel::QemuRv32VirtChannel::new(),
+    );
+    kernel::deferred_call::DeferredCallClient::register(channel);
+
     crate::SHARED_BUFFER[0] = 2;
+
+    use core::sync::atomic::Ordering;
+    crate::threads::main_thread::APP_THREAD_READY.store(true, Ordering::SeqCst);
+
+    // (0..5000).for_each(|_| {
+    //     hardware_timer.set_soft_interrupt(0);
+    // });
+//     hardware_timer.set_soft_interrupt(0);
+    // hardware_timer.set_soft_interrupt(0);
+    // hardware_timer.set_soft_interrupt(0);
+    // hardware_timer.set_soft_interrupt(0);
 
     // panic!("Panic at core {}", ID);
 
@@ -465,6 +486,5 @@ pub unsafe fn spawn<const ID: usize>() {
         debug!("{:?}", err);
     });
 
-    // loop {}
-    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap, None);
+    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap, None, None);
 }
