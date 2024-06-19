@@ -869,12 +869,12 @@ impl From<Error> for ErrorCode {
 /// process states.
 ///
 /// While a process is running, it transitions between the `Running`, `Yielded`,
-/// `StoppedRunning`, and `StoppedYielded` states. If an error occurs (e.g., a
-/// memory access error), the kernel faults it and either leaves it in the
-/// `Faulted` state, restarts it, or takes some other action defined by the
-/// kernel fault policy. If the process issues an `exit-terminate` system call,
-/// it enters the `Terminated` state. If it issues an `exit-restart` system
-/// call, it terminates then tries to back to a runnable state.
+/// `YieldedFor`, and `Stopped` states. If an error occurs (e.g., a memory
+/// access error), the kernel faults it and either leaves it in the `Faulted`
+/// state, restarts it, or takes some other action defined by the kernel fault
+/// policy. If the process issues an `exit-terminate` system call, it enters the
+/// `Terminated` state. If it issues an `exit-restart` system call, it
+/// terminates then tries to back to a runnable state.
 ///
 /// When a process faults, it enters the `Faulted` state. To be restarted, it
 /// must first transition to the `Terminated` state, which means that all of its
@@ -898,16 +898,12 @@ pub enum State {
     /// upcall.
     YieldedFor(UpcallId),
 
-    /// The process is stopped, and its previous state was Running. This is used
-    /// if the kernel forcibly stops a process when it is in the `Running`
-    /// state. This state indicates to the kernel not to schedule the process,
-    /// but if the process is to be resumed later it should be put back in the
-    /// running state so it will execute correctly.
-    StoppedRunning,
-
-    /// The process is stopped, and it was stopped while it was yielded. If this
-    /// process needs to be resumed it should be put back in the `Yield` state.
-    StoppedYielded,
+    /// The process is stopped and the previous state the process was in when it
+    /// was stopped. This is used if the kernel forcibly stops a process. This
+    /// state indicates to the kernel not to schedule the process, but if the
+    /// process is to be resumed later it should be put back in its previous
+    /// state so it will execute correctly.
+    Stopped(StoppedState),
 
     /// The process ran, faulted while running, and is no longer runnable. For a
     /// faulted process to be made runnable, it must first be terminated (to
@@ -918,6 +914,24 @@ pub enum State {
     /// call or was terminated for some other reason (e.g., by the process
     /// console). Processes in the `Terminated` state can be run again.
     Terminated,
+}
+
+/// States a process could previously have been in when stopped.
+///
+/// This is public so external implementations of `Process` can re-use these
+/// process stopped states.
+///
+/// These are recorded so the process can be returned to its previous state when
+/// it is resumed.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum StoppedState {
+    /// The process was in the running state when it was stopped.
+    Running,
+    /// The process was in the yielded state when it was stopped.
+    Yielded,
+    /// The process was in the yielded for state when it was stopped with a
+    /// particular upcall it was waiting for.
+    YieldedFor(UpcallId),
 }
 
 /// The action the kernel should take when a process encounters a fault.

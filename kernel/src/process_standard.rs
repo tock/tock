@@ -24,9 +24,10 @@ use crate::platform::chip::Chip;
 use crate::platform::mpu::{self, MPU};
 use crate::process::BinaryVersion;
 use crate::process::ProcessBinary;
-use crate::process::{Error, FunctionCall, FunctionCallSource, Process, State, Task};
+use crate::process::{Error, FunctionCall, FunctionCallSource, Process, Task};
 use crate::process::{FaultAction, ProcessCustomGrantIdentifier, ProcessId};
 use crate::process::{ProcessAddresses, ProcessSizes, ShortId};
+use crate::process::{State, StoppedState};
 use crate::process_loading::ProcessLoadError;
 use crate::process_policies::ProcessFaultPolicy;
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
@@ -320,11 +321,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn is_running(&self) -> bool {
         match self.state.get() {
-            State::Running
-            | State::Yielded
-            | State::YieldedFor(_)
-            | State::StoppedRunning
-            | State::StoppedYielded => true,
+            State::Running | State::Yielded | State::YieldedFor(_) | State::Stopped(_) => true,
             _ => false,
         }
     }
@@ -347,16 +344,27 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn stop(&self) {
         match self.state.get() {
-            State::Running => self.state.set(State::StoppedRunning),
-            State::Yielded => self.state.set(State::StoppedYielded),
-            _ => {} // Do nothing
+            State::Running => self.state.set(State::Stopped(StoppedState::Running)),
+            State::Yielded => self.state.set(State::Stopped(StoppedState::Yielded)),
+            State::YieldedFor(upcall_id) => self
+                .state
+                .set(State::Stopped(StoppedState::YieldedFor(upcall_id))),
+            State::Stopped(_stopped_state) => {
+                // Already stopped, nothing to do.
+            }
+            State::Faulted | State::Terminated => {
+                // Stop has no meaning on a inactive process.
+            }
         }
     }
 
     fn resume(&self) {
         match self.state.get() {
-            State::StoppedRunning => self.state.set(State::Running),
-            State::StoppedYielded => self.state.set(State::Yielded),
+            State::Stopped(stopped_state) => match stopped_state {
+                StoppedState::Running => self.state.set(State::Running),
+                StoppedState::Yielded => self.state.set(State::Yielded),
+                StoppedState::YieldedFor(upcall_id) => self.state.set(State::YieldedFor(upcall_id)),
+            },
             _ => {} // Do nothing
         }
     }
