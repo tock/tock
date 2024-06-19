@@ -122,6 +122,7 @@ pub mod grant;
 pub mod hil;
 #[flux::ignore]
 pub mod introspection;
+#[flux::ignore]
 pub mod ipc;
 #[flux::ignore]
 pub mod platform;
@@ -156,9 +157,11 @@ mod process_loading;
 mod process_policies;
 #[flux::ignore]
 mod process_printer;
+#[flux::ignore]
 mod process_standard;
 #[flux::ignore]
 mod syscall_driver;
+
 
 // Core resources exposed as `kernel::Type`.
 pub use crate::errorcode::ErrorCode;
