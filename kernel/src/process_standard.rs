@@ -246,13 +246,10 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     }
 
     fn binary_version(&self) -> Option<BinaryVersion> {
-        match self.header.get_binary_version() {
-            0 => None,
-            // Safety: because of the previous arm, version != 0, so the call to
-            // NonZeroU32::new_unchecked() is safe
-            version => Some(BinaryVersion::new(unsafe {
-                NonZeroU32::new_unchecked(version)
-            })),
+        let version = self.header.get_binary_version();
+        match NonZeroU32::new(version) {
+            Some(version_nonzero) => Some(BinaryVersion::new(version_nonzero)),
+            None => None,
         }
     }
 
