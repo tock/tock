@@ -17,12 +17,16 @@ use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::static_init;
 use kernel::{capabilities, create_capability};
+use nrf52840::gpio::Pin;
 use nrf52840dk_lib::{self, PROCESSES};
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
+
+// Screen
+type ScreenDriver = components::screen::ScreenComponentType;
 
 // USB Keyboard HID - for nRF52840dk
 type UsbHw = nrf52840::usbd::Usbd<'static>; // For any nRF52840 board.
@@ -37,6 +41,7 @@ type HmacDriver = components::hmac::HmacComponentType<HmacSha256Software, 32>;
 struct Platform {
     keyboard_hid_driver: &'static KeyboardHidDriver,
     hmac: &'static HmacDriver,
+    screen: &'static ScreenDriver,
     base: nrf52840dk_lib::Platform,
 }
 
@@ -50,6 +55,7 @@ impl SyscallDriverLookup for Platform {
         match driver_num {
             capsules_extra::hmac::DRIVER_NUM => f(Some(self.hmac)),
             KEYBOARD_HID_DRIVER_NUM => f(Some(self.keyboard_hid_driver)),
+            capsules_extra::screen::DRIVER_NUM => f(Some(self.screen)),
             _ => self.base.with_driver(driver_num, f),
         }
     }
@@ -118,6 +124,47 @@ pub unsafe fn main() {
     .finalize(components::hmac_component_static!(HmacSha256Software, 32));
 
     //--------------------------------------------------------------------------
+    // SCREEN
+    //--------------------------------------------------------------------------
+
+    const SCREEN_I2C_SDA_PIN: Pin = Pin::P1_10;
+    const SCREEN_I2C_SCL_PIN: Pin = Pin::P1_11;
+
+    let i2c_bus = components::i2c::I2CMuxComponent::new(&nrf52840_peripherals.nrf52.twi1, None)
+        .finalize(components::i2c_mux_component_static!(nrf52840::i2c::TWI));
+    nrf52840_peripherals.nrf52.twi1.configure(
+        nrf52840::pinmux::Pinmux::new(SCREEN_I2C_SCL_PIN as u32),
+        nrf52840::pinmux::Pinmux::new(SCREEN_I2C_SDA_PIN as u32),
+    );
+    nrf52840_peripherals
+        .nrf52
+        .twi1
+        .set_speed(nrf52840::i2c::Speed::K400);
+
+    // I2C address is b011110X, and on this board D/C̅ is GND.
+    let ssd1306_sh1106_i2c = components::i2c::I2CComponent::new(i2c_bus, 0x3c)
+        .finalize(components::i2c_component_static!(nrf52840::i2c::TWI));
+
+    // Create the ssd1306 object for the actual screen driver.
+    #[cfg(feature = "screen_ssd1306")]
+    let ssd1306_sh1106 = components::ssd1306::Ssd1306Component::new(ssd1306_sh1106_i2c, true)
+        .finalize(components::ssd1306_component_static!(nrf52840::i2c::TWI));
+
+    #[cfg(feature = "screen_sh1106")]
+    let ssd1306_sh1106 = components::sh1106::Sh1106Component::new(ssd1306_sh1106_i2c, true)
+        .finalize(components::sh1106_component_static!(nrf52840::i2c::TWI));
+
+    let screen = components::screen::ScreenComponent::new(
+        board_kernel,
+        capsules_extra::screen::DRIVER_NUM,
+        ssd1306_sh1106,
+        None,
+    )
+    .finalize(components::screen_component_static!(1032));
+
+    ssd1306_sh1106.init_screen();
+
+    //--------------------------------------------------------------------------
     // KEYBOARD
     //--------------------------------------------------------------------------
 
@@ -155,6 +202,7 @@ pub unsafe fn main() {
         base: base_platform,
         keyboard_hid_driver,
         hmac,
+        screen,
     };
 
     // These symbols are defined in the linker script.
