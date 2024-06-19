@@ -25,7 +25,7 @@ pub trait Queue<T> {
     fn dequeue(&mut self) -> Option<T>;
 
     /// Remove and return one (the first) element that matches the predicate.
-    fn remove_first<F>(&mut self, f: F) -> Option<T>
+    fn remove_first_matching<F>(&mut self, f: F) -> Option<T>
     where
         F: Fn(&T) -> bool;
 
