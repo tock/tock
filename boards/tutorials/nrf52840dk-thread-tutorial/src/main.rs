@@ -124,15 +124,15 @@ pub unsafe fn main() {
     const SCREEN_I2C_SDA_PIN: Pin = Pin::P1_10;
     const SCREEN_I2C_SCL_PIN: Pin = Pin::P1_11;
 
-    let i2c_bus = components::i2c::I2CMuxComponent::new(&nrf52840_peripherals.nrf52.twi0, None)
+    let i2c_bus = components::i2c::I2CMuxComponent::new(&nrf52840_peripherals.nrf52.twi1, None)
         .finalize(components::i2c_mux_component_static!(nrf52840::i2c::TWI));
-    nrf52840_peripherals.nrf52.twi0.configure(
+    nrf52840_peripherals.nrf52.twi1.configure(
         nrf52840::pinmux::Pinmux::new(SCREEN_I2C_SCL_PIN as u32),
         nrf52840::pinmux::Pinmux::new(SCREEN_I2C_SDA_PIN as u32),
     );
     nrf52840_peripherals
         .nrf52
-        .twi0
+        .twi1
         .set_speed(nrf52840::i2c::Speed::K400);
 
     // I2C address is b011110X, and on this board D/C̅ is GND.

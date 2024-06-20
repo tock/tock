@@ -489,9 +489,9 @@ pub unsafe fn start() -> (
     // SCREEN
     //--------------------------------------------------------------------------
 
-    let i2c_bus = components::i2c::I2CMuxComponent::new(&base_peripherals.twi0, None)
+    let i2c_bus = components::i2c::I2CMuxComponent::new(&base_peripherals.twi1, None)
         .finalize(components::i2c_mux_component_static!(nrf52840::i2c::TWI));
-    base_peripherals.twi0.configure(
+    base_peripherals.twi1.configure(
         nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
         nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
     );
