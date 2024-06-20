@@ -21,7 +21,7 @@
 //! |                         userspace                               |
 //! |                                                                 |
 //! +-----------------------------------------------------------------+
-//!                         kernel::Driver
+//!                         kernel::SyscallDriver
 //! +-----------------------------------------------------------------+
 //! |                                                                 |
 //! |               capsules::app_loader::AppLoader (this)            |
@@ -155,8 +155,8 @@ impl<'a> AppLoader<'a> {
                     return Err(ErrorCode::RESERVE);
                 }
 
-                // Shorten the length if the application gave us nowhere to
-                // put it.
+                // Shorten the length if the application did not give us
+                // enough bytes in the allowed buffer.
                 let active_len = cmp::min(length, allow_buf_len);
 
                 // copy data into the kernel buffer!
@@ -207,7 +207,7 @@ impl kernel::dynamic_process_loading::DynamicProcessLoadingClient for AppLoader<
     }
 
     /// Let the app know we are done writing the block of data
-    fn app_data_write_done(&self, buffer: &'static mut [u8], length: usize) {
+    fn write_app_data_done(&self, buffer: &'static mut [u8], length: usize) {
         // Switch on which user of this capsule generated this callback.
         self.current_process.map(|processid| {
             let _ = self.apps.enter(processid, move |_app, kernel_data| {
@@ -244,7 +244,6 @@ impl SyscallDriver for AppLoader<'_> {
     ///        - Returns ErrorCode::FAIL if:
     ///            - The kernel is unable to create a process object for the application
     ///            - The kernel fails to write a padding app (thereby potentially breaking the linkedlist)
-
     fn command(
         &self,
         command_num: usize,
@@ -271,9 +270,13 @@ impl SyscallDriver for AppLoader<'_> {
                 //setup phase
                 let res = self.driver.setup(arg1); // pass the size of the app to the setup function
                 match res {
-                    Ok(app_len) => {
+                    Ok((app_len, padding)) => {
                         self.new_app_length.set(app_len);
-                        CommandReturn::success()
+                        if padding {
+                            CommandReturn::success_u32(1)
+                        } else {
+                            CommandReturn::success_u32(0)
+                        }
                     }
 
                     Err(e) => {
