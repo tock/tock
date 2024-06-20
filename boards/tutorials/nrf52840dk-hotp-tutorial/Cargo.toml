@@ -9,6 +9,11 @@ authors.workspace = true
 build = "../../build.rs"
 edition.workspace = true
 
+[features]
+default = ["screen_ssd1306"]
+screen_ssd1306 = []
+screen_sh1106 = []
+
 [dependencies]
 kernel = { path = "../../../kernel" }
 nrf52840 = { path = "../../../chips/nrf52840" }
