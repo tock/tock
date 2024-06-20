@@ -248,10 +248,7 @@ impl<'a, F: Fn(&'static str) -> u32> Compress for AppIdAssignerNames<'a, F> {
     fn to_short_id(&self, process: &ProcessBinary) -> ShortId {
         let name = process.header.get_package_name().unwrap_or("");
         let sum = (self.hasher)(name);
-        match core::num::NonZeroU32::new(sum) {
-            Some(id) => ShortId::Fixed(id),
-            None => ShortId::LocallyUnique,
-        }
+        core::num::NonZeroU32::new(sum).into()
     }
 }
 
