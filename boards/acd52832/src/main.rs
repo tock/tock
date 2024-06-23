@@ -358,14 +358,14 @@ unsafe fn start() -> (
     // Create shared mux for the I2C bus
     let i2c_mux = static_init!(
         capsules_core::virtualizers::virtual_i2c::MuxI2C<'static, nrf52832::i2c::TWI<'static>>,
-        capsules_core::virtualizers::virtual_i2c::MuxI2C::new(&base_peripherals.twi0, None,)
+        capsules_core::virtualizers::virtual_i2c::MuxI2C::new(&base_peripherals.twi1, None,)
     );
     kernel::deferred_call::DeferredCallClient::register(i2c_mux);
-    base_peripherals.twi0.configure(
+    base_peripherals.twi1.configure(
         nrf52832::pinmux::Pinmux::new(21),
         nrf52832::pinmux::Pinmux::new(20),
     );
-    base_peripherals.twi0.set_master_client(i2c_mux);
+    base_peripherals.twi1.set_master_client(i2c_mux);
 
     // Configure the MCP23017. Device address 0x20.
     let mcp_pin0 = static_init!(
