@@ -14,6 +14,8 @@
 #![deny(missing_docs)]
 
 mod imix_components;
+use core::ptr::{addr_of, addr_of_mut};
+
 use capsules_core::alarm::AlarmDriver;
 use capsules_core::console_ordered::ConsoleOrdered;
 use capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM;
@@ -31,7 +33,6 @@ use kernel::hil::radio;
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::symmetric_encryption::AES128;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::process::ProcessLoadingAsync;
 use kernel::scheduler::round_robin::RoundRobinSched;
 
 //use kernel::hil::time::Alarm;
@@ -92,13 +93,15 @@ const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0_u8; 16]; //Context for 6LoWPAN Compres
 const PAN_ID: u16 = 0xABCD;
 
 // how should the kernel respond when a process faults
-const FAULT_RESPONSE: kernel::process::StopFaultPolicy = kernel::process::StopFaultPolicy {};
+const FAULT_RESPONSE: capsules_system::process_policies::StopFaultPolicy =
+    capsules_system::process_policies::StopFaultPolicy {};
 
 static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
     [None; NUM_PROCS];
 
 static mut CHIP: Option<&'static sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> = None;
-static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
+static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
+    None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -169,19 +172,6 @@ struct Imix {
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
-
-// The RF233 radio stack requires our buffers for its SPI operations:
-//
-//   1. buf: a packet-sized buffer for SPI operations, which is
-//      used as the read buffer when it writes a packet passed to it and the write
-//      buffer when it reads a packet into a buffer passed to it.
-//   2. rx_buf: buffer to receive packets into
-//   3 + 4: two small buffers for performing registers
-//      operations (one read, one write).
-
-static mut RF233_BUF: [u8; radio::MAX_BUF_SIZE] = [0x00; radio::MAX_BUF_SIZE];
-static mut RF233_REG_WRITE: [u8; 2] = [0x00; 2];
-static mut RF233_REG_READ: [u8; 2] = [0x00; 2];
 
 impl SyscallDriverLookup for Imix {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
@@ -358,7 +348,6 @@ pub unsafe fn main() {
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
-    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let main_cap = create_capability!(capabilities::MainLoopCapability);
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
@@ -374,7 +363,7 @@ pub unsafe fn main() {
         },
     );
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
 
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
@@ -621,8 +610,6 @@ pub unsafe fn main() {
     aes_mux.register();
     peripherals.aes.set_client(aes_mux);
 
-    // Can this initialize be pushed earlier, or into component? -pal
-    let _ = rf233.initialize(&mut RF233_BUF, &mut RF233_REG_WRITE, &mut RF233_REG_READ);
     let (_, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
         capsules_extra::ieee802154::DRIVER_NUM,
@@ -709,7 +696,7 @@ pub unsafe fn main() {
     )
     .finalize(components::udp_driver_component_static!(sam4l::ast::Ast));
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     // Create the software-based SHA engine.
@@ -728,48 +715,19 @@ pub unsafe fn main() {
     let checker = components::appid::checker::ProcessCheckerMachineComponent::new(checking_policy)
         .finalize(components::process_checker_machine_component_static!());
 
-    // These symbols are defined in the linker script.
-    extern "C" {
-        /// Beginning of the ROM region containing app images.
-        static _sapps: u8;
-        /// End of the ROM region containing app images.
-        static _eapps: u8;
-        /// Beginning of the RAM region for app memory.
-        static mut _sappmem: u8;
-        /// End of the RAM region for app memory.
-        static _eappmem: u8;
-    }
-
-    let process_binary_array = static_init!(
-        [Option<kernel::process::ProcessBinary>; NUM_PROCS],
-        [None, None, None, None]
-    );
-
-    let loader = static_init!(
-        kernel::process::SequentialProcessLoaderMachine<
-            sam4l::chip::Sam4l<Sam4lDefaultPeripherals>,
-        >,
-        kernel::process::SequentialProcessLoaderMachine::new(
-            checker,
-            &mut PROCESSES,
-            process_binary_array,
-            board_kernel,
-            chip,
-            core::slice::from_raw_parts(
-                core::ptr::addr_of!(_sapps),
-                core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-            ),
-            core::slice::from_raw_parts_mut(
-                core::ptr::addr_of_mut!(_sappmem),
-                core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
-            ),
-            &FAULT_RESPONSE,
-            assigner,
-            &process_mgmt_cap
-        )
-    );
-
-    checker.set_client(loader);
+    // Create and start the asynchronous process loader.
+    let _loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
+        checker,
+        &mut *addr_of_mut!(PROCESSES),
+        board_kernel,
+        chip,
+        &FAULT_RESPONSE,
+        assigner,
+    )
+    .finalize(components::process_loader_sequential_component_static!(
+        sam4l::chip::Sam4l<Sam4lDefaultPeripherals>,
+        NUM_PROCS
+    ));
 
     let imix = Imix {
         pconsole,
@@ -856,9 +814,6 @@ pub unsafe fn main() {
     .run();*/
 
     debug!("Initialization complete. Entering main loop");
-
-    loader.register();
-    loader.start();
 
     board_kernel.kernel_loop(&imix, chip, Some(&imix.ipc), &main_cap);
 }

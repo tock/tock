@@ -55,6 +55,20 @@ pub enum SyscallClass {
 pub enum YieldCall {
     NoWait = 0,
     Wait = 1,
+    WaitFor = 2,
+}
+
+impl TryFrom<usize> for YieldCall {
+    type Error = usize;
+
+    fn try_from(yield_variant: usize) -> Result<YieldCall, usize> {
+        match yield_variant {
+            0 => Ok(YieldCall::NoWait),
+            1 => Ok(YieldCall::Wait),
+            2 => Ok(YieldCall::WaitFor),
+            i => Err(i),
+        }
+    }
 }
 
 // Required as long as no solution to
@@ -82,10 +96,12 @@ impl TryFrom<u8> for SyscallClass {
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Syscall {
     /// Structure representing an invocation of the Yield system call class.
-    ///
-    /// - `which`: the Yield identifier value
-    /// - `address`: the no wait field
-    Yield { which: usize, address: *mut u8 },
+    /// `which` is the Yield identifier value and `address` is the no wait field.
+    Yield {
+        which: usize,
+        param_a: usize,
+        param_b: usize,
+    },
 
     /// Structure representing an invocation of the Subscribe system call class.
     ///
@@ -190,7 +206,8 @@ impl Syscall {
         match SyscallClass::try_from(syscall_number) {
             Ok(SyscallClass::Yield) => Some(Syscall::Yield {
                 which: r0,
-                address: r1 as *mut u8,
+                param_a: r1,
+                param_b: r2,
             }),
             Ok(SyscallClass::Subscribe) => Some(Syscall::Subscribe {
                 driver_number: r0,
@@ -409,6 +426,13 @@ pub enum SyscallReturn {
     /// Subscribe failure case, returns the passed upcall function
     /// pointer and application data.
     SubscribeFailure(ErrorCode, *const (), usize),
+
+    /// YieldWaitFor return value. These arguments match the arguments to an
+    /// upcall, where the kernel does not define an error field. Therefore this
+    /// does not have success/failure versions because the kernel cannot know if
+    /// the upcall (i.e. YieldWaitFor return value) represents success or
+    /// failure.
+    YieldWaitFor(usize, usize, usize),
 }
 
 impl SyscallReturn {
@@ -443,6 +467,7 @@ impl SyscallReturn {
             SyscallReturn::UserspaceReadableAllowFailure(_, _, _) => false,
             SyscallReturn::AllowReadOnlyFailure(_, _, _) => false,
             SyscallReturn::SubscribeFailure(_, _, _) => false,
+            SyscallReturn::YieldWaitFor(_, _, _) => true,
         }
     }
 
@@ -549,6 +574,11 @@ impl SyscallReturn {
                 *a1 = usize::from(err) as u32;
                 *a2 = ptr as u32;
                 *a3 = data as u32;
+            }
+            SyscallReturn::YieldWaitFor(data0, data1, data2) => {
+                *a0 = data0 as u32;
+                *a1 = data1 as u32;
+                *a2 = data2 as u32;
             }
         }
     }

@@ -154,30 +154,24 @@ pub enum PermissionMode {
     Machine = 0x3,
 }
 
-/// Tell the MCU what address the trap handler is located at.
+/// Tell the MCU what address the trap handler is located at, and initialize
+/// `mscratch` to zero, indicating kernel execution.
 ///
 /// This is a generic implementation. There may be board specific versions as
 /// some platforms have added more bits to the `mtvec` register.
 ///
 /// The trap handler is called on exceptions and for interrupts.
-pub unsafe fn configure_trap_handler(mode: PermissionMode) {
-    match mode {
-        PermissionMode::Machine => csr::CSR.mtvec.write(
-            csr::mtvec::mtvec::trap_addr.val(_start_trap as usize >> 2)
-                + csr::mtvec::mtvec::mode::CLEAR,
-        ),
-        PermissionMode::Supervisor => csr::CSR.stvec.write(
-            csr::stvec::stvec::trap_addr.val(_start_trap as usize >> 2)
-                + csr::stvec::stvec::mode::CLEAR,
-        ),
-        PermissionMode::User => csr::CSR.utvec.write(
-            csr::utvec::utvec::trap_addr.val(_start_trap as usize >> 2)
-                + csr::utvec::utvec::mode::CLEAR,
-        ),
-        PermissionMode::Reserved => {
-            // TODO some sort of error handling?
-        }
-    }
+pub unsafe fn configure_trap_handler() {
+    // Indicate to the trap handler that we are executing kernel code.
+    csr::CSR.mscratch.set(0);
+
+    // Set the machine-mode trap handler. By not configuing an S-mode or U-mode
+    // trap handler, this should ensure that all traps are handled by the M-mode
+    // handler.
+    csr::CSR.mtvec.write(
+        csr::mtvec::mtvec::trap_addr.val(_start_trap as usize >> 2)
+            + csr::mtvec::mtvec::mode::CLEAR,
+    );
 }
 
 // Mock implementation for tests on Travis-CI.
@@ -192,16 +186,88 @@ extern "C" {
     /// including interrupts, exceptions, and system calls from applications.
     ///
     /// Tock uses only the single trap handler, and does not use any vectored
-    /// interrupts or other exception handling. The trap handler has to determine
-    /// why the trap handler was called, and respond accordingly. Generally, there
-    /// are two reasons the trap handler gets called: an interrupt occurred or an
-    /// application called a syscall.
+    /// interrupts or other exception handling. The trap handler has to
+    /// determine why the trap handler was called, and respond
+    /// accordingly. Generally, there are two reasons the trap handler gets
+    /// called: an interrupt occurred or an application called a syscall.
     ///
-    /// In the case of an interrupt while the kernel was executing we only need to
-    /// save the kernel registers and then run whatever interrupt handling code we
-    /// need to. If the trap happens while and application was executing, we have to
-    /// save the application state and then resume the `switch_to()` function to
-    /// correctly return back to the kernel.
+    /// In the case of an interrupt while the kernel was executing we only need
+    /// to save the kernel registers and then run whatever interrupt handling
+    /// code we need to. If the trap happens while an application was executing,
+    /// we have to save the application state and then resume the `switch_to()`
+    /// function to correctly return back to the kernel.
+    ///
+    /// We implement this distinction through a branch on the value of the
+    /// `mscratch` CSR. If, at the time the trap was taken, it contains `0`, we
+    /// assume that the hart is currently executing kernel code.
+    ///
+    /// If it contains any other value, we interpret it to be a memory address
+    /// pointing to a particular data structure:
+    ///
+    /// ```
+    /// mscratch           0               1               2               3
+    ///  \->|--------------------------------------------------------------|
+    ///     | scratch word, overwritten with s1 register contents          |
+    ///     |--------------------------------------------------------------|
+    ///     | trap handler address, continue trap handler execution here   |
+    ///     |--------------------------------------------------------------|
+    /// ```
+    ///
+    /// Thus, process implementations can define their own strategy for how
+    /// traps should be handled when they occur during process execution. This
+    /// global trap handler behavior is well defined. It will:
+    ///
+    /// 1. atomically swap s0 and the mscratch CSR,
+    ///
+    /// 2. execute the default kernel trap handler if s0 now contains `0`
+    /// (meaning that the mscratch CSR contained `0` before entering this trap
+    /// handler),
+    ///
+    /// 3. otherwise, save s1 to `0*4(s0)`, and finally
+    ///
+    /// 4. load the address at `1*4(s0)` into s1, and jump to it.
+    ///
+    /// No registers other than s0, s1 and the mscratch CSR are to be clobbered
+    /// before continuing execution at the address loaded into the mscratch CSR
+    /// or the _start_kernel_trap kernel trap handler.  Execution with these
+    /// second-stage trap handlers must continue in the same trap handler
+    /// context as originally invoked by the trap (e.g., the global trap handler
+    /// will not execute an mret instruction). It will not modify CSRs that
+    /// contain information on the trap source or the system state prior to
+    /// entering the trap handler.
+    ///
+    /// We deliberately clobber callee-saved instead of caller-saved registers,
+    /// as this makes it easier to call other functions as part of the trap
+    /// handler (for example to to disable interrupts from within Rust
+    /// code). This global trap handler saves the previous values of these
+    /// clobbered registers ensuring that they can be restored later.  It places
+    /// new values into these clobbered registers (such as the previous `s0`
+    /// register contents) that are required to be retained for correctly
+    /// returning from the trap handler, and as such need to be saved across
+    /// C-ABI function calls. Loading them into saved registers avoids the need
+    /// to manually save them across such calls.
+    ///
+    /// When a custom trap handler stack is registered in `mscratch`, the custom
+    /// handler is responsible for restoring the kernel trap handler (by setting
+    /// mscratch=0) before returning to kernel execution from the trap handler
+    /// context.
+    ///
+    /// If a board or chip must, for whichever reason, use a different global
+    /// trap handler, it should abide to the above contract and emulate its
+    /// behavior for all traps and interrupts that are required to be handled by
+    /// the respective kernel or other trap handler as registered in mscratch.
+    ///
+    /// For instance, a chip that does not support non-vectored trap handlers
+    /// can register a vectored trap handler that routes each trap source to
+    /// this global trap handler.
+    ///
+    /// Alternatively, a board can be allowed to ignore certain traps or
+    /// interrupts, some or all of the time, provided they are not vital to
+    /// Tock's execution. These boards may choose to register an alternative
+    /// handler for some or all trap sources. When this alternative handler is
+    /// invoked, it may, for instance, choose to ignore a certain trap, access
+    /// global state (subject to synchronization), etc. It must still abide to
+    /// the contract as stated above.
     pub fn _start_trap();
 }
 
@@ -211,56 +277,45 @@ global_asm!(
             .section .riscv.trap, \"ax\"
             .globl _start_trap
           _start_trap:
-
-            // The first thing we have to do is determine if we came from user
-            // mode or kernel mode, as we need to save state and proceed
-            // differently. We cannot, however, use any registers because we do
-            // not want to lose their contents. So, we rely on `mscratch`. If
-            // mscratch is 0, then we came from the kernel. If it is >0, then it
-            // contains the kernel's stack pointer and we came from an app.
+            // This is the global trap handler. By default, Tock expects this
+            // trap handler to be registered at all times, and that all traps
+            // and interrupts occurring in all modes of execution (M-, S-, and
+            // U-mode) will cause this trap handler to be executed.
             //
-            // We use the csrrw instruction to save the current stack pointer
-            // so we can retrieve it if necessary.
+            // For documentation of its behavior, and how process
+            // implementations can hook their own trap handler code, see the
+            // comment on the `extern C _start_trap` symbol above.
+
+            // Atomically swap s0 and mscratch:
+            csrrw s0, mscratch, s0        // s0 = mscratch; mscratch = s0
+
+            // If mscratch contained 0, invoke the kernel trap handler.
+            beq   s0, x0, 100f      // if s0==x0: goto 100
+
+            // Else, save the current value of s1 to `0*4(s0)`, load `1*4(s0)`
+            // into s1 and jump to it (invoking a custom trap handler).
+            sw    s1, 0*4(s0)       // *s0 = s1
+            lw    s1, 1*4(s0)       // s1 = *(s0+4)
+            jr    s1                // goto s1
+
+          100: // _start_kernel_trap
+
+            // The global trap handler has swapped s0 into mscratch. We can thus
+            // freely clobber s0 without losing any information.
             //
-            // If we could enter this trap handler twice (for example,
-            // handling an interrupt while an exception is being
-            // handled), storing a non-zero value in mscratch
-            // temporarily could cause a race condition similar to the
-            // one of PR 2308[1].
-            // However, as indicated in section 3.1.6.1 of the RISC-V
-            // Privileged Spec[2], MIE will be set to 0 when taking a
-            // trap into machine mode. Therefore, this can only happen
-            // when causing an exception in the trap handler itself.
-            //
-            // [1] https://github.com/tock/tock/pull/2308
-            // [2] https://github.com/riscv/riscv-isa-manual/releases/download/draft-20201222-42dc13a/riscv-privileged.pdf
-            csrrw sp, 0x340, sp // CSR=0x340=mscratch
-            bnez  sp, 300f      // If sp != 0 then we must have come from an app.
-
-
-        // _from_kernel:
-            // Swap back the zero value for the stack pointer in mscratch
-            csrrw sp, 0x340, sp // CSR=0x340=mscratch
-
-            // Now, since we want to use the stack to save kernel registers, we
+            // Since we want to use the stack to save kernel registers, we
             // first need to make sure that the trap wasn't the result of a
             // stack overflow, in which case we can't use the current stack
-            // pointer. We also, however, cannot modify any of the current
-            // registers until we save them, and we cannot save them to the
-            // stack until we know the stack is valid. So, we use the mscratch
-            // trick again to get one register we can use.
-
-            // Save t0's contents to mscratch
-            csrw 0x340, t0                      // CSR=0x340=mscratch
+            // pointer. Use s0 as a scratch register:
 
             // Load the address of the bottom of the stack (`_sstack`) into our
-            // newly freed-up t0 register.
-            la t0, {sstack}                     // t0 = _sstack
+            // newly freed-up s0 register.
+            la s0, {sstack}                     // s0 = _sstack
 
             // Compare the kernel stack pointer to the bottom of the stack. If
             // the stack pointer is above the bottom of the stack, then continue
             // handling the fault as normal.
-            bgtu sp, t0, 100f                   // branch if sp > t0
+            bgtu sp, s0, 200f                   // branch if sp > s0
 
             // If we get here, then we did encounter a stack overflow. We are
             // going to panic at this point, but for that to work we need a
@@ -269,12 +324,10 @@ global_asm!(
             // top of the original stack.
             la sp, {estack}                     // sp = _estack
 
+        200: // _start_kernel_trap_continue
 
-        100: // _from_kernel_continue
-
-            // Restore t0, and make sure mscratch is set back to 0 (our flag
-            // tracking that the kernel is executing).
-            csrrw t0, 0x340, zero // t0=mscratch, mscratch=0
+            // Restore s0. We reset mscratch to 0 (kernel trap handler mode)
+            csrrw s0, mscratch, zero    // s0 = mscratch; mscratch = 0
 
             // Make room for the caller saved registers we need to restore after
             // running any trap handler code.
@@ -328,114 +381,7 @@ global_asm!(
             // mepc and execution proceeds from there. Since we did not modify
             // mepc we will return to where the exception occurred.
             mret
-
-
-
-            // Handle entering the trap handler from an app differently.
-        300: // _from_app
-
-            // At this point all we know is that we entered the trap handler
-            // from an app. We don't know _why_ we got a trap, it could be from
-            // an interrupt, syscall, or fault (or maybe something else).
-            // Therefore we have to be very careful not to overwrite any
-            // registers before we have saved them.
-            //
-            // We ideally want to save registers in the per-process stored state
-            // struct. However, we don't have a pointer to that yet, and we need
-            // to use a temporary register to get that address. So, we save s0
-            // to the kernel stack before we can it to the proper spot.
-            sw   s0, 0*4(sp)
-
-            // Ideally it would be better to save all of the app registers once
-            // we return back to the `switch_to_process()` code. However, we
-            // also potentially need to disable an interrupt in case the app was
-            // interrupted, so it is safer to just immediately save all of the
-            // app registers.
-            //
-            // We do this by retrieving the stored state pointer from the kernel
-            // stack and storing the necessary values in it.
-            lw   s0,  1*4(sp)  // Load the stored state pointer into s0.
-            sw   x1,  0*4(s0)  // ra
-            sw   x3,  2*4(s0)  // gp
-            sw   x4,  3*4(s0)  // tp
-            sw   x5,  4*4(s0)  // t0
-            sw   x6,  5*4(s0)  // t1
-            sw   x7,  6*4(s0)  // t2
-            sw   x9,  8*4(s0)  // s1
-            sw   x10, 9*4(s0)  // a0
-            sw   x11, 10*4(s0) // a1
-            sw   x12, 11*4(s0) // a2
-            sw   x13, 12*4(s0) // a3
-            sw   x14, 13*4(s0) // a4
-            sw   x15, 14*4(s0) // a5
-            sw   x16, 15*4(s0) // a6
-            sw   x17, 16*4(s0) // a7
-            sw   x18, 17*4(s0) // s2
-            sw   x19, 18*4(s0) // s3
-            sw   x20, 19*4(s0) // s4
-            sw   x21, 20*4(s0) // s5
-            sw   x22, 21*4(s0) // s6
-            sw   x23, 22*4(s0) // s7
-            sw   x24, 23*4(s0) // s8
-            sw   x25, 24*4(s0) // s9
-            sw   x26, 25*4(s0) // s10
-            sw   x27, 26*4(s0) // s11
-            sw   x28, 27*4(s0) // t3
-            sw   x29, 28*4(s0) // t4
-            sw   x30, 29*4(s0) // t5
-            sw   x31, 30*4(s0) // t6
-            // Now retrieve the original value of s0 and save that as well.
-            lw   t0,  0*4(sp)
-            sw   t0,  7*4(s0)  // s0,fp
-
-            // We also need to store the app stack pointer, mcause, and mepc. We
-            // need to store mcause because we use that to determine why the app
-            // stopped executing and returned to the kernel. We store mepc
-            // because it is where we need to return to in the app at some
-            // point. We need to store mtval in case the app faulted and we need
-            // mtval to help with debugging.
-            csrr t0, 0x340    // CSR=0x340=mscratch
-            sw   t0, 1*4(s0)  // Save the app sp to the stored state struct
-            csrr t0, 0x341    // CSR=0x341=mepc
-            sw   t0, 31*4(s0) // Save the PC to the stored state struct
-            csrr t0, 0x343    // CSR=0x343=mtval
-            sw   t0, 33*4(s0) // Save mtval to the stored state struct
-
-            // Save mcause last, as we depend on it being loaded in t0 below
-            csrr t0, 0x342    // CSR=0x342=mcause
-            sw   t0, 32*4(s0) // Save mcause to the stored state struct, leave in t0
-
-            // Now we need to check if this was an interrupt, and if it was,
-            // then we need to disable the interrupt before returning from this
-            // trap handler so that it does not fire again. If mcause is greater
-            // than or equal to zero this was not an interrupt (i.e. the most
-            // significant bit is not 1).
-            bge  t0, zero, 200f
-            // Copy mcause into a0 and then call the interrupt disable function.
-            mv   a0, t0
-            jal  ra, _disable_interrupt_trap_rust_from_app
-
-        200: // _from_app_continue
-            // Now determine the address of _return_to_kernel and resume the
-            // context switching code. We need to load _return_to_kernel into
-            // mepc so we can use it to return to the context switch code.
-            lw   t0, 2*4(sp)  // Load _return_to_kernel into t0.
-            csrw 0x341, t0    // CSR=0x341=mepc
-
-            // Ensure that mscratch is 0. This makes sure that we know that on
-            // a future trap that we came from the kernel.
-            csrw 0x340, zero  // CSR=0x340=mscratch
-
-            // Need to set mstatus.MPP to 0b11 so that we stay in machine mode.
-            csrr t0, 0x300    // CSR=0x300=mstatus
-            li   t1, 0x1800   // Load 0b11 to the MPP bits location in t1
-            or   t0, t0, t1   // Set the MPP bits to one
-            csrw 0x300, t0    // CSR=0x300=mstatus
-
-            // Use mret to exit the trap handler and return to the context
-            // switching code.
-            mret
-        ",
+    ",
     estack = sym _estack,
     sstack = sym _sstack,
 );

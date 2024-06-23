@@ -494,7 +494,9 @@ impl Kernel {
         // point, the scheduler timer need not have an interrupt enabled after
         // `start()`.
         scheduler_timer.reset();
-        timeslice_us.map(|timeslice| scheduler_timer.start(timeslice));
+        if let Some(timeslice) = timeslice_us {
+            scheduler_timer.start(timeslice)
+        }
 
         // Need to track why the process is no longer executing so that we can
         // inform the scheduler.
@@ -600,6 +602,12 @@ impl Kernel {
                     match process.dequeue_task() {
                         None => break,
                         Some(cb) => match cb {
+                            Task::ReturnValue(_) => {
+                                // Per TRD104, Yield-Wait does not wake the
+                                // process for events that generate Null
+                                // Upcalls.
+                                break;
+                            }
                             Task::FunctionCall(ccb) => {
                                 if config::CONFIG.trace_syscalls {
                                     debug!(
@@ -636,16 +644,60 @@ impl Kernel {
                         },
                     }
                 }
+                process::State::YieldedFor(upcall_id) => {
+                    // If this process is waiting for a specific
+                    // upcall, see if it is ready. If so, dequeue it
+                    // and return its values to the process without
+                    // scheduling the callback.
+
+                    match process.remove_upcall(upcall_id) {
+                        None => break,
+                        Some(task) => {
+                            let (a0, a1, a2) = match task {
+                                // There is no callback function registered, we just return the
+                                // values provided by the driver
+                                Task::ReturnValue(rv) => {
+                                    if config::CONFIG.trace_syscalls {
+                                        debug!(
+                                            "[{:?}] Yield-WaitFor: [NU] ({:#x}, {:#x}, {:#x})",
+                                            process.processid(),
+                                            rv.argument0,
+                                            rv.argument1,
+                                            rv.argument2,
+                                        );
+                                    }
+                                    (rv.argument0, rv.argument1, rv.argument2)
+                                }
+                                // There is a registered callback function, but since the process
+                                // used `Yield-WaitFor`, we do not execute it, we just return
+                                // its arguments values to the application
+                                Task::FunctionCall(ccb) => {
+                                    if config::CONFIG.trace_syscalls {
+                                        debug!(
+                                            "[{:?}] Yield-WaitFor [Suppressed function_call @{:#x}] ({:#x}, {:#x}, {:#x}, {:#x})",
+                                            process.processid(),
+                                            ccb.pc,
+                                            ccb.argument0,
+                                            ccb.argument1,
+                                            ccb.argument2,
+                                            ccb.argument3,
+                                        );
+                                    }
+                                    (ccb.argument0, ccb.argument1, ccb.argument2)
+                                }
+                                Task::IPC(_) => todo!(),
+                            };
+                            process
+                                .set_syscall_return_value(SyscallReturn::YieldWaitFor(a0, a1, a2));
+                        }
+                    }
+                }
                 process::State::Faulted | process::State::Terminated => {
                     // We should never be scheduling an unrunnable process.
                     // This is a potential security flaw: panic.
                     panic!("Attempted to schedule an unrunnable process");
                 }
-                process::State::StoppedRunning => {
-                    return_reason = process::StoppedExecutingReason::Stopped;
-                    break;
-                }
-                process::State::StoppedYielded => {
+                process::State::Stopped(_) => {
                     return_reason = process::StoppedExecutingReason::Stopped;
                     break;
                 }
@@ -654,16 +706,16 @@ impl Kernel {
 
         // Check how much time the process used while it was executing, and
         // return the value so we can provide it to the scheduler.
-        let time_executed_us = timeslice_us.map_or(None, |timeslice| {
+        let time_executed_us = timeslice_us.map(|timeslice| {
             // Note, we cannot call `.get_remaining_us()` again if it has previously
             // returned `None`, so we _must_ check the return reason first.
             if return_reason == process::StoppedExecutingReason::TimesliceExpired {
                 // used the whole timeslice
-                Some(timeslice)
+                timeslice
             } else {
                 match scheduler_timer.get_remaining_us() {
-                    Some(remaining) => Some(timeslice - remaining),
-                    None => Some(timeslice), // used whole timeslice
+                    Some(remaining) => timeslice - remaining,
+                    None => timeslice, // used whole timeslice
                 }
             }
         });
@@ -705,7 +757,8 @@ impl Kernel {
         match syscall {
             Syscall::Yield {
                 which: _,
-                address: _,
+                param_a: _,
+                param_b: _,
             } => {} // Yield is not filterable.
             Syscall::Exit {
                 which: _,
@@ -750,41 +803,57 @@ impl Kernel {
                 }
                 process.set_syscall_return_value(rval);
             }
-            Syscall::Yield { which, address } => {
+            Syscall::Yield {
+                which,
+                param_a,
+                param_b,
+            } => {
                 if config::CONFIG.trace_syscalls {
                     debug!("[{:?}] yield. which: {}", process.processid(), which);
                 }
-                if which > (YieldCall::Wait as usize) {
-                    // Only 0 and 1 are valid, so this is not a valid yield
-                    // system call, Yield does not have a return value because
-                    // it can push a function call onto the stack; just return
-                    // control to the process.
-                    return;
-                }
-                if which == (YieldCall::NoWait as usize) {
-                    let upcall_triggered = process.has_tasks().into();
-                    // Set the "did I trigger upcalls" flag.
-                    //
-                    // # Safety
-                    //
-                    // If address is invalid, this does nothing. If it is valid,
-                    // we write into process memory, which is fine for the
-                    // kernel as long as no references to that memory exist. We
-                    // do not have a reference, so we can safely call
-                    // `set_byte()`. The process is expecting *address to be set
-                    // to 0 or 1, and converting a bool into a u8 gives a 0 or
-                    // 1.
-                    unsafe {
-                        process.set_byte(address, upcall_triggered);
+                match which.try_into() {
+                    Ok(YieldCall::NoWait) => {
+                        // If this is a yield-no-wait AND there are no pending tasks,
+                        // then return immediately. Otherwise, go into the yielded state
+                        // and execute tasks now or when they arrive.
+                        let has_tasks = process.has_tasks();
+
+                        // Set the "did I trigger upcalls" flag.
+                        // If address is invalid does nothing.
+                        //
+                        // # Safety
+                        //
+                        // This is fine as long as no references to the process's
+                        // memory exist. We do not have a reference, so we can
+                        // safely call `set_byte()`.
+                        unsafe {
+                            let address = param_a as *mut u8;
+                            process.set_byte(address, has_tasks as u8);
+                        }
+
+                        if has_tasks {
+                            process.set_yielded_state();
+                        }
                     }
-                }
-                let wait = which == (YieldCall::Wait as usize);
-                // If this is a yield-no-wait AND there are no pending tasks,
-                // then return immediately. Otherwise, go into the yielded state
-                // and execute tasks now or when they arrive.
-                let return_now = !wait && !process.has_tasks();
-                if !return_now {
-                    process.set_yielded_state();
+
+                    Ok(YieldCall::Wait) => {
+                        process.set_yielded_state();
+                    }
+
+                    Ok(YieldCall::WaitFor) => {
+                        let upcall_id = UpcallId {
+                            driver_num: param_a,
+                            subscribe_num: param_b,
+                        };
+                        process.set_yielded_for_state(upcall_id);
+                    }
+
+                    _ => {
+                        // Only 0, 1, and 2 are valid, so this is not a valid yield
+                        // system call, Yield does not have a return value because
+                        // it can push a function call onto the stack; just return
+                        // control to the process.
+                    }
                 }
             }
             Syscall::Subscribe { driver_number, .. }
@@ -824,7 +893,7 @@ impl Kernel {
                         // > If the passed upcall is not valid (is outside process
                         // > executable memory...), the kernel...MUST immediately return
                         // > a failure with a error code of `INVALID`.
-                        let rval1 = ptr.map_or(None, |upcall_ptr_nonnull| {
+                        let rval1 = ptr.and_then(|upcall_ptr_nonnull| {
                             if !process.is_valid_upcall_function_pointer(upcall_ptr_nonnull) {
                                 Some(ErrorCode::INVAL)
                             } else {

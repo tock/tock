@@ -7,7 +7,7 @@
 //! This capsule provides a higher level Key-Value store interface based on an
 //! underlying `tickv::kv_system` storage layer.
 //!
-//! ```
+//! ```text
 //! +-----------------------+
 //! |  Capsule using K-V    |
 //! +-----------------------+

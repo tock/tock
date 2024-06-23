@@ -282,7 +282,7 @@ impl DMAChannel {
         self.registers.psr.set(pid);
         self.registers
             .marr
-            .write(MemoryAddressReload::MARV.val(&buf[0] as *const u8 as u32));
+            .write(MemoryAddressReload::MARV.val(core::ptr::from_ref::<u8>(&buf[0]) as u32));
         self.registers
             .tcrr
             .write(TransferCounter::TCV.val(len as u32));

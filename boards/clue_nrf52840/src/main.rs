@@ -12,6 +12,9 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use core::ptr::addr_of;
+use core::ptr::addr_of_mut;
+
 use capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM;
 
 use kernel::capabilities;
@@ -100,8 +103,8 @@ pub mod io;
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::process::StopWithDebugFaultPolicy =
-    kernel::process::StopWithDebugFaultPolicy {};
+const FAULT_RESPONSE: capsules_system::process_policies::StopWithDebugFaultPolicy =
+    capsules_system::process_policies::StopWithDebugFaultPolicy {};
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 8;
@@ -110,7 +113,8 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
     [None; NUM_PROCS];
 
 static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>> = None;
-static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
+static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
+    None;
 static mut CDC_REF_FOR_PANIC: Option<
     &'static capsules_extra::usb::cdc::CdcAcm<
         'static,
@@ -288,7 +292,7 @@ unsafe fn start() -> (
     // bootloader.
     NRF52_POWER = Some(&base_peripherals.pwr_clk);
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
 
     //--------------------------------------------------------------------------
     // CAPABILITIES
@@ -751,7 +755,7 @@ unsafe fn start() -> (
     // approach than this.
     nrf52_components::NrfClockComponent::new(&base_peripherals.clock).finalize(());
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let platform = Platform {
@@ -820,7 +824,7 @@ unsafe fn start() -> (
             core::ptr::addr_of_mut!(_sappmem),
             core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut PROCESSES,
+        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_management_capability,
     )

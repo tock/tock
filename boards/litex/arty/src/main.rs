@@ -10,6 +10,8 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 
+use core::ptr::{addr_of, addr_of_mut};
+
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
 use kernel::capabilities;
@@ -93,7 +95,7 @@ struct LiteXArtyPanicReferences {
     uart: Option<&'static litex_vexriscv::uart::LiteXUart<'static, socc::SoCRegisterFmt>>,
     led_controller:
         Option<&'static litex_vexriscv::led_controller::LiteXLedController<socc::SoCRegisterFmt>>,
-    process_printer: Option<&'static kernel::process::ProcessPrinterText>,
+    process_printer: Option<&'static capsules_system::process_printer::ProcessPrinterText>,
 }
 static mut PANIC_REFERENCES: LiteXArtyPanicReferences = LiteXArtyPanicReferences {
     chip: None,
@@ -103,7 +105,8 @@ static mut PANIC_REFERENCES: LiteXArtyPanicReferences = LiteXArtyPanicReferences
 };
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
+const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
+    capsules_system::process_policies::PanicFaultPolicy {};
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -258,7 +261,7 @@ pub unsafe fn main() {
     // ---------- BASIC INITIALIZATION ----------
 
     // Basic setup of the riscv platform.
-    rv32i::configure_trap_handler(rv32i::PermissionMode::Machine);
+    rv32i::configure_trap_handler();
 
     // Set up memory protection immediately after setting the trap handler, to
     // ensure that much of the board initialization routine runs with PMP kernel
@@ -300,7 +303,7 @@ pub unsafe fn main() {
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
 
     // ---------- LED CONTROLLER HARDWARE ----------
 
@@ -574,8 +577,9 @@ pub unsafe fn main() {
     )
     .finalize(components::low_level_debug_component_static!());
 
-    let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
-        .finalize(components::cooperative_component_static!(NUM_PROCS));
+    let scheduler =
+        components::sched::cooperative::CooperativeComponent::new(&*addr_of!(PROCESSES))
+            .finalize(components::cooperative_component_static!(NUM_PROCS));
 
     let litex_arty = LiteXArty {
         console,
@@ -606,7 +610,7 @@ pub unsafe fn main() {
             core::ptr::addr_of_mut!(_sappmem),
             core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut PROCESSES,
+        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_mgmt_cap,
     )

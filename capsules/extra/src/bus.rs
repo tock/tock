@@ -9,13 +9,13 @@
 //! -----
 //!
 //! I2C example
-//! ```rust
+//! ```rust,ignore
 //! let bus = components::bus::I2CMasterBusComponent::new(i2c_mux, address)
 //!     .finalize(components::spi_bus_component_helper!());
 //! ```
 //!
 //! SPI example
-//! ```rust
+//! ```rust,ignore
 //! let bus =
 //!     components::bus::SpiMasterBusComponent::new().finalize(components::spi_bus_component_helper!(
 //!         // spi type

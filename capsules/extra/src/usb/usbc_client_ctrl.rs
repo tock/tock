@@ -9,7 +9,7 @@
 //!
 //! Right now, the stack looks like this:
 //!
-//! ```
+//! ```text
 //!                  Client
 //!                  |   ^
 //!             |-----   |

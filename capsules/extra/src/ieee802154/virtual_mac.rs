@@ -15,7 +15,7 @@
 //! Usage
 //! -----
 //!
-//! ```
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! // Create the mux.
@@ -34,8 +34,6 @@
 
 use crate::ieee802154::{device, framer};
 use crate::net::ieee802154::{Header, KeyId, MacAddress, PanID, SecurityLevel};
-
-use core::cell::Cell;
 
 use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::utilities::cells::{MapCell, OptionalCell};
@@ -60,9 +58,16 @@ impl<'a, M: device::MacDevice<'a>> device::TxClient for MuxMac<'a, M> {
 }
 
 impl<'a, M: device::MacDevice<'a>> device::RxClient for MuxMac<'a, M> {
-    fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
+    fn receive<'b>(
+        &self,
+        buf: &'b [u8],
+        header: Header<'b>,
+        lqi: u8,
+        data_offset: usize,
+        data_len: usize,
+    ) {
         for user in self.users.iter() {
-            user.receive(buf, header, data_offset, data_len);
+            user.receive(buf, header, lqi, data_offset, data_len);
         }
     }
 }
@@ -196,8 +201,8 @@ pub struct MacUser<'a, M: device::MacDevice<'a>> {
     mux: &'a MuxMac<'a, M>,
     operation: MapCell<Op>,
     next: ListLink<'a, MacUser<'a, M>>,
-    tx_client: Cell<Option<&'a dyn device::TxClient>>,
-    rx_client: Cell<Option<&'a dyn device::RxClient>>,
+    tx_client: OptionalCell<&'a dyn device::TxClient>,
+    rx_client: OptionalCell<&'a dyn device::RxClient>,
 }
 
 impl<'a, M: device::MacDevice<'a>> MacUser<'a, M> {
@@ -206,8 +211,8 @@ impl<'a, M: device::MacDevice<'a>> MacUser<'a, M> {
             mux: mux,
             operation: MapCell::new(Op::Idle),
             next: ListLink::empty(),
-            tx_client: Cell::new(None),
-            rx_client: Cell::new(None),
+            tx_client: OptionalCell::empty(),
+            rx_client: OptionalCell::empty(),
         }
     }
 }
@@ -219,10 +224,17 @@ impl<'a, M: device::MacDevice<'a>> MacUser<'a, M> {
             .map(move |client| client.send_done(spi_buf, acked, result));
     }
 
-    fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
+    fn receive<'b>(
+        &self,
+        buf: &'b [u8],
+        header: Header<'b>,
+        lqi: u8,
+        data_offset: usize,
+        data_len: usize,
+    ) {
         self.rx_client
             .get()
-            .map(move |client| client.receive(buf, header, data_offset, data_len));
+            .map(move |client| client.receive(buf, header, lqi, data_offset, data_len));
     }
 }
 
@@ -234,11 +246,11 @@ impl<'a, M: device::MacDevice<'a>> ListNode<'a, MacUser<'a, M>> for MacUser<'a, 
 
 impl<'a, M: device::MacDevice<'a>> device::MacDevice<'a> for MacUser<'a, M> {
     fn set_transmit_client(&self, client: &'a dyn device::TxClient) {
-        self.tx_client.set(Some(client));
+        self.tx_client.set(client);
     }
 
     fn set_receive_client(&self, client: &'a dyn device::RxClient) {
-        self.rx_client.set(Some(client));
+        self.rx_client.set(client);
     }
 
     fn get_address(&self) -> u16 {
@@ -285,14 +297,6 @@ impl<'a, M: device::MacDevice<'a>> device::MacDevice<'a> for MacUser<'a, M> {
         self.mux
             .mac
             .prepare_data_frame(buf, dst_pan, dst_addr, src_pan, src_addr, security_needed)
-    }
-
-    fn buf_to_frame(
-        &self,
-        buf: &'static mut [u8],
-        len: usize,
-    ) -> Result<framer::Frame, (ErrorCode, &'static mut [u8])> {
-        self.mux.mac.buf_to_frame(buf, len)
     }
 
     fn transmit(&self, frame: framer::Frame) -> Result<(), (ErrorCode, &'static mut [u8])> {

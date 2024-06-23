@@ -341,14 +341,14 @@ pub fn debug_enqueue_fmt(args: Arguments) {
 pub fn debug_flush_queue_() {
     let writer = unsafe { get_debug_writer() };
 
-    unsafe { DEBUG_QUEUE.as_deref_mut() }.map(|buffer| {
+    if let Some(buffer) = unsafe { DEBUG_QUEUE.as_deref_mut() } {
         buffer.dw.map(|dw| {
             dw.ring_buffer.map(|ring_buffer| {
                 writer.write_ring_buffer(ring_buffer);
                 ring_buffer.empty();
             });
         });
-    });
+    }
 }
 
 /// This macro prints a new line to an internal ring buffer, the contents of
@@ -429,7 +429,7 @@ impl DebugWriter {
         internal_buffer: &'static mut RingBuffer<'static, u8>,
     ) -> DebugWriter {
         DebugWriter {
-            uart: uart,
+            uart,
             output_buffer: TakeCell::new(out_buffer),
             internal_buffer: TakeCell::new(internal_buffer),
             count: Cell::new(0), // how many debug! calls
@@ -709,16 +709,6 @@ macro_rules! debug_expr {
 
 pub trait Debug {
     fn write(&self, buf: &'static mut [u8], len: usize) -> usize;
-}
-
-#[cfg(debug = "true")]
-impl Default for Debug {
-    fn write(&self, buf: &'static mut [u8], len: usize) {
-        panic!(
-            "No registered kernel debug printer. Thrown printing {:?}",
-            buf
-        );
-    }
 }
 
 pub unsafe fn flush<W: Write + IoWrite>(writer: &mut W) {

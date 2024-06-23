@@ -6,59 +6,30 @@
 //! to decide whether an application can be loaded. See
 //| the [AppID TRD](../../doc/reference/trd-appid.md).
 
-use crate::deferred_call::{DeferredCall, DeferredCallClient};
-use crate::hil::digest::{ClientData, ClientHash, ClientVerify};
-use crate::hil::digest::{DigestDataVerify, Sha256};
-use crate::process::{Process, ProcessBinary, ShortId};
-use crate::process_checker::CheckResult;
-use crate::process_checker::{AppCredentialsPolicy, AppCredentialsPolicyClient};
-use crate::process_checker::{AppUniqueness, Compress};
-use crate::utilities::cells::OptionalCell;
-use crate::utilities::cells::TakeCell;
-use crate::utilities::leasable_buffer::{SubSlice, SubSliceMut};
-use crate::ErrorCode;
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
+use kernel::hil::digest::{ClientData, ClientHash, ClientVerify};
+use kernel::hil::digest::{DigestDataVerify, Sha256};
+use kernel::process::{Process, ProcessBinary, ShortId};
+use kernel::process_checker::CheckResult;
+use kernel::process_checker::{AppCredentialsPolicy, AppCredentialsPolicyClient};
+use kernel::process_checker::{AppUniqueness, Compress};
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::cells::TakeCell;
+use kernel::utilities::leasable_buffer::{SubSlice, SubSliceMut};
+use kernel::ErrorCode;
 use tock_tbf::types::TbfFooterV2Credentials;
 use tock_tbf::types::TbfFooterV2CredentialsType;
 
-/// A sample Credentials Checking Policy that loads and runs Userspace
-/// Binaries with unique process names; if it encounters a Userspace
-/// Binary with the same process name as an existing one it fails the
-/// uniqueness check and is not run.
-pub struct AppCheckerSimulated<'a> {
-    deferred_call: DeferredCall,
-    client: OptionalCell<&'a dyn AppCredentialsPolicyClient<'a>>,
-    credentials: OptionalCell<TbfFooterV2Credentials>,
-    binary: OptionalCell<&'a [u8]>,
-}
+/// A sample Credentials Checking Policy that approves all apps.
+pub struct AppCheckerNull {}
 
-impl<'a> AppCheckerSimulated<'a> {
+impl AppCheckerNull {
     pub fn new() -> Self {
-        Self {
-            deferred_call: DeferredCall::new(),
-            client: OptionalCell::empty(),
-            credentials: OptionalCell::empty(),
-            binary: OptionalCell::empty(),
-        }
+        Self {}
     }
 }
 
-impl<'a> DeferredCallClient for AppCheckerSimulated<'a> {
-    fn handle_deferred_call(&self) {
-        self.client.map(|c| {
-            c.check_done(
-                Ok(CheckResult::Pass),
-                self.credentials.take().unwrap(),
-                self.binary.take().unwrap(),
-            )
-        });
-    }
-
-    fn register(&'static self) {
-        self.deferred_call.register(self);
-    }
-}
-
-impl<'a> AppCredentialsPolicy<'a> for AppCheckerSimulated<'a> {
+impl<'a> AppCredentialsPolicy<'a> for AppCheckerNull {
     fn require_credentials(&self) -> bool {
         false
     }
@@ -68,22 +39,13 @@ impl<'a> AppCredentialsPolicy<'a> for AppCheckerSimulated<'a> {
         credentials: TbfFooterV2Credentials,
         binary: &'a [u8],
     ) -> Result<(), (ErrorCode, TbfFooterV2Credentials, &'a [u8])> {
-        if self.credentials.is_none() {
-            self.credentials.replace(credentials);
-            self.binary.replace(binary);
-            self.deferred_call.set();
-            Ok(())
-        } else {
-            Err((ErrorCode::BUSY, credentials, binary))
-        }
+        Err((ErrorCode::NOSUPPORT, credentials, binary))
     }
 
-    fn set_client(&self, client: &'a dyn AppCredentialsPolicyClient<'a>) {
-        self.client.replace(client);
-    }
+    fn set_client(&self, _client: &'a dyn AppCredentialsPolicyClient<'a>) {}
 }
 
-struct AppIdAssignerSimulated {}
+pub struct AppIdAssignerSimulated {}
 
 impl AppUniqueness for AppIdAssignerSimulated {
     // This checker doesn't allow you to run two processes with the
@@ -191,10 +153,7 @@ impl ClientData<32_usize> for AppCheckerSha256 {
             Ok(()) => {
                 self.binary.set(data.take());
                 let hash: &'static mut [u8; 32_usize] = self.hash.take().unwrap();
-                match self.hasher.verify(hash) {
-                    Err((e, _)) => panic!("Failed invoke hash verification in process credential checking: {:?}", e),
-                    Ok(()) => {},
-                }
+                if let Err((e, _)) = self.hasher.verify(hash) { panic!("Failed invoke hash verification in process credential checking: {:?}", e) }
             }
         }
     }
@@ -289,10 +248,7 @@ impl<'a, F: Fn(&'static str) -> u32> Compress for AppIdAssignerNames<'a, F> {
     fn to_short_id(&self, process: &ProcessBinary) -> ShortId {
         let name = process.header.get_package_name().unwrap_or("");
         let sum = (self.hasher)(name);
-        match core::num::NonZeroU32::new(sum) {
-            Some(id) => ShortId::Fixed(id),
-            None => ShortId::LocallyUnique,
-        }
+        core::num::NonZeroU32::new(sum).into()
     }
 }
 

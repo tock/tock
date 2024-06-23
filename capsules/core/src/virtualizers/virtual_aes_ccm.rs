@@ -43,9 +43,9 @@
 //! Usage
 //! -----
 //!
-//! ```rust
-//! # use capsules::test::aes_ccm::Test;
-//! # use capsules::virtual_aes_ccm;
+//! ```rust,ignore
+//! # use capsules_core::test::aes_ccm::Test;
+//! # use capsules_core::virtual_aes_ccm;
 //! # use kernel::common::deferred_call::DeferredCallClient;
 //! # use kernel::hil::symmetric_encryption::{AES128, AES128CCM, AES128_BLOCK_SIZE};
 //! # use kernel::static_init;

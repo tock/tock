@@ -62,6 +62,7 @@ use crate::utilities::cells::OptionalCell;
 use core::cell::Cell;
 use core::marker::Copy;
 use core::marker::PhantomData;
+use core::ptr::addr_of;
 
 // This trait is not intended to be used as a trait object;
 // e.g. you should not create a `&dyn DeferredCallClient`.
@@ -95,7 +96,7 @@ impl<'a> DynDefCallRef<'a> {
     // convention for any type.
     fn new<T: DeferredCallClient>(x: &'a T) -> Self {
         Self {
-            data: x as *const _ as *const (),
+            data: core::ptr::from_ref(x) as *const (),
             callback: |p| unsafe { T::handle_deferred_call(&*p.cast()) },
             _lifetime: PhantomData,
         }
@@ -142,7 +143,7 @@ impl DeferredCall {
     pub fn new() -> Self {
         // SAFETY: No accesses to CTR are via an &mut, and the Tock kernel is
         // single-threaded so all accesses will occur from this thread.
-        let ctr = unsafe { &CTR };
+        let ctr = unsafe { &*addr_of!(CTR) };
         let idx = ctr.get() + 1;
         ctr.set(idx);
         DeferredCall { idx }
@@ -154,7 +155,7 @@ impl DeferredCall {
     fn register_internal_non_generic(&self, handler: DynDefCallRef<'static>) {
         // SAFETY: No accesses to DEFCALLS are via an &mut, and the Tock kernel is
         // single-threaded so all accesses will occur from this thread.
-        let defcalls = unsafe { &DEFCALLS };
+        let defcalls = unsafe { &*addr_of!(DEFCALLS) };
         if self.idx >= defcalls.len() {
             // This error will be caught by the scheduler at the beginning of the kernel loop,
             // which is much better than panicking here, before the debug writer is setup.
@@ -177,7 +178,7 @@ impl DeferredCall {
     pub fn set(&self) {
         // SAFETY: No accesses to BITMASK are via an &mut, and the Tock kernel is
         // single-threaded so all accesses will occur from this thread.
-        let bitmask = unsafe { &BITMASK };
+        let bitmask = unsafe { &*addr_of!(BITMASK) };
         bitmask.set(bitmask.get() | (1 << self.idx));
     }
 
@@ -185,7 +186,7 @@ impl DeferredCall {
     pub fn is_pending(&self) -> bool {
         // SAFETY: No accesses to BITMASK are via an &mut, and the Tock kernel is
         // single-threaded so all accesses will occur from this thread.
-        let bitmask = unsafe { &BITMASK };
+        let bitmask = unsafe { &*addr_of!(BITMASK) };
         bitmask.get() & (1 << self.idx) == 1
     }
 
@@ -194,8 +195,8 @@ impl DeferredCall {
     pub fn service_next_pending() -> Option<usize> {
         // SAFETY: No accesses to BITMASK/DEFCALLS are via an &mut, and the Tock kernel is
         // single-threaded so all accesses will occur from this thread.
-        let bitmask = unsafe { &BITMASK };
-        let defcalls = unsafe { &DEFCALLS };
+        let bitmask = unsafe { &*addr_of!(BITMASK) };
+        let defcalls = unsafe { &*addr_of!(DEFCALLS) };
         let val = bitmask.get();
         if val == 0 {
             None
@@ -215,7 +216,7 @@ impl DeferredCall {
     pub fn has_tasks() -> bool {
         // SAFETY: No accesses to BITMASK are via an &mut, and the Tock kernel is
         // single-threaded so all accesses will occur from this thread.
-        let bitmask = unsafe { &BITMASK };
+        let bitmask = unsafe { &*addr_of!(BITMASK) };
         bitmask.get() != 0
     }
 
@@ -237,8 +238,8 @@ impl DeferredCall {
     pub fn verify_setup() {
         // SAFETY: No accesses to CTR/DEFCALLS are via an &mut, and the Tock kernel is
         // single-threaded so all accesses will occur from this thread.
-        let ctr = unsafe { &CTR };
-        let defcalls = unsafe { &DEFCALLS };
+        let ctr = unsafe { &*addr_of!(CTR) };
+        let defcalls = unsafe { &*addr_of!(DEFCALLS) };
         let num_deferred_calls = ctr.get();
         let num_registered_calls = defcalls.iter().filter(|opt| opt.is_some()).count();
         if num_deferred_calls >= defcalls.len() || num_registered_calls != num_deferred_calls {

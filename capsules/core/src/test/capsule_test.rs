@@ -11,7 +11,7 @@
 //!
 //! A simple example of a test capsule using this interface:
 //!
-//! ```rust
+//! ```rust,ignore
 //! pub struct TestSensorX {
 //!     client: OptionalCell<&'static dyn CapsuleTestClient>,
 //! }

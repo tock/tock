@@ -69,22 +69,14 @@ mod protections_and_controller {
     use crate::PERIPHERALS;
     use core::cell::Cell;
     use kernel::debug;
-    use kernel::errorcode::ErrorCode;
     use kernel::hil;
-    use kernel::hil::flash::Flash;
     use kernel::hil::flash::HasClient;
     use kernel::static_init;
     use kernel::utilities::cells::TakeCell;
-    use lowrisc::flash_ctrl::FlashMPConfig;
-    use lowrisc::flash_ctrl::FLASH_ADDR_OFFSET;
-    use lowrisc::flash_ctrl::PAGE_SIZE;
 
     struct FlashCtlCallBack {
         read_pending: Cell<bool>,
         write_pending: Cell<bool>,
-        // A lowrisc page to for reads/writes
-        read_in_page: TakeCell<'static, lowrisc::flash_ctrl::LowRiscPage>,
-        write_in_page: TakeCell<'static, lowrisc::flash_ctrl::LowRiscPage>,
         // We recover the callback returned buffer into these
         read_out_buf: TakeCell<'static, [u8]>,
         write_out_buf: TakeCell<'static, [u8]>,
@@ -93,15 +85,10 @@ mod protections_and_controller {
     }
 
     impl<'a> FlashCtlCallBack {
-        fn new(
-            read_in_page: &'static mut lowrisc::flash_ctrl::LowRiscPage,
-            write_in_page: &'static mut lowrisc::flash_ctrl::LowRiscPage,
-        ) -> Self {
+        fn new() -> Self {
             FlashCtlCallBack {
                 read_pending: Cell::new(false),
                 write_pending: Cell::new(false),
-                read_in_page: TakeCell::new(read_in_page),
-                write_in_page: TakeCell::new(write_in_page),
                 read_out_buf: TakeCell::empty(),
                 write_out_buf: TakeCell::empty(),
                 mp_fault_detect: Cell::new(false),
@@ -168,10 +155,7 @@ mod protections_and_controller {
                 r_in_page[i] = 0x00;
                 w_in_page[i] = 0xAA; // Arbitrary Data
             }
-            static_init!(
-                FlashCtlCallBack,
-                FlashCtlCallBack::new(r_in_page, w_in_page)
-            )
+            static_init!(FlashCtlCallBack, FlashCtlCallBack::new())
         }};
     }
 

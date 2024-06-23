@@ -23,10 +23,50 @@ use core::fmt;
 /// clients to know when wraparound will occur.
 
 pub trait Ticks: Clone + Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
+    /// Width of the actual underlying timer in bits.
+    ///
+    /// The maximum value that *will* be attained by this timer should
+    /// be `(2 ** width) - 1`. In other words, the timer will wrap at
+    /// exactly `width` bits, and then continue counting at `0`.
+    ///
+    /// The return value is a `u32`, in accordance with the bit widths
+    /// specified using the BITS associated const on Rust integer
+    /// types.
+    fn width() -> u32;
+
     /// Converts the type into a `usize`, stripping the higher bits
     /// it if it is larger than `usize` and filling the higher bits
     /// with 0 if it is smaller than `usize`.
     fn into_usize(self) -> usize;
+
+    /// The amount of bits required to left-justify this ticks value
+    /// range (filling the lower bits with `0`) for it wrap at `(2 **
+    /// usize::BITS) - 1` bits. For timers with a `width` larger than
+    /// usize, this value will be `0` (i.e., they can simply be
+    /// truncated to usize::BITS bits).
+    fn usize_padding() -> u32 {
+        usize::BITS.saturating_sub(Self::width())
+    }
+
+    /// Converts the type into a `usize`, left-justified and
+    /// right-padded with `0` such that it is guaranteed to wrap at
+    /// `(2 ** usize::BITS) - 1`. If it is larger than usize::BITS
+    /// bits, any higher bits are stripped.
+    ///
+    /// The resulting tick rate will possibly be higher (multiplied by
+    /// `2 ** usize_padding()`). Use `usize_left_justified_scale_freq`
+    /// to convert the underlying timer's frequency into the padded
+    /// ticks frequency in Hertz.
+    fn into_usize_left_justified(self) -> usize {
+        self.into_usize() << Self::usize_padding()
+    }
+
+    /// Convert the generic [`Frequency`] argument into a frequency
+    /// (Hertz) describing a left-justified ticks value as returned by
+    /// [`Ticks::into_usize_left_justified`].
+    fn usize_left_justified_scale_freq<F: Frequency>() -> u32 {
+        F::frequency() << Self::usize_padding()
+    }
 
     /// Converts the type into a `u32`, stripping the higher bits
     /// it if it is larger than `u32` and filling the higher bits
@@ -34,6 +74,39 @@ pub trait Ticks: Clone + Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
     /// helper since Tock uses `u32` pervasively and most platforms
     /// are 32 bits.
     fn into_u32(self) -> u32;
+
+    /// The amount of bits required to left-justify this ticks value
+    /// range (filling the lower bits with `0`) for it wrap at `(2 **
+    /// 32) - 1` bits. For timers with a `width` larger than 32, this
+    /// value will be `0` (i.e., they can simply be truncated to
+    /// 32-bits).
+    ///
+    /// The return value is a `u32`, in accordance with the bit widths
+    /// specified using the BITS associated const on Rust integer
+    /// types.
+    fn u32_padding() -> u32 {
+        u32::BITS.saturating_sub(Self::width())
+    }
+
+    /// Converts the type into a `u32`, left-justified and
+    /// right-padded with `0` such that it is guaranteed to wrap at
+    /// `(2 ** 32) - 1`. If it is larger than 32-bits, any higher bits
+    /// are stripped.
+    ///
+    /// The resulting tick rate will possibly be higher (multiplied by
+    /// `2 ** u32_padding()`). Use `u32_left_justified_scale_freq` to
+    /// convert the underlying timer's frequency into the padded ticks
+    /// frequency in Hertz.
+    fn into_u32_left_justified(self) -> u32 {
+        self.into_u32() << Self::u32_padding()
+    }
+
+    /// Convert the generic [`Frequency`] argument into a frequency
+    /// (Hertz) describing a left-justified ticks value as returned by
+    /// [`Ticks::into_u32_left_justified`].
+    fn u32_left_justified_scale_freq<F: Frequency>() -> u32 {
+        F::frequency() << Self::u32_padding()
+    }
 
     /// Add two values, wrapping around on overflow using standard
     /// unsigned arithmetic.
@@ -397,6 +470,10 @@ impl From<u32> for Ticks32 {
 }
 
 impl Ticks for Ticks32 {
+    fn width() -> u32 {
+        32
+    }
+
     fn into_usize(self) -> usize {
         self.0 as usize
     }
@@ -471,13 +548,21 @@ impl Eq for Ticks32 {}
 #[derive(Clone, Copy, Debug)]
 pub struct Ticks24(u32);
 
+impl Ticks24 {
+    pub const MASK: u32 = 0x00FFFFFF;
+}
+
 impl From<u32> for Ticks24 {
     fn from(val: u32) -> Self {
-        Ticks24(val)
+        Ticks24(val & Self::MASK)
     }
 }
 
 impl Ticks for Ticks24 {
+    fn width() -> u32 {
+        24
+    }
+
     fn into_usize(self) -> usize {
         self.0 as usize
     }
@@ -487,11 +572,11 @@ impl Ticks for Ticks24 {
     }
 
     fn wrapping_add(self, other: Self) -> Self {
-        Ticks24(self.0.wrapping_add(other.0) & 0x00FFFFFF)
+        Ticks24(self.0.wrapping_add(other.0) & Self::MASK)
     }
 
     fn wrapping_sub(self, other: Self) -> Self {
-        Ticks24(self.0.wrapping_sub(other.0) & 0x00FFFFFF)
+        Ticks24(self.0.wrapping_sub(other.0) & Self::MASK)
     }
 
     fn within_range(self, start: Self, end: Self) -> bool {
@@ -500,7 +585,7 @@ impl Ticks for Ticks24 {
 
     /// Returns the maximum value of this type, which should be (2^width)-1.
     fn max_value() -> Self {
-        Ticks24(0x00FFFFFF)
+        Ticks24(Self::MASK)
     }
 
     /// Returns the half the maximum value of this type, which should be (2^width-1).
@@ -571,6 +656,10 @@ impl Ticks16 {
 }
 
 impl Ticks for Ticks16 {
+    fn width() -> u32 {
+        16
+    }
+
     fn into_usize(self) -> usize {
         self.0 as usize
     }
@@ -664,6 +753,10 @@ impl From<u64> for Ticks64 {
 }
 
 impl Ticks for Ticks64 {
+    fn width() -> u32 {
+        64
+    }
+
     fn into_usize(self) -> usize {
         self.0 as usize
     }

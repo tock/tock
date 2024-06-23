@@ -11,7 +11,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::{hil, static_init};
 //! # use capsules::nrf51822_serialization;
 //! # use capsules::nrf51822_serialization::Nrf51822Serialization;

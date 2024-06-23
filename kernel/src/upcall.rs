@@ -16,7 +16,7 @@ use crate::ErrorCode;
 /// Type to uniquely identify an upcall subscription across all drivers.
 ///
 /// This contains the driver number and the subscribe number within the driver.
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct UpcallId {
     /// The [`SyscallDriver`](crate::syscall_driver::SyscallDriver)
     /// implementation this upcall corresponds to.
@@ -123,48 +123,52 @@ impl Upcall {
     /// case we could have `process` be an Option and just do the search with
     /// the stored process_id.
     pub(crate) fn schedule(
-        &mut self,
+        &self,
         process: &dyn process::Process,
         r0: usize,
         r1: usize,
         r2: usize,
     ) -> Result<(), UpcallError> {
-        let res = self.fn_ptr.map_or(
-            // A null-Upcall is treated as being delivered to
-            // the process and ignored
-            Ok(()),
+        let enqueue_res = self.fn_ptr.map_or_else(
+            || {
+                process.enqueue_task(process::Task::ReturnValue(process::ReturnArguments {
+                    upcall_id: self.upcall_id,
+                    argument0: r0,
+                    argument1: r1,
+                    argument2: r2,
+                }))
+            },
             |fp| {
-                let enqueue_res =
-                    process.enqueue_task(process::Task::FunctionCall(process::FunctionCall {
-                        source: process::FunctionCallSource::Driver(self.upcall_id),
-                        argument0: r0,
-                        argument1: r1,
-                        argument2: r2,
-                        argument3: self.appdata,
-                        pc: fp.as_ptr() as usize,
-                    }));
-
-                match enqueue_res {
-                    Ok(()) => Ok(()),
-                    Err(ErrorCode::NODEVICE) => {
-                        // There should be no code path to schedule an
-                        // Upcall on a process that is no longer
-                        // alive. Indicate a kernel-internal error.
-                        Err(UpcallError::KernelError)
-                    }
-                    Err(ErrorCode::NOMEM) => {
-                        // No space left in the process' task queue.
-                        Err(UpcallError::QueueFull)
-                    }
-                    Err(_) => {
-                        // All other errors returned by
-                        // `Process::enqueue_task` must be treated as
-                        // kernel-internal errors
-                        Err(UpcallError::KernelError)
-                    }
-                }
+                process.enqueue_task(process::Task::FunctionCall(process::FunctionCall {
+                    source: process::FunctionCallSource::Driver(self.upcall_id),
+                    argument0: r0,
+                    argument1: r1,
+                    argument2: r2,
+                    argument3: self.appdata,
+                    pc: fp.as_ptr() as usize,
+                }))
             },
         );
+
+        let res = match enqueue_res {
+            Ok(()) => Ok(()),
+            Err(ErrorCode::NODEVICE) => {
+                // There should be no code path to schedule an
+                // Upcall on a process that is no longer
+                // alive. Indicate a kernel-internal error.
+                Err(UpcallError::KernelError)
+            }
+            Err(ErrorCode::NOMEM) => {
+                // No space left in the process' task queue.
+                Err(UpcallError::QueueFull)
+            }
+            Err(_) => {
+                // All other errors returned by
+                // `Process::enqueue_task` must be treated as
+                // kernel-internal errors
+                Err(UpcallError::KernelError)
+            }
+        };
 
         if config::CONFIG.trace_syscalls {
             debug!(

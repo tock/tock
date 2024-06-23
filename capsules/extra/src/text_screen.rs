@@ -10,7 +10,7 @@
 //! You need a screen that provides the `hil::text_screen::TextScreen`
 //! trait.
 //!
-//! ```rust
+//! ```rust,ignore
 //! let text_screen = components::text_screen::TextScreenComponent::new(board_kernel, lcd)
 //!         .finalize(components::screen_buffer_size!(64));
 //! ```

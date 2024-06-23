@@ -13,6 +13,8 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 
+use core::ptr::{addr_of, addr_of_mut};
+
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use e310_g002::interrupt_service::E310G002DefaultPeripherals;
 use kernel::capabilities;
@@ -40,10 +42,12 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 // Reference to the chip for panic dumps.
 static mut CHIP: Option<&'static e310_g002::chip::E310x<E310G002DefaultPeripherals>> = None;
 // Reference to the process printer for panic dumps.
-static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
+static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
+    None;
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
+const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
+    capsules_system::process_policies::PanicFaultPolicy {};
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -161,7 +165,7 @@ fn load_processes_not_inlined<C: Chip>(board_kernel: &'static Kernel, chip: &'st
         chip,
         app_flash,
         app_memory,
-        unsafe { &mut PROCESSES },
+        unsafe { &mut *addr_of_mut!(PROCESSES) },
         &FAULT_RESPONSE,
         &process_mgmt_cap,
     )
@@ -181,7 +185,7 @@ unsafe fn start() -> (
     &'static e310_g002::chip::E310x<'static, E310G002DefaultPeripherals<'static>>,
 ) {
     // only machine mode
-    rv32i::configure_trap_handler(rv32i::PermissionMode::Machine);
+    rv32i::configure_trap_handler();
 
     let peripherals = static_init!(
         E310G002DefaultPeripherals,
@@ -202,7 +206,7 @@ unsafe fn start() -> (
         .prci
         .set_clock_frequency(sifive::prci::ClockFrequency::Freq344Mhz);
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
 
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
@@ -323,8 +327,9 @@ unsafe fn start() -> (
     debug!("HiFive1 initialization complete.");
     debug!("Entering main loop.");
 
-    let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
-        .finalize(components::cooperative_component_static!(NUM_PROCS));
+    let scheduler =
+        components::sched::cooperative::CooperativeComponent::new(&*addr_of!(PROCESSES))
+            .finalize(components::cooperative_component_static!(NUM_PROCS));
 
     let scheduler_timer = static_init!(
         VirtualSchedulerTimer<VirtualMuxAlarm<'static, e310_g002::chip::E310xClint<'static>>>,

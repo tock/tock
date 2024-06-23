@@ -132,6 +132,7 @@ use capsules_extra::net::udp::udp_recv::MuxUdpReceiver;
 use capsules_extra::net::udp::udp_send::MuxUdpSender;
 use capsules_extra::test::udp::MockUdp;
 use core::cell::Cell;
+use core::ptr::addr_of_mut;
 use kernel::capabilities::NetworkCapabilityCreationCapability;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -192,7 +193,7 @@ pub unsafe fn initialize_all(
         udp_recv_mux,
         port_table,
         mux_alarm,
-        &mut UDP_PAYLOAD1,
+        &mut *addr_of_mut!(UDP_PAYLOAD1),
         1, //id
         3, //dst_port
         net_cap,
@@ -205,7 +206,7 @@ pub unsafe fn initialize_all(
         udp_recv_mux,
         port_table,
         mux_alarm,
-        &mut UDP_PAYLOAD2,
+        &mut *addr_of_mut!(UDP_PAYLOAD2),
         2, //id
         4, //dst_port
         net_cap,

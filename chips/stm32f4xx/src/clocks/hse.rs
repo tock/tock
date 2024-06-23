@@ -22,7 +22,7 @@
 //!
 //! ## Set the clock frequency
 //! ```rust,ignore
-//! hse.set_frequency(8);
+//! hse.set_frequency_mhz(8);
 //! ```
 //!
 //! ## Stop the clock
@@ -42,7 +42,7 @@
 //!
 //! ## Get the frequency of the clock
 //! ```rust,ignore
-//! let hse_frequency_mhz = hse.get_frequency().unwrap();
+//! let hse_frequency_mhz = hse.get_frequency_mhz().unwrap();
 //! ```
 //!
 //! [^doc_ref]: See 6.2.1 in the documentation.
@@ -57,7 +57,7 @@ use kernel::ErrorCode;
 /// Main HSE clock structure
 pub struct Hse<'a> {
     rcc: &'a Rcc,
-    hse_frequency: OptionalCell<usize>,
+    hse_frequency_mhz: OptionalCell<usize>,
 }
 
 impl<'a> Hse<'a> {
@@ -73,7 +73,7 @@ impl<'a> Hse<'a> {
     pub(in crate::clocks) fn new(rcc: &'a Rcc) -> Self {
         Self {
             rcc,
-            hse_frequency: OptionalCell::empty(),
+            hse_frequency_mhz: OptionalCell::empty(),
         }
     }
 
@@ -137,9 +137,9 @@ impl<'a> Hse<'a> {
     ///
     /// + [Some]\(frequency_mhz\): if the HSE clock is enabled.
     /// + [None]: if the HSE clock is disabled.
-    pub fn get_frequency(&self) -> Option<usize> {
+    pub fn get_frequency_mhz(&self) -> Option<usize> {
         if self.is_enabled() {
-            self.hse_frequency.get()
+            self.hse_frequency_mhz.get()
         } else {
             None
         }
@@ -150,8 +150,8 @@ impl<'a> Hse<'a> {
     /// # Parameters
     ///
     /// + frequency: HSE frequency in MHz
-    pub fn set_frequency(&self, frequency: usize) {
-        self.hse_frequency.set(frequency);
+    pub fn set_frequency_mhz(&self, frequency: usize) {
+        self.hse_frequency_mhz.set(frequency);
     }
 }
 
@@ -197,13 +197,13 @@ pub mod tests {
         assert!(!hse.is_enabled());
 
         // HSE frequency is None
-        assert_eq!(None, hse.get_frequency());
+        assert_eq!(None, hse.get_frequency_mhz());
 
         // HSE should be enabled
         assert_eq!(Ok(()), hse.enable(HseMode::BYPASS));
 
         // HSE frequency is 8MHz
-        assert_eq!(Some(8), hse.get_frequency());
+        assert_eq!(Some(8), hse.get_frequency_mhz());
 
         // Nothing should happen if the HSE clock is being enabled when already running
         assert_eq!(Ok(()), hse.enable(HseMode::BYPASS));

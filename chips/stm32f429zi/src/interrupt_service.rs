@@ -17,16 +17,16 @@ pub struct Stm32f429ziDefaultPeripherals<'a> {
 
 impl<'a> Stm32f429ziDefaultPeripherals<'a> {
     pub unsafe fn new(
-        rcc: &'a crate::rcc::Rcc,
+        clocks: &'a crate::clocks::Clocks<'a, Stm32f429Specs>,
         exti: &'a crate::exti::Exti<'a>,
         dma1: &'a crate::dma::Dma1<'a>,
         dma2: &'a crate::dma::Dma2<'a>,
     ) -> Self {
         Self {
-            stm32f4: Stm32f4xxDefaultPeripherals::new(rcc, exti, dma1, dma2),
-            trng: stm32f4xx::trng::Trng::new(trng_registers::RNG_BASE, rcc),
-            can1: stm32f4xx::can::Can::new(rcc, can_registers::CAN1_BASE),
-            rtc: crate::rtc::Rtc::new(rcc),
+            stm32f4: Stm32f4xxDefaultPeripherals::new(clocks, exti, dma1, dma2),
+            trng: stm32f4xx::trng::Trng::new(trng_registers::RNG_BASE, clocks),
+            can1: stm32f4xx::can::Can::new(clocks, can_registers::CAN1_BASE),
+            rtc: crate::rtc::Rtc::new(clocks),
         }
     }
     // Necessary for setting up circular dependencies and registering deferred calls

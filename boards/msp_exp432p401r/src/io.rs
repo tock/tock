@@ -8,6 +8,8 @@ use crate::PROCESS_PRINTER;
 
 use core::fmt::Write;
 use core::panic::PanicInfo;
+use core::ptr::addr_of;
+use core::ptr::addr_of_mut;
 use kernel::debug;
 use kernel::debug::IoWrite;
 use kernel::hil::led;
@@ -42,7 +44,7 @@ pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
     const LED1_PIN: IntPinNr = IntPinNr::P01_0;
     let gpio_pin = msp432::gpio::IntPin::new(LED1_PIN);
     let led = &mut led::LedHigh::new(&gpio_pin);
-    let writer = &mut UART;
+    let writer = &mut *addr_of_mut!(UART);
     let wdt = Wdt::new();
 
     wdt.disable();
@@ -51,8 +53,8 @@ pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
         writer,
         info,
         &cortexm4::support::nop,
-        &PROCESSES,
-        &CHIP,
-        &PROCESS_PRINTER,
+        &*addr_of!(PROCESSES),
+        &*addr_of!(CHIP),
+        &*addr_of!(PROCESS_PRINTER),
     )
 }

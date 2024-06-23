@@ -14,14 +14,13 @@
 //! through each frame for transmission.
 
 use crate::net::ieee802154::{Header, MacAddress};
-use kernel::hil::radio;
+use kernel::hil::radio::{self, MAX_FRAME_SIZE, PSDU_OFFSET};
 use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 
 pub trait Mac<'a> {
-    /// Initializes the layer; may require a buffer to temporarily retaining frames to be
-    /// transmitted
-    fn initialize(&self, mac_buf: &'static mut [u8]) -> Result<(), ErrorCode>;
+    /// Initializes the layer.
+    fn initialize(&self) -> Result<(), ErrorCode>;
 
     /// Sets the notified client for configuration changes
     fn set_config_client(&self, client: &'a dyn radio::ConfigClient);
@@ -88,7 +87,7 @@ impl<'a, R: radio::Radio<'a>> AwakeMac<'a, R> {
 }
 
 impl<'a, R: radio::Radio<'a>> Mac<'a> for AwakeMac<'a, R> {
-    fn initialize(&self, _mac_buf: &'static mut [u8]) -> Result<(), ErrorCode> {
+    fn initialize(&self) -> Result<(), ErrorCode> {
         // do nothing, extra buffer unnecessary
         Ok(())
     }
@@ -146,6 +145,19 @@ impl<'a, R: radio::Radio<'a>> Mac<'a> for AwakeMac<'a, R> {
         full_mac_frame: &'static mut [u8],
         frame_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        // We must add the PSDU_OFFSET required for the radio
+        // hardware. We first error check the provided arguments
+        // and then shift the 15.4 frame by the `PSDU_OFFSET`.
+
+        if full_mac_frame.len() < frame_len + PSDU_OFFSET {
+            return Err((ErrorCode::NOMEM, full_mac_frame));
+        }
+
+        if frame_len > MAX_FRAME_SIZE {
+            return Err((ErrorCode::INVAL, full_mac_frame));
+        }
+
+        full_mac_frame.copy_within(0..frame_len, PSDU_OFFSET);
         self.radio.transmit(full_mac_frame, frame_len)
     }
 }
@@ -163,6 +175,7 @@ impl<'a, R: radio::Radio<'a>> radio::RxClient for AwakeMac<'a, R> {
         &self,
         buf: &'static mut [u8],
         frame_len: usize,
+        lqi: u8,
         crc_valid: bool,
         result: Result<(), ErrorCode>,
     ) {
@@ -182,7 +195,7 @@ impl<'a, R: radio::Radio<'a>> radio::RxClient for AwakeMac<'a, R> {
         if addr_match {
             // debug!("[AwakeMAC] Rcvd a 15.4 frame addressed to this device");
             self.rx_client.map(move |c| {
-                c.receive(buf, frame_len, crc_valid, result);
+                c.receive(buf, frame_len, lqi, crc_valid, result);
             });
         } else {
             // debug!("[AwakeMAC] Received a packet, but not addressed to us");

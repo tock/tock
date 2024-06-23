@@ -12,6 +12,9 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use core::ptr::addr_of;
+use core::ptr::addr_of_mut;
+
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil::gpio::Configure;
@@ -79,8 +82,8 @@ pub mod io;
 // to stop the app and print a notice, but not immediately panic. This allows
 // users to debug their apps, but avoids issues with using the USB/CDC stack
 // synchronously for panic! too early after the board boots.
-const FAULT_RESPONSE: kernel::process::StopWithDebugFaultPolicy =
-    kernel::process::StopWithDebugFaultPolicy {};
+const FAULT_RESPONSE: capsules_system::process_policies::StopWithDebugFaultPolicy =
+    capsules_system::process_policies::StopWithDebugFaultPolicy {};
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 8;
@@ -90,7 +93,8 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
     [None; NUM_PROCS];
 
 static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>> = None;
-static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
+static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
+    None;
 static mut CDC_REF_FOR_PANIC: Option<
     &'static capsules_extra::usb::cdc::CdcAcm<
         'static,
@@ -262,7 +266,7 @@ pub unsafe fn start() -> (
     // bootloader.
     NRF52_POWER = Some(&base_peripherals.pwr_clk);
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
 
     //--------------------------------------------------------------------------
     // CAPABILITIES
@@ -479,9 +483,9 @@ pub unsafe fn start() -> (
     // SENSORS
     //--------------------------------------------------------------------------
 
-    let sensors_i2c_bus = components::i2c::I2CMuxComponent::new(&base_peripherals.twi0, None)
+    let sensors_i2c_bus = components::i2c::I2CMuxComponent::new(&base_peripherals.twi1, None)
         .finalize(components::i2c_mux_component_static!(nrf52840::i2c::TWI));
-    base_peripherals.twi0.configure(
+    base_peripherals.twi1.configure(
         nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
         nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
     );
@@ -606,7 +610,7 @@ pub unsafe fn start() -> (
     // approach than this.
     nrf52_components::NrfClockComponent::new(&base_peripherals.clock).finalize(());
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let platform = Platform {
@@ -687,7 +691,7 @@ pub unsafe fn start() -> (
             core::ptr::addr_of_mut!(_sappmem),
             core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut PROCESSES,
+        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_management_capability,
     )

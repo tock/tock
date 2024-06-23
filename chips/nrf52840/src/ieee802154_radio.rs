@@ -3,10 +3,70 @@
 // Copyright Tock Contributors 2022.
 
 //! IEEE 802.15.4 radio driver for nRF52
+//!
+//! This driver implements a subset of 802.15.4 sending and receiving for the
+//! nRF52840 chip per the nRF52840_PS_v1.0 spec. Upon calling the initialization
+//! function, the chip is powered on and configured to the fields of the Radio
+//! struct. This driver maintains a state machine between receiving,
+//! transmitting, and sending acknowledgements. Because the nRF52840 15.4 radio
+//! chip does not possess hardware support for ACK, this driver implements
+//! software support for sending ACK when a received packet requests to be
+//! acknowledged. The driver currently lacks support to listen for requested ACK
+//! on packets the radio has sent. As of 8/14/23, the driver is able to send and
+//! receive 15.4 packets as used in the basic 15.4 libtock-c apps.
+//!
+//! ## Driver State Machine
+//!
+//! To aid in future implementations, this describes a simplified and concise
+//! version of the nrf52840 radio state machine specification and the state
+//! machine this driver separately maintains.
+//!
+//! To interact with the radio, tasks are issued to the radio which in turn
+//! trigger interrupt events. To receive, the radio must first "ramp up". The
+//! RXRU state is entered by issuing a RXEN task. Once the radio has ramped up
+//! successfully, it is now in the RXIDLE state and triggers a READY interrupt
+//! event. To optimize the radio's operation, this driver enables hardware
+//! shortcuts such that upon receiving the READY event, the radio chip
+//! immediately triggers a START task. The START task notifies the radio to begin
+//! officially "listening for packets" (RX state). Upon completing receiving the
+//! packet, the radio issues an END event. The driver then determines if the
+//! received packet has requested to be acknowledged (bit flag) and sends an ACK
+//! accordingly. Finally, the received packet buffer and accompanying fields are
+//! passed to the registered radio client. This marks the end of a receive cycle
+//! and a new READY event is issued to once again begin listening for packets.
+//!
+//! When a registered radio client wishes to send a packet. The transmit(...)
+//! method is called. To transmit a packet, the radio must first ramp up for
+//! receiving and then perform a clear channel assessment by listening for a
+//! specified period of time to determine if there is "traffic". If traffic is
+//! detected, the radio sets an alarm and waits to perform another CCA after this
+//! backoff. If the channel is determined to be clear, the radio then begins a TX
+//! ramp up, enters a TX state and then sends the packet. To progress through
+//! these states, hardware shortcuts are once again enabled in this driver. The
+//! driver first issues a DISABLE task. A hardware shortcut is enabled so that
+//! upon receipt of the disable task, the radio automatically issues a RXEN task
+//! to enter the RXRU state. Additionally, a shortcut is enabled such that when
+//! the RXREADY event is received, the radio automatically issues a CCA_START
+//! task. Finally, a shortcut is also enabled such that upon receiving a CCAIDLE
+//! event the radio automatically issues a TXEN event to ramp up the radio. The
+//! driver then handles receiving the READY interrupt event and triggers the
+//! START task to begin sending the packet. Upon completing the sending of the
+//! packet, the radio issues an END event, to which the driver then returns the
+//! radio to a receiving mode as described above. (For a more complete
+//! explanation of the radio's operation, refer to nRF52840_PS_v1.0)
+//!
+//! This radio state machine provides nine possible states the radio can exist
+//! in. For ease of implementation and clarity, this driver also maintains a
+//! simplified state machine. These states consist of the radio being off (OFF),
+//! receiving (RX), transmitting (TX), or acknowledging (ACK).
+
+// Author: Tyler Potyondy
+// 8/21/23
 
 use crate::timer::TimerAlarm;
 use core::cell::Cell;
-use kernel::hil::radio::{self, PowerClient, RadioChannel, RadioData};
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
+use kernel::hil::radio::{self, PowerClient, RadioChannel, RadioConfig, RadioData};
 use kernel::hil::time::{Alarm, AlarmClient, Time};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
@@ -15,56 +75,6 @@ use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
 use nrf52::constants::TxPower;
-
-// This driver implements a subset of 802.15.4 sending and receiving for the
-// nRF52840 chip per the nRF52840_PS_v1.0 spec. Upon calling the initialization
-// function, the chip is powered on and configured to the fields of the Radio
-// struct. This driver maintains a state machine between receiving, transmitting,
-// and sending acknowledgements. Because the nRF52840 15.4 radio chip does not
-// possess hardware support for ACK, this driver implements software support
-// for sending ACK when a received packet requests to be acknowledged. The driver
-// currently lacks support to listen for requested ACK on packets the radio has sent.
-// As of 8/14/23, the driver is able to send and receive 15.4 packets as used in the
-// basic 15.4 libtock-c apps.
-//
-// To aid in future implementations, a simplified and concise version of the nrf52840 radio
-// state machine specification is described. Additionally, the state machine this driver seperately
-// maintains is also described.
-//
-// To interact with the radio, tasks are issued to the radio which in turn trigger interrupt events.
-// To receive, the radio must first "ramp up". The RXRU state is entered by issuing a RXEN task.
-// Once the radio has ramped up successfully, it is now in the RXIDLE state and triggers a READY
-// interrupt event. To optimize the radio's operation, this driver enables hardware shortcuts such
-// that upon receiving the READY event, the radio chip immediately triggers a START task. The
-// START task notifies the radio to begin officially "listening for packets" (RX state). Upon
-// completing receiving the packet, the radio issues an END event. The driver then determines
-// if the received packet has requested to be acknowledged (bit flag) and sends an ACK accordingly.
-// Finally, the received packet buffer and accompanying fields are passed to the registered radio
-// client. This marks the end of a receive cycle and a new READY event is issued to once again
-// begin listening for packets.
-//
-// When a registered radio client wishes to send a packet. The transmit(...) method is called.
-// To transmit a packet, the radio must first ramp up for receiving and then perform a clear channel assessment
-// by listening for a specified period of time to determine if there is "traffic". If traffic is
-// detected, the radio sets an alarm and waits to perform another CCA after this backoff. If the
-// channel is determined to be clear, the radio then begins a TX ramp up, enters a TX state and then sends
-// the packet. To progress through these states, hardware shortcuts are once again enabled in this driver.
-// The driver first issues a DISABLE task. A hardware shortcut is enabled so that upon receipt of the disable
-// task, the radio automatically issues a RXEN task to enter the RXRU state. Additionally, a shortcut is enabled such that
-// when the RXREADY event is received, the radio automatically issues a CCA_START task. Finally, a shortcut is also
-// enabled such that upon receiving a CCAIDLE event the radio automatically issues a TXEN event to ramp up the
-// radio. The driver then handles receiving the READY interrupt event and triggers the START task to begin
-// sending the packet. Upon completing the sending of the packet, the radio issues an END event, to which
-// the driver then returns the radio to a receiving mode as described above.
-// (For a more complete explanation of the radio's operation, refer to nRF52840_PS_v1.0)
-//
-// This radio state machine provides nine possible states the radio can exist in. For ease of
-// implementation and clarity, this driver also maintains a simplified state machine. These
-// states consist of the radio being off (OFF), receiving (RX), transmitting (TX),
-// or acknowledging (ACK).
-
-// Author: Tyler Potyondy
-// 8/21/23
 
 const RADIO_BASE: StaticRef<RadioRegisters> =
     unsafe { StaticRef::new(0x40001000 as *const RadioRegisters) };
@@ -77,20 +87,15 @@ pub const IEEE802154_ACK_TIME: usize = 512; //microseconds = 32 symbols
 pub const IEEE802154_MAX_POLLING_ATTEMPTS: u8 = 4;
 pub const IEEE802154_MIN_BE: u8 = 3;
 pub const IEEE802154_MAX_BE: u8 = 5;
-pub const RAM_LEN_BITS: usize = 8;
-pub const RAM_S1_BITS: usize = 0;
-pub const PREBUF_LEN_BYTES: usize = 2;
 pub const ACK_BUF_SIZE: usize = 6;
 
-// artifact of entanglement with rf233 implementation, mac layer
-// places packet data starting PSDU_OFFSET=2 bytes after start of
-// buffer to make room for 1 byte spi header required when communicating
-// with rf233 over SPI. nrf radio does not need this header, so we
-// have to pretend the frame buffer starts 1 byte later than the
-// frame passed by the mac layer. We can't just drop the byte from
-// the buffer because then it would be lost forever when we tried
-// to return the frame buffer.
-const MIMIC_PSDU_OFFSET: u32 = 1;
+/// Where the 15.4 packet from the radio is stored in the buffer. The HIL
+/// reserves one byte at the beginning of the buffer for use by the
+/// capsule/hardware. We have no use for this, but the upper layers expect it so
+/// we skip over it.
+// We can't just drop the byte from the buffer because then it would be lost
+// forever when we tried to return the frame buffer.
+const BUF_PREFIX_SIZE: u32 = 1;
 
 #[repr(C)]
 struct RadioRegisters {
@@ -647,11 +652,39 @@ register_bitfields! [u32,
     ]
 ];
 
+/// Operating mode of the radio.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum RadioState {
+    /// Radio peripheral is off.
+    OFF,
+    /// Currently transmitting a packet.
+    TX,
+    /// Default state when radio is on. Radio is configured to be in RX mode
+    /// when the radio is turned on but not transmitting.
+    RX,
+    /// Transmitting an acknowledgement packet.
+    ACK,
+}
+
+/// We use a single deferred call for two operations: triggering config clients
+/// and power change clients. This allows us to track which operation we need to
+/// perform when we get the deferred call callback.
+#[derive(Debug, Clone, Copy)]
+enum DeferredOperation {
+    /// Waiting to notify that the configuration operation is complete.
+    ConfigClientCallback,
+    /// Waiting to notify that the power state of the radio changed (ie it
+    /// turned on or off).
+    PowerClientCallback,
+}
+
 pub struct Radio<'a> {
     registers: StaticRef<RadioRegisters>,
-    tx_power: Cell<TxPower>,
     rx_client: OptionalCell<&'a dyn radio::RxClient>,
     tx_client: OptionalCell<&'a dyn radio::TxClient>,
+    config_client: OptionalCell<&'a dyn radio::ConfigClient>,
+    power_client: OptionalCell<&'a dyn radio::PowerClient>,
+    tx_power: Cell<TxPower>,
     tx_buf: TakeCell<'static, [u8]>,
     rx_buf: TakeCell<'static, [u8]>,
     ack_buf: TakeCell<'static, [u8]>,
@@ -664,6 +697,8 @@ pub struct Radio<'a> {
     channel: Cell<RadioChannel>,
     timer0: OptionalCell<&'a TimerAlarm<'a>>,
     state: Cell<RadioState>,
+    deferred_call: DeferredCall,
+    deferred_call_operation: OptionalCell<DeferredOperation>,
 }
 
 impl<'a> AlarmClient for Radio<'a> {
@@ -673,21 +708,16 @@ impl<'a> AlarmClient for Radio<'a> {
         self.registers.task_ccastart.write(Task::ENABLE::SET);
     }
 }
-#[derive(Debug, Clone, Copy)]
-enum RadioState {
-    OFF,
-    TX,
-    RX,
-    ACK,
-}
 
 impl<'a> Radio<'a> {
     pub fn new(ack_buf: &'static mut [u8; ACK_BUF_SIZE]) -> Self {
         Self {
             registers: RADIO_BASE,
-            tx_power: Cell::new(TxPower::ZerodBm),
             rx_client: OptionalCell::empty(),
             tx_client: OptionalCell::empty(),
+            config_client: OptionalCell::empty(),
+            power_client: OptionalCell::empty(),
+            tx_power: Cell::new(TxPower::ZerodBm),
             tx_buf: TakeCell::empty(),
             rx_buf: TakeCell::empty(),
             ack_buf: TakeCell::new(ack_buf),
@@ -700,6 +730,8 @@ impl<'a> Radio<'a> {
             channel: Cell::new(RadioChannel::Channel26),
             timer0: OptionalCell::empty(),
             state: Cell::new(RadioState::OFF),
+            deferred_call: DeferredCall::new(),
+            deferred_call_operation: OptionalCell::empty(),
         }
     }
 
@@ -728,18 +760,6 @@ impl<'a> Radio<'a> {
         self.registers.task_rxen.write(Task::ENABLE::SET);
     }
 
-    fn set_rx_address(&self) {
-        self.registers
-            .rxaddresses
-            .write(ReceiveAddresses::ADDRESS.val(1));
-    }
-
-    fn set_tx_address(&self) {
-        self.registers
-            .txaddress
-            .write(TransmitAddress::ADDRESS.val(0));
-    }
-
     fn radio_on(&self) {
         // reset and enable power
         self.registers.power.write(Task::ENABLE::CLEAR);
@@ -747,17 +767,19 @@ impl<'a> Radio<'a> {
     }
 
     fn radio_off(&self) {
+        self.state.set(RadioState::OFF);
+
         self.registers.power.write(Task::ENABLE::CLEAR);
     }
 
-    fn set_tx_power(&self) {
-        self.registers.txpower.set(self.tx_power.get() as u32);
+    fn radio_is_on(&self) -> bool {
+        self.registers.power.is_set(Task::ENABLE)
     }
 
     fn set_dma_ptr(&self, buffer: &'static mut [u8]) -> &'static mut [u8] {
         self.registers
             .packetptr
-            .set(buffer.as_ptr() as u32 + MIMIC_PSDU_OFFSET);
+            .set(buffer.as_ptr() as u32 + BUF_PREFIX_SIZE);
         buffer
     }
 
@@ -769,9 +791,10 @@ impl<'a> Radio<'a> {
         }
     }
 
-    // TODO: RECEIVING ACK FOR A SENT TX IS NOT IMPLEMENTED //
-    // As a general note for the interrupt handler, event registers must still be cleared even when
-    // hardware shortcuts are enabled.
+    // TODO: RECEIVING ACK FOR A SENT TX IS NOT IMPLEMENTED
+    //
+    // As a general note for the interrupt handler, event registers must still
+    // be cleared even when hardware shortcuts are enabled.
     #[inline(never)]
     pub fn handle_interrupt(&self) {
         self.disable_all_interrupts();
@@ -780,14 +803,19 @@ impl<'a> Radio<'a> {
         let mut rx_init = false;
 
         match self.state.get() {
-            // It should not be possible to receive an interrupt while the tracked radio state is OFF
-            RadioState::OFF => kernel::debug!("[ERROR]--15.4 state machine diverged from expected behavior. Received interrupt while off"),
+            // It should not be possible to receive an interrupt while the
+            // tracked radio state is OFF.
+            RadioState::OFF => {
+                kernel::debug!("[ERROR]--15.4 state machine");
+                kernel::debug!("Received interrupt while off");
+            }
             RadioState::RX => {
-                ////////////////////////////////////////////////////////////////////////////
-                // NOTE: This state machine assumes that the READY_START shortcut is enabled
-                // at this point in time. If the READY_START shortcut is not enabled, the
-                // state machine/driver will likely exhibit undefined behavior.
-                ////////////////////////////////////////////////////////////////////////////
+                ////////////////////////////////////////////////////////////////
+                // NOTE: This state machine assumes that the READY_START
+                // shortcut is enabled at this point in time. If the READY_START
+                // shortcut is not enabled, the state machine/driver will likely
+                // exhibit undefined behavior.
+                ////////////////////////////////////////////////////////////////
 
                 // Since READY_START shortcut enabled, always clear READY event
                 self.registers.event_ready.write(Event::READY::CLEAR);
@@ -795,38 +823,69 @@ impl<'a> Radio<'a> {
                 // Completed receiving a packet, now determine if we need to send ACK
                 if self.registers.event_end.is_set(Event::READY) {
                     self.registers.event_end.write(Event::READY::CLEAR);
-                    let result = self.crc_check();
+                    let crc = self.crc_check();
 
-                    // Unwrap fail = Radio RX Buffer is missing (may be due to receive client not replacing in receive(...) method,
-                    // or some instance in  driver taking buffer without properly replacing).
+                    // Unwrap fail = Radio RX Buffer is missing (may be due to
+                    // receive client not replacing in receive(...) method, or
+                    // some instance in driver taking buffer without properly
+                    // replacing).
                     let rbuf = self.rx_buf.take().unwrap();
 
-                    let frame_len = rbuf[MIMIC_PSDU_OFFSET as usize] as usize - radio::MFR_SIZE;
-                    // Length is: S0 (0 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
-                    // And because the length field is directly read from the packet
-                    // We need to add 2 to length to get the total length
+                    // Data buffer format: | PREFIX | PHR | PSDU | LQI |
+                    //
+                    // Retrieve the length of the PSDU (actual frame). The frame
+                    // length is only 7 bits, but of course the field is a byte.
+                    // The nRF52840 product specification says this about the
+                    // PHR byte (Version 1.8, section 6.20.12.1):
+                    //
+                    // > The most significant bit is reserved and is set to zero
+                    // > for frames that are standard compliant. The radio
+                    // > module will report all eight bits and it can
+                    // > potentially be used to carry some information.
+                    //
+                    // We are not using that for any information so we just
+                    // force it to zero. This ensures that `data_len` will not
+                    // be longer than our buffer.
+                    let data_len = (rbuf[radio::PHR_OFFSET] & 0x7F) as usize;
 
-                    // 6th bit in 2nd byte of received 15.4 packet determines if sender requested ACK
-                    if rbuf[2] & ACK_FLAG != 0 && result.is_ok() {
+                    // LQI is found just after the data received.
+                    let lqi = rbuf[data_len];
+
+                    // We drop the CRC bytes (the MFR) from our frame.
+                    let frame_len = data_len - radio::MFR_SIZE;
+
+                    // 6th bit in the first byte of the MAC header determines if
+                    // sender requested ACK. If so send ACK first before handing
+                    // packet reception. This optimizes the time taken to send
+                    // an ACK. If we call the receive function here, there is a
+                    // non deterministic time required to complete the function
+                    // as it may be passed up the entirety of the networking
+                    // stack (leading to ACK timeout being exceeded).
+                    if rbuf[radio::PSDU_OFFSET] & ACK_FLAG != 0 && crc.is_ok() {
                         self.ack_buf
                             .take()
                             .map_or(Err(ErrorCode::NOMEM), |ack_buf| {
                                 // Entered ACK state //
                                 self.state.set(RadioState::ACK);
 
-                                // 4th byte of received packet is 15.4 sequence counter
-                                let sequence_counter = rbuf[4];
+                                // 4th byte of received packet is the 15.4
+                                // sequence number.
+                                let sequence_number = rbuf[radio::PSDU_OFFSET + radio::MHR_FC_SIZE];
 
-                                // The frame control field is hardcoded for now; this is the
-                                // only possible type of ACK currently supported so it is reasonable to hardcode this
-                                let ack_buf_send = [2, 0, sequence_counter];
+                                // The frame control field is hardcoded for now;
+                                // this is the only possible type of ACK
+                                // currently supported so it is reasonable to
+                                // hardcode this.
+                                ack_buf[radio::PSDU_OFFSET] = 2;
+                                ack_buf[radio::PSDU_OFFSET + 1] = 0;
+                                ack_buf[radio::PSDU_OFFSET + radio::MHR_FC_SIZE] = sequence_number;
 
-                                // Copy constructed packet into ACK buffer; first two bytes
-                                // left empty for MIMIC_PSDU_OFFSET (see other comments)
-                                ack_buf[2..5].copy_from_slice(&ack_buf_send);
+                                // Ensure we replace our RX buffer for the time
+                                // being.
                                 self.rx_buf.replace(rbuf);
 
-                                // If the transmit function fails, return the buffer and return an error
+                                // If the transmit function fails, replace the
+                                // buffer and return an error.
                                 if let Err((_, ret_buf)) = self.transmit(ack_buf, 3) {
                                     self.ack_buf.replace(ret_buf);
                                     Err(ErrorCode::FAIL)
@@ -834,17 +893,19 @@ impl<'a> Radio<'a> {
                                     Ok(())
                                 }
                             })
-                            .unwrap_or_else(|_| {
-                                // The ACK was not sent; we do not need to drop the packet, but print msg
-                                // for debugging purposes, notfiy receive client of packet, and reset radio
-                                // to receiving
+                            .unwrap_or_else(|err| {
+                                // The ACK was not sent; we do not need to drop
+                                // the packet, but print msg for debugging
+                                // purposes, notify receive client of packet,
+                                // and reset radio to receiving.
                                 self.rx_client.map(|client| {
                                     start_task = true;
                                     client.receive(
                                         self.rx_buf.take().unwrap(),
                                         frame_len,
-                                        self.registers.crcstatus.get() == 1,
-                                        result,
+                                        lqi,
+                                        crc.is_ok(),
+                                        Err(err),
                                     );
                                 });
 
@@ -853,39 +914,37 @@ impl<'a> Radio<'a> {
                                 );
                             });
                     } else {
-                        // Packet received that does not require an ACK
-                        // Pass received packet to client and return radio to general
-                        // receiving state to listen for new packets
+                        // Packet received that does not require an ACK. Pass
+                        // received packet to client and return radio to general
+                        // receiving state to listen for new packets.
                         self.rx_client.map(|client| {
                             start_task = true;
-                            client.receive(
-                                rbuf,
-                                frame_len,
-                                self.registers.crcstatus.get() == 1,
-                                result,
-                            );
+                            client.receive(rbuf, frame_len, lqi, crc.is_ok(), Ok(()));
                         });
                     }
                 }
             }
             RadioState::TX => {
-                ////////////////////////////////////////////////////////////////////////
-                // NOTE: This state machine assumes that the DISABLED_RXEN, CCAIDLE_TXEN,
-                // RXREADY_CCASTART shortcuts are enabled at this point in time. If
-                // the READY_START shortcut is not enabled, the state machine/driver
-                // will likely exhibit undefined behavior.
-                ////////////////////////////////////////////////////////////////////////
+                ////////////////////////////////////////////////////////////////
+                // NOTE: This state machine assumes that the DISABLED_RXEN,
+                // CCAIDLE_TXEN, RXREADY_CCASTART shortcuts are enabled at this
+                // point in time. If the READY_START shortcut is not enabled,
+                // the state machine/driver will likely exhibit undefined
+                // behavior.
+                ////////////////////////////////////////////////////////////////
 
-                // Handle Event_ready interrupt. The TX path performs both a TX ramp up and
-                // an RX ramp up. This means that there are two potential cases we must handle.
-                // The ready event due to the Rx Ramp up shortcuts to the CCASTART while the ready
-                // event due to the Tx ramp up requires we issue a start task in response to progress
-                // the state machine.
+                // Handle Event_ready interrupt. The TX path performs both a TX
+                // ramp up and an RX ramp up. This means that there are two
+                // potential cases we must handle. The ready event due to the Rx
+                // Ramp up shortcuts to the CCASTART while the ready event due
+                // to the Tx ramp up requires we issue a start task in response
+                // to progress the state machine.
                 if self.registers.event_ready.is_set(Event::READY) {
                     // In both cases, we must clear event
                     self.registers.event_ready.write(Event::READY::CLEAR);
 
-                    // Ready event from Tx ramp up will be in radio internal TXIDLE state
+                    // Ready event from Tx ramp up will be in radio internal
+                    // TXIDLE state
                     if self.registers.state.get() == nrf52::constants::RADIO_STATE_TXIDLE {
                         start_task = true;
                     }
@@ -895,10 +954,9 @@ impl<'a> Radio<'a> {
                 if self.registers.event_ccabusy.is_set(Event::READY) {
                     self.registers.event_ccabusy.write(Event::READY::CLEAR);
 
-                    //need to back off for a period of time outlined
-                    //in the IEEE 802.15.4 standard (see Figure 69 in
-                    //section 7.5.1.4 The CSMA-CA algorithm of the
-                    //standard).
+                    // Need to back off for a period of time outlined in the
+                    // IEEE 802.15.4 standard (see Figure 69 in section 7.5.1.4
+                    // The CSMA-CA algorithm of the standard).
                     if self.cca_count.get() < IEEE802154_MAX_POLLING_ATTEMPTS {
                         self.cca_count.set(self.cca_count.get() + 1);
                         self.cca_be.set(self.cca_be.get() + 1);
@@ -913,14 +971,15 @@ impl<'a> Radio<'a> {
                                 ),
                             );
                     } else {
-                        // We have exceeded the IEEE802154_MAX_POLLING_ATTEMPTS and should
-                        // fail the transmission/return buffer to sending client
+                        // We have exceeded the IEEE802154_MAX_POLLING_ATTEMPTS
+                        // and should fail the transmission/return buffer to
+                        // sending client.
 
                         let result = Err(ErrorCode::BUSY);
-                        //TODO: Acked is hardcoded to always return false; add support to receive tx ACK
                         self.tx_client.map(|client| {
-                            // Unwrap fail = TX Buffer is missing and was mistakenly not replaced after
-                            // completion of set_dma_ptr(...)
+                            // Unwrap fail = TX Buffer is missing and was
+                            // mistakenly not replaced after completion of
+                            // set_dma_ptr(...)
                             let tbuf = self.tx_buf.take().unwrap();
                             client.send_done(tbuf, false, result);
                         });
@@ -928,15 +987,17 @@ impl<'a> Radio<'a> {
                     }
                 }
 
-                // End event received; The TX is now finished and we need to notify the sending client
+                // End event received; The TX is now finished and we need to
+                // notify the sending client.
                 if self.registers.event_end.is_set(Event::READY) {
                     self.registers.event_end.write(Event::READY::CLEAR);
                     let result = Ok(());
 
-                    //TODO: Acked is hardcoded to always return false; add support to receive tx ACK
+                    // TODO: Acked is hardcoded to always return false; add
+                    // support to receive tx ACK.
                     self.tx_client.map(|client| {
-                        // Unwrap fail = TX Buffer is missing and was mistakenly not replaced after
-                        // completion of set_dma_ptr(...)
+                        // Unwrap fail = TX Buffer is missing and was mistakenly
+                        // not replaced after completion of set_dma_ptr(...)
                         let tbuf = self.tx_buf.take().unwrap();
                         client.send_done(tbuf, false, result);
                     });
@@ -944,11 +1005,12 @@ impl<'a> Radio<'a> {
                 }
             }
             RadioState::ACK => {
-                ////////////////////////////////////////////////////////////////////////////
-                // NOTE: This state machine assumes that the READY_START shortcut is enabled
-                // at this point in time. If the READY_START shortcut is not enabled, the
-                // state machine/driver will likely exhibit undefined behavior.
-                ////////////////////////////////////////////////////////////////////////////
+                ////////////////////////////////////////////////////////////////
+                // NOTE: This state machine assumes that the READY_START
+                // shortcut is enabled at this point in time. If the READY_START
+                // shortcut is not enabled, the state machine/driver will likely
+                // exhibit undefined behavior.
+                ////////////////////////////////////////////////////////////////
 
                 // Since READY_START shortcut enabled, always clear READY event
                 self.registers.event_ready.write(Event::READY::CLEAR);
@@ -957,8 +1019,8 @@ impl<'a> Radio<'a> {
                 if self.registers.event_end.is_set(Event::READY) {
                     self.registers.event_end.write(Event::READY::CLEAR);
 
-                    // Unwrap fail = TX Buffer is missing and was mistakenly not replaced after
-                    // completion of set_dma_ptr(...)
+                    // Unwrap fail = TX Buffer is missing and was mistakenly not
+                    // replaced after completion of set_dma_ptr(...)
                     let tbuf = self.tx_buf.take().unwrap();
 
                     // We must replace the ACK buffer that was passed to tx_buf
@@ -967,36 +1029,35 @@ impl<'a> Radio<'a> {
                     // Reset radio to proper receiving state
                     rx_init = true;
 
-                    // Notify receive client of packet. The client.receive(...) function has been moved
-                    // here to optimize the time taken to send an ACK. If the receive function was called in the
-                    // RX state handler, there is a non deterministic time required to complete the function as it may
-                    // be passed up the entirety of the networking stack (leading to ACK timeout being exceeded).
+                    // Notify receive client of packet that triggered the ACK.
                     self.rx_client.map(|client| {
-                        // Unwrap fail = Radio RX Buffer is missing (may be due to receive client not replacing in receive(...) method,
-                        // or some instance in  driver taking buffer without properly replacing).
+                        // Unwrap fail = Radio RX Buffer is missing (may be due
+                        // to receive client not replacing in receive(...)
+                        // method, or some instance in  driver taking buffer
+                        // without properly replacing).
                         let rbuf = self.rx_buf.take().unwrap();
 
-                        let result = self.crc_check();
-                        let frame_len = rbuf[MIMIC_PSDU_OFFSET as usize] as usize - radio::MFR_SIZE;
-                        // Length is: S0 (0 Byte) + Length (1 Byte) + S1 (0 Bytes) + Payload
-                        // And because the length field is directly read from the packet
-                        // We need to add 2 to length to get the total length
+                        // Data buffer format: | PREFIX | PHR | PSDU | LQI |
+                        //
+                        // See the RX case above for how these values are set.
+                        let data_len = (rbuf[radio::PHR_OFFSET] & 0x7F) as usize;
+                        let lqi = rbuf[data_len];
+                        let frame_len = data_len - radio::MFR_SIZE;
 
-                        client.receive(
-                            rbuf,
-                            frame_len,
-                            self.registers.crcstatus.get() == 1,
-                            result,
-                        );
+                        // We know the CRC passed because otherwise we would not
+                        // have transmitted an ACK.
+                        client.receive(rbuf, frame_len, lqi, true, Ok(()));
                     });
                 }
             }
         }
 
-        // Enabling hardware shortcuts allows for a much faster operation. However, this can also lead
-        // to race conditions and strange edge cases. Namely, if a task_start or rx_en is set while interrupts are disabled,
-        // the event_end interrupt can be "missed" and the interrupt handler will not be called. If the event is missed, the state
-        // machine is unable to progress and the driver enters a deadlock
+        // Enabling hardware shortcuts allows for a much faster operation.
+        // However, this can also lead to race conditions and strange edge
+        // cases. Namely, if a task_start or rx_en is set while interrupts are
+        // disabled, the event_end interrupt can be "missed" and the interrupt
+        // handler will not be called. If the event is missed, the state machine
+        // is unable to progress and the driver enters a deadlock.
         self.enable_interrupts();
         if rx_init {
             self.rx();
@@ -1045,10 +1106,7 @@ impl<'a> Radio<'a> {
 
         self.ieee802154_set_tx_power();
 
-        self.ieee802154_set_channel_freq(self.channel.get());
-
-        self.set_tx_address();
-        self.set_rx_address();
+        self.ieee802154_set_channel_freq();
 
         // Begin receiving procedure
         self.enable_interrupts();
@@ -1101,14 +1159,15 @@ impl<'a> Radio<'a> {
         self.registers.mode.write(Mode::MODE::IEEE802154_250KBIT);
     }
 
-    fn ieee802154_set_channel_freq(&self, channel: RadioChannel) {
+    fn ieee802154_set_channel_freq(&self) {
+        let channel = self.channel.get();
         self.registers
             .frequency
             .write(Frequency::FREQUENCY.val(channel as u32));
     }
 
     fn ieee802154_set_tx_power(&self) {
-        self.set_tx_power();
+        self.registers.txpower.set(self.tx_power.get() as u32);
     }
 
     pub fn startup(&self) -> Result<(), ErrorCode> {
@@ -1132,59 +1191,78 @@ impl<'a> Radio<'a> {
 }
 
 impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
-    fn initialize(
-        &self,
-        _spi_buf: &'static mut [u8],
-        _reg_write: &'static mut [u8],
-        _reg_read: &'static mut [u8],
-    ) -> Result<(), ErrorCode> {
-        self.radio_initialize();
+    fn initialize(&self) -> Result<(), ErrorCode> {
         Ok(())
     }
 
-    fn set_power_client(&self, _client: &'a dyn PowerClient) {
-        //
+    fn set_power_client(&self, client: &'a dyn PowerClient) {
+        self.power_client.set(client);
     }
 
     fn reset(&self) -> Result<(), ErrorCode> {
         self.radio_initialize();
         Ok(())
     }
+
     fn start(&self) -> Result<(), ErrorCode> {
         self.radio_initialize();
+
+        // Configure deferred call to trigger callback.
+        self.deferred_call_operation
+            .set(DeferredOperation::PowerClientCallback);
+        self.deferred_call.set();
+
         Ok(())
     }
+
     fn stop(&self) -> Result<(), ErrorCode> {
         self.radio_off();
-        self.state.set(RadioState::OFF);
+
+        // Configure deferred call to trigger callback.
+        self.deferred_call_operation
+            .set(DeferredOperation::PowerClientCallback);
+        self.deferred_call.set();
+
         Ok(())
     }
+
     fn is_on(&self) -> bool {
-        self.registers.power.is_set(Task::ENABLE)
+        self.radio_is_on()
     }
 
-    // Previous driver implementation //
     fn busy(&self) -> bool {
-        false
+        // `tx_buf` is only occupied when a transmission is underway.
+        self.tx_buf.is_some()
     }
 
-    //#################################################
-    ///These methods are holdovers from when the radio HIL was mostly to an external
-    ///module over an interface
-    //#################################################
+    fn set_config_client(&self, client: &'a dyn radio::ConfigClient) {
+        self.config_client.set(client);
+    }
 
-    //fn set_power_client(&self, client: &'static radio::PowerClient){
-
-    //}
-    /// Commit the config calls to hardware, changing the address,
-    /// PAN ID, TX power, and channel to the specified values, issues
-    /// a callback to the config client when done.
+    /// Commit the config calls to hardware, changing (in theory):
+    ///
+    /// - the RX address
+    /// - PAN ID
+    /// - TX power
+    /// - channel
+    ///
+    /// to the specified values. **However**, the nRF52840 IEEE 802.15.4 radio
+    /// does not support hardware-level address filtering (see
+    /// [here](https://devzone.nordicsemi.com/f/nordic-q-a/19320/using-nrf52840-for-802-15-4)).
+    /// So setting the addresses and PAN ID have no meaning for this chip and
+    /// any filtering must be done in higher layers in software.
+    ///
+    /// Issues a callback to the config client when done.
     fn config_commit(&self) {
-        self.radio_off();
-        self.radio_initialize();
-    }
+        // All we can configure is TX power and channel frequency.
+        self.ieee802154_set_tx_power();
+        self.ieee802154_set_channel_freq();
 
-    fn set_config_client(&self, _client: &'a dyn radio::ConfigClient) {}
+        // Enable deferred call so we can generate a `ConfigClient` callback.
+        self.deferred_call_operation
+            .set(DeferredOperation::ConfigClientCallback);
+        self.deferred_call.set();
+    }
 
     //#################################################
     /// Accessors
@@ -1202,10 +1280,12 @@ impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
     fn get_pan(&self) -> u16 {
         self.pan.get()
     }
+
     /// The transmit power, in dBm
     fn get_tx_power(&self) -> i8 {
         self.tx_power.get() as i8
     }
+
     /// The 802.15.4 channel
     fn get_channel(&self) -> u8 {
         self.channel.get().get_channel_number()
@@ -1234,9 +1314,9 @@ impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
     fn set_tx_power(&self, tx_power: i8) -> Result<(), ErrorCode> {
         // Convert u8 to TxPower
         match nrf52::constants::TxPower::try_from(tx_power as u8) {
-            // Invalid transmitting power, propogate error
+            // Invalid transmitting power, propagate error
             Err(()) => Err(ErrorCode::NOSUPPORT),
-            // Valid transmitting power, propogate success
+            // Valid transmitting power, propagate success
             Ok(res) => {
                 self.tx_power.set(res);
                 Ok(())
@@ -1246,9 +1326,8 @@ impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
 }
 
 impl<'a> kernel::hil::radio::RadioData<'a> for Radio<'a> {
-    fn set_receive_client(&self, client: &'a dyn radio::RxClient, buffer: &'static mut [u8]) {
+    fn set_receive_client(&self, client: &'a dyn radio::RxClient) {
         self.rx_client.set(client);
-        self.rx_buf.replace(buffer);
     }
 
     fn set_receive_buffer(&self, buffer: &'static mut [u8]) {
@@ -1264,24 +1343,22 @@ impl<'a> kernel::hil::radio::RadioData<'a> for Radio<'a> {
         buf: &'static mut [u8],
         frame_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        if self.tx_buf.is_some() {
-            // tx_buf TakeCell is only occupied when a transmission is underway. This
-            // check insures we do not interrupt an ungoing transmission
+        if self.state.get() == RadioState::OFF {
+            return Err((ErrorCode::OFF, buf));
+        } else if self.busy() {
             return Err((ErrorCode::BUSY, buf));
-        } else if radio::PSDU_OFFSET + frame_len >= buf.len() {
-            // Not enough room for CRC
+        } else if buf.len() < radio::PSDU_OFFSET + frame_len + radio::MFR_SIZE {
+            // Not enough room for CRC or PHR or reserved byte
             return Err((ErrorCode::SIZE, buf));
         }
 
-        if let RadioState::OFF = self.state.get() {
-            self.radio_initialize();
-        }
+        // Insert the PHR which is the PDSU length.
+        buf[radio::PHR_OFFSET] = (frame_len + radio::MFR_SIZE) as u8;
 
-        buf[MIMIC_PSDU_OFFSET as usize] = (frame_len + radio::MFR_SIZE) as u8;
-
-        // The tx_buf does not possess static memory. This buffer only temporarily holds
-        // a reference to another buffer passed as a function argument. The tx_buf holds
-        // ownership of this buffer until it is returned through the send_done(...) function
+        // The tx_buf does not possess static memory. This buffer only
+        // temporarily holds a reference to another buffer passed as a function
+        // argument. The tx_buf holds ownership of this buffer until it is
+        // returned through the send_done(...) function.
         self.tx_buf.replace(self.set_dma_ptr(buf));
 
         // The transmit function handles sending both ACK and standard packets
@@ -1292,9 +1369,11 @@ impl<'a> kernel::hil::radio::RadioData<'a> for Radio<'a> {
             self.state.set(RadioState::TX);
 
             // Instruct radio hardware to automatically progress from:
-            //  --RXDISABLE to RXRU state upon receipt of internal disabled event
-            //  --RXIDLE to RX state upon receipt of ready event and radio ramp up completed, begin CCA backoff
-            //  --RX to TXRU state upon internal receipt CCA completion event (clear to begin transmitting)
+            // - RXDISABLE to RXRU state upon receipt of internal disabled event
+            // - RXIDLE to RX state upon receipt of ready event and radio ramp
+            //   up completed, begin CCA backoff
+            // - RX to TXRU state upon internal receipt CCA completion event
+            //   (clear to begin transmitting)
             self.registers.shorts.write(
                 Shortcut::DISABLED_RXEN::SET
                     + Shortcut::RXREADY_CCASTART::SET
@@ -1306,5 +1385,28 @@ impl<'a> kernel::hil::radio::RadioData<'a> for Radio<'a> {
         }
 
         Ok(())
+    }
+}
+
+impl DeferredCallClient for Radio<'_> {
+    fn handle_deferred_call(&self) {
+        // On deferred call we trigger the config or power callbacks. The
+        // `.take()` ensures we clear what is pending.
+        self.deferred_call_operation.take().map(|op| match op {
+            DeferredOperation::ConfigClientCallback => {
+                self.config_client.map(|client| {
+                    client.config_done(Ok(()));
+                });
+            }
+            DeferredOperation::PowerClientCallback => {
+                self.power_client.map(|client| {
+                    client.changed(self.radio_is_on());
+                });
+            }
+        });
+    }
+
+    fn register(&'static self) {
+        self.deferred_call.register(self);
     }
 }

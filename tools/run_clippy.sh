@@ -17,10 +17,13 @@
 #
 # - `clippy::if_same_then_else`: There are often good reasons to enumerate
 #   different states that have the same effect.
+# - `clippy::manual_unwrap_or_default`: As of Apr 2024, this lint has many false
+#   positives.
 CLIPPY_ARGS="
 -A clippy::restriction
 
 -A clippy::if_same_then_else
+-A clippy::manual_unwrap_or_default
 "
 
 # Disallow all complexity lints, then re-allow each one Tock does not comply
@@ -101,6 +104,7 @@ CLIPPY_ARGS_STYLE="
 -A clippy::redundant_pattern_matching
 -A clippy::unusual-byte-groupings
 -A clippy::wrong-self-convention
+-A clippy::doc_lazy_continuation
 "
 
 # Disallow all perf lints, then re-allow each one Tock does not comply with.

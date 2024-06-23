@@ -5,6 +5,7 @@
 //! High-level setup and interrupt mapping for the chip.
 
 use core::fmt::Write;
+use core::ptr::addr_of;
 use kernel::debug;
 use kernel::platform::chip::InterruptService;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
@@ -38,7 +39,7 @@ impl<I: 'static + InterruptService> LiteXVexRiscv<I> {
         Self {
             soc_identifier,
             userspace_kernel_boundary: SysCall::new(),
-            interrupt_controller: &INTERRUPT_CONTROLLER,
+            interrupt_controller: &*addr_of!(INTERRUPT_CONTROLLER),
             pmp_mpu: PMPUserMPU::new(pmp),
             interrupt_service,
         }

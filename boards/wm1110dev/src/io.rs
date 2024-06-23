@@ -73,16 +73,18 @@ impl IoWrite for Writer {
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     // Red Led
+
+    use core::ptr::{addr_of, addr_of_mut};
     let led_red_pin = &nrf52840::gpio::GPIOPin::new(Pin::P0_14);
     let led = &mut led::LedHigh::new(led_red_pin);
-    let writer = &mut WRITER;
+    let writer = &mut *addr_of_mut!(WRITER);
     debug::panic(
         &mut [led],
         writer,
         pi,
         &cortexm4::support::nop,
-        &PROCESSES,
-        &CHIP,
-        &PROCESS_PRINTER,
+        &*addr_of!(PROCESSES),
+        &*addr_of!(CHIP),
+        &*addr_of!(PROCESS_PRINTER),
     )
 }

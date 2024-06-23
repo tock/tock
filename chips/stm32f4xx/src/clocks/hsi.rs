@@ -128,7 +128,7 @@ impl<'a> Hsi<'a> {
     ///
     /// + [Some]\(frequency_mhz\): if the HSI clock is enabled.
     /// + [None]: if the HSI clock is disabled.
-    pub fn get_frequency(&self) -> Option<usize> {
+    pub fn get_frequency_mhz(&self) -> Option<usize> {
         if self.is_enabled() {
             Some(HSI_FREQUENCY_MHZ)
         } else {
@@ -179,7 +179,7 @@ pub mod tests {
         assert!(hsi.is_enabled());
 
         // HSI frequency is 16MHz
-        assert_eq!(Some(HSI_FREQUENCY_MHZ), hsi.get_frequency());
+        assert_eq!(Some(HSI_FREQUENCY_MHZ), hsi.get_frequency_mhz());
 
         // Nothing should happen if the HSI clock is being enabled when already running
         assert_eq!(Ok(()), hsi.enable());

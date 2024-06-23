@@ -37,15 +37,17 @@ impl IoWrite for Writer {
 #[no_mangle]
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
-    let writer = &mut WRITER;
+    use core::ptr::{addr_of, addr_of_mut};
+
+    let writer = &mut *addr_of_mut!(WRITER);
 
     debug::panic_print::<_, _, _>(
         writer,
         pi,
         &rv32i::support::nop,
-        &PROCESSES,
-        &CHIP,
-        &PROCESS_PRINTER,
+        &*addr_of!(PROCESSES),
+        &*addr_of!(CHIP),
+        &*addr_of!(PROCESS_PRINTER),
     );
 
     // The system is no longer in a well-defined state. Use

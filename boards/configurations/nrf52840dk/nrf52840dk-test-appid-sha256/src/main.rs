@@ -10,17 +10,17 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use core::ptr::{addr_of, addr_of_mut};
+
 use kernel::component::Component;
-use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::process::ProcessLoadingAsync;
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{capabilities, create_capability, static_init};
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
-use nrf52_components::{self, UartChannel, UartPins};
+use nrf52_components::{UartChannel, UartPins};
 
 // The nRF52840DK LEDs (see back of board)
 const LED1_PIN: Pin = Pin::P0_13;
@@ -40,7 +40,8 @@ pub mod io;
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
+const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
+    capsules_system::process_policies::PanicFaultPolicy {};
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 8;
@@ -164,7 +165,7 @@ pub unsafe fn main() {
     let uart_channel = UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD));
 
     // Setup space to store the core kernel data structure.
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
 
     // Create (and save for panic debugging) a chip object to setup low-level
     // resources (e.g. MPU, systick).
@@ -190,8 +191,6 @@ pub unsafe fn main() {
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
-    let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
     //--------------------------------------------------------------------------
@@ -272,54 +271,25 @@ pub unsafe fn main() {
     let checker = components::appid::checker::ProcessCheckerMachineComponent::new(checking_policy)
         .finalize(components::process_checker_machine_component_static!());
 
-    // These symbols are defined in the linker script.
-    extern "C" {
-        /// Beginning of the ROM region containing app images.
-        static _sapps: u8;
-        /// End of the ROM region containing app images.
-        static _eapps: u8;
-        /// Beginning of the RAM region for app memory.
-        static mut _sappmem: u8;
-        /// End of the RAM region for app memory.
-        static _eappmem: u8;
-    }
-
-    let process_binary_array = static_init!(
-        [Option<kernel::process::ProcessBinary>; NUM_PROCS],
-        [None, None, None, None, None, None, None, None]
-    );
-
-    let loader = static_init!(
-        kernel::process::SequentialProcessLoaderMachine<
-            nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
-        >,
-        kernel::process::SequentialProcessLoaderMachine::new(
-            checker,
-            &mut PROCESSES,
-            process_binary_array,
-            board_kernel,
-            chip,
-            core::slice::from_raw_parts(
-                core::ptr::addr_of!(_sapps),
-                core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-            ),
-            core::slice::from_raw_parts_mut(
-                core::ptr::addr_of_mut!(_sappmem),
-                core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
-            ),
-            &FAULT_RESPONSE,
-            assigner,
-            &process_management_capability
-        )
-    );
-
-    checker.set_client(loader);
+    // Create and start the asynchronous process loader.
+    let _loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
+        checker,
+        &mut *addr_of_mut!(PROCESSES),
+        board_kernel,
+        chip,
+        &FAULT_RESPONSE,
+        assigner,
+    )
+    .finalize(components::process_loader_sequential_component_static!(
+        nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+        NUM_PROCS
+    ));
 
     //--------------------------------------------------------------------------
     // PLATFORM SETUP, SCHEDULER, AND START KERNEL LOOP
     //--------------------------------------------------------------------------
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let platform = Platform {
@@ -329,9 +299,6 @@ pub unsafe fn main() {
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
     };
-
-    loader.register();
-    loader.start();
 
     board_kernel.kernel_loop(
         &platform,

@@ -16,6 +16,8 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use core::ptr::{addr_of, addr_of_mut};
+
 use capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use kernel::component::Component;
@@ -55,7 +57,8 @@ pub mod io;
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
+const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
+    capsules_system::process_policies::PanicFaultPolicy {};
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 8;
@@ -66,7 +69,8 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 // Static reference to chip for panic dumps
 static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>> = None;
 // Static reference to process printer for panic dumps
-static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
+static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
+    None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -210,7 +214,7 @@ pub unsafe fn main() {
     nrf52840_peripherals.init();
     let base_peripherals = &nrf52840_peripherals.nrf52;
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
 
     // GPIOs
     let gpio = components::gpio::GpioComponent::new(
@@ -414,7 +418,7 @@ pub unsafe fn main() {
         &base_peripherals.acomp,
         components::analog_comparator_component_helper!(
             nrf52840::acomp::Channel,
-            &nrf52840::acomp::CHANNEL_AC0
+            &*addr_of!(nrf52840::acomp::CHANNEL_AC0)
         ),
         board_kernel,
         capsules_extra::analog_comparator::DRIVER_NUM,
@@ -425,7 +429,7 @@ pub unsafe fn main() {
 
     nrf52_components::NrfClockComponent::new(&base_peripherals.clock).finalize(());
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let periodic_virtual_alarm = static_init!(
@@ -483,7 +487,7 @@ pub unsafe fn main() {
                     core::ptr::addr_of_mut!(_sappmem),
                     core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
                 ),
-                &mut PROCESSES,
+                &mut *addr_of_mut!(PROCESSES),
                 &FAULT_RESPONSE,
                 &process_management_capability,
             )
@@ -496,7 +500,7 @@ pub unsafe fn main() {
 
     let _ = platform.pconsole.start();
     debug!("Initialization complete. Entering main loop\r");
-    debug!("{}", &nrf52840::ficr::FICR_INSTANCE);
+    debug!("{}", &*addr_of!(nrf52840::ficr::FICR_INSTANCE));
 
     load_processes(board_kernel, chip);
     // These symbols are defined in the linker script.

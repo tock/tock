@@ -13,8 +13,8 @@ use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
+use crate::clocks::{phclk, Stm32f4Clocks};
 use crate::nvic;
-use crate::rcc;
 
 /// General purpose timers
 #[repr(C)]
@@ -319,12 +319,12 @@ pub struct Tim2<'a> {
 }
 
 impl<'a> Tim2<'a> {
-    pub const fn new(rcc: &'a rcc::Rcc) -> Self {
+    pub const fn new(clocks: &'a dyn Stm32f4Clocks) -> Self {
         Self {
             registers: TIM2_BASE,
-            clock: Tim2Clock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB1(rcc::PCLK1::TIM2),
-                rcc,
+            clock: Tim2Clock(phclk::PeripheralClock::new(
+                phclk::PeripheralClockType::APB1(phclk::PCLK1::TIM2),
+                clocks,
             )),
             client: OptionalCell::empty(),
             irqn: nvic::TIM2,
@@ -453,7 +453,7 @@ impl<'a> Alarm<'a> for Tim2<'a> {
     }
 }
 
-struct Tim2Clock<'a>(rcc::PeripheralClock<'a>);
+struct Tim2Clock<'a>(phclk::PeripheralClock<'a>);
 
 impl ClockInterface for Tim2Clock<'_> {
     fn is_enabled(&self) -> bool {

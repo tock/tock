@@ -18,3 +18,4 @@ qemu_rv32_virt_chip = { path = "../../chips/qemu_rv32_virt_chip" }
 
 capsules-core = { path = "../../capsules/core" }
 capsules-extra = { path = "../../capsules/extra" }
+capsules-system = { path = "../../capsules/system" }

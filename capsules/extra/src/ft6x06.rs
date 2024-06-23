@@ -11,7 +11,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! let mux_i2c = components::i2c::I2CMuxComponent::new(&stm32f4xx::i2c::I2C1)
 //!     .finalize(components::i2c_mux_component_helper!());
 //!

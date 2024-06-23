@@ -4,13 +4,13 @@
 
 //! Signature credential checker for checking process credentials.
 
-use crate::hil;
-use crate::process_checker::CheckResult;
-use crate::process_checker::{AppCredentialsPolicy, AppCredentialsPolicyClient};
-use crate::utilities::cells::MapCell;
-use crate::utilities::cells::OptionalCell;
-use crate::utilities::leasable_buffer::{SubSlice, SubSliceMut};
-use crate::ErrorCode;
+use kernel::hil;
+use kernel::process_checker::CheckResult;
+use kernel::process_checker::{AppCredentialsPolicy, AppCredentialsPolicyClient};
+use kernel::utilities::cells::MapCell;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::leasable_buffer::{SubSlice, SubSliceMut};
+use kernel::ErrorCode;
 use tock_tbf::types::TbfFooterV2Credentials;
 use tock_tbf::types::TbfFooterV2CredentialsType;
 
@@ -90,15 +90,14 @@ impl<
                 });
             }
             Ok(()) => {
-                self.hash.take().map(|h| match self.hasher.run(h) {
-                    Err((e, _)) => {
+                self.hash.take().map(|h| {
+                    if let Err((e, _)) = self.hasher.run(h) {
                         self.client.map(|c| {
                             let binary = self.binary.take().unwrap();
                             let cred = self.credentials.take().unwrap();
                             c.check_done(Err(e), cred, binary)
                         });
                     }
-                    Ok(()) => {}
                 });
             }
         }
@@ -124,8 +123,8 @@ impl<
                 });
             }
             Ok(()) => match self.signature.take() {
-                Some(sig) => match self.verifier.verify(digest, sig) {
-                    Err((e, d, s)) => {
+                Some(sig) => {
+                    if let Err((e, d, s)) = self.verifier.verify(digest, sig) {
                         self.hash.replace(d);
                         self.signature.replace(s);
                         self.client.map(|c| {
@@ -134,8 +133,7 @@ impl<
                             c.check_done(Err(e), cred, binary)
                         });
                     }
-                    Ok(()) => {}
-                },
+                }
                 None => {
                     self.hash.replace(digest);
                     self.client.map(|c| {

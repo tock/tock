@@ -16,7 +16,7 @@
 //! Usage
 //! -----
 //!
-//! ```
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! let app_flash_buffer = static_init!([u8; 512], [0; 512]);

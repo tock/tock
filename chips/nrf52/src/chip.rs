@@ -40,8 +40,6 @@ pub struct Nrf52DefaultPeripherals<'a> {
     pub timer2: crate::timer::Timer,
     pub uarte0: crate::uart::Uarte<'a>,
     pub spim0: crate::spi::SPIM<'a>,
-    pub twi0: crate::i2c::TWI<'a>,
-    pub spim1: crate::spi::SPIM<'a>,
     pub twi1: crate::i2c::TWI<'a>,
     pub spim2: crate::spi::SPIM<'a>,
     pub adc: crate::adc::Adc<'a>,
@@ -65,8 +63,6 @@ impl<'a> Nrf52DefaultPeripherals<'a> {
             timer2: crate::timer::Timer::new(2),
             uarte0: crate::uart::Uarte::new(crate::uart::UARTE0_BASE),
             spim0: crate::spi::SPIM::new(0),
-            twi0: crate::i2c::TWI::new_twi0(),
-            spim1: crate::spi::SPIM::new(1),
             twi1: crate::i2c::TWI::new_twi1(),
             spim2: crate::spi::SPIM::new(2),
             // Default to 3.3 V VDD reference.
@@ -98,34 +94,8 @@ impl<'a> kernel::platform::chip::InterruptService for Nrf52DefaultPeripherals<'a
             crate::peripheral_interrupts::TIMER1 => self.timer1.handle_interrupt(),
             crate::peripheral_interrupts::TIMER2 => self.timer2.handle_interrupt(),
             crate::peripheral_interrupts::UART0 => self.uarte0.handle_interrupt(),
-            crate::peripheral_interrupts::SPI0_TWI0 => {
-                // SPI0 and TWI0 share interrupts.
-                // Dispatch the correct handler.
-                match (self.spim0.is_enabled(), self.twi0.is_enabled()) {
-                    (false, false) => (),
-                    (true, false) => self.spim0.handle_interrupt(),
-                    (false, true) => self.twi0.handle_interrupt(),
-                    (true, true) => debug_assert!(
-                        false,
-                        "SPIM0 and TWIM0 cannot be \
-                         enabled at the same time."
-                    ),
-                }
-            }
-            crate::peripheral_interrupts::SPI1_TWI1 => {
-                // SPI1 and TWI1 share interrupts.
-                // Dispatch the correct handler.
-                match (self.spim1.is_enabled(), self.twi1.is_enabled()) {
-                    (false, false) => (),
-                    (true, false) => self.spim1.handle_interrupt(),
-                    (false, true) => self.twi1.handle_interrupt(),
-                    (true, true) => debug_assert!(
-                        false,
-                        "SPIM1 and TWIM1 cannot be \
-                         enabled at the same time."
-                    ),
-                }
-            }
+            crate::peripheral_interrupts::SPI0_TWI0 => self.spim0.handle_interrupt(),
+            crate::peripheral_interrupts::SPI1_TWI1 => self.twi1.handle_interrupt(),
             crate::peripheral_interrupts::SPIM2_SPIS2_SPI2 => self.spim2.handle_interrupt(),
             crate::peripheral_interrupts::ADC => self.adc.handle_interrupt(),
             _ => return false,

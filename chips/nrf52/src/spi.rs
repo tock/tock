@@ -248,7 +248,7 @@ pub struct SPIM<'a> {
 }
 
 impl<'a> SPIM<'a> {
-    pub fn new(instance: usize) -> SPIM<'a> {
+    pub const fn new(instance: usize) -> SPIM<'a> {
         SPIM {
             registers: INSTANCES[instance],
             client: OptionalCell::empty(),

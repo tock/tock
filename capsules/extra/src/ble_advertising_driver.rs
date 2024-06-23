@@ -67,7 +67,7 @@
 //! You need a device that provides the `kernel::BleAdvertisementDriver` trait along with a virtual
 //! timer to perform events and not block the entire kernel
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //! # use capsules::virtual_alarm::VirtualMuxAlarm;
 //!
@@ -377,9 +377,9 @@ where
     // likely be chosen.
     fn reset_active_alarm(&self) {
         let now = self.alarm.now();
-        let mut next_ref = u32::max_value();
-        let mut next_dt = u32::max_value();
-        let mut next_dist = u32::max_value();
+        let mut next_ref = u32::MAX;
+        let mut next_dt = u32::MAX;
+        let mut next_dist = u32::MAX;
         for app in self.app.iter() {
             app.enter(|app, _| match app.alarm_data.expiration {
                 Expiration::Enabled(reference, dt) => {
@@ -394,7 +394,7 @@ where
                 Expiration::Disabled => {}
             });
         }
-        if next_ref != u32::max_value() {
+        if next_ref != u32::MAX {
             self.alarm
                 .set_alarm(A::Ticks::from(next_ref), A::Ticks::from(next_dt));
         }

@@ -40,7 +40,7 @@
 //! reasonable. ATOMIC_SIZE should be at least 80 (row width
 //! of a standard console).
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //! # use capsules_core::console_ordered::ConsoleOrdered;
 //! let console = static_init!(

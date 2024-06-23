@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use crate::rcc;
+use crate::clocks::{phclk, Stm32f4Clocks};
 use core::cell::Cell;
 use kernel::hil;
 use kernel::platform::chip::ClockInterface;
@@ -314,13 +314,13 @@ pub struct Adc<'a> {
 }
 
 impl<'a> Adc<'a> {
-    pub const fn new(rcc: &'a rcc::Rcc) -> Adc {
+    pub const fn new(clocks: &'a dyn Stm32f4Clocks) -> Adc {
         Adc {
             registers: ADC1_BASE,
             common_registers: ADC_COMMON_BASE,
-            clock: AdcClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB2(rcc::PCLK2::ADC1),
-                rcc,
+            clock: AdcClock(phclk::PeripheralClock::new(
+                phclk::PeripheralClockType::APB2(phclk::PCLK2::ADC1),
+                clocks,
             )),
             status: Cell::new(ADCStatus::Off),
             client: OptionalCell::empty(),
@@ -369,7 +369,7 @@ impl<'a> Adc<'a> {
     }
 }
 
-struct AdcClock<'a>(rcc::PeripheralClock<'a>);
+struct AdcClock<'a>(phclk::PeripheralClock<'a>);
 
 impl ClockInterface for AdcClock<'_> {
     fn is_enabled(&self) -> bool {

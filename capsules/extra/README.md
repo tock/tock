@@ -61,6 +61,7 @@ These drivers provide support for various ICs.
 - **[PCA9544A](src/pca9544a.rs)**: Multiple port I2C selector.
 - **[SD Card](src/sdcard.rs)**: Support for SD cards.
 - **[Seven Segment Display](src/seven_segment.rs)**: Seven segment displays.
+- **[SH1106](src/sh1106.rs)**: SH1106 OLED screen driver.
 - **[SSD1306](src/ssd1306.rs)**: SSD1306 OLED screen driver.
 - **[ST77xx](src/st77xx.rs)**: ST77xx IPS screen.
 
@@ -117,6 +118,7 @@ These provide common and better abstractions for userspace.
   own flash.
 - **[Buzzer](src/buzzer_driver.rs)**: Simple buzzer.
 - **[Date-Time](src/date_time.rs)**: Real time clock date/time support.
+- **[EUI64](src/eui64.rs)**: Query device's extended unique ID.
 - **[HMAC](src/hmac.rs)**: Hash-based Message Authentication Code support.
 - **[Humidity](src/humidity.rs)**: Query humidity sensors.
 - **[Key-Value Store](src/kv_driver.rs)**: Store key-value data.
@@ -174,6 +176,8 @@ Debugging Capsules
 These are selectively included on a board to help with testing and debugging
 various elements of Tock.
 
+- **[Cycle Counter](src/cycle_count.rs)**: Start, stop, reset, and read a hardware cycle
+  counter from userspace.
 - **[Debug Process Restart](src/debug_process_restart.rs)**: Force all processes
   to enter a fault state when a button is pressed.
 - **[Panic Button](src/panic_button.rs)**: Use a button to force a `panic!()`.

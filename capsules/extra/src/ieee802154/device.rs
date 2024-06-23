@@ -73,25 +73,6 @@ pub trait MacDevice<'a> {
         security_needed: Option<(SecurityLevel, KeyId)>,
     ) -> Result<Frame, &'static mut [u8]>;
 
-    /// Creates an IEEE 802.15.4 Frame object that is compatible with the
-    /// MAC transmit and append payload methods. This serves to provide
-    /// functionality for sending packets fully formed by the userprocess
-    /// and that the 15.4 capsule does not modify. The len field may be less
-    /// than the length of the buffer as the len field is the length of
-    /// the current frame while the buffer is the maximum 15.4 frame size.
-    ///
-    /// - `buf`: The buffer to be used for the frame
-    /// - `len`: The length of the frame
-    ///
-    /// Returns a Result:
-    ///     - on success a Frame object.
-    ///     - on failure an error returning the buffer.
-    fn buf_to_frame(
-        &self,
-        buf: &'static mut [u8],
-        len: usize,
-    ) -> Result<Frame, (ErrorCode, &'static mut [u8])>;
-
     /// Transmits a frame that has been prepared by the above process. If the
     /// transmission process fails, the buffer inside the frame is returned so
     /// that it can be re-used.
@@ -129,9 +110,17 @@ pub trait RxClient {
     /// - `header`: A fully-parsed representation of the MAC header, with the
     /// caveat that the auxiliary security header is still included if the frame
     /// was previously secured.
+    /// - `lqi`: The link quality indicator of the received frame.
     /// - `data_offset`: Offset of the data payload relative to
     /// `buf`, so that the payload of the frame is contained in
     /// `buf[data_offset..data_offset + data_len]`.
     /// - `data_len`: Length of the data payload
-    fn receive<'a>(&self, buf: &'a [u8], header: Header<'a>, data_offset: usize, data_len: usize);
+    fn receive<'a>(
+        &self,
+        buf: &'a [u8],
+        header: Header<'a>,
+        lqi: u8,
+        data_offset: usize,
+        data_len: usize,
+    );
 }

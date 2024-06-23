@@ -20,12 +20,12 @@ with builtins;
 let
   inherit (pkgs) stdenv lib;
 
-  # Tockloader v1.11.0
+  # Tockloader v1.12.0
   tockloader = import (pkgs.fetchFromGitHub {
     owner = "tock";
     repo = "tockloader";
-    rev = "v1.11.0";
-    sha256 = "sha256-bPEfpfOZOjOiazqRgn1cnqe4ohLPvocuENKoZx/Qw80=";
+    rev = "v1.12.0";
+    sha256 = "sha256-VgbAKDY/7ZVINDkqSHF7C0zRzVgtk8YG6O/ZmUpsh/g=";
   }) { inherit pkgs withUnfreePkgs; };
 
   rust_overlay = import "${pkgs.fetchFromGitHub {
@@ -63,7 +63,7 @@ in
 
       # --- CI support packages ---
       qemu
-      
+
       # --- Flashing tools ---
       # If your board requires J-Link to flash and you are on NixOS,
       # add these lines to your system wide configuration.

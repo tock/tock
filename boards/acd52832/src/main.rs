@@ -10,6 +10,8 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use core::ptr::{addr_of, addr_of_mut};
+
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -44,7 +46,8 @@ pub mod io;
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
+const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
+    capsules_system::process_policies::PanicFaultPolicy {};
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
@@ -192,7 +195,7 @@ unsafe fn start() -> (
         create_capability!(capabilities::ProcessManagementCapability);
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
 
     // Make non-volatile memory writable and activate the reset button
     let uicr = nrf52832::uicr::Uicr::new();
@@ -355,14 +358,14 @@ unsafe fn start() -> (
     // Create shared mux for the I2C bus
     let i2c_mux = static_init!(
         capsules_core::virtualizers::virtual_i2c::MuxI2C<'static, nrf52832::i2c::TWI<'static>>,
-        capsules_core::virtualizers::virtual_i2c::MuxI2C::new(&base_peripherals.twi0, None,)
+        capsules_core::virtualizers::virtual_i2c::MuxI2C::new(&base_peripherals.twi1, None,)
     );
     kernel::deferred_call::DeferredCallClient::register(i2c_mux);
-    base_peripherals.twi0.configure(
+    base_peripherals.twi1.configure(
         nrf52832::pinmux::Pinmux::new(21),
         nrf52832::pinmux::Pinmux::new(20),
     );
-    base_peripherals.twi0.set_master_client(i2c_mux);
+    base_peripherals.twi1.set_master_client(i2c_mux);
 
     // Configure the MCP23017. Device address 0x20.
     let mcp_pin0 = static_init!(
@@ -598,21 +601,21 @@ unsafe fn start() -> (
     while !base_peripherals.clock.low_started() {}
     while !base_peripherals.clock.high_started() {}
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let platform = Platform {
-        button: button,
-        ble_radio: ble_radio,
-        console: console,
-        led: led,
-        gpio: gpio,
-        rng: rng,
-        temp: temp,
-        alarm: alarm,
-        gpio_async: gpio_async,
-        light: light,
-        buzzer: buzzer,
+        button,
+        ble_radio,
+        console,
+        led,
+        gpio,
+        rng,
+        temp,
+        alarm,
+        gpio_async,
+        light,
+        buzzer,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
@@ -631,7 +634,7 @@ unsafe fn start() -> (
     nrf52832_peripherals.gpio_port[Pin::P0_31].clear();
 
     debug!("Initialization complete. Entering main loop\r");
-    debug!("{}", &nrf52832::ficr::FICR_INSTANCE);
+    debug!("{}", &*addr_of!(nrf52832::ficr::FICR_INSTANCE));
 
     // These symbols are defined in the linker script.
     extern "C" {
@@ -656,7 +659,7 @@ unsafe fn start() -> (
             core::ptr::addr_of_mut!(_sappmem),
             core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut PROCESSES,
+        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_management_capability,
     )

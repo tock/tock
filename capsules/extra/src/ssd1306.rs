@@ -110,7 +110,7 @@ pub enum Command {
 }
 
 impl Command {
-    fn encode(self, buffer: &mut SubSliceMut<'static, u8>) {
+    pub fn encode(self, buffer: &mut SubSliceMut<'static, u8>) {
         let take = match self {
             Self::SetChargePump { enable } => {
                 buffer[0] = 0x8D;
@@ -186,7 +186,7 @@ impl Command {
                 1
             }
             Self::SetHigherColumnStartAddress { address } => {
-                buffer[0] = 0x10 | (address & 0xF);
+                buffer[0] = 0x10 | ((address >> 4) & 0xF);
                 1
             }
             Self::SetMemoryAddressingMode { mode } => {

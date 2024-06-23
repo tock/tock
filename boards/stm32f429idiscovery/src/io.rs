@@ -4,6 +4,8 @@
 
 use core::fmt::Write;
 use core::panic::PanicInfo;
+use core::ptr::addr_of;
+use core::ptr::addr_of_mut;
 
 use kernel::debug;
 use kernel::debug::IoWrite;
@@ -11,6 +13,7 @@ use kernel::hil::led;
 use kernel::hil::uart;
 use kernel::hil::uart::Configure;
 
+use stm32f429zi::chip_specs::Stm32f429Specs;
 use stm32f429zi::gpio::PinId;
 
 use crate::CHIP;
@@ -43,7 +46,9 @@ impl Write for Writer {
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) -> usize {
         let rcc = stm32f429zi::rcc::Rcc::new();
-        let uart = stm32f429zi::usart::Usart::new_usart1(&rcc);
+        let clocks: stm32f429zi::clocks::Clocks<Stm32f429Specs> =
+            stm32f429zi::clocks::Clocks::new(&rcc);
+        let uart = stm32f429zi::usart::Usart::new_usart1(&clocks);
 
         if !self.initialized {
             self.initialized = true;
@@ -72,22 +77,24 @@ pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
     // User LD4 is connected to PG14
     // Have to reinitialize several peripherals because otherwise can't access them here.
     let rcc = stm32f429zi::rcc::Rcc::new();
-    let syscfg = stm32f429zi::syscfg::Syscfg::new(&rcc);
+    let clocks: stm32f429zi::clocks::Clocks<Stm32f429Specs> =
+        stm32f429zi::clocks::Clocks::new(&rcc);
+    let syscfg = stm32f429zi::syscfg::Syscfg::new(&clocks);
     let exti = stm32f429zi::exti::Exti::new(&syscfg);
     let pin = stm32f429zi::gpio::Pin::new(PinId::PG14, &exti);
-    let gpio_ports = stm32f429zi::gpio::GpioPorts::new(&rcc, &exti);
+    let gpio_ports = stm32f429zi::gpio::GpioPorts::new(&clocks, &exti);
     pin.set_ports_ref(&gpio_ports);
     let led = &mut led::LedHigh::new(&pin);
 
-    let writer = &mut WRITER;
+    let writer = &mut *addr_of_mut!(WRITER);
 
     debug::panic(
         &mut [led],
         writer,
         info,
         &cortexm4::support::nop,
-        &PROCESSES,
-        &CHIP,
-        &PROCESS_PRINTER,
+        &*addr_of!(PROCESSES),
+        &*addr_of!(CHIP),
+        &*addr_of!(PROCESS_PRINTER),
     )
 }

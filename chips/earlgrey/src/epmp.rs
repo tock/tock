@@ -23,9 +23,9 @@ use rv32i::pmp::{
 const PMP_ENTRIES: usize = 16;
 const PMP_ENTRIES_OVER_TWO: usize = 8;
 const TOR_USER_REGIONS_DEBUG_ENABLE: usize = 4;
-const TOR_USER_REGIONS_DEBUG_DISABLE: usize = 5;
+const TOR_USER_REGIONS_DEBUG_DISABLE: usize = 4;
 const TOR_USER_ENTRIES_OFFSET_DEBUG_ENABLE: usize = 0;
-const TOR_USER_ENTRIES_OFFSET_DEBUG_DISABLE: usize = 2;
+const TOR_USER_ENTRIES_OFFSET_DEBUG_DISABLE: usize = 4;
 
 // ---------- EarlGrey ePMP memory region wrapper types ------------------------
 //
@@ -221,8 +221,62 @@ pub enum EarlGreyEPMPError {
 ///    granting R/X on flash-memory where only R is required, because the
 ///    kernel-text is already marked as R/X in the high-priority regions above.
 ///
-/// The EarlGrey ePMP driver attempts to set up the following memory protection
-/// rules and layout when the debug-port is disabled:
+/// Because the ROM_EXT and test ROM set up different ePMP configs, there are
+/// separate initialization routines (`new` and `new_test_rom`) for those
+/// environments.
+///
+/// `new` (only available when the debug-port is disabled) attempts to set up
+/// the following memory protection rules and layout:
+///
+/// - `msseccfg` CSR:
+///
+///   ```text
+///   |-----+-----------------------------------------------------------+-------|
+///   | BIT | LABEL                                                     | STATE |
+///   |-----+-----------------------------------------------------------+-------|
+///   |   0 | Machine-Mode Lockdown (MML)                               |     1 |
+///   |   1 | Machine-Mode Whitelist Policy (MMWP)                      |     1 |
+///   |   2 | Rule-Lock Bypass (RLB)                                    |     0 |
+///   |-----+-----------------------------------------------------------+-------|
+///   ```
+///
+/// - `pmpcfgX` / `pmpaddrX` CSRs:
+///
+///   ```text
+///   |-------+----------------------------------------+-----------+---+-------|
+///   | ENTRY | REGION / ADDR                          | MODE      | L | PERMS |
+///   |-------+----------------------------------------+-----------+---+-------|
+///   |     0 | Locked by the ROM_EXT or unused        | NAPOT/OFF | X |       |
+///   |       |                                        |           |   |       |
+///   |     1 | Locked by the ROM_EXT or unused        | NAPOT/OFF | X |       |
+///   |       |                                        |           |   |       |
+///   |     2 | -------------------------------------- | OFF       | X | ----- |
+///   |     3 | Kernel .text section                   | TOR       | X | R/X   |
+///   |       |                                        |           |   |       |
+///   |     4 | /                                    \ | OFF       |   |       |
+///   |     5 | \ Userspace TOR region #0            / | TOR       |   | ????? |
+///   |       |                                        |           |   |       |
+///   |     6 | /                                    \ | OFF       |   |       |
+///   |     7 | \ Userspace TOR region #1            / | TOR       |   | ????? |
+///   |       |                                        |           |   |       |
+///   |     8 | /                                    \ | OFF       |   |       |
+///   |     9 | \ Userspace TOR region #2            / | TOR       |   | ????? |
+///   |       |                                        |           |   |       |
+///   |    10 | /                                    \ | OFF       |   |       |
+///   |    11 | \ Userspace TOR region #3            / | TOR       |   | ????? |
+///   |       |                                        |           |   |       |
+///   |    12 | FLASH (spanning kernel & apps)         | NAPOT     | X | R     |
+///   |       |                                        |           |   |       |
+///   |    13 | -------------------------------------- | OFF       | X | ----- |
+///   |       |                                        |           |   |       |
+///   |    14 | RAM (spanning kernel & apps)           | NAPOT     | X | R/W   |
+///   |       |                                        |           |   |       |
+///   |    15 | MMIO                                   | NAPOT     | X | R/W   |
+///   |-------+----------------------------------------+-----------+---+-------|
+///   ```
+///
+/// `new_test_rom` (only available when the debug-port is disabled) attempts to
+/// set up the following memory protection rules and layout:
 ///
 /// - `msseccfg` CSR:
 ///
@@ -245,20 +299,21 @@ pub enum EarlGreyEPMPError {
 ///   |     0 | ------------------------------------------- | OFF   | X | ----- |
 ///   |     1 | Kernel .text section                        | TOR   | X | R/X   |
 ///   |       |                                             |       |   |       |
-///   |     2 | /                                         \ | OFF   |   |       |
-///   |     3 | \ Userspace TOR region #0                 / | TOR   |   | ????? |
+///   |     2 | ------------------------------------------- | OFF   | X |       |
+///   |       |                                             |       |   |       |
+///   |     3 | ------------------------------------------- | OFF   | X |       |
 ///   |       |                                             |       |   |       |
 ///   |     4 | /                                         \ | OFF   |   |       |
-///   |     5 | \ Userspace TOR region #1                 / | TOR   |   | ????? |
+///   |     5 | \ Userspace TOR region #0                 / | TOR   |   | ????? |
 ///   |       |                                             |       |   |       |
 ///   |     6 | /                                         \ | OFF   |   |       |
-///   |     7 | \ Userspace TOR region #2                 / | TOR   |   | ????? |
+///   |     7 | \ Userspace TOR region #1                 / | TOR   |   | ????? |
 ///   |       |                                             |       |   |       |
 ///   |     8 | /                                         \ | OFF   |   |       |
-///   |     9 | \ Userspace TOR region #3                 / | TOR   |   | ????? |
+///   |     9 | \ Userspace TOR region #2                 / | TOR   |   | ????? |
 ///   |       |                                             |       |   |       |
 ///   |    10 | /                                         \ | OFF   |   |       |
-///   |    11 | \ Userspace TOR region #4                 / | TOR   |   | ????? |
+///   |    11 | \ Userspace TOR region #3                 / | TOR   |   | ????? |
 ///   |       |                                             |       |   |       |
 ///   |    12 | ------------------------------------------- | OFF   | X | ----- |
 ///   |       |                                             |       |   |       |
@@ -316,8 +371,8 @@ pub enum EarlGreyEPMPError {
 ///    These entires provide the kernel access to certain memory regions, as
 ///    required by the machine-mode whitelist policy (MMWP).
 ///
-/// The EarlGrey ePMP driver attempts to set up the following memory protection
-/// rules and layout when the debug-port is enabled:
+/// `new_debug` (only available when the debug-port is enabled) attempts to set
+/// up the following memory protection rules and layout:
 ///
 /// - `msseccfg` CSR:
 ///
@@ -384,6 +439,109 @@ impl<const HANDOVER_CONFIG_CHECK: bool> EarlGreyEPMP<{ HANDOVER_CONFIG_CHECK }, 
     ) -> Result<Self, EarlGreyEPMPError> {
         use kernel::utilities::registers::interfaces::{Readable, Writeable};
 
+        // --> We start with the "high-priority" ("lockdown") section of the
+        // ePMP configuration:
+
+        // Provide R/X access to the kernel .text as passed to us above.
+        // Allocate a TOR region in PMP entries 2 and 3:
+        csr::CSR.pmpaddr2.set((kernel_text.0.start() as usize) >> 2);
+        csr::CSR.pmpaddr3.set((kernel_text.0.end() as usize) >> 2);
+
+        // Set the appropriate `pmpcfg0` register value:
+        //
+        // 0x80 = 0b10000000, for start the address of the kernel .text TOR
+        //        entry as well as entries 0 and 1.
+        //        setting L(7) = 1, A(4-3) = OFF, X(2) = 0, W(1) = 0, R(0) = 0
+        //
+        // 0x8d = 0b10001101, for kernel .text TOR region
+        //        setting L(7) = 1, A(4-3) = TOR,   X(2) = 1, W(1) = 0, R(0) = 1
+        //
+        // Note that we try to lock entries 0 and 1 into OFF mode. If the
+        // ROM_EXT set these up and locked them, this will do nothing, otherwise
+        // it will permanently disable these entries (preventing them from being
+        // misused later).
+        csr::CSR.pmpcfg0.set(0x8d_80_80_80);
+
+        // --> Continue with the "low-priority" ("accessibility") section of the
+        // ePMP configuration:
+
+        // Configure a Read-Only NAPOT region for the entire flash (spanning
+        // kernel & apps, but overlayed by the R/X kernel text TOR section)
+        csr::CSR.pmpaddr12.set(flash.0.napot_addr());
+
+        // Configure a Read-Write NAPOT region for MMIO.
+        csr::CSR.pmpaddr14.set(mmio.0.napot_addr());
+
+        // Configure a Read-Write NAPOT region for the entire RAM (spanning
+        // kernel & apps)
+        csr::CSR.pmpaddr15.set(ram.0.napot_addr());
+
+        // With the FLASH, RAM and MMIO configured in separate regions, we can
+        // activate this new configuration, and further adjust the permissions
+        // of the (currently all-capable) last PMP entry `pmpaddr15` to be R/W,
+        // as required for MMIO:
+        //
+        // 0x99 = 0b10011001, for FLASH NAPOT region
+        //        setting L(7) = 1, A(4-3) = NAPOT, X(2) = 0, W(1) = 0, R(0) = 1
+        //
+        // 0x80 = 0b10000000, for the unused region
+        //        setting L(7) = 1, A(4-3) = OFF, X(2) = 0, W(1) = 0, R(0) = 0
+        //
+        // 0x9B = 0b10011011, for RAM & MMIO NAPOT regions
+        //        setting L(7) = 1, A(4-3) = NAPOT, X(2) = 0, W(1) = 1, R(0) = 1
+        csr::CSR.pmpcfg3.set(0x9B_9B_80_99);
+
+        // Ensure that the other pmpcfgX CSRs are cleared:
+        csr::CSR.pmpcfg1.set(0x00000000);
+        csr::CSR.pmpcfg2.set(0x00000000);
+
+        // ---------- PMP machine CSRs configured, lock down the system
+
+        // Finally, enable machine-mode lockdown.
+        // Set RLB(2) = 0, MMWP(1) = 1, MML(0) = 1
+        csr::CSR.mseccfg.set(0x00000003);
+
+        // ---------- System locked down, cross-check config
+
+        // Now, cross-check that the CSRs have the expected values. This acts as
+        // a sanity check, and can also help to protect against some set of
+        // fault-injection attacks. These checks can't be optimized out by the
+        // compiler, as they invoke assembly underneath which is not marked as
+        // ["pure"](https://doc.rust-lang.org/reference/inline-assembly.html).
+        //
+        // Note that different ROM_EXT versions configure entries 0 and 1
+        // differently, so we only confirm they are locked here.
+        if csr::CSR.mseccfg.get() != 0x00000003
+            || (csr::CSR.pmpcfg0.get() & 0xFFFF8080) != 0x8d808080
+            || csr::CSR.pmpcfg1.get() != 0x00000000
+            || csr::CSR.pmpcfg2.get() != 0x00000000
+            || csr::CSR.pmpcfg3.get() != 0x9B9B8099
+            || csr::CSR.pmpaddr2.get() != (kernel_text.0.start() as usize) >> 2
+            || csr::CSR.pmpaddr3.get() != (kernel_text.0.end() as usize) >> 2
+            || csr::CSR.pmpaddr12.get() != flash.0.napot_addr()
+            || csr::CSR.pmpaddr14.get() != mmio.0.napot_addr()
+            || csr::CSR.pmpaddr15.get() != ram.0.napot_addr()
+        {
+            return Err(EarlGreyEPMPError::SanityCheckFail);
+        }
+
+        // The ePMP hardware was correctly configured, build the ePMP struct:
+        const DEFAULT_USER_PMPCFG_OCTET: Cell<TORUserPMPCFG> = Cell::new(TORUserPMPCFG::OFF);
+        Ok(EarlGreyEPMP {
+            user_pmp_enabled: Cell::new(false),
+            shadow_user_pmpcfgs: [DEFAULT_USER_PMPCFG_OCTET; TOR_USER_REGIONS_DEBUG_DISABLE],
+            _pd: PhantomData,
+        })
+    }
+
+    pub unsafe fn new_test_rom(
+        flash: FlashRegion,
+        ram: RAMRegion,
+        mmio: MMIORegion,
+        kernel_text: KernelTextRegion,
+    ) -> Result<Self, EarlGreyEPMPError> {
+        use kernel::utilities::registers::interfaces::{Readable, Writeable};
+
         if HANDOVER_CONFIG_CHECK {
             Self::check_initial_hardware_config()?;
         } else {
@@ -429,11 +587,13 @@ impl<const HANDOVER_CONFIG_CHECK: bool> EarlGreyEPMP<{ HANDOVER_CONFIG_CHECK }, 
         // Set the appropriate `pmpcfg0` register value:
         //
         // 0x80 = 0b10000000, for start address of the kernel .text TOR entry
+        //        and to disable regions 2 & 3 (to be compatible with the
+        //        non-test-rom constructor).
         //        setting L(7) = 1, A(4-3) = OFF, X(2) = 0, W(1) = 0, R(0) = 0
         //
         // 0x8d = 0b10001101, for kernel .text TOR region
         //        setting L(7) = 1, A(4-3) = TOR,   X(2) = 1, W(1) = 0, R(0) = 1
-        csr::CSR.pmpcfg0.set(0x00008d80);
+        csr::CSR.pmpcfg0.set(0x80808d80);
 
         // --> Continue with the "low-priority" ("accessability") section of the
         // ePMP configuration:

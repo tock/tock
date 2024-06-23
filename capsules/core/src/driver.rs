@@ -42,6 +42,7 @@ pub enum NUM {
     LoRaPhySPI            = 0x30003,
     LoRaPhyGPIO           = 0x30004,
     Thread                = 0x30005,
+    Eui64                 = 0x30006,
 
     // Cryptography
     Rng                   = 0x40001,
@@ -92,5 +93,6 @@ pub enum NUM {
     SevenSegment          = 0x90004,
     KeyboardHid           = 0x90005,
     DateTime              = 0x90007,
+    CycleCount            = 0x90008,
 }
 }

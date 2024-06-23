@@ -67,6 +67,13 @@ pub struct Spi<'a, S: SpiMasterDevice<'a>> {
         AllowRwCount<{ rw_allow::COUNT }>,
     >,
     current_process: OptionalCell<ProcessId>,
+    command: Cell<UserCommand>,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum UserCommand {
+    ReadBytes,
+    InplaceReadWriteBytes,
 }
 
 impl<'a, S: SpiMasterDevice<'a>> Spi<'a, S> {
@@ -87,10 +94,11 @@ impl<'a, S: SpiMasterDevice<'a>> Spi<'a, S> {
             kernel_write: TakeCell::empty(),
             grants,
             current_process: OptionalCell::empty(),
+            command: Cell::new(UserCommand::ReadBytes),
         }
     }
 
-    pub fn config_buffers(&mut self, read: &'static mut [u8], write: &'static mut [u8]) {
+    pub fn config_buffers(&self, read: &'static mut [u8], write: &'static mut [u8]) {
         let len = cmp::min(read.len(), write.len());
         self.kernel_len.set(len);
         self.kernel_read.replace(read);
@@ -129,6 +137,39 @@ impl<'a, S: SpiMasterDevice<'a>> Spi<'a, S> {
         let _ = if rlen == 0 {
             self.spi_master
                 .read_write_bytes(self.kernel_write.take().unwrap(), None, write_len)
+        } else if write_len == 0 {
+            let read_len = self
+                .kernel_write
+                .map_or(0, |kwbuf| match self.command.get() {
+                    UserCommand::ReadBytes => {
+                        kwbuf.fill(0xFF);
+
+                        cmp::min(kwbuf.len(), rlen)
+                    }
+                    UserCommand::InplaceReadWriteBytes => kernel_data
+                        .get_readwrite_processbuffer(rw_allow::READ)
+                        .and_then(|read| {
+                            read.mut_enter(|src| {
+                                let length = cmp::min(kwbuf.len(), rlen);
+
+                                let start = app.index;
+                                let end = cmp::min(app.index + length, src.len());
+
+                                for (i, c) in src[start..end].iter().enumerate() {
+                                    kwbuf[i] = c.get();
+                                }
+
+                                length
+                            })
+                        })
+                        .unwrap_or(0),
+                });
+            app.index += read_len;
+            self.spi_master.read_write_bytes(
+                self.kernel_write.take().unwrap(),
+                self.kernel_read.take(),
+                read_len,
+            )
         } else {
             self.spi_master.read_write_bytes(
                 self.kernel_write.take().unwrap(),
@@ -167,6 +208,11 @@ impl<'a, S: SpiMasterDevice<'a>> SyscallDriver for Spi<'a, S> {
     // 10: get clock polarity on current peripheral
     //   - 0 is idle low
     //   - non-zero is idle high
+    // 11: read buffers
+    //   - read buffer required
+    // 12: inplace read/write buffers
+    //   - requires read buffer registered with allow
+    //   - write buffer not supported
     //
     // x: lock spi
     //   - if you perform an operation without the lock,
@@ -292,6 +338,59 @@ impl<'a, S: SpiMasterDevice<'a>> SyscallDriver for Spi<'a, S> {
             10 => {
                 // get polarity
                 CommandReturn::success_u32(self.spi_master.get_polarity() as u32)
+            }
+            11 => {
+                // read_bytes
+                // write 0xFF to the SPI bus and return the read values to
+                // userspace
+                if self.busy.get() {
+                    return CommandReturn::failure(ErrorCode::BUSY);
+                }
+                self.grants
+                    .enter(process_id, |app, kernel_data| {
+                        // When we do a read, we just write 0xFF on the bus.
+                        let rlen = kernel_data
+                            .get_readwrite_processbuffer(rw_allow::READ)
+                            .map_or(0, |read| read.len());
+
+                        if rlen >= arg1 && rlen > 0 {
+                            app.len = arg1;
+                            app.index = 0;
+                            self.busy.set(true);
+                            self.command.set(UserCommand::ReadBytes);
+                            self.do_next_read_write(app, kernel_data);
+                            CommandReturn::success()
+                        } else {
+                            /* write buffer too small, or zero length write */
+                            CommandReturn::failure(ErrorCode::INVAL)
+                        }
+                    })
+                    .unwrap_or(CommandReturn::failure(ErrorCode::FAIL))
+            }
+            12 => {
+                // inplace read_write_bytes
+                if self.busy.get() {
+                    return CommandReturn::failure(ErrorCode::BUSY);
+                }
+                self.grants
+                    .enter(process_id, |app, kernel_data| {
+                        let rlen = kernel_data
+                            .get_readwrite_processbuffer(rw_allow::READ)
+                            .map_or(0, |read| read.len());
+
+                        if rlen >= arg1 && arg1 > 0 {
+                            app.len = arg1;
+                            app.index = 0;
+                            self.busy.set(true);
+                            self.command.set(UserCommand::InplaceReadWriteBytes);
+                            self.do_next_read_write(app, kernel_data);
+                            CommandReturn::success()
+                        } else {
+                            /* write buffer too small, or zero length write */
+                            CommandReturn::failure(ErrorCode::INVAL)
+                        }
+                    })
+                    .unwrap_or(CommandReturn::failure(ErrorCode::FAIL))
             }
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }

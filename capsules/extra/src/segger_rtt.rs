@@ -42,7 +42,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! pub struct Platform {
 //!     // Other fields omitted for clarity
 //!     console: &'static capsules::console::Console<'static>,
@@ -51,7 +51,7 @@
 //!
 //! In `main()`:
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //! # use capsules::virtual_alarm::VirtualMuxAlarm;
 //!

@@ -28,11 +28,8 @@ pub use crate::process_loading::ProcessLoadError;
 pub use crate::process_loading::SequentialProcessLoaderMachine;
 pub use crate::process_loading::{load_processes, load_processes_return_memory};
 pub use crate::process_loading::{ProcessLoadingAsync, ProcessLoadingAsyncClient};
-pub use crate::process_policies::{
-    PanicFaultPolicy, ProcessFaultPolicy, RestartFaultPolicy, StopFaultPolicy,
-    StopWithDebugFaultPolicy, ThresholdRestartFaultPolicy, ThresholdRestartThenPanicFaultPolicy,
-};
-pub use crate::process_printer::{ProcessPrinter, ProcessPrinterContext, ProcessPrinterText};
+pub use crate::process_policies::ProcessFaultPolicy;
+pub use crate::process_printer::{ProcessPrinter, ProcessPrinterContext};
 pub use crate::process_standard::ProcessStandard;
 
 /// Userspace process identifier.
@@ -128,9 +125,9 @@ impl ProcessId {
     /// index in the processes array.
     pub(crate) fn new(kernel: &'static Kernel, identifier: usize, index: usize) -> ProcessId {
         ProcessId {
-            kernel: kernel,
-            identifier: identifier,
-            index: index,
+            kernel,
+            index,
+            identifier,
         }
     }
 
@@ -146,9 +143,9 @@ impl ProcessId {
         _capability: &dyn capabilities::ExternalProcessCapability,
     ) -> ProcessId {
         ProcessId {
-            kernel: kernel,
-            identifier: identifier,
-            index: index,
+            kernel,
+            index,
+            identifier,
         }
     }
 
@@ -264,6 +261,28 @@ impl PartialEq for ShortId {
 }
 impl Eq for ShortId {}
 
+impl core::convert::From<Option<core::num::NonZeroU32>> for ShortId {
+    fn from(id: Option<core::num::NonZeroU32>) -> ShortId {
+        match id {
+            Some(fixed) => ShortId::Fixed(fixed),
+            None => ShortId::LocallyUnique,
+        }
+    }
+}
+
+impl core::fmt::Display for ShortId {
+    fn fmt(&self, fmt: &mut core::fmt::Formatter) -> fmt::Result {
+        match *self {
+            ShortId::LocallyUnique => {
+                write!(fmt, "Unique")
+            }
+            ShortId::Fixed(id) => {
+                write!(fmt, "0x{:<8x} ", id)
+            }
+        }
+    }
+}
+
 /// Enum used to inform scheduler why a process stopped executing (aka why
 /// `do_process()` returned).
 ///
@@ -350,6 +369,10 @@ pub trait Process {
     /// `None`.
     fn dequeue_task(&self) -> Option<Task>;
 
+    /// Search the work queue for a specific upcall_id. If it is present,
+    /// return the associated `Task`, otherwise return `None`.
+    fn remove_upcall(&self, upcall_id: UpcallId) -> Option<Task>;
+
     /// Remove all scheduled upcalls for a given upcall id from the task queue.
     fn remove_pending_upcalls(&self, upcall_id: UpcallId);
 
@@ -369,6 +392,12 @@ pub trait Process {
     /// This will fail (i.e. not do anything) if the process was not previously
     /// running.
     fn set_yielded_state(&self);
+
+    /// Move this process from the running state to the yielded-for state.
+    ///
+    /// This will fail (i.e. not do anything) if the process was not previously
+    /// running.
+    fn set_yielded_for_state(&self, upcall_id: UpcallId);
 
     /// Move this process from running or yielded state into the stopped state.
     ///
@@ -840,12 +869,12 @@ impl From<Error> for ErrorCode {
 /// process states.
 ///
 /// While a process is running, it transitions between the `Running`, `Yielded`,
-/// `StoppedRunning`, and `StoppedYielded` states. If an error occurs (e.g., a
-/// memory access error), the kernel faults it and either leaves it in the
-/// `Faulted` state, restarts it, or takes some other action defined by the
-/// kernel fault policy. If the process issues an `exit-terminate` system call,
-/// it enters the `Terminated` state. If it issues an `exit-restart` system
-/// call, it terminates then tries to back to a runnable state.
+/// `YieldedFor`, and `Stopped` states. If an error occurs (e.g., a memory
+/// access error), the kernel faults it and either leaves it in the `Faulted`
+/// state, restarts it, or takes some other action defined by the kernel fault
+/// policy. If the process issues an `exit-terminate` system call, it enters the
+/// `Terminated` state. If it issues an `exit-restart` system call, it
+/// terminates then tries to back to a runnable state.
 ///
 /// When a process faults, it enters the `Faulted` state. To be restarted, it
 /// must first transition to the `Terminated` state, which means that all of its
@@ -863,16 +892,18 @@ pub enum State {
     /// scheduled again.
     Yielded,
 
-    /// The process is stopped, and its previous state was Running. This is used
-    /// if the kernel forcibly stops a process when it is in the `Running`
-    /// state. This state indicates to the kernel not to schedule the process,
-    /// but if the process is to be resumed later it should be put back in the
-    /// running state so it will execute correctly.
-    StoppedRunning,
+    /// Process stopped executing and returned to the kernel because it called
+    /// the `WaitFor` variant of the `yield` syscall. The process should not be
+    /// scheduled until the specified driver attempts to execute the specified
+    /// upcall.
+    YieldedFor(UpcallId),
 
-    /// The process is stopped, and it was stopped while it was yielded. If this
-    /// process needs to be resumed it should be put back in the `Yield` state.
-    StoppedYielded,
+    /// The process is stopped and the previous state the process was in when it
+    /// was stopped. This is used if the kernel forcibly stops a process. This
+    /// state indicates to the kernel not to schedule the process, but if the
+    /// process is to be resumed later it should be put back in its previous
+    /// state so it will execute correctly.
+    Stopped(StoppedState),
 
     /// The process ran, faulted while running, and is no longer runnable. For a
     /// faulted process to be made runnable, it must first be terminated (to
@@ -883,6 +914,24 @@ pub enum State {
     /// call or was terminated for some other reason (e.g., by the process
     /// console). Processes in the `Terminated` state can be run again.
     Terminated,
+}
+
+/// States a process could previously have been in when stopped.
+///
+/// This is public so external implementations of `Process` can re-use these
+/// process stopped states.
+///
+/// These are recorded so the process can be returned to its previous state when
+/// it is resumed.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum StoppedState {
+    /// The process was in the running state when it was stopped.
+    Running,
+    /// The process was in the yielded state when it was stopped.
+    Yielded,
+    /// The process was in the yielded for state when it was stopped with a
+    /// particular upcall it was waiting for.
+    YieldedFor(UpcallId),
 }
 
 /// The action the kernel should take when a process encounters a fault.
@@ -918,6 +967,10 @@ pub enum Task {
     /// Function pointer in the process to execute. Generally this is a upcall
     /// from a capsule.
     FunctionCall(FunctionCall),
+    /// Data to return to the process. This is used to resume a suspended
+    /// process without invoking any callbacks in userspace (e.g., in response
+    /// to a YieldFor).
+    ReturnValue(ReturnArguments),
     /// An IPC operation that needs additional setup to configure memory access.
     IPC((ProcessId, ipc::IPCUpcallType)),
 }
@@ -958,6 +1011,23 @@ pub struct FunctionCall {
     pub argument3: usize,
     /// The PC of the function to execute.
     pub pc: usize,
+}
+
+/// This is similar to `FunctionCall` but for the special case of the Null
+/// Upcall for a subscribe. Because there is no function pointer in a Null
+/// Upcall we can only return these values to userspace. This is used to pass
+/// around upcall parameters when there is no associated upcall to actually call
+/// or userdata.
+#[derive(Copy, Clone, Debug)]
+pub struct ReturnArguments {
+    /// Which upcall generates this event.
+    pub upcall_id: UpcallId,
+    /// The first argument to return.
+    pub argument0: usize,
+    /// The second argument to return.
+    pub argument1: usize,
+    /// The third argument to return.
+    pub argument2: usize,
 }
 
 /// Collection of process state information related to the memory addresses of

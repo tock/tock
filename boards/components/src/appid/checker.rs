@@ -14,7 +14,7 @@ macro_rules! process_checker_machine_component_static {
     };};
 }
 
-pub type ProcessCheckerMachineComponentType = kernel::process_checker::basic::AppCheckerSha256;
+pub type ProcessCheckerMachineComponentType = kernel::process::ProcessCheckerMachine;
 
 pub struct ProcessCheckerMachineComponent {
     policy: &'static dyn kernel::process_checker::AppCredentialsPolicy<'static>,

@@ -8,7 +8,7 @@
 //! `StoragePermissions` so processes must have the required permissions in
 //! their TBF headers to use this interface.
 //!
-//! ```
+//! ```rust,ignore
 //! +===============+
 //! ||  Userspace  ||
 //! +===============+

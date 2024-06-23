@@ -123,7 +123,7 @@ impl StoragePermissions {
             // If kerneluser, write_id is 0 unless specifically set.
             Some(self.write_id.map_or(0, |wid| wid.get()))
         } else {
-            self.write_id.map_or(None, |wid| Some(wid.get()))
+            self.write_id.map(|wid| wid.get())
         }
     }
 }

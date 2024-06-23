@@ -30,7 +30,7 @@
 //!
 //! Here is a sample usage of this capsule in a board's main.rs file:
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! let buffer = static_init!([u8; capsules::ltc294x::BUF_LEN], [0; capsules::ltc294x::BUF_LEN]);

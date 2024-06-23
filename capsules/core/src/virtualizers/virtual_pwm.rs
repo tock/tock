@@ -10,16 +10,16 @@
 //! Usage
 //! -----
 //!
-//! ```
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! let mux_pwm = static_init!(
-//!     capsules::virtual_pwm::MuxPwm<'static, nrf52::pwm::Pwm>,
-//!     capsules::virtual_pwm::MuxPwm::new(&base_peripherals.pwm0)
+//!     capsules_core::virtual_pwm::MuxPwm<'static, nrf52::pwm::Pwm>,
+//!     capsules_core::virtual_pwm::MuxPwm::new(&base_peripherals.pwm0)
 //! );
 //! let virtual_pwm_buzzer = static_init!(
-//!     capsules::virtual_pwm::PwmPinUser<'static, nrf52::pwm::Pwm>,
-//!     capsules::virtual_pwm::PwmPinUser::new(mux_pwm, nrf5x::pinmux::Pinmux::new(31))
+//!     capsules_core::virtual_pwm::PwmPinUser<'static, nrf52::pwm::Pwm>,
+//!     capsules_core::virtual_pwm::PwmPinUser::new(mux_pwm, nrf5x::pinmux::Pinmux::new(31))
 //! );
 //! virtual_pwm_buzzer.add_to_mux();
 //! ```

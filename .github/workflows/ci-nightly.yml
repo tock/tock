@@ -73,7 +73,7 @@ jobs:
       - name: ci-job-tools
         run: make ci-job-tools
       - name: Create Issue on Failed workflow
-          if: ${{ failure() }}
+          if: failure()
           uses: dacbd/create-issue-action@main
           with:
             token: ${{ github.token }}

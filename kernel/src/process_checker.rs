@@ -7,9 +7,6 @@
 //!
 //! See the [AppID TRD](../../doc/reference/trd-appid.md).
 
-pub mod basic;
-pub mod signature;
-
 use core::cell::Cell;
 use core::fmt;
 
@@ -424,7 +421,9 @@ impl AppCredentialsPolicyClient<'static> for ProcessCheckerMachine {
         let cont = match result {
             Ok(CheckResult::Accept) => {
                 self.client.map(|client| {
-                    self.process_binary.take().map(|pb| client.done(pb, Ok(())));
+                    if let Some(pb) = self.process_binary.take() {
+                        client.done(pb, Ok(()))
+                    }
                 });
                 false
             }
@@ -435,14 +434,14 @@ impl AppCredentialsPolicyClient<'static> for ProcessCheckerMachine {
             }
             Ok(CheckResult::Reject) => {
                 self.client.map(|client| {
-                    self.process_binary.take().map(|pb| {
+                    if let Some(pb) = self.process_binary.take() {
                         client.done(
                             pb,
                             Err(ProcessCheckError::CredentialsRejected(
                                 self.footer_index.get() as u32,
                             )),
                         )
-                    });
+                    }
                 });
                 false
             }

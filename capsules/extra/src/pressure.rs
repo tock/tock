@@ -42,7 +42,7 @@
 //!
 //! You need a device that provides the `hil::sensors::PressureDriver` trait.
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! let pressure = static_init!(

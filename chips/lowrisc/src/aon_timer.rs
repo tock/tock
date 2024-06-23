@@ -142,35 +142,6 @@ impl AonTimer {
         ms.saturating_mul(self.aon_clk_freq).saturating_div(1000)
     }
 
-    /// Start the wake up counter
-    #[cfg(aon_wkup_timer)]
-    fn wkup_start_count(&self) {
-        self.registers.wkup_ctrl.write(WKUP_CTRL::ENABLE::SET);
-    }
-
-    /// Set wake-up prescaler, NOTE: Independant of the watchdog timer
-    /// A count starts at 0 and slowly ticks upwards
-    /// (one tick every N + 1 clock cycles, where N is the pre-scaler value)
-    #[cfg(aon_wkup_timer)]
-    fn set_wkup_prescaler(&self) {
-        // Ex: AON VerilatorClock ~125kHZ, (2^12)/125_000Hz ~= 32ms (per tick)
-        // NOTE: Arbitrarily chosen, update as necessary.
-        let prescaler = 0x1000; // 2^12
-        self.registers
-            .wkup_ctrl
-            .write(WKUP_CTRL::PRESCALER.val(prescaler));
-    }
-
-    /// Set threshold ticks for the wake-up interrupt,
-    /// Note: the timing here depends on the prescaler set in
-    /// `set_wkup_prescaler()`
-    #[cfg(aon_wkup_timer)]
-    fn set_wkup_thresh(&self) {
-        let regs = self.registers;
-        // 0xFF arbitrarily chosen.
-        regs.wkup_thold.write(THRESHOLD::THRESHOLD.val(0xFF));
-    }
-
     fn reset_wkup_count(&self) {
         self.registers.wkup_count.set(0x00);
     }

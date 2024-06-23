@@ -5,9 +5,6 @@
 use core::mem::size_of;
 use core::num::Wrapping;
 
-use core::{i16, i32, i64, i8, isize};
-use core::{u16, u32, u64, u8, usize};
-
 /// A generic trait for converting a value to a number.
 pub trait ToPrimitive {
     /// Converts the value of `self` to an `isize`.
@@ -105,8 +102,6 @@ macro_rules! impl_to_primitive_int {
                 fn to_i16 -> i16;
                 fn to_i32 -> i32;
                 fn to_i64 -> i64;
-                #[cfg(has_i128)]
-                fn to_i128 -> i128;
             }
 
             impl_to_primitive_int_to_uint! { $T:
@@ -115,8 +110,6 @@ macro_rules! impl_to_primitive_int {
                 fn to_u16 -> u16;
                 fn to_u32 -> u32;
                 fn to_u64 -> u64;
-                #[cfg(has_i128)]
-                fn to_u128 -> u128;
             }
         }
     };

@@ -9,7 +9,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! let buffer = static_init!([u8; capsules::lps25hb::BUF_LEN], [0; capsules::lps25hb::BUF_LEN]);
 //! let lps25hb_i2c = static_init!(I2CDevice, I2CDevice::new(i2c_bus, 0x5C));
 //! let lps25hb = static_init!(

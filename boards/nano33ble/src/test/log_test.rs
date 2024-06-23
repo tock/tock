@@ -35,6 +35,7 @@
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules_extra::log;
 use core::cell::Cell;
+use core::ptr::addr_of_mut;
 use kernel::debug;
 use kernel::hil::flash;
 use kernel::hil::gpio::{self, Interrupt, InterruptEdge};
@@ -76,7 +77,7 @@ pub unsafe fn run(mux_alarm: &'static MuxAlarm<'static, Rtc>, flash_controller: 
     // Create and run test for log storage.
     let test = static_init!(
         LogTest<VirtualMuxAlarm<'static, Rtc>>,
-        LogTest::new(log, &mut BUFFER, alarm, &TEST_OPS)
+        LogTest::new(log, &mut *addr_of_mut!(BUFFER), alarm, &TEST_OPS)
     );
     log.set_read_client(test);
     log.set_append_client(test);
@@ -118,7 +119,7 @@ static TEST_OPS: [TestOp; 24] = [
     // Try bad seeks, should fail and not change read entry ID.
     TestOp::Write,
     TestOp::BadSeek(0),
-    TestOp::BadSeek(core::usize::MAX),
+    TestOp::BadSeek(usize::MAX),
     TestOp::Read,
     // Try bad write, nothing should change.
     TestOp::BadWrite,
@@ -384,7 +385,10 @@ impl<A: 'static + Alarm<'static>> LogTest<A> {
 
         // Ensure failure if entry is too large to fit within a single flash page.
         unsafe {
-            match self.log.append(&mut DUMMY_BUFFER, DUMMY_BUFFER.len()) {
+            match self
+                .log
+                .append(&mut *addr_of_mut!(DUMMY_BUFFER), DUMMY_BUFFER.len())
+            {
                 Ok(()) => panic!("Appending with too-small buffer succeeded unexpectedly!"),
                 Err((error, _original_buffer)) => assert_eq!(error, ErrorCode::SIZE),
             }

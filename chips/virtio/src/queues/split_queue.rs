@@ -472,9 +472,9 @@ impl<'a, 'b, const MAX_QUEUE_SIZE: usize> SplitVirtqueue<'a, 'b, MAX_QUEUE_SIZE>
         available_ring: &'a mut VirtqueueAvailableRing<MAX_QUEUE_SIZE>,
         used_ring: &'a mut VirtqueueUsedRing<MAX_QUEUE_SIZE>,
     ) -> Self {
-        assert!(descriptors as *const _ as usize % DESCRIPTOR_ALIGNMENT == 0);
-        assert!(available_ring as *const _ as usize % AVAILABLE_RING_ALIGNMENT == 0);
-        assert!(used_ring as *const _ as usize % USED_RING_ALIGNMENT == 0);
+        assert!(core::ptr::from_ref(descriptors) as usize % DESCRIPTOR_ALIGNMENT == 0);
+        assert!(core::ptr::from_ref(available_ring) as usize % AVAILABLE_RING_ALIGNMENT == 0);
+        assert!(core::ptr::from_ref(used_ring) as usize % USED_RING_ALIGNMENT == 0);
 
         SplitVirtqueue {
             descriptors,
@@ -878,9 +878,9 @@ impl<'a, 'b, const MAX_QUEUE_SIZE: usize> Virtqueue for SplitVirtqueue<'a, 'b, M
 
     fn physical_addresses(&self) -> VirtqueueAddresses {
         VirtqueueAddresses {
-            descriptor_area: self.descriptors as *const _ as u64,
-            driver_area: self.available_ring as *const _ as u64,
-            device_area: self.used_ring as *const _ as u64,
+            descriptor_area: core::ptr::from_ref(self.descriptors) as u64,
+            driver_area: core::ptr::from_ref(self.available_ring) as u64,
+            device_area: core::ptr::from_ref(self.used_ring) as u64,
         }
     }
 

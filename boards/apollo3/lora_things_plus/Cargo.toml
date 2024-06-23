@@ -18,3 +18,4 @@ apollo3 = { path = "../../../chips/apollo3" }
 
 capsules-core = { path = "../../../capsules/core" }
 capsules-extra = { path = "../../../capsules/extra" }
+capsules-system = { path = "../../../capsules/system" }
