@@ -270,15 +270,27 @@ impl SyscallDriver for AppLoader<'_> {
                 //setup phase
                 let res = self.driver.setup(arg1); // pass the size of the app to the setup function
                 match res {
-                    Ok((app_len, padding)) => {
+                    Ok((app_len, setup_done)) => {
+                        // schedule the upcall here so the userspace always has to wait for the
+                        // setup done yield wait
+
                         self.new_app_length.set(app_len);
-                        if padding {
-                            CommandReturn::success_u32(1)
+                        if setup_done {
+                            self.current_process.map(|processid| {
+                                let _ = self.apps.enter(processid, move |_app, kernel_data| {
+                                    // Signal the app.
+                                    kernel_data
+                                        .schedule_upcall(upcall::SETUP_DONE, (0, 0, 0))
+                                        .ok();
+                                });
+                            });
+                            CommandReturn::success()
                         } else {
-                            CommandReturn::success_u32(0)
+                            // the setup done upcall is scheduled when the setup_done() function is
+                            // called from the DynamicProcessLoader
+                            CommandReturn::success()
                         }
                     }
-
                     Err(e) => {
                         self.new_app_length.set(0);
                         self.current_process.take();

@@ -14,7 +14,6 @@ use crate::capabilities::ProcessManagementCapability;
 use crate::config;
 use crate::create_capability;
 use crate::debug;
-use crate::dynamic_process_metadata::{PaddingRequirement, ProcessLoadMetadata};
 use crate::hil::nonvolatile_storage::{NonvolatileStorage, NonvolatileStorageClient};
 use crate::kernel::Kernel;
 use crate::platform::chip::Chip;
@@ -39,6 +38,36 @@ pub enum State {
     Load,
     PaddingWrite,
     Fail,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum PaddingRequirement {
+    None,
+    PrePad,
+    PostPad,
+    PreAndPostPad,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct ProcessLoadMetadata {
+    pub new_app_start_addr: usize,
+    pub new_app_length: usize,
+    pub previous_app_end_addr: usize,
+    pub next_app_start_addr: usize,
+    pub padding_requirement: PaddingRequirement,
+}
+
+// Implement the Default trait for the Person struct
+impl Default for ProcessLoadMetadata {
+    fn default() -> Self {
+        ProcessLoadMetadata {
+            new_app_start_addr: 0,
+            new_app_length: 0,
+            previous_app_end_addr: 0,
+            next_app_start_addr: 0,
+            padding_requirement: PaddingRequirement::None,
+        }
+    }
 }
 
 /// This interface supports loading processes at runtime.
@@ -174,10 +203,11 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
         // let mut state: State = State::Idle;
         let mut new_app_len: usize = 0;
         let mut new_app_addr: usize = 0;
-        self.process_load_metadata.map(|metadata| {
-            new_app_len = metadata.get_new_app_length();
-            new_app_addr = metadata.get_new_app_addr();
-        });
+        if let Some(metadata) = self.process_load_metadata.get() {
+            new_app_addr = metadata.new_app_start_addr;
+            new_app_len = metadata.new_app_length;
+        }
+
         let address = match self.state.get() {
             State::AppWrite => {
                 // Check if there is an overflow while adding length and offset.
@@ -307,9 +337,9 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
             // check if the length in the header is matching what the app requested during the setup phase
             // also check if the kernel version matches the version indicated in the new application
             let mut new_app_len = 0;
-            self.process_load_metadata.map(|metadata| {
-                new_app_len = metadata.get_new_app_length();
-            });
+            if let Some(metadata) = self.process_load_metadata.get() {
+                new_app_len = metadata.new_app_length;
+            }
             if entry_length as usize != new_app_len {
                 return Err(ErrorCode::INVAL);
             }
@@ -386,6 +416,9 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
         // We have finished setting up for the new app successfully, so let us write the padding app
 
         let mut app_length = 0;
+        if let Some(metadata) = self.process_load_metadata.get() {
+            app_length = metadata.new_app_length;
+        }
         let new_app_end_address = new_app_start_address + app_length; // the end address of our newly loaded application
         let mut next_app_start_addr = 0; // to store the address until which we need to write the padding app
         let mut previous_app_end_addr = 0; // to store the address from which we need to write the padding app
@@ -393,10 +426,6 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
 
         let mut processes_start_addresses: [usize; MAX_PROCS] = [0; MAX_PROCS];
         let mut processes_end_addresses: [usize; MAX_PROCS] = [0; MAX_PROCS];
-
-        self.process_load_metadata.map(|metadata| {
-            app_length = metadata.get_new_app_length();
-        });
 
         // get the start and end addresses in flash of existing processes
         self.procs.map(|procs| {
@@ -1001,12 +1030,11 @@ impl<'a, C: 'static + Chip> NonvolatileStorageClient for DynamicProcessLoader<'a
                 // If we failed at any of writing, we want to set the state to PaddingWrite
                 // so that the callback after writing the padding app will get triggererd
                 self.buffer.replace(buffer);
-                self.process_load_metadata.map(|metadata| {
-                    let _ = self.write_padding_app(
-                        metadata.get_new_app_length(),
-                        metadata.get_new_app_addr(),
-                    );
-                });
+                if let Some(metadata) = self.process_load_metadata.get() {
+                    let _ = self
+                        .write_padding_app(metadata.new_app_length, metadata.new_app_start_addr);
+                }
+                // });
                 self.reset_process_loading_metadata(); // clear all metadata specific to this load
             }
             State::Setup => {
@@ -1044,7 +1072,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
         let flash = self.flash.get();
         self.process_load_metadata
             .set(ProcessLoadMetadata::default());
-        let padding_req: bool;
+        let setup_done: bool;
 
         if self.state.get() == State::Idle {
             self.state.set(State::Setup);
@@ -1079,7 +1107,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
                             // calculating the distance between our app and either the next app
                             let new_app_end_address = new_app_start_address + app_length;
                             let post_pad_length = next_app_start_addr - new_app_end_address;
-                            padding_req = true;
+                            setup_done = false;
 
                             let padding_result =
                                 self.write_padding_app(post_pad_length, new_app_end_address);
@@ -1094,10 +1122,10 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
                         // Otherwise we let the client know we are done with the setup, and we are ready to write the app to flash
                         PaddingRequirement::None | PaddingRequirement::PrePad => {
                             self.state.set(State::AppWrite);
-                            padding_req = false;
+                            setup_done = true;
                         }
                     };
-                    Ok((app_length, padding_req))
+                    Ok((app_length, setup_done))
                 }
                 Err(_err) => {
                     self.reset_process_loading_metadata(); // reset the state to None because we did not find any available address for this app
@@ -1133,124 +1161,112 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
 
     fn load(&self) -> Result<(), ErrorCode> {
         self.state.set(State::Load); // We have finished writing the last user data segment, next step is to load the process
-        match self.state.get() {
-            State::Load => {
-                self.process_load_metadata
-                    .map_or(Err(ErrorCode::FAIL), |metadata| {
-                        match metadata.get_padding_requirement() {
-                            // if we decided we need to write a padding app before the new app, we go ahead and do it
-                            PaddingRequirement::PrePad | PaddingRequirement::PreAndPostPad => {
-                                // calculating the distance between our app and the previous app
-                                let previous_app_end_addr = metadata.get_previous_app_end_addr();
-                                let pre_pad_length =
-                                    metadata.get_new_app_addr() - previous_app_end_addr;
-                                let padding_result =
-                                    self.write_padding_app(pre_pad_length, previous_app_end_addr);
-                                match padding_result {
-                                    Ok(()) => {
-                                        if config::CONFIG.debug_load_processes {
-                                            debug!("Successfully writing prepadding app");
-                                        }
-                                    }
-                                    Err(_e) => {
-                                        // this means we were unable to write the padding app
-                                        self.reset_process_loading_metadata();
-                                    }
-                                };
-                            }
-                            // We should never reach here if we are not writing a prepad app
-                            PaddingRequirement::None | PaddingRequirement::PostPad => {
-                                if config::CONFIG.debug_load_processes {
-                                    debug!("No PrePad app to write.");
-                                }
-                            }
-                        };
-                        // we've written a prepad header if required, so now it is time to load the app into the
-                        // process array
-                        let process_flash = self.new_process_flash.take().ok_or(ErrorCode::FAIL)?;
-                        let remaining_memory = self.app_memory.take().ok_or(ErrorCode::FAIL)?;
-
-                        // Get the first eight bytes of flash to check if there is another app.
-                        let test_header_slice = match process_flash.get(0..8) {
-                            Some(s) => s,
-                            None => {
-                                // There is no header here
-                                // if we fail here, let us erase the app we just wrote
-                                self.state.set(State::Fail);
-                                // let _ = self.write_padding_app(
-                                //     metadata.get_new_app_length(),
-                                //     metadata.get_new_app_addr(),
-                                // );
-                                // self.reset_process_loading_metadata(); // clear all metadata specific to this load
-                                return Err(ErrorCode::FAIL);
-                            }
-                        };
-
-                        // Pass the first eight bytes of the tbfheader to parse out the length of
-                        // the tbf header and app. We then use those values to see if we have
-                        // enough flash remaining to parse the remainder of the header.
-                        let (_version, _header_length, entry_length) =
-                            match tock_tbf::parse::parse_tbf_header_lengths(
-                                test_header_slice.try_into().or(Err(ErrorCode::FAIL))?,
-                            ) {
-                                Ok((v, hl, el)) => (v, hl, el),
-                                Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(
-                                    _entry_length,
-                                )) => {
-                                    // Invalid header, return Fail error.
-                                    // if we fail here, let us erase the app we just wrote
-                                    self.state.set(State::PaddingWrite);
-                                    let _ = self.write_padding_app(
-                                        metadata.get_new_app_length(),
-                                        metadata.get_new_app_addr(),
-                                    );
-                                    self.reset_process_loading_metadata(); // clear all metadata specific to this load
-                                    return Err(ErrorCode::FAIL);
-                                }
-                                Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => {
-                                    // We are unable to parse the header, which is bad because this is the app we just flashed
-                                    // if we fail here, let us erase the app we just wrote
-                                    self.state.set(State::PaddingWrite);
-                                    let _ = self.write_padding_app(
-                                        metadata.get_new_app_length(),
-                                        metadata.get_new_app_addr(),
-                                    );
-                                    self.reset_process_loading_metadata(); // clear all metadata specific to this load
-                                    return Err(ErrorCode::FAIL);
-                                }
-                            };
-
-                        // Now we can get a slice which only encompasses the length of flash
-                        // described by this tbf header.  We will either parse this as an actual
-                        // app, or skip over this region.
-                        let entry_flash = process_flash
-                            .get(0..entry_length as usize)
-                            .ok_or(ErrorCode::FAIL)?;
-
-                        let capability =
-                            create_capability!(crate::capabilities::ProcessManagementCapability);
-
-                        let res = self.load_processes(entry_flash, remaining_memory, &capability);
-                        match res {
-                            Ok(()) => {
-                                self.reset_process_loading_metadata(); // clear all metadata specific to this load
-                                Ok(())
-                            } // maybe set the remaining memory here if we have to change the process_loading function anyway?
-                            Err(_) => {
-                                // if we fail here, let us erase the app we just wrote
-                                self.state.set(State::PaddingWrite);
-                                let _ = self.write_padding_app(
-                                    metadata.get_new_app_length(),
-                                    metadata.get_new_app_addr(),
-                                );
-                                self.reset_process_loading_metadata(); // clear all metadata specific to this load
-                                Err(ErrorCode::FAIL)
+                                     // match self.state.get() {
+                                     // State::Load => {
+        if let Some(metadata) = self.process_load_metadata.get() {
+            match metadata.padding_requirement {
+                // if we decided we need to write a padding app before the new app, we go ahead and do it
+                PaddingRequirement::PrePad | PaddingRequirement::PreAndPostPad => {
+                    // calculating the distance between our app and the previous app
+                    let previous_app_end_addr = metadata.previous_app_end_addr;
+                    let pre_pad_length = metadata.new_app_start_addr - previous_app_end_addr;
+                    let padding_result =
+                        self.write_padding_app(pre_pad_length, previous_app_end_addr);
+                    match padding_result {
+                        Ok(()) => {
+                            if config::CONFIG.debug_load_processes {
+                                debug!("Successfully writing prepadding app");
                             }
                         }
-                    })
+                        Err(_e) => {
+                            // this means we were unable to write the padding app
+                            self.reset_process_loading_metadata();
+                        }
+                    };
+                }
+                // We should never reach here if we are not writing a prepad app
+                PaddingRequirement::None | PaddingRequirement::PostPad => {
+                    if config::CONFIG.debug_load_processes {
+                        debug!("No PrePad app to write.");
+                    }
+                }
+            };
+            // we've written a prepad header if required, so now it is time to load the app into the
+            // process array
+            let process_flash = self.new_process_flash.take().ok_or(ErrorCode::FAIL)?;
+            let remaining_memory = self.app_memory.take().ok_or(ErrorCode::FAIL)?;
+
+            // Get the first eight bytes of flash to check if there is another app.
+            let test_header_slice = match process_flash.get(0..8) {
+                Some(s) => s,
+                None => {
+                    // There is no header here
+                    // if we fail here, let us erase the app we just wrote
+                    let _ = self
+                        .write_padding_app(metadata.new_app_length, metadata.new_app_start_addr);
+                    self.reset_process_loading_metadata(); // clear all metadata specific to this load
+                    return Err(ErrorCode::FAIL);
+                }
+            };
+
+            // Pass the first eight bytes of the tbfheader to parse out the length of
+            // the tbf header and app. We then use those values to see if we have
+            // enough flash remaining to parse the remainder of the header.
+            let (_version, _header_length, entry_length) =
+                match tock_tbf::parse::parse_tbf_header_lengths(
+                    test_header_slice.try_into().or(Err(ErrorCode::FAIL))?,
+                ) {
+                    Ok((v, hl, el)) => (v, hl, el),
+                    Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(_entry_length)) => {
+                        // Invalid header, return Fail error.
+                        // if we fail here, let us erase the app we just wrote
+                        self.state.set(State::PaddingWrite);
+                        let _ = self.write_padding_app(
+                            metadata.new_app_length,
+                            metadata.new_app_start_addr,
+                        );
+                        self.reset_process_loading_metadata(); // clear all metadata specific to this load
+                        return Err(ErrorCode::FAIL);
+                    }
+                    Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => {
+                        // We are unable to parse the header, which is bad because this is the app we just flashed
+                        // if we fail here, let us erase the app we just wrote
+                        self.state.set(State::PaddingWrite);
+                        let _ = self.write_padding_app(
+                            metadata.new_app_length,
+                            metadata.new_app_start_addr,
+                        );
+                        self.reset_process_loading_metadata(); // clear all metadata specific to this load
+                        return Err(ErrorCode::FAIL);
+                    }
+                };
+
+            // Now we can get a slice which only encompasses the length of flash
+            // described by this tbf header.  We will either parse this as an actual
+            // app, or skip over this region.
+            let entry_flash = process_flash
+                .get(0..entry_length as usize)
+                .ok_or(ErrorCode::FAIL)?;
+
+            let capability = create_capability!(crate::capabilities::ProcessManagementCapability);
+
+            let res = self.load_processes(entry_flash, remaining_memory, &capability);
+            match res {
+                Ok(()) => {
+                    self.reset_process_loading_metadata(); // clear all metadata specific to this load
+                    Ok(())
+                } // maybe set the remaining memory here if we have to change the process_loading function anyway?
+                Err(_) => {
+                    // if we fail here, let us erase the app we just wrote
+                    self.state.set(State::PaddingWrite);
+                    let _ = self
+                        .write_padding_app(metadata.new_app_length, metadata.new_app_start_addr);
+                    self.reset_process_loading_metadata(); // clear all metadata specific to this load
+                    Err(ErrorCode::FAIL)
+                }
             }
-            // We should never enter Load for the rest of the conditions, so return a Busy error.
-            _ => Err(ErrorCode::BUSY),
+        } else {
+            Err(ErrorCode::BUSY)
         }
     }
 }
