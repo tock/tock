@@ -231,6 +231,11 @@ pub trait I2CDevice {
         -> Result<(), (Error, &'static mut [u8])>;
 }
 
+/// Extend the I2CDevice to add support for targetting multiple `I2CDevice`s.
+pub trait I2CMultiDevice: I2CDevice {
+    fn set_address(&self, addr: u8);
+}
+
 pub trait SMBusDevice: I2CDevice {
     /// Write data then read data to a slave device in an SMBus
     /// compatible way.
