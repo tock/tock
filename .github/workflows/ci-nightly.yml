@@ -73,16 +73,16 @@ jobs:
       - name: ci-job-tools
         run: make ci-job-tools
       - name: Create Issue on Failed workflow
-          if: failure()
-          uses: dacbd/create-issue-action@main
-          with:
-            token: ${{ github.token }}
-            title: Nightly CI failed
-            body: |
-              ### Context
-              [Failed Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
-              [Codebase](https://github.com/${{ github.repository }}/tree/${{ github.sha }})
-              Workflow name - `${{ github.workflow }}`
-              Job -           `${{ github.job }}`
-              status -        `${{ job.status }}`
-            assignees: @tock/core-wg
+        if: failure()
+        uses: dacbd/create-issue-action@main
+        with:
+          token: ${{ github.token }}
+          title: Nightly CI failed
+          body: |
+            ### Context
+            [Failed Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            [Codebase](https://github.com/${{ github.repository }}/tree/${{ github.sha }})
+            Workflow name - `${{ github.workflow }}`
+            Job -           `${{ github.job }}`
+            status -        `${{ job.status }}`
+          assignees: @tock/core-wg
