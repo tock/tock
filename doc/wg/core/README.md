@@ -37,7 +37,7 @@ are:
 
 ## Members
 
-- Hudson Ayers, [hudson-ayers](https://github.com/hudson-ayers), Stanford
+- Hudson Ayers, [hudson-ayers](https://github.com/hudson-ayers), Cruise LLC
 - Brad Campbell, [bradjc](https://github.com/bradjc), UVA
 - Branden Ghena, [brghena](https://github.com/brghena), Northwestern
 - Philip Levis, [phil-levis](https://github.com/phil-levis), Stanford
