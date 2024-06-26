@@ -85,4 +85,4 @@ jobs:
             Workflow name - `${{ github.workflow }}`
             Job -           `${{ github.job }}`
             status -        `${{ job.status }}`
-          assignees: @tock/core-wg
+          assignees: tock/core-wg
