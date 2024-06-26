@@ -743,7 +743,6 @@ unsafe fn start() -> (
     );
     CHIP = Some(chip);
 
-    // hprintln!("Init complete");
     debug!("Initialization complete. Entering main loop.");
 
     //--------------------------------------------------------------------------
@@ -790,8 +789,6 @@ unsafe fn start() -> (
 pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
 
-    // panic!("ZI PROASTA");
-    // hprintln!("BUNA ZIUA");
     let (board_kernel, board, chip) = start();
     board_kernel.kernel_loop(&board, chip, Some(&board.ipc), &main_loop_capability);
 }
