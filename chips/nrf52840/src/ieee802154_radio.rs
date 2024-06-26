@@ -87,7 +87,13 @@ pub const IEEE802154_ACK_TIME: usize = 512; //microseconds = 32 symbols
 pub const IEEE802154_MAX_POLLING_ATTEMPTS: u8 = 4;
 pub const IEEE802154_MIN_BE: u8 = 3;
 pub const IEEE802154_MAX_BE: u8 = 5;
-pub const ACK_BUF_SIZE: usize = 6;
+
+// ACK Requires MHR and MFR fields. More explicitly this is composed of:
+// | Frame Control (2 bytes) | Sequence Number (1 byte) | FCS (2 bytes) |.
+// In total the ACK frame is 5 bytes long + 2 PSDU bytes (7 bytes total).
+const SEQ_NUM_LEN: usize = 1;
+pub const ACK_BUF_SIZE: usize =
+    radio::PSDU_OFFSET + radio::MHR_FC_SIZE + SEQ_NUM_LEN + radio::MFR_SIZE;
 
 /// Where the 15.4 packet from the radio is stored in the buffer. The HIL
 /// reserves one byte at the beginning of the buffer for use by the
