@@ -96,7 +96,7 @@ post series highlights what's new in Tock. Also, follow
 [@talkingtock](https://twitter.com/talkingtock) on Twitter.
 
 You can also browse our [email
-group](https://groups.google.com/forum/#!forum/tock-dev) and our [Slack][slack]
+group](https://lists.tockos.org) and our [Slack][slack]
 to see discussions on Tock development.
 
 [slack]: https://join.slack.com/t/tockos/shared_invite/enQtNDE5ODQyNDU4NTE1LWVjNTgzMTMwYzA1NDI1MjExZjljMjFmOTMxMGIwOGJlMjk0ZTI4YzY0NTYzNWM0ZmJmZGFjYmY5MTJiMDBlOTk
