@@ -61,6 +61,7 @@ pub struct ProcessLoaderComponent<
     chip: &'static C,
     flash: &'static [u8],
     nv_flash: &'static F,
+    loader_driver: &'static dyn process::ProcessLoadingAsync<'static>,
     fault_policy: &'static dyn ProcessFaultPolicy,
 }
 
@@ -77,6 +78,7 @@ impl<
         chip: &'static C,
         flash: &'static [u8],
         nv_flash: &'static F,
+        loader_driver: &'static dyn process::ProcessLoadingAsync<'static>,
         fault_policy: &'static dyn ProcessFaultPolicy,
     ) -> Self {
         Self {
@@ -85,6 +87,7 @@ impl<
             chip,
             flash,
             nv_flash,
+            loader_driver,
             fault_policy,
         }
     }
@@ -126,6 +129,7 @@ impl<
             self.flash,
             self.fault_policy,
             nv_to_page,
+            self.loader_driver,
             buffer,
         ));
         hil::nonvolatile_storage::NonvolatileStorage::set_client(

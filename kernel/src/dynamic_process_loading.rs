@@ -10,18 +10,15 @@
 
 use core::cell::Cell;
 
-use crate::capabilities::ProcessManagementCapability;
 use crate::config;
-use crate::create_capability;
 use crate::debug;
 use crate::hil::nonvolatile_storage::{NonvolatileStorage, NonvolatileStorageClient};
 use crate::kernel::Kernel;
 use crate::platform::chip::Chip;
-use crate::process::{self, Process, ShortId};
-use crate::process_binary::{ProcessBinary, ProcessBinaryError};
+use crate::process::{self, ProcessLoadingAsync, ProcessLoadingAsyncClient};
+use crate::process_binary::ProcessBinaryError;
 use crate::process_loading::ProcessLoadError;
 use crate::process_policies::ProcessFaultPolicy;
-use crate::process_standard::ProcessStandard;
 use crate::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use crate::utilities::leasable_buffer::SubSliceMut;
 use crate::ErrorCode;
@@ -30,7 +27,7 @@ const MAX_PROCS: usize = 10; //need this to store the start addresses of process
 pub const BUF_LEN: usize = 512;
 const TBF_HEADER_LENGTH: usize = 16;
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum State {
     Idle,
     Setup,
@@ -40,7 +37,7 @@ pub enum State {
     Fail,
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum PaddingRequirement {
     None,
     PrePad,
@@ -48,7 +45,7 @@ pub enum PaddingRequirement {
     PreAndPostPad,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub struct ProcessLoadMetadata {
     pub new_app_start_addr: usize,
     pub new_app_length: usize,
@@ -122,6 +119,7 @@ pub trait DynamicProcessLoading {
 pub trait DynamicProcessLoadingClient {
     fn write_app_data_done(&self, buffer: &'static mut [u8], length: usize);
     fn setup_done(&self);
+    fn load_done(&self);
 }
 
 pub struct DynamicProcessLoader<'a, C: 'static + Chip> {
@@ -133,6 +131,7 @@ pub struct DynamicProcessLoader<'a, C: 'static + Chip> {
     app_memory: OptionalCell<&'static mut [u8]>,
     new_process_flash: OptionalCell<&'static [u8]>,
     flash_driver: &'a dyn NonvolatileStorage<'a>,
+    loader_driver: &'a dyn ProcessLoadingAsync<'a>,
     buffer: TakeCell<'static, [u8]>,
     client: OptionalCell<&'static dyn DynamicProcessLoadingClient>,
     process_load_metadata: OptionalCell<ProcessLoadMetadata>,
@@ -146,7 +145,8 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
         chip: &'static C,
         flash: &'static [u8],
         fault_policy: &'static dyn ProcessFaultPolicy,
-        driver: &'a dyn NonvolatileStorage<'a>,
+        flash_driver: &'a dyn NonvolatileStorage<'a>,
+        loader_driver: &'a dyn ProcessLoadingAsync<'a>,
         buffer: &'static mut [u8],
     ) -> Self {
         Self {
@@ -157,7 +157,8 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
             app_memory: OptionalCell::empty(),
             fault_policy,
             new_process_flash: OptionalCell::empty(),
-            flash_driver: driver,
+            flash_driver: flash_driver,
+            loader_driver: loader_driver,
             buffer: TakeCell::new(buffer),
             client: OptionalCell::empty(),
             process_load_metadata: OptionalCell::empty(),
@@ -490,7 +491,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
         )
     }
 
-    /******************************************* Process Load Logic **********************************************************/
+    /******************************************* Binary Flash Logic **********************************************************/
 
     /// Check if there is a padding app at the address
     fn check_for_padding_app(&self, new_start_address: usize) -> Result<bool, ProcessBinaryError> {
@@ -753,256 +754,6 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
         }
         Err(ErrorCode::NOMEM)
     }
-
-    //********************* Loading Process into Process Array **************************//
-
-    fn load_processes(
-        &self,
-        app_flash: &'static [u8],
-        app_memory: &'static mut [u8],
-        _capability_management: &dyn ProcessManagementCapability,
-    ) -> Result<(), ProcessLoadError> {
-        let (remaining_memory, _remaining_flash) =
-            self.load_processes_from_flash(app_flash, app_memory)?;
-
-        if config::CONFIG.debug_process_credentials {
-            debug!("Checking: no checking, load and run all processes");
-        }
-        self.procs.map(|procs| {
-            for proc in procs.iter() {
-                proc.map(|p| {
-                    if config::CONFIG.debug_process_credentials {
-                        debug!("Running {}", p.get_process_name());
-                    }
-                });
-            }
-        });
-        self.app_memory.set(remaining_memory); // update our reference of remaining memory
-        Ok(())
-    }
-
-    fn load_processes_from_flash(
-        &self,
-        app_flash: &'static [u8],
-        app_memory: &'static mut [u8],
-    ) -> Result<(&'static mut [u8], &'static [u8]), ProcessLoadError> {
-        if config::CONFIG.debug_load_processes {
-            debug!(
-                "Loading processes from flash={:#010X}-{:#010X} into sram={:#010X}-{:#010X}",
-                app_flash.as_ptr() as usize,
-                app_flash.as_ptr() as usize + app_flash.len() - 1,
-                app_memory.as_ptr() as usize,
-                app_memory.as_ptr() as usize + app_memory.len() - 1
-            );
-        }
-
-        let mut remaining_flash = app_flash;
-        let mut remaining_memory = app_memory;
-        let index = self
-            .find_open_process_slot()
-            .ok_or(ProcessLoadError::NoProcessSlot)?; // find the open process slot
-
-        if config::CONFIG.debug_process_credentials {
-            debug!(
-                "Requested flash ={:#010X}-{:#010X}",
-                remaining_flash.as_ptr() as usize,
-                remaining_flash.as_ptr() as usize + remaining_flash.len() - 1
-            );
-        }
-
-        let load_binary_result = self.discover_process_binary(remaining_flash);
-
-        match load_binary_result {
-            Ok((new_flash, process_binary)) => {
-                remaining_flash = new_flash;
-
-                let load_result = self.load_process(
-                    process_binary,
-                    remaining_memory,
-                    ShortId::LocallyUnique,
-                    index,
-                );
-                match load_result {
-                    Ok((new_mem, proc)) => {
-                        remaining_memory = new_mem;
-                        if proc.is_some() {
-                            if config::CONFIG.debug_load_processes {
-                                proc.map(|p| debug!("Loaded process {}", p.get_process_name()));
-                            }
-                            self.procs.map(|procs| {
-                                procs[index] = proc; // add the process to the processes array
-                            });
-                        } else {
-                            if config::CONFIG.debug_load_processes {
-                                debug!("No process loaded.");
-                            }
-                        }
-                    }
-                    Err((new_mem, err)) => {
-                        remaining_memory = new_mem;
-                        if config::CONFIG.debug_load_processes {
-                            debug!("Processes load error: {:?}.", err);
-                        }
-                    }
-                }
-            }
-            Err((new_flash, err)) => {
-                remaining_flash = new_flash;
-                match err {
-                    ProcessBinaryError::NotEnoughFlash | ProcessBinaryError::TbfHeaderNotFound => {
-                        if config::CONFIG.debug_load_processes {
-                            debug!("No more processes to load: {:?}.", err);
-                        }
-                        // No more processes to load.
-                    }
-
-                    ProcessBinaryError::TbfHeaderParseFailure(_)
-                    | ProcessBinaryError::IncompatibleKernelVersion { .. }
-                    | ProcessBinaryError::IncorrectFlashAddress { .. }
-                    | ProcessBinaryError::NotEnabledProcess
-                    | ProcessBinaryError::Padding => {
-                        // return an error
-                        return Err(ProcessLoadError::BinaryError(
-                            ProcessBinaryError::NotEnabledProcess,
-                        ));
-                    }
-                }
-            }
-        }
-        Ok((remaining_memory, remaining_flash))
-    }
-
-    ////////////////////////////////////////////////////////////////////////////////
-    // HELPER FUNCTIONS
-    ////////////////////////////////////////////////////////////////////////////////
-
-    /// Find a process binary stored at the beginning of `flash` and create a
-    /// `ProcessBinary` object if the process is viable to run on this kernel.
-    fn discover_process_binary(
-        &self,
-        flash: &'static [u8],
-    ) -> Result<(&'static [u8], ProcessBinary), (&'static [u8], ProcessBinaryError)> {
-        if config::CONFIG.debug_load_processes {
-            debug!(
-                "Loading process binary from flash={:#010X}-{:#010X}",
-                flash.as_ptr() as usize,
-                flash.as_ptr() as usize + flash.len() - 1
-            );
-        }
-
-        // If this fails, not enough remaining flash to check for an app.
-        let test_header_slice = flash
-            .get(0..8)
-            .ok_or((flash, ProcessBinaryError::NotEnoughFlash))?;
-
-        // Pass the first eight bytes to tbfheader to parse out the length of
-        // the tbf header and app. We then use those values to see if we have
-        // enough flash remaining to parse the remainder of the header.
-        //
-        // Start by converting [u8] to [u8; 8].
-        let header = test_header_slice
-            .try_into()
-            .or(Err((flash, ProcessBinaryError::NotEnoughFlash)))?;
-
-        let (version, header_length, app_length) =
-            match tock_tbf::parse::parse_tbf_header_lengths(header) {
-                Ok((v, hl, el)) => (v, hl, el),
-                Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(app_length)) => {
-                    // If we could not parse the header, then we want to skip over
-                    // this app and look for the next one.
-                    (0, 0, app_length)
-                }
-                Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => {
-                    // Since Tock apps use a linked list, it is very possible the
-                    // header we started to parse is intentionally invalid to signal
-                    // the end of apps. This is ok and just means we have finished
-                    // loading apps.
-                    return Err((flash, ProcessBinaryError::TbfHeaderNotFound));
-                }
-            };
-
-        // Now we can get a slice which only encompasses the length of flash
-        // described by this tbf header.  We will either parse this as an actual
-        // app, or skip over this region.
-        let app_flash = flash
-            .get(0..app_length as usize)
-            .ok_or((flash, ProcessBinaryError::NotEnoughFlash))?;
-
-        // Advance the flash slice for process discovery beyond this last entry.
-        // This will be the start of where we look for a new process since Tock
-        // processes are allocated back-to-back in flash.
-        let remaining_flash = flash
-            .get(app_flash.len()..)
-            .ok_or((flash, ProcessBinaryError::NotEnoughFlash))?;
-
-        let pb = ProcessBinary::create(app_flash, header_length as usize, version, true)
-            .map_err(|e| (remaining_flash, e))?;
-
-        Ok((remaining_flash, pb))
-    }
-
-    /// Load a process stored as a TBF process binary with `app_memory` as the RAM
-    /// pool that its RAM should be allocated from. Returns `Ok` if the process
-    /// object was created, `Err` with a relevant error if the process object could
-    /// not be created.
-    fn load_process(
-        &self,
-        process_binary: ProcessBinary,
-        app_memory: &'static mut [u8],
-        app_id: ShortId,
-        index: usize,
-    ) -> Result<
-        (&'static mut [u8], Option<&'static dyn Process>),
-        (&'static mut [u8], ProcessLoadError),
-    > {
-        if config::CONFIG.debug_load_processes {
-            debug!(
-                "Loading: process flash={:#010X}-{:#010X} ram={:#010X}-{:#010X}",
-                process_binary.flash.as_ptr() as usize,
-                process_binary.flash.as_ptr() as usize + process_binary.flash.len() - 1,
-                app_memory.as_ptr() as usize,
-                app_memory.as_ptr() as usize + app_memory.len() - 1
-            );
-        }
-
-        // Need to reassign remaining_memory in every iteration so the compiler
-        // knows it will not be re-borrowed.
-        // If we found an actual app header, try to create a `Process`
-        // object. We also need to shrink the amount of remaining memory
-        // based on whatever is assigned to the new process if one is
-        // created.
-
-        // Try to create a process object from that app slice. If we don't
-        // get a process and we didn't get a loading error (aka we got to
-        // this point), then the app is a disabled process or just padding.
-        let (process_option, unused_memory) = unsafe {
-            ProcessStandard::create(
-                self.kernel,
-                self.chip,
-                process_binary,
-                app_memory,
-                self.fault_policy,
-                app_id,
-                index,
-            )
-            .map_err(|(e, memory)| (memory, e))?
-        };
-
-        process_option.map(|process| {
-            if config::CONFIG.debug_load_processes {
-                debug!(
-                    "Loading: {} [{}] flash={:#010X}-{:#010X} ram={:#010X}-{:#010X}",
-                    process.get_process_name(),
-                    index,
-                    process.get_addresses().flash_start,
-                    process.get_addresses().flash_end,
-                    process.get_addresses().sram_start,
-                    process.get_addresses().sram_end - 1,
-                );
-            }
-        });
-        Ok((unused_memory, process_option))
-    }
 }
 
 /// This is the callback client for the underlying physical storage driver.
@@ -1054,6 +805,37 @@ impl<'a, C: 'static + Chip> NonvolatileStorageClient for DynamicProcessLoader<'a
                 self.buffer.replace(buffer);
             }
         }
+    }
+}
+
+impl<'a, C: 'static + Chip> ProcessLoadingAsyncClient for DynamicProcessLoader<'a, C> {
+    fn process_loaded(&self, result: Result<(), ProcessLoadError>) {
+        match result {
+            Ok(()) => {
+                self.state.set(State::Idle);
+                self.reset_process_loading_metadata();
+                self.client.map(|client| {
+                    client.load_done();
+                });
+            }
+            Err(_e) => {
+                self.state.set(State::Idle);
+                self.reset_process_loading_metadata();
+                debug!("Load Failed.");
+            }
+        }
+    }
+
+    fn process_loading_finished(&self) {
+        debug!("Processes Loaded:");
+        self.procs.map(|procs| {
+            for (i, proc) in procs.iter().enumerate() {
+                proc.map(|p| {
+                    debug!("[{}] {}", i, p.get_process_name());
+                    debug!("    ShortId: {}", p.short_app_id());
+                });
+            }
+        });
     }
 }
 
@@ -1194,7 +976,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
             // we've written a prepad header if required, so now it is time to load the app into the
             // process array
             let process_flash = self.new_process_flash.take().ok_or(ErrorCode::FAIL)?;
-            let remaining_memory = self.app_memory.take().ok_or(ErrorCode::FAIL)?;
+            // let remaining_memory = self.app_memory.take().ok_or(ErrorCode::FAIL)?;
 
             // Get the first eight bytes of flash to check if there is another app.
             let test_header_slice = match process_flash.get(0..8) {
@@ -1247,24 +1029,8 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
             let entry_flash = process_flash
                 .get(0..entry_length as usize)
                 .ok_or(ErrorCode::FAIL)?;
-
-            let capability = create_capability!(crate::capabilities::ProcessManagementCapability);
-
-            let res = self.load_processes(entry_flash, remaining_memory, &capability);
-            match res {
-                Ok(()) => {
-                    self.reset_process_loading_metadata(); // clear all metadata specific to this load
-                    Ok(())
-                } // maybe set the remaining memory here if we have to change the process_loading function anyway?
-                Err(_) => {
-                    // if we fail here, let us erase the app we just wrote
-                    self.state.set(State::PaddingWrite);
-                    let _ = self
-                        .write_padding_app(metadata.new_app_length, metadata.new_app_start_addr);
-                    self.reset_process_loading_metadata(); // clear all metadata specific to this load
-                    Err(ErrorCode::FAIL)
-                }
-            }
+            self.loader_driver.load_new_application(entry_flash);
+            Ok(())
         } else {
             Err(ErrorCode::BUSY)
         }

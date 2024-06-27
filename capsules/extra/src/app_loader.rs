@@ -72,8 +72,10 @@ mod upcall {
     pub const SETUP_DONE: usize = 0;
     /// Write done callback.
     pub const WRITE_DONE: usize = 1;
+    /// Load done callback.
+    pub const LOAD_DONE: usize = 2;
     /// Number of upcalls.
-    pub const COUNT: u8 = 2;
+    pub const COUNT: u8 = 3;
 }
 
 // Ids for read-only allow buffers
@@ -217,6 +219,17 @@ impl kernel::dynamic_process_loading::DynamicProcessLoadingClient for AppLoader<
                 // And then signal the app.
                 kernel_data
                     .schedule_upcall(upcall::WRITE_DONE, (length, 0, 0))
+                    .ok();
+            });
+        });
+    }
+
+    fn load_done(&self) {
+        self.current_process.map(|processid| {
+            let _ = self.apps.enter(processid, move |_app, kernel_data| {
+                // Signal the app.
+                kernel_data
+                    .schedule_upcall(upcall::LOAD_DONE, (0, 0, 0))
                     .ok();
             });
         });

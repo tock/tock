@@ -566,6 +566,9 @@ pub trait ProcessLoadingAsync<'a> {
 
     /// Start the process loading operation.
     fn start(&self);
+
+    /// Load new application asynchronously
+    fn load_new_application(&self, flash_slice: &'static [u8]);
 }
 
 /// Operating mode of the loader.
@@ -573,6 +576,8 @@ pub trait ProcessLoadingAsync<'a> {
 enum SequentialProcessLoaderMachineState {
     /// Phase of discovering `ProcessBinary` objects in flash.
     DiscoverProcessBinaries,
+    /// Phase of discovering `ProcessBinary` object in flash asynchronously.
+    // DiscoverAsyncProcessBinary,
     /// Phase of loading `ProcessBinary`s into `Process`s.
     LoadProcesses,
 }
@@ -708,7 +713,13 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
     /// Returns the process binary object or an error if a valid process
     /// binary could not be extracted.
     fn discover_process_binary(&self) -> Result<ProcessBinary, ProcessBinaryError> {
+        // let flash: &'static [u8];
+        // if flash_slice.is_some(){
+        //     flash = flash_slice;
+        // }
+        // else{
         let flash = self.flash.get();
+        // }
 
         if config::CONFIG.debug_load_processes {
             debug!(
@@ -978,6 +989,13 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
 
         blocks
     }
+
+    // pub fn load_new_application(&self, flash_slice: &'static [u8]) -> (){
+    //     self.state
+    //         .set(SequentialProcessLoaderMachineState::DiscoverProcessBinaries);
+    //     // Start an asynchronous flow so we can issue a callback on error.
+
+    // }
 }
 
 impl<'a, C: Chip> ProcessLoadingAsync<'a> for SequentialProcessLoaderMachine<'a, C> {
@@ -994,6 +1012,11 @@ impl<'a, C: Chip> ProcessLoadingAsync<'a> for SequentialProcessLoaderMachine<'a,
             .set(SequentialProcessLoaderMachineState::DiscoverProcessBinaries);
         // Start an asynchronous flow so we can issue a callback on error.
         self.deferred_call.set();
+    }
+
+    fn load_new_application(&self, flash_slice: &'static [u8]) {
+        self.flash.set(flash_slice);
+        self.start();
     }
 }
 
