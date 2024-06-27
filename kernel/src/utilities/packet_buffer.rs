@@ -119,16 +119,12 @@ pub unsafe trait PacketBufferDyn: Any + Debug {
 #[derive(Debug)]
 
 pub struct PacketBufferMut<const HEAD: usize, const TAIL: usize> {
-    // AMALIA: should remove default values!!!!!
     pub inner: &'static mut dyn PacketBufferDyn,
 }
 
 impl<const HEAD: usize, const TAIL: usize> PacketBufferMut<HEAD, TAIL> {
     #[inline(always)]
     pub fn new(inner: &'static mut dyn PacketBufferDyn) -> Option<Self> {
-        // hprintln!(
-        //     "Inner headroom {} and HEAD {}. Inner tailroom {} and TAIL {}",
-        //     inner.headroom(),
         //     HEAD,
         //     inner.tailroom(),
         //     TAIL
@@ -202,11 +198,6 @@ impl<const HEAD: usize, const TAIL: usize> PacketBufferMut<HEAD, TAIL> {
     pub fn restore_headroom<const NEW_HEAD: usize>(
         self,
     ) -> Result<PacketBufferMut<NEW_HEAD, TAIL>, Self> {
-        // hprintln!(
-        //     "Old headroom {} and new head {}",
-        //     self.inner.headroom(),
-        //     NEW_HEAD
-        // );
         if self.inner.headroom() >= NEW_HEAD {
             Ok(PacketBufferMut { inner: self.inner })
         } else {
@@ -430,8 +421,6 @@ impl PacketSliceMut {
 
     pub fn data_slice<'a>(&'a self) -> &'a [u8] {
         let slice = self.restore_inner_slice();
-        // hprintln!("Full data slice: {:?}", slice);
-        // hprintln!("Smaller data slice {:?}", &slice[Self::DATA_SLICE]);
 
         &slice[Self::DATA_SLICE]
     }
@@ -500,7 +489,6 @@ unsafe impl PacketBufferDyn for PacketSliceMut {
 
     fn reclaim_headroom(&mut self, new_headroom: usize) -> bool {
         if new_headroom <= self.data_slice().len() - self.tailroom() {
-            // hprintln!("RECLAIM: Setting headroom to {}", new_headroom);
             self.set_headroom(new_headroom);
             true
         } else {
@@ -521,7 +509,6 @@ unsafe impl PacketBufferDyn for PacketSliceMut {
         if new_headroom > self.data_slice().len() {
             false
         } else {
-            // hprintln!("RESET: Setting headroom to {}", new_headroom);
             self.set_headroom(new_headroom);
             self.set_tailroom(self.data_slice().len() - new_headroom);
             true
@@ -559,9 +546,7 @@ unsafe impl PacketBufferDyn for PacketSliceMut {
     }
 
     unsafe fn prepand_unchecked(&mut self, header: &[u8]) {
-        // hprintln!("PREPAND UNCHECKED: Setting headroom to {}", self.get_headroom().saturating_sub(header.len()));
         self.set_headroom(self.get_headroom().saturating_sub(header.len()));
-        // hprintln!("Prepanding header {:?}", header);
         let headroom = self.get_headroom();
         self.data_slice_mut()[headroom..headroom + header.len()].copy_from_slice(header);
     }
@@ -571,9 +556,6 @@ unsafe impl PacketBufferDyn for PacketSliceMut {
         let tailroom = self.tailroom();
         let capacity = self.capacity();
 
-        // hprintln!(
-        //     "Whole len {} Capacity {} Headroom {} Tailroom {}",
-        //     self.data_slice().len(),
         //     capacity,
         //     headroom,
         //     tailroom

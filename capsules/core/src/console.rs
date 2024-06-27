@@ -222,10 +222,6 @@ impl<
                                 buffer[i] = c.get();
                             }
 
-                            // TODO: decide whether we should do somthing in case of error or not
-                            // hprintln!(
-                            //     "CONSOLE: copying from slice {:?}",
-                            //     &buffer[..remaining_data.len()]
                             // );
                             let _ =
                                 tx_buffer.copy_from_slice_or_err(&buffer[..remaining_data.len()]);
@@ -242,13 +238,9 @@ impl<
 
                 // TODO: Check and make sure that the process id should not be greater than 256
                 let process_id: [u8; 1] = (processid.id() as u8).to_ne_bytes();
-                // let header = process_id.first().unwrap();
-                // let header
-                // hprintln!("Prepanding process id {}", processid.id());
                 let buf = tx_buffer
                     .prepend::<LOWER_HEAD, 1>(&process_id)
                     .reduce_tailroom();
-                // hprint!("^ Current payload: {:?}", buf.payload());
                 let _ = self.uart.transmit_buffer(buf, transaction_len);
             });
         } else {
@@ -365,21 +357,9 @@ impl<const HEAD: usize, const TAIL: usize, const LOWER_HEAD: usize, const LOWER_
         // Either print more from the AppSlice or send a callback to the
         // application.
 
-        // hprintln!(
-        //     "Received PB with real headroom {}, trying to restore HEAD {}",
-        //     buffer.headroom(),
-        //     HEAD
-        // );
-        // hprintln!("^ Payload is {:?}", buffer.payload());
-        // let new_buf = buffer
-        //     .restore_headroom::<HEAD>()
         //     .unwrap()
         //     .restore_tailroom::<TAIL>()
-        //     .unwrap();
-
-        // hprintln!("PB head beofre reset is {}", buffer.headroom());
         let new_buf = buffer.reset::<HEAD, TAIL>().unwrap();
-        // hprintln!("PB head after reset is {}", new_buf.headroom());
         self.tx_buffer.replace(new_buf);
 
         self.tx_in_progress.take().map(|processid| {

@@ -305,7 +305,6 @@ impl<'a, const HEAD: usize, const TAIL: usize> Uarte<'a, HEAD, TAIL> {
 
             // All bytes have been transmitted
             if rem == 0 {
-                // hprintln!("UARTE: received interruptions but remaining is 0");
                 // Signal client write done
                 self.tx_client.map(|client| {
                     self.tx_buffer.take().map(|tx_buffer| {
@@ -317,7 +316,6 @@ impl<'a, const HEAD: usize, const TAIL: usize> Uarte<'a, HEAD, TAIL> {
                     });
                 });
             } else {
-                // hprintln!("UARTE: printing remaining");
                 // Not all bytes have been transmitted then update offset and continue transmitting
                 self.offset.set(self.offset.get() + tx_bytes);
                 self.tx_remaining_bytes.set(rem);
@@ -417,10 +415,6 @@ impl<'a, const HEAD: usize, const TAIL: usize> Uarte<'a, HEAD, TAIL> {
 
     fn set_tx_dma_pointer_to_buffer(&self) {
         self.tx_buffer.map(|tx_buffer| {
-            // hprintln!("UARTE: value of offset is {}", self.offset.get());
-
-            // TODO: idk what should go in here ???
-
             // --> v2
             let headroom = tx_buffer.headroom();
             let tailroom = tx_buffer.tailroom();
@@ -449,9 +443,7 @@ impl<'a, const HEAD: usize, const TAIL: usize> Uarte<'a, HEAD, TAIL> {
     // Helper function used by both transmit_word and transmit_buffer
     fn setup_buffer_transmit(&self, buf: PacketBufferMut<HEAD, TAIL>) {
         let len = buf.payload().len();
-        // hprintln!(
-        //     "Setup buffer transmit: len {} - {} - {} and buffer {:?}",
-        //     buf.capacity(),
+
         //     buf.headroom(),
         //     buf.tailroom(),
         //     buf.payload()
@@ -461,8 +453,6 @@ impl<'a, const HEAD: usize, const TAIL: usize> Uarte<'a, HEAD, TAIL> {
         // self.tx_len.set(tx_len);
         self.tx_len.set(len);
         self.offset.set(0);
-        // self.tx_buffer.replace(buf).unwrap();
-        // hprintln!("buffer {:?}", buf.payload());
         self.tx_buffer.replace(buf.downcast().unwrap());
         self.set_tx_dma_pointer_to_buffer();
 
@@ -490,20 +480,11 @@ impl<'a, const HEAD: usize, const TAIL: usize> uart::Transmit<'a, HEAD, TAIL>
         // _tx_len: usize,
         tx_len: usize,
     ) -> Result<(), (ErrorCode, PacketBufferMut<HEAD, TAIL>)> {
-        // hprintln!("UARTE: received buffer to write");
-
-        // TODO: should we use capacity instead of len?
-        // if tx_len == 0 || tx_len > tx_data.len() {
         if tx_len == 0 || tx_len > tx_data.capacity() {
-            // hprintln!("UARTE: SIZE");
-
             Err((ErrorCode::SIZE, tx_data))
         } else if self.tx_buffer.is_some() {
-            // hprintln!("UARTE: BUSY");
-
             Err((ErrorCode::BUSY, tx_data))
         } else {
-            // hprintln!("UARTE: transmiting buffer {:?}", tx_data);
             self.setup_buffer_transmit(tx_data);
             Ok(())
         }
@@ -548,8 +529,6 @@ impl<'a, const HEAD: usize, const TAIL: usize> uart::Receive<'a> for Uarte<'a, H
         rx_buf: &'static mut [u8],
         rx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        // panic!("Received buffer {:?}", rx_buf);
-        // hprintln!("CHIP UART: received buffer");
         if self.rx_buffer.is_some() {
             return Err((ErrorCode::BUSY, rx_buf));
         }

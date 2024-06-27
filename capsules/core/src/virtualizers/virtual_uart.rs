@@ -279,8 +279,6 @@ impl<
     }
 
     fn do_next_op(&self) {
-        // panic!("In do next op");
-        // hprintln!("In do next op");
         if self.inflight.is_none() {
             let mnode = self.devices.iter().find(|node| node.operation.is_some());
             mnode.map(|node| {
@@ -294,11 +292,6 @@ impl<
                         // ----------------
                         match op {
                             Operation::Transmit { len } => {
-                                // TODO: append device id here
-
-                                // hprintln!("MUX: transmitting buffer with len {}", len);
-                                // let new_buf = buf
-                                //     .reduce_headroom::<UART_HEAD>()
                                 //     .reduce_tailroom::<UART_TAIL>();
 
                                 let header = if node.is_console { 1_u8 } else { 0_u8 };
@@ -498,7 +491,6 @@ impl<
         self.tx_client.map(move |client| {
             self.transmitting.set(false);
 
-            // hprintln!("")
             let new_buf = tx_buffer
                 .reclaim_headroom::<HEAD>()
                 .unwrap()
@@ -614,7 +606,6 @@ impl<
         rx_buffer: &'static mut [u8],
         rx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        // hprintln!("MUX: In receive buffer with buffer: {:?}", rx_buffer);
         if self.rx_buffer.is_some() {
             Err((ErrorCode::BUSY, rx_buffer))
         } else if rx_len > rx_buffer.len() {

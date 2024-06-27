@@ -458,7 +458,6 @@ impl<const HEAD: usize, const TAIL: usize, const L_HEAD: usize, const L_TAIL: us
     /// Write as many of the bytes from the internal_buffer to the output
     /// mechanism as possible, returning the number written.
     fn publish_bytes(&self) -> usize {
-        // hprintln!("DEBUG WRITER: publish)bytes");
         // Can only publish if we have the output_buffer. If we don't that is
         // fine, we will do it when the transmit done callback happens.
         self.internal_buffer.map_or(0, |ring_buffer| {
@@ -482,11 +481,7 @@ impl<const HEAD: usize, const TAIL: usize, const L_HEAD: usize, const L_TAIL: us
                             // mechanism would stop
                             //
                             // if we use the append from PbMut we would need to know the new tail each time and we would not know if the op failed
-                            //
-                            // maybe this is a case where downcast is really needed
-                            // hprintln!(
-                            //     "Inner tailroom before append {}",
-                            //     out_packet_slice.get_tailroom()
+
                             // );
                             copied = out_packet_slice.append_from_slice_max(&[src]);
                             count += 1;

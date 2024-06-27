@@ -116,9 +116,7 @@ impl<const BUF_SIZE_BYTES: usize> Component for DebugWriterComponent<BUF_SIZE_BY
         let debugger_uart = s.0.write(UartDevice::new(self.uart_mux, false, false));
         debugger_uart.setup();
         let ring_buffer = s.1.write(RingBuffer::new(internal_buf));
-        // hprintln!("Debug buffer size {}", output_buf.len());
         let ps = PacketSliceMut::new(output_buf, 5).unwrap();
-        // ps.set_headroom(10);
         let debugger = s.3.write(kernel::debug::DebugWriter::new(
             debugger_uart,
             PacketBufferMut::new(ps).unwrap(),
