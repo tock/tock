@@ -27,4 +27,5 @@ rustflags = [
 
 [unstable]
 unstable-options = true
-build-std = ["core", "alloc", "compiler_builtins" ]
+build-std = ["core", "compiler_builtins" ]
+
