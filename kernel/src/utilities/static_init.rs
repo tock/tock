@@ -100,10 +100,11 @@ macro_rules! static_buf {
         // Statically allocate a read-write buffer for the value without
         // actually writing anything, as well as a flag to track if
         // this memory has been initialized yet.
-	#[used]
-	#[no_mangle]
-	#[export_name = $N]
-	pub static mut BUF: (core::mem::MaybeUninit<$T>, bool) = (core::mem::MaybeUninit::uninit(), false);
+        #[used]
+        #[no_mangle]
+        #[export_name = $N]
+        pub static mut BUF: (core::mem::MaybeUninit<$T>, bool) =
+            (core::mem::MaybeUninit::uninit(), false);
 
         // To minimize the amount of code duplicated across every invocation
         // of this macro, all of the logic for checking if the buffer has been
