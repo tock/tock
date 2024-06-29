@@ -2,5 +2,12 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright Tock Contributors 2022.
 
+[build]
+rustflags = [
+  "-Z", "virtual-function-elimination"
+]
 [target.'cfg(target_arch = "riscv32")']
 runner = "./run.sh"
+[unstable]
+unstable-options = true
+build-std = ["core", "compiler_builtins" ]

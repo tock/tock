@@ -141,7 +141,7 @@ allaudit audit:
 allboards boards:
 	@for f in $(ALL_BOARDS);\
 		do echo "$$(tput bold)Build $$f";\
-		cargo -Z unstable-options -C "boards/$$f" build --release || exit 1;\
+		$(MAKE) -C "boards/$$f" || exit 1;\
 		done
 
 .PHONY: allcheck check

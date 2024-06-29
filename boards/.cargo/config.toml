@@ -25,7 +25,3 @@ rustflags = [
   "-C", "lto",
 ]
 
-[unstable]
-unstable-options = true
-build-std = ["core", "compiler_builtins" ]
-

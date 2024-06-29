@@ -4,3 +4,6 @@
 
 [target.'cfg(target_arch = "arm")']
 runner = "./run.sh"
+[unstable]
+unstable-options = true
+build-std = ["core", "compiler_builtins" ]
