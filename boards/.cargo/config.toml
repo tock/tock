@@ -1,3 +1,7 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2024.
+
 [build]
 rustflags = [
   # Tell rustc to use the LLVM linker. This avoids needing GCC as a dependency
@@ -24,4 +28,3 @@ rustflags = [
   # Enable link-time-optimization
   "-C", "lto",
 ]
-
