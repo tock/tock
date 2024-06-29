@@ -23,6 +23,7 @@ use tock_tbf::types::CommandPermissions;
 
 // Export all process related types via `kernel::process::`.
 pub use crate::process_binary::ProcessBinary;
+pub use crate::process_checker::AcceptedCredential;
 pub use crate::process_checker::{ProcessCheckerMachine, ProcessCheckerMachineClient};
 pub use crate::process_loading::load_processes;
 pub use crate::process_loading::ProcessLoadError;
@@ -335,6 +336,11 @@ pub trait Process {
     /// Returns the version number of the binary in this process, as specified
     /// in a TBF Program Header; if the binary has no version assigned, return [None]
     fn binary_version(&self) -> Option<BinaryVersion>;
+
+    /// Return the credential which the credential checker approved if the
+    /// credential checker approved a credential. If the process was allowed to
+    /// run without credentials, return `None`.
+    fn get_credential(&self) -> Option<AcceptedCredential>;
 
     /// Returns how many times this process has been restarted.
     fn get_restart_count(&self) -> usize;
