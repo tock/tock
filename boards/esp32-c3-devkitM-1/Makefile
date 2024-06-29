@@ -8,6 +8,11 @@ TARGET=riscv32imc-unknown-none-elf
 PLATFORM=esp32-c3-board
 RISC_PREFIX = riscv64-linux-gnu
 
+# Build test crates with the `panic = "abort"` strategy. Tests use `unwind` by
+# default which causes incompatability with `core` built via `-Zbuild-std`.
+CARGO_FLAGS += -Zpanic-abort-tests
+
+
 include ../Makefile.common
 
 # Default target for installing the kernel.
