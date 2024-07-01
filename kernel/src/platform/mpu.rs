@@ -4,6 +4,7 @@
 
 //! Interface for configuring the Memory Protection Unit.
 
+use crate::ErrorCode;
 use core::cmp;
 use core::fmt::{self, Display};
 
@@ -259,6 +260,68 @@ pub trait MPU {
     ///
     /// - `config`: MPU region configuration
     fn configure_mpu(&self, config: &Self::MpuConfig);
+
+    /// Allocate a region of memory to an application
+    ///
+    /// This is used to pass a MMIO region directly to an application.
+    /// After this is successfully called the kernel must be very careful
+    /// about using the memory. As userspace and the kernel can both access
+    /// the device the kernel should avoid accessing the memory.
+    ///
+    ///
+    /// As Tock is single threaded and already expecting the values to change
+    /// it isn't unsound. Although Tock should avoid accessing the region.
+    /// There are situations where the kernel needs to access the region.
+    /// Such as handling interrupts, checking for malicious or incorrect
+    /// configurations or recovering from errors.
+    ///
+    /// This function will ensure that the region isn't already allocated.
+    ///
+    /// # Arguments
+    ///
+    /// - `memory_start`:        starting address of the MMIO region
+    /// - `memory_size`:         size of the MMIO region
+    /// - `config`:              MPU region configuration
+    ///
+    /// # Return Value
+    ///
+    /// Returns an error if it is infeasible or not allowed to update the
+    /// MPU region. If an error is returned no changes are made to the
+    /// configuration.
+    fn allocate_app_device_region(
+        &self,
+        _memory_start: *const u8,
+        _memory_size: usize,
+        _config: &mut Self::MpuConfig,
+    ) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
+    }
+
+    /// Deallocate a region of memory to an application
+    ///
+    /// This is used to deallocate a MMIO region from an application.
+    /// After this the region can be used by the kernel or allocated
+    /// to a different or the same application.
+    ///
+    /// # Arguments
+    ///
+    /// - `memory_start`:        starting address of the MMIO region
+    /// - `memory_size`:         size of the MMIO region
+    /// - `config`:              MPU region configuration
+    ///
+    /// # Return Value
+    ///
+    /// Returns an error if it is infeasible or not allowed to update the
+    /// MPU region. If an error is returned no changes are made to the
+    /// configuration.
+    fn deallocate_app_device_region(
+        &self,
+        _memory_start: *const u8,
+        _memory_size: usize,
+        _config: &mut Self::MpuConfig,
+    ) -> Result<(), ErrorCode> {
+        Err(ErrorCode::NOSUPPORT)
+    }
 }
 
 /// Implement default MPU trait for unit.

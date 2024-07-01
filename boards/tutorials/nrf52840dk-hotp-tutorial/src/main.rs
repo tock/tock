@@ -72,6 +72,7 @@ impl KernelResources<Chip> for Platform {
     type WatchDog = <nrf52840dk_lib::Platform as KernelResources<Chip>>::WatchDog;
     type ContextSwitchCallback =
         <nrf52840dk_lib::Platform as KernelResources<Chip>>::ContextSwitchCallback;
+    type DevivePassthroughFilter = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         self
@@ -93,6 +94,9 @@ impl KernelResources<Chip> for Platform {
     }
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         self.base.context_switch_callback()
+    }
+    fn passthrough_filter(&self) -> &Self::DevivePassthroughFilter {
+        &()
     }
 }
 

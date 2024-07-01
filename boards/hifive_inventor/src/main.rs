@@ -93,6 +93,7 @@ impl KernelResources<e310_g003::chip::E310x<'static, E310G003DefaultPeripherals<
         VirtualSchedulerTimer<VirtualMuxAlarm<'static, e310_g003::chip::E310xClint<'static>>>;
     type WatchDog = ();
     type ContextSwitchCallback = ();
+    type DevivePassthroughFilter = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         self
@@ -113,6 +114,9 @@ impl KernelResources<e310_g003::chip::E310x<'static, E310G003DefaultPeripherals<
         &()
     }
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
+        &()
+    }
+    fn passthrough_filter(&self) -> &Self::DevivePassthroughFilter {
         &()
     }
 }

@@ -84,6 +84,7 @@ impl KernelResources<imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaul
     type SchedulerTimer = cortexm7::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();
+    type DevivePassthroughFilter = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         self
@@ -104,6 +105,9 @@ impl KernelResources<imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaul
         &()
     }
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
+        &()
+    }
+    fn passthrough_filter(&self) -> &Self::DevivePassthroughFilter {
         &()
     }
 }

@@ -204,6 +204,7 @@ impl KernelResources<litex_vexriscv::chip::LiteXVexRiscv<LiteXArtyInterruptableP
     >;
     type WatchDog = ();
     type ContextSwitchCallback = ();
+    type DevivePassthroughFilter = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         self
@@ -224,6 +225,9 @@ impl KernelResources<litex_vexriscv::chip::LiteXVexRiscv<LiteXArtyInterruptableP
         &()
     }
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
+        &()
+    }
+    fn passthrough_filter(&self) -> &Self::DevivePassthroughFilter {
         &()
     }
 }

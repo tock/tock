@@ -153,6 +153,7 @@ impl KernelResources<apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> for Redb
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();
+    type DevivePassthroughFilter = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         self
@@ -173,6 +174,9 @@ impl KernelResources<apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> for Redb
         &()
     }
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
+        &()
+    }
+    fn passthrough_filter(&self) -> &Self::DevivePassthroughFilter {
         &()
     }
 }

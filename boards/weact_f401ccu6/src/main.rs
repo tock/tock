@@ -100,6 +100,7 @@ impl KernelResources<stm32f401cc::chip::Stm32f4xx<'static, Stm32f401ccDefaultPer
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
     type ContextSwitchCallback = ();
+    type DevivePassthroughFilter = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         self
@@ -120,6 +121,9 @@ impl KernelResources<stm32f401cc::chip::Stm32f4xx<'static, Stm32f401ccDefaultPer
         &()
     }
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
+        &()
+    }
+    fn passthrough_filter(&self) -> &Self::DevivePassthroughFilter {
         &()
     }
 }

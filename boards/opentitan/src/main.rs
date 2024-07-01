@@ -272,6 +272,7 @@ impl KernelResources<EarlGreyChip> for EarlGrey {
     >;
     type WatchDog = lowrisc::aon_timer::AonTimer;
     type ContextSwitchCallback = ();
+    type DevivePassthroughFilter = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         self
@@ -292,6 +293,9 @@ impl KernelResources<EarlGreyChip> for EarlGrey {
         self.watchdog
     }
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
+        &()
+    }
+    fn passthrough_filter(&self) -> &Self::DevivePassthroughFilter {
         &()
     }
 }

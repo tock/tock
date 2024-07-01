@@ -98,6 +98,7 @@ impl KernelResources<arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeriphe
     type SchedulerTimer = ();
     type WatchDog = ();
     type ContextSwitchCallback = ();
+    type DevivePassthroughFilter = ();
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         self
@@ -118,6 +119,9 @@ impl KernelResources<arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeriphe
         &()
     }
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
+        &()
+    }
+    fn passthrough_filter(&self) -> &Self::DevivePassthroughFilter {
         &()
     }
 }
