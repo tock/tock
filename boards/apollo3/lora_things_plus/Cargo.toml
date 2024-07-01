@@ -19,3 +19,12 @@ apollo3 = { path = "../../../chips/apollo3" }
 capsules-core = { path = "../../../capsules/core" }
 capsules-extra = { path = "../../../capsules/extra" }
 capsules-system = { path = "../../../capsules/system" }
+
+[features]
+default = []
+
+# This feature enables support for the ATECC508A Cryptographic Co-Processor
+# Breakout. If you connect one of these
+# (https://www.sparkfun.com/products/15573) via the I2C Qwiic connector you
+# should enable this feature.
+atecc508a = []

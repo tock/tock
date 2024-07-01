@@ -13,6 +13,7 @@ pub mod analog_comparator;
 pub mod apds9960;
 pub mod app_flash_driver;
 pub mod appid;
+pub mod atecc508a;
 pub mod ble;
 pub mod bme280;
 pub mod bmm150;
