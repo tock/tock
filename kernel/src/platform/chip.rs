@@ -6,6 +6,7 @@
 
 use crate::platform::mpu;
 use crate::syscall;
+use crate::threadlocal;
 use core::fmt::Write;
 
 /// Interface for individual MCUs.
@@ -49,6 +50,9 @@ pub trait Chip {
     /// interrupts to still be active so that the next interrupt event wakes the
     /// chip and resumes the scheduler.
     fn sleep(&self);
+
+    /// Send a notification to another thread.
+    fn notify(&self, id: &dyn threadlocal::ThreadId);
 
     /// Print out chip state (system registers) to a supplied
     /// writer. This does not print out the execution context

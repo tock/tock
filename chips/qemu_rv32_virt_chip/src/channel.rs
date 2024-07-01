@@ -10,14 +10,15 @@ use rv32i::csr::CSR;
 
 use crate::MAX_THREADS;
 
-type Buffer = [u8; 100];
+type Buffer = [u8; BUFFER_SIZE];
 
-pub static mut SHARED_CHANNEL_BUFFER: Buffer = [0; 100];
-pub static mut CHANNEL_BUFFER: ThreadLocal<MAX_THREADS, Buffer> = ThreadLocal::init([0; 100]);
+pub const BUFFER_SIZE: usize = 100;
+pub static mut SHARED_CHANNEL_BUFFER: Buffer = [0; BUFFER_SIZE];
+pub static mut CHANNEL_BUFFER: ThreadLocal<MAX_THREADS, Buffer> = ThreadLocal::init([0; BUFFER_SIZE]);
 
 enum Message<'a> {
-    Request(&'a str),
-    Response(&'a str),
+    Request(&'a [u8]),
+    Response(&'a [u8]),
 }
 
 
@@ -50,7 +51,7 @@ impl QemuRv32VirtChannel {
                 };
                 let res = unsafe {
                     CHANNEL_BUFFER.get_mut(DynThreadId::new(hart_id))
-                        .expect("This hart does not have access to the QemuRv32VertChannel")
+                        .expect("This hart does not have access to the QemuRv32VirtChannel")
                         .enter_nonreentrant(closure)
                 };
                 self.flush_local_buffer();
@@ -62,7 +63,8 @@ impl QemuRv32VirtChannel {
             S::Process => todo!(),
             S::End => {
                 // TODO: Safety
-                DeferredCallThread::unset()
+                DeferredCallThread::unset();
+                self.state.replace(S::Init);
             }
         }
     }

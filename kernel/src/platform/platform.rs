@@ -73,6 +73,9 @@ pub trait KernelResources<C: Chip> {
     /// Returns a reference to the implementation of the WatchDog on this
     /// platform.
     fn watchdog(&self) -> &Self::WatchDog;
+
+    /// Return a shared buffer between kernels
+    unsafe fn shared_buffer(&self) -> &mut [u8];
 }
 
 /// Configure the system call dispatch mapping.

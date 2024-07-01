@@ -11,7 +11,7 @@ use kernel::debug;
 use kernel::hil::time::Freq10MHz;
 use kernel::platform::chip::{Chip, ChipAtomic, InterruptService};
 
-use kernel::threadlocal::{DynThreadId, ThreadLocalAccess};
+use kernel::threadlocal::{DynThreadId, ThreadLocalAccess, ThreadId};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::deferred_call::DeferredCallThread;
 use kernel::thread_local_static_access;
@@ -25,7 +25,7 @@ use crate::plic::PLIC;
 use crate::clint::CLIC;
 use crate::{MAX_THREADS, MAX_CONTEXTS, plic::PLIC_BASE};
 
-use crate::channel::{SHARED_CHANNEL_BUFFER, CHANNEL_BUFFER};
+use crate::channel::{SHARED_CHANNEL_BUFFER, CHANNEL_BUFFER, BUFFER_SIZE};
 use core::ptr;
 
 use virtio::transports::mmio::VirtIOMMIODevice;
@@ -180,6 +180,10 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
         }
     }
 
+    fn notify(&self, id: &dyn ThreadId) {
+        self.timer.set_soft_interrupt(id.get_id());
+    }
+
     unsafe fn print_state(&self, writer: &mut dyn Write) {
         rv32i::print_riscv_state(writer);
         let _ = writer.write_fmt(format_args!("{}", self.pmp.pmp));
@@ -261,7 +265,7 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
                 CHANNEL_BUFFER.get_mut(DynThreadId::new(hart_id))
                         .expect("This thread does not have access to the channel buffer")
                         .enter_nonreentrant(|buf| {
-                            ptr::copy_nonoverlapping(ptr::addr_of!(SHARED_CHANNEL_BUFFER), buf, 100);
+                            ptr::copy_nonoverlapping(ptr::addr_of!(SHARED_CHANNEL_BUFFER), buf, BUFFER_SIZE);
                         });
                 // Active the inter-thread communication processor
                 DeferredCallThread::set();

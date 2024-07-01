@@ -7,6 +7,7 @@ use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::KernelResources;
 use kernel::platform::SyscallDriverLookup;
 use kernel::scheduler::cooperative::CooperativeSched;
+use kernel::platform::chip::Chip;
 use kernel::threadlocal;
 use kernel::threadlocal::ConstThreadId;
 use kernel::threadlocal::ThreadId;
@@ -142,6 +143,9 @@ impl
     }
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
+    }
+    unsafe fn shared_buffer(&self) -> &mut [u8] {
+        &mut qemu_rv32_virt_chip::channel::SHARED_CHANNEL_BUFFER
     }
 }
 
@@ -563,18 +567,19 @@ pub unsafe fn spawn<const ID: usize>() {
         .for_each(|id| hardware_timer.set_soft_interrupt(id));
 
     // Send echo command to the app thread
-    use qemu_rv32_virt_chip::channel::SHARED_CHANNEL_BUFFER;
-    unsafe {
-        SHARED_CHANNEL_BUFFER[0] = 10;
-        SHARED_CHANNEL_BUFFER[1] = 5;
-        SHARED_CHANNEL_BUFFER[58] = 100;
-    }
+    let shared_buffer = platform.shared_buffer();
+    // unsafe {
+    //     shared_buffer[0] = 10;
+    //     shared_buffer[1] = 5;
+    //     shared_buffer[58] = 101;
+    // }
 
     // Block until the app thread finishes initialization
     while !APP_THREAD_READY.load(Ordering::SeqCst) {}
 
-    hardware_timer.set_soft_interrupt(1);
+    chip.notify(&id);
 
+    // hardware_timer.set_soft_interrupt(1);
     // loop {
     //     hardware_timer.set_soft_interrupt(1);
     // }

@@ -33,7 +33,11 @@ use crate::syscall::{ContextSwitchReason, SyscallReturn};
 use crate::syscall::{Syscall, YieldCall};
 use crate::syscall_driver::CommandReturn;
 use crate::upcall::{Upcall, UpcallId};
-use crate::utilities::cells::NumericCellExt;
+use crate::utilities::cells::{NumericCellExt, OptionalCell};
+use crate::threadlocal::DynThreadId;
+
+use tock_tbf::types::TbfFooterV2Credentials;
+use tock_tbf::types::TbfParseError;
 
 /// Threshold in microseconds to consider a process's timeslice to be exhausted.
 /// That is, Tock will skip re-scheduling a process if its remaining timeslice
@@ -440,13 +444,31 @@ impl Kernel {
         unsafe {
             core::arch::asm!("csrr {a}, mhartid", a = out(reg) hart_id);
         }
+        let id = unsafe { DynThreadId::new(hart_id) };
+
+        // let timer = qemu_rv32_virt_chip::chip::QemuRv32VirtClint::new(&qemu_rv32_virt_chip::clint::CLINT_BASE);
 
         // Before we begin, verify that deferred calls were soundly setup.
         DeferredCall::verify_setup();
         loop {
             self.kernel_loop_operation(resources, chip, ipc, false, capability);
             if let Some(c) = counter {
-                debug!("counter = {:?}", c.load(core::sync::atomic::Ordering::Relaxed));
+                let num = c.load(core::sync::atomic::Ordering::Relaxed);
+                debug!("counter = {:?}", num);
+
+                if num == 0 {
+                    unsafe {
+                        resources.shared_buffer()[18] = 101;
+                    }
+                    chip.notify(&id);
+                }
+                //     use qemu_rv32_virt_chip::channel::SHARED_CHANNEL_BUFFER;
+                //     unsafe {
+                //         SHARED_CHANNEL_BUFFER[0] = 10;
+                //         SHARED_CHANNEL_BUFFER[1] = 5;
+                //         SHARED_CHANNEL_BUFFER[58] = 101;
+                //     }
+                // resources.scheduler_timer.
             }
         }
     }
