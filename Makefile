@@ -528,6 +528,7 @@ ci-job-miri:
 	@for a in $$(tools/list_archs.sh); do cd arch/$$a && NOWARNINGS=true cargo miri test && cd ../..; done
 	@cd capsules/core && NOWARNINGS=true cargo miri test
 	@cd capsules/extra && NOWARNINGS=true cargo miri test
+	@cd capsules/system && NOWARNINGS=true cargo miri test
 	@for c in $$(tools/list_chips.sh); do cd chips/$$c && NOWARNINGS=true cargo miri test && cd ../..; done
 
 
