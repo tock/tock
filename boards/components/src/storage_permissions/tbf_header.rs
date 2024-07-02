@@ -13,13 +13,22 @@ use kernel::platform::chip::Chip;
 macro_rules! storage_permissions_tbf_header_component_static {
     ($C:ty $(,)?) => {{
         kernel::static_buf!(
-            capsules_system::storage_permissions::tbf_header::TbfHeaderStoragePermissions<$C>
+            capsules_system::storage_permissions::tbf_header::TbfHeaderStoragePermissions<
+                $C,
+                components::storage_permissions::tbf_header::AppStoreCapability
+            >
         )
     };};
 }
 
+pub struct AppStoreCapability;
+unsafe impl kernel::capabilities::ApplicationStorageCapability for AppStoreCapability {}
+
 pub type StoragePermissionsTbfHeaderComponentType<C> =
-    capsules_system::storage_permissions::tbf_header::TbfHeaderStoragePermissions<C>;
+    capsules_system::storage_permissions::tbf_header::TbfHeaderStoragePermissions<
+        C,
+        AppStoreCapability,
+    >;
 
 pub struct StoragePermissionsTbfHeaderComponent<C: Chip> {
     _chip: core::marker::PhantomData<C>,
@@ -35,14 +44,22 @@ impl<C: Chip> StoragePermissionsTbfHeaderComponent<C> {
 
 impl<C: Chip + 'static> Component for StoragePermissionsTbfHeaderComponent<C> {
     type StaticInput = &'static mut MaybeUninit<
-        capsules_system::storage_permissions::tbf_header::TbfHeaderStoragePermissions<C>,
+        capsules_system::storage_permissions::tbf_header::TbfHeaderStoragePermissions<
+            C,
+            AppStoreCapability,
+        >,
     >;
     type Output =
-        &'static capsules_system::storage_permissions::tbf_header::TbfHeaderStoragePermissions<C>;
+        &'static capsules_system::storage_permissions::tbf_header::TbfHeaderStoragePermissions<
+            C,
+            AppStoreCapability,
+        >;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         s.write(
-            capsules_system::storage_permissions::tbf_header::TbfHeaderStoragePermissions::new(),
+            capsules_system::storage_permissions::tbf_header::TbfHeaderStoragePermissions::new(
+                AppStoreCapability,
+            ),
         )
     }
 }
