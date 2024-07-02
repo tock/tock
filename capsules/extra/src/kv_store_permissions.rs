@@ -311,7 +311,7 @@ impl<'a, K: kv::KV<'a>> kv::KVClient for KVStorePermissions<'a, K> {
 
                         if header.version == HEADER_VERSION {
                             self.valid_ids.map(|perms| {
-                                access_allowed = perms.check_write_permission(header.write_id);
+                                access_allowed = perms.check_modify_permission(header.write_id);
                             });
                         }
                     } else if result.err() == Some(ErrorCode::NOSUPPORT) {
@@ -352,7 +352,7 @@ impl<'a, K: kv::KV<'a>> kv::KVClient for KVStorePermissions<'a, K> {
 
                         if header.version == HEADER_VERSION {
                             self.valid_ids.map(|perms| {
-                                access_allowed = perms.check_write_permission(header.write_id);
+                                access_allowed = perms.check_modify_permission(header.write_id);
                             });
                         }
                     }
@@ -394,7 +394,7 @@ impl<'a, K: kv::KV<'a>> kv::KVClient for KVStorePermissions<'a, K> {
 
                         if header.version == HEADER_VERSION {
                             self.valid_ids.map(|perms| {
-                                access_allowed = perms.check_write_permission(header.write_id);
+                                access_allowed = perms.check_modify_permission(header.write_id);
                             });
                         }
                     }
