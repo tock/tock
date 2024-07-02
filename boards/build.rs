@@ -24,6 +24,9 @@ fn main() {
         panic!("Boards must provide a `layout.ld` link script file");
     }
 
+    println!("cargo:rustc-link-arg=-L{}", std::env!("CARGO_MANIFEST_DIR"));
+    println!("cargo:rustc-link-arg=-T{}", LINKER_SCRIPT);
+
     track_linker_script(LINKER_SCRIPT);
 }
 

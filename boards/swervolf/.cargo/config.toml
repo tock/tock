@@ -5,8 +5,6 @@
 [build]
 target = "riscv32imc-unknown-none-elf"
 
-[target.'cfg(target_arch = "riscv32")']
-runner = "./run.sh"
 [unstable]
 unstable-options = true
 build-std = ["core", "compiler_builtins" ]
