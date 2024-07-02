@@ -7,6 +7,9 @@
 //! These permissions are intended for userspace applications so the kernel can
 //! restrict which stored elements the apps have access to.
 
+use crate::capabilities::ApplicationStorageCapability;
+use crate::capabilities::KerneluserStorageCapability;
+
 /// Permissions for accessing persistent storage.
 ///
 /// This is a general type capable of representing permissions in different
@@ -20,7 +23,14 @@
 /// fn StoragePermissions::get_write_id(&self) -> Option<u32>;
 /// ```
 #[derive(Clone, Copy)]
-pub enum StoragePermissions {
+pub struct StoragePermissions(StoragePermissionsPrivate);
+
+/// Inner enum type for types of permissions.
+///
+/// Private so permissions can only be created with capability-restricted
+/// constructors.
+#[derive(Clone, Copy)]
+enum StoragePermissionsPrivate {
     /// This permission grants an application full access to its own stored
     /// state. The application may write state, and read and modify anything it
     /// has written.
@@ -98,8 +108,11 @@ pub struct ListedPermissions {
 }
 
 impl StoragePermissions {
-    pub fn new_self_only(short_id_fixed: core::num::NonZeroU32) -> Self {
-        Self::SelfOnly(short_id_fixed)
+    pub fn new_self_only(
+        short_id_fixed: core::num::NonZeroU32,
+        _cap: &dyn ApplicationStorageCapability,
+    ) -> Self {
+        Self(StoragePermissionsPrivate::SelfOnly(short_id_fixed))
     }
 
     pub fn new_fixed_size(
@@ -110,8 +123,9 @@ impl StoragePermissions {
         read_permissions: [u32; 8],
         modify_count: usize,
         modify_permissions: [u32; 8],
+        _cap: &dyn ApplicationStorageCapability,
     ) -> Self {
-        Self::FixedSize(FixedSizePermissions {
+        Self(StoragePermissionsPrivate::FixedSize(FixedSizePermissions {
             app_id,
             write_permission,
             read_modify_self,
@@ -119,7 +133,7 @@ impl StoragePermissions {
             read_permissions,
             modify_count,
             modify_permissions,
-        })
+        }))
     }
 
     pub fn new_listed(
@@ -128,30 +142,31 @@ impl StoragePermissions {
         read_modify_self: bool,
         read_permissions: &'static [u32],
         modify_permissions: &'static [u32],
+        _cap: &dyn ApplicationStorageCapability,
     ) -> Self {
-        Self::Listed(ListedPermissions {
+        Self(StoragePermissionsPrivate::Listed(ListedPermissions {
             app_id,
             write_permission,
             read_modify_self,
             read_permissions,
             modify_permissions,
-        })
+        }))
     }
 
-    pub fn new_kernel() -> Self {
-        Self::Kernel
+    pub fn new_kernel(_cap: &dyn KerneluserStorageCapability) -> Self {
+        Self(StoragePermissionsPrivate::Kernel)
     }
 
     pub fn new_null() -> Self {
-        Self::Null
+        Self(StoragePermissionsPrivate::Null)
     }
 
     /// Check if these storage permissions grant read access to the stored state
     /// marked with identifier `stored_id`.
     pub fn check_read_permission(&self, stored_id: u32) -> bool {
-        match *self {
-            StoragePermissions::SelfOnly(id) => stored_id == id.into(),
-            StoragePermissions::FixedSize(p) => {
+        match self.0 {
+            StoragePermissionsPrivate::SelfOnly(id) => stored_id == id.into(),
+            StoragePermissionsPrivate::FixedSize(p) => {
                 (stored_id == p.app_id.into() && p.read_modify_self)
                     || (stored_id != 0
                         && p.read_permissions
@@ -159,21 +174,21 @@ impl StoragePermissions {
                             .unwrap_or(&[])
                             .contains(&stored_id))
             }
-            StoragePermissions::Listed(p) => {
+            StoragePermissionsPrivate::Listed(p) => {
                 (stored_id == p.app_id.into() && p.read_modify_self)
                     || (stored_id != 0 && p.read_permissions.contains(&stored_id))
             }
-            StoragePermissions::Kernel => stored_id == 0,
-            StoragePermissions::Null => false,
+            StoragePermissionsPrivate::Kernel => stored_id == 0,
+            StoragePermissionsPrivate::Null => false,
         }
     }
 
     /// Check if these storage permissions grant modify access to the stored
     /// state marked with identifier `stored_id`.
     pub fn check_modify_permission(&self, stored_id: u32) -> bool {
-        match *self {
-            StoragePermissions::SelfOnly(id) => stored_id == id.into(),
-            StoragePermissions::FixedSize(p) => {
+        match self.0 {
+            StoragePermissionsPrivate::SelfOnly(id) => stored_id == id.into(),
+            StoragePermissionsPrivate::FixedSize(p) => {
                 (stored_id == p.app_id.into() && p.read_modify_self)
                     || (stored_id != 0
                         && p.modify_permissions
@@ -181,24 +196,26 @@ impl StoragePermissions {
                             .unwrap_or(&[])
                             .contains(&stored_id))
             }
-            StoragePermissions::Listed(p) => {
+            StoragePermissionsPrivate::Listed(p) => {
                 (stored_id == p.app_id.into() && p.read_modify_self)
                     || (stored_id != 0 && p.modify_permissions.contains(&stored_id))
             }
-            StoragePermissions::Kernel => stored_id == 0,
-            StoragePermissions::Null => false,
+            StoragePermissionsPrivate::Kernel => stored_id == 0,
+            StoragePermissionsPrivate::Null => false,
         }
     }
 
     /// Retrieve the identifier to use when storing state, if the application
     /// has permission to write. Returns `None` if the application cannot write.
     pub fn get_write_id(&self) -> Option<u32> {
-        match *self {
-            StoragePermissions::SelfOnly(id) => Some(id.into()),
-            StoragePermissions::FixedSize(p) => p.write_permission.then_some(p.app_id.into()),
-            StoragePermissions::Listed(p) => p.write_permission.then_some(p.app_id.into()),
-            StoragePermissions::Kernel => Some(0),
-            StoragePermissions::Null => None,
+        match self.0 {
+            StoragePermissionsPrivate::SelfOnly(id) => Some(id.into()),
+            StoragePermissionsPrivate::FixedSize(p) => {
+                p.write_permission.then_some(p.app_id.into())
+            }
+            StoragePermissionsPrivate::Listed(p) => p.write_permission.then_some(p.app_id.into()),
+            StoragePermissionsPrivate::Kernel => Some(0),
+            StoragePermissionsPrivate::Null => None,
         }
     }
 }
