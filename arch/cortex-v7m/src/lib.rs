@@ -22,7 +22,7 @@ extern "C" {
     /// ARMv7-M systick handler function.
     ///
     /// For documentation of this function, please see
-    /// [`CortexMVariant::SYSTICK_HANDLER`].
+    /// `CortexMVariant::SYSTICK_HANDLER`.
     pub fn systick_handler_arm_v7m();
 }
 
@@ -63,7 +63,7 @@ extern "C" {
     /// Handler of `svc` instructions on ARMv7-M.
     ///
     /// For documentation of this function, please see
-    /// [`CortexMVariant::SVC_HANDLER`].
+    /// `CortexMVariant::SVC_HANDLER`.
     pub fn svc_handler_arm_v7m();
 }
 
@@ -140,7 +140,7 @@ global_asm!(
 extern "C" {
     /// Generic interrupt handler for ARMv7-M instruction sets.
     ///
-    /// For documentation of this function, see [`CortexMVariant::GENERIC_ISR`].
+    /// For documentation of this function, see `CortexMVariant::GENERIC_ISR`.
     pub fn generic_isr_arm_v7m();
 }
 #[cfg(all(target_arch = "arm", target_os = "none"))]
@@ -219,7 +219,7 @@ global_asm!(
 /// state.
 ///
 /// For documentation of this function, please see
-/// [`CortexMVariant::switch_to_user`].
+/// `CortexMVariant::switch_to_user`.
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 pub unsafe fn switch_to_user_arm_v7m(
     mut user_stack: *const usize,
@@ -439,7 +439,7 @@ extern "C" {
     /// ARMv7-M hardfault handler.
     ///
     /// For documentation of this function, please see
-    /// [`CortexMVariant::HARD_FAULT_HANDLER_HANDLER`].
+    /// `CortexMVariant::HARD_FAULT_HANDLER_HANDLER`.
     pub fn hard_fault_handler_arm_v7m();
 }
 

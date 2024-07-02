@@ -140,7 +140,7 @@ extern "C" {
     /// We need to (unfortunately) do these operations in assembly because it is
     /// not valid to run Rust code without RAM initialized.
     ///
-    /// See https://github.com/tock/tock/issues/2222 for more information.
+    /// See <https://github.com/tock/tock/issues/2222> for more information.
     pub fn initialize_ram_jump_to_main();
 }
 
