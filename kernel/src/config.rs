@@ -72,7 +72,7 @@ pub(crate) struct Config {
     // option.
     pub(crate) debug_panics: bool,
 
-    /// Whether the kernbel should output debug information when it is checking
+    /// Whether the kernel should output debug information when it is checking
     /// the cryptographic credentials of a userspace process. If enabled, the
     /// kernel will show which footers were found and why processes were started
     /// or not.
@@ -88,7 +88,7 @@ pub(crate) struct Config {
 /// kernel where we permit `#[cfg(x)]` to be used to configure code based on
 /// Cargo features.
 pub(crate) const CONFIG: Config = Config {
-    trace_syscalls: cfg!(feature = "trace_syscalls"),
+    trace_syscalls: true, //cfg!(feature = "trace_syscalls"),
     debug_load_processes: cfg!(feature = "debug_load_processes"),
     debug_panics: !cfg!(feature = "no_debug_panics"),
     debug_process_credentials: cfg!(feature = "debug_process_credentials"),
