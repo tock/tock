@@ -52,7 +52,7 @@ pub trait ProcessStandardDebug {
     fn set_new_app_stack_min_pointer(&self, ptr: *const u8);
 
     fn set_last_syscall(&self, syscall: Syscall);
-    fn get_last_syscall(&self) -> Option<Syscall>;
+    fn get_last_syscall(&self, index: usize) -> Option<Syscall>;
     fn reset_last_syscall(&self);
 
     fn increment_syscall_count(&self);
@@ -103,6 +103,10 @@ struct ProcessStandardDebugFullInner {
 
     /// What was the most recent syscall.
     last_syscall: Option<Syscall>,
+
+    /// What was the previous most recent syscall. We store two syscalls because
+    /// often when debugging the most recent syscall is `Yield`.
+    penultimate_syscall: Option<Syscall>,
 
     /// How many upcalls were dropped because the queue was insufficiently
     /// long.
@@ -159,13 +163,23 @@ impl ProcessStandardDebug for ProcessStandardDebugFull {
     }
 
     fn set_last_syscall(&self, syscall: Syscall) {
-        self.debug.map(|d| d.last_syscall = Some(syscall));
+        self.debug.map(|d| {
+            d.penultimate_syscall = d.last_syscall;
+            d.last_syscall = Some(syscall);
+        });
     }
-    fn get_last_syscall(&self) -> Option<Syscall> {
-        self.debug.map_or(None, |d| d.last_syscall)
+    fn get_last_syscall(&self, index: usize) -> Option<Syscall> {
+        self.debug.map_or(None, |d| match index {
+            0 => d.last_syscall,
+            1 => d.penultimate_syscall,
+            _ => None,
+        })
     }
     fn reset_last_syscall(&self) {
-        self.debug.map(|d| d.last_syscall = None);
+        self.debug.map(|d| {
+            d.penultimate_syscall = None;
+            d.last_syscall = None;
+        });
     }
 
     fn increment_syscall_count(&self) {
@@ -210,6 +224,7 @@ impl Default for ProcessStandardDebugFull {
                 app_stack_min_pointer: None,
                 syscall_count: 0,
                 last_syscall: None,
+                penultimate_syscall: None,
                 dropped_upcall_count: 0,
                 timeslice_expiration_count: 0,
             }),
@@ -241,7 +256,7 @@ impl ProcessStandardDebug for () {
     fn set_new_app_stack_min_pointer(&self, _ptr: *const u8) {}
 
     fn set_last_syscall(&self, _syscall: Syscall) {}
-    fn get_last_syscall(&self) -> Option<Syscall> {
+    fn get_last_syscall(&self, _index: usize) -> Option<Syscall> {
         None
     }
     fn reset_last_syscall(&self) {}
@@ -1318,7 +1333,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug + Default> Process for ProcessSt
     }
 
     fn debug_syscall_last(&self) -> Option<Syscall> {
-        self.debug.get_last_syscall()
+        self.debug.get_last_syscall(0)
     }
 
     fn get_addresses(&self) -> ProcessAddresses {
