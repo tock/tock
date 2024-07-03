@@ -410,15 +410,15 @@ pub unsafe fn main() {
 
     let dynamic_process_loader = components::dyn_process_loader::ProcessLoaderComponent::new(
         &mut *addr_of_mut!(PROCESSES),
-        board_kernel,
-        chip,
+        // board_kernel,
+        // chip,
         core::slice::from_raw_parts(
             core::ptr::addr_of!(_sapps),
             core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
         ),
         &base_peripherals.nvmc,
         loader,
-        &FAULT_RESPONSE,
+        // &FAULT_RESPONSE,
     )
     .finalize(components::process_loader_component_static!(
         nrf52840::nvmc::Nvmc,

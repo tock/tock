@@ -33,9 +33,7 @@ use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::dynamic_process_loading::DynamicProcessLoader;
 use kernel::hil;
-use kernel::platform::chip::Chip;
 use kernel::process;
-use kernel::process::ProcessFaultPolicy;
 
 // Setup static space for the objects.
 #[macro_export]
@@ -45,7 +43,8 @@ macro_rules! process_loader_component_static {
         let ntp = kernel::static_buf!(
             capsules_extra::nonvolatile_to_pages::NonvolatileToPages<'static, $F>
         );
-        let pl = kernel::static_buf!(kernel::dynamic_process_loading::DynamicProcessLoader<$C>);
+        let pl =
+            kernel::static_buf!(kernel::dynamic_process_loading::DynamicProcessLoader<'static>);
         let buffer = kernel::static_buf!([u8; kernel::dynamic_process_loading::BUF_LEN]);
 
         (page, ntp, pl, buffer)
@@ -54,41 +53,30 @@ macro_rules! process_loader_component_static {
 
 pub struct ProcessLoaderComponent<
     F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
-    C: 'static + Chip,
 > {
     processes: &'static mut [Option<&'static dyn process::Process>],
-    board_kernel: &'static kernel::Kernel,
-    chip: &'static C,
     flash: &'static [u8],
     nv_flash: &'static F,
     loader_driver: &'static dyn process::ProcessLoadingAsync<'static>,
-    fault_policy: &'static dyn ProcessFaultPolicy,
 }
 
 impl<
         F: 'static
             + hil::flash::Flash
             + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
-        C: 'static + Chip,
-    > ProcessLoaderComponent<F, C>
+    > ProcessLoaderComponent<F>
 {
     pub fn new(
         processes: &'static mut [Option<&'static dyn process::Process>],
-        board_kernel: &'static kernel::Kernel,
-        chip: &'static C,
         flash: &'static [u8],
         nv_flash: &'static F,
         loader_driver: &'static dyn process::ProcessLoadingAsync<'static>,
-        fault_policy: &'static dyn ProcessFaultPolicy,
     ) -> Self {
         Self {
             processes,
-            board_kernel,
-            chip,
             flash,
             nv_flash,
             loader_driver,
-            fault_policy,
         }
     }
 }
@@ -97,16 +85,15 @@ impl<
         F: 'static
             + hil::flash::Flash
             + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
-        C: 'static + Chip,
-    > Component for ProcessLoaderComponent<F, C>
+    > Component for ProcessLoaderComponent<F>
 {
     type StaticInput = (
         &'static mut MaybeUninit<<F as hil::flash::Flash>::Page>,
         &'static mut MaybeUninit<NonvolatileToPages<'static, F>>,
-        &'static mut MaybeUninit<DynamicProcessLoader<'static, C>>,
+        &'static mut MaybeUninit<DynamicProcessLoader<'static>>,
         &'static mut MaybeUninit<[u8; kernel::dynamic_process_loading::BUF_LEN]>,
     );
-    type Output = &'static DynamicProcessLoader<'static, C>;
+    type Output = &'static DynamicProcessLoader<'static>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let buffer = static_buffer
@@ -124,10 +111,7 @@ impl<
 
         let dynamic_process_loader = static_buffer.2.write(DynamicProcessLoader::new(
             self.processes,
-            self.board_kernel,
-            self.chip,
             self.flash,
-            self.fault_policy,
             nv_to_page,
             self.loader_driver,
             buffer,

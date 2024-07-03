@@ -9,16 +9,14 @@
 //! device.
 
 use core::cell::Cell;
+use core::ptr::addr_of;
 
 use crate::config;
 use crate::debug;
 use crate::hil::nonvolatile_storage::{NonvolatileStorage, NonvolatileStorageClient};
-use crate::kernel::Kernel;
-use crate::platform::chip::Chip;
 use crate::process::{self, ProcessLoadingAsync, ProcessLoadingAsyncClient};
 use crate::process_binary::ProcessBinaryError;
 use crate::process_loading::ProcessLoadError;
-use crate::process_policies::ProcessFaultPolicy;
 use crate::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use crate::utilities::leasable_buffer::SubSliceMut;
 use crate::ErrorCode;
@@ -122,10 +120,7 @@ pub trait DynamicProcessLoadingClient {
     fn load_done(&self);
 }
 
-pub struct DynamicProcessLoader<'a, C: 'static + Chip> {
-    kernel: &'static Kernel,
-    chip: &'static C,
-    fault_policy: &'static dyn ProcessFaultPolicy,
+pub struct DynamicProcessLoader<'a> {
     procs: MapCell<&'static mut [Option<&'static dyn process::Process>]>,
     flash: Cell<&'static [u8]>,
     app_memory: OptionalCell<&'static mut [u8]>,
@@ -138,24 +133,18 @@ pub struct DynamicProcessLoader<'a, C: 'static + Chip> {
     state: Cell<State>,
 }
 
-impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
+impl<'a> DynamicProcessLoader<'a> {
     pub fn new(
         processes: &'static mut [Option<&'static dyn process::Process>],
-        kernel: &'static Kernel,
-        chip: &'static C,
         flash: &'static [u8],
-        fault_policy: &'static dyn ProcessFaultPolicy,
         flash_driver: &'a dyn NonvolatileStorage<'a>,
         loader_driver: &'a dyn ProcessLoadingAsync<'a>,
         buffer: &'static mut [u8],
     ) -> Self {
         Self {
             procs: MapCell::new(processes),
-            kernel,
-            chip,
             flash: Cell::new(flash),
             app_memory: OptionalCell::empty(),
-            fault_policy,
             new_process_flash: OptionalCell::empty(),
             flash_driver: flash_driver,
             loader_driver: loader_driver,
@@ -306,7 +295,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
             unsafe { HEADER_SLICE.copy_from_slice(&buffer[..8]) };
 
             // Convert it to an immutable slice
-            let header_info: &[u8] = unsafe { &HEADER_SLICE };
+            let header_info: &[u8] = unsafe { &*addr_of!(HEADER_SLICE) };
 
             // check if there is valid information in the slice (non None values)
             let test_header_slice = match header_info.get(0..8) {
@@ -757,7 +746,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoader<'a, C> {
 }
 
 /// This is the callback client for the underlying physical storage driver.
-impl<'a, C: 'static + Chip> NonvolatileStorageClient for DynamicProcessLoader<'a, C> {
+impl<'a> NonvolatileStorageClient for DynamicProcessLoader<'a> {
     fn read_done(&self, _buffer: &'static mut [u8], _length: usize) {
         //we will never use this, but we need to implement this anyway
         unimplemented!();
@@ -808,7 +797,8 @@ impl<'a, C: 'static + Chip> NonvolatileStorageClient for DynamicProcessLoader<'a
     }
 }
 
-impl<'a, C: 'static + Chip> ProcessLoadingAsyncClient for DynamicProcessLoader<'a, C> {
+/// Callback client for the async process loader
+impl<'a> ProcessLoadingAsyncClient for DynamicProcessLoader<'a> {
     fn process_loaded(&self, result: Result<(), ProcessLoadError>) {
         match result {
             Ok(()) => {
@@ -821,26 +811,30 @@ impl<'a, C: 'static + Chip> ProcessLoadingAsyncClient for DynamicProcessLoader<'
             Err(_e) => {
                 self.state.set(State::Idle);
                 self.reset_process_loading_metadata();
-                debug!("Load Failed.");
+                if config::CONFIG.debug_load_processes {
+                    debug!("Load Failed.");
+                }
             }
         }
     }
 
     fn process_loading_finished(&self) {
-        debug!("Processes Loaded:");
-        self.procs.map(|procs| {
-            for (i, proc) in procs.iter().enumerate() {
-                proc.map(|p| {
-                    debug!("[{}] {}", i, p.get_process_name());
-                    debug!("    ShortId: {}", p.short_app_id());
-                });
-            }
-        });
+        if config::CONFIG.debug_load_processes {
+            debug!("Processes Loaded:");
+            self.procs.map(|procs| {
+                for (i, proc) in procs.iter().enumerate() {
+                    proc.map(|p| {
+                        debug!("[{}] {}", i, p.get_process_name());
+                        debug!("    ShortId: {}", p.short_app_id());
+                    });
+                }
+            });
+        }
     }
 }
 
 /// Interface exposed to the app_loader capsule
-impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C> {
+impl<'a> DynamicProcessLoading for DynamicProcessLoader<'a> {
     fn set_client(&self, client: &'static dyn DynamicProcessLoadingClient) {
         self.client.set(client);
     }
@@ -1029,7 +1023,7 @@ impl<'a, C: 'static + Chip> DynamicProcessLoading for DynamicProcessLoader<'a, C
             let entry_flash = process_flash
                 .get(0..entry_length as usize)
                 .ok_or(ErrorCode::FAIL)?;
-            self.loader_driver.load_new_application(entry_flash);
+            self.loader_driver.load_new_applications(entry_flash);
             Ok(())
         } else {
             Err(ErrorCode::BUSY)
