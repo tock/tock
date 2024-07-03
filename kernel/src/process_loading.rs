@@ -375,7 +375,7 @@ fn load_process<C: Chip>(
     // get a process and we didn't get a loading error (aka we got to
     // this point), then the app is a disabled process or just padding.
     let (process_option, unused_memory) = unsafe {
-        ProcessStandard::create(
+        ProcessStandard::<C, crate::process_standard::ProcessStandardDebugFull>::create(
             kernel,
             chip,
             process_binary,
