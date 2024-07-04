@@ -36,10 +36,10 @@
 //!             hil::nonvolatile_storage::NonvolatileStorage
 //! ```
 //!
-//! NOTE  
-//! ----      
+//! NOTE
+//! ----
 //!
-//! This implementation currently only loads new apps. It does not update 
+//! This implementation currently only loads new apps. It does not update
 //! apps.
 //!
 //! Example instantiation
