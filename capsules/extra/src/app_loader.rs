@@ -36,9 +36,16 @@
 //!             hil::nonvolatile_storage::NonvolatileStorage
 //! ```
 //!
-//! Example instantiation:
+//! NOTE  
+//! ----      
 //!
-//! ```rust
+//! This implementation currently only loads new apps. It does not update 
+//! apps.
+//!
+//! Example instantiation
+//! ---------------------
+//!
+//! ```rust, ignore
 //! # use kernel::static_init;
 //!
 //! let dynamic_app_loader = components::app_loader::AppLoaderComponent::new(
@@ -46,14 +53,11 @@
 //!     capsules_extra::app_loader::DRIVER_NUM,
 //!     dynamic_process_loader,
 //!     ).finalize(components::app_loader_component_static!());
-//!
-//! NOTE: This implementation currently only loads new apps. It does not update apps. That remains to be tested.
 //! ```
 
 use core::cell::Cell;
 use core::cmp;
 
-// use kernel::debug;
 use kernel::dynamic_process_loading;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::processbuffer::ReadableProcessBuffer;

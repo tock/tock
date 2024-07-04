@@ -7,20 +7,17 @@
 //! This provides one component, ProcessLoaderComponent, which provides
 //! a system call interface to DynamicProcessLoader.
 //!
-//!```rust
+//!```rust, ignore
 //! # use kernel::static_init;
 //!
 //! let dynamic_process_loader = components::dyn_process_loader::ProcessLoaderComponent::new(
 //!     &mut PROCESSES,
-//!     board_kernel,
-//!     chip,
-//!     // kernel::dynamic_process_loading::DRIVER_NUM,
 //!     core::slice::from_raw_parts(
 //!         &_sapps as *const u8,
 //!         &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
 //!     ),
 //!     &base_peripherals.nvmc,
-//!     &FAULT_RESPONSE,
+//!     loader,
 //! )
 //! .finalize(components::process_loader_component_static!(
 //!     nrf52840::nvmc::Nvmc,

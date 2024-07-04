@@ -586,6 +586,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
     /// binary could not be extracted.
     fn discover_process_binary(&self) -> Result<ProcessBinary, ProcessBinaryError> {
         let flash = self.flash.get();
+
         if config::CONFIG.debug_load_processes {
             debug!(
                 "Loading process binary from flash={:#010X}-{:#010X}",
