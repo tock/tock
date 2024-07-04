@@ -84,8 +84,17 @@ pub trait DynamicProcessLoading {
     ///   `ErrorCode` will be returned.
     fn setup(&self, app_length: usize) -> Result<(usize, bool), ErrorCode>;
 
-    /// Instruct the kernel to write data to the flash
-    /// This is used to write both userland apps and padding apps
+    /// Instruct the kernel to write data to the flash.
+    ///
+    /// `offset` is where to start writing within the region allocated
+    /// for the new process binary from the `setup()` call.
+    ///
+    /// The caller must write the first 8 bytes of the process with valid header data. Writes
+    /// must either be after the first 8 bytes or include the entire first
+    /// 8 bytes.
+    ///
+    /// Returns an error if the write is outside of the permitted region or is
+    /// writing an invalid header.
     fn write_app_data(
         &self,
         buffer: SubSliceMut<'static, u8>,
