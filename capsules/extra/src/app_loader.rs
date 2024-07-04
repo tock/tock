@@ -36,14 +36,7 @@
 //!             hil::nonvolatile_storage::NonvolatileStorage
 //! ```
 //!
-//! NOTE
-//! ----
-//!
-//! This implementation currently only loads new apps. It does not update
-//! apps.
-//!
-//! Example instantiation
-//! ---------------------
+//! Example instantiation:
 //!
 //! ```rust, ignore
 //! # use kernel::static_init;
@@ -53,6 +46,8 @@
 //!     capsules_extra::app_loader::DRIVER_NUM,
 //!     dynamic_process_loader,
 //!     ).finalize(components::app_loader_component_static!());
+//!
+//! NOTE: This implementation currently only loads new apps. It does not update apps. That remains to be tested.
 //! ```
 
 use core::cell::Cell;
@@ -228,6 +223,7 @@ impl kernel::dynamic_process_loading::DynamicProcessLoadingClient for AppLoader<
         });
     }
 
+    /// Let the app know we are done loading the new process
     fn load_done(&self) {
         self.current_process.map(|processid| {
             let _ = self.apps.enter(processid, move |_app, kernel_data| {
