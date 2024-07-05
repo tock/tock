@@ -4,6 +4,9 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright Tock Contributors 2023.
 #
+# Runs `rustfmt --check` on the workspace and check for tabs in Rust files.
+# Must be run from root Tock directory.
+#
 # Author: Leon Schuermann <leon@is.currently.online>
 # Author: Pat Pannuto <pat.pannuto@gmail.com>
 # Author: Brad Campbell <bradjc5@gmail.com>
