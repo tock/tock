@@ -230,9 +230,6 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
     /// be stored as `Some(completion code)`.
     completion_code: OptionalCell<Option<u32>>,
 
-    /// Name of the app.
-    process_name: &'static str,
-
     /// Values kept so that we can print useful debug messages when apps fault.
     debug: MapCell<ProcessStandardDebug>,
 }
@@ -374,7 +371,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             FaultAction::Panic => {
                 // process faulted. Panic and print status
                 self.state.set(State::Faulted);
-                panic!("Process {} had a fault", self.process_name);
+                panic!("Process {} had a fault", self.get_process_name());
             }
             FaultAction::Restart => {
                 self.try_restart(None);
@@ -996,7 +993,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     }
 
     fn get_process_name(&self) -> &'static str {
-        self.process_name
+        self.header.get_package_name().unwrap_or("")
     }
 
     fn get_completion_code(&self) -> Option<Option<u32>> {
@@ -1691,7 +1688,6 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             Cell::new(None),
         ];
         process.tasks = MapCell::new(tasks);
-        process.process_name = process_name.unwrap_or("");
 
         process.debug = MapCell::new(ProcessStandardDebug {
             fixed_address_flash,
