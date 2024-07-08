@@ -327,7 +327,7 @@ impl<T> MapCell<T> {
 
 #[cfg(test)]
 mod tests {
-    use map_cell::MapCell;
+    use super::MapCell;
 
     struct DropCheck<'a> {
         flag: &'a mut bool,
