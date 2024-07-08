@@ -237,7 +237,7 @@ CARGO_FLAGS_TOCK ?= \
   --target-dir=$(TARGET_DIRECTORY) $(CARGO_FLAGS)
 
 # Add default flags to rustdoc.
-RUSTDOC_FLAGS_TOCK ?= -D warnings
+RUSTDOC_FLAGS_TOCK ?= -D warnings --document-private-items
 
 # Add flags if we are compiling on nightly. If we are on stable, disallow
 # features.
@@ -256,7 +256,6 @@ ifneq ($(USE_STABLE_RUST),1)
   CARGO_FLAGS_TOCK += \
     -Z build-std=core,compiler_builtins \
     -Z build-std-features="core/optimize_for_size"
-  RUSTDOC_FLAGS_TOCK += -Z unstable-options --document-hidden-items
 endif
 
 # Set the default flags we need for objdump to get a .lst file.

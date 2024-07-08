@@ -37,7 +37,7 @@ pub const MAX_CTRL_PACKET_SIZE: u8 = 64;
 const N_ENDPOINTS: usize = 1;
 
 /// The HID report descriptor for keyboard from
-/// https://www.usb.org/sites/default/files/hid1_11.pdf
+/// <https://www.usb.org/sites/default/files/hid1_11.pdf>.
 static REPORT_DESCRIPTOR: &[u8] = &[
     0x05, 0x01, // Usage Page (Generic Desktop),
     0x09, 0x06, // Usage (Keyboard),
