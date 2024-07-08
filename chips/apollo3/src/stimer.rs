@@ -170,7 +170,12 @@ impl<'a> Alarm<'a> for STimer<'a> {
     fn set_alarm(&self, reference: Self::Ticks, dt: Self::Ticks) {
         let regs = self.registers;
         let now = self.now();
-        let mut expire = reference.wrapping_add(dt);
+        // Errata 4.22: Sometimes the clock can increment twice
+        // This means the timer occurs earlier then actually requested
+        // From testing this scaling results in the correct time, so we
+        // scale the requested ticks to give us an accurate alarm.
+        let scaled_time = Self::Ticks::from(((dt.into_u32() as u64 * 1000) / (1000 - 32)) as u32);
+        let mut expire = reference.wrapping_add(scaled_time);
 
         // Disable the compare
         regs.stcfg
