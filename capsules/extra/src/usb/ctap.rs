@@ -46,7 +46,7 @@ const N_ENDPOINTS: usize = 2;
 /// This is a combination of:
 ///     - the CTAP spec, example 8
 ///     - USB HID spec examples
-/// Plus it matches: https://chromium.googlesource.com/chromiumos/platform2/+/master/u2fd/u2fhid.cc
+/// Plus it matches: <https://chromium.googlesource.com/chromiumos/platform2/+/master/u2fd/u2fhid.cc>
 static REPORT_DESCRIPTOR: &[u8] = &[
     0x06, 0xD0, 0xF1, // HID_UsagePage ( FIDO_USAGE_PAGE ),
     0x09, 0x01, // HID_Usage ( FIDO_USAGE_CTAPHID ),

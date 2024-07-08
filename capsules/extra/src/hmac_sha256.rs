@@ -46,7 +46,8 @@ pub struct HmacSha256Software<'a, S: hil::digest::Sha256 + hil::digest::DigestDa
     /// The current operation for the internal state machine in this capsule.
     state: Cell<State>,
     /// The current mode of operation as requested by a call to either
-    /// [`DigestHash::run`] or [`DigestVerify::verify`].
+    /// [`DigestHash::run`](kernel::hil::digest::DigestHash::run) or
+    /// [`DigestVerify::verify`](kernel::hil::digest::DigestVerify::verify).
     mode: Cell<RunMode>,
     /// Location to store incoming temporarily before we are able to pass it to
     /// the hasher.

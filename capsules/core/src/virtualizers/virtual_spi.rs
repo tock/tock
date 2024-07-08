@@ -125,8 +125,7 @@ impl<'a, Spi: hil::spi::SpiMaster<'a>> MuxSpiMaster<'a, Spi> {
     /// requiring a callback with an error condition; if the operation
     /// is executed synchronously, the callback may be reentrant (executed
     /// during the downcall). Please see
-    ///
-    /// https://github.com/tock/tock/issues/1496
+    /// <https://github.com/tock/tock/issues/1496>
     fn do_next_op_async(&self) {
         self.deferred_call.set();
     }
