@@ -873,6 +873,7 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
     }
 }
 
+#[cfg(test)]
 pub mod test {
     use super::{TORUserPMP, TORUserPMPCFG};
 
