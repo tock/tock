@@ -205,7 +205,7 @@ impl TORRegionSpec {
 /// Helper method to check if a [`PMPUserMPUConfig`] region overlaps with a
 /// region specified by `other_start` and `other_size`.
 ///
-/// Matching the RISC-V spec this checks pmpaddr[i-i] <= y < pmpaddr[i] for TOR
+/// Matching the RISC-V spec this checks `pmpaddr[i-i] <= y < pmpaddr[i]` for TOR
 /// ranges.
 fn region_overlaps(
     region: &(TORUserPMPCFG, *const u8, *const u8),
