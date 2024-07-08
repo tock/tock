@@ -87,13 +87,13 @@ use crate::syscall::SyscallReturn;
 /// in TRD104.
 ///
 /// This is just a wrapper around
-/// [`SyscallReturn`](SyscallReturn) since a
+/// [`SyscallReturn`] since a
 /// `command` driver method may only return primitive integer types as
 /// payload.
 ///
 /// It is important for this wrapper to only be constructable over
 /// variants of
-/// [`SyscallReturn`](SyscallReturn) that are
+/// [`SyscallReturn`] that are
 /// deemed safe for a capsule to construct and return to an
 /// application (e.g. not
 /// [`SubscribeSuccess`](crate::syscall::SyscallReturn::SubscribeSuccess)).
