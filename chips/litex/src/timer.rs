@@ -65,7 +65,7 @@ pub struct LiteXTimerRegisters<R: LiteXSoCRegisterConfiguration> {
     ///
     /// This register is only present if the SoC was configured with
     /// `timer_update = True`. Therefore, it's only indirectly
-    /// accessed by the [`LiteXTimerUptime`](LiteXTimerUptime) struct,
+    /// accessed by the [`LiteXTimerUptime`] struct,
     /// which a board will need to construct separately.
     uptime_latch: R::ReadWrite8,
     /// Latched uptime since power-up (in `sys_clk` cycles)
@@ -74,7 +74,7 @@ pub struct LiteXTimerRegisters<R: LiteXSoCRegisterConfiguration> {
     ///
     /// This register is only present if the SoC was configured with
     /// `timer_update = True`. Therefore, it's only indirectly
-    /// accessed by the [`LiteXTimerUptime`](LiteXTimerUptime) struct,
+    /// accessed by the [`LiteXTimerUptime`] struct,
     /// which a board will need to construct separately.
     uptime: R::ReadOnly64,
 }
@@ -184,7 +184,7 @@ impl<R: LiteXSoCRegisterConfiguration, F: Frequency> LiteXTimer<'_, R, F> {
     ///
     /// Clients should use the [`LiteXTimerUptime`] wrapper instead,
     /// which exposes this value as part of their
-    /// [`Time::now`](Time::now) implementation.
+    /// [`Time::now`] implementation.
     unsafe fn uptime(&self) -> Ticks64 {
         WriteRegWrapper::wrap(&self.registers.uptime_latch).write(uptime_latch::latch_value::SET);
         self.registers.uptime.get().into()

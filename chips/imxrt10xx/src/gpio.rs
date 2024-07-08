@@ -98,8 +98,8 @@ enum_from_primitive! {
 
 /// Creates a GPIO ID
 ///
-/// Low 6 bits are the GPIO offset; the '17' in GPIO2[17]
-/// Next 3 bits are the GPIO port; the '2' in GPIO2[17] (base 0 index, 2 -> 1)
+/// Low 6 bits are the GPIO offset; the '17' in `GPIO2[17]`
+/// Next 3 bits are the GPIO port; the '2' in `GPIO2[17]` (base 0 index, 2 -> 1)
 const fn gpio_id(port: GpioPort, offset: u16) -> u16 {
     ((port as u16) << 6) | offset & 0x3F
 }
