@@ -30,7 +30,9 @@ use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
 
-// Three-color LED.
+/// Three-color LED.
+///
+/// https://google.com for the datasheet.
 const LED_RED_PIN: Pin = Pin::P0_14;
 const LED_GREEN_PIN: Pin = Pin::P0_13;
 
