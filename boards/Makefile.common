@@ -43,17 +43,6 @@ endif
 # cargo `--target_dir`.
 TARGET_DIRECTORY ?= $(TOCK_ROOT_DIRECTORY)target/
 
-# RISC-V-specific flags.
-ifneq ($(findstring riscv32i, $(TARGET)),)
-  # NOTE: This flag causes kernel panics on some ARM cores. Since the size
-  # benefit is almost exclusively for RISC-V, we only apply it for those
-  # targets.
-  RUSTC_FLAGS += -C force-frame-pointers=no
-  # Ensure relocations generated is eligible for linker relaxation.
-  # This provide huge space savings.
-  RUSTC_FLAGS += -C target-feature=+relax
-endif
-
 # RUSTC_FLAGS_TOCK by default extends RUSTC_FLAGS with options that are global
 # to all Tock boards.
 #
