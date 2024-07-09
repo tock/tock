@@ -237,7 +237,7 @@ CARGO_FLAGS_TOCK ?= \
   --target-dir=$(TARGET_DIRECTORY) $(CARGO_FLAGS)
 
 # Add default flags to rustdoc.
-RUSTDOC_FLAGS_TOCK ?= -D warnings --document-private-items --color=always
+RUSTDOC_FLAGS_TOCK ?= -D warnings --document-private-items
 
 # Add flags if we are compiling on nightly. If we are on stable, disallow
 # features.
@@ -378,7 +378,7 @@ debug-lst:  $(TARGET_PATH)/debug/$(PLATFORM).lst
 
 .PHONY: doc
 doc: | target
-	$(Q)RUSTDOCFLAGS='$(RUSTDOC_FLAGS_TOCK)' $(CARGO) doc $(VERBOSE_FLAGS) --release --package $(PLATFORM)
+	$(Q)RUSTDOCFLAGS='$(RUSTDOC_FLAGS_TOCK)' $(CARGO) --color=always doc $(VERBOSE_FLAGS) --release --package $(PLATFORM)
 
 
 .PHONY: lst
