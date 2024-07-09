@@ -141,7 +141,7 @@ want to check out the [Getting Started with Secure Embedded Systems](https://lin
 
 ## Troubleshooting
 
-In case the it fails to write, the commands below, that still use openocd, may be of help.
+In case it fails to write, the commands below, that still use openocd, may be of help.
 
 ### Could not find MEM-AP to control the core
 
