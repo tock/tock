@@ -24,6 +24,7 @@ rustflags = [
   # Opt-in to Rust v0 symbol mangling scheme.  See
   # https://github.com/rust-lang/rust/issues/60705 and
   # https://github.com/tock/tock/issues/3529.
+  # https://github.com/rust-lang/rust/pull/89917 tracks this becoming the default, then we can remove this.
   "-C", "symbol-mangling-version=v0",
   # Enable link-time-optimization
   "-C", "lto",
