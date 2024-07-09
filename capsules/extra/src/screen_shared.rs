@@ -222,9 +222,8 @@ impl<'a, S: hil::screen::Screen<'a>> ScreenShared<'a, S> {
                                 absolute_frame.width,
                                 absolute_frame.height,
                             )
-                            .map_err(|e| {
+                            .inspect_err(|_| {
                                 app.command = None;
-                                e
                             })
                     }
                     Some(ScreenCommand::WriteBuffer) => {

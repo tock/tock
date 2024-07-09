@@ -411,7 +411,7 @@ impl<'a, S: SpiMasterDevice<'a>> SpiMasterClient for Spi<'a, S> {
     ) {
         self.current_process.map(|process_id| {
             let _ = self.grants.enter(process_id, move |app, kernel_data| {
-                let rbuf = readbuf.map(|src| {
+                let rbuf = readbuf.inspect(|src| {
                     let index = app.index;
                     let _ = kernel_data
                         .get_readwrite_processbuffer(rw_allow::READ)
@@ -442,7 +442,6 @@ impl<'a, S: SpiMasterDevice<'a>> SpiMasterClient for Spi<'a, S> {
                                 }
                             })
                         });
-                    src
                 });
 
                 if rbuf.is_some() {
