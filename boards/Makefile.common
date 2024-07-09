@@ -39,8 +39,7 @@ else
   RUSTUP ?= true
 endif
 
-# Default location of target directory (relative to board makefile) passed to
-# cargo `--target_dir`.
+# Default location of target directory (relative to board makefile).
 TARGET_DIRECTORY ?= $(TOCK_ROOT_DIRECTORY)target/
 
 # RUSTC_FLAGS allows boards to define board-specific options.
@@ -233,8 +232,7 @@ CARGO_FLAGS ?=
 CARGO_FLAGS_TOCK ?= \
   $(VERBOSE_FLAGS) \
   --target=$(TARGET) \
-  --package $(PLATFORM) \
-  --target-dir=$(TARGET_DIRECTORY) $(CARGO_FLAGS)
+  --package $(PLATFORM)
 
 # Add default flags to rustdoc.
 RUSTDOC_FLAGS_TOCK ?= -D warnings --document-private-items
@@ -365,7 +363,7 @@ check:
 
 .PHONY: clean
 clean::
-	$(Q)$(CARGO) clean $(VERBOSE_FLAGS) --target-dir=$(TARGET_DIRECTORY)
+	$(Q)$(CARGO) clean $(VERBOSE_FLAGS)
 
 .PHONY: release
 release:  $(TARGET_PATH)/release/$(PLATFORM).bin
