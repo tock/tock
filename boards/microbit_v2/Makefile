@@ -12,7 +12,7 @@ include ../Makefile.common
 
 PROBE_RS=probe-rs
 
-TOCKLOADER=tockloadermak
+TOCKLOADER=tockloader
 
 # Default target for installing the kernel.
 .PHONY: install
