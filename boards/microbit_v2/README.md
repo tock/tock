@@ -17,6 +17,24 @@ following sensors:
 
 First, follow the [Tock Getting Started guide](../../doc/Getting_Started.md)
 
+### Probe-rs installation: 
+
+#### Linux, macOS
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/probe-rs/probe-rs/releases/latest/download/probe-rs-tools-installer.sh | sh
+```
+
+On `Ubuntu` there is a possibility of an error while installing that can be fixed by downloading `libudev-dev`:
+```bash
+sudo apt-get install -y libudev-dev
+```
+
+### Windows
+```bash
+irm https://github.com/probe-rs/probe-rs/releases/latest/download/probe-rs-tools-installer.ps1 | iex
+```
+
+
 ## Bootloader
 
 Tock uses [Tock Bootloader](https://github.com/tock/tock-bootloader) to program devices.
