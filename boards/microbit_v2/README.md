@@ -25,7 +25,7 @@ As MicroBit v2 has an on board debugger that provides several ways of programmin
 
 There are two ways for flashing the bootloader:
  1. Using the MicroBit USB drive
- 2. Using openocd
+ 2. Using [probe-rs](https://github.com/probe-rs/probe-rs)
 
 ### Building the bootloader
 
@@ -43,7 +43,8 @@ Drag and drop the [tock-bootloader.microbit_v2.vv1.1.1.bin](https://github.com/t
 
 The board will reset and the bootloader should be running on it. To check whether it's working, press and hold the Button A while pressing the reset button. The Microphone LED should light up.
 
-### Using openocd
+### Using probe-rs
+
 Use the `make flash-bootloader` command to flash [Tock Bootloader](https://github.com/tock/tock-bootloader) to the board.
 
 ```bash
@@ -89,8 +90,7 @@ MEMORY
 Not using a bootloader has the advantage of having an extra 64 KB of flash.
 ### Flashing the kernel
 
-The kernel can be programmed using OpenOCD. `cd` into `boards/microbit_v2`
-directory and run:
+The kernel can be programmed using [probe-rs](https://github.com/probe-rs/probe-rs). `cd` into `boards/microbit_v2`
 
 ```bash
 $ make flash
@@ -98,6 +98,7 @@ $ make flash
 (or)
 
 $ make flash-debug
+
 ```
 
 ## Managing applications
@@ -118,6 +119,8 @@ To install apps by automatically detecting the Microbit v2:
 $ tockloader install app.tab
 ```
 
+Tockloader still uses openocd. Make sure you have the latest version installed.
+
 To manually inform Tockloader of the board configuration:
 ```bash
 $ tockloader install --openocd --board microbit_v2 --bundle-apps app.tab
@@ -137,6 +140,8 @@ For further details and examples about how to use Tock with the BBC micro:bit, y
 want to check out the [Getting Started with Secure Embedded Systems](https://link.springer.com/book/10.1007/978-1-4842-7789-8) book.
 
 ## Troubleshooting
+
+In case the it fails to write, the commands below, that still use openocd, may be of help.
 
 ### Could not find MEM-AP to control the core
 
