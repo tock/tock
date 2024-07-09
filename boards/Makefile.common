@@ -18,7 +18,7 @@ MAKEFILE_COMMON_PATH := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 TOCK_ROOT_DIRECTORY := $(dir $(abspath $(MAKEFILE_COMMON_PATH)))
 
 # The path to the root of the rust installation used for this build.
-# Useful for remapping paths and for finding already-installed llvm tools.
+# Useful for finding already-installed llvm tools.
 RUSTC_SYSROOT := "$(shell rustc --print sysroot)"
 
 # Common defaults that specific boards can override, but likely do not need to.

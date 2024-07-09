@@ -14,3 +14,6 @@ build-std = ["core", "compiler_builtins" ]
 #   produce smaller implementations for certain algorithms. See
 #   https://github.com/rust-lang/rust/pull/125011 for more details.
 build-std-features = ["core/optimize_for_size"]
+# Remove machine-specific paths from the binary. This helps create reproducible
+# builds.
+trim-paths = true
