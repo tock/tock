@@ -24,6 +24,8 @@ fn main() {
         panic!("Boards must provide a `layout.ld` link script file");
     }
 
+    // Include the folder where the board's Cargo.toml is in the linker file
+    // search path.
     println!("cargo:rustc-link-arg=-L{}", std::env!("CARGO_MANIFEST_DIR"));
     // `-Tlayout.ld`: Use the linker script `layout.ld` all boards must provide.
     println!("cargo:rustc-link-arg=-T{}", LINKER_SCRIPT);
