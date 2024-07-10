@@ -13,3 +13,6 @@ cortexm4 = { path = "../../arch/cortex-m4" }
 kernel = { path = "../../kernel" }
 stm32f4xx = { path = "../stm32f4xx", features = ["stm32f446"] }
 enum_primitive = { path = "../../libraries/enum_primitive" }
+
+[lints]
+workspace = true

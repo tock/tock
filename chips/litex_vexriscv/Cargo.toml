@@ -12,3 +12,6 @@ edition.workspace = true
 rv32i = { path = "../../arch/rv32i" }
 kernel = { path = "../../kernel" }
 litex = { path = "../litex" }
+
+[lints]
+workspace = true
