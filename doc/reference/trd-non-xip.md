@@ -66,7 +66,7 @@ Limitations:
   executable code and the conventional memory items (e.g., the stack and heap).
   This results in significantly less room for program code than on traditional
   platforms.
-- As flash storage is not trusted, any data retrieved from flash storage must be
+- As flash storage may not be trustworthy, code retrieved from flash storage may need to be
   verified before it is used.
 
 Non-limitations:
