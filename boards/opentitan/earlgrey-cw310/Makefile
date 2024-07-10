@@ -17,8 +17,6 @@ QEMU_ENTRY_POINT=0x20000400
 # earlgrey_es branch. earlgrey_es is what is being taped out in the first
 # Earlgrey chip.
 OPENTITAN_SUPPORTED_SHA := edf5e35f5d50a5377641c90a315109a351de7635
-# Enable virtual function elimination
-VFUNC_ELIM=1
 
 
 include ../../Makefile.common

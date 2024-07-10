@@ -6,13 +6,11 @@ include = [
   "../../../cargo/tock_flags.toml",
   "../../../cargo/unstable_flags.toml",
   "../../../cargo/riscv_flags.toml",
+  "../../../cargo/virtual_function_elimination.toml",
 ]
 
 [build]
 target = "riscv32imc-unknown-none-elf"
-rustflags = [
-  "-Z", "virtual-function-elimination"
-]
 
 [target.'cfg(target_arch = "riscv32")']
 runner = "./run.sh"
