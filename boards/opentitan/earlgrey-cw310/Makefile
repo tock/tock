@@ -27,10 +27,6 @@ ifneq ($(BOARD_CONFIGURATION),)
 	CARGO_FLAGS += --no-default-features --features=$(BOARD_CONFIGURATION)
 endif
 
-# Build test crates with the `panic = "abort"` strategy. Tests use `unwind` by
-# default which causes incompatability with `core` built via `-Zbuild-std`.
-CARGO_FLAGS += -Zpanic-abort-tests
-
 .PHONY: ot-check
 ifneq ($(OPENTITAN_TREE),)
     OPENTITAN_ACTUAL_SHA := $(shell cd $(OPENTITAN_TREE); git show --pretty=format:"%H" --no-patch)
