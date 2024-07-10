@@ -555,7 +555,7 @@ pub struct Pin<'a> {
 trait U32Ext {
     fn set_bit(self, offset: usize) -> Self;
     fn clear_bit(self, offset: usize) -> Self;
-    fn is_bit_set(self, offset: usize) -> bool;
+    fn is_bit_set(&self, offset: usize) -> bool;
 }
 
 impl U32Ext for u32 {
@@ -568,7 +568,7 @@ impl U32Ext for u32 {
         self & !(1 << offset)
     }
     #[inline(always)]
-    fn is_bit_set(self, offset: usize) -> bool {
+    fn is_bit_set(&self, offset: usize) -> bool {
         (self & (1 << offset)) != 0
     }
 }

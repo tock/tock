@@ -205,7 +205,6 @@ option_map_or_none = "allow"
 redundant_field_names = "allow"
 redundant_pattern_matching = "allow"
 unusual-byte-groupings = "allow"
-wrong-self-convention = "allow"
 doc_lazy_continuation = "allow"
 
 
