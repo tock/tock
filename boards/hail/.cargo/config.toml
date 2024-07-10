@@ -2,6 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright Tock Contributors 2024.
 
+# Because we compile hail with stable rust we cannot use the `include =` key in
+# this config file. Therefore we have to copy the relevant flags here.
+
 [build]
 target = "thumbv7em-none-eabi"
 rustflags = [
