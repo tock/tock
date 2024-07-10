@@ -22,8 +22,8 @@ Introduction
 
 Traditional embedded systems use execute-in-place (XIP) flash to both store
 program code and to enable executing that program code. However, newer hardware
-designs, particularly those in security-focused settings, do not include any XIP
-flash storage. These platforms, subsequently referred to as "non-xip", only
+designs, particularly those integrated into a system-on-chip alongside an application processor, do not include 
+executable persistent storage. These platforms, subsequently referred to as "non-xip", can only
 execute instructions stored in volatile RAM. All executable code must be stored
 in external nonvolatile storage, loaded into RAM, and then executed.
 
