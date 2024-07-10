@@ -110,11 +110,9 @@ pub mod capabilities;
 pub mod collections;
 #[flux::ignore]
 pub mod component;
-// #[flux::ignore]
 pub mod debug;
 #[flux::ignore]
 pub mod deferred_call;
-// #[flux::ignore]
 pub mod errorcode;
 #[flux::ignore]
 pub mod grant;
@@ -124,7 +122,6 @@ pub mod hil;
 pub mod introspection;
 #[flux::ignore]
 pub mod ipc;
-// #[flux::ignore]
 pub mod platform;
 #[flux::ignore]
 pub mod process;

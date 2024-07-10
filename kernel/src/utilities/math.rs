@@ -7,6 +7,7 @@
 use core::f32;
 
 /// Get closest power of two greater than the given number.
+#[flux::trusted]
 pub fn closest_power_of_two(mut num: u32) -> u32 {
     num -= 1;
     num |= num >> 1;
@@ -56,6 +57,7 @@ impl PowerOfTwo {
 /// Get log base 2 of a number.
 /// Note: this is the floor of the result. Also, an input of 0 results in an
 /// output of 0
+#[flux::trusted]
 pub fn log_base_two(num: u32) -> u32 {
     if num == 0 {
         0
@@ -65,6 +67,7 @@ pub fn log_base_two(num: u32) -> u32 {
 }
 
 /// Log base 2 of 64 bit unsigned integers.
+#[flux::trusted]
 pub fn log_base_two_u64(num: u64) -> u32 {
     if num == 0 {
         0

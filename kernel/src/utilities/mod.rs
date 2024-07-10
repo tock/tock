@@ -7,9 +7,7 @@
 pub mod binary_write;
 pub mod copy_slice;
 pub mod helpers;
-#[flux::ignore]
 pub mod leasable_buffer;
-#[flux::ignore]
 pub mod math;
 pub mod mut_imut_buffer;
 #[flux::ignore]

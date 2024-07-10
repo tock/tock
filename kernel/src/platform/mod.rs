@@ -10,7 +10,6 @@ pub mod chip;
 pub mod mpu;
 #[flux::ignore]
 pub mod scheduler_timer;
-#[flux::ignore]
 pub mod watchdog;
 
 #[flux::ignore]
