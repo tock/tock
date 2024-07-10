@@ -34,7 +34,7 @@ pub trait NmeaDevice<'a> {
     /// As NMEA sentences are variable lengths this will return
     /// the first sentence that fits inside `buffer`. If a sentence
     /// doesn't fit it will be silently dropped. This allows callers to
-    /// user smaller buffers if they are only interested in certain data
+    /// use smaller buffers if they are only interested in certain data
     /// types.
     ///
     /// When the sentence is read the `NmeaClient` callback will be called.

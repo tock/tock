@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! Component for any NMEA data.
+//! Component for I2C MediaTek NMEA data.
 
 use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
 use capsules_extra::nmea::Nmea;
-use capsules_extra::nmea_i2c::NMEA_BUFFER_LEN;
-use capsules_extra::nmea_i2c::{I2cNmea, I2C_BUFFER_LEN};
+use capsules_extra::nmea_i2c_mt::NMEA_BUFFER_LEN;
+use capsules_extra::nmea_i2c_mt::{I2cNmea, I2C_BUFFER_LEN};
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;

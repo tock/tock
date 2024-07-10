@@ -5,11 +5,13 @@
 //! A capsule for I2C NMEA. This is used to read NMEA sentences from a GPS/GNSS
 //! device connected via I2C.
 //!
-//! This has been tested against a MediaTek device. It is expected to work with
-//! and GNSS device that reports NMEA strings when reading from an I2C address.
+//! This has been tested against a MediaTek MT3333 device.
+//! It will work with any MediaTek GNSS outputing NMEA over I2C. It is expected to
+//! work with any GNSS device that reports NMEA strings when reading from an
+//! I2C address.
 
 use crate::nmea::{NmeaClient, NmeaDevice};
-use crate::nmea_i2c::i2c::I2CClient;
+use crate::nmea_i2c_mt::i2c::I2CClient;
 use core::cell::Cell;
 use core::str;
 use kernel::hil::i2c::{self, I2CDevice};
@@ -105,6 +107,7 @@ impl<'a, I: I2CDevice> I2CClient for I2cNmea<'a, I> {
                 let i2c_buf_len = buffer.len();
 
                 if let Err(e) = status {
+                    self.nmea_offset.set(0);
                     self.i2c_buffer.replace(buffer);
 
                     self.client.map(|call| {
@@ -117,6 +120,7 @@ impl<'a, I: I2CDevice> I2CClient for I2cNmea<'a, I> {
                 let string = match str::from_utf8(buffer) {
                     Ok(utf8) => utf8,
                     Err(_e) => {
+                        self.nmea_offset.set(0);
                         self.i2c_buffer.replace(buffer);
 
                         self.client.map(|call| {
@@ -128,50 +132,78 @@ impl<'a, I: I2CDevice> I2CClient for I2cNmea<'a, I> {
 
                 let mut nmea_offset = self.nmea_offset.get();
 
-                if let Some(location) = string.find('$') {
-                    // This is the start of a new sentence
+                if nmea_offset == 0 {
+                    // We have no existing data
+                    if let Some(location) = string.find('$') {
+                        // We have no existing data and found the start
+                        // of a new sentence
 
-                    if (nmea_offset + location) > nmea_buf.len() {
-                        // We will overflow our buffer, just drop the packet and try again
-                        self.nmea_offset.set(0);
-                        self.sentence_buffer.replace(nmea_buf);
-
-                        if let Err((e, buf)) = self.i2c.read(buffer, i2c_buf_len) {
-                            self.i2c_buffer.replace(buf);
-
-                            self.client.map(|call| {
-                                call.callback(
-                                    self.sentence_buffer.take().unwrap(),
-                                    0,
-                                    Err(e.into()),
-                                );
-                            });
-                        }
-                        return;
+                        // Copy the data after the `$`
+                        let size = i2c_buf_len - location;
+                        nmea_buf[nmea_offset..(nmea_offset + size)]
+                            .copy_from_slice(&buffer[location..]);
+                        nmea_offset += size;
                     }
 
-                    // First copy the remainder of the sentence to the buffer
-                    nmea_buf[nmea_offset..(nmea_offset + location)]
-                        .copy_from_slice(&buffer[0..location]);
-                    nmea_offset += location;
+                    // Otherwise this is the middle of the sentence and we have no
+                    // header so just try again
+                } else {
+                    if let Some(location) = string.find('$') {
+                        // This includes the end of the current sentence
+                        // and the start of a new sentence
 
-                    // Now parse the sentence
-                    let sentence = match str::from_utf8(&nmea_buf[0..nmea_offset]) {
-                        Ok(utf8) => utf8,
-                        Err(_e) => {
-                            self.i2c_buffer.replace(buffer);
+                        if (nmea_offset + location) > nmea_buf.len() {
+                            // We will overflow our buffer, just drop the packet and try again
 
-                            self.client.map(|call| {
-                                call.callback(nmea_buf, 0, Err(ErrorCode::NOSUPPORT));
-                            });
+                            nmea_offset = 0;
+
+                            // Copy the rest of the data
+                            let size = i2c_buf_len - location;
+                            nmea_buf[nmea_offset..(nmea_offset + size)]
+                                .copy_from_slice(&buffer[location..]);
+                            nmea_offset += size;
+
+                            self.nmea_offset.set(nmea_offset);
+                            self.sentence_buffer.replace(nmea_buf);
+
+                            if let Err((e, buf)) = self.i2c.read(buffer, i2c_buf_len) {
+                                self.i2c_buffer.replace(buf);
+
+                                self.client.map(|call| {
+                                    call.callback(
+                                        self.sentence_buffer.take().unwrap(),
+                                        0,
+                                        Err(e.into()),
+                                    );
+                                });
+                            }
                             return;
                         }
-                    };
 
-                    if sentence.starts_with('$') {
-                        // At this point we have a sentence with a `$` at the start.
+                        // First copy the remainder of the sentence to the buffer
+                        nmea_buf[nmea_offset..(nmea_offset + location)]
+                            .copy_from_slice(&buffer[0..location]);
+                        nmea_offset += location;
+
+                        // Now parse the sentence
+                        match str::from_utf8(&nmea_buf[0..nmea_offset]) {
+                            Ok(utf8) => utf8,
+                            Err(_e) => {
+                                self.nmea_offset.set(0);
+                                self.i2c_buffer.replace(buffer);
+
+                                self.client.map(|call| {
+                                    call.callback(nmea_buf, 0, Err(ErrorCode::NOSUPPORT));
+                                });
+                                return;
+                            }
+                        };
+
+                        // At this point we have a sentence with a `$` at the start and we
+                        // just hit the next `$`.
                         // We report it back to the caller.
                         // We loose the rest of the data we just read though
+
                         self.i2c_buffer.replace(buffer);
                         self.nmea_offset.set(0);
 
@@ -181,26 +213,16 @@ impl<'a, I: I2CDevice> I2CClient for I2cNmea<'a, I> {
 
                         return;
                     } else {
-                        // The sentence didn't start with `$`. This usually occurs
-                        // if we start reading mid-sentence. So we just try again and
-                        // get the next one.
-                        nmea_offset = 0;
-
-                        // Copy the rest of the data
-                        let size = i2c_buf_len - location;
-                        nmea_buf[nmea_offset..(nmea_offset + size)]
-                            .copy_from_slice(&buffer[location..]);
-                        nmea_offset += size;
+                        if (nmea_offset + i2c_buf_len) > nmea_buf.len() {
+                            // We will overflow our buffer, just drop the packet and try again
+                            nmea_offset = 0;
+                        } else {
+                            // This is the middle of a sentence, copy the entire string to our buffer
+                            nmea_buf[nmea_offset..(nmea_offset + i2c_buf_len)]
+                                .copy_from_slice(buffer);
+                            nmea_offset += i2c_buf_len;
+                        }
                     }
-                } else {
-                    if (nmea_offset + i2c_buf_len) > nmea_buf.len() {
-                        // We will overflow our buffer, just drop the packet and try again
-                        nmea_offset = 0;
-                    }
-
-                    // This is not a new sentence, copy the entire string to our buffer
-                    nmea_buf[nmea_offset..(nmea_offset + i2c_buf_len)].copy_from_slice(buffer);
-                    nmea_offset += i2c_buf_len;
                 }
 
                 self.sentence_buffer.replace(nmea_buf);
