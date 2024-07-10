@@ -167,7 +167,6 @@ unnecessary_unwrap = "allow"
 explicit_auto_deref = "allow"
 borrow_deref_ref = "allow"
 overflow_check_conditional = "allow"
-needless-match = "allow"
 match-single-binding = "allow"
 
 
