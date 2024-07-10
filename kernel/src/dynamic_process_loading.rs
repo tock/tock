@@ -50,10 +50,14 @@ pub enum PaddingRequirement {
     PreAndPostPad,
 }
 
+/// What is stored in flash at a particular address.
 #[derive(PartialEq)]
 enum StoredInFlash {
-    ValidApp,
+    /// There is an app of `size` bytes.
+    ValidApp(usize),
+    /// There is a padding app.
     PaddingApp,
+    /// There is no app.
     Empty,
 }
 
@@ -522,7 +526,7 @@ impl<'a> DynamicProcessLoader<'a> {
 
         // If this isn't an app (i.e. it is padding).
         if tbf_header.is_app() {
-            Ok(StoredInFlash::ValidApp)
+            Ok(StoredInFlash::ValidApp(tbf_header.length() as usize))
         } else {
             Ok(StoredInFlash::PaddingApp)
         }
@@ -585,6 +589,18 @@ impl<'a> DynamicProcessLoader<'a> {
         Ok(())
     }
 
+    /// Find where an app of `app_length` can be correctly aligned.
+    ///
+    /// This currently assumes Cortex-M alignment rules.
+    fn next_aligned_address(&self, address: usize, app_length: usize) -> usize {
+        let remaining = address % app_length;
+        if remaining == 0 {
+            address
+        } else {
+            address + (app_length - remaining)
+        }
+    }
+
     /// This function takes in the available flash slice and the app length
     /// specified for the new app, and returns a valid address where the new app
     /// can be flashed such that the linked list and memory alignment rules are
@@ -595,16 +611,14 @@ impl<'a> DynamicProcessLoader<'a> {
         app_length: usize,
     ) -> Result<(usize, PaddingRequirement, usize, usize), ErrorCode> {
         let start_address = flash.as_ptr() as usize;
-        let mut new_address = flash.as_ptr() as usize; // we store the address of the new application here
+        // We store the address of the new application here.
+        let mut new_address = flash.as_ptr() as usize;
         let flash_end = flash.as_ptr() as usize + flash.len() - 1;
 
+        // Iterate through the flash slice looking for a region to place an app
+        // that is `app_length` bytes long.
         while new_address < flash_end {
-            // iterate over the slice
-            let mut is_empty_region: bool = false;
-            let mut is_remnant_region: bool = true;
-            let test_address = new_address;
-
-            // Check if there is a padding app in that space.
+            // Check what is stored at `new_address`.
             let app_type = self
                 .check_for_app(
                     flash
@@ -613,93 +627,50 @@ impl<'a> DynamicProcessLoader<'a> {
                 )
                 .or(Err(ErrorCode::FAIL))?;
 
-            // We check for empty region only if we do not find a padding app.
-            if app_type != StoredInFlash::PaddingApp {
-                // Check if the flash region is empty.
-                let empty_result = self.check_for_app(test_address);
-                match empty_result {
-                    Ok(empty_space) => {
-                        if empty_space {
-                            is_empty_region = true;
-                        } else {
-                            // Should never default because we have at least the
-                            // dynamic app loader helper app running.
-                            let new_process_count =
-                                self.find_open_process_slot().unwrap_or_default();
-                            self.procs.map(|procs| {
-                                for (proc_index, value) in procs.iter().enumerate() {
-                                    if proc_index < new_process_count {
-                                        {
-                                            // check if there is a remnant app in that space
-                                            if new_address
-                                                == value.unwrap().get_addresses().flash_start
-                                            {
-                                                // Indicates there is an active
-                                                // process whose binary is
-                                                // stored here so let us get the
-                                                // size of the process's binary
-                                                // and add that to our current
-                                                // address.
-                                                let existing_app_end_addr =
-                                                    value.unwrap().get_addresses().flash_end;
+            match app_type {
+                StoredInFlash::PaddingApp | StoredInFlash::Empty => {
+                    // There is not an app at this address so this can be a
+                    // candidate to write the new app.
 
-                                                // Check if the new app will be
-                                                // aligned with its size at the
-                                                // end of previous app if not,
-                                                // find the address where it
-                                                // will be aligned.
-                                                let result = existing_app_end_addr % app_length;
-                                                new_address = if result == 0 {
-                                                    existing_app_end_addr
-                                                } else {
-                                                    existing_app_end_addr + (app_length - result)
-                                                };
+                    let address_validity_check = self.check_overlap_region(new_address, app_length);
 
-                                                is_remnant_region = false;
-                                            }
-                                        }
+                    match address_validity_check {
+                        Ok(()) => {
+                            // Despite doing all these, if the new app's start
+                            // address and size make it such that it will cross
+                            // the bounds of flash, we return a No Memory error.
+                            if new_address + (app_length - 1) > flash_end {
+                                return Err(ErrorCode::NOMEM);
+                            }
+                            // Otherwise, we found the perfect address for our
+                            // new app, let us check what kind of padding we
+                            // have to write, no padding, pre padding, post
+                            // padding or both pre and post padding
+                            let (padding_requirement, previous_app_end_addr, next_app_start_addr) =
+                                match self.compute_padding_requirement_and_neighbors(new_address) {
+                                    (pr, prev_app_addr, next_app_addr) => {
+                                        (pr, prev_app_addr, next_app_addr)
                                     }
-                                }
-                            });
+                                };
+
+                            return Ok((
+                                new_address,
+                                padding_requirement,
+                                previous_app_end_addr,
+                                next_app_start_addr,
+                            ));
                         }
-                    }
-                    Err(_e) => {
-                        return Err(ErrorCode::FAIL);
+                        Err((new_start_addr, _e)) => {
+                            // We try again from the end of the overlapping app
+                            new_address = new_start_addr;
+                        }
                     }
                 }
-            }
 
-            if is_padding_app || is_empty_region || is_remnant_region {
-                let address_validity_check = self.check_overlap_region(test_address, app_length);
-
-                match address_validity_check {
-                    Ok(()) => {
-                        // despite doing all these, if the new app's start address and size make it such that it will
-                        // cross the bounds of flash, we return a No Memory error.
-                        if new_address + (app_length - 1) > flash_end {
-                            return Err(ErrorCode::NOMEM);
-                        }
-                        // otherwise, we found the perfect address for our new app, let us
-                        // check what kind of padding we have to write, no padding, pre padding,
-                        // post padding or both pre and post padding
-                        let (padding_requirement, previous_app_end_addr, next_app_start_addr) =
-                            match self.compute_padding_requirement_and_neighbors(new_address) {
-                                (pr, prev_app_addr, next_app_addr) => {
-                                    (pr, prev_app_addr, next_app_addr)
-                                }
-                            };
-
-                        return Ok((
-                            new_address,
-                            padding_requirement,
-                            previous_app_end_addr,
-                            next_app_start_addr,
-                        ));
-                    }
-                    Err((new_start_addr, _e)) => {
-                        // We try again from the end of the overlapping app
-                        new_address = new_start_addr;
-                    }
+                StoredInFlash::ValidApp(size) => {
+                    // There is already an app at this address so we will have
+                    // to skip beyond it.
+                    new_address = self.next_aligned_address(new_address + size, app_length);
                 }
             }
         }
@@ -710,7 +681,7 @@ impl<'a> DynamicProcessLoader<'a> {
 /// This is the callback client for the underlying physical storage driver.
 impl<'a> NonvolatileStorageClient for DynamicProcessLoader<'a> {
     fn read_done(&self, _buffer: &'static mut [u8], _length: usize) {
-        //we will never use this, but we need to implement this anyway
+        // We will never use this, but we need to implement this anyway.
         unimplemented!();
     }
 
@@ -718,19 +689,21 @@ impl<'a> NonvolatileStorageClient for DynamicProcessLoader<'a> {
         match self.state.get() {
             State::AppWrite => {
                 self.state.set(State::AppWrite);
-                // Switch on which user generated this callback and trigger client callback
+                // Switch on which user generated this callback and trigger
+                // client callback.
                 self.client.map(|client| {
                     client.write_app_data_done(buffer, length);
                 });
             }
             State::PaddingWrite => {
-                // replace the buffer after the padding is written
-                self.reset_process_loading_metadata(); // the final reset after the padding write callback
+                // Replace the buffer after the padding is written.
+                self.reset_process_loading_metadata();
                 self.buffer.replace(buffer);
             }
             State::Fail => {
-                // If we failed at any of writing, we want to set the state to PaddingWrite
-                // so that the callback after writing the padding app will get triggererd
+                // If we failed at any of writing, we want to set the state to
+                // PaddingWrite so that the callback after writing the padding
+                // app will get triggererd.
                 self.buffer.replace(buffer);
                 if let Some(metadata) = self.process_load_metadata.get() {
                     let _ = self
@@ -749,7 +722,7 @@ impl<'a> NonvolatileStorageClient for DynamicProcessLoader<'a> {
                 });
             }
             State::Load => {
-                // We finished writing pre-padding and we need to Load the app
+                // We finished writing pre-padding and we need to Load the app.
                 self.buffer.replace(buffer);
             }
             State::Idle => {
@@ -879,7 +852,7 @@ impl<'a> DynamicProcessLoading for DynamicProcessLoader<'a> {
                 }
             }
         } else {
-            Err(ErrorCode::BUSY) // this means the kernel is busy doing some other operation already.
+            Err(ErrorCode::BUSY)
         }
     }
 
@@ -894,26 +867,32 @@ impl<'a> DynamicProcessLoading for DynamicProcessLoader<'a> {
                 match res {
                     Ok(()) => Ok(()),
                     Err(e) => {
-                        // if we fail here, let us erase the app we just wrote
+                        // If we fail here, let us erase the app we just wrote.
                         self.state.set(State::Fail);
                         Err(e)
                     }
                 }
             }
-            // We should never enter write for the rest of the conditions, so return a Busy error.
-            _ => Err(ErrorCode::BUSY),
+            _ => {
+                // We should never enter write for the rest of the conditions,
+                // so return a Busy error.
+                Err(ErrorCode::BUSY)
+            }
         }
     }
 
     fn load(&self) -> Result<(), ErrorCode> {
-        // We have finished writing the last user data segment, next step is to load the process.
+        // We have finished writing the last user data segment, next step is to
+        // load the process.
         self.state.set(State::Load);
 
         if let Some(metadata) = self.process_load_metadata.get() {
             match metadata.padding_requirement {
-                // if we decided we need to write a padding app before the new app, we go ahead and do it
+                // If we decided we need to write a padding app before the new
+                // app, we go ahead and do it.
                 PaddingRequirement::PrePad | PaddingRequirement::PreAndPostPad => {
-                    // calculating the distance between our app and the previous app
+                    // Calculate the distance between our app and the previous
+                    // app.
                     let previous_app_end_addr = metadata.previous_app_end_addr;
                     let pre_pad_length = metadata.new_app_start_addr - previous_app_end_addr;
                     let padding_result =
