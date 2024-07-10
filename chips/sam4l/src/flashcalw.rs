@@ -786,7 +786,6 @@ impl FLASHCALW {
         // Check that address makes sense and buffer has room.
         if address > (self.get_flash_size() as usize)
             || address + size > (self.get_flash_size() as usize)
-            || address + size < size
             || buffer.len() < size
         {
             // invalid flash address
