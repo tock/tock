@@ -247,7 +247,6 @@ trait_duplication_in_bounds = "allow"
 useless_let_if_seq = "allow"
 as_ptr_cast_mut = "allow"
 unnecessary_struct_initialization = "allow"
-type_repetition_in_bounds = "allow"
 
 
 # PEDANTIC

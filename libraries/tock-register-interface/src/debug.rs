@@ -170,8 +170,7 @@ where
 impl<T, E> fmt::Debug for RegisterDebugValue<T, E>
 where
     T: UIntLike + 'static,
-    E: RegisterDebugInfo<T>,
-    E: 'static,
+    E: RegisterDebugInfo<T> + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // This is using the core library's formatting facilities to produce an
