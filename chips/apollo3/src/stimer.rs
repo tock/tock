@@ -250,6 +250,6 @@ impl<'a> Alarm<'a> for STimer<'a> {
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
-        Self::Ticks::from(2)
+        Self::Ticks::from(5)
     }
 }
