@@ -16,30 +16,25 @@ OPENOCD_OPTIONS=-f openocd.cfg
 
 TOCKLOADER=tockloader
 
-$(eval USE_PROBE_RS:;@:)
-
 # Default target for installing the kernel.
 .PHONY: install
 install: flash
 
 .PHONY: flash-debug
 flash-debug: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).elf
-ifeq (USE_PROBE_RS, $(filter USE_PROBE_RS,$(MAKECMDGOALS)))
+ifdef USE_PROBE_RS
 	$(PROBE_RS) download --chip nRF52833_xxAA --verify $<	
 else
-	$(OPENOCD) $(OPENOCD_OPTIONS) -c "program $<; verify_image $<;  reset; shutdown;"
+	$(OPENOCD) $(OPENOCD_OPTIONS) -c "program $<; verify_image $<; reset; shutdown;"
 endif
-
-
 
 .PHONY: flash
 flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
-ifeq (USE_PROBE_RS, $(filter USE_PROBE_RS,$(MAKECMDGOALS)))
+ifdef USE_PROBE_RS
 	$(PROBE_RS) download --chip nRF52833_xxAA --verify $<	
 else
-	$(OPENOCD) $(OPENOCD_OPTIONS) -c "program $<; verify_image $<;  reset; shutdown;"
+	$(OPENOCD) $(OPENOCD_OPTIONS) -c "program $<; verify_image $<; reset; shutdown;"
 endif
-
 
 .PHONY: program
 program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
@@ -52,7 +47,7 @@ flash-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 .PHONY: flash-bootloader
 flash-bootloader:
 	curl -L --output /tmp/tock-bootloader.microbit_v2.vv1.1.1.bin https://github.com/tock/tock-bootloader/releases/download/microbit_v2-vv1.1.1/tock-bootloader.microbit_v2.vv1.1.1.bin
-ifeq (USE_PROBE_RS, $(filter USE_PROBE_RS,$(MAKECMDGOALS)))
+ifdef USE_PROBE_RS
 	$(PROBE_RS) download --chip  nRF52833_xxAA --binary-format Bin --verify  /tmp/tock-bootloader.microbit_v2.vv1.1.1.bin
 else
 	$(OPENOCD) $(OPENOCD_OPTIONS) -c "program /tmp/tock-bootloader.microbit_v2.vv1.1.1.bin; verify_image /tmp/tock-bootloader.microbit_v2.vv1.1.1.bin; reset halt; shutdown;"

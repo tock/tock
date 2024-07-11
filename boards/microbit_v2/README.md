@@ -74,7 +74,7 @@ $ make flash-bootloader
 Use the `make flash-bootloader` command to flash [Tock Bootloader](https://github.com/tock/tock-bootloader) to the board.
 
 ```bash
-$ make flash-bootloader USE_PROBE_RS
+$ USE_PROBE_RS=1 make flash-bootloader
 ```
 
 ## Uploading the kernel
@@ -131,11 +131,11 @@ The kernel can also be programmed using [probe-rs](https://github.com/probe-rs/p
 `cd` into `boards/microbit_v2` directory and run:
 
 ```bash
-$ make flash USE_PROBE_RS
+$ USE_PROBE_RS=1 make flash
 
 (or)
 
-$ make flash-debug USE_PROBE_RS
+$ USE_PROBE_RS=1 make flash-debug
 
 ```
 
