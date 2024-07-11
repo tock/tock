@@ -19,9 +19,9 @@ but the approximate definitions:
                shape, but not heavily tested. Some Tier 2 boards may
                have known issues, which are documented in release notes
                during release testing.
- - **Tier 3:** New or highly experimental. These should support the
-               minimum platform requirements laid out in
-               [the Porting documentation](../doc/Porting.md), but
+ - **Tier 3:** New or highly experimental. These should support the minimum
+               platform requirements laid out in [the Porting
+               documentation](https://book.tockos.org/development/porting), but
                make no promises beyond that.
 
  - **Other:** See each board for specific details.

@@ -146,10 +146,10 @@ be useful or desirable.
 ### Capsule Crate-Specific External Dependencies
 
 Capsules are a mechanism to provide semi-trusted infrastructure to a Tock board,
-for instance non chip-specific peripheral drivers (see [Design](./Design.md)).
-As such, external dependencies may be useful to implement complex subsystems.
-Examples for this are wireless or networking protocols such as Bluetooth Low
-Energy or TCP.
+for instance non chip-specific peripheral drivers (see
+[Design](https://book.tockos.org/doc/design)). As such, external dependencies
+may be useful to implement complex subsystems. Examples for this are wireless or
+networking protocols such as Bluetooth Low Energy or TCP.
 
 To support such use-cases without forcing all boards to include external
 dependencies, capsules are split into multiple crates:

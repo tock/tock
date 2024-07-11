@@ -1,7 +1,7 @@
 Arduino Nano 33 BLE Sense Rev2
 ===================
 
-<img src="https://media.elektor.com/media/catalog/product/cache/9cc822bfc6a57f9729d464b8b5e0e0df/a/r/arduino-nano-33-ble-sense-rev2-with-headers_front.jpg" width="35%">
+<img src="https://store-usa.arduino.cc/cdn/shop/products/ABX00069_01.iso_1000x750.jpg?v=1669710070" width="35%">
 
 The [Arduino Nano 33 BLE Sense Rev2](https://store.arduino.cc/products/nano-33-ble-sense-rev2) is a 
 compact board based on the Nordic nRF52840 SoC. It includes the following sensors:
