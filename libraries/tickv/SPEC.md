@@ -10,9 +10,9 @@ to add such features.
 TicKV allows writing new key/value pairs (by appending them) and removing
 old key/value pairs.
 
-Similar to (Yaffs1)[https://yaffs.net/documents/how-yaffs-works] TicKV uses a
-log structure and circles over the flash data. This means that the file
-system is inherently wear leveling as we don't regularly write to the same
+Similar to [Yaffs1](https://yaffs.net/sites/yaffs.net/files/HowYaffsWorks.pdf)
+TicKV uses a log structure and circles over the flash data. This means that the
+file system is inherently wear leveling as we don't regularly write to the same
 flash region.
 
 ## Storage Format

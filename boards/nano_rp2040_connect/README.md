@@ -1,7 +1,7 @@
 Arduino Nano RP2040 Connect
 ===========================
 
-<img src="https://store-cdn.arduino.cc/uni/catalog/product/cache/1/image/520x330/604a3538c15e081937dbfbd20aa60aad/a/b/abx00053_00.default.jpg" width="35%">
+<img src="https://store-usa.arduino.cc/cdn/shop/products/ABX00052_01.iso_1000x750.jpg?v=1629816097" width="35%">
 
 The [Arduino Nano RP2040 Connect](https://docs.arduino.cc/hardware/nano-rp2040-connect) is an Arduino Nano
 board built using the Raspberry Pi Foundation's RP2040 chip.
