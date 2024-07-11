@@ -104,9 +104,8 @@ pub const KERNEL_MAJOR_VERSION: u16 = 2;
 /// loaded apps.
 pub const KERNEL_MINOR_VERSION: u16 = 1;
 
-#[flux::ignore]
 pub mod capabilities;
-#[flux::ignore]
+//#[flux::ignore]
 pub mod collections;
 #[flux::ignore]
 pub mod component;
@@ -137,10 +136,8 @@ pub mod storage_permissions;
 pub mod syscall;
 #[flux::ignore]
 pub mod upcall;
-//#[flux::ignore]
 pub mod utilities;
 
-#[flux::ignore]
 mod config;
 #[flux::ignore]
 mod kernel;
