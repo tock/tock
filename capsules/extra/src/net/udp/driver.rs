@@ -491,13 +491,7 @@ impl<'a> SyscallDriver for UDPDriver<'a> {
                                         cfg[mem::size_of::<UDPEndpoint>()..]
                                             .copy_to_slice(&mut tmp_endpoint);
 
-                                        if let Some(local_iface) =
-                                            self.parse_ip_port_pair(&tmp_endpoint)
-                                        {
-                                            Some(local_iface)
-                                        } else {
-                                            None
-                                        }
+                                        self.parse_ip_port_pair(&tmp_endpoint)
                                     }
                                 })
                             })
