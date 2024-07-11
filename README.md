@@ -21,16 +21,8 @@ kernel.
 Tock 2.x!
 ---------
 
-Tock is now on its second major release! Tock 2.x includes significant changes
-from Tock 1.x, including:
-
-- Revamped system call interface.
-- Support for 11 new hardware platforms.
-- Updated kernel types.
-- Many new and improved HILs.
-
-For a summary of the latest new features and improvements, check out the
-[changelog](CHANGELOG.md).
+Tock is now on its second major release! For a summary of the latest new
+features and improvements, check out the [changelog](CHANGELOG.md).
 
 
 Learn More
