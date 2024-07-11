@@ -160,7 +160,6 @@ manual-flatten = "allow"
 
 
 zero_prefixed_literal = "allow"
-needless-if = "allow"
 
 
 explicit_auto_deref = "allow"
