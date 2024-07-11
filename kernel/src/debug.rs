@@ -124,7 +124,7 @@ pub unsafe fn panic_print<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
 
     // Some systems may enforce memory protection regions for the
     // kernel, making application memory inaccessible. However,
-    // priting process information will attempt to access memory. If
+    // printing process information will attempt to access memory. If
     // we are provided a chip reference, attempt to disable userspace
     // memory protection first:
     chip.map(|c| {
@@ -137,6 +137,9 @@ pub unsafe fn panic_print<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
 /// Tock default panic routine.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
+///
+/// This will print a detailed debugging message and then loop forever while
+/// blinking an LED in a recognizable pattern.
 pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
     leds: &mut [&L],
     writer: &mut W,
