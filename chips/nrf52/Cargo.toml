@@ -16,3 +16,6 @@ enum_primitive = { path = "../../libraries/enum_primitive" }
 [dependencies.nrf5x]
 path = "../nrf5x"
 features = ["nrf52"]
+
+[lints]
+workspace = true

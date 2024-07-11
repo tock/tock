@@ -396,7 +396,7 @@ ci-job-readme-check:
 .PHONY: ci-job-clippy
 ci-job-clippy:
 	$(call banner,CI-Job: Clippy)
-	@NOWARNINGS=true ./tools/run_clippy.sh
+	@NOWARNINGS=true cargo clippy
 
 
 

@@ -14,3 +14,6 @@ edition = "2021"
 readme = "README.md"
 keywords = ["flash", "key-value-store"]
 categories = ["database-implementations", "no-std"]
+
+[lints]
+workspace = true

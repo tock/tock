@@ -11,3 +11,6 @@ edition.workspace = true
 [dependencies]
 tock-registers = { path = "../../libraries/tock-register-interface" }
 kernel = { path = "../../kernel" }
+
+[lints]
+workspace = true

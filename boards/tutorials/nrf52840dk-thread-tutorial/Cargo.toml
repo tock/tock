@@ -22,3 +22,6 @@ capsules-core = { path = "../../../capsules/core" }
 capsules-extra = { path = "../../../capsules/extra" }
 capsules-system = { path = "../../../capsules/system" }
 components = { path = "../../components" }
+
+[lints]
+workspace = true
