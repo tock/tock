@@ -916,8 +916,8 @@ impl<'a> Usb<'a> {
                         EndpointState::Disabled => unreachable!(),
                         EndpointState::Ctrl(_state) => unreachable!(),
                         EndpointState::Bulk(_in_state, _out_state) => {
-                            if buf_id.is_some() {
-                                self.copy_slice_out_to_hw(ep, buf_id.unwrap(), size)
+                            if let Some(buf) = buf_id {
+                                self.copy_slice_out_to_hw(ep, buf, size)
                             } else {
                                 panic!("No free bufs");
                             };
