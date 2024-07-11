@@ -220,7 +220,6 @@ impl UdpPortManager {
         let user_bound = self
             .user_ports
             .map_or(true, |port_query| port_query.is_bound(port));
-        if self.user_ports.is_none() {}
         if user_bound {
             return Ok(true);
         };
