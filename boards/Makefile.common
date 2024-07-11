@@ -378,7 +378,7 @@ debug-lst:  $(TARGET_PATH)/debug/$(PLATFORM).lst
 
 .PHONY: doc
 doc: | target
-	$(Q)RUSTDOCFLAGS='$(RUSTDOC_FLAGS_TOCK)' $(CARGO) --color=always doc $(VERBOSE_FLAGS) --release --package $(PLATFORM)
+	$(Q)RUSTDOCFLAGS='$(RUSTDOC_FLAGS_TOCK)' $(CARGO) --color=always doc $(VERBOSE_FLAGS) --release
 
 
 .PHONY: lst
