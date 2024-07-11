@@ -148,12 +148,18 @@ impl
     }
 }
 
-/// Main function.
-///
-/// This function is called from the arch crate after some very basic
-/// RISC-V setup and RAM initialization.
-#[no_mangle]
-pub unsafe fn main() {
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+unsafe fn start() -> (
+    &'static kernel::Kernel,
+    QemuRv32VirtPlatform,
+    &'static qemu_rv32_virt_chip::chip::QemuRv32VirtChip<
+        'static,
+        QemuRv32VirtDefaultPeripherals<'static>,
+    >,
+) {
     // These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -221,7 +227,6 @@ pub unsafe fn main() {
     // Acquire required capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
     // Create a board kernel instance
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
@@ -558,5 +563,14 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap);
+    (board_kernel, platform, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, platform, chip) = start();
+    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }
