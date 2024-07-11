@@ -196,7 +196,6 @@ upper_case_acronyms = "allow"
 
 
 declare-interior-mutable-const = "allow"
-from-over-into = "allow"
 let_and_return = "allow"
 missing_safety_doc = "allow"
 needless-range-loop = "allow"
