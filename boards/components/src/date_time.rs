@@ -67,7 +67,6 @@ impl<D: 'static + date_time::DateTime<'static> + kernel::deferred_call::Deferred
         let grant_date_time = self.board_kernel.create_grant(self.driver_num, &grant_dt);
 
         let date_time = s.write(DateTimeCapsule::new(self.rtc, grant_date_time));
-        kernel::deferred_call::DeferredCallClient::register(self.rtc);
         date_time::DateTime::set_client(self.rtc, date_time);
         date_time
     }
