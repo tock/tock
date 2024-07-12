@@ -29,3 +29,9 @@ rustflags = [
   # Enable link-time-optimization
   "-C", "lto",
 ]
+
+[target.test]
+rustdocflags = [
+  "-D", "warnings",
+  "--document-private-items"
+]
