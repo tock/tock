@@ -3,8 +3,8 @@
 # Copyright Tock Contributors 2024.
 
 include = [
-  "../../cargo/tock_flags.toml",
-  "../../cargo/unstable_flags.toml",
+  "../../../cargo/tock_flags.toml",
+  "../../../cargo/unstable_flags.toml",
 ]
 
 [build]
