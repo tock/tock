@@ -574,7 +574,7 @@ impl<'a> PeripheralManagement<TWIMClock> for I2CHw<'a> {
     type RegisterType = TWIMRegisters;
 
     fn get_registers(&self) -> &TWIMRegisters {
-        &*self.master_mmio_address
+        &self.master_mmio_address
     }
 
     fn get_clock(&self) -> &TWIMClock {

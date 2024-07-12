@@ -1569,7 +1569,7 @@ impl<'a> StreamServer<'a> for Dma1<'a> {
     type Peripheral = Dma1Peripheral;
 
     fn registers(&self) -> &DmaRegisters {
-        &*self.registers
+        &self.registers
     }
 }
 
@@ -1690,6 +1690,6 @@ impl<'a> StreamServer<'a> for Dma2<'a> {
     type Peripheral = Dma2Peripheral;
 
     fn registers(&self) -> &DmaRegisters {
-        &*self.registers
+        &self.registers
     }
 }

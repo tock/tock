@@ -231,7 +231,7 @@ const USBC_BASE: StaticRef<UsbcRegisters> =
 
 #[inline]
 fn usbc_regs() -> &'static UsbcRegisters {
-    &*USBC_BASE
+    &USBC_BASE
 }
 
 // Datastructures for tracking USB controller state

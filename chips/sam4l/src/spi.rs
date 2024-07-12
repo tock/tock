@@ -208,7 +208,7 @@ impl PeripheralManagement<pm::Clock> for SpiHw<'_> {
     type RegisterType = SpiRegisters;
 
     fn get_registers(&self) -> &SpiRegisters {
-        &*SPI_BASE
+        &SPI_BASE
     }
 
     fn get_clock(&self) -> &pm::Clock {
