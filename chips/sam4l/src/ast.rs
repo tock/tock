@@ -261,7 +261,7 @@ impl<'a> Ast<'a> {
     }
 
     fn is_enabled(&self) -> bool {
-        let regs: &AstRegisters = &*self.registers;
+        let regs: &AstRegisters = &self.registers;
         while self.busy() {}
         regs.cr.is_set(Control::EN)
     }
@@ -298,7 +298,7 @@ impl<'a> Ast<'a> {
     }
 
     fn set_counter(&self, val: u32) {
-        let regs: &AstRegisters = &*self.registers;
+        let regs: &AstRegisters = &self.registers;
         while self.busy() {}
         regs.cv.set(val);
     }

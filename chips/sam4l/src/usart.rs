@@ -302,7 +302,7 @@ impl<'a> USARTRegManager<'a> {
         if !pm::is_clock_enabled(usart.clock) {
             pm::enable_clock(usart.clock);
         }
-        let regs: &UsartRegisters = &*usart.registers;
+        let regs: &UsartRegisters = &usart.registers;
         USARTRegManager {
             registers: regs,
             clock: usart.clock,
