@@ -71,8 +71,8 @@ impl<'a, I: i2c::I2CDevice> Ft6x06<'a, I> {
         // setup and return struct
         interrupt_pin.enable_interrupts(gpio::InterruptEdge::FallingEdge);
         Ft6x06 {
-            i2c: i2c,
-            interrupt_pin: interrupt_pin,
+            i2c,
+            interrupt_pin,
             touch_client: OptionalCell::empty(),
             gesture_client: OptionalCell::empty(),
             multi_touch_client: OptionalCell::empty(),

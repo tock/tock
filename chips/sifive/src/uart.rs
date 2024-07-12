@@ -110,7 +110,7 @@ impl<'a> Uart<'a> {
     pub fn new(base: StaticRef<UartRegisters>, clock_frequency: u32) -> Uart<'a> {
         Uart {
             registers: base,
-            clock_frequency: clock_frequency,
+            clock_frequency,
             stop_bits: Cell::new(hil::uart::StopBits::One),
 
             tx_client: OptionalCell::empty(),

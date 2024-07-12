@@ -144,8 +144,8 @@ impl<'a, U: hil::usb::UsbController<'a>> CtapHid<'a, U> {
         let (device_descriptor_buffer, other_descriptor_buffer) =
             descriptors::create_descriptor_buffers(
                 descriptors::DeviceDescriptor {
-                    vendor_id: vendor_id,
-                    product_id: product_id,
+                    vendor_id,
+                    product_id,
                     manufacturer_string: 1,
                     product_string: 2,
                     serial_number_string: 3,

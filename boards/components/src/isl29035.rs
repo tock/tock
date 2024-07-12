@@ -128,8 +128,8 @@ impl<L: 'static + hil::sensors::AmbientLight<'static>> AmbientLightComponent<L> 
         light_sensor: &'static L,
     ) -> Self {
         AmbientLightComponent {
-            board_kernel: board_kernel,
-            driver_num: driver_num,
+            board_kernel,
+            driver_num,
             light_sensor,
         }
     }

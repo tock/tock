@@ -19,7 +19,7 @@ pub struct TestAlarm<'a, A: Alarm<'a>> {
 impl<'a, A: Alarm<'a>> TestAlarm<'a, A> {
     pub fn new(alarm: &'a A) -> TestAlarm<'a, A> {
         TestAlarm {
-            alarm: alarm,
+            alarm,
             ms: Cell::new(0),
         }
     }

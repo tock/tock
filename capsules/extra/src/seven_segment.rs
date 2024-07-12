@@ -224,8 +224,8 @@ impl<'a, P: Pin, A: Alarm<'a>, const NUM_DIGITS: usize> SevenSegmentDriver<'a, P
             digits,
             buffer: TakeCell::new(buffer),
             alarm,
-            segment_activation: segment_activation,
-            digit_activation: digit_activation,
+            segment_activation,
+            digit_activation,
             current_digit: Cell::new(0),
             timing: (1000 / (refresh_rate * digits.len())) as u8,
         }

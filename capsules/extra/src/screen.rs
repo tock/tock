@@ -127,8 +127,8 @@ impl<'a> Screen<'a> {
         grant: Grant<App, UpcallCount<1>, AllowRoCount<{ ro_allow::COUNT }>, AllowRwCount<0>>,
     ) -> Screen<'a> {
         Screen {
-            screen: screen,
-            screen_setup: screen_setup,
+            screen,
+            screen_setup,
             apps: grant,
             current_process: OptionalCell::empty(),
             pixel_format: Cell::new(screen.get_pixel_format()),

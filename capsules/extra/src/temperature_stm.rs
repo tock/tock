@@ -32,9 +32,9 @@ impl<'a, A: adc::AdcChannel<'a>> TemperatureSTM<'a, A> {
     /// v_25 - voltage at 25 degrees Celsius found in datasheet
     pub fn new(adc: &'a A, slope: f32, v_25: f32) -> TemperatureSTM<'a, A> {
         TemperatureSTM {
-            adc: adc,
-            slope: slope,
-            v_25: v_25,
+            adc,
+            slope,
+            v_25,
             temperature_client: OptionalCell::empty(),
             status: Cell::new(Status::Idle),
         }

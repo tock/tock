@@ -243,11 +243,11 @@ unsafe fn start() -> (
         .finalize(components::priority_component_static!());
 
     let artye21 = ArtyE21 {
-        console: console,
-        gpio: gpio,
-        alarm: alarm,
-        led: led,
-        button: button,
+        console,
+        gpio,
+        alarm,
+        led,
+        button,
         // ipc: kernel::ipc::IPC::new(board_kernel),
         scheduler,
     };

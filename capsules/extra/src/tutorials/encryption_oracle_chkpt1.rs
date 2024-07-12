@@ -23,9 +23,7 @@ impl EncryptionOracleDriver {
     pub fn new(
         process_grants: Grant<ProcessState, UpcallCount<0>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> Self {
-        EncryptionOracleDriver {
-            process_grants: process_grants,
-        }
+        EncryptionOracleDriver { process_grants }
     }
 }
 

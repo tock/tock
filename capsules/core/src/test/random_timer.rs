@@ -26,7 +26,7 @@ pub struct TestRandomTimer<'a, T: 'a> {
 impl<'a, T: Timer<'a>> TestRandomTimer<'a, T> {
     pub fn new(timer: &'a T, value: usize, ch: char) -> TestRandomTimer<'a, T> {
         TestRandomTimer {
-            timer: timer,
+            timer,
             interval: Cell::new(0),
             counter: Cell::new(0),
             iv: Cell::new(value as u32),

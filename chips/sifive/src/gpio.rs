@@ -102,9 +102,9 @@ impl<'a> GpioPin<'a> {
     ) -> GpioPin<'a> {
         GpioPin {
             registers: base,
-            pin: pin,
-            set: set,
-            clear: clear,
+            pin,
+            set,
+            clear,
             client: OptionalCell::empty(),
         }
     }

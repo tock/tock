@@ -40,7 +40,7 @@ pub struct LocalRegisterCopy<T: UIntLike, R: RegisterLongName = ()> {
 impl<T: UIntLike, R: RegisterLongName> LocalRegisterCopy<T, R> {
     pub const fn new(value: T) -> Self {
         LocalRegisterCopy {
-            value: value,
+            value,
             associated_register: PhantomData,
         }
     }

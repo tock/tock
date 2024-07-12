@@ -206,11 +206,11 @@ impl<
         hold_pin: Option<&'a P>,
     ) -> MX25R6435F<'a, S, P, A> {
         MX25R6435F {
-            spi: spi,
-            alarm: alarm,
+            spi,
+            alarm,
             state: Cell::new(State::Idle),
-            write_protect_pin: write_protect_pin,
-            hold_pin: hold_pin,
+            write_protect_pin,
+            hold_pin,
             txbuffer: TakeCell::new(txbuffer),
             rxbuffer: TakeCell::new(rxbuffer),
             client: OptionalCell::empty(),

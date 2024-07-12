@@ -98,9 +98,9 @@ impl<'a> Touch<'a> {
         grant: Grant<App, UpcallCount<3>, AllowRoCount<0>, AllowRwCount<{ rw_allow::COUNT }>>,
     ) -> Touch<'a> {
         Touch {
-            touch: touch,
-            multi_touch: multi_touch,
-            screen: screen,
+            touch,
+            multi_touch,
+            screen,
             screen_rotation_offset: Cell::new(ScreenRotation::Normal),
             apps: grant,
         }

@@ -492,19 +492,19 @@ unsafe fn start() -> (
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let nucleo_f446re = NucleoF446RE {
-        console: console,
+        console,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
-        led: led,
-        button: button,
+        led,
+        button,
         adc: adc_syscall,
-        alarm: alarm,
+        alarm,
 
         temperature: temp,
-        gpio: gpio,
+        gpio,
 
         scheduler,
         systick: cortexm4::systick::SysTick::new(),

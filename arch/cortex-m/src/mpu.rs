@@ -327,8 +327,8 @@ impl CortexMRegion {
 
         CortexMRegion {
             location: Some((logical_start, logical_size)),
-            base_address: base_address,
-            attributes: attributes,
+            base_address,
+            attributes,
         }
     }
 

@@ -128,9 +128,9 @@ impl NetworkCapability {
         _create_net_cap: &dyn NetworkCapabilityCreationCapability,
     ) -> NetworkCapability {
         NetworkCapability {
-            remote_addrs: remote_addrs,
-            remote_ports: remote_ports,
-            local_ports: local_ports,
+            remote_addrs,
+            remote_ports,
+            local_ports,
         }
     }
 

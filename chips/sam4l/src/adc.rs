@@ -345,7 +345,7 @@ impl<'a> Adc<'a> {
 
             // DMA status and stuff
             rx_dma: OptionalCell::empty(),
-            rx_dma_peripheral: rx_dma_peripheral,
+            rx_dma_peripheral,
             rx_length: Cell::new(0),
             next_dma_buffer: TakeCell::empty(),
             next_dma_length: Cell::new(0),

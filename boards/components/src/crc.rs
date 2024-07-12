@@ -49,9 +49,9 @@ impl<C: 'static + Crc<'static>> CrcComponent<C> {
         crc: &'static C,
     ) -> CrcComponent<C> {
         CrcComponent {
-            board_kernel: board_kernel,
-            driver_num: driver_num,
-            crc: crc,
+            board_kernel,
+            driver_num,
+            crc,
         }
     }
 }

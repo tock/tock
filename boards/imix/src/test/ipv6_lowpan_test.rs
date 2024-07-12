@@ -241,9 +241,9 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
         alarm: &'a A,
     ) -> LowpanTest<'a, A> {
         LowpanTest {
-            alarm: alarm,
-            sixlowpan_tx: sixlowpan_tx,
-            radio: radio,
+            alarm,
+            sixlowpan_tx,
+            radio,
             test_counter: Cell::new(0),
         }
     }

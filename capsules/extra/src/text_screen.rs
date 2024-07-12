@@ -85,7 +85,7 @@ impl<'a> TextScreen<'a> {
         grant: Grant<App, UpcallCount<1>, AllowRoCount<{ ro_allow::COUNT }>, AllowRwCount<0>>,
     ) -> TextScreen<'a> {
         TextScreen {
-            text_screen: text_screen,
+            text_screen,
             apps: grant,
             current_app: OptionalCell::empty(),
             buffer: TakeCell::new(buffer),

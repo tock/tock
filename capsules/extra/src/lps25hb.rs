@@ -121,8 +121,8 @@ impl<'a, I: i2c::I2CDevice> LPS25HB<'a, I> {
     ) -> Self {
         // setup and return struct
         Self {
-            i2c: i2c,
-            interrupt_pin: interrupt_pin,
+            i2c,
+            interrupt_pin,
             state: Cell::new(State::Idle),
             buffer: TakeCell::new(buffer),
             apps,

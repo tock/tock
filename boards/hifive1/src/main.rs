@@ -337,10 +337,10 @@ unsafe fn start() -> (
     );
 
     let hifive1 = HiFive1 {
-        console: console,
-        alarm: alarm,
-        lldb: lldb,
         led,
+        console,
+        lldb,
+        alarm,
         scheduler,
         scheduler_timer,
     };

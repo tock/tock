@@ -202,10 +202,10 @@ impl<'a, A: time::Alarm<'a>> LowpanICMPTest<'a, A> {
         net_cap: &'static NetworkCapability,
     ) -> LowpanICMPTest<'a, A> {
         LowpanICMPTest {
-            alarm: alarm,
+            alarm,
             test_counter: Cell::new(0),
-            icmp_sender: icmp_sender,
-            net_cap: net_cap,
+            icmp_sender,
+            net_cap,
         }
     }
 

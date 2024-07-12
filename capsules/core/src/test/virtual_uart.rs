@@ -20,7 +20,7 @@ pub struct TestVirtualUartReceive {
 impl TestVirtualUartReceive {
     pub fn new(device: &'static UartDevice<'static>, buffer: &'static mut [u8]) -> Self {
         TestVirtualUartReceive {
-            device: device,
+            device,
             buffer: TakeCell::new(buffer),
         }
     }

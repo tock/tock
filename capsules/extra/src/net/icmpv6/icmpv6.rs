@@ -49,7 +49,7 @@ impl ICMP6Header {
         ICMP6Header {
             code: 0,
             cksum: 0,
-            options: options,
+            options,
             len: 0,
         }
     }

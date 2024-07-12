@@ -475,8 +475,8 @@ pub unsafe fn start() -> (
         ),
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
-        temperature: temperature,
-        humidity: humidity,
+        temperature,
+        humidity,
         lr1110_spi,
         lr1110_gpio,
     };

@@ -659,12 +659,12 @@ unsafe fn start() -> (
             .finalize(components::cooperative_component_static!(NUM_PROCS));
 
     let litex_sim = LiteXSim {
-        gpio_driver: gpio_driver,
-        button_driver: button_driver,
-        led_driver: led_driver,
-        console: console,
-        alarm: alarm,
-        lldb: lldb,
+        gpio_driver,
+        button_driver,
+        led_driver,
+        console,
+        alarm,
+        lldb,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,

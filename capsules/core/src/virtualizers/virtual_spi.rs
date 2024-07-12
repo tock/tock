@@ -183,9 +183,9 @@ impl<'a, Spi: hil::spi::SpiMaster<'a>> VirtualSpiMasterDevice<'a, Spi> {
         chip_select: Spi::ChipSelect,
     ) -> VirtualSpiMasterDevice<'a, Spi> {
         VirtualSpiMasterDevice {
-            mux: mux,
+            mux,
             configuration: Cell::new(SpiConfiguration {
-                chip_select: chip_select,
+                chip_select,
                 polarity: hil::spi::ClockPolarity::IdleLow,
                 phase: hil::spi::ClockPhase::SampleLeading,
                 rate: 100_000,
@@ -324,7 +324,7 @@ pub struct SpiSlaveDevice<'a, Spi: hil::spi::SpiSlave<'a>> {
 impl<'a, Spi: hil::spi::SpiSlave<'a>> SpiSlaveDevice<'a, Spi> {
     pub const fn new(spi: &'a Spi) -> SpiSlaveDevice<'a, Spi> {
         SpiSlaveDevice {
-            spi: spi,
+            spi,
             client: OptionalCell::empty(),
         }
     }

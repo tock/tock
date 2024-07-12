@@ -301,10 +301,10 @@ unsafe fn start() -> (
     );
 
     let redv = RedV {
-        console: console,
-        alarm: alarm,
-        lldb: lldb,
         led,
+        console,
+        lldb,
+        alarm,
         scheduler,
         scheduler_timer,
     };

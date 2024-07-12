@@ -52,9 +52,9 @@ impl<const SCREEN_BUF_LEN: usize> TextScreenComponent<SCREEN_BUF_LEN> {
         text_screen: &'static dyn kernel::hil::text_screen::TextScreen<'static>,
     ) -> TextScreenComponent<SCREEN_BUF_LEN> {
         TextScreenComponent {
-            board_kernel: board_kernel,
-            driver_num: driver_num,
-            text_screen: text_screen,
+            board_kernel,
+            driver_num,
+            text_screen,
         }
     }
 }

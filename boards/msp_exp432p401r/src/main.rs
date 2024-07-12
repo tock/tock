@@ -414,16 +414,16 @@ unsafe fn start() -> (
 
     let msp_exp432p4014 = MspExp432P401R {
         led: leds,
-        console: console,
-        button: button,
-        gpio: gpio,
-        alarm: alarm,
+        console,
+        button,
+        gpio,
+        alarm,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
-        adc: adc,
+        adc,
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(48_000_000),
         wdt: &peripherals.wdt,

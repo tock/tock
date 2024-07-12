@@ -85,7 +85,7 @@ impl<'a, H: hil::sensors::HumidityDriver<'a>> HumiditySensor<'a, H> {
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> HumiditySensor<'a, H> {
         HumiditySensor {
-            driver: driver,
+            driver,
             apps: grant,
             busy: Cell::new(false),
         }

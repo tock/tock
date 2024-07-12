@@ -238,11 +238,11 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
         mock_udp2: &'static MockUdp<'a, A>,
     ) -> LowpanTest<'a, A> {
         LowpanTest {
-            alarm: alarm,
+            alarm,
             test_counter: Cell::new(0),
-            port_table: port_table,
-            mock_udp1: mock_udp1,
-            mock_udp2: mock_udp2,
+            port_table,
+            mock_udp1,
+            mock_udp2,
             test_mode: Cell::new(TestMode::DefaultMode),
         }
     }

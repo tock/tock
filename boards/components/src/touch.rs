@@ -64,11 +64,11 @@ impl TouchComponent {
         screen: Option<&'static dyn kernel::hil::screen::Screen<'static>>,
     ) -> TouchComponent {
         TouchComponent {
-            board_kernel: board_kernel,
-            driver_num: driver_num,
-            touch: touch,
-            gesture: gesture,
-            screen: screen,
+            board_kernel,
+            driver_num,
+            touch,
+            gesture,
+            screen,
         }
     }
 }
@@ -114,11 +114,11 @@ impl MultiTouchComponent {
         screen: Option<&'static dyn kernel::hil::screen::Screen>,
     ) -> MultiTouchComponent {
         MultiTouchComponent {
-            board_kernel: board_kernel,
-            driver_num: driver_num,
-            multi_touch: multi_touch,
-            gesture: gesture,
-            screen: screen,
+            board_kernel,
+            driver_num,
+            multi_touch,
+            gesture,
+            screen,
         }
     }
 }

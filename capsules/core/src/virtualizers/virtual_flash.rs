@@ -80,7 +80,7 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for MuxFlash<'_, F> {
 impl<'a, F: hil::flash::Flash> MuxFlash<'a, F> {
     pub const fn new(flash: &'a F) -> MuxFlash<'a, F> {
         MuxFlash {
-            flash: flash,
+            flash,
             users: List::new(),
             inflight: OptionalCell::empty(),
         }
@@ -154,7 +154,7 @@ pub struct FlashUser<'a, F: hil::flash::Flash + 'static> {
 impl<'a, F: hil::flash::Flash> FlashUser<'a, F> {
     pub fn new(mux: &'a MuxFlash<'a, F>) -> FlashUser<'a, F> {
         FlashUser {
-            mux: mux,
+            mux,
             buffer: TakeCell::empty(),
             operation: Cell::new(Op::Idle),
             next: ListLink::empty(),

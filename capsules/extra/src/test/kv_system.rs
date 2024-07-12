@@ -61,7 +61,7 @@ impl<'a, S: KVSystem<'static>, T: KeyType> KVSystemTest<'a, S, T> {
         debug!("---Starting TicKV Tests---");
 
         Self {
-            kv_system: kv_system,
+            kv_system,
             phantom: PhantomData,
             value: MapCell::new(value),
             ret_buffer: TakeCell::new(static_buf),

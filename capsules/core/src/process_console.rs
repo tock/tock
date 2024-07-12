@@ -451,8 +451,8 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
         capability: C,
     ) -> ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C> {
         ProcessConsole {
-            uart: uart,
-            alarm: alarm,
+            uart,
+            alarm,
             process_printer,
             tx_in_progress: Cell::new(false),
             tx_buffer: TakeCell::new(tx_buffer),
@@ -468,10 +468,10 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
             cursor: Cell::new(0),
             previous_byte: Cell::new(EOL),
             execute: Cell::new(false),
-            kernel: kernel,
-            kernel_addresses: kernel_addresses,
-            reset_function: reset_function,
-            capability: capability,
+            kernel,
+            kernel_addresses,
+            reset_function,
+            capability,
         }
     }
 
@@ -678,7 +678,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
 
                             if new_context.is_some() {
                                 self.writer_state.replace(WriterState::ProcessPrint {
-                                    process_id: process_id,
+                                    process_id,
                                     context: new_context,
                                 });
                             } else {
@@ -966,7 +966,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                                 self.writer_state.replace(
                                                     WriterState::ProcessPrint {
                                                         process_id: proc.processid(),
-                                                        context: context,
+                                                        context,
                                                     },
                                                 );
                                             }

@@ -60,10 +60,10 @@ impl<U: 'static + hil::uart::UartAdvanced<'static>, G: 'static + hil::gpio::Pin>
         reset_pin: &'static G,
     ) -> Nrf51822Component<U, G> {
         Nrf51822Component {
-            board_kernel: board_kernel,
-            driver_num: driver_num,
-            uart: uart,
-            reset_pin: reset_pin,
+            board_kernel,
+            driver_num,
+            uart,
+            reset_pin,
         }
     }
 }

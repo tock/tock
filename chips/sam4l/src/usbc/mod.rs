@@ -1479,7 +1479,7 @@ impl<'a> hil::usb::UsbController<'a> for Usbc<'a> {
 
         match self.get_state() {
             State::Reset => self._enable(Mode::Device {
-                speed: speed,
+                speed,
                 config: DeviceConfig::default(),
                 state: DeviceState::default(),
             }),
