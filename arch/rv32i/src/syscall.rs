@@ -651,7 +651,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         let new_stack_pointer = state.regs[R_SP];
         (ret, Some(new_stack_pointer as *const u8))
     }
-
+    #[flux::ignore]
     unsafe fn print_context(
         &self,
         _accessible_memory_start: *const u8,
