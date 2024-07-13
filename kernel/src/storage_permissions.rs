@@ -72,6 +72,7 @@ impl StoragePermissions {
     /// kernel to read/update any stored item, and allows the kernel to write
     /// items that will not be accessible to any clients without superuser
     /// permissions.
+    #[flux::ignore]
     pub fn new_kernel_permissions(_cap: &dyn capabilities::KerneluserStorageCapability) -> Self {
         let read_permissions: [u32; 8] = [0; 8];
         let modify_permissions: [u32; 8] = [0; 8];

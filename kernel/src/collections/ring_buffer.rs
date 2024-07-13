@@ -6,13 +6,19 @@
 
 use crate::collections::queue;
 
+#[flux::refined_by(ring_len: int, head: int, tail: int)]
+#[flux::invariant(ring_len > 0)]
 pub struct RingBuffer<'a, T: 'a> {
+    #[flux::field({&mut [T][ring_len] | ring_len > 0})]
     ring: &'a mut [T],
+    #[flux::field({usize[head] | head < ring_len})]
     head: usize,
+    #[flux::field({usize[tail] | tail < ring_len})]
     tail: usize,
 }
 
 impl<'a, T: Copy> RingBuffer<'a, T> {
+    #[flux::sig(fn({&mut [T][@n] | n > 0}) -> RingBuffer<T>[n, 0, 0])]
     pub fn new(ring: &'a mut [T]) -> RingBuffer<'a, T> {
         RingBuffer {
             head: 0,
@@ -21,11 +27,17 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
         }
     }
 
+    #[flux::trusted]
+    #[flux::sig(fn(&RingBuffer<T>[@n,@h,@t]) -> usize[n])]
+    fn ring_len(&self) -> usize {
+        self.ring.len()
+    }
+
     /// Returns the number of elements that can be enqueued until the ring buffer is full.
     pub fn available_len(&self) -> usize {
-        // The maximum capacity of the queue is ring.len - 1, because head == tail for the empty
+        // The maximum capacity of the queue is ring_len - 1, because head == tail for the empty
         // queue.
-        self.ring.len().saturating_sub(1 + queue::Queue::len(self))
+        self.ring_len().saturating_sub(1 + queue::Queue::len(self))
     }
 
     /// Returns up to 2 slices that together form the contents of the ring buffer.
@@ -62,14 +74,14 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
     }
 
     fn is_full(&self) -> bool {
-        self.head == ((self.tail + 1) % self.ring.len())
+        self.head == ((self.tail + 1) % self.ring_len())
     }
 
     fn len(&self) -> usize {
         if self.tail > self.head {
             self.tail - self.head
         } else if self.tail < self.head {
-            (self.ring.len() - self.head) + self.tail
+            (self.ring_len() - self.head) + self.tail
         } else {
             // head equals tail, length is zero
             0
@@ -82,7 +94,7 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
             false
         } else {
             self.ring[self.tail] = val;
-            self.tail = (self.tail + 1) % self.ring.len();
+            self.tail = (self.tail + 1) % self.ring_len();
             true
         }
     }
@@ -90,21 +102,21 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
     fn push(&mut self, val: T) -> Option<T> {
         let result = if self.is_full() {
             let val = self.ring[self.head];
-            self.head = (self.head + 1) % self.ring.len();
+            self.head = (self.head + 1) % self.ring_len();
             Some(val)
         } else {
             None
         };
 
         self.ring[self.tail] = val;
-        self.tail = (self.tail + 1) % self.ring.len();
+        self.tail = (self.tail + 1) % self.ring_len();
         result
     }
 
     fn dequeue(&mut self) -> Option<T> {
         if self.has_elements() {
             let val = self.ring[self.head];
-            self.head = (self.head + 1) % self.ring.len();
+            self.head = (self.head + 1) % self.ring_len();
             Some(val)
         } else {
             None
@@ -153,7 +165,7 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
     where
         F: FnMut(&T) -> bool,
     {
-        let len = self.ring.len();
+        let len = self.ring_len();
         // Index over the elements before the retain operation.
         let mut src = self.head;
         // Index over the retained elements.
