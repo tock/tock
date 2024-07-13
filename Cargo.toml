@@ -163,7 +163,6 @@ zero_prefixed_literal = "allow"
 
 
 overflow_check_conditional = "allow"
-match-single-binding = "allow"
 
 
 # STYLE
