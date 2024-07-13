@@ -54,7 +54,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> UsbHidDriver<'a, U> {
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<{ rw_allow::COUNT }>>,
     ) -> UsbHidDriver<'a, U> {
         UsbHidDriver {
-            usb: usb,
+            usb,
             app: grant,
             processid: OptionalCell::empty(),
             phantom: PhantomData,

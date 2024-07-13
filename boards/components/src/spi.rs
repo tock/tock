@@ -162,9 +162,9 @@ impl<S: 'static + spi::SpiMaster<'static>> SpiSyscallComponent<S> {
         driver_num: usize,
     ) -> Self {
         SpiSyscallComponent {
-            board_kernel: board_kernel,
+            board_kernel,
             spi_mux: mux,
-            chip_select: chip_select,
+            chip_select,
             driver_num,
         }
     }
@@ -250,7 +250,7 @@ impl<S: 'static + spi::SpiMaster<'static>> SpiComponent<S> {
     pub fn new(mux: &'static MuxSpiMaster<'static, S>, chip_select: S::ChipSelect) -> Self {
         SpiComponent {
             spi_mux: mux,
-            chip_select: chip_select,
+            chip_select,
         }
     }
 }

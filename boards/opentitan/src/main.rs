@@ -842,15 +842,15 @@ unsafe fn setup() -> (
     let earlgrey = static_init!(
         EarlGrey,
         EarlGrey {
-            gpio,
             led,
+            gpio,
             console,
             alarm,
             hmac,
-            rng,
-            lldb: lldb,
+            lldb,
             i2c_master,
             spi_controller,
+            rng,
             aes,
             kv_driver,
             syscall_filter,

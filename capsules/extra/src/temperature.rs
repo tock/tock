@@ -83,7 +83,7 @@ impl<'a, T: hil::sensors::TemperatureDriver<'a>> TemperatureSensor<'a, T> {
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> TemperatureSensor<'a, T> {
         TemperatureSensor {
-            driver: driver,
+            driver,
             apps: grant,
             busy: Cell::new(false),
         }

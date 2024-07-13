@@ -25,7 +25,7 @@ pub struct MuxRngMaster<'a> {
 impl<'a> MuxRngMaster<'a> {
     pub const fn new(rng: &'a dyn Rng<'a>) -> MuxRngMaster<'a> {
         MuxRngMaster {
-            rng: rng,
+            rng,
             devices: List::new(),
             inflight: OptionalCell::empty(),
         }
@@ -110,7 +110,7 @@ impl<'a> ListNode<'a, VirtualRngMasterDevice<'a>> for VirtualRngMasterDevice<'a>
 impl<'a> VirtualRngMasterDevice<'a> {
     pub const fn new(mux: &'a MuxRngMaster<'a>) -> VirtualRngMasterDevice<'a> {
         VirtualRngMasterDevice {
-            mux: mux,
+            mux,
             next: ListLink::empty(),
             client: OptionalCell::empty(),
             operation: Cell::new(Op::Idle),

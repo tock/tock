@@ -516,8 +516,7 @@ impl FLASHCALW {
                 });
             }
             FlashState::WriteUnlocking { page } => {
-                self.current_state
-                    .set(FlashState::WriteErasing { page: page });
+                self.current_state.set(FlashState::WriteErasing { page });
                 self.flashcalw_erase_page(page);
             }
             FlashState::WriteErasing { page } => {

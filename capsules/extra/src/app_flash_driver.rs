@@ -85,7 +85,7 @@ impl<'a> AppFlash<'a> {
         buffer: &'static mut [u8],
     ) -> AppFlash<'a> {
         AppFlash {
-            driver: driver,
+            driver,
             apps: grant,
             current_app: OptionalCell::empty(),
             buffer: TakeCell::new(buffer),

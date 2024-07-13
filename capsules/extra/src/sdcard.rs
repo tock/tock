@@ -278,10 +278,10 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
 
         // set up and return struct
         SDCard {
-            spi: spi,
+            spi,
             state: Cell::new(SpiState::Idle),
             after_state: Cell::new(SpiState::Idle),
-            alarm: alarm,
+            alarm,
             alarm_state: Cell::new(AlarmState::Idle),
             alarm_count: Cell::new(0),
             is_initialized: Cell::new(false),
@@ -813,7 +813,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
                         self.read_bytes(write_buffer, read_buffer, 1);
                     } else {
                         // check for data block to be ready
-                        self.state.set(SpiState::WaitReadBlocks { count: count });
+                        self.state.set(SpiState::WaitReadBlocks { count });
                         self.read_bytes(write_buffer, read_buffer, 1);
                     }
                 } else {
@@ -890,7 +890,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
                 if read_buffer[0] == DATA_TOKEN {
                     // data ready to read. Read block plus CRC
                     self.alarm_count.set(0);
-                    self.state.set(SpiState::ReceivedBlock { count: count });
+                    self.state.set(SpiState::ReceivedBlock { count });
                     self.read_bytes(write_buffer, read_buffer, 512 + 2);
                 } else if read_buffer[0] == 0xFF {
                     // line is idling high, data is not ready
@@ -901,7 +901,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
 
                     // try again after 1 ms
                     self.alarm_state
-                        .set(AlarmState::WaitForDataBlocks { count: count });
+                        .set(AlarmState::WaitForDataBlocks { count });
                     let delay = self.alarm.ticks_from_ms(1);
                     self.alarm.set_alarm(self.alarm.now(), delay);
                 } else {
@@ -1210,7 +1210,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
                 self.txbuffer.take().map(|write_buffer| {
                     self.rxbuffer.take().map(move |read_buffer| {
                         // wait until ready and then read data block, then done
-                        self.state.set(SpiState::WaitReadBlocks { count: count });
+                        self.state.set(SpiState::WaitReadBlocks { count });
                         self.read_bytes(write_buffer, read_buffer, 1);
                     });
                 });
@@ -1313,7 +1313,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
                                     address *= 512;
                                 }
 
-                                self.state.set(SpiState::StartReadBlocks { count: count });
+                                self.state.set(SpiState::StartReadBlocks { count });
                                 if count == 1 {
                                     self.send_command(
                                         SDCmd::CMD17_ReadSingle,
@@ -1372,7 +1372,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
                                     address *= 512;
                                 }
 
-                                self.state.set(SpiState::StartWriteBlocks { count: count });
+                                self.state.set(SpiState::StartWriteBlocks { count });
                                 if count == 1 {
                                     self.send_command(
                                         SDCmd::CMD24_WriteSingle,

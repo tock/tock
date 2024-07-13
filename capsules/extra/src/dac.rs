@@ -29,7 +29,7 @@ pub struct Dac<'a> {
 
 impl<'a> Dac<'a> {
     pub fn new(dac: &'a dyn hil::dac::DacChannel) -> Dac<'a> {
-        Dac { dac: dac }
+        Dac { dac }
     }
 }
 

@@ -196,8 +196,8 @@ impl<'a> Fxos8700cq<'a> {
         buffer: &'static mut [u8],
     ) -> Fxos8700cq<'a> {
         Fxos8700cq {
-            i2c: i2c,
-            interrupt_pin1: interrupt_pin1,
+            i2c,
+            interrupt_pin1,
             state: Cell::new(State::Disabled),
             buffer: TakeCell::new(buffer),
             callback: OptionalCell::empty(),

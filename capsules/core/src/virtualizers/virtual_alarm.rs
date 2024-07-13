@@ -217,7 +217,7 @@ impl<'a, A: Alarm<'a>> MuxAlarm<'a, A> {
         MuxAlarm {
             virtual_alarms: List::new(),
             enabled: Cell::new(0),
-            alarm: alarm,
+            alarm,
             firing: Cell::new(false),
             next_tick_vals: Cell::new(None),
         }

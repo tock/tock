@@ -68,7 +68,7 @@ impl<'a> NineDof<'a> {
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> NineDof<'a> {
         NineDof {
-            drivers: drivers,
+            drivers,
             apps: grant,
             current_app: OptionalCell::empty(),
         }

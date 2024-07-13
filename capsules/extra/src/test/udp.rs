@@ -56,11 +56,11 @@ impl<'a, A: Alarm<'a>> MockUdp<'a, A> {
         net_cap: &'static NetworkCapability,
     ) -> MockUdp<'a, A> {
         MockUdp {
-            id: id,
-            alarm: alarm,
-            udp_sender: udp_sender,
-            udp_receiver: udp_receiver,
-            port_table: port_table,
+            id,
+            alarm,
+            udp_sender,
+            udp_receiver,
+            port_table,
             udp_dgram: MapCell::new(udp_dgram),
             src_port: Cell::new(0), // invalid initial value
             dst_port: Cell::new(dst_port),

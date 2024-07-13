@@ -280,15 +280,13 @@ unsafe fn start() -> (
         VirtualSchedulerTimer<VirtualMuxAlarm<'static, e310_g003::chip::E310xClint<'static>>>,
         VirtualSchedulerTimer::new(systick_virtual_alarm)
     );
-
     let hifive1 = HiFiveInventor {
-        console: console,
-        alarm: alarm,
-        lldb: lldb,
+        console,
+        lldb,
+        alarm,
         scheduler,
         scheduler_timer,
     };
-
     kernel::process::load_processes(
         board_kernel,
         chip,

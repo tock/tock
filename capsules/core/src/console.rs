@@ -126,7 +126,7 @@ impl<'a> Console<'a> {
         >,
     ) -> Console<'a> {
         Console {
-            uart: uart,
+            uart,
             apps: grant,
             tx_in_progress: OptionalCell::empty(),
             tx_buffer: TakeCell::new(tx_buffer),

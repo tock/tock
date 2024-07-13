@@ -351,8 +351,8 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
         crypt_buf: SubSliceMut<'static, u8>,
     ) -> Framer<'a, M, A> {
         Framer {
-            mac: mac,
-            aes_ccm: aes_ccm,
+            mac,
+            aes_ccm,
             data_sequence: Cell::new(0),
             key_procedure: OptionalCell::empty(),
             device_procedure: OptionalCell::empty(),
@@ -489,10 +489,10 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
 
                         Some(FrameInfo {
                             frame_type: header.frame_type,
-                            mac_payload_offset: mac_payload_offset,
-                            data_offset: data_offset,
-                            data_len: data_len,
-                            mic_len: mic_len,
+                            mac_payload_offset,
+                            data_offset,
+                            data_len,
+                            mic_len,
                             security_params: Some((security.level, key, nonce)),
                         })
                     }
@@ -800,10 +800,10 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
                 let nonce = get_ccm_nonce(&src_addr_long, frame_counter, level);
                 (
                     Security {
-                        level: level,
+                        level,
                         asn_in_nonce: false,
                         frame_counter: Some(frame_counter),
-                        key_id: key_id,
+                        key_id,
                     },
                     key,
                     nonce,
@@ -831,7 +831,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
             dst_addr: Some(dst_addr),
             src_pan: Some(src_pan),
             src_addr: Some(src_addr),
-            security: security,
+            security,
             header_ies: Default::default(),
             header_ies_len: 0,
             payload_ies: Default::default(),
@@ -840,13 +840,13 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
 
         match header.encode(buf, true).done() {
             Some((data_offset, mac_payload_offset)) => Ok(Frame {
-                buf: buf,
+                buf,
                 info: FrameInfo {
                     frame_type: FrameType::Data,
-                    mac_payload_offset: mac_payload_offset,
-                    data_offset: data_offset,
+                    mac_payload_offset,
+                    data_offset,
                     data_len: 0,
-                    mic_len: mic_len,
+                    mic_len,
                     security_params: security_desc.map(|(sec, key, nonce)| (sec.level, key, nonce)),
                 },
             }),

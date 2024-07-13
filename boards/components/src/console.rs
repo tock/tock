@@ -135,9 +135,9 @@ impl<const RX_BUF_LEN: usize, const TX_BUF_LEN: usize> ConsoleComponent<RX_BUF_L
         uart_mux: &'static MuxUart,
     ) -> ConsoleComponent<RX_BUF_LEN, TX_BUF_LEN> {
         ConsoleComponent {
-            board_kernel: board_kernel,
-            driver_num: driver_num,
-            uart_mux: uart_mux,
+            board_kernel,
+            driver_num,
+            uart_mux,
         }
     }
 }
@@ -208,13 +208,13 @@ impl<A: 'static + time::Alarm<'static>> ConsoleOrderedComponent<A> {
         write_timer: u32,
     ) -> ConsoleOrderedComponent<A> {
         ConsoleOrderedComponent {
-            board_kernel: board_kernel,
-            driver_num: driver_num,
-            uart_mux: uart_mux,
-            alarm_mux: alarm_mux,
-            atomic_size: atomic_size,
-            retry_timer: retry_timer,
-            write_timer: write_timer,
+            board_kernel,
+            driver_num,
+            uart_mux,
+            alarm_mux,
+            atomic_size,
+            retry_timer,
+            write_timer,
         }
     }
 }

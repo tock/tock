@@ -76,7 +76,7 @@ impl<'a, I: I2CDevice> BMM150<'a, I> {
     pub fn new(buffer: &'static mut [u8], i2c: &'a I) -> BMM150<'a, I> {
         BMM150 {
             buffer: TakeCell::new(buffer),
-            i2c: i2c,
+            i2c,
             ninedof_client: OptionalCell::empty(),
             state: Cell::new(State::Suspend),
         }

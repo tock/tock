@@ -358,11 +358,11 @@ where
         alarm: &'a A,
     ) -> BLE<'a, B, A> {
         BLE {
-            radio: radio,
+            radio,
             busy: Cell::new(false),
             app: container,
             kernel_tx: kernel::utilities::cells::TakeCell::new(tx_buf),
-            alarm: alarm,
+            alarm,
             sending_app: OptionalCell::empty(),
             receiving_app: OptionalCell::empty(),
         }

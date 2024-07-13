@@ -184,16 +184,16 @@ impl<'a, A: time::Alarm<'a>> IP6SendStruct<'a, A> {
     ) -> IP6SendStruct<'a, A> {
         IP6SendStruct {
             ip6_packet: TakeCell::new(ip6_packet),
-            alarm: alarm,
+            alarm,
             src_addr: Cell::new(IPAddr::new()),
             gateway: Cell::new(dst_mac_addr),
             tx_buf: TakeCell::new(tx_buf),
-            sixlowpan: sixlowpan,
-            radio: radio,
-            dst_mac_addr: dst_mac_addr,
-            src_mac_addr: src_mac_addr,
+            sixlowpan,
+            radio,
+            dst_mac_addr,
+            src_mac_addr,
             client: OptionalCell::empty(),
-            ip_vis: ip_vis,
+            ip_vis,
         }
     }
 

@@ -453,17 +453,17 @@ unsafe fn start() -> (
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let imxrt1050 = Imxrt1050EVKB {
-        console: console,
+        console,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
-        led: led,
-        button: button,
-        ninedof: ninedof,
-        alarm: alarm,
-        gpio: gpio,
+        led,
+        button,
+        ninedof,
+        alarm,
+        gpio,
 
         scheduler,
         systick: cortexm7::systick::SysTick::new_with_calibration(792_000_000),

@@ -134,7 +134,7 @@ impl<IP: 'static + gpio::InterruptPin<'static>> GpioComponent<IP> {
         gpio_pins: &'static [Option<&'static gpio::InterruptValueWrapper<'static, IP>>],
     ) -> Self {
         Self {
-            board_kernel: board_kernel,
+            board_kernel,
             driver_num,
             gpio_pins,
         }

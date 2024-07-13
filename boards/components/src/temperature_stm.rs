@@ -46,8 +46,8 @@ impl<A: 'static + adc::Adc<'static>> TemperatureSTMComponent<A> {
         TemperatureSTMComponent {
             adc_mux,
             adc_channel,
-            slope: slope,
-            v_25: v_25,
+            slope,
+            v_25,
         }
     }
 }

@@ -84,7 +84,7 @@ impl<'a> SoundPressureSensor<'a> {
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> SoundPressureSensor<'a> {
         SoundPressureSensor {
-            driver: driver,
+            driver,
             apps: grant,
             busy: Cell::new(false),
         }

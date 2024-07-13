@@ -162,11 +162,11 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
         write_timer: u32,
     ) -> ConsoleOrdered<'a, A> {
         ConsoleOrdered {
-            uart: uart,
+            uart,
             apps: grant,
             tx_in_progress: Cell::new(false),
             tx_counter: Cell::new(0),
-            alarm: alarm,
+            alarm,
 
             rx_counter: Cell::new(0),
             rx_in_progress: OptionalCell::empty(),

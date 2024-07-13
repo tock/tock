@@ -577,18 +577,18 @@ unsafe fn start() -> (
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let stm32f429i_discovery = STM32F429IDiscovery {
-        console: console,
+        console,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
         adc: adc_syscall,
-        led: led,
+        led,
         temperature: temp,
-        button: button,
-        alarm: alarm,
-        gpio: gpio,
+        button,
+        alarm,
+        gpio,
 
         scheduler,
         systick: cortexm4::systick::SysTick::new(),

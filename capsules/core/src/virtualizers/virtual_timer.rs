@@ -197,7 +197,7 @@ impl<'a, A: Alarm<'a>> MuxTimer<'a, A> {
         MuxTimer {
             timers: List::new(),
             enabled: Cell::new(0),
-            alarm: alarm,
+            alarm,
         }
     }
 

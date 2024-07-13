@@ -790,7 +790,7 @@ pub struct Stream<'a, DMA: StreamServer<'a>> {
 impl<'a, DMA: StreamServer<'a>> Stream<'a, DMA> {
     fn new(streamid: StreamId, dma: &'a DMA) -> Self {
         Self {
-            streamid: streamid,
+            streamid,
             buffer: TakeCell::empty(),
             client: OptionalCell::empty(),
             peripheral: OptionalCell::empty(),

@@ -110,10 +110,10 @@ impl<'a, B: hil::buzzer::Buzzer<'a>> Buzzer<'a, B> {
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> Buzzer<'a, B> {
         Buzzer {
-            buzzer: buzzer,
+            buzzer,
             apps: grant,
             active_app: OptionalCell::empty(),
-            max_duration_ms: max_duration_ms,
+            max_duration_ms,
         }
     }
 

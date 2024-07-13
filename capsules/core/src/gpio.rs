@@ -82,10 +82,7 @@ impl<'a, IP: gpio::InterruptPin<'a>> GPIO<'a, IP> {
                 pin.set_value(i as u32);
             }
         }
-        Self {
-            pins: pins,
-            apps: grant,
-        }
+        Self { pins, apps: grant }
     }
 
     fn configure_input_pin(&self, pin_num: u32, config: usize) -> CommandReturn {

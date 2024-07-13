@@ -18,7 +18,7 @@ pub struct TestCrc<'a, C: 'a> {
 impl<'a, C: Crc<'a>> TestCrc<'a, C> {
     pub fn new(crc: &'a C, data: &'static mut [u8]) -> Self {
         TestCrc {
-            crc: crc,
+            crc,
             data: TakeCell::new(data),
         }
     }

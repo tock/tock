@@ -170,12 +170,12 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
         data_6_pin.make_output();
         data_7_pin.make_output();
         let hd44780 = HD44780 {
-            rs_pin: rs_pin,
-            en_pin: en_pin,
-            data_4_pin: data_4_pin,
-            data_5_pin: data_5_pin,
-            data_6_pin: data_6_pin,
-            data_7_pin: data_7_pin,
+            rs_pin,
+            en_pin,
+            data_4_pin,
+            data_5_pin,
+            data_6_pin,
+            data_7_pin,
             width: Cell::new(width),
             height: Cell::new(height),
             display_function: Cell::new(LCD_4BITMODE | LCD_1LINE | LCD_5X8DOTS),
@@ -183,7 +183,7 @@ impl<'a, A: Alarm<'a>> HD44780<'a, A> {
             display_mode: Cell::new(0),
             num_lines: Cell::new(0),
             row_offsets: TakeCell::new(row_offsets),
-            alarm: alarm,
+            alarm,
             lcd_status: Cell::new(LCDStatus::Idle),
             lcd_after_pulse_status: Cell::new(LCDStatus::Idle),
             lcd_after_command_status: Cell::new(LCDStatus::Idle),

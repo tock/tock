@@ -97,8 +97,8 @@ impl<A: 'static + time::Alarm<'static>> AlarmDriverComponent<A> {
         mux: &'static MuxAlarm<'static, A>,
     ) -> AlarmDriverComponent<A> {
         AlarmDriverComponent {
-            board_kernel: board_kernel,
-            driver_num: driver_num,
+            board_kernel,
+            driver_num,
             alarm_mux: mux,
         }
     }

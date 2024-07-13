@@ -26,8 +26,8 @@ pub struct TestRng<'a> {
 impl<'a> TestRng<'a> {
     pub fn new(device_id: usize, device: &'a VirtualRngMasterDevice<'a>) -> TestRng<'a> {
         TestRng {
-            device_id: device_id,
-            device: device,
+            device_id,
+            device,
             num_requests: Cell::new(NUM_REQUESTS),
         }
     }
