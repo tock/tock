@@ -18,7 +18,9 @@ use kernel::utilities::registers::interfaces::{Readable, Writeable};
 pub mod clic;
 pub mod machine_timer;
 pub mod pmp;
+#[flux::ignore]
 pub mod support;
+#[flux::ignore]
 pub mod syscall;
 
 // Re-export the shared CSR library so that dependent crates do not have to have
