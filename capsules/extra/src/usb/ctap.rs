@@ -153,9 +153,7 @@ impl<'a, U: hil::usb::UsbController<'a>> CtapHid<'a, U> {
                     max_packet_size_ep0: MAX_CTRL_PACKET_SIZE,
                     ..descriptors::DeviceDescriptor::default()
                 },
-                descriptors::ConfigurationDescriptor {
-                    ..descriptors::ConfigurationDescriptor::default()
-                },
+                descriptors::ConfigurationDescriptor::default(),
                 interfaces,
                 endpoints,
                 Some(&HID_DESCRIPTOR),
