@@ -43,47 +43,6 @@ endif
 # cargo `--target_dir`.
 TARGET_DIRECTORY ?= $(TOCK_ROOT_DIRECTORY)target/
 
-# RUSTC_FLAGS_TOCK by default extends RUSTC_FLAGS with options that are global
-# to all Tock boards.
-#
-# We use `remap-path-prefix` to remove user-specific filepath strings for error
-# reporting from appearing in the generated binary. The first line is used for
-# remapping the tock directory, and the second line is for remapping paths to
-# the source code of the core library, which end up in the binary as a result of
-# our use of `-Zbuild-std=core`.
-RUSTC_FLAGS_TOCK ?= \
-  $(RUSTC_FLAGS) \
-  --remap-path-prefix=$(TOCK_ROOT_DIRECTORY)= \
-  --remap-path-prefix=$(RUSTC_SYSROOT)/lib/rustlib/src/rust/library/core=/core/
-
-# Disallow warnings only for continuous integration builds. Disallowing them
-# here using the `RUSTC_FLAGS_TOCK` variable ensures that warnings during
-# testing won't prevent compilation from succeeding.
-ifeq ($(NOWARNINGS),true)
-  RUSTC_FLAGS_TOCK += -D warnings
-endif
-
-# The following flags should only be passed to the board's binary crate, but
-# not to any of its dependencies (the kernel, capsules, chips, etc.). The
-# dependencies wouldn't use it, but because the link path is different for each
-# board, Cargo wouldn't be able to cache builds of the dependencies.
-#
-# Indeed, as far as Cargo is concerned, building the kernel with
-# `-C link-arg=-L/tock/boards/imix` is different than building the kernel with
-# `-C link-arg=-L/tock/boards/hail`, so Cargo would have to rebuild the kernel
-# for each board instead of caching it per board (even if in reality the same
-# kernel is built because the link-arg isn't used by the kernel).
-#
-# Ultimately, this should move to the Cargo.toml, for example when
-# https://github.com/rust-lang/cargo/pull/7811 is merged into Cargo.
-#
-# The difference between `RUSTC_FLAGS_TOCK` and `RUSTC_FLAGS_FOR_BIN` is that
-# the former is forwarded to all the dependencies (being passed to cargo via
-# the `RUSTFLAGS` environment variable), whereas the latter is only applied to
-# the final binary crate (being passed as parameter to `cargo rustc`).
-RUSTC_FLAGS_FOR_BIN ?= \
-  -C link-arg=-L$(abspath .) \
-
 # http://stackoverflow.com/questions/10858261/abort-makefile-if-variable-not-set
 # Check that given variables are set and all have non-empty values, print an
 # error otherwise.
@@ -188,17 +147,6 @@ OBJCOPY_FLAGS ?= --strip-sections --strip-all --remove-section .apps
 # Cargo.toml.
 CARGO_FLAGS ?=
 
-# Add default flags to cargo. Boards can add additional options in
-# `CARGO_FLAGS`.
-CARGO_FLAGS_TOCK ?= \
-  $(VERBOSE_FLAGS) \
-  --target=$(TARGET) \
-  --package $(PLATFORM) \
-  --target-dir=$(TARGET_DIRECTORY) $(CARGO_FLAGS)
-
-# Add default flags to rustdoc.
-RUSTDOC_FLAGS_TOCK ?= -D warnings --document-private-items
-
 # Set the default flags we need for objdump to get a .lst file.
 OBJDUMP_FLAGS ?= --disassemble-all --source --section-headers --demangle
 
@@ -218,13 +166,6 @@ CARGO_BLOAT_FLAGS ?=
 # Additional flags that can be passed to print_tock_memory_usage.py via an
 # environment variable. By default, pass an empty string.
 PTMU_ARGS ?=
-
-# `cargo bloat` does not support `-Z build-std`, so we must remove it from cargo
-# flags. See https://github.com/RazrFalcon/cargo-bloat/issues/62.
-# As we aren't building the library we also remove the
-# `-Z build-std-features="core/optimize_for_size"` argument.
-CARGO_FLAGS_TOCK_NO_BUILD_STD := $(filter-out -Z build-std=core,$(CARGO_FLAGS_TOCK))
-CARGO_FLAGS_TOCK_NO_BUILD_STD := $(filter-out -Z build-std-features="core/optimize_for_size",$(CARGO_FLAGS_TOCK))
 
 # Check whether the system already has a sha256sum or shasum application
 # present. If not, use the custom shipped one.
@@ -254,14 +195,10 @@ ifeq ($(VERBOSE_MODE),1)
   $(info PLATFORM                      = $(PLATFORM))
   $(info TARGET                        = $(TARGET))
   $(info TOCK_KERNEL_VERSION           = $(TOCK_KERNEL_VERSION))
-  $(info RUSTC_FLAGS                   = $(RUSTC_FLAGS))
-  $(info RUSTC_FLAGS_TOCK              = $(RUSTC_FLAGS_TOCK))
   $(info MAKEFLAGS                     = $(MAKEFLAGS))
   $(info OBJDUMP_FLAGS                 = $(OBJDUMP_FLAGS))
   $(info OBJCOPY_FLAGS                 = $(OBJCOPY_FLAGS))
   $(info CARGO_FLAGS                   = $(CARGO_FLAGS))
-  $(info CARGO_FLAGS_TOCK              = $(CARGO_FLAGS_TOCK))
-  $(info CARGO_FLAGS_TOCK_NO_BUILD_STD = $(CARGO_FLAGS_TOCK_NO_BUILD_STD))
   $(info SIZE_FLAGS                    = $(SIZE_FLAGS))
   $(info CARGO_BLOAT_FLAGS             = $(CARGO_BLOAT_FLAGS))
   $(info )
@@ -291,12 +228,12 @@ all: release
 # binary. This makes checking for Rust errors much faster.
 .PHONY: check
 check:
-	$(Q)$(CARGO) check $(VERBOSE_FLAGS) $(CARGO_FLAGS_TOCK)
+	$(Q)$(CARGO) check $(VERBOSE_FLAGS) $(CARGO_FLAGS)
 
 
 .PHONY: clean
 clean::
-	$(Q)$(CARGO) clean $(VERBOSE_FLAGS) --target-dir=$(TARGET_DIRECTORY)
+	$(Q)$(CARGO) clean $(VERBOSE_FLAGS)
 
 .PHONY: release
 release:  $(TARGET_PATH)/release/$(PLATFORM).bin
@@ -309,7 +246,7 @@ debug-lst:  $(TARGET_PATH)/debug/$(PLATFORM).lst
 
 .PHONY: doc
 doc: | target
-	$(Q)RUSTDOCFLAGS='$(RUSTDOC_FLAGS_TOCK)' $(CARGO) --color=always doc $(VERBOSE_FLAGS) --release --package $(PLATFORM)
+	$(Q)$(CARGO) --color=always doc $(VERBOSE_FLAGS) --release --package $(PLATFORM)
 
 
 .PHONY: lst
@@ -322,32 +259,22 @@ show-target:
 	$(info $(TARGET))
 
 # This rule is a copy of the rule used to build the release target, but `cargo
-# rustc` has been replaced with `cargo bloat`. `cargo bloat` replicates the
-# interface of `cargo build`, rather than `cargo rustc`, so we need to move
-# `RUSTC_FLAGS_FOR_BIN` into the `RUSTFLAGS` environment variable. This only
-# means that cargo cannot reuse built dependencies built using `cargo bloat`.
-# See the discussion on `RUSTC_FLAGS_FOR_BIN` above for additional details. To
-# pass additional flags to `cargo bloat`, populate the CARGO_BLOAT_FLAGS
-# environment variable, e.g. run `CARGO_BLOAT_FLAGS=--crates make cargobloat`
+# rustc` has been replaced with `cargo bloat`.
 .PHONY: cargobloat
 cargobloat:
-	$(Q)$(CARGO) install cargo-bloat > /dev/null 2>&1 ||  echo 'Error: Failed to install cargo-bloat'
-	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK) $(RUSTC_FLAGS_FOR_BIN)" CARGO_FLAGS="-Z build-std=core" $(CARGO) bloat $(CARGO_FLAGS_TOCK_NO_BUILD_STD) --bin $(PLATFORM) --release $(CARGO_BLOAT_FLAGS)
+	$(Q)$(CARGO) bloat --bin $(PLATFORM) --release $(CARGO_BLOAT_FLAGS)
 
 # To pass additional flags to `cargo cargobloatnoinline`, populate the
 # CARGO_BLOAT_FLAGS environment variable, e.g. run `CARGO_BLOAT_FLAGS=--crates
 # make cargobloatnoinline`
 .PHONY: cargobloatnoinline
 cargobloatnoinline:
-	$(Q)$(CARGO) install cargo-bloat > \dev\null 2>&1 ||  echo 'Error: Failed to install cargo-bloat'
-	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK) -C inline-threshold=0 $(RUSTC_FLAGS_FOR_BIN)" $(CARGO) bloat $(CARGO_FLAGS_TOCK) --bin $(PLATFORM) --release $(CARGO_BLOAT_FLAGS)
+	$(Q)RUSTFLAGS="-C inline-threshold=0" $(CARGO) bloat $(CARGO_FLAGS_TOCK) --bin $(PLATFORM) --release $(CARGO_BLOAT_FLAGS)
 
 .PHONY: stack-analysis
-#stack_analysis: RUSTC_FLAGS_TOCK += -Z emit-stack-sizes
-stack-analysis:
+stack-analysis: $(TARGET_PATH)/release/$(PLATFORM)
 	@$ echo $(PLATFORM)
 	@$ echo ----------------------
-	$(Q)$(MAKE) release RUSTC_FLAGS="$(RUSTC_FLAGS) -Z emit-stack-sizes" $(DEVNULL) 2>&1
 	$(Q)$(TOCK_ROOT_DIRECTORY)/tools/stack_analysis.sh $(TARGET_PATH)/release/$(PLATFORM).elf
 
 # Run the `print_tock_memory_usage.py` script for this board.
@@ -383,10 +310,10 @@ $(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum:
 
 .PHONY: $(TARGET_PATH)/release/$(PLATFORM)
 $(TARGET_PATH)/release/$(PLATFORM):
-	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" $(CARGO) rustc  $(CARGO_FLAGS_TOCK) --bin $(PLATFORM) --release -- $(RUSTC_FLAGS_FOR_BIN)
+	$(Q)$(CARGO) rustc  $(CARGO_FLAGS) --bin $(PLATFORM) --release
 	$(Q)$(SIZE) $(SIZE_FLAGS) $@
 
 .PHONY: $(TARGET_PATH)/debug/$(PLATFORM)
 $(TARGET_PATH)/debug/$(PLATFORM):
-	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" $(CARGO) rustc  $(CARGO_FLAGS_TOCK) --bin $(PLATFORM) -- $(RUSTC_FLAGS_FOR_BIN)
+	$(Q)$(CARGO) build  $(CARGO_FLAGS) --bin $(PLATFORM)
 	$(Q)$(SIZE) $(SIZE_FLAGS) $@

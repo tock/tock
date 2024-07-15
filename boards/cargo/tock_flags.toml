@@ -24,13 +24,18 @@ rustflags = [
   # Opt-in to Rust v0 symbol mangling scheme.  See
   # https://github.com/rust-lang/rust/issues/60705 and
   # https://github.com/tock/tock/issues/3529.
-  # https://github.com/rust-lang/rust/pull/89917 tracks this becoming the default, then we can remove this.
+  # https://github.com/rust-lang/rust/pull/89917 tracks this becoming the
+  # default, then we can remove this.
   "-C", "symbol-mangling-version=v0",
   # Enable link-time-optimization
   "-C", "lto",
+  # Have rustc generate stack sizes for analyzing the size of stack frames.
+  "-Z", "emit-stack-sizes",
 ]
-
 rustdocflags = [
+  # Error if there are warnings. This allows CI to fail on warnings.
   "-D", "warnings",
+  # Document internal code. This is helpful for understanding how the kernel
+  # works and developing within crates.
   "--document-private-items"
 ]
