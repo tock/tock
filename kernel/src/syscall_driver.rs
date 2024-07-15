@@ -29,6 +29,19 @@ impl CommandReturn {
         self.0
     }
 
+    /// Check whether the inner `SyscallReturn` value is successful
+    pub fn is_success(&self) -> bool {
+        matches!(
+            self.0,
+            SyscallReturn::Success
+                | SyscallReturn::SuccessU32(_)
+                | SyscallReturn::SuccessU32U32(_, _)
+                | SyscallReturn::SuccessU32U32U32(_, _, _)
+                | SyscallReturn::SuccessU32U64(_, _)
+                | SyscallReturn::SuccessU64(_)
+        )
+    }
+
     /// Command error
     pub fn failure(rc: ErrorCode) -> Self {
         CommandReturn(SyscallReturn::Failure(rc))
