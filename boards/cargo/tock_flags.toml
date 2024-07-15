@@ -30,7 +30,6 @@ rustflags = [
   "-C", "lto",
 ]
 
-[target.test]
 rustdocflags = [
   "-D", "warnings",
   "--document-private-items"
