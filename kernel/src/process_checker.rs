@@ -63,12 +63,27 @@ pub enum CheckResult {
     /// The associated value is an optional opaque nonzero usize the credential
     /// checker can return to communication some information about the accepted
     /// credential.
-    Accept(Option<core::num::NonZeroUsize>),
+    Accept(Option<CheckResultAcceptMetadata>),
     /// Go to the next credential or in the case of the last one fall
     /// back to the default policy.
     Pass,
     /// Reject the credential and do not run the binary.
     Reject,
+}
+
+/// Optional metadata the credential checker can attach to an accepted
+/// credential.
+///
+/// This metadata can be used to provide context for why or how the accepted
+/// credential was accepted. For example, this could be set to the index of a
+/// public key that was used to verify a cryptographic signature. This value can
+/// then be used by the AppId assigner to assign the correct AppId and
+/// [`ShortId`].
+#[derive(Debug, Copy, Clone)]
+pub struct CheckResultAcceptMetadata {
+    /// The metadata stored with the accepted credential is a usize that has an
+    /// application-specific meaning.
+    pub metadata: usize,
 }
 
 /// Receives callbacks on whether a credential was accepted or not.
@@ -99,7 +114,7 @@ pub struct AcceptedCredential {
     pub credential: TbfFooterV2Credentials,
     /// An optional opaque value set by the credential checker to store metadata
     /// about the accepted credential. This is credential checker specific.
-    pub metadata: Option<core::num::NonZeroUsize>,
+    pub metadata: Option<CheckResultAcceptMetadata>,
 }
 
 /// Implements a Credentials Checking Policy.

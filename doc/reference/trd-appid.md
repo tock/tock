@@ -549,7 +549,7 @@ which credentials, are acceptable and which are rejected.
 
 ```rust
 pub enum CheckResult {
-    Accept(Option<core::num::NonZeroUsize>),
+    Accept(Option<usize>),
     Pass,
     Reject
 }
@@ -582,7 +582,7 @@ each `TbfFooterV2Credentials` footer it encounters, the kernel calls
 `check_credentials` returns `CheckResult::Accept`, the kernel stops processing
 credentials and stores the process binary in the process binaries array.
 When an `AppCredentialsPolicy` accepts a credential it may include an opaque
-nonzero `usize` value. This will be stored along with the accepted credential
+`usize` value. This will be stored along with the accepted credential
 and allows the `AppCredentialsPolicy` to share information about the accepted
 credential. For example, if `AppCredentialsPolicy` is checking signatures, the
 opaque value may communicate the owner of the private key that validated the
