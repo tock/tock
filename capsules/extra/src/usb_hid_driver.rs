@@ -5,9 +5,6 @@
 //! Provides userspace with access to USB HID devices with a simple syscall
 //! interface.
 
-use core::cell::Cell;
-use core::marker::PhantomData;
-
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::usb_hid;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
@@ -23,24 +20,14 @@ mod rw_allow {
     pub const COUNT: u8 = 2;
 }
 
-pub struct App {
-    can_receive: Cell<bool>,
-}
-
-impl Default for App {
-    fn default() -> App {
-        App {
-            can_receive: Cell::new(false),
-        }
-    }
-}
+#[derive(Default)]
+pub struct App {}
 
 pub struct UsbHidDriver<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> {
     usb: Option<&'a U>,
 
     app: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<{ rw_allow::COUNT }>>,
     processid: OptionalCell<ProcessId>,
-    phantom: PhantomData<&'a U>,
 
     send_buffer: TakeCell<'static, [u8; 64]>,
     recv_buffer: TakeCell<'static, [u8; 64]>,
@@ -57,7 +44,6 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> UsbHidDriver<'a, U> {
             usb,
             app: grant,
             processid: OptionalCell::empty(),
-            phantom: PhantomData,
             send_buffer: TakeCell::new(send_buffer),
             recv_buffer: TakeCell::new(recv_buffer),
         }
@@ -112,24 +98,17 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Usb
         _endpoint: usize,
     ) {
         self.processid.map(|id| {
-            self.app
-                .enter(id, |app, kernel_data| {
-                    let _ = kernel_data
-                        .get_readwrite_processbuffer(rw_allow::RECV)
-                        .and_then(|recv| {
-                            recv.mut_enter(|dest| {
-                                dest.copy_from_slice(buffer);
-                            })
-                        });
+            let _ = self.app.enter(id, |_app, kernel_data| {
+                let _ = kernel_data
+                    .get_readwrite_processbuffer(rw_allow::RECV)
+                    .and_then(|recv| {
+                        recv.mut_enter(|dest| {
+                            dest.copy_from_slice(buffer);
+                        })
+                    });
 
-                    kernel_data.schedule_upcall(0, (0, 0, 0)).ok();
-                    app.can_receive.set(false);
-                })
-                .map_err(|err| {
-                    if err == kernel::process::Error::NoSuchApp
-                        || err == kernel::process::Error::InactiveApp
-                    {}
-                })
+                kernel_data.schedule_upcall(0, (0, 0, 0)).ok();
+            });
         });
 
         self.recv_buffer.replace(buffer);
@@ -142,29 +121,13 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Usb
         _endpoint: usize,
     ) {
         self.processid.map(|id| {
-            self.app
-                .enter(id, |_app, kernel_data| {
-                    kernel_data.schedule_upcall(0, (1, 0, 0)).ok();
-                })
-                .map_err(|err| {
-                    if err == kernel::process::Error::NoSuchApp
-                        || err == kernel::process::Error::InactiveApp
-                    {}
-                })
+            let _ = self.app.enter(id, |_app, kernel_data| {
+                kernel_data.schedule_upcall(0, (1, 0, 0)).ok();
+            });
         });
 
         // Save our send buffer so we can use it later
         self.send_buffer.replace(buffer);
-    }
-
-    fn can_receive(&'a self) -> bool {
-        self.processid
-            .map(|id| {
-                self.app
-                    .enter(id, |app, _| app.can_receive.get())
-                    .unwrap_or(false)
-            })
-            .unwrap_or(false)
     }
 }
 
@@ -185,14 +148,16 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for UsbHidDriver<'a, U>
         _data2: usize,
         processid: ProcessId,
     ) -> CommandReturn {
-        let can_access = self.processid.map_or(true, |owning_app| {
-            if owning_app == processid {
-                // We own the HID device
+        let can_access = self.processid.map_or_else(
+            || {
+                self.processid.set(processid);
                 true
-            } else {
-                false
-            }
-        });
+            },
+            |owning_app| {
+                // Check if we own the HID device
+                owning_app == processid
+            },
+        );
 
         if !can_access {
             return CommandReturn::failure(ErrorCode::BUSY);
@@ -233,10 +198,9 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for UsbHidDriver<'a, U>
             // Allow receive
             2 => self
                 .app
-                .enter(processid, |app, _| {
+                .enter(processid, |_app, _| {
                     self.processid.set(processid);
                     if let Some(usb) = self.usb {
-                        app.can_receive.set(true);
                         if let Some(buf) = self.recv_buffer.take() {
                             match usb.receive_buffer(buf) {
                                 Ok(()) => CommandReturn::success(),
@@ -308,48 +272,42 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for UsbHidDriver<'a, U>
             //            send buffer.
             5 => self
                 .app
-                .enter(processid, |app, kernel_data| {
+                .enter(processid, |_app, kernel_data| {
                     if let Some(usb) = self.usb {
-                        if app.can_receive.get() {
-                            // We are already receiving
-                            CommandReturn::failure(ErrorCode::BUSY)
-                        } else {
-                            app.can_receive.set(true);
-                            if let Some(buf) = self.recv_buffer.take() {
-                                match usb.receive_buffer(buf) {
-                                    Ok(()) => CommandReturn::success(),
-                                    Err((err, buffer)) => {
-                                        self.recv_buffer.replace(buffer);
-                                        return CommandReturn::failure(err);
-                                    }
+                        // First we try to setup a receive. If there is already
+                        // a receive we return `ErrorCode::ALREADY`. If the
+                        // receive fails we return an error.
+                        if let Some(buf) = self.recv_buffer.take() {
+                            match usb.receive_buffer(buf) {
+                                Ok(()) => {}
+                                Err((err, buffer)) => {
+                                    self.recv_buffer.replace(buffer);
+                                    return CommandReturn::failure(err);
                                 }
-                            } else {
-                                return CommandReturn::failure(ErrorCode::BUSY);
-                            };
-
-                            if !app.can_receive.get() {
-                                // The call to receive_buffer() collected a pending packet.
-                                CommandReturn::failure(ErrorCode::BUSY)
-                            } else {
-                                kernel_data
-                                    .get_readwrite_processbuffer(rw_allow::SEND)
-                                    .and_then(|send| {
-                                        send.enter(|data| {
-                                            self.send_buffer.take().map_or(
-                                                CommandReturn::failure(ErrorCode::BUSY),
-                                                |buf| {
-                                                    // Copy the data into the static buffer
-                                                    data.copy_to_slice(buf);
-
-                                                    let _ = usb.send_buffer(buf);
-                                                    CommandReturn::success()
-                                                },
-                                            )
-                                        })
-                                    })
-                                    .unwrap_or(CommandReturn::failure(ErrorCode::RESERVE))
                             }
-                        }
+                        } else {
+                            return CommandReturn::failure(ErrorCode::ALREADY);
+                        };
+
+                        // If we were able to setup a read then next we do the
+                        // transmit.
+                        kernel_data
+                            .get_readwrite_processbuffer(rw_allow::SEND)
+                            .and_then(|send| {
+                                send.enter(|data| {
+                                    self.send_buffer.take().map_or(
+                                        CommandReturn::failure(ErrorCode::BUSY),
+                                        |buf| {
+                                            // Copy the data into the static buffer
+                                            data.copy_to_slice(buf);
+
+                                            let _ = usb.send_buffer(buf);
+                                            CommandReturn::success()
+                                        },
+                                    )
+                                })
+                            })
+                            .unwrap_or(CommandReturn::failure(ErrorCode::FAIL))
                     } else {
                         CommandReturn::failure(ErrorCode::NOSUPPORT)
                     }
