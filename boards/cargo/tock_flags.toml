@@ -4,6 +4,9 @@
 
 [build]
 rustflags = [
+  # Set a sentinel cfg flag so that we know this configuration file was included
+  # in the build. This is checked in build.rs.
+  "--cfg", "cfg_tock_buildflagssentinel",
   # Tell rustc to use the LLVM linker. This avoids needing GCC as a dependency
   # to build the kernel.
   "-C", "linker=rust-lld",
