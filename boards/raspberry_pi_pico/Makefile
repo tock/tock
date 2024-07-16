@@ -4,10 +4,6 @@
 
 # Makefile for building the tock kernel for the Pico Explorer Base board.
 
-TOCK_ARCH=cortex-m0p
-TARGET=thumbv6m-none-eabi
-PLATFORM=raspberry_pi_pico
-
 include ../Makefile.common
 
 OPENOCD=openocd

@@ -4,8 +4,6 @@
 
 # Makefile for building the tock kernel for the SparkFun LoRa Thing Plus - expLoRaBLE
 #
-TARGET=thumbv7em-none-eabi
-PLATFORM=lora_things_plus
 
 include ../../Makefile.common
 

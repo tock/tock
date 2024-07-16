@@ -4,8 +4,6 @@
 
 # Makefile for building the tock kernel for the OpenTitan platform
 
-TARGET=riscv32imc-unknown-none-elf
-PLATFORM=earlgrey-cw310
 FLASHID=--dev-id="0403:6010"
 RISC_PREFIX ?= riscv64-linux-gnu
 QEMU ?= ../../../tools/qemu/build/qemu-system-riscv32

@@ -5,9 +5,6 @@
 # Makefile for building the Tock kernel for the qemu-system-riscv32 `virt`
 # platform / machine type.
 
-TARGET   = riscv32imac-unknown-none-elf
-PLATFORM = qemu_rv32_virt
-
 include ../Makefile.common
 
 QEMU_CMD             := qemu-system-riscv32

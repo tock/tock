@@ -4,9 +4,6 @@
 
 # Makefile for building the tock kernel for the SMA Q3 smart watch
 
-TARGET=thumbv7em-none-eabi
-PLATFORM=sma_q3
-
 include ../Makefile.common
 
 TOCKLOADER=tockloader

@@ -48,6 +48,23 @@ TARGET_DIRECTORY ?= $(TOCK_ROOT_DIRECTORY)target/
 # error otherwise.
 check_defined = $(strip $(foreach 1,$1,$(if $(value $1),,$(error Undefined variable "$1"))))
 
+
+# Get the name of the package by hacking the `cargo tree` command. This prints
+# the local package name first so we can use that to get the package name. Ex:
+#
+# wm1110dev v0.1.0 (/Users/bradjc/git/tock/boards/wm1110dev)
+# ├── capsules-core v0.1.0 (/Users/bradjc/git/tock/capsules/core)
+# │   ├── enum_primitive v0.1.0 (/Users/bradjc/git/tock/libraries/enum_primitive)
+PLATFORM := $(firstword $(shell $(CARGO) tree))
+# Set `TARGET` if not already defined. Note: this only works on nightly.
+ifeq ($(TARGET),)
+  # Get the specified target using the unstable `cargo config get` command.
+  TARGET_QUOTES := $(shell $(CARGO) config get --format json-value build.target)
+  # Remove the quotes from around the target name.
+  TARGET := $(patsubst "%",%,$(TARGET_QUOTES))
+endif
+
+
 # Check that we know the basics of what we are compiling for.
 # - `PLATFORM`: The name of the board that the kernel is being compiled for.
 # - `TARGET`  : The Rust target architecture the kernel is being compiled for.

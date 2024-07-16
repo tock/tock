@@ -4,8 +4,6 @@
 
 # Makefile for building the tock kernel for the ESP32-C3 platform
 
-TARGET=riscv32imc-unknown-none-elf
-PLATFORM=esp32-c3-board
 RISC_PREFIX = riscv64-linux-gnu
 
 include ../Makefile.common

@@ -4,8 +4,6 @@
 
 # Makefile for building the tock kernel for the RedBoard Artemis ATP platform
 #
-TARGET=thumbv7em-none-eabi
-PLATFORM=redboard_artemis_atp
 
 include ../../Makefile.common
 
