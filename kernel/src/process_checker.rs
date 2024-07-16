@@ -60,7 +60,7 @@ impl fmt::Debug for ProcessCheckError {
 pub enum CheckResult {
     /// Accept the credential and run the binary.
     ///
-    /// The associated value is an optional opaque nonzero usize the credential
+    /// The associated value is an optional opaque usize the credential
     /// checker can return to communication some information about the accepted
     /// credential.
     Accept(Option<CheckResultAcceptMetadata>),
