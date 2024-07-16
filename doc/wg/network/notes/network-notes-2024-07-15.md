@@ -7,7 +7,7 @@
     - Felix Mada
     - Ben Prevor
     - Alex Radovici
-    - Ionut
+    - Ionut Cirstea
 - **Agenda**
     1. Updates
     2. 802.15.4 Libtock-rs Driver
