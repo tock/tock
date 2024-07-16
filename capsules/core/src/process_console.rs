@@ -751,14 +751,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
     // Process the command in the command buffer and clear the buffer.
     fn read_command(&self) {
         self.command_buffer.map(|command| {
-            let mut terminator = 0;
-            let len = command.len();
-            for i in 0..len {
-                if command[i] == 0 {
-                    terminator = i;
-                    break;
-                }
-            }
+            let terminator = command.iter().position(|&x| x == 0).unwrap_or(0);
 
             // A command is valid only if it starts inside the buffer,
             // ends before the beginning of the buffer, and ends after
