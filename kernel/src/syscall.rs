@@ -199,19 +199,14 @@ pub enum Syscall {
 
     /// Structure representing an invocation of the UserspaceReadableAllow
     /// system call class that allows shared kernel and app access.
-    ///
-    /// - `driver_number`: the driver identifier
-    /// - `subdriver_number`: the buffer identifier
-    /// - `allow_address`: the address where the buffer starts
-    /// - `allow_size`: the size of the buffer in bytes
     UserspaceReadableAllow {
-        ///
+        /// The driver identifier.
         driver_number: usize,
-        ///
+        /// The buffer identifier.
         subdriver_number: usize,
-        ///
+        /// The address where the buffer starts.
         allow_address: *mut u8,
-        ///
+        /// The size of the buffer in bytes.
         allow_size: usize,
     },
 
