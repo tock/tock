@@ -274,7 +274,7 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         process: &'a dyn Process,
         grant_num: usize,
     ) -> Self {
-        let counters_ptr = base_ptr.as_ptr() as *mut usize;
+        let counters_ptr = base_ptr.as_ptr().cast::<usize>();
         let counters_val = counters_ptr.read();
 
         // Parse the counters field for each of the fields
@@ -282,9 +282,9 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
 
         // Skip over the counter usize, then the stored array of `SavedAllowRo`
         // items and `SavedAllowRw` items.
-        let upcalls_array = counters_ptr.add(1) as *mut SavedUpcall;
-        let allow_ro_array = upcalls_array.add(upcalls_num as usize) as *mut SavedAllowRo;
-        let allow_rw_array = allow_ro_array.add(allow_ro_num as usize) as *mut SavedAllowRw;
+        let upcalls_array = counters_ptr.add(1).cast::<SavedUpcall>();
+        let allow_ro_array = upcalls_array.add(upcalls_num as usize).cast::<SavedAllowRo>();
+        let allow_rw_array = allow_ro_array.add(allow_ro_num as usize).cast::<SavedAllowRw>();
 
         Self {
             process,
@@ -314,7 +314,7 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         process: &'a dyn Process,
         grant_num: usize,
     ) -> Self {
-        let counters_ptr = base_ptr.as_ptr() as *mut usize;
+        let counters_ptr = base_ptr.as_ptr().cast::<usize>();
 
         // Create the counters usize value by correctly packing the various
         // counts into 8 bit fields.
@@ -322,9 +322,9 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
             u32::from_be_bytes([0, allow_rw_num_val.0, allow_ro_num_val.0, upcalls_num_val.0])
                 as usize;
 
-        let upcalls_array = counters_ptr.add(1) as *mut SavedUpcall;
-        let allow_ro_array = upcalls_array.add(upcalls_num_val.0.into()) as *mut SavedAllowRo;
-        let allow_rw_array = allow_ro_array.add(allow_ro_num_val.0.into()) as *mut SavedAllowRw;
+        let upcalls_array = counters_ptr.add(1).cast::<SavedUpcall>();
+        let allow_ro_array = upcalls_array.add(upcalls_num_val.0.into()).cast::<SavedAllowRo>();
+        let allow_rw_array = allow_ro_array.add(allow_ro_num_val.0.into()).cast::<SavedAllowRw>();
 
         counters_ptr.write(counter);
         write_default_array(upcalls_array, upcalls_num_val.0.into());
@@ -1522,7 +1522,7 @@ impl<T> CustomGrant<T> {
                 // other references because the only way to create a reference
                 // is using this `enter()` function, and it can only be called
                 // once (because of the `&mut self` requirement).
-                let custom_grant = unsafe { &mut *(grant_ptr as *mut T) };
+                let custom_grant = unsafe { &mut *grant_ptr.cast::<T>() };
                 let borrowed = GrantData::new(custom_grant);
                 Ok(fun(borrowed))
             })

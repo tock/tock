@@ -3,18 +3,11 @@
 // Copyright Tock Contributors 2022.
 
 use core::fmt::Write;
-use core::panic::PanicInfo;
 
-use kernel::debug;
 use kernel::debug::IoWrite;
-use kernel::hil::led;
 use kernel::hil::uart;
-use nrf52833::gpio::Pin;
 use nrf52833::uart::{Uarte, UARTE0_BASE};
 
-use crate::CHIP;
-use crate::PROCESSES;
-use crate::PROCESS_PRINTER;
 
 /// Writer is used by kernel::debug to panic message to the serial port.
 pub struct Writer {
