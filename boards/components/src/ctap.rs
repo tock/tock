@@ -119,7 +119,7 @@ impl<U: 'static + hil::usb::UsbController<'static>> Component for CtapComponent<
         let recv_buffer = s.3.write([0; 64]);
 
         let ctap_driver = s.1.write(capsules_extra::usb_hid_driver::UsbHidDriver::new(
-            Some(ctap),
+            ctap,
             send_buffer,
             recv_buffer,
             self.board_kernel.create_grant(self.driver_num, &grant_cap),
