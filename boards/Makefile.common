@@ -39,8 +39,7 @@ else
   RUSTUP ?= true
 endif
 
-# Default location of target directory (relative to board makefile) passed to
-# cargo `--target_dir`.
+# Default location of target directory (relative to board makefile).
 TARGET_DIRECTORY ?= $(TOCK_ROOT_DIRECTORY)target/
 
 # http://stackoverflow.com/questions/10858261/abort-makefile-if-variable-not-set
@@ -256,7 +255,7 @@ debug:  $(TARGET_PATH)/debug/$(PLATFORM).bin
 debug-lst:  $(TARGET_PATH)/debug/$(PLATFORM).lst
 
 .PHONY: doc
-doc: | target
+doc:
 	$(Q)$(CARGO) --color=always doc $(VERBOSE_FLAGS) --release --package $(PLATFORM)
 
 
@@ -281,9 +280,6 @@ memory: $(TARGET_PATH)/release/$(PLATFORM).elf
 	$(TOCK_ROOT_DIRECTORY)tools/print_tock_memory_usage.py --objdump $(OBJDUMP) -w $(PTMU_ARGS) $<
 
 # Support rules
-
-target:
-	@mkdir -p $(TARGET_PATH)
 
 # Cargo outputs an elf file (just without a file extension)
 %.elf: %
