@@ -304,10 +304,10 @@ $(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum:
 
 .PHONY: $(TARGET_PATH)/release/$(PLATFORM)
 $(TARGET_PATH)/release/$(PLATFORM):
-	$(Q)$(CARGO) rustc  $(CARGO_FLAGS) --bin $(PLATFORM) --release
+	$(Q)$(CARGO) rustc $(VERBOSE_FLAGS) $(CARGO_FLAGS) --bin $(PLATFORM) --release
 	$(Q)$(SIZE) $(SIZE_FLAGS) $@
 
 .PHONY: $(TARGET_PATH)/debug/$(PLATFORM)
 $(TARGET_PATH)/debug/$(PLATFORM):
-	$(Q)$(CARGO) build  $(CARGO_FLAGS) --bin $(PLATFORM)
+	$(Q)$(CARGO) build $(VERBOSE_FLAGS) $(CARGO_FLAGS) --bin $(PLATFORM)
 	$(Q)$(SIZE) $(SIZE_FLAGS) $@
