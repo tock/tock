@@ -40,7 +40,7 @@ use crate::error_codes::ErrorCode;
 /// }
 ///
 /// impl FlashController<1024> for FlashCtrl {
-///     fn read_region(&self, region_number: usize, offset: usize, buf: &mut [u8; 1024]) -> Result<(), ErrorCode> {
+///     fn read_region(&self, region_number: usize, buf: &mut [u8; 1024]) -> Result<(), ErrorCode> {
 ///         unimplemented!()
 ///     }
 ///
@@ -56,8 +56,7 @@ use crate::error_codes::ErrorCode;
 pub trait FlashController<const S: usize> {
     /// This function must read the data from the flash region specified by
     /// `region_number` into `buf`. The length of the data read should be the
-    /// same length as buf. `offset` indicates an offset into the region that
-    /// should be read.
+    /// same length as buf.
     ///
     /// On success it should return nothing, on failure it
     /// should return ErrorCode::ReadFail.
@@ -71,12 +70,7 @@ pub trait FlashController<const S: usize> {
     /// `read_region()` has returned `ErrorCode::ReadNotReady(region_number)`
     /// the `read_region()` function will be called again and this time should
     /// return the data.
-    fn read_region(
-        &self,
-        region_number: usize,
-        offset: usize,
-        buf: &mut [u8; S],
-    ) -> Result<(), ErrorCode>;
+    fn read_region(&self, region_number: usize, buf: &mut [u8; S]) -> Result<(), ErrorCode>;
 
     /// This function must write the length of `buf` to the specified address
     /// in flash.

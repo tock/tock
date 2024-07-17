@@ -45,7 +45,6 @@
 //!     fn read_region(
 //!         &self,
 //!         region_number: usize,
-//!         offset: usize,
 //!         buf: &mut [u8; 1024],
 //!     ) -> Result<(), ErrorCode> {
 //!          // We aren't ready yet, launch the async operation
@@ -533,10 +532,9 @@ mod tests {
             fn read_region(
                 &self,
                 region_number: usize,
-                offset: usize,
                 _buf: &mut [u8; S],
             ) -> Result<(), ErrorCode> {
-                println!("Read from region: {}, offset: {offset}", region_number);
+                println!("Read from region: {}", region_number);
 
                 // Pretend that we aren't ready
                 self.async_read_region.set(region_number);
