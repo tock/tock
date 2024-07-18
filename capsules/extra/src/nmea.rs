@@ -9,7 +9,7 @@ use kernel::errorcode::into_statuscode;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
-use kernel::utilities::cells::TakeCell;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::{ErrorCode, ProcessId};
 
 /// Client for receiving NMEA sentences
@@ -84,6 +84,7 @@ pub struct Nmea<'a> {
     driver: &'a dyn NmeaDevice<'a>,
     apps: Grant<App, UpcallCount<1>, AllowRoCount<1>, AllowRwCount<1>>,
     operation: Cell<Operation>,
+    write_app: OptionalCell<ProcessId>,
     buffer: TakeCell<'static, [u8]>,
 }
 
@@ -97,6 +98,7 @@ impl<'a> Nmea<'a> {
             driver,
             apps: grant,
             operation: Cell::new(Operation::None),
+            write_app: OptionalCell::empty(),
             buffer: TakeCell::new(buffer),
         }
     }
@@ -104,29 +106,36 @@ impl<'a> Nmea<'a> {
 
 impl NmeaClient for Nmea<'_> {
     fn callback(&self, buffer: &'static mut [u8], len: usize, status: Result<(), ErrorCode>) {
-        for cntr in self.apps.iter() {
-            cntr.enter(|app, kernel_data| {
-                if app.operation == Operation::Read {
-                    app.operation = Operation::None;
+        if self.operation.get() == Operation::Read {
+            for cntr in self.apps.iter() {
+                cntr.enter(|app, kernel_data| {
+                    if app.operation == Operation::Read {
+                        app.operation = Operation::None;
 
-                    if status.is_err() {
-                        kernel_data
-                            .schedule_upcall(0, (into_statuscode(Err(ErrorCode::FAIL)), 0, 0))
-                            .ok();
-                    } else {
-                        let _ = kernel_data.get_readwrite_processbuffer(0).and_then(|dest| {
-                            dest.mut_enter(|dest| {
-                                let copy_len = dest.len().min(len);
+                        if status.is_err() {
+                            kernel_data
+                                .schedule_upcall(0, (into_statuscode(Err(ErrorCode::FAIL)), 0, 0))
+                                .ok();
+                        } else {
+                            let _ = kernel_data.get_readwrite_processbuffer(0).and_then(|dest| {
+                                dest.mut_enter(|dest| {
+                                    let copy_len = dest.len().min(len);
 
-                                dest[0..copy_len].copy_from_slice(&buffer[0..copy_len]);
-                            })
-                        });
+                                    dest[0..copy_len].copy_from_slice(&buffer[0..copy_len]);
+                                })
+                            });
 
-                        kernel_data
-                            .schedule_upcall(0, (into_statuscode(Ok(())), len, 0))
-                            .ok();
+                            kernel_data
+                                .schedule_upcall(0, (into_statuscode(Ok(())), len, 0))
+                                .ok();
+                        }
                     }
-                } else if app.operation == Operation::Write {
+                });
+            }
+        } else if self.operation.get() == Operation::Write {
+            let _ = self
+                .apps
+                .enter(self.write_app.get().unwrap(), |app, kernel_data| {
                     app.operation = Operation::None;
 
                     // Only a single application can write at a time
@@ -139,8 +148,7 @@ impl NmeaClient for Nmea<'_> {
                             .schedule_upcall(0, (into_statuscode(Ok(())), len, 0))
                             .ok();
                     }
-                }
-            });
+                });
         }
 
         self.buffer.replace(buffer);
@@ -202,6 +210,11 @@ impl SyscallDriver for Nmea<'_> {
                     return CommandReturn::failure(ErrorCode::BUSY);
                 }
 
+                if self.write_app.is_some() && self.write_app.get() != Some(processid) {
+                    // We only allow 1 application to write data
+                    return CommandReturn::failure(ErrorCode::INVAL);
+                }
+
                 self.apps
                     .enter(processid, |app, kernel_data| {
                         self.buffer
@@ -209,6 +222,7 @@ impl SyscallDriver for Nmea<'_> {
                             .map_or(CommandReturn::failure(ErrorCode::BUSY), |buf| {
                                 app.operation = Operation::Write;
                                 self.operation.set(Operation::Write);
+                                self.write_app.set(processid);
 
                                 let _ = kernel_data.get_readonly_processbuffer(0).and_then(
                                     |sentence| {
