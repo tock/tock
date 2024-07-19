@@ -60,6 +60,7 @@ pub struct NonvolatileStorageComponent<
     userspace_length: usize,
     kernel_start: usize,
     kernel_length: usize,
+    app_region_size: usize,
 }
 
 impl<
@@ -76,6 +77,7 @@ impl<
         userspace_length: usize,
         kernel_start: usize,
         kernel_length: usize,
+        app_region_size: usize,
     ) -> Self {
         Self {
             board_kernel,
@@ -85,6 +87,7 @@ impl<
             userspace_length,
             kernel_start,
             kernel_length,
+            app_region_size,
         }
     }
 }
@@ -126,6 +129,7 @@ impl<
             self.userspace_length, // Length of userspace accessible region
             self.kernel_start,    // Start address of kernel region
             self.kernel_length,   // Length of kernel region
+            self.app_region_size, // Length of region accessible to each app
             buffer,
         ));
         hil::nonvolatile_storage::NonvolatileStorage::set_client(nv_to_page, nonvolatile_storage);
