@@ -12,6 +12,7 @@ use crate::process;
 use crate::scheduler::Scheduler;
 use crate::syscall;
 use crate::syscall_driver::SyscallDriver;
+use crate::smp;
 use tock_tbf::types::CommandPermissions;
 
 /// Combination trait that boards provide to the kernel that includes all of
@@ -75,7 +76,8 @@ pub trait KernelResources<C: Chip> {
     fn watchdog(&self) -> &Self::WatchDog;
 
     /// Return a shared buffer between kernels
-    unsafe fn shared_buffer(&self) -> &mut [u8];
+    type SharedChannel: smp::shared_channel::SharedChannel;
+    fn shared_channel(&self) -> &Self::SharedChannel;
 }
 
 /// Configure the system call dispatch mapping.

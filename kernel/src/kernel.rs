@@ -435,8 +435,8 @@ impl Kernel {
         chip: &C,
         ipc: Option<&ipc::IPC<NUM_PROCS>>,
         capability: &dyn capabilities::MainLoopCapability,
-        buf: Option<&[u8]>,
         counter: Option<&core::sync::atomic::AtomicUsize>,
+        closure: Option<&dyn Fn()>,
     ) -> ! {
         resources.watchdog().setup();
 
@@ -446,30 +446,13 @@ impl Kernel {
         }
         let id = unsafe { DynThreadId::new(hart_id) };
 
-        // let timer = qemu_rv32_virt_chip::chip::QemuRv32VirtClint::new(&qemu_rv32_virt_chip::clint::CLINT_BASE);
+        let mut data = core::sync::atomic::AtomicUsize::new(0);
 
         // Before we begin, verify that deferred calls were soundly setup.
         DeferredCall::verify_setup();
         loop {
-            self.kernel_loop_operation(resources, chip, ipc, false, capability);
-            if let Some(c) = counter {
-                let num = c.load(core::sync::atomic::Ordering::Relaxed);
-                debug!("counter = {:?}", num);
-
-                if num == 0 {
-                    unsafe {
-                        resources.shared_buffer()[18] = 101;
-                    }
-                    chip.notify(&id);
-                }
-                //     use qemu_rv32_virt_chip::channel::SHARED_CHANNEL_BUFFER;
-                //     unsafe {
-                //         SHARED_CHANNEL_BUFFER[0] = 10;
-                //         SHARED_CHANNEL_BUFFER[1] = 5;
-                //         SHARED_CHANNEL_BUFFER[58] = 101;
-                //     }
-                // resources.scheduler_timer.
-            }
+            self.kernel_loop_operation(resources, chip, ipc, true, capability);
+            closure.unwrap()();
         }
     }
 

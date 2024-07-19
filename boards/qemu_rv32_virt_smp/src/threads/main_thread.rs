@@ -8,11 +8,14 @@ use kernel::platform::KernelResources;
 use kernel::platform::SyscallDriverLookup;
 use kernel::scheduler::cooperative::CooperativeSched;
 use kernel::platform::chip::Chip;
-use kernel::threadlocal;
-use kernel::threadlocal::ConstThreadId;
-use kernel::threadlocal::ThreadId;
-use kernel::threadlocal::ThreadLocalAccessStatic;
-use kernel::threadlocal::ThreadLocalDynInit;
+use kernel::threadlocal::{
+    self,
+    ThreadId,
+    ConstThreadId,
+    ThreadLocalAccessStatic,
+    ThreadLocalDynInit,
+    ThreadLocalDyn
+};
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::{create_capability, debug, static_init};
 use kernel::{thread_local_static_init, thread_local_static_finalize, thread_local_static, thread_local_static_access};
@@ -25,6 +28,8 @@ use kernel::utilities::registers::interfaces::Readable;
 use kernel::threadlocal::DynThreadId;
 
 use qemu_rv32_virt_chip::MAX_THREADS;
+
+use core::ptr::{addr_of, addr_of_mut};
 
 use crate::CHIP;
 
@@ -76,6 +81,7 @@ struct QemuRv32VirtPlatform {
             qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng<'static, 'static>,
         >,
     >,
+    shared_channel: &'static qemu_rv32_virt_chip::channel::QemuRv32VirtChannel<'static>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -119,6 +125,7 @@ impl
     >;
     type WatchDog = ();
     type ContextSwitchCallback = ();
+    type SharedChannel = qemu_rv32_virt_chip::channel::QemuRv32VirtChannel<'static>;
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         self
@@ -144,12 +151,12 @@ impl
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
-    unsafe fn shared_buffer(&self) -> &mut [u8] {
-        &mut qemu_rv32_virt_chip::channel::SHARED_CHANNEL_BUFFER
+    fn shared_channel(&self) -> &Self::SharedChannel {
+        self.shared_channel
     }
 }
 
-pub unsafe fn spawn<const ID: usize>() {
+pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::channel::QemuRv32VirtChannel) {
     // These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -185,10 +192,10 @@ pub unsafe fn spawn<const ID: usize>() {
 
     kernel::deferred_call::initialize_global_deferred_call_state(deferred_call_state);
 
-    let channel = static_init!(
-        qemu_rv32_virt_chip::channel::QemuRv32VirtChannel,
-        qemu_rv32_virt_chip::channel::QemuRv32VirtChannel::new(),
-    );
+    // let channel = static_init!(
+    //     qemu_rv32_virt_chip::channel::QemuRv32VirtChannel,
+    //     qemu_rv32_virt_chip::channel::QemuRv32VirtChannel::new(&mut *core::ptr::addr_of_mut!(qemu_rv32_virt_chip::channel::CHANNEL_BUFFER)),
+    // );
     kernel::deferred_call::DeferredCallClient::register(channel);
 
 
@@ -239,7 +246,7 @@ pub unsafe fn spawn<const ID: usize>() {
 
     let board_kernel = static_init!(
         kernel::Kernel,
-        kernel::Kernel::new(&PROCESSES)
+        kernel::Kernel::new(&*addr_of!(PROCESSES))
     );
 
 
@@ -247,15 +254,45 @@ pub unsafe fn spawn<const ID: usize>() {
 
     let plic = thread_local_static_finalize!(PLIC, ID);
 
+    // Open a portal for the uart
+    use qemu_rv32_virt_chip::portal::{QemuRv32VirtPortal, PORTALS};
+    use qemu_rv32_virt_chip::portal_cell::QemuRv32VirtPortalCell;
+    use qemu_rv32_virt_chip::uart::{Uart16550, UART0_BASE};
+    use qemu_rv32_virt_chip::chip::COUNTER;
+
+    let uart = static_init!(
+        Uart16550,
+        Uart16550::new(UART0_BASE),
+    );
+
+    let uart_portal = static_init!(
+        QemuRv32VirtPortalCell<Uart16550>,
+        QemuRv32VirtPortalCell::new(uart, QemuRv32VirtPortal::Uart16550(core::ptr::null()).id())
+    );
+
+    let counter_portal = static_init!(
+        QemuRv32VirtPortalCell<core::sync::atomic::AtomicUsize>,
+        QemuRv32VirtPortalCell::new(&mut *addr_of_mut!(COUNTER), QemuRv32VirtPortal::Counter(core::ptr::null()).id())
+    );
+
+    (&*core::ptr::addr_of!(PORTALS))
+        .get_mut()
+        .expect("Main thread doesn't not have access to its local portals")
+        .enter_nonreentrant(|ps| {
+            ps[uart_portal.get_id()] = QemuRv32VirtPortal::Uart16550(uart_portal as *mut _ as *const _);
+            ps[counter_portal.get_id()] = QemuRv32VirtPortal::Counter(counter_portal as *mut _ as *const _);
+        });
+
+
     let peripherals = static_init!(
         QemuRv32VirtDefaultPeripherals,
-        QemuRv32VirtDefaultPeripherals::new(),
+        QemuRv32VirtDefaultPeripherals::new(uart_portal),
     );
 
     // Create a shared UART channel for the console and for kernel
     // debug over the provided memory-mapped 16550-compatible
     // UART.
-    let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(peripherals.uart0, 115200)
         .finalize(components::uart_mux_component_static!());
 
     // Use the RISC-V machine timer timesource
@@ -526,7 +563,7 @@ pub unsafe fn spawn<const ID: usize>() {
     )
     .finalize(components::low_level_debug_component_static!());
 
-    let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
+    let scheduler = components::sched::cooperative::CooperativeComponent::new(&*addr_of!(PROCESSES))
         .finalize(components::cooperative_component_static!(NUM_PROCS));
 
     let scheduler_timer = static_init!(
@@ -549,14 +586,11 @@ pub unsafe fn spawn<const ID: usize>() {
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_cap,
         ),
+        shared_channel: channel,
     };
 
     // Start the process console:
-    let _ = platform.pconsole.start();
-
-    debug!("QEMU RISC-V 32-bit {MAX_THREADS}-SMP \"virt\" machine core {ID}, initialization complete.");
-    debug!("Entering main loop.");
-
+    // let _ = platform.pconsole.start();
 
     // finalize the static mut before using it
     let clic = thread_local_static_finalize!(qemu_rv32_virt_chip::clint::CLIC, ID);
@@ -566,23 +600,13 @@ pub unsafe fn spawn<const ID: usize>() {
         .filter(|&id| id != ID)
         .for_each(|id| hardware_timer.set_soft_interrupt(id));
 
-    // Send echo command to the app thread
-    let shared_buffer = platform.shared_buffer();
-    // unsafe {
-    //     shared_buffer[0] = 10;
-    //     shared_buffer[1] = 5;
-    //     shared_buffer[58] = 101;
-    // }
-
     // Block until the app thread finishes initialization
     while !APP_THREAD_READY.load(Ordering::SeqCst) {}
 
-    chip.notify(&id);
+    debug!("QEMU RISC-V 32-bit {MAX_THREADS}-SMP \"virt\" machine core {ID}, initialization complete.");
+    debug!("Entering main loop.");
 
-    // hardware_timer.set_soft_interrupt(1);
-    // loop {
-    //     hardware_timer.set_soft_interrupt(1);
-    // }
+    // chip.notify(&id);
 
     // ---------- PROCESS LOADING, SCHEDULER LOOP ----------
 
@@ -597,7 +621,7 @@ pub unsafe fn spawn<const ID: usize>() {
             core::ptr::addr_of_mut!(_sappmem),
             core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut PROCESSES,
+        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_mgmt_cap,
     )
@@ -606,5 +630,23 @@ pub unsafe fn spawn<const ID: usize>() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap, Some(&crate::SHARED_BUFFER), Some(&qemu_rv32_virt_chip::chip::MACHINE_SOFT_FIRED_COUNT));
+    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap,
+                             Some(&*addr_of!(qemu_rv32_virt_chip::chip::COUNTER)),
+                             Some(&|| {
+                                 use kernel::smp::portal_cell::Portalable;
+                                 // let num = (&*addr_of!(qemu_rv32_virt_chip::chip::COUNTER))
+                                 //     .load(core::sync::atomic::Ordering::SeqCst);
+                                 // debug!("counter: {:?}", num);
+                                 // unsafe {
+                                 //     debug!("data: {:?}",
+                                 //            crate::DEBUG_COUNTER.load(core::sync::atomic::Ordering::SeqCst));
+                                 // }
+                                 counter_portal.enter(|c| {
+                                     let num = c.load(core::sync::atomic::Ordering::Relaxed);
+                                     debug!("current counter: {:?}", num);
+                                 }).unwrap_or_else(|| {
+                                     counter_portal.conjure(&platform, chip);
+                                     // debug!("current counter: None");
+                                 });
+                             }));
 }

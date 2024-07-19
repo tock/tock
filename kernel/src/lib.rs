@@ -124,6 +124,7 @@ pub mod syscall;
 pub mod threadlocal;
 pub mod upcall;
 pub mod utilities;
+pub mod smp;
 
 mod config;
 mod kernel;

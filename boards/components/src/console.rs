@@ -51,24 +51,6 @@ use kernel::hil::uart;
 use capsules_core::console::DEFAULT_BUF_SIZE;
 
 #[macro_export]
-macro_rules! thread_local_uart_mux_component_static {
-    // Common logic for both branches
-    ($N:expr, $ID:ty, $rx_buffer_len: expr) => {{
-        use capsules_core::virtualizers::virtual_uart::MuxUart;
-        use kernel::thread_local_static_buf;
-        let UART_MUX = thread_local_static_buf!($N, $ID, MuxUart<'static>);
-        let RX_BUF = thread_local_static_buf!($N, $ID, [u8; $rx_buffer_len]);
-        (UART_MUX, RX_BUF)
-    }};
-    ($N:expr, $ID:ty) => {
-        $crate::thread_local_uart_mux_component_static!($N, $ID, capsules_core::virtualizers::virtual_uart::RX_BUF_LEN);
-    };
-    ($N:expr, $ID:ty, $rx_buffer_len: literal) => {
-        $crate::thread_local_uart_mux_component_static!($N, $ID, $rx_buffer_len);
-    };
-}
-
-#[macro_export]
 macro_rules! uart_mux_component_static {
     // Common logic for both branches
     ($rx_buffer_len: expr) => {{
@@ -139,28 +121,6 @@ macro_rules! console_component_static {
     };
     ($rx_buffer_len: literal, $tx_buffer_len: literal) => {
         $crate::console_component_static!($rx_buffer_len, $tx_buffer_len);
-    };
-}
-
-#[macro_export]
-macro_rules! thread_local_console_component_static {
-    // Common logic for both branches
-    ($N:expr, $ID:ty, $rx_buffer_len: expr, $tx_buffer_len: expr) => {{
-        use capsules_core::console::{Console, DEFAULT_BUF_SIZE};
-        use capsules_core::virtualizers::virtual_uart::UartDevice;
-        use kernel::thread_local_static_buf;
-        let read_buf = thread_local_static_buf!($N, $ID, [u8; $rx_buffer_len]);
-        let write_buf = thread_local_static_buf!($N, $ID, [u8; $tx_buffer_len]);
-        // Create virtual device for console.
-        let console_uart = thread_local_static_buf!($N, $ID, UartDevice);
-        let console = thread_local_static_buf!($N, $ID, Console<'static>);
-        (write_buf, read_buf, console_uart, console)
-    }};
-    ($N:expr, $ID:ty) => {
-        $crate::thread_local_console_component_static!($N, $ID, DEFAULT_BUF_SIZE, DEFAULT_BUF_SIZE);
-    };
-    ($N:expr, $ID:ty, $rx_buffer_len: literal, $tx_buffer_len: literal) => {
-        $crate::thread_local_console_component_static!($N, $ID, $rx_buffer_len, $tx_buffer_len);
     };
 }
 

@@ -64,25 +64,6 @@ macro_rules! debug_writer_component_static {
     };};
 }
 
-#[macro_export]
-macro_rules! thread_local_debug_writer_component_static {
-    ($N:expr, $ID:ty, $BUF_SIZE_KB:expr) => {{
-        let uart = kernel::thread_local_static_buf!($N, $ID, capsules_core::virtualizers::virtual_uart::UartDevice);
-        let ring = kernel::thread_local_static_buf!($N, $ID, kernel::collections::ring_buffer::RingBuffer<'static, u8>);
-        let buffer = kernel::thread_local_static_buf!($N, $ID, [u8; 1024 * $BUF_SIZE_KB]);
-        let debug = kernel::thread_local_static_buf!($N, $ID, kernel::debug::DebugWriter);
-        let debug_wrappers = kernel::thread_local_static_buf!(
-            $N, $ID,
-            kernel::threadlocal::SingleThread<kernel::debug::DebugWriterWrapper>
-        );
-
-        (uart, ring, buffer, debug, debug_wrappers)
-    };};
-    ($N:expr, $ID:ty) => {{
-        $crate::thread_local_debug_writer_component_static!($N, $ID, $crate::debug_writer::DEFAULT_DEBUG_BUFFER_KBYTE)
-    };};
-}
-
 /// The optional argument to this macro allows boards to specify the size of the in-RAM
 /// buffer used for storing debug messages.
 ///

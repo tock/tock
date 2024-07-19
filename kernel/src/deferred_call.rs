@@ -138,7 +138,7 @@ pub const DEFAULT_DEFERRED_CALL_STATE: ThreadLocalDeferredCallState = ThreadLoca
     ctr: 0,
     bitmask: 0,
     defcalls: [None; 32],
-    defcall_thread: (false, None),
+    defcall_thread: (0, None),
 };
 
 #[derive(Copy, Clone)]
@@ -156,7 +156,7 @@ pub struct ThreadLocalDeferredCallState {
     // TODO: is still still true?
     defcalls: [Option<DynDefCallRef<'static>>; 32],
     /// inter-thread defcalls
-    defcall_thread: (bool, Option<DynDefCallRef<'static>>),
+    defcall_thread: (u32, Option<DynDefCallRef<'static>>),
 }
 
 static DEFAULT_DEFCALL_STATE: ThreadLocal::<0, ThreadLocalDeferredCallState> = ThreadLocal::new([]);
@@ -193,7 +193,8 @@ impl DeferredCallThread {
 
     pub fn service() -> Option<()> {
 	    let closure = |defcall_state: &mut ThreadLocalDeferredCallState| -> Option<DynDefCallRef<'static>> {
-            if defcall_state.defcall_thread.0 {
+            if defcall_state.defcall_thread.0 > 0 {
+                defcall_state.defcall_thread.0 -= 1;
 		        defcall_state.defcall_thread.1.map(|dc| dc)
             } else {
                 None
@@ -207,23 +208,23 @@ impl DeferredCallThread {
 
     pub fn set() {
         let closure = |defcall_state: &mut ThreadLocalDeferredCallState| {
-            defcall_state.defcall_thread.0 = true;
+            defcall_state.defcall_thread.0 += 1;
         };
 
         unsafe { with_defcall_state_panic(closure) };
     }
 
-    pub fn unset() {
-        let closure = |defcall_state: &mut ThreadLocalDeferredCallState| {
-            defcall_state.defcall_thread.0 = false;
-        };
+    // pub fn unset() {
+    //     let closure = |defcall_state: &mut ThreadLocalDeferredCallState| {
+    //         defcall_state.defcall_thread.0 = false;
+    //     };
 
-        unsafe { with_defcall_state_panic(closure) };
-    }
+    //     unsafe { with_defcall_state_panic(closure) };
+    // }
 
     pub fn has_task() -> bool {
         let closure = |defcall_state: &mut ThreadLocalDeferredCallState| -> bool {
-            defcall_state.defcall_thread.0
+            defcall_state.defcall_thread.0 > 0
         };
 
         unsafe { with_defcall_state_panic(closure) }

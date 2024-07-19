@@ -24,8 +24,9 @@ use crate::interrupts;
 use crate::plic::PLIC;
 use crate::clint::CLIC;
 use crate::{MAX_THREADS, MAX_CONTEXTS, plic::PLIC_BASE};
+use crate::portal_cell::QemuRv32VirtPortalCell;
+use crate::uart::Uart16550;
 
-use crate::channel::{SHARED_CHANNEL_BUFFER, CHANNEL_BUFFER, BUFFER_SIZE};
 use core::ptr;
 
 use virtio::transports::mmio::VirtIOMMIODevice;
@@ -46,14 +47,14 @@ pub struct QemuRv32VirtChip<'a, I: InterruptService + 'a> {
 }
 
 pub struct QemuRv32VirtDefaultPeripherals<'a> {
-    pub uart0: crate::uart::Uart16550<'a>,
+    pub uart0: &'a QemuRv32VirtPortalCell<'a, Uart16550<'a>>,
     pub virtio_mmio: [VirtIOMMIODevice; 8],
 }
 
-impl QemuRv32VirtDefaultPeripherals<'_> {
-    pub fn new() -> Self {
+impl<'a> QemuRv32VirtDefaultPeripherals<'a> {
+    pub fn new(uart0: &'a QemuRv32VirtPortalCell<'a, Uart16550<'a>>) -> Self {
         Self {
-            uart0: crate::uart::Uart16550::new(crate::uart::UART0_BASE),
+            uart0,
             virtio_mmio: [
                 VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_0_BASE),
                 VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_1_BASE),
@@ -71,7 +72,9 @@ impl QemuRv32VirtDefaultPeripherals<'_> {
 impl InterruptService for QemuRv32VirtDefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
-            interrupts::UART0 => self.uart0.handle_interrupt(),
+            interrupts::UART0 => {
+                let _ = self.uart0.enter(|u: &mut Uart16550| u.handle_interrupt());
+            }
             interrupts::VIRTIO_MMIO_0 => self.virtio_mmio[0].handle_interrupt(),
             interrupts::VIRTIO_MMIO_1 => self.virtio_mmio[1].handle_interrupt(),
             interrupts::VIRTIO_MMIO_2 => self.virtio_mmio[2].handle_interrupt(),
@@ -184,6 +187,11 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
         self.timer.set_soft_interrupt(id.get_id());
     }
 
+    fn id(&self) -> DynThreadId {
+        let hart_id = CSR.mhartid.extract().get();
+        unsafe { DynThreadId::new(hart_id) }
+    }
+
     unsafe fn print_state(&self, writer: &mut dyn Write) {
         rv32i::print_riscv_state(writer);
         let _ = writer.write_fmt(format_args!("{}", self.pmp.pmp));
@@ -222,7 +230,7 @@ fn handle_exception(exception: mcause::Exception) {
     }
 }
 
-pub static mut MACHINE_SOFT_FIRED_COUNT: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
+pub static mut COUNTER: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
 
 unsafe fn handle_interrupt(intr: mcause::Interrupt) {
     match intr {
@@ -238,10 +246,6 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
         }
 
         mcause::Interrupt::MachineSoft => {
-            // Timing safety: We need to prevent from the app core sending
-            // interrupts to the communication core. We may need a pluggable
-            // policy instead.
-
             // Disable IPI
             CSR.mie.modify(mie::msoft::CLEAR);
 
@@ -249,26 +253,8 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             if let Some(clic) = thread_local_static_access!(
                 CLIC, DynThreadId::new(hart_id)
             ) {
-                // Step 1: Copy the message from the shared buffer to the
-                //         local buffer, active a special deferred call for
-                //         processing, and randomize the shared buffer.
-                //         Timing safety: This step needs to not depend on
-                //         secrets, meaning it must be handeled immediately
-                //         and in a non-secret dependent time.
-                // Step 2: The deferred call process the message and copy
-                //         the entrypted result back to the shared buffer.
-                //         Timing safety: This step should avoid blocking
-                //         or interfering the timing with the sending processor.
-                //         Need to address the concurrent access problem at
-                //         the kernel and the shared channel.
                 clic.clear_soft_interrupt(hart_id);
-                CHANNEL_BUFFER.get_mut(DynThreadId::new(hart_id))
-                        .expect("This thread does not have access to the channel buffer")
-                        .enter_nonreentrant(|buf| {
-                            ptr::copy_nonoverlapping(ptr::addr_of!(SHARED_CHANNEL_BUFFER), buf, BUFFER_SIZE);
-                        });
-                // Active the inter-thread communication processor
-                DeferredCallThread::set();
+                kernel::deferred_call::DeferredCallThread::set();
             }
 
             CSR.mie.modify(mie::msoft::SET);

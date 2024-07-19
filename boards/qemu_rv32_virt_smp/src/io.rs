@@ -40,7 +40,7 @@ impl IoWrite for Writer {
 #[no_mangle]
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
-    let writer = &mut WRITER;
+    let writer = &mut *core::ptr::addr_of_mut!(WRITER);
     let id = rv32i::csr::CSR.mhartid.extract().get();
     let chip = thread_local_static_access!(CHIP, DynThreadId::new(id))
         .expect("Invalid Thread ID");
@@ -49,9 +49,9 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
         writer,
         pi,
         &rv32i::support::nop,
-        &PROCESSES,
+        &*core::ptr::addr_of!(PROCESSES),
         &chip,
-        &PROCESS_PRINTER,
+        &*core::ptr::addr_of!(PROCESS_PRINTER),
     );
 
     // The system is no longer in a well-defined state. Use

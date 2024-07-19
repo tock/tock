@@ -11,6 +11,7 @@ use kernel::threadlocal::ConstThreadId;
 use kernel::threadlocal::ThreadId;
 use kernel::threadlocal::ThreadLocalAccessStatic;
 use kernel::threadlocal::ThreadLocalDynInit;
+use kernel::threadlocal::ThreadLocalDyn;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::{create_capability, debug, static_init};
 use kernel::{thread_local_static_init, thread_local_static_finalize, thread_local_static, thread_local_static_access};
@@ -101,6 +102,7 @@ struct QemuRv32VirtPlatform {
             qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng<'static, 'static>,
         >,
     >,
+    shared_channel: &'static qemu_rv32_virt_chip::channel::QemuRv32VirtChannel<'static>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -142,6 +144,7 @@ impl
     >;
     type WatchDog = ();
     type ContextSwitchCallback = ();
+    type SharedChannel = qemu_rv32_virt_chip::channel::QemuRv32VirtChannel<'static>;
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         self
@@ -167,12 +170,12 @@ impl
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
-    unsafe fn shared_buffer(&self) -> &mut [u8] {
-        &mut qemu_rv32_virt_chip::channel::SHARED_CHANNEL_BUFFER
+    fn shared_channel(&self) -> &Self::SharedChannel {
+        self.shared_channel
     }
 }
 
-pub unsafe fn spawn<const ID: usize>() {
+pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::channel::QemuRv32VirtChannel) {
     // These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -246,7 +249,7 @@ pub unsafe fn spawn<const ID: usize>() {
 
     let board_kernel = static_init!(
         kernel::Kernel,
-        kernel::Kernel::new(&PROCESSES)
+        kernel::Kernel::new(&*core::ptr::addr_of!(PROCESSES))
     );
 
 
@@ -254,6 +257,38 @@ pub unsafe fn spawn<const ID: usize>() {
 
     let plic = thread_local_static_finalize!(PLIC, ID);
 
+    // init channel receiver
+    // let channel = static_init!(
+    //     qemu_rv32_virt_chip::channel::QemuRv32VirtChannel,
+    //     qemu_rv32_virt_chip::channel::QemuRv32VirtChannel::new(&mut *core::ptr::addr_of_mut!(qemu_rv32_virt_chip::channel::CHANNEL_BUFFER)),
+    // );
+    kernel::deferred_call::DeferredCallClient::register(channel);
+
+    // Open an empty uart portal
+    use qemu_rv32_virt_chip::portal::{QemuRv32VirtPortal, PORTALS};
+    use qemu_rv32_virt_chip::portal_cell::QemuRv32VirtPortalCell;
+    use qemu_rv32_virt_chip::uart::{Uart16550, UART0_BASE};
+    use qemu_rv32_virt_chip::chip::COUNTER;
+
+    let uart_portal = static_init!(
+        QemuRv32VirtPortalCell<Uart16550>,
+        QemuRv32VirtPortalCell::empty(QemuRv32VirtPortal::Uart16550(core::ptr::null()).id())
+    );
+
+    let counter_portal = static_init!(
+        QemuRv32VirtPortalCell<core::sync::atomic::AtomicUsize>,
+        QemuRv32VirtPortalCell::empty(QemuRv32VirtPortal::Counter(core::ptr::null()).id())
+    );
+
+    (&*core::ptr::addr_of!(PORTALS))
+        .get_mut()
+        .expect("App thread doesn't not have access to its local portals")
+        .enter_nonreentrant(|ps| {
+            ps[uart_portal.get_id()] = QemuRv32VirtPortal::Uart16550(uart_portal as *mut _ as *const _);
+            ps[counter_portal.get_id()] = QemuRv32VirtPortal::Counter(counter_portal as *mut _ as *const _);
+        });
+
+    // Initialize peripherals
     let peripherals = static_init!(
         QemuRv32VirtPeripherals,
         QemuRv32VirtPeripherals::new(),
@@ -417,7 +452,7 @@ pub unsafe fn spawn<const ID: usize>() {
     // components::debug_writer::DebugWriterComponent::new(uart_mux)
     //     .finalize(components::debug_writer_component_static!());
 
-    let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
+    let scheduler = components::sched::cooperative::CooperativeComponent::new(&*core::ptr::addr_of!(PROCESSES))
         .finalize(components::cooperative_component_static!(NUM_PROCS));
 
     let scheduler_timer = static_init!(
@@ -437,20 +472,18 @@ pub unsafe fn spawn<const ID: usize>() {
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_cap,
         ),
+        shared_channel: channel,
     };
 
     // finalize the static mut before using it
     let clic = thread_local_static_finalize!(qemu_rv32_virt_chip::clint::CLIC, ID);
 
-    // init channel receiver
-    let channel = static_init!(
-        qemu_rv32_virt_chip::channel::QemuRv32VirtChannel,
-        qemu_rv32_virt_chip::channel::QemuRv32VirtChannel::new(),
-    );
-    kernel::deferred_call::DeferredCallClient::register(channel);
 
     use core::sync::atomic::Ordering;
     crate::threads::main_thread::APP_THREAD_READY.store(true, Ordering::SeqCst);
+
+    // use kernel::smp::portal_cell::Portalable;
+    // uart_portal.conjure(&platform, chip);
 
     // panic!("Panic at core {}", ID);
 
@@ -470,7 +503,7 @@ pub unsafe fn spawn<const ID: usize>() {
             core::ptr::addr_of_mut!(_sappmem),
             core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut PROCESSES,
+        &mut *core::ptr::addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_mgmt_cap,
     )
@@ -479,5 +512,18 @@ pub unsafe fn spawn<const ID: usize>() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap, None, None);
+    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap,
+                             Some(&*core::ptr::addr_of!(qemu_rv32_virt_chip::chip::COUNTER)),
+                             Some(&|| {
+                                 use kernel::smp::portal_cell::Portalable;
+                                 counter_portal.enter(|c| {
+                                     c.fetch_add(1, core::sync::atomic::Ordering::SeqCst);
+                                 }).unwrap_or_else(|| {
+                                     counter_portal.conjure(&platform, chip);
+                                 });
+
+                                     unsafe {
+                                         crate::DEBUG_COUNTER.fetch_add(1, core::sync::atomic::Ordering::SeqCst);
+                                     }
+                             }));
 }

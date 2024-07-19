@@ -54,6 +54,9 @@ pub trait Chip {
     /// Send a notification to another thread.
     fn notify(&self, id: &dyn threadlocal::ThreadId);
 
+    /// Get id
+    fn id(&self) -> threadlocal::DynThreadId;
+
     /// Print out chip state (system registers) to a supplied
     /// writer. This does not print out the execution context
     /// (data registers), as this depends on how they are stored;

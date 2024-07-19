@@ -60,6 +60,20 @@ macro_rules! static_init {
 /// your search there.
 
 #[macro_export]
+macro_rules! static_init_once {
+    ($T:ty, $e:expr $(,)?) => {{
+        static mut BUF: (core::mem::MaybeUninit<$T>, bool) =
+            (core::mem::MaybeUninit::uninit(), false);
+        if !BUF.1 {
+            BUF.1 = true;
+            BUF.0.write($e)
+        } else {
+            unsafe { BUF.0.assume_init_mut() }
+        }
+    }};
+}
+
+#[macro_export]
 macro_rules! thread_local_static_init {
     ($N:expr, $ID:ty, $T:ty, $e:expr $(,)?) => {{
         let mut buf = $crate::thread_local_static_buf!($N, $ID, $T);

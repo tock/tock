@@ -28,7 +28,7 @@ use kernel::threadlocal::ThreadId;
 use kernel::threadlocal::ThreadLocalAccessStatic;
 use kernel::threadlocal::ThreadLocalDynInit;
 use kernel::utilities::registers::interfaces::ReadWriteable;
-use kernel::{create_capability, debug, static_init};
+use kernel::{create_capability, debug, static_init, static_init_once};
 use kernel::{thread_local_static_init, thread_local_static_finalize, thread_local_static, thread_local_static_access};
 use qemu_rv32_virt_chip::chip::{QemuRv32VirtChip, QemuRv32VirtDefaultPeripherals};
 use qemu_rv32_virt_chip::plic::PLIC;
@@ -40,6 +40,7 @@ use kernel::threadlocal::DynThreadId;
 use kernel::platform::chip::{Chip, InterruptService};
 
 use qemu_rv32_virt_chip::MAX_THREADS;
+use qemu_rv32_virt_chip::QemuRv32VirtThreadLocal;
 
 pub mod io;
 
@@ -70,16 +71,12 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 
 const STACK_SIZE: usize = 0x8000;
 
+static mut DEBUG_COUNTER: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
+
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; STACK_SIZE] = [0; STACK_SIZE];
-
-// Shared memory region
-pub static mut SHARED_COMM_BUFFER: [u8; 0x4000] = [0; 0x4000];
-pub static mut SHARED_APP_BUFFER: [u8; 0x4000] = [0; 0x4000];
-
-pub static mut SHARED_BUFFER: [u8; 0x3] = [0; 0x3];
 
 
 #[repr(C)]
@@ -94,11 +91,18 @@ enum ThreadType {
 /// RISC-V setup and RAM initialization.
 #[no_mangle]
 pub unsafe fn main(thread_type: ThreadType) {
+
+    let channel = static_init_once!(
+        qemu_rv32_virt_chip::channel::QemuRv32VirtChannel,
+        qemu_rv32_virt_chip::channel::QemuRv32VirtChannel::new(&mut *core::ptr::addr_of_mut!(qemu_rv32_virt_chip::channel::CHANNEL_BUFFER)),
+    );
+
     use ThreadType as T;
     match thread_type {
-        T::Main => threads::main_thread::spawn::<{T::Main as usize}>(),
+        T::Main => threads::main_thread::spawn::<{T::Main as usize}>(channel),
         T::Application => {
-            threads::app_thread::spawn::<{T::Application as usize}>()
+            // loop {}
+            threads::app_thread::spawn::<{T::Application as usize}>(channel)
             // rv32i::semihost_command(0x18, 1, 0);
         },
         _ => panic!("Invalid Thread ID")

@@ -65,43 +65,6 @@ macro_rules! process_console_component_static {
     };};
 }
 
-#[macro_export]
-macro_rules! thread_local_process_console_component_static {
-    ($N:expr, $ID:ty, $A: ty, $COMMAND_HISTORY_LEN: expr $(,)?) => {{
-        let alarm = kernel::thread_local_static_buf!($N, $ID, capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>);
-        let uart = kernel::thread_local_static_buf!($N, $ID, capsules_core::virtualizers::virtual_uart::UartDevice);
-        let pconsole = kernel::thread_local_static_buf!($N, $ID,
-            capsules_core::process_console::ProcessConsole<
-                $COMMAND_HISTORY_LEN,
-                capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
-                components::process_console::Capability,
-            >
-        );
-
-        let write_buffer = kernel::thread_local_static_buf!($N, $ID, [u8; capsules_core::process_console::WRITE_BUF_LEN]);
-        let read_buffer = kernel::thread_local_static_buf!($N, $ID, [u8; capsules_core::process_console::READ_BUF_LEN]);
-        let queue_buffer = kernel::thread_local_static_buf!($N, $ID, [u8; capsules_core::process_console::QUEUE_BUF_LEN]);
-        let command_buffer = kernel::thread_local_static_buf!($N, $ID, [u8; capsules_core::process_console::COMMAND_BUF_LEN]);
-        let command_history_buffer = kernel::thread_local_static_buf!($N, $ID,
-            [capsules_core::process_console::Command; $COMMAND_HISTORY_LEN]
-        );
-
-        (
-            alarm,
-            uart,
-            write_buffer,
-            read_buffer,
-            queue_buffer,
-            command_buffer,
-            command_history_buffer,
-            pconsole,
-        )
-    };};
-    ($N:expr, $ID:ty, $A: ty $(,)?) => {{
-        $crate::thread_local_process_console_component_static!($N, $ID, $A, { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN })
-    };};
-}
-
 pub struct ProcessConsoleComponent<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>> {
     board_kernel: &'static kernel::Kernel,
     uart_mux: &'static MuxUart<'static>,
