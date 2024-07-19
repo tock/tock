@@ -162,6 +162,10 @@ pub unsafe fn main() {
     // NONVOLATILE STORAGE
     //--------------------------------------------------------------------------
 
+    // How many bytes of nonvolatile storage to allocate
+    // to each app
+    const NONVOLATILE_REGION_SIZE_PER_APP: usize = 2048;
+
     // 32kB of userspace-accessible storage, page aligned:
     kernel::storage_volume!(APP_STORAGE, 32);
 
@@ -174,6 +178,7 @@ pub unsafe fn main() {
         // No kernel-writeable flash:
         core::ptr::null::<()>() as usize,
         0,
+        NONVOLATILE_REGION_SIZE_PER_APP,
     )
     .finalize(components::nonvolatile_storage_component_static!(
         nrf52840::nvmc::Nvmc
