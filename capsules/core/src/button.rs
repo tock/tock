@@ -124,6 +124,69 @@ impl<'a, P: gpio::InterruptPin<'a>> Button<'a, P> {
 ///   button.
 const UPCALL_NUM: usize = 0;
 
+impl<'a, P: gpio::InterruptPin<'a>> Button<'a, P> {
+    /// Enable the interrupt for the button so that button presses trigger
+    /// upcalls.
+    ///
+    /// ## Arguments
+    ///
+    /// - `button_num`: The index of the button.
+    fn command_enable_interrupt(&self, button_num: usize, processid: ProcessId) -> CommandReturn {
+        if button_num < self.pins.len() {
+            self.apps
+                .enter(processid, |cntr, _| {
+                    cntr.subscribe_map |= 1 << button_num;
+                    let _ = self.pins[button_num]
+                        .0
+                        .enable_interrupts(gpio::InterruptEdge::EitherEdge);
+                    CommandReturn::success()
+                })
+                .unwrap_or_else(|err| CommandReturn::failure(err.into()))
+        } else {
+            // Invalid button index that doesn't exist.
+            CommandReturn::failure(ErrorCode::INVAL)
+        }
+    }
+
+    fn command_disable_interrupt(&self, button_num: usize, processid: ProcessId) -> CommandReturn {
+        if button_num >= self.pins.len() {
+            CommandReturn::failure(ErrorCode::INVAL) /* impossible button */
+        } else {
+            let res = self
+                .apps
+                .enter(processid, |cntr, _| {
+                    cntr.subscribe_map &= !(1 << button_num);
+                    CommandReturn::success()
+                })
+                .unwrap_or_else(|err| CommandReturn::failure(err.into()));
+
+            // are any processes waiting for this button?
+            let interrupt_count = Cell::new(0);
+            self.apps.each(|_, cntr, _| {
+                if cntr.subscribe_map & (1 << button_num) != 0 {
+                    interrupt_count.set(interrupt_count.get() + 1);
+                }
+            });
+
+            // if not, disable the interrupt
+            if interrupt_count.get() == 0 {
+                self.pins[button_num].0.disable_interrupts();
+            }
+
+            res
+        }
+    }
+
+    fn command_read(&self, button_num: usize) -> CommandReturn {
+        if button_num >= self.pins.len() {
+            CommandReturn::failure(ErrorCode::INVAL) /* impossible button */
+        } else {
+            let button_state = self.get_button_state(button_num as u32);
+            CommandReturn::success_u32(button_state as u32)
+        }
+    }
+}
+
 impl<'a, P: gpio::InterruptPin<'a>> SyscallDriver for Button<'a, P> {
     /// Configure interrupts and read state for buttons.
     ///
@@ -157,61 +220,13 @@ impl<'a, P: gpio::InterruptPin<'a>> SyscallDriver for Button<'a, P> {
             0 => CommandReturn::success_u32(pins.len() as u32),
 
             // enable interrupts for a button
-            1 => {
-                if data < pins.len() {
-                    self.apps
-                        .enter(processid, |cntr, _| {
-                            cntr.subscribe_map |= 1 << data;
-                            let _ = pins[data]
-                                .0
-                                .enable_interrupts(gpio::InterruptEdge::EitherEdge);
-                            CommandReturn::success()
-                        })
-                        .unwrap_or_else(|err| CommandReturn::failure(err.into()))
-                } else {
-                    CommandReturn::failure(ErrorCode::INVAL) /* impossible button */
-                }
-            }
+            1 => self.command_enable_interrupt(data, processid),
 
             // disable interrupts for a button
-            2 => {
-                if data >= pins.len() {
-                    CommandReturn::failure(ErrorCode::INVAL) /* impossible button */
-                } else {
-                    let res = self
-                        .apps
-                        .enter(processid, |cntr, _| {
-                            cntr.subscribe_map &= !(1 << data);
-                            CommandReturn::success()
-                        })
-                        .unwrap_or_else(|err| CommandReturn::failure(err.into()));
-
-                    // are any processes waiting for this button?
-                    let interrupt_count = Cell::new(0);
-                    self.apps.each(|_, cntr, _| {
-                        if cntr.subscribe_map & (1 << data) != 0 {
-                            interrupt_count.set(interrupt_count.get() + 1);
-                        }
-                    });
-
-                    // if not, disable the interrupt
-                    if interrupt_count.get() == 0 {
-                        self.pins[data].0.disable_interrupts();
-                    }
-
-                    res
-                }
-            }
+            2 => self.command_disable_interrupt(data, processid),
 
             // read input
-            3 => {
-                if data >= pins.len() {
-                    CommandReturn::failure(ErrorCode::INVAL) /* impossible button */
-                } else {
-                    let button_state = self.get_button_state(data as u32);
-                    CommandReturn::success_u32(button_state as u32)
-                }
-            }
+            3 => self.command_read(data),
 
             // default
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
