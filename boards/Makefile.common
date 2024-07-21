@@ -195,6 +195,7 @@ endif
 
 # Dump configuration for verbose builds
 ifeq ($(VERBOSE_MODE),1)
+RUST_FLAGS = $(shell $(CARGO) -Zunstable-options config get build.rustflags --format json-value 2> /dev/null || echo "Listing Rust flags only accessible on nightly cargo")
   $(info )
   $(info *******************************************************)
   $(info TOCK KERNEL BUILD SYSTEM -- VERBOSE BUILD CONFIGURATION)
@@ -206,6 +207,7 @@ ifeq ($(VERBOSE_MODE),1)
   $(info PLATFORM                      = $(PLATFORM))
   $(info TARGET                        = $(TARGET))
   $(info TOCK_KERNEL_VERSION           = $(TOCK_KERNEL_VERSION))
+  $(info RUSTFLAGS                     = $(RUST_FLAGS))
   $(info MAKEFLAGS                     = $(MAKEFLAGS))
   $(info OBJDUMP_FLAGS                 = $(OBJDUMP_FLAGS))
   $(info OBJCOPY_FLAGS                 = $(OBJCOPY_FLAGS))
