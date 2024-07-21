@@ -157,12 +157,6 @@ OBJDUMP ?= $(TOOLCHAIN)-objdump
 #   removing it, we prevent the kernel binary from overwriting applications.
 OBJCOPY_FLAGS ?= --strip-sections --strip-all --remove-section .apps
 
-# This make variable allows board-specific Makefiles to pass down options to
-# the Cargo build command. For example, in boards/<custom_board>/Makefile:
-# `CARGO_FLAGS += --features=foo` would pass feature `foo` to the top level
-# Cargo.toml.
-CARGO_FLAGS ?=
-
 # Set the default flags we need for objdump to get a .lst file.
 OBJDUMP_FLAGS ?= --disassemble-all --source --section-headers --demangle
 
@@ -211,7 +205,6 @@ RUST_FLAGS = $(shell $(CARGO) -Zunstable-options config get build.rustflags --fo
   $(info MAKEFLAGS                     = $(MAKEFLAGS))
   $(info OBJDUMP_FLAGS                 = $(OBJDUMP_FLAGS))
   $(info OBJCOPY_FLAGS                 = $(OBJCOPY_FLAGS))
-  $(info CARGO_FLAGS                   = $(CARGO_FLAGS))
   $(info SIZE_FLAGS                    = $(SIZE_FLAGS))
   $(info )
   $(info TOOLCHAIN                     = $(TOOLCHAIN))
@@ -240,7 +233,7 @@ all: release
 # binary. This makes checking for Rust errors much faster.
 .PHONY: check
 check:
-	$(Q)$(CARGO) check $(VERBOSE_FLAGS) $(CARGO_FLAGS)
+	$(Q)$(CARGO) check $(VERBOSE_FLAGS)
 
 
 .PHONY: clean
@@ -306,10 +299,10 @@ $(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum:
 
 .PHONY: $(TARGET_PATH)/release/$(PLATFORM)
 $(TARGET_PATH)/release/$(PLATFORM):
-	$(Q)$(CARGO) rustc $(VERBOSE_FLAGS) $(CARGO_FLAGS) --bin $(PLATFORM) --release
+	$(Q)$(CARGO) rustc $(VERBOSE_FLAGS) --bin $(PLATFORM) --release
 	$(Q)$(SIZE) $(SIZE_FLAGS) $@
 
 .PHONY: $(TARGET_PATH)/debug/$(PLATFORM)
 $(TARGET_PATH)/debug/$(PLATFORM):
-	$(Q)$(CARGO) build $(VERBOSE_FLAGS) $(CARGO_FLAGS) --bin $(PLATFORM)
+	$(Q)$(CARGO) build $(VERBOSE_FLAGS) --bin $(PLATFORM)
 	$(Q)$(SIZE) $(SIZE_FLAGS) $@

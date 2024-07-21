@@ -22,8 +22,22 @@ include ../../Makefile.common
 # Pass OpenTitan board configuration option in `BOARD_CONFIGURATION` through
 # Cargo `--features`. Please see `Cargo.toml` for available options.
 ifneq ($(BOARD_CONFIGURATION),)
-	CARGO_FLAGS += --no-default-features --features=$(BOARD_CONFIGURATION)
+	CARGO_FLAGS = --no-default-features --features=$(BOARD_CONFIGURATION)
 endif
+
+.PHONY: check
+check:
+	$(Q)$(CARGO) check $(VERBOSE_FLAGS) $(CARGO_FLAGS)
+
+.PHONY: $(TARGET_PATH)/release/$(PLATFORM)
+$(TARGET_PATH)/release/$(PLATFORM):
+	$(Q)$(CARGO) build $(VERBOSE_FLAGS) $(CARGO_FLAGS) --release
+	$(Q)$(SIZE) $(SIZE_FLAGS) $@
+
+.PHONY: $(TARGET_PATH)/debug/$(PLATFORM)
+$(TARGET_PATH)/debug/$(PLATFORM):
+	$(Q)$(CARGO) build $(VERBOSE_FLAGS) $(CARGO_FLAGS)
+	$(Q)$(SIZE) $(SIZE_FLAGS) $@
 
 .PHONY: ot-check
 ifneq ($(OPENTITAN_TREE),)
