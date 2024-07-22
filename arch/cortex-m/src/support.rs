@@ -35,7 +35,7 @@ where
 
     // Unset PRIMASK
     asm!("cpsie i", options(nomem, nostack));
-    return res;
+    res
 }
 
 // Mock implementations for tests on Travis-CI.
