@@ -230,7 +230,7 @@ fn handle_exception(exception: mcause::Exception) {
     }
 }
 
-pub static mut COUNTER: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
+pub static mut COUNTER: usize = 0;
 
 unsafe fn handle_interrupt(intr: mcause::Interrupt) {
     match intr {

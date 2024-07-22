@@ -1,87 +1,120 @@
-use core::cell::Cell;
-
 use kernel::platform::KernelResources;
 use kernel::platform::chip::{Chip, ChipAtomic};
 use kernel::threadlocal::{ThreadId, DynThreadId};
-use kernel::smp::portal_cell::{PortalCell, Portalable};
+use kernel::smp::portal::{PortalCell, Portalable};
 use kernel::smp::shared_channel::SharedChannel;
+use kernel::thread_local_static_access;
+use kernel::utilities::registers::interfaces::Readable;
+
+use rv32i::csr::CSR;
 
 use crate::channel::{QemuRv32VirtChannel, QemuRv32VirtMessage, QemuRv32VirtMessageBody};
 use crate::uart::Uart16550;
 
-pub struct QemuRv32VirtPortalCell<'a, T: ?Sized>(PortalCell<'a, T>);
+pub struct QemuRv32VirtPortalCell<'a, T: ?Sized> {
+    portal: PortalCell<'a, T>,
+    shared_channel: &'a QemuRv32VirtChannel<'a>,
+}
 
 impl<'a, T: ?Sized> QemuRv32VirtPortalCell<'a, T> {
-    pub fn empty(id: usize) -> QemuRv32VirtPortalCell<'a, T> {
-        QemuRv32VirtPortalCell(PortalCell::empty(id))
+    pub fn empty(
+        id: usize, shared_channel: &'a QemuRv32VirtChannel<'a>,
+    ) -> QemuRv32VirtPortalCell<'a, T> {
+        QemuRv32VirtPortalCell {
+            portal: PortalCell::empty(id),
+            shared_channel,
+        }
     }
 
-    pub fn new(value: &'a mut T, id: usize) -> QemuRv32VirtPortalCell<'a, T> {
-        QemuRv32VirtPortalCell(PortalCell::new(value, id))
+    pub fn new(
+        value: &'a mut T, id: usize, shared_channel: &'a QemuRv32VirtChannel<'a>,
+    ) -> QemuRv32VirtPortalCell<'a, T> {
+        QemuRv32VirtPortalCell {
+            portal: PortalCell::new(value, id),
+            shared_channel,
+        }
     }
 
-    pub fn get_id(&self) -> usize { self.0.get_tag() }
-    pub fn is_none(&self) -> bool { self.0.is_none() }
-    pub fn take(&self) -> Option<&'a mut T> { self.0.take() }
+    pub fn get_id(&self) -> usize {
+        self.portal.get_id()
+    }
+
+    pub fn is_none(&self) -> bool {
+        self.portal.is_none()
+    }
+
+    pub fn take(&self) -> Option<&'a mut T> {
+        self.portal.take()
+    }
 
     pub fn enter<F, R>(&self, f: F) -> Option<R>
     where
         F: FnOnce(&mut T) -> R,
     {
-        self.0.enter(f)
+        self.portal.enter(f)
     }
 
-    pub unsafe fn replace_none(&self, val: &'a mut T) -> Option<()> {
-        self.0.replace_none(val)
-    }
+    // pub unsafe fn replace_none(&self, val: &'a mut T) -> Option<()> {
+    //     self.0.replace_none(val)
+    // }
 
 }
 
 
-impl<'a, 'b, KR, C, T: ?Sized> Portalable<KR, C> for QemuRv32VirtPortalCell<'a, T>
-where
-    KR: KernelResources<C, SharedChannel=QemuRv32VirtChannel<'b>>,
-    C: Chip + ChipAtomic,
-{
+impl<'a, T: ?Sized> Portalable for QemuRv32VirtPortalCell<'a, T> {
     type Entrant = &'a mut T;
 
-    fn conjure(&self, resources: &KR, chip: &C) {
+    fn conjure(&self) {
         // Note: this will try to flood the channel
-        if self.is_none() {
-            let receiver = if chip.id().get_id() == 0 { 1 } else { 0 };
-            if resources.shared_channel()
+        if self.portal.is_none() {
+            let id = CSR.mhartid.extract().get();
+            // TODO: notify all
+            let receiver_id = if id == 0 { 1 } else { 0 };
+
+            if self.shared_channel
                 .write(QemuRv32VirtMessage {
-                    src: chip.id().get_id(),
-                    dst: receiver,
-                    body: QemuRv32VirtMessageBody::PortalRequest(self.get_id()),
+                    src: id,
+                    dst: receiver_id,
+                    body: QemuRv32VirtMessageBody::PortalRequest(self.portal.get_id()),
                 })
             {
-                let receiver_id = unsafe { DynThreadId::new(receiver) };
-                chip.notify(&receiver_id);
-                // chip.notify_all();
+                let clic = unsafe {
+                    thread_local_static_access!(crate::clint::CLIC, DynThreadId::new(id))
+                        .expect("This thread does not have access to CLIC")
+                };
+                clic.set_soft_interrupt(receiver_id);
             }
         }
     }
 
-    fn teleport(&self, resources: &KR, chip: &C, dst: &dyn ThreadId) {
-        if let Some(val) = self.take() {
-            if resources.shared_channel()
+    fn teleport(&self, dst: &dyn ThreadId) {
+        if let Some(val) = self.portal.take() {
+            let id = CSR.mhartid.extract().get();
+            if self.shared_channel
                 .write(QemuRv32VirtMessage {
-                    src: chip.id().get_id(),
+                    src: id,
                     dst: dst.get_id(),
                     body: QemuRv32VirtMessageBody::PortalResponse(
-                        self.get_id(),
+                        self.portal.get_id(),
                         val as *mut _ as *const _,
                     ),
                 })
             {
-                chip.notify(dst);
+                let clic = unsafe {
+                    thread_local_static_access!(crate::clint::CLIC, DynThreadId::new(id))
+                        .expect("This thread does not have access to CLIC")
+                };
+                clic.set_soft_interrupt(dst.get_id());
             }
         }
     }
 
     fn link(&self, entrant: Self::Entrant) -> Option<()> {
-        unsafe { self.0.replace_none(entrant) }
+        if self.portal.replace(entrant) {
+            Some(())
+        } else {
+            None
+        }
     }
 }
 
@@ -94,7 +127,7 @@ static mut EMPTY_STRING: [u8; 0] = [0; 0];
 impl<T: Configure> Configure for QemuRv32VirtPortalCell<'_, T> {
     fn configure(&self, params: Parameters) -> Result<(), ErrorCode> {
         self.enter(|inner: &mut T| inner.configure(params))
-            .unwrap_or(Err(ErrorCode::BUSY))
+            .unwrap_or(Ok(())) // Optimistically return Ok if not owning the type
     }
 }
 
@@ -109,8 +142,10 @@ impl<'a, T: Transmit<'a>> Transmit<'a> for QemuRv32VirtPortalCell<'a, T> {
         tx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         self.enter(|inner: &mut T| inner.transmit_buffer(tx_data, tx_len))
-            .unwrap()
-            // .unwrap_or(Err((ErrorCode::BUSY, unsafe { &mut *core::ptr::addr_of_mut!(EMPTY_STRING) })))
+            .unwrap_or_else(|| {
+                // self.
+                Err((ErrorCode::BUSY, unsafe { &mut *core::ptr::addr_of_mut!(EMPTY_STRING) }))
+            })
     }
 
     fn transmit_abort(&self) -> Result<(), ErrorCode> {

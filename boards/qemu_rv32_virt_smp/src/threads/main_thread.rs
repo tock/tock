@@ -253,6 +253,7 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
     // ---------- QEMU-SYSTEM-RISCV32 "virt" MACHINE PERIPHERALS ----------
 
     let plic = thread_local_static_finalize!(PLIC, ID);
+    let clic = thread_local_static_finalize!(qemu_rv32_virt_chip::clint::CLIC, ID);
 
     // Open a portal for the uart
     use qemu_rv32_virt_chip::portal::{QemuRv32VirtPortal, PORTALS};
@@ -267,12 +268,14 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
 
     let uart_portal = static_init!(
         QemuRv32VirtPortalCell<Uart16550>,
-        QemuRv32VirtPortalCell::new(uart, QemuRv32VirtPortal::Uart16550(core::ptr::null()).id())
+        QemuRv32VirtPortalCell::new(uart, QemuRv32VirtPortal::Uart16550(core::ptr::null()).id(), channel)
     );
 
     let counter_portal = static_init!(
-        QemuRv32VirtPortalCell<core::sync::atomic::AtomicUsize>,
-        QemuRv32VirtPortalCell::new(&mut *addr_of_mut!(COUNTER), QemuRv32VirtPortal::Counter(core::ptr::null()).id())
+        QemuRv32VirtPortalCell<usize>,
+        QemuRv32VirtPortalCell::new(
+            &mut *addr_of_mut!(COUNTER), QemuRv32VirtPortal::Counter(core::ptr::null()).id(), channel
+        )
     );
 
     (&*core::ptr::addr_of!(PORTALS))
@@ -592,9 +595,6 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
     // Start the process console:
     // let _ = platform.pconsole.start();
 
-    // finalize the static mut before using it
-    let clic = thread_local_static_finalize!(qemu_rv32_virt_chip::clint::CLIC, ID);
-
     // Global initialization is done. Wake up all threads.
     (0..MAX_THREADS)
         .filter(|&id| id != ID)
@@ -631,22 +631,15 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
     });
 
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap,
-                             Some(&*addr_of!(qemu_rv32_virt_chip::chip::COUNTER)),
+                             true,
                              Some(&|| {
-                                 use kernel::smp::portal_cell::Portalable;
-                                 // let num = (&*addr_of!(qemu_rv32_virt_chip::chip::COUNTER))
-                                 //     .load(core::sync::atomic::Ordering::SeqCst);
-                                 // debug!("counter: {:?}", num);
-                                 // unsafe {
-                                 //     debug!("data: {:?}",
-                                 //            crate::DEBUG_COUNTER.load(core::sync::atomic::Ordering::SeqCst));
-                                 // }
+
+                                 // debug!("looping: {:?}", 1);
                                  counter_portal.enter(|c| {
-                                     let num = c.load(core::sync::atomic::Ordering::Relaxed);
-                                     debug!("current counter: {:?}", num);
+                                     debug!("current counter: {:?}", c);
                                  }).unwrap_or_else(|| {
-                                     counter_portal.conjure(&platform, chip);
-                                     // debug!("current counter: None");
+                                     use kernel::smp::portal::Portalable;
+                                     counter_portal.conjure();
                                  });
                              }));
 }

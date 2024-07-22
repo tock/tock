@@ -256,12 +256,8 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
     // ---------- QEMU-SYSTEM-RISCV32 "virt" MACHINE PERIPHERALS ----------
 
     let plic = thread_local_static_finalize!(PLIC, ID);
+    let clic = thread_local_static_finalize!(qemu_rv32_virt_chip::clint::CLIC, ID);
 
-    // init channel receiver
-    // let channel = static_init!(
-    //     qemu_rv32_virt_chip::channel::QemuRv32VirtChannel,
-    //     qemu_rv32_virt_chip::channel::QemuRv32VirtChannel::new(&mut *core::ptr::addr_of_mut!(qemu_rv32_virt_chip::channel::CHANNEL_BUFFER)),
-    // );
     kernel::deferred_call::DeferredCallClient::register(channel);
 
     // Open an empty uart portal
@@ -272,12 +268,12 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
 
     let uart_portal = static_init!(
         QemuRv32VirtPortalCell<Uart16550>,
-        QemuRv32VirtPortalCell::empty(QemuRv32VirtPortal::Uart16550(core::ptr::null()).id())
+        QemuRv32VirtPortalCell::empty(QemuRv32VirtPortal::Uart16550(core::ptr::null()).id(), channel)
     );
 
     let counter_portal = static_init!(
-        QemuRv32VirtPortalCell<core::sync::atomic::AtomicUsize>,
-        QemuRv32VirtPortalCell::empty(QemuRv32VirtPortal::Counter(core::ptr::null()).id())
+        QemuRv32VirtPortalCell<usize>,
+        QemuRv32VirtPortalCell::empty(QemuRv32VirtPortal::Counter(core::ptr::null()).id(), channel)
     );
 
     (&*core::ptr::addr_of!(PORTALS))
@@ -475,12 +471,8 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
         shared_channel: channel,
     };
 
-    // finalize the static mut before using it
-    let clic = thread_local_static_finalize!(qemu_rv32_virt_chip::clint::CLIC, ID);
 
-
-    use core::sync::atomic::Ordering;
-    crate::threads::main_thread::APP_THREAD_READY.store(true, Ordering::SeqCst);
+    crate::threads::main_thread::APP_THREAD_READY.store(true, core::sync::atomic::Ordering::SeqCst);
 
     // use kernel::smp::portal_cell::Portalable;
     // uart_portal.conjure(&platform, chip);
@@ -513,17 +505,17 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
     });
 
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap,
-                             Some(&*core::ptr::addr_of!(qemu_rv32_virt_chip::chip::COUNTER)),
+                             true,
                              Some(&|| {
-                                 use kernel::smp::portal_cell::Portalable;
                                  counter_portal.enter(|c| {
-                                     c.fetch_add(1, core::sync::atomic::Ordering::SeqCst);
+                                     *c += 1;
                                  }).unwrap_or_else(|| {
-                                     counter_portal.conjure(&platform, chip);
+                                     use kernel::smp::portal::Portalable;
+                                     counter_portal.conjure();
                                  });
 
-                                     unsafe {
-                                         crate::DEBUG_COUNTER.fetch_add(1, core::sync::atomic::Ordering::SeqCst);
-                                     }
+                                 unsafe {
+                                     crate::DEBUG_COUNTER.fetch_add(1, core::sync::atomic::Ordering::SeqCst);
+                                 }
                              }));
 }

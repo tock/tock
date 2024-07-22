@@ -1,3 +1,3 @@
-pub mod portal_cell;
+pub mod portal;
 pub mod shared_channel;
 pub mod mutex;

@@ -2,9 +2,8 @@ use crate::QemuRv32VirtThreadLocal;
 
 pub const NUM_PORTALS: usize = core::mem::variant_count::<QemuRv32VirtPortal>() - 1; // ignore None
 
-pub static mut PORTALS: QemuRv32VirtThreadLocal<[QemuRv32VirtPortal; NUM_PORTALS]> = unsafe {
-     QemuRv32VirtThreadLocal::init([QemuRv32VirtPortal::None; NUM_PORTALS])
-};
+pub static mut PORTALS: QemuRv32VirtThreadLocal<[QemuRv32VirtPortal; NUM_PORTALS]> =
+     QemuRv32VirtThreadLocal::init([QemuRv32VirtPortal::None; NUM_PORTALS]);
 
 #[repr(u8)]
 #[derive(Copy, Clone)]

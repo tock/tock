@@ -435,7 +435,7 @@ impl Kernel {
         chip: &C,
         ipc: Option<&ipc::IPC<NUM_PROCS>>,
         capability: &dyn capabilities::MainLoopCapability,
-        counter: Option<&core::sync::atomic::AtomicUsize>,
+        do_closure: bool,
         closure: Option<&dyn Fn()>,
     ) -> ! {
         resources.watchdog().setup();
@@ -446,13 +446,13 @@ impl Kernel {
         }
         let id = unsafe { DynThreadId::new(hart_id) };
 
-        let mut data = core::sync::atomic::AtomicUsize::new(0);
-
         // Before we begin, verify that deferred calls were soundly setup.
         DeferredCall::verify_setup();
         loop {
             self.kernel_loop_operation(resources, chip, ipc, true, capability);
-            closure.unwrap()();
+            if do_closure {
+                closure.unwrap()();
+            }
         }
     }
 

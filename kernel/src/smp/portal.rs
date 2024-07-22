@@ -1,17 +1,17 @@
 /// PortalCell
 
 // use core::cell::Cell;
-use core::cell::UnsafeCell;
+use core::cell::{UnsafeCell, OnceCell};
 
 use crate::platform::platform::KernelResources;
 use crate::platform::chip::{Chip, ChipAtomic};
 use crate::threadlocal::ThreadId;
 
-pub trait Portalable<KR: KernelResources<C>, C: Chip + ChipAtomic> {
+pub trait Portalable {
     type Entrant;
 
-    fn conjure(&self, resources: &KR, chip: &C);
-    fn teleport(&self, resources: &KR, chip: &C, dst: &dyn ThreadId);
+    fn conjure(&self);
+    fn teleport(&self, dst: &dyn ThreadId);
     fn link(&self, entrant: Self::Entrant) -> Option<()>;
 }
 
@@ -75,25 +75,31 @@ pub trait Portalable<KR: KernelResources<C>, C: Chip + ChipAtomic> {
 // }
 
 pub struct PortalCell<'a, T: ?Sized> {
-    val: UnsafeCell<Option<&'a mut T>>,
-    tag: usize,
+    id: usize,
+    value: UnsafeCell<Option<&'a mut T>>,
+    lock: OnceCell<core::ptr::NonNull<T>>,
 }
 
 impl<'a, T: ?Sized> PortalCell<'a, T> {
 
-    // TODO: Need to be unsafe
-    pub fn empty(tag: usize) -> PortalCell<'a, T> {
-        PortalCell { val: UnsafeCell::new(None), tag }
+    // Safety? need to be unsafe
+    pub fn empty(id: usize) -> PortalCell<'a, T> {
+        PortalCell { id, value: UnsafeCell::new(None), lock: OnceCell::new() }
     }
 
-    pub fn new(value: &'a mut T, tag: usize) -> PortalCell<'a, T> {
-        PortalCell { val: UnsafeCell::new(Some(value)), tag }
+    pub fn new(value: &'a mut T, id: usize) -> PortalCell<'a, T> {
+        let lock = OnceCell::new();
+        lock.set(value.into()).unwrap_or_else(|_| unreachable!());
+        let value = UnsafeCell::new(Some(value));
+        PortalCell { id, value, lock }
     }
 
-    pub fn get_tag(&self) -> usize { self.tag }
+    pub fn get_id(&self) -> usize {
+        self.id
+    }
 
     pub fn is_none(&self) -> bool {
-        let inner = self.val.get();
+        let inner = self.value.get();
         unsafe { (*inner).is_none() }
     }
 
@@ -105,46 +111,36 @@ impl<'a, T: ?Sized> PortalCell<'a, T> {
     where
         F: FnOnce(&mut T) -> R,
     {
-        let inner = self.val.get();
-        unsafe { (*inner).as_mut().map(|val| f(val)) }
+        let inner = self.value.get();
+        unsafe { (*inner).as_mut().map(|value| f(value)) }
     }
 
     pub fn take(&self) -> Option<&'a mut T> {
-        let inner = self.val.get();
+        let inner = self.value.get();
         unsafe { (*inner).take() }
     }
 
-    pub unsafe fn replace_none(&self, val: &'a mut T) -> Option<()> {
+    pub fn replace(&self, value: &'a mut T) -> bool {
         if self.is_none() {
-            Some(unsafe {
-                (*self.val.get()).replace(val);
-            })
+            if let Some(lock) = self.lock.get() {
+                if *lock == value.into() {
+                    unsafe {
+                        (*self.value.get()).replace(value);
+                    }
+                    true
+                } else {
+                    false
+                }
+            } else {
+                self.lock.set(value.into()).unwrap_or_else(|_| unreachable!());
+                unsafe {
+                    (*self.value.get()).replace(value);
+                }
+                true
+            }
         } else {
-            None
+            false
         }
     }
 
 }
-
-// impl<'a, const ID: usize, T: hil::uart::Transmit<'a> + ?Sized> hil::uart::Transmit<'a> for PortalCell<'a, ID, T> {
-//     fn set_receive_client(&self, client: &'a dyn hil::uart::ReceiveClient) {
-//         todo!();
-//     }
-
-//     fn receive_buffer(
-//         &self,
-//         rx_buffer: &'static mut [u8],
-//         rx_len: usize,
-//     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-//         todo!();
-//     }
-
-//     fn receive_abort(&self) -> Result<(), ErrorCode> {
-//         todo!();
-//     }
-
-//     fn receive_word(&self) -> Result<(), ErrorCode> {
-//         todo!();
-//     }
-// }
-

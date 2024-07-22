@@ -6,6 +6,7 @@ use kernel::deferred_call::{DeferredCallThread, DeferredCallClient};
 use kernel::threadlocal::{ThreadLocal, ThreadLocalAccess, DynThreadId, ThreadLocalDyn};
 use kernel::utilities::registers::interfaces::Readable;
 use kernel::smp::shared_channel::SharedChannel;
+use kernel::smp::portal::Portalable;
 use kernel::smp::mutex::Mutex;
 use kernel::thread_local_static_access;
 use kernel::collections::queue::Queue;
@@ -73,50 +74,40 @@ impl<'a> QemuRv32VirtChannel<'a> {
             .expect("This thread does not have access to CLIC")
         };
 
+        // Acquire the mutex for the entire operation to reserve a slot for portal
+        // response. Calling teleport inside the scope will result in a deadlock.
+        // TODO: switch to a non-locking channel
         let mut channel = self.0.lock();
         if let Some(msg) = Self::find(&mut channel, |msg| msg.dst == hart_id) {
             use QemuRv32VirtMessageBody as M;
             match msg.body {
-                // M::Ping => {
-                //     let mut channel = self.0.lock();
-                //     channel.push(Some(QemuRv32VirtMessage {
-                //         src: hart_id,
-                //         dst: msg.src,
-                //         body: QemuRv32VirtMessageBody::Pong,
-                //     }));
-                //     clic.set_soft_interrupt(msg.src);
-                // }
-                // M::Pong => {
-                //     let mut channel = self.0.lock();
-                //     channel.push(Some(QemuRv32VirtMessage {
-                //         src: hart_id,
-                //         dst: msg.src,
-                //         body: QemuRv32VirtMessageBody::Ping,
-                //     }));
-                //     clic.set_soft_interrupt(msg.src);
-                // }
                 M::PortalRequest(portal_id) => {
                     let closure = |ps: &mut [QemuRv32VirtPortal; NUM_PORTALS]| {
                         use QemuRv32VirtPortal as P;
                         let traveler = match ps[portal_id] {
-                            P::Uart16550(val) => todo!(),
-                            P::Counter(val) => {
+                            P::Uart16550(val) => {
                                 let portal = unsafe {
-                                    &*(val as *const QemuRv32VirtPortalCell<core::sync::atomic::AtomicUsize>)
+                                    &*(val as *const QemuRv32VirtPortalCell<crate::uart::Uart16550>)
                                 };
                                 assert!(portal.get_id() == portal_id);
-                                portal.take()
+                                portal.take().map(|val| val as *mut _ as *const _)
+                            }
+                            P::Counter(val) => {
+                                let portal = unsafe {
+                                    &*(val as *const QemuRv32VirtPortalCell<usize>)
+                                };
+                                assert!(portal.get_id() == portal_id);
+                                portal.take().map(|val| val as *mut _ as *const _)
                             }
                             _ => panic!("Invalid Portal"),
                         };
-
                         if let Some(val) = traveler {
                             assert!(channel.enqueue(Some(QemuRv32VirtMessage {
                                 src: hart_id,
                                 dst: msg.src,
                                 body: QemuRv32VirtMessageBody::PortalResponse(
                                     portal_id,
-                                    val as *mut _ as *const _,
+                                    val
                                 ),
                             })));
                             clic.set_soft_interrupt(msg.src);
@@ -134,18 +125,21 @@ impl<'a> QemuRv32VirtChannel<'a> {
                     let closure = |ps: &mut [QemuRv32VirtPortal; NUM_PORTALS]| {
                         use QemuRv32VirtPortal as P;
                         match ps[portal_id] {
-                            P::Uart16550(val) => todo!(),
-                            P::Counter(val) => {
+                            P::Uart16550(val) => {
                                 let portal = unsafe {
-                                    &*(val as *const QemuRv32VirtPortalCell<core::sync::atomic::AtomicUsize>)
+                                    &*(val as *const QemuRv32VirtPortalCell<crate::uart::Uart16550>)
                                 };
                                 assert!(portal.get_id() == portal_id);
-                                // assert!(msg.src == 0);
-                                // assert!(msg.dst == 1);
-                                unsafe {
-                                    portal.replace_none(&mut *(traveler as *mut _))
-                                        .expect("Double portal")
-                                }
+                                portal.link(unsafe { &mut *(traveler as *mut _) })
+                                    .expect("Failed to link the uart portal");
+                            }
+                            P::Counter(val) => {
+                                let portal = unsafe {
+                                    &*(val as *const QemuRv32VirtPortalCell<usize>)
+                                };
+                                assert!(portal.get_id() == portal_id);
+                                portal.link(unsafe { &mut *(traveler as *mut _) })
+                                    .expect("Failed to link the counter portal");
                             }
                             _ => panic!("Invalid Portal"),
                         };
@@ -158,7 +152,7 @@ impl<'a> QemuRv32VirtChannel<'a> {
                             .enter_nonreentrant(closure);
                     }
                 }
-                _ => panic!("Invalid Message :("),
+                _ => panic!("Unsupported message"),
             }
         }
     }
@@ -190,6 +184,6 @@ impl SharedChannel for QemuRv32VirtChannel<'_> {
         self.0
             .lock()
             .dequeue()
-            .map(|val| val.expect("Invalid Message"))
+            .map(|val| val.expect("Invalid message"))
     }
 }
