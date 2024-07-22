@@ -359,7 +359,7 @@ pub trait Process {
 
     /// Queue a [`Task`] for the process. This will be added to a per-process
     /// buffer and executed by the scheduler. [`Task`]s are some function the
-    /// app should run, for example a upcall or an IPC call.
+    /// process should run, for example a upcall or an IPC call.
     ///
     /// This function returns:
     /// - `Ok(())` if the [`Task`] was successfully enqueued.
