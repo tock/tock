@@ -148,8 +148,8 @@ pub fn check_modify_permission(&self, stored_id: u32) -> bool;
 pub fn get_write_id(&self) -> Option<u32>;
 ```
 
-This API is implemented for the `StoragePermissions` object (which is an
-`enum`). The `StoragePermissions` type can be stored per-process and passed in
+This API is implemented for the `StoragePermissions` object.
+The `StoragePermissions` type can be stored per-process and passed in
 storage APIs to express the storage permissions of the caller of any storage
 operations.
 
@@ -164,8 +164,8 @@ a record name might have an (asynchronous) API like this:
 
 ```rust
 pub trait FilingCabinet {
-    fn read(&self, record: &str, permissions: &dyn StoragePermissions) -> Result<(), ErrorCode>;
-    fn write(&self, record: &str, data: &[u8], permissions: &dyn StoragePermissions) -> Result<(), ErrorCode>;
+    fn read(&self, record: &str, permissions: StoragePermissions) -> Result<(), ErrorCode>;
+    fn write(&self, record: &str, data: &[u8], permissions: StoragePermissions) -> Result<(), ErrorCode>;
 }
 ```
 
@@ -198,7 +198,7 @@ For example, with the filing cabinet example:
 
 ```rust
 pub trait FilingCabinet {
-    fn read(&self, record: &str, permissions: &dyn StoragePermissions) -> Result<[u8], ErrorCode> {
+    fn read(&self, record: &str, permissions: StoragePermissions) -> Result<[u8], ErrorCode> {
         let obj = self.cabinet.read(record);
         match obj {
             Some(r) => {
@@ -212,7 +212,7 @@ pub trait FilingCabinet {
         }
     }
 
-    fn write(&self, record: &str, data: &[u8], permissions: &dyn StoragePermissions) -> Result<(), ErrorCode> {
+    fn write(&self, record: &str, data: &[u8], permissions: StoragePermissions) -> Result<(), ErrorCode> {
         let obj = self.cabinet.read(record);
         match obj {
             Some(r) => {
