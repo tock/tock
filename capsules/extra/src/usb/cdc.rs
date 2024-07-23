@@ -271,9 +271,7 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> CdcAcm<'a, U, A> {
                     max_packet_size_ep0: max_ctrl_packet_size,
                     ..descriptors::DeviceDescriptor::default()
                 },
-                descriptors::ConfigurationDescriptor {
-                    ..descriptors::ConfigurationDescriptor::default()
-                },
+                descriptors::ConfigurationDescriptor::default(),
                 interfaces,
                 endpoints,
                 None, // No HID descriptor
