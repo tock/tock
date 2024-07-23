@@ -106,10 +106,7 @@ impl<'a, P: gpio::InterruptPin<'a>> Button<'a, P> {
             pin.set_floating_state(floating_state);
         }
 
-        Self {
-            pins: pins,
-            apps: grant,
-        }
+        Self { pins, apps: grant }
     }
 
     fn get_button_state(&self, pin_num: u32) -> gpio::ActivationState {

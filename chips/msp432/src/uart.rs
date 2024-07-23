@@ -92,14 +92,14 @@ impl<'a> Uart<'a> {
 
             tx_client: OptionalCell::empty(),
             tx_dma: OptionalCell::empty(),
-            tx_dma_chan: tx_dma_chan,
-            tx_dma_src: tx_dma_src,
+            tx_dma_chan,
+            tx_dma_src,
             tx_busy: Cell::new(false),
 
             rx_client: OptionalCell::empty(),
             rx_dma: OptionalCell::empty(),
-            rx_dma_chan: rx_dma_chan,
-            rx_dma_src: rx_dma_src,
+            rx_dma_chan,
+            rx_dma_src,
             rx_busy: Cell::new(false),
         }
     }

@@ -391,7 +391,7 @@ pub struct Bus8080Bus<'a, B: Bus8080<'static>> {
 impl<'a, B: Bus8080<'static>> Bus8080Bus<'a, B> {
     pub fn new(bus: &'a B) -> Bus8080Bus<'a, B> {
         Bus8080Bus {
-            bus: bus,
+            bus,
             client: OptionalCell::empty(),
             status: Cell::new(BusStatus::Idle),
         }

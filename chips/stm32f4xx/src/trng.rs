@@ -63,7 +63,7 @@ impl<'a> Trng<'a> {
         clocks: &'a dyn Stm32f4Clocks,
     ) -> Trng<'a> {
         Trng {
-            registers: registers,
+            registers,
             clock: RngClock(phclk::PeripheralClock::new(
                 phclk::PeripheralClockType::AHB2(phclk::HCLK2::RNG),
                 clocks,

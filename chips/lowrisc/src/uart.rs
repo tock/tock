@@ -58,7 +58,7 @@ impl<'a> Uart<'a> {
     pub fn new(base: StaticRef<UartRegisters>, clock_frequency: u32) -> Uart<'a> {
         Uart {
             registers: base,
-            clock_frequency: clock_frequency,
+            clock_frequency,
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
             rx_deferred_call: DeferredCall::new(),

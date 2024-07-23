@@ -260,15 +260,15 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
     ) -> Usart<'a, DMA> {
         Usart {
             registers: base_addr,
-            clock: clock,
+            clock,
 
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
 
             tx_dma: OptionalCell::empty(),
-            tx_dma_pid: tx_dma_pid,
+            tx_dma_pid,
             rx_dma: OptionalCell::empty(),
-            rx_dma_pid: rx_dma_pid,
+            rx_dma_pid,
 
             tx_len: Cell::new(0),
             rx_len: Cell::new(0),

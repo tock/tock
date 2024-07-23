@@ -107,7 +107,7 @@ impl<IP: 'static + gpio::InterruptPin<'static>> ButtonComponent<IP> {
         )],
     ) -> Self {
         Self {
-            board_kernel: board_kernel,
+            board_kernel,
             driver_num,
             button_pins,
         }

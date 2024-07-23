@@ -59,12 +59,31 @@ impl fmt::Debug for ProcessCheckError {
 #[derive(Debug)]
 pub enum CheckResult {
     /// Accept the credential and run the binary.
-    Accept,
+    ///
+    /// The associated value is an optional opaque usize the credential
+    /// checker can return to communication some information about the accepted
+    /// credential.
+    Accept(Option<CheckResultAcceptMetadata>),
     /// Go to the next credential or in the case of the last one fall
     /// back to the default policy.
     Pass,
     /// Reject the credential and do not run the binary.
     Reject,
+}
+
+/// Optional metadata the credential checker can attach to an accepted
+/// credential.
+///
+/// This metadata can be used to provide context for why or how the accepted
+/// credential was accepted. For example, this could be set to the index of a
+/// public key that was used to verify a cryptographic signature. This value can
+/// then be used by the AppId assigner to assign the correct AppId and
+/// [`ShortId`].
+#[derive(Debug, Copy, Clone)]
+pub struct CheckResultAcceptMetadata {
+    /// The metadata stored with the accepted credential is a usize that has an
+    /// application-specific meaning.
+    pub metadata: usize,
 }
 
 /// Receives callbacks on whether a credential was accepted or not.
@@ -77,6 +96,25 @@ pub trait AppCredentialsPolicyClient<'a> {
         credentials: TbfFooterV2Credentials,
         integrity_region: &'a [u8],
     );
+}
+
+/// The accepted credential from the credential checker.
+///
+/// This combines both the credential as stored in the TBF footer with an
+/// optional opaque value provided by the checker when it accepted the
+/// credential. This value can be used when assigning an AppID to the
+/// application based on the how the credential was approved. For example, if
+/// the credential checker has a list of valid public keys used to verify
+/// signatures, it might set the optional value to the index of the public key
+/// in this list.
+#[derive(Copy, Clone)]
+pub struct AcceptedCredential {
+    /// The credential stored in the footer that the credential checker
+    /// accepted.
+    pub credential: TbfFooterV2Credentials,
+    /// An optional opaque value set by the credential checker to store metadata
+    /// about the accepted credential. This is credential checker specific.
+    pub metadata: Option<CheckResultAcceptMetadata>,
 }
 
 /// Implements a Credentials Checking Policy.
@@ -154,6 +192,10 @@ impl AppUniqueness for () {
 /// Transforms Application Credentials into a corresponding ShortId.
 pub trait Compress {
     /// Create a `ShortId` for `process`.
+    ///
+    /// If the process was approved to run because of a specific credential, the
+    /// `ProcessBinary will have its `credential` filed set to `Some()` with
+    /// that credential.
     fn to_short_id(&self, process: &ProcessBinary) -> ShortId;
 }
 
@@ -170,9 +212,17 @@ impl<T: AppUniqueness + Compress> AppIdPolicy for T {}
 pub trait ProcessCheckerMachineClient {
     /// Check is finished, and the check result is in `result`.0
     ///
-    /// If `result` is `Ok(())`, the credentials were accepted. If `result` is
-    /// `Err`, the credentials were not accepted.
-    fn done(&self, process_binary: ProcessBinary, result: Result<(), ProcessCheckError>);
+    /// If `result` is `Ok(Option<Credentials>)`, the credentials were either
+    /// accepted and the accepted credential is provided, or no credentials were
+    /// accepted but none is required.
+    ///
+    /// If `result` is `Err`, the credentials were not accepted and the policy
+    /// denied approving the app.
+    fn done(
+        &self,
+        process_binary: ProcessBinary,
+        result: Result<Option<AcceptedCredential>, ProcessCheckError>,
+    );
 }
 
 /// Outcome from checking a single footer credential.
@@ -268,7 +318,7 @@ impl ProcessCheckerMachine {
                         let result = if requires {
                             Err(ProcessCheckError::CredentialsNotAccepted)
                         } else {
-                            Ok(())
+                            Ok(None)
                         };
 
                         self.client.map(|client| client.done(pb, result));
@@ -412,17 +462,23 @@ impl AppCredentialsPolicyClient<'static> for ProcessCheckerMachine {
     fn check_done(
         &self,
         result: Result<CheckResult, ErrorCode>,
-        _credentials: TbfFooterV2Credentials,
+        credentials: TbfFooterV2Credentials,
         _integrity_region: &'static [u8],
     ) {
         if config::CONFIG.debug_process_credentials {
             debug!("Checking: check_done gave result {:?}", result);
         }
         let cont = match result {
-            Ok(CheckResult::Accept) => {
+            Ok(CheckResult::Accept(opaque)) => {
                 self.client.map(|client| {
                     if let Some(pb) = self.process_binary.take() {
-                        client.done(pb, Ok(()))
+                        client.done(
+                            pb,
+                            Ok(Some(AcceptedCredential {
+                                credential: credentials,
+                                metadata: opaque,
+                            })),
+                        )
                     }
                 });
                 false

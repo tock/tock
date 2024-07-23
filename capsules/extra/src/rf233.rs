@@ -1044,7 +1044,7 @@ impl<'a, S: spi::SpiMasterDevice<'a>> RF233<'a, S> {
         channel: radio::RadioChannel,
     ) -> RF233<'a, S> {
         RF233 {
-            spi: spi,
+            spi,
             reset_pin: reset,
             sleep_pin: sleep,
             irq_pin: irq,

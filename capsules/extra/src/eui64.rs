@@ -16,7 +16,7 @@ pub struct Eui64 {
 
 impl Eui64 {
     pub fn new(eui64: u64) -> Eui64 {
-        Eui64 { eui64: eui64 }
+        Eui64 { eui64 }
     }
 }
 

@@ -92,8 +92,8 @@ pub struct Field<T: UIntLike, R: RegisterLongName> {
 impl<T: UIntLike, R: RegisterLongName> Field<T, R> {
     pub const fn new(mask: T, shift: usize) -> Field<T, R> {
         Field {
-            mask: mask,
-            shift: shift,
+            mask,
+            shift,
             associated_register: PhantomData,
         }
     }

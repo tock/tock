@@ -788,22 +788,22 @@ unsafe fn start() -> (
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let stm32f3discovery = STM32F3Discovery {
-        console: console,
+        console,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
-        gpio: gpio,
-        led: led,
-        button: button,
-        alarm: alarm,
-        l3gd20: l3gd20,
-        lsm303dlhc: lsm303dlhc,
-        ninedof: ninedof,
-        temp: temp,
+        gpio,
+        led,
+        button,
+        alarm,
+        l3gd20,
+        lsm303dlhc,
+        ninedof,
+        temp,
         adc: adc_syscall,
-        nonvolatile_storage: nonvolatile_storage,
+        nonvolatile_storage,
 
         scheduler,
         systick: cortexm4::systick::SysTick::new(),

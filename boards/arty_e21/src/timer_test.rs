@@ -11,7 +11,7 @@ pub struct TimerTest<'a, A: Alarm<'a>> {
 
 impl<'a, A: Alarm<'a>> TimerTest<'a, A> {
     pub const fn new(alarm: &'a A) -> TimerTest<'a, A> {
-        TimerTest { alarm: alarm }
+        TimerTest { alarm }
     }
 
     pub fn start(&self) {

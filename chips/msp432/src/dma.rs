@@ -661,7 +661,7 @@ impl<'a> DmaChannel<'a> {
     pub fn new(chan_nr: usize) -> DmaChannel<'a> {
         DmaChannel {
             registers: DMA_BASE,
-            chan_nr: chan_nr,
+            chan_nr,
             in_use: Cell::new(false),
             config: Cell::new(DmaConfig::const_default()),
             transfer_type: Cell::new(DmaTransferType::None),

@@ -33,7 +33,7 @@ impl<'a> VirtualMuxAccel<'a> {
             mux: mux_accel,
             next: ListLink::empty(),
             client: OptionalCell::empty(),
-            id: id,
+            id,
         }
     }
 

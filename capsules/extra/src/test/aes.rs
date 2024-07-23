@@ -70,7 +70,7 @@ impl<'a, A: AES128<'a> + AES128ECB> TestAes128Ecb<'a, A> {
         test_decrypt: bool,
     ) -> Self {
         TestAes128Ecb {
-            aes: aes,
+            aes,
 
             key: TakeCell::new(key),
             source: TakeCell::new(source),
@@ -170,7 +170,7 @@ impl<'a, A: AES128<'a> + AES128Ctr> TestAes128Ctr<'a, A> {
         test_decrypt: bool,
     ) -> Self {
         TestAes128Ctr {
-            aes: aes,
+            aes,
 
             key: TakeCell::new(key),
             iv: TakeCell::new(iv),
@@ -342,7 +342,7 @@ impl<'a, A: AES128<'a> + AES128CBC> TestAes128Cbc<'a, A> {
         test_decrypt: bool,
     ) -> Self {
         TestAes128Cbc {
-            aes: aes,
+            aes,
 
             key: TakeCell::new(key),
             iv: TakeCell::new(iv),

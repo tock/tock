@@ -96,7 +96,7 @@ impl UdpSocket {
     // obtain access to ports bound by other capsules
     fn new(idx: usize, pt: &'static UdpPortManager) -> UdpSocket {
         UdpSocket {
-            idx: idx,
+            idx,
             port_table: pt,
         }
     }
@@ -126,10 +126,7 @@ pub struct UdpPortBindingTx {
 
 impl UdpPortBindingTx {
     fn new(idx: usize, port: u16) -> UdpPortBindingTx {
-        UdpPortBindingTx {
-            idx: idx,
-            port: port,
-        }
+        UdpPortBindingTx { idx, port }
     }
 
     pub fn get_port(&self) -> u16 {
@@ -139,10 +136,7 @@ impl UdpPortBindingTx {
 
 impl UdpPortBindingRx {
     fn new(idx: usize, port: u16) -> UdpPortBindingRx {
-        UdpPortBindingRx {
-            idx: idx,
-            port: port,
-        }
+        UdpPortBindingRx { idx, port }
     }
 
     pub fn get_port(&self) -> u16 {
@@ -160,7 +154,7 @@ impl UdpPortManager {
         UdpPortManager {
             port_array: TakeCell::new(used_kernel_ports),
             user_ports: OptionalCell::empty(),
-            udp_vis: udp_vis,
+            udp_vis,
         }
     }
 

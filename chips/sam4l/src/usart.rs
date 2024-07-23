@@ -431,10 +431,10 @@ impl<'a> USART<'a> {
 
             // these get defined later by `chip.rs`
             rx_dma: Cell::new(None),
-            rx_dma_peripheral: rx_dma_peripheral,
+            rx_dma_peripheral,
             rx_len: Cell::new(0),
             tx_dma: Cell::new(None),
-            tx_dma_peripheral: tx_dma_peripheral,
+            tx_dma_peripheral,
             tx_len: Cell::new(0),
 
             // this gets defined later by `main.rs`

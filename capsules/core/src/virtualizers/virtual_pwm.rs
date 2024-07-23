@@ -38,7 +38,7 @@ pub struct MuxPwm<'a, P: hil::pwm::Pwm> {
 impl<'a, P: hil::pwm::Pwm> MuxPwm<'a, P> {
     pub const fn new(pwm: &'a P) -> MuxPwm<'a, P> {
         MuxPwm {
-            pwm: pwm,
+            pwm,
             devices: List::new(),
             inflight: OptionalCell::empty(),
         }
@@ -118,8 +118,8 @@ pub struct PwmPinUser<'a, P: hil::pwm::Pwm> {
 impl<'a, P: hil::pwm::Pwm> PwmPinUser<'a, P> {
     pub const fn new(mux: &'a MuxPwm<'a, P>, pin: P::Pin) -> PwmPinUser<'a, P> {
         PwmPinUser {
-            mux: mux,
-            pin: pin,
+            mux,
+            pin,
             operation: OptionalCell::empty(),
             next: ListLink::empty(),
         }

@@ -6,7 +6,7 @@
 # production deploy for the master branch. We use this workflow purely as we
 # can't have Netlify build the wildcard gh-readonly-queue/* branches. This
 # workflow thus ensures that docs build successfully (albeit not in the exact
-# same envrionment as Netlify's).
+# same environment as Netlify's).
 #
 # See issue #3428 for more information.
 

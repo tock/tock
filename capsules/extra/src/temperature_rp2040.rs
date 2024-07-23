@@ -32,9 +32,9 @@ impl<'a, A: adc::AdcChannel<'a>> TemperatureRp2040<'a, A> {
     /// v_27 - voltage at 27 degrees Celsius found in datasheet
     pub fn new(adc: &'a A, slope: f32, v_27: f32) -> TemperatureRp2040<'a, A> {
         TemperatureRp2040 {
-            adc: adc,
-            slope: slope,
-            v_27: v_27,
+            adc,
+            slope,
+            v_27,
             temperature_client: OptionalCell::empty(),
             status: Cell::new(Status::Idle),
         }

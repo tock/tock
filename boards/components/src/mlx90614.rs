@@ -59,7 +59,7 @@ impl<I: 'static + i2c::I2CMaster<'static>, S: 'static + i2c::SMBusMaster<'static
     ) -> Self {
         Mlx90614SMBusComponent {
             i2c_mux: i2c,
-            i2c_address: i2c_address,
+            i2c_address,
             board_kernel,
             driver_num,
         }

@@ -355,8 +355,8 @@ impl<'a> UartDevice<'a> {
     pub fn new(mux: &'a MuxUart<'a>, receiver: bool) -> UartDevice<'a> {
         UartDevice {
             state: Cell::new(UartDeviceReceiveState::Idle),
-            mux: mux,
-            receiver: receiver,
+            mux,
+            receiver,
             tx_buffer: TakeCell::empty(),
             transmitting: Cell::new(false),
             rx_buffer: TakeCell::empty(),
@@ -449,7 +449,7 @@ impl<'a> uart::Transmit<'a> for UartDevice<'a> {
             Err(ErrorCode::BUSY)
         } else {
             self.transmitting.set(true);
-            self.operation.set(Operation::TransmitWord { word: word });
+            self.operation.set(Operation::TransmitWord { word });
             self.mux.do_next_op_async();
             Ok(())
         }

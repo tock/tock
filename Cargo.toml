@@ -158,12 +158,7 @@ only_used_in_recursion = "allow"
 manual-range-patterns = "allow"
 manual-flatten = "allow"
 
-
 zero_prefixed_literal = "allow"
-
-
-overflow_check_conditional = "allow"
-
 
 # STYLE
 style = { level = "deny", priority = -1 }
@@ -195,7 +190,6 @@ let_and_return = "allow"
 missing_safety_doc = "allow"
 needless-range-loop = "allow"
 option_map_or_none = "allow"
-redundant_field_names = "allow"
 redundant_pattern_matching = "allow"
 unusual-byte-groupings = "allow"
 doc_lazy_continuation = "allow"
@@ -238,7 +232,6 @@ empty_line_after_doc_comments = "allow"
 trait_duplication_in_bounds = "allow"
 useless_let_if_seq = "allow"
 as_ptr_cast_mut = "allow"
-unnecessary_struct_initialization = "allow"
 
 
 # PEDANTIC

@@ -188,14 +188,14 @@ impl<'a> NonvolatileStorage<'a> {
         buffer: &'static mut [u8],
     ) -> NonvolatileStorage<'a> {
         NonvolatileStorage {
-            driver: driver,
+            driver,
             apps: grant,
             buffer: TakeCell::new(buffer),
             current_user: OptionalCell::empty(),
-            userspace_start_address: userspace_start_address,
-            userspace_length: userspace_length,
-            kernel_start_address: kernel_start_address,
-            kernel_length: kernel_length,
+            userspace_start_address,
+            userspace_length,
+            kernel_start_address,
+            kernel_length,
             kernel_client: OptionalCell::empty(),
             kernel_pending_command: Cell::new(false),
             kernel_command: Cell::new(NonvolatileCommand::KernelRead),
@@ -272,9 +272,7 @@ impl<'a> NonvolatileStorage<'a> {
                             if self.current_user.is_none() {
                                 // No app is currently using the underlying storage.
                                 // Mark this app as active, and then execute the command.
-                                self.current_user.set(NonvolatileUser::App {
-                                    processid: processid,
-                                });
+                                self.current_user.set(NonvolatileUser::App { processid });
 
                                 // Need to copy bytes if this is a write!
                                 if command == NonvolatileCommand::UserspaceWrite {
@@ -415,9 +413,7 @@ impl<'a> NonvolatileStorage<'a> {
                 let started_command = cntr.enter(|app, _| {
                     if app.pending_command {
                         app.pending_command = false;
-                        self.current_user.set(NonvolatileUser::App {
-                            processid: processid,
-                        });
+                        self.current_user.set(NonvolatileUser::App { processid });
                         if let Ok(()) =
                             self.userspace_call_driver(app.command, app.offset, app.length)
                         {

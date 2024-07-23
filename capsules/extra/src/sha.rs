@@ -101,7 +101,7 @@ impl<
         >,
     ) -> ShaDriver<'a, H, L> {
         ShaDriver {
-            sha: sha,
+            sha,
             active: Cell::new(false),
             apps: grant,
             processid: OptionalCell::empty(),

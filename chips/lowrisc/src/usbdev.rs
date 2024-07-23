@@ -1001,7 +1001,7 @@ impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
                 );
 
                 self.set_state(State::Idle(Mode::Device {
-                    speed: speed,
+                    speed,
                     config: DeviceConfig::default(),
                 }))
             }

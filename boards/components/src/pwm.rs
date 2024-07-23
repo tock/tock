@@ -50,7 +50,7 @@ pub struct PwmMuxComponent<P: 'static + pwm::Pwm> {
 
 impl<P: 'static + pwm::Pwm> PwmMuxComponent<P> {
     pub fn new(pwm: &'static P) -> Self {
-        PwmMuxComponent { pwm: pwm }
+        PwmMuxComponent { pwm }
     }
 }
 
@@ -74,7 +74,7 @@ impl<P: 'static + pwm::Pwm> PwmPinUserComponent<P> {
     pub fn new(mux: &'static MuxPwm<'static, P>, channel: P::Pin) -> Self {
         PwmPinUserComponent {
             pwm_mux: mux,
-            channel: channel,
+            channel,
         }
     }
 }
@@ -103,8 +103,8 @@ impl<const NUM_PINS: usize> PwmDriverComponent<NUM_PINS> {
         driver_num: usize,
     ) -> PwmDriverComponent<NUM_PINS> {
         PwmDriverComponent {
-            board_kernel: board_kernel,
-            driver_num: driver_num,
+            board_kernel,
+            driver_num,
         }
     }
 }

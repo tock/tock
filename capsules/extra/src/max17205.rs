@@ -124,8 +124,8 @@ pub struct MAX17205<'a, I: i2c::I2CDevice> {
 impl<'a, I: i2c::I2CDevice> MAX17205<'a, I> {
     pub fn new(i2c_lower: &'a I, i2c_upper: &'a I, buffer: &'static mut [u8]) -> MAX17205<'a, I> {
         MAX17205 {
-            i2c_lower: i2c_lower,
-            i2c_upper: i2c_upper,
+            i2c_lower,
+            i2c_upper,
             state: Cell::new(State::Idle),
             soc: Cell::new(0),
             soc_mah: Cell::new(0),

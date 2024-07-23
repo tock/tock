@@ -134,7 +134,7 @@ impl<'a, S: hil::screen::Screen<'a>> ScreenShared<'a, S> {
         apps_regions: &'a [AppScreenRegion],
     ) -> ScreenShared<'a, S> {
         ScreenShared {
-            screen: screen,
+            screen,
             apps: grant,
             current_process: OptionalCell::empty(),
             buffer: TakeCell::new(buffer),

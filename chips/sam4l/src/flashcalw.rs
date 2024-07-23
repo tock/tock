@@ -516,8 +516,7 @@ impl FLASHCALW {
                 });
             }
             FlashState::WriteUnlocking { page } => {
-                self.current_state
-                    .set(FlashState::WriteErasing { page: page });
+                self.current_state.set(FlashState::WriteErasing { page });
                 self.flashcalw_erase_page(page);
             }
             FlashState::WriteErasing { page } => {
@@ -784,12 +783,10 @@ impl FLASHCALW {
         pm::enable_clock(self.ahb_clock);
 
         // Check that address makes sense and buffer has room.
-        if address > (self.get_flash_size() as usize)
-            || address + size > (self.get_flash_size() as usize)
-            || address + size < size
-            || buffer.len() < size
-        {
-            // invalid flash address
+        let Some(end_address) = address.checked_add(size) else {
+            return Err((ErrorCode::INVAL, buffer));
+        };
+        if end_address > (self.get_flash_size() as usize) || buffer.len() < size {
             return Err((ErrorCode::INVAL, buffer));
         }
 

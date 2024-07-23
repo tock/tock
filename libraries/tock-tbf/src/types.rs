@@ -622,7 +622,7 @@ impl core::convert::TryFrom<&'static [u8]> for TbfFooterV2Credentials {
             .ok_or(TbfParseError::NotEnoughFlash)?;
         Ok(TbfFooterV2Credentials {
             format: ftype,
-            data: data,
+            data,
         })
     }
 }

@@ -160,10 +160,7 @@ pub struct I2CMasterBusComponent<I: 'static + i2c::I2CMaster<'static>> {
 
 impl<I: 'static + i2c::I2CMaster<'static>> I2CMasterBusComponent<I> {
     pub fn new(i2c_mux: &'static MuxI2C<'static, I>, address: u8) -> I2CMasterBusComponent<I> {
-        I2CMasterBusComponent {
-            i2c_mux: i2c_mux,
-            address: address,
-        }
+        I2CMasterBusComponent { i2c_mux, address }
     }
 }
 

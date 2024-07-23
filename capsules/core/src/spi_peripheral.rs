@@ -74,7 +74,7 @@ impl<'a, S: SpiSlaveDevice<'a>> SpiPeripheral<'a, S> {
         >,
     ) -> SpiPeripheral<'a, S> {
         SpiPeripheral {
-            spi_slave: spi_slave,
+            spi_slave,
             busy: Cell::new(false),
             kernel_len: Cell::new(0),
             kernel_read: TakeCell::empty(),
