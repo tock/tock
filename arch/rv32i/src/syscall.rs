@@ -601,7 +601,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             // We pass the per-process state struct in a register we are allowed
             // to clobber (not s0 or s1), but still fits into 3-bit register
             // arguments of compressed load- & store-instructions.
-            in("x10") state as *mut Riscv32iStoredState,
+            in("x10") core::ptr::from_mut::<Riscv32iStoredState>(state),
 
             // Clobber all registers which can be marked as clobbered, except
             // for `a0` / `x10`. By making it retain the value of `&mut state`,
