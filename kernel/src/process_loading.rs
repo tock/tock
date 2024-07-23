@@ -659,8 +659,8 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
 
                 // Start by iterating all other process binaries and seeing
                 // if any are in conflict (same AppID with newer version).
-                for j in 0..proc_binaries_len {
-                    match &proc_binaries[j] {
+                for proc_bin in proc_binaries.iter() {
+                    match proc_bin {
                         Some(other_process_binary) => {
                             let blocked = self
                                 .is_blocked_from_loading_by(&process_binary, other_process_binary);
