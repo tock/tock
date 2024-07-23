@@ -1298,18 +1298,13 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     const PROCESS_STRUCT_OFFSET: usize = mem::size_of::<ProcessStandard<C>>();
 
     /// Create a `ProcessStandard` object based on the found `ProcessBinary`.
-    ///
-    /// The `storage_permissions_policy` is optional because any app without a
-    /// fixed `ShortId` cannot have storage permissions, so in cases where an
-    /// AppID assigner is not used it doesn't make sense to have a storage
-    /// permissions policy.
     pub(crate) unsafe fn create<'a>(
         kernel: &'static Kernel,
         chip: &'static C,
         pb: ProcessBinary,
         remaining_memory: &'a mut [u8],
         fault_policy: &'static dyn ProcessFaultPolicy,
-        storage_permissions_policy: Option<&'static dyn ProcessStandardStoragePermissionsPolicy<C>>,
+        storage_permissions_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C>,
         app_id: ShortId,
         index: usize,
     ) -> Result<(Option<&'static dyn Process>, &'a mut [u8]), (ProcessLoadError, &'a mut [u8])>
@@ -1702,12 +1697,6 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             timeslice_expiration_count: 0,
         });
 
-        if let Some(storage_perm_policy) = storage_permissions_policy {
-            process.storage_permissions = storage_perm_policy.get_permissions(process);
-        } else {
-            process.storage_permissions = StoragePermissions::new_null();
-        }
-
         // Handle any architecture-specific requirements for a new process.
         //
         // NOTE! We have to ensure that the start of process-accessible memory
@@ -1757,6 +1746,11 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
                 argument3: process.app_break.get() as usize,
             }));
         });
+
+        // Set storage permissions. Put this at the end so that `process` is
+        // completely formed before using it to determine the storage
+        // permissions.
+        process.storage_permissions = storage_permissions_policy.get_permissions(process);
 
         // Return the process object and a remaining memory for processes slice.
         Ok((Some(process), unused_memory))

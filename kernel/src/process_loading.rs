@@ -220,7 +220,7 @@ fn load_processes_from_flash<C: Chip>(
                     ShortId::LocallyUnique,
                     index,
                     fault_policy,
-                    None,
+                    &(),
                 );
                 match load_result {
                     Ok((new_mem, proc)) => {
@@ -354,7 +354,7 @@ fn load_process<C: Chip>(
     app_id: ShortId,
     index: usize,
     fault_policy: &'static dyn ProcessFaultPolicy,
-    storage_policy: Option<&'static dyn ProcessStandardStoragePermissionsPolicy<C>>,
+    storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C>,
 ) -> Result<(&'static mut [u8], Option<&'static dyn Process>), (&'static mut [u8], ProcessLoadError)>
 {
     if config::CONFIG.debug_load_processes {
@@ -728,7 +728,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
                             short_app_id,
                             index,
                             self.fault_policy,
-                            Some(self.storage_policy),
+                            self.storage_policy,
                         );
                         match load_result {
                             Ok((new_mem, proc)) => {
