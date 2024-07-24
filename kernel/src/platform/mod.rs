@@ -5,14 +5,12 @@
 //! Traits for implementing various layers and components in Tock.
 //!
 //! Implementations of these traits are used by the core kernel.
-// #[flux::ignore]
 pub mod chip;
 pub mod mpu;
 #[flux::ignore]
 pub mod scheduler_timer;
 pub mod watchdog;
 
-// #[flux::ignore]
 pub(crate) mod platform;
 
 pub use self::platform::ContextSwitchCallback;

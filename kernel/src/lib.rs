@@ -119,7 +119,6 @@ pub mod introspection;
 pub mod ipc;
 pub mod platform;
 pub mod process;
-// #[flux::ignore]
 pub mod process_checker;
 pub mod processbuffer;
 #[flux::ignore]
