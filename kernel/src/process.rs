@@ -437,9 +437,8 @@ pub trait Process {
     /// Move this stopped process back into its original state.
     ///
     /// This transitions a process from
-    /// [`StoppedRunning`](State::StoppedRunning) -> [`Running`](State::Running)
-    /// or [`StoppedYielded`](State::StoppedYielded) ->
-    /// [`Yielded`](State::Yielded).
+    /// [`Stopped`](State::Stopped) to [`Running`](State::Running), [`Yielded`](State::Running) or
+    /// [`YieldedFor`](State::YieldedFor).
     ///
     /// This will fail (i.e. not do anything) if the process was not stopped.
     fn resume(&self);
