@@ -440,12 +440,6 @@ impl Kernel {
     ) -> ! {
         resources.watchdog().setup();
 
-        let mut hart_id: usize = 0;
-        unsafe {
-            core::arch::asm!("csrr {a}, mhartid", a = out(reg) hart_id);
-        }
-        let id = unsafe { DynThreadId::new(hart_id) };
-
         // Before we begin, verify that deferred calls were soundly setup.
         DeferredCall::verify_setup();
         loop {

@@ -72,15 +72,6 @@ pub unsafe trait ThreadLocalAccess<ID: ThreadId, T> {
     fn get_mut<'a>(&'a self, id: ID) -> Option<NonReentrant<'a, T>>;
 }
 
-// unsafe impl<const NUM_THREADS: usize, T, ID: ThreadId + Copy>
-//     ThreadLocalAccess<ID, T> for ThreadLocal<NUM_THREADS, T>
-// {
-//     #[inline(always)]
-//     fn get_mut<'a>(&'a self, id: ID) -> Option<NonReentrant<'a, T>> {
-//         self.get_cell_slice().get(id.get_id()).map(move |uc| NonReentrant(uc))
-//     }
-// }
-
 unsafe impl<const NUM_THREADS: usize, const THREAD_ID: usize, T>
     ThreadLocalAccess<ConstThreadId<THREAD_ID>, T> for ThreadLocal<NUM_THREADS, T>
 {
@@ -100,22 +91,36 @@ unsafe impl<const NUM_THREADS: usize, T>
     }
 }
 
-
-pub unsafe trait ThreadLocalAccessStatic<ID: ThreadId, T> {
-    fn get_mut_static<'a>(&'a self, _id: ID) -> &'a mut T;
+pub unsafe trait ThreadLocalAssumeInit<ID: ThreadId, T> {
+    unsafe fn assume_init_mut<'a>(&'a self, id: ID) -> Option<NonReentrant<'a, T>>;
 }
 
 unsafe impl<const NUM_THREADS: usize, const THREAD_ID: usize, T>
-    ThreadLocalAccessStatic<ConstThreadId<THREAD_ID>, T> for ThreadLocal<NUM_THREADS, T>
+    ThreadLocalAssumeInit<ConstThreadId<THREAD_ID>, T> for ThreadLocal<NUM_THREADS, core::mem::MaybeUninit<T>>
 {
     #[inline(always)]
-    fn get_mut_static<'a>(&'a self, _id: ConstThreadId<THREAD_ID>) -> &'a mut T {
+    unsafe fn assume_init_mut<'a>(&'a self, _id: ConstThreadId<THREAD_ID>) -> Option<NonReentrant<'a, T>> {
         let _: () = assert!(THREAD_ID < NUM_THREADS);
-        unsafe {
-            &mut *self.get_cell_slice()[THREAD_ID].get()
-        }
+        Some(NonReentrant(
+            core::mem::transmute::<&UnsafeCell<core::mem::MaybeUninit<T>>, &UnsafeCell<T>>(
+                &self.get_cell_slice()[THREAD_ID]
+            )
+        ))
     }
 }
+
+unsafe impl<const NUM_THREADS: usize, T>
+    ThreadLocalAssumeInit<DynThreadId, T> for ThreadLocal<NUM_THREADS, core::mem::MaybeUninit<T>>
+{
+    #[inline(always)]
+    unsafe fn assume_init_mut<'a>(&'a self, id: DynThreadId) -> Option<NonReentrant<'a, T>> {
+        self.get_cell_slice().get(id.0).map(move |uc| NonReentrant(
+            core::mem::transmute::<&UnsafeCell<core::mem::MaybeUninit<T>>, &UnsafeCell<T>>(uc)
+        ))
+    }
+}
+
+// ----------------
 
 // TODO: document safety
 unsafe impl<const NUM_THREADS: usize, T> Sync for ThreadLocal<NUM_THREADS, T> {}
@@ -175,5 +180,11 @@ pub struct NonReentrant<'a, T>(&'a UnsafeCell<T>);
 impl<'a, T> NonReentrant<'a, T> {
     pub unsafe fn enter_nonreentrant<R, F: FnOnce(&mut T) -> R>(&self, f: F) -> R {
 	    f(&mut *self.0.get())
+    }
+}
+
+impl<'a, T> NonReentrant<'a, core::mem::MaybeUninit<T>> {
+    pub unsafe fn enter_nonreentrant_assume_init<R, F: FnOnce(&mut T) -> R>(&self, f: F) -> R {
+	    f(core::mem::MaybeUninit::<T>::assume_init_mut(&mut *self.0.get()))
     }
 }

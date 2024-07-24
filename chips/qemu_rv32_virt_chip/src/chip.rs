@@ -250,13 +250,12 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             CSR.mie.modify(mie::msoft::CLEAR);
 
             let hart_id = CSR.mhartid.extract().get();
-            if let Some(clic) = thread_local_static_access!(
-                CLIC, DynThreadId::new(hart_id)
-            ) {
-                clic.clear_soft_interrupt(hart_id);
-                kernel::deferred_call::DeferredCallThread::set();
-            }
-
+            kernel::thread_local_static_access!(CLIC, DynThreadId::new(hart_id))
+                .expect("Unable to access thread-local CLIC controller")
+                .enter_nonreentrant(|clic| {
+                    clic.clear_soft_interrupt(hart_id);
+                    kernel::deferred_call::DeferredCallThread::set();
+                });
             CSR.mie.modify(mie::msoft::SET);
         }
         mcause::Interrupt::MachineTimer => {
@@ -272,24 +271,17 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             // Claim the interrupt, unwrap() as we know an interrupt exists
             // Once claimed this interrupt won't fire until it's completed
             // NOTE: The interrupt is no longer pending in the PLIC
-            while let Some(plic) =
-                kernel::thread_local_static_access!(PLIC, DynThreadId::new(hart_id))
-            {
-                let interrupt = plic.next_pending(context_id);
-
-                match interrupt {
-                    Some(irq) => {
+            kernel::thread_local_static_access!(PLIC, DynThreadId::new(hart_id))
+                .expect("Unable to access thread-local PLIC controller")
+                .enter_nonreentrant(|plic| {
+                    while let Some(irq) = plic.next_pending(context_id) {
                         // Safe as interrupts are disabled
                         plic.save_interrupt(irq);
                     }
-                    None => {
-                        // Enable generic interrupts
-                        CSR.mie.modify(mie::mext::SET);
+                });
 
-                        break;
-                    }
-                }
-            }
+            // Enable generic interrupts
+            CSR.mie.modify(mie::mext::SET);
         }
 
         mcause::Interrupt::Unknown => {

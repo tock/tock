@@ -42,8 +42,13 @@ impl IoWrite for Writer {
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let writer = &mut *core::ptr::addr_of_mut!(WRITER);
     let id = rv32i::csr::CSR.mhartid.extract().get();
-    let chip = thread_local_static_access!(CHIP, DynThreadId::new(id))
-        .expect("Invalid Thread ID");
+
+    // Escape nonreentrant
+    let chip: &Option<&_> = thread_local_static_access!(CHIP, DynThreadId::new(id))
+        .expect("Invalid Thread ID")
+        .enter_nonreentrant(|chip| {
+            &*(chip as *mut _)
+        });
 
     debug::panic_print::<_, _, _>(
         writer,

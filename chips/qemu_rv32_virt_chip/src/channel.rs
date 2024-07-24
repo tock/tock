@@ -8,7 +8,6 @@ use kernel::utilities::registers::interfaces::Readable;
 use kernel::smp::shared_channel::SharedChannel;
 use kernel::smp::portal::Portalable;
 use kernel::smp::mutex::Mutex;
-use kernel::thread_local_static_access;
 use kernel::collections::queue::Queue;
 use kernel::collections::ring_buffer::RingBuffer;
 
@@ -69,10 +68,6 @@ impl<'a> QemuRv32VirtChannel<'a> {
 
     pub fn service(&self) {
         let hart_id = CSR.mhartid.extract().get();
-        let clic = unsafe {
-            thread_local_static_access!(crate::clint::CLIC, DynThreadId::new(hart_id))
-            .expect("This thread does not have access to CLIC")
-        };
 
         // Acquire the mutex for the entire operation to reserve a slot for portal
         // response. Calling teleport inside the scope will result in a deadlock.
@@ -90,6 +85,9 @@ impl<'a> QemuRv32VirtChannel<'a> {
                                     &*(val as *const QemuRv32VirtPortalCell<crate::uart::Uart16550>)
                                 };
                                 assert!(portal.get_id() == portal_id);
+                                panic!("Get UART portal request");
+
+                                unsafe { rv32i::semihost_command(0x18, 1, 0); }
                                 portal.take().map(|val| val as *mut _ as *const _)
                             }
                             P::Counter(val) => {
@@ -110,7 +108,15 @@ impl<'a> QemuRv32VirtChannel<'a> {
                                     val
                                 ),
                             })));
-                            clic.set_soft_interrupt(msg.src);
+
+                            unsafe {
+                                kernel::thread_local_static_access!(crate::clint::CLIC, DynThreadId::new(hart_id))
+                                    .expect("This thread does not have access to CLIC")
+                                    .enter_nonreentrant(|clic| {
+                                        clic.set_soft_interrupt(msg.src);
+                                    })
+                            };
+
                         }
                     };
 

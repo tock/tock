@@ -12,13 +12,12 @@ use kernel::threadlocal::{
     self,
     ThreadId,
     ConstThreadId,
-    ThreadLocalAccessStatic,
     ThreadLocalDynInit,
     ThreadLocalDyn
 };
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::{create_capability, debug, static_init};
-use kernel::{thread_local_static_init, thread_local_static_finalize, thread_local_static, thread_local_static_access};
+use kernel::{thread_local_static_finalize, thread_local_static_access};
 use qemu_rv32_virt_chip::chip::{QemuRv32VirtChip, QemuRv32VirtDefaultPeripherals};
 use qemu_rv32_virt_chip::plic::PLIC;
 use qemu_rv32_virt_chip::plic::PLIC_BASE;
@@ -192,6 +191,11 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
 
     kernel::deferred_call::initialize_global_deferred_call_state(deferred_call_state);
 
+    // let debug_wrappers = static_init!(
+    //     qemu_rv32_virt_chip::QemuRv32VirtThreadLocal<kernel::debug::DebugWriterWrapper>,
+    //     qemu_rv32_virt_chip::QemuRv32VirtThreadLocal::new(kernel::debug::DebugWriterWrapper::empty()),
+    // );
+
     // let channel = static_init!(
     //     qemu_rv32_virt_chip::channel::QemuRv32VirtChannel,
     //     qemu_rv32_virt_chip::channel::QemuRv32VirtChannel::new(&mut *core::ptr::addr_of_mut!(qemu_rv32_virt_chip::channel::CHANNEL_BUFFER)),
@@ -252,8 +256,8 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
 
     // ---------- QEMU-SYSTEM-RISCV32 "virt" MACHINE PERIPHERALS ----------
 
-    let plic = thread_local_static_finalize!(PLIC, ID);
-    let clic = thread_local_static_finalize!(qemu_rv32_virt_chip::clint::CLIC, ID);
+    thread_local_static_finalize!(PLIC, ID);
+    thread_local_static_finalize!(qemu_rv32_virt_chip::clint::CLIC, ID);
 
     // Open a portal for the uart
     use qemu_rv32_virt_chip::portal::{QemuRv32VirtPortal, PORTALS};
@@ -285,7 +289,6 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
             ps[uart_portal.get_id()] = QemuRv32VirtPortal::Uart16550(uart_portal as *mut _ as *const _);
             ps[counter_portal.get_id()] = QemuRv32VirtPortal::Counter(counter_portal as *mut _ as *const _);
         });
-
 
     let peripherals = static_init!(
         QemuRv32VirtDefaultPeripherals,
@@ -512,12 +515,22 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
 
     // ---------- INITIALIZE CHIP, ENABLE INTERRUPTS ---------
 
+    thread_local_static_finalize!(CHIP, ID);
+
+
+    // Escape nonreentrant to get static mut
+    let plic = thread_local_static_access!(PLIC, ConstThreadId::<ID>::new())
+        .expect("Unable to access thread-local PLIC controller")
+        .enter_nonreentrant(|plic| &*(plic as *mut _));
+
     let chip = static_init!(
         QemuRv32VirtChip<QemuRv32VirtDefaultPeripherals>,
         QemuRv32VirtChip::new(peripherals, hardware_timer, epmp, plic),
     );
-    let chip_local = thread_local_static_finalize!(CHIP, ID);
-    *chip_local = Some(chip);
+
+    thread_local_static_access!(CHIP, ConstThreadId::<ID>::new())
+        .expect("This thread cannot access thread-local chip construct")
+        .enter_nonreentrant(|chip_local| *chip_local = Some(chip));
 
     // Need to enable all interrupts for Tock Kernel
     chip.enable_plic_interrupts();
