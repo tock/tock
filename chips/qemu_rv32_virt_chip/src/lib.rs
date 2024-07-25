@@ -34,6 +34,12 @@ impl<T: Copy> QemuRv32VirtThreadLocal<T> {
     }
 }
 
+impl<T> QemuRv32VirtThreadLocal<T> {
+    pub const fn new(val: [T; MAX_THREADS]) -> QemuRv32VirtThreadLocal<T> {
+        QemuRv32VirtThreadLocal(kernel::threadlocal::ThreadLocal::new(val))
+    }
+}
+
 unsafe impl<T> kernel::threadlocal::ThreadLocalDyn<T> for QemuRv32VirtThreadLocal<T> {
     fn get_mut<'a>(&'a self) -> Option<kernel::threadlocal::NonReentrant<'a, T>> {
         use kernel::threadlocal::{ThreadLocal, ThreadLocalAccess, DynThreadId};

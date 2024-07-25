@@ -429,12 +429,12 @@ pub unsafe fn set_debug_writer_wrappers(
 //
 // Using a closure here prevents leaking the object of a static lifetime and
 // gives clear bounds on the limits of the reentrancy requirement.
-unsafe fn with_debug_writer<R, F: FnOnce(&mut DebugWriterWrapper) -> R>(f: F) -> Option<R> {
+pub unsafe fn with_debug_writer<R, F: FnOnce(&mut DebugWriterWrapper) -> R>(f: F) -> Option<R> {
     let threadlocal: &'static dyn ThreadLocalDyn<_> = *core::ptr::addr_of!(DEBUG_WRITER);
     threadlocal.get_mut().map(move |v| v.enter_nonreentrant(f))
 }
 
-unsafe fn with_debug_writer_panic<R, F: FnOnce(&mut DebugWriterWrapper) -> R>(f: F) -> R {
+pub unsafe fn with_debug_writer_panic<R, F: FnOnce(&mut DebugWriterWrapper) -> R>(f: F) -> R {
     with_debug_writer(f).expect("Current thread does not have access to a debug writer")
 }
 
@@ -445,7 +445,7 @@ impl DebugWriterWrapper {
         }
     }
 
-    pub fn empty() -> DebugWriterWrapper {
+    pub const fn empty() -> DebugWriterWrapper {
         DebugWriterWrapper {
             dw: MapCell::empty(),
         }

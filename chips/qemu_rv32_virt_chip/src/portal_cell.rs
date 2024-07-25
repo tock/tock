@@ -5,6 +5,7 @@ use kernel::smp::portal::{PortalCell, Portalable};
 use kernel::smp::shared_channel::SharedChannel;
 use kernel::thread_local_static_access;
 use kernel::utilities::registers::interfaces::Readable;
+use kernel::utilities::cells::OptionalCell;
 
 use rv32i::csr::CSR;
 
@@ -123,16 +124,19 @@ use kernel::ErrorCode;
 
 static mut EMPTY_STRING: [u8; 0] = [0; 0];
 
-impl<T: Configure> Configure for QemuRv32VirtPortalCell<'_, T> {
+impl Configure for QemuRv32VirtPortalCell<'_, Uart16550> {
     fn configure(&self, params: Parameters) -> Result<(), ErrorCode> {
-        self.enter(|inner: &mut T| inner.configure(params))
+        self.enter(|inner| inner.configure(params))
             .unwrap_or(Ok(())) // Optimistically return Ok if not owning the type
     }
 }
 
-impl<'a, T: Transmit<'a>> Transmit<'a> for QemuRv32VirtPortalCell<'a, T> {
-    fn set_transmit_client(&self, client: &'a dyn TransmitClient) {
-        let _ = self.enter(|inner: &mut T| inner.set_transmit_client(client));
+impl Transmit<'static> for QemuRv32VirtPortalCell<'static, Uart16550> {
+    fn set_transmit_client(&self, client: &'static dyn TransmitClient) {
+        let closure = |tx_client: &mut OptionalCell<&dyn TransmitClient>| {
+            tx_client.set(client)
+        };
+        unsafe { crate::uart::with_uart_tx_client_panic(closure); }
     }
 
     fn transmit_buffer(
@@ -140,36 +144,36 @@ impl<'a, T: Transmit<'a>> Transmit<'a> for QemuRv32VirtPortalCell<'a, T> {
         tx_data: &'static mut [u8],
         tx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        self.enter(|inner: &mut T| inner.transmit_buffer(tx_data, tx_len))
+        self.enter(|inner| inner.transmit_buffer(tx_data, tx_len))
             .unwrap_or_else(|| {
                 self.conjure();
-                todo!();
                 Err((ErrorCode::BUSY, unsafe { &mut *core::ptr::addr_of_mut!(EMPTY_STRING) }))
             })
     }
 
     fn transmit_abort(&self) -> Result<(), ErrorCode> {
-        self.enter(|inner: &mut T| inner.transmit_abort())
+        self.enter(|inner| inner.transmit_abort())
             .unwrap_or_else(|| {
                 self.conjure();
-                todo!();
                 Err(ErrorCode::BUSY)
             })
     }
 
     fn transmit_word(&self, word: u32) -> Result<(), ErrorCode> {
-        self.enter(|inner: &mut T| inner.transmit_word(word))
+        self.enter(|inner| inner.transmit_word(word))
             .unwrap_or_else(|| {
                 self.conjure();
-                todo!();
                 Err(ErrorCode::BUSY)
             })
     }
 }
 
-impl<'a, T: Receive<'a>> Receive<'a> for QemuRv32VirtPortalCell<'a, T> {
-    fn set_receive_client(&self, client: &'a dyn ReceiveClient) {
-        let _ = self.enter(|inner: &mut T| inner.set_receive_client(client));
+impl Receive<'static> for QemuRv32VirtPortalCell<'static, Uart16550> {
+    fn set_receive_client(&self, client: &'static dyn ReceiveClient) {
+        let closure = |rx_client: &mut OptionalCell<&dyn ReceiveClient>| {
+            rx_client.set(client)
+        };
+        unsafe { crate::uart::with_uart_rx_client_panic(closure); }
     }
 
     fn receive_buffer(
@@ -177,28 +181,25 @@ impl<'a, T: Receive<'a>> Receive<'a> for QemuRv32VirtPortalCell<'a, T> {
         rx_buffer: &'static mut [u8],
         rx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        self.enter(|inner: &mut T| inner.receive_buffer(rx_buffer, rx_len))
+        self.enter(|inner| inner.receive_buffer(rx_buffer, rx_len))
             .unwrap_or_else(|| {
                 self.conjure();
-                todo!();
                 Err((ErrorCode::BUSY, unsafe { &mut *core::ptr::addr_of_mut!(EMPTY_STRING) }))
             })
     }
 
     fn receive_abort(&self) -> Result<(), ErrorCode> {
-        self.enter(|inner: &mut T| inner.receive_abort())
+        self.enter(|inner| inner.receive_abort())
             .unwrap_or_else(|| {
                 self.conjure();
-                todo!();
                 Err(ErrorCode::BUSY)
             })
     }
 
     fn receive_word(&self) -> Result<(), ErrorCode> {
-        self.enter(|inner: &mut T| inner.receive_word())
+        self.enter(|inner| inner.receive_word())
             .unwrap_or_else(|| {
                 self.conjure();
-                todo!();
                 Err(ErrorCode::BUSY)
             })
     }

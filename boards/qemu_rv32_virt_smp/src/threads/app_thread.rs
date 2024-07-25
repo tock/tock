@@ -296,8 +296,8 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
         .finalize(components::uart_mux_component_static!());
 
     // Create the debugger object that handles calls to `debug!()`.
-    // components::debug_writer::DebugWriterComponent::new(uart_mux)
-    //     .finalize(components::debug_writer_component_static!());
+    components::debug_writer::DebugWriterComponent::new(uart_mux)
+        .finalize(components::debug_writer_component_static!());
 
     // Use the RISC-V machine timer timesource
     let hardware_timer = static_init!(
@@ -488,6 +488,7 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
 
     // debug!("QEMU RISC-V 32-bit \"virt\" machine core {ID}, initialization complete.");
     // debug!("Entering main loop.");
+    // debug!("Printing from the app thread!");
 
     // ---------- PROCESS LOADING, SCHEDULER LOOP ----------
 
@@ -511,14 +512,18 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
         debug!("{:?}", err);
     });
 
+
+    // debug!("Printing from the app thread");
+
+
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap,
-                             true,
+                             false,
                              Some(&|| {
                                  counter_portal.enter(|c| {
                                      *c += 1;
                                  }).unwrap_or_else(|| {
                                      use kernel::smp::portal::Portalable;
-                                     counter_portal.conjure();
+                                     // counter_portal.conjure();
                                  });
 
                                  unsafe {

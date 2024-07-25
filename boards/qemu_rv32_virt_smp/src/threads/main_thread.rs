@@ -16,6 +16,7 @@ use kernel::threadlocal::{
     ThreadLocalDyn
 };
 use kernel::utilities::registers::interfaces::ReadWriteable;
+use kernel::utilities::cells::OptionalCell;
 use kernel::{create_capability, debug, static_init};
 use kernel::{thread_local_static_finalize, thread_local_static_access};
 use qemu_rv32_virt_chip::chip::{QemuRv32VirtChip, QemuRv32VirtDefaultPeripherals};
@@ -191,10 +192,21 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
 
     kernel::deferred_call::initialize_global_deferred_call_state(deferred_call_state);
 
-    // let debug_wrappers = static_init!(
-    //     qemu_rv32_virt_chip::QemuRv32VirtThreadLocal<kernel::debug::DebugWriterWrapper>,
-    //     qemu_rv32_virt_chip::QemuRv32VirtThreadLocal::new(kernel::debug::DebugWriterWrapper::empty()),
-    // );
+    let (uart_tx_clients, uart_rx_clients) = {(
+        static_init!(
+            qemu_rv32_virt_chip::QemuRv32VirtThreadLocal<
+                OptionalCell<&'static dyn kernel::hil::uart::TransmitClient>>,
+            qemu_rv32_virt_chip::QemuRv32VirtThreadLocal::new([ const { OptionalCell::empty() }; MAX_THREADS ]),
+        ),
+        static_init!(
+            qemu_rv32_virt_chip::QemuRv32VirtThreadLocal<
+                OptionalCell<&'static dyn kernel::hil::uart::ReceiveClient>>,
+            qemu_rv32_virt_chip::QemuRv32VirtThreadLocal::new([ const { OptionalCell::empty() }; MAX_THREADS ]),
+        )
+    )};
+
+    qemu_rv32_virt_chip::uart::set_uart_tx_client(uart_tx_clients);
+    qemu_rv32_virt_chip::uart::set_uart_rx_client(uart_rx_clients);
 
     // let channel = static_init!(
     //     qemu_rv32_virt_chip::channel::QemuRv32VirtChannel,
@@ -568,7 +580,15 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
         uart_mux,
     )
     .finalize(components::console_component_static!());
+
     // Create the debugger object that handles calls to `debug!()`.
+    let debug_wrappers = static_init!(
+        qemu_rv32_virt_chip::QemuRv32VirtThreadLocal<kernel::debug::DebugWriterWrapper>,
+        qemu_rv32_virt_chip::QemuRv32VirtThreadLocal::new([
+            const { kernel::debug::DebugWriterWrapper::empty() }; MAX_THREADS
+        ]),
+    );
+    kernel::debug::set_debug_writer_wrappers(debug_wrappers);
     components::debug_writer::DebugWriterComponent::new(uart_mux)
         .finalize(components::debug_writer_component_static!());
 
@@ -646,10 +666,9 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap,
                              true,
                              Some(&|| {
-
                                  // debug!("looping: {:?}", 1);
                                  counter_portal.enter(|c| {
-                                     debug!("current counter: {:?}", c);
+                                     // debug!("current counter: {:?}", c);
                                  }).unwrap_or_else(|| {
                                      use kernel::smp::portal::Portalable;
                                      counter_portal.conjure();

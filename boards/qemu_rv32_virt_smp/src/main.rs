@@ -8,6 +8,7 @@
 #![feature(generic_const_exprs)]
 #![feature(naked_functions)]
 #![feature(asm_const)]
+#![feature(inline_const)]
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]

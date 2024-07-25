@@ -85,9 +85,6 @@ impl<'a> QemuRv32VirtChannel<'a> {
                                     &*(val as *const QemuRv32VirtPortalCell<crate::uart::Uart16550>)
                                 };
                                 assert!(portal.get_id() == portal_id);
-                                panic!("Get UART portal request");
-
-                                unsafe { rv32i::semihost_command(0x18, 1, 0); }
                                 portal.take().map(|val| val as *mut _ as *const _)
                             }
                             P::Counter(val) => {
