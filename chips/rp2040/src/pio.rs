@@ -532,6 +532,20 @@ impl Pio {
         // }
     }
 
+    pub fn set_shift_in (&self, sm_number: SMNumber, shift_right: bool, autopush: bool, push_threshold : u32)
+    {
+        self.registers.sm[sm_number as usize]
+            .shiftctrl
+            .modify(SMx_SHIFTCTRL::IN_SHIFTDIR.val(u32::from(shift_right)));
+        self.registers.sm[sm_number as usize]
+            .shiftctrl
+            .modify(SMx_SHIFTCTRL::AUTOPUSH.val(u32::from(autopush)));
+        self.registers.sm[sm_number as usize]
+            .shiftctrl
+            .modify(SMx_SHIFTCTRL::PUSH_THRESH.val(u32::from(push_threshold)));
+    }
+
+
     // pub fn set_in_pins(...) {
     //     self.registers.
     // }
