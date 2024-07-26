@@ -395,6 +395,7 @@ enum PIONumber {
     PIO1 = 1,
 }
 
+#[derive(PartialEq)]
 enum PioFifoJoin {
     PioFifoJoinNone = 0,
     PioFifoJoinTx = 1,
@@ -606,12 +607,16 @@ impl Pio {
     }
 
     pub fn set_fifo_join(&self, sm_number: SMNumber, fifo_join: PioFifoJoin) {
-        self.registers.sm[sm_number as usize]
-            .shiftctrl
-            .modify(SMx_SHIFTCTRL::FJOIN_RX.val(fifo_join.));
-        self.registers.sm[sm_number as usize]
-            .shiftctrl
-            .modify(SMx_SHIFTCTRL::FJOIN_TX.val(fifo_join.tx));
+        if fifo_join == PioFifoJoin::PioFifoJoinRx {
+            self.registers.sm[sm_number as usize]
+                .shiftctrl
+                .modify(SMx_SHIFTCTRL::FJOIN_RX.val(fifo_join as u32));
+        }
+        else if fifo_join == PioFifoJoin::PioFifoJoinTx {
+            self.registers.sm[sm_number as usize]
+                .shiftctrl
+                .modify(SMx_SHIFTCTRL::FJOIN_TX.val(fifo_join as u32));
+        }
     }
 
     pub fn set_sideset_pins(&self, sm_number: SMNumber, sideset_base: c_uint) {
