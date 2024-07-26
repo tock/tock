@@ -1,11 +1,11 @@
 use core::ffi::c_uint;
 
+use crate::gpio::{GpioFunction, RPGpioPin};
 use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::gpio::Output;
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
-use kernel::utilities::registers::interfaces::{Readable, ReadWriteable, Writeable};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
-use crate::gpio::{GpioFunction, RPGpioPin};
 
 const NUMBER_STATE_MACHINES: usize = 4;
 const NUMBER_INSTR_MEMORY_LOCATIONS: usize = 32;
@@ -382,11 +382,16 @@ const PIO1_BASE: StaticRef<PioRegisters> =
     unsafe { StaticRef::new(PIO_1_BASE_ADDRESS as *const PioRegisters) };
 
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum SMNumber {
+enum SMNumber {
     SM0 = 0,
     SM1 = 1,
     SM2 = 2,
     SM3 = 3,
+}
+
+enum PIONumber {
+    PIO0 = 0,
+    PIO1 = 1,
 }
 
 const STATE_MACHINE_NUMBERS: [SMNumber; NUMBER_STATE_MACHINES] =
@@ -394,7 +399,7 @@ const STATE_MACHINE_NUMBERS: [SMNumber; NUMBER_STATE_MACHINES] =
 
 pub struct Pio {
     registers: StaticRef<PioRegisters>,
-    pio_number: u32,
+    pio_number: PIONumber,
 }
 
 pub enum PioMovStatusType {
@@ -457,20 +462,22 @@ impl Default for StateMachineConfiguration {
 impl Pio {
     pub fn sm_config(&self, sm_number: SMNumber, config: &StateMachineConfiguration) {
         self.set_in_pins(sm_number, config.in_pins_base);
-        self.set_out_pins(sm_number, config.out_pins_base, config.out_pins_count)
+        self.set_out_pins(sm_number, config.out_pins_base, config.out_pins_count);
+        self.set_set_pins(sm_number, config.set_pins_base, config.set_pins_count);
+        self.set_sideset_pins(sm_number, config.side_set_base)
     }
 
     pub fn new_pio0() -> Self {
         Self {
             registers: PIO0_BASE,
-            pio_number: 0,
+            pio_number: PIONumber::PIO0,
         }
     }
 
     pub fn new_pio1() -> Self {
         Self {
             registers: PIO1_BASE,
-            pio_number: 1,
+            pio_number: PIONumber::PIO1,
         }
     }
 
@@ -533,8 +540,13 @@ impl Pio {
         // }
     }
 
-    pub fn set_in_shift (&self, sm_number: SMNumber, shift_right: bool, autopush: bool, push_threshold : u32)
-    {
+    pub fn set_in_shift(
+        &self,
+        sm_number: SMNumber,
+        shift_right: bool,
+        autopush: bool,
+        push_threshold: u32,
+    ) {
         self.registers.sm[sm_number as usize]
             .shiftctrl
             .modify(SMx_SHIFTCTRL::IN_SHIFTDIR.val(u32::from(shift_right)));
@@ -546,8 +558,13 @@ impl Pio {
             .modify(SMx_SHIFTCTRL::PUSH_THRESH.val(u32::from(push_threshold)));
     }
 
-    pub fn set_out_shift (&self, sm_number: SMNumber, shift_right: bool, autopush: bool, push_threshold : u32)
-    {
+    pub fn set_out_shift(
+        &self,
+        sm_number: SMNumber,
+        shift_right: bool,
+        autopush: bool,
+        push_threshold: u32,
+    ) {
         self.registers.sm[sm_number as usize]
             .shiftctrl
             .modify(SMx_SHIFTCTRL::OUT_SHIFTDIR.val(u32::from(shift_right)));
@@ -559,7 +576,7 @@ impl Pio {
             .modify(SMx_SHIFTCTRL::PUSH_THRESH.val(u32::from(push_threshold)));
     }
 
-    pub fn set_jmp_pin(&self, sm_number: SMNumber, pin: u32){
+    pub fn set_jmp_pin(&self, sm_number: SMNumber, pin: u32) {
         self.registers.sm[sm_number as usize]
             .execctrl
             .modify(SMx_EXECCTRL::JMP_PIN.val(pin));
@@ -571,7 +588,8 @@ impl Pio {
     //         .modify(SMx_CLKDIV::INT.val(div));
     // }
 
-    pub fn set_clkdiv_int_frac(&self, sm_number: SMNumber, div_int : c_uint, div_frac: c_uint){ //c_uint is u32, shall we use signed u8 or u16 instead?
+    pub fn set_clkdiv_int_frac(&self, sm_number: SMNumber, div_int: c_uint, div_frac: c_uint) {
+        //c_uint is u32, shall we use signed u8 or u16 instead?
         self.registers.sm[sm_number as usize]
             .clkdiv
             .modify(SMx_CLKDIV::INT.val(div_int));
@@ -580,7 +598,7 @@ impl Pio {
             .modify(SMx_CLKDIV::FRAC.val(div_frac));
     }
 
-    pub fn set_fifo_join(&self, sm_number: SMNumber, fifo_join: enum_primitive){
+    pub fn set_fifo_join(&self, sm_number: SMNumber, fifo_join: enum_primitive) {
         self.registers.sm[sm_number as usize]
             .shiftctrl
             .modify(SMx_SHIFTCTRL::FJOIN_RX.val(fifo_join.rx));
@@ -589,19 +607,17 @@ impl Pio {
             .modify(SMx_SHIFTCTRL::FJOIN_TX.val(fifo_join.tx));
     }
 
-    pub fn set_sideset_pins(&self, sm_number: SMNumber, sideset_base: c_uint){
+    pub fn set_sideset_pins(&self, sm_number: SMNumber, sideset_base: c_uint) {
         self.registers.sm[sm_number as usize]
             .pinctrl
             .modify(SMx_PINCTRL::SIDESET_BASE.val(sideset_base));
     }
 
-    pub fn gpio_init(&self, pin: RPGpioPin){
-        if !self.pio_number {
+    pub fn gpio_init(&self, pin: RPGpioPin) {
+        if self.pio_number == PIONumber::PIO0 {
             pin.set_function(GpioFunction::PIO0)
-        }
-        else {
+        } else {
             pin.set_function(GpioFunction::PIO1)
         }
     }
-
 }
