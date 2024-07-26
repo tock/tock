@@ -1,10 +1,9 @@
-use core::cell::Cell;
-use kernel::deferred_call::{DeferredCall, DeferredCallClient};
-use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
+use core::ffi::c_uint;
+
+use kernel::deferred_call::DeferredCallClient;
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
+use kernel::utilities::registers::interfaces::{Readable, ReadWriteable, Writeable};
 use kernel::utilities::StaticRef;
-use kernel::ErrorCode;
 
 const NUMBER_STATE_MACHINES: usize = 4;
 const NUMBER_INSTR_MEMORY_LOCATIONS: usize = 32;
@@ -532,7 +531,7 @@ impl Pio {
         // }
     }
 
-    pub fn set_shift_in (&self, sm_number: SMNumber, shift_right: bool, autopush: bool, push_threshold : u32)
+    pub fn set_in_shift (&self, sm_number: SMNumber, shift_right: bool, autopush: bool, push_threshold : u32)
     {
         self.registers.sm[sm_number as usize]
             .shiftctrl
@@ -545,8 +544,47 @@ impl Pio {
             .modify(SMx_SHIFTCTRL::PUSH_THRESH.val(u32::from(push_threshold)));
     }
 
+    pub fn set_out_shift (&self, sm_number: SMNumber, shift_right: bool, autopush: bool, push_threshold : u32)
+    {
+        self.registers.sm[sm_number as usize]
+            .shiftctrl
+            .modify(SMx_SHIFTCTRL::OUT_SHIFTDIR.val(u32::from(shift_right)));
+        self.registers.sm[sm_number as usize]
+            .shiftctrl
+            .modify(SMx_SHIFTCTRL::AUTOPUSH.val(u32::from(autopush)));
+        self.registers.sm[sm_number as usize]
+            .shiftctrl
+            .modify(SMx_SHIFTCTRL::PUSH_THRESH.val(u32::from(push_threshold)));
+    }
 
-    // pub fn set_in_pins(...) {
-    //     self.registers.
+    pub fn set_jmp_pin(&self, sm_number: SMNumber, pin: u32){
+        self.registers.sm[sm_number as usize]
+            .execctrl
+            .modify(SMx_EXECCTRL::JMP_PIN.val(pin));
+    }
+
+    // pub fn set_clkdiv(&self, sm_number: SMNumber, div: c_float){
+    //     self.registers.sm[sm_number as usize]
+    //         .clkdiv
+    //         .modify(SMx_CLKDIV::INT.val(div));
     // }
+
+    pub fn set_clkdiv_int_frac(&self, sm_number: SMNumber, div_int : c_uint, div_frac: c_uint){ //c_uint is u32, shall we use signed u8 or u16 instead?
+        self.registers.sm[sm_number as usize]
+            .clkdiv
+            .modify(SMx_CLKDIV::INT.val(div_int));
+        self.registers.sm[sm_number as usize]
+            .clkdiv
+            .modify(SMx_CLKDIV::FRAC.val(div_frac));
+    }
+
+    pub fn set_fifo_join(&self, sm_number: SMNumber, fifo_join: enum_primitive){
+        self.registers.sm[sm_number as usize]
+            .shiftctrl
+            .modify(SMx_SHIFTCTRL::FJOIN_RX.val(fifo_join.rx));
+        self.registers.sm[sm_number as usize]
+            .shiftctrl
+            .modify(SMx_SHIFTCTRL::FJOIN_TX.val(fifo_join.tx));
+    }
+
 }
