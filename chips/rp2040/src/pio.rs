@@ -382,7 +382,7 @@ const PIO1_BASE: StaticRef<PioRegisters> =
     unsafe { StaticRef::new(PIO_1_BASE_ADDRESS as *const PioRegisters) };
 
 #[derive(Clone, Copy, PartialEq, Debug)]
-enum SMNumber {
+pub enum SMNumber {
     SM0 = 0,
     SM1 = 1,
     SM2 = 2,
@@ -390,13 +390,13 @@ enum SMNumber {
 }
 
 #[derive(PartialEq)]
-enum PIONumber {
+pub enum PIONumber {
     PIO0 = 0,
     PIO1 = 1,
 }
 
 #[derive(PartialEq)]
-enum PioFifoJoin {
+pub enum PioFifoJoin {
     PioFifoJoinNone = 0,
     PioFifoJoinTx = 1,
     PioFifoJoinRx = 2,
@@ -410,12 +410,13 @@ pub struct Pio {
     pio_number: PIONumber,
 }
 
+#[derive(Clone, Copy)]
 pub enum PioMovStatusType {
     StatusTxLessthan = 0,
     StatusRxLessthan = 1,
 }
 
-struct StateMachineConfiguration {
+pub struct StateMachineConfiguration {
     out_pins_count: u32,
     out_pins_base: u32,
     set_pins_count: u32,
@@ -496,6 +497,8 @@ impl Pio {
             config.out_pull_threshold,
         );
         self.set_jmp_pin(sm_number, config.jmp_pin);
+        self.set_wrap(sm_number, config.wrap_to, config.wrap);
+        self.set_mov_status(sm_number, config.mov_status_sel, config.mov_status_n)
     }
 
     pub fn new_pio0() -> Self {
@@ -512,7 +515,7 @@ impl Pio {
         }
     }
 
-    fn init(&self) {
+    pub fn init(&self) {
         // self.new_pio0();
         // self.new_pio1();
         let default_config: StateMachineConfiguration = StateMachineConfiguration::default();
@@ -665,5 +668,23 @@ impl Pio {
         } else {
             pin.set_function(GpioFunction::PIO1)
         }
+    }
+
+    fn set_wrap(&self, sm_number: SMNumber, wrap_target: u32, wrap: u32) {
+        self.registers.sm[sm_number as usize]
+            .execctrl
+            .modify(SMx_EXECCTRL::WRAP_BOTTOM.val(wrap_target));
+        self.registers.sm[sm_number as usize]
+            .execctrl
+            .modify(SMx_EXECCTRL::WRAP_TOP.val(wrap));
+    }
+
+    fn set_mov_status(&self, sm_number: SMNumber, status_sel: PioMovStatusType, status_n: u32) {
+        self.registers.sm[sm_number as usize]
+            .execctrl
+            .modify(SMx_EXECCTRL::STATUS_SEL.val(status_sel as u32));
+        self.registers.sm[sm_number as usize]
+            .execctrl
+            .modify(SMx_EXECCTRL::STATUS_N.val(status_n));
     }
 }
