@@ -11,6 +11,7 @@ mod deferred_calls;
 pub mod gpio;
 pub mod i2c;
 pub mod interrupts;
+pub mod pio;
 pub mod pwm;
 pub mod resets;
 pub mod rtc;
@@ -22,7 +23,6 @@ pub mod uart;
 pub mod usb;
 pub mod watchdog;
 pub mod xosc;
-pub mod pio;
 
 use cortexm0p::{initialize_ram_jump_to_main, unhandled_interrupt, CortexM0P, CortexMVariant};
 
