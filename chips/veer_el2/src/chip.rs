@@ -1,64 +1,74 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
+// Copyright (c) 2024 Antmicro <www.antmicro.com>
 
 //! High-level setup and interrupt mapping for the chip.
 
+use crate::machine_timer::Clint;
 use core::fmt::Write;
 use core::ptr::addr_of;
 use kernel::platform::chip::{Chip, InterruptService};
-use kernel::utilities::cells::VolatileCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::StaticRef;
 use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
+use rv32i::pmp::{simple::SimplePMP, PMPUserMPU};
 use rv32i::syscall::SysCall;
-use swerv::eh1_pic::{Pic, PicRegisters};
+
+use crate::pic::Pic;
+use crate::pic::PicRegisters;
 
 pub const PIC_BASE: StaticRef<PicRegisters> =
-    unsafe { StaticRef::new(0xF00C_0000 as *const PicRegisters) };
+    unsafe { StaticRef::new(0xf00c_0000 as *const PicRegisters) };
 
 pub static mut PIC: Pic = Pic::new(PIC_BASE);
 
-static mut TIMER0_IRQ: VolatileCell<bool> = VolatileCell::new(false);
-static mut TIMER1_IRQ: VolatileCell<bool> = VolatileCell::new(false);
+pub const UART0_TX_WATERMARK: u32 = 1;
+pub const UART0_RX_WATERMARK: u32 = 2;
+pub const UART0_TX_EMPTY: u32 = 3;
+pub const UART0_RX_OVERFLOW: u32 = 4;
+pub const UART0_RX_FRAMEERR: u32 = 5;
+pub const UART0_RX_BREAKERR: u32 = 6;
+pub const UART0_RX_TIMEOUT: u32 = 7;
+pub const UART0_RX_PARITYERR: u32 = 8;
 
-/// The UART interrupt line
-pub const IRQ_UART: u32 = 1;
-/// This is a fake value used to indicate a timer1 interrupt
-pub const IRQ_TIMER1: u32 = 0xFFFF_FFFF;
-
-pub struct SweRVolf<'a, I: InterruptService + 'a> {
+pub struct VeeR<'a, I: InterruptService + 'a> {
     userspace_kernel_boundary: SysCall,
     pic: &'a Pic,
-    scheduler_timer: swerv::eh1_timer::Timer<'static>,
-    mtimer: &'static crate::syscon::SysCon<'static>,
+    mtimer: &'static Clint<'static>,
     pic_interrupt_service: &'a I,
+    pmp: PMPUserMPU<4, SimplePMP<8>>,
 }
 
-pub struct SweRVolfDefaultPeripherals<'a> {
-    pub uart: crate::uart::Uart<'a>,
-    pub timer1: swerv::eh1_timer::Timer<'a>,
+pub struct VeeRDefaultPeripherals<'a> {
+    pub uart: crate::uart::UartType<'a>,
+    pub sim_uart: crate::uart::SimUartType<'a>,
 }
 
-impl<'a> SweRVolfDefaultPeripherals<'a> {
+impl<'a> VeeRDefaultPeripherals<'a> {
     pub fn new() -> Self {
         Self {
-            uart: crate::uart::Uart::new(crate::uart::UART_BASE),
-            timer1: swerv::eh1_timer::Timer::new(swerv::eh1_timer::TimerNumber::ONE),
+            uart: crate::uart::UartType::new(crate::uart::UART0_BASE, 125_000),
+            sim_uart: crate::uart::SimUartType::new(),
         }
+    }
+
+    pub fn init(&'static self) {
+        kernel::deferred_call::DeferredCallClient::register(&self.uart);
     }
 }
 
-impl<'a> InterruptService for SweRVolfDefaultPeripherals<'a> {
+impl<'a> Default for VeeRDefaultPeripherals<'a> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<'a> InterruptService for VeeRDefaultPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
-            IRQ_UART => {
+            UART0_TX_WATERMARK..=UART0_RX_PARITYERR => {
                 self.uart.handle_interrupt();
-            }
-            IRQ_TIMER1 => {
-                // This is a fake value to indiate a timer1
-                // interrupt occured.
-                self.timer1.handle_interrupt();
             }
             _ => return false,
         }
@@ -66,25 +76,20 @@ impl<'a> InterruptService for SweRVolfDefaultPeripherals<'a> {
     }
 }
 
-impl<'a, I: InterruptService + 'a> SweRVolf<'a, I> {
-    pub unsafe fn new(
-        pic_interrupt_service: &'a I,
-        mtimer: &'static crate::syscon::SysCon,
-    ) -> Self {
+impl<'a, I: InterruptService + 'a> VeeR<'a, I> {
+    /// # Safety
+    /// Accesses memory-mapped registers.
+    pub unsafe fn new(pic_interrupt_service: &'a I, mtimer: &'static Clint) -> Self {
         Self {
             userspace_kernel_boundary: SysCall::new(),
             pic: &*addr_of!(PIC),
-            scheduler_timer: swerv::eh1_timer::Timer::new(swerv::eh1_timer::TimerNumber::ZERO),
             mtimer,
             pic_interrupt_service,
+            pmp: PMPUserMPU::new(SimplePMP::new().unwrap()),
         }
     }
 
-    pub fn get_scheduler_timer(&self) -> &swerv::eh1_timer::Timer<'static> {
-        &self.scheduler_timer
-    }
-
-    pub unsafe fn enable_pic_interrupts(&self) {
+    pub fn enable_pic_interrupts(&self) {
         self.pic.enable_all();
     }
 
@@ -101,12 +106,12 @@ impl<'a, I: InterruptService + 'a> SweRVolf<'a, I> {
     }
 }
 
-impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for SweRVolf<'a, I> {
-    type MPU = ();
+impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for VeeR<'a, I> {
+    type MPU = PMPUserMPU<4, SimplePMP<8>>;
     type UserspaceKernelBoundary = SysCall;
 
     fn mpu(&self) -> &Self::MPU {
-        &()
+        &self.pmp
     }
 
     fn userspace_kernel_boundary(&self) -> &SysCall {
@@ -121,24 +126,6 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for SweRVolf<'a,
             if mip.is_set(mip::mtimer) {
                 self.mtimer.handle_interrupt();
             }
-            // timer0/timer1 pending bits in MIP are NOT sticky
-            // This means Tock never sees the pending bits in MIP.
-            // Instead we have mutable statics that tell us.
-            if unsafe { TIMER0_IRQ.get() } {
-                // timer0
-                self.scheduler_timer.handle_interrupt();
-                unsafe {
-                    TIMER0_IRQ.set(false);
-                }
-            }
-            if unsafe { TIMER1_IRQ.get() } {
-                // timer1
-                unsafe {
-                    self.pic_interrupt_service.service_interrupt(IRQ_TIMER1);
-                    TIMER1_IRQ.set(false);
-                }
-            }
-
             if self.pic.get_saved_interrupts().is_some() {
                 unsafe {
                     self.handle_pic_interrupts();
@@ -146,8 +133,6 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for SweRVolf<'a,
             }
 
             if !mip.any_matching_bits_set(mip::mtimer::SET)
-                && !unsafe { TIMER0_IRQ.get() }
-                && !unsafe { TIMER1_IRQ.get() }
                 && self.pic.get_saved_interrupts().is_none()
             {
                 break;
@@ -156,16 +141,12 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for SweRVolf<'a,
 
         // Re-enable all MIE interrupts that we care about. Since we looped
         // until we handled them all, we can re-enable all of them.
-        CSR.mie
-            .modify(mie::mext::SET + mie::mtimer::SET + mie::BIT28::SET + mie::BIT29::SET);
+        CSR.mie.modify(mie::mext::SET + mie::mtimer::SET);
     }
 
     fn has_pending_interrupts(&self) -> bool {
         let mip = CSR.mip.extract();
-        self.pic.get_saved_interrupts().is_some()
-            || mip.any_matching_bits_set(mip::mtimer::SET)
-            || unsafe { TIMER0_IRQ.get() }
-            || unsafe { TIMER1_IRQ.get() }
+        self.pic.get_saved_interrupts().is_some() || mip.any_matching_bits_set(mip::mtimer::SET)
     }
 
     fn sleep(&self) {
@@ -252,17 +233,6 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
         }
 
         mcause::Interrupt::Unknown => {
-            if CSR.mcause.get() == 0x8000_001D {
-                // Timer0
-                CSR.mie.modify(mie::BIT29::CLEAR);
-                TIMER0_IRQ.set(true);
-                return;
-            } else if CSR.mcause.get() == 0x8000_001C {
-                // Timer1
-                CSR.mie.modify(mie::BIT28::CLEAR);
-                TIMER1_IRQ.set(true);
-                return;
-            }
             panic!("interrupt of unknown cause");
         }
     }
@@ -272,6 +242,9 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
 ///
 /// This gets called when an interrupt occurs while the chip is
 /// in kernel mode.
+///
+/// # Safety
+/// Accesses CSRs.
 #[export_name = "_start_trap_rust_from_kernel"]
 pub unsafe extern "C" fn start_trap_rust() {
     match mcause::Trap::from(CSR.mcause.extract()) {
@@ -288,11 +261,11 @@ pub unsafe extern "C" fn start_trap_rust() {
 /// mcause is passed in, and this function should correctly handle disabling the
 /// interrupt that fired so that it does not trigger again.
 #[export_name = "_disable_interrupt_trap_rust_from_app"]
-pub unsafe extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
+pub extern "C" fn disable_interrupt_trap_handler(mcause_val: u32) {
     match mcause::Trap::from(mcause_val as usize) {
-        mcause::Trap::Interrupt(interrupt) => {
+        mcause::Trap::Interrupt(interrupt) => unsafe {
             handle_interrupt(interrupt);
-        }
+        },
         _ => {
             panic!("unexpected non-interrupt\n");
         }

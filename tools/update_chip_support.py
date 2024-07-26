@@ -39,7 +39,6 @@ SUBSUMES = {
     "stm32f412g": ["stm32f4xx"],
     "stm32f429zi": ["stm32f4xx"],
     "stm32f446re": ["stm32f4xx"],
-    "swervolf-eh1": ["swerv"],
 }
 
 
