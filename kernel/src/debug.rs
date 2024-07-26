@@ -523,15 +523,27 @@ impl hil::uart::TransmitClient for DebugWriter {
     fn transmitted_buffer(
         &self,
         buffer: &'static mut [u8],
-        _tx_len: usize,
-        _rcode: core::result::Result<(), ErrorCode>,
+        tx_len: usize,
+        rcode: core::result::Result<(), ErrorCode>,
     ) {
-        // Replace this buffer since we are done with it.
-        self.output_buffer.replace(buffer);
+        match rcode {
+            Err(ErrorCode::BUSY) => {
+                // Retry
+                if let Err((_, buf)) = self.uart.transmit_buffer(buffer, tx_len) {
+                    self.output_buffer.put(Some(buf));
+                } else {
+                    self.output_buffer.put(None);
+                }
+            }
+            _ => {
+                // Replace this buffer since we are done with it.
+                self.output_buffer.replace(buffer);
 
-        if self.internal_buffer.map_or(false, |buf| buf.has_elements()) {
-            // Buffer not empty, go around again
-            self.publish_bytes();
+                if self.internal_buffer.map_or(false, |buf| buf.has_elements()) {
+                    // Buffer not empty, go around again
+                    self.publish_bytes();
+                }
+            }
         }
     }
     fn transmitted_word(&self, _rcode: core::result::Result<(), ErrorCode>) {}
