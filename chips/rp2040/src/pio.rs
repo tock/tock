@@ -1,9 +1,11 @@
 use core::ffi::c_uint;
 
 use kernel::deferred_call::DeferredCallClient;
+use kernel::hil::gpio::Output;
 use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
 use kernel::utilities::registers::interfaces::{Readable, ReadWriteable, Writeable};
 use kernel::utilities::StaticRef;
+use crate::gpio::{GpioFunction, RPGpioPin};
 
 const NUMBER_STATE_MACHINES: usize = 4;
 const NUMBER_INSTR_MEMORY_LOCATIONS: usize = 32;
@@ -522,7 +524,7 @@ impl Pio {
             .modify(SMx_PINCTRL::OUT_COUNT.val(out_count));
     }
 
-    pub fn set_enabled(&self, sm_number: SMNumber, enabled: bool) {
+    pub fn set_enabled(&self, enabled: bool) {
         // if Pio::check_pio_param() && Pio::check_sm_param(sm_number) {
         self.registers.ctrl.modify(match enabled {
             true => CTRL::SM_ENABLE::SET,
@@ -585,6 +587,21 @@ impl Pio {
         self.registers.sm[sm_number as usize]
             .shiftctrl
             .modify(SMx_SHIFTCTRL::FJOIN_TX.val(fifo_join.tx));
+    }
+
+    pub fn set_sideset_pins(&self, sm_number: SMNumber, sideset_base: c_uint){
+        self.registers.sm[sm_number as usize]
+            .pinctrl
+            .modify(SMx_PINCTRL::SIDESET_BASE.val(sideset_base));
+    }
+
+    pub fn gpio_init(&self, pin: RPGpioPin){
+        if !self.pio_number {
+            pin.set_function(GpioFunction::PIO0)
+        }
+        else {
+            pin.set_function(GpioFunction::PIO1)
+        }
     }
 
 }
