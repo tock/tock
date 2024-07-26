@@ -22,10 +22,13 @@ use kernel::{thread_local_static_finalize, thread_local_static_access};
 use qemu_rv32_virt_chip::chip::{QemuRv32VirtChip, QemuRv32VirtDefaultPeripherals};
 use qemu_rv32_virt_chip::plic::PLIC;
 use qemu_rv32_virt_chip::plic::PLIC_BASE;
+use qemu_rv32_virt_chip::channel::QemuRv32VirtMessage;
 use rv32i::csr;
 
 use kernel::utilities::registers::interfaces::Readable;
 use kernel::threadlocal::DynThreadId;
+use kernel::collections::ring_buffer::RingBuffer;
+use kernel::smp;
 
 use qemu_rv32_virt_chip::MAX_THREADS;
 
@@ -81,7 +84,7 @@ struct QemuRv32VirtPlatform {
             qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng<'static, 'static>,
         >,
     >,
-    shared_channel: &'static qemu_rv32_virt_chip::channel::QemuRv32VirtChannel<'static>,
+    // shared_channel: &'static qemu_rv32_virt_chip::channel::QemuRv32VirtChannel<'static>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -125,7 +128,7 @@ impl
     >;
     type WatchDog = ();
     type ContextSwitchCallback = ();
-    type SharedChannel = qemu_rv32_virt_chip::channel::QemuRv32VirtChannel<'static>;
+    // type SharedChannel = qemu_rv32_virt_chip::channel::QemuRv32VirtChannel<'static>;
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         self
@@ -151,12 +154,14 @@ impl
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
-    fn shared_channel(&self) -> &Self::SharedChannel {
-        self.shared_channel
-    }
+    // fn shared_channel(&self) -> &Self::SharedChannel {
+    //     self.shared_channel
+    // }
 }
 
-pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::channel::QemuRv32VirtChannel) {
+pub unsafe fn spawn<const ID: usize>(
+    channel: &'static smp::mutex::Mutex<RingBuffer<Option<qemu_rv32_virt_chip::channel::QemuRv32VirtMessage>>>
+) {
     // These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -182,38 +187,6 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
     }
 
     let id = ConstThreadId::<ID>::new();
-
-    // Initialize the kernel's deferred call infrastructure for a
-    // single-threaded platform configuration:
-    let deferred_call_state = static_init!(
-        qemu_rv32_virt_chip::QemuRv32VirtThreadLocal<kernel::deferred_call::ThreadLocalDeferredCallState>,
-        qemu_rv32_virt_chip::QemuRv32VirtThreadLocal::init(kernel::deferred_call::DEFAULT_DEFERRED_CALL_STATE),
-    );
-
-    kernel::deferred_call::initialize_global_deferred_call_state(deferred_call_state);
-
-    let (uart_tx_clients, uart_rx_clients) = {(
-        static_init!(
-            qemu_rv32_virt_chip::QemuRv32VirtThreadLocal<
-                OptionalCell<&'static dyn kernel::hil::uart::TransmitClient>>,
-            qemu_rv32_virt_chip::QemuRv32VirtThreadLocal::new([ const { OptionalCell::empty() }; MAX_THREADS ]),
-        ),
-        static_init!(
-            qemu_rv32_virt_chip::QemuRv32VirtThreadLocal<
-                OptionalCell<&'static dyn kernel::hil::uart::ReceiveClient>>,
-            qemu_rv32_virt_chip::QemuRv32VirtThreadLocal::new([ const { OptionalCell::empty() }; MAX_THREADS ]),
-        )
-    )};
-
-    qemu_rv32_virt_chip::uart::set_uart_tx_client(uart_tx_clients);
-    qemu_rv32_virt_chip::uart::set_uart_rx_client(uart_rx_clients);
-
-    // let channel = static_init!(
-    //     qemu_rv32_virt_chip::channel::QemuRv32VirtChannel,
-    //     qemu_rv32_virt_chip::channel::QemuRv32VirtChannel::new(&mut *core::ptr::addr_of_mut!(qemu_rv32_virt_chip::channel::CHANNEL_BUFFER)),
-    // );
-    kernel::deferred_call::DeferredCallClient::register(channel);
-
 
     // ---------- BASIC INITIALIZATION -----------
 
@@ -265,18 +238,76 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
         kernel::Kernel::new(&*addr_of!(PROCESSES))
     );
 
-
-    // ---------- QEMU-SYSTEM-RISCV32 "virt" MACHINE PERIPHERALS ----------
+    // ---------- QEMU-SYSTEM-RISCV32 "virt" MACHINE THREAD LOCALS ----------
 
     thread_local_static_finalize!(PLIC, ID);
     thread_local_static_finalize!(qemu_rv32_virt_chip::clint::CLIC, ID);
 
-    // Open a portal for the uart
+    // Initialize the kernel's deferred call infrastructure
+    kernel::deferred_call::initialize_global_deferred_call_state(static_init!(
+        qemu_rv32_virt_chip::QemuRv32VirtThreadLocal<kernel::deferred_call::ThreadLocalDeferredCallState>,
+        qemu_rv32_virt_chip::QemuRv32VirtThreadLocal::init(kernel::deferred_call::DEFAULT_DEFERRED_CALL_STATE),
+    ));
+
+    // Initial setup for thread-local debugger writters
+    kernel::debug::set_debug_writer_wrappers(static_init!(
+        qemu_rv32_virt_chip::QemuRv32VirtThreadLocal<kernel::debug::DebugWriterWrapper>,
+        qemu_rv32_virt_chip::QemuRv32VirtThreadLocal::new([
+            const { kernel::debug::DebugWriterWrapper::empty() }; MAX_THREADS
+        ]),
+    ));
+
+    // Initial setup for thread-local UART transmit and receive clients
+    let (uart_tx_clients, uart_rx_clients) = {(
+        static_init!(
+            qemu_rv32_virt_chip::QemuRv32VirtThreadLocal<
+                OptionalCell<&'static dyn kernel::hil::uart::TransmitClient>>,
+            qemu_rv32_virt_chip::QemuRv32VirtThreadLocal::new([ const { OptionalCell::empty() }; MAX_THREADS ]),
+        ),
+        static_init!(
+            qemu_rv32_virt_chip::QemuRv32VirtThreadLocal<
+                OptionalCell<&'static dyn kernel::hil::uart::ReceiveClient>>,
+            qemu_rv32_virt_chip::QemuRv32VirtThreadLocal::new([ const { OptionalCell::empty() }; MAX_THREADS ]),
+        )
+    )};
+
+    qemu_rv32_virt_chip::uart::set_uart_tx_client(uart_tx_clients);
+    qemu_rv32_virt_chip::uart::set_uart_rx_client(uart_rx_clients);
+
+    // Initial setup for the shared channel
+    qemu_rv32_virt_chip::channel::set_shared_channel(static_init!(
+        qemu_rv32_virt_chip::QemuRv32VirtThreadLocal<Option<qemu_rv32_virt_chip::channel::QemuRv32VirtChannel>>,
+        qemu_rv32_virt_chip::QemuRv32VirtThreadLocal::new([
+            const { None }; MAX_THREADS
+        ]),
+    ));
+
+    // Initialize the kernel's local channel
+    qemu_rv32_virt_chip::channel::with_shared_channel_panic(|c| {
+        let _ = c.replace(qemu_rv32_virt_chip::channel::QemuRv32VirtChannel::new(channel));
+    });
+
+    // Hack: escape non-reentrant to get a static mut, fix it with a better interface
+    kernel::deferred_call::DeferredCallClient::register(
+        qemu_rv32_virt_chip::channel::with_shared_channel_panic(|c| {
+            &*(c.as_mut().unwrap() as *mut _)
+        })
+    );
+
+    // let channel = static_init!(
+    //     qemu_rv32_virt_chip::channel::QemuRv32VirtChannel,
+    //     qemu_rv32_virt_chip::channel::QemuRv32VirtChannel::new(&mut *core::ptr::addr_of_mut!(qemu_rv32_virt_chip::channel::CHANNEL_BUFFER)),
+    // );
+    // kernel::deferred_call::DeferredCallClient::register(channel);
+
+    // ---------- QEMU-SYSTEM-RISCV32 "virt" MACHINE PORTALS ----------
+
     use qemu_rv32_virt_chip::portal::{QemuRv32VirtPortal, PORTALS};
     use qemu_rv32_virt_chip::portal_cell::QemuRv32VirtPortalCell;
     use qemu_rv32_virt_chip::uart::{Uart16550, UART0_BASE};
     use qemu_rv32_virt_chip::chip::COUNTER;
 
+    // Open a portal for a uart device
     let uart = static_init!(
         Uart16550,
         Uart16550::new(UART0_BASE),
@@ -284,16 +315,18 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
 
     let uart_portal = static_init!(
         QemuRv32VirtPortalCell<Uart16550>,
-        QemuRv32VirtPortalCell::new(uart, QemuRv32VirtPortal::Uart16550(core::ptr::null()).id(), channel)
+        QemuRv32VirtPortalCell::new(uart, QemuRv32VirtPortal::Uart16550(core::ptr::null()).id())
     );
 
+    // Open a portal for a counter
     let counter_portal = static_init!(
         QemuRv32VirtPortalCell<usize>,
         QemuRv32VirtPortalCell::new(
-            &mut *addr_of_mut!(COUNTER), QemuRv32VirtPortal::Counter(core::ptr::null()).id(), channel
+            &mut *addr_of_mut!(COUNTER), QemuRv32VirtPortal::Counter(core::ptr::null()).id()
         )
     );
 
+    // Initialize the thread-local portal table
     (&*core::ptr::addr_of!(PORTALS))
         .get_mut()
         .expect("Main thread doesn't not have access to its local portals")
@@ -301,6 +334,9 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
             ps[uart_portal.get_id()] = QemuRv32VirtPortal::Uart16550(uart_portal as *mut _ as *const _);
             ps[counter_portal.get_id()] = QemuRv32VirtPortal::Counter(counter_portal as *mut _ as *const _);
         });
+
+
+    // ---------- QEMU-SYSTEM-RISCV32 "virt" MACHINE PERIPHERALS ----------
 
     let peripherals = static_init!(
         QemuRv32VirtDefaultPeripherals,
@@ -582,13 +618,6 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
     .finalize(components::console_component_static!());
 
     // Create the debugger object that handles calls to `debug!()`.
-    let debug_wrappers = static_init!(
-        qemu_rv32_virt_chip::QemuRv32VirtThreadLocal<kernel::debug::DebugWriterWrapper>,
-        qemu_rv32_virt_chip::QemuRv32VirtThreadLocal::new([
-            const { kernel::debug::DebugWriterWrapper::empty() }; MAX_THREADS
-        ]),
-    );
-    kernel::debug::set_debug_writer_wrappers(debug_wrappers);
     components::debug_writer::DebugWriterComponent::new(uart_mux)
         .finalize(components::debug_writer_component_static!());
 
@@ -622,19 +651,22 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_cap,
         ),
-        shared_channel: channel,
+        // shared_channel: channel,
     };
 
     // Start the process console:
     // let _ = platform.pconsole.start();
 
-    // Global initialization is done. Wake up all threads.
-    (0..MAX_THREADS)
-        .filter(|&id| id != ID)
-        .for_each(|id| hardware_timer.set_soft_interrupt(id));
+    let has_app_thread = true;
+    if has_app_thread {
+        // Global initialization is done. Wake up all threads.
+        (0..MAX_THREADS)
+            .filter(|&id| id != ID)
+            .for_each(|id| hardware_timer.set_soft_interrupt(id));
 
-    // Block until the app thread finishes initialization
-    while !APP_THREAD_READY.load(Ordering::SeqCst) {}
+        // Block until the app thread finishes initialization
+        while !APP_THREAD_READY.load(Ordering::SeqCst) {}
+    }
 
     debug!("QEMU RISC-V 32-bit {MAX_THREADS}-SMP \"virt\" machine core {ID}, initialization complete.");
     debug!("Entering main loop.");
@@ -664,11 +696,11 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
     });
 
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap,
-                             true,
+                             false,
                              Some(&|| {
                                  // debug!("looping: {:?}", 1);
                                  counter_portal.enter(|c| {
-                                     // debug!("current counter: {:?}", c);
+                                     debug!("current counter: {:?}", c);
                                  }).unwrap_or_else(|| {
                                      use kernel::smp::portal::Portalable;
                                      counter_portal.conjure();

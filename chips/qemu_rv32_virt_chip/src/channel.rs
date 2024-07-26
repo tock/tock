@@ -2,9 +2,10 @@
 
 use core::cell::Cell;
 
-use kernel::deferred_call::{DeferredCallThread, DeferredCallClient};
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::threadlocal::{ThreadLocal, ThreadLocalAccess, DynThreadId, ThreadLocalDyn};
 use kernel::utilities::registers::interfaces::Readable;
+use kernel::utilities::cells::OptionalCell;
 use kernel::smp::shared_channel::SharedChannel;
 use kernel::smp::portal::Portalable;
 use kernel::smp::mutex::Mutex;
@@ -39,24 +40,61 @@ pub enum QemuRv32VirtMessageBody {
     Pong,
 }
 
-pub static mut CHANNEL_BUFFER: [Option<QemuRv32VirtMessage>; 128] = [None; 128];
+// pub static mut CHANNEL_BUFFER: [Option<QemuRv32VirtMessage>; 128] = [None; 128];
 
-pub struct QemuRv32VirtChannel<'a>(Mutex<RingBuffer<'a, Option<QemuRv32VirtMessage>>>);
+static NO_CHANNEL: ThreadLocal<0, Option<QemuRv32VirtChannel<'static>>> = ThreadLocal::new([]);
+
+static mut SHARED_CHANNEL: &'static dyn ThreadLocalDyn<Option<QemuRv32VirtChannel<'static>>> = &NO_CHANNEL;
+
+pub unsafe fn set_shared_channel(
+    shared_channel: &'static dyn ThreadLocalDyn<Option<QemuRv32VirtChannel<'static>>>
+) {
+    *core::ptr::addr_of_mut!(SHARED_CHANNEL) = shared_channel;
+}
+
+unsafe fn with_shared_channel<R, F>(f: F) -> Option<R>
+where
+    F: FnOnce(&mut Option<QemuRv32VirtChannel<'static>>) -> R
+{
+    let threadlocal: &'static dyn ThreadLocalDyn<_> = *core::ptr::addr_of_mut!(SHARED_CHANNEL);
+    threadlocal
+        .get_mut().map(|c| c.enter_nonreentrant(f))
+}
+
+pub unsafe fn with_shared_channel_panic<R, F>(f: F) -> R
+where
+    F: FnOnce(&mut Option<QemuRv32VirtChannel<'static>>) -> R
+{
+    with_shared_channel(f).expect("Current thread does not have access to its shared channel")
+}
+
+pub struct QemuRv32VirtChannel<'a> {
+    channel: &'a Mutex<RingBuffer<'a, Option<QemuRv32VirtMessage>>>,
+    deferred_call: DeferredCall,
+}
 
 impl<'a> QemuRv32VirtChannel<'a> {
-    pub fn new(buffer: &'a mut [Option<QemuRv32VirtMessage>]) -> Self {
-        QemuRv32VirtChannel(Mutex::new(
-            RingBuffer::new(buffer)
-        ))
+    pub fn new(
+        channel: &'a Mutex<RingBuffer<'a, Option<QemuRv32VirtMessage>>>
+    ) -> Self {
+        QemuRv32VirtChannel {
+            channel,
+            deferred_call: DeferredCall::new()
+        }
     }
 
-    fn find<P>(channel: &mut RingBuffer<'a, Option<QemuRv32VirtMessage>>, predicate: P) -> Option<QemuRv32VirtMessage>
+    fn find<P>(
+        channel: &mut RingBuffer<'a, Option<QemuRv32VirtMessage>>,
+        predicate: P
+    ) -> Option<QemuRv32VirtMessage>
     where
         P: Fn(&QemuRv32VirtMessage) -> bool
     {
         let mut len = channel.len();
         while len != 0 {
-            let msg = channel.dequeue().expect("Invalid QemuRv32VirtChannel State").expect("Invalid Message Type");
+            let msg = channel.dequeue()
+                .expect("Invalid QemuRv32VirtChannel State")
+                .expect("Invalid Message Type");
             if predicate(&msg) {
                 return Some(msg)
             }
@@ -69,10 +107,14 @@ impl<'a> QemuRv32VirtChannel<'a> {
     pub fn service(&self) {
         let hart_id = CSR.mhartid.extract().get();
 
+                            // (hart_id == 1).then(|| {
+                            //     panic!(" app thread: handle channel service")
+                            // });
+
         // Acquire the mutex for the entire operation to reserve a slot for portal
         // response. Calling teleport inside the scope will result in a deadlock.
-        // TODO: switch to a non-locking channel
-        let mut channel = self.0.lock();
+        // TODO: switch to a non-blocking channel
+        let mut channel = self.channel.lock();
         if let Some(msg) = Self::find(&mut channel, |msg| msg.dst == hart_id) {
             use QemuRv32VirtMessageBody as M;
             match msg.body {
@@ -96,6 +138,7 @@ impl<'a> QemuRv32VirtChannel<'a> {
                             }
                             _ => panic!("Invalid Portal"),
                         };
+
                         if let Some(val) = traveler {
                             assert!(channel.enqueue(Some(QemuRv32VirtMessage {
                                 src: hart_id,
@@ -113,7 +156,6 @@ impl<'a> QemuRv32VirtChannel<'a> {
                                         clic.set_soft_interrupt(msg.src);
                                     })
                             };
-
                         }
                     };
 
@@ -159,16 +201,20 @@ impl<'a> QemuRv32VirtChannel<'a> {
             }
         }
     }
+
+    pub fn service_async(&self) {
+        self.deferred_call.set();
+    }
 }
 
 
 impl DeferredCallClient for QemuRv32VirtChannel<'_> {
     fn handle_deferred_call(&self) {
-        self.service()
+        self.service();
     }
 
     fn register(&'static self) {
-        DeferredCallThread::register(self)
+        self.deferred_call.register(self);
     }
 }
 
@@ -178,13 +224,13 @@ impl SharedChannel for QemuRv32VirtChannel<'_> {
     type Message = QemuRv32VirtMessage;
 
     fn write(&self, message: Self::Message) -> bool {
-        self.0
+        self.channel
             .lock()
             .enqueue(Some(message))
     }
 
     fn read(&self) -> Option<Self::Message> {
-        self.0
+        self.channel
             .lock()
             .dequeue()
             .map(|val| val.expect("Invalid message"))

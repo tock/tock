@@ -28,6 +28,8 @@ use kernel::threadlocal::ConstThreadId;
 use kernel::threadlocal::ThreadId;
 use kernel::threadlocal::ThreadLocalDynInit;
 use kernel::utilities::registers::interfaces::ReadWriteable;
+use kernel::collections::ring_buffer::RingBuffer;
+use kernel::smp;
 use kernel::{create_capability, debug, static_init, static_init_once};
 use kernel::{thread_local_static_finalize, thread_local_static, thread_local_static_access};
 use qemu_rv32_virt_chip::chip::{QemuRv32VirtChip, QemuRv32VirtDefaultPeripherals};
@@ -92,9 +94,15 @@ enum ThreadType {
 #[no_mangle]
 pub unsafe fn main(thread_type: ThreadType) {
 
+    let channel_buffer = static_init_once!(
+        [Option<qemu_rv32_virt_chip::channel::QemuRv32VirtMessage>; 128],
+        [const { None }; 128 ],
+    );
+
+    // TODO: replace it with a non-blocking channel
     let channel = static_init_once!(
-        qemu_rv32_virt_chip::channel::QemuRv32VirtChannel,
-        qemu_rv32_virt_chip::channel::QemuRv32VirtChannel::new(&mut *core::ptr::addr_of_mut!(qemu_rv32_virt_chip::channel::CHANNEL_BUFFER)),
+        smp::mutex::Mutex<RingBuffer<Option<qemu_rv32_virt_chip::channel::QemuRv32VirtMessage>>>,
+        smp::mutex::Mutex::new(RingBuffer::new(channel_buffer)),
     );
 
     use ThreadType as T;

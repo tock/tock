@@ -74,10 +74,6 @@ pub trait KernelResources<C: Chip> {
     /// Returns a reference to the implementation of the WatchDog on this
     /// platform.
     fn watchdog(&self) -> &Self::WatchDog;
-
-    /// Return a shared buffer between kernels
-    type SharedChannel: smp::shared_channel::SharedChannel;
-    fn shared_channel(&self) -> &Self::SharedChannel;
 }
 
 /// Configure the system call dispatch mapping.

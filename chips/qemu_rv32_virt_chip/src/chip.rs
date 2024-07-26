@@ -13,7 +13,6 @@ use kernel::platform::chip::{Chip, ChipAtomic, InterruptService};
 
 use kernel::threadlocal::{DynThreadId, ThreadLocalAccess, ThreadId};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::deferred_call::DeferredCallThread;
 use kernel::thread_local_static_access;
 
 use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
@@ -254,7 +253,12 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
                 .expect("Unable to access thread-local CLIC controller")
                 .enter_nonreentrant(|clic| {
                     clic.clear_soft_interrupt(hart_id);
-                    kernel::deferred_call::DeferredCallThread::set();
+                    crate::channel::with_shared_channel_panic(|channel| {
+                        channel
+                            .as_mut()
+                            .expect("Uninitialized channel")
+                            .service_async();
+                    });
                 });
             CSR.mie.modify(mie::msoft::SET);
         }

@@ -12,8 +12,10 @@ use kernel::threadlocal::ThreadId;
 use kernel::threadlocal::ThreadLocalDynInit;
 use kernel::threadlocal::ThreadLocalDyn;
 use kernel::utilities::registers::interfaces::ReadWriteable;
+use kernel::collections::ring_buffer::RingBuffer;
 use kernel::{create_capability, debug, static_init};
 use kernel::{thread_local_static_finalize, thread_local_static, thread_local_static_access};
+use kernel::smp;
 use qemu_rv32_virt_chip::chip::QemuRv32VirtChip;
 use qemu_rv32_virt_chip::plic::PLIC;
 use qemu_rv32_virt_chip::plic::PLIC_BASE;
@@ -101,7 +103,7 @@ struct QemuRv32VirtPlatform {
             qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng<'static, 'static>,
         >,
     >,
-    shared_channel: &'static qemu_rv32_virt_chip::channel::QemuRv32VirtChannel<'static>,
+    // shared_channel: &'static qemu_rv32_virt_chip::channel::QemuRv32VirtChannel<'static>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -143,7 +145,7 @@ impl
     >;
     type WatchDog = ();
     type ContextSwitchCallback = ();
-    type SharedChannel = qemu_rv32_virt_chip::channel::QemuRv32VirtChannel<'static>;
+    // type SharedChannel = qemu_rv32_virt_chip::channel::QemuRv32VirtChannel<'static>;
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         self
@@ -169,12 +171,14 @@ impl
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
-    fn shared_channel(&self) -> &Self::SharedChannel {
-        self.shared_channel
-    }
+    // fn shared_channel(&self) -> &Self::SharedChannel {
+    //     self.shared_channel
+    // }
 }
 
-pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::channel::QemuRv32VirtChannel) {
+pub unsafe fn spawn<const ID: usize>(
+    channel: &'static smp::mutex::Mutex<RingBuffer<Option<qemu_rv32_virt_chip::channel::QemuRv32VirtMessage>>>
+) {
     // These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -257,7 +261,17 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
     thread_local_static_finalize!(PLIC, ID);
     thread_local_static_finalize!(qemu_rv32_virt_chip::clint::CLIC, ID);
 
-    kernel::deferred_call::DeferredCallClient::register(channel);
+    // Initialize the kernel's local channel
+    qemu_rv32_virt_chip::channel::with_shared_channel_panic(|c| {
+        let _ = c.replace(qemu_rv32_virt_chip::channel::QemuRv32VirtChannel::new(channel));
+    });
+
+    // Hack: escape non-reentrant to get a static mut, fix it with a better interface
+    kernel::deferred_call::DeferredCallClient::register(
+        qemu_rv32_virt_chip::channel::with_shared_channel_panic(|c| {
+            &*(c.as_mut().unwrap() as *mut _)
+        })
+    );
 
     // Open an empty uart portal
     use qemu_rv32_virt_chip::portal::{QemuRv32VirtPortal, PORTALS};
@@ -267,12 +281,12 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
 
     let uart_portal = static_init!(
         QemuRv32VirtPortalCell<Uart16550>,
-        QemuRv32VirtPortalCell::empty(QemuRv32VirtPortal::Uart16550(core::ptr::null()).id(), channel)
+        QemuRv32VirtPortalCell::empty(QemuRv32VirtPortal::Uart16550(core::ptr::null()).id())
     );
 
     let counter_portal = static_init!(
         QemuRv32VirtPortalCell<usize>,
-        QemuRv32VirtPortalCell::empty(QemuRv32VirtPortal::Counter(core::ptr::null()).id(), channel)
+        QemuRv32VirtPortalCell::empty(QemuRv32VirtPortal::Counter(core::ptr::null()).id())
     );
 
     (&*core::ptr::addr_of!(PORTALS))
@@ -480,7 +494,7 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_cap,
         ),
-        shared_channel: channel,
+        // shared_channel: channel,
     };
 
 
@@ -513,8 +527,7 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
     });
 
 
-    // debug!("Printing from the app thread");
-
+    debug!("Printing from the app thread");
 
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap,
                              false,
@@ -523,7 +536,7 @@ pub unsafe fn spawn<const ID: usize>(channel: &'static mut qemu_rv32_virt_chip::
                                      *c += 1;
                                  }).unwrap_or_else(|| {
                                      use kernel::smp::portal::Portalable;
-                                     // counter_portal.conjure();
+                                     counter_portal.conjure();
                                  });
 
                                  unsafe {

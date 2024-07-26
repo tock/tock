@@ -9,31 +9,26 @@ use kernel::utilities::cells::OptionalCell;
 
 use rv32i::csr::CSR;
 
-use crate::channel::{QemuRv32VirtChannel, QemuRv32VirtMessage, QemuRv32VirtMessageBody};
+use crate::channel::{self, QemuRv32VirtChannel, QemuRv32VirtMessage, QemuRv32VirtMessageBody};
 use crate::uart::Uart16550;
 use crate::chip::QemuRv32VirtClint;
 
 pub struct QemuRv32VirtPortalCell<'a, T: ?Sized> {
     portal: PortalCell<'a, T>,
-    shared_channel: &'a QemuRv32VirtChannel<'a>,
 }
 
 impl<'a, T: ?Sized> QemuRv32VirtPortalCell<'a, T> {
-    pub fn empty(
-        id: usize, shared_channel: &'a QemuRv32VirtChannel<'a>,
-    ) -> QemuRv32VirtPortalCell<'a, T> {
+    pub fn empty(id: usize) -> QemuRv32VirtPortalCell<'a, T> {
         QemuRv32VirtPortalCell {
             portal: PortalCell::empty(id),
-            shared_channel,
         }
     }
 
     pub fn new(
-        value: &'a mut T, id: usize, shared_channel: &'a QemuRv32VirtChannel<'a>,
+        value: &'a mut T, id: usize,
     ) -> QemuRv32VirtPortalCell<'a, T> {
         QemuRv32VirtPortalCell {
             portal: PortalCell::new(value, id),
-            shared_channel,
         }
     }
 
@@ -69,13 +64,20 @@ impl<'a, T: ?Sized> Portalable for QemuRv32VirtPortalCell<'a, T> {
             // TODO: notify all
             let receiver_id = if id == 0 { 1 } else { 0 };
 
-            if self.shared_channel
-                .write(QemuRv32VirtMessage {
-                    src: id,
-                    dst: receiver_id,
-                    body: QemuRv32VirtMessageBody::PortalRequest(self.portal.get_id()),
-                })
-            {
+            let do_request = move |channel: &mut Option<QemuRv32VirtChannel>| {
+                channel
+                    .as_mut()
+                    .expect("Uninitialized channel")
+                    .write(QemuRv32VirtMessage {
+                        src: id,
+                        dst: receiver_id,
+                        body: QemuRv32VirtMessageBody::PortalRequest(self.portal.get_id()),
+                    })
+            };
+
+            let success = unsafe { channel::with_shared_channel_panic(do_request) };
+
+            if success {
                 let closure = |c: &mut QemuRv32VirtClint| c.set_soft_interrupt(receiver_id);
                 unsafe {
                     thread_local_static_access!(crate::clint::CLIC, DynThreadId::new(id))
@@ -89,17 +91,26 @@ impl<'a, T: ?Sized> Portalable for QemuRv32VirtPortalCell<'a, T> {
     fn teleport(&self, dst: &dyn ThreadId) {
         if let Some(val) = self.portal.take() {
             let id = CSR.mhartid.extract().get();
-            if self.shared_channel
-                .write(QemuRv32VirtMessage {
-                    src: id,
-                    dst: dst.get_id(),
-                    body: QemuRv32VirtMessageBody::PortalResponse(
-                        self.portal.get_id(),
-                        val as *mut _ as *const _,
-                    ),
-                })
-            {
-                let closure = |c: &mut QemuRv32VirtClint| c.set_soft_interrupt(dst.get_id());
+            let dst_id = dst.get_id();
+
+            let do_response = move |channel: &mut Option<QemuRv32VirtChannel>| {
+                channel
+                    .as_mut()
+                    .expect("Uninitialized channel")
+                    .write(QemuRv32VirtMessage {
+                        src: id,
+                        dst: dst_id,
+                        body: QemuRv32VirtMessageBody::PortalResponse(
+                            self.portal.get_id(),
+                            val as *mut _ as *const _,
+                        ),
+                    })
+            };
+
+            let success = unsafe { channel::with_shared_channel_panic(do_response) };
+
+            if success {
+                let closure = move |c: &mut QemuRv32VirtClint| c.set_soft_interrupt(dst_id);
                 unsafe {
                     thread_local_static_access!(crate::clint::CLIC, DynThreadId::new(id))
                         .expect("This thread does not have access to CLIC")
@@ -144,7 +155,21 @@ impl Transmit<'static> for QemuRv32VirtPortalCell<'static, Uart16550> {
         tx_data: &'static mut [u8],
         tx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        self.enter(|inner| inner.transmit_buffer(tx_data, tx_len))
+
+        use rv32i::csr::CSR;
+        use kernel::utilities::registers::interfaces::Readable;
+        let hart_id = CSR.mhartid.extract().get();
+        self.enter(|inner| {
+
+            if hart_id == 1 {
+                let ret = inner.transmit_buffer(tx_data, tx_len);
+                assert!(ret.is_err());
+                ret
+
+            } else {
+                inner.transmit_buffer(tx_data, tx_len)
+            }
+        })
             .unwrap_or_else(|| {
                 self.conjure();
                 Err((ErrorCode::BUSY, unsafe { &mut *core::ptr::addr_of_mut!(EMPTY_STRING) }))
