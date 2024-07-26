@@ -4,8 +4,6 @@
 
 # Makefile for building the tock kernel for the HiFive1 platform
 
-TARGET=riscv32imac-unknown-none-elf
-PLATFORM=hifive1
 QEMU ?= qemu-system-riscv32
 
 include ../Makefile.common

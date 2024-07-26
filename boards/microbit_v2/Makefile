@@ -4,10 +4,6 @@
 
 # Makefile for building the tock kernel for the BBC microbit v2 board.
 
-TOCK_ARCH=cortex-m4
-TARGET=thumbv7em-none-eabi
-PLATFORM=microbit_v2
-
 include ../Makefile.common
 
 OPENOCD=openocd

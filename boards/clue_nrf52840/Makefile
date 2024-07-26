@@ -4,10 +4,6 @@
 
 # Makefile for building the tock kernel for the CLUE nRF52840 board.
 
-TOCK_ARCH=cortex-m4
-TARGET=thumbv7em-none-eabi
-PLATFORM=clue_nrf52840
-
 include ../Makefile.common
 
 ifdef PORT

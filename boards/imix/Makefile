@@ -4,9 +4,6 @@
 
 # Makefile for building the tock kernel for the Imix platform
 
-TARGET=thumbv7em-none-eabi
-PLATFORM=imix
-
 include ../Makefile.common
 
 TOCKLOADER=tockloader
