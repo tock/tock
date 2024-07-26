@@ -498,7 +498,13 @@ impl Pio {
         );
         self.set_jmp_pin(sm_number, config.jmp_pin);
         self.set_wrap(sm_number, config.wrap_to, config.wrap);
-        self.set_mov_status(sm_number, config.mov_status_sel, config.mov_status_n)
+        self.set_mov_status(sm_number, config.mov_status_sel, config.mov_status_n);
+        self.set_out_special(
+            sm_number,
+            config.out_special_sticky,
+            config.out_special_has_enable_pin,
+            config.out_special_enable_pin_index,
+        )
     }
 
     pub fn new_pio0() -> Self {
@@ -686,5 +692,23 @@ impl Pio {
         self.registers.sm[sm_number as usize]
             .execctrl
             .modify(SMx_EXECCTRL::STATUS_N.val(status_n));
+    }
+
+    fn set_out_special(
+        &self,
+        sm_number: SMNumber,
+        sticky: bool,
+        has_enable_pin: bool,
+        enable_pin_index: u32,
+    ) {
+        self.registers.sm[sm_number as usize]
+            .execctrl
+            .modify(SMx_EXECCTRL::OUT_STICKY.val(sticky as u32));
+        self.registers.sm[sm_number as usize]
+            .execctrl
+            .modify(SMx_EXECCTRL::INLINE_OUT_EN.val(has_enable_pin as u32));
+        self.registers.sm[sm_number as usize]
+            .execctrl
+            .modify(SMx_EXECCTRL::OUT_EN_SEL.val(enable_pin_index as u32));
     }
 }
