@@ -423,6 +423,8 @@ struct StateMachineConfiguration {
     in_pins_base: u32,
     side_set_base: u32,
     side_set_enable: bool,
+    side_set_bit_count: u32,
+    side_set_pindirs: bool,
     wrap: u32,
     wrap_to: u32,
     in_shift_direction_right: bool,
@@ -449,6 +451,8 @@ impl Default for StateMachineConfiguration {
             in_pins_base: 0,
             side_set_base: 0,
             side_set_enable: false,
+            side_set_bit_count: 0,
+            side_set_pindirs: false,
             wrap: 31,
             wrap_to: 0,
             in_shift_direction_right: true,
@@ -472,7 +476,26 @@ impl Pio {
         self.set_in_pins(sm_number, config.in_pins_base);
         self.set_out_pins(sm_number, config.out_pins_base, config.out_pins_count);
         self.set_set_pins(sm_number, config.set_pins_base, config.set_pins_count);
-        self.set_side_set_pins(sm_number, config.side_set_base)
+        self.set_side_set_pins(sm_number, config.side_set_base);
+        self.set_side_set(
+            sm_number,
+            config.side_set_bit_count,
+            config.side_set_enable,
+            config.side_set_pindirs,
+        );
+        self.set_in_shift(
+            sm_number,
+            config.in_shift_direction_right,
+            config.in_autopush,
+            config.in_push_threshold,
+        );
+        self.set_out_shift(
+            sm_number,
+            config.out_shift_direction_right,
+            config.out_autopull,
+            config.out_pull_threshold,
+        );
+        self.set_jmp_pin(sm_number, config.jmp_pin);
     }
 
     pub fn new_pio0() -> Self {
@@ -570,18 +593,18 @@ impl Pio {
         &self,
         sm_number: SMNumber,
         shift_right: bool,
-        autopush: bool,
-        push_threshold: u32,
+        autopull: bool,
+        pull_threshold: u32,
     ) {
         self.registers.sm[sm_number as usize]
             .shiftctrl
             .modify(SMx_SHIFTCTRL::OUT_SHIFTDIR.val(u32::from(shift_right)));
         self.registers.sm[sm_number as usize]
             .shiftctrl
-            .modify(SMx_SHIFTCTRL::AUTOPUSH.val(u32::from(autopush)));
+            .modify(SMx_SHIFTCTRL::AUTOPULL.val(u32::from(autopull)));
         self.registers.sm[sm_number as usize]
             .shiftctrl
-            .modify(SMx_SHIFTCTRL::PUSH_THRESH.val(u32::from(push_threshold)));
+            .modify(SMx_SHIFTCTRL::PULL_THRESH.val(u32::from(pull_threshold)));
     }
 
     fn set_jmp_pin(&self, sm_number: SMNumber, pin: u32) {
@@ -624,7 +647,10 @@ impl Pio {
             .modify(SMx_PINCTRL::SIDESET_BASE.val(sideset_base));
     }
 
-    fn set_side_set(&self, sm_number: SMNumber, bit_count: u8, optional: bool, pindirs: bool) {
+    fn set_side_set(&self, sm_number: SMNumber, bit_count: u32, optional: bool, pindirs: bool) {
+        self.registers.sm[sm_number as usize]
+            .pinctrl
+            .modify(SMx_PINCTRL::SIDESET_COUNT.val(bit_count));
         self.registers.sm[sm_number as usize]
             .execctrl
             .modify(SMx_EXECCTRL::SIDE_EN.val(optional as u32));
