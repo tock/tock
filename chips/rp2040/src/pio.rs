@@ -472,7 +472,7 @@ impl Pio {
         self.set_in_pins(sm_number, config.in_pins_base);
         self.set_out_pins(sm_number, config.out_pins_base, config.out_pins_count);
         self.set_set_pins(sm_number, config.set_pins_base, config.set_pins_count);
-        self.set_sideset_pins(sm_number, config.side_set_base)
+        self.set_side_set_pins(sm_number, config.side_set_base)
     }
 
     pub fn new_pio0() -> Self {
@@ -515,13 +515,13 @@ impl Pio {
     //     return false;
     // }
 
-    pub fn set_in_pins(&self, sm_number: SMNumber, in_base: u32) {
+    fn set_in_pins(&self, sm_number: SMNumber, in_base: u32) {
         self.registers.sm[sm_number as usize]
             .pinctrl
             .modify(SMx_PINCTRL::IN_BASE.val(in_base));
     }
 
-    pub fn set_set_pins(&self, sm_number: SMNumber, set_base: u32, set_count: u32) {
+    fn set_set_pins(&self, sm_number: SMNumber, set_base: u32, set_count: u32) {
         self.registers.sm[sm_number as usize]
             .pinctrl
             .modify(SMx_PINCTRL::SET_BASE.val(set_base));
@@ -530,7 +530,7 @@ impl Pio {
             .modify(SMx_PINCTRL::SET_COUNT.val(set_count));
     }
 
-    pub fn set_out_pins(&self, sm_number: SMNumber, out_base: u32, out_count: u32) {
+    fn set_out_pins(&self, sm_number: SMNumber, out_base: u32, out_count: u32) {
         self.registers.sm[sm_number as usize]
             .pinctrl
             .modify(SMx_PINCTRL::OUT_BASE.val(out_base));
@@ -548,7 +548,7 @@ impl Pio {
         // }
     }
 
-    pub fn set_in_shift(
+    fn set_in_shift(
         &self,
         sm_number: SMNumber,
         shift_right: bool,
@@ -566,7 +566,7 @@ impl Pio {
             .modify(SMx_SHIFTCTRL::PUSH_THRESH.val(u32::from(push_threshold)));
     }
 
-    pub fn set_out_shift(
+    fn set_out_shift(
         &self,
         sm_number: SMNumber,
         shift_right: bool,
@@ -584,7 +584,7 @@ impl Pio {
             .modify(SMx_SHIFTCTRL::PUSH_THRESH.val(u32::from(push_threshold)));
     }
 
-    pub fn set_jmp_pin(&self, sm_number: SMNumber, pin: u32) {
+    fn set_jmp_pin(&self, sm_number: SMNumber, pin: u32) {
         self.registers.sm[sm_number as usize]
             .execctrl
             .modify(SMx_EXECCTRL::JMP_PIN.val(pin));
@@ -596,7 +596,7 @@ impl Pio {
     //         .modify(SMx_CLKDIV::INT.val(div));
     // }
 
-    pub fn set_clkdiv_int_frac(&self, sm_number: SMNumber, div_int: c_uint, div_frac: c_uint) {
+    fn set_clkdiv_int_frac(&self, sm_number: SMNumber, div_int: c_uint, div_frac: c_uint) {
         //c_uint is u32, shall we use signed u8 or u16 instead?
         self.registers.sm[sm_number as usize]
             .clkdiv
@@ -606,26 +606,34 @@ impl Pio {
             .modify(SMx_CLKDIV::FRAC.val(div_frac));
     }
 
-    pub fn set_fifo_join(&self, sm_number: SMNumber, fifo_join: PioFifoJoin) {
+    fn set_fifo_join(&self, sm_number: SMNumber, fifo_join: PioFifoJoin) {
         if fifo_join == PioFifoJoin::PioFifoJoinRx {
             self.registers.sm[sm_number as usize]
                 .shiftctrl
                 .modify(SMx_SHIFTCTRL::FJOIN_RX.val(fifo_join as u32));
-        }
-        else if fifo_join == PioFifoJoin::PioFifoJoinTx {
+        } else if fifo_join == PioFifoJoin::PioFifoJoinTx {
             self.registers.sm[sm_number as usize]
                 .shiftctrl
                 .modify(SMx_SHIFTCTRL::FJOIN_TX.val(fifo_join as u32));
         }
     }
 
-    pub fn set_sideset_pins(&self, sm_number: SMNumber, sideset_base: c_uint) {
+    fn set_side_set_pins(&self, sm_number: SMNumber, sideset_base: c_uint) {
         self.registers.sm[sm_number as usize]
             .pinctrl
             .modify(SMx_PINCTRL::SIDESET_BASE.val(sideset_base));
     }
 
-    pub fn gpio_init(&self, pin: RPGpioPin) {
+    fn set_side_set(&self, sm_number: SMNumber, bit_count: u8, optional: bool, pindirs: bool) {
+        self.registers.sm[sm_number as usize]
+            .execctrl
+            .modify(SMx_EXECCTRL::SIDE_EN.val(optional as u32));
+        self.registers.sm[sm_number as usize]
+            .execctrl
+            .modify(SMx_EXECCTRL::SIDE_PINDIR.val(pindirs as u32));
+    }
+
+    fn gpio_init(&self, pin: RPGpioPin) {
         if self.pio_number == PIONumber::PIO0 {
             pin.set_function(GpioFunction::PIO0)
         } else {
