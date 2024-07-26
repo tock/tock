@@ -389,9 +389,16 @@ enum SMNumber {
     SM3 = 3,
 }
 
+#[derive(PartialEq)]
 enum PIONumber {
     PIO0 = 0,
     PIO1 = 1,
+}
+
+enum PioFifoJoin {
+    PioFifoJoinNone = 0,
+    PioFifoJoinTx = 1,
+    PioFifoJoinRx = 2,
 }
 
 const STATE_MACHINE_NUMBERS: [SMNumber; NUMBER_STATE_MACHINES] =
@@ -598,10 +605,10 @@ impl Pio {
             .modify(SMx_CLKDIV::FRAC.val(div_frac));
     }
 
-    pub fn set_fifo_join(&self, sm_number: SMNumber, fifo_join: enum_primitive) {
+    pub fn set_fifo_join(&self, sm_number: SMNumber, fifo_join: PioFifoJoin) {
         self.registers.sm[sm_number as usize]
             .shiftctrl
-            .modify(SMx_SHIFTCTRL::FJOIN_RX.val(fifo_join.rx));
+            .modify(SMx_SHIFTCTRL::FJOIN_RX.val(fifo_join.));
         self.registers.sm[sm_number as usize]
             .shiftctrl
             .modify(SMx_SHIFTCTRL::FJOIN_TX.val(fifo_join.tx));
