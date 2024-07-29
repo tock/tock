@@ -1,7 +1,7 @@
 use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::gpio::Output;
-use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
-use kernel::utilities::registers::interfaces::{Readable, ReadWriteable, Writeable};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
 use crate::gpio::{GpioFunction, RPGpioPin};
@@ -113,7 +113,7 @@ register_structs! {
     }
 }
 register_bitfields![u8,
-    CTRL [
+CTRL [
     /// Restart a state machine’s clock divider from an initial
     /// phase of 0. Clock dividers are free-running, so once
     /// started, their output (including fractional jitter) is
@@ -143,7 +143,7 @@ register_bitfields![u8,
     /// machines simultaneously.
     SM_ENABLE OFFSET(0) NUMBITS(4) []
 ],
-    FSTAT [
+FSTAT [
     /// State machine TX FIFO is empty
     TXEMPTY OFFSET(24) NUMBITS(4) [],
     /// State machine TX FIFO is full
@@ -206,21 +206,21 @@ IRQ_FORCE [
     /// words.
     FIFO_DEPTH OFFSET(0) NUMBITS(6) []
 ],
-    SMx_EXECCTRL [
-        ///If 1, an instruction written to SMx_INSTR is stalled, and
-        /// latched by the state machine. Will clear to 0 once this
-        /// instruction completes
-        EXEC_STALLED OFFSET(31) NUMBITS(1) [],
-        ///If 1, the MSB of the Delay/Side-set instruction field is used
-        /// as side-set enable, rather than a side-set data bit. This
-        /// allows instructions to perform side-set optionally, rather
-        /// than on every instruction, but the maximum possible side-
-        /// set width is reduced from 5 to 4. Note that the value of
-        /// PINCTRL_SIDESET_COUNT is inclusive of this enable bit.
-        SIDE_EN OFFSET(30) NUMBITS(1) [],
-        ///If 1, side-set data is asserted to pin directions, instead of
-        /// pin values
-        SIDE_PINDIR OFFSET(29) NUMBITS(1) [],
+SMx_EXECCTRL [
+    ///If 1, an instruction written to SMx_INSTR is stalled, and
+    /// latched by the state machine. Will clear to 0 once this
+    /// instruction completes
+    EXEC_STALLED OFFSET(31) NUMBITS(1) [],
+    ///If 1, the MSB of the Delay/Side-set instruction field is used
+    /// as side-set enable, rather than a side-set data bit. This
+    /// allows instructions to perform side-set optionally, rather
+    /// than on every instruction, but the maximum possible side-
+    /// set width is reduced from 5 to 4. Note that the value of
+    /// PINCTRL_SIDESET_COUNT is inclusive of this enable bit.
+    SIDE_EN OFFSET(30) NUMBITS(1) [],
+    ///If 1, side-set data is asserted to pin directions, instead of
+    /// pin values
+    SIDE_PINDIR OFFSET(29) NUMBITS(1) [],
     /// The GPIO number to use as condition for JMP PIN.
     /// Unaffected by input mapping.
     JMP_PIN OFFSET(24) NUMBITS(5) [],
@@ -290,7 +290,7 @@ SMx_SHIFTCTRL [
 SMx_ADDR [
     ADDR OFFSET(0) NUMBITS(5) []
 ],
-    SMx_PINCTRL [
+SMx_PINCTRL [
     /// The number of MSBs of the Delay/Side-set instruction
     /// field which are used for side-set. Inclusive of the enable
     /// bit, if present. Minimum of 0 (all delay bits, no side-set)
@@ -342,7 +342,7 @@ SM_INT [
 ]
     ];
 register_bitfields![u16,
-    INSTR_MEMx [
+INSTR_MEMx [
     /// Write-only access to instruction memory location x
     INSTR_MEM OFFSET(0) NUMBITS(16) []
 ],
