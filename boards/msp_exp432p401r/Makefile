@@ -4,8 +4,6 @@
 
 # Makefile for building the tock kernel for the MSP-EXP432P401 launchpad
 #
-TARGET=thumbv7em-none-eabi
-PLATFORM=msp-exp432p401r
 
 include ../Makefile.common
 

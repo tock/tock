@@ -109,7 +109,7 @@ edition = "2021"
 
 [profile.dev]
 panic = "abort"
-lto = false
+lto = true
 opt-level = "z"
 debug = true
 

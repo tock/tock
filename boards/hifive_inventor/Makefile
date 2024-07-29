@@ -4,8 +4,6 @@
 
 # Makefile for building the tock kernel for the HiFive Inventor platform
 
-TARGET=riscv32imac-unknown-none-elf
-PLATFORM=hifive_inventor
 QEMU ?= qemu-system-riscv32
 
 include ../Makefile.common

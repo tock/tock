@@ -4,8 +4,6 @@
 
 # Makefile for building the tock kernel for the ESP32-C3 platform
 
-TARGET=riscv32imc-unknown-none-elf
-PLATFORM=esp32-c3-board
 RISC_PREFIX = riscv64-linux-gnu
 
 include ../Makefile.common
@@ -30,4 +28,4 @@ test:
 	mkdir -p $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
 	$(Q)cp layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
 	$(Q)cp ../kernel_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/
-	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" $(CARGO) test $(CARGO_FLAGS_TOCK_NO_BUILD_STD) $(NO_RUN) --bin $(PLATFORM) --release
+	$(Q)$(CARGO) test $(NO_RUN) --bin $(PLATFORM) --release

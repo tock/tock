@@ -4,9 +4,6 @@
 
 # Makefile for building the tock kernel for the SweRVolf platform
 
-TARGET=riscv32imc-unknown-none-elf
-PLATFORM=swervolf
-
 include ../Makefile.common
 
 # Default target for installing the kernel.
