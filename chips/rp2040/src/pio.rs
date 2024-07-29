@@ -12,7 +12,7 @@ const NUMBER_IRQS: usize = 2;
 
 #[repr(C)]
 struct InstrMem {
-    instr_mem: ReadWrite<u32, INSTR_MEMx::Register>,
+    instr_mem: ReadWrite<u16, INSTR_MEMx::Register>,
 }
 
 #[repr(C)]
@@ -26,11 +26,11 @@ struct StateMachine {
     /// state machine x
     shiftctrl: ReadWrite<u8, SMx_SHIFTCTRL::Register>,
     /// Current instruction address of state machine x
-    addr: ReadOnly<u32, SMx_ADDR::Register>,
+    addr: ReadOnly<u8, SMx_ADDR::Register>,
     /// Read to see the instruction currently addressed by state
     /// machine x’s program counter Write to execute an instruction
     /// immediately (including jumps) and then resume execution.
-    instr: ReadWrite<u32, SMx_INSTR::Register>,
+    instr: ReadWrite<u16, SMx_INSTR::Register>,
     /// State machine pin control
     pinctrl: ReadWrite<u8, SMx_PINCTRL::Register>,
 }
@@ -38,17 +38,17 @@ struct StateMachine {
 #[repr(C)]
 struct Irq {
     /// Interrupt Enable for irq x
-    enable: ReadWrite<u32, SM_INT::Register>,
+    enable: ReadWrite<u8, SM_INT::Register>,
     /// Interrupt Force for irq x
-    force: ReadWrite<u32, SM_INT::Register>,
+    force: ReadWrite<u8, SM_INT::Register>,
     /// Interrupt status after masking & forcing for irq x
-    status: ReadOnly<u32, SM_INT::Register>,
+    status: ReadOnly<u8, SM_INT::Register>,
 }
 
 register_structs! {
     PioRegisters {
         /// PIO control register
-        (0x000 => ctrl: ReadWrite<u32, CTRL::Register>),
+        (0x000 => ctrl: ReadWrite<u8, CTRL::Register>),
         /// FIFO status register
         (0x004 => fstat: ReadOnly<u32, FSTAT::Register>),
         /// FIFO debug register
@@ -340,7 +340,7 @@ SM_INT [
     SM1_RXNEMPTY OFFSET(0) NUMBITS(1) [],
     SM0_RXNEMPTY OFFSET(0) NUMBITS(1) []
 ]
-    ];
+];
 register_bitfields![u16,
 INSTR_MEMx [
     /// Write-only access to instruction memory location x
@@ -357,7 +357,7 @@ SMx_CLKDIV [
 SMx_INSTR [
     INSTR OFFSET(0) NUMBITS(16) []
 ],
-    ];
+];
 register_bitfields![u32,
 TXFx [
     TXF OFFSET(0) NUMBITS(32) []
