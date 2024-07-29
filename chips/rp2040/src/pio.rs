@@ -1,11 +1,10 @@
-use core::ffi::c_uint;
-
-use crate::gpio::{GpioFunction, RPGpioPin};
 use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::gpio::Output;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
-use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
+use kernel::utilities::registers::{ReadOnly, ReadWrite, register_bitfields, register_structs};
+use kernel::utilities::registers::interfaces::{Readable, ReadWriteable, Writeable};
 use kernel::utilities::StaticRef;
+
+use crate::gpio::{GpioFunction, RPGpioPin};
 
 const NUMBER_STATE_MACHINES: usize = 4;
 const NUMBER_INSTR_MEMORY_LOCATIONS: usize = 32;
@@ -20,12 +19,12 @@ struct InstrMem {
 struct StateMachine {
     /// Clock divisor register for state machine x
     /// Frequency = clock freq / (CLKDIV_INT + CLKDIV_FRAC / 256)
-    clkdiv: ReadWrite<u32, SMx_CLKDIV::Register>,
+    clkdiv: ReadWrite<u16, SMx_CLKDIV::Register>,
     /// Execution/behavioural settings for state machine x
-    execctrl: ReadWrite<u32, SMx_EXECCTRL::Register>,
+    execctrl: ReadWrite<u8, SMx_EXECCTRL::Register>,
     /// Control behaviour of the input/output shift registers for
     /// state machine x
-    shiftctrl: ReadWrite<u32, SMx_SHIFTCTRL::Register>,
+    shiftctrl: ReadWrite<u8, SMx_SHIFTCTRL::Register>,
     /// Current instruction address of state machine x
     addr: ReadOnly<u32, SMx_ADDR::Register>,
     /// Read to see the instruction currently addressed by state
@@ -33,7 +32,7 @@ struct StateMachine {
     /// immediately (including jumps) and then resume execution.
     instr: ReadWrite<u32, SMx_INSTR::Register>,
     /// State machine pin control
-    pinctrl: ReadWrite<u32, SMx_PINCTRL::Register>,
+    pinctrl: ReadWrite<u8, SMx_PINCTRL::Register>,
 }
 
 #[repr(C)]
@@ -113,9 +112,8 @@ register_structs! {
         (0x144 => @END),
     }
 }
-
-register_bitfields![u32,
-CTRL [
+register_bitfields![u8,
+    CTRL [
     /// Restart a state machine’s clock divider from an initial
     /// phase of 0. Clock dividers are free-running, so once
     /// started, their output (including fractional jitter) is
@@ -145,7 +143,7 @@ CTRL [
     /// machines simultaneously.
     SM_ENABLE OFFSET(0) NUMBITS(4) []
 ],
-FSTAT [
+    FSTAT [
     /// State machine TX FIFO is empty
     TXEMPTY OFFSET(24) NUMBITS(4) [],
     /// State machine TX FIFO is full
@@ -191,28 +189,13 @@ FLEVEL [
     RX0 OFFSET(4) NUMBITS(4) [],
     TX0 OFFSET(0) NUMBITS(4) []
 ],
-TXFx [
-    TXF OFFSET(0) NUMBITS(32) []
-],
-RXFx [
-    RXF OFFSET(0) NUMBITS(32) []
-],
-IRQ [
+    IRQ [
     IRQ OFFSET(0) NUMBITS(8) []
 ],
 IRQ_FORCE [
     IRQ_FORCE OFFSET(0) NUMBITS(8) []
 ],
-INPUT_SYNC_BYPASS [
-    INPUT_SYNC_BYPASS OFFSET(0) NUMBITS(32) []
-],
-DBG_PADOUT [
-    DBG_PADOUT OFFSET(0) NUMBITS(32) []
-],
-DBG_PADOE [
-    DBG_PADOE OFFSET(0) NUMBITS(32) []
-],
-DBG_CFGINFO [
+    DBG_CFGINFO [
     /// The size of the instruction memory, measured in units of
     /// one instruction
     IMEM_SIZE OFFSET(16) NUMBITS(6) [],
@@ -223,33 +206,21 @@ DBG_CFGINFO [
     /// words.
     FIFO_DEPTH OFFSET(0) NUMBITS(6) []
 ],
-INSTR_MEMx [
-    /// Write-only access to instruction memory location x
-    INSTR_MEM OFFSET(0) NUMBITS(16) []
-],
-SMx_CLKDIV [
-    /// Effective frequency is sysclk/(int + frac/256).
-    /// Value of 0 is interpreted as 65536. If INT is 0, FRAC must
-    /// also be 0.
-    INT OFFSET(16) NUMBITS(16) [],
-    /// Fractional part of clock divisor
-    FRAC OFFSET(8) NUMBITS(8) []
-],
-SMx_EXECCTRL [
-    /// If 1, an instruction written to SMx_INSTR is stalled, and
-    /// latched by the state machine. Will clear to 0 once this
-    /// instruction completes.
-    EXEC_STALLED OFFSET(31) NUMBITS(1) [],
-    /// If 1, the MSB of the Delay/Side-set instruction field is used
-    /// as side-set enable, rather than a side-set data bit. This
-    /// allows instructions to perform side-set optionally, rather
-    /// than on every instruction, but the maximum possible side-
-    /// set width is reduced from 5 to 4. Note that the value of
-    /// PINCTRL_SIDESET_COUNT is inclusive of this enable bit.
-    SIDE_EN OFFSET(30) NUMBITS(1) [],
-    /// If 1, side-set data is asserted to pin directions, instead of
-    /// pin values
-    SIDE_PINDIR OFFSET(29) NUMBITS(1) [],
+    SMx_EXECCTRL [
+        ///If 1, an instruction written to SMx_INSTR is stalled, and
+        /// latched by the state machine. Will clear to 0 once this
+        /// instruction completes
+        EXEC_STALLED OFFSET(31) NUMBITS(1) [],
+        ///If 1, the MSB of the Delay/Side-set instruction field is used
+        /// as side-set enable, rather than a side-set data bit. This
+        /// allows instructions to perform side-set optionally, rather
+        /// than on every instruction, but the maximum possible side-
+        /// set width is reduced from 5 to 4. Note that the value of
+        /// PINCTRL_SIDESET_COUNT is inclusive of this enable bit.
+        SIDE_EN OFFSET(30) NUMBITS(1) [],
+        ///If 1, side-set data is asserted to pin directions, instead of
+        /// pin values
+        SIDE_PINDIR OFFSET(29) NUMBITS(1) [],
     /// The GPIO number to use as condition for JMP PIN.
     /// Unaffected by input mapping.
     JMP_PIN OFFSET(24) NUMBITS(5) [],
@@ -319,10 +290,7 @@ SMx_SHIFTCTRL [
 SMx_ADDR [
     ADDR OFFSET(0) NUMBITS(5) []
 ],
-SMx_INSTR [
-    INSTR OFFSET(0) NUMBITS(16) []
-],
-SMx_PINCTRL [
+    SMx_PINCTRL [
     /// The number of MSBs of the Delay/Side-set instruction
     /// field which are used for side-set. Inclusive of the enable
     /// bit, if present. Minimum of 0 (all delay bits, no side-set)
@@ -372,6 +340,40 @@ SM_INT [
     SM1_RXNEMPTY OFFSET(0) NUMBITS(1) [],
     SM0_RXNEMPTY OFFSET(0) NUMBITS(1) []
 ]
+    ];
+register_bitfields![u16,
+    INSTR_MEMx [
+    /// Write-only access to instruction memory location x
+    INSTR_MEM OFFSET(0) NUMBITS(16) []
+],
+SMx_CLKDIV [
+    /// Effective frequency is sysclk/(int + frac/256).
+    /// Value of 0 is interpreted as 65536. If INT is 0, FRAC must
+    /// also be 0.
+    INT OFFSET(16) NUMBITS(16) [],
+    /// Fractional part of clock divisor
+    FRAC OFFSET(8) NUMBITS(8) []
+],
+SMx_INSTR [
+    INSTR OFFSET(0) NUMBITS(16) []
+],
+    ];
+register_bitfields![u32,
+TXFx [
+    TXF OFFSET(0) NUMBITS(32) []
+],
+RXFx [
+    RXF OFFSET(0) NUMBITS(32) []
+],
+INPUT_SYNC_BYPASS [
+    INPUT_SYNC_BYPASS OFFSET(0) NUMBITS(32) []
+],
+DBG_PADOUT [
+    DBG_PADOUT OFFSET(0) NUMBITS(32) []
+],
+DBG_PADOE [
+    DBG_PADOE OFFSET(0) NUMBITS(32) []
+],
 ];
 
 const PIO_0_BASE_ADDRESS: usize = 0x50200000;
@@ -417,29 +419,29 @@ pub enum PioMovStatusType {
 }
 
 pub struct StateMachineConfiguration {
-    out_pins_count: u32,
-    out_pins_base: u32,
-    set_pins_count: u32,
-    set_pins_base: u32,
-    in_pins_base: u32,
-    side_set_base: u32,
+    out_pins_count: u8,
+    out_pins_base: u8,
+    set_pins_count: u8,
+    set_pins_base: u8,
+    in_pins_base: u8,
+    side_set_base: u8,
     side_set_enable: bool,
-    side_set_bit_count: u32,
+    side_set_bit_count: u8,
     side_set_pindirs: bool,
-    wrap: u32,
-    wrap_to: u32,
+    wrap: u8,
+    wrap_to: u8,
     in_shift_direction_right: bool,
     in_autopush: bool,
-    in_push_threshold: u32,
+    in_push_threshold: u8,
     out_shift_direction_right: bool,
     out_autopull: bool,
-    out_pull_threshold: u32,
-    jmp_pin: u32,
+    out_pull_threshold: u8,
+    jmp_pin: u8,
     out_special_sticky: bool,
     out_special_has_enable_pin: bool,
-    out_special_enable_pin_index: u32,
+    out_special_enable_pin_index: u8,
     mov_status_sel: PioMovStatusType,
-    mov_status_n: u32,
+    mov_status_n: u8,
 }
 
 impl Default for StateMachineConfiguration {
@@ -547,13 +549,13 @@ impl Pio {
     //     return false;
     // }
 
-    fn set_in_pins(&self, sm_number: SMNumber, in_base: u32) {
+    fn set_in_pins(&self, sm_number: SMNumber, in_base: u8) {
         self.registers.sm[sm_number as usize]
             .pinctrl
             .modify(SMx_PINCTRL::IN_BASE.val(in_base));
     }
 
-    fn set_set_pins(&self, sm_number: SMNumber, set_base: u32, set_count: u32) {
+    fn set_set_pins(&self, sm_number: SMNumber, set_base: u8, set_count: u8) {
         self.registers.sm[sm_number as usize]
             .pinctrl
             .modify(SMx_PINCTRL::SET_BASE.val(set_base));
@@ -562,7 +564,7 @@ impl Pio {
             .modify(SMx_PINCTRL::SET_COUNT.val(set_count));
     }
 
-    fn set_out_pins(&self, sm_number: SMNumber, out_base: u32, out_count: u32) {
+    fn set_out_pins(&self, sm_number: SMNumber, out_base: u8, out_count: u8) {
         self.registers.sm[sm_number as usize]
             .pinctrl
             .modify(SMx_PINCTRL::OUT_BASE.val(out_base));
@@ -585,17 +587,17 @@ impl Pio {
         sm_number: SMNumber,
         shift_right: bool,
         autopush: bool,
-        push_threshold: u32,
+        push_threshold: u8,
     ) {
         self.registers.sm[sm_number as usize]
             .shiftctrl
-            .modify(SMx_SHIFTCTRL::IN_SHIFTDIR.val(u32::from(shift_right)));
+            .modify(SMx_SHIFTCTRL::IN_SHIFTDIR.val(shift_right.into()));
         self.registers.sm[sm_number as usize]
             .shiftctrl
-            .modify(SMx_SHIFTCTRL::AUTOPUSH.val(u32::from(autopush)));
+            .modify(SMx_SHIFTCTRL::AUTOPUSH.val(autopush.into()));
         self.registers.sm[sm_number as usize]
             .shiftctrl
-            .modify(SMx_SHIFTCTRL::PUSH_THRESH.val(u32::from(push_threshold)));
+            .modify(SMx_SHIFTCTRL::PUSH_THRESH.val(push_threshold));
     }
 
     fn set_out_shift(
@@ -603,20 +605,20 @@ impl Pio {
         sm_number: SMNumber,
         shift_right: bool,
         autopull: bool,
-        pull_threshold: u32,
+        pull_threshold: u8,
     ) {
         self.registers.sm[sm_number as usize]
             .shiftctrl
-            .modify(SMx_SHIFTCTRL::OUT_SHIFTDIR.val(u32::from(shift_right)));
+            .modify(SMx_SHIFTCTRL::OUT_SHIFTDIR.val(shift_right.into()));
         self.registers.sm[sm_number as usize]
             .shiftctrl
-            .modify(SMx_SHIFTCTRL::AUTOPULL.val(u32::from(autopull)));
+            .modify(SMx_SHIFTCTRL::AUTOPULL.val(autopull.into()));
         self.registers.sm[sm_number as usize]
             .shiftctrl
-            .modify(SMx_SHIFTCTRL::PULL_THRESH.val(u32::from(pull_threshold)));
+            .modify(SMx_SHIFTCTRL::PULL_THRESH.val(pull_threshold));
     }
 
-    fn set_jmp_pin(&self, sm_number: SMNumber, pin: u32) {
+    fn set_jmp_pin(&self, sm_number: SMNumber, pin: u8) {
         self.registers.sm[sm_number as usize]
             .execctrl
             .modify(SMx_EXECCTRL::JMP_PIN.val(pin));
@@ -625,47 +627,49 @@ impl Pio {
     // pub fn set_clkdiv(&self, sm_number: SMNumber, div: c_float){
     //     self.registers.sm[sm_number as usize]
     //         .clkdiv
-    //         .modify(SMx_CLKDIV::INT.val(div));
+    //         .modify(SMx_CLKDIV::INT.val(abs(div) as u32));
+    //     self.registers.sm[sm_number as usize]
+    //         .clkdiv
+    //         .modify(SMx_CLKDIV::FRAC.val((div - abs(div)) as u32));
     // }
 
-    fn set_clkdiv_int_frac(&self, sm_number: SMNumber, div_int: c_uint, div_frac: c_uint) {
-        //c_uint is u32, shall we use signed u8 or u16 instead?
+    fn set_clkdiv_int_frac(&self, sm_number: SMNumber, div_int: u16, div_frac: u8) {
         self.registers.sm[sm_number as usize]
             .clkdiv
             .modify(SMx_CLKDIV::INT.val(div_int));
         self.registers.sm[sm_number as usize]
             .clkdiv
-            .modify(SMx_CLKDIV::FRAC.val(div_frac));
+            .modify(SMx_CLKDIV::FRAC.val(div_frac as u16));
     }
 
     fn set_fifo_join(&self, sm_number: SMNumber, fifo_join: PioFifoJoin) {
         if fifo_join == PioFifoJoin::PioFifoJoinRx {
             self.registers.sm[sm_number as usize]
                 .shiftctrl
-                .modify(SMx_SHIFTCTRL::FJOIN_RX.val(fifo_join as u32));
+                .modify(SMx_SHIFTCTRL::FJOIN_RX.val(fifo_join as u8));
         } else if fifo_join == PioFifoJoin::PioFifoJoinTx {
             self.registers.sm[sm_number as usize]
                 .shiftctrl
-                .modify(SMx_SHIFTCTRL::FJOIN_TX.val(fifo_join as u32));
+                .modify(SMx_SHIFTCTRL::FJOIN_TX.val(fifo_join as u8));
         }
     }
 
-    fn set_side_set_pins(&self, sm_number: SMNumber, sideset_base: c_uint) {
+    fn set_side_set_pins(&self, sm_number: SMNumber, sideset_base: u8) {
         self.registers.sm[sm_number as usize]
             .pinctrl
             .modify(SMx_PINCTRL::SIDESET_BASE.val(sideset_base));
     }
 
-    fn set_side_set(&self, sm_number: SMNumber, bit_count: u32, optional: bool, pindirs: bool) {
+    fn set_side_set(&self, sm_number: SMNumber, bit_count: u8, optional: bool, pindirs: bool) {
         self.registers.sm[sm_number as usize]
             .pinctrl
             .modify(SMx_PINCTRL::SIDESET_COUNT.val(bit_count));
         self.registers.sm[sm_number as usize]
             .execctrl
-            .modify(SMx_EXECCTRL::SIDE_EN.val(optional as u32));
+            .modify(SMx_EXECCTRL::SIDE_EN.val(optional as u8));
         self.registers.sm[sm_number as usize]
             .execctrl
-            .modify(SMx_EXECCTRL::SIDE_PINDIR.val(pindirs as u32));
+            .modify(SMx_EXECCTRL::SIDE_PINDIR.val(pindirs as u8));
     }
 
     fn gpio_init(&self, pin: RPGpioPin) {
@@ -676,7 +680,7 @@ impl Pio {
         }
     }
 
-    fn set_wrap(&self, sm_number: SMNumber, wrap_target: u32, wrap: u32) {
+    fn set_wrap(&self, sm_number: SMNumber, wrap_target: u8, wrap: u8) {
         self.registers.sm[sm_number as usize]
             .execctrl
             .modify(SMx_EXECCTRL::WRAP_BOTTOM.val(wrap_target));
@@ -685,10 +689,10 @@ impl Pio {
             .modify(SMx_EXECCTRL::WRAP_TOP.val(wrap));
     }
 
-    fn set_mov_status(&self, sm_number: SMNumber, status_sel: PioMovStatusType, status_n: u32) {
+    fn set_mov_status(&self, sm_number: SMNumber, status_sel: PioMovStatusType, status_n: u8) {
         self.registers.sm[sm_number as usize]
             .execctrl
-            .modify(SMx_EXECCTRL::STATUS_SEL.val(status_sel as u32));
+            .modify(SMx_EXECCTRL::STATUS_SEL.val(status_sel as u8));
         self.registers.sm[sm_number as usize]
             .execctrl
             .modify(SMx_EXECCTRL::STATUS_N.val(status_n));
@@ -699,16 +703,16 @@ impl Pio {
         sm_number: SMNumber,
         sticky: bool,
         has_enable_pin: bool,
-        enable_pin_index: u32,
+        enable_pin_index: u8,
     ) {
         self.registers.sm[sm_number as usize]
             .execctrl
-            .modify(SMx_EXECCTRL::OUT_STICKY.val(sticky as u32));
+            .modify(SMx_EXECCTRL::OUT_STICKY.val(sticky as u8));
         self.registers.sm[sm_number as usize]
             .execctrl
-            .modify(SMx_EXECCTRL::INLINE_OUT_EN.val(has_enable_pin as u32));
+            .modify(SMx_EXECCTRL::INLINE_OUT_EN.val(has_enable_pin as u8));
         self.registers.sm[sm_number as usize]
             .execctrl
-            .modify(SMx_EXECCTRL::OUT_EN_SEL.val(enable_pin_index as u32));
+            .modify(SMx_EXECCTRL::OUT_EN_SEL.val(enable_pin_index));
     }
 }
