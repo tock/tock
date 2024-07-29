@@ -770,6 +770,10 @@ impl Pio {
     }
 
     pub fn pio_encode_sideset_opt(sideset_bit_count: u16, value: u16) -> u16 {
-        return 0x1000u16 | value << (12u16 - sideset_bit_count);
+        0x1000u16 | value << (12u16 - sideset_bit_count)
+    }
+
+    pub fn pio_encode_jmp(&self, addr: u16) -> u16 {
+        self.pio_encode_instr_and_args(PioInstr::pio_instr_bits_jmp, 0, addr)
     }
 }
