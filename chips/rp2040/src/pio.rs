@@ -1,3 +1,5 @@
+use core::ops::BitOr;
+
 use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::gpio::Output;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -427,6 +429,20 @@ pub enum PioMovStatusType {
     StatusRxLessthan = 1,
 }
 
+#[derive(PartialEq)]
+
+pub enum PioInstr {
+    pio_instr_bits_jmp = 0x0000,
+    pio_instr_bits_wait = 0x2000,
+    pio_instr_bits_in = 0x4000,
+    pio_instr_bits_out = 0x6000,
+    pio_instr_bits_push = 0x8000,
+    pio_instr_bits_pull = 0x8080,
+    pio_instr_bits_mov = 0xa000,
+    pio_instr_bits_irq = 0xc000,
+    pio_instr_bits_set = 0xe000,
+}
+
 pub struct StateMachineConfiguration {
     out_pins_count: u8,
     out_pins_base: u8,
@@ -544,20 +560,6 @@ impl Pio {
         // self.registers.intr.write(CH::CH.val(0));
     }
 
-    // pub fn check_pio_param() -> bool {
-    //     if (pio.pio_number != 1 && pio.pio_number != 0) {
-    //         return false;
-    //     }
-    //     return true;
-    // }
-
-    // pub fn check_sm_param(sm_number: SMNumber) -> bool {
-    //     if (sm_number as u32 == 0) || (sm_number as u32 == (NUMBER_STATE_MACHINES - 1) as u32) {
-    //         return true;
-    //     }
-    //     return false;
-    // }
-
     fn set_in_pins(&self, sm_number: SMNumber, in_base: u8) {
         self.registers.sm[sm_number as usize]
             .pinctrl
@@ -583,7 +585,6 @@ impl Pio {
     }
 
     pub fn set_enabled(&self, sm_number: SMNumber, enabled: bool) {
-        // if Pio::check_pio_param() && Pio::check_sm_param(sm_number) {
         match sm_number {
             SMNumber::SM0 => self.registers.ctrl.modify(match enabled {
                 true => CTRL::SM0_ENABLE::SET,
@@ -602,8 +603,15 @@ impl Pio {
                 false => CTRL::SM3_ENABLE::CLEAR,
             }),
         }
+    }
 
-        // }
+    pub fn restart_sm(&self, sm_number: SMNumber) {
+        match sm_number {
+            SMNumber::SM0 => self.registers.ctrl.modify(CTRL::SM0_RESTART::SET),
+            SMNumber::SM1 => self.registers.ctrl.modify(CTRL::SM1_RESTART::SET),
+            SMNumber::SM2 => self.registers.ctrl.modify(CTRL::SM2_RESTART::SET),
+            SMNumber::SM3 => self.registers.ctrl.modify(CTRL::SM3_RESTART::SET),
+        }
     }
 
     fn set_in_shift(
@@ -738,5 +746,22 @@ impl Pio {
         self.registers.sm[sm_number as usize]
             .execctrl
             .modify(SMx_EXECCTRL::OUT_EN_SEL.val(enable_pin_index));
+    }
+
+    pub fn pio_encode_instr_and_args(instr_bits: PioInstr, arg1: u16, arg2: u16) -> u16 {
+        instr_bits as u16 | (arg1 << 5u16) | (arg2 & 0x1fu16)
+    }
+
+    /// cycles <= 32
+    pub fn pio_encode_delay(cycles: u16) -> u16 {
+        cycles << 8u16
+    }
+
+    pub fn pio_encode_sideset(sideset_bit_count: u16, value: u16) -> u16 {
+        value << (13u16 - sideset_bit_count)
+    }
+
+    pub fn pio_encode_sideset_opt(sideset_bit_count: u16, value: u16) -> u16 {
+        return 0x1000u16 | value << (12u16 - sideset_bit_count);
     }
 }
