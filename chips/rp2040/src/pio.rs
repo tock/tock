@@ -582,12 +582,27 @@ impl Pio {
             .modify(SMx_PINCTRL::OUT_COUNT.val(out_count));
     }
 
-    pub fn set_enabled(&self, enabled: bool) {
+    pub fn set_enabled(&self, sm_number: SMNumber, enabled: bool) {
         // if Pio::check_pio_param() && Pio::check_sm_param(sm_number) {
-        self.registers.ctrl.modify(match enabled {
-            true => CTRL::SM_ENABLE::SET,
-            false => CTRL::SM_ENABLE::CLEAR,
-        });
+        match sm_number {
+            SMNumber::SM0 => self.registers.ctrl.modify(match enabled {
+                true => CTRL::SM0_ENABLE::SET,
+                false => CTRL::SM0_ENABLE::CLEAR,
+            }),
+            SMNumber::SM1 => self.registers.ctrl.modify(match enabled {
+                true => CTRL::SM1_ENABLE::SET,
+                false => CTRL::SM1_ENABLE::CLEAR,
+            }),
+            SMNumber::SM2 => self.registers.ctrl.modify(match enabled {
+                true => CTRL::SM2_ENABLE::SET,
+                false => CTRL::SM2_ENABLE::CLEAR,
+            }),
+            SMNumber::SM3 => self.registers.ctrl.modify(match enabled {
+                true => CTRL::SM3_ENABLE::SET,
+                false => CTRL::SM3_ENABLE::CLEAR,
+            }),
+        }
+
         // }
     }
 
