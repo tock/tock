@@ -613,7 +613,7 @@ impl Pio {
             SMNumber::SM3 => self.registers.ctrl.modify(CTRL::SM3_RESTART::SET),
         }
     }
-    pub fn sm_clkdiv_restart(&self, sm_number: SMNumber){
+    pub fn sm_clkdiv_restart(&self, sm_number: SMNumber) {
         match sm_number {
             SMNumber::SM0 => self.registers.ctrl.modify(CTRL::CLKDIV0_RESTART::SET),
             SMNumber::SM1 => self.registers.ctrl.modify(CTRL::CLKDIV1_RESTART::SET),
@@ -773,7 +773,77 @@ impl Pio {
         0x1000u16 | value << (12u16 - sideset_bit_count)
     }
 
-    pub fn pio_encode_jmp(&self, addr: u16) -> u16 {
-        self.pio_encode_instr_and_args(PioInstr::pio_instr_bits_jmp, 0, addr)
-    }
+    // pub fn pio_encode_jmp(&self, addr: u16) -> u16 {
+    //     self.pio_encode_instr_and_args(PioInstr::pio_instr_bits_jmp, 0, addr)
+    // }
+
+    // pub fn pio_encode_jmp_not_x(addr: u16) -> u16 {
+    //     pio_encode_instr_and_args(PioInstr::pio_instr_bits_jmp, 1, addr)
+    // }
+
+    // pub fn pio_encode_jmp_x_dec(addr: u16) -> u16 {
+    //     pio_encode_instr_and_args(PioInstr::pio_instr_bits_jmp, 2, addr)
+    // }
+
+    // pub fn pio_encode_jmp_not_y(addr: u16) -> u16 {
+    //     pio_encode_instr_and_args(PioInstr::pio_instr_bits_jmp, 3, addr)
+    // }
+
+    // pub fn pio_encode_jmp_y_dec(addr: u16) -> u16 {
+    //     pio_encode_instr_and_args(PioInstr::pio_instr_bits_jmp, 4, addr)
+    // }
+
+    // pub fn pio_encode_jmp_x_ne_y(addr: u16) -> u16 {
+    //     pio_encode_instr_and_args(PioInstr::pio_instr_bits_jmp, 5, addr)
+    // }
+
+    // pub fn pio_encode_jmp_pin(addr: u16) -> u16 {
+    //     pio_encode_instr_and_args(PioInstr::pio_instr_bits_jmp, 6, addr)
+    // }
+
+    // pub fn pio_encode_jmp_not_osre(addr: u16) -> u16 {
+    //     pio_encode_instr_and_args(PioInstr::pio_instr_bits_jmp, 7, addr)
+    // }
+
+    // pub fn pio_encode_irq(relative: bool, irq: u16) -> u16 {
+    //     match relative {
+    //         true => 0x10u16 | irq,
+    //         false => 0x0u16 | irq,
+    //     }
+    // }
+
+    // pub fn pio_encode_wait_gpio(polarity: bool, gpio: u16) -> u16 {
+    //     pio_encode_instr_and_args(
+    //         PioInstr::pio_instr_bits_wait,
+    //         0u16 | (match polarity {
+    //             true => 4u16,
+    //             false => 0u16,
+    //         }),
+    //         gpio,
+    //     )
+    // }
+
+    // pub fn pio_encode_wait_pin(polarity: bool, pin: u16) -> u16 {
+    //     pio_encode_instr_and_args(
+    //         PioInstr::pio_instr_bits_wait,
+    //         1u16 | (match polarity {
+    //             true => 4u16,
+    //             false => 0u16,
+    //         }),
+    //         pin,
+    //     )
+    // }
+
+    // pub fn pio_encode_wait_irq(polarity: bool, relative: bool, irq: u16) -> u16 {
+    //     pio_encode_instr_and_args(
+    //         PioInstr::pio_instr_bits_wait,
+    //         2u16 | (match polarity {
+    //             true => 4u16,
+    //             false => 0u16,
+    //         }),
+    //         pio_encode_irq(relative, irq),
+    //     )
+    // }
+
+    // // TODO IN Instruction from line 305
 }
