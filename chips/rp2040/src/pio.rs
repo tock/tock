@@ -125,7 +125,10 @@ CTRL [
     /// precise lockstep.
     /// - SM_ENABLE does not stop the clock divider from running
     /// - CLKDIV_RESTART can be written to whilst the state machine is running
-    CLKDIV_RESTART OFFSET(8) NUMBITS(4) [],
+    CLKDIV3_RESTART OFFSET(11) NUMBITS(1) [],
+    CLKDIV2_RESTART OFFSET(10) NUMBITS(1) [],
+    CLKDIV1_RESTART OFFSET(9) NUMBITS(1) [],
+    CLKDIV0_RESTART OFFSET(8) NUMBITS(1) [],
     /// Write 1 to instantly clear internal SM state which may be
     /// otherwise difficult to access and will affect future
     /// execution.
@@ -134,14 +137,20 @@ CTRL [
     /// delay counter; the waiting-on-IRQ state; any stalled
     /// instruction written to SMx_INSTR or run by OUT/MOV
     /// EXEC; any pin write left asserted due to OUT_STICKY.
-    SM_RESTART OFFSET(4) NUMBITS(4) [],
+    SM3_RESTART OFFSET(7) NUMBITS(1) [],
+    SM2_RESTART OFFSET(6) NUMBITS(1) [],
+    SM1_RESTART OFFSET(5) NUMBITS(1) [],
+    SM0_RESTART OFFSET(4) NUMBITS(1) [],
     /// Enable/disable each of the four state machines by writing
     /// 1/0 to each of these four bits. When disabled, a state
     /// machine will cease executing instructions, except those
     /// written directly to SMx_INSTR by the system. Multiple bits
     /// can be set/cleared at once to run/halt multiple state
     /// machines simultaneously.
-    SM_ENABLE OFFSET(0) NUMBITS(4) []
+    SM3_ENABLE OFFSET(3) NUMBITS(1) [],
+    SM2_ENABLE OFFSET(2) NUMBITS(1) [],
+    SM1_ENABLE OFFSET(1) NUMBITS(1) [],
+    SM0_ENABLE OFFSET(0) NUMBITS(1) [],
 ],
 FSTAT [
     /// State machine TX FIFO is empty
