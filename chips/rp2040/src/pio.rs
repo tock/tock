@@ -1,5 +1,6 @@
+use alloc::string::String;
 use core::ops::BitOr;
-
+use kernel::debug;
 use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::gpio::Output;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -740,5 +741,11 @@ impl Pio {
         self.registers.sm[sm_number as usize]
             .execctrl
             .modify(SMx_EXECCTRL::OUT_EN_SEL.val(enable_pin_index));
+    }
+
+    pub fn add_program(&self, program: String){
+        include_bytes!(program);
+        self.registers.instr_mem.modify(program);
+        debug!("Program added")
     }
 }
