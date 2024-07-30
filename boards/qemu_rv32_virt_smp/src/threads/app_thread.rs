@@ -413,15 +413,15 @@ pub unsafe fn spawn<const ID: usize>(
     });
 
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap,
-                             false,
+                             true,
                              Some(&|| {
                                  static mut ENTERED: bool = false;
                                  counter_portal.enter(|c| {
-                                     *c += 1;
                                      unsafe {
                                          if !ENTERED {
-                                             debug!("Pong!");
+                                             debug!("{}: Pong!", *c);
                                              ENTERED = true;
+                                             *c += 1;
                                          }
                                      }
                                  }).unwrap_or_else(|| {

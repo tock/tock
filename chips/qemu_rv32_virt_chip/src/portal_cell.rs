@@ -178,12 +178,6 @@ impl hil::uart::Transmit<'static> for QemuRv32VirtPortalCell<'static, Uart16550>
                 Err(ErrorCode::BUSY)
             })
     }
-
-    fn transmit_hint(&self) {
-        if self.is_none() {
-            self.conjure();
-        }
-    }
 }
 
 impl hil::uart::Receive<'static> for QemuRv32VirtPortalCell<'static, Uart16550> {

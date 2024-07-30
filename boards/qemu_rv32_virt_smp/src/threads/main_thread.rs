@@ -680,13 +680,13 @@ pub unsafe fn spawn<const ID: usize>(
     });
 
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap,
-                             false,
+                             true,
                              Some(&|| {
                                  static mut ENTERED: bool = false;
                                  counter_portal.enter(|c| {
                                      unsafe {
                                          if !ENTERED {
-                                             debug!("Ping!");
+                                             debug!("{c}: Ping!");
                                              ENTERED = true;
                                          }
                                      }

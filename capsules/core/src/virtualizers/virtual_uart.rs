@@ -265,10 +265,6 @@ impl<'a> MuxUart<'a> {
         }
     }
 
-    fn transmit_hint(&self) {
-        self.uart.transmit_hint();
-    }
-
     /// Starts a new UART reception, return value denotes whether starting
     /// the reception will issue a callback before the new read. A callback
     /// needs to be issued before the new read if a read was ongoing; the
@@ -457,10 +453,6 @@ impl<'a> uart::Transmit<'a> for UartDevice<'a> {
             self.mux.do_next_op_async();
             Ok(())
         }
-    }
-
-    fn transmit_hint(&self) {
-        self.mux.transmit_hint();
     }
 }
 

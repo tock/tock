@@ -505,8 +505,6 @@ impl DebugWriter {
                 }
                 count
             } else {
-                // Hint a transmit event has occured in this device.
-                self.uart.transmit_hint();
                 0
             }
         })
