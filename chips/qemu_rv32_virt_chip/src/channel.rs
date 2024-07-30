@@ -18,19 +18,12 @@ use crate::MAX_THREADS;
 use crate::portal::{NUM_PORTALS, PORTALS, QemuRv32VirtPortal};
 use crate::portal_cell::QemuRv32VirtPortalCell;
 
-// type Buffer = [u8; BUFFER_SIZE];
-
-// pub const BUFFER_SIZE: usize = 100;
-// pub static mut CHANNEL_BUFFER: ThreadLocal<MAX_THREADS, Buffer> = ThreadLocal::init([0; BUFFER_SIZE]);
-
 #[derive(Copy, Clone)]
 pub struct QemuRv32VirtMessage {
     pub src: usize,
     pub dst: usize,
     pub body: QemuRv32VirtMessageBody,
 }
-
-// use crate::portal_cell::QemuRv32VirtPortalId;
 
 #[derive(Copy, Clone)]
 pub enum QemuRv32VirtMessageBody {
@@ -39,8 +32,6 @@ pub enum QemuRv32VirtMessageBody {
     Ping,
     Pong,
 }
-
-// pub static mut CHANNEL_BUFFER: [Option<QemuRv32VirtMessage>; 128] = [None; 128];
 
 static NO_CHANNEL: ThreadLocal<0, Option<QemuRv32VirtChannel<'static>>> = ThreadLocal::new([]);
 
@@ -107,12 +98,8 @@ impl<'a> QemuRv32VirtChannel<'a> {
     pub fn service(&self) {
         let hart_id = CSR.mhartid.extract().get();
 
-                            // (hart_id == 1).then(|| {
-                            //     panic!(" app thread: handle channel service")
-                            // });
-
-        // Acquire the mutex for the entire operation to reserve a slot for portal
-        // response. Calling teleport inside the scope will result in a deadlock.
+        // Acquire the mutex for the entire operation to reserve a slot for a potential
+        // response. Invoking teleport inside the scope will result in a deadlock.
         // TODO: switch to a non-blocking channel
         let mut channel = self.channel.lock();
         if let Some(msg) = Self::find(&mut channel, |msg| msg.dst == hart_id) {
@@ -127,7 +114,20 @@ impl<'a> QemuRv32VirtChannel<'a> {
                                     &*(val as *const QemuRv32VirtPortalCell<crate::uart::Uart16550>)
                                 };
                                 assert!(portal.get_id() == portal_id);
-                                portal.take().map(|val| val as *mut _ as *const _)
+                                if let Some(uart) = portal.take() {
+                                    uart.save_context();
+                                    unsafe {
+                                        kernel::thread_local_static_access!(crate::plic::PLIC, DynThreadId::new(hart_id))
+                                            .expect("Unable to access thread-local PLIC controller")
+                                            .enter_nonreentrant(|plic| {
+                                                plic.disable(hart_id * 2,
+                                                             (crate::interrupts::UART0 as u32).try_into().unwrap());
+                                            });
+                                    }
+                                    Some(uart as *mut _ as *const _)
+                                } else {
+                                    None
+                                }
                             }
                             P::Counter(val) => {
                                 let portal = unsafe {
@@ -177,6 +177,20 @@ impl<'a> QemuRv32VirtChannel<'a> {
                                 assert!(portal.get_id() == portal_id);
                                 portal.link(unsafe { &mut *(traveler as *mut _) })
                                     .expect("Failed to link the uart portal");
+
+                                portal.enter(|uart| {
+                                    uart.restore_context();
+                                    // Enable uart interrupts
+                                    unsafe {
+                                        kernel::thread_local_static_access!(crate::plic::PLIC, DynThreadId::new(hart_id))
+                                            .expect("Unable to access thread-local PLIC controller")
+                                            .enter_nonreentrant(|plic| {
+                                                plic.enable(hart_id * 2, (crate::interrupts::UART0 as u32).try_into().unwrap());
+                                            });
+                                    }
+                                    // Try continue from the last transmit in case of missing interrupts
+                                    let _ = uart.try_transmit_continue();
+                                });
                             }
                             P::Counter(val) => {
                                 let portal = unsafe {

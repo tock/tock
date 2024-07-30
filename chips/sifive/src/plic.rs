@@ -117,32 +117,11 @@ where
     }
 }
 
-
 register_bitfields![u32,
     priority [
         Priority OFFSET(0) NUMBITS(3) []
     ]
 ];
-
-// // pub type PlicSaved<const NUM_CONTEXTS: usize> = ThreadLocal<NUM_CONTEXTS, [VolatileCell<LocalRegisterCopy<u32>>; 2]>;
-// #[derive(Copy, Clone)]
-// #[repr(transparent)]
-// struct PlicSaved {
-//     holder: [u32; 2],
-// }
-
-// impl PlicSaved {
-//     const unsafe fn new(val: u32) -> PlicSaved {
-//         Self { holder: [val; 2] }
-//     }
-
-//     fn get_slice(&self) -> &'_ [VolatileCell<LocalRegisterCopy<u32>>; 2] {
-//         unsafe {
-//             core::mem::transmute(&self.holder)
-//         }
-//     }
-// }
-
 
 /// The PLIC instance generic parameter indicates the total number of
 /// interrupt sources implemented on the specific chip.
@@ -216,6 +195,26 @@ where
             let old_value = enable_regs[offset as usize].get();
             enable_regs[offset as usize].set(old_value & !(1 << irq));
         }
+    }
+
+    // Enable an interrupt.
+    pub fn enable(&self, context_id: usize, source: usize) {
+        let _ : () = assert!(context_id < NUM_CONTEXTS);
+
+        let enable = &self.registers.enable[context_id][source / 32];
+        let old_val = enable.get();
+        enable.set(old_val | 1 << (source % 32));
+
+        // Set default priority for the source
+        self.registers.priority[source].write(priority::Priority.val(4));
+        self.registers.aux[context_id].threshold.write(priority::Priority.val(0));
+    }
+
+    // Disable an interrupt.
+    pub fn disable(&self, context_id: usize, source: usize) {
+        let enable = &self.registers.enable[context_id][source / 32];
+        let old_val = enable.get();
+        enable.set(old_val & !(1 << (source % 32)));
     }
 
     /// Enable all interrupts.

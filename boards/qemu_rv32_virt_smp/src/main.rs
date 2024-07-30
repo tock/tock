@@ -73,8 +73,6 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 
 const STACK_SIZE: usize = 0x8000;
 
-static mut DEBUG_COUNTER: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
-
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
@@ -99,7 +97,7 @@ pub unsafe fn main(thread_type: ThreadType) {
         [const { None }; 128 ],
     );
 
-    // TODO: replace it with a non-blocking channel
+    // TODO: replace it with a lock-free channel implementation
     let channel = static_init_once!(
         smp::mutex::Mutex<RingBuffer<Option<qemu_rv32_virt_chip::channel::QemuRv32VirtMessage>>>,
         smp::mutex::Mutex::new(RingBuffer::new(channel_buffer)),

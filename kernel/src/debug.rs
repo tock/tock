@@ -505,6 +505,8 @@ impl DebugWriter {
                 }
                 count
             } else {
+                // Hint a transmit event has occured in this device.
+                self.uart.transmit_hint();
                 0
             }
         })
@@ -528,7 +530,7 @@ impl hil::uart::TransmitClient for DebugWriter {
     ) {
         match rcode {
             Err(ErrorCode::BUSY) => {
-                // Retry
+                // Retry when the transmit server is busy.
                 if let Err((_, buf)) = self.uart.transmit_buffer(buffer, tx_len) {
                     self.output_buffer.put(Some(buf));
                 } else {
@@ -538,7 +540,6 @@ impl hil::uart::TransmitClient for DebugWriter {
             _ => {
                 // Replace this buffer since we are done with it.
                 self.output_buffer.replace(buffer);
-
                 if self.internal_buffer.map_or(false, |buf| buf.has_elements()) {
                     // Buffer not empty, go around again
                     self.publish_bytes();

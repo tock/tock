@@ -208,71 +208,85 @@ register_bitfields![u16,
     ],
 ];
 
-static UART_16550_TX_CLIENT_HOLDER: ThreadLocal<0, OptionalCell<&'static dyn hil::uart::TransmitClient>> = ThreadLocal::new([]);
-
-static UART_16550_RX_CLIENT_HOLDER: ThreadLocal<0, OptionalCell<&'static dyn hil::uart::ReceiveClient>> = ThreadLocal::new([]);
-
-static mut UART_16550_TX_CLIENT: &'static dyn ThreadLocalDyn<OptionalCell<&'static dyn hil::uart::TransmitClient>>
-    = &UART_16550_TX_CLIENT_HOLDER;
-
-static mut UART_16550_RX_CLIENT: &'static dyn ThreadLocalDyn<OptionalCell<&'static dyn hil::uart::ReceiveClient>>
-    = &UART_16550_RX_CLIENT_HOLDER;
-
-pub unsafe fn set_uart_tx_client(
-    uart_tx_client: &'static dyn ThreadLocalDyn<OptionalCell<&'static dyn hil::uart::TransmitClient>>
-) {
-    *core::ptr::addr_of_mut!(UART_16550_TX_CLIENT) = uart_tx_client;
+struct Uart16550Context {
+    ier: Uart16550RegshiftInt,
 }
 
-unsafe fn with_uart_tx_client<R, F>(f: F) -> Option<R>
-where
-    F: FnOnce(&mut OptionalCell<&'static dyn hil::uart::TransmitClient>) -> R
-{
-    let threadlocal: &'static dyn ThreadLocalDyn<_> = *core::ptr::addr_of_mut!(UART_16550_TX_CLIENT);
-    threadlocal
-        .get_mut().map(|c| c.enter_nonreentrant(f))
+impl Uart16550Context {
+    fn empty() -> Uart16550Context {
+        Uart16550Context { ier: 0 }
+    }
 }
 
-pub(crate) unsafe fn with_uart_tx_client_panic<R, F>(f: F) -> R
-where
-    F: FnOnce(&mut OptionalCell<&'static dyn hil::uart::TransmitClient>) -> R
-{
-    with_uart_tx_client(f).expect("Current thread does not have access to its UART transmit client")
-}
-
-pub unsafe fn set_uart_rx_client(
-    uart_rx_client: &'static dyn ThreadLocalDyn<OptionalCell<&'static dyn hil::uart::ReceiveClient>>
-) {
-    *core::ptr::addr_of_mut!(UART_16550_RX_CLIENT) = uart_rx_client;
-}
-
-unsafe fn with_uart_rx_client<R, F>(f: F) -> Option<R>
-where
-    F: FnOnce(&mut OptionalCell<&'static dyn hil::uart::ReceiveClient>) -> R
-{
-    let threadlocal: &'static dyn ThreadLocalDyn<_> = *core::ptr::addr_of_mut!(UART_16550_RX_CLIENT);
-    threadlocal
-        .get_mut().map(|c| c.enter_nonreentrant(f))
-}
-
-pub(crate) unsafe fn with_uart_rx_client_panic<R, F>(f: F) -> R
-where
-    F: FnOnce(&mut OptionalCell<&'static dyn hil::uart::ReceiveClient>) -> R
-{
-    with_uart_rx_client(f).expect("Current thread does not have access to its UART receive client")
-}
-
-
-pub struct Uart16550 {
-    regs: StaticRef<Uart16550Registers>,
-    // tx_client: OptionalCell<&'a dyn hil::uart::TransmitClient>,
-    // rx_client: OptionalCell<&'a dyn hil::uart::ReceiveClient>,
+pub struct Uart16550State<'a> {
+    tx_client: OptionalCell<&'a dyn hil::uart::TransmitClient>,
+    rx_client: OptionalCell<&'a dyn hil::uart::ReceiveClient>,
     tx_buffer: TakeCell<'static, [u8]>,
     tx_len: Cell<usize>,
     tx_index: Cell<usize>,
     rx_buffer: TakeCell<'static, [u8]>,
     rx_len: Cell<usize>,
     rx_index: Cell<usize>,
+    context: Uart16550Context,
+}
+
+impl<'a> Uart16550State<'a> {
+    fn empty() -> Uart16550State<'a> {
+        Uart16550State {
+            tx_client: OptionalCell::empty(),
+            rx_client: OptionalCell::empty(),
+            tx_buffer: TakeCell::empty(),
+            tx_len: Cell::new(0),
+            tx_index: Cell::new(0),
+            rx_buffer: TakeCell::empty(),
+            rx_len: Cell::new(0),
+            rx_index: Cell::new(0),
+            context: Uart16550Context::empty(),
+        }
+    }
+}
+
+static UART_16550_NO_STATE: ThreadLocal<0, Option<Uart16550State>> = ThreadLocal::new([]);
+
+static mut UART_16550_STATE: &'static dyn ThreadLocalDyn<Option<Uart16550State>> = &UART_16550_NO_STATE;
+
+pub unsafe fn set_global_uart_state(
+    uart_state: &'static dyn ThreadLocalDyn<Option<Uart16550State>>
+) {
+    *core::ptr::addr_of_mut!(UART_16550_STATE) = uart_state;
+}
+
+pub fn init_uart_state() {
+    let state: &'static mut Option<Uart16550State> = unsafe {
+        let threadlocal: &'static dyn ThreadLocalDyn<_> = *core::ptr::addr_of_mut!(UART_16550_STATE);
+        threadlocal
+            .get_mut()
+            .map(|c| c.enter_nonreentrant(|state: &mut Option<Uart16550State>| &mut *(state as *mut _)))
+            .expect("Current thread does not have access to a UART state")
+    };
+    state.replace(Uart16550State::empty());
+}
+
+unsafe fn with_uart_state<R, F>(f: F) -> Option<R>
+where
+    F: FnOnce(&mut Uart16550State) -> R
+{
+    let threadlocal: &'static dyn ThreadLocalDyn<_> = *core::ptr::addr_of_mut!(UART_16550_STATE);
+    threadlocal
+        .get_mut().and_then(|c| c.enter_nonreentrant(|v| v.as_mut().map(f)))
+}
+
+
+pub(crate) unsafe fn with_uart_state_panic<R, F>(f: F) -> R
+where
+    F: FnOnce(&mut Uart16550State) -> R
+{
+    with_uart_state(f)
+        .expect("Current thread does not have access to an initialized UART state")
+}
+
+pub struct Uart16550 {
+    regs: StaticRef<Uart16550Registers>,
 }
 
 impl Uart16550 {
@@ -284,14 +298,6 @@ impl Uart16550 {
 
         Uart16550 {
             regs,
-            // tx_client: OptionalCell::empty(),
-            // rx_client: OptionalCell::empty(),
-            tx_buffer: TakeCell::empty(),
-            tx_len: Cell::new(0),
-            tx_index: Cell::new(0),
-            rx_buffer: TakeCell::empty(),
-            rx_len: Cell::new(0),
-            rx_index: Cell::new(0),
         }
     }
 }
@@ -315,9 +321,12 @@ impl Uart16550 {
 
             // We also check whether the tx_buffer is set, as we
             // could've generated the interrupt by transmit_sync
-            if self.tx_buffer.is_some() {
-                self.transmit_continue();
-            }
+            let closure = |state: &mut Uart16550State| {
+                if state.tx_buffer.is_some() {
+                    self.transmit_continue();
+                }
+            };
+            unsafe { with_uart_state_panic(closure); }
         }
         // Check whether we've received some new data.
         else if iir.matches_all(IIR::Identification::ReceiveDataAvailable) {
@@ -371,71 +380,115 @@ impl Uart16550 {
         self.regs.ier.set(prev_ier.get());
     }
 
+    pub fn try_transmit_continue(&self) -> bool {
+        let closure = |state: &mut Uart16550State| {
+            if state.tx_buffer.is_some() {
+                self.transmit_continue();
+                true
+            } else {
+                false
+            }
+        };
+        unsafe { with_uart_state_panic(closure) }
+    }
+
     fn transmit_continue(&self) {
         // This should only be called as a result of a transmit
         // interrupt
+        let closure = |state: &mut Uart16550State| {
+            // Get the current transmission information
+            let mut index = state.tx_index.get();
+            let tx_data = state.tx_buffer.take().expect("UART 16550: no tx buffer");
 
-        // Get the current transmission information
-        let mut index = self.tx_index.get();
-        let tx_data = self.tx_buffer.take().expect("UART 16550: no tx buffer");
+            if index < state.tx_len.get() {
+                // Still data to send
+                while index < state.tx_len.get() && self.regs.lsr.is_set(LSR::THREmpty) {
+                    self.regs.rbr_thr.write(THR::Data.val(tx_data[index]));
+                    index += 1;
+                }
 
-        if index < self.tx_len.get() {
-            // Still data to send
-            while index < self.tx_len.get() && self.regs.lsr.is_set(LSR::THREmpty) {
-                self.regs.rbr_thr.write(THR::Data.val(tx_data[index]));
-                index += 1;
+                // Put the updated index and buffer back, wait for an
+                // interrupt
+                state.tx_index.set(index);
+                state.tx_buffer.replace(tx_data);
+            } else {
+                // We are finished, disable tx interrupts
+                self.regs
+                    .ier
+                    .modify(IER::TransmitterHoldingRegisterEmpty::CLEAR);
+
+                // Callback to the client
+                state.tx_client
+                    .map(|client| client.transmitted_buffer(tx_data, state.tx_len.get(), Ok(())));
             }
+        };
 
-            // Put the updated index and buffer back, wait for an
-            // interrupt
-            self.tx_index.set(index);
-            self.tx_buffer.replace(tx_data);
-        } else {
-            // We are finished, disable tx interrupts
-            self.regs
-                .ier
-                .modify(IER::TransmitterHoldingRegisterEmpty::CLEAR);
-
-            // Callback to the client
-            let closure = |tx_client: &mut OptionalCell<&dyn hil::uart::TransmitClient>| {
-                tx_client
-                    .map(move |client| client.transmitted_buffer(tx_data, self.tx_len.get(), Ok(())));
-            };
-
-            unsafe { with_uart_tx_client_panic(closure); }
-        }
+        // TODO: doc safety!
+        unsafe { with_uart_state_panic(closure); }
     }
 
     fn receive(&self) {
         // Receive interrupts must only be enabled when we're currently holding
         // a buffer to receive data into:
-        let rx_buffer = self.rx_buffer.take().expect("UART 16550: no rx buffer");
-        let len = self.rx_len.get();
-        let mut index = self.rx_index.get();
 
-        // Read in a while loop, until no more data in the FIFO
-        while self.regs.lsr.is_set(LSR::DataAvailable) && index < len {
-            rx_buffer[index] = self.regs.rbr_thr.get();
-            index += 1;
-        }
+        let closure = |state: &mut Uart16550State| {
+            let rx_buffer = state.rx_buffer.take().expect("UART 16550: no rx buffer");
+            let len = state.rx_len.get();
+            let mut index = state.rx_index.get();
 
-        // Check whether we've read sufficient data:
-        if index == len {
-            // We're done, disable interrupts and return to the client:
-            self.regs.ier.modify(IER::ReceivedDataAvailable::CLEAR);
+            // Read in a while loop, until no more data in the FIFO
+            while self.regs.lsr.is_set(LSR::DataAvailable) && index < len {
+                rx_buffer[index] = self.regs.rbr_thr.get();
+                index += 1;
+            }
 
-            let closure = |rx_client: &mut OptionalCell<&dyn hil::uart::ReceiveClient>| {
-                rx_client.map(move |client| {
+            // Check whether we've read sufficient data:
+            if index == len {
+                // We're done, disable interrupts and return to the client:
+                self.regs.ier.modify(IER::ReceivedDataAvailable::CLEAR);
+
+                state.rx_client.map(move |client| {
                     client.received_buffer(rx_buffer, len, Ok(()), hil::uart::Error::None)
                 });
-            };
+            } else {
+                // Store the new index and place the buffer back:
+                state.rx_index.set(index);
+                state.rx_buffer.replace(rx_buffer);
+            }
+        };
 
-            unsafe { with_uart_rx_client_panic(closure); }
-        } else {
-            // Store the new index and place the buffer back:
-            self.rx_index.set(index);
-            self.rx_buffer.replace(rx_buffer);
-        }
+        // TODO: safety
+        unsafe { with_uart_state_panic(closure); }
+    }
+
+    // Called before traveling to the other side of a portal
+    pub fn save_context(&self) {
+        let closure = |state: &mut Uart16550State| {
+            state.context.ier = self.regs.ier.get();
+        };
+        unsafe { with_uart_state_panic(closure); }
+    }
+
+    // Called after passing through the portal
+    pub fn restore_context(&self) {
+        let closure = |state: &mut Uart16550State| {
+            self.regs.ier.set(state.context.ier);
+        };
+        unsafe { with_uart_state_panic(closure); }
+    }
+
+    pub fn set_transmit_client(client: &'static dyn hil::uart::TransmitClient) {
+        let closure = |state: &mut Uart16550State| {
+            state.tx_client.set(client)
+        };
+        unsafe { with_uart_state_panic(closure); }
+    }
+
+    pub fn set_receive_client(client: &'static dyn hil::uart::ReceiveClient) {
+        let closure = |state: &mut Uart16550State| {
+            state.rx_client.set(client)
+        };
+        unsafe { with_uart_state_panic(closure); }
     }
 }
 
@@ -486,11 +539,7 @@ impl hil::uart::Configure for Uart16550 {
 
 impl hil::uart::Transmit<'static> for Uart16550 {
     fn set_transmit_client(&self, client: &'static dyn hil::uart::TransmitClient) {
-        panic!("Use portal instead");
-        // let closure = |tx_client: &mut OptionalCell<&dyn hil::uart::TransmitClient>| {
-        //     tx_client.set(client)
-        // };
-        // unsafe { with_uart_tx_client_panic(closure); }
+        unimplemented!("Use Uart16550::set_transmit_client instead.");
     }
 
     fn transmit_buffer(
@@ -498,34 +547,38 @@ impl hil::uart::Transmit<'static> for Uart16550 {
         tx_data: &'static mut [u8],
         tx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        if tx_len > tx_data.len() {
-            return Err((ErrorCode::INVAL, tx_data));
-        }
+        let closure = |state: &mut Uart16550State| {
+            if tx_len > tx_data.len() {
+                return Err((ErrorCode::INVAL, tx_data));
+            }
 
-        if self.tx_buffer.is_some() {
-            return Err((ErrorCode::BUSY, tx_data));
-        }
+            if state.tx_buffer.is_some() {
+                return Err((ErrorCode::BUSY, tx_data));
+            }
 
-        // Enable interrupts for the transmitter holding register
-        // being empty such that we can callback to the client
-        self.regs
-            .ier
-            .modify(IER::TransmitterHoldingRegisterEmpty::SET);
+            // Enable interrupts for the transmitter holding register
+            // being empty such that we can callback to the client
+            self.regs
+                .ier
+                .modify(IER::TransmitterHoldingRegisterEmpty::SET);
 
-        // Start transmitting the first data word(s) already
-        let mut index = 0;
-        while index < tx_len && self.regs.lsr.is_set(LSR::THREmpty) {
-            self.regs.rbr_thr.write(THR::Data.val(tx_data[index]));
-            index += 1;
-        }
+            // Start transmitting the first data word(s) already
+            let mut index = 0;
+            while index < tx_len && self.regs.lsr.is_set(LSR::THREmpty) {
+                self.regs.rbr_thr.write(THR::Data.val(tx_data[index]));
+                index += 1;
+            }
 
-        // Store the required buffer and information for the interrupt
-        // handler
-        self.tx_buffer.replace(tx_data);
-        self.tx_len.set(tx_len);
-        self.tx_index.set(index);
+            // Store the required buffer and information for the interrupt
+            // handler
+            state.tx_buffer.replace(tx_data);
+            state.tx_len.set(tx_len);
+            state.tx_index.set(index);
 
-        Ok(())
+            Ok(())
+        };
+
+        unsafe { with_uart_state_panic(closure) }
     }
 
     fn transmit_abort(&self) -> Result<(), ErrorCode> {
@@ -539,11 +592,7 @@ impl hil::uart::Transmit<'static> for Uart16550 {
 
 impl hil::uart::Receive<'static> for Uart16550 {
     fn set_receive_client(&self, client: &'static dyn hil::uart::ReceiveClient) {
-        panic!("Use portal instead");
-        // let closure = |rx_client: &mut OptionalCell<&dyn hil::uart::ReceiveClient>| {
-        //     rx_client.set(client)
-        // };
-        // unsafe { with_uart_rx_client_panic(closure); }
+        unimplemented!("Use Uart16550::set_receive_client instead.");
     }
 
     fn receive_buffer(
@@ -558,12 +607,22 @@ impl hil::uart::Receive<'static> for Uart16550 {
             return Err((ErrorCode::SIZE, rx_buffer));
         }
 
-        // Store the receive buffer and byte count. We cannot call into the
-        // generic receive routine here, as the client callback needs to be
-        // called from another call stack. Hence simply enable interrupts here.
-        self.rx_buffer.replace(rx_buffer);
-        self.rx_len.set(rx_len);
-        self.rx_index.set(0);
+
+        let closure = |state: &mut Uart16550State| {
+            // Store the receive buffer and byte count. We cannot call into the
+            // generic receive routine here, as the client callback needs to be
+            // called from another call stack. Hence simply enable interrupts here.
+            unsafe {
+                // Shorten rx_buffer's lifetime to placate FnMut's complaint. This
+                // is safe because the uart state is static.
+                // TODO: fix it with a better interface
+                state.rx_buffer.replace(&mut *(rx_buffer as *mut _));
+            }
+            state.rx_len.set(rx_len);
+            state.rx_index.set(0);
+        };
+
+        unsafe { with_uart_state_panic(closure); }
 
         // Enable receive interrupts:
         self.regs.ier.modify(IER::ReceivedDataAvailable::SET);

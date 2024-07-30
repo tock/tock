@@ -246,7 +246,7 @@ impl<'a> MuxUart<'a> {
                             Err((ecode, buf)) => {
                                 node.tx_client.map(move |client| {
                                     node.transmitting.set(false);
-                                    client.transmitted_buffer(buf, 0, Err(ecode));
+                                    client.transmitted_buffer(buf, len, Err(ecode));
                                 });
                             }
                         },
@@ -263,6 +263,10 @@ impl<'a> MuxUart<'a> {
                 });
             });
         }
+    }
+
+    fn transmit_hint(&self) {
+        self.uart.transmit_hint();
     }
 
     /// Starts a new UART reception, return value denotes whether starting
@@ -453,6 +457,10 @@ impl<'a> uart::Transmit<'a> for UartDevice<'a> {
             self.mux.do_next_op_async();
             Ok(())
         }
+    }
+
+    fn transmit_hint(&self) {
+        self.mux.transmit_hint();
     }
 }
 

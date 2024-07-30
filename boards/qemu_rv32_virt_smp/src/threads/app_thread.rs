@@ -19,6 +19,8 @@ use kernel::smp;
 use qemu_rv32_virt_chip::chip::QemuRv32VirtChip;
 use qemu_rv32_virt_chip::plic::PLIC;
 use qemu_rv32_virt_chip::plic::PLIC_BASE;
+use qemu_rv32_virt_chip::portal_cell::QemuRv32VirtPortalCell;
+use qemu_rv32_virt_chip::uart::Uart16550;
 use rv32i::csr;
 
 use kernel::utilities::registers::interfaces::Readable;
@@ -47,38 +49,24 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 
 
 // Peripherals supported by this thread
-pub struct QemuRv32VirtPeripherals {
-    pub virtio_mmio: [VirtIOMMIODevice; 8],
+pub struct QemuRv32VirtPeripherals<'a> {
+    pub uart0: &'a QemuRv32VirtPortalCell<'a, Uart16550>,
 }
 
-impl QemuRv32VirtPeripherals {
-    pub fn new() -> Self {
-        Self {
-            virtio_mmio: [
-                VirtIOMMIODevice::new(virtio_mmio::VIRTIO_MMIO_0_BASE),
-                VirtIOMMIODevice::new(virtio_mmio::VIRTIO_MMIO_1_BASE),
-                VirtIOMMIODevice::new(virtio_mmio::VIRTIO_MMIO_2_BASE),
-                VirtIOMMIODevice::new(virtio_mmio::VIRTIO_MMIO_3_BASE),
-                VirtIOMMIODevice::new(virtio_mmio::VIRTIO_MMIO_4_BASE),
-                VirtIOMMIODevice::new(virtio_mmio::VIRTIO_MMIO_5_BASE),
-                VirtIOMMIODevice::new(virtio_mmio::VIRTIO_MMIO_6_BASE),
-                VirtIOMMIODevice::new(virtio_mmio::VIRTIO_MMIO_7_BASE),
-            ],
-        }
+impl<'a> QemuRv32VirtPeripherals<'a> {
+    pub fn new(uart0: &'a QemuRv32VirtPortalCell<'a, Uart16550>) -> Self {
+        Self { uart0 }
     }
 }
 
-impl InterruptService for QemuRv32VirtPeripherals {
+impl<'a> InterruptService for QemuRv32VirtPeripherals<'a> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
-            interrupts::VIRTIO_MMIO_0 => self.virtio_mmio[0].handle_interrupt(),
-            interrupts::VIRTIO_MMIO_1 => self.virtio_mmio[1].handle_interrupt(),
-            interrupts::VIRTIO_MMIO_2 => self.virtio_mmio[2].handle_interrupt(),
-            interrupts::VIRTIO_MMIO_3 => self.virtio_mmio[3].handle_interrupt(),
-            interrupts::VIRTIO_MMIO_4 => self.virtio_mmio[4].handle_interrupt(),
-            interrupts::VIRTIO_MMIO_5 => self.virtio_mmio[5].handle_interrupt(),
-            interrupts::VIRTIO_MMIO_6 => self.virtio_mmio[6].handle_interrupt(),
-            interrupts::VIRTIO_MMIO_7 => self.virtio_mmio[7].handle_interrupt(),
+            interrupts::UART0 => {
+                use kernel::smp::portal::Portalable;
+                self.uart0.enter(|u: &mut Uart16550| u.handle_interrupt())
+                    .unwrap_or_else(|| self.uart0.conjure());
+            }
             _ => return false,
         }
         true
@@ -97,13 +85,6 @@ struct QemuRv32VirtPlatform {
     scheduler_timer: &'static VirtualSchedulerTimer<
         VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
     >,
-    virtio_rng: Option<
-        &'static capsules_core::rng::RngDriver<
-            'static,
-            qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng<'static, 'static>,
-        >,
-    >,
-    // shared_channel: &'static qemu_rv32_virt_chip::channel::QemuRv32VirtChannel<'static>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -114,13 +95,6 @@ impl SyscallDriverLookup for QemuRv32VirtPlatform {
     {
         match driver_num {
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
-            capsules_core::rng::DRIVER_NUM => {
-                if let Some(rng_driver) = self.virtio_rng {
-                    f(Some(rng_driver))
-                } else {
-                    f(None)
-                }
-            }
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -131,7 +105,7 @@ impl
     KernelResources<
         qemu_rv32_virt_chip::chip::QemuRv32VirtChip<
             'static,
-            QemuRv32VirtPeripherals,
+            QemuRv32VirtPeripherals<'static>,
         >,
     > for QemuRv32VirtPlatform
 {
@@ -145,7 +119,6 @@ impl
     >;
     type WatchDog = ();
     type ContextSwitchCallback = ();
-    // type SharedChannel = qemu_rv32_virt_chip::channel::QemuRv32VirtChannel<'static>;
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         self
@@ -171,9 +144,6 @@ impl
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
-    // fn shared_channel(&self) -> &Self::SharedChannel {
-    //     self.shared_channel
-    // }
 }
 
 pub unsafe fn spawn<const ID: usize>(
@@ -261,10 +231,13 @@ pub unsafe fn spawn<const ID: usize>(
     thread_local_static_finalize!(PLIC, ID);
     thread_local_static_finalize!(qemu_rv32_virt_chip::clint::CLIC, ID);
 
-    // Initialize the kernel's local channel
+    // Initialize the kernel-local channel
     qemu_rv32_virt_chip::channel::with_shared_channel_panic(|c| {
         let _ = c.replace(qemu_rv32_virt_chip::channel::QemuRv32VirtChannel::new(channel));
     });
+
+    // Initialize the kernel-local uart state
+    qemu_rv32_virt_chip::uart::init_uart_state();
 
     // Hack: escape non-reentrant to get a static mut, fix it with a better interface
     kernel::deferred_call::DeferredCallClient::register(
@@ -300,7 +273,7 @@ pub unsafe fn spawn<const ID: usize>(
     // Initialize peripherals
     let peripherals = static_init!(
         QemuRv32VirtPeripherals,
-        QemuRv32VirtPeripherals::new(),
+        QemuRv32VirtPeripherals::new(uart_portal),
     );
 
     // Create a shared UART channel for the console and for kernel
@@ -353,88 +326,6 @@ pub unsafe fn spawn<const ID: usize>(
     );
     hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
 
-    // ---------- VIRTIO PERIPHERAL DISCOVERY ----------
-    //
-    // This board has 8 virtio-mmio (v2 personality required!) devices
-    //
-    // Collect supported VirtIO peripheral indicies and initialize them if they
-    // are found. If there are two instances of a supported peripheral, the one
-    // on a higher-indexed VirtIO transport is used.
-    let (mut virtio_net_IDx, mut virtio_rng_IDx) = (None, None);
-    for (i, virtio_device) in peripherals.virtio_mmio.iter().enumerate() {
-        use qemu_rv32_virt_chip::virtio::devices::VirtIODeviceType;
-        match virtio_device.query() {
-            Some(VirtIODeviceType::NetworkCard) => {
-                virtio_net_IDx = Some(i);
-            }
-            Some(VirtIODeviceType::EntropySource) => {
-                virtio_rng_IDx = Some(i);
-            }
-            _ => (),
-        }
-    }
-
-    // If there is a VirtIO EntropySource present, use the appropriate VirtIORng
-    // driver and expose it to userspace though the RngDriver
-    let virtio_rng_driver: Option<
-        &'static capsules_core::rng::RngDriver<
-            'static,
-            qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng<'static, 'static>,
-        >,
-    > = if let Some(rng_IDx) = virtio_rng_IDx {
-        use kernel::hil::rng::Rng;
-        use qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng;
-        use qemu_rv32_virt_chip::virtio::queues::split_queue::{
-            SplitVirtqueue, VirtqueueAvailableRing, VirtqueueDescriptors, VirtqueueUsedRing,
-        };
-        use qemu_rv32_virt_chip::virtio::queues::Virtqueue;
-        use qemu_rv32_virt_chip::virtio::transports::VirtIOTransport;
-
-        // EntropySource requires a single Virtqueue for retrieved entropy
-        let descriptors = static_init!(VirtqueueDescriptors<1>, VirtqueueDescriptors::default());
-        let available_ring =
-            static_init!(VirtqueueAvailableRing<1>, VirtqueueAvailableRing::default(),);
-        let used_ring = static_init!(VirtqueueUsedRing<1>, VirtqueueUsedRing::default(),);
-        let queue = static_init!(
-            SplitVirtqueue<1>,
-            SplitVirtqueue::new(descriptors, available_ring, used_ring),
-        );
-        queue.set_transport(&peripherals.virtio_mmio[rng_IDx]);
-
-        // VirtIO EntropySource device driver instantiation
-        let rng = static_init!(VirtIORng, VirtIORng::new(queue));
-        kernel::deferred_call::DeferredCallClient::register(rng);
-        queue.set_client(rng);
-
-        // Register the queues and driver with the transport, so interrupts
-        // are routed properly
-        let mmio_queues = static_init!([&'static dyn Virtqueue; 1], [queue; 1]);
-        peripherals.virtio_mmio[rng_IDx]
-            .initialize(rng, mmio_queues)
-            .unwrap();
-
-        // Provide an internal randomness buffer
-        let rng_buffer = static_init!([u8; 64], [0; 64]);
-        rng.provide_buffer(rng_buffer)
-            .expect("rng: provIDing initial buffer failed");
-
-        // Userspace RNG driver over the VirtIO EntropySource
-        let rng_driver = static_init!(
-            capsules_core::rng::RngDriver<VirtIORng>,
-            capsules_core::rng::RngDriver::new(
-                rng,
-                board_kernel.create_grant(capsules_core::rng::DRIVER_NUM, &memory_allocation_cap),
-            ),
-        );
-        rng.set_client(rng_driver);
-
-        Some(rng_driver as &'static capsules_core::rng::RngDriver<VirtIORng>)
-    } else {
-        // No VirtIO EntropySource discovered
-        None
-    };
-
-
     // ---------- INITIALIZE CHIP, ENABLE INTERRUPTS ---------
 
     thread_local_static_finalize!(CHIP, ID);
@@ -455,7 +346,7 @@ pub unsafe fn spawn<const ID: usize>(
 
     // Need to enable all interrupts for Tock Kernel
     // TODO: Enable a specific set of external interrupts for this kernel instance
-    // chip.enable_plic_interrupts();
+    chip.disable_plic_interrupts();
 
     // enable interrupts globally
     csr::CSR
@@ -471,9 +362,6 @@ pub unsafe fn spawn<const ID: usize>(
         .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
-    // components::debug_writer::DebugWriterComponent::new(uart_mux)
-    //     .finalize(components::debug_writer_component_static!());
-
     let scheduler = components::sched::cooperative::CooperativeComponent::new(&*core::ptr::addr_of!(PROCESSES))
         .finalize(components::cooperative_component_static!(NUM_PROCS));
 
@@ -488,21 +376,19 @@ pub unsafe fn spawn<const ID: usize>(
         alarm,
         scheduler,
         scheduler_timer,
-        virtio_rng: virtio_rng_driver,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_cap,
         ),
-        // shared_channel: channel,
     };
 
+    // Initialization done. Inform the main kernel thread.
+    crate::threads::main_thread::APP_THREAD_READY
+        .store(true, core::sync::atomic::Ordering::SeqCst);
 
-    crate::threads::main_thread::APP_THREAD_READY.store(true, core::sync::atomic::Ordering::SeqCst);
-
-    // debug!("QEMU RISC-V 32-bit \"virt\" machine core {ID}, initialization complete.");
-    // debug!("Entering main loop.");
-    // debug!("Printing from the app thread!");
+    debug!("QEMU RISC-V 32-bit \"virt\" machine core {ID}, initialization complete.");
+    debug!("Entering application kernel loop.");
 
     // ---------- PROCESS LOADING, SCHEDULER LOOP ----------
 
@@ -526,21 +412,24 @@ pub unsafe fn spawn<const ID: usize>(
         debug!("{:?}", err);
     });
 
-
-    debug!("Printing from the app thread");
-
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap,
                              false,
                              Some(&|| {
+                                 static mut ENTERED: bool = false;
                                  counter_portal.enter(|c| {
                                      *c += 1;
+                                     unsafe {
+                                         if !ENTERED {
+                                             debug!("Pong!");
+                                             ENTERED = true;
+                                         }
+                                     }
                                  }).unwrap_or_else(|| {
+                                     unsafe {
+                                         ENTERED = false;
+                                     }
                                      use kernel::smp::portal::Portalable;
                                      counter_portal.conjure();
                                  });
-
-                                 unsafe {
-                                     crate::DEBUG_COUNTER.fetch_add(1, core::sync::atomic::Ordering::SeqCst);
-                                 }
                              }));
 }

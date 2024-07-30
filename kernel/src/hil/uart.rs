@@ -208,6 +208,10 @@ pub trait Transmit<'a> {
     ///   could not be synchronously cancelled. A callback will be made on the
     ///   client indicating whether the call was successfully cancelled.
     fn transmit_abort(&self) -> Result<(), ErrorCode>;
+
+    /// Hint at an occurring transmit event to another layer
+    /// TODO: add doc
+    fn transmit_hint(&self) {}
 }
 
 /// Trait for receiving data via a UART bus.

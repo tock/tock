@@ -104,6 +104,13 @@ impl<'a, I: InterruptService + 'a> QemuRv32VirtChip<'a, I> {
         }
     }
 
+    pub unsafe fn disable_plic_interrupts(&self) {
+        let hart_id = CSR.mhartid.extract().get();
+        let context_id = hart_id * 2;
+        self.plic.disable_all(context_id);
+        self.plic.clear_all_pending(context_id);
+    }
+
     pub unsafe fn enable_plic_interrupts(&self) {
         let hart_id = CSR.mhartid.extract().get();
         let context_id = hart_id * 2;

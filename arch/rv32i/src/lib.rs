@@ -610,13 +610,14 @@ pub unsafe fn print_riscv_state(writer: &mut dyn Write) {
          \r\nSystem register dump:\
          \r\n mepc:    {:#010X}    mstatus:     {:#010X}\
          \r\n mcycle:  {:#010X}    minstret:    {:#010X}\
-         \r\n mtvec:   {:#010X}",
+         \r\n mtvec:   {:#010X}    mhartid:     {:#010X}",
         csr::CSR.mtval.get(),
         csr::CSR.mepc.get(),
         csr::CSR.mstatus.get(),
         csr::CSR.mcycle.get(),
         csr::CSR.minstret.get(),
-        csr::CSR.mtvec.get()
+        csr::CSR.mtvec.get(),
+        csr::CSR.mhartid.get(),
     ));
     let mstatus = csr::CSR.mstatus.extract();
     let uie = mstatus.is_set(csr::mstatus::mstatus::uie);

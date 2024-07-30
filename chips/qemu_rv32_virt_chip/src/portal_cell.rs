@@ -3,14 +3,16 @@ use kernel::platform::chip::{Chip, ChipAtomic};
 use kernel::threadlocal::{ThreadId, DynThreadId};
 use kernel::smp::portal::{PortalCell, Portalable};
 use kernel::smp::shared_channel::SharedChannel;
-use kernel::thread_local_static_access;
 use kernel::utilities::registers::interfaces::Readable;
 use kernel::utilities::cells::OptionalCell;
+use kernel::ErrorCode;
+use kernel::hil;
+use kernel::thread_local_static_access;
 
 use rv32i::csr::CSR;
 
 use crate::channel::{self, QemuRv32VirtChannel, QemuRv32VirtMessage, QemuRv32VirtMessageBody};
-use crate::uart::Uart16550;
+use crate::uart::{Uart16550, Uart16550State};
 use crate::chip::QemuRv32VirtClint;
 
 pub struct QemuRv32VirtPortalCell<'a, T: ?Sized> {
@@ -38,6 +40,10 @@ impl<'a, T: ?Sized> QemuRv32VirtPortalCell<'a, T> {
 
     pub fn is_none(&self) -> bool {
         self.portal.is_none()
+    }
+
+    pub fn is_some(&self) -> bool {
+        self.portal.is_some()
     }
 
     pub fn take(&self) -> Option<&'a mut T> {
@@ -130,24 +136,16 @@ impl<'a, T: ?Sized> Portalable for QemuRv32VirtPortalCell<'a, T> {
 }
 
 
-use kernel::hil::uart::{Receive, Transmit, Configure, Parameters, TransmitClient, ReceiveClient};
-use kernel::ErrorCode;
-
-static mut EMPTY_STRING: [u8; 0] = [0; 0];
-
-impl Configure for QemuRv32VirtPortalCell<'_, Uart16550> {
-    fn configure(&self, params: Parameters) -> Result<(), ErrorCode> {
+impl hil::uart::Configure for QemuRv32VirtPortalCell<'_, Uart16550> {
+    fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
         self.enter(|inner| inner.configure(params))
             .unwrap_or(Ok(())) // Optimistically return Ok if not owning the type
     }
 }
 
-impl Transmit<'static> for QemuRv32VirtPortalCell<'static, Uart16550> {
-    fn set_transmit_client(&self, client: &'static dyn TransmitClient) {
-        let closure = |tx_client: &mut OptionalCell<&dyn TransmitClient>| {
-            tx_client.set(client)
-        };
-        unsafe { crate::uart::with_uart_tx_client_panic(closure); }
+impl hil::uart::Transmit<'static> for QemuRv32VirtPortalCell<'static, Uart16550> {
+    fn set_transmit_client(&self, client: &'static dyn hil::uart::TransmitClient) {
+        Uart16550::set_transmit_client(client);
     }
 
     fn transmit_buffer(
@@ -155,25 +153,14 @@ impl Transmit<'static> for QemuRv32VirtPortalCell<'static, Uart16550> {
         tx_data: &'static mut [u8],
         tx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-
-        use rv32i::csr::CSR;
-        use kernel::utilities::registers::interfaces::Readable;
-        let hart_id = CSR.mhartid.extract().get();
-        self.enter(|inner| {
-
-            if hart_id == 1 {
-                let ret = inner.transmit_buffer(tx_data, tx_len);
-                assert!(ret.is_err());
-                ret
-
-            } else {
+        if self.is_some() {
+            self.enter(|inner| {
                 inner.transmit_buffer(tx_data, tx_len)
-            }
-        })
-            .unwrap_or_else(|| {
-                self.conjure();
-                Err((ErrorCode::BUSY, unsafe { &mut *core::ptr::addr_of_mut!(EMPTY_STRING) }))
-            })
+            }).unwrap_or_else(|| unreachable!())
+        } else {
+            self.conjure();
+            Err((ErrorCode::BUSY, tx_data))
+        }
     }
 
     fn transmit_abort(&self) -> Result<(), ErrorCode> {
@@ -191,14 +178,17 @@ impl Transmit<'static> for QemuRv32VirtPortalCell<'static, Uart16550> {
                 Err(ErrorCode::BUSY)
             })
     }
+
+    fn transmit_hint(&self) {
+        if self.is_none() {
+            self.conjure();
+        }
+    }
 }
 
-impl Receive<'static> for QemuRv32VirtPortalCell<'static, Uart16550> {
-    fn set_receive_client(&self, client: &'static dyn ReceiveClient) {
-        let closure = |rx_client: &mut OptionalCell<&dyn ReceiveClient>| {
-            rx_client.set(client)
-        };
-        unsafe { crate::uart::with_uart_rx_client_panic(closure); }
+impl hil::uart::Receive<'static> for QemuRv32VirtPortalCell<'static, Uart16550> {
+    fn set_receive_client(&self, client: &'static dyn hil::uart::ReceiveClient) {
+        Uart16550::set_receive_client(client);
     }
 
     fn receive_buffer(
@@ -206,11 +196,13 @@ impl Receive<'static> for QemuRv32VirtPortalCell<'static, Uart16550> {
         rx_buffer: &'static mut [u8],
         rx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        self.enter(|inner| inner.receive_buffer(rx_buffer, rx_len))
-            .unwrap_or_else(|| {
-                self.conjure();
-                Err((ErrorCode::BUSY, unsafe { &mut *core::ptr::addr_of_mut!(EMPTY_STRING) }))
-            })
+        if self.is_some() {
+            self.enter(|inner| inner.receive_buffer(rx_buffer, rx_len))
+                .unwrap_or_else(|| unreachable!())
+        } else {
+            self.conjure();
+            Err((ErrorCode::BUSY, rx_buffer))
+        }
     }
 
     fn receive_abort(&self) -> Result<(), ErrorCode> {
