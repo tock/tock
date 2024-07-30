@@ -744,7 +744,7 @@ impl Pio {
     }
 
     pub fn add_program(&self, program: &[u8]) {
-        // include_bytes!(program);
+        // Call this with add_program(include_bytes!("path_to_file"))
         //
         //
         // let mut iter = program.chunks(2);
