@@ -7,6 +7,7 @@ use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnl
 use kernel::utilities::StaticRef;
 
 use crate::gpio::{GpioFunction, RPGpioPin};
+use crate::pio::PioInstr::pio_instr_bits_in;
 
 const NUMBER_STATE_MACHINES: usize = 4;
 const NUMBER_INSTR_MEMORY_LOCATIONS: usize = 32;
@@ -756,6 +757,14 @@ impl Pio {
             .modify(SMx_EXECCTRL::OUT_EN_SEL.val(enable_pin_index));
     }
 
+    pub fn pio_encode_in(src: PioInstr, count: u16){
+        Self::pio_encode_instr_and_src_dest(pio_instr_bits_in, src, count);
+    }
+
+    pub fn pio_encode_instr_and_src_dest(instr_bits: PioInstr, dest: PioInstr, value: u16) -> u16{
+        Self::pio_encode_instr_and_args(instr_bits, dest & 7u16, value)
+    }
+
     pub fn pio_encode_instr_and_args(instr_bits: PioInstr, arg1: u16, arg2: u16) -> u16 {
         instr_bits as u16 | (arg1 << 5u16) | (arg2 & 0x1fu16)
     }
@@ -773,77 +782,77 @@ impl Pio {
         0x1000u16 | value << (12u16 - sideset_bit_count)
     }
 
-    // pub fn pio_encode_jmp(&self, addr: u16) -> u16 {
-    //     self.pio_encode_instr_and_args(PioInstr::pio_instr_bits_jmp, 0, addr)
-    // }
+    pub fn pio_encode_jmp(&self, addr: u16) -> u16 {
+        self.pio_encode_instr_and_args(PioInstr::pio_instr_bits_jmp, 0, addr)
+    }
 
-    // pub fn pio_encode_jmp_not_x(addr: u16) -> u16 {
-    //     pio_encode_instr_and_args(PioInstr::pio_instr_bits_jmp, 1, addr)
-    // }
+    pub fn pio_encode_jmp_not_x(addr: u16) -> u16 {
+        Self::pio_encode_instr_and_args(PioInstr::pio_instr_bits_jmp, 1, addr)
+    }
 
-    // pub fn pio_encode_jmp_x_dec(addr: u16) -> u16 {
-    //     pio_encode_instr_and_args(PioInstr::pio_instr_bits_jmp, 2, addr)
-    // }
+    pub fn pio_encode_jmp_x_dec(addr: u16) -> u16 {
+        Self::pio_encode_instr_and_args(PioInstr::pio_instr_bits_jmp, 2, addr)
+    }
 
-    // pub fn pio_encode_jmp_not_y(addr: u16) -> u16 {
-    //     pio_encode_instr_and_args(PioInstr::pio_instr_bits_jmp, 3, addr)
-    // }
+    pub fn pio_encode_jmp_not_y(addr: u16) -> u16 {
+        Self::pio_encode_instr_and_args(PioInstr::pio_instr_bits_jmp, 3, addr)
+    }
 
-    // pub fn pio_encode_jmp_y_dec(addr: u16) -> u16 {
-    //     pio_encode_instr_and_args(PioInstr::pio_instr_bits_jmp, 4, addr)
-    // }
+    pub fn pio_encode_jmp_y_dec(addr: u16) -> u16 {
+        Self::pio_encode_instr_and_args(PioInstr::pio_instr_bits_jmp, 4, addr)
+    }
 
-    // pub fn pio_encode_jmp_x_ne_y(addr: u16) -> u16 {
-    //     pio_encode_instr_and_args(PioInstr::pio_instr_bits_jmp, 5, addr)
-    // }
+    pub fn pio_encode_jmp_x_ne_y(addr: u16) -> u16 {
+        Self::pio_encode_instr_and_args(PioInstr::pio_instr_bits_jmp, 5, addr)
+    }
 
-    // pub fn pio_encode_jmp_pin(addr: u16) -> u16 {
-    //     pio_encode_instr_and_args(PioInstr::pio_instr_bits_jmp, 6, addr)
-    // }
+    pub fn pio_encode_jmp_pin(addr: u16) -> u16 {
+        Self::pio_encode_instr_and_args(PioInstr::pio_instr_bits_jmp, 6, addr)
+    }
 
-    // pub fn pio_encode_jmp_not_osre(addr: u16) -> u16 {
-    //     pio_encode_instr_and_args(PioInstr::pio_instr_bits_jmp, 7, addr)
-    // }
+    pub fn pio_encode_jmp_not_osre(addr: u16) -> u16 {
+        Self::pio_encode_instr_and_args(PioInstr::pio_instr_bits_jmp, 7, addr)
+    }
 
-    // pub fn pio_encode_irq(relative: bool, irq: u16) -> u16 {
-    //     match relative {
-    //         true => 0x10u16 | irq,
-    //         false => 0x0u16 | irq,
-    //     }
-    // }
+    pub fn pio_encode_irq(relative: bool, irq: u16) -> u16 {
+        match relative {
+            true => 0x10u16 | irq,
+            false => 0x0u16 | irq,
+        }
+    }
 
-    // pub fn pio_encode_wait_gpio(polarity: bool, gpio: u16) -> u16 {
-    //     pio_encode_instr_and_args(
-    //         PioInstr::pio_instr_bits_wait,
-    //         0u16 | (match polarity {
-    //             true => 4u16,
-    //             false => 0u16,
-    //         }),
-    //         gpio,
-    //     )
-    // }
+    pub fn pio_encode_wait_gpio(polarity: bool, gpio: u16) -> u16 {
+        Self::pio_encode_instr_and_args(
+            PioInstr::pio_instr_bits_wait,
+            0u16 | (match polarity {
+                true => 4u16,
+                false => 0u16,
+            }),
+            gpio,
+        )
+    }
 
-    // pub fn pio_encode_wait_pin(polarity: bool, pin: u16) -> u16 {
-    //     pio_encode_instr_and_args(
-    //         PioInstr::pio_instr_bits_wait,
-    //         1u16 | (match polarity {
-    //             true => 4u16,
-    //             false => 0u16,
-    //         }),
-    //         pin,
-    //     )
-    // }
+    pub fn pio_encode_wait_pin(polarity: bool, pin: u16) -> u16 {
+        Self::pio_encode_instr_and_args(
+            PioInstr::pio_instr_bits_wait,
+            1u16 | (match polarity {
+                true => 4u16,
+                false => 0u16,
+            }),
+            pin,
+        )
+    }
 
-    // pub fn pio_encode_wait_irq(polarity: bool, relative: bool, irq: u16) -> u16 {
-    //     pio_encode_instr_and_args(
-    //         PioInstr::pio_instr_bits_wait,
-    //         2u16 | (match polarity {
-    //             true => 4u16,
-    //             false => 0u16,
-    //         }),
-    //         pio_encode_irq(relative, irq),
-    //     )
-    // }
+    pub fn pio_encode_wait_irq(polarity: bool, relative: bool, irq: u16) -> u16 {
+        Self::pio_encode_instr_and_args(
+            PioInstr::pio_instr_bits_wait,
+            2u16 | (match polarity {
+                true => 4u16,
+                false => 0u16,
+            }),
+            Self::pio_encode_irq(relative, irq),
+        )
+    }
 
-    // // TODO IN Instruction from line 305
+    // TODO IN Instruction from line 305 in pio_instructions.h
 }
