@@ -23,23 +23,17 @@
 
 ## Outstanding PR triage
 
-*Hudson: https://github.com/tock/tock/pull/4109 *Brad: Lets mark that as
-waiting on author. *Hudson: https://github.com/tock/tock/pull/4110 *Pat: I am
-still waiting on the high-level descriptive document detailing goals,
-philosophy etc. before diving into it. *Leon: That was opened by a labmate of
-ours, it stems from a project on timing isolation. I will be managing this for
-the most part. Implementation is driving forward regardless because this is a
-research project, and also outlines how invasive changes would be. In practice
-we won't move forward with this before a descriptive document is ready.
-*Hudson: https://github.com/tock/tock/pull/4075 *Leon: Should we merge it on
-the call? It is last call *Everyone: Yes! *Brad: as an aside, it would be nice
-to have a Tock community bot. For example I opened this PR, but then could not
-approve it even though other people contributed many of the commits. *Alyssa:
-Could we allow people with write access to the Tock repo directly merge without
-approval? For community PR cases like this? *Brad: I think that would be fine,
-but the issue I am talking about is sort of the opposite – for example I could
-not put a "changes requested" review on my own PR if Amit adds commits and then
-approves. Probably not a thing we need to discuss, just a workflow mismatch.
+* Hudson: https://github.com/tock/tock/pull/4109
+* Brad: Lets mark that as waiting on author.
+* Hudson: https://github.com/tock/tock/pull/4110
+* Pat: I am still waiting on the high-level descriptive document detailing goals, philosophy etc. before diving into it.
+* Leon: That was opened by a labmate of ours, it stems from a project on timing isolation. I will be managing this for the most part. Implementation is driving forward regardless because this is a research project, and also outlines how invasive changes would be. In practice we won't move forward with this before a descriptive document is ready.
+* Hudson: https://github.com/tock/tock/pull/4075
+* Leon: Should we merge it on the call? It is last call
+* Everyone: Yes!
+* Brad: as an aside, it would be nice to have a Tock community bot. For example I opened this PR, but then could not approve it even though other people contributed many of the commits.
+* Alyssa: Could we allow people with write access to the Tock repo directly merge without approval? For community PR cases like this?
+* Brad: I think that would be fine, but the issue I am talking about is sort of the opposite – for example I could not put a "changes requested" review on my own PR if Amit adds commits and then approves. Probably not a thing we need to discuss, just a workflow mismatch.
 
 ## Dynamic allocation in libtock-rs
 
