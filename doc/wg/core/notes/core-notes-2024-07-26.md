@@ -37,7 +37,7 @@
 
 ## Dynamic allocation in libtock-rs
 
-[meta: I was notetaker for this meeting so this initial part is copied from my
+[meta: Hudson was notetaker for this meeting so this initial part is copied from Hudson's
 email]
 
 * Hudson: I would like to discuss options for dynamic allocation in libtock-rs.
