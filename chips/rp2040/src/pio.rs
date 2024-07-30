@@ -599,7 +599,7 @@ impl Pio {
             SMNumber::SM3 => self.registers.ctrl.modify(CTRL::SM3_RESTART::SET),
         }
     }
-    pub fn sm_clkdiv_restart(&self, sm_number: SMNumber){
+    pub fn sm_clkdiv_restart(&self, sm_number: SMNumber) {
         match sm_number {
             SMNumber::SM0 => self.registers.ctrl.modify(CTRL::CLKDIV0_RESTART::SET),
             SMNumber::SM1 => self.registers.ctrl.modify(CTRL::CLKDIV1_RESTART::SET),
