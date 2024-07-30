@@ -164,7 +164,7 @@ extern "C" {
     fn jump_to_bootloader();
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 core::arch::global_asm!(
     "
     .section .jump_to_bootloader, \"ax\"

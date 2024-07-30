@@ -442,7 +442,7 @@ pub unsafe fn configure_trap_handler() {
 // Mock implementation for crate tests that does not include the section
 // specifier, as the test will not use our linker script, and the host
 // compilation environment may not allow the section name.
-#[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
+#[cfg(not(any(doc, all(target_arch = "riscv32", target_os = "none"))))]
 pub extern "C" fn _earlgrey_start_trap_vectored() {
     use core::hint::unreachable_unchecked;
     unsafe {
@@ -450,12 +450,12 @@ pub extern "C" fn _earlgrey_start_trap_vectored() {
     }
 }
 
-#[cfg(all(target_arch = "riscv32", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
 extern "C" {
     pub fn _earlgrey_start_trap_vectored();
 }
 
-#[cfg(all(target_arch = "riscv32", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
 // According to the Ibex user manual:
 // [NMI] has interrupt ID 31, i.e., it has the highest priority of all
 // interrupts and the core jumps to the trap-handler base address (in

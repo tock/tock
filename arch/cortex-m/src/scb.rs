@@ -300,7 +300,7 @@ pub unsafe fn set_vector_table_offset(offset: *const ()) {
 }
 
 /// Disable the FPU
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 pub unsafe fn disable_fpca() {
     use core::arch::asm;
     SCB.cpacr
@@ -316,7 +316,7 @@ pub unsafe fn disable_fpca() {
 }
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(all(target_arch = "arm", target_os = "none")))]
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
 pub unsafe fn disable_fpca() {
     // Dummy read register, to satisfy the `Readable` trait import on
     // non-ARM platforms.
