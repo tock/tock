@@ -429,20 +429,6 @@ pub enum PioMovStatusType {
     StatusRxLessthan = 1,
 }
 
-#[derive(PartialEq)]
-
-pub enum PioInstr {
-    pio_instr_bits_jmp = 0x0000,
-    pio_instr_bits_wait = 0x2000,
-    pio_instr_bits_in = 0x4000,
-    pio_instr_bits_out = 0x6000,
-    pio_instr_bits_push = 0x8000,
-    pio_instr_bits_pull = 0x8080,
-    pio_instr_bits_mov = 0xa000,
-    pio_instr_bits_irq = 0xc000,
-    pio_instr_bits_set = 0xe000,
-}
-
 pub struct StateMachineConfiguration {
     out_pins_count: u8,
     out_pins_base: u8,
@@ -754,22 +740,5 @@ impl Pio {
         self.registers.sm[sm_number as usize]
             .execctrl
             .modify(SMx_EXECCTRL::OUT_EN_SEL.val(enable_pin_index));
-    }
-
-    pub fn pio_encode_instr_and_args(instr_bits: PioInstr, arg1: u16, arg2: u16) -> u16 {
-        instr_bits as u16 | (arg1 << 5u16) | (arg2 & 0x1fu16)
-    }
-
-    /// cycles <= 32
-    pub fn pio_encode_delay(cycles: u16) -> u16 {
-        cycles << 8u16
-    }
-
-    pub fn pio_encode_sideset(sideset_bit_count: u16, value: u16) -> u16 {
-        value << (13u16 - sideset_bit_count)
-    }
-
-    pub fn pio_encode_sideset_opt(sideset_bit_count: u16, value: u16) -> u16 {
-        return 0x1000u16 | value << (12u16 - sideset_bit_count);
     }
 }
