@@ -1,4 +1,4 @@
-use alloc::string::String;
+use alloc::string::{String, ToString};
 use core::ops::BitOr;
 use kernel::debug;
 use kernel::deferred_call::DeferredCallClient;
@@ -743,9 +743,24 @@ impl Pio {
             .modify(SMx_EXECCTRL::OUT_EN_SEL.val(enable_pin_index));
     }
 
-    pub fn add_program(&self, program: String){
-        include_bytes!(program);
-        self.registers.instr_mem.modify(program);
+    pub fn add_program(&self, program: &[u8]) {
+        // include_bytes!(program);
+        //
+        //
+        // let mut iter = program.chunks(2);
+        // let x = 0;
+        // for i in iter {
+        //     self.registers.instr_mem[x]
+        //         .instr_mem
+        //         .modify(INSTR_MEMx::INSTR_MEM.val(iter.next().unwrap().concat()));
+        //     x += 2;
+        // }
+
+        for i in (0..program.len()).step_by(2) {
+            self.registers.instr_mem[i].instr_mem.modify(
+                INSTR_MEMx::INSTR_MEM.val((program[i] as u16) << 8 | (program[i + 1] as u16)),
+            );
+        }
         debug!("Program added")
     }
 }
