@@ -1,23 +1,15 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2022.
+// Copyright Tock Contributors 2024.
 
-//! This provides virtualized userspace access to a buzzer.
-//!
-//! Each app can have one outstanding buzz request, and buzz requests will queue
-//! with each app getting exclusive access to the buzzer during its turn. Apps
-//! can specify the frequency and duration of the square wave buzz, but the
-//! duration is capped to prevent this from being annoying.
-//!
-//! Apps can subscribe to an optional callback if they care about getting
-//! buzz done events.
+//! This provides virtualized userspace access to a servo.
 //!
 //! Usage
 //! -----
 //!
 //! ```rust,ignore
 //! # use kernel::static_init;
-//! let mux_pwm = components::pwm::PwmMuxComponent::new(&peripherals.pwm)
+//!     let mux_pwm = components::pwm::PwmMuxComponent::new(&peripherals.pwm)
 //!         .finalize(components::pwm_mux_component_static!(rp2040::pwm::Pwm));
 //!
 //!     let virtual_pwm_servo =
