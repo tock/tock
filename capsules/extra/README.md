@@ -115,6 +115,7 @@ These provide common and better abstractions for userspace.
 - **[App Flash](src/app_flash_driver.rs)**: Allow applications to write their
   own flash.
 - **[Buzzer](src/buzzer_driver.rs)**: Simple buzzer.
+- **[Servo](src/servo.rs)**: Simple servo.
 - **[Date-Time](src/date_time.rs)**: Real time clock date/time support.
 - **[EUI64](src/eui64.rs)**: Query device's extended unique ID.
 - **[HMAC](src/hmac.rs)**: Hash-based Message Authentication Code support.
@@ -155,6 +156,7 @@ Other capsules that implement reusable logic.
 
 - **[Bus Adapters](src/bus.rs)**: Generic abstraction for SPI/I2C/8080.
 - **[Buzzer PWM](src/buzzer_pwm.rs)**: Buzzer with a PWM pin.
+- **[SG90 PWM](src/sg90.rs)**: SG90 servomotor with a PWM pin.
 - **[HMAC-SHA256](src/hmac_sha256.rs)**: HMAC using SHA-256.
 - **[Key-Value Store with Permissions](src/kv_store_permissions.rs)**: Key-value
   interface that requires read/write permissions.
