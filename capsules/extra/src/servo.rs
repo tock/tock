@@ -23,7 +23,6 @@
 //!         >,
 //!         capsules_extra::sg90::Sg90::new(
 //!             virtual_pwm_servo,
-//!             //capsules_extra::servo_motor_pwm::DEFAULT_MAX_BUZZ_TIME_MS,
 //!         )
 //!     );
 //!
