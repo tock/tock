@@ -23,7 +23,7 @@ pub const DRIVER_NUM: usize = 0x10000;
 mod ro_allow {
     pub(super) const SEARCH: usize = 0;
     /// The number of allow buffers the kernel stores for this grant.
-    pub(super) const COUNT: u8 = 1;
+    pub(super) const COUNT: u8 = 1; // VTOCK-NOTE: just replaced this with constant 1
 }
 
 /// Enum to mark which type of upcall is scheduled for the IPC mechanism.
@@ -105,7 +105,6 @@ impl<const NUM_PROCS: u8> IPC<NUM_PROCS> {
     }
 }
 
-// #[flux::ignore]
 impl<const NUM_PROCS: u8> SyscallDriver for IPC<NUM_PROCS> {
     /// command is how notify() is implemented.
     /// Notifying an IPC service is done by setting client_or_svc to 0,

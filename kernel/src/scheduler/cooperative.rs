@@ -56,6 +56,7 @@ impl<'a> CooperativeSched<'a> {
 }
 
 impl<'a, C: Chip> Scheduler<C> for CooperativeSched<'a> {
+    #[flux::trusted]
     fn next(&self) -> SchedulingDecision {
         let mut first_head = None;
         let mut next = None;

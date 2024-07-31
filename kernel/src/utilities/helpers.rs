@@ -46,7 +46,6 @@ macro_rules! count_expressions {
 /// Compute a POSIX-style CRC32 checksum of a slice.
 ///
 /// Online calculator: <https://crccalc.com/>
-#[flux::ignore]
 pub fn crc32_posix(b: &[u8]) -> u32 {
     let mut crc: u32 = 0;
 

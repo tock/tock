@@ -43,12 +43,14 @@ pub struct LedLow<'a, P: gpio::Pin> {
 }
 
 impl<'a, P: gpio::Pin> LedHigh<'a, P> {
+    #[flux::trusted]
     pub fn new(p: &'a P) -> Self {
         Self { pin: p }
     }
 }
 
 impl<'a, P: gpio::Pin> LedLow<'a, P> {
+    #[flux::trusted]
     pub fn new(p: &'a P) -> Self {
         Self { pin: p }
     }

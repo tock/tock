@@ -18,6 +18,7 @@
 use crate::ErrorCode;
 use core::cmp::Ordering;
 use core::fmt;
+use flux_support::assume;
 
 /// An integer type defining the width of a time value, which allows
 /// clients to know when wraparound will occur.
@@ -515,6 +516,7 @@ impl Ticks for Ticks32 {
 
     #[inline]
     fn saturating_scale(self, numerator: u32, denominator: u32) -> u32 {
+        assume(denominator > 0);
         let scaled = self.0 as u64 * numerator as u64 / denominator as u64;
         if scaled < u32::MAX as u64 {
             scaled as u32
@@ -604,6 +606,7 @@ impl Ticks for Ticks24 {
 
     #[inline]
     fn saturating_scale(self, numerator: u32, denominator: u32) -> u32 {
+        assume(denominator > 0);
         let scaled = self.0 as u64 * numerator as u64 / denominator as u64;
         if scaled < u32::MAX as u64 {
             scaled as u32
@@ -701,6 +704,7 @@ impl Ticks for Ticks16 {
 
     #[inline]
     fn saturating_scale(self, numerator: u32, denominator: u32) -> u32 {
+        assume(denominator > 0);
         let scaled = self.0 as u64 * numerator as u64 / denominator as u64;
         if scaled < u32::MAX as u64 {
             scaled as u32
@@ -794,6 +798,7 @@ impl Ticks for Ticks64 {
 
     #[inline]
     fn saturating_scale(self, num: u32, den: u32) -> u32 {
+        assume(den > 0);
         let scaled = self.0.saturating_mul(num as u64) / den as u64;
         if scaled < u32::MAX as u64 {
             scaled as u32

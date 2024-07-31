@@ -6,7 +6,6 @@
 
 use core::f32;
 
-
 // VTOCK-TODO: supplementary Z3 proofs for these two functions
 
 /// Get closest power of two greater than the given number.
@@ -38,7 +37,6 @@ pub fn closest_power_of_two_usize(mut num: usize) -> usize {
     num += 1;
     num
 }
-
 
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Eq, Ord)]
 pub struct PowerOfTwo(u32);
@@ -100,7 +98,6 @@ pub fn log_base_two_u32_usize(num: usize) -> u32 {
     }
 }
 
-
 /// Log base 2 of 64 bit unsigned integers.
 #[flux::trusted]
 #[flux::sig(fn(num: u64) -> u32{r: r < 64 && (num > 1 => r > 0)})]
@@ -116,7 +113,6 @@ pub fn log_base_two_u64(num: u64) -> u32 {
 const EXPONENT_MASK: u32 = 0b01111111_10000000_00000000_00000000;
 const EXPONENT_BIAS: u32 = 127;
 
-#[flux::ignore]
 pub fn abs(n: f32) -> f32 {
     f32::from_bits(n.to_bits() & 0x7FFF_FFFF)
 }
@@ -125,12 +121,10 @@ fn extract_exponent_bits(x: f32) -> u32 {
     (x.to_bits() & EXPONENT_MASK).overflowing_shr(23).0
 }
 
-#[flux::ignore]
 fn extract_exponent_value(x: f32) -> i32 {
     (extract_exponent_bits(x) as i32) - EXPONENT_BIAS as i32
 }
 
-#[flux::ignore]
 fn ln_1to2_series_approximation(x: f32) -> f32 {
     // idea from https://stackoverflow.com/a/44232045/
     // modified to not be restricted to int range and only values of x above 1.0.
@@ -168,7 +162,6 @@ fn ln_1to2_series_approximation(x: f32) -> f32 {
     }
 }
 
-#[flux::ignore]
 pub fn log10(x: f32) -> f32 {
     //using change of base log10(x) = ln(x)/ln(10)
     let ln10_recip = f32::consts::LOG10_E;

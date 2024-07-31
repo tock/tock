@@ -118,7 +118,6 @@ pub mod platform;
 pub mod process;
 pub mod process_checker;
 pub mod processbuffer;
-#[flux::ignore]
 pub mod scheduler;
 pub mod storage_permissions;
 pub mod syscall;

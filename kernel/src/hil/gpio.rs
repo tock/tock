@@ -273,6 +273,7 @@ pub struct InterruptValueWrapper<'a, IP: InterruptPin<'a>> {
 }
 
 impl<'a, IP: InterruptPin<'a>> InterruptValueWrapper<'a, IP> {
+    #[flux::trusted]
     pub fn new(pin: &'a IP) -> Self {
         Self {
             value: Cell::new(0),

@@ -3,7 +3,6 @@
 // Copyright Tock Contributors 2022.
 
 //! Utility functions and macros provided by the kernel crate.
-// #[flux::ignore]
 pub mod binary_write;
 pub mod copy_slice;
 pub mod helpers;

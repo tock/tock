@@ -18,18 +18,15 @@ pub mod digest;
 pub mod eic;
 pub mod entropy;
 pub mod flash;
-#[flux::ignore]
 pub mod gpio;
 pub mod gpio_async;
 pub mod hasher;
 pub mod hw_debug;
 pub mod i2c;
 pub mod kv;
-#[flux::ignore]
 pub mod led;
 pub mod log;
 pub mod nonvolatile_storage;
-// #[flux::ignore]
 pub mod public_key_crypto;
 pub mod pwm;
 pub mod radio;
@@ -39,7 +36,6 @@ pub mod sensors;
 pub mod spi;
 pub mod symmetric_encryption;
 pub mod text_screen;
-#[flux::ignore]
 pub mod time;
 pub mod touch;
 pub mod uart;

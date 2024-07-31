@@ -73,7 +73,7 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
     /// How often to restore all processes to max priority
     pub const PRIORITY_REFRESH_PERIOD_MS: u32 = 5000;
     pub const NUM_QUEUES: usize = 3;
-
+    #[flux::trusted]
     pub fn new(alarm: &'static A) -> Self {
         Self {
             alarm,
@@ -106,6 +106,7 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
     /// Returns the process at the head of the highest priority queue containing a process
     /// that is ready to execute (as determined by `has_tasks()`)
     /// This method moves that node to the head of its queue.
+    #[flux::trusted]
     fn get_next_ready_process_node(&self) -> (Option<&MLFQProcessNode<'a>>, usize) {
         for (idx, queue) in self.processes.iter().enumerate() {
             let next = queue
@@ -132,6 +133,7 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
 }
 
 impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<'a, A> {
+    #[flux::trusted]
     fn next(&self) -> SchedulingDecision {
         let now = self.alarm.now();
         let next_reset = self.next_reset.get();
@@ -159,6 +161,7 @@ impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<
         SchedulingDecision::RunProcess((next, Some(timeslice)))
     }
 
+    #[flux::trusted]
     fn result(&self, result: StoppedExecutingReason, execution_time_us: Option<u32>) {
         let execution_time_us = execution_time_us.unwrap(); // should never fail as we never run cooperatively
         let queue_idx = self.last_queue_idx.get();

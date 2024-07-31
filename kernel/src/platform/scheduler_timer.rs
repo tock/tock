@@ -215,6 +215,7 @@ impl<A: 'static + time::Alarm<'static>> SchedulerTimer for VirtualSchedulerTimer
             None
         } else {
             let hertz = A::Frequency::frequency() as u64;
+            flux_support::assume(hertz > 0);
             Some(((diff * 1_000_000) / hertz) as u32)
         }
     }
