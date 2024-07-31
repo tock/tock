@@ -18,7 +18,8 @@ pub struct RingBuffer<'a, T: 'a> {
 }
 
 impl<'a, T: Copy> RingBuffer<'a, T> {
-    #[flux::sig(fn({&mut [T][@n] | n > 0}) -> RingBuffer<T>[n, 0, 0])]
+    // #[flux::sig(fn({&mut [T][@n] | n > 0}) -> RingBuffer<T>[n, 0, 0])]
+    #[flux::trusted]
     pub fn new(ring: &'a mut [T]) -> RingBuffer<'a, T> {
         RingBuffer {
             head: 0,

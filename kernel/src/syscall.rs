@@ -820,7 +820,6 @@ pub trait UserspaceKernelBoundary {
     /// will only change memory starting at `accessible_memory_start` and before
     /// `app_brk`. The caller is responsible for guaranteeing that those
     /// pointers are valid for the process.
-    #[flux::ignore]
     unsafe fn print_context(
         &self,
         accessible_memory_start: FluxPtrU8Mut,
