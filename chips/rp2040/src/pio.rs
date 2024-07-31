@@ -1,9 +1,5 @@
-use alloc::string::{String, ToString};
-use core::ops::BitOr;
 use kernel::debug;
-use kernel::deferred_call::DeferredCallClient;
-use kernel::hil::gpio::Output;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
+use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
