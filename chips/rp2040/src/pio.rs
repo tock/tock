@@ -536,15 +536,10 @@ impl Pio {
     }
 
     pub fn init(&self) {
-        // self.new_pio0();
-        // self.new_pio1();
         let default_config: StateMachineConfiguration = StateMachineConfiguration::default();
         for state_machine in STATE_MACHINE_NUMBERS {
             self.sm_config(state_machine, &default_config);
-            // self.set_counter(channel_number, 0);
-            // self.disable_interrupt(channel_number);
         }
-        // self.registers.intr.write(CH::CH.val(0));
     }
 
     fn set_in_pins(&self, sm_number: SMNumber, in_base: u8) {
