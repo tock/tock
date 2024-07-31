@@ -381,7 +381,6 @@ SM_INT [
 ]
 ];
 
-
 const PIO_0_BASE_ADDRESS: usize = 0x50200000;
 const PIO_1_BASE_ADDRESS: usize = 0x50300000;
 const PIO0_BASE: StaticRef<PioRegisters> =
