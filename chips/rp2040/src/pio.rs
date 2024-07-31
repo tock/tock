@@ -11,6 +11,7 @@ const NUMBER_IRQS: usize = 2;
 
 #[repr(C)]
 struct InstrMem {
+    /// Write-only access to instruction memory locations 0-31
     instr_mem: ReadWrite<u32, INSTR_MEMx::Register>,
 }
 
@@ -388,6 +389,7 @@ const PIO0_BASE: StaticRef<PioRegisters> =
 const PIO1_BASE: StaticRef<PioRegisters> =
     unsafe { StaticRef::new(PIO_1_BASE_ADDRESS as *const PioRegisters) };
 
+/// There are a total of 4 State Machines per PIO.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum SMNumber {
     SM0 = 0,
@@ -396,12 +398,14 @@ pub enum SMNumber {
     SM3 = 3,
 }
 
+/// There can be 2 PIOs per RP2040.
 #[derive(PartialEq)]
 pub enum PIONumber {
     PIO0 = 0,
     PIO1 = 1,
 }
 
+/// The FIFO queues can be joined together for twice the length in one direction.
 #[derive(PartialEq)]
 pub enum PioFifoJoin {
     PioFifoJoinNone = 0,
@@ -417,12 +421,16 @@ pub struct Pio {
     pio_number: PIONumber,
 }
 
+/// Comparison used for the MOV x, STATUS instruction.
 #[derive(Clone, Copy)]
 pub enum PioMovStatusType {
     StatusTxLessthan = 0,
     StatusRxLessthan = 1,
 }
 
+/// PIO State Machine configuration structure
+///
+/// Used to initialize a PIO with all of its state machines.
 pub struct StateMachineConfiguration {
     out_pins_count: u32,
     out_pins_base: u32,
@@ -480,6 +488,7 @@ impl Default for StateMachineConfiguration {
 }
 
 impl Pio {
+    /// State machine configuration with any config structure.
     pub fn sm_config(&self, sm_number: SMNumber, config: &StateMachineConfiguration) {
         self.set_in_pins(sm_number, config.in_pins_base);
         self.set_out_pins(sm_number, config.out_pins_base, config.out_pins_count);
@@ -514,6 +523,7 @@ impl Pio {
         )
     }
 
+    /// Create a new PIO0 struct
     pub fn new_pio0() -> Self {
         Self {
             registers: PIO0_BASE,
@@ -521,6 +531,7 @@ impl Pio {
         }
     }
 
+    /// Create a new PIO1 struct
     pub fn new_pio1() -> Self {
         Self {
             registers: PIO1_BASE,
@@ -528,6 +539,7 @@ impl Pio {
         }
     }
 
+    /// Initialize a new PIO with the same default configuration for all four state machines
     pub fn init(&self) {
         let default_config: StateMachineConfiguration = StateMachineConfiguration::default();
         for state_machine in STATE_MACHINE_NUMBERS {
@@ -535,12 +547,20 @@ impl Pio {
         }
     }
 
+    /// Set every config for the IN pins
+    ///
+    /// in_base => the starting location for the input pins
     fn set_in_pins(&self, sm_number: SMNumber, in_base: u32) {
         self.registers.sm[sm_number as usize]
             .pinctrl
             .modify(SMx_PINCTRL::IN_BASE.val(in_base));
     }
 
+    /// Set every config for the SET pins
+    ///
+    /// set_base => he starting location for the SET pins
+    ///
+    /// set_count => the number of SET pins
     fn set_set_pins(&self, sm_number: SMNumber, set_base: u32, set_count: u32) {
         self.registers.sm[sm_number as usize]
             .pinctrl
@@ -550,6 +570,11 @@ impl Pio {
             .modify(SMx_PINCTRL::SET_COUNT.val(set_count));
     }
 
+    /// Set every config for the OUT pins
+    ///
+    /// out_base => the starting location for the OUT pins
+    ///
+    /// out_count => the number of OUT pins
     fn set_out_pins(&self, sm_number: SMNumber, out_base: u32, out_count: u32) {
         self.registers.sm[sm_number as usize]
             .pinctrl
@@ -559,6 +584,7 @@ impl Pio {
             .modify(SMx_PINCTRL::OUT_COUNT.val(out_count));
     }
 
+    /// Set a state machine's state to enabled or to disabled
     pub fn set_enabled(&self, sm_number: SMNumber, enabled: bool) {
         match sm_number {
             SMNumber::SM0 => self.registers.ctrl.modify(match enabled {
@@ -580,6 +606,7 @@ impl Pio {
         }
     }
 
+    /// Restart a state machine
     pub fn restart_sm(&self, sm_number: SMNumber) {
         match sm_number {
             SMNumber::SM0 => self.registers.ctrl.modify(CTRL::SM0_RESTART::SET),
@@ -588,6 +615,8 @@ impl Pio {
             SMNumber::SM3 => self.registers.ctrl.modify(CTRL::SM3_RESTART::SET),
         }
     }
+
+    /// Restart a state machine's clock divider
     pub fn sm_clkdiv_restart(&self, sm_number: SMNumber) {
         match sm_number {
             SMNumber::SM0 => self.registers.ctrl.modify(CTRL::CLKDIV0_RESTART::SET),
@@ -597,6 +626,12 @@ impl Pio {
         }
     }
 
+    /// Setup 'in' shifting parameters
+    ///
+    /// shift_right => true to shift ISR to right
+    ///             => false to shift ISR to left
+    /// autopush => true to enable, false to disable
+    /// push_threshold => threshold in bits to shift in before auto/conditional re-pushing of the ISR
     fn set_in_shift(
         &self,
         sm_number: SMNumber,
@@ -615,6 +650,12 @@ impl Pio {
             .modify(SMx_SHIFTCTRL::PUSH_THRESH.val(push_threshold));
     }
 
+    /// Setup 'out' shifting parameters
+    ///
+    /// shift_right => true to shift OSR to right
+    ///             => false to shift OSR to left
+    /// autopull => true to enable, false to disable
+    /// pull_threshold => threshold in bits to shift out before auto/conditional re-pulling of the OSR
     fn set_out_shift(
         &self,
         sm_number: SMNumber,
@@ -633,20 +674,14 @@ impl Pio {
             .modify(SMx_SHIFTCTRL::PULL_THRESH.val(pull_threshold));
     }
 
+    /// Set the 'jmp' pin
+    ///
+    /// pin => the raw GPIO pin number to use as the source for a jmp pin instruction
     fn set_jmp_pin(&self, sm_number: SMNumber, pin: u32) {
         self.registers.sm[sm_number as usize]
             .execctrl
             .modify(SMx_EXECCTRL::JMP_PIN.val(pin));
     }
-
-    // pub fn set_clkdiv(&self, sm_number: SMNumber, div: c_float){
-    //     self.registers.sm[sm_number as usize]
-    //         .clkdiv
-    //         .modify(SMx_CLKDIV::INT.val(abs(div) as u32));
-    //     self.registers.sm[sm_number as usize]
-    //         .clkdiv
-    //         .modify(SMx_CLKDIV::FRAC.val((div - abs(div)) as u32));
-    // }
 
     fn set_clkdiv_int_frac(&self, sm_number: SMNumber, div_int: u32, div_frac: u32) {
         self.registers.sm[sm_number as usize]
