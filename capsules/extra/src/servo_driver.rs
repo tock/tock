@@ -21,12 +21,8 @@ pub struct Servo<'a, B: hil::servo::Servo<'a>> {
 }
 
 impl<'a, B: hil::servo::Servo<'a>> Servo<'a, B> {
-    pub fn new(
-        servo: &'a B,
-    ) -> Servo<'a, B> {
-        Servo {
-            servo: servo,
-        }
+    pub fn new(servo: &'a B) -> Servo<'a, B> {
+        Servo { servo: servo }
     }
 }
 /// Provide an interface for userland.
@@ -46,19 +42,14 @@ impl<'a, B: hil::servo::Servo<'a>> SyscallDriver for Servo<'a, B> {
     ) -> CommandReturn {
         match command_num {
             // Check whether the driver exists.
-            0 => {
-                CommandReturn::success()
-            }
+            0 => CommandReturn::success(),
             // Change the angle immediately.
-            1 => {
-                self.servo.servo(data1).into()
-            }
+            1 => self.servo.servo(data1).into(),
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
-    
+
     fn allocate_grant(&self, _process_id: ProcessId) -> Result<(), kernel::process::Error> {
         todo!()
     }
-
 }

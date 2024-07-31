@@ -81,7 +81,7 @@ pub mod screen_shared;
 pub mod sdcard;
 pub mod segger_rtt;
 pub mod servo_driver;
-pub mod servo_motor_pwm;
+pub mod servo_pwm;
 pub mod seven_segment;
 pub mod sh1106;
 pub mod sha;
