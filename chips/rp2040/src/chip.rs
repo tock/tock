@@ -5,8 +5,6 @@
 //! Chip trait setup.
 
 use core::fmt::Write;
-
-use cortexm0p::{CortexM0P, CortexMVariant, interrupt_mask};
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
@@ -15,7 +13,7 @@ use crate::clocks::Clocks;
 use crate::gpio::{RPGpio, RPPins, SIO};
 use crate::i2c;
 use crate::interrupts;
-use crate::pio::PIONumber;
+use crate::pio::Pio;
 use crate::pwm;
 use crate::resets::Resets;
 use crate::rtc;
@@ -26,6 +24,7 @@ use crate::uart::Uart;
 use crate::usb;
 use crate::watchdog::Watchdog;
 use crate::xosc::Xosc;
+use cortexm0p::{interrupt_mask, CortexM0P, CortexMVariant};
 
 #[repr(u8)]
 pub enum Processor {
@@ -125,8 +124,8 @@ pub struct Rp2040DefaultPeripherals<'a> {
     pub clocks: Clocks,
     pub i2c0: i2c::I2c<'a, 'a>,
     pub pins: RPPins<'a>,
-    pub pio0: crate::pio::PIONumber,
-    pub pio1: crate::pio::PIONumber,
+    pub pio0: crate::pio::Pio,
+    pub pio1: crate::pio::Pio,
     pub pwm: pwm::Pwm<'a>,
     pub resets: Resets,
     pub sio: SIO,
@@ -148,8 +147,8 @@ impl<'a> Rp2040DefaultPeripherals<'a> {
             clocks: Clocks::new(),
             i2c0: i2c::I2c::new_i2c0(),
             pins: RPPins::new(),
-            pio0: PIONumber::PIO0::new_pio0(),
-            pio1: PIONumber::PIO1::new_pio1(),
+            pio0: Pio::new_pio0(),
+            pio1: Pio::new_pio1(),
             pwm: pwm::Pwm::new(),
             resets: Resets::new(),
             sio: SIO::new(),
