@@ -696,7 +696,7 @@ pub unsafe fn start() -> (
     });
 
     let pio: Pio = Pio::new_pio0();
-    let path = include_bytes!("blink.bin");
+    let path = include_bytes!("pio_blink.bin");
     pio.init();
     pio.add_program(path);
 

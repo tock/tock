@@ -3,7 +3,6 @@
 // Copyright Tock Contributors 2022.
 
 #![no_std]
-extern crate alloc;
 
 pub mod adc;
 pub mod chip;
