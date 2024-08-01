@@ -70,8 +70,8 @@ use core::fmt::Write;
 
 use crate::errorcode::ErrorCode;
 use crate::process;
-
 pub use crate::syscall_driver::{CommandReturn, SyscallDriver};
+use flux_support::*;
 
 /// Helper function to split a [`u64`] into a higher and lower [`u32`].
 ///
@@ -192,7 +192,7 @@ pub enum Syscall {
         /// The buffer identifier.
         subdriver_number: usize,
         /// The address where the buffer starts.
-        allow_address: *mut u8,
+        allow_address: FluxPtrU8Mut,
         /// The size of the buffer in bytes.
         allow_size: usize,
     },
@@ -205,7 +205,7 @@ pub enum Syscall {
         /// The buffer identifier.
         subdriver_number: usize,
         /// The address where the buffer starts.
-        allow_address: *mut u8,
+        allow_address: FluxPtrU8Mut,
         /// The size of the buffer in bytes.
         allow_size: usize,
     },
@@ -218,7 +218,7 @@ pub enum Syscall {
         /// The buffer identifier.
         subdriver_number: usize,
         /// The address where the buffer starts.
-        allow_address: *const u8,
+        allow_address: FluxPtrU8Mut,
         /// The size of the buffer in bytes.
         allow_size: usize,
     },
@@ -277,19 +277,19 @@ impl Syscall {
             Ok(SyscallClass::ReadWriteAllow) => Some(Syscall::ReadWriteAllow {
                 driver_number: r0,
                 subdriver_number: r1,
-                allow_address: r2 as *mut u8,
+                allow_address: r2.as_fluxptr(),
                 allow_size: r3,
             }),
             Ok(SyscallClass::UserspaceReadableAllow) => Some(Syscall::UserspaceReadableAllow {
                 driver_number: r0,
                 subdriver_number: r1,
-                allow_address: r2 as *mut u8,
+                allow_address: r2.as_fluxptr(),
                 allow_size: r3,
             }),
             Ok(SyscallClass::ReadOnlyAllow) => Some(Syscall::ReadOnlyAllow {
                 driver_number: r0,
                 subdriver_number: r1,
-                allow_address: r2 as *const u8,
+                allow_address: r2.as_fluxptr(),
                 allow_size: r3,
             }),
             Ok(SyscallClass::Memop) => Some(Syscall::Memop {
@@ -448,24 +448,24 @@ pub enum SyscallReturn {
     // -pal 11/24/20
     /// Read/Write allow success case, returns the previous allowed buffer and
     /// size to the process.
-    AllowReadWriteSuccess(*mut u8, usize),
+    AllowReadWriteSuccess(FluxPtrU8Mut, usize),
     /// Read/Write allow failure case, returns the passed allowed buffer and
     /// size to the process.
-    AllowReadWriteFailure(ErrorCode, *mut u8, usize),
+    AllowReadWriteFailure(ErrorCode, FluxPtrU8Mut, usize),
 
     /// Shared Read/Write allow success case, returns the previous allowed
     /// buffer and size to the process.
-    UserspaceReadableAllowSuccess(*mut u8, usize),
+    UserspaceReadableAllowSuccess(FluxPtrU8Mut, usize),
     /// Shared Read/Write allow failure case, returns the passed allowed buffer
     /// and size to the process.
-    UserspaceReadableAllowFailure(ErrorCode, *mut u8, usize),
+    UserspaceReadableAllowFailure(ErrorCode, FluxPtrU8Mut, usize),
 
     /// Read only allow success case, returns the previous allowed buffer and
     /// size to the process.
-    AllowReadOnlySuccess(*const u8, usize),
+    AllowReadOnlySuccess(FluxPtrU8Mut, usize),
     /// Read only allow failure case, returns the passed allowed buffer and size
     /// to the process.
-    AllowReadOnlyFailure(ErrorCode, *const u8, usize),
+    AllowReadOnlyFailure(ErrorCode, FluxPtrU8Mut, usize),
 
     /// Subscribe success case, returns the previous upcall function pointer and
     /// application data.
@@ -581,35 +581,35 @@ impl SyscallReturn {
             }
             SyscallReturn::AllowReadWriteSuccess(ptr, len) => {
                 *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
-                *a1 = ptr as u32;
+                *a1 = ptr.as_u32();
                 *a2 = len as u32;
             }
             SyscallReturn::UserspaceReadableAllowSuccess(ptr, len) => {
                 *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
-                *a1 = ptr as u32;
+                *a1 = ptr.as_u32();
                 *a2 = len as u32;
             }
             SyscallReturn::AllowReadWriteFailure(err, ptr, len) => {
                 *a0 = SyscallReturnVariant::FailureU32U32 as u32;
                 *a1 = usize::from(err) as u32;
-                *a2 = ptr as u32;
+                *a2 = ptr.as_u32();
                 *a3 = len as u32;
             }
             SyscallReturn::UserspaceReadableAllowFailure(err, ptr, len) => {
                 *a0 = SyscallReturnVariant::FailureU32U32 as u32;
                 *a1 = usize::from(err) as u32;
-                *a2 = ptr as u32;
+                *a2 = ptr.as_u32();
                 *a3 = len as u32;
             }
             SyscallReturn::AllowReadOnlySuccess(ptr, len) => {
                 *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
-                *a1 = ptr as u32;
+                *a1 = ptr.as_u32();
                 *a2 = len as u32;
             }
             SyscallReturn::AllowReadOnlyFailure(err, ptr, len) => {
                 *a0 = SyscallReturnVariant::FailureU32U32 as u32;
                 *a1 = usize::from(err) as u32;
-                *a2 = ptr as u32;
+                *a2 = ptr.as_u32();
                 *a3 = len as u32;
             }
             SyscallReturn::SubscribeSuccess(ptr, data) => {
@@ -717,8 +717,8 @@ pub trait UserspaceKernelBoundary {
     /// pointers are valid for the process.
     unsafe fn initialize_process(
         &self,
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
+        accessible_memory_start: FluxPtrU8Mut,
+        app_brk: FluxPtrU8Mut,
         state: &mut Self::StoredState,
     ) -> Result<(), ()>;
 
@@ -739,8 +739,8 @@ pub trait UserspaceKernelBoundary {
     /// pointers are valid for the process.
     unsafe fn set_syscall_return_value(
         &self,
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
+        accessible_memory_start: FluxPtrU8Mut,
+        app_brk: FluxPtrU8Mut,
         state: &mut Self::StoredState,
         return_value: SyscallReturn,
     ) -> Result<(), ()>;
@@ -781,8 +781,8 @@ pub trait UserspaceKernelBoundary {
     /// pointers are valid for the process.
     unsafe fn set_process_function(
         &self,
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
+        accessible_memory_start: FluxPtrU8Mut,
+        app_brk: FluxPtrU8Mut,
         state: &mut Self::StoredState,
         upcall: process::FunctionCall,
     ) -> Result<(), ()>;
@@ -806,10 +806,10 @@ pub trait UserspaceKernelBoundary {
     /// pointers are valid for the process.
     unsafe fn switch_to_process(
         &self,
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
+        accessible_memory_start: FluxPtrU8Mut,
+        app_brk: FluxPtrU8Mut,
         state: &mut Self::StoredState,
-    ) -> (ContextSwitchReason, Option<*const u8>);
+    ) -> (ContextSwitchReason, Option<FluxPtrU8Mut>);
 
     /// Display architecture specific (e.g. CPU registers or status flags) data
     /// for a process identified by the stored state for that process.
@@ -823,8 +823,8 @@ pub trait UserspaceKernelBoundary {
     #[flux::ignore]
     unsafe fn print_context(
         &self,
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
+        accessible_memory_start: FluxPtrU8Mut,
+        app_brk: FluxPtrU8Mut,
         state: &Self::StoredState,
         writer: &mut dyn Write,
     );

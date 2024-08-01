@@ -214,7 +214,7 @@ impl fmt::Display for CortexMConfig {
                     0b111 => "ReadOnlyAlias",
                     _ => "ERR",
                 };
-                let start = location.0 as usize;
+                let start = location.0.as_usize();
                 write!(
                     f,
                     "\
@@ -270,7 +270,7 @@ impl CortexMConfig {
 /// Struct storing configuration for a Cortex-M MPU region.
 #[derive(Copy, Clone)]
 pub struct CortexMRegion {
-    location: Option<(*const u8, usize)>,
+    location: Option<(FluxPtrU8, usize)>,
     base_address: FieldValue<u32, RegionBaseAddress::Register>,
     attributes: FieldValue<u32, RegionAttributes::Register>,
 }
@@ -285,9 +285,9 @@ impl PartialEq<mpu::Region> for CortexMRegion {
 
 impl CortexMRegion {
     fn new(
-        logical_start: *const u8,
+        logical_start: FluxPtrU8,
         logical_size: usize,
-        region_start: *const u8,
+        region_start: FluxPtrU8,
         region_size: usize,
         region_num: usize,
         subregions: Option<(usize, usize)>,
@@ -320,7 +320,7 @@ impl CortexMRegion {
         };
 
         // Base address register
-        let base_address = RegionBaseAddress::ADDR.val((region_start as u32) >> 5)
+        let base_address = RegionBaseAddress::ADDR.val((region_start.as_u32()) >> 5)
             + RegionBaseAddress::VALID::UseRBAR
             + RegionBaseAddress::REGION.val(region_num as u32);
 
@@ -360,7 +360,7 @@ impl CortexMRegion {
         }
     }
 
-    fn location(&self) -> Option<(*const u8, usize)> {
+    fn location(&self) -> Option<(FluxPtrU8, usize)> {
         self.location
     }
 
@@ -372,13 +372,13 @@ impl CortexMRegion {
         self.attributes
     }
 
-    fn overlaps(&self, other_start: *const u8, other_size: usize) -> bool {
-        let other_start = other_start as usize;
+    fn overlaps(&self, other_start: FluxPtrU8, other_size: usize) -> bool {
+        let other_start = other_start.as_usize();
         let other_end = other_start + other_size;
 
         let (region_start, region_end) = match self.location {
             Some((region_start, region_size)) => {
-                let region_start = region_start as usize;
+                let region_start = region_start.as_usize();
                 let region_end = region_start + region_size;
                 (region_start, region_end)
             }
@@ -442,7 +442,7 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
 
     fn allocate_region(
         &self,
-        unallocated_memory_start: *const u8,
+        unallocated_memory_start: FluxPtrU8,
         unallocated_memory_size: usize,
         min_region_size: usize,
         permissions: mpu::Permissions,
@@ -460,7 +460,7 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
         let region_num = config.unused_region_number()?;
 
         // Logical region
-        let mut start = unallocated_memory_start as usize;
+        let mut start = unallocated_memory_start.as_usize();
         let mut size = min_region_size;
 
         // Region start always has to align to minimum region size bytes
@@ -552,14 +552,14 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
         }
 
         // Check that our logical region fits in memory.
-        if start + size > (unallocated_memory_start as usize) + unallocated_memory_size {
+        if start + size > (unallocated_memory_start.as_usize()) + unallocated_memory_size {
             return None;
         }
 
         let region = CortexMRegion::new(
-            start as *const u8,
+            start.as_fluxptr(),
             size,
-            region_start as *const u8,
+            region_start.as_fluxptr(),
             region_size,
             region_num,
             subregions,
@@ -569,7 +569,7 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
         config.regions[region_num] = region;
         config.is_dirty.set(true);
 
-        Some(mpu::Region::new(start as *const u8, size))
+        Some(mpu::Region::new(start.as_fluxptr(), size))
     }
 
     #[flux::trusted]
@@ -600,14 +600,14 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
     // alignment restrictions.
     fn allocate_app_memory_region(
         &self,
-        unallocated_memory_start: *const u8,
+        unallocated_memory_start: FluxPtrU8,
         unallocated_memory_size: usize,
         min_memory_size: usize,
         initial_app_memory_size: usize,
         initial_kernel_memory_size: usize,
         permissions: mpu::Permissions,
         config: &mut Self::MpuConfig,
-    ) -> Option<(*const u8, usize)> {
+    ) -> Option<(FluxPtrU8, usize)> {
         // Check that no previously allocated regions overlap the unallocated
         // memory.
         for region in config.regions.iter() {
@@ -646,7 +646,7 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
 
         // The region should start as close as possible to the start of the
         // unallocated memory.
-        let mut region_start = unallocated_memory_start as usize;
+        let mut region_start = unallocated_memory_start.as_usize();
 
         // If the start and length don't align, move region up until it does.
         if region_start % region_size != 0 {
@@ -692,7 +692,7 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
 
         // Make sure the region fits in the unallocated memory.
         if region_start + memory_size_po2
-            > (unallocated_memory_start as usize) + unallocated_memory_size
+            > (unallocated_memory_start.as_usize()) + unallocated_memory_size
         {
             return None;
         }
@@ -704,9 +704,9 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
         assume(num_enabled_subregions0 > 0);
 
         let region0 = CortexMRegion::new(
-            region_start as *const u8,
+            region_start.as_fluxptr(),
             region_size,
-            region_start as *const u8,
+            region_start.as_fluxptr(),
             region_size,
             0,
             Some((0, num_enabled_subregions0 - 1)),
@@ -718,9 +718,9 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
             CortexMRegion::empty(1)
         } else {
             CortexMRegion::new(
-                (region_start + region_size) as *const u8,
+                (region_start + region_size).as_fluxptr(),
                 region_size,
-                (region_start + region_size) as *const u8,
+                (region_start + region_size).as_fluxptr(),
                 region_size,
                 1,
                 Some((0, num_enabled_subregions1 - 1)),
@@ -732,23 +732,23 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
         config.regions[1] = region1;
         config.is_dirty.set(true);
 
-        Some((region_start as *const u8, memory_size_po2))
+        Some((region_start.as_fluxptr(), memory_size_po2))
     }
 
     fn update_app_memory_region(
         &self,
-        app_memory_break: *const u8,
-        kernel_memory_break: *const u8,
+        app_memory_break: FluxPtrU8,
+        kernel_memory_break: FluxPtrU8,
         permissions: mpu::Permissions,
         config: &mut Self::MpuConfig,
     ) -> Result<(), ()> {
         // Get first region, or error if the process tried to update app memory
         // MPU region before it was created.
         let (region_start_ptr, region_size) = config.regions[0].location().ok_or(())?;
-        let region_start = region_start_ptr as usize;
+        let region_start = region_start_ptr.as_usize();
 
-        let app_memory_break = app_memory_break as usize;
-        let kernel_memory_break = kernel_memory_break as usize;
+        let app_memory_break = app_memory_break.as_usize();
+        let kernel_memory_break = kernel_memory_break.as_usize();
 
         assume(app_memory_break > region_start);
         assume(region_size > 7);
@@ -782,9 +782,9 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
         let num_enabled_subregions1 = num_enabled_subregions.saturating_sub(8);
 
         let region0 = CortexMRegion::new(
-            region_start as *const u8,
+            region_start.as_fluxptr(),
             region_size,
-            region_start as *const u8,
+            region_start.as_fluxptr(),
             region_size,
             0,
             Some((0, num_enabled_subregions0 - 1)),
@@ -795,9 +795,9 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
             CortexMRegion::empty(1)
         } else {
             CortexMRegion::new(
-                (region_start + region_size) as *const u8,
+                (region_start + region_size).as_fluxptr(),
                 region_size,
-                (region_start + region_size) as *const u8,
+                (region_start + region_size).as_fluxptr(),
                 region_size,
                 1,
                 Some((0, num_enabled_subregions1 - 1)),

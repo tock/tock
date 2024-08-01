@@ -139,6 +139,7 @@ use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::processbuffer::{ReadOnlyProcessBufferRef, ReadWriteProcessBufferRef};
 use crate::upcall::{Upcall, UpcallError, UpcallId};
 use crate::ErrorCode;
+use flux_support::*;
 
 /// Tracks how many upcalls a grant instance supports automatically.
 pub trait UpcallSize {
@@ -716,14 +717,14 @@ struct SavedUpcall {
 /// memory duplicating information such as process ID.
 #[repr(C)]
 struct SavedAllowRo {
-    ptr: *const u8,
+    ptr: FluxPtrU8Mut,
     len: usize,
 }
 
 impl Default for SavedAllowRo {
     fn default() -> Self {
         Self {
-            ptr: core::ptr::null(),
+            ptr: FluxPtr::null(),
             len: 0,
         }
     }
@@ -734,14 +735,14 @@ impl Default for SavedAllowRo {
 /// memory duplicating information such as process ID.
 #[repr(C)]
 struct SavedAllowRw {
-    ptr: *mut u8,
+    ptr: FluxPtrU8Mut,
     len: usize,
 }
 
 impl Default for SavedAllowRw {
     fn default() -> Self {
         Self {
-            ptr: core::ptr::null_mut(),
+            ptr: FluxPtr::null_mut(),
             len: 0,
         }
     }
@@ -1522,7 +1523,7 @@ impl<T> CustomGrant<T> {
                 // other references because the only way to create a reference
                 // is using this `enter()` function, and it can only be called
                 // once (because of the `&mut self` requirement).
-                let custom_grant = unsafe { &mut *(grant_ptr as *mut T) };
+                let custom_grant = unsafe { &mut *(grant_ptr.unsafe_as_ptr() as *mut T) };
                 let borrowed = GrantData::new(custom_grant);
                 Ok(fun(borrowed))
             })

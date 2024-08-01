@@ -1191,7 +1191,7 @@ impl Kernel {
                                 process.processid(),
                                 driver_number,
                                 subdriver_number,
-                                allow_address as usize,
+                                allow_address.as_usize(),
                                 allow_size,
                                 res
                             );
@@ -1271,7 +1271,7 @@ impl Kernel {
                                 process.processid(),
                                 driver_number,
                                 subdriver_number,
-                                allow_address as usize,
+                                allow_address.as_usize(),
                                 allow_size,
                                 res
                             );
@@ -1396,7 +1396,7 @@ impl Kernel {
                                 process.processid(),
                                 driver_number,
                                 subdriver_number,
-                                allow_address as usize,
+                                allow_address.as_usize(),
                                 allow_size,
                                 res
                             );

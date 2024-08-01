@@ -7,6 +7,7 @@
 use crate::process::Process;
 use crate::syscall::SyscallReturn;
 use crate::ErrorCode;
+use flux_support::*;
 
 /// Handle the `memop` syscall.
 ///
@@ -46,14 +47,14 @@ pub(crate) fn memop(process: &dyn Process, op_type: usize, r1: usize) -> Syscall
     match op_type {
         // Op Type 0: BRK
         0 => process
-            .brk(r1 as *const u8)
+            .brk(r1.as_fluxptr())
             .map(|_| SyscallReturn::Success)
             .unwrap_or(SyscallReturn::Failure(ErrorCode::NOMEM)),
 
         // Op Type 1: SBRK
         1 => process
             .sbrk(r1 as isize)
-            .map(|addr| SyscallReturn::SuccessU32(addr as u32))
+            .map(|addr| SyscallReturn::SuccessU32(addr.as_u32()))
             .unwrap_or(SyscallReturn::Failure(ErrorCode::NOMEM)),
 
         // Op Type 2: Process memory start
@@ -100,13 +101,13 @@ pub(crate) fn memop(process: &dyn Process, op_type: usize, r1: usize) -> Syscall
 
         // Op Type 10: Specify where the start of the app stack is.
         10 => {
-            process.update_stack_start_pointer(r1 as *const u8);
+            process.update_stack_start_pointer(r1.as_fluxptr());
             SyscallReturn::Success
         }
 
         // Op Type 11: Specify where the start of the app heap is.
         11 => {
-            process.update_heap_start_pointer(r1 as *const u8);
+            process.update_heap_start_pointer(r1.as_fluxptr());
             SyscallReturn::Success
         }
 

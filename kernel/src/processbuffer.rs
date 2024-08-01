@@ -24,13 +24,13 @@
 //! operations. Users cannot hold live-lived references to these slices,
 //! however.
 
-use core::cell::Cell;
-use core::marker::PhantomData;
-use core::ops::{Deref, Index, Range, RangeFrom, RangeTo};
-
 use crate::capabilities;
 use crate::process::{self, ProcessId};
 use crate::ErrorCode;
+use core::cell::Cell;
+use core::marker::PhantomData;
+use core::ops::{Deref, Index, Range, RangeFrom, RangeTo};
+use flux_support::*;
 
 /// Convert a process buffer's internal representation to a
 /// [`ReadableProcessSlice`].
@@ -51,7 +51,7 @@ use crate::ErrorCode;
 /// It is sound for multiple overlapping [`ReadableProcessSlice`]s or
 /// [`WriteableProcessSlice`]s to be in scope at the same time.
 unsafe fn raw_processbuf_to_roprocessslice<'a>(
-    ptr: *const u8,
+    ptr: FluxPtrU8Mut,
     len: usize,
 ) -> &'a ReadableProcessSlice {
     // Transmute a reference to a slice of Cell<u8>s into a reference
@@ -78,7 +78,7 @@ unsafe fn raw_processbuf_to_roprocessslice<'a>(
         // [1]: https://doc.rust-lang.org/core/ptr/index.html#safety
         match len {
             0 => core::slice::from_raw_parts(core::ptr::NonNull::<u8>::dangling().as_ptr(), 0),
-            _ => core::slice::from_raw_parts(ptr, len),
+            _ => core::slice::from_raw_parts(ptr.unsafe_as_ptr(), len),
         },
     )
 }
@@ -111,7 +111,7 @@ unsafe fn raw_processbuf_to_roprocessslice<'a>(
 /// [`ReadableProcessSlice`]s or [`WriteableProcessSlice`]s to be in
 /// scope at the same time.
 unsafe fn raw_processbuf_to_rwprocessslice<'a>(
-    ptr: *mut u8,
+    ptr: FluxPtrU8Mut,
     len: usize,
 ) -> &'a WriteableProcessSlice {
     // Transmute a reference to a slice of Cell<u8>s into a reference
@@ -138,7 +138,7 @@ unsafe fn raw_processbuf_to_rwprocessslice<'a>(
         // [1]: https://doc.rust-lang.org/core/ptr/index.html#safety
         match len {
             0 => core::slice::from_raw_parts_mut(core::ptr::NonNull::<u8>::dangling().as_ptr(), 0),
-            _ => core::slice::from_raw_parts_mut(ptr, len),
+            _ => core::slice::from_raw_parts_mut(ptr.unsafe_as_ptr(), len),
         },
     )
 }
@@ -174,7 +174,7 @@ pub trait ReadableProcessBuffer {
     ///
     /// A default instance of a process buffer must return a pointer
     /// to address `0x0`.
-    fn ptr(&self) -> *const u8;
+    fn ptr(&self) -> FluxPtrU8Mut;
 
     /// Applies a function to the (read only) process slice reference
     /// pointed to by the process buffer.
@@ -234,7 +234,7 @@ pub trait WriteableProcessBuffer: ReadableProcessBuffer {
 /// prior to switching to userspace is required, as the compiler is
 /// free to reorder reads and writes, even through [`Cell`]s.
 pub struct ReadOnlyProcessBuffer {
-    ptr: *const u8,
+    ptr: FluxPtrU8Mut,
     len: usize,
     process_id: Option<ProcessId>,
 }
@@ -247,7 +247,7 @@ impl ReadOnlyProcessBuffer {
     ///
     /// Refer to the safety requirements of
     /// [`ReadOnlyProcessBuffer::new_external`].
-    pub(crate) unsafe fn new(ptr: *const u8, len: usize, process_id: ProcessId) -> Self {
+    pub(crate) unsafe fn new(ptr: FluxPtrU8Mut, len: usize, process_id: ProcessId) -> Self {
         ReadOnlyProcessBuffer {
             ptr,
             len,
@@ -287,7 +287,7 @@ impl ReadOnlyProcessBuffer {
     /// must point to memory mapped as _readable_ and optionally
     /// _writable_ and _executable_.
     pub unsafe fn new_external(
-        ptr: *const u8,
+        ptr: FluxPtrU8Mut,
         len: usize,
         process_id: ProcessId,
         _cap: &dyn capabilities::ExternalProcessCapability,
@@ -303,7 +303,7 @@ impl ReadOnlyProcessBuffer {
     /// `consume` can be used when the kernel needs to pass the
     /// underlying values across the kernel-to-user boundary (e.g., in
     /// return values to system calls).
-    pub(crate) fn consume(self) -> (*const u8, usize) {
+    pub(crate) fn consume(self) -> (FluxPtrU8Mut, usize) {
         (self.ptr, self.len)
     }
 }
@@ -316,9 +316,9 @@ impl ReadableProcessBuffer for ReadOnlyProcessBuffer {
     }
 
     /// Return the pointer to the start of the buffer.
-    fn ptr(&self) -> *const u8 {
+    fn ptr(&self) -> FluxPtrU8Mut {
         if self.len == 0 {
-            core::ptr::null::<u8>()
+            FluxPtr::null()
         } else {
             self.ptr
         }
@@ -365,7 +365,7 @@ impl ReadableProcessBuffer for ReadOnlyProcessBuffer {
 impl Default for ReadOnlyProcessBuffer {
     fn default() -> Self {
         ReadOnlyProcessBuffer {
-            ptr: core::ptr::null_mut::<u8>(),
+            ptr: FluxPtr::null_mut(),
             len: 0,
             process_id: None,
         }
@@ -390,7 +390,7 @@ impl ReadOnlyProcessBufferRef<'_> {
     /// help enforce the invariant that this incoming pointer may only
     /// be access for a certain duration.
     #[flux::ignore]
-    pub(crate) unsafe fn new(ptr: *const u8, len: usize, process_id: ProcessId) -> Self {
+    pub(crate) unsafe fn new(ptr: FluxPtrU8Mut, len: usize, process_id: ProcessId) -> Self {
         Self {
             buf: ReadOnlyProcessBuffer::new(ptr, len, process_id),
             _phantom: PhantomData,
@@ -422,7 +422,7 @@ impl Deref for ReadOnlyProcessBufferRef<'_> {
 /// userspace is required, as the compiler is free to reorder reads
 /// and writes, even through [`Cell`]s.
 pub struct ReadWriteProcessBuffer {
-    ptr: *mut u8,
+    ptr: FluxPtrU8Mut,
     len: usize,
     process_id: Option<ProcessId>,
 }
@@ -435,7 +435,7 @@ impl ReadWriteProcessBuffer {
     ///
     /// Refer to the safety requirements of
     /// [`ReadWriteProcessBuffer::new_external`].
-    pub(crate) unsafe fn new(ptr: *mut u8, len: usize, process_id: ProcessId) -> Self {
+    pub(crate) unsafe fn new(ptr: FluxPtrU8Mut, len: usize, process_id: ProcessId) -> Self {
         ReadWriteProcessBuffer {
             ptr,
             len,
@@ -475,7 +475,7 @@ impl ReadWriteProcessBuffer {
     /// must point to memory mapped as _readable_ and optionally
     /// _writable_ and _executable_.
     pub unsafe fn new_external(
-        ptr: *mut u8,
+        ptr: FluxPtrU8Mut,
         len: usize,
         process_id: ProcessId,
         _cap: &dyn capabilities::ExternalProcessCapability,
@@ -491,7 +491,7 @@ impl ReadWriteProcessBuffer {
     /// `consume` can be used when the kernel needs to pass the
     /// underlying values across the kernel-to-user boundary (e.g., in
     /// return values to system calls).
-    pub(crate) fn consume(self) -> (*mut u8, usize) {
+    pub(crate) fn consume(self) -> (FluxPtrU8Mut, usize) {
         (self.ptr, self.len)
     }
 
@@ -510,7 +510,7 @@ impl ReadWriteProcessBuffer {
     /// ```
     pub const fn const_default() -> Self {
         Self {
-            ptr: 0x0 as *mut u8,
+            ptr: FluxPtr::null(),
             len: 0,
             process_id: None,
         }
@@ -525,9 +525,9 @@ impl ReadableProcessBuffer for ReadWriteProcessBuffer {
     }
 
     /// Return the pointer to the start of the buffer.
-    fn ptr(&self) -> *const u8 {
+    fn ptr(&self) -> FluxPtrU8Mut {
         if self.len == 0 {
-            core::ptr::null::<u8>()
+            FluxPtr::null()
         } else {
             self.ptr
         }
@@ -630,7 +630,7 @@ impl ReadWriteProcessBufferRef<'_> {
     /// help enforce the invariant that this incoming pointer may only
     /// be access for a certain duration.
     #[flux::ignore]
-    pub(crate) unsafe fn new(ptr: *mut u8, len: usize, process_id: ProcessId) -> Self {
+    pub(crate) unsafe fn new(ptr: FluxPtrU8Mut, len: usize, process_id: ProcessId) -> Self {
         Self {
             buf: ReadWriteProcessBuffer::new(ptr, len, process_id),
             _phantom: PhantomData,

@@ -4,12 +4,12 @@
 
 //! Implementation of the architecture-specific portions of the kernel-userland
 //! system call interface.
-
 use core::fmt::Write;
 use core::marker::PhantomData;
 use core::mem::{self, size_of};
 use core::ops::Range;
 use core::ptr::{self, addr_of, addr_of_mut, read_volatile, write_volatile};
+use flux_support::*;
 use kernel::errorcode::ErrorCode;
 
 use crate::CortexMVariant;
@@ -132,8 +132,8 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
 
     unsafe fn initialize_process(
         &self,
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
+        accessible_memory_start: FluxPtrU8,
+        app_brk: FluxPtrU8,
         state: &mut Self::StoredState,
     ) -> Result<(), ()> {
         // We need to initialize the stored state for the process here. This
@@ -142,10 +142,10 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         state.regs.iter_mut().for_each(|x| *x = 0);
         state.yield_pc = 0;
         state.psr = 0x01000000; // Set the Thumb bit and clear everything else.
-        state.psp = app_brk as usize; // Set to top of process-accessible memory.
+        state.psp = app_brk.as_usize(); // Set to top of process-accessible memory.
 
         // Make sure there's enough room on the stack for the initial SVC frame.
-        if (app_brk as usize - accessible_memory_start as usize) < SVC_FRAME_SIZE {
+        if (app_brk.as_usize() - accessible_memory_start.as_usize()) < SVC_FRAME_SIZE {
             // Not enough room on the stack to add a frame.
             return Err(());
         }
@@ -157,8 +157,8 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
 
     unsafe fn set_syscall_return_value(
         &self,
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
+        accessible_memory_start: FluxPtrU8,
+        app_brk: FluxPtrU8,
         state: &mut Self::StoredState,
         return_value: kernel::syscall::SyscallReturn,
     ) -> Result<(), ()> {
@@ -168,8 +168,8 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
 
         // First, we need to validate that this location is inside of the
         // process's accessible memory. Alignment is guaranteed by hardware.
-        if state.psp < accessible_memory_start as usize
-            || state.psp.saturating_add(mem::size_of::<u32>() * 4) > app_brk as usize
+        if state.psp < accessible_memory_start.as_usize()
+            || state.psp.saturating_add(mem::size_of::<u32>() * 4) > app_brk.as_usize()
         {
             return Err(());
         }
@@ -214,15 +214,15 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
     /// In effect, this converts `svc` into `bl callback`.
     unsafe fn set_process_function(
         &self,
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
+        accessible_memory_start: FluxPtrU8,
+        app_brk: FluxPtrU8,
         state: &mut CortexMStoredState,
         callback: kernel::process::FunctionCall,
     ) -> Result<(), ()> {
         // Ensure that [`state.psp`, `state.psp + SVC_FRAME_SIZE`] is within
         // process-accessible memory. Alignment is guaranteed by hardware.
-        if state.psp < accessible_memory_start as usize
-            || state.psp.saturating_add(SVC_FRAME_SIZE) > app_brk as usize
+        if state.psp < accessible_memory_start.as_usize()
+            || state.psp.saturating_add(SVC_FRAME_SIZE) > app_brk.as_usize()
         {
             return Err(());
         }
@@ -244,10 +244,10 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
 
     unsafe fn switch_to_process(
         &self,
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
+        accessible_memory_start: FluxPtrU8,
+        app_brk: FluxPtrU8,
         state: &mut CortexMStoredState,
-    ) -> (kernel::syscall::ContextSwitchReason, Option<*const u8>) {
+    ) -> (kernel::syscall::ContextSwitchReason, Option<FluxPtrU8>) {
         let new_stack_pointer = A::switch_to_user(state.psp as *const usize, &mut state.regs);
 
         // We need to keep track of the current stack pointer.
@@ -256,8 +256,8 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         // We need to validate that the stack pointer and the SVC frame are
         // within process accessible memory. Alignment is guaranteed by
         // hardware.
-        let invalid_stack_pointer = state.psp < accessible_memory_start as usize
-            || state.psp.saturating_add(SVC_FRAME_SIZE) > app_brk as usize;
+        let invalid_stack_pointer = state.psp < accessible_memory_start.as_usize()
+            || state.psp.saturating_add(SVC_FRAME_SIZE) > app_brk.as_usize();
 
         // Determine why this returned and the process switched back to the
         // kernel.
@@ -313,20 +313,23 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
             kernel::syscall::ContextSwitchReason::Interrupted
         };
 
-        (switch_reason, Some(new_stack_pointer as *const u8))
+        (
+            switch_reason,
+            Some((new_stack_pointer as usize).as_fluxptr()),
+        )
     }
 
     unsafe fn print_context(
         &self,
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
+        accessible_memory_start: FluxPtrU8,
+        app_brk: FluxPtrU8,
         state: &CortexMStoredState,
         writer: &mut dyn Write,
     ) {
         // Check if the stored stack pointer is valid. Alignment is guaranteed
         // by hardware.
-        let invalid_stack_pointer = state.psp < accessible_memory_start as usize
-            || state.psp.saturating_add(SVC_FRAME_SIZE) > app_brk as usize;
+        let invalid_stack_pointer = state.psp < accessible_memory_start.as_usize()
+            || state.psp.saturating_add(SVC_FRAME_SIZE) > app_brk.as_usize();
 
         let stack_pointer = state.psp as *const usize;
 

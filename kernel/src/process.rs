@@ -19,6 +19,7 @@ use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::storage_permissions;
 use crate::syscall::{self, Syscall, SyscallReturn};
 use crate::upcall::UpcallId;
+use flux_support::*;
 use tock_tbf::types::CommandPermissions;
 
 // Export all process related types via `kernel::process::`.
@@ -538,7 +539,7 @@ pub trait Process {
     ///   process's memory region.
     /// - [`Error::KernelError`] if there was an internal kernel error. This is
     ///   a bug.
-    fn brk(&self, new_break: *const u8) -> Result<*const u8, Error>;
+    fn brk(&self, new_break: FluxPtrU8Mut) -> Result<FluxPtrU8Mut, Error>;
 
     /// Change the location of the program break by `increment` bytes,
     /// reallocate the MPU region covering program memory, and return the
@@ -558,7 +559,7 @@ pub trait Process {
     ///   process's memory region.
     /// - [`Error::KernelError`] if there was an internal kernel error. This is
     ///   a bug.
-    fn sbrk(&self, increment: isize) -> Result<*const u8, Error>;
+    fn sbrk(&self, increment: isize) -> Result<FluxPtrU8Mut, Error>;
 
     /// How many writeable flash regions defined in the TBF header for this
     /// process.
@@ -581,11 +582,11 @@ pub trait Process {
     /// Debug function to update the kernel on where the stack starts for this
     /// process. Processes are not required to call this through the memop
     /// system call, but it aids in debugging the process.
-    fn update_stack_start_pointer(&self, stack_pointer: *const u8);
+    fn update_stack_start_pointer(&self, stack_pointer: FluxPtrU8Mut);
 
     /// Debug function to update the kernel on where the process heap starts.
     /// Also optional.
-    fn update_heap_start_pointer(&self, heap_pointer: *const u8);
+    fn update_heap_start_pointer(&self, heap_pointer: FluxPtrU8Mut);
 
     /// Creates a [`ReadWriteProcessBuffer`] from the given offset and size in
     /// process memory.
@@ -605,7 +606,7 @@ pub trait Process {
     /// - For all other errors: [`ErrorCode::FAIL`].
     fn build_readwrite_process_buffer(
         &self,
-        buf_start_addr: *mut u8,
+        buf_start_addr: FluxPtrU8Mut,
         size: usize,
     ) -> Result<ReadWriteProcessBuffer, ErrorCode>;
 
@@ -627,7 +628,7 @@ pub trait Process {
     /// - For all other errors: [`ErrorCode::FAIL`].
     fn build_readonly_process_buffer(
         &self,
-        buf_start_addr: *const u8,
+        buf_start_addr: FluxPtrU8Mut,
         size: usize,
     ) -> Result<ReadOnlyProcessBuffer, ErrorCode>;
 
@@ -642,7 +643,7 @@ pub trait Process {
     /// accessible memory. However, to avoid undefined behavior the caller needs
     /// to ensure that no other references exist to the process's memory before
     /// calling this function.
-    unsafe fn set_byte(&self, addr: *mut u8, value: u8) -> bool;
+    unsafe fn set_byte(&self, addr: FluxPtrU8Mut, value: u8) -> bool;
 
     /// Return the permissions for this process for a given `driver_num`.
     ///
@@ -674,7 +675,7 @@ pub trait Process {
     /// the process will not run again).
     fn add_mpu_region(
         &self,
-        unallocated_memory_start: *const u8,
+        unallocated_memory_start: FluxPtrU8Mut,
         unallocated_memory_size: usize,
         min_region_size: usize,
     ) -> Option<mpu::Region>;
@@ -751,7 +752,7 @@ pub trait Process {
     fn enter_custom_grant(
         &self,
         identifier: ProcessCustomGrantIdentifier,
-    ) -> Result<*mut u8, Error>;
+    ) -> Result<FluxPtrU8Mut, Error>;
 
     /// Opposite of `enter_grant()`. Used to signal that the grant is no longer
     /// entered.
@@ -1113,7 +1114,7 @@ pub struct ProcessAddresses {
     /// is covered by integrity; the integrity region is [flash_start -
     /// flash_integrity_end). Footers are stored in the flash after
     /// flash_integrity_end.
-    pub flash_integrity_end: *const u8,
+    pub flash_integrity_end: FluxPtrU8Mut,
     /// The address immediately after the end of the region allocated for this
     /// process in nonvolatile memory.
     pub flash_end: usize,

@@ -6,6 +6,7 @@
 
 use core::cmp;
 use core::fmt::{self, Display};
+use flux_support::*;
 
 /// User mode access permissions.
 #[derive(Copy, Clone, Debug)]
@@ -27,7 +28,7 @@ pub struct Region {
     /// For maximum compatibility, we use a u8 pointer, however, note that many
     /// memory protection units have very strict alignment requirements for the
     /// memory regions protected by the MPU.
-    start_address: *const u8,
+    start_address: FluxPtrU8Mut,
 
     /// The number of bytes of memory in the MPU region.
     size: usize,
@@ -35,7 +36,7 @@ pub struct Region {
 
 impl Region {
     /// Create a new MPU region with a given starting point and length in bytes.
-    pub fn new(start_address: *const u8, size: usize) -> Region {
+    pub fn new(start_address: FluxPtrU8Mut, size: usize) -> Region {
         Region {
             start_address,
             size,
@@ -43,7 +44,7 @@ impl Region {
     }
 
     /// Getter: retrieve the address of the start of the MPU region.
-    pub fn start_address(&self) -> *const u8 {
+    pub fn start_address(&self) -> FluxPtrU8Mut {
         self.start_address
     }
 
@@ -150,7 +151,7 @@ pub trait MPU {
     /// infeasible to allocate the MPU region, returns None.
     fn allocate_region(
         &self,
-        unallocated_memory_start: *const u8,
+        unallocated_memory_start: FluxPtrU8Mut,
         unallocated_memory_size: usize,
         min_region_size: usize,
         permissions: Permissions,
@@ -214,14 +215,14 @@ pub trait MPU {
     /// returns None. If None is returned no changes are made.
     fn allocate_app_memory_region(
         &self,
-        unallocated_memory_start: *const u8,
+        unallocated_memory_start: FluxPtrU8Mut,
         unallocated_memory_size: usize,
         min_memory_size: usize,
         initial_app_memory_size: usize,
         initial_kernel_memory_size: usize,
         permissions: Permissions,
         config: &mut Self::MpuConfig,
-    ) -> Option<(*const u8, usize)>;
+    ) -> Option<(FluxPtrU8Mut, usize)>;
 
     /// Updates the MPU region for app-owned memory.
     ///
@@ -243,8 +244,8 @@ pub trait MPU {
     /// configuration.
     fn update_app_memory_region(
         &self,
-        app_memory_break: *const u8,
-        kernel_memory_break: *const u8,
+        app_memory_break: FluxPtrU8Mut,
+        kernel_memory_break: FluxPtrU8Mut,
         permissions: Permissions,
         config: &mut Self::MpuConfig,
     ) -> Result<(), ()>;
@@ -281,7 +282,7 @@ impl MPU for () {
 
     fn allocate_region(
         &self,
-        unallocated_memory_start: *const u8,
+        unallocated_memory_start: FluxPtrU8Mut,
         unallocated_memory_size: usize,
         min_region_size: usize,
         _permissions: Permissions,
@@ -304,14 +305,14 @@ impl MPU for () {
 
     fn allocate_app_memory_region(
         &self,
-        unallocated_memory_start: *const u8,
+        unallocated_memory_start: FluxPtrU8Mut,
         unallocated_memory_size: usize,
         min_memory_size: usize,
         initial_app_memory_size: usize,
         initial_kernel_memory_size: usize,
         _permissions: Permissions,
         _config: &mut Self::MpuConfig,
-    ) -> Option<(*const u8, usize)> {
+    ) -> Option<(FluxPtrU8Mut, usize)> {
         let memory_size = cmp::max(
             min_memory_size,
             initial_app_memory_size + initial_kernel_memory_size,
@@ -325,12 +326,12 @@ impl MPU for () {
 
     fn update_app_memory_region(
         &self,
-        app_memory_break: *const u8,
-        kernel_memory_break: *const u8,
+        app_memory_break: FluxPtrU8Mut,
+        kernel_memory_break: FluxPtrU8Mut,
         _permissions: Permissions,
         _config: &mut Self::MpuConfig,
     ) -> Result<(), ()> {
-        if (app_memory_break as usize) > (kernel_memory_break as usize) {
+        if (app_memory_break.as_usize()) > (kernel_memory_break.as_usize()) {
             Err(())
         } else {
             Ok(())
