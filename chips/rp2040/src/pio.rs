@@ -421,7 +421,7 @@ pub struct Pio {
     pio_number: PIONumber,
 }
 
-/// Comparison used for the MOV x, STATUS instruction.
+/// 'MOV STATUS' types.
 #[derive(Clone, Copy)]
 pub enum PioMovStatusType {
     StatusTxLessthan = 0,
@@ -523,7 +523,7 @@ impl Pio {
         )
     }
 
-    /// Create a new PIO0 struct
+    /// Create a new PIO0 struct.
     pub fn new_pio0() -> Self {
         Self {
             registers: PIO0_BASE,
@@ -531,7 +531,7 @@ impl Pio {
         }
     }
 
-    /// Create a new PIO1 struct
+    /// Create a new PIO1 struct.
     pub fn new_pio1() -> Self {
         Self {
             registers: PIO1_BASE,
@@ -539,7 +539,7 @@ impl Pio {
         }
     }
 
-    /// Initialize a new PIO with the same default configuration for all four state machines
+    /// Initialize a new PIO with the same default configuration for all four state machines.
     pub fn init(&self) {
         let default_config: StateMachineConfiguration = StateMachineConfiguration::default();
         for state_machine in STATE_MACHINE_NUMBERS {
@@ -547,7 +547,7 @@ impl Pio {
         }
     }
 
-    /// Set every config for the IN pins
+    /// Set every config for the IN pins.
     ///
     /// in_base => the starting location for the input pins
     fn set_in_pins(&self, sm_number: SMNumber, in_base: u32) {
@@ -556,7 +556,7 @@ impl Pio {
             .modify(SMx_PINCTRL::IN_BASE.val(in_base));
     }
 
-    /// Set every config for the SET pins
+    /// Set every config for the SET pins.
     ///
     /// set_base => the starting location for the SET pins
     ///
@@ -570,7 +570,7 @@ impl Pio {
             .modify(SMx_PINCTRL::SET_COUNT.val(set_count));
     }
 
-    /// Set every config for the OUT pins
+    /// Set every config for the OUT pins.
     ///
     /// out_base => the starting location for the OUT pins
     ///
@@ -584,7 +584,7 @@ impl Pio {
             .modify(SMx_PINCTRL::OUT_COUNT.val(out_count));
     }
 
-    /// Set a state machine's state to enabled or to disabled
+    /// Set a state machine's state to enabled or to disabled.
     pub fn set_enabled(&self, sm_number: SMNumber, enabled: bool) {
         match sm_number {
             SMNumber::SM0 => self.registers.ctrl.modify(match enabled {
@@ -606,7 +606,7 @@ impl Pio {
         }
     }
 
-    /// Restart a state machine
+    /// Restart a state machine.
     pub fn restart_sm(&self, sm_number: SMNumber) {
         match sm_number {
             SMNumber::SM0 => self.registers.ctrl.modify(CTRL::SM0_RESTART::SET),
@@ -616,7 +616,7 @@ impl Pio {
         }
     }
 
-    /// Restart a state machine's clock divider
+    /// Restart a state machine's clock divider.
     pub fn sm_clkdiv_restart(&self, sm_number: SMNumber) {
         match sm_number {
             SMNumber::SM0 => self.registers.ctrl.modify(CTRL::CLKDIV0_RESTART::SET),
@@ -626,7 +626,7 @@ impl Pio {
         }
     }
 
-    /// Setup 'in' shifting parameters
+    /// Setup 'in' shifting parameters.
     /// ```
     ///  shift_right => true to shift ISR to right
     ///              => false to shift ISR to left
@@ -651,7 +651,7 @@ impl Pio {
             .modify(SMx_SHIFTCTRL::PUSH_THRESH.val(push_threshold));
     }
 
-    /// Setup 'out' shifting parameters
+    /// Setup 'out' shifting parameters.
     /// ```
     /// shift_right => `true` to shift OSR to right
     ///             => `false` to shift OSR to left
@@ -676,7 +676,7 @@ impl Pio {
             .modify(SMx_SHIFTCTRL::PULL_THRESH.val(pull_threshold));
     }
 
-    /// Set the 'jmp' pin
+    /// Set the 'jmp' pin.
     ///
     /// pin => the raw GPIO pin number to use as the source for a jmp pin instruction
     fn set_jmp_pin(&self, sm_number: SMNumber, pin: u32) {
@@ -685,7 +685,7 @@ impl Pio {
             .modify(SMx_EXECCTRL::JMP_PIN.val(pin));
     }
 
-    /// Set the clock divider for a state machine
+    /// Set the clock divider for a state machine.
     ///
     /// div_int => Integer part of the divisor
     ///
@@ -699,7 +699,7 @@ impl Pio {
             .modify(SMx_CLKDIV::FRAC.val(div_frac));
     }
 
-    /// Setup the FIFO joining in a state machine
+    /// Setup the FIFO joining in a state machine.
     ///
     /// fifo_join => specifies the join type - see the `PioFifoJoin` type
     fn set_fifo_join(&self, sm_number: SMNumber, fifo_join: PioFifoJoin) {
@@ -721,11 +721,9 @@ impl Pio {
             .modify(SMx_PINCTRL::SIDESET_BASE.val(sideset_base));
     }
 
-    /// Set every config for the SIDESET pins
-    ///
+    /// Set every config for the SIDESET pins.
+    ///```
     /// bit_count => number of SIDESET bits per instruction - max 5
-    ///
-    /// ```
     /// optional => true to use the topmost sideset bit as a flag for whether to apply side set on that instruction
     ///          => false to use sideset with every instruction
     /// pindirs => true to affect pin direction
@@ -751,6 +749,11 @@ impl Pio {
         }
     }
 
+    /// Set the wrap addresses for a state machine.
+    ///
+    /// wrap_target => the instruction memory address to wrap to
+    ///
+    /// wrap => the instruction memory address after which the program counters wraps to the target
     fn set_wrap(&self, sm_number: SMNumber, wrap_target: u32, wrap: u32) {
         self.registers.sm[sm_number as usize]
             .execctrl
@@ -760,6 +763,11 @@ impl Pio {
             .modify(SMx_EXECCTRL::WRAP_TOP.val(wrap));
     }
 
+    /// Set source for 'mov status' in a state machine.
+    ///
+    /// status_sel => comparison used for the `MOV x, STATUS` instruction
+    ///
+    /// status_n => comparison level for the `MOV x, STATUS` instruction
     fn set_mov_status(&self, sm_number: SMNumber, status_sel: PioMovStatusType, status_n: u32) {
         self.registers.sm[sm_number as usize]
             .execctrl
@@ -769,6 +777,14 @@ impl Pio {
             .modify(SMx_EXECCTRL::STATUS_N.val(status_n));
     }
 
+    /// Set special OUT operations in a state machine.
+    /// ```
+    /// sticky => true to enable sticky output (rere-asserting most recent OUT/SET pin values on subsequent cycles)
+    ///        => false to disable sticky output
+    /// has_enable_pin => true to enable auxiliary OUT enable pin
+    ///                => false to disable auxiliary OUT enable pin
+    /// enable_pin_index => pin index for auxiliary OUT enable
+    /// ```
     fn set_out_special(
         &self,
         sm_number: SMNumber,
@@ -787,7 +803,7 @@ impl Pio {
             .modify(SMx_EXECCTRL::OUT_EN_SEL.val(enable_pin_index));
     }
 
-    // Call this with add_program(include_bytes!("path_to_file"))
+    // Call this with add_program(include_bytes!("path_to_file")).
     pub fn add_program(&self, program: &[u8]) {
         self.clear_instr_registers();
         let iter = program.chunks(2);
