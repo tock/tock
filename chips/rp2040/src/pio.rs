@@ -558,7 +558,7 @@ impl Pio {
 
     /// Set every config for the SET pins
     ///
-    /// set_base => he starting location for the SET pins
+    /// set_base => the starting location for the SET pins
     ///
     /// set_count => the number of SET pins
     fn set_set_pins(&self, sm_number: SMNumber, set_base: u32, set_count: u32) {
@@ -627,11 +627,12 @@ impl Pio {
     }
 
     /// Setup 'in' shifting parameters
-    ///
-    /// shift_right => true to shift ISR to right
-    ///             => false to shift ISR to left
-    /// autopush => true to enable, false to disable
-    /// push_threshold => threshold in bits to shift in before auto/conditional re-pushing of the ISR
+    /// ```
+    ///  shift_right => true to shift ISR to right
+    ///              => false to shift ISR to left
+    ///  autopush => true to enable, false to disable
+    ///  push_threshold => threshold in bits to shift in before auto/conditional re-pushing of the ISR
+    /// ```
     fn set_in_shift(
         &self,
         sm_number: SMNumber,
@@ -651,11 +652,12 @@ impl Pio {
     }
 
     /// Setup 'out' shifting parameters
-    ///
-    /// shift_right => true to shift OSR to right
-    ///             => false to shift OSR to left
+    /// ```
+    /// shift_right => `true` to shift OSR to right
+    ///             => `false` to shift OSR to left
     /// autopull => true to enable, false to disable
     /// pull_threshold => threshold in bits to shift out before auto/conditional re-pulling of the OSR
+    /// ```
     fn set_out_shift(
         &self,
         sm_number: SMNumber,
@@ -683,6 +685,11 @@ impl Pio {
             .modify(SMx_EXECCTRL::JMP_PIN.val(pin));
     }
 
+    /// Set the clock divider for a state machine
+    ///
+    /// div_int => Integer part of the divisor
+    ///
+    /// div_frac => Fractional part in 1/256ths
     fn set_clkdiv_int_frac(&self, sm_number: SMNumber, div_int: u32, div_frac: u32) {
         self.registers.sm[sm_number as usize]
             .clkdiv
@@ -692,6 +699,9 @@ impl Pio {
             .modify(SMx_CLKDIV::FRAC.val(div_frac));
     }
 
+    /// Setup the FIFO joining in a state machine
+    ///
+    /// fifo_join => specifies the join type - see the `PioFifoJoin` type
     fn set_fifo_join(&self, sm_number: SMNumber, fifo_join: PioFifoJoin) {
         if fifo_join == PioFifoJoin::PioFifoJoinRx {
             self.registers.sm[sm_number as usize]
@@ -704,12 +714,23 @@ impl Pio {
         }
     }
 
+    /// Set the starting location for the sideset pins.
     fn set_side_set_pins(&self, sm_number: SMNumber, sideset_base: u32) {
         self.registers.sm[sm_number as usize]
             .pinctrl
             .modify(SMx_PINCTRL::SIDESET_BASE.val(sideset_base));
     }
 
+    /// Set every config for the SIDESET pins
+    ///
+    /// bit_count => number of SIDESET bits per instruction - max 5
+    ///
+    /// ```
+    /// optional => true to use the topmost sideset bit as a flag for whether to apply side set on that instruction
+    ///          => false to use sideset with every instruction
+    /// pindirs => true to affect pin direction
+    ///         => false to affect value of a pin
+    /// ```
     fn set_side_set(&self, sm_number: SMNumber, bit_count: u32, optional: bool, pindirs: bool) {
         self.registers.sm[sm_number as usize]
             .pinctrl
@@ -776,6 +797,9 @@ impl Pio {
                 .instr_mem
                 .modify(INSTR_MEMx::INSTR_MEM.val((i[0] as u32) << 8 | (i[1] as u32)));
             x += 1;
+            if x == 32 {
+                break;
+            }
         }
         debug!("Program added")
     }
