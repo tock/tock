@@ -49,6 +49,8 @@ use components::bme280::Bme280Component;
 use components::ccs811::Ccs811Component;
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::hil::flash::HasClient;
+use kernel::hil::hasher::Hasher;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::spi::SpiMaster;
@@ -157,6 +159,28 @@ struct LoRaThingsPlus {
     air_quality: &'static capsules_extra::air_quality::AirQualitySensor<'static>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
+    kv_driver: &'static capsules_extra::kv_driver::KVStoreDriver<
+        'static,
+        capsules_extra::virtual_kv::VirtualKVPermissions<
+            'static,
+            capsules_extra::kv_store_permissions::KVStorePermissions<
+                'static,
+                capsules_extra::tickv_kv_store::TicKVKVStore<
+                    'static,
+                    capsules_extra::tickv::TicKVSystem<
+                        'static,
+                        capsules_core::virtualizers::virtual_flash::FlashUser<
+                            'static,
+                            apollo3::flashctrl::FlashCtrl<'static>,
+                        >,
+                        capsules_extra::sip_hash::SipHasher24<'static>,
+                        { apollo3::flashctrl::PAGE_SIZE },
+                    >,
+                    [u8; 8],
+                >,
+            >,
+        >,
+    >,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -178,6 +202,7 @@ impl SyscallDriverLookup for LoRaThingsPlus {
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules_extra::humidity::DRIVER_NUM => f(Some(self.humidity)),
             capsules_extra::air_quality::DRIVER_NUM => f(Some(self.air_quality)),
+            capsules_extra::kv_driver::DRIVER_NUM => f(Some(self.kv_driver)),
             _ => f(None),
         }
     }
@@ -449,6 +474,129 @@ unsafe fn setup() -> (
         apollo3::ble::Ble,
     ));
 
+    // Flash
+    let flash_ctrl_read_buf = static_init!(
+        [u8; apollo3::flashctrl::PAGE_SIZE],
+        [0; apollo3::flashctrl::PAGE_SIZE]
+    );
+    let page_buffer = static_init!(
+        apollo3::flashctrl::Apollo3Page,
+        apollo3::flashctrl::Apollo3Page::default()
+    );
+
+    let mux_flash = components::flash::FlashMuxComponent::new(&peripherals.flash_ctrl).finalize(
+        components::flash_mux_component_static!(apollo3::flashctrl::FlashCtrl),
+    );
+
+    // SipHash
+    let sip_hash = static_init!(
+        capsules_extra::sip_hash::SipHasher24,
+        capsules_extra::sip_hash::SipHasher24::new()
+    );
+    kernel::deferred_call::DeferredCallClient::register(sip_hash);
+
+    // TicKV
+    let tickv = components::tickv::TicKVComponent::new(
+        sip_hash,
+        mux_flash, // Flash controller
+        core::ptr::addr_of!(_skv_data) as usize / apollo3::flashctrl::PAGE_SIZE, // Region offset (Last 0x28000 bytes of flash)
+        // Region Size, the final page doens't work correctly
+        core::ptr::addr_of!(_lkv_data) as usize - apollo3::flashctrl::PAGE_SIZE,
+        flash_ctrl_read_buf, // Buffer used internally in TicKV
+        page_buffer,         // Buffer used with the flash controller
+    )
+    .finalize(components::tickv_component_static!(
+        apollo3::flashctrl::FlashCtrl,
+        capsules_extra::sip_hash::SipHasher24,
+        { apollo3::flashctrl::PAGE_SIZE }
+    ));
+    HasClient::set_client(&peripherals.flash_ctrl, mux_flash);
+    sip_hash.set_client(tickv);
+
+    let kv_store = components::kv::TicKVKVStoreComponent::new(tickv).finalize(
+        components::tickv_kv_store_component_static!(
+            capsules_extra::tickv::TicKVSystem<
+                capsules_core::virtualizers::virtual_flash::FlashUser<
+                    apollo3::flashctrl::FlashCtrl,
+                >,
+                capsules_extra::sip_hash::SipHasher24<'static>,
+                { apollo3::flashctrl::PAGE_SIZE },
+            >,
+            capsules_extra::tickv::TicKVKeyType,
+        ),
+    );
+
+    let kv_store_permissions = components::kv::KVStorePermissionsComponent::new(kv_store).finalize(
+        components::kv_store_permissions_component_static!(
+            capsules_extra::tickv_kv_store::TicKVKVStore<
+                capsules_extra::tickv::TicKVSystem<
+                    capsules_core::virtualizers::virtual_flash::FlashUser<
+                        apollo3::flashctrl::FlashCtrl,
+                    >,
+                    capsules_extra::sip_hash::SipHasher24<'static>,
+                    { apollo3::flashctrl::PAGE_SIZE },
+                >,
+                capsules_extra::tickv::TicKVKeyType,
+            >
+        ),
+    );
+
+    let mux_kv = components::kv::KVPermissionsMuxComponent::new(kv_store_permissions).finalize(
+        components::kv_permissions_mux_component_static!(
+            capsules_extra::kv_store_permissions::KVStorePermissions<
+                capsules_extra::tickv_kv_store::TicKVKVStore<
+                    capsules_extra::tickv::TicKVSystem<
+                        capsules_core::virtualizers::virtual_flash::FlashUser<
+                            apollo3::flashctrl::FlashCtrl,
+                        >,
+                        capsules_extra::sip_hash::SipHasher24<'static>,
+                        { apollo3::flashctrl::PAGE_SIZE },
+                    >,
+                    capsules_extra::tickv::TicKVKeyType,
+                >,
+            >
+        ),
+    );
+
+    let virtual_kv_driver = components::kv::VirtualKVPermissionsComponent::new(mux_kv).finalize(
+        components::virtual_kv_permissions_component_static!(
+            capsules_extra::kv_store_permissions::KVStorePermissions<
+                capsules_extra::tickv_kv_store::TicKVKVStore<
+                    capsules_extra::tickv::TicKVSystem<
+                        capsules_core::virtualizers::virtual_flash::FlashUser<
+                            apollo3::flashctrl::FlashCtrl,
+                        >,
+                        capsules_extra::sip_hash::SipHasher24<'static>,
+                        { apollo3::flashctrl::PAGE_SIZE },
+                    >,
+                    capsules_extra::tickv::TicKVKeyType,
+                >,
+            >
+        ),
+    );
+
+    let kv_driver = components::kv::KVDriverComponent::new(
+        virtual_kv_driver,
+        board_kernel,
+        capsules_extra::kv_driver::DRIVER_NUM,
+    )
+    .finalize(components::kv_driver_component_static!(
+        capsules_extra::virtual_kv::VirtualKVPermissions<
+            capsules_extra::kv_store_permissions::KVStorePermissions<
+                capsules_extra::tickv_kv_store::TicKVKVStore<
+                    capsules_extra::tickv::TicKVSystem<
+                        capsules_core::virtualizers::virtual_flash::FlashUser<
+                            apollo3::flashctrl::FlashCtrl,
+                        >,
+                        capsules_extra::sip_hash::SipHasher24<'static>,
+                        { apollo3::flashctrl::PAGE_SIZE },
+                    >,
+                    capsules_extra::tickv::TicKVKeyType,
+                >,
+            >,
+        >
+    ));
+
     mcu_ctrl.print_chip_revision();
 
     debug!("Initialization complete. Entering main loop");
@@ -463,6 +611,10 @@ unsafe fn setup() -> (
         static mut _sappmem: u8;
         /// End of the RAM region for app memory.
         static _eappmem: u8;
+        /// Beginning of the RAM region containing K/V data.
+        static _skv_data: u8;
+        /// Length of the RAM region containing K/V data.
+        static _lkv_data: u8;
     }
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
@@ -487,6 +639,7 @@ unsafe fn setup() -> (
             air_quality,
             scheduler,
             systick,
+            kv_driver,
         }
     );
 
