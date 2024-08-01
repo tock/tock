@@ -95,6 +95,7 @@ impl<'a> DynDefCallRef<'a> {
     // are identical, making this zero-cost, but saving us from having to trust
     // that `fn(*const ())` and `fn handle_deferred_call(&self)` will always have the same calling
     // convention for any type.
+    #[flux::trusted]
     fn new<T: DeferredCallClient>(x: &'a T) -> Self {
         Self {
             data: x as *const _ as *const (),
@@ -106,6 +107,7 @@ impl<'a> DynDefCallRef<'a> {
 
 impl DynDefCallRef<'_> {
     // more efficient pass by `self` if we don't have to implement `DeferredCallClient` directly
+    #[flux::trusted]
     fn handle_deferred_call(self) {
         (self.callback)(self.data)
     }
@@ -139,6 +141,7 @@ pub struct DeferredCall {
     idx: usize,
 }
 
+#[flux::trusted]
 impl DeferredCall {
     /// Creates a new deferred call with a unique ID.
     pub fn new() -> Self {

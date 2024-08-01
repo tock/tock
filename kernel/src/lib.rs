@@ -108,14 +108,11 @@ pub mod capabilities;
 pub mod collections;
 pub mod component;
 pub mod debug;
-#[flux::trusted]
 pub mod deferred_call;
 pub mod errorcode;
-#[flux::trusted]
 pub mod grant;
 pub mod hil;
 pub mod introspection;
-#[flux::trusted]
 pub mod ipc;
 pub mod platform;
 pub mod process;

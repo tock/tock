@@ -109,6 +109,7 @@ impl<'a> core::fmt::Write for WriteToBinaryOffsetWrapper<'a> {
                 0
             } else {
                 // We want to start in the middle.
+                // assume(self.offset > self.index);
                 self.offset - self.index
             };
 
