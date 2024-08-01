@@ -766,16 +766,25 @@ impl Pio {
             .modify(SMx_EXECCTRL::OUT_EN_SEL.val(enable_pin_index));
     }
 
+    // Call this with add_program(include_bytes!("path_to_file"))
     pub fn add_program(&self, program: &[u8]) {
-        // Call this with add_program(include_bytes!("path_to_file"))
+        self.clear_instr_registers();
         let iter = program.chunks(2);
         let mut x = 0;
         for i in iter {
             self.registers.instr_mem[x]
                 .instr_mem
                 .modify(INSTR_MEMx::INSTR_MEM.val((i[0] as u32) << 8 | (i[1] as u32)));
-            x += 2;
+            x += 1;
         }
         debug!("Program added")
+    }
+
+    fn clear_instr_registers(&self) {
+        for i in 0..31 {
+            self.registers.instr_mem[i]
+                .instr_mem
+                .modify(INSTR_MEMx::INSTR_MEM::CLEAR);
+        }
     }
 }
