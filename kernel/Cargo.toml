@@ -8,6 +8,9 @@ version.workspace = true
 authors.workspace = true
 edition.workspace = true
 
+[package.metadata.flux]
+enabled = true
+
 [dependencies]
 tock-registers = { path = "../libraries/tock-register-interface" }
 tock-cells = { path = "../libraries/tock-cells" }
