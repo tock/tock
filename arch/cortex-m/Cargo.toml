@@ -13,6 +13,7 @@ enabled = true
 
 [dependencies]
 kernel = { path = "../../kernel" }
+flux_support = { path = "../../flux_support" }
 
 [lints]
 workspace = true

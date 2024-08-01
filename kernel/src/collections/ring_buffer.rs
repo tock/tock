@@ -34,6 +34,7 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
     }
 
     /// Returns the number of elements that can be enqueued until the ring buffer is full.
+    #[flux::ignore]
     pub fn available_len(&self) -> usize {
         // The maximum capacity of the queue is ring_len - 1, because head == tail for the empty
         // queue.
@@ -68,6 +69,7 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
     }
 }
 
+#[flux::ignore]
 impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
     fn has_elements(&self) -> bool {
         self.head != self.tail

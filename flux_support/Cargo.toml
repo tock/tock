@@ -1,0 +1,10 @@
+[package]
+name = "flux_support"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[package.metadata.flux]
+enabled = true
+
+[dependencies]
