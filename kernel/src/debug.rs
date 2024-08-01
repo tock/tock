@@ -609,7 +609,7 @@ pub fn debug_print(args: Arguments) {
     writer.publish_bytes();
 }
 
-#[flux::ignore]
+#[flux::trusted]
 pub fn debug_println(args: Arguments) {
     let writer = unsafe { get_debug_writer() };
 

@@ -42,6 +42,7 @@ pub enum IPCUpcallType {
 struct IPCData;
 
 /// The IPC mechanism struct.
+#[flux::ignore]
 pub struct IPC<const NUM_PROCS: u8> {
     /// The grant regions for each process that holds the per-process IPC data.
     data: Grant<
@@ -52,6 +53,7 @@ pub struct IPC<const NUM_PROCS: u8> {
     >,
 }
 
+#[flux::ignore]
 impl<const NUM_PROCS: u8> IPC<NUM_PROCS> {
     pub fn new(
         kernel: &'static Kernel,
@@ -109,6 +111,7 @@ impl<const NUM_PROCS: u8> IPC<NUM_PROCS> {
     }
 }
 
+#[flux::ignore]
 impl<const NUM_PROCS: u8> SyscallDriver for IPC<NUM_PROCS> {
     /// command is how notify() is implemented.
     /// Notifying an IPC service is done by setting client_or_svc to 0,
