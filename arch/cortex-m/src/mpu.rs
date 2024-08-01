@@ -4,6 +4,31 @@
 
 //! Implementation of the memory protection unit for the Cortex-M0+, Cortex-M3,
 //! Cortex-M4, and Cortex-M7
+#![flux::defs(
+    // fn can_service(self: &CortexMRegion) -> bool{self.}
+    fn contains(raddr: int, rsize: int, addr: int, size: int) -> bool {
+        ((addr >= raddr) && (addr + size < raddr + rsize))
+    }
+
+    fn subregion_enabled(raddr: int, rsize: int, addr: int, size: int, srd: bitvec<8>) -> bool {
+        rsize >= 256
+        // VTOCK-TODO: how to implement cleanly?
+        
+        // ((addr >= raddr) && (addr + size < raddr + rsize))
+    }
+
+    fn can_service(raddr: int, rsize: int, addr: int, size: int, srd: bitvec<8>, enabled: bool) -> bool { 
+        enabled && contains(raddr, rsize, addr, size) && subregion_enabled(addr, rsize, addr, size, srd)
+    }
+
+    // given an array of length 8, returns index of reigon that services a particular request
+    // fn servicing_region(regions: [CortexMRegion; 8], addr: usize, size: usize) -> usize {
+    //     // TODO:
+    //     0
+    // }
+
+    // fn pow2bv(x:bitvec<32>) -> bool { bv_and(x, bv_sub(x, bv_int_to_bv32(1))) == bv_int_to_bv32(0) }
+)]
 
 use core::cell::Cell;
 use core::cmp;
@@ -15,6 +40,7 @@ use kernel::platform::mpu;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::math;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
+use kernel::utilities::registers::Field;
 use kernel::utilities::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
@@ -24,6 +50,87 @@ use kernel::utilities::StaticRef;
 fn power_of_two(n: u32) -> usize {
     1_usize << n
 }
+
+// #[flux::opaque]
+// // #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+// pub struct TypeReg {
+//     _inner: ReadOnly<u32, Type::Register>,
+// }
+
+// impl TypeReg {
+//     pub fn read(&self, field: Field<u32, Type::Register>) -> u32 {
+//         unimplemented!()
+//     }
+// }
+
+// // #[flux::refined_by(privdefena: bool, hfnmiena: bool, enable: bool)]
+// // #[flux::invariant()]
+// #[flux::refined_by(privdefena: bool, hfnmiena: bool, enable: bool)]
+// #[flux::opaque]
+// pub struct CtrlReg {
+//     _inner: ReadWrite<u32, Control::Register>,
+// }
+
+// impl CtrlReg {
+//     // #[flux::sig(fn(&CtrlReg, field: Field<u32, Control::Register>) -> u32{r: field == })]
+//     pub fn read(&self, _field: Field<u32, Control::Register>) -> u32 {
+//         unimplemented!()
+//     }
+
+//     // #[flux::sig(fn(self: &CtrlReg[@a,@b,@c], field: FieldValue<u32, Control::Register>) ensures self: CtrlReg[a,b,false])]
+//     pub fn write(&self, _field: FieldValue<u32, Control::Register>) {
+//         unimplemented!()
+//     }
+// }
+
+// #[flux::refined_by(num: int)]
+// #[flux::invariant(num >= 0 && num < 256)] // 8 bits
+// #[flux::opaque]
+// pub struct RnrReg {
+//     _inner: RegionNumber::Register,
+// }
+// impl RnrReg {
+//     #[flux::sig(fn(&RnrReg[@n], field: Field<u32, RegionNumber::Register>) -> u32[n])]
+//     pub fn read(&self, _field: Field<u32, RegionNumber::Register>) -> u32 {
+//         unimplemented!()
+//     }
+
+//     // #[flux::sig(fn(&RnrReg, field: FieldValue<u32, RegionNumber::Register>) ensures self: RnrReg[])]
+//     pub fn write(&self, _field: FieldValue<u32, RegionNumber::Register>) {
+//         unimplemented!()
+//     }
+// }
+
+// // #[flux::refined_by(valid: int, region: int, addr: int)]
+// pub struct RbarReg {
+//     _inner: ReadWrite<u32, RegionBaseAddress::Register>,
+// }
+// impl RbarReg {
+//     pub fn read(&self, _field: Field<u32, RegionBaseAddress::Register>) -> u32 {
+//         unimplemented!()
+//     }
+
+//     pub fn write(&self, _field: FieldValue<u32, RegionBaseAddress::Register>) {
+//         unimplemented!()
+//     }
+// }
+
+// #[flux::refined_by(xn: int, ap: int, srd: int, size: int, region_enable: int)]
+// #[flux::opaque]
+// pub struct RasrReg {
+//     _inner: ReadWrite<u32, RegionAttributes::Register>,
+// }
+
+// impl RasrReg {
+//     // #[flux::sig(fn(&RasrReg[@xn, @ap, @srd, @size, @region_enable], field: Field<u32, RegionAttributes::Register>) -> u32{r: field == RegionAttributes::AP => r == xn})]
+//     pub fn read(&self, _field: Field<u32, RegionAttributes::Register>) -> u32 {
+//         unimplemented!()
+//     }
+
+//     pub fn write(&self, _field: FieldValue<u32, RegionAttributes::Register>) {
+//         unimplemented!()
+//     }
+// }
 
 /// MPU Registers for the Cortex-M3, Cortex-M4 and Cortex-M7 families
 /// Described in section 4.5 of
@@ -142,6 +249,7 @@ const MPU_BASE_ADDRESS: StaticRef<MpuRegisters> =
 /// real hardware.
 ///
 #[flux::invariant(MIN_REGION_SIZE > 0 && MIN_REGION_SIZE < 2147483648)]
+// #[flux::refined_by(enable: bool)]
 pub struct MPU<const MIN_REGION_SIZE: usize> {
     /// MMIO reference to MPU registers.
     registers: StaticRef<MpuRegisters>,
@@ -167,6 +275,7 @@ impl<const MIN_REGION_SIZE: usize> MPU<MIN_REGION_SIZE> {
 
     // Function useful for boards where the bootloader sets up some
     // MPU configuration that conflicts with Tock's configuration:
+    // #[flux::sig(fn(self: &strg MPU<MIN_REGION_SIZE>) ensures self: &MPU<MIN_REGION_SIZE>[false])]
     pub unsafe fn clear_mpu(&self) {
         self.registers.ctrl.write(Control::ENABLE::CLEAR);
     }
@@ -267,17 +376,26 @@ impl CortexMConfig {
     }
 }
 
+#[derive(Copy, Clone)]
+#[flux::refined_by(addr: int, size: int)]
+struct CortexMLocation {
+    #[flux::field(FluxPtrU8[addr])]
+    pub addr: FluxPtrU8,
+    #[flux::field({usize[size] | size >= 8})]
+    pub size: usize,
+}
+
 /// Struct storing configuration for a Cortex-M MPU region.
 #[derive(Copy, Clone)]
 pub struct CortexMRegion {
-    location: Option<(FluxPtrU8, usize)>,
+    location: Option<CortexMLocation>,
     base_address: FieldValue<u32, RegionBaseAddress::Register>,
     attributes: FieldValue<u32, RegionAttributes::Register>,
 }
 
 impl PartialEq<mpu::Region> for CortexMRegion {
     fn eq(&self, other: &mpu::Region) -> bool {
-        self.location.map_or(false, |(addr, size)| {
+        self.location().map_or(false, |(addr, size)| {
             addr == other.start_address() && size == other.size()
         })
     }
@@ -294,6 +412,7 @@ impl CortexMRegion {
         permissions: mpu::Permissions,
     ) -> CortexMRegion {
         assume(region_size > 1 && region_size < (u32::MAX as usize));
+        assume(logical_size >= 8);
 
         // Determine access and execute permissions
         let (access, execute) = match permissions {
@@ -345,9 +464,12 @@ impl CortexMRegion {
         }
 
         CortexMRegion {
-            location: Some((logical_start, logical_size)),
-            base_address,
-            attributes,
+            location: Some(CortexMLocation {
+                addr: logical_start,
+                size: logical_size,
+            }),
+            base_address: base_address,
+            attributes: attributes,
         }
     }
 
@@ -360,8 +482,10 @@ impl CortexMRegion {
         }
     }
 
+    // #[flux::sig(fn(&CortexMRegion[@addr, @size]) -> Option<(FluxPtrU8{a: a == addr}, usize{s: s == size})>)]
     fn location(&self) -> Option<(FluxPtrU8, usize)> {
-        self.location
+        let loc = self.location?;
+        Some((loc.addr, loc.size))
     }
 
     fn base_address(&self) -> FieldValue<u32, RegionBaseAddress::Register> {
@@ -376,7 +500,7 @@ impl CortexMRegion {
         let other_start = other_start.as_usize();
         let other_end = other_start + other_size;
 
-        let (region_start, region_end) = match self.location {
+        let (region_start, region_end) = match self.location() {
             Some((region_start, region_size)) => {
                 let region_start = region_start.as_usize();
                 let region_end = region_start + region_size;
