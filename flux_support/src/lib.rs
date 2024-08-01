@@ -14,6 +14,7 @@ pub fn assume(b: bool) {
 
 #[flux::opaque]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[flux::refined_by(ptr: int)]
 pub struct FluxPtr {
     _inner: *mut u8,
 }
@@ -61,21 +62,9 @@ impl FluxPtr {
     }
 }
 
-// impl From<usize> for FluxPtr {
-//     fn from(_item: usize) -> Self {
-//         unimplemented!()
-//         // Number { value: item }
-//     }
-// }
-
-// impl Into<usize> for FluxPtr {
-//     fn into(self) -> usize {
-//         unimplemented!()
-//         // Number { value: self }
-//     }
-// }
-
+#[flux::alias(type FluxPtrU8[n: int] = FluxPtr[n])]
 pub type FluxPtrU8 = FluxPtr;
+#[flux::alias(type FluxPtrU8Mut[n: int] = FluxPtr[n])]
 pub type FluxPtrU8Mut = FluxPtr;
 
 pub trait FluxPtrExt {
@@ -119,3 +108,10 @@ impl DerefMut for FluxPtr {
         unimplemented!()
     }
 }
+
+// CortexM regs
+// #[flux::opaque]
+// // #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+// pub struct TypeReg {
+//     _inner: ReadOnly<u32, Type::Register>,
+// }
