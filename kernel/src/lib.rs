@@ -113,43 +113,32 @@ pub mod deferred_call;
 pub mod errorcode;
 #[flux::trusted]
 pub mod grant;
-#[flux::ignore]
 pub mod hil;
-#[flux::ignore]
 pub mod introspection;
 #[flux::trusted]
 pub mod ipc;
 pub mod platform;
-// #[flux::ignore]
 pub mod process;
 #[flux::ignore]
 pub mod process_checker;
-// #[flux::ignore]
 pub mod processbuffer;
 #[flux::ignore]
 pub mod scheduler;
 pub mod storage_permissions;
-// #[flux::ignore]
 pub mod syscall;
-// #[flux::ignore]
 pub mod upcall;
 pub mod utilities;
 
 mod config;
-// #[flux::ignore]
 mod kernel;
 mod memop;
-#[flux::ignore]
 mod process_binary;
 #[flux::ignore]
 mod process_loading;
-#[flux::ignore]
 mod process_policies;
-#[flux::ignore]
 mod process_printer;
 #[flux::ignore]
 mod process_standard;
-// #[flux::ignore]
 mod syscall_driver;
 
 // Core resources exposed as `kernel::Type`.

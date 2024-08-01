@@ -3,14 +3,13 @@
 // Copyright Tock Contributors 2022.
 
 //! Utility functions and macros provided by the kernel crate.
-#[flux::ignore]
+// #[flux::ignore]
 pub mod binary_write;
 pub mod copy_slice;
 pub mod helpers;
 pub mod leasable_buffer;
 pub mod math;
 pub mod mut_imut_buffer;
-#[flux::ignore]
 pub mod peripheral_management;
 pub mod static_init;
 pub mod storage_volume;
