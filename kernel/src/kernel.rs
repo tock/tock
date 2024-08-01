@@ -99,7 +99,6 @@ impl Kernel {
 
     /// Helper function that moves all non-generic portions of process_map_or
     /// into a non-generic function to reduce code bloat from monomorphization.
-    #[flux::trusted]
     pub(crate) fn get_process(&self, processid: ProcessId) -> Option<&dyn process::Process> {
         // We use the index in the [`ProcessId`] so we can do a direct lookup.
         // However, we are not guaranteed that the app still exists at that
@@ -189,12 +188,8 @@ impl Kernel {
         }
     }
 
-<<<<<<< HEAD
     /// Returns an iterator over all processes loaded by the kernel.
-=======
-    /// Returns an iterator over all processes loaded by the kernel
     #[flux::ignore]
->>>>>>> 5d8862fef (kernel compiles with a bunch of trusted and ignores)
     pub(crate) fn get_process_iter(
         &self,
     ) -> core::iter::FilterMap<
@@ -233,16 +228,10 @@ impl Kernel {
         }
     }
 
-<<<<<<< HEAD
     /// Run a closure on every process, but only continue if the closure returns
     /// `None`. That is, if the closure returns any non-`None` value, iteration
     /// stops and the value is returned from this function to the called.
-=======
-    /// Run a closure on every process, but only continue if the closure returns `None`. That is,
-    /// if the closure returns any non-`None` value, iteration stops and the value is returned from
-    /// this function to the called.
-    #[flux::trusted]
->>>>>>> 5d8862fef (kernel compiles with a bunch of trusted and ignores)
+    #[flux::ignore]
     pub(crate) fn process_until<T, F>(&self, closure: F) -> Option<T>
     where
         F: Fn(&dyn process::Process) -> Option<T>,
@@ -265,14 +254,9 @@ impl Kernel {
     /// stored in the processes array. Returns `true` if the ProcessId still
     /// refers to a valid process, and `false` if not.
     ///
-<<<<<<< HEAD
     /// This is needed for `ProcessId` itself to implement the `.index()`
     /// command to verify that the referenced app is still at the correct index.
-=======
-    /// This is needed for `ProcessId` itself to implement the `.index()` command to
-    /// verify that the referenced app is still at the correct index.
     #[flux::trusted]
->>>>>>> 5d8862fef (kernel compiles with a bunch of trusted and ignores)
     pub(crate) fn processid_is_valid(&self, processid: &ProcessId) -> bool {
         self.processes.get(processid.index).map_or(false, |p| {
             p.map_or(false, |process| process.processid().id() == processid.id())

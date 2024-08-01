@@ -308,7 +308,6 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
     /// not be any other `EnteredGrantKernelManagedLayout` for
     /// the given `base_ptr` at the same time, otherwise multiple mutable
     /// references to the same upcall/allow slices could be created.
-    #[flux::trusted]
     unsafe fn initialize_from_counts(
         base_ptr: NonNull<u8>,
         upcalls_num_val: UpcallItems,
@@ -574,7 +573,6 @@ pub struct GrantKernelData<'a> {
 impl<'a> GrantKernelData<'a> {
     /// Create a [`GrantKernelData`] object to provide a handle for capsules to
     /// call Upcalls.
-    #[flux::trusted]
     fn new(
         upcalls: &'a [SavedUpcall],
         allow_ro: &'a [SavedAllowRo],
@@ -682,7 +680,6 @@ impl<'a> GrantKernelData<'a> {
     /// returns a [`crate::process::Error`] to allow for easy chaining of this
     /// function with the `ReadWriteProcessBuffer::enter()` function with
     /// `and_then`.
-    #[flux::trusted]
     pub fn get_readwrite_processbuffer(
         &self,
         allow_rw_num: usize,

@@ -389,7 +389,6 @@ impl ReadOnlyProcessBufferRef<'_> {
     /// [`ReadOnlyProcessBuffer::new_external`]. The derived lifetime can
     /// help enforce the invariant that this incoming pointer may only
     /// be access for a certain duration.
-    #[flux::ignore]
     pub(crate) unsafe fn new(ptr: FluxPtrU8Mut, len: usize, process_id: ProcessId) -> Self {
         Self {
             buf: ReadOnlyProcessBuffer::new(ptr, len, process_id),
@@ -629,7 +628,6 @@ impl ReadWriteProcessBufferRef<'_> {
     /// [`ReadWriteProcessBuffer::new_external`]. The derived lifetime can
     /// help enforce the invariant that this incoming pointer may only
     /// be access for a certain duration.
-    #[flux::ignore]
     pub(crate) unsafe fn new(ptr: FluxPtrU8Mut, len: usize, process_id: ProcessId) -> Self {
         Self {
             buf: ReadWriteProcessBuffer::new(ptr, len, process_id),
