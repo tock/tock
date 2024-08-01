@@ -80,6 +80,7 @@ pub trait DeferredCallClient: Sized {
 /// per instance, but this alternative stores only the data and function pointers,
 /// 8 bytes per instance.
 #[derive(Copy, Clone)]
+#[flux::opaque]
 struct DynDefCallRef<'a> {
     data: *const (),
     callback: fn(*const ()),

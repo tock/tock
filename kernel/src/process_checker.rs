@@ -253,7 +253,9 @@ pub struct ProcessCheckerMachine {
     footer_index: Cell<usize>,
 }
 
+#[flux::trusted]
 impl ProcessCheckerMachine {
+    #[flux::trusted]
     pub fn new(policy: &'static dyn AppCredentialsPolicy<'static>) -> Self {
         Self {
             footer_index: Cell::new(0),

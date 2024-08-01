@@ -29,7 +29,7 @@ pub mod kv;
 pub mod led;
 pub mod log;
 pub mod nonvolatile_storage;
-#[flux::ignore]
+// #[flux::ignore]
 pub mod public_key_crypto;
 pub mod pwm;
 pub mod radio;

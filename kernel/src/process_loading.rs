@@ -182,6 +182,7 @@ pub fn load_processes<C: Chip>(
 /// `ProcessLoadError` if something goes wrong during TBF parsing or process
 /// creation.
 #[inline(always)]
+#[flux::trusted]
 fn load_processes_from_flash<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
@@ -279,6 +280,7 @@ fn load_processes_from_flash<C: Chip>(
 
 /// Find a process binary stored at the beginning of `flash` and create a
 /// `ProcessBinary` object if the process is viable to run on this kernel.
+#[flux::trusted]
 fn discover_process_binary(
     flash: &'static [u8],
 ) -> Result<(&'static [u8], ProcessBinary), (&'static [u8], ProcessBinaryError)> {
@@ -345,6 +347,7 @@ fn discover_process_binary(
 /// pool that its RAM should be allocated from. Returns `Ok` if the process
 /// object was created, `Err` with a relevant error if the process object could
 /// not be created.
+#[flux::trusted]
 fn load_process<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
@@ -489,6 +492,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
     /// processes from slices of flash an memory is fundamentally unsafe.
     /// Therefore, we require the `ProcessManagementCapability` to call this
     /// function.
+    #[flux::trusted]
     pub fn new(
         checker: &'static ProcessCheckerMachine,
         procs: &'static mut [Option<&'static dyn Process>],
@@ -518,6 +522,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
     }
 
     /// Find a slot in the `PROCESSES` array to store this process.
+    #[flux::trusted]
     fn find_open_process_slot(&self) -> Option<usize> {
         self.procs.map_or(None, |procs| {
             for (i, p) in procs.iter().enumerate() {
@@ -581,6 +586,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
     ///
     /// Returns the process binary object or an error if a valid process
     /// binary could not be extracted.
+    #[flux::trusted]
     fn discover_process_binary(&self) -> Result<ProcessBinary, ProcessBinaryError> {
         let flash = self.flash.get();
 
@@ -644,6 +650,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
     /// Create process objects from the discovered process binaries.
     ///
     /// This verifies that the discovered processes are valid to run.
+    #[flux::trusted]
     fn load_process_objects(&self) -> Result<(), ()> {
         let proc_binaries = self.proc_binaries.take().ok_or(())?;
         let proc_binaries_len = proc_binaries.len();
@@ -903,6 +910,7 @@ impl<'a, C: Chip> DeferredCallClient for SequentialProcessLoaderMachine<'a, C> {
 impl<'a, C: Chip> crate::process_checker::ProcessCheckerMachineClient
     for SequentialProcessLoaderMachine<'a, C>
 {
+    #[flux::trusted]
     fn done(
         &self,
         process_binary: ProcessBinary,

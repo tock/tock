@@ -297,6 +297,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             || self.state.get() == State::Running
     }
 
+    #[flux::trusted]
     fn remove_pending_upcalls(&self, upcall_id: UpcallId) {
         self.tasks.map(|tasks| {
             let count_before = tasks.len();
@@ -1200,6 +1201,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         }
     }
 
+    #[flux::trusted]
     fn print_full_process(&self, writer: &mut dyn Write) {
         if !config::CONFIG.debug_panics {
             return;
@@ -1313,6 +1315,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     const PROCESS_STRUCT_OFFSET: usize = mem::size_of::<ProcessStandard<C>>();
 
     /// Create a `ProcessStandard` object based on the found `ProcessBinary`.
+    #[flux::trusted]
     pub(crate) unsafe fn create<'a>(
         kernel: &'static Kernel,
         chip: &'static C,
@@ -1923,6 +1926,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     /// at `app_break`). If this method returns `true`, the buffer is guaranteed
     /// to be accessible to the process and to not overlap with the grant
     /// region.
+    #[flux::trusted]
     fn in_app_owned_memory(&self, buf_start_addr: *const u8, size: usize) -> bool {
         let buf_end_addr = buf_start_addr.wrapping_add(size);
 
@@ -1935,6 +1939,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     /// are within the readable region of an application's flash memory.  If
     /// this method returns true, the buffer is guaranteed to be readable to the
     /// process.
+    #[flux::trusted]
     fn in_app_flash_memory(&self, buf_start_addr: *const u8, size: usize) -> bool {
         let buf_end_addr = buf_start_addr.wrapping_add(size);
 
@@ -1961,6 +1966,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     /// If there is not enough memory, or the MPU cannot isolate the process
     /// accessible region from the new kernel memory break after doing the
     /// allocation, then this will return `None`.
+    #[flux::trusted]
     fn allocate_in_grant_region_internal(&self, size: usize, align: usize) -> Option<NonNull<u8>> {
         self.mpu_config.and_then(|config| {
             // First, compute the candidate new pointer. Note that at this point
@@ -2020,6 +2026,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     ///
     /// We create this identifier by calculating the number of bytes between
     /// where the custom grant starts and the end of the process memory.
+    #[flux::trusted]
     fn create_custom_grant_identifier(&self, ptr: NonNull<u8>) -> ProcessCustomGrantIdentifier {
         let custom_grant_address = ptr.as_ptr() as usize;
         let process_memory_end = self.mem_end() as usize;
@@ -2033,6 +2040,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     /// custom grant.
     ///
     /// This reverses `create_custom_grant_identifier()`.
+    #[flux::trusted]
     fn get_custom_grant_address(&self, identifier: ProcessCustomGrantIdentifier) -> usize {
         let process_memory_end = self.mem_end() as usize;
 

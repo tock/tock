@@ -1,7 +1,6 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2024.
-
 //! Signature credential checker for checking process credentials.
 
 use kernel::hil;
@@ -47,6 +46,7 @@ impl<
         const SL: usize,
     > AppCheckerSignature<'a, S, H, HL, SL>
 {
+    #[flux::trusted]
     pub fn new(
         hasher: &'a H,
         verifier: &'a S,
@@ -76,7 +76,7 @@ impl<
     > hil::digest::ClientData<HL> for AppCheckerSignature<'a, S, H, HL, SL>
 {
     fn add_mut_data_done(&self, _result: Result<(), ErrorCode>, _data: SubSliceMut<'static, u8>) {}
-
+    #[flux::trusted]
     fn add_data_done(&self, result: Result<(), ErrorCode>, data: SubSlice<'static, u8>) {
         self.binary.set(data.take());
 
@@ -103,7 +103,7 @@ impl<
         }
     }
 }
-
+#[flux::trusted]
 impl<
         'a,
         S: hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>,
@@ -160,7 +160,7 @@ impl<
         // Needed to make the sha256 client work.
     }
 }
-
+#[flux::trusted]
 impl<
         'a,
         S: hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>,
@@ -192,7 +192,7 @@ impl<
         });
     }
 }
-
+#[flux::trusted]
 impl<
         'a,
         S: hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>,

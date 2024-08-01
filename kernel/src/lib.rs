@@ -108,7 +108,7 @@ pub mod capabilities;
 pub mod collections;
 pub mod component;
 pub mod debug;
-#[flux::ignore]
+#[flux::trusted]
 pub mod deferred_call;
 pub mod errorcode;
 #[flux::trusted]
@@ -119,7 +119,7 @@ pub mod introspection;
 pub mod ipc;
 pub mod platform;
 pub mod process;
-#[flux::ignore]
+// #[flux::ignore]
 pub mod process_checker;
 pub mod processbuffer;
 #[flux::ignore]
@@ -133,11 +133,9 @@ mod config;
 mod kernel;
 mod memop;
 mod process_binary;
-#[flux::ignore]
 mod process_loading;
 mod process_policies;
 mod process_printer;
-#[flux::ignore]
 mod process_standard;
 mod syscall_driver;
 

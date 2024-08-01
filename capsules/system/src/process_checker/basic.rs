@@ -99,6 +99,7 @@ pub struct AppCheckerSha256 {
 }
 
 impl AppCheckerSha256 {
+    #[flux::trusted]
     pub fn new(
         hash: &'static dyn Sha256Verifier<'static>,
         buffer: &'static mut [u8; 32],
@@ -117,7 +118,7 @@ impl AppCredentialsPolicy<'static> for AppCheckerSha256 {
     fn require_credentials(&self) -> bool {
         true
     }
-
+    #[flux::trusted]
     fn check_credentials(
         &self,
         credentials: TbfFooterV2Credentials,
@@ -138,7 +139,7 @@ impl AppCredentialsPolicy<'static> for AppCheckerSha256 {
             _ => Err((ErrorCode::NOSUPPORT, credentials, binary)),
         }
     }
-
+    #[flux::trusted]
     fn set_client(&self, client: &'static dyn AppCredentialsPolicyClient<'static>) {
         self.client.replace(client);
     }
@@ -146,7 +147,7 @@ impl AppCredentialsPolicy<'static> for AppCheckerSha256 {
 
 impl ClientData<32_usize> for AppCheckerSha256 {
     fn add_mut_data_done(&self, _result: Result<(), ErrorCode>, _data: SubSliceMut<'static, u8>) {}
-
+    #[flux::trusted]
     fn add_data_done(&self, result: Result<(), ErrorCode>, data: SubSlice<'static, u8>) {
         match result {
             Err(e) => panic!("Internal error during application binary checking. SHA256 engine threw error in adding data: {:?}", e),
@@ -160,6 +161,7 @@ impl ClientData<32_usize> for AppCheckerSha256 {
 }
 
 impl ClientVerify<32_usize> for AppCheckerSha256 {
+    #[flux::trusted]
     fn verification_done(
         &self,
         result: Result<bool, ErrorCode>,
@@ -216,6 +218,7 @@ pub struct AppIdAssignerNames<'a, F: Fn(&'static str) -> u32> {
     hasher: &'a F,
 }
 
+#[flux::trusted]
 impl<'a, F: Fn(&'static str) -> u32> AppIdAssignerNames<'a, F> {
     pub fn new(hasher: &'a F) -> Self {
         Self { hasher }
@@ -245,6 +248,7 @@ impl<'a, F: Fn(&'static str) -> u32> AppUniqueness for AppIdAssignerNames<'a, F>
 }
 
 impl<'a, F: Fn(&'static str) -> u32> Compress for AppIdAssignerNames<'a, F> {
+    #[flux::trusted]
     fn to_short_id(&self, process: &ProcessBinary) -> ShortId {
         let name = process.header.get_package_name().unwrap_or("");
         let sum = (self.hasher)(name);
@@ -267,6 +271,7 @@ pub struct AppCheckerRsaSimulated<'a> {
     binary: OptionalCell<&'a [u8]>,
 }
 
+#[flux::trusted]
 impl<'a> AppCheckerRsaSimulated<'a> {
     pub fn new() -> AppCheckerRsaSimulated<'a> {
         Self {
@@ -279,6 +284,7 @@ impl<'a> AppCheckerRsaSimulated<'a> {
 }
 
 impl<'a> DeferredCallClient for AppCheckerRsaSimulated<'a> {
+    #[flux::trusted]
     fn handle_deferred_call(&self) {
         // This checker does not actually verify the RSA signature; it
         // assumes the signature is valid and so accepts any RSA
@@ -324,7 +330,7 @@ impl<'a> AppCredentialsPolicy<'a> for AppCheckerRsaSimulated<'a> {
             Err((ErrorCode::BUSY, credentials, binary))
         }
     }
-
+    #[flux::trusted]
     fn set_client(&self, client: &'a dyn AppCredentialsPolicyClient<'a>) {
         self.client.replace(client);
     }
