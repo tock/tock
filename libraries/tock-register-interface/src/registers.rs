@@ -110,6 +110,7 @@ impl<T: UIntLike, R: RegisterLongName> Readable for ReadOnly<T, R> {
 // be removed. We `allow(dead_code)` here to suppress this warning.
 #[allow(dead_code)]
 #[repr(transparent)]
+#[allow(dead_code)]
 pub struct WriteOnly<T: UIntLike, R: RegisterLongName = ()> {
     value: UnsafeCell<T>,
     associated_register: PhantomData<R>,
