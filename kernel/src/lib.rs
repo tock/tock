@@ -114,7 +114,7 @@ pub mod component;
 pub mod debug;
 #[flux::ignore]
 pub mod deferred_call;
-#[flux::ignore]
+// #[flux::ignore]
 pub mod errorcode;
 #[flux::ignore]
 pub mod grant;
@@ -124,7 +124,7 @@ pub mod hil;
 pub mod introspection;
 #[flux::ignore]
 pub mod ipc;
-#[flux::ignore]
+// #[flux::ignore]
 pub mod platform;
 #[flux::ignore]
 pub mod process;
@@ -140,7 +140,7 @@ pub mod storage_permissions;
 pub mod syscall;
 #[flux::ignore]
 pub mod upcall;
-#[flux::ignore]
+//#[flux::ignore]
 pub mod utilities;
 
 #[flux::ignore]
@@ -161,7 +161,6 @@ mod process_printer;
 mod process_standard;
 #[flux::ignore]
 mod syscall_driver;
-
 
 // Core resources exposed as `kernel::Type`.
 pub use crate::errorcode::ErrorCode;
