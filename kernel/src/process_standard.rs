@@ -31,8 +31,9 @@ use crate::process::{State, StoppedState};
 use crate::process_checker::AcceptedCredential;
 use crate::process_loading::ProcessLoadError;
 use crate::process_policies::ProcessFaultPolicy;
+use crate::process_policies::ProcessStandardStoragePermissionsPolicy;
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
-use crate::storage_permissions;
+use crate::storage_permissions::StoragePermissions;
 use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
 use crate::upcall::UpcallId;
 use crate::utilities::cells::{MapCell, NumericCellExt, OptionalCell};
@@ -209,6 +210,9 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
 
     /// How to respond if this process faults.
     fault_policy: &'a dyn ProcessFaultPolicy,
+
+    /// Storage permissions for this process.
+    storage_permissions: StoragePermissions,
 
     /// Configuration data for the MPU
     mpu_config: MapCell<<<C as Chip>::MPU as MPU>::MpuConfig>,
@@ -491,21 +495,8 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.header.get_command_permissions(driver_num, offset)
     }
 
-    fn get_storage_permissions(&self) -> Option<storage_permissions::StoragePermissions> {
-        let (read_count, read_ids) = self.header.get_storage_read_ids().unwrap_or((0, [0; 8]));
-
-        let (modify_count, modify_ids) =
-            self.header.get_storage_modify_ids().unwrap_or((0, [0; 8]));
-
-        let write_id = self.header.get_storage_write_id();
-
-        Some(storage_permissions::StoragePermissions::new(
-            read_count,
-            read_ids,
-            modify_count,
-            modify_ids,
-            write_id,
-        ))
+    fn get_storage_permissions(&self) -> StoragePermissions {
+        self.storage_permissions
     }
 
     fn number_writeable_flash_regions(&self) -> usize {
@@ -1319,6 +1310,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         pb: ProcessBinary,
         remaining_memory: &'a mut [u8],
         fault_policy: &'static dyn ProcessFaultPolicy,
+        storage_permissions_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C>,
         app_id: ShortId,
         index: usize,
     ) -> Result<(Option<&'static dyn Process>, &'a mut [u8]), (ProcessLoadError, &'a mut [u8])>
@@ -1761,6 +1753,11 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             }));
         });
 
+        // Set storage permissions. Put this at the end so that `process` is
+        // completely formed before using it to determine the storage
+        // permissions.
+        process.storage_permissions = storage_permissions_policy.get_permissions(process);
+
         // Return the process object and a remaining memory for processes slice.
         Ok((Some(process), unused_memory))
     }
@@ -2039,6 +2036,33 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // Subtract the offset in the identifier from the end of the process
         // memory to get the address of the custom grant.
         process_memory_end - identifier.offset
+    }
+
+    /// Return the app's read and modify storage permissions from the TBF header
+    /// if it exists.
+    ///
+    /// If the header does not exist then return `None`. If the header does
+    /// exist, this returns a 5-tuple with:
+    ///
+    /// - `write_allowed`: bool. If this process should have write permissions.
+    /// - `read_count`: usize. How many read IDs are valid.
+    /// - `read_ids`: [u32]. The read IDs.
+    /// - `modify_count`: usze. How many modify IDs are valid.
+    /// - `modify_ids`: [u32]. The modify IDs.
+    pub fn get_tbf_storage_permissions(&self) -> Option<(bool, usize, [u32; 8], usize, [u32; 8])> {
+        let read_perms = self.header.get_storage_read_ids();
+        let modify_perms = self.header.get_storage_modify_ids();
+
+        match (read_perms, modify_perms) {
+            (Some((read_count, read_ids)), Some((modify_count, modify_ids))) => Some((
+                self.header.get_storage_write_id().is_some(),
+                read_count,
+                read_ids,
+                modify_count,
+                modify_ids,
+            )),
+            _ => None,
+        }
     }
 
     /// The start address of allocated RAM for this process.
