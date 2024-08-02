@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-#![forbid(unsafe_code)]
+// #![forbid(unsafe_code)]
 #![no_std]
 
 pub mod test;
@@ -103,3 +103,5 @@ pub mod tsl2561;
 pub mod usb;
 pub mod usb_hid_driver;
 pub mod virtual_kv;
+pub mod hc_sr04;
+pub mod distance;

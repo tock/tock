@@ -1,0 +1,136 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2024.
+
+use core::cell::Cell;
+
+use kernel::hil::gpio::{Client, InterruptEdge};
+use kernel::hil::sensors::{self, Distance, DistanceClient};
+use kernel::hil::time::{Alarm, Ticks};
+use kernel::hil::time::{AlarmClient, ConvertTicks};
+use kernel::utilities::cells::OptionalCell;
+use kernel::ErrorCode;
+
+/// Maximum distance that can be measured by the calculated sensor in miliseconds.
+// As specified in the datasheet:
+// https://www.handsontec.com/dataspecs/HC-SR04-Ultrasonic.pdf,
+// the maximum time for the echo to return is around 38 milliseconds
+// for a maximum distance of approximately 4 meters. We use a slightly
+// higher value to account for possible variations in measurement.
+pub const MAX_DISTANCE_ECHO: u32 = 50;
+
+/// Speed of sound in air in mm/s.
+// The speed of sound is approximately 343 meters per second, which
+// translates to 343,000 millimeters per second. This value is used
+// to calculate the distance based on the time it takes for the echo
+// to return.
+pub const SPEED_OF_SOUND: u32 = 343000;
+
+/// Syscall driver number.
+use capsules_core::driver;
+pub const DRIVER_NUM: usize = driver::NUM::Distance as usize;
+
+#[derive(Copy, Clone, PartialEq)]
+/// Status of the sensor.
+pub enum Status {
+    Idle,         // Sensor is idle.
+    TriggerPulse, // Sending ultrasonic pulse.
+    EchoStart,    // Interrupt on the rising edge.
+    EchoEnd,      // Interrupt on the falling edge.
+}
+
+/// HC-SR04 Ultrasonic Distance Sensor Driver
+pub struct HcSr04<'a, A: Alarm<'a>> {
+    trig: &'a dyn kernel::hil::gpio::Pin,
+    echo: &'a dyn kernel::hil::gpio::InterruptPin<'a>,
+    alarm: &'a A,
+    start_time: Cell<u32>,
+    end_time: Cell<u32>,
+    status: Cell<Status>,
+    distance_client: OptionalCell<&'a dyn sensors::DistanceClient>,
+}
+
+impl<'a, A: Alarm<'a>> HcSr04<'a, A> {
+    /// Create a new HC-SR04 driver.
+    pub fn new(
+        trig: &'a dyn kernel::hil::gpio::Pin,
+        echo: &'a dyn kernel::hil::gpio::InterruptPin<'a>,
+        alarm: &'a A,
+    ) -> HcSr04<'a, A> {
+        // Setup and return struct.
+        HcSr04 {
+            trig,
+            echo,
+            alarm,
+            start_time: Cell::new(0),
+            end_time: Cell::new(0),
+            status: Cell::new(Status::Idle),
+            distance_client: OptionalCell::empty(),
+        }
+    }
+}
+
+impl<'a, A: Alarm<'a>> Distance<'a> for HcSr04<'a, A> {
+    /// Set the client for distance measurement results.
+    fn set_client(&self, distance_client: &'a dyn DistanceClient) {
+        self.distance_client.set(distance_client);
+    }
+    /// Start a distance measurement.
+    fn read_distance(&self) -> Result<(), ErrorCode> {
+        if self.status.get() == Status::Idle {
+            self.status.set(Status::TriggerPulse);
+            self.trig.set(); // Send the trigger pulse.
+            self.alarm
+                .set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(10));
+            Ok(())
+        } else {
+            Err(ErrorCode::BUSY)
+        }
+    }
+}
+
+impl<'a, A: Alarm<'a>> AlarmClient for HcSr04<'a, A> {
+    /// Handle the alarm event.
+    fn alarm(&self) {
+        match self.status.get() {
+            Status::TriggerPulse => {
+                self.trig.clear(); // Clear the trigger pulse.
+                self.echo.enable_interrupts(InterruptEdge::RisingEdge); // Enable rising edge interrupt on echo pin.
+                self.status.set(Status::EchoStart); // Update status to waiting for echo.
+            }
+            _ => {}
+        }
+    }
+}
+
+impl<'a, A: Alarm<'a>> Client for HcSr04<'a, A> {
+    /// Handle the GPIO interrupt.
+    fn fired(&self) {
+        let time = self.alarm.now().into_u32();
+        match self.status.get() {
+            Status::EchoStart => {
+                self.start_time.set(time); // Record start time when echo received.
+                self.echo.enable_interrupts(InterruptEdge::FallingEdge); // Enable falling edge interrupt on echo pin.
+                self.status.set(Status::EchoEnd); // Update status to waiting for echo end.
+            }
+            Status::EchoEnd => {
+                self.end_time.set(time); // Record end time when echo ends.
+                self.status.set(Status::Idle); // Update status to idle.
+                let duration = self.end_time.get().wrapping_sub(self.start_time.get()); // Calculate pulse duration.
+                if duration > self.alarm.ticks_from_ms(MAX_DISTANCE_ECHO).into_u32() {
+                    // If duration exceeds the maximum distance, return an error.
+                    if let Some(distance_client) = self.distance_client.get() {
+                        distance_client.callback(Err(ErrorCode::INVAL));
+                    }
+                } else {
+                    // Calculate distance in milimeters based on the duration of the echo.
+                    let distance = duration * SPEED_OF_SOUND / (2 * 1_000_000);
+                    if let Some(distance_client) = self.distance_client.get() {
+                        distance_client.callback(Ok(distance));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+}
