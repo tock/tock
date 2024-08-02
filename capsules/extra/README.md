@@ -156,7 +156,7 @@ Other capsules that implement reusable logic.
 
 - **[Bus Adapters](src/bus.rs)**: Generic abstraction for SPI/I2C/8080.
 - **[Buzzer PWM](src/buzzer_pwm.rs)**: Buzzer with a PWM pin.
-- **[SG90 PWM](src/sg90.rs)**: SG90 servomotor with a PWM pin.
+- **[SG90 PWM](src/sg90.rs)**: SG90 servomotor.
 - **[HMAC-SHA256](src/hmac_sha256.rs)**: HMAC using SHA-256.
 - **[Key-Value Store with Permissions](src/kv_store_permissions.rs)**: Key-value
   interface that requires read/write permissions.
