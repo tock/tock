@@ -18,7 +18,7 @@ impl<'a, P: hil::pwm::PwmPin> Sg90<'a, P> {
 impl<'a, P: hil::pwm::PwmPin> kernel::hil::servo::Servo<'a> for Sg90<'a, P> {
     fn servo(&self, angle: usize) -> Result<(), ErrorCode> {
         if angle <= 180 {
-            // As specified in the datasheet: 
+            // As specified in the datasheet:
             // https://www.friendlywire.com/projects/ne555-servo-safe/SG90-datasheet.pdf,
             // the frequency used for sg90 servo is always 50hz.
             const FREQUENCY_HZ: usize = 50;
