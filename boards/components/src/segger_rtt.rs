@@ -31,7 +31,8 @@ use kernel::hil::time::{self, Alarm};
 #[macro_export]
 macro_rules! segger_rtt_memory_component_static {
     () => {{
-        let rtt_memory = kernel::static_buf!(capsules_extra::segger_rtt::SeggerRttMemory);
+        let rtt_memory =
+            kernel::static_named_buf!(capsules_extra::segger_rtt::SeggerRttMemory, "_SEGGER_RTT");
         let up_buffer =
             kernel::static_buf!([u8; capsules_extra::segger_rtt::DEFAULT_UP_BUFFER_LENGTH]);
         let down_buffer =
