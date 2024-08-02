@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2024.
 
-//! This provides virtualized userspace access to a servo.
+//! This provides virtualized userspace access to a servomotor.
 //!
 //! Usage
 //! -----
@@ -44,11 +44,6 @@ use kernel::{ErrorCode, ProcessId};
 /// Syscall driver number.
 use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Servo as usize;
-
-#[derive(Clone, Copy, PartialEq)]
-pub enum ServoCommand {
-    Servo { angle: usize },
-}
 
 pub struct Servo<'a, B: hil::servo::Servo<'a>> {
     /// The service capsule servo.

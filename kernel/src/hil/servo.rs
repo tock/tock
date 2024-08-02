@@ -9,5 +9,9 @@ pub trait Servo<'a> {
     ///
     /// - `Ok(())`: The attempt at changing the angle was successful.
     /// - `FAIL`: Cannot change the angle.
+    /// 
+    /// "&self" is used so the function can modify the servomotor.
+    /// "angle" is the parameter that receives the angle 
+    /// (in degrees from 0 to 180) from the servo driver.
     fn servo(&self, angle: usize) -> Result<(), ErrorCode>;
 }
