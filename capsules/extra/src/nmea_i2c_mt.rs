@@ -148,9 +148,14 @@ impl<'a, I: I2CDevice> I2CClient for I2cNmea<'a, I> {
                     // Otherwise this is the middle of the sentence and we have no
                     // header so just try again
                 } else {
-                    if let Some(location) = string.find('$') {
+                    if let Some(mut location) = string.find('\n') {
                         // This includes the end of the current sentence
                         // and the start of a new sentence
+
+                        // Increment the location by 1 so that we include the
+                        // `\n`. It's cleaner to just increment it once here
+                        // instead of everywhere below.
+                        location += 1;
 
                         if (nmea_offset + location) > nmea_buf.len() {
                             // We will overflow our buffer, just drop the packet and try again
