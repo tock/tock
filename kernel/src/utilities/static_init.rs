@@ -100,6 +100,10 @@ macro_rules! static_buf {
 
 /// A version of [`static_buf!()`] that adds an exported name to the buffer.
 ///
+/// This creates a static buffer exactly as [`static_buf!()`] does. In general,
+/// most uses should use [`static_buf!()`]. However, in cases where the symbol
+/// name of the buffer matters, this version is useful.
+///
 /// Allocates a statically-sized global region of memory for data structures but
 /// does not initialize the memory. Checks that the buffer is not aliased and is
 /// only used once.
