@@ -11,7 +11,7 @@ use nrf52840::uart::{Uarte, UARTE0_BASE};
 
 enum Writer {
     WriterUart(/* initialized */ bool),
-    WriterRtt(&'static capsules_extra::segger_rtt::SeggerRttMemory<'static>),
+    WriterRtt(&'static segger::SeggerRttMemory<'static>),
 }
 
 static mut WRITER: Writer = Writer::WriterUart(false);
@@ -24,9 +24,7 @@ fn wait() {
 }
 
 /// Set the RTT memory buffer used to output panic messages.
-pub unsafe fn set_rtt_memory(
-    rtt_memory: &'static capsules_extra::segger_rtt::SeggerRttMemory<'static>,
-) {
+pub unsafe fn set_rtt_memory(rtt_memory: &'static segger::SeggerRttMemory<'static>) {
     WRITER = Writer::WriterRtt(rtt_memory);
 }
 

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
+#![no_std]
+
 //! Segger RTT implementation.
 //!
 //! RTT is a protocol for sending debugging messages to a connected host. The
@@ -92,6 +94,7 @@
 
 use core::cell::Cell;
 use core::marker::PhantomData;
+use core::ops::Index;
 use kernel::hil;
 use kernel::hil::time::ConvertTicks;
 use kernel::hil::uart;
@@ -120,22 +123,33 @@ pub struct SeggerRttMemory<'a> {
 pub struct SeggerRttBuffer<'a> {
     name: VolatileCell<*const u8>, // Pointer to the name of this channel. Must be a 4 byte thin pointer.
     // These fields are marked as `pub` to allow access in the panic handler.
-    pub buffer: VolatileCell<*const u8>, // Pointer to the buffer for this channel.
+    pub buffer: VolatileCell<*const VolatileCell<u8>>, // Pointer to the buffer for this channel.
     pub length: VolatileCell<u32>,
     pub write_position: VolatileCell<u32>,
     read_position: VolatileCell<u32>,
     flags: VolatileCell<u32>,
-    _lifetime: PhantomData<&'a [u8]>,
+    _lifetime: PhantomData<&'a ()>,
+}
+
+impl<'a> Index<usize> for SeggerRttBuffer<'a> {
+    type Output = VolatileCell<u8>;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        let index = index as isize;
+        if index >= self.length.get() as isize {
+            panic!("Index out of bounds {}/{}", index, self.length.get())
+        } else {
+            unsafe { &*self.buffer.get().offset(index) }
+        }
+    }
 }
 
 impl<'a> SeggerRttMemory<'a> {
     pub fn new_raw(
         up_buffer_name: &'a [u8],
-        up_buffer_ptr: *const u8,
-        up_buffer_len: usize,
+        up_buffer: &'a [VolatileCell<u8>],
         down_buffer_name: &'a [u8],
-        down_buffer_ptr: *const u8,
-        down_buffer_len: usize,
+        down_buffer: &'a [VolatileCell<u8>],
     ) -> SeggerRttMemory<'a> {
         SeggerRttMemory {
             // This field is a magic value that must be set to "SEGGER RTT" for the debugger to
@@ -150,8 +164,8 @@ impl<'a> SeggerRttMemory<'a> {
             number_down_buffers: VolatileCell::new(1),
             up_buffer: SeggerRttBuffer {
                 name: VolatileCell::new(up_buffer_name.as_ptr()),
-                buffer: VolatileCell::new(up_buffer_ptr),
-                length: VolatileCell::new(up_buffer_len as u32),
+                buffer: VolatileCell::new(up_buffer.as_ptr()),
+                length: VolatileCell::new(up_buffer.len() as u32),
                 write_position: VolatileCell::new(0),
                 read_position: VolatileCell::new(0),
                 flags: VolatileCell::new(0),
@@ -159,8 +173,8 @@ impl<'a> SeggerRttMemory<'a> {
             },
             down_buffer: SeggerRttBuffer {
                 name: VolatileCell::new(down_buffer_name.as_ptr()),
-                buffer: VolatileCell::new(down_buffer_ptr),
-                length: VolatileCell::new(down_buffer_len as u32),
+                buffer: VolatileCell::new(down_buffer.as_ptr()),
+                length: VolatileCell::new(down_buffer.len() as u32),
                 write_position: VolatileCell::new(0),
                 read_position: VolatileCell::new(0),
                 flags: VolatileCell::new(0),
@@ -180,25 +194,16 @@ impl<'a> SeggerRttMemory<'a> {
 pub struct SeggerRtt<'a, A: hil::time::Alarm<'a>> {
     alarm: &'a A, // Dummy alarm so we can get a callback.
     config: TakeCell<'a, SeggerRttMemory<'a>>,
-    up_buffer: TakeCell<'a, [u8]>,
-    _down_buffer: TakeCell<'a, [u8]>,
     client: OptionalCell<&'a dyn uart::TransmitClient>,
     client_buffer: TakeCell<'static, [u8]>,
     tx_len: Cell<usize>,
 }
 
 impl<'a, A: hil::time::Alarm<'a>> SeggerRtt<'a, A> {
-    pub fn new(
-        alarm: &'a A,
-        config: &'a mut SeggerRttMemory<'a>,
-        up_buffer: &'a mut [u8],
-        down_buffer: &'a mut [u8],
-    ) -> SeggerRtt<'a, A> {
+    pub fn new(alarm: &'a A, config: &'a mut SeggerRttMemory<'a>) -> SeggerRtt<'a, A> {
         SeggerRtt {
             alarm,
             config: TakeCell::new(config),
-            up_buffer: TakeCell::new(up_buffer),
-            _down_buffer: TakeCell::new(down_buffer),
             client: OptionalCell::empty(),
             client_buffer: TakeCell::empty(),
             tx_len: Cell::new(0),
@@ -216,35 +221,33 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Transmit<'a> for SeggerRtt<'a, A> {
         tx_data: &'static mut [u8],
         tx_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        if self.up_buffer.is_some() && self.config.is_some() {
-            self.up_buffer.map(|buffer| {
-                self.config.map(move |config| {
-                    // Copy the incoming data into the buffer. Once we increment
-                    // the `write_position` the RTT listener will go ahead and read
-                    // the message from us.
-                    let mut index = config.up_buffer.write_position.get() as usize;
-                    let buffer_len = config.up_buffer.length.get() as usize;
+        if self.config.is_some() {
+            self.config.map(|config| {
+                // Copy the incoming data into the buffer. Once we increment
+                // the `write_position` the RTT listener will go ahead and read
+                // the message from us.
+                let mut index = config.up_buffer.write_position.get() as usize;
+                let buffer_len = config.up_buffer.length.get() as usize;
 
-                    for i in 0..tx_len {
-                        buffer[(i + index) % buffer_len] = tx_data[i];
-                    }
+                for i in 0..tx_len {
+                    config.up_buffer[(i + index) % buffer_len].set(tx_data[i]);
+                }
 
-                    index = (index + tx_len) % buffer_len;
-                    config.up_buffer.write_position.set(index as u32);
-                    self.tx_len.set(tx_len);
-                    // Save the client buffer so we can pass it back with the callback.
-                    self.client_buffer.replace(tx_data);
+                index = (index + tx_len) % buffer_len;
+                config.up_buffer.write_position.set(index as u32);
+                self.tx_len.set(tx_len);
+                // Save the client buffer so we can pass it back with the callback.
+                self.client_buffer.replace(tx_data);
 
-                    // Start a short timer so that we get a callback and can issue the callback to
-                    // the client.
-                    //
-                    // This heuristic interval was tested with the console capsule on a nRF52840-DK
-                    // board, passing buffers up to 1500 bytes from userspace. 100 micro-seconds
-                    // was too short, even for buffers as small as 128 bytes. 1 milli-second seems to
-                    // be reliable.
-                    let delay = self.alarm.ticks_from_us(1000);
-                    self.alarm.set_alarm(self.alarm.now(), delay);
-                })
+                // Start a short timer so that we get a callback and can issue the callback to
+                // the client.
+                //
+                // This heuristic interval was tested with the console capsule on a nRF52840-DK
+                // board, passing buffers up to 1500 bytes from userspace. 100 micro-seconds
+                // was too short, even for buffers as small as 128 bytes. 1 milli-second seems to
+                // be reliable.
+                let delay = self.alarm.ticks_from_us(1000);
+                self.alarm.set_alarm(self.alarm.now(), delay);
             });
             Ok(())
         } else {
