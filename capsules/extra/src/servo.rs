@@ -52,7 +52,7 @@ pub struct Servo<'a, B: hil::servo::Servo<'a>> {
 
 impl<'a, B: hil::servo::Servo<'a>> Servo<'a, B> {
     pub fn new(servo: &'a B) -> Servo<'a, B> {
-        Servo { servo: servo }
+        Servo { servo }
     }
 }
 /// Provide an interface for userland.
