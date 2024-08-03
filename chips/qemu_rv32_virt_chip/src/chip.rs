@@ -20,6 +20,7 @@ use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
 use sifive::plic::Plic;
 
 use crate::interrupts;
+use crate::channel::{self, QemuRv32VirtChannel};
 use crate::plic::PLIC;
 use crate::clint::CLIC;
 use crate::{MAX_THREADS, MAX_CONTEXTS, plic::PLIC_BASE};
@@ -131,6 +132,31 @@ impl<'a, I: InterruptService + 'a> QemuRv32VirtChip<'a, I> {
             });
         }
     }
+
+    fn has_channel_requests(&self) -> bool {
+        let closure = |c: &mut Option<QemuRv32VirtChannel>| {
+            c.as_mut()
+                .expect("Uninitialized channel")
+                .has_pending_requests()
+        };
+
+        unsafe { channel::with_shared_channel_panic(closure) }
+    }
+
+    unsafe fn handle_next_channel_request(&self) {
+        if self.has_channel_requests() {
+            let closure = |c: &mut Option<QemuRv32VirtChannel>| {
+                let channel = c.as_mut().expect("Uninitialized channel");
+                channel.service();
+
+                self.atomic(|| {
+                    channel.service_complete();
+                });
+            };
+
+            channel::with_shared_channel_panic(closure);
+        }
+    }
 }
 
 impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
@@ -159,8 +185,13 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
                 }
             }
 
+            unsafe {
+                self.handle_next_channel_request();
+            }
+
             if !mip.any_matching_bits_set(mip::mtimer::SET)
                 && self.plic.get_saved_interrupts().is_none()
+                && !self.has_channel_requests()
             {
                 break;
             }
@@ -179,8 +210,20 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
             return true;
         }
 
+        // Check if there is any pending inter-kernel messages
+        let closure = |channel: &mut Option<QemuRv32VirtChannel>| {
+            channel.as_mut()
+                .expect("Uninitialized channel")
+                .has_pending_requests()
+        };
+
+        let has_pending_channel_requests = unsafe {
+            channel::with_shared_channel_panic(closure)
+        };
+
         // Then we can check the PLIC.
         self.plic.get_saved_interrupts().is_some()
+            || has_pending_channel_requests
     }
 
     fn sleep(&self) {
@@ -260,7 +303,9 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
                 .expect("Unable to access thread-local CLIC controller")
                 .enter_nonreentrant(|clic| {
                     clic.clear_soft_interrupt(hart_id);
-                    crate::channel::with_shared_channel_panic(|channel| {
+                    // FIXME: Accessing deferred calls here is unsound.
+                    // THIS WILL BREAK
+                    channel::with_shared_channel_panic(|channel| {
                         channel
                             .as_mut()
                             .expect("Uninitialized channel")

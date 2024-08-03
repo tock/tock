@@ -61,7 +61,7 @@ where
 
 pub struct QemuRv32VirtChannel<'a> {
     channel: &'a Mutex<RingBuffer<'a, Option<QemuRv32VirtMessage>>>,
-    deferred_call: DeferredCall,
+    notified: core::cell::Cell<usize>,
 }
 
 impl<'a> QemuRv32VirtChannel<'a> {
@@ -70,7 +70,7 @@ impl<'a> QemuRv32VirtChannel<'a> {
     ) -> Self {
         QemuRv32VirtChannel {
             channel,
-            deferred_call: DeferredCall::new()
+            notified: Cell::new(0),
         }
     }
 
@@ -217,21 +217,19 @@ impl<'a> QemuRv32VirtChannel<'a> {
     }
 
     pub fn service_async(&self) {
-        self.deferred_call.set();
+        let old_val = self.notified.get();
+        self.notified.set(old_val + 1);
+    }
+
+    pub fn has_pending_requests(&self) -> bool {
+        self.notified.get() != 0
+    }
+
+    pub fn service_complete(&self) {
+        let old_val = self.notified.get();
+        self.notified.set(old_val - 1);
     }
 }
-
-
-impl DeferredCallClient for QemuRv32VirtChannel<'_> {
-    fn handle_deferred_call(&self) {
-        self.service();
-    }
-
-    fn register(&'static self) {
-        self.deferred_call.register(self);
-    }
-}
-
 
 
 impl SharedChannel for QemuRv32VirtChannel<'_> {

@@ -160,7 +160,8 @@ impl
 }
 
 pub unsafe fn spawn<const ID: usize>(
-    channel: &'static smp::mutex::Mutex<RingBuffer<Option<qemu_rv32_virt_chip::channel::QemuRv32VirtMessage>>>
+    channel: &'static smp::mutex::Mutex<RingBuffer<Option<qemu_rv32_virt_chip::channel::QemuRv32VirtMessage>>>,
+    has_app_thread: bool,
 ) {
     // These symbols are defined in the linker script.
     extern "C" {
@@ -279,13 +280,6 @@ pub unsafe fn spawn<const ID: usize>(
         let _ = c.replace(qemu_rv32_virt_chip::channel::QemuRv32VirtChannel::new(channel));
     });
 
-    // Hack: escape non-reentrant to get a static mut, fix it with a better interface
-    kernel::deferred_call::DeferredCallClient::register(
-        qemu_rv32_virt_chip::channel::with_shared_channel_panic(|c| {
-            &*(c.as_mut().unwrap() as *mut _)
-        })
-    );
-
     // ---------- QEMU-SYSTEM-RISCV32 "virt" MACHINE PORTALS ----------
 
     use qemu_rv32_virt_chip::portal::{QemuRv32VirtPortal, PORTALS};
@@ -328,6 +322,7 @@ pub unsafe fn spawn<const ID: usize>(
         QemuRv32VirtDefaultPeripherals,
         QemuRv32VirtDefaultPeripherals::new(uart_portal),
     );
+
 
     // Create a shared UART channel for the console and for kernel
     // debug over the provided memory-mapped 16550-compatible
@@ -643,7 +638,6 @@ pub unsafe fn spawn<const ID: usize>(
     // Start the process console:
     // let _ = platform.pconsole.start();
 
-    let has_app_thread = true;
     if has_app_thread {
         // Global initialization is done. Wake up all threads.
         (0..MAX_THREADS)
@@ -656,6 +650,7 @@ pub unsafe fn spawn<const ID: usize>(
 
     debug!("QEMU RISC-V 32-bit {MAX_THREADS}-SMP \"virt\" machine core {ID}, initialization complete.");
     debug!("Entering main kernel loop.");
+
 
     // ---------- PROCESS LOADING, SCHEDULER LOOP ----------
 

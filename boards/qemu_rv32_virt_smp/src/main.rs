@@ -105,7 +105,7 @@ pub unsafe fn main(thread_type: ThreadType) {
 
     use ThreadType as T;
     match thread_type {
-        T::Main => threads::main_thread::spawn::<{T::Main as usize}>(channel),
+        T::Main => threads::main_thread::spawn::<{T::Main as usize}>(channel, true),
         T::Application => {
             // loop {}
             threads::app_thread::spawn::<{T::Application as usize}>(channel)

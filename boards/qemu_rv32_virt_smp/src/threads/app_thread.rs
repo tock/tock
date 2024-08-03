@@ -239,13 +239,6 @@ pub unsafe fn spawn<const ID: usize>(
     // Initialize the kernel-local uart state
     qemu_rv32_virt_chip::uart::init_uart_state();
 
-    // Hack: escape non-reentrant to get a static mut, fix it with a better interface
-    kernel::deferred_call::DeferredCallClient::register(
-        qemu_rv32_virt_chip::channel::with_shared_channel_panic(|c| {
-            &*(c.as_mut().unwrap() as *mut _)
-        })
-    );
-
     // Open an empty uart portal
     use qemu_rv32_virt_chip::portal::{QemuRv32VirtPortal, PORTALS};
     use qemu_rv32_virt_chip::portal_cell::QemuRv32VirtPortalCell;
