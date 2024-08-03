@@ -58,6 +58,7 @@ These drivers provide support for various ICs.
 - **[MAX17205](src/max17205.rs)**: Battery fuel gauge.
 - **[MCP230xx](src/mcp230xx.rs)**: I2C GPIO extender.
 - **[MX25r6435F](src/mx25r6435f.rs)**: SPI flash chip.
+- **[NMEA I2C MediaTek](src/nmea_i2c_mt.rs)**: MediaTek I2C GNSS receivers.
 - **[PCA9544A](src/pca9544a.rs)**: Multiple port I2C selector.
 - **[SD Card](src/sdcard.rs)**: Support for SD cards.
 - **[Seven Segment Display](src/seven_segment.rs)**: Seven segment displays.
@@ -123,6 +124,7 @@ These provide common and better abstractions for userspace.
 - **[Humidity](src/humidity.rs)**: Query humidity sensors.
 - **[Key-Value Store](src/kv_driver.rs)**: Store key-value data.
 - **[LED Matrix](src/led_matrix.rs)**: Control a 2D array of LEDs.
+- **[NMEA](src/nmea.rs)**: NMEA sentences.
 - **[Pressure](src/pressure.rs)**: Pressure sensors.
 - **[Proximity](src/proximity.rs)**: Proximity sensors.
 - **[PWM](src/pwm.rs)**: Pulse-width modulation support.

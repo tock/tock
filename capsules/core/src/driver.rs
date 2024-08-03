@@ -34,6 +34,7 @@ pub enum NUM {
     UsbUser               = 0x20005,
     I2cMasterSlave        = 0x20006,
     Can                   = 0x20007,
+    Nmea                  = 0x20008,
 
     // Radio
     BleAdvertising        = 0x30000,
