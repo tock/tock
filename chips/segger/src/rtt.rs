@@ -98,6 +98,12 @@ pub const DEFAULT_UP_BUFFER_LENGTH: usize = 1024;
 /// Suggested length for the down buffer to pass to the Segger RTT capsule.
 pub const DEFAULT_DOWN_BUFFER_LENGTH: usize = 32;
 
+/// Milliseconds to wait to flush tx buffer after writing
+const TX_MS_DELAY: u32 = 1;
+
+/// Milliseconds to wait between checking if rx data is available
+const RX_MS_DELAY: u32 = 100;
+
 /// This structure is defined by the segger RTT protocol. It must exist in
 /// memory in exactly this form so that the segger JTAG tool can find it in the
 /// chip's memory and read and write messages to the appropriate buffers.
@@ -202,9 +208,13 @@ impl<'a> SeggerRttMemory<'a> {
 pub struct SeggerRtt<'a, A: hil::time::Alarm<'a>> {
     alarm: &'a A, // Dummy alarm so we can get a callback.
     config: TakeCell<'a, SeggerRttMemory<'a>>,
-    client: OptionalCell<&'a dyn uart::TransmitClient>,
-    client_buffer: TakeCell<'static, [u8]>,
+    tx_client: OptionalCell<&'a dyn uart::TransmitClient>,
+    tx_client_buffer: TakeCell<'static, [u8]>,
     tx_len: Cell<usize>,
+    rx_client: OptionalCell<&'a dyn uart::ReceiveClient>,
+    rx_client_buffer: TakeCell<'static, [u8]>,
+    rx_cursor: Cell<usize>,
+    rx_len: Cell<usize>,
 }
 
 impl<'a, A: hil::time::Alarm<'a>> SeggerRtt<'a, A> {
@@ -212,16 +222,20 @@ impl<'a, A: hil::time::Alarm<'a>> SeggerRtt<'a, A> {
         SeggerRtt {
             alarm,
             config: TakeCell::new(config),
-            client: OptionalCell::empty(),
-            client_buffer: TakeCell::empty(),
+            tx_client: OptionalCell::empty(),
+            tx_client_buffer: TakeCell::empty(),
             tx_len: Cell::new(0),
+            rx_client: OptionalCell::empty(),
+            rx_client_buffer: TakeCell::empty(),
+            rx_cursor: Cell::new(0),
+            rx_len: Cell::new(0),
         }
     }
 }
 
 impl<'a, A: hil::time::Alarm<'a>> uart::Transmit<'a> for SeggerRtt<'a, A> {
     fn set_transmit_client(&self, client: &'a dyn uart::TransmitClient) {
-        self.client.set(client);
+        self.tx_client.set(client);
     }
 
     fn transmit_buffer(
@@ -249,7 +263,7 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Transmit<'a> for SeggerRtt<'a, A> {
 
                 self.tx_len.set(tx_len);
                 // Save the client buffer so we can pass it back with the callback.
-                self.client_buffer.replace(tx_data);
+                self.tx_client_buffer.replace(tx_data);
 
                 // Start a short timer so that we get a callback and can issue the callback to
                 // the client.
@@ -258,7 +272,7 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Transmit<'a> for SeggerRtt<'a, A> {
                 // board, passing buffers up to 1500 bytes from userspace. 100 micro-seconds
                 // was too short, even for buffers as small as 128 bytes. 1 milli-second seems to
                 // be reliable.
-                let delay = self.alarm.ticks_from_us(1000);
+                let delay = self.alarm.ticks_from_ms(TX_MS_DELAY);
                 self.alarm.set_alarm(self.alarm.now(), delay);
             });
             Ok(())
@@ -278,9 +292,39 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Transmit<'a> for SeggerRtt<'a, A> {
 
 impl<'a, A: hil::time::Alarm<'a>> hil::time::AlarmClient for SeggerRtt<'a, A> {
     fn alarm(&self) {
-        self.client.map(|client| {
-            self.client_buffer.take().map(|buffer| {
+        self.tx_client.map(|client| {
+            self.tx_client_buffer.take().map(|buffer| {
                 client.transmitted_buffer(buffer, self.tx_len.get(), Ok(()));
+            });
+        });
+        self.rx_client.map(|client| {
+            self.rx_client_buffer.take().map(|buffer| {
+                self.config.map(|config| {
+                    let write_position = &config.down_buffer.write_position;
+                    let read_position = &config.down_buffer.read_position;
+
+                    // ensure all reads/writes to position data has already happened
+                    fence(Ordering::SeqCst);
+                    while self.rx_cursor.get() < self.rx_len.get()
+                        && write_position.get() != read_position.get()
+                    {
+                        buffer[self.rx_cursor.get()] =
+                            config.down_buffer[read_position.get() as usize].get();
+                        // ensure output data ordered before updating read_position
+                        fence(Ordering::SeqCst);
+                        read_position.set((read_position.get() + 1) % config.down_buffer.length);
+                        self.rx_cursor.set(self.rx_cursor.get() + 1);
+                    }
+                    // "flush" the final rx_cursor update
+                    fence(Ordering::SeqCst);
+                });
+                if self.rx_cursor.get() == self.rx_len.get() {
+                    client.received_buffer(buffer, self.rx_len.get(), Ok(()), uart::Error::None);
+                } else {
+                    let delay = self.alarm.ticks_from_ms(RX_MS_DELAY);
+                    self.alarm.set_alarm(self.alarm.now(), delay);
+                    self.rx_client_buffer.put(Some(buffer))
+                }
             });
         });
     }
@@ -294,17 +338,24 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Configure for SeggerRtt<'a, A> {
     }
 }
 
-// Dummy implementation so this can act as the underlying UART for a
-// virtualized UART MUX.  -pal 1/10/19
 impl<'a, A: hil::time::Alarm<'a>> uart::Receive<'a> for SeggerRtt<'a, A> {
-    fn set_receive_client(&self, _client: &'a dyn uart::ReceiveClient) {}
+    fn set_receive_client(&self, client: &'a dyn uart::ReceiveClient) {
+        self.rx_client.set(client)
+    }
 
     fn receive_buffer(
         &self,
         buffer: &'static mut [u8],
-        _len: usize,
+        len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        Err((ErrorCode::FAIL, buffer))
+        self.rx_client_buffer.put(Some(buffer));
+        self.rx_len.set(len);
+        self.rx_cursor.set(0);
+        if !self.alarm.is_armed() {
+            let delay = self.alarm.ticks_from_ms(RX_MS_DELAY);
+            self.alarm.set_alarm(self.alarm.now(), delay);
+        }
+        Ok(())
     }
 
     fn receive_word(&self) -> Result<(), ErrorCode> {
