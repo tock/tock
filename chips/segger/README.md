@@ -1,5 +1,7 @@
-# Segger Chip Support
+# Segger Peripheral Support
 
-Provides chip support for Segger peripherals:
+This crate does not abstract a specific chip, but rather provides
+support libraries for low-level Segger peripherals that are available
+on many chips (most Cortex-M chips and possibly others):
 
-- Segger RTT: Provides a `hil::uart` interface for the Segger RTT interface
+- [Segger RTT](https://wiki.segger.com/RTT): Provides a `hil::uart` interface for the Segger RTT interface
