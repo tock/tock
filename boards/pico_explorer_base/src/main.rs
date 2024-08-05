@@ -414,8 +414,9 @@ pub unsafe fn start() -> (
             20 => peripherals.pins.get_pin(RPGpio::GPIO20),
             21 => peripherals.pins.get_pin(RPGpio::GPIO21),
             22 => peripherals.pins.get_pin(RPGpio::GPIO22),
-            23 => peripherals.pins.get_pin(RPGpio::GPIO23),
-            24 => peripherals.pins.get_pin(RPGpio::GPIO24),
+            26 => peripherals.pins.get_pin(RPGpio::GPIO26),
+            27 => peripherals.pins.get_pin(RPGpio::GPIO27),
+            28 => peripherals.pins.get_pin(RPGpio::GPIO28),
         ),
     )
     .finalize(components::gpio_component_static!(RPGpioPin<'static>));
