@@ -126,12 +126,15 @@ impl KernelResources<e310_g002::chip::E310x<'static, E310G002DefaultPeripherals<
     }
 }
 
-/// Main function.
-///
-/// This function is called from the arch crate after some very basic RISC-V
-/// setup and RAM initialization.
-#[no_mangle]
-pub unsafe fn main() {
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+unsafe fn start() -> (
+    &'static kernel::Kernel,
+    RedV,
+    &'static e310_g002::chip::E310x<'static, E310G002DefaultPeripherals<'static>>,
+) {
     // only machine mode
     rv32i::configure_trap_handler();
 
@@ -158,8 +161,6 @@ pub unsafe fn main() {
         .e310x
         .prci
         .set_clock_frequency(sifive::prci::ClockFrequency::Freq16Mhz);
-
-    let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
 
@@ -300,10 +301,10 @@ pub unsafe fn main() {
     );
 
     let redv = RedV {
-        console: console,
-        alarm: alarm,
-        lldb: lldb,
         led,
+        console,
+        lldb,
+        alarm,
         scheduler,
         scheduler_timer,
     };
@@ -328,10 +329,19 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
+    (board_kernel, redv, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, platform, chip) = start();
     board_kernel.kernel_loop(
-        &redv,
+        &platform,
         chip,
         None::<&kernel::ipc::IPC<{ NUM_PROCS as u8 }>>,
-        &main_loop_cap,
+        &main_loop_capability,
     );
 }

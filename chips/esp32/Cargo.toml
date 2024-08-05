@@ -10,3 +10,6 @@ edition.workspace = true
 
 [dependencies]
 kernel = { path = "../../kernel" }
+
+[lints]
+workspace = true

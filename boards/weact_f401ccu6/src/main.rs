@@ -212,17 +212,19 @@ unsafe fn setup_peripherals(tim2: &stm32f401cc::tim2::Tim2) {
     cortexm4::nvic::Nvic::new(stm32f401cc::nvic::TIM2).enable();
 }
 
-/// Statically initialize the core peripherals for the chip.
+/// Main function
 ///
 /// This is in a separate, inline(never) function so that its stack frame is
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn create_peripherals() -> (
-    &'static mut Stm32f401ccDefaultPeripherals<'static>,
-    &'static stm32f401cc::syscfg::Syscfg<'static>,
-    &'static stm32f401cc::dma::Dma1<'static>,
+unsafe fn start() -> (
+    &'static kernel::Kernel,
+    WeactF401CC,
+    &'static stm32f401cc::chip::Stm32f4xx<'static, Stm32f401ccDefaultPeripherals<'static>>,
 ) {
+    stm32f401cc::init();
+
     // We use the default HSI 16Mhz clock
     let rcc = static_init!(stm32f401cc::rcc::Rcc, stm32f401cc::rcc::Rcc::new());
     let clocks = static_init!(
@@ -244,17 +246,7 @@ unsafe fn create_peripherals() -> (
         Stm32f401ccDefaultPeripherals,
         Stm32f401ccDefaultPeripherals::new(clocks, exti, dma1, dma2)
     );
-    (peripherals, syscfg, dma1)
-}
 
-/// Main function.
-///
-/// This is called after RAM initialization is complete.
-#[no_mangle]
-pub unsafe fn main() {
-    stm32f401cc::init();
-
-    let (peripherals, syscfg, dma1) = create_peripherals();
     peripherals.init();
     let base_peripherals = &peripherals.stm32f4;
 
@@ -288,7 +280,6 @@ pub unsafe fn main() {
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
 
@@ -445,17 +436,17 @@ pub unsafe fn main() {
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let weact_f401cc = WeactF401CC {
-        console: console,
+        console,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
         adc: adc_syscall,
-        led: led,
-        button: button,
-        alarm: alarm,
-        gpio: gpio,
+        led,
+        button,
+        alarm,
+        gpio,
         scheduler,
         systick: cortexm4::systick::SysTick::new(),
     };
@@ -499,10 +490,14 @@ pub unsafe fn main() {
     .finalize(components::multi_alarm_test_component_buf!(stm32f401cc::tim2::Tim2))
     .run();*/
 
-    board_kernel.kernel_loop(
-        &weact_f401cc,
-        chip,
-        Some(&weact_f401cc.ipc),
-        &main_loop_capability,
-    );
+    (board_kernel, weact_f401cc, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, platform, chip) = start();
+    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }

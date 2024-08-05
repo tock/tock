@@ -187,9 +187,9 @@ impl<'a> Spi<'a> {
             master_client: OptionalCell::empty(),
 
             tx_dma: OptionalCell::empty(),
-            tx_dma_pid: tx_dma_pid,
+            tx_dma_pid,
             rx_dma: OptionalCell::empty(),
-            rx_dma_pid: rx_dma_pid,
+            rx_dma_pid,
 
             dma_len: Cell::new(0),
             transfers_in_progress: Cell::new(0),

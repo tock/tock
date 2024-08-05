@@ -4,27 +4,25 @@
 
 //! Support for processes granting memory from their allocations to the kernel.
 //!
-//!
-//!
 //! ## Grant Overview
 //!
 //! Grants allow capsules to dynamically allocate memory from a process to hold
 //! state on the process's behalf.
 //!
-//! Each capsule that wishes to do this needs to have a `Grant` type. `Grant`s
+//! Each capsule that wishes to do this needs to have a [`Grant`] type. Grants
 //! are created at boot, and each have a unique ID and a type `T`. This type
 //! only allows the capsule to allocate memory from a process in the future. It
 //! does not initially represent any allocated memory.
 //!
-//! When a capsule does wish to use its `Grant` to allocate memory from a
-//! process, it must "enter" the `Grant` with a specific `ProcessId`. Entering a
-//! `Grant` for a specific process instructs the core kernel to create an object
-//! `T` in the process's memory space and provide the capsule with access to it.
-//! If the `Grant` has not previously been entered for that process, the memory
-//! for object `T` will be allocated from the "grant region" within the
+//! When a capsule does wish to use its Grant to allocate memory from a process,
+//! it must "enter" the Grant with a specific [`ProcessId`]. Entering a Grant
+//! for a specific process instructs the core kernel to create an object `T` in
+//! the process's memory space and provide the capsule with access to it. If the
+//! Grant has not previously been entered for that process, the memory for
+//! object `T` will be allocated from the "grant region" within the
 //! kernel-accessible portion of the process's memory.
 //!
-//! If a `Grant` has never been entered for a process, the object `T` will _not_
+//! If a Grant has never been entered for a process, the object `T` will _not_
 //! be allocated in that process's grant region, even if the `Grant` has been
 //! entered for other processes.
 //!
@@ -33,13 +31,13 @@
 //! references are stored outside of the `T` object to enable the kernel to
 //! manage them and ensure swapping guarantees are met.
 //!
-//! The type `T` of a `Grant` is fixed in size and the number of upcalls and
-//! allowed buffers associated with a grant is fixed. That is, when a `Grant` is
+//! The type `T` of a Grant is fixed in size and the number of upcalls and
+//! allowed buffers associated with a grant is fixed. That is, when a Grant is
 //! entered for a process the resulting allocated object will be the size of
 //! `SizeOf<T>` plus the size for the structure to hold upcalls and allowed
 //! buffer references. If capsules need additional process-specific memory for
-//! their operation, they can use an `Allocator` to request additional memory
-//! from the process's grant region.
+//! their operation, they can use an [`GrantRegionAllocator`] to request
+//! additional memory from the process's grant region.
 //!
 //! ```text,ignore
 //!                            ┌──────────────────┐
@@ -500,26 +498,27 @@ impl Drop for EnteredGrantKernelManagedLayout<'_> {
     }
 }
 
-/// This GrantData object provides access to the memory allocated for a grant
-/// for a specific process.
+/// This [`GrantData`] object provides access to the memory allocated for a
+/// grant for a specific process.
 ///
-/// The GrantData type is templated on T, the actual type of the object in the
-/// grant. GrantData holds a mutable reference to the type, allowing users
-/// access to the object in process memory.
+/// The [`GrantData`] type is templated on `T`, the actual type of the object in
+/// the grant. [`GrantData'] holds a mutable reference to the type, allowing
+/// users access to the object in process memory.
 ///
-/// Capsules gain access to a GrantData object by calling `Grant::enter()`.
+/// Capsules gain access to a [`GrantData`] object by calling
+/// [`Grant::enter()`].
 pub struct GrantData<'a, T: 'a + ?Sized> {
     /// The mutable reference to the actual object type stored in the grant.
     data: &'a mut T,
 }
 
 impl<'a, T: 'a + ?Sized> GrantData<'a, T> {
-    /// Create a `GrantData` object to provide access to the actual object
+    /// Create a [`GrantData`] object to provide access to the actual object
     /// allocated for a process.
     ///
-    /// Only one can GrantData per underlying object can be created at a time.
-    /// Otherwise, there would be multiple mutable references to the same object
-    /// which is undefined behavior.
+    /// Only one can [`GrantData`] per underlying object can be created at a
+    /// time. Otherwise, there would be multiple mutable references to the same
+    /// object which is undefined behavior.
     fn new(data: &'a mut T) -> GrantData<'a, T> {
         GrantData { data }
     }
@@ -538,11 +537,11 @@ impl<'a, T: 'a + ?Sized> DerefMut for GrantData<'a, T> {
     }
 }
 
-/// This GrantKernelData object provides a handle to access upcalls and process
-/// buffers stored on behalf of a particular grant/driver.
+/// This [`GrantKernelData`] object provides a handle to access upcalls and
+/// process buffers stored on behalf of a particular grant/driver.
 ///
-/// Capsules gain access to a GrantKernelData object by calling
-/// `Grant::enter()`. From there, they can schedule upcalls or access process
+/// Capsules gain access to a [`GrantKernelData`] object by calling
+/// [`Grant::enter()`]. From there, they can schedule upcalls or access process
 /// buffers.
 ///
 /// It is expected that this type will only exist as a short-lived stack
@@ -568,7 +567,7 @@ pub struct GrantKernelData<'a> {
 }
 
 impl<'a> GrantKernelData<'a> {
-    /// Create a `GrantKernelData` object to provide a handle for capsules to
+    /// Create a [`GrantKernelData`] object to provide a handle for capsules to
     /// call Upcalls.
     fn new(
         upcalls: &'a [SavedUpcall],
@@ -620,18 +619,20 @@ impl<'a> GrantKernelData<'a> {
     }
 
     /// Returns a lifetime limited reference to the requested
-    /// `ReadOnlyProcessBuffer`.
+    /// [`ReadOnlyProcessBuffer`].
     ///
-    /// The len of the returned `ReadOnlyProcessBuffer` must be checked by the caller
-    /// to ensure that a buffer has in fact been allocated. An unallocated buffer will
-    /// be returned as a `ReadOnlyProcessBuffer` of length 0.
+    /// The len of the returned [`ReadOnlyProcessBuffer`] must be checked by the
+    /// caller to ensure that a buffer has in fact been allocated. An
+    /// unallocated buffer will be returned as a [`ReadOnlyProcessBuffer`] of
+    /// length 0.
     ///
-    /// The `ReadOnlyProcessBuffer` is only valid for as long as this object is
-    /// valid, i.e. the lifetime of the app enter closure.
+    /// The [`ReadOnlyProcessBuffer`] is only valid for as long as this object
+    /// is valid, i.e. the lifetime of the app enter closure.
     ///
-    /// If the specified allow number is invalid, then a AddressOutOfBounds will
-    /// be returned. This returns a process::Error to allow for easy chaining of
-    /// this function with the ReadOnlyProcessBuffer::enter function with
+    /// If the specified allow number is invalid, then a
+    /// [`crate::process::Error::AddressOutOfBounds`] will be returned. This
+    /// returns a [`crate::process::Error`] to allow for easy chaining of this
+    /// function with the `ReadOnlyProcessBuffer::enter()` function with
     /// `and_then`.
     pub fn get_readonly_processbuffer(
         &self,
@@ -659,18 +660,20 @@ impl<'a> GrantKernelData<'a> {
     }
 
     /// Returns a lifetime limited reference to the requested
-    /// `ReadWriteProcessBuffer`.
+    /// [`ReadWriteProcessBuffer`].
     ///
-    /// The len of the returned `ReadWriteProcessBuffer` must be checked by the caller
-    /// to ensure that a buffer has in fact been allocated. An unallocated buffer will
-    /// be returned as a `ReadWriteProcessBuffer` of length 0.
+    /// The length of the returned [`ReadWriteProcessBuffer`] must be checked by
+    /// the caller to ensure that a buffer has in fact been allocated. An
+    /// unallocated buffer will be returned as a [`ReadWriteProcessBuffer`] of
+    /// length 0.
     ///
-    /// The ReadWriteProcessBuffer is only value for as long as this object is
-    /// valid, i.e. the lifetime of the app enter closure.
+    /// The [`ReadWriteProcessBuffer`] is only value for as long as this object
+    /// is valid, i.e. the lifetime of the app enter closure.
     ///
-    /// If the specified allow number is invalid, then a AddressOutOfBounds will
-    /// be return. This returns a process::Error to allow for easy chaining of
-    /// this function with the `ReadWriteProcessBuffer::enter()` function with
+    /// If the specified allow number is invalid, then a
+    /// [`crate::process::Error::AddressOutOfBounds`] will be returned. This
+    /// returns a [`crate::process::Error`] to allow for easy chaining of this
+    /// function with the `ReadWriteProcessBuffer::enter()` function with
     /// `and_then`.
     pub fn get_readwrite_processbuffer(
         &self,
@@ -932,11 +935,12 @@ pub(crate) fn allow_rw(
 
 /// An instance of a grant allocated for a particular process.
 ///
-/// `ProcessGrant` is a handle to an instance of a grant that has been allocated
-/// in a specific process's grant region. A `ProcessGrant` guarantees that the
-/// memory for the grant has been allocated in the process's memory.
+/// [`ProcessGrant`] is a handle to an instance of a grant that has been
+/// allocated in a specific process's grant region. A [`ProcessGrant`]
+/// guarantees that the memory for the grant has been allocated in the process's
+/// memory.
 ///
-/// This is created from a `Grant` when that grant is entered for a specific
+/// This is created from a [`Grant`] when that grant is entered for a specific
 /// process.
 pub struct ProcessGrant<
     'a,
@@ -947,10 +951,10 @@ pub struct ProcessGrant<
 > {
     /// The process the grant is applied to.
     ///
-    /// We use a reference here because instances of `ProcessGrant` are very
-    /// short lived. They only exist while a `Grant` is being entered, so we can
-    /// be sure the process still exists while a `ProcessGrant` exists. No
-    /// `ProcessGrant` can be stored.
+    /// We use a reference here because instances of [`ProcessGrant`] are very
+    /// short lived. They only exist while a [`Grant`] is being entered, so we
+    /// can be sure the process still exists while a `ProcessGrant` exists. No
+    /// [`ProcessGrant`] can be stored.
     process: &'a dyn Process,
 
     /// The syscall driver number this grant is associated with.
@@ -966,8 +970,8 @@ pub struct ProcessGrant<
 impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSize>
     ProcessGrant<'a, T, Upcalls, AllowROs, AllowRWs>
 {
-    /// Create a `ProcessGrant` for the given Grant in the given Process's grant
-    /// region.
+    /// Create a [`ProcessGrant`] for the given Grant in the given Process's
+    /// grant region.
     ///
     /// If the grant in this process has not been setup before this will attempt
     /// to allocate the memory from the process's grant region.
@@ -1155,7 +1159,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
         })
     }
 
-    /// Return an `ProcessGrant` for a grant in a process if the process is
+    /// Return a [`ProcessGrant`] for a grant in a process if the process is
     /// valid and that process grant has already been allocated, or `None`
     /// otherwise.
     fn new_if_allocated(
@@ -1180,7 +1184,8 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
         }
     }
 
-    /// Return the ProcessId of the process this ProcessGrant is associated with.
+    /// Return the [`ProcessId`] of the process this [`ProcessGrant`] is
+    /// associated with.
     pub fn processid(&self) -> ProcessId {
         self.process.processid()
     }
@@ -1194,7 +1199,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
     ///
     /// Note, a grant can only be entered once at a time. Attempting to call
     /// `.enter()` on a grant while it is already entered will result in a
-    /// panic!()`. See the comment in `access_grant()` for more information.
+    /// `panic!()`. See the comment in `access_grant()` for more information.
     pub fn enter<F, R>(self, fun: F) -> R
     where
         F: FnOnce(&mut GrantData<T>, &GrantKernelData) -> R,
@@ -1290,7 +1295,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
         self.access_grant_with_allocator(fun, true).unwrap()
     }
 
-    /// Access the `ProcessGrant` memory and run a closure on the process's
+    /// Access the [`ProcessGrant`] memory and run a closure on the process's
     /// grant memory.
     ///
     /// If `panic_on_reenter` is `true`, this will panic if the grant region is
@@ -1306,7 +1311,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
         )
     }
 
-    /// Access the `ProcessGrant` memory and run a closure on the process's
+    /// Access the [`ProcessGrant`] memory and run a closure on the process's
     /// grant memory.
     ///
     /// If `panic_on_reenter` is `true`, this will panic if the grant region is
@@ -1453,8 +1458,8 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
 /// Grant which was allocated from the kernel-owned grant region in a specific
 /// process's memory, separately from a normal `Grant`.
 ///
-/// A `CustomGrant` allows a capsule to allocate additional memory on behalf of
-/// a process.
+/// A [`CustomGrant`] allows a capsule to allocate additional memory on behalf
+/// of a process.
 pub struct CustomGrant<T> {
     /// An identifier for this custom grant within a process's grant region.
     ///
@@ -1471,7 +1476,7 @@ pub struct CustomGrant<T> {
 }
 
 impl<T> CustomGrant<T> {
-    /// Creates a new `CustomGrant`.
+    /// Creates a new [`CustomGrant`].
     fn new(identifier: ProcessCustomGrantIdentifier, processid: ProcessId) -> Self {
         CustomGrant {
             identifier,
@@ -1480,7 +1485,7 @@ impl<T> CustomGrant<T> {
         }
     }
 
-    /// Helper function to get the ProcessId from the custom grant.
+    /// Helper function to get the [`ProcessId`] from the custom grant.
     pub fn processid(&self) -> ProcessId {
         self.processid
     }
@@ -1534,7 +1539,7 @@ pub struct GrantRegionAllocator {
 }
 
 impl GrantRegionAllocator {
-    /// Allocates a new `CustomGrant` initialized using the given closure.
+    /// Allocates a new [`CustomGrant`] initialized using the given closure.
     ///
     /// The closure will be called exactly once, and the result will be used to
     /// initialize the owned value.
@@ -1649,11 +1654,12 @@ impl GrantRegionAllocator {
 /// Type for storing an object of type T in process memory that is only
 /// accessible by the kernel.
 ///
-/// A single `Grant` can allocate space for one object of type T for each
+/// A single [`Grant`] can allocate space for one object of type T for each
 /// process on the board. Each allocated object will reside in the grant region
-/// belonging to the process that the object is allocated for. The `Grant` type
-/// is used to get access to `ProcessGrant`s, which are tied to a specific
-/// process and provide access to the memory object allocated for that process.
+/// belonging to the process that the object is allocated for. The [`Grant`]
+/// type is used to get access to [`ProcessGrant`]s, which are tied to a
+/// specific process and provide access to the memory object allocated for that
+/// process.
 pub struct Grant<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSize> {
     /// Hold a reference to the core kernel so we can iterate processes.
     pub(crate) kernel: &'static Kernel,
@@ -1675,7 +1681,7 @@ pub struct Grant<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRW
 impl<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSize>
     Grant<T, Upcalls, AllowROs, AllowRWs>
 {
-    /// Create a new `Grant` type which allows a capsule to store
+    /// Create a new [`Grant`] type which allows a capsule to store
     /// process-specific data for each process in the process's memory region.
     ///
     /// This must only be called from the main kernel so that it can ensure that
@@ -1691,8 +1697,8 @@ impl<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSi
 
     /// Enter the grant for a specific process.
     ///
-    /// This creates a `ProcessGrant` which is a handle for a grant allocated
-    /// for a specific process. Then, that `ProcessGrant` is entered and the
+    /// This creates a [`ProcessGrant`] which is a handle for a grant allocated
+    /// for a specific process. Then, that [`ProcessGrant`] is entered and the
     /// provided closure is run with access to the memory in the grant region.
     pub fn enter<F, R>(&self, processid: ProcessId, fun: F) -> Result<R, Error>
     where
@@ -1709,8 +1715,8 @@ impl<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSi
 
     /// Enter the grant for a specific process with access to an allocator.
     ///
-    /// This creates an `ProcessGrant` which is a handle for a grant allocated
-    /// for a specific process. Then, that `ProcessGrant` is entered and the
+    /// This creates an [`ProcessGrant`] which is a handle for a grant allocated
+    /// for a specific process. Then, that [`ProcessGrant`] is entered and the
     /// provided closure is run with access to the memory in the grant region.
     ///
     /// The allocator allows the caller to dynamically allocate additional
@@ -1738,8 +1744,8 @@ impl<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSi
     /// This will silently skip any process where the grant has not previously
     /// been allocated. This will also silently skip any invalid processes.
     ///
-    /// Calling this function when an `ProcessGrant` for a process is currently
-    /// entered will result in a panic.
+    /// Calling this function when an [`ProcessGrant`] for a process is
+    /// currently entered will result in a panic.
     pub fn each<F>(&self, mut fun: F)
     where
         F: FnMut(ProcessId, &mut GrantData<T>, &GrantKernelData),
@@ -1756,8 +1762,8 @@ impl<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSi
     /// Get an iterator over all processes and their active grant regions for
     /// this particular grant.
     ///
-    /// Calling this function when an `ProcessGrant` for a process is currently
-    /// entered will result in a panic.
+    /// Calling this function when an [`ProcessGrant`] for a process is
+    /// currently entered will result in a panic.
     pub fn iter(&self) -> Iter<T, Upcalls, AllowROs, AllowRWs> {
         Iter {
             grant: self,
@@ -1766,7 +1772,7 @@ impl<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSi
     }
 }
 
-/// Type to iterate `ProcessGrant`s across processes.
+/// Type to iterate [`ProcessGrant`]s across processes.
 pub struct Iter<
     'a,
     T: 'a + Default,

@@ -5,7 +5,7 @@ This folder contains the detailed documentation for the interfaces between
 userspace and the kernel. It includes details of the ABI interface, the kernel
 provided syscalls, and the driver specific interfaces (using `allow`,
 `schedule`, and `command`). For more information on the general syscalls, see
-[here](../Syscalls.md).
+[here](https://book.tockos.org/doc/syscalls).
 
 <!-- toc -->
 

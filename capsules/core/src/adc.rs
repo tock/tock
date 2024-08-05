@@ -171,8 +171,8 @@ impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> AdcDedicated<'a, A> 
     ) -> AdcDedicated<'a, A> {
         AdcDedicated {
             // ADC driver
-            adc: adc,
-            channels: channels,
+            adc,
+            channels,
 
             // ADC state
             active: Cell::new(false),
@@ -642,7 +642,7 @@ impl<'a> AdcVirtualized<'a> {
         grant: Grant<AppSys, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> AdcVirtualized<'a> {
         AdcVirtualized {
-            drivers: drivers,
+            drivers,
             apps: grant,
             current_process: OptionalCell::empty(),
         }

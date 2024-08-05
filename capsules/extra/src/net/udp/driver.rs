@@ -165,15 +165,15 @@ impl<'a> UDPDriver<'a> {
         net_cap: &'static NetworkCapability,
     ) -> UDPDriver<'a> {
         UDPDriver {
-            sender: sender,
+            sender,
             apps: grant,
             current_app: Cell::new(None),
-            interface_list: interface_list,
-            max_tx_pyld_len: max_tx_pyld_len,
-            port_table: port_table,
+            interface_list,
+            max_tx_pyld_len,
+            port_table,
             kernel_buffer: MapCell::new(kernel_buffer),
-            driver_send_cap: driver_send_cap,
-            net_cap: net_cap,
+            driver_send_cap,
+            net_cap,
         }
     }
 
@@ -322,7 +322,7 @@ impl<'a> UDPDriver<'a> {
             addr.0.copy_from_slice(a);
 
             let pair = UDPEndpoint {
-                addr: addr,
+                addr,
                 port: host_slice_to_u16(p),
             };
             Some(pair)
@@ -491,13 +491,7 @@ impl<'a> SyscallDriver for UDPDriver<'a> {
                                         cfg[mem::size_of::<UDPEndpoint>()..]
                                             .copy_to_slice(&mut tmp_endpoint);
 
-                                        if let Some(local_iface) =
-                                            self.parse_ip_port_pair(&tmp_endpoint)
-                                        {
-                                            Some(local_iface)
-                                        } else {
-                                            None
-                                        }
+                                        self.parse_ip_port_pair(&tmp_endpoint)
                                     }
                                 })
                             })

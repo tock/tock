@@ -148,8 +148,8 @@ pub fn check_modify_permission(&self, stored_id: u32) -> bool;
 pub fn get_write_id(&self) -> Option<u32>;
 ```
 
-This API is implemented for the `StoragePermissions` object (which is an
-`enum`). The `StoragePermissions` type can be stored per-process and passed in
+This API is implemented for the `StoragePermissions` object.
+The `StoragePermissions` type can be stored per-process and passed in
 storage APIs to express the storage permissions of the caller of any storage
 operations.
 
@@ -164,8 +164,8 @@ a record name might have an (asynchronous) API like this:
 
 ```rust
 pub trait FilingCabinet {
-    fn read(&self, record: &str, permissions: &dyn StoragePermissions) -> Result<(), ErrorCode>;
-    fn write(&self, record: &str, data: &[u8], permissions: &dyn StoragePermissions) -> Result<(), ErrorCode>;
+    fn read(&self, record: &str, permissions: StoragePermissions) -> Result<(), ErrorCode>;
+    fn write(&self, record: &str, data: &[u8], permissions: StoragePermissions) -> Result<(), ErrorCode>;
 }
 ```
 
@@ -198,7 +198,7 @@ For example, with the filing cabinet example:
 
 ```rust
 pub trait FilingCabinet {
-    fn read(&self, record: &str, permissions: &dyn StoragePermissions) -> Result<[u8], ErrorCode> {
+    fn read(&self, record: &str, permissions: StoragePermissions) -> Result<[u8], ErrorCode> {
         let obj = self.cabinet.read(record);
         match obj {
             Some(r) => {
@@ -212,7 +212,7 @@ pub trait FilingCabinet {
         }
     }
 
-    fn write(&self, record: &str, data: &[u8], permissions: &dyn StoragePermissions) -> Result<(), ErrorCode> {
+    fn write(&self, record: &str, data: &[u8], permissions: StoragePermissions) -> Result<(), ErrorCode> {
         let obj = self.cabinet.read(record);
         match obj {
             Some(r) => {
@@ -248,7 +248,9 @@ The `StoragePermissions` type is capable of holding storage permissions in
 different formats. In general, the type looks like:
 
 ```rust
-pub enum StoragePermissions {
+pub struct StoragePermissions(StoragePermissionsPrivate);
+
+enum StoragePermissionsPrivate {
     SelfOnly(core::num::NonZeroU32),
     FixedSize(FixedSizePermissions),
     Listed(ListedPermissions),
@@ -261,8 +263,10 @@ Each variant is a different method for representing and storing storage
 permissions. For example, `FixedSize` contains fixed size lists of permissions,
 where as `Null` grants no storage permissions.
 
-The `StoragePermissions` type includes multiple constructors for instantiating
-storage permissions.
+The `StoragePermissions` struct includes multiple constructors for instantiating
+storage permissions. The struct wraps the enum to ensure that permissions can
+only be created with those constructors. The constructors require a capability
+to use so only trusted code can create storage permissions.
 
 
 7 Specifying Permissions

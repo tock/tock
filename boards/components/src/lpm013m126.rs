@@ -121,7 +121,6 @@ pub struct Lpm013m126Component<A, P, S>
 where
     A: 'static + Alarm<'static>,
     P: 'static + gpio::Pin,
-    P: gpio::Pin,
     S: 'static + SpiMaster<'static>,
 {
     spi: &'static MuxSpiMaster<'static, S>,
@@ -135,7 +134,6 @@ impl<A, P, S> Lpm013m126Component<A, P, S>
 where
     A: 'static + Alarm<'static>,
     P: 'static + gpio::Pin,
-    P: gpio::Pin,
     S: 'static + SpiMaster<'static>,
 {
     pub fn new(

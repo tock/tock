@@ -363,19 +363,20 @@ unsafe fn setup_peripherals(tim2: &stm32f303xc::tim2::Tim2) {
     cortexm4::nvic::Nvic::new(stm32f303xc::nvic::TIM2).enable();
 }
 
-/// Statically initialize the core peripherals for the chip.
+/// Main function.
 ///
 /// This is in a separate, inline(never) function so that its stack frame is
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn create_peripherals() -> (
-    &'static mut Stm32f3xxDefaultPeripherals<'static>,
-    &'static stm32f303xc::syscfg::Syscfg<'static>,
-    &'static stm32f303xc::rcc::Rcc,
+unsafe fn start() -> (
+    &'static kernel::Kernel,
+    STM32F3Discovery,
+    &'static stm32f303xc::chip::Stm32f3xx<'static, Stm32f3xxDefaultPeripherals<'static>>,
 ) {
-    // We use the default HSI 8Mhz clock
+    stm32f303xc::init();
 
+    // We use the default HSI 8Mhz clock
     let rcc = static_init!(stm32f303xc::rcc::Rcc, stm32f303xc::rcc::Rcc::new());
     let syscfg = static_init!(
         stm32f303xc::syscfg::Syscfg,
@@ -391,17 +392,6 @@ unsafe fn create_peripherals() -> (
         Stm32f3xxDefaultPeripherals::new(rcc, exti)
     );
 
-    (peripherals, syscfg, rcc)
-}
-
-/// Main function.
-///
-/// This is called after RAM initialization is complete.
-#[no_mangle]
-pub unsafe fn main() {
-    stm32f303xc::init();
-
-    let (peripherals, syscfg, _rcc) = create_peripherals();
     peripherals.setup_circular_deps();
 
     set_pin_primary_functions(
@@ -437,7 +427,6 @@ pub unsafe fn main() {
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
 
@@ -799,22 +788,22 @@ pub unsafe fn main() {
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let stm32f3discovery = STM32F3Discovery {
-        console: console,
+        console,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
-        gpio: gpio,
-        led: led,
-        button: button,
-        alarm: alarm,
-        l3gd20: l3gd20,
-        lsm303dlhc: lsm303dlhc,
-        ninedof: ninedof,
-        temp: temp,
+        gpio,
+        led,
+        button,
+        alarm,
+        l3gd20,
+        lsm303dlhc,
+        ninedof,
+        temp,
         adc: adc_syscall,
-        nonvolatile_storage: nonvolatile_storage,
+        nonvolatile_storage,
 
         scheduler,
         systick: cortexm4::systick::SysTick::new(),
@@ -867,10 +856,15 @@ pub unsafe fn main() {
     /*components::test::multi_alarm_test::MultiAlarmTestComponent::new(mux_alarm)
     .finalize(components::multi_alarm_test_component_buf!(stm32f303xc::tim2::Tim2))
     .run();*/
-    board_kernel.kernel_loop(
-        &stm32f3discovery,
-        chip,
-        Some(&stm32f3discovery.ipc),
-        &main_loop_capability,
-    );
+
+    (board_kernel, stm32f3discovery, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, platform, chip) = start();
+    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }

@@ -106,7 +106,7 @@ impl<
         >,
     ) -> HmacDriver<'a, H, L> {
         HmacDriver {
-            hmac: hmac,
+            hmac,
             active: Cell::new(false),
             apps: grant,
             processid: OptionalCell::empty(),

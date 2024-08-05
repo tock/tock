@@ -151,7 +151,6 @@ mod simple_flash_ctrl {
         fn read_region(
             &self,
             _region_number: usize,
-            _offset: usize,
             buf: &mut [u8; 2048],
         ) -> Result<(), ErrorCode> {
             for b in buf.iter_mut() {
@@ -202,7 +201,6 @@ mod single_erase_flash_ctrl {
         fn read_region(
             &self,
             _region_number: usize,
-            _offset: usize,
             buf: &mut [u8; 2048],
         ) -> Result<(), ErrorCode> {
             for b in buf.iter_mut() {
@@ -262,16 +260,11 @@ mod store_flast_ctrl {
     }
 
     impl FlashController<1024> for FlashCtrl {
-        fn read_region(
-            &self,
-            region_number: usize,
-            offset: usize,
-            buf: &mut [u8; 1024],
-        ) -> Result<(), ErrorCode> {
+        fn read_region(&self, region_number: usize, buf: &mut [u8; 1024]) -> Result<(), ErrorCode> {
             println!("Read from region: {}", region_number);
 
             for (i, b) in buf.iter_mut().enumerate() {
-                *b = self.buf.borrow()[region_number][offset + i]
+                *b = self.buf.borrow()[region_number][i]
             }
 
             Ok(())
@@ -552,16 +545,11 @@ mod no_check_store_flast_ctrl {
     }
 
     impl FlashController<256> for FlashCtrl {
-        fn read_region(
-            &self,
-            region_number: usize,
-            offset: usize,
-            buf: &mut [u8; 256],
-        ) -> Result<(), ErrorCode> {
+        fn read_region(&self, region_number: usize, buf: &mut [u8; 256]) -> Result<(), ErrorCode> {
             println!("Read from region: {}", region_number);
 
             for (i, b) in buf.iter_mut().enumerate() {
-                *b = self.buf.borrow()[region_number][offset + i]
+                *b = self.buf.borrow()[region_number][i]
             }
 
             Ok(())

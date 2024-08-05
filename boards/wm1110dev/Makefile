@@ -4,10 +4,6 @@
 
 # Makefile for building the tock kernel for the Arduino Nano 33 BLE board.
 
-TOCK_ARCH=cortex-m4
-TARGET=thumbv7em-none-eabi
-PLATFORM=wm1110dev
-
 include ../Makefile.common
 
 ifdef PORT

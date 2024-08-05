@@ -51,7 +51,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
         >,
     ) -> AlarmDriver<'a, A> {
         AlarmDriver {
-            alarm: alarm,
+            alarm,
             app_alarms: grant,
         }
     }

@@ -226,24 +226,18 @@ unsafe fn setup_peripherals(peripherals: &imxrt1050::chip::Imxrt10xxDefaultPerip
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn create_peripherals() -> &'static mut imxrt1050::chip::Imxrt10xxDefaultPeripherals {
+unsafe fn start() -> (
+    &'static kernel::Kernel,
+    Imxrt1050EVKB,
+    &'static imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaultPeripherals>,
+) {
+    imxrt1050::init();
+
     let ccm = static_init!(imxrt1050::ccm::Ccm, imxrt1050::ccm::Ccm::new());
     let peripherals = static_init!(
         imxrt1050::chip::Imxrt10xxDefaultPeripherals,
         imxrt1050::chip::Imxrt10xxDefaultPeripherals::new(ccm)
     );
-
-    peripherals
-}
-
-/// Main function.
-///
-/// This is called after RAM initialization is complete.
-#[no_mangle]
-pub unsafe fn main() {
-    imxrt1050::init();
-
-    let peripherals = create_peripherals();
     peripherals.ccm.set_low_power_mode();
     peripherals.lpuart1.disable_clock();
     peripherals.lpuart2.disable_clock();
@@ -315,7 +309,6 @@ pub unsafe fn main() {
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
 
@@ -460,17 +453,17 @@ pub unsafe fn main() {
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let imxrt1050 = Imxrt1050EVKB {
-        console: console,
+        console,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
-        led: led,
-        button: button,
-        ninedof: ninedof,
-        alarm: alarm,
-        gpio: gpio,
+        led,
+        button,
+        ninedof,
+        alarm,
+        gpio,
 
         scheduler,
         systick: cortexm7::systick::SysTick::new_with_calibration(792_000_000),
@@ -537,10 +530,14 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(
-        &imxrt1050,
-        chip,
-        Some(&imxrt1050.ipc),
-        &main_loop_capability,
-    );
+    (board_kernel, imxrt1050, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, board, chip) = start();
+    board_kernel.kernel_loop(&board, chip, Some(&board.ipc), &main_loop_capability);
 }

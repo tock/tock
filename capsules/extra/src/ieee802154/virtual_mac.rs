@@ -75,7 +75,7 @@ impl<'a, M: device::MacDevice<'a>> device::RxClient for MuxMac<'a, M> {
 impl<'a, M: device::MacDevice<'a>> MuxMac<'a, M> {
     pub const fn new(mac: &'a M) -> MuxMac<'a, M> {
         MuxMac {
-            mac: mac,
+            mac,
             users: List::new(),
             inflight: OptionalCell::empty(),
         }
@@ -208,7 +208,7 @@ pub struct MacUser<'a, M: device::MacDevice<'a>> {
 impl<'a, M: device::MacDevice<'a>> MacUser<'a, M> {
     pub const fn new(mux: &'a MuxMac<'a, M>) -> Self {
         Self {
-            mux: mux,
+            mux,
             operation: MapCell::new(Op::Idle),
             next: ListLink::empty(),
             tx_client: OptionalCell::empty(),

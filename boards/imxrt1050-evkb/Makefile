@@ -4,9 +4,6 @@
 
 # Makefile for building the tock kernel for the i.MX RT1052 platform
 
-TARGET=thumbv7em-none-eabi
-PLATFORM=imxrt1050-evkb
-
 include ../Makefile.common
 
 # Default target for installing the kernel.

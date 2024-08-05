@@ -3,8 +3,6 @@
 # Copyright Tock Contributors 2022.
 
 # Makefile for building the tock kernel for the WeAct STM32F401CCU6 Core Board
-TARGET=thumbv7em-none-eabihf
-PLATFORM=weact-f401ccu6
 KERNEL=$(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 KERNEL_WITH_APP=$(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.elf
 

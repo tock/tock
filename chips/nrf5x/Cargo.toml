@@ -17,3 +17,6 @@ default = []
 
 nrf51 = []
 nrf52 = []
+
+[lints]
+workspace = true

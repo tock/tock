@@ -46,7 +46,7 @@ impl<'a, I: InterruptService> Rp2040<'a, I> {
             mpu: cortexm0p::mpu::MPU::new(),
             userspace_kernel_boundary: cortexm0p::syscall::SysCall::new(),
             interrupt_service,
-            sio: sio,
+            sio,
             processor0_interrupt_mask: interrupt_mask!(interrupts::SIO_IRQ_PROC1),
             processor1_interrupt_mask: interrupt_mask!(interrupts::SIO_IRQ_PROC0),
         }
@@ -166,6 +166,7 @@ impl<'a> Rp2040DefaultPeripherals<'a> {
         self.uart0.set_clocks(&self.clocks);
         kernel::deferred_call::DeferredCallClient::register(&self.uart0);
         kernel::deferred_call::DeferredCallClient::register(&self.uart1);
+        kernel::deferred_call::DeferredCallClient::register(&self.rtc);
         self.i2c0.resolve_dependencies(&self.clocks, &self.resets);
         self.usb.set_gpio(self.pins.get_pin(RPGpio::GPIO15));
         self.rtc.set_clocks(&self.clocks);

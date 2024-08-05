@@ -138,7 +138,7 @@ impl PeripheralManagement<pm::Clock> for Eic<'_> {
     type RegisterType = EicRegisters;
 
     fn get_registers(&self) -> &EicRegisters {
-        &*EIC_BASE
+        &EIC_BASE
     }
 
     fn get_clock(&self) -> &pm::Clock {

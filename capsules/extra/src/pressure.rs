@@ -81,8 +81,8 @@ impl<'a, T: hil::sensors::PressureDriver<'a>> PressureSensor<'a, T> {
         apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> PressureSensor<'a, T> {
         PressureSensor {
-            driver: driver,
-            apps: apps,
+            driver,
+            apps,
             busy: Cell::new(false),
         }
     }

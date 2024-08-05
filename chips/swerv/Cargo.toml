@@ -12,3 +12,6 @@ edition.workspace = true
 tock-registers = { path = "../../libraries/tock-register-interface" }
 kernel = { path = "../../kernel" }
 riscv-csr = { path = "../../libraries/riscv-csr" }
+
+[lints]
+workspace = true

@@ -378,17 +378,19 @@ unsafe fn setup_peripherals(
     trng.enable_clock();
 }
 
-/// Statically initialize the core peripherals for the chip.
+/// Main function.
 ///
 /// This is in a separate, inline(never) function so that its stack frame is
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn create_peripherals() -> (
-    &'static mut Stm32f412gDefaultPeripherals<'static>,
-    &'static stm32f412g::syscfg::Syscfg<'static>,
-    &'static stm32f412g::dma::Dma1<'static>,
+unsafe fn start() -> (
+    &'static kernel::Kernel,
+    STM32F412GDiscovery,
+    &'static stm32f412g::chip::Stm32f4xx<'static, Stm32f412gDefaultPeripherals<'static>>,
 ) {
+    stm32f412g::init();
+
     let rcc = static_init!(stm32f412g::rcc::Rcc, stm32f412g::rcc::Rcc::new());
     let clocks = static_init!(
         stm32f412g::clocks::Clocks<Stm32f412Specs>,
@@ -409,17 +411,7 @@ unsafe fn create_peripherals() -> (
         Stm32f412gDefaultPeripherals,
         Stm32f412gDefaultPeripherals::new(clocks, exti, dma1, dma2)
     );
-    (peripherals, syscfg, dma1)
-}
 
-/// Main function.
-///
-/// This is called after RAM initialization is complete.
-#[no_mangle]
-pub unsafe fn main() {
-    stm32f412g::init();
-
-    let (peripherals, syscfg, dma1) = create_peripherals();
     peripherals.init();
     let base_peripherals = &peripherals.stm32f4;
     setup_peripherals(
@@ -457,7 +449,6 @@ pub unsafe fn main() {
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
 
@@ -834,10 +825,14 @@ pub unsafe fn main() {
     .finalize(components::multi_alarm_test_component_buf!(stm32f412g::tim2::Tim2))
     .run();*/
 
-    board_kernel.kernel_loop(
-        &stm32f412g,
-        chip,
-        Some(&stm32f412g.ipc),
-        &main_loop_capability,
-    );
+    (board_kernel, stm32f412g, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, platform, chip) = start();
+    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }

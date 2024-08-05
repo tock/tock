@@ -322,6 +322,7 @@ const fn crc32(poly: u32, mut byte: u8) -> u32 {
 ///
 /// We keep this seperate to clearly show the CRC implementation
 /// details (such as initial state and xorout).
+#[derive(Default)]
 struct Crc {}
 
 impl Crc {

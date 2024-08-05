@@ -107,7 +107,7 @@ impl<I: 'static + i2c::I2CMaster<'static>> I2CComponent<I> {
     pub fn new(mux: &'static MuxI2C<'static, I>, address: u8) -> Self {
         I2CComponent {
             i2c_mux: mux,
-            address: address,
+            address,
         }
     }
 }

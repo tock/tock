@@ -201,7 +201,7 @@ impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> Bmp280<'a, A, I> {
             temperature_client: OptionalCell::empty(),
             state: Cell::new(State::Uninitialized),
             buffer: TakeCell::new(buffer),
-            alarm: alarm,
+            alarm,
         }
     }
 

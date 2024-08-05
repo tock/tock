@@ -83,6 +83,11 @@ pub unsafe trait ExternalProcessCapability {}
 /// permissions to access kernel-only stored values on the system.
 pub unsafe trait KerneluserStorageCapability {}
 
+/// The `ApplicationStorageCapability` capability allows the holder to create
+/// permissions to allow applications to have access to stored state on the
+/// system.
+pub unsafe trait ApplicationStorageCapability {}
+
 /// The `UdpDriverCapability` capability allows the holder to use two functions
 /// only allowed by the UDP driver. The first is the `driver_send_to()` function
 /// in udp_send.rs, which does not require being bound to a single port, since

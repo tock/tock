@@ -23,8 +23,10 @@ use crate::kernel::Kernel;
 use crate::platform::chip::Chip;
 use crate::process::{Process, ShortId};
 use crate::process_binary::{ProcessBinary, ProcessBinaryError};
+use crate::process_checker::AcceptedCredential;
 use crate::process_checker::{AppIdPolicy, ProcessCheckError, ProcessCheckerMachine};
 use crate::process_policies::ProcessFaultPolicy;
+use crate::process_policies::ProcessStandardStoragePermissionsPolicy;
 use crate::process_standard::ProcessStandard;
 use crate::utilities::cells::{MapCell, OptionalCell};
 
@@ -219,6 +221,7 @@ fn load_processes_from_flash<C: Chip>(
                     ShortId::LocallyUnique,
                     index,
                     fault_policy,
+                    &(),
                 );
                 match load_result {
                     Ok((new_mem, proc)) => {
@@ -352,6 +355,7 @@ fn load_process<C: Chip>(
     app_id: ShortId,
     index: usize,
     fault_policy: &'static dyn ProcessFaultPolicy,
+    storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C>,
 ) -> Result<(&'static mut [u8], Option<&'static dyn Process>), (&'static mut [u8], ProcessLoadError)>
 {
     if config::CONFIG.debug_load_processes {
@@ -381,6 +385,7 @@ fn load_process<C: Chip>(
             process_binary,
             app_memory,
             fault_policy,
+            storage_policy,
             app_id,
             index,
         )
@@ -479,6 +484,8 @@ pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static> {
     policy: OptionalCell<&'a dyn AppIdPolicy>,
     /// The fault policy to assign to each created Process.
     fault_policy: &'static dyn ProcessFaultPolicy,
+    /// The storage permissions policy to assign to each created Process.
+    storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C>,
     /// Current mode of the loading machine.
     state: OptionalCell<SequentialProcessLoaderMachineState>,
 }
@@ -497,6 +504,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
         flash: &'static [u8],
         app_memory: &'static mut [u8],
         fault_policy: &'static dyn ProcessFaultPolicy,
+        storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C>,
         policy: &'static dyn AppIdPolicy,
         _capability_management: &dyn ProcessManagementCapability,
     ) -> Self {
@@ -512,6 +520,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
             app_memory: Cell::new(app_memory),
             policy: OptionalCell::new(policy),
             fault_policy,
+            storage_policy,
             state: OptionalCell::empty(),
         }
     }
@@ -658,8 +667,8 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
 
                 // Start by iterating all other process binaries and seeing
                 // if any are in conflict (same AppID with newer version).
-                for j in 0..proc_binaries_len {
-                    match &proc_binaries[j] {
+                for proc_bin in proc_binaries.iter() {
+                    match proc_bin {
                         Some(other_process_binary) => {
                             let blocked = self
                                 .is_blocked_from_loading_by(&process_binary, other_process_binary);
@@ -720,6 +729,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
                             short_app_id,
                             index,
                             self.fault_policy,
+                            self.storage_policy,
                         );
                         match load_result {
                             Ok((new_mem, proc)) => {
@@ -905,11 +915,11 @@ impl<'a, C: Chip> crate::process_checker::ProcessCheckerMachineClient
     fn done(
         &self,
         process_binary: ProcessBinary,
-        result: Result<(), crate::process_checker::ProcessCheckError>,
+        result: Result<Option<AcceptedCredential>, crate::process_checker::ProcessCheckError>,
     ) {
         // Check if this process was approved by the checker.
         match result {
-            Ok(()) => {
+            Ok(optional_credential) => {
                 if config::CONFIG.debug_load_processes {
                     debug!(
                         "Loading: Check succeeded for process {}",
@@ -920,6 +930,7 @@ impl<'a, C: Chip> crate::process_checker::ProcessCheckerMachineClient
                 match self.find_open_process_binary_slot() {
                     Some(index) => {
                         self.proc_binaries.map(|proc_binaries| {
+                            process_binary.credential.insert(optional_credential);
                             proc_binaries[index] = Some(process_binary);
                         });
                     }

@@ -55,7 +55,7 @@ impl<'a, C: ProcessManagementCapability> DebugProcessRestart<'a, C> {
         pin.enable_interrupts(gpio::InterruptEdge::EitherEdge);
 
         DebugProcessRestart {
-            kernel: kernel,
+            kernel,
             capability: cap,
             pin,
             mode,

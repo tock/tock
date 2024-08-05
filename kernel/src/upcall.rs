@@ -36,33 +36,35 @@ pub struct UpcallId {
 /// benefit that no task is inserted in the process' task queue.
 #[derive(Copy, Clone, Debug)]
 pub enum UpcallError {
-    /// The passed `subscribe_num` exceeds the number of Upcalls
-    /// available for this process.
+    /// The passed `subscribe_num` exceeds the number of Upcalls available for
+    /// this process.
     ///
-    /// For a [`Grant`](crate::grant::Grant) with `n` upcalls,
-    /// this error is returned when
-    /// `GrantKernelData::schedule_upcall` is invoked with
-    /// `subscribe_num >= n`.
+    /// For a [`Grant`](crate::grant::Grant) with `n` upcalls, this error is
+    /// returned when
+    /// [`GrantKernelData::schedule_upcall`](crate::grant::GrantKernelData::schedule_upcall)
+    /// is invoked with `subscribe_num >= n`.
     ///
     /// No Upcall has been scheduled, the call to
-    /// `GrantKernelData::schedule_upcall` had no observable effects.
+    /// [`GrantKernelData::schedule_upcall`](crate::grant::GrantKernelData::schedule_upcall)
+    /// had no observable effects.
     ///
     InvalidSubscribeNum,
     /// The process' task queue is full.
     ///
-    /// This error can occur when too many tasks (for example,
-    /// Upcalls) have been scheduled for a process, without that
-    /// process yielding or having a chance to resume execution.
+    /// This error can occur when too many tasks (for example, Upcalls) have
+    /// been scheduled for a process, without that process yielding or having a
+    /// chance to resume execution.
     ///
     /// No Upcall has been scheduled, the call to
-    /// `GrantKernelData::schedule_upcall` had no observable effects.
+    /// [`GrantKernelData::schedule_upcall`](crate::grant::GrantKernelData::schedule_upcall)
+    /// had no observable effects.
     QueueFull,
     /// A kernel-internal invariant has been violated.
     ///
-    /// This error should never happen. It can be returned if the
-    /// process is inactive (which should be caught by
-    /// [`Grant::enter`](crate::grant::Grant::enter)) or
-    /// `process.tasks` was taken.
+    /// This error should never happen. It can be returned if the process is
+    /// inactive (which should be caught by
+    /// [`Grant::enter`](crate::grant::Grant::enter)) or `process.tasks` was
+    /// taken.
     ///
     /// These cases cannot be reasonably handled.
     KernelError,
@@ -70,10 +72,10 @@ pub enum UpcallError {
 
 /// Type for calling an upcall in a process.
 ///
-/// This is essentially a wrapper around a function pointer with
-/// associated process data.
+/// This is essentially a wrapper around a function pointer with associated
+/// process data.
 pub(crate) struct Upcall {
-    /// The ProcessId of the process this upcall is for.
+    /// The [`ProcessId`] of the process this upcall is for.
     pub(crate) process_id: ProcessId,
 
     /// A unique identifier of this particular upcall, representing the
@@ -109,19 +111,19 @@ impl Upcall {
 
     /// Schedule the upcall.
     ///
-    /// This will queue the [`Upcall`] for the given process. It
-    /// returns `false` if the queue for the process is full and the
-    /// upcall could not be scheduled or this is a null upcall.
+    /// This will queue the [`Upcall`] for the given process. It returns `false`
+    /// if the queue for the process is full and the upcall could not be
+    /// scheduled or this is a null upcall.
     ///
     /// The arguments (`r0-r2`) are the values passed back to the process and
     /// are specific to the individual `Driver` interfaces.
     ///
     /// This function also takes `process` as a parameter (even though we have
-    /// process_id in our struct) to avoid a search through the processes array
-    /// to schedule the upcall. Currently, it is convenient to pass this
+    /// `process_id` in our struct) to avoid a search through the processes
+    /// array to schedule the upcall. Currently, it is convenient to pass this
     /// parameter so we take advantage of it. If in the future that is not the
     /// case we could have `process` be an Option and just do the search with
-    /// the stored process_id.
+    /// the stored [`ProcessId`].
     pub(crate) fn schedule(
         &self,
         process: &dyn process::Process,
@@ -153,9 +155,9 @@ impl Upcall {
         let res = match enqueue_res {
             Ok(()) => Ok(()),
             Err(ErrorCode::NODEVICE) => {
-                // There should be no code path to schedule an
-                // Upcall on a process that is no longer
-                // alive. Indicate a kernel-internal error.
+                // There should be no code path to schedule an Upcall on a
+                // process that is no longer alive. Indicate a kernel-internal
+                // error.
                 Err(UpcallError::KernelError)
             }
             Err(ErrorCode::NOMEM) => {
@@ -163,9 +165,8 @@ impl Upcall {
                 Err(UpcallError::QueueFull)
             }
             Err(_) => {
-                // All other errors returned by
-                // `Process::enqueue_task` must be treated as
-                // kernel-internal errors
+                // All other errors returned by `Process::enqueue_task` must be
+                // treated as kernel-internal errors
                 Err(UpcallError::KernelError)
             }
         };

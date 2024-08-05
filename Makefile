@@ -396,7 +396,11 @@ ci-job-readme-check:
 .PHONY: ci-job-clippy
 ci-job-clippy:
 	$(call banner,CI-Job: Clippy)
-	@NOWARNINGS=true ./tools/run_clippy.sh
+	@cargo clippy -- -D warnings
+	# Run `cargo clippy` in select boards so we run clippy with targets that
+	# actually check the arch-specific functions.
+	@cd boards/nordic/nrf52840dk && cargo clippy -- -D warnings
+	@cd boards/hifive1 && cargo clippy -- -D warnings
 
 
 

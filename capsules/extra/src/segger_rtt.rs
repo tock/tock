@@ -195,7 +195,7 @@ impl<'a, A: hil::time::Alarm<'a>> SeggerRtt<'a, A> {
         down_buffer: &'a mut [u8],
     ) -> SeggerRtt<'a, A> {
         SeggerRtt {
-            alarm: alarm,
+            alarm,
             config: TakeCell::new(config),
             up_buffer: TakeCell::new(up_buffer),
             _down_buffer: TakeCell::new(down_buffer),

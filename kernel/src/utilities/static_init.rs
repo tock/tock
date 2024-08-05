@@ -97,3 +97,57 @@ macro_rules! static_buf {
         &mut BUF.0
     }};
 }
+
+/// A version of [`static_buf!()`] that adds an exported name to the buffer.
+///
+/// This creates a static buffer exactly as [`static_buf!()`] does. In general,
+/// most uses should use [`static_buf!()`]. However, in cases where the symbol
+/// name of the buffer matters, this version is useful.
+///
+/// Allocates a statically-sized global region of memory for data structures but
+/// does not initialize the memory. Checks that the buffer is not aliased and is
+/// only used once.
+///
+/// This macro creates the static buffer, and returns a
+/// `StaticUninitializedBuffer` wrapper containing the buffer. The memory is
+/// allocated, but it is guaranteed to be uninitialized inside of the wrapper.
+///
+/// Before the static buffer can be used it must be initialized. For example:
+///
+/// ```ignore
+/// let mut static_buffer = static_nmaed_buf!(T, "MY_BUF");
+/// let static_reference: &'static mut T = static_buffer.initialize(T::new());
+/// ```
+///
+/// Separating the creation of the static buffer into its own macro is not
+/// strictly necessary, but it allows for more flexibility in Rust when boards
+/// are initialized and the static structures are being created. Since creating
+/// and initializing static buffers requires knowing the particular types (and
+/// their sizes), writing shared initialization code (in components for example)
+/// where the types are unknown since they vary across boards is difficult. By
+/// splitting buffer creating from initialization, creating shared components is
+/// possible.
+#[macro_export]
+macro_rules! static_named_buf {
+    ($T:ty, $N:expr $(,)?) => {{
+        // Statically allocate a read-write buffer for the value without
+        // actually writing anything, as well as a flag to track if
+        // this memory has been initialized yet.
+        #[used]
+        #[no_mangle]
+        #[export_name = $N]
+        pub static mut BUF: (core::mem::MaybeUninit<$T>, bool) =
+            (core::mem::MaybeUninit::uninit(), false);
+
+        // To minimize the amount of code duplicated across every invocation
+        // of this macro, all of the logic for checking if the buffer has been
+        // used is contained within the static_buf_check_used function,
+        // which panics if the passed boolean has been used and sets the
+        // boolean to true otherwise.
+        $crate::utilities::static_init::static_buf_check_used(&mut BUF.1);
+
+        // If we get to this point we can wrap our buffer to be eventually
+        // initialized.
+        &mut BUF.0
+    }};
+}

@@ -262,8 +262,8 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> CdcAcm<'a, U, A> {
         let (device_descriptor_buffer, other_descriptor_buffer) =
             descriptors::create_descriptor_buffers(
                 descriptors::DeviceDescriptor {
-                    vendor_id: vendor_id,
-                    product_id: product_id,
+                    vendor_id,
+                    product_id,
                     manufacturer_string: 1,
                     product_string: 2,
                     serial_number_string: 3,
@@ -271,9 +271,7 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> CdcAcm<'a, U, A> {
                     max_packet_size_ep0: max_ctrl_packet_size,
                     ..descriptors::DeviceDescriptor::default()
                 },
-                descriptors::ConfigurationDescriptor {
-                    ..descriptors::ConfigurationDescriptor::default()
-                },
+                descriptors::ConfigurationDescriptor::default(),
                 interfaces,
                 endpoints,
                 None, // No HID descriptor
@@ -348,8 +346,8 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> CdcAcm<'a, U, A> {
         match self.state.get() {
             State::Enumerated => {
                 self.state.set(State::Connecting {
-                    line_coding: line_coding,
-                    line_state: line_state,
+                    line_coding,
+                    line_state,
                 });
             }
             State::Connecting {

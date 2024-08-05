@@ -13,3 +13,6 @@ esp32 = { path = "../esp32" }
 rv32i = { path = "../../arch/rv32i" }
 kernel = { path = "../../kernel" }
 
+
+[lints]
+workspace = true

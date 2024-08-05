@@ -429,7 +429,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
             if self.state.get() != State::AppendKey(KeyState::ReadRegion(new_region))
                 && self.state.get() != State::Init(InitState::AppendKeyReadRegion(new_region))
             {
-                match self.controller.read_region(new_region, 0, region_data) {
+                match self.controller.read_region(new_region, region_data) {
                     Ok(()) => {}
                     Err(e) => {
                         self.read_buffer.replace(Some(region_data));
@@ -693,7 +693,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
             if self.state.get() != State::GetKey(KeyState::ReadRegion(new_region))
                 && self.state.get() != State::Init(InitState::GetKeyReadRegion(new_region))
             {
-                match self.controller.read_region(new_region, 0, region_data) {
+                match self.controller.read_region(new_region, region_data) {
                     Ok(()) => {}
                     Err(e) => {
                         self.read_buffer.replace(Some(region_data));
@@ -818,7 +818,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
             // Get the data from that region
             let region_data = self.read_buffer.take().unwrap();
             if self.state.get() != State::InvalidateKey(KeyState::ReadRegion(new_region)) {
-                match self.controller.read_region(new_region, 0, region_data) {
+                match self.controller.read_region(new_region, region_data) {
                     Ok(()) => {}
                     Err(e) => {
                         self.read_buffer.replace(Some(region_data));
@@ -917,7 +917,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
             // Get the data from that region
             let region_data = self.read_buffer.take().unwrap();
             if self.state.get() != State::ZeroiseKey(KeyState::ReadRegion(new_region)) {
-                match self.controller.read_region(new_region, 0, region_data) {
+                match self.controller.read_region(new_region, region_data) {
                     Ok(()) => {}
                     Err(e) => {
                         self.read_buffer.replace(Some(region_data));
@@ -992,7 +992,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
         let region_data = self.read_buffer.take().unwrap();
         if self.state.get() != State::GarbageCollect(RubbishState::ReadRegion(region, flash_freed))
         {
-            match self.controller.read_region(region, 0, region_data) {
+            match self.controller.read_region(region, region_data) {
                 Ok(()) => {}
                 Err(e) => {
                     self.read_buffer.replace(Some(region_data));

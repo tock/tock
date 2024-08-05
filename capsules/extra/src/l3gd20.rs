@@ -208,7 +208,7 @@ impl<'a, S: spi::SpiMasterDevice<'a>> L3gd20Spi<'a, S> {
     ) -> L3gd20Spi<'a, S> {
         // setup and return struct
         L3gd20Spi {
-            spi: spi,
+            spi,
             txbuffer: TakeCell::new(txbuffer),
             rxbuffer: TakeCell::new(rxbuffer),
             status: Cell::new(L3gd20Status::Idle),
@@ -217,7 +217,7 @@ impl<'a, S: spi::SpiMasterDevice<'a>> L3gd20Spi<'a, S> {
             hpf_divider: Cell::new(0),
             scale: Cell::new(0),
             current_process: OptionalCell::empty(),
-            grants: grants,
+            grants,
             nine_dof_client: OptionalCell::empty(),
             temperature_client: OptionalCell::empty(),
         }

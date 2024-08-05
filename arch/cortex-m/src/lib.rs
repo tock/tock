@@ -128,7 +128,7 @@ pub unsafe extern "C" fn unhandled_interrupt() {
         options(nomem, nostack, preserves_flags)
     );
 
-    interrupt_number = interrupt_number & 0x1ff;
+    interrupt_number &= 0x1ff;
 
     panic!("Unhandled Interrupt. ISR {} is active.", interrupt_number);
 }

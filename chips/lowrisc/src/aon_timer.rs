@@ -83,7 +83,7 @@ impl AonTimer {
     pub const fn new(base: StaticRef<AonTimerRegisters>, aon_clk_freq: u32) -> AonTimer {
         AonTimer {
             registers: base,
-            aon_clk_freq: aon_clk_freq,
+            aon_clk_freq,
         }
     }
 

@@ -214,14 +214,7 @@ impl KeyDescriptor {
         let (_, key_id) = dec_try!(buf, 1; decode_key_id);
         let mut key = [0u8; 16];
         let off = dec_consume!(buf, 11; decode_bytes, &mut key);
-        stream_done!(
-            off,
-            KeyDescriptor {
-                level: level,
-                key_id: key_id,
-                key: key,
-            }
-        );
+        stream_done!(off, KeyDescriptor { level, key_id, key });
     }
 }
 

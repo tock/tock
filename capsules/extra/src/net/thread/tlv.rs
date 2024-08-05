@@ -356,11 +356,11 @@ impl Tlv<'_> {
                 stream_done!(
                     offset,
                     Tlv::LeaderData {
-                        partition_id: partition_id,
-                        weighting: weighting,
-                        data_version: data_version,
-                        stable_data_version: stable_data_version,
-                        leader_router_id: leader_router_id,
+                        partition_id,
+                        weighting,
+                        data_version,
+                        stable_data_version,
+                        leader_router_id,
                     }
                 )
             }
@@ -400,15 +400,15 @@ impl Tlv<'_> {
                 stream_done!(
                     offset,
                     Tlv::Connectivity {
-                        parent_priority: parent_priority,
-                        link_quality_3: link_quality_3,
-                        link_quality_2: link_quality_2,
-                        link_quality_1: link_quality_1,
-                        leader_cost: leader_cost,
-                        id_sequence: id_sequence,
-                        active_routers: active_routers,
-                        sed_buffer_size: sed_buffer_size,
-                        sed_datagram_count: sed_datagram_count,
+                        parent_priority,
+                        link_quality_3,
+                        link_quality_2,
+                        link_quality_1,
+                        leader_cost,
+                        id_sequence,
+                        active_routers,
+                        sed_buffer_size,
+                        sed_datagram_count,
                     }
                 )
             }
@@ -668,9 +668,9 @@ impl NetworkDataTlv<'_> {
                     offset + length as usize,
                     (
                         NetworkDataTlv::Prefix {
-                            domain_id: domain_id,
-                            prefix_length_bits: prefix_length_bits,
-                            prefix: prefix,
+                            domain_id,
+                            prefix_length_bits,
+                            prefix,
                             sub_tlvs: &buf[offset..offset + length as usize],
                         },
                         stable
@@ -685,8 +685,8 @@ impl NetworkDataTlv<'_> {
                     offset,
                     (
                         NetworkDataTlv::CommissioningData {
-                            com_length: com_length,
-                            com_data: com_data,
+                            com_length,
+                            com_data,
                         },
                         stable
                     )
@@ -704,11 +704,11 @@ impl NetworkDataTlv<'_> {
                     offset + length as usize,
                     (
                         NetworkDataTlv::Service {
-                            thread_enterprise_number: thread_enterprise_number,
-                            s_id: s_id,
-                            s_enterprise_number: s_enterprise_number,
-                            s_service_data_length: s_service_data_length,
-                            s_service_data: s_service_data,
+                            thread_enterprise_number,
+                            s_id,
+                            s_enterprise_number,
+                            s_service_data_length,
+                            s_service_data,
                             sub_tlvs: &buf[offset..offset + length as usize],
                         },
                         stable
@@ -839,9 +839,9 @@ impl PrefixSubTlv<'_> {
                     offset,
                     (
                         PrefixSubTlv::SixLoWpanId {
-                            context_id_compress: context_id_compress,
-                            context_id: context_id,
-                            context_length: context_length,
+                            context_id_compress,
+                            context_id,
+                            context_length,
                         },
                         stable
                     )
@@ -909,8 +909,8 @@ impl HasRouteTlvValue {
         stream_done!(
             offset,
             HasRouteTlvValue {
-                r_border_router_16: r_border_router_16,
-                r_preference: r_preference,
+                r_border_router_16,
+                r_preference,
             }
         )
     }
@@ -953,8 +953,8 @@ impl BorderRouterTlvValue {
         stream_done!(
             offset,
             BorderRouterTlvValue {
-                p_border_router_16: p_border_router_16,
-                p_bits: p_bits,
+                p_border_router_16,
+                p_bits,
             }
         )
     }
@@ -1016,8 +1016,8 @@ impl ServiceSubTlv {
                     offset,
                     (
                         ServiceSubTlv::Server {
-                            s_server_16: s_server_16,
-                            s_server_data: s_server_data,
+                            s_server_16,
+                            s_server_data,
                         },
                         stable
                     )
@@ -1259,8 +1259,8 @@ impl NetworkManagementTlv<'_> {
                 stream_done!(
                     offset,
                     NetworkManagementTlv::Channel {
-                        channel_page: channel_page,
-                        channel: channel,
+                        channel_page,
+                        channel,
                     }
                 )
             }
@@ -1331,8 +1331,8 @@ impl NetworkManagementTlv<'_> {
                 stream_done!(
                     offset,
                     NetworkManagementTlv::SecurityPolicy {
-                        rotation_time: rotation_time,
-                        policy_bits: policy_bits,
+                        rotation_time,
+                        policy_bits,
                     }
                 )
             }
@@ -1343,7 +1343,7 @@ impl NetworkManagementTlv<'_> {
                 stream_done!(
                     offset,
                     NetworkManagementTlv::ActiveTimestamp {
-                        timestamp_seconds: timestamp_seconds,
+                        timestamp_seconds,
                         timestamp_ticks: timestamp_ticks >> 1,
                         u_bit: (timestamp_ticks & 1u16) > 0,
                     }
@@ -1360,7 +1360,7 @@ impl NetworkManagementTlv<'_> {
                 stream_done!(
                     offset,
                     NetworkManagementTlv::PendingTimestamp {
-                        timestamp_seconds: timestamp_seconds,
+                        timestamp_seconds,
                         timestamp_ticks: timestamp_ticks >> 1,
                         u_bit: (timestamp_ticks & 1u16) > 0,
                     }
@@ -1504,9 +1504,9 @@ impl ChannelMaskEntry {
         stream_done!(
             offset,
             ChannelMaskEntry {
-                channel_page: channel_page,
-                mask_length: mask_length,
-                channel_mask: channel_mask,
+                channel_page,
+                mask_length,
+                channel_mask,
             }
         )
     }

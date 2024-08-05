@@ -175,29 +175,30 @@ impl<'a> Alarm<'a> for STimer<'a> {
         // From testing this scaling results in the correct time, so we
         // scale the requested ticks to give us an accurate alarm.
         let scaled_time = Self::Ticks::from(((dt.into_u32() as u64 * 1000) / (1000 - 32)) as u32);
-        let mut expire = reference.wrapping_add(scaled_time);
+        let expire = reference.wrapping_add(scaled_time);
 
         // Disable the compare
         regs.stcfg
             .modify(STCFG::COMPARE_A_EN::CLEAR + STCFG::COMPARE_B_EN::CLEAR);
 
-        if !now.within_range(reference, expire) {
-            expire = now;
-        }
-
         // Enable interrupts
         regs.stminten
             .modify(STMINT::COMPAREA::SET + STMINT::COMPAREB::SET);
+
+        // Check if the alarm has already expired or if it will expire before we set
+        // the compare.
+        if !now.within_range(reference, expire) || expire.wrapping_sub(now) < self.minimum_dt() {
+            // The alarm has already expired!
+            // Let's set the interrupt manually
+            regs.stcfg.modify(STCFG::COMPARE_A_EN::SET);
+            regs.stmintset.modify(STMINT::COMPAREA::SET);
+            return;
+        }
 
         // Set the delta, this can take a few goes
         // See Errata 4.14 at at https://ambiq.com/wp-content/uploads/2022/01/Apollo3-Blue-Errata-List.pdf
         let mut timer_delta = expire.wrapping_sub(now);
         let mut tries = 0;
-
-        if timer_delta < self.minimum_dt() {
-            timer_delta = self.minimum_dt();
-            expire = now.wrapping_add(timer_delta);
-        }
 
         // Apollo3 Blue Datasheet 14.1: 'Only offsets from "NOW" are written to
         // comparator registers.'
@@ -249,6 +250,6 @@ impl<'a> Alarm<'a> for STimer<'a> {
     }
 
     fn minimum_dt(&self) -> Self::Ticks {
-        Self::Ticks::from(2)
+        Self::Ticks::from(5)
     }
 }

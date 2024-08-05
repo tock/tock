@@ -155,8 +155,8 @@ impl<'a, I: i2c::I2CDevice> LTC294X<'a, I> {
         buffer: &'static mut [u8],
     ) -> LTC294X<'a, I> {
         LTC294X {
-            i2c: i2c,
-            interrupt_pin: interrupt_pin,
+            i2c,
+            interrupt_pin,
             model: Cell::new(ChipModel::LTC2941),
             state: Cell::new(State::Idle),
             buffer: TakeCell::new(buffer),
@@ -454,7 +454,7 @@ impl<'a, I: i2c::I2CDevice> LTC294XDriver<'a, I> {
     ) -> LTC294XDriver<'a, I> {
         LTC294XDriver {
             ltc294x: ltc,
-            grants: grants,
+            grants,
             owning_process: OptionalCell::empty(),
         }
     }

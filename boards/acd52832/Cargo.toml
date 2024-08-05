@@ -19,3 +19,6 @@ nrf52_components = { path = "../nordic/nrf52_components" }
 capsules-core = { path = "../../capsules/core" }
 capsules-extra = { path = "../../capsules/extra" }
 capsules-system = { path = "../../capsules/system" }
+
+[lints]
+workspace = true

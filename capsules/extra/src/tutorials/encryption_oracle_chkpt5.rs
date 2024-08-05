@@ -73,8 +73,8 @@ impl<'a, A: AES128<'a> + AES128Ctr> EncryptionOracleDriver<'a, A> {
         >,
     ) -> Self {
         EncryptionOracleDriver {
-            process_grants: process_grants,
-            aes: aes,
+            process_grants,
+            aes,
             current_process: OptionalCell::empty(),
             source_buffer: TakeCell::new(source_buffer),
             dest_buffer: TakeCell::new(dest_buffer),

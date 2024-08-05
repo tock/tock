@@ -8,8 +8,11 @@
 //! managing processes. For example, these policies control decisions such as
 //! whether a specific process should be restarted.
 
+use crate::platform::chip::Chip;
 use crate::process;
 use crate::process::Process;
+use crate::process_standard::ProcessStandard;
+use crate::storage_permissions::StoragePermissions;
 
 /// Generic trait for implementing a policy on what to do when a process faults.
 ///
@@ -19,4 +22,20 @@ pub trait ProcessFaultPolicy {
     /// Decide which action the kernel should take in response to `process`
     /// faulting.
     fn action(&self, process: &dyn Process) -> process::FaultAction;
+}
+
+/// Generic trait for implementing a policy on how applications should be
+/// assigned storage permissions.
+pub trait ProcessStandardStoragePermissionsPolicy<C: Chip> {
+    /// Return the storage permissions for the specified `process`.
+    fn get_permissions(&self, process: &ProcessStandard<C>) -> StoragePermissions;
+}
+
+// Any platforms that do not issue storage permissions can use `&()` as the
+// [`ProcessStandardStoragePermissionsPolicy`]. This will only provide null
+// permissions (that is, no permission to access persistent storage).
+impl<C: Chip> ProcessStandardStoragePermissionsPolicy<C> for () {
+    fn get_permissions(&self, _process: &ProcessStandard<C>) -> StoragePermissions {
+        StoragePermissions::new_null()
+    }
 }

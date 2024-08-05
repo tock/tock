@@ -97,7 +97,7 @@ impl<'a> ProximitySensor<'a> {
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> ProximitySensor<'a> {
         ProximitySensor {
-            driver: driver,
+            driver,
             apps: grant,
             command_running: Cell::new(ProximityCommand::NoCommand),
         }

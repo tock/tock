@@ -231,7 +231,7 @@ const USBC_BASE: StaticRef<UsbcRegisters> =
 
 #[inline]
 fn usbc_regs() -> &'static UsbcRegisters {
-    &*USBC_BASE
+    &USBC_BASE
 }
 
 // Datastructures for tracking USB controller state
@@ -1479,7 +1479,7 @@ impl<'a> hil::usb::UsbController<'a> for Usbc<'a> {
 
         match self.get_state() {
             State::Reset => self._enable(Mode::Device {
-                speed: speed,
+                speed,
                 config: DeviceConfig::default(),
                 state: DeviceState::default(),
             }),

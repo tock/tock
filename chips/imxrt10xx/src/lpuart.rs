@@ -369,7 +369,7 @@ impl<'a> Lpuart<'a> {
     ) -> Lpuart<'a> {
         Lpuart {
             registers: base_addr,
-            clock: clock,
+            clock,
 
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),

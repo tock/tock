@@ -4,10 +4,6 @@
 
 # Makefile for building the tock kernel for the Arduino Nano RP2040 Connect board.
 
-TOCK_ARCH=cortex-m0p
-TARGET=thumbv6m-none-eabi
-PLATFORM=nano_rp2040_connect
-
 include ../Makefile.common
 
 KERNEL=$(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf

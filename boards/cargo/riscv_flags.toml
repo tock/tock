@@ -1,0 +1,16 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2024.
+
+# RISC-V-specific flags.
+
+[build]
+rustflags = [
+  # NOTE: This flag causes kernel panics on some ARM cores. Since the size
+  # benefit is almost exclusively for RISC-V, we only apply it for those
+  # targets.
+  "-C", "force-frame-pointers=no",
+  # Ensure relocations generated is eligible for linker relaxation.
+  # This provides huge space savings.
+  "-C", "target-feature=+relax",
+]

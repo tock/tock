@@ -87,7 +87,7 @@ impl<'a, S: SpiMasterDevice<'a>> Spi<'a, S> {
         >,
     ) -> Spi<'a, S> {
         Spi {
-            spi_master: spi_master,
+            spi_master,
             busy: Cell::new(false),
             kernel_len: Cell::new(0),
             kernel_read: TakeCell::empty(),

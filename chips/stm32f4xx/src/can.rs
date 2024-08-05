@@ -474,7 +474,7 @@ pub struct Can<'a> {
 impl<'a> Can<'a> {
     pub fn new(clocks: &'a dyn Stm32f4Clocks, registers: StaticRef<Registers>) -> Can<'a> {
         Can {
-            registers: registers,
+            registers,
             clock: CanClock(phclk::PeripheralClock::new(
                 phclk::PeripheralClockType::APB1(phclk::PCLK1::CAN1),
                 clocks,

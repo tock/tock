@@ -109,7 +109,7 @@ impl<'a, S: hil::spi::SpiMasterDevice<'a>> FM25CL<'a, S> {
     ) -> FM25CL<'a, S> {
         // setup and return struct
         FM25CL {
-            spi: spi,
+            spi,
             state: Cell::new(State::Idle),
             txbuffer: TakeCell::new(txbuffer),
             rxbuffer: TakeCell::new(rxbuffer),

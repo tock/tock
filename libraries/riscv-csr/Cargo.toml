@@ -20,3 +20,6 @@ travis-ci = { repository = "tock/tock", branch = "master" }
 
 [dependencies]
 tock-registers = { path = "../tock-register-interface", default-features = false }
+
+[lints]
+workspace = true

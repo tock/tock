@@ -353,14 +353,14 @@ impl<'a, T: IP6Sender<'a>> UDPSendStruct<'a, T> {
         udp_vis: &'static UdpVisibilityCapability,
     ) -> UDPSendStruct<'a, T> {
         UDPSendStruct {
-            udp_mux_sender: udp_mux_sender,
+            udp_mux_sender,
             client: OptionalCell::empty(),
             next: ListLink::empty(),
             tx_buffer: MapCell::empty(),
             next_dest: Cell::new(IPAddr::new()),
             next_th: OptionalCell::empty(),
             binding: MapCell::empty(),
-            udp_vis: udp_vis,
+            udp_vis,
             net_cap: OptionalCell::empty(),
         }
     }

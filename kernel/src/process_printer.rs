@@ -30,8 +30,8 @@ pub struct ProcessPrinterContext {
 /// state to nonvolatile storage rather than display it immediately.
 pub trait ProcessPrinter {
     /// Print a process overview to the `writer`. As `print_overview()` uses a
-    /// `&dyn Process` to access the process, only state which can be accessed
-    /// via the `Process` trait can be printed.
+    /// `&dyn` [`Process`] to access the process, only state which can be
+    /// accessed via the [`Process`] trait can be printed.
     ///
     /// This is a synchronous function which also supports asynchronous
     /// operation. This function does not issue a callback, but the return value
@@ -48,8 +48,8 @@ pub trait ProcessPrinter {
     /// The return indicates whether `print_overview()` has more printing to do
     /// and should be called again. If `print_overview()` returns `Some()` then
     /// the caller should call `print_overview()` again (providing the returned
-    /// `ProcessPrinterContext` as the `context` argument) once the `writer` is
-    /// ready to accept more data. If `print_overview()` returns `None`, the
+    /// [`ProcessPrinterContext`] as the `context` argument) once the `writer`
+    /// is ready to accept more data. If `print_overview()` returns `None`, the
     /// `writer` indicated it accepted all output and the caller does not need
     /// to call `print_overview()` again to finish the printing.
     fn print_overview(

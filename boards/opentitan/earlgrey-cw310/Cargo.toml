@@ -43,3 +43,6 @@ sim_verilator = []
 # This is used to indicate that we should include tests that only pass on
 # hardware.
 hardware_tests = []
+
+[lints]
+workspace = true

@@ -4,9 +4,6 @@
 
 # Makefile for building the tock kernel for the Teensy 4
 
-TARGET=thumbv7em-none-eabi
-PLATFORM=teensy40
-
 include ../Makefile.common
 
 # Default target for installing the kernel.

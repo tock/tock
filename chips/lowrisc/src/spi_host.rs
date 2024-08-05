@@ -165,7 +165,7 @@ impl<'a> SpiHost<'a> {
             client: OptionalCell::empty(),
             busy: Cell::new(false),
             chip_select: Cell::new(0),
-            cpu_clk: cpu_clk,
+            cpu_clk,
             tsclk: Cell::new(0),
             tx_buf: TakeCell::empty(),
             rx_buf: TakeCell::empty(),

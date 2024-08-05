@@ -56,7 +56,7 @@ impl<'a> AmbientLight<'a> {
         grant: Grant<App, UpcallCount<{ upcall::COUNT }>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> AmbientLight {
         AmbientLight {
-            sensor: sensor,
+            sensor,
             command_pending: Cell::new(false),
             apps: grant,
         }

@@ -265,7 +265,7 @@ SECTIONS
      * Tock assumes the relocation section follows all static elements and will
      * copy (_erelocate - _srelocate) bytes from _etext to _srelocate.
      */
-    .relocate :
+    .relocate : AT (_etext)
     {
         . = ALIGN(4);
         _srelocate = .;
@@ -294,7 +294,7 @@ SECTIONS
 
         . = ALIGN(4);
         _erelocate = .;
-    } > ram AT>rom
+    } > ram
 
 
     .sram (NOLOAD) :

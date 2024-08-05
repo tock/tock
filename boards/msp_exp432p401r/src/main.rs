@@ -192,21 +192,17 @@ unsafe fn setup_adc_pins(gpio: &msp432::gpio::GpioManager) {
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn create_peripherals() -> &'static mut msp432::chip::Msp432DefaultPeripherals<'static> {
-    static_init!(
-        msp432::chip::Msp432DefaultPeripherals,
-        msp432::chip::Msp432DefaultPeripherals::new()
-    )
-}
-
-/// Main function.
-///
-/// This is called after RAM initialization is complete.
-#[no_mangle]
-pub unsafe fn main() {
+unsafe fn start() -> (
+    &'static kernel::Kernel,
+    MspExp432P401R,
+    &'static msp432::chip::Msp432<'static, msp432::chip::Msp432DefaultPeripherals<'static>>,
+) {
     startup_intilialisation();
 
-    let peripherals = create_peripherals();
+    let peripherals = static_init!(
+        msp432::chip::Msp432DefaultPeripherals,
+        msp432::chip::Msp432DefaultPeripherals::new()
+    );
     peripherals.init();
 
     // Setup the GPIO pins to use the HFXT (high frequency external) oscillator (48MHz)
@@ -330,7 +326,6 @@ pub unsafe fn main() {
     ));
 
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
 
@@ -419,16 +414,16 @@ pub unsafe fn main() {
 
     let msp_exp432p4014 = MspExp432P401R {
         led: leds,
-        console: console,
-        button: button,
-        gpio: gpio,
-        alarm: alarm,
+        console,
+        button,
+        gpio,
+        alarm,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
-        adc: adc,
+        adc,
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(48_000_000),
         wdt: &peripherals.wdt,
@@ -470,10 +465,14 @@ pub unsafe fn main() {
     .finalize(components::multi_alarm_test_component_buf!(msp432::timer::TimerA))
     .run();*/
 
-    board_kernel.kernel_loop(
-        &msp_exp432p4014,
-        chip,
-        Some(&msp_exp432p4014.ipc),
-        &main_loop_capability,
-    );
+    (board_kernel, msp_exp432p4014, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, board, chip) = start();
+    board_kernel.kernel_loop(&board, chip, Some(&board.ipc), &main_loop_capability);
 }

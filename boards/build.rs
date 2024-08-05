@@ -24,6 +24,39 @@ fn main() {
         panic!("Boards must provide a `layout.ld` link script file");
     }
 
+    // The `RUSTFLAGS` that the Tock config files set can be easily overridden
+    // by command line flags. The build will still succeed but the resulting
+    // binary may be invalid as it was not built with the intended flags. This
+    // check seeks to prevent that. Our approach is we set a sentinel flag in
+    // our configuration file and then check that it is set here. If it isn't,
+    // the flags were overwritten and the build will be invalid.
+    //
+    // We only do this check if we are actually building for an embedded target
+    // (i.e., the TARGET is not the same as the HOST). This avoids a false
+    // positive when running tools like `cargo clippy`.
+    //
+    // If you are intentionally not using the standard Tock config files, set
+    // `cfg-tock-buildflagssentinel` in your cargo config to prevent this
+    // error.
+    if std::env::var("HOST") != std::env::var("TARGET") {
+        let rust_flags = std::env::var("CARGO_ENCODED_RUSTFLAGS");
+        if !rust_flags
+            .iter()
+            .any(|f| f.contains("cfg_tock_buildflagssentinel"))
+        {
+            panic!(
+                "Incorrect build configuration. \
+            Verify you have not unintentionally set the RUSTFLAGS environment variable."
+            );
+        }
+    }
+
+    // Include the folder where the board's Cargo.toml is in the linker file
+    // search path.
+    println!("cargo:rustc-link-arg=-L{}", std::env!("CARGO_MANIFEST_DIR"));
+    // `-Tlayout.ld`: Use the linker script `layout.ld` all boards must provide.
+    println!("cargo:rustc-link-arg=-T{}", LINKER_SCRIPT);
+
     track_linker_script(LINKER_SCRIPT);
 }
 

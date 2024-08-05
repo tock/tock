@@ -355,7 +355,7 @@ impl<'a> TxState<'a> {
             dgram_offset: Cell::new(0),
 
             busy: Cell::new(false),
-            sixlowpan: sixlowpan,
+            sixlowpan,
         }
     }
 
@@ -879,8 +879,8 @@ impl<'a, A: time::Alarm<'a>, C: ContextStore> Sixlowpan<'a, A, C> {
     /// have an accuracy of at least 60 seconds.
     pub fn new(ctx_store: C, clock: &'a A) -> Sixlowpan<'a, A, C> {
         Sixlowpan {
-            ctx_store: ctx_store,
-            clock: clock,
+            ctx_store,
+            clock,
             tx_dgram_tag: Cell::new(0),
             rx_client: Cell::new(None),
 
