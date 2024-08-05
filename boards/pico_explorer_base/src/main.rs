@@ -35,6 +35,7 @@ use rp2040::clocks::{
 };
 use rp2040::gpio::{GpioFunction, RPGpio, RPGpioPin};
 use rp2040::pio::Pio;
+use rp2040::pio::SMNumber::SM0;
 use rp2040::resets::Peripheral;
 use rp2040::spi::Spi;
 use rp2040::sysinfo;
@@ -696,8 +697,9 @@ pub unsafe fn start() -> (
     });
 
     let pio: Pio = Pio::new_pio0();
-    let path = include_bytes!("pio_blink.bin");
+    let path = include_bytes!("pio_pwm.bin");
     pio.init();
+    pio.pio_pwm(SM0);
     pio.add_program(path);
 
     (board_kernel, pico_explorer_base, chip)

@@ -827,4 +827,7 @@ impl Pio {
                 .modify(INSTR_MEMx::INSTR_MEM::CLEAR);
         }
     }
+    pub fn pio_pwm(&self, sm_number:SMNumber){
+        self.set_side_set(sm_number, 1, false, true);
+    }
 }
