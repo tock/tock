@@ -26,6 +26,8 @@
 //!
 //! * `0`: check whether the driver exists.
 //! * `1`: read the distance.
+//! * `2`: get the minimum distance that the sensor can measure based on the datasheet.
+//! * `3`: get the maximum distance that the sensor can measure based on the datasheet.
 //!
 //! The possible returns from the `command` system call indicate the following:
 //!
@@ -103,7 +105,7 @@ impl<'a, T: hil::sensors::Distance<'a>> DistanceSensor<'a, T> {
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> DistanceSensor<'a, T> {
         DistanceSensor {
-            driver: driver,
+            driver,
             apps: grant,
             busy: Cell::new(false),
         }
@@ -171,6 +173,14 @@ impl<'a, T: hil::sensors::Distance<'a>> SyscallDriver for DistanceSensor<'a, T> 
             1 => {
                 // Read distance.
                 self.enqueue_command(processid)
+            }
+            2 => {
+                // Get minimum distance.
+                CommandReturn::success_u32(self.driver.get_minimum_distance_mm())
+            }
+            3 => {
+                // Get maximum distance.
+                CommandReturn::success_u32(self.driver.get_maximum_distance_mm())
             }
             _ => {
                 // Command not supported.

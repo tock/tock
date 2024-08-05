@@ -239,7 +239,11 @@ pub trait Distance<'a> {
     /// Set the client
     fn set_client(&self, client: &'a dyn DistanceClient);
     /// Read the distance from the sensor
-    fn read_distance(&self) -> Result<(), ErrorCode>; //in mm primeste si pot sa iau model de la temperatura, trbuie sa facem 2 drivere, cel de jos si cel pentru anumite placi
+    fn read_distance(&self) -> Result<(), ErrorCode>;
+    /// Get the maximum distance the sensor can measure in mm
+    fn get_maximum_distance_mm(&self) -> u32;
+    /// Get the minimum distance the sensor can measure in mm
+    fn get_minimum_distance_mm(&self) -> u32;
 }
 
 /// Client for receiving distance readings.

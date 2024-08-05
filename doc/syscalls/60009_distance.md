@@ -1,5 +1,5 @@
 ---
-driver number: 0x60002
+driver number: 0x60009
 ---
 
 # Distance
@@ -29,6 +29,26 @@ The distance sensor driver allows a process to read the distance measured by a H
     **Argument 2**: unused
 
     **Returns**: `BUSY` if a reading is already pending, `NOMEM` if there isn't sufficient grant memory available, or `Ok(())` if the sensor reading was initiated successfully.
+
+  * ### Command number: `2`
+
+      **Description**: Get the minimum measurable distance.
+
+      **Argument 1**: unused
+
+      **Argument 2**: unused
+
+      **Returns**: The minimum measurable distance in millimeters.
+
+  * ### Command number: `3`
+
+      **Description**: Get the maximum measurable distance.
+
+      **Argument 1**: unused
+
+      **Argument 2**: unused
+
+      **Returns**: The maximum measurable distance in millimeters.
 
 ## Subscribe
 

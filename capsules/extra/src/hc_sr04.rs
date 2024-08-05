@@ -11,10 +11,10 @@ use kernel::hil::time::{AlarmClient, ConvertTicks};
 use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 
-/// Maximum distance that can be measured by the calculated sensor in miliseconds.
+/// Maximum duration for the echo pulse to be measured in milliseconds.
 // As specified in the datasheet:
 // https://www.handsontec.com/dataspecs/HC-SR04-Ultrasonic.pdf,
-// the maximum time for the echo to return is around 38 milliseconds
+// the maximum time for the echo pulse to return is around 38 milliseconds
 // for a maximum distance of approximately 4 meters. We use a slightly
 // higher value to account for possible variations in measurement.
 pub const MAX_DISTANCE_ECHO: u32 = 50;
@@ -87,6 +87,22 @@ impl<'a, A: Alarm<'a>> Distance<'a> for HcSr04<'a, A> {
             Err(ErrorCode::BUSY)
         }
     }
+    /// Get the maximum distance the sensor can measure in mm
+    fn get_maximum_distance_mm(&self) -> u32 {
+        // The maximum distance is determined by the maximum pulse width the sensor can detect.
+        // As specified in the datasheet: https://www.handsontec.com/dataspecs/HC-SR04-Ultrasonic.pdf,
+        // the maximum measurable distance is approximately 4 meters.
+        // Convert this to millimeters.
+        4000
+    }
+    /// Get the minimum distance the sensor can measure in mm.
+    fn get_minimum_distance_mm(&self) -> u32 {
+        // The minimum distance is determined by the minimum pulse width the sensor can detect.
+        // As specified in the datasheet: https://www.handsontec.com/dataspecs/HC-SR04-Ultrasonic.pdf,
+        // the minimum measurable distance is approximately 2 cm.
+        // Convert this to millimeters.
+        20
+    }
 }
 
 impl<'a, A: Alarm<'a>> AlarmClient for HcSr04<'a, A> {
@@ -124,6 +140,12 @@ impl<'a, A: Alarm<'a>> Client for HcSr04<'a, A> {
                     }
                 } else {
                     // Calculate distance in milimeters based on the duration of the echo.
+                    // The formula for calculating distance is:
+                    // Distance = (duration (µs) * SPEED_OF_SOUND (mm/s)) / (2 * 1_000_000), where
+                    // duration is the time taken for the echo to travel to the object and back, in microseconds,
+                    // SPEED_OF_SOUND is the speed of sound in air, in millimeters per second.
+                    // We divide by 2 because the duration includes the round trip time (to the object and back) and
+                    // we divide by 1_000_000 to convert the duration from microseconds to seconds.
                     let distance = duration * SPEED_OF_SOUND / (2 * 1_000_000);
                     if let Some(distance_client) = self.distance_client.get() {
                         distance_client.callback(Ok(distance));
