@@ -77,7 +77,7 @@ pub static PATCH: [unsafe extern "C" fn(); 16] = [unhandled_interrupt; 16];
 
 // The SVC call in this function means that we need to ensure it's inlined in
 // `main()` otherwise we end up with a clobbered stack.
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[inline(always)]
 pub unsafe fn init() {
     use core::arch::asm;
@@ -104,7 +104,7 @@ pub unsafe fn init() {
 }
 
 // Mock implementation for tests
-#[cfg(not(all(target_arch = "arm", target_os = "none")))]
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
 pub unsafe fn init() {
     // Prevent unused code warning.
     scb::disable_fpca();

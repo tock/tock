@@ -16,9 +16,12 @@ pub const XLEN: usize = 32;
 pub const XLEN: usize = 64;
 
 // Default to 32 bit if no architecture is specified of if this is being
-// compiled for testing on a different architecture.
-#[cfg(not(all(
-    any(target_arch = "riscv32", target_arch = "riscv64"),
-    target_os = "none"
-)))]
+// compiled for docs or testing on a different architecture.
+#[cfg(any(
+    doc,
+    not(all(
+        any(target_arch = "riscv32", target_arch = "riscv64"),
+        target_os = "none"
+    ))
+))]
 pub const XLEN: usize = 32;

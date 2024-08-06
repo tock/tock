@@ -10,9 +10,6 @@
 
 use core::fmt::Write;
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
-use core::arch::global_asm;
-
 pub mod mpu {
     pub type MPU = cortexm::mpu::MPU<8, 256>;
 }
@@ -31,18 +28,18 @@ pub use cortexm::CortexMVariant;
 use cortexm0::CortexM0;
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(all(target_arch = "arm", target_os = "none")))]
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
 pub unsafe extern "C" fn svc_handler_m0p() {
     unimplemented!()
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 extern "C" {
     pub fn svc_handler_m0p();
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
-global_asm!(
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+core::arch::global_asm!(
     "
   .section .svc_handler_m0p, \"ax\"
   .global svc_handler_m0p
@@ -88,7 +85,7 @@ impl cortexm::CortexMVariant for CortexM0P {
     const SVC_HANDLER: unsafe extern "C" fn() = svc_handler_m0p;
     const HARD_FAULT_HANDLER: unsafe extern "C" fn() = CortexM0::HARD_FAULT_HANDLER;
 
-    #[cfg(all(target_arch = "arm", target_os = "none"))]
+    #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
     unsafe fn switch_to_user(
         user_stack: *const usize,
         process_regs: &mut [usize; 8],
@@ -96,7 +93,7 @@ impl cortexm::CortexMVariant for CortexM0P {
         CortexM0::switch_to_user(user_stack, process_regs)
     }
 
-    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
+    #[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
     unsafe fn switch_to_user(
         _user_stack: *const usize,
         _process_regs: &mut [usize; 8],
