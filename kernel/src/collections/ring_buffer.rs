@@ -13,7 +13,6 @@ pub struct RingBuffer<'a, T: 'a> {
 }
 
 impl<'a, T: Copy> RingBuffer<'a, T> {
-    #[flux::trusted]
     pub fn new(ring: &'a mut [T]) -> RingBuffer<'a, T> {
         RingBuffer {
             head: 0,
@@ -22,7 +21,6 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
         }
     }
 
-    #[flux::trusted]
     fn ring_len(&self) -> usize {
         self.ring.len()
     }
