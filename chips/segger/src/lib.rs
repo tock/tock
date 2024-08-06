@@ -4,7 +4,7 @@
 
 #![no_std]
 
-//! Support libraries for low-level Segger periherals.
+//! Support libraries for low-level Segger peripherals.
 
 pub mod rtt;
 pub use rtt::*;
