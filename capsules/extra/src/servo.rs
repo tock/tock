@@ -74,7 +74,7 @@ impl<'a, B: hil::servo::Servo<'a>> SyscallDriver for Servo<'a, B> {
             // Check whether the driver exists.
             0 => CommandReturn::success(),
             // Change the angle immediately.
-            1 => self.servo.servo(data1).into(),
+            1 => self.servo.set_angle(data1).into(),
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
