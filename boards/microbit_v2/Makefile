@@ -7,6 +7,7 @@
 include ../Makefile.common
 
 PROBE_RS=probe-rs
+CARGO=cargo
 OPENOCD=openocd
 OPENOCD_OPTIONS=-f openocd.cfg
 
@@ -16,21 +17,35 @@ TOCKLOADER=tockloader
 .PHONY: install
 install: flash
 
+
 .PHONY: flash-debug
 flash-debug: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).elf
-ifdef USE_PROBE_RS
+		$(CARGO) flash --chip nRF52833_xxAA --verify --path $<
+
+
+.PHONY: flash/kernel/probe-rs/debug
+flash/kernel/probe-rs/debug: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).elf
 	$(PROBE_RS) download --chip nRF52833_xxAA --verify $<	
-else
+
+.PHONY: flash/kernel/openocd/debug
+flash/kernel/openocd/debug: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).elf
 	$(OPENOCD) $(OPENOCD_OPTIONS) -c "program $<; verify_image $<; reset; shutdown;"
-endif
+
+
 
 .PHONY: flash
-flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
-ifdef USE_PROBE_RS
+flash:	$(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
+		$(CARGO) flash --chip nRF52833_xxAA --verify --path $<
+
+
+
+.PHONY: flash/kernel/probe-rs/release
+flash/kernel/probe-rs/release: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	$(PROBE_RS) download --chip nRF52833_xxAA --verify $<	
-else
+
+.PHONY: flash/kernel/openocd/release
+flash/kernel/openocd/release: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	$(OPENOCD) $(OPENOCD_OPTIONS) -c "program $<; verify_image $<; reset; shutdown;"
-endif
 
 .PHONY: program
 program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
@@ -40,12 +55,25 @@ program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 flash-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 	$(error Use tockloader to load applications)
 
+
+
 .PHONY: flash-bootloader
 flash-bootloader:
 	curl -L --output /tmp/tock-bootloader.microbit_v2.vv1.1.1.bin https://github.com/tock/tock-bootloader/releases/download/microbit_v2-vv1.1.1/tock-bootloader.microbit_v2.vv1.1.1.bin
-ifdef USE_PROBE_RS
+	$(CARGO) flash --chip  nRF52833_xxAA --binary-format Bin --verify  /tmp/tock-bootloader.microbit_v2.vv1.1.1.bin
+	rm /tmp/tock-bootloader.microbit_v2.vv1.1.1.bin
+
+
+.PHONY: flash/bootloader/probe-rs
+flash/bootloader/probe-rs:
+	curl -L --output /tmp/tock-bootloader.microbit_v2.vv1.1.1.bin https://github.com/tock/tock-bootloader/releases/download/microbit_v2-vv1.1.1/tock-bootloader.microbit_v2.vv1.1.1.bin
 	$(PROBE_RS) download --chip  nRF52833_xxAA --binary-format Bin --verify  /tmp/tock-bootloader.microbit_v2.vv1.1.1.bin
-else
+	rm /tmp/tock-bootloader.microbit_v2.vv1.1.1.bin
+
+
+
+.PHONY: flash/bootloader/openocd
+flash/bootloader/openocd:
+	curl -L --output /tmp/tock-bootloader.microbit_v2.vv1.1.1.bin https://github.com/tock/tock-bootloader/releases/download/microbit_v2-vv1.1.1/tock-bootloader.microbit_v2.vv1.1.1.bin
 	$(OPENOCD) $(OPENOCD_OPTIONS) -c "program /tmp/tock-bootloader.microbit_v2.vv1.1.1.bin; verify_image /tmp/tock-bootloader.microbit_v2.vv1.1.1.bin; reset halt; shutdown;"
-endif
 	rm /tmp/tock-bootloader.microbit_v2.vv1.1.1.bin
