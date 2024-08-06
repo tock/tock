@@ -34,7 +34,7 @@
 //! );
 //! ```
 
-use crate::bus::{self, Bus, BusWidth};
+use crate::bus::{self, Bus, BusAddr8, DataWidth};
 use core::cell::Cell;
 use kernel::hil::gpio::Pin;
 use kernel::hil::screen::{
@@ -206,7 +206,7 @@ pub enum SendCommand {
     Slice(&'static Command, usize),
 }
 
-pub struct ST77XX<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> {
+pub struct ST77XX<'a, A: Alarm<'a>, B: Bus<'a, BusAddr8>, P: Pin> {
     bus: &'a B,
     alarm: &'a A,
     dc: Option<&'a P>,
@@ -234,7 +234,7 @@ pub struct ST77XX<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> {
     screen: &'static ST77XXScreen,
 }
 
-impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
+impl<'a, A: Alarm<'a>, B: Bus<'a, BusAddr8>, P: Pin> ST77XX<'a, A, B, P> {
     pub fn new(
         bus: &'a B,
         alarm: &'a A,
@@ -336,14 +336,14 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
         self.command.set(cmd);
         self.status.set(Status::SendCommand(position, len, repeat));
         self.dc.map(|dc| dc.clear());
-        let _ = self.bus.set_addr(BusWidth::Bits8, cmd.id as usize);
+        let _ = self.bus.set_addr(cmd.id.into());
     }
 
     fn send_command_slice(&self, cmd: &'static Command, len: usize) {
         self.command.set(cmd);
         self.dc.map(|dc| dc.clear());
         self.status.set(Status::SendCommandSlice(len));
-        let _ = self.bus.set_addr(BusWidth::Bits8, cmd.id as usize);
+        let _ = self.bus.set_addr(cmd.id.into());
     }
 
     fn send_parameters(&self, position: usize, len: usize, repeat: usize) {
@@ -359,7 +359,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
                         }
                     }
                     self.dc.map(|dc| dc.set());
-                    let _ = self.bus.write(BusWidth::Bits8, buffer, len);
+                    let _ = self.bus.write(DataWidth::Bits8, buffer, len);
                 },
             );
         } else {
@@ -373,7 +373,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
             |buffer| {
                 self.status.set(Status::SendParametersSlice);
                 self.dc.map(|dc| dc.set());
-                let _ = self.bus.write(BusWidth::Bits16BE, buffer, len / 2);
+                let _ = self.bus.write(DataWidth::Bits16BE, buffer, len / 2);
             },
         );
     }
@@ -683,7 +683,9 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> ST77XX<'a, A, B, P> {
     }
 }
 
-impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::ScreenSetup<'a> for ST77XX<'a, A, B, P> {
+impl<'a, A: Alarm<'a>, B: Bus<'a, BusAddr8>, P: Pin> screen::ScreenSetup<'a>
+    for ST77XX<'a, A, B, P>
+{
     fn set_client(&self, setup_client: &'a dyn ScreenSetupClient) {
         self.setup_client.set(setup_client);
     }
@@ -741,7 +743,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::ScreenSetup<'a> for ST77XX<'a
     }
 }
 
-impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::Screen<'a> for ST77XX<'a, A, B, P> {
+impl<'a, A: Alarm<'a>, B: Bus<'a, BusAddr8>, P: Pin> screen::Screen<'a> for ST77XX<'a, A, B, P> {
     fn get_resolution(&self) -> (usize, usize) {
         (self.width.get(), self.height.get())
     }
@@ -853,13 +855,13 @@ impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> screen::Screen<'a> for ST77XX<'a, A, 
     }
 }
 
-impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> time::AlarmClient for ST77XX<'a, A, B, P> {
+impl<'a, A: Alarm<'a>, B: Bus<'a, BusAddr8>, P: Pin> time::AlarmClient for ST77XX<'a, A, B, P> {
     fn alarm(&self) {
         self.do_next_op();
     }
 }
 
-impl<'a, A: Alarm<'a>, B: Bus<'a>, P: Pin> bus::Client for ST77XX<'a, A, B, P> {
+impl<'a, A: Alarm<'a>, B: Bus<'a, BusAddr8>, P: Pin> bus::Client for ST77XX<'a, A, B, P> {
     fn command_complete(
         &self,
         buffer: Option<&'static mut [u8]>,
