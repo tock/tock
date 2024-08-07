@@ -26,18 +26,18 @@ use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::time::{self, Alarm};
 use kernel::utilities::cells::VolatileCell;
-use segger::{SeggerRtt, SeggerRttMemory};
+use segger::rtt::{SeggerRtt, SeggerRttMemory};
 
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! segger_rtt_memory_component_static {
     () => {{
-        let rtt_memory = kernel::static_named_buf!(segger::SeggerRttMemory, "_SEGGER_RTT");
+        let rtt_memory = kernel::static_named_buf!(segger::rtt::SeggerRttMemory, "_SEGGER_RTT");
         let up_buffer = kernel::static_buf!(
-            [kernel::utilities::cells::VolatileCell<u8>; segger::DEFAULT_UP_BUFFER_LENGTH]
+            [kernel::utilities::cells::VolatileCell<u8>; segger::rtt::DEFAULT_UP_BUFFER_LENGTH]
         );
         let down_buffer = kernel::static_buf!(
-            [kernel::utilities::cells::VolatileCell<u8>; segger::DEFAULT_DOWN_BUFFER_LENGTH]
+            [kernel::utilities::cells::VolatileCell<u8>; segger::rtt::DEFAULT_DOWN_BUFFER_LENGTH]
         );
 
         (rtt_memory, up_buffer, down_buffer)
@@ -51,7 +51,7 @@ macro_rules! segger_rtt_component_static {
             capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>
         );
         let rtt = kernel::static_buf!(
-            segger::SeggerRtt<
+            segger::rtt::SeggerRtt<
                 'static,
                 capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>,
             >
@@ -82,8 +82,8 @@ impl SeggerRttMemoryComponent {
 impl Component for SeggerRttMemoryComponent {
     type StaticInput = (
         &'static mut MaybeUninit<SeggerRttMemory<'static>>,
-        &'static mut MaybeUninit<[VolatileCell<u8>; segger::DEFAULT_UP_BUFFER_LENGTH]>,
-        &'static mut MaybeUninit<[VolatileCell<u8>; segger::DEFAULT_DOWN_BUFFER_LENGTH]>,
+        &'static mut MaybeUninit<[VolatileCell<u8>; segger::rtt::DEFAULT_UP_BUFFER_LENGTH]>,
+        &'static mut MaybeUninit<[VolatileCell<u8>; segger::rtt::DEFAULT_DOWN_BUFFER_LENGTH]>,
     );
     type Output = SeggerRttMemoryRefs<'static>;
 
@@ -92,9 +92,9 @@ impl Component for SeggerRttMemoryComponent {
         let up_buffer_name = name;
         let down_buffer_name = name;
         let up_buffer =
-            s.1.write([const { VolatileCell::new(0) }; segger::DEFAULT_UP_BUFFER_LENGTH]);
+            s.1.write([const { VolatileCell::new(0) }; segger::rtt::DEFAULT_UP_BUFFER_LENGTH]);
         let down_buffer =
-            s.2.write([const { VolatileCell::new(0) }; segger::DEFAULT_DOWN_BUFFER_LENGTH]);
+            s.2.write([const { VolatileCell::new(0) }; segger::rtt::DEFAULT_DOWN_BUFFER_LENGTH]);
 
         let rtt_memory = s.0.write(SeggerRttMemory::new_raw(
             up_buffer_name,
@@ -128,7 +128,7 @@ impl<A: 'static + time::Alarm<'static>> Component for SeggerRttComponent<A> {
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
         &'static mut MaybeUninit<SeggerRtt<'static, VirtualMuxAlarm<'static, A>>>,
     );
-    type Output = &'static segger::SeggerRtt<'static, VirtualMuxAlarm<'static, A>>;
+    type Output = &'static SeggerRtt<'static, VirtualMuxAlarm<'static, A>>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let virtual_alarm_rtt = static_buffer.0.write(VirtualMuxAlarm::new(self.mux_alarm));

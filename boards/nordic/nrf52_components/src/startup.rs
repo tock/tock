@@ -12,7 +12,7 @@ use core::mem::MaybeUninit;
 use kernel::component::Component;
 use nrf52::gpio::Pin;
 use nrf52::uicr::Regulator0Output;
-use segger::SeggerRtt;
+use segger::rtt::SeggerRtt;
 
 pub struct NrfStartupComponent<'a> {
     nfc_as_gpios: bool,

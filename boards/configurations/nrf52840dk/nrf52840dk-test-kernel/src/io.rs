@@ -19,13 +19,13 @@ use crate::PROCESS_PRINTER;
 
 enum Writer {
     WriterUart(/* initialized */ bool),
-    WriterRtt(&'static segger::SeggerRttMemory<'static>),
+    WriterRtt(&'static segger::rtt::SeggerRttMemory<'static>),
 }
 
 static mut WRITER: Writer = Writer::WriterUart(false);
 
 /// Set the RTT memory buffer used to output panic messages.
-pub unsafe fn set_rtt_memory(rtt_memory: &'static segger::SeggerRttMemory<'static>) {
+pub unsafe fn set_rtt_memory(rtt_memory: &'static segger::rtt::SeggerRttMemory<'static>) {
     WRITER = Writer::WriterRtt(rtt_memory);
 }
 
