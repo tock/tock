@@ -1,50 +1,38 @@
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::deferred_call::DeferredCallClient;
 use kernel::hil;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::KernelResources;
 use kernel::platform::SyscallDriverLookup;
 use kernel::scheduler::cooperative::CooperativeSched;
-use kernel::platform::chip::Chip;
 use kernel::threadlocal::{
-    self,
-    ThreadId,
     ConstThreadId,
-    ThreadLocalDynInit,
     ThreadLocalDyn
 };
 use kernel::utilities::registers::interfaces::ReadWriteable;
-use kernel::utilities::cells::OptionalCell;
-use kernel::{create_capability, debug, static_init};
-use kernel::{thread_local_static_finalize, thread_local_static_access};
-use qemu_rv32_virt_chip::chip::{QemuRv32VirtChip, QemuRv32VirtDefaultPeripherals};
-use qemu_rv32_virt_chip::plic::PLIC;
-use qemu_rv32_virt_chip::plic::PLIC_BASE;
-use qemu_rv32_virt_chip::channel::QemuRv32VirtMessage;
-use rv32i::csr;
-
-use kernel::utilities::registers::interfaces::Readable;
-use kernel::threadlocal::DynThreadId;
 use kernel::collections::ring_buffer::RingBuffer;
+use kernel::{create_capability, debug, static_init};
 use kernel::smp;
 
-use qemu_rv32_virt_chip::MAX_THREADS;
+use qemu_rv32_virt_chip::chip::{QemuRv32VirtChip, QemuRv32VirtDefaultPeripherals};
+use qemu_rv32_virt_chip::{MAX_THREADS, MAX_CONTEXTS};
+
+use rv32i::csr;
 
 use core::ptr::{addr_of, addr_of_mut};
 
 use crate::CHIP;
 
-pub const NUM_PROCS: usize = 4;
+const NUM_PROCS: usize = 4;
 
 // Actual memory for holding the active process structures. Need an empty list
 // at least.
-static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
+pub static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
     [None; NUM_PROCS];
 
 // Reference to the process printer for panic dumps.
-static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
+pub static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
@@ -241,8 +229,23 @@ pub unsafe fn spawn<const ID: usize>(
 
     // ---------- QEMU-SYSTEM-RISCV32 "virt" MACHINE THREAD LOCALS ----------
 
-    thread_local_static_finalize!(PLIC, ID);
-    thread_local_static_finalize!(qemu_rv32_virt_chip::clint::CLIC, ID);
+    // Initialize the kernel's platform-level interrupt controller
+    qemu_rv32_virt_chip::plic::set_global_plic(static_init!(
+        qemu_rv32_virt_chip::QemuRv32VirtThreadLocal<Option<sifive::plic::Plic<MAX_CONTEXTS>>>,
+        qemu_rv32_virt_chip::QemuRv32VirtThreadLocal::new([
+            const { None }; MAX_THREADS
+        ]),
+    ));
+    qemu_rv32_virt_chip::plic::init_plic();
+
+    // Initialize the kernel's core-local interrupt controller
+    qemu_rv32_virt_chip::clint::set_global_clic(static_init!(
+        qemu_rv32_virt_chip::QemuRv32VirtThreadLocal<Option<qemu_rv32_virt_chip::chip::QemuRv32VirtClint>>,
+        qemu_rv32_virt_chip::QemuRv32VirtThreadLocal::new([
+            const { None }; MAX_THREADS
+        ]),
+    ));
+    qemu_rv32_virt_chip::clint::init_clic();
 
     // Initialize the kernel's deferred call infrastructure
     kernel::deferred_call::initialize_global_deferred_call_state(static_init!(
@@ -544,27 +547,25 @@ pub unsafe fn spawn<const ID: usize>(
 
     // ---------- INITIALIZE CHIP, ENABLE INTERRUPTS ---------
 
-    thread_local_static_finalize!(CHIP, ID);
-
-
     // Escape nonreentrant to get static mut
-    let plic = thread_local_static_access!(PLIC, ConstThreadId::<ID>::new())
-        .expect("Unable to access thread-local PLIC controller")
-        .enter_nonreentrant(|plic| &*(plic as *mut _));
+    // TODO: impl interrupt trait for threadloca construct to avoid this soundness violation.
+    let plic = qemu_rv32_virt_chip::plic::with_plic_panic(|plic| &*(plic as *mut _));
 
     let chip = static_init!(
         QemuRv32VirtChip<QemuRv32VirtDefaultPeripherals>,
         QemuRv32VirtChip::new(peripherals, hardware_timer, epmp, plic),
     );
 
-    thread_local_static_access!(CHIP, ConstThreadId::<ID>::new())
-        .expect("This thread cannot access thread-local chip construct")
-        .enter_nonreentrant(|chip_local| *chip_local = Some(chip));
+    let threadlocal_chip = *core::ptr::addr_of_mut!(CHIP);
+    threadlocal_chip
+        .get_mut()
+        .map(|clocal| clocal.enter_nonreentrant(|c| c.replace(chip)))
+        .expect("This thread cannot access thread-local chip construct");
 
     // Need to enable all interrupts for Tock Kernel
     chip.enable_plic_interrupts();
 
-    // enable interrupts globally
+    // Enable interrupts globally
     csr::CSR
         .mie
         .modify(csr::mie::mie::mext::SET + csr::mie::mie::msoft::SET + csr::mie::mie::mtimer::SET);

@@ -257,14 +257,17 @@ pub unsafe fn set_global_uart_state(
 }
 
 pub fn init_uart_state() {
-    let state: &'static mut Option<Uart16550State> = unsafe {
+    let closure = |state: &mut Option<Uart16550State>| {
+        let _ = state.replace(Uart16550State::empty());
+    };
+
+    unsafe {
         let threadlocal: &'static dyn ThreadLocalDyn<_> = *core::ptr::addr_of_mut!(UART_16550_STATE);
         threadlocal
             .get_mut()
-            .map(|c| c.enter_nonreentrant(|state: &mut Option<Uart16550State>| &mut *(state as *mut _)))
-            .expect("Current thread does not have access to a UART state")
-    };
-    state.replace(Uart16550State::empty());
+            .expect("Current thread does not have access to its local UART state")
+            .enter_nonreentrant(closure);
+    }
 }
 
 unsafe fn with_uart_state<R, F>(f: F) -> Option<R>

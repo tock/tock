@@ -6,43 +6,32 @@ use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::KernelResources;
 use kernel::platform::SyscallDriverLookup;
 use kernel::scheduler::cooperative::CooperativeSched;
-use kernel::threadlocal;
 use kernel::threadlocal::ConstThreadId;
-use kernel::threadlocal::ThreadId;
-use kernel::threadlocal::ThreadLocalDynInit;
 use kernel::threadlocal::ThreadLocalDyn;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::collections::ring_buffer::RingBuffer;
+use kernel::platform::chip::InterruptService;
 use kernel::{create_capability, debug, static_init};
-use kernel::{thread_local_static_finalize, thread_local_static, thread_local_static_access};
 use kernel::smp;
+
 use qemu_rv32_virt_chip::chip::QemuRv32VirtChip;
-use qemu_rv32_virt_chip::plic::PLIC;
-use qemu_rv32_virt_chip::plic::PLIC_BASE;
 use qemu_rv32_virt_chip::portal_cell::QemuRv32VirtPortalCell;
 use qemu_rv32_virt_chip::uart::Uart16550;
+use qemu_rv32_virt_chip::interrupts;
+
 use rv32i::csr;
-
-use kernel::utilities::registers::interfaces::Readable;
-use kernel::threadlocal::DynThreadId;
-use kernel::platform::chip::InterruptService;
-
-use qemu_rv32_virt_chip::MAX_THREADS;
-
-use virtio::transports::mmio::VirtIOMMIODevice;
-use qemu_rv32_virt_chip::{virtio_mmio, interrupts};
 
 use crate::CHIP;
 
-pub const NUM_PROCS: usize = 4;
+const NUM_PROCS: usize = 4;
 
 // Actual memory for holding the active process structures. Need an empty list
 // at least.
-static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
+pub static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
     [None; NUM_PROCS];
 
 // Reference to the process printer for panic dumps.
-static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
+pub static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
@@ -228,8 +217,11 @@ pub unsafe fn spawn<const ID: usize>(
 
     // ---------- QEMU-SYSTEM-RISCV32 "virt" MACHINE PERIPHERALS ----------
 
-    thread_local_static_finalize!(PLIC, ID);
-    thread_local_static_finalize!(qemu_rv32_virt_chip::clint::CLIC, ID);
+    // Initialize the platform-level interrupt controler
+    qemu_rv32_virt_chip::plic::init_plic();
+
+    // Initialize the core-local interrupt controler
+    qemu_rv32_virt_chip::clint::init_clic();
 
     // Initialize the kernel-local channel
     qemu_rv32_virt_chip::channel::with_shared_channel_panic(|c| {
@@ -241,9 +233,6 @@ pub unsafe fn spawn<const ID: usize>(
 
     // Open an empty uart portal
     use qemu_rv32_virt_chip::portal::{QemuRv32VirtPortal, PORTALS};
-    use qemu_rv32_virt_chip::portal_cell::QemuRv32VirtPortalCell;
-    use qemu_rv32_virt_chip::uart::{Uart16550, UART0_BASE};
-    use qemu_rv32_virt_chip::chip::COUNTER;
 
     let uart_portal = static_init!(
         QemuRv32VirtPortalCell<Uart16550>,
@@ -321,27 +310,26 @@ pub unsafe fn spawn<const ID: usize>(
 
     // ---------- INITIALIZE CHIP, ENABLE INTERRUPTS ---------
 
-    thread_local_static_finalize!(CHIP, ID);
-
-    // Escape nonreentrant
-    let plic = thread_local_static_access!(PLIC, ConstThreadId::<ID>::new())
-        .expect("Unable to access thread-local PLIC controller")
-        .enter_nonreentrant(|plic| &*(plic as *mut _));
+    // Escape nonreentrant to get a reference of the local plic
+    // TODO: impl the interrupt trait for ThreadLocal<Plic> to avoid this behavior.
+    let plic = qemu_rv32_virt_chip::plic::with_plic_panic(|plic| &*(plic as *mut _));
 
     let chip = static_init!(
         QemuRv32VirtChip<QemuRv32VirtPeripherals>,
         QemuRv32VirtChip::new(peripherals, hardware_timer, epmp, plic),
     );
 
-    thread_local_static_access!(CHIP, ConstThreadId::<ID>::new())
-        .expect("This thread cannot access thread-local chip construct")
-        .enter_nonreentrant(|chip_local| *chip_local = Some(chip));
+    let threadlocal_chip = *core::ptr::addr_of_mut!(CHIP);
+    threadlocal_chip
+        .get_mut()
+        .map(|clocal| clocal.enter_nonreentrant(|c| c.replace(chip)))
+        .expect("This thread cannot access thread-local chip");
 
     // Need to enable all interrupts for Tock Kernel
     // TODO: Enable a specific set of external interrupts for this kernel instance
     chip.disable_plic_interrupts();
 
-    // enable interrupts globally
+    // Enable interrupts globally
     csr::CSR
         .mie
         .modify(csr::mie::mie::mext::SET + csr::mie::mie::msoft::SET + csr::mie::mie::mtimer::SET);

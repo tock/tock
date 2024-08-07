@@ -1,10 +1,6 @@
 /// PortalCell
 
-// use core::cell::Cell;
 use core::cell::{UnsafeCell, OnceCell};
-
-use crate::platform::platform::KernelResources;
-use crate::platform::chip::{Chip, ChipAtomic};
 use crate::threadlocal::ThreadId;
 
 pub trait Portalable {

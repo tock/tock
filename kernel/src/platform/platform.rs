@@ -12,7 +12,6 @@ use crate::process;
 use crate::scheduler::Scheduler;
 use crate::syscall;
 use crate::syscall_driver::SyscallDriver;
-use crate::smp;
 use tock_tbf::types::CommandPermissions;
 
 /// Combination trait that boards provide to the kernel that includes all of

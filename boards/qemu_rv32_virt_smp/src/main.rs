@@ -13,63 +13,22 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 
-mod threads;
-
-use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use kernel::capabilities;
-use kernel::component::Component;
-use kernel::hil;
-use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
-use kernel::platform::KernelResources;
-use kernel::platform::SyscallDriverLookup;
-use kernel::scheduler::cooperative::CooperativeSched;
-use kernel::threadlocal;
-use kernel::threadlocal::ConstThreadId;
-use kernel::threadlocal::ThreadId;
-use kernel::threadlocal::ThreadLocalDynInit;
-use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::collections::ring_buffer::RingBuffer;
+use kernel::platform::chip::Chip;
 use kernel::smp;
-use kernel::{create_capability, debug, static_init, static_init_once};
-use kernel::{thread_local_static_finalize, thread_local_static, thread_local_static_access};
-use qemu_rv32_virt_chip::chip::{QemuRv32VirtChip, QemuRv32VirtDefaultPeripherals};
-use qemu_rv32_virt_chip::plic::PLIC;
-use qemu_rv32_virt_chip::plic::PLIC_BASE;
-use rv32i::csr;
+use kernel::static_init_once;
+use kernel::threadlocal::ThreadLocalDyn;
 
-use kernel::utilities::registers::interfaces::Readable;
-use kernel::threadlocal::DynThreadId;
-use kernel::platform::chip::{Chip, InterruptService};
-
-use qemu_rv32_virt_chip::MAX_THREADS;
-use qemu_rv32_virt_chip::QemuRv32VirtThreadLocal;
+use qemu_rv32_virt_chip::{MAX_THREADS, QemuRv32VirtThreadLocal};
+use qemu_rv32_virt_chip::chip::{QemuRv32VirtChip, QemuRv32VirtDefaultPeripherals, QemuRv32VirtPMP};
 
 pub mod io;
-
-// TODO: This should be moved to thread-specific mod
-pub const NUM_PROCS: usize = 4;
-
-// Actual memory for holding the active process structures. Need an empty list
-// at least.
-static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
-    [None; NUM_PROCS];
+mod threads;
 
 // Reference to the chip for panic dumps.
-// static mut CHIP: Option<&'static QemuRv32VirtChip<QemuRv32VirtDefaultPeripherals>> = None;
-thread_local_static!(
-    MAX_THREADS,
-    // CHIP: Option<&'static QemuRv32VirtChip<'static, dyn InterruptService + 'static>> = None
-    CHIP: Option<&'static dyn Chip<
-        MPU = qemu_rv32_virt_chip::chip::QemuRv32VirtPMP,
-        UserspaceKernelBoundary = rv32i::syscall::SysCall,
-    >> = None
-);
-
-// Reference to the process printer for panic dumps.
-static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
-
-// How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
+static mut CHIP: &'static dyn ThreadLocalDyn<
+        Option<&'static dyn Chip<MPU=QemuRv32VirtPMP, UserspaceKernelBoundary=rv32i::syscall::SysCall>>> =
+    &mut QemuRv32VirtThreadLocal::init(None);
 
 const STACK_SIZE: usize = 0x8000;
 
@@ -80,9 +39,23 @@ pub static mut STACK_MEMORY: [u8; STACK_SIZE] = [0; STACK_SIZE];
 
 
 #[repr(C)]
-enum ThreadType {
-    Main,
+pub enum ThreadType {
+    Main = 0,
     Application,
+}
+
+impl TryFrom<usize> for ThreadType {
+    type Error = ();
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        if value == 0 {
+            Ok(ThreadType::Main)
+        } else if value == 1 {
+            Ok(ThreadType::Application)
+        } else {
+            Err(())
+        }
+    }
 }
 
 /// Main function.

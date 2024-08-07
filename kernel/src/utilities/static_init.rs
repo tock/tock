@@ -73,52 +73,6 @@ macro_rules! static_init_once {
     }};
 }
 
-#[macro_export]
-macro_rules! thread_local_static {
-    ($N:expr, $VIS:vis $VAR:ident : $T:ty = $e:expr $(,)?) => {
-        $VIS static mut $VAR: (
-            $crate::threadlocal::ThreadLocal<$N, core::mem::MaybeUninit<$T>>,
-            $crate::threadlocal::ThreadLocal<$N, bool>,
-            fn() -> $T
-        ) = unsafe {(
-            $crate::threadlocal::ThreadLocal::new(
-                core::mem::transmute::<core::mem::MaybeUninit<[$T; $N]>, [core::mem::MaybeUninit<$T>; $N]>(
-                    core::mem::MaybeUninit::uninit()
-                )
-            ),
-            $crate::threadlocal::ThreadLocal::init(false),
-            || { $e },
-        )};
-    };
-}
-
-#[macro_export]
-macro_rules! thread_local_static_finalize {
-    ($VAR:expr, $ID:ty $(,)?) => {{
-        use $crate::threadlocal::{ConstThreadId, ThreadLocalAccess};
-        $VAR.1.get_mut(ConstThreadId::<$ID>::new())
-            .unwrap_or_else(|| unreachable!())
-            .enter_nonreentrant(|buf| $crate::utilities::static_init::static_buf_check_used(buf));
-        $VAR.0.get_mut(ConstThreadId::<$ID>::new())
-            .unwrap_or_else(|| unreachable!())
-            .enter_nonreentrant(|buf| { buf.write($VAR.2()); });
-    }};
-}
-
-#[macro_export]
-macro_rules! thread_local_static_access {
-    ($VAR:expr, $ID:expr $(,)?) => {{
-        use $crate::threadlocal::{ThreadLocalAccess, ThreadLocalAssumeInit};
-        match $VAR.1.get_mut($ID).map(|v| v.enter_nonreentrant(|&mut x| x)) {
-            Some(true) => {
-                $VAR.0.assume_init_mut($ID)
-            }
-            Some(false) => None,
-            _ => panic!("Invaid thread ID")
-        }
-    }};
-}
-
 /// An `#[inline(never)]` function that panics internally if the passed reference
 /// is `true`. This function is intended for use within
 /// the `static_buf!()` macro, which removes the size bloat of track_caller

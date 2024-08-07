@@ -2,10 +2,8 @@
 
 use core::cell::Cell;
 
-use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::threadlocal::{ThreadLocal, ThreadLocalAccess, DynThreadId, ThreadLocalDyn};
 use kernel::utilities::registers::interfaces::Readable;
-use kernel::utilities::cells::OptionalCell;
 use kernel::smp::shared_channel::SharedChannel;
 use kernel::smp::portal::Portalable;
 use kernel::smp::mutex::Mutex;
@@ -14,9 +12,9 @@ use kernel::collections::ring_buffer::RingBuffer;
 
 use rv32i::csr::CSR;
 
-use crate::MAX_THREADS;
 use crate::portal::{NUM_PORTALS, PORTALS, QemuRv32VirtPortal};
 use crate::portal_cell::QemuRv32VirtPortalCell;
+use crate::{plic, clint, interrupts};
 
 #[derive(Copy, Clone)]
 pub struct QemuRv32VirtMessage {
@@ -117,12 +115,10 @@ impl<'a> QemuRv32VirtChannel<'a> {
                                 if let Some(uart) = portal.take() {
                                     uart.save_context();
                                     unsafe {
-                                        kernel::thread_local_static_access!(crate::plic::PLIC, DynThreadId::new(hart_id))
-                                            .expect("Unable to access thread-local PLIC controller")
-                                            .enter_nonreentrant(|plic| {
-                                                plic.disable(hart_id * 2,
-                                                             (crate::interrupts::UART0 as u32).try_into().unwrap());
-                                            });
+                                        plic::with_plic_panic(|plic| {
+                                            plic.disable(hart_id * 2,
+                                                         (interrupts::UART0 as u32).try_into().unwrap());
+                                        });
                                     }
                                     Some(uart as *mut _ as *const _)
                                 } else {
@@ -149,13 +145,10 @@ impl<'a> QemuRv32VirtChannel<'a> {
                                 ),
                             })));
 
+                            let closure = move |c: &mut crate::chip::QemuRv32VirtClint| c.set_soft_interrupt(msg.src);
                             unsafe {
-                                kernel::thread_local_static_access!(crate::clint::CLIC, DynThreadId::new(hart_id))
-                                    .expect("This thread does not have access to CLIC")
-                                    .enter_nonreentrant(|clic| {
-                                        clic.set_soft_interrupt(msg.src);
-                                    })
-                            };
+                                crate::clint::with_clic_panic(closure);
+                            }
                         }
                     };
 
@@ -182,11 +175,9 @@ impl<'a> QemuRv32VirtChannel<'a> {
                                     uart.restore_context();
                                     // Enable uart interrupts
                                     unsafe {
-                                        kernel::thread_local_static_access!(crate::plic::PLIC, DynThreadId::new(hart_id))
-                                            .expect("Unable to access thread-local PLIC controller")
-                                            .enter_nonreentrant(|plic| {
-                                                plic.enable(hart_id * 2, (crate::interrupts::UART0 as u32).try_into().unwrap());
-                                            });
+                                        plic::with_plic_panic(|plic| {
+                                            plic.enable(hart_id * 2, (interrupts::UART0 as u32).try_into().unwrap());
+                                        });
                                     }
                                     // Try continue from the last transmit in case of missing interrupts
                                     let _ = uart.try_transmit_continue();

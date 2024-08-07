@@ -11,23 +11,17 @@ use kernel::debug;
 use kernel::hil::time::Freq10MHz;
 use kernel::platform::chip::{Chip, ChipAtomic, InterruptService};
 
-use kernel::threadlocal::{DynThreadId, ThreadLocalAccess, ThreadId};
+use kernel::threadlocal::{DynThreadId, ThreadId};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use kernel::thread_local_static_access;
 
 use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
 
 use sifive::plic::Plic;
 
-use crate::interrupts;
+use crate::{interrupts, plic, clint, MAX_CONTEXTS};
 use crate::channel::{self, QemuRv32VirtChannel};
-use crate::plic::PLIC;
-use crate::clint::CLIC;
-use crate::{MAX_THREADS, MAX_CONTEXTS, plic::PLIC_BASE};
 use crate::portal_cell::QemuRv32VirtPortalCell;
 use crate::uart::Uart16550;
-
-use core::ptr;
 
 use virtio::transports::mmio::VirtIOMMIODevice;
 
@@ -299,19 +293,18 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             CSR.mie.modify(mie::msoft::CLEAR);
 
             let hart_id = CSR.mhartid.extract().get();
-            kernel::thread_local_static_access!(CLIC, DynThreadId::new(hart_id))
-                .expect("Unable to access thread-local CLIC controller")
-                .enter_nonreentrant(|clic| {
-                    clic.clear_soft_interrupt(hart_id);
-                    // FIXME: Accessing deferred calls here is unsound.
-                    // THIS WILL BREAK
-                    channel::with_shared_channel_panic(|channel| {
-                        channel
-                            .as_mut()
-                            .expect("Uninitialized channel")
-                            .service_async();
-                    });
-                });
+
+            clint::with_clic_panic(|clic| {
+                clic.clear_soft_interrupt(hart_id);
+            });
+
+            channel::with_shared_channel_panic(|channel| {
+                channel
+                    .as_mut()
+                    .expect("uninitialized channel")
+                    .service_async();
+            });
+
             CSR.mie.modify(mie::msoft::SET);
         }
         mcause::Interrupt::MachineTimer => {
@@ -327,14 +320,12 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             // Claim the interrupt, unwrap() as we know an interrupt exists
             // Once claimed this interrupt won't fire until it's completed
             // NOTE: The interrupt is no longer pending in the PLIC
-            kernel::thread_local_static_access!(PLIC, DynThreadId::new(hart_id))
-                .expect("Unable to access thread-local PLIC controller")
-                .enter_nonreentrant(|plic| {
-                    while let Some(irq) = plic.next_pending(context_id) {
-                        // Safe as interrupts are disabled
-                        plic.save_interrupt(irq);
-                    }
-                });
+            plic::with_plic_panic(|plic| {
+                while let Some(irq) = plic.next_pending(context_id) {
+                    // Safe as interrupts are disabled
+                    plic.save_interrupt(irq);
+                }
+            });
 
             // Enable generic interrupts
             CSR.mie.modify(mie::mext::SET);

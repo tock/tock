@@ -6,15 +6,10 @@ use core::fmt::Write;
 use core::panic::PanicInfo;
 use core::str;
 
-use kernel::debug;
-use kernel::debug::IoWrite;
-use kernel::thread_local_static_access;
-use kernel::threadlocal::DynThreadId;
+use kernel::debug::{self, IoWrite};
 use kernel::utilities::registers::interfaces::Readable;
 
-use crate::CHIP;
-use crate::PROCESSES;
-use crate::PROCESS_PRINTER;
+use crate::{CHIP, ThreadType};
 
 struct Writer {}
 
@@ -41,23 +36,39 @@ impl IoWrite for Writer {
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let writer = &mut *core::ptr::addr_of_mut!(WRITER);
-    let id = rv32i::csr::CSR.mhartid.extract().get();
+    let thread_type = rv32i::csr::CSR.mhartid.extract().get().try_into().expect("Invalid thread type");
 
-    // Escape nonreentrant
-    let chip: &Option<&_> = thread_local_static_access!(CHIP, DynThreadId::new(id))
-        .expect("Invalid Thread ID")
+    let chip: &Option<&_> = (*core::ptr::addr_of_mut!(CHIP))
+        .get_mut()
+        .expect("This thread cannot access thread-local chip construct")
         .enter_nonreentrant(|chip| {
+            // Escape the current scope to get a static reference as required by
+            // `debug::panic_print()`.
             &*(chip as *mut _)
         });
 
-    debug::panic_print::<_, _, _>(
-        writer,
-        pi,
-        &rv32i::support::nop,
-        &*core::ptr::addr_of!(PROCESSES),
-        &chip,
-        &*core::ptr::addr_of!(PROCESS_PRINTER),
-    );
+    match thread_type {
+        ThreadType::Main => {
+            debug::panic_print::<_, _, _>(
+                writer,
+                pi,
+                &rv32i::support::nop,
+                &*core::ptr::addr_of!(crate::threads::main_thread::PROCESSES),
+                &chip,
+                &*core::ptr::addr_of!(crate::threads::main_thread::PROCESS_PRINTER),
+            );
+        }
+        ThreadType::Application => {
+            debug::panic_print::<_, _, _>(
+                writer,
+                pi,
+                &rv32i::support::nop,
+                &*core::ptr::addr_of!(crate::threads::app_thread::PROCESSES),
+                &chip,
+                &*core::ptr::addr_of!(crate::threads::app_thread::PROCESS_PRINTER),
+            );
+        }
+    }
 
     // The system is no longer in a well-defined state. Use
     // semihosting commands to exit QEMU with a return code of 1.

@@ -29,6 +29,7 @@ const MAX_BIT_REGS: usize = MAX_INTERRUPTS.div_ceil(32);
 /// The spec defines extra sets of registers for additional contexts,
 /// that is supervisor, user and other modes, but these aren't supported
 /// by the current code.
+
 #[repr(C)]
 pub struct PlicAux {
     /// Priority Threshold Register
