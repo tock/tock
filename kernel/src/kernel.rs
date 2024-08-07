@@ -174,7 +174,6 @@ impl Kernel {
 
     /// Run a closure on every valid process. This will iterate the array of
     /// processes and call the closure on every process that exists.
-    #[flux::trusted]
     pub(crate) fn process_each<F>(&self, mut closure: F)
     where
         F: FnMut(&dyn process::Process),
@@ -211,7 +210,6 @@ impl Kernel {
     /// This is functionally the same as `process_each()`, but this method is
     /// available outside the kernel crate and requires a
     /// `ProcessManagementCapability` to use.
-    #[flux::trusted]
     pub fn process_each_capability<F>(
         &'static self,
         _capability: &dyn capabilities::ProcessManagementCapability,
@@ -257,7 +255,6 @@ impl Kernel {
     ///
     /// This is needed for `ProcessId` itself to implement the `.index()`
     /// command to verify that the referenced app is still at the correct index.
-    #[flux::trusted]
     pub(crate) fn processid_is_valid(&self, processid: &ProcessId) -> bool {
         self.processes.get(processid.index).map_or(false, |p| {
             p.map_or(false, |process| process.processid().id() == processid.id())

@@ -492,7 +492,6 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
     /// processes from slices of flash an memory is fundamentally unsafe.
     /// Therefore, we require the `ProcessManagementCapability` to call this
     /// function.
-    #[flux::trusted]
     pub fn new(
         checker: &'static ProcessCheckerMachine,
         procs: &'static mut [Option<&'static dyn Process>],
@@ -522,7 +521,6 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
     }
 
     /// Find a slot in the `PROCESSES` array to store this process.
-    #[flux::trusted]
     fn find_open_process_slot(&self) -> Option<usize> {
         self.procs.map_or(None, |procs| {
             for (i, p) in procs.iter().enumerate() {

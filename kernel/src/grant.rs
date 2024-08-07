@@ -638,7 +638,6 @@ impl<'a> GrantKernelData<'a> {
     /// returns a [`crate::process::Error`] to allow for easy chaining of this
     /// function with the `ReadOnlyProcessBuffer::enter()` function with
     /// `and_then`.
-    #[flux::trusted]
     pub fn get_readonly_processbuffer(
         &self,
         allow_ro_num: usize,

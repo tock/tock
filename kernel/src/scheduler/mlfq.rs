@@ -73,7 +73,6 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
     /// How often to restore all processes to max priority
     pub const PRIORITY_REFRESH_PERIOD_MS: u32 = 5000;
     pub const NUM_QUEUES: usize = 3;
-    #[flux::trusted]
     pub fn new(alarm: &'static A) -> Self {
         Self {
             alarm,
