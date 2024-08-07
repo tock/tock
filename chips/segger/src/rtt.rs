@@ -26,14 +26,6 @@
 //! $ JLinkRTTClient
 //! ```
 //!
-//! Notes
-//! -----
-//!
-//! This capsule requires a timer, but the timer is only there to defer the
-//! `transmit_complete` callback until the next scheduler loop. In the future,
-//! if there is support for software interrupts or deferred calls in capsules,
-//! this timer should be removed.
-//!
 //! Todo
 //! ----
 //!
