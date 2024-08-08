@@ -4,10 +4,18 @@
 
 //! This provides kernel and userspace access to nonvolatile memory.
 //!
-//! This is an initial implementation that does not provide safety for
-//! individual userland applications. Each application has full access to
-//! the entire memory space that has been provided to userland. Future revisions
-//! should update this to limit applications to only their allocated regions.
+//! This implementation provides isolation between individual userland
+//! applications. Each application only has access to its region of nonvolatile
+//! memory and cannot read/write to nonvolatile memory of other applications.
+//!
+//! Currently, each app is assigned a fixed amount of nonvolatile memory.
+//! This number is configurable at capsule creation time. Future implementations
+//! should consider giving each app more freedom over configuring the amount
+//! of nonvolatile memory they will use.
+//!
+//! Nonvolatile memory is reserved for each app when they make their first syscall
+//! to this capsule. This means that nonvolatile memory will only be reserved
+//! for apps that use this capsule.
 //!
 //! However, the kernel accessible memory does not have to be the same range
 //! as the userspace accessible address space. The kernel memory can overlap
@@ -114,11 +122,23 @@ pub enum NonvolatileUser {
     Kernel,
 }
 
+/// Describes a region of nonvolatile memory that is assigned to a
+/// certain app.
+#[derive(Clone, Copy)]
+pub struct NonvolatileAppRegion {
+    /// Absolute address to describe where an app's nonvolatile region
+    /// starts.
+    offset: usize,
+    /// How many bytes allocated to a certain app.
+    length: usize,
+}
+
 pub struct App {
     pending_command: bool,
     command: NonvolatileCommand,
     offset: usize,
     length: usize,
+    region: Option<NonvolatileAppRegion>,
 }
 
 impl Default for App {
@@ -128,6 +148,7 @@ impl Default for App {
             command: NonvolatileCommand::UserspaceRead,
             offset: 0,
             length: 0,
+            region: None,
         }
     }
 }
@@ -170,6 +191,14 @@ pub struct NonvolatileStorage<'a> {
     kernel_readwrite_length: Cell<usize>,
     // Where to read/write from the kernel request.
     kernel_readwrite_address: Cell<usize>,
+
+    // How many bytes each app should be allocted
+    app_region_size: usize,
+    // Absolute address of next region of userspace that's unallocated
+    // to an app yet. Each time an app uses this capsule, a new
+    // region of storage will be handed out and this address will
+    // point to a new unallocated region.
+    next_app_region_start_address: Cell<usize>,
 }
 
 impl<'a> NonvolatileStorage<'a> {
@@ -185,6 +214,7 @@ impl<'a> NonvolatileStorage<'a> {
         userspace_length: usize,
         kernel_start_address: usize,
         kernel_length: usize,
+        app_region_size: usize,
         buffer: &'static mut [u8],
     ) -> NonvolatileStorage<'a> {
         NonvolatileStorage {
@@ -202,7 +232,104 @@ impl<'a> NonvolatileStorage<'a> {
             kernel_buffer: TakeCell::empty(),
             kernel_readwrite_length: Cell::new(0),
             kernel_readwrite_address: Cell::new(0),
+            app_region_size: app_region_size,
+            next_app_region_start_address: Cell::new(userspace_start_address),
         }
+    }
+
+    fn has_app_region(&self, processid: ProcessId) -> Result<bool, ErrorCode> {
+        // Check if the given app's nonvolatile storage region has been assigned yet
+        self.apps
+            .enter(processid, |app, _kernel_data| Ok(app.region.is_some()))
+            .unwrap_or(Err(ErrorCode::FAIL))
+    }
+
+    fn assign_app_region(&self, processid: ProcessId) -> Result<(), ErrorCode> {
+        self.apps
+            .enter(processid, |app, _kernel_data| {
+                // check that allocating the next region of flash won't go over
+                // the userspace boundaries
+                let userspace_end = self.userspace_start_address + self.userspace_length;
+                let new_region_start = self.next_app_region_start_address.get();
+                let new_region_end =
+                    self.next_app_region_start_address.get() + self.app_region_size;
+
+                if new_region_start < self.userspace_start_address
+                    || new_region_start >= userspace_end
+                    || new_region_end > userspace_end
+                {
+                    return Err(ErrorCode::FAIL);
+                }
+
+                app.region = Some(NonvolatileAppRegion {
+                    offset: self.next_app_region_start_address.get(),
+                    length: self.app_region_size,
+                });
+
+                // increase next_app_region_start_address to be at the correct offset
+                // for the next app
+                self.next_app_region_start_address
+                    .set(self.next_app_region_start_address.get() + self.app_region_size);
+
+                Ok(())
+            })
+            .unwrap_or(Err(ErrorCode::FAIL))
+    }
+
+    fn check_userspace_access(
+        &self,
+        offset: usize,
+        length: usize,
+        processid: Option<ProcessId>,
+    ) -> Result<(), ErrorCode> {
+        // check if access is within entire userspace region
+        if offset >= self.userspace_length
+            || length > self.userspace_length
+            || offset + length > self.userspace_length
+        {
+            return Err(ErrorCode::INVAL);
+        }
+
+        // check that access is within this app's isolated nonvolatile region.
+        // this is to prevent an app from reading/writing to another app's
+        // nonvolatile storage.
+        processid.map_or(Err(ErrorCode::FAIL), |processid| {
+            // enter the grant to query what the app's
+            // nonvolatile region is
+            self.apps
+                .enter(processid, |app, _kernel_data| {
+                    match &app.region {
+                        Some(app_region) => {
+                            if offset >= app_region.length
+                                || length > app_region.length
+                                || offset + length >= app_region.length
+                            {
+                                return Err(ErrorCode::INVAL);
+                            }
+
+                            Ok(())
+                        }
+
+                        // fail if this app's nonvolatile region hasn't been assigned
+                        None => return Err(ErrorCode::FAIL),
+                    }
+                })
+                .unwrap_or_else(|err| Err(err.into()))
+        })
+    }
+
+    fn check_kernel_access(&self, offset: usize, length: usize) -> Result<(), ErrorCode> {
+        // Because the kernel uses the NonvolatileStorage interface,
+        // its calls are absolute addresses.
+        if offset < self.kernel_start_address
+            || offset >= self.kernel_start_address + self.kernel_length
+            || length > self.kernel_length
+            || offset + length > self.kernel_start_address + self.kernel_length
+        {
+            return Err(ErrorCode::INVAL);
+        }
+
+        Ok(())
     }
 
     // Check so see if we are doing something. If not, go ahead and do this
@@ -215,27 +342,18 @@ impl<'a> NonvolatileStorage<'a> {
         length: usize,
         processid: Option<ProcessId>,
     ) -> Result<(), ErrorCode> {
-        // Do bounds check.
+        // Do different bounds check depending on userpace vs kernel accesses
         match command {
             NonvolatileCommand::UserspaceRead | NonvolatileCommand::UserspaceWrite => {
-                // Userspace sees memory that starts at address 0 even if it
-                // is offset in the physical memory.
-                if offset >= self.userspace_length
-                    || length > self.userspace_length
-                    || offset + length > self.userspace_length
-                {
-                    return Err(ErrorCode::INVAL);
+                let res = self.check_userspace_access(offset, length, processid);
+                if res.is_err() {
+                    return res;
                 }
             }
             NonvolatileCommand::KernelRead | NonvolatileCommand::KernelWrite => {
-                // Because the kernel uses the NonvolatileStorage interface,
-                // its calls are absolute addresses.
-                if offset < self.kernel_start_address
-                    || offset >= self.kernel_start_address + self.kernel_length
-                    || length > self.kernel_length
-                    || offset + length > self.kernel_start_address + self.kernel_length
-                {
-                    return Err(ErrorCode::INVAL);
+                let res = self.check_kernel_access(offset, length);
+                if res.is_err() {
+                    return res;
                 }
             }
         }
@@ -298,7 +416,16 @@ impl<'a> NonvolatileStorage<'a> {
                                         });
                                 }
 
-                                self.userspace_call_driver(command, offset, active_len)
+                                let Some(app_region) = &app.region else {
+                                    return Err(ErrorCode::FAIL);
+                                };
+
+                                // Userspace accesses start at 0 which is the start of the app's region.
+                                self.userspace_call_driver(
+                                    command,
+                                    app_region.offset + offset,
+                                    active_len,
+                                )
                             } else {
                                 // Some app is using the storage, we must wait.
                                 if app.pending_command {
@@ -538,7 +665,7 @@ impl SyscallDriver for NonvolatileStorage<'_> {
     /// ### `command_num`
     ///
     /// - `0`: Return Ok(()) if this driver is included on the platform.
-    /// - `1`: Return the number of bytes available to userspace.
+    /// - `1`: Return the number of bytes available to each app.
     /// - `2`: Start a read from the nonvolatile storage.
     /// - `3`: Start a write to the nonvolatile_storage.
     fn command(
@@ -548,13 +675,36 @@ impl SyscallDriver for NonvolatileStorage<'_> {
         length: usize,
         processid: ProcessId,
     ) -> CommandReturn {
+        // Assign each app to a region of nonvolatile storage if it hasn't
+        // been assigned one yet. This is done at the start of the syscall
+        // driver to ensure that any apps that interact with this
+        // capsule will get assigned a region.
+        let has_region = match self.has_app_region(processid) {
+            Ok(has_region) => has_region,
+            Err(e) => return CommandReturn::failure(e),
+        };
+        if !has_region {
+            let res = self.assign_app_region(processid);
+            if let Err(e) = res {
+                return CommandReturn::failure(e);
+            }
+        }
+
         match command_num {
             0 => CommandReturn::success(),
 
             1 => {
-                // How many bytes are accessible from userspace
-                // TODO: Would break on 64-bit platforms
-                CommandReturn::success_u32(self.userspace_length as u32)
+                // How many bytes are accessible to each app
+                let res = self.apps.enter(processid, |app, _kernel_data| app.region);
+
+                // handle case where we fail to enter grant
+                res.map_or(CommandReturn::failure(ErrorCode::FAIL), |region| {
+                    // handle case where app's region is not assigned
+                    region.map_or(CommandReturn::failure(ErrorCode::FAIL), |region| {
+                        // TODO: Would break on 64-bit platforms
+                        CommandReturn::success_u32(region.length as u32)
+                    })
+                })
             }
 
             2 => {
