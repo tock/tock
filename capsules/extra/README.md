@@ -88,8 +88,6 @@ Protocol stacks and other libraries.
 - **[IEEE 802.15.4](src/ieee802154)**: 802.15.4 networking.
 - **[Networking](src/net)**: Networking stack.
 - **[USB](src/usb)**: USB 2.0.
-- **[Segger RTT](src/segger_rtt.rs)**: Segger RTT support. Provides `hil::uart`
-  interface.
 - **[Symmetric Cryptography](src/symmetric_encryption)**: Symmetric
   encryption.
 - **[Public Key Cryptography](src/public_key_crypto)**: Asymmetric

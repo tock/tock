@@ -3,18 +3,13 @@
 # Copyright Tock Contributors 2022.
 
 [package]
-name = "components"
+name = "segger"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 
 [dependencies]
 kernel = { path = "../../kernel" }
-
-capsules-core = { path = "../../capsules/core" }
-capsules-extra = { path = "../../capsules/extra" }
-capsules-system = { path = "../../capsules/system" }
-segger = { path = "../../chips/segger" }
 
 [lints]
 workspace = true

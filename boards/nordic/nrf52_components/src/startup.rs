@@ -8,11 +8,11 @@
 //! intializing Uart on Nordic boards.
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use capsules_extra::segger_rtt::SeggerRtt;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use nrf52::gpio::Pin;
 use nrf52::uicr::Regulator0Output;
+use segger::rtt::SeggerRtt;
 
 pub struct NrfStartupComponent<'a> {
     nfc_as_gpios: bool,

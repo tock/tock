@@ -15,21 +15,13 @@ use crate::PROCESS_PRINTER;
 
 enum Writer {
     Uninitialized,
-    WriterRtt(&'static capsules_extra::segger_rtt::SeggerRttMemory<'static>),
+    WriterRtt(&'static segger::rtt::SeggerRttMemory<'static>),
 }
 
 static mut WRITER: Writer = Writer::Uninitialized;
 
-fn wait() {
-    for _ in 0..300 {
-        cortexm4::support::nop();
-    }
-}
-
 /// Set the RTT memory buffer used to output panic messages.
-pub unsafe fn set_rtt_memory(
-    rtt_memory: &'static capsules_extra::segger_rtt::SeggerRttMemory<'static>,
-) {
+pub unsafe fn set_rtt_memory(rtt_memory: &'static segger::rtt::SeggerRttMemory<'static>) {
     WRITER = Writer::WriterRtt(rtt_memory);
 }
 
@@ -45,24 +37,7 @@ impl IoWrite for Writer {
         match self {
             Writer::Uninitialized => {}
             Writer::WriterRtt(rtt_memory) => {
-                let up_buffer = unsafe { &*rtt_memory.get_up_buffer_ptr() };
-                let buffer_len = up_buffer.length.get();
-                let buffer = unsafe {
-                    core::slice::from_raw_parts_mut(
-                        up_buffer.buffer.get() as *mut u8,
-                        buffer_len as usize,
-                    )
-                };
-
-                let mut write_position = up_buffer.write_position.get();
-
-                for &c in buf {
-                    wait();
-                    buffer[write_position as usize] = c;
-                    write_position = (write_position + 1) % buffer_len;
-                    up_buffer.write_position.set(write_position);
-                    wait();
-                }
+                rtt_memory.write_sync(buf);
             }
         };
         buf.len()
