@@ -275,7 +275,11 @@ impl CortexMRegion {
         region_num: usize,
         subregions: Option<(usize, usize)>,
         permissions: mpu::Permissions,
-    ) -> CortexMRegion {
+    ) -> Option<CortexMRegion> {
+        if logical_size < 8 || region_size == 0 {
+            return None;
+        }
+
         // Determine access and execute permissions
         let (access, execute) = match permissions {
             mpu::Permissions::ReadWriteExecute => (
@@ -325,11 +329,11 @@ impl CortexMRegion {
             attributes += RegionAttributes::SRD.val(mask as u32);
         }
 
-        CortexMRegion {
+        Some(CortexMRegion {
             location: Some((logical_start, logical_size)),
             base_address,
             attributes,
-        }
+        })
     }
 
     fn empty(region_num: usize) -> CortexMRegion {
@@ -537,7 +541,7 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
             region_num,
             subregions,
             permissions,
-        );
+        )?;
 
         config.regions[region_num] = region;
         config.is_dirty.set(true);
@@ -676,7 +680,7 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
             0,
             Some((0, num_enabled_subregions0 - 1)),
             permissions,
-        );
+        )?;
 
         // We cannot have a completely unused MPU region
         let region1 = if num_enabled_subregions1 == 0 {
@@ -690,7 +694,7 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
                 1,
                 Some((0, num_enabled_subregions1 - 1)),
                 permissions,
-            )
+            )?
         };
 
         config.regions[0] = region0;
@@ -750,7 +754,8 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
             0,
             Some((0, num_enabled_subregions0 - 1)),
             permissions,
-        );
+        )
+        .ok_or(())?;
 
         let region1 = if num_enabled_subregions1 == 0 {
             CortexMRegion::empty(1)
@@ -764,6 +769,7 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
                 Some((0, num_enabled_subregions1 - 1)),
                 permissions,
             )
+            .ok_or(())?
         };
 
         config.regions[0] = region0;
