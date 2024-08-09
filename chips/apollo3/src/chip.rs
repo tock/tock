@@ -42,6 +42,7 @@ pub struct Apollo3DefaultPeripherals {
     pub iom5: crate::iom::Iom<'static>,
     pub ios: crate::ios::Ios<'static>,
     pub ble: crate::ble::Ble<'static>,
+    pub flash_ctrl: crate::flashctrl::FlashCtrl<'static>,
 }
 
 impl Apollo3DefaultPeripherals {
@@ -59,7 +60,12 @@ impl Apollo3DefaultPeripherals {
             iom5: crate::iom::Iom::new5(),
             ios: crate::ios::Ios::new(),
             ble: crate::ble::Ble::new(),
+            flash_ctrl: crate::flashctrl::FlashCtrl::new(),
         }
+    }
+
+    pub fn init(&'static self) {
+        kernel::deferred_call::DeferredCallClient::register(&self.flash_ctrl);
     }
 }
 

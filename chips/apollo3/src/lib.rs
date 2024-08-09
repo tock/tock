@@ -13,6 +13,7 @@ pub mod ble;
 pub mod cachectrl;
 pub mod chip;
 pub mod clkgen;
+pub mod flashctrl;
 pub mod gpio;
 pub mod iom;
 pub mod ios;

@@ -207,6 +207,8 @@ unsafe fn setup() -> (
     pwr_ctrl.enable_iom2();
     pwr_ctrl.enable_ios();
 
+    peripherals.init();
+
     // Enable PinCfg
     peripherals
         .gpio_port
