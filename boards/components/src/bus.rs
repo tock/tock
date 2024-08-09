@@ -32,7 +32,9 @@ use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil::bus8080;
 use kernel::hil::i2c;
-use kernel::hil::spi::{self, ClockPhase, ClockPolarity, SpiMasterDevice};
+use kernel::hil::spi::{
+    self, ChipSelectActivePolarity, ClockPhase, ClockPolarity, SpiMasterDevice,
+};
 
 // Setup static space for the objects.
 #[macro_export]
@@ -101,6 +103,7 @@ impl<B: 'static + bus8080::Bus8080<'static>> Component for Bus8080BusComponent<B
 pub struct SpiMasterBusComponent<S: 'static + spi::SpiMaster<'static>> {
     spi_mux: &'static MuxSpiMaster<'static, S>,
     chip_select: S::ChipSelect,
+    chip_select_polarity: ChipSelectActivePolarity,
     baud_rate: u32,
     clock_phase: ClockPhase,
     clock_polarity: ClockPolarity,
@@ -110,6 +113,7 @@ impl<S: 'static + spi::SpiMaster<'static>> SpiMasterBusComponent<S> {
     pub fn new(
         spi_mux: &'static MuxSpiMaster<'static, S>,
         chip_select: S::ChipSelect,
+        chip_select_polarity: ChipSelectActivePolarity,
         baud_rate: u32,
         clock_phase: ClockPhase,
         clock_polarity: ClockPolarity,
@@ -117,6 +121,7 @@ impl<S: 'static + spi::SpiMaster<'static>> SpiMasterBusComponent<S> {
         SpiMasterBusComponent {
             spi_mux,
             chip_select,
+            chip_select_polarity,
             baud_rate,
             clock_phase,
             clock_polarity,
@@ -133,9 +138,11 @@ impl<S: 'static + spi::SpiMaster<'static>> Component for SpiMasterBusComponent<S
     type Output = &'static SpiMasterBus<'static, VirtualSpiMasterDevice<'static, S>>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let spi_device = static_buffer
-            .0
-            .write(VirtualSpiMasterDevice::new(self.spi_mux, self.chip_select));
+        let spi_device = static_buffer.0.write(VirtualSpiMasterDevice::new(
+            self.spi_mux,
+            self.chip_select,
+            self.chip_select_polarity,
+        ));
         spi_device.setup();
 
         if let Err(error) =

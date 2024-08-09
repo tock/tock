@@ -454,17 +454,11 @@ pub unsafe fn start() -> (
         );
 
         let disp_pin = &nrf52840_peripherals.gpio_port[Pin::P0_07];
-        let cs_pin = static_init!(
-            components::lpm013m126::Inverted<'static, nrf52840::gpio::GPIOPin>,
-            components::lpm013m126::Inverted(&nrf52840_peripherals.gpio_port[Pin::P0_05])
-        );
+        let cs_pin = &nrf52840_peripherals.gpio_port[Pin::P0_05];
+        let extcomin = &nrf52840_peripherals.gpio_port[Pin::P0_06];
 
         let display = components::lpm013m126::Lpm013m126Component::new(
-            mux_spi,
-            cs_pin,
-            disp_pin,
-            &nrf52840_peripherals.gpio_port[Pin::P0_06],
-            mux_alarm,
+            mux_spi, cs_pin, disp_pin, extcomin, mux_alarm,
         )
         .finalize(components::lpm013m126_component_static!(
             nrf52840::rtc::Rtc<'static>,

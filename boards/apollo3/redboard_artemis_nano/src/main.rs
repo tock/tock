@@ -351,6 +351,7 @@ unsafe fn setup() -> (
         board_kernel,
         mux_spi,
         &peripherals.gpio_port[35], // A14
+        kernel::hil::spi::ChipSelectActivePolarity::ActiveLow,
         capsules_core::spi_controller::DRIVER_NUM,
     )
     .finalize(components::spi_syscall_component_static!(

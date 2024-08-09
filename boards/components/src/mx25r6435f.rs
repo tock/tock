@@ -27,7 +27,7 @@ use capsules_extra::mx25r6435f::MX25R6435F;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil;
-use kernel::hil::spi::SpiMasterDevice;
+use kernel::hil::spi::{ChipSelectActivePolarity, SpiMasterDevice};
 use kernel::hil::time::Alarm;
 
 // Setup static space for the objects.
@@ -71,6 +71,7 @@ pub struct Mx25r6435fComponent<
     write_protect_pin: Option<&'static P>,
     hold_pin: Option<&'static P>,
     chip_select: S::ChipSelect,
+    chip_select_polarity: ChipSelectActivePolarity,
     mux_alarm: &'static MuxAlarm<'static, A>,
     mux_spi: &'static MuxSpiMaster<'static, S>,
 }
@@ -85,6 +86,7 @@ impl<
         write_protect_pin: Option<&'static P>,
         hold_pin: Option<&'static P>,
         chip_select: S::ChipSelect,
+        chip_select_polarity: ChipSelectActivePolarity,
         mux_alarm: &'static MuxAlarm<'static, A>,
         mux_spi: &'static MuxSpiMaster<'static, S>,
     ) -> Mx25r6435fComponent<S, P, A> {
@@ -92,6 +94,7 @@ impl<
             write_protect_pin,
             hold_pin,
             chip_select,
+            chip_select_polarity,
             mux_alarm,
             mux_spi,
         }
@@ -121,9 +124,11 @@ impl<
     >;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let mx25r6435f_spi = static_buffer
-            .0
-            .write(VirtualSpiMasterDevice::new(self.mux_spi, self.chip_select));
+        let mx25r6435f_spi = static_buffer.0.write(VirtualSpiMasterDevice::new(
+            self.mux_spi,
+            self.chip_select,
+            self.chip_select_polarity,
+        ));
         // Create an alarm for this chip.
         let mx25r6435f_virtual_alarm = static_buffer.1.write(VirtualMuxAlarm::new(self.mux_alarm));
         mx25r6435f_virtual_alarm.setup();

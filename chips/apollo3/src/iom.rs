@@ -6,9 +6,11 @@
 
 use core::cell::Cell;
 use kernel::hil;
-use kernel::hil::gpio::{Configure, Output};
+use kernel::hil::gpio::Configure;
 use kernel::hil::i2c;
-use kernel::hil::spi::{ClockPhase, ClockPolarity, SpiMaster, SpiMasterClient};
+use kernel::hil::spi::{
+    ChipSelectActivePolarity, ChipSelectPin, ClockPhase, ClockPolarity, SpiMaster, SpiMasterClient,
+};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -289,7 +291,7 @@ pub struct Iom<'a> {
 
     op: Cell<Operation>,
     spi_phase: Cell<ClockPhase>,
-    spi_cs: OptionalCell<&'a crate::gpio::GpioPin<'a>>,
+    spi_cs: OptionalCell<ChipSelectPin<&'a crate::gpio::GpioPin<'a>>>,
     smbus: Cell<bool>,
 }
 
@@ -558,7 +560,7 @@ impl<'a> Iom<'_> {
                 regs.inten.set(0x00);
 
                 // Clear CS
-                self.spi_cs.map(|cs| cs.set());
+                self.spi_cs.map(|cs| cs.deactivate());
 
                 self.op.set(Operation::None);
 
@@ -696,7 +698,7 @@ impl<'a> Iom<'_> {
                 regs.inten.set(0x00);
 
                 // Clear CS
-                self.spi_cs.map(|cs| cs.set());
+                self.spi_cs.map(|cs| cs.activate());
 
                 self.op.set(Operation::None);
 
@@ -1238,7 +1240,7 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
         self.registers.intclr.set(0xFFFF_FFFF);
 
         // Trigger CS
-        self.spi_cs.map(|cs| cs.clear());
+        self.spi_cs.map(|cs| cs.activate());
 
         // Start the transfer
         self.registers.cmd.write(
@@ -1354,7 +1356,7 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
         self.registers.intclr.set(0xFFFF_FFFF);
 
         // Trigger CS
-        self.spi_cs.map(|cs| cs.clear());
+        self.spi_cs.map(|cs| cs.activate());
 
         // Start the transfer
         self.registers.cmd.write(
@@ -1368,7 +1370,7 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
 
         self.registers.fifopush.set(val as u32);
 
-        self.spi_cs.map(|cs| cs.set());
+        self.spi_cs.map(|cs| cs.deactivate());
 
         Ok(())
     }
@@ -1386,7 +1388,7 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
         self.registers.intclr.set(0xFFFF_FFFF);
 
         // Trigger CS
-        self.spi_cs.map(|cs| cs.clear());
+        self.spi_cs.map(|cs| cs.activate());
 
         // Start the transfer
         self.registers.cmd.write(
@@ -1401,11 +1403,11 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
         if self.registers.fifoptr.read(FIFOPTR::FIFO1SIZ) > 0 {
             let d = self.registers.fifopop.get().to_ne_bytes();
 
-            self.spi_cs.map(|cs| cs.set());
+            self.spi_cs.map(|cs| cs.deactivate());
             return Ok(d[0]);
         }
 
-        self.spi_cs.map(|cs| cs.set());
+        self.spi_cs.map(|cs| cs.deactivate());
 
         Err(ErrorCode::FAIL)
     }
@@ -1423,7 +1425,7 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
         self.registers.intclr.set(0xFFFF_FFFF);
 
         // Trigger CS
-        self.spi_cs.map(|cs| cs.clear());
+        self.spi_cs.map(|cs| cs.activate());
 
         // Start the transfer
         self.registers.cmd.write(
@@ -1440,19 +1442,22 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
         if self.registers.fifoptr.read(FIFOPTR::FIFO1SIZ) > 0 {
             let d = self.registers.fifopop.get().to_ne_bytes();
 
-            self.spi_cs.map(|cs| cs.set());
+            self.spi_cs.map(|cs| cs.deactivate());
             return Ok(d[0]);
         }
 
-        self.spi_cs.map(|cs| cs.set());
+        self.spi_cs.map(|cs| cs.deactivate());
 
         Err(ErrorCode::FAIL)
     }
 
-    fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), ErrorCode> {
+    fn specify_chip_select(
+        &self,
+        cs: Self::ChipSelect,
+        polarity: ChipSelectActivePolarity,
+    ) -> Result<(), ErrorCode> {
         cs.make_output();
-        cs.set();
-        self.spi_cs.set(cs);
+        self.spi_cs.set(ChipSelectPin::new(cs, polarity));
 
         Ok(())
     }
@@ -1569,10 +1574,10 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
     }
 
     fn hold_low(&self) {
-        self.spi_cs.map(|cs| cs.clear());
+        self.spi_cs.map(|cs| cs.activate());
     }
 
     fn release_low(&self) {
-        self.spi_cs.map(|cs| cs.set());
+        self.spi_cs.map(|cs| cs.deactivate());
     }
 }

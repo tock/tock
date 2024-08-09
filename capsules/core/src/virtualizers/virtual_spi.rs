@@ -60,7 +60,9 @@ impl<'a, Spi: hil::spi::SpiMaster<'a>> MuxSpiMaster<'a, Spi> {
             mnode.map(|node| {
                 let configuration = node.configuration.get();
                 let cs = configuration.chip_select;
-                let _ = self.spi.specify_chip_select(cs);
+                let _ = self
+                    .spi
+                    .specify_chip_select(cs, configuration.chip_select_active_polarity);
 
                 let op = node.operation.get();
                 // Need to set idle here in case callback changes state
@@ -152,6 +154,7 @@ enum Op {
 // so it can restored on each operation.
 struct SpiConfiguration<'a, Spi: hil::spi::SpiMaster<'a>> {
     chip_select: Spi::ChipSelect,
+    chip_select_active_polarity: hil::spi::ChipSelectActivePolarity,
     polarity: hil::spi::ClockPolarity,
     phase: hil::spi::ClockPhase,
     rate: u32,
@@ -181,11 +184,13 @@ impl<'a, Spi: hil::spi::SpiMaster<'a>> VirtualSpiMasterDevice<'a, Spi> {
     pub fn new(
         mux: &'a MuxSpiMaster<'a, Spi>,
         chip_select: Spi::ChipSelect,
+        chip_select_active_polarity: hil::spi::ChipSelectActivePolarity,
     ) -> VirtualSpiMasterDevice<'a, Spi> {
         VirtualSpiMasterDevice {
             mux,
             configuration: Cell::new(SpiConfiguration {
                 chip_select,
+                chip_select_active_polarity,
                 polarity: hil::spi::ClockPolarity::IdleLow,
                 phase: hil::spi::ClockPhase::SampleLeading,
                 rate: 100_000,

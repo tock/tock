@@ -642,6 +642,7 @@ unsafe fn start() -> (
     let l3gd20 = components::l3gd20::L3gd20Component::new(
         spi_mux,
         gpio_ports.get_pin(stm32f303xc::gpio::PinId::PE03).unwrap(),
+        kernel::hil::spi::ChipSelectActivePolarity::ActiveLow,
         board_kernel,
         capsules_extra::l3gd20::DRIVER_NUM,
     )
