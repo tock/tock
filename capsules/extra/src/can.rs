@@ -115,7 +115,6 @@ pub struct CanCapsule<'a, Can: can::Can> {
 
 #[derive(Default)]
 pub struct App {
-    receive_index: usize,
     lost_messages: u32,
 }
 
@@ -443,7 +442,7 @@ impl<'a, Can: can::Can> can::ReceiveClient<{ can::STANDARD_CAN_PACKET_SIZE }>
         &self,
         id: can::Id,
         buffer: &mut [u8; can::STANDARD_CAN_PACKET_SIZE],
-        len: usize,
+        _len: usize,
         status: Result<(), can::Error>,
     ) {
         let mut new_buffer = false;
@@ -461,36 +460,20 @@ impl<'a, Can: can::Can> can::ReceiveClient<{ can::STANDARD_CAN_PACKET_SIZE }>
                                         buffer_ref
                                             .mut_enter(|user_buffer| {
                                                 shared_len = user_buffer.len();
-                                                // For now, the first 4 bytes (the size of u32) represent the number
-                                                // of messages that the user has not read yet, represented as Little Endian.
-                                                // When the userspace reads the buffer, the counter will be set
-                                                // to 0 so that the capsule knows. This will be changed after
-                                                // https://github.com/tock/tock/pull/3252 and
-                                                // https://github.com/tock/tock/pull/3258 are merged.
-                                                let mut tmp_buf: [u8; size_of::<u32>()] =
-                                                    [0; size_of::<u32>()];
-                                                user_buffer[0..size_of::<u32>()]
-                                                    .copy_to_slice(&mut tmp_buf);
-                                                let contor = u32::from_le_bytes(tmp_buf);
-                                                if contor == 0 {
-                                                    new_buffer = true;
-                                                    app_data.receive_index = size_of::<u32>();
-                                                }
-                                                user_buffer[0..size_of::<u32>()]
-                                                    .copy_from_slice(&(contor + 1).to_le_bytes());
-                                                if app_data.receive_index + len > user_buffer.len()
-                                                {
-                                                    app_data.lost_messages += 1;
-                                                    Err(ErrorCode::SIZE)
-                                                } else {
-                                                    let r = user_buffer[app_data.receive_index
-                                                        ..app_data.receive_index + len]
-                                                        .copy_from_slice_or_err(&buffer[0..len]);
-                                                    if r.is_ok() {
-                                                        app_data.receive_index += len;
+                                                // This uses the ringbuffer interpretation of the
+                                                // ProcessBufferSlice
+                                                new_buffer = match user_buffer.ringbuffer_len() {
+                                                    Err(ErrorCode::INVAL) => {
+                                                        user_buffer.reset_ringbuffer().map(|()| 0)
                                                     }
-                                                    r
-                                                }
+                                                    value => value,
+                                                }? == 0;
+                                                user_buffer.append_to_ringbuffer(buffer).map_err(
+                                                    |err| {
+                                                        app_data.lost_messages += 1;
+                                                        err
+                                                    },
+                                                )
                                             })
                                             .unwrap_or_else(|err| err.into())
                                     },
