@@ -4,10 +4,11 @@
 
 use core::cell::Cell;
 use core::cmp;
+use kernel::hil::spi::ChipSelectActivePolarity;
+use kernel::hil::spi::ChipSelectPin;
 use kernel::ErrorCode;
 
 use kernel::hil;
-use kernel::hil::gpio::Output;
 use kernel::hil::spi::{self, ClockPhase, ClockPolarity, SpiMasterClient};
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::OptionalCell;
@@ -164,7 +165,7 @@ pub struct Spi<'a> {
     dma_len: Cell<usize>,
     transfers_in_progress: Cell<u8>,
 
-    active_slave: OptionalCell<&'a crate::gpio::Pin<'a>>,
+    active_slave: OptionalCell<ChipSelectPin<&'a crate::gpio::Pin<'a>>>,
 
     active_after: Cell<bool>,
 }
@@ -220,10 +221,6 @@ impl<'a> Spi<'a> {
     pub fn handle_interrupt(&self) {
         // Used only during debugging. Since we use DMA, we do not enable SPI
         // interrupts during normal operations
-    }
-
-    fn set_active_slave(&self, slave_pin: &'a crate::gpio::Pin<'a>) {
-        self.active_slave.set(slave_pin);
     }
 
     fn set_cr<F>(&self, f: F)
@@ -303,7 +300,7 @@ impl<'a> Spi<'a> {
         }
 
         self.active_slave.map(|p| {
-            p.clear();
+            p.activate();
         });
 
         let mut count: usize = len;
@@ -469,8 +466,12 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
         self.active_after.set(false);
     }
 
-    fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), ErrorCode> {
-        self.set_active_slave(cs);
+    fn specify_chip_select(
+        &self,
+        cs: Self::ChipSelect,
+        polarity: ChipSelectActivePolarity,
+    ) -> Result<(), ErrorCode> {
+        self.active_slave.set(ChipSelectPin::new(cs, polarity));
         Ok(())
     }
 }
@@ -491,7 +492,7 @@ impl<'a> dma::StreamClient<'a, Dma1<'a>> for Spi<'a> {
         if self.transfers_in_progress.get() == 0 {
             if !self.active_after.get() {
                 self.active_slave.map(|p| {
-                    p.set();
+                    p.deactivate();
                 });
             }
 

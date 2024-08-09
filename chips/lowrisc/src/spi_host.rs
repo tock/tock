@@ -6,7 +6,7 @@
 use core::cell::Cell;
 use core::cmp;
 use kernel::hil;
-use kernel::hil::spi::SpiMaster;
+use kernel::hil::spi::{ChipSelectActivePolarity, SpiMaster};
 use kernel::hil::spi::{ClockPhase, ClockPolarity};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
@@ -656,7 +656,12 @@ impl<'a> hil::spi::SpiMaster<'a> for SpiHost<'a> {
         Err(ErrorCode::FAIL)
     }
 
-    fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), ErrorCode> {
+    // TODO(alevy): how do we set the chip select polarity of for the SPI device?
+    fn specify_chip_select(
+        &self,
+        cs: Self::ChipSelect,
+        _polarity: ChipSelectActivePolarity,
+    ) -> Result<(), ErrorCode> {
         let regs = self.registers;
 
         //CSID will index the CONFIGOPTS multi-register

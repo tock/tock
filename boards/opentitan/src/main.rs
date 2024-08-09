@@ -551,6 +551,7 @@ unsafe fn setup() -> (
         board_kernel,
         mux_spi,
         0,
+        kernel::hil::spi::ChipSelectActivePolarity::ActiveLow,
         capsules_core::spi_controller::DRIVER_NUM,
     )
     .finalize(components::spi_syscall_component_static!(

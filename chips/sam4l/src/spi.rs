@@ -17,6 +17,7 @@ use crate::pm;
 use core::cell::Cell;
 use core::cmp;
 use kernel::hil::spi;
+use kernel::hil::spi::ChipSelectActivePolarity;
 use kernel::hil::spi::ClockPhase;
 use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::SpiMasterClient;
@@ -635,7 +636,13 @@ impl<'a> spi::SpiMaster<'a> for SpiHw<'a> {
         csr.modify(ChipSelectParams::CSAAT::InactiveAfterTransfer);
     }
 
-    fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), ErrorCode> {
+    /// The SAM4L SPI device only support active-low chip select
+    fn specify_chip_select(
+        &self,
+        cs: Self::ChipSelect,
+        _polarity: ChipSelectActivePolarity,
+    ) -> Result<(), ErrorCode> {
+        assert!(_polarity == ChipSelectActivePolarity::ActiveLow);
         match match cs {
             0 => Some(Peripheral::Peripheral0),
             1 => Some(Peripheral::Peripheral1),

@@ -37,7 +37,7 @@ use capsules_core::virtualizers::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDev
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
-use kernel::hil::spi;
+use kernel::hil::spi::{self, ChipSelectActivePolarity};
 use kernel::hil::spi::{SpiMasterDevice, SpiSlaveDevice};
 
 // Setup static space for the objects.
@@ -116,6 +116,7 @@ pub struct SpiSyscallComponent<S: 'static + spi::SpiMaster<'static>> {
     board_kernel: &'static kernel::Kernel,
     spi_mux: &'static MuxSpiMaster<'static, S>,
     chip_select: S::ChipSelect,
+    chip_select_polarity: ChipSelectActivePolarity,
     driver_num: usize,
 }
 
@@ -128,6 +129,7 @@ pub struct SpiSyscallPComponent<S: 'static + spi::SpiSlave<'static>> {
 pub struct SpiComponent<S: 'static + spi::SpiMaster<'static>> {
     spi_mux: &'static MuxSpiMaster<'static, S>,
     chip_select: S::ChipSelect,
+    chip_select_polarity: ChipSelectActivePolarity,
 }
 
 impl<S: 'static + spi::SpiMaster<'static>> SpiMuxComponent<S> {
@@ -159,12 +161,14 @@ impl<S: 'static + spi::SpiMaster<'static>> SpiSyscallComponent<S> {
         board_kernel: &'static kernel::Kernel,
         mux: &'static MuxSpiMaster<'static, S>,
         chip_select: S::ChipSelect,
+        chip_select_polarity: ChipSelectActivePolarity,
         driver_num: usize,
     ) -> Self {
         SpiSyscallComponent {
             board_kernel,
             spi_mux: mux,
             chip_select,
+            chip_select_polarity,
             driver_num,
         }
     }
@@ -182,9 +186,11 @@ impl<S: 'static + spi::SpiMaster<'static>> Component for SpiSyscallComponent<S> 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
-        let syscall_spi_device = static_buffer
-            .0
-            .write(VirtualSpiMasterDevice::new(self.spi_mux, self.chip_select));
+        let syscall_spi_device = static_buffer.0.write(VirtualSpiMasterDevice::new(
+            self.spi_mux,
+            self.chip_select,
+            self.chip_select_polarity,
+        ));
 
         let spi_syscalls = static_buffer.1.write(Spi::new(
             syscall_spi_device,
@@ -247,10 +253,15 @@ impl<S: 'static + spi::SpiSlave<'static>> Component for SpiSyscallPComponent<S> 
 }
 
 impl<S: 'static + spi::SpiMaster<'static>> SpiComponent<S> {
-    pub fn new(mux: &'static MuxSpiMaster<'static, S>, chip_select: S::ChipSelect) -> Self {
+    pub fn new(
+        mux: &'static MuxSpiMaster<'static, S>,
+        chip_select: S::ChipSelect,
+        chip_select_polarity: ChipSelectActivePolarity,
+    ) -> Self {
         SpiComponent {
             spi_mux: mux,
             chip_select,
+            chip_select_polarity,
         }
     }
 }
@@ -260,8 +271,11 @@ impl<S: 'static + spi::SpiMaster<'static>> Component for SpiComponent<S> {
     type Output = &'static VirtualSpiMasterDevice<'static, S>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let spi_device =
-            static_buffer.write(VirtualSpiMasterDevice::new(self.spi_mux, self.chip_select));
+        let spi_device = static_buffer.write(VirtualSpiMasterDevice::new(
+            self.spi_mux,
+            self.chip_select,
+            self.chip_select_polarity,
+        ));
         spi_device.setup();
         spi_device
     }

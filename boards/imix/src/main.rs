@@ -466,12 +466,18 @@ unsafe fn start() -> (
         board_kernel,
         mux_spi,
         2,
+        kernel::hil::spi::ChipSelectActivePolarity::ActiveLow,
         capsules_core::spi_controller::DRIVER_NUM,
     )
     .finalize(components::spi_syscall_component_static!(
         sam4l::spi::SpiHw<'static>
     ));
-    let rf233_spi = SpiComponent::new(mux_spi, 3).finalize(components::spi_component_static!(
+    let rf233_spi = SpiComponent::new(
+        mux_spi,
+        3,
+        kernel::hil::spi::ChipSelectActivePolarity::ActiveLow,
+    )
+    .finalize(components::spi_component_static!(
         sam4l::spi::SpiHw<'static>
     ));
     let rf233 = components::rf233::RF233Component::new(

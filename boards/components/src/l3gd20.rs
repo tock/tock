@@ -19,8 +19,8 @@ use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
-use kernel::hil::spi;
 use kernel::hil::spi::SpiMasterDevice;
+use kernel::hil::spi::{self, ChipSelectActivePolarity};
 
 // Setup static space for the objects.
 #[macro_export]
@@ -48,6 +48,7 @@ pub type L3gd20ComponentType<S> = capsules_extra::l3gd20::L3gd20Spi<'static, S>;
 pub struct L3gd20Component<S: 'static + spi::SpiMaster<'static>> {
     spi_mux: &'static MuxSpiMaster<'static, S>,
     chip_select: S::ChipSelect,
+    chip_select_polarity: ChipSelectActivePolarity,
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
 }
@@ -56,12 +57,14 @@ impl<S: 'static + spi::SpiMaster<'static>> L3gd20Component<S> {
     pub fn new(
         spi_mux: &'static MuxSpiMaster<'static, S>,
         chip_select: S::ChipSelect,
+        chip_select_polarity: ChipSelectActivePolarity,
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
     ) -> L3gd20Component<S> {
         L3gd20Component {
             spi_mux,
             chip_select,
+            chip_select_polarity,
             board_kernel,
             driver_num,
         }
@@ -81,9 +84,11 @@ impl<S: 'static + spi::SpiMaster<'static>> Component for L3gd20Component<S> {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let grant = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
-        let spi_device = static_buffer
-            .0
-            .write(VirtualSpiMasterDevice::new(self.spi_mux, self.chip_select));
+        let spi_device = static_buffer.0.write(VirtualSpiMasterDevice::new(
+            self.spi_mux,
+            self.chip_select,
+            self.chip_select_polarity,
+        ));
         spi_device.setup();
 
         let txbuffer = static_buffer

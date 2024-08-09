@@ -26,6 +26,52 @@ pub enum DataOrder {
 /// Clock polarity (CPOL) defines whether the SPI clock is high
 /// or low when idle.
 #[derive(Copy, Clone, Debug, PartialEq)]
+pub enum ChipSelectActivePolarity {
+    ActiveLow,
+    ActiveHigh,
+}
+
+impl ChipSelectActivePolarity {
+    pub fn activate<P: crate::hil::gpio::Output + ?Sized>(&self, cs: &P) {
+        match self {
+            Self::ActiveLow => cs.clear(),
+            Self::ActiveHigh => cs.set(),
+        }
+    }
+
+    pub fn deactivate<P: crate::hil::gpio::Output + ?Sized>(&self, cs: &P) {
+        match self {
+            Self::ActiveLow => cs.set(),
+            Self::ActiveHigh => cs.clear(),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct ChipSelectPin<P: crate::hil::gpio::Output + ?Sized> {
+    polarity: ChipSelectActivePolarity,
+    pin: P,
+}
+
+impl<P: crate::hil::gpio::Output> ChipSelectPin<P> {
+    pub fn new(pin: P, polarity: ChipSelectActivePolarity) -> Self {
+        Self { polarity, pin }
+    }
+}
+
+impl<P: crate::hil::gpio::Output + ?Sized> ChipSelectPin<P> {
+    pub fn activate(&self) {
+        self.polarity.deactivate(&self.pin);
+    }
+
+    pub fn deactivate(&self) {
+        self.polarity.deactivate(&self.pin);
+    }
+}
+
+/// Clock polarity (CPOL) defines whether the SPI clock is high
+/// or low when idle.
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum ClockPolarity {
     IdleLow,
     IdleHigh,
@@ -180,7 +226,11 @@ pub trait SpiMaster<'a> {
     /// Specify which chip select to use. Configuration settings
     /// (rate, polarity, phase) are chip-select specific and are
     /// stored for that chip select.
-    fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), ErrorCode>;
+    fn specify_chip_select(
+        &self,
+        cs: Self::ChipSelect,
+        polarity: ChipSelectActivePolarity,
+    ) -> Result<(), ErrorCode>;
 
     /// Set the clock/data rate for the current chip select. Return values:
     ///   - Ok(u32): the actual data rate set (limited by clock precision)
