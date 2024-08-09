@@ -100,7 +100,6 @@ macro_rules! lpm013m126_component_static {
             capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>
         );
         let buffer = kernel::static_buf!([u8; capsules_extra::lpm013m126::BUF_LEN]);
-        let chip_select = kernel::static_buf!(components::lpm013m126::Inverted<'static, $P>);
         let spi_device = kernel::static_buf!(
             capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<'static, $S>
         );
@@ -113,7 +112,7 @@ macro_rules! lpm013m126_component_static {
             >
         );
 
-        (alarm, buffer, chip_select, spi_device, lpm013m126)
+        (alarm, buffer, spi_device, lpm013m126)
     }};
 }
 
@@ -124,7 +123,7 @@ where
     S: 'static + SpiMaster<'static>,
 {
     spi: &'static MuxSpiMaster<'static, S>,
-    chip_select: &'static P,
+    chip_select: S::ChipSelect,
     disp: &'static P,
     extcomin: &'static P,
     alarm_mux: &'static MuxAlarm<'static, A>,
@@ -139,7 +138,7 @@ where
     pub fn new(
         spi: &'static MuxSpiMaster<'static, S>,
 
-        chip_select: &'static P,
+        chip_select: S::ChipSelect,
         disp: &'static P,
         extcomin: &'static P,
         alarm_mux: &'static MuxAlarm<'static, A>,
@@ -158,12 +157,11 @@ impl<A, P, S> Component for Lpm013m126Component<A, P, S>
 where
     A: 'static + Alarm<'static>,
     P: 'static + gpio::Pin,
-    S: 'static + SpiMaster<'static, ChipSelect = &'static mut Inverted<'static, P>>,
+    S: 'static + SpiMaster<'static>,
 {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
         &'static mut MaybeUninit<[u8; capsules_extra::lpm013m126::BUF_LEN]>,
-        &'static mut MaybeUninit<Inverted<'static, P>>,
         &'static mut MaybeUninit<VirtualSpiMasterDevice<'static, S>>,
         &'static mut MaybeUninit<
             Lpm013m126<'static, VirtualMuxAlarm<'static, A>, P, VirtualSpiMasterDevice<'static, S>>,
@@ -182,13 +180,11 @@ where
 
         let buffer = s.1.write([0; capsules_extra::lpm013m126::BUF_LEN]);
 
-        let chip_select = s.2.write(Inverted(self.chip_select));
-
         let spi_device =
-            s.3.write(VirtualSpiMasterDevice::new(self.spi, chip_select));
+            s.2.write(VirtualSpiMasterDevice::new(self.spi, self.chip_select));
         spi_device.setup();
 
-        let lpm013m126 = s.4.write(
+        let lpm013m126 = s.3.write(
             Lpm013m126::new(
                 spi_device,
                 self.extcomin,
