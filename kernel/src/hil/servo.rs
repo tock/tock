@@ -9,9 +9,17 @@ pub trait Servo<'a> {
     ///
     /// - `Ok(())`: The attempt at changing the angle was successful.
     /// - `FAIL`: Cannot change the angle.
-    ///
+    /// - `INVAL`: The value exceeds u16, indicating it's incorrect 
+    /// since servomotors can only have a maximum of 360 degrees.
     ///  # Arguments
-    /// * `angle` - the variable that receives the angle
+    /// - `angle` - the variable that receives the angle
     /// (in degrees from 0 to 180) from the servo driver.
-    fn set_angle(&self, angle: usize) -> Result<(), ErrorCode>;
+    fn set_angle(&self, angle: u16) -> Result<(), ErrorCode>;
+
+    /// Returns the angle of the servo.
+    /// Return values:
+    ///
+    /// - `angle`: The value, in angles from 0 to 180, of the servo.
+    /// - `OFF`:  The servo was not set to an angle.
+    fn get_angle(&self) -> Result<usize, ErrorCode>;
 }

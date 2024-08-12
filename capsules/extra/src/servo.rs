@@ -63,6 +63,7 @@ impl<'a, B: hil::servo::Servo<'a>> SyscallDriver for Servo<'a, B> {
     ///
     /// - `0`: Return Ok(()) if this driver is included on the platform.
     /// - `1`: Changing the angle immediatelly. `data1` is used for the angle (0-180).
+    /// - `2`: Returning the current angle.
     fn command(
         &self,
         command_num: usize,
@@ -74,7 +75,18 @@ impl<'a, B: hil::servo::Servo<'a>> SyscallDriver for Servo<'a, B> {
             // Check whether the driver exists.
             0 => CommandReturn::success(),
             // Change the angle immediately.
-            1 => self.servo.set_angle(data1).into(),
+            1 => match data1.try_into() {
+                Ok(angle) => match self.servo.set_angle(angle) {
+                    Ok(()) => CommandReturn::success(),
+                    Err(err) => CommandReturn::failure(err)
+                }
+                Err(_) => CommandReturn::failure(ErrorCode::INVAL)
+            }
+            // Return the current angle.
+            2 => match self.servo.get_angle(){
+                Ok(angle) => CommandReturn::success_u32(angle as u32),
+                Err(err) => CommandReturn::failure(err),
+            }
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
