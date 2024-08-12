@@ -19,7 +19,7 @@ pub trait Servo<'a> {
     /// Returns the angle of the servo.
     /// Return values:
     ///
-    /// - `angle`: The value, in angles from 0 to 180, of the servo.
+    /// - `angle`: The value, in angles from 0 to 360, of the servo.
     /// - `OFF`:  The servo was not set to an angle.
     fn get_angle(&self) -> Result<usize, ErrorCode>;
 }
