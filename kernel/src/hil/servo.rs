@@ -9,7 +9,7 @@ pub trait Servo<'a> {
     ///
     /// - `Ok(())`: The attempt at changing the angle was successful.
     /// - `FAIL`: Cannot change the angle.
-    /// - `INVAL`: The value exceeds u16, indicating it's incorrect 
+    /// - `INVAL`: The value exceeds u16, indicating it's incorrect
     /// since servomotors can only have a maximum of 360 degrees.
     ///  # Arguments
     /// - `angle` - the variable that receives the angle

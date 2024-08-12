@@ -78,15 +78,15 @@ impl<'a, B: hil::servo::Servo<'a>> SyscallDriver for Servo<'a, B> {
             1 => match data1.try_into() {
                 Ok(angle) => match self.servo.set_angle(angle) {
                     Ok(()) => CommandReturn::success(),
-                    Err(err) => CommandReturn::failure(err)
-                }
-                Err(_) => CommandReturn::failure(ErrorCode::INVAL)
-            }
+                    Err(err) => CommandReturn::failure(err),
+                },
+                Err(_) => CommandReturn::failure(ErrorCode::INVAL),
+            },
             // Return the current angle.
-            2 => match self.servo.get_angle(){
+            2 => match self.servo.get_angle() {
                 Ok(angle) => CommandReturn::success_u32(angle as u32),
                 Err(err) => CommandReturn::failure(err),
-            }
+            },
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
