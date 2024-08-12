@@ -46,7 +46,7 @@ These implement a driver to setup and read various physical sensors.
 - **[STM32 Temperature](src/temperature_stm.rs)**: Analog STM32 temperature
   sensor.
 - **[TSL2561](src/tsl2561.rs)**: Light sensor.
-- **[HC-SR04](src/hc_sr04.rs)**: Distance sensor
+- **[HC-SR04](src/hc_sr04.rs)**: Ultrasonic distance sensor
 
 These drivers provide support for various ICs.
 

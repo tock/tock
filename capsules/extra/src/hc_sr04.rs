@@ -88,7 +88,7 @@ impl<'a, A: Alarm<'a>> Distance<'a> for HcSr04<'a, A> {
         }
     }
     /// Get the maximum distance the sensor can measure in mm
-    fn get_maximum_distance_mm(&self) -> u32 {
+    fn get_maximum_distance(&self) -> u32 {
         // The maximum distance is determined by the maximum pulse width the sensor can detect.
         // As specified in the datasheet: https://www.handsontec.com/dataspecs/HC-SR04-Ultrasonic.pdf,
         // the maximum measurable distance is approximately 4 meters.
@@ -96,7 +96,7 @@ impl<'a, A: Alarm<'a>> Distance<'a> for HcSr04<'a, A> {
         4000
     }
     /// Get the minimum distance the sensor can measure in mm.
-    fn get_minimum_distance_mm(&self) -> u32 {
+    fn get_minimum_distance(&self) -> u32 {
         // The minimum distance is determined by the minimum pulse width the sensor can detect.
         // As specified in the datasheet: https://www.handsontec.com/dataspecs/HC-SR04-Ultrasonic.pdf,
         // the minimum measurable distance is approximately 2 cm.

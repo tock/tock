@@ -241,9 +241,9 @@ pub trait Distance<'a> {
     /// Read the distance from the sensor
     fn read_distance(&self) -> Result<(), ErrorCode>;
     /// Get the maximum distance the sensor can measure in mm
-    fn get_maximum_distance_mm(&self) -> u32;
+    fn get_maximum_distance(&self) -> u32;
     /// Get the minimum distance the sensor can measure in mm
-    fn get_minimum_distance_mm(&self) -> u32;
+    fn get_minimum_distance(&self) -> u32;
 }
 
 /// Client for receiving distance readings.

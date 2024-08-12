@@ -176,11 +176,11 @@ impl<'a, T: hil::sensors::Distance<'a>> SyscallDriver for DistanceSensor<'a, T> 
             }
             2 => {
                 // Get minimum distance.
-                CommandReturn::success_u32(self.driver.get_minimum_distance_mm())
+                CommandReturn::success_u32(self.driver.get_minimum_distance())
             }
             3 => {
                 // Get maximum distance.
-                CommandReturn::success_u32(self.driver.get_maximum_distance_mm())
+                CommandReturn::success_u32(self.driver.get_maximum_distance())
             }
             _ => {
                 // Command not supported.
