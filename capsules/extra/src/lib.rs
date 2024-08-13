@@ -79,7 +79,6 @@ pub mod rf233_const;
 pub mod screen;
 pub mod screen_shared;
 pub mod sdcard;
-pub mod segger_rtt;
 pub mod servo;
 pub mod seven_segment;
 pub mod sg90;
