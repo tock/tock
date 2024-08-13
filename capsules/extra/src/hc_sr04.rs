@@ -124,7 +124,7 @@ impl<'a, A: Alarm<'a>> AlarmClient for HcSr04<'a, A> {
             Status::EchoStart => {
                 self.status.set(Status::Idle); // Update status to idle.
                 if let Some(distance_client) = self.distance_client.get() {
-                    distance_client.callback(Err(ErrorCode::FAIL));
+                    distance_client.callback(Err(ErrorCode::NOACK));
                 }
             }
             _ => {}
@@ -164,7 +164,7 @@ impl<'a, A: Alarm<'a>> Client for HcSr04<'a, A> {
                     // SPEED_OF_SOUND is the speed of sound in air, in millimeters per second.
                     // We divide by 2 because the duration includes the round trip time (to the object and back) and
                     // we divide by 1_000_000 to convert the duration from microseconds to seconds.
-                    let distance = duration as u32 * SPEED_OF_SOUND as u32 / (2 * 1_000_000) as u32;
+                    let distance = duration * SPEED_OF_SOUND / (2 * 1_000_000);
                     if let Some(distance_client) = self.distance_client.get() {
                         distance_client.callback(Ok(distance));
                     }

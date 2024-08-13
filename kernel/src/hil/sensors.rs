@@ -236,7 +236,6 @@ pub trait PressureClient {
 
 /// A basic interface for distance sensor.
 pub trait Distance<'a> {
-
     /// Set the client
     fn set_client(&self, client: &'a dyn DistanceClient);
 
