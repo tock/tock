@@ -6,18 +6,20 @@ use core::cell::Cell;
 
 use kernel::hil::gpio::{Client, InterruptEdge};
 use kernel::hil::sensors::{self, Distance, DistanceClient};
-use kernel::hil::time::{Alarm, Ticks};
-use kernel::hil::time::{AlarmClient, ConvertTicks};
+use kernel::hil::time::{Alarm, Ticks, Time};
+use kernel::hil::time::{AlarmClient, ConvertTicks, Frequency};
 use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 
 /// Maximum duration for the echo pulse to be measured in milliseconds.
 // As specified in the datasheet:
 // https://www.handsontec.com/dataspecs/HC-SR04-Ultrasonic.pdf,
-// the maximum time for the echo pulse to return is around 38 milliseconds
-// for a maximum distance of approximately 4 meters. We use a slightly
-// higher value to account for possible variations in measurement.
-pub const MAX_DISTANCE_ECHO: u32 = 50;
+// the maximum time for the echo pulse to return is around 23 milliseconds
+// for a maximum distance of approximately 4 meters under standard temperature
+// and pressure conditions, but we use 38 milliseconds to account for variations
+// in real-world conditions. We use a slightly higher the value to account for
+// possible variations in measurement.
+pub const MAX_ECHO_DELAY_MS: u32 = 50;
 
 /// Speed of sound in air in mm/s.
 // The speed of sound is approximately 343 meters per second, which
@@ -44,8 +46,8 @@ pub struct HcSr04<'a, A: Alarm<'a>> {
     trig: &'a dyn kernel::hil::gpio::Pin,
     echo: &'a dyn kernel::hil::gpio::InterruptPin<'a>,
     alarm: &'a A,
-    start_time: Cell<u32>,
-    end_time: Cell<u32>,
+    start_time: Cell<u64>,
+    end_time: Cell<u64>,
     status: Cell<Status>,
     distance_client: OptionalCell<&'a dyn sensors::DistanceClient>,
 }
@@ -81,7 +83,7 @@ impl<'a, A: Alarm<'a>> Distance<'a> for HcSr04<'a, A> {
             self.status.set(Status::TriggerPulse);
             self.trig.set(); // Send the trigger pulse.
             self.alarm
-                .set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(10));
+                .set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(1));
             Ok(())
         } else {
             Err(ErrorCode::BUSY)
@@ -110,9 +112,20 @@ impl<'a, A: Alarm<'a>> AlarmClient for HcSr04<'a, A> {
     fn alarm(&self) {
         match self.status.get() {
             Status::TriggerPulse => {
-                self.trig.clear(); // Clear the trigger pulse.
-                self.echo.enable_interrupts(InterruptEdge::RisingEdge); // Enable rising edge interrupt on echo pin.
                 self.status.set(Status::EchoStart); // Update status to waiting for echo.
+                self.echo.enable_interrupts(InterruptEdge::RisingEdge); // Enable rising edge interrupt on echo pin.
+                self.trig.clear(); // Clear the trigger pulse.
+                self.alarm.set_alarm(
+                    self.alarm.now(),
+                    self.alarm.ticks_from_ms(MAX_ECHO_DELAY_MS),
+                ); // Set alarm for maximum echo delay.
+            }
+            // Timeout for echo pulse.
+            Status::EchoStart => {
+                self.status.set(Status::Idle); // Update status to idle.
+                if let Some(distance_client) = self.distance_client.get() {
+                    distance_client.callback(Err(ErrorCode::FAIL));
+                }
             }
             _ => {}
         }
@@ -122,18 +135,23 @@ impl<'a, A: Alarm<'a>> AlarmClient for HcSr04<'a, A> {
 impl<'a, A: Alarm<'a>> Client for HcSr04<'a, A> {
     /// Handle the GPIO interrupt.
     fn fired(&self) {
-        let time = self.alarm.now().into_u32();
+        let frequency = <A as Time>::Frequency::frequency();
+        let ticks = self.alarm.now().into_u32();
+        // Convert ticks to microseconds.
+        // Microseconds = (ticks * 1_000_000) / frequency
+        let time = (ticks as u64 * 1_000_000) / frequency as u64;
         match self.status.get() {
             Status::EchoStart => {
-                self.start_time.set(time); // Record start time when echo received.
-                self.echo.enable_interrupts(InterruptEdge::FallingEdge); // Enable falling edge interrupt on echo pin.
+                let _ = self.alarm.disarm(); // Disarm the alarm.
                 self.status.set(Status::EchoEnd); // Update status to waiting for echo end.
+                self.echo.enable_interrupts(InterruptEdge::FallingEdge); // Enable falling edge interrupt on echo pin.
+                self.start_time.set(time); // Record start time when echo received.
             }
             Status::EchoEnd => {
                 self.end_time.set(time); // Record end time when echo ends.
                 self.status.set(Status::Idle); // Update status to idle.
-                let duration = self.end_time.get().wrapping_sub(self.start_time.get()); // Calculate pulse duration.
-                if duration > self.alarm.ticks_from_ms(MAX_DISTANCE_ECHO).into_u32() {
+                let duration = self.end_time.get().wrapping_sub(self.start_time.get()) as u32; // Calculate pulse duration.
+                if duration > self.alarm.ticks_from_ms(MAX_ECHO_DELAY_MS).into_u32() {
                     // If duration exceeds the maximum distance, return an error.
                     if let Some(distance_client) = self.distance_client.get() {
                         distance_client.callback(Err(ErrorCode::INVAL));
@@ -146,7 +164,7 @@ impl<'a, A: Alarm<'a>> Client for HcSr04<'a, A> {
                     // SPEED_OF_SOUND is the speed of sound in air, in millimeters per second.
                     // We divide by 2 because the duration includes the round trip time (to the object and back) and
                     // we divide by 1_000_000 to convert the duration from microseconds to seconds.
-                    let distance = duration * SPEED_OF_SOUND / (2 * 1_000_000);
+                    let distance = duration as u32 * SPEED_OF_SOUND as u32 / (2 * 1_000_000) as u32;
                     if let Some(distance_client) = self.distance_client.get() {
                         distance_client.callback(Ok(distance));
                     }
