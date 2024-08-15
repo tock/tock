@@ -63,29 +63,29 @@ QEMU standalone, or with a single app. These can be executed through the
   tock/boards/qemu_rv32_virt $ make run-app APP=$PATH_TO_APP.tbf
   ```
 
-Through the **`NETDEV`** environment variable, QEMU can be instructed to attach
+Through the **`TOCK_NETDEV`** environment variable, QEMU can be instructed to attach
 a VirtIO-based network adapter to the target. The following options are available:
 
-- `NETDEV=NONE` (default): Do not expose a network adapter to the guest.
+- `TOCK_NETDEV=NONE` (default): Do not expose a network adapter to the guest.
 
-- `NETDEV=SLIRP`: Use QEMU's userspace networking capabilities (through
+- `TOCK_NETDEV=SLIRP`: Use QEMU's userspace networking capabilities (through
   `libslirp`), which provides the target with an emulated network and a gateway
   bridging outgoing TCP and UDP connections onto sockets of the host operating
-  system. `NETDEV_SLIRP_ARGS` can be used to pass further arguments to the
+  system. `TOCK_NETDEV_SLIRP_ARGS` can be used to pass further arguments to the
   `netdev`, for instance to forward ports from host to guest. For example, to
   forward the TCP port `8080` to the guest at `192.168.1.50:80`, use the
   following command line:
 
   ```
-  $ make run NETDEV=SLIRP NETDEV_SLIRP_ARGS=hostfwd=tcp::8080-192.168.1.50:80
+  $ make run TOCK_NETDEV=SLIRP TOCK_NETDEV_SLIRP_ARGS=hostfwd=tcp::8080-192.168.1.50:80
   ```
 
-- `NETDEV=TAP`: Create a TAP network device on the host and expose the
+- `TOCK_NETDEV=TAP`: Create a TAP network device on the host and expose the
   corresponding remote end to the guest's VirtIO network card. This establishes
   a layer-2 link between the host and guest. This option assumes that QEMU has
   the necessary permissions to use (or create) the device on the host. The
   interface will be unconfigured and needs to be made active and be assigned an
   IP address manually.
 
-- `NETDEV=SUDO-TAP`: Like `TAP`, but run QEMU as root through `sudo`. This will
+- `TOCK_NETDEV=SUDO-TAP`: Like `TAP`, but run QEMU as root through `sudo`. This will
   likely prompt for a password.

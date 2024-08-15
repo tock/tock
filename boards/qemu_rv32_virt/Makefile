@@ -19,13 +19,13 @@ WORKING_QEMU_VERSION := 7.2.0
 #   Use the QEMU userspace slirp network backend. This causes QEMU to
 #   behave as a NAT-router and gateway to the VM, transparently
 #   routing any outgoing traffic through the host's userspace network
-#   sockets. This option also accepts an optional NETDEV_SLIRP_ARGS
+#   sockets. This option also accepts an optional TOCK_NETDEV_SLIRP_ARGS
 #   which is appended to the provided string.
 #
 #   To forward TCP port 1234 on the emulated Tock device (having IP
 #   192.168.1.50) to the host port 5678, set the following variable:
 #
-#       NETDEV_SLIRP_ARGS=hostfwd=tcp::5678-192.168.1.50:1234
+#       TOCK_NETDEV_SLIRP_ARGS=hostfwd=tcp::5678-192.168.1.50:1234
 #
 # - NETDEV: TAP
 #
@@ -33,28 +33,28 @@ WORKING_QEMU_VERSION := 7.2.0
 #   connection between the guest interface and the host. Must have the
 #   proper permissions to let QEMU create the tap interface on the
 #   host. Use SUDO-TAP instead to run QEMU through `sudo`.
-NETDEV            ?= NONE
-ifneq ($(NETDEV_SLIRP_ARGS),)
-  NETDEV_SLIRP_ARGS_INT := ,$(NETDEV_SLIRP_ARGS)
+TOCK_NETDEV            ?= NONE
+ifneq ($(TOCK_NETDEV_SLIRP_ARGS),)
+  NETDEV_SLIRP_ARGS_INT := ,$(TOCK_NETDEV_SLIRP_ARGS)
 else
   NETDEV_SLIRP_ARGS_INT :=
 endif
 
-ifeq ($(NETDEV),NONE)
+ifeq ($(TOCK_NETDEV),NONE)
   QEMU_NETDEV_CMDLINE = ""
-else ifeq ($(NETDEV),SLIRP)
+else ifeq ($(TOCK_NETDEV),SLIRP)
   QEMU_NETDEV_CMDLINE = \
     -netdev user,id=n0,net=192.168.1.0/24,dhcpstart=192.168.1.255$(NETDEV_SLIRP_ARGS_INT) \
     -device virtio-net-device,netdev=n0
-else ifneq (,$(filter $(NETDEV),TAP SUDO-TAP))
+else ifneq (,$(filter $(TOCK_NETDEV),TAP SUDO-TAP))
   QEMU_NETDEV_CMDLINE = \
     -netdev tap,id=n0,script=no,downscript=no \
     -device virtio-net-device,netdev=n0
-  ifeq ($(NETDEV),SUDO-TAP)
+  ifeq ($(TOCK_NETDEV),SUDO-TAP)
     QEMU_CMD := sudo $(QEMU_CMD)
   endif
 else
-  $(error Invalid argument provided for variable NETDEV)
+  $(error Invalid argument provided for variable TOCK_NETDEV)
 endif
 
 # Peripherals attached by default:

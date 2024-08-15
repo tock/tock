@@ -4,7 +4,7 @@
 
 # Makefile for building the tock kernel for the HiFive1 platform
 
-QEMU ?= qemu-system-riscv32
+TOCK_QEMU ?= qemu-system-riscv32
 
 include ../Makefile.common
 
@@ -17,10 +17,10 @@ flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 		-c "source [find board/sifive-hifive1-revb.cfg]; program $<; resume 0x20000000; exit"
 
 qemu: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
-	$(QEMU) -M sifive_e,revb=true -kernel $^  -nographic
+	$(TOCK_QEMU) -M sifive_e,revb=true -kernel $^  -nographic
 
 qemu-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
-	$(QEMU) -M sifive_e,revb=true -kernel $^ -device loader,file=$(APP),addr=0x20040000 -nographic
+	$(TOCK_QEMU) -M sifive_e,revb=true -kernel $^ -device loader,file=$(APP),addr=0x20040000 -nographic
 
 
 TOCKLOADER=tockloader

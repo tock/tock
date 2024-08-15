@@ -81,5 +81,5 @@ in
 
     # Instruct the Tock gnumake-based build system to not check for rustup and
     # assume all requirend tools are installed and available in the $PATH
-    NO_RUSTUP = "1";
+    TOCK_NO_RUSTUP = "1";
   }

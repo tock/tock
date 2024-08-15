@@ -40,7 +40,7 @@ $ make flash
 $ make flash-debug
 ```
 
-> Note: The Makefile provides the BOOTSEL_FOLDER variable that points towards the mount point of
+> Note: The Makefile provides the `TOCK_BOOTSEL_FOLDER` variable that points towards the mount point of
 > the Pico RP2040 flash drive. By default, this is located in `/media/$(USER)/RP2040`. This might
 > be different on several systems, make sure to adjust it.
 

@@ -5,8 +5,8 @@
 # Makefile for building the tock kernel for the OpenTitan platform
 
 FLASHID=--dev-id="0403:6010"
-RISC_PREFIX ?= riscv64-linux-gnu
-QEMU ?= ../../../tools/qemu/build/qemu-system-riscv32
+TOCK_RISC_PREFIX ?= riscv64-linux-gnu
+TOCK_QEMU ?= ../../../tools/qemu/build/qemu-system-riscv32
 # Override for the entry point
 # This offset is calculated (from the linker file) as:
 # ORIGIN(rom) + size_manifest = 0x20000000 + 0x400
@@ -27,16 +27,16 @@ endif
 
 .PHONY: check
 check:
-	$(Q)$(CARGO) check $(VERBOSE_FLAGS) $(CARGO_FLAGS)
+	$(Q)$(TOCK_CARGO) check $(VERBOSE_FLAGS) $(CARGO_FLAGS)
 
 .PHONY: $(TARGET_PATH)/release/$(PLATFORM)
 $(TARGET_PATH)/release/$(PLATFORM):
-	$(Q)$(CARGO) build $(VERBOSE_FLAGS) $(CARGO_FLAGS) --release
+	$(Q)$(TOCK_CARGO) build $(VERBOSE_FLAGS) $(CARGO_FLAGS) --release
 	$(Q)$(SIZE) $(SIZE_FLAGS) $@
 
 .PHONY: $(TARGET_PATH)/debug/$(PLATFORM)
 $(TARGET_PATH)/debug/$(PLATFORM):
-	$(Q)$(CARGO) build $(VERBOSE_FLAGS) $(CARGO_FLAGS)
+	$(Q)$(TOCK_CARGO) build $(VERBOSE_FLAGS) $(CARGO_FLAGS)
 	$(Q)$(SIZE) $(SIZE_FLAGS) $@
 
 .PHONY: ot-check
@@ -66,35 +66,35 @@ endif
 install: flash
 
 qemu: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
-	$(QEMU) -M opentitan -kernel $^ -nographic -serial mon:stdio -global driver=riscv.lowrisc.ibex.soc,property=resetvec,value=${QEMU_ENTRY_POINT}
+	$(TOCK_QEMU) -M opentitan -kernel $^ -nographic -serial mon:stdio -global driver=riscv.lowrisc.ibex.soc,property=resetvec,value=${QEMU_ENTRY_POINT}
 
 qemu-gdb: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
-	$(QEMU) -s -S -M opentitan -kernel $^ -nographic -serial mon:stdio -global driver=riscv.lowrisc.ibex.soc,property=resetvec,value=${QEMU_ENTRY_POINT}
+	$(TOCK_QEMU) -s -S -M opentitan -kernel $^ -nographic -serial mon:stdio -global driver=riscv.lowrisc.ibex.soc,property=resetvec,value=${QEMU_ENTRY_POINT}
 
 qemu-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
-	$(QEMU) -M opentitan -kernel $^ -device loader,file=$(APP),addr=0x20030000 -nographic -serial mon:stdio -global driver=riscv.lowrisc.ibex.soc,property=resetvec,value=${QEMU_ENTRY_POINT}
+	$(TOCK_QEMU) -M opentitan -kernel $^ -device loader,file=$(APP),addr=0x20030000 -nographic -serial mon:stdio -global driver=riscv.lowrisc.ibex.soc,property=resetvec,value=${QEMU_ENTRY_POINT}
 
 qemu-app-gdb : $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
-	$(QEMU) -s -S -M opentitan -kernel $^ -device loader,file=$(APP),addr=0x20030000 -nographic -serial mon:stdio -global driver=riscv.lowrisc.ibex.soc,property=resetvec,value=${QEMU_ENTRY_POINT}
+	$(TOCK_QEMU) -s -S -M opentitan -kernel $^ -device loader,file=$(APP),addr=0x20030000 -nographic -serial mon:stdio -global driver=riscv.lowrisc.ibex.soc,property=resetvec,value=${QEMU_ENTRY_POINT}
 
 flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 	$(OPENTITAN_TREE)/bazel-bin/sw/host/opentitantool/opentitantool.runfiles/lowrisc_opentitan/sw/host/opentitantool/opentitantool --interface=cw310 bootstrap $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 
 flash-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
-	$(RISC_PREFIX)-objcopy --update-section .apps=$(APP) $^ $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.elf
-	$(RISC_PREFIX)-objcopy --output-target=binary $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.elf $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.bin
+	$(TOCK_RISC_PREFIX)-objcopy --update-section .apps=$(APP) $^ $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.elf
+	$(TOCK_RISC_PREFIX)-objcopy --output-target=binary $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.elf $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.bin
 	$(OPENTITAN_TREE)/bazel-bin/sw/host/opentitantool/opentitantool.runfiles/lowrisc_opentitan/sw/host/opentitantool/opentitantool --interface=cw310 bootstrap $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.bin
 
 verilator: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	$(call check_defined, OPENTITAN_TREE)
 #	Make a copy so we dont modify the original elf when linkng apps
-	$(RISC_PREFIX)-objcopy $^ $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)_verilator.elf
+	$(TOCK_RISC_PREFIX)-objcopy $^ $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)_verilator.elf
 ifneq ($(APP),)
 		$(info [CW-130: Verilator]: Linking App)
-		$(RISC_PREFIX)-objcopy --update-section .apps=$(APP) $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)_verilator.elf $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)_verilator.elf
+		$(TOCK_RISC_PREFIX)-objcopy --update-section .apps=$(APP) $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)_verilator.elf $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)_verilator.elf
 endif
 	$(info [CW-130: Verilator]: Starting)
-	$(RISC_PREFIX)-objcopy --output-target=binary $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)_verilator.elf $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)_verilator.bin
+	$(TOCK_RISC_PREFIX)-objcopy --output-target=binary $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)_verilator.elf $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)_verilator.bin
 	srec_cat $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)_verilator.bin \
 		--binary --offset 0 --byte-swap 8 --fill 0xff \
 		-within $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)_verilator.bin\
@@ -111,16 +111,16 @@ endif
 	mkdir -p $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
 	$(Q)cp test_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/layout.ld
 	$(Q)cp ../../kernel_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/
-	$(Q)TOCK_ROOT_DIRECTORY=${TOCK_ROOT_DIRECTORY} QEMU_ENTRY_POINT=${QEMU_ENTRY_POINT} TARGET=${TARGET} $(CARGO) test $(CARGO_FLAGS) $(NO_RUN) --bin $(PLATFORM) --release
+	$(Q)TOCK_ROOT_DIRECTORY=${TOCK_ROOT_DIRECTORY} QEMU_ENTRY_POINT=${QEMU_ENTRY_POINT} TARGET=${TARGET} $(TOCK_CARGO) test $(CARGO_FLAGS) $(NO_RUN) --bin $(PLATFORM) --release
 
 test-hardware: ot-check
 	mkdir -p $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
 	$(Q)cp test_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/layout.ld
 	$(Q)cp ../../kernel_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/
-	$(Q)OBJCOPY=$(RISC_PREFIX)-objcopy TOCK_ROOT_DIRECTORY=${TOCK_ROOT_DIRECTORY} TARGET=${TARGET} $(CARGO) test $(CARGO_FLAGS) $(NO_RUN) --bin $(PLATFORM) --release --features=hardware_tests
+	$(Q)OBJCOPY=$(TOCK_RISC_PREFIX)-objcopy TOCK_ROOT_DIRECTORY=${TOCK_ROOT_DIRECTORY} TARGET=${TARGET} $(TOCK_CARGO) test $(CARGO_FLAGS) $(NO_RUN) --bin $(PLATFORM) --release --features=hardware_tests
 
 test-verilator: ot-check
 	mkdir -p $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
 	$(Q)cp test_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/layout.ld
 	$(Q)cp ../../kernel_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/
-	$(Q)VERILATOR="yes" OBJCOPY=$(RISC_PREFIX)-objcopy TOCK_ROOT_DIRECTORY=${TOCK_ROOT_DIRECTORY} TARGET=${TARGET} $(CARGO) test $(CARGO_FLAGS) $(NO_RUN) --bin $(PLATFORM) --release --features=hardware_tests,sim_verilator
+	$(Q)VERILATOR="yes" OBJCOPY=$(TOCK_RISC_PREFIX)-objcopy TOCK_ROOT_DIRECTORY=${TOCK_ROOT_DIRECTORY} TARGET=${TARGET} $(TOCK_CARGO) test $(CARGO_FLAGS) $(NO_RUN) --bin $(PLATFORM) --release --features=hardware_tests,sim_verilator

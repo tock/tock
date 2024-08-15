@@ -23,24 +23,24 @@ RUSTC_SYSROOT := "$(shell rustc --print sysroot)"
 
 # Common defaults that specific boards can override, but likely do not need to.
 #
-# The TOOLCHAIN parameter is set to the magic value "llvm-tools", which will
-# cause the Makefile to resolve the llvm toolchain installed as part of the
-# rustup component "llvm-tools". In case a system toolchain shall be used, this
-# can be overridden to specify the toolchain prefix, e.g. "llvm" for
+# The `TOCK_TOOLCHAIN` parameter is set to the magic value "llvm-tools", which
+# will cause the Makefile to resolve the llvm toolchain installed as part of
+# the rustup component "llvm-tools". In case a system toolchain shall be used,
+# this can be overridden to specify the toolchain prefix, e.g. "llvm" for
 # llvm-{objdump,objcopy,...} or "arm-none-eabi".
-TOOLCHAIN ?= llvm-tools
-CARGO     ?= cargo
+TOCK_TOOLCHAIN ?= llvm-tools
+TOCK_CARGO     ?= cargo
 
 # Not all platforms support the rustup tool. Those that do not can pass
-# `NO_RUSTUP=1` to make and then all of the rustup commands will be ignored.
-ifeq ($(NO_RUSTUP),)
-  RUSTUP ?= rustup
+# `TOCK_TOCK_NO_RUSTUP=1` to make and then all of the rustup commands will be ignored.
+ifeq ($(TOCK_NO_RUSTUP),)
+  TOCK_RUSTUP ?= rustup
 else
-  RUSTUP ?= true
+  TOCK_RUSTUP ?= true
 endif
 
 # Default location of target directory (relative to board makefile).
-TARGET_DIRECTORY ?= $(TOCK_ROOT_DIRECTORY)target/
+TOCK_TARGET_DIRECTORY ?= $(TOCK_ROOT_DIRECTORY)target/
 
 # http://stackoverflow.com/questions/10858261/abort-makefile-if-variable-not-set
 # Check that given variables are set and all have non-empty values, print an
@@ -54,11 +54,11 @@ check_defined = $(strip $(foreach 1,$1,$(if $(value $1),,$(error Undefined varia
 # wm1110dev v0.1.0 (/Users/bradjc/git/tock/boards/wm1110dev)
 # ├── capsules-core v0.1.0 (/Users/bradjc/git/tock/capsules/core)
 # │   ├── enum_primitive v0.1.0 (/Users/bradjc/git/tock/libraries/enum_primitive)
-PLATFORM := $(firstword $(shell $(CARGO) tree))
+PLATFORM := $(firstword $(shell $(TOCK_CARGO) tree))
 # Set `TARGET` if not already defined. Note: this only works on nightly.
 ifeq ($(TARGET),)
   # Get the specified target using the unstable `cargo config get` command.
-  TARGET_QUOTES := $(shell $(CARGO) config get --format json-value build.target)
+  TARGET_QUOTES := $(shell $(TOCK_CARGO) config get --format json-value build.target)
   # Remove the quotes from around the target name.
   TARGET := $(patsubst "%",%,$(TARGET_QUOTES))
 endif
@@ -71,7 +71,7 @@ $(call check_defined, PLATFORM)
 $(call check_defined, TARGET)
 
 # Location of target-specific build.
-TARGET_PATH := $(TARGET_DIRECTORY)$(TARGET)
+TARGET_PATH := $(TOCK_TARGET_DIRECTORY)$(TARGET)
 
 # If environment variable V or VERBOSE is non-empty, be verbose.
 ifneq ($(V),)
@@ -98,53 +98,53 @@ endif
 export TOCK_KERNEL_VERSION := $(shell git describe --tags --always 2> /dev/null || echo "2.1+")
 
 # Allow users to opt out of using rustup.
-ifeq ($(NO_RUSTUP),)
+ifeq ($(TOCK_NO_RUSTUP),)
 # Validate that rustup exists.
-RUSTUP_ERROR := $(shell $(RUSTUP) --version > /dev/null 2>&1; echo $$?)
+RUSTUP_ERROR := $(shell $(TOCK_RUSTUP) --version > /dev/null 2>&1; echo $$?)
 ifneq ($(RUSTUP_ERROR),0)
   $(info Error! rustup not found.)
   $(info Please follow the instructions at https://rustup.rs/ to install rustup.)
-  $(info Alternatively, install all required tools and Rust targets and set NO_RUSTUP=1 to disable this check.)
+  $(info Alternatively, install all required tools and Rust targets and set TOCK_NO_RUSTUP=1 to disable this check.)
   $(info )
   $(error Rustup required to build Tock.)
 endif
 
 # Validate that rustup is new enough.
 MINIMUM_RUSTUP_VERSION := 1.23.0
-RUSTUP_VERSION := $(strip $(word 2, $(shell $(RUSTUP) --version 2> /dev/null)))
+RUSTUP_VERSION := $(strip $(word 2, $(shell $(TOCK_RUSTUP) --version 2> /dev/null)))
 # Check that the semver script exists.
 ifneq (,$(wildcard $(TOCK_ROOT_DIRECTORY)tools/semver.sh))
 ifeq ($(shell $(TOCK_ROOT_DIRECTORY)tools/semver.sh $(RUSTUP_VERSION) \< $(MINIMUM_RUSTUP_VERSION)), true)
-  $(warning Required tool `$(RUSTUP)` is out-of-date.)
-  $(warning Running `$(RUSTUP) update` in 3 seconds (ctrl-c to cancel))
+  $(warning Required tool `$(TOCK_RUSTUP)` is out-of-date.)
+  $(warning Running `$(TOCK_RUSTUP) update` in 3 seconds (ctrl-c to cancel))
   $(shell sleep 3)
-  DUMMY := $(shell $(RUSTUP) update)
+  DUMMY := $(shell $(TOCK_RUSTUP) update)
 endif
 endif
 
 # Verify that various required Rust components are installed. All of these steps
 # only have to be done once per Rust version, but will take some time when
 # compiling for the first time.
-ifneq ($(shell $(RUSTUP) target list | grep "$(TARGET) (installed)"),$(TARGET) (installed))
+ifneq ($(shell $(TOCK_RUSTUP) target list | grep "$(TARGET) (installed)"),$(TARGET) (installed))
   $(warning Request to compile for a missing TARGET, make will install in 5s)
   $(warning Consider updating 'targets' in 'rust-toolchain.toml')
-  $(shell sleep 5s && $(RUSTUP) target add $(TARGET))
+  $(shell sleep 5s && $(TOCK_RUSTUP) target add $(TARGET))
 endif
-endif # $(NO_RUSTUP)
+endif # $(TOCK_NO_RUSTUP)
 
 # If the user is using the standard toolchain provided as part of the llvm-tools
 # rustup component we need to get the full path. rustup should take care of this
 # for us by putting in a proxy in .cargo/bin, but until that is setup we
 # workaround it.
-ifeq ($(TOOLCHAIN),llvm-tools)
-  TOOLCHAIN = "$(shell dirname $(shell find $(RUSTC_SYSROOT) -name llvm-size))/llvm"
+ifeq ($(TOCK_TOOLCHAIN),llvm-tools)
+  TOCK_TOOLCHAIN = "$(shell dirname $(shell find $(RUSTC_SYSROOT) -name llvm-size))/llvm"
 endif
 
 # Set variables of the key tools we need to compile a Tock kernel. Need to do
 # this after we handle if we are using the LLVM tools or not.
-SIZE    = $(TOOLCHAIN)-size
-OBJCOPY = $(TOOLCHAIN)-objcopy
-OBJDUMP = $(TOOLCHAIN)-objdump
+SIZE    = $(TOCK_TOOLCHAIN)-size
+OBJCOPY = $(TOCK_TOOLCHAIN)-objcopy
+OBJDUMP = $(TOCK_TOOLCHAIN)-objdump
 
 # Set additional flags to produce binary from .elf.
 #
@@ -155,29 +155,29 @@ OBJDUMP = $(TOOLCHAIN)-objdump
 #   the kernel binary file. This section is a placeholder for optionally
 #   including application binaries, and only needs to exist in the .elf. By
 #   removing it, we prevent the kernel binary from overwriting applications.
-OBJCOPY_FLAGS ?= --strip-sections --strip-all --remove-section .apps
+TOCK_OBJCOPY_FLAGS ?= --strip-sections --strip-all --remove-section .apps
 
 # Set the default flags we need for objdump to get a .lst file.
-OBJDUMP_FLAGS ?= --disassemble-all --source --section-headers --demangle
+TOCK_OBJDUMP_FLAGS ?= --disassemble-all --source --section-headers --demangle
 
 # Set default flags for size.
-SIZE_FLAGS ?=
+TOCK_SIZE_FLAGS ?=
 
 # Need an extra flag for OBJDUMP if we are on a thumb platform.
 ifneq (,$(findstring thumb,$(TARGET)))
-  OBJDUMP_FLAGS += --arch-name=thumb
+  TOCK_OBJDUMP_FLAGS += --arch-name=thumb
 endif
 
 # Additional flags that can be passed to print_tock_memory_usage.py via an
 # environment variable. By default, pass an empty string.
-PTMU_ARGS ?=
+TOCK_PTMU_ARGS ?=
 
 # Check whether the system already has a sha256sum or shasum application
 # present. If not, use the custom shipped one.
 ifeq (, $(shell sha256sum --version 2>/dev/null))
   ifeq (, $(shell shasum --version 2>/dev/null))
     # No system sha256sum available.
-    SHA256SUM := $(CARGO) run --manifest-path $(TOCK_ROOT_DIRECTORY)tools/sha256sum/Cargo.toml -- 2>/dev/null
+    SHA256SUM := $(TOCK_CARGO) run --manifest-path $(TOCK_ROOT_DIRECTORY)tools/sha256sum/Cargo.toml -- 2>/dev/null
   else
     # Use shasum found on MacOS.
     SHA256SUM := shasum -a 256
@@ -189,35 +189,35 @@ endif
 
 # Dump configuration for verbose builds
 ifeq ($(VERBOSE_MODE),1)
-RUST_FLAGS = $(shell $(CARGO) -Zunstable-options config get build.rustflags --format json-value 2> /dev/null || echo "Listing Rust flags only accessible on nightly cargo")
+RUST_FLAGS = $(shell $(TOCK_CARGO) -Zunstable-options config get build.rustflags --format json-value 2> /dev/null || echo "Listing Rust flags only accessible on nightly cargo")
   $(info )
   $(info *******************************************************)
   $(info TOCK KERNEL BUILD SYSTEM -- VERBOSE BUILD CONFIGURATION)
   $(info *******************************************************)
   $(info MAKEFILE_COMMON_PATH          = $(MAKEFILE_COMMON_PATH))
   $(info TOCK_ROOT_DIRECTORY           = $(TOCK_ROOT_DIRECTORY))
-  $(info TARGET_DIRECTORY              = $(TARGET_DIRECTORY))
+  $(info TOCK_TARGET_DIRECTORY         = $(TOCK_TARGET_DIRECTORY))
   $(info )
   $(info PLATFORM                      = $(PLATFORM))
   $(info TARGET                        = $(TARGET))
   $(info TOCK_KERNEL_VERSION           = $(TOCK_KERNEL_VERSION))
   $(info RUSTFLAGS                     = $(RUST_FLAGS))
   $(info MAKEFLAGS                     = $(MAKEFLAGS))
-  $(info OBJDUMP_FLAGS                 = $(OBJDUMP_FLAGS))
-  $(info OBJCOPY_FLAGS                 = $(OBJCOPY_FLAGS))
-  $(info SIZE_FLAGS                    = $(SIZE_FLAGS))
+  $(info TOCK_OBJDUMP_FLAGS            = $(TOCK_OBJDUMP_FLAGS))
+  $(info TOCK_OBJCOPY_FLAGS            = $(TOCK_OBJCOPY_FLAGS))
+  $(info TOCK_SIZE_FLAGS               = $(TOCK_SIZE_FLAGS))
   $(info )
-  $(info TOOLCHAIN                     = $(TOOLCHAIN))
+  $(info TOCK_TOOLCHAIN                = $(TOCK_TOOLCHAIN))
   $(info SIZE                          = $(SIZE))
   $(info OBJCOPY                       = $(OBJCOPY))
   $(info OBJDUMP                       = $(OBJDUMP))
-  $(info CARGO                         = $(CARGO))
-  $(info RUSTUP                        = $(RUSTUP))
+  $(info TOCK_CARGO                    = $(TOCK_CARGO))
+  $(info TOCK_RUSTUP                   = $(TOCK_RUSTUP))
   $(info SHA256SUM                     = $(SHA256SUM))
   $(info )
-  $(info cargo --version               = $(shell $(CARGO) --version))
+  $(info cargo --version               = $(shell $(TOCK_CARGO) --version))
   $(info rustc --version               = $(shell rustc --version))
-  $(info rustup --version              = $(shell $(RUSTUP) --version 2>/dev/null))
+  $(info rustup --version              = $(shell $(TOCK_RUSTUP) --version 2>/dev/null))
   $(info *******************************************************)
   $(info )
 endif
@@ -233,12 +233,12 @@ all: release
 # binary. This makes checking for Rust errors much faster.
 .PHONY: check
 check:
-	$(Q)$(CARGO) check $(VERBOSE_FLAGS)
+	$(Q)$(TOCK_CARGO) check $(VERBOSE_FLAGS)
 
 
 .PHONY: clean
 clean::
-	$(Q)$(CARGO) clean $(VERBOSE_FLAGS)
+	$(Q)$(TOCK_CARGO) clean $(VERBOSE_FLAGS)
 
 .PHONY: release
 release:  $(TARGET_PATH)/release/$(PLATFORM).bin
@@ -251,7 +251,7 @@ debug-lst:  $(TARGET_PATH)/debug/$(PLATFORM).lst
 
 .PHONY: doc
 doc:
-	$(Q)$(CARGO) --color=always doc $(VERBOSE_FLAGS) --release --package $(PLATFORM)
+	$(Q)$(TOCK_CARGO) --color=always doc $(VERBOSE_FLAGS) --release --package $(PLATFORM)
 
 
 .PHONY: lst
@@ -272,7 +272,7 @@ stack-analysis: $(TARGET_PATH)/release/$(PLATFORM)
 # Run the `print_tock_memory_usage.py` script for this board.
 .PHONY: memory
 memory: $(TARGET_PATH)/release/$(PLATFORM).elf
-	$(TOCK_ROOT_DIRECTORY)tools/print_tock_memory_usage.py --objdump $(OBJDUMP) -w $(PTMU_ARGS) $<
+	$(TOCK_ROOT_DIRECTORY)tools/print_tock_memory_usage.py --objdump $(OBJDUMP) -w $(TOCK_PTMU_ARGS) $<
 
 # Support rules
 
@@ -282,15 +282,15 @@ memory: $(TARGET_PATH)/release/$(PLATFORM).elf
 
 
 %.bin: %.elf
-	$(Q)$(OBJCOPY) --output-target=binary $(OBJCOPY_FLAGS) $< $@
+	$(Q)$(OBJCOPY) --output-target=binary $(TOCK_OBJCOPY_FLAGS) $< $@
 	$(Q)$(SHA256SUM) $@
 
 %.lst: %.elf
-	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $@
+	$(Q)$(OBJDUMP) $(TOCK_OBJDUMP_FLAGS) $< > $@
 
 
 $(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum:
-	$(Q)$(CARGO) build $(VERBOSE_FLAGS) --manifest-path $(TOCK_ROOT_DIRECTORY)tools/sha256sum/Cargo.toml
+	$(Q)$(TOCK_CARGO) build $(VERBOSE_FLAGS) --manifest-path $(TOCK_ROOT_DIRECTORY)tools/sha256sum/Cargo.toml
 
 
 # Cargo-drivers
@@ -299,10 +299,10 @@ $(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum:
 
 .PHONY: $(TARGET_PATH)/release/$(PLATFORM)
 $(TARGET_PATH)/release/$(PLATFORM):
-	$(Q)$(CARGO) rustc $(VERBOSE_FLAGS) --bin $(PLATFORM) --release
-	$(Q)$(SIZE) $(SIZE_FLAGS) $@
+	$(Q)$(TOCK_CARGO) rustc $(VERBOSE_FLAGS) --bin $(PLATFORM) --release
+	$(Q)$(SIZE) $(TOCK_SIZE_FLAGS) $@
 
 .PHONY: $(TARGET_PATH)/debug/$(PLATFORM)
 $(TARGET_PATH)/debug/$(PLATFORM):
-	$(Q)$(CARGO) build $(VERBOSE_FLAGS) --bin $(PLATFORM)
-	$(Q)$(SIZE) $(SIZE_FLAGS) $@
+	$(Q)$(TOCK_CARGO) build $(VERBOSE_FLAGS) --bin $(PLATFORM)
+	$(Q)$(SIZE) $(TOCK_SIZE_FLAGS) $@
