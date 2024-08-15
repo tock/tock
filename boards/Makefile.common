@@ -142,9 +142,9 @@ endif
 
 # Set variables of the key tools we need to compile a Tock kernel. Need to do
 # this after we handle if we are using the LLVM tools or not.
-SIZE    ?= $(TOOLCHAIN)-size
-OBJCOPY ?= $(TOOLCHAIN)-objcopy
-OBJDUMP ?= $(TOOLCHAIN)-objdump
+SIZE    = $(TOOLCHAIN)-size
+OBJCOPY = $(TOOLCHAIN)-objcopy
+OBJDUMP = $(TOOLCHAIN)-objdump
 
 # Set additional flags to produce binary from .elf.
 #
