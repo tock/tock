@@ -47,7 +47,6 @@ pub struct HcSr04<'a, A: Alarm<'a>> {
     echo: &'a dyn kernel::hil::gpio::InterruptPin<'a>,
     alarm: &'a A,
     start_time: Cell<u64>,
-    end_time: Cell<u64>,
     status: Cell<Status>,
     distance_client: OptionalCell<&'a dyn sensors::DistanceClient>,
 }
@@ -65,7 +64,6 @@ impl<'a, A: Alarm<'a>> HcSr04<'a, A> {
             echo,
             alarm,
             start_time: Cell::new(0),
-            end_time: Cell::new(0),
             status: Cell::new(Status::Idle),
             distance_client: OptionalCell::empty(),
         }
@@ -148,9 +146,9 @@ impl<'a, A: Alarm<'a>> Client for HcSr04<'a, A> {
                 self.start_time.set(time); // Record start time when echo received.
             }
             Status::EchoEnd => {
-                self.end_time.set(time); // Record end time when echo ends.
+                let end_time = time; // Use a local variable for the end time.
                 self.status.set(Status::Idle); // Update status to idle.
-                let duration = self.end_time.get().wrapping_sub(self.start_time.get()) as u32; // Calculate pulse duration.
+                let duration = end_time.wrapping_sub(self.start_time.get()) as u32; // Calculate pulse duration.
                 if duration > self.alarm.ticks_from_ms(MAX_ECHO_DELAY_MS).into_u32() {
                     // If duration exceeds the maximum distance, return an error.
                     if let Some(distance_client) = self.distance_client.get() {
