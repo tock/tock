@@ -38,11 +38,17 @@ struct StateMachine {
 #[repr(C)]
 struct Irq {
     /// Interrupt Enable for irq x
-    enable: ReadWrite<u32, SM_INT::Register>,
+    enable0: ReadWrite<u32, IRQ0_INTS::Register>,
     /// Interrupt Force for irq x
-    force: ReadWrite<u32, SM_INT::Register>,
+    force0: ReadWrite<u32, IRQ0_INTS::Register>,
     /// Interrupt status after masking & forcing for irq x
-    status: ReadOnly<u32, SM_INT::Register>,
+    status0: ReadOnly<u32, IRQ0_INTS::Register>,
+    /// Interrupt Enable for irq x
+    enable1: ReadWrite<u32, IRQ1_INTE::Register>,
+    /// Interrupt Force for irq x
+    force1: ReadWrite<u32, IRQ1_INTE::Register>,
+    /// Interrupt status after masking & forcing for irq x
+    status1: ReadOnly<u32, IRQ1_INTE::Register>,
 }
 
 register_structs! {
@@ -106,9 +112,19 @@ PioRegisters {
         /// State Machines
         (0x0c8 => sm: [StateMachine; NUMBER_STATE_MACHINES]),
         /// Raw Interrupts
-        (0x128 => intr: ReadOnly<u32, SM_INT::Register>),
-        /// Irq 1 and 0 - Interrupt Enable, Force, Status
-        (0x12c => irqx: [Irq; NUMBER_IRQS]),
+        (0x128 => intr: ReadWrite<u32, INTR::Register>),
+        /// Interrupt Enable for irq0
+        (0x12C => irq0_inte: ReadWrite<u32, IRQ0_INTE::Register>),
+        /// Interrupt Force for irq0
+        (0x130 => irq0_intf: ReadWrite<u32, IRQ0_INTF::Register>),
+        /// Interrupt status after masking & forcing for irq0
+        (0x134 => irq0_ints: ReadWrite<u32, IRQ0_INTS::Register>),
+        /// Interrupt Enable for irq1
+        (0x138 => irq1_inte: ReadWrite<u32, IRQ1_INTE::Register>),
+        /// Interrupt Force for irq1
+        (0x13C => irq1_intf: ReadWrite<u32, IRQ1_INTF::Register>),
+        /// Interrupt status after masking & forcing for irq1
+        (0x140 => irq1_ints: ReadWrite<u32, IRQ1_INTS::Register>),
         (0x144 => @END),
     }
 }
@@ -366,7 +382,51 @@ SMx_PINCTRL [
     /// the OUT or MOV data.
     OUT_BASE OFFSET(0) NUMBITS(5) []
 ],
-SM_INT [
+    INTR [
+    SM3 OFFSET(11) NUMBITS(1) [],
+    SM2 OFFSET(10) NUMBITS(1) [],
+    SM1 OFFSET(9) NUMBITS(1) [],
+    SM0 OFFSET(8) NUMBITS(1) [],
+    SM3_TXNFULL OFFSET(7) NUMBITS(1) [],
+    SM2_TXNFULL OFFSET(6) NUMBITS(1) [],
+    SM1_TXNFULL OFFSET(5) NUMBITS(1) [],
+    SM0_TXNFULL OFFSET(4) NUMBITS(1) [],
+    SM3_RXNEMPTY OFFSET(3) NUMBITS(1) [],
+    SM2_RXNEMPTY OFFSET(2) NUMBITS(1) [],
+    SM1_RXNEMPTY OFFSET(1) NUMBITS(1) [],
+    SM0_RXNEMPTY OFFSET(0) NUMBITS(1) []
+],
+
+   IRQ0_INTE [
+    SM3 OFFSET(11) NUMBITS(1) [],
+    SM2 OFFSET(10) NUMBITS(1) [],
+    SM1 OFFSET(9) NUMBITS(1) [],
+    SM0 OFFSET(8) NUMBITS(1) [],
+    SM3_TXNFULL OFFSET(7) NUMBITS(1) [],
+    SM2_TXNFULL OFFSET(6) NUMBITS(1) [],
+    SM1_TXNFULL OFFSET(5) NUMBITS(1) [],
+    SM0_TXNFULL OFFSET(4) NUMBITS(1) [],
+    SM3_RXNEMPTY OFFSET(3) NUMBITS(1) [],
+    SM2_RXNEMPTY OFFSET(2) NUMBITS(1) [],
+    SM1_RXNEMPTY OFFSET(1) NUMBITS(1) [],
+    SM0_RXNEMPTY OFFSET(0) NUMBITS(1) []
+],
+
+IRQ0_INTF [
+    SM3 OFFSET(11) NUMBITS(1) [],
+    SM2 OFFSET(10) NUMBITS(1) [],
+    SM1 OFFSET(9) NUMBITS(1) [],
+    SM0 OFFSET(8) NUMBITS(1) [],
+    SM3_TXNFULL OFFSET(7) NUMBITS(1) [],
+    SM2_TXNFULL OFFSET(6) NUMBITS(1) [],
+    SM1_TXNFULL OFFSET(5) NUMBITS(1) [],
+    SM0_TXNFULL OFFSET(4) NUMBITS(1) [],
+    SM3_RXNEMPTY OFFSET(3) NUMBITS(1) [],
+    SM2_RXNEMPTY OFFSET(2) NUMBITS(1) [],
+    SM1_RXNEMPTY OFFSET(1) NUMBITS(1) [],
+    SM0_RXNEMPTY OFFSET(0) NUMBITS(1) []
+],
+IRQ0_INTS [
     SM3 OFFSET(0) NUMBITS(1) [],
     SM2 OFFSET(0) NUMBITS(1) [],
     SM1 OFFSET(0) NUMBITS(1) [],
@@ -378,6 +438,49 @@ SM_INT [
     SM3_RXNEMPTY OFFSET(0) NUMBITS(1) [],
     SM2_RXNEMPTY OFFSET(0) NUMBITS(1) [],
     SM1_RXNEMPTY OFFSET(0) NUMBITS(1) [],
+    SM0_RXNEMPTY OFFSET(0) NUMBITS(1) []
+],
+    IRQ1_INTE [
+    SM3 OFFSET(11) NUMBITS(1) [],
+    SM2 OFFSET(10) NUMBITS(1) [],
+    SM1 OFFSET(9) NUMBITS(1) [],
+    SM0 OFFSET(8) NUMBITS(1) [],
+    SM3_TXNFULL OFFSET(7) NUMBITS(1) [],
+    SM2_TXNFULL OFFSET(6) NUMBITS(1) [],
+    SM1_TXNFULL OFFSET(5) NUMBITS(1) [],
+    SM0_TXNFULL OFFSET(4) NUMBITS(1) [],
+    SM3_RXNEMPTY OFFSET(3) NUMBITS(1) [],
+    SM2_RXNEMPTY OFFSET(2) NUMBITS(1) [],
+    SM1_RXNEMPTY OFFSET(1) NUMBITS(1) [],
+    SM0_RXNEMPTY OFFSET(0) NUMBITS(1) []
+],
+IRQ1_INTF [
+    SM3 OFFSET(11) NUMBITS(1) [],
+    SM2 OFFSET(10) NUMBITS(1) [],
+    SM1 OFFSET(9) NUMBITS(1) [],
+    SM0 OFFSET(8) NUMBITS(1) [],
+    SM3_TXNFULL OFFSET(7) NUMBITS(1) [],
+    SM2_TXNFULL OFFSET(6) NUMBITS(1) [],
+    SM1_TXNFULL OFFSET(5) NUMBITS(1) [],
+    SM0_TXNFULL OFFSET(4) NUMBITS(1) [],
+    SM3_RXNEMPTY OFFSET(3) NUMBITS(1) [],
+    SM2_RXNEMPTY OFFSET(2) NUMBITS(1) [],
+    SM1_RXNEMPTY OFFSET(1) NUMBITS(1) [],
+    SM0_RXNEMPTY OFFSET(0) NUMBITS(1) []
+],
+IRQ1_INTS [
+
+    SM3 OFFSET(11) NUMBITS(1) [],
+    SM2 OFFSET(10) NUMBITS(1) [],
+    SM1 OFFSET(9) NUMBITS(1) [],
+    SM0 OFFSET(8) NUMBITS(1) [],
+    SM3_TXNFULL OFFSET(7) NUMBITS(1) [],
+    SM2_TXNFULL OFFSET(6) NUMBITS(1) [],
+    SM1_TXNFULL OFFSET(5) NUMBITS(1) [],
+    SM0_TXNFULL OFFSET(4) NUMBITS(1) [],
+    SM3_RXNEMPTY OFFSET(3) NUMBITS(1) [],
+    SM2_RXNEMPTY OFFSET(2) NUMBITS(1) [],
+    SM1_RXNEMPTY OFFSET(1) NUMBITS(1) [],
     SM0_RXNEMPTY OFFSET(0) NUMBITS(1) []
 ]
 ];
@@ -827,7 +930,7 @@ impl Pio {
                 .modify(INSTR_MEMx::INSTR_MEM::CLEAR);
         }
     }
-    pub fn pio_pwm(&self, sm_number:SMNumber){
+    pub fn pio_pwm(&self, sm_number: SMNumber) {
         self.set_side_set(sm_number, 1, false, true);
     }
 }

@@ -181,7 +181,7 @@ impl<'a> Rp2040DefaultPeripherals<'a> {
 impl InterruptService for Rp2040DefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
-            interrupts::PIO0_IRQ_0=> {
+            interrupts::PIO0_IRQ_0 => {
                 // As the PIO HIL doesn't provide any support for interrupts, they are
                 // simply ignored.
                 //
