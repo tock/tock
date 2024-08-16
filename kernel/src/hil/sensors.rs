@@ -244,7 +244,6 @@ pub trait Distance<'a> {
     /// This function might return the following errors:
     /// - `BUSY`: Indicates that the hardware is currently busy.
     /// - `FAIL`: Indicates that there was a failure in communication.
-    /// - `NOSUPPORT`: Indicates that this operation is not supported by the sensor.
     fn read_distance(&self) -> Result<(), ErrorCode>;
 
     /// Get the maximum distance the sensor can measure in mm
