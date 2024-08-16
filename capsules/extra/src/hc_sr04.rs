@@ -75,11 +75,22 @@ impl<'a, A: Alarm<'a>> Distance<'a> for HcSr04<'a, A> {
     fn set_client(&self, distance_client: &'a dyn DistanceClient) {
         self.distance_client.set(distance_client);
     }
+
     /// Start a distance measurement.
     fn read_distance(&self) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
             self.status.set(Status::TriggerPulse);
-            self.trig.set(); // Send the trigger pulse.
+            self.trig.set();
+
+            // Setting the alarm to send the trigger pulse.
+            // According to the HC-SR04 datasheet, a 10 µs pulse should be sufficient
+            // to trigger the measurement. However, in practical tests, using this
+            // 10 µs value led to inaccurate measurements.
+            // We have chosen to use a 1 ms pulse instead because it provides stable
+            // operation and accurate measurements, even though it is slightly longer
+            // than the datasheet recommendation. While this adds a small delay to the
+            // triggering process, it does not significantly affect the overall performance
+            // of the sensor.
             self.alarm
                 .set_alarm(self.alarm.now(), self.alarm.ticks_from_ms(1));
             Ok(())
@@ -87,6 +98,7 @@ impl<'a, A: Alarm<'a>> Distance<'a> for HcSr04<'a, A> {
             Err(ErrorCode::BUSY)
         }
     }
+
     /// Get the maximum distance the sensor can measure in mm
     fn get_maximum_distance(&self) -> u32 {
         // The maximum distance is determined by the maximum pulse width the sensor can detect.
@@ -95,6 +107,7 @@ impl<'a, A: Alarm<'a>> Distance<'a> for HcSr04<'a, A> {
         // Convert this to millimeters.
         4000
     }
+
     /// Get the minimum distance the sensor can measure in mm.
     fn get_minimum_distance(&self) -> u32 {
         // The minimum distance is determined by the minimum pulse width the sensor can detect.

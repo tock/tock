@@ -26,8 +26,8 @@
 //!
 //! * `0`: check whether the driver exists.
 //! * `1`: read the distance.
-//! * `2`: get the minimum distance that the sensor can measure based on the datasheet.
-//! * `3`: get the maximum distance that the sensor can measure based on the datasheet.
+//! * `2`: get the minimum distance that the sensor can measure based on the datasheet, in millimeters.
+//! * `3`: get the maximum distance that the sensor can measure based on the datasheet, in millimeters.
 //!
 //! The possible returns from the `command` system call indicate the following:
 //!
@@ -36,45 +36,30 @@
 //! * `NOMEM`: Insufficient memory available.
 //! * `INVAL`: Invalid address of the buffer or other error.
 //!
+//! The upcall has the following parameters:
+//!
+//! * `0`: Indicates a successful distance measurement, with the second parameter containing the distance, in millimeters.
+//! * Non-zero: Indicates an error, with the first parameter containing the error code, and the second parameter being `0`.
+//!
+//! Components for the HD447880 LCD controller.
+//!
 //! Usage
 //! -----
 //!
 //! You need a device that provides the `hil::sensors::Distance` trait.
 //! Here is an example of how to set up a distance sensor with the HC-SR04.
 //!
-//! ```rust,ignore
-//! # use kernel::static_init;
+//! ```rust
+//! let trig_pin = peripherals.pins.get_pin(RPGpio::GPIO4);
+//! let echo_pin = peripherals.pins.get_pin(RPGpio::GPIO5);
 //!
-//! let trig_pin = peripherals.pins.get_pin();
-//! let echo_pin = peripherals.pins.get_pin();
-//! echo_pin.make_input();
-//! trig_pin.make_output();
+//! let distance_sensor = components::hcsr04::HcSr04Component::new(
+//!     mux_alarm,
+//!     trig_pin,
+//!     echo_pin
+//! ).finalize(components::hcsr04_component_static!());
 //!
-//! let virtual_alarm_hc_sr04 = static_init!(
-//!     VirtualMuxAlarm<'static, RPTimer>,
-//!     VirtualMuxAlarm::new(mux_alarm)
-//! );
-//! virtual_alarm_hc_sr04.setup();
-//!
-//! let hc_sr04 = static_init!(
-//!     hc_sr04::HcSr04<VirtualMuxAlarm<'static, RPTimer>>,
-//!     hc_sr04::HcSr04::new(trig_pin, echo_pin, virtual_alarm_hc_sr04)
-//! );
-//! virtual_alarm_hc_sr04.set_alarm_client(hc_sr04);
-//!
-//! echo_pin.set_client(hc_sr04);
-//!
-//! let distance_sensor = static_init!(
-//!     distance::DistanceSensor<
-//!         'static,
-//!         hc_sr04::HcSr04<'static, VirtualMuxAlarm<'static, RPTimer>>,
-//!     >,
-//!     distance::DistanceSensor::new(
-//!         hc_sr04,
-//!         board_kernel.create_grant(distance::DRIVER_NUM, &memory_allocation_capability)
-//!     )
-//! );
-//! hc_sr04.set_client(distance_sensor);
+//! distance_sensor.set_client(distance_sensor_client);
 //! ```
 
 use core::cell::Cell;
@@ -123,7 +108,11 @@ impl<'a, T: hil::sensors::Distance<'a>> DistanceSensor<'a, T> {
                     self.busy.set(true);
                     match self.driver.read_distance() {
                         Ok(()) => CommandReturn::success(),
-                        Err(e) => CommandReturn::failure(e),
+                        Err(e) => {
+                            self.busy.set(false);
+                            app.subscribed = false;
+                            CommandReturn::failure(e)
+                        }
                     }
                 } else {
                     // Just return success and we will get the upcall when the
@@ -141,18 +130,21 @@ impl<'a, T: hil::sensors::Distance<'a>> hil::sensors::DistanceClient for Distanc
         // another measurement request.
         self.busy.set(false);
 
-        // Return the distance reading to any waiting client.
-        if let Ok(distance_val) = distance_val {
-            for cntr in self.apps.iter() {
-                cntr.enter(|app, upcalls| {
-                    if app.subscribed {
-                        app.subscribed = false;
-                        upcalls
-                            .schedule_upcall(0, (distance_val as usize, 0, 0))
-                            .ok();
+        // Return the distance reading or an error to any waiting client.
+        for cntr in self.apps.iter() {
+            cntr.enter(|app, upcalls| {
+                if app.subscribed {
+                    app.subscribed = false; // Clear the subscribed flag.
+                    match distance_val {
+                        Ok(distance) => {
+                            upcalls.schedule_upcall(0, (0, distance as usize, 0)).ok();
+                        }
+                        Err(e) => {
+                            upcalls.schedule_upcall(0, (e as usize, 0, 0)).ok();
+                        }
                     }
-                });
-            }
+                }
+            });
         }
     }
 }
