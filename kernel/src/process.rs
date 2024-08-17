@@ -687,12 +687,25 @@ pub trait Process {
         min_region_size: usize,
     ) -> Option<mpu::Region>;
 
+    /// Align a region so that the MPU could enforce it
+    /// FIXME: I hate that this is in process, but ProcessStandard seems to be the only thing
+    /// that knows about the type of the MPU. Really, Kernel should be parameterised in the
+    /// Chip, rather than its individual methods, so the type does not get lost.
+    /// b/280426926
+    fn align_mpu_region(&self, base: usize, length: usize) -> (usize, usize);
+
     /// Removes an MPU region from the process that has been previously added
     /// with `add_mpu_region`.
     ///
     /// It is not valid to call this function when the process is inactive (i.e.
     /// the process will not run again).
-    fn remove_mpu_region(&self, region: mpu::Region) -> Result<(), ErrorCode>;
+    fn remove_mpu_region(&self, region: mpu::Region) -> Result<mpu::RemoveRegionResult, ErrorCode>;
+
+    /// Actually revoke regions previously requested with remove_memory_region.
+    ///
+    /// Safety: no grants for this process can be entered/open when this is called. I.e. this
+    /// should never be called downstream from a capsule.
+    unsafe fn revoke_regions(&self) -> Result<(), ErrorCode>;
 
     // grants
 

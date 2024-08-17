@@ -9,8 +9,10 @@ use core::cell::Cell;
 use core::cmp;
 use core::fmt;
 use core::num::NonZeroUsize;
+use kernel::ErrorCode;
 
 use kernel::platform::mpu;
+use kernel::platform::mpu::RemoveRegionResult;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::math;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
@@ -384,6 +386,8 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
 {
     type MpuConfig = CortexMConfig<NUM_REGIONS>;
 
+    const MIN_MPUALIGN: usize = MIN_REGION_SIZE;
+
     fn enable_app_mpu(&self) {
         // Enable the MPU, disable it during HardFault/NMI handlers, and allow
         // privileged code access to all unprotected memory.
@@ -558,22 +562,22 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
         &self,
         region: mpu::Region,
         config: &mut Self::MpuConfig,
-    ) -> Result<(), ()> {
+    ) -> Result<RemoveRegionResult, ErrorCode> {
         let (idx, _r) = config
             .regions
             .iter()
             .enumerate()
             .find(|(_idx, r)| **r == region)
-            .ok_or(())?;
+            .ok_or(ErrorCode::FAIL)?;
 
         if idx <= APP_MEMORY_REGION_MAX_NUM {
-            return Err(());
+            return Err(ErrorCode::INVAL);
         }
 
         config.regions[idx] = CortexMRegion::empty(idx);
         config.is_dirty.set(true);
 
-        Ok(())
+        Ok(RemoveRegionResult::Sync)
     }
 
     // When allocating memory for apps, we use two regions, each a power of two
