@@ -89,6 +89,16 @@
 //!    this use case. It is likely we will have to create new interfaces as new
 //!    use cases are discovered.
 
+#![cfg_attr(
+    target_feature = "xcheri",
+    feature(as_array_of_cells),
+    feature(maybe_uninit_slice),
+    feature(const_convert),
+    feature(is_some_and),
+    feature(strict_provenance),
+    feature(pointer_byte_offsets),
+    feature(nonnull_slice_from_raw_parts)
+)]
 #![warn(unreachable_pub)]
 #![no_std]
 
@@ -105,6 +115,7 @@ pub const KERNEL_MAJOR_VERSION: u16 = 2;
 pub const KERNEL_MINOR_VERSION: u16 = 1;
 
 pub mod capabilities;
+pub mod cheri;
 pub mod collections;
 pub mod component;
 pub mod debug;
@@ -115,6 +126,7 @@ pub mod hil;
 pub mod introspection;
 pub mod ipc;
 pub mod platform;
+pub mod polyfill;
 pub mod process;
 pub mod process_checker;
 pub mod processbuffer;
@@ -124,7 +136,7 @@ pub mod syscall;
 pub mod upcall;
 pub mod utilities;
 
-mod config;
+pub mod config;
 mod kernel;
 mod memop;
 mod process_binary;

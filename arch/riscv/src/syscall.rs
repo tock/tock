@@ -11,7 +11,6 @@ use core::ops::Range;
 use crate::csr::mcause;
 use kernel;
 use kernel::errorcode::ErrorCode;
-use kernel::metaptr::MetaPtr;
 use kernel::syscall::ContextSwitchReason;
 use kernel::utilities::capability_ptr::CapabilityPtr;
 use kernel::utilities::machine_register::MachineRegister;
@@ -22,16 +21,16 @@ use kernel::utilities::machine_register::MachineRegister;
 #[repr(C)]
 pub struct RiscvStoredState {
     /// Store all of the app registers.
-    regs: [MetaPtr; 31],
+    regs: [MachineRegister; 31],
 
     /// This holds the PC value of the app when the exception/syscall/interrupt
     /// occurred. We also use this to set the PC that the app should start
     /// executing at when it is resumed/started.
-    pc: MetaPtr,
+    pc: CapabilityPtr,
 
     /// This holds the default data capability. Switched with the kernel DDC if we trap from an app.
     #[cfg(target_feature = "xcheri")]
-    ddc: MetaPtr,
+    ddc: CapabilityPtr,
 
     /// We need to store the mcause CSR between when the trap occurs and after
     /// we exit the trap handler and resume the context switching code.
@@ -47,7 +46,7 @@ pub struct DdcDisplay<'a> {
     _state: &'a RiscvStoredState,
 }
 
-impl<'a> Display for DdcDisplay<'a> {
+impl Display for DdcDisplay<'_> {
     fn fmt(&self, _f: &mut Formatter<'_>) -> core::fmt::Result {
         #[cfg(target_feature = "xcheri")]
         {
@@ -66,9 +65,9 @@ impl RiscvStoredState {
 
 // Because who would ever need offsetof?
 #[cfg(target_feature = "xcheri")]
-pub const CAUSE_OFFSET: usize = size_of::<MetaPtr>() * 33;
+pub const CAUSE_OFFSET: usize = size_of::<MachineRegister>() * 33;
 #[cfg(not(target_feature = "xcheri"))]
-pub const CAUSE_OFFSET: usize = size_of::<MetaPtr>() * 32;
+pub const CAUSE_OFFSET: usize = size_of::<MachineRegister>() * 32;
 
 // Named offsets into the stored state registers.  These needs to be kept in
 // sync with the register save logic in _start_trap() as well as the register
@@ -184,11 +183,11 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             use kernel::utilities::capability_ptr::CapabilityPtrPermissions::ReadWrite;
             let start = accessible_memory_start as usize;
 
-            state.ddc = MetaPtr::new_with_metadata(
+            state.ddc = CapabilityPtr::new_with_authority(
                 start as *const (),
                 start,
                 (_app_brk as usize) - start,
-                kernel::metaptr::MetaPermissions::ReadWrite,
+                ReadWrite,
             );
         }
 
@@ -229,16 +228,31 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         let (a1slice, r) = r.split_at_mut(R_A2 - R_A1);
         let (a2slice, a3slice) = r.split_at_mut(R_A3 - R_A2);
 
-        // TODO: FIXME AFTER REBASE
-        kernel::utilities::arch_helpers::encode_syscall_return_trd104(
-            &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(
-                return_value,
-            ),
-            &mut a0slice[0],
-            &mut a1slice[0],
-            &mut a2slice[0],
-            &mut a3slice[0],
-        );
+        if (core::mem::size_of::<usize>() == core::mem::size_of::<u32>())
+            && !kernel::config::CONFIG.is_cheri
+        {
+            // On non-CHERI, 32-bit platforms we use trd104 for backwards compatability
+            kernel::utilities::arch_helpers::encode_syscall_return_with_variant::<
+                kernel::utilities::arch_helpers::TRD104SyscallReturnVariant,
+            >(
+                &return_value,
+                &mut a0slice[0],
+                &mut a1slice[0],
+                &mut a2slice[0],
+                &mut a3slice[0],
+            );
+        } else {
+            // Other platforms can use TRD105
+            kernel::utilities::arch_helpers::encode_syscall_return_with_variant::<
+                kernel::utilities::arch_helpers::TRD105SyscallReturnVariant,
+            >(
+                &return_value,
+                &mut a0slice[0],
+                &mut a1slice[0],
+                &mut a2slice[0],
+                &mut a3slice[0],
+            );
+        }
 
         // We do not use process memory, so this cannot fail.
         Ok(())
@@ -256,7 +270,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         state.regs[R_A0] = callback.argument0.into();
         state.regs[R_A1] = callback.argument1.into();
         state.regs[R_A2] = callback.argument2.into();
-        state.regs[R_A3] = callback.argument3.into();
+        state.regs[R_A3] = callback.argument3;
 
         // We also need to set the return address (ra) register so that the new
         // function that the process is running returns to the correct location.
@@ -264,7 +278,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         // process is executing then `state.pc` is invalid/useless, but the
         // application must ignore it anyway since there is nothing logically
         // for it to return to. So this doesn't hurt anything.
-        state.regs[R_RA] = state.pc;
+        state.regs[R_RA] = MachineRegister::from(state.pc);
 
         // Save the PC we expect to execute.
         // On CHERI we are basically forcing a jump, so caller better have the correct bounds.
@@ -639,7 +653,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             // particularly relevant, however we must avoid using t0
             // as that is overwritten prior to being accessed
             // (although stored and later restored) in the assembly
-            CLEN_BYTES = const size_of::<MetaPtr>(),
+            CLEN_BYTES = const size_of::<MachineRegister>(),
             XLEN_BYTES = const size_of::<usize>(),
             CAUSE_OFFSET = const crate::syscall::CAUSE_OFFSET,
             in("a0") kernel::polyfill::core::ptr::from_mut(state),
@@ -669,8 +683,8 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
                         state.pc += 4;
 
                         let syscall = kernel::syscall::Syscall::from_register_arguments(
-                            usize::from(state.regs[R_A4]) as u8,
-                            usize::from(state.regs[R_A0]),
+                            state.regs[R_A4].as_usize() as u8,
+                            state.regs[R_A0].as_usize(),
                             state.regs[R_A1],
                             state.regs[R_A2],
                             state.regs[R_A3],
@@ -689,7 +703,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             }
         };
         let new_stack_pointer = state.regs[R_SP];
-        (ret, Some(new_stack_pointer.as_ptr() as *const u8))
+        (ret, Some(new_stack_pointer.as_capability_ptr().as_ptr()))
     }
 
     unsafe fn print_context(
@@ -720,7 +734,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
              \r\n PC : {:#010X}    {}           \
              \r\n\
              \r\n mcause: {:#010X} (",
-            <MetaPtr as From<usize>>::from(0usize),
+            <MachineRegister as From<usize>>::from(0usize),
             state.regs[15],
             state.regs[0],
             state.regs[16],
@@ -773,11 +787,11 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             write_usize_to_u8_slice(VERSION, out, VERSION_IDX);
             write_usize_to_u8_slice(STORED_STATE_SIZE, out, SIZE_IDX);
             write_usize_to_u8_slice(usize::from_le_bytes(TAG), out, TAG_IDX);
-            write_usize_to_u8_slice(usize::from(state.pc), out, PC_IDX);
+            write_usize_to_u8_slice(state.pc.addr(), out, PC_IDX);
             write_usize_to_u8_slice(state.mcause, out, MCAUSE_IDX);
             write_usize_to_u8_slice(state.mtval, out, MTVAL_IDX);
             for (i, v) in state.regs.iter().enumerate() {
-                write_usize_to_u8_slice(usize::from(*v), out, REGS_IDX + i);
+                write_usize_to_u8_slice(v.as_usize(), out, REGS_IDX + i);
             }
             // +3 for pc, mcause, mtval
             Ok((state.regs.len() + 3 + METADATA_LEN) * USIZE_SZ)

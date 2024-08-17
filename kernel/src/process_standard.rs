@@ -908,6 +908,21 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                 Err(Error::OutOfMemory)
             } else {
                 let old_break = self.app_break.get();
+
+                // On CHERI, we need to zero anything accessible by the app
+                if crate::config::CONFIG.is_cheri {
+                    unsafe {
+                        // Safety: Given that we are about to include this in the application break,
+                        // this cannot also be used by the kernel. It also won't have been previously
+                        // allowed as allow would not allow something past the break.
+                        core::ptr::write_bytes(
+                            old_break as *mut u8,
+                            0,
+                            (new_break as usize) - (old_break as usize),
+                        );
+                    }
+                }
+
                 self.app_break.set(new_break);
                 self.chip.mpu().configure_mpu(config);
 
@@ -2068,6 +2083,9 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         let new_identifier = self.kernel.create_process_identifier();
         self.process_id
             .set(ProcessId::new(self.kernel, new_identifier, old_index));
+
+        // TODO: b/266802576
+        // TODO: none of this has been updated for contigous loading / CHERI / RefCell in grants
 
         // Reset debug information that is per-execution and not per-process.
         self.debug.reset_last_syscall();

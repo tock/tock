@@ -8,7 +8,14 @@ use core::fmt::{Formatter, LowerHex, UpperHex};
 use core::ops::AddAssign;
 use core::ptr::null;
 
+use crate::cheri::{cheri_perms, cptr, CPtrOps};
+use crate::config::{CfgMatch, CONFIG};
+use crate::TIfCfg;
+
 use super::machine_register::MachineRegister;
+
+// The inner type for CapabilityPtr, which it abstracts with a consistent interface
+type InnerType = TIfCfg!(is_cheri, cptr, *const ());
 
 /// A pointer to userspace memory with implied authority.
 ///
@@ -28,7 +35,7 @@ use super::machine_register::MachineRegister;
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[repr(transparent)]
 pub struct CapabilityPtr {
-    ptr: *const (),
+    ptr: InnerType,
 }
 
 /// Permission sets a [`CapabilityPtr`] may grant.
@@ -45,7 +52,9 @@ pub enum CapabilityPtrPermissions {
 impl Default for CapabilityPtr {
     /// Returns a null CapabilityPtr.
     fn default() -> Self {
-        Self { ptr: null() }
+        Self {
+            ptr: InnerType::new(crate::cheri::null(), null()),
+        }
     }
 }
 
@@ -55,10 +64,16 @@ impl From<usize> for CapabilityPtr {
     #[inline]
     fn from(from: usize) -> Self {
         Self {
-            // Ideally this would be core::ptr::without_provenance(from), but
-            // the CHERI toolchain is too old for without_provenance. This is
-            // equivalent.
-            ptr: null::<()>().with_addr(from),
+            ptr: if CONFIG.is_cheri {
+                // On non-cheri this is a useless convervstion
+                #[allow(clippy::useless_conversion)]
+                InnerType::new_true(from.into())
+            } else {
+                // Ideally this would be core::ptr::without_provenance(from), but
+                // the CHERI toolchain is too old for without_provenance. This is
+                // equivalent.
+                InnerType::new_false(null::<()>().with_addr(from))
+            },
         }
     }
 }
@@ -77,14 +92,20 @@ impl From<usize> for MachineRegister {
 impl UpperHex for CapabilityPtr {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        UpperHex::fmt(&self.ptr.addr(), f)
+        match self.ptr.get_match() {
+            CfgMatch::True(cheri_ptr) => UpperHex::fmt(cheri_ptr, f),
+            CfgMatch::False(ptr) => UpperHex::fmt(&ptr.addr(), f),
+        }
     }
 }
 
 impl LowerHex for CapabilityPtr {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        LowerHex::fmt(&self.ptr.addr(), f)
+        match self.ptr.get_match() {
+            CfgMatch::True(cheri_ptr) => LowerHex::fmt(cheri_ptr, f),
+            CfgMatch::False(ptr) => LowerHex::fmt(&ptr.addr(), f),
+        }
     }
 }
 
@@ -93,19 +114,73 @@ impl AddAssign<usize> for CapabilityPtr {
     /// past its bounds, its authority may be invalidated.
     #[inline]
     fn add_assign(&mut self, rhs: usize) {
-        self.ptr = self.ptr.wrapping_byte_add(rhs);
+        self.ptr.map_mut(
+            |cheri_ptr| cheri_ptr.add_assign(rhs),
+            |ptr| *ptr = ptr.wrapping_byte_add(rhs),
+        )
+    }
+}
+
+/// Helper to convert abstract permissions to the bitmap that CHERI uses
+fn cheri_perms_for(perms: CapabilityPtrPermissions) -> usize {
+    match perms {
+        CapabilityPtrPermissions::None => 0,
+        CapabilityPtrPermissions::Read => cheri_perms::DEFAULT_R,
+        CapabilityPtrPermissions::Write => cheri_perms::STORE,
+        CapabilityPtrPermissions::ReadWrite => cheri_perms::DEFAULT_RW,
+        CapabilityPtrPermissions::Execute => cheri_perms::EXECUTE,
     }
 }
 
 impl CapabilityPtr {
     /// Returns the address of this pointer. Does not expose provenance.
     pub fn addr(self) -> usize {
-        self.ptr.addr()
+        self.as_ptr::<()>().addr()
+    }
+
+    /// Checks whether any that metadata that exists would allow this operation.
+    ///
+    /// A [`CapabilityPtr`] constructed with new_with_authority would return true for this method
+    /// if specifying the same length (or shorter) with the same permissions (or fewer).
+    ///
+    /// This is over-approximate as a lack of any such metadata would result in returning true.
+    ///
+    /// This likely does not meet the requirements rust would have to covert to a reference and
+    /// further justification should be present elsewhere if doing so in the kernel.
+    ///
+    /// If this function returns false, then it should likely not be allowed.
+    pub fn is_valid_for_operation(&self, length: usize, perms: CapabilityPtrPermissions) -> bool {
+        match self.ptr.get_match() {
+            CfgMatch::True(cheri_ptr) => {
+                cheri_ptr.is_valid_for_operation(length, cheri_perms_for(perms))
+            }
+            CfgMatch::False(_) => true,
+        }
     }
 
     /// Returns the pointer component of a [`CapabilityPtr`] but without any of the authority.
     pub fn as_ptr<T>(&self) -> *const T {
-        self.ptr.cast()
+        match self.ptr.get_match() {
+            CfgMatch::True(cheri_ptr) => cheri_ptr.as_ptr(),
+            CfgMatch::False(ptr) => *ptr,
+        }
+        .cast()
+    }
+
+    /// Returns the pointer component of a [`CapabilityPtr`] but without any of the authority only
+    /// if valid for an operation of length with perms.
+    ///
+    /// See is_valid_for_operation.
+    pub fn as_ptr_checked<T>(
+        &self,
+        length: usize,
+        perms: CapabilityPtrPermissions,
+    ) -> Result<*const T, ()> {
+        if self.is_valid_for_operation(length, perms) {
+            Ok(self.as_ptr())
+        } else {
+            Err(())
+        }
     }
 
     /// Construct a [`CapabilityPtr`] from a raw pointer, with authority ranging over
@@ -122,17 +197,31 @@ impl CapabilityPtr {
     /// can thus break Tock's isolation model. As semi-trusted kernel code can
     /// name this type and method, it is thus marked as `unsafe`.
     ///
-    // TODO: Once Tock supports hardware that uses the [`CapabilityPtr`]'s
-    // metdata to convey authority, this comment should incorporate the exact
-    // safety conditions of this function.
     #[inline]
     pub unsafe fn new_with_authority(
         ptr: *const (),
-        _base: usize,
-        _length: usize,
-        _perms: CapabilityPtrPermissions,
+        base: usize,
+        length: usize,
+        perms: CapabilityPtrPermissions,
     ) -> Self {
-        Self { ptr }
+        Self {
+            ptr: if CONFIG.is_cheri {
+                let mut result = cptr::default();
+                if perms == CapabilityPtrPermissions::Execute {
+                    result.set_addr_from_pcc_restricted(ptr as usize, base, length);
+                } else {
+                    result.set_addr_from_ddc_restricted(
+                        ptr as usize,
+                        base,
+                        length,
+                        cheri_perms_for(perms),
+                    );
+                }
+                InnerType::new_true(result)
+            } else {
+                InnerType::new_false(ptr)
+            },
+        }
     }
 
     /// If the [`CapabilityPtr`] is null returns `default`, otherwise applies `f` to `self`.
@@ -141,7 +230,7 @@ impl CapabilityPtr {
     where
         F: FnOnce(&Self) -> U,
     {
-        if self.ptr.is_null() {
+        if self.as_ptr::<()>().is_null() {
             default
         } else {
             f(self)
@@ -156,7 +245,7 @@ impl CapabilityPtr {
         D: FnOnce() -> U,
         F: FnOnce(&Self) -> U,
     {
-        if self.ptr.is_null() {
+        if self.as_ptr::<()>().is_null() {
             default()
         } else {
             f(self)

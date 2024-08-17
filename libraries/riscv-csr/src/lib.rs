@@ -5,7 +5,7 @@
 //! RISC-V CSR Library
 //!
 //! Uses the Tock Register Interface to control RISC-V CSRs.
-
+#![cfg_attr(target_feature = "xcheri", feature(asm_const))]
 #![no_std]
 
 pub mod csr;

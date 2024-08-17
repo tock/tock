@@ -7,6 +7,7 @@
 #![no_std]
 #![crate_name = "sifive"]
 #![crate_type = "rlib"]
+#![cfg_attr(target_feature = "xcheri", feature(int_roundings))]
 
 pub mod clint;
 pub mod gpio;
