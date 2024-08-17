@@ -707,8 +707,8 @@ impl<'a> GrantKernelData<'a> {
 #[repr(C)]
 #[derive(Default)]
 struct SavedUpcall {
-    appdata: usize,
-    fn_ptr: Option<NonNull<()>>,
+    appdata: crate::upcall::AppdataType,
+    fn_ptr: crate::upcall::FnPtrType,
 }
 
 /// A minimal representation of a read-only allow from app, used for storing a

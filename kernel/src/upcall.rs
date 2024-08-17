@@ -4,10 +4,9 @@
 
 //! Data structure for storing an upcall from the kernel to a process.
 
-use core::ptr::NonNull;
-
 use crate::config;
 use crate::debug;
+use crate::metaptr::MetaPtr;
 use crate::process;
 use crate::process::ProcessId;
 use crate::syscall::SyscallReturn;
@@ -70,6 +69,11 @@ pub enum UpcallError {
     KernelError,
 }
 
+// FIXME: When we get CHERI compiler support, these can go back to the proper types
+// b/274586199
+pub(crate) type AppdataType = MetaPtr;
+pub(crate) type FnPtrType = MetaPtr;
+
 /// Type for calling an upcall in a process.
 ///
 /// This is essentially a wrapper around a function pointer with associated
@@ -83,7 +87,7 @@ pub(crate) struct Upcall {
     pub(crate) upcall_id: UpcallId,
 
     /// The application data passed by the app when `subscribe()` was called.
-    pub(crate) appdata: usize,
+    pub(crate) appdata: AppdataType,
 
     /// A pointer to the first instruction of the function in the app that
     /// corresponds to this upcall.
@@ -91,15 +95,15 @@ pub(crate) struct Upcall {
     /// If this value is `None`, this is a null upcall, which cannot actually be
     /// scheduled. An `Upcall` can be null when it is first created, or after an
     /// app unsubscribes from an upcall.
-    pub(crate) fn_ptr: Option<NonNull<()>>,
+    pub(crate) fn_ptr: FnPtrType,
 }
 
 impl Upcall {
     pub(crate) fn new(
         process_id: ProcessId,
         upcall_id: UpcallId,
-        appdata: usize,
-        fn_ptr: Option<NonNull<()>>,
+        appdata: AppdataType,
+        fn_ptr: FnPtrType,
     ) -> Upcall {
         Upcall {
             process_id,
@@ -147,7 +151,7 @@ impl Upcall {
                     argument1: r1,
                     argument2: r2,
                     argument3: self.appdata,
-                    pc: fp.as_ptr() as usize,
+                    pc: *fp,
                 }))
             },
         );
@@ -178,7 +182,8 @@ impl Upcall {
                 self.upcall_id.driver_num,
                 self.upcall_id.subscribe_num,
                 self.fn_ptr
-                    .map_or(core::ptr::null_mut::<()>(), |fp| fp.as_ptr()) as usize,
+                    .map_or(core::ptr::null_mut::<()>(), |fp| fp.as_ptr() as *mut ())
+                    as usize,
                 r0,
                 r1,
                 r2,
@@ -198,10 +203,10 @@ impl Upcall {
     /// We provide this `.into` function because the return type needs to
     /// include the function pointer of the upcall.
     pub(crate) fn into_subscribe_success(self) -> SyscallReturn {
-        match self.fn_ptr {
-            Some(fp) => SyscallReturn::SubscribeSuccess(fp.as_ptr(), self.appdata),
-            None => SyscallReturn::SubscribeSuccess(core::ptr::null::<()>(), self.appdata),
-        }
+        self.fn_ptr.map_or(
+            SyscallReturn::SubscribeSuccess(core::ptr::null::<()>(), self.appdata.into()),
+            |fp| SyscallReturn::SubscribeSuccess(fp.as_ptr(), self.appdata.into()),
+        )
     }
 
     /// Create a failure case syscall return type suitable for returning to
@@ -214,9 +219,9 @@ impl Upcall {
     /// We provide this `.into` function because the return type needs to
     /// include the function pointer of the upcall.
     pub(crate) fn into_subscribe_failure(self, err: ErrorCode) -> SyscallReturn {
-        match self.fn_ptr {
-            Some(fp) => SyscallReturn::SubscribeFailure(err, fp.as_ptr(), self.appdata),
-            None => SyscallReturn::SubscribeFailure(err, core::ptr::null::<()>(), self.appdata),
-        }
+        self.fn_ptr.map_or(
+            SyscallReturn::SubscribeFailure(err, core::ptr::null::<()>(), self.appdata.into()),
+            |fp| SyscallReturn::SubscribeFailure(err, fp.as_ptr(), self.appdata.into()),
+        )
     }
 }

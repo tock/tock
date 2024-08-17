@@ -14,6 +14,7 @@ use crate::capabilities;
 use crate::errorcode::ErrorCode;
 use crate::ipc;
 use crate::kernel::Kernel;
+use crate::metaptr::MetaPtr;
 use crate::platform::mpu::{self};
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::storage_permissions;
@@ -539,7 +540,7 @@ pub trait Process {
     ///   process's memory region.
     /// - [`Error::KernelError`] if there was an internal kernel error. This is
     ///   a bug.
-    fn brk(&self, new_break: *const u8) -> Result<*const u8, Error>;
+    fn brk(&self, new_break: *const u8) -> Result<MetaPtr, Error>;
 
     /// Change the location of the program break by `increment` bytes,
     /// reallocate the MPU region covering program memory, and return the
@@ -559,7 +560,7 @@ pub trait Process {
     ///   process's memory region.
     /// - [`Error::KernelError`] if there was an internal kernel error. This is
     ///   a bug.
-    fn sbrk(&self, increment: isize) -> Result<*const u8, Error>;
+    fn sbrk(&self, increment: isize) -> Result<MetaPtr, Error>;
 
     /// How many writeable flash regions defined in the TBF header for this
     /// process.
@@ -574,10 +575,10 @@ pub trait Process {
     ///
     /// ## Returns
     ///
-    /// A tuple containing the a `u32` of the offset from the beginning of the
-    /// process's flash region where the writeable region starts and a `u32` of
+    /// A tuple containing the a `usize` of the offset from the beginning of the
+    /// process's flash region where the writeable region starts and a `usize` of
     /// the size of the region in bytes.
-    fn get_writeable_flash_region(&self, region_index: usize) -> (u32, u32);
+    fn get_writeable_flash_region(&self, region_index: usize) -> (usize, usize);
 
     /// Debug function to update the kernel on where the stack starts for this
     /// process. Processes are not required to call this through the memop
@@ -790,7 +791,7 @@ pub trait Process {
     ///
     /// Returns `true` if the upcall function pointer is valid for this process,
     /// and `false` otherwise.
-    fn is_valid_upcall_function_pointer(&self, upcall_fn: NonNull<()>) -> bool;
+    fn is_valid_upcall_function_pointer(&self, upcall_fn: *const ()) -> bool;
 
     // functions for processes that are architecture specific
 
@@ -1078,9 +1079,9 @@ pub struct FunctionCall {
     /// The third argument to the function.
     pub argument2: usize,
     /// The fourth argument to the function.
-    pub argument3: usize,
+    pub argument3: MetaPtr,
     /// The PC of the function to execute.
-    pub pc: usize,
+    pub pc: MetaPtr,
 }
 
 /// This is similar to `FunctionCall` but for the special case of the Null

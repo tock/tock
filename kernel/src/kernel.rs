@@ -9,7 +9,6 @@
 //! etc.) is defined in the `scheduler` subcrate and selected by a board.
 
 use core::cell::Cell;
-use core::ptr::NonNull;
 
 use crate::capabilities;
 use crate::config;
@@ -877,15 +876,17 @@ impl Kernel {
                             subscribe_num: subdriver_number,
                         };
 
+                        // TODO: when the compiler supports capability types bring this back
+                        // as a NonNull type.
                         // First check if `upcall_ptr` is null. A null
                         // `upcall_ptr` will result in `None` here and
                         // represents the special "unsubscribe" operation.
-                        let ptr = NonNull::new(upcall_ptr);
+                        // let ptr = NonNull::new(upcall_ptr);
 
                         // For convenience create an `Upcall` type now. This is
                         // just a data structure and doesn't do any checking or
                         // conversion.
-                        let upcall = Upcall::new(process.processid(), upcall_id, appdata, ptr);
+                        let upcall = Upcall::new(process.processid(), upcall_id, appdata, upcall_ptr);
 
                         // If `ptr` is not null, we must first verify that the
                         // upcall function pointer is within process accessible
@@ -895,8 +896,8 @@ impl Kernel {
                         // > process executable memory...), the kernel...MUST
                         // > immediately return a failure with a error code of
                         // > `INVALID`.
-                        let rval1 = ptr.and_then(|upcall_ptr_nonnull| {
-                            if !process.is_valid_upcall_function_pointer(upcall_ptr_nonnull) {
+                        let rval1 = upcall_ptr.map_or(None, |upcall_ptr_nonnull| {
+                            if !process.is_valid_upcall_function_pointer(upcall_ptr_nonnull.as_ptr()) {
                                 Some(ErrorCode::INVAL)
                             } else {
                                 None
@@ -1010,7 +1011,7 @@ impl Kernel {
                                 process.processid(),
                                 driver_number,
                                 subdriver_number,
-                                upcall_ptr as usize,
+                                upcall_ptr,
                                 appdata,
                                 rval
                             );

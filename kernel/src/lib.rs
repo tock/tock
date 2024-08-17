@@ -114,6 +114,7 @@ pub mod grant;
 pub mod hil;
 pub mod introspection;
 pub mod ipc;
+pub mod metaptr;
 pub mod platform;
 pub mod process;
 pub mod process_checker;

@@ -52,35 +52,35 @@ pub(crate) fn memop(process: &dyn Process, op_type: usize, r1: usize) -> Syscall
         // Op Type 1: SBRK
         1 => process
             .sbrk(r1 as isize)
-            .map(|addr| SyscallReturn::SuccessU32(addr as u32))
+            .map(|addr| SyscallReturn::SuccessPtr(addr))
             .unwrap_or(SyscallReturn::Failure(ErrorCode::NOMEM)),
 
         // Op Type 2: Process memory start
-        2 => SyscallReturn::SuccessU32(process.get_addresses().sram_start as u32),
+        2 => SyscallReturn::SuccessUSize(process.get_addresses().sram_start),
 
         // Op Type 3: Process memory end
-        3 => SyscallReturn::SuccessU32(process.get_addresses().sram_end as u32),
+        3 => SyscallReturn::SuccessUSize(process.get_addresses().sram_end),
 
         // Op Type 4: Process flash start
-        4 => SyscallReturn::SuccessU32(process.get_addresses().flash_start as u32),
+        4 => SyscallReturn::SuccessUSize(process.get_addresses().flash_start),
 
         // Op Type 5: Process flash end
-        5 => SyscallReturn::SuccessU32(process.get_addresses().flash_end as u32),
+        5 => SyscallReturn::SuccessUSize(process.get_addresses().flash_end),
 
         // Op Type 6: Grant region begin
-        6 => SyscallReturn::SuccessU32(process.get_addresses().sram_grant_start as u32),
+        6 => SyscallReturn::SuccessUSize(process.get_addresses().sram_grant_start),
 
         // Op Type 7: Number of defined writeable regions in the TBF header.
-        7 => SyscallReturn::SuccessU32(process.number_writeable_flash_regions() as u32),
+        7 => SyscallReturn::SuccessUSize(process.number_writeable_flash_regions()),
 
         // Op Type 8: The start address of the writeable region indexed by r1.
         8 => {
-            let flash_start = process.get_addresses().flash_start as u32;
+            let flash_start = process.get_addresses().flash_start;
             let (offset, size) = process.get_writeable_flash_region(r1);
             if size == 0 {
                 SyscallReturn::Failure(ErrorCode::FAIL)
             } else {
-                SyscallReturn::SuccessU32(flash_start + offset)
+                SyscallReturn::SuccessUSize(flash_start + offset)
             }
         }
 
@@ -88,12 +88,12 @@ pub(crate) fn memop(process: &dyn Process, op_type: usize, r1: usize) -> Syscall
         // Returns (void*) -1 on failure, meaning the selected writeable region
         // does not exist.
         9 => {
-            let flash_start = process.get_addresses().flash_start as u32;
+            let flash_start = process.get_addresses().flash_start;
             let (offset, size) = process.get_writeable_flash_region(r1);
             if size == 0 {
                 SyscallReturn::Failure(ErrorCode::FAIL)
             } else {
-                SyscallReturn::SuccessU32(flash_start + offset + size)
+                SyscallReturn::SuccessUSize(flash_start + offset + size)
             }
         }
 
