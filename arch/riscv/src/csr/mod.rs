@@ -5,19 +5,26 @@
 //! Tock Register interface for using CSR registers.
 
 use riscv_csr::csr::{
-    ReadWriteRiscvCsr, MCAUSE, MCYCLE, MCYCLEH, MEPC, MIE, MINSTRET, MINSTRETH, MIP, MSCRATCH,
-    MSECCFG, MSECCFGH, MSTATUS, MTVAL, MTVEC, PMPADDR0, PMPADDR1, PMPADDR10, PMPADDR11, PMPADDR12,
-    PMPADDR13, PMPADDR14, PMPADDR15, PMPADDR16, PMPADDR17, PMPADDR18, PMPADDR19, PMPADDR2,
-    PMPADDR20, PMPADDR21, PMPADDR22, PMPADDR23, PMPADDR24, PMPADDR25, PMPADDR26, PMPADDR27,
-    PMPADDR28, PMPADDR29, PMPADDR3, PMPADDR30, PMPADDR31, PMPADDR32, PMPADDR33, PMPADDR34,
-    PMPADDR35, PMPADDR36, PMPADDR37, PMPADDR38, PMPADDR39, PMPADDR4, PMPADDR40, PMPADDR41,
-    PMPADDR42, PMPADDR43, PMPADDR44, PMPADDR45, PMPADDR46, PMPADDR47, PMPADDR48, PMPADDR49,
-    PMPADDR5, PMPADDR50, PMPADDR51, PMPADDR52, PMPADDR53, PMPADDR54, PMPADDR55, PMPADDR56,
-    PMPADDR57, PMPADDR58, PMPADDR59, PMPADDR6, PMPADDR60, PMPADDR61, PMPADDR62, PMPADDR63,
-    PMPADDR7, PMPADDR8, PMPADDR9, PMPCFG0, PMPCFG1, PMPCFG10, PMPCFG11, PMPCFG12, PMPCFG13,
-    PMPCFG14, PMPCFG15, PMPCFG2, PMPCFG3, PMPCFG4, PMPCFG5, PMPCFG6, PMPCFG7, PMPCFG8, PMPCFG9,
+    ReadWriteRiscvCsr, HMPCOUNTER_BASE, MCAUSE, MCYCLE, MEPC, MIE, MINSTRET, MIP, MSCRATCH,
+    MSECCFG, MSTATUS, MTVAL, MTVEC, PMPADDR0, PMPADDR1, PMPADDR10, PMPADDR11, PMPADDR12, PMPADDR13,
+    PMPADDR14, PMPADDR15, PMPADDR16, PMPADDR17, PMPADDR18, PMPADDR19, PMPADDR2, PMPADDR20,
+    PMPADDR21, PMPADDR22, PMPADDR23, PMPADDR24, PMPADDR25, PMPADDR26, PMPADDR27, PMPADDR28,
+    PMPADDR29, PMPADDR3, PMPADDR30, PMPADDR31, PMPADDR32, PMPADDR33, PMPADDR34, PMPADDR35,
+    PMPADDR36, PMPADDR37, PMPADDR38, PMPADDR39, PMPADDR4, PMPADDR40, PMPADDR41, PMPADDR42,
+    PMPADDR43, PMPADDR44, PMPADDR45, PMPADDR46, PMPADDR47, PMPADDR48, PMPADDR49, PMPADDR5,
+    PMPADDR50, PMPADDR51, PMPADDR52, PMPADDR53, PMPADDR54, PMPADDR55, PMPADDR56, PMPADDR57,
+    PMPADDR58, PMPADDR59, PMPADDR6, PMPADDR60, PMPADDR61, PMPADDR62, PMPADDR63, PMPADDR7, PMPADDR8,
+    PMPADDR9, PMPCFG0, PMPCFG10, PMPCFG12, PMPCFG14, PMPCFG2, PMPCFG4, PMPCFG6, PMPCFG8, SATP,
     STVEC, UTVEC,
 };
+
+#[cfg(any(target_arch = "riscv32", not(target_os = "none")))]
+use riscv_csr::csr::{
+    MCYCLEH, MINSTRETH, MSECCFGH, PMPCFG1, PMPCFG11, PMPCFG13, PMPCFG15, PMPCFG3, PMPCFG5, PMPCFG7,
+    PMPCFG9,
+};
+
+use core::mem;
 use tock_registers::fields::FieldValue;
 use tock_registers::interfaces::{ReadWriteable, Readable, Writeable};
 
@@ -34,6 +41,7 @@ pub mod mtval;
 pub mod mtvec;
 pub mod pmpaddr;
 pub mod pmpconfig;
+pub mod satp;
 pub mod stvec;
 pub mod utvec;
 
@@ -51,7 +59,6 @@ pub struct CSR {
     pub mcycleh: ReadWriteRiscvCsr<usize, mcycle::mcycleh::Register, MCYCLEH>,
     pub mcycle: ReadWriteRiscvCsr<usize, mcycle::mcycle::Register, MCYCLE>,
 
-    #[cfg(not(target_arch = "riscv64"))]
     pub pmpcfg0: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG0>,
     #[cfg(not(target_arch = "riscv64"))]
     pub pmpcfg1: ReadWriteRiscvCsr<usize, pmpconfig::pmpcfg::Register, PMPCFG1>,
@@ -142,6 +149,20 @@ pub struct CSR {
     pub pmpaddr62: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR62>,
     pub pmpaddr63: ReadWriteRiscvCsr<usize, pmpaddr::pmpaddr::Register, PMPADDR63>,
 
+    pub hpmcounter3: ReadWriteRiscvCsr<usize, (), { HMPCOUNTER_BASE + 3 }>,
+    pub hpmcounter4: ReadWriteRiscvCsr<usize, (), { HMPCOUNTER_BASE + 4 }>,
+    pub hpmcounter5: ReadWriteRiscvCsr<usize, (), { HMPCOUNTER_BASE + 5 }>,
+    pub hpmcounter6: ReadWriteRiscvCsr<usize, (), { HMPCOUNTER_BASE + 6 }>,
+    pub hpmcounter7: ReadWriteRiscvCsr<usize, (), { HMPCOUNTER_BASE + 7 }>,
+    pub hpmcounter8: ReadWriteRiscvCsr<usize, (), { HMPCOUNTER_BASE + 8 }>,
+    pub hpmcounter9: ReadWriteRiscvCsr<usize, (), { HMPCOUNTER_BASE + 9 }>,
+    pub hpmcounter10: ReadWriteRiscvCsr<usize, (), { HMPCOUNTER_BASE + 10 }>,
+    pub hpmcounter11: ReadWriteRiscvCsr<usize, (), { HMPCOUNTER_BASE + 11 }>,
+    pub hpmcounter12: ReadWriteRiscvCsr<usize, (), { HMPCOUNTER_BASE + 12 }>,
+    pub hpmcounter13: ReadWriteRiscvCsr<usize, (), { HMPCOUNTER_BASE + 13 }>,
+    pub hpmcounter14: ReadWriteRiscvCsr<usize, (), { HMPCOUNTER_BASE + 14 }>,
+    pub hpmcounter15: ReadWriteRiscvCsr<usize, (), { HMPCOUNTER_BASE + 15 }>,
+
     pub mie: ReadWriteRiscvCsr<usize, mie::mie::Register, MIE>,
     pub mscratch: ReadWriteRiscvCsr<usize, mscratch::mscratch::Register, MSCRATCH>,
     pub mepc: ReadWriteRiscvCsr<usize, mepc::mepc::Register, MEPC>,
@@ -157,6 +178,8 @@ pub struct CSR {
 
     pub utvec: ReadWriteRiscvCsr<usize, utvec::utvec::Register, UTVEC>,
     pub stvec: ReadWriteRiscvCsr<usize, stvec::stvec::Register, STVEC>,
+
+    pub satp: ReadWriteRiscvCsr<usize, satp::satp::Register, SATP>,
 }
 
 // Define the "addresses" of each CSR register.
@@ -259,6 +282,20 @@ pub const CSR: &CSR = &CSR {
     pmpaddr62: ReadWriteRiscvCsr::new(),
     pmpaddr63: ReadWriteRiscvCsr::new(),
 
+    hpmcounter3: ReadWriteRiscvCsr::new(),
+    hpmcounter4: ReadWriteRiscvCsr::new(),
+    hpmcounter5: ReadWriteRiscvCsr::new(),
+    hpmcounter6: ReadWriteRiscvCsr::new(),
+    hpmcounter7: ReadWriteRiscvCsr::new(),
+    hpmcounter8: ReadWriteRiscvCsr::new(),
+    hpmcounter9: ReadWriteRiscvCsr::new(),
+    hpmcounter10: ReadWriteRiscvCsr::new(),
+    hpmcounter11: ReadWriteRiscvCsr::new(),
+    hpmcounter12: ReadWriteRiscvCsr::new(),
+    hpmcounter13: ReadWriteRiscvCsr::new(),
+    hpmcounter14: ReadWriteRiscvCsr::new(),
+    hpmcounter15: ReadWriteRiscvCsr::new(),
+
     mie: ReadWriteRiscvCsr::new(),
     mscratch: ReadWriteRiscvCsr::new(),
     mepc: ReadWriteRiscvCsr::new(),
@@ -274,6 +311,8 @@ pub const CSR: &CSR = &CSR {
 
     utvec: ReadWriteRiscvCsr::new(),
     stvec: ReadWriteRiscvCsr::new(),
+
+    satp: ReadWriteRiscvCsr::new(),
 };
 
 impl CSR {
@@ -313,7 +352,7 @@ impl CSR {
     // reads the cycle counter
     #[cfg(target_arch = "riscv64")]
     pub fn read_cycle_counter(&self) -> u64 {
-        CSR.mcycle.read(mcycle::mcycle::mcycle)
+        CSR.mcycle.read(mcycle::mcycle::mcycle) as u64
     }
 
     pub fn pmpconfig_get(&self, index: usize) -> usize {
@@ -548,5 +587,27 @@ impl CSR {
             63 => self.pmpaddr63.get(),
             _ => unreachable!(),
         }
+    }
+
+    /// Index is horribly confusing here because somebody thought that having multiple registers
+    /// with the name pmpcfgX with fields called pmpYcfg was a perfectly sensible idea.
+    /// This converts the 'Y' index above to the relevant 'X' index.
+    pub fn pmp_index_to_cfg_index(index: usize) -> usize {
+        // On RV32, there are 4 per register
+        #[cfg(target_arch = "riscv32")]
+        {
+            index / 4
+        }
+
+        // On RV64 there are 8 per register, but only every other exists
+        #[cfg(any(target_arch = "riscv64", not(target_os = "none")))]
+        {
+            (index / 4) & !1usize
+        }
+    }
+
+    /// And this one gives the sub-index within the pmpcfgX register for a Y in pmpYcfg.
+    pub fn pmp_index_to_cfg_sub_index(index: usize) -> usize {
+        index % mem::size_of::<usize>()
     }
 }

@@ -13,6 +13,8 @@ kernel = { path = "../../kernel" }
 tock-registers = { path = "../../libraries/tock-register-interface" }
 riscv-csr = { path = "../../libraries/riscv-csr" }
 
+[features]
+page_align_pmp = []
 
 [lints]
 workspace = true

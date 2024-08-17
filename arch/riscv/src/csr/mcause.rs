@@ -50,7 +50,7 @@ pub enum Interrupt {
 }
 
 /// Exception
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Exception {
     InstructionMisaligned,
     InstructionFault,
