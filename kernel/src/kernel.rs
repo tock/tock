@@ -27,6 +27,7 @@ use crate::platform::platform::{ProcessFault, SyscallDriverLookup, SyscallFilter
 use crate::platform::scheduler_timer::SchedulerTimer;
 use crate::platform::watchdog::WatchDog;
 use crate::process::{self, ProcessId, Task};
+use crate::process_loading::ProcessLoadError;
 use crate::scheduler::{Scheduler, SchedulingDecision};
 use crate::syscall::SyscallDriver;
 use crate::syscall::{ContextSwitchReason, SyscallReturn};
@@ -43,7 +44,10 @@ pub(crate) const MIN_QUANTA_THRESHOLD_US: u32 = 500;
 /// Main object for the kernel. Each board will need to create one.
 pub struct Kernel {
     /// This holds a pointer to the static array of Process pointers.
-    processes: &'static [Option<&'static dyn process::Process>],
+    processes: &'static [ProcEntry],
+
+    /// Hom many slots are allocated in the processes array
+    processes_allocated: Cell<usize>,
 
     /// A counter which keeps track of how many process identifiers have been
     /// created. This is used to create new unique identifiers for processes.
@@ -60,6 +64,23 @@ pub struct Kernel {
     /// established.
     grants_finalized: Cell<bool>,
 }
+
+/// Holds both the process ID in a location that can outlive a process, and an optional reference to
+/// that process. Valid_proc_id needs to outlive the proc_ref to not make dangling pointers to
+/// grants. The usize is set to ~0 to indicate accessing process memory no longer valid, even if the
+/// optional is still SOME.
+#[derive(Clone)]
+pub struct ProcEntry {
+    pub valid_proc_id: Cell<usize>,
+    pub proc_ref: Cell<Option<&'static dyn process::Process>>,
+}
+
+pub(crate) const ID_INVALID: usize = !0usize;
+
+/// The type each board should allocate to hold processes. Boards should use this type, and use
+/// init_process_array to create an array so they don't need to pay too much attention to what this
+/// type actually is.
+pub type ProcessArray<const NUM_PROCS: usize> = [ProcEntry; NUM_PROCS];
 
 /// Represents the different outcomes when trying to allocate a grant region
 enum AllocResult {
@@ -87,12 +108,120 @@ impl Kernel {
     /// Crucially, the processes included in the `processes` array MUST be valid
     /// to execute. Any credential checks or validation MUST happen before the
     /// `Process` object is included in this array.
-    pub fn new(processes: &'static [Option<&'static dyn process::Process>]) -> Kernel {
+    pub const fn new(processes: &'static [ProcEntry]) -> Kernel {
         Kernel {
             processes,
             process_identifier_max: Cell::new(0),
-            grant_counter: Cell::new(0),
-            grants_finalized: Cell::new(false),
+            grant_counter: StaticInit::new(0),
+        }
+    }
+
+    /// Create an empty array of processes required to construct a new kernel type
+    pub const fn init_process_array<const NUM_PROCS: usize>() -> ProcessArray<NUM_PROCS> {
+        const INVALID_ENTRY: ProcEntry = ProcEntry {
+            valid_proc_id: Cell::new(ID_INVALID),
+            proc_ref: Cell::new(None),
+        };
+        [INVALID_ENTRY; NUM_PROCS]
+    }
+
+    pub(crate) fn get_next_free_proc_entry(&self) -> Result<usize, ProcessLoadError> {
+        let n = self.processes_allocated.get();
+        if n != self.processes.len() {
+            Ok(n)
+        } else {
+            Err(ProcessLoadError::NotEnoughMemory)
+        }
+    }
+
+    pub(crate) fn set_next_proc_entry_used(
+        &'static self,
+        proc: &'static dyn process::Process,
+    ) -> Result<ProcessId, ProcessLoadError> {
+        let index = self.processes_allocated.get();
+
+        let slot = self
+            .processes
+            .get(index)
+            .ok_or(ProcessLoadError::NotEnoughMemory)?;
+
+        let id = self.create_process_identifier();
+
+        // Set ref
+        slot.proc_ref.set(Some(proc));
+
+        // Set valid id for PRef
+        slot.valid_proc_id.set(proc.processid().id());
+
+        // Save the reference to this process in the processes array.
+
+        self.processes_allocated
+            .set(self.processes_allocated.get() + 1);
+
+        Ok(ProcessId::new(self, id, index))
+    }
+
+    pub(crate) fn index_of_proc_entry(&self, entry: &ProcEntry) -> usize {
+        unsafe {
+            (entry as *const ProcEntry).offset_from(&self.processes[0] as *const ProcEntry) as usize
+        }
+    }
+
+    /// Helper to get an iterator over just the & dyn Process part of the process array
+    /// This will also return the invalid entries.
+    /// Use get_process_iter to get only the valid entries
+    fn proc_iter(&self) -> impl Iterator<Item = &Cell<Option<&'static dyn process::Process>>> {
+        self.processes.iter().map(|entry| &entry.proc_ref)
+    }
+
+    /// Look up a process id from the the usize identifier, with an optional index as to what
+    /// its index is. Returns None if the ID does not exist, or the hint was wrong.
+    pub(crate) fn lookup_process_id(
+        &'static self,
+        id: usize,
+        index_hint: Option<usize>,
+    ) -> Option<ProcessId> {
+        // Check for the special value which is not really a valid process ID
+        if id == ID_INVALID {
+            return None;
+        }
+        match index_hint {
+            Some(ndx) => {
+                let result = ProcessId::new(self, id, ndx);
+                match result.index() {
+                    None => None,
+                    Some(_) => Some(result),
+                }
+            }
+            None => {
+                for entry in self.processes.iter() {
+                    if entry.valid_proc_id.get() == id {
+                        if let Some(proc) = entry.proc_ref.get() {
+                            return Some(proc.processid());
+                        }
+                    }
+                }
+                None
+            }
+        }
+    }
+
+    /// Returns a reference to the process entry, if valid. This is only for grants to have a faster
+    /// path. Other users should use get_process.
+    pub(crate) fn get_process_entry(&self, processid: ProcessId) -> Option<&ProcEntry> {
+        let id = processid.id();
+        let entry = self.processes.get(processid.index)?;
+        if entry.valid_proc_id.get() == id {
+            Some(entry)
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn get_live_tracker_for(&self, processid: ProcessId) -> PLiveTracker {
+        match self.processes.get(processid.index) {
+            None => PLiveTracker::global_dead(),
+            Some(entry) => PLiveTracker::new_with_id(entry, processid.id()),
         }
     }
 
@@ -103,16 +232,14 @@ impl Kernel {
         // However, we are not guaranteed that the app still exists at that
         // index in the processes array. To avoid additional overhead, we do the
         // lookup and check here, rather than calling `.index()`.
+        let check_id = processid.id();
         match self.processes.get(processid.index) {
-            Some(Some(process)) => {
-                // Check that the process stored here matches the identifier
-                // in the `processid`.
-                if process.processid() == processid {
-                    Some(*process)
-                } else {
-                    None
-                }
-            }
+            // Check that the process stored here matches the identifier
+            // in the `appid`.
+            Some(ProcEntry {
+                valid_proc_id: id,
+                proc_ref: proc,
+            }) if id.get() == check_id => proc.get(),
             _ => None,
         }
     }
@@ -173,29 +300,37 @@ impl Kernel {
     where
         F: FnMut(&dyn process::Process),
     {
-        for process in self.processes.iter() {
-            match process {
+        for process in self.proc_iter() {
+            match process.get() {
                 Some(p) => {
-                    closure(*p);
+                    closure(p);
                 }
                 None => {}
             }
         }
     }
 
+    pub(crate) fn get_proc_entry_iter(&self) -> impl Iterator<Item = &'static ProcEntry> {
+        fn filter(item: &'static ProcEntry) -> Option<&'static ProcEntry> {
+            if item.valid_proc_id.get() != ID_INVALID {
+                Some(item)
+            } else {
+                None
+            }
+        }
+        self.processes.iter().filter_map(filter)
+    }
+
     /// Returns an iterator over all processes loaded by the kernel.
     pub(crate) fn get_process_iter(
         &self,
-    ) -> core::iter::FilterMap<
-        core::slice::Iter<Option<&dyn process::Process>>,
-        fn(&Option<&'static dyn process::Process>) -> Option<&'static dyn process::Process>,
-    > {
+    ) -> impl Iterator<Item = &'static dyn process::Process> + '_ {
         fn keep_some(
-            &x: &Option<&'static dyn process::Process>,
+            x: &Cell<Option<&'static dyn process::Process>>,
         ) -> Option<&'static dyn process::Process> {
-            x
+            x.get()
         }
-        self.processes.iter().filter_map(keep_some)
+        self.proc_iter().filter_map(keep_some)
     }
 
     /// Run a closure on every valid process. This will iterate the array of
@@ -211,27 +346,20 @@ impl Kernel {
     ) where
         F: FnMut(&dyn process::Process),
     {
-        for process in self.processes.iter() {
-            match process {
-                Some(p) => {
-                    closure(*p);
-                }
-                None => {}
-            }
-        }
+        self.process_each(closure)
     }
 
     /// Run a closure on every process, but only continue if the closure returns
     /// `None`. That is, if the closure returns any non-`None` value, iteration
     /// stops and the value is returned from this function to the called.
-    pub(crate) fn process_until<T, F>(&self, closure: F) -> Option<T>
+    pub(crate) fn process_until<T, F>(&self, mut closure: F) -> Option<T>
     where
-        F: Fn(&dyn process::Process) -> Option<T>,
+        F: FnMut(&dyn process::Process) -> Option<T>,
     {
-        for process in self.processes.iter() {
-            match process {
+        for process in self.proc_iter() {
+            match process.get() {
                 Some(p) => {
-                    let ret = closure(*p);
+                    let ret = closure(p);
                     if ret.is_some() {
                         return ret;
                     }
@@ -251,7 +379,7 @@ impl Kernel {
     pub(crate) fn processid_is_valid(&self, processid: &ProcessId) -> bool {
         self.processes
             .get(processid.index)
-            .is_some_and(|p| p.is_some_and(|process| process.processid().id() == processid.id()))
+            .is_some_and(|p| p.valid_proc_id.get() == processid.id())
     }
 
     /// Create a new grant. This is used in board initialization to setup grants
@@ -334,8 +462,8 @@ impl Kernel {
     /// function, since capsules should not be able to arbitrarily restart all
     /// apps.
     pub fn hardfault_all_apps<C: capabilities::ProcessManagementCapability>(&self, _c: &C) {
-        for p in self.processes.iter() {
-            p.map(|process| {
+        for p in self.proc_iter() {
+            p.get().map(|process| {
                 process.set_fault_state();
             });
         }

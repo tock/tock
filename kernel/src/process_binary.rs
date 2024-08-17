@@ -10,6 +10,7 @@
 use core::fmt;
 
 use crate::config;
+use crate::config::CONFIG;
 use crate::debug;
 use crate::process_checker::AcceptedCredential;
 use crate::utilities::cells::OptionalCell;

@@ -33,8 +33,7 @@ use kernel::{create_capability, static_init};
 const NUM_PROCS: usize = 4;
 
 /// Actual process memory
-static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
-    [None; NUM_PROCS];
+static mut PROCESSES: kernel::ProcessArray<NUM_PROCS> = kernel::Kernel::init_process_array();
 
 /// What should we do if a process faults?
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
@@ -350,7 +349,6 @@ unsafe fn start() -> (&'static kernel::Kernel, Teensy40, &'static Chip) {
             core::ptr::addr_of_mut!(_sappmem),
             core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_management_capability,
     )
