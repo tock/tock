@@ -17,6 +17,10 @@ use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
+/// Smallest allowable MPU region across all CortexM cores
+/// Individual cores may have bigger min sizes, but never lower than 32
+const CORTEXM_MIN_REGION_SIZE: usize = 32;
+
 /// MPU Registers for the Cortex-M3, Cortex-M4 and Cortex-M7 families
 /// Described in section 4.5 of
 /// <http://infocenter.arm.com/help/topic/com.arm.doc.dui0553a/DUI0553A_cortex_m4_dgug.pdf>
@@ -276,7 +280,9 @@ impl CortexMRegion {
         subregions: Option<(usize, usize)>,
         permissions: mpu::Permissions,
     ) -> Option<CortexMRegion> {
-        if logical_size < 8 || region_size == 0 {
+        // Logical size must be above minimum size for cortexM MPU regions and
+        // and less than the size of the underlying physical region
+        if logical_size < CORTEXM_MIN_REGION_SIZE || region_size < logical_size {
             return None;
         }
 
