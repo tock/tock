@@ -40,7 +40,7 @@ jobs:
       - name: Launch Treadmill CI Jobs
         id: treadmill-job-launch
         run: |
-          echo 'treadmill-job-ids=["foo", "bar"]' >> "$GITHUB_OUTPUT"
+          echo 'treadmill-job-ids=["cc627a0b-8c8d-4edc-8394-5bdeedcee60c", "e80dfe6c-1a13-4653-a3b2-e01aafdb990d"]' >> "$GITHUB_OUTPUT"
 
   test-execute:
     needs: test-strategy
@@ -49,8 +49,7 @@ jobs:
       matrix:
         treadmill-job-id: ${{ fromJSON(needs.test-strategy.outputs.treadmill-job-ids) }}
 
-    # runs-on: ${{ matrix.treadmill-job-id }}
-    runs-on: ubuntu-latest
+    runs-on: tml-ghactions-runner-${{ matrix.treadmill-job-id }}
 
     steps:
       - name: Print Treadmill Job Id
