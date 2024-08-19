@@ -1,0 +1,57 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2023.
+
+# This workflow contains all Treadmill-based hardware CI jobs.
+
+name: treadmill-ci
+env:
+  TERM: xterm # Makes tput work in actions output
+
+# Controls when the action will run. Triggers the workflow on push or pull request
+# events but only for the master branch
+on:
+  push: # Run CI for all branches except GitHub merge queue tmp branches
+    branches-ignore:
+    - "gh-readonly-queue/**"
+  pull_request: # Run CI for PRs on any branch
+  merge_group: # Run CI for the GitHub merge queue
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+# If you add additional jobs, remember to add them to bors.toml
+permissions:
+  contents: read
+
+jobs:
+  test-strategy:
+    runs-on: ubuntu-latest
+
+    outputs:
+      treadmill-job-ids: ${{ steps.treadmill-job-launch.outputs.treadmill-job-ids }}
+
+    steps:
+      - name: Checkout the revision to analyze
+        uses: actions/checkout@v3
+
+      - name: Analyze changes and determine types of tests to run
+        run: |
+          echo "Hello World"
+
+      - name: Launch Treadmill CI Jobs
+        id: treadmill-job-launch
+        run: |
+          echo "treadmill-job-ids=abc" >> "$GITHUB_OUTPUT"
+
+  test-execute:
+    needs: test-strategy
+
+    strategy:
+      matrix:
+        treadmill-job-id: [abc, def]
+
+    runs-on: ${{ matrix.treadmill-job-id }}
+
+    steps:
+      - name: Print Treadmill Job Id
+        run: |
+          echo ${{ matrix.treadmill-job-id }}
