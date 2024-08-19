@@ -50,6 +50,7 @@ jobs:
         treadmill-job-id: [abc, def]
 
     # runs-on: ${{ matrix.treadmill-job-id }}
+    runs-on: ubuntu-latest
 
     steps:
       - name: Print Treadmill Job Id
