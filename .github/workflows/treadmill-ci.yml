@@ -49,7 +49,7 @@ jobs:
       matrix:
         treadmill-job-id: [abc, def]
 
-    runs-on: ${{ matrix.treadmill-job-id }}
+    # runs-on: ${{ matrix.treadmill-job-id }}
 
     steps:
       - name: Print Treadmill Job Id
