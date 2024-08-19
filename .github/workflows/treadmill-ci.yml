@@ -40,14 +40,14 @@ jobs:
       - name: Launch Treadmill CI Jobs
         id: treadmill-job-launch
         run: |
-          echo "treadmill-job-ids=abc" >> "$GITHUB_OUTPUT"
+          echo 'treadmill-job-ids=["foo", "bar"]' >> "$GITHUB_OUTPUT"
 
   test-execute:
     needs: test-strategy
 
     strategy:
       matrix:
-        treadmill-job-id: [abc, def]
+        treadmill-job-id: ${{ fromJSON(needs.test-strategy.outputs.treadmill-job-ids) }}
 
     # runs-on: ${{ matrix.treadmill-job-id }}
     runs-on: ubuntu-latest
