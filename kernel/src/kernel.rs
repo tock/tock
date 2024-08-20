@@ -71,7 +71,6 @@ enum AllocResult {
 
 /// Tries to allocate the grant region for specified driver and process.
 /// Returns if a new grant was allocated or not
-#[flux::ignore]
 fn try_allocate_grant(driver: &dyn SyscallDriver, process: &dyn process::Process) -> AllocResult {
     let before_count = process.grant_allocated_count().unwrap_or(0);
     match driver.allocate_grant(process.processid()).is_ok() {
@@ -189,7 +188,7 @@ impl Kernel {
     }
 
     /// Returns an iterator over all processes loaded by the kernel.
-    #[flux::ignore]
+    #[flux::ignore] // Refinement of unsupported associated function / unsupported type
     pub(crate) fn get_process_iter(
         &self,
     ) -> core::iter::FilterMap<
@@ -230,7 +229,7 @@ impl Kernel {
     /// Run a closure on every process, but only continue if the closure returns
     /// `None`. That is, if the closure returns any non-`None` value, iteration
     /// stops and the value is returned from this function to the called.
-    #[flux::ignore]
+    #[flux::trusted]
     pub(crate) fn process_until<T, F>(&self, closure: F) -> Option<T>
     where
         F: Fn(&dyn process::Process) -> Option<T>,
@@ -741,7 +740,7 @@ impl Kernel {
     /// driver system calls to peripheral driver capsules through the platforms
     /// `with_driver` method.
     #[inline]
-    #[flux::ignore]
+    #[flux::trusted]
     fn handle_syscall<KR: KernelResources<C>, C: Chip>(
         &self,
         resources: &KR,

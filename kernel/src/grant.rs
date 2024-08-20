@@ -270,7 +270,7 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
     /// `EnteredGrantKernelManagedLayout` for the given `base_ptr` at the same
     /// time, otherwise multiple mutable references to the same upcall/allow
     /// slices could be created.
-    #[flux::trusted]
+    #[flux::trusted] // Unsupported statement (Const Index?)
     unsafe fn read_from_base(
         base_ptr: NonNull<u8>,
         process: &'a dyn Process,
@@ -346,7 +346,7 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
     /// Returns the entire grant size including the kernel owned memory,
     /// padding, and data for T. Requires that grant_t_align be a power of 2,
     /// which is guaranteed from align_of rust calls.
-    #[flux::trusted]
+    #[flux::trusted] // Arithmetic
     fn grant_size(
         upcalls_num: UpcallItems,
         allow_ro_num: AllowRoItems,
@@ -1204,7 +1204,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
     /// Note, a grant can only be entered once at a time. Attempting to call
     /// `.enter()` on a grant while it is already entered will result in a
     /// `panic!()`. See the comment in `access_grant()` for more information.
-    #[flux::trusted]
+    #[flux::trusted] // ICE: check_oblig_fn_trait_pred
     pub fn enter<F, R>(self, fun: F) -> R
     where
         F: FnOnce(&mut GrantData<T>, &GrantKernelData) -> R,
@@ -1270,7 +1270,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
     ///
     /// Returns `None` if the grant is already entered. Otherwise returns
     /// `Some(fun())`.
-    #[flux::trusted]
+    #[flux::trusted] // check_oblig_fn_trait_pred
     pub fn try_enter<F, R>(self, fun: F) -> Option<R>
     where
         F: FnOnce(&mut GrantData<T>, &GrantKernelData) -> R,
@@ -1289,7 +1289,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
     /// Note, a grant can only be entered once at a time. Attempting to call
     /// `.enter()` on a grant while it is already entered will result in a
     /// panic!()`. See the comment in `access_grant()` for more information.
-    #[flux::trusted]
+    #[flux::trusted] // check_oblig_fn_trait_pred
     pub fn enter_with_allocator<F, R>(self, fun: F) -> R
     where
         F: FnOnce(&mut GrantData<T>, &GrantKernelData, &mut GrantRegionAllocator) -> R,
@@ -1308,7 +1308,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
     /// If `panic_on_reenter` is `true`, this will panic if the grant region is
     /// already currently entered. If `panic_on_reenter` is `false`, this will
     /// return `None` if the grant region is entered and do nothing.
-    #[flux::trusted]
+    #[flux::trusted] // ICE: incompatible types
     fn access_grant<F, R>(self, fun: F, panic_on_reenter: bool) -> Option<R>
     where
         F: FnOnce(&mut GrantData<T>, &GrantKernelData) -> R,
@@ -1325,7 +1325,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
     /// If `panic_on_reenter` is `true`, this will panic if the grant region is
     /// already currently entered. If `panic_on_reenter` is `false`, this will
     /// return `None` if the grant region is entered and do nothing.
-    #[flux::trusted]
+    #[flux::trusted] // ICE: incompatible types
     fn access_grant_with_allocator<F, R>(self, fun: F, panic_on_reenter: bool) -> Option<R>
     where
         F: FnOnce(&mut GrantData<T>, &GrantKernelData, &mut GrantRegionAllocator) -> R,
@@ -1789,7 +1789,7 @@ impl<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSi
 }
 
 /// Type to iterate [`ProcessGrant`]s across processes.
-#[flux::ignore]
+#[flux::ignore] // Refinement of unsupported type: `for<'_> fn(: &'_ Option<&'static dyn Process>) -> Option<&'static dyn Process>`
 pub struct Iter<
     'a,
     T: 'a + Default,

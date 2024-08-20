@@ -127,7 +127,6 @@ impl<const NUM_PROCS: u8> SyscallDriver for IPC<NUM_PROCS> {
     /// - `3`: Notify a client with descriptor `target_id`, typically in response to a previous
     ///        notify from the client. Returns an error if `target_id` refers to an invalid client
     ///        or the notify fails to enqueue.
-    #[flux::trusted]
     fn command(
         &self,
         command_number: usize,

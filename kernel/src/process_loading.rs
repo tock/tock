@@ -182,7 +182,7 @@ pub fn load_processes<C: Chip>(
 /// `ProcessLoadError` if something goes wrong during TBF parsing or process
 /// creation.
 #[inline(always)]
-#[flux::trusted]
+#[flux::trusted] // ICE: Expected array or slice type
 fn load_processes_from_flash<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
@@ -280,7 +280,7 @@ fn load_processes_from_flash<C: Chip>(
 
 /// Find a process binary stored at the beginning of `flash` and create a
 /// `ProcessBinary` object if the process is viable to run on this kernel.
-#[flux::trusted]
+#[flux::trusted] // ICE: ambigous substitution
 fn discover_process_binary(
     flash: &'static [u8],
 ) -> Result<(&'static [u8], ProcessBinary), (&'static [u8], ProcessBinaryError)> {
@@ -347,7 +347,7 @@ fn discover_process_binary(
 /// pool that its RAM should be allocated from. Returns `Ok` if the process
 /// object was created, `Err` with a relevant error if the process object could
 /// not be created.
-#[flux::trusted]
+#[flux::trusted] // Arithmetic warnings
 fn load_process<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
@@ -584,7 +584,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
     ///
     /// Returns the process binary object or an error if a valid process
     /// binary could not be extracted.
-    #[flux::trusted]
+    #[flux::trusted] // ICE: Ambiguous substitution
     fn discover_process_binary(&self) -> Result<ProcessBinary, ProcessBinaryError> {
         let flash = self.flash.get();
 
@@ -648,7 +648,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
     /// Create process objects from the discovered process binaries.
     ///
     /// This verifies that the discovered processes are valid to run.
-    #[flux::trusted]
+    #[flux::trusted] // ICE: Expected array or slice type
     fn load_process_objects(&self) -> Result<(), ()> {
         let proc_binaries = self.proc_binaries.take().ok_or(())?;
         let proc_binaries_len = proc_binaries.len();
@@ -908,7 +908,7 @@ impl<'a, C: Chip> DeferredCallClient for SequentialProcessLoaderMachine<'a, C> {
 impl<'a, C: Chip> crate::process_checker::ProcessCheckerMachineClient
     for SequentialProcessLoaderMachine<'a, C>
 {
-    #[flux::trusted]
+    #[flux::trusted] // OOB warning
     fn done(
         &self,
         process_binary: ProcessBinary,

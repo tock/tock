@@ -9,7 +9,6 @@ pub mod analog_comparator;
 pub mod ble_advertising;
 pub mod bus8080;
 pub mod buzzer;
-#[flux::ignore]
 pub mod can;
 pub mod crc;
 pub mod dac;
