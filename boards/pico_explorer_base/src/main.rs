@@ -20,12 +20,12 @@ use components::led::LedsComponent;
 use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
 use kernel::debug;
+use kernel::hil::gpio::Configure;
 use kernel::hil::led::LedHigh;
 use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{capabilities, create_capability, static_init, Kernel};
-
 use rp2040::adc::{Adc, Channel};
 use rp2040::chip::{Rp2040, Rp2040DefaultPeripherals};
 use rp2040::clocks::{
@@ -374,7 +374,7 @@ pub unsafe fn start() -> (
 
     // UART
     // Create a shared UART channel for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(cdc, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
         .finalize(components::uart_mux_component_static!());
 
     // Uncomment this to use UART as an output
@@ -697,10 +697,11 @@ pub unsafe fn start() -> (
     });
 
     let pio: Pio = Pio::new_pio0();
-    let path = include_bytes!("pio_pwm.bin");
+    let path = include_bytes!("pio_blink.bin");
     pio.init();
-    pio.pio_pwm(SM0);
+    pio.gpio_init(peripherals.pins.get_pin(RPGpio::GPIO6));
     pio.add_program(path);
+    pio.blink_program_init(SM0,6);
 
     (board_kernel, pico_explorer_base, chip)
 }

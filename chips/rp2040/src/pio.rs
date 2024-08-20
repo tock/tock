@@ -844,7 +844,7 @@ impl Pio {
             .modify(SMx_EXECCTRL::SIDE_PINDIR.val(pindirs as u32));
     }
 
-    fn gpio_init(&self, pin: RPGpioPin) {
+    pub fn gpio_init(&self, pin: &RPGpioPin) {
         if self.pio_number == PIONumber::PIO0 {
             pin.set_function(GpioFunction::PIO0)
         } else {
@@ -906,6 +906,13 @@ impl Pio {
             .modify(SMx_EXECCTRL::OUT_EN_SEL.val(enable_pin_index));
     }
 
+    fn set_consecutive_pindirs(&self, sm_number: SMNumber, pin: u32, count: u32){
+        self.registers.sm[sm_number as usize]
+            .pinctrl.modify(SMx_PINCTRL::SET_COUNT.val(count));
+        self.registers.sm[sm_number as usize]
+            .pinctrl.modify(SMx_PINCTRL::SET_BASE.val(pin));
+    }
+
     // Call this with add_program(include_bytes!("path_to_file")).
     pub fn add_program(&self, program: &[u8]) {
         self.clear_instr_registers();
@@ -932,5 +939,13 @@ impl Pio {
     }
     pub fn pio_pwm(&self, sm_number: SMNumber) {
         self.set_side_set(sm_number, 1, false, true);
+    }
+    pub fn blink_program_init(self, sm_number: SMNumber, pin: u32) {
+    // self.restart_sm(sm_number);
+    self.set_consecutive_pindirs(sm_number, pin, 1);
+    self.set_set_pins(sm_number, pin, 1);
+    self.set_enabled(sm_number, true);
+    // self.registers.sm[sm_number as usize]
+    //    .instr.modify(SMx_INSTR::INSTR::SET);
     }
 }
