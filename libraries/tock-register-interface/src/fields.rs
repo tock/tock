@@ -198,7 +198,7 @@ Field_impl_for!(usize);
 /// location in the register.
 #[derive(Copy, Clone)]
 pub struct FieldValue<T: UIntLike, R: RegisterLongName> {
-    mask: T,
+    pub mask: T,
     pub value: T,
     associated_register: PhantomData<R>,
 }

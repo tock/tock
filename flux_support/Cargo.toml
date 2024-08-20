@@ -8,3 +8,4 @@ edition.workspace = true
 enabled = true
 
 [dependencies]
+tock-registers = { path = "../libraries/tock-register-interface" }

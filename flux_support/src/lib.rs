@@ -1,5 +1,7 @@
+mod flux_register_interface;
 use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
+pub use flux_register_interface::*;
 
 #[allow(dead_code)]
 #[flux::sig(fn(x: bool[true]))]
@@ -108,10 +110,3 @@ impl DerefMut for FluxPtr {
         unimplemented!()
     }
 }
-
-// CortexM regs
-// #[flux::opaque]
-// // #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-// pub struct TypeReg {
-//     _inner: ReadOnly<u32, Type::Register>,
-// }
