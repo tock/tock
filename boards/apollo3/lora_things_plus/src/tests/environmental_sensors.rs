@@ -9,12 +9,16 @@
 //! (https://www.sparkfun.com/products/14348).
 
 use crate::tests::run_kernel_op;
+#[cfg(feature = "chirp_i2c_moisture")]
+use crate::CHIRP_I2C_MOISTURE;
 use crate::{BME280, CCS811};
 use core::cell::Cell;
 use kernel::debug;
+#[cfg(feature = "chirp_i2c_moisture")]
+use kernel::hil::sensors::MoistureDriver;
 use kernel::hil::sensors::{
-    AirQualityClient, AirQualityDriver, HumidityClient, HumidityDriver, TemperatureClient,
-    TemperatureDriver,
+    AirQualityClient, AirQualityDriver, HumidityClient, HumidityDriver, MoistureClient,
+    TemperatureClient, TemperatureDriver,
 };
 use kernel::ErrorCode;
 
@@ -23,6 +27,7 @@ struct SensorTestCallback {
     humidity_done: Cell<bool>,
     co2_done: Cell<bool>,
     tvoc_done: Cell<bool>,
+    moisture_done: Cell<bool>,
     calibration_temp: Cell<Option<i32>>,
     calibration_humidity: Cell<Option<u32>>,
 }
@@ -36,6 +41,7 @@ impl<'a> SensorTestCallback {
             humidity_done: Cell::new(false),
             co2_done: Cell::new(false),
             tvoc_done: Cell::new(false),
+            moisture_done: Cell::new(false),
             calibration_temp: Cell::new(None),
             calibration_humidity: Cell::new(None),
         }
@@ -46,6 +52,7 @@ impl<'a> SensorTestCallback {
         self.humidity_done.set(false);
         self.co2_done.set(false);
         self.tvoc_done.set(false);
+        self.moisture_done.set(false);
     }
 }
 
@@ -64,6 +71,14 @@ impl<'a> HumidityClient for SensorTestCallback {
         self.calibration_humidity.set(Some(value as u32));
 
         debug!("Humidity: {}", value);
+    }
+}
+
+impl<'a> MoistureClient for SensorTestCallback {
+    fn callback(&self, value: Result<usize, ErrorCode>) {
+        self.moisture_done.set(true);
+
+        debug!("Moisture: {}%", value.unwrap() as f32 / 100.0);
     }
 }
 
@@ -86,6 +101,29 @@ impl<'a> AirQualityClient for SensorTestCallback {
 }
 
 static CALLBACK: SensorTestCallback = SensorTestCallback::new();
+
+#[cfg(feature = "chirp_i2c_moisture")]
+#[test_case]
+fn run_chirp_i2c_moisture() {
+    debug!("check run Chirp I2C Moisture Sensor... ");
+    run_kernel_op(100);
+
+    let chirp = unsafe { CHIRP_I2C_MOISTURE.unwrap() };
+
+    // Make sure the device is ready for us.
+    run_kernel_op(1000);
+
+    MoistureDriver::set_client(chirp, &CALLBACK);
+    CALLBACK.reset();
+
+    chirp.read_moisture().unwrap();
+
+    run_kernel_op(10_000);
+    assert_eq!(CALLBACK.moisture_done.get(), true);
+
+    debug!("    [ok]");
+    run_kernel_op(100);
+}
 
 #[test_case]
 fn run_bme280_temperature() {
