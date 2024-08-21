@@ -374,7 +374,7 @@ pub unsafe fn start() -> (
 
     // UART
     // Create a shared UART channel for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(cdc, 115200)
         .finalize(components::uart_mux_component_static!());
 
     // Uncomment this to use UART as an output
