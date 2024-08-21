@@ -13,7 +13,7 @@ pub struct FieldU32<R: RegisterLongName> {
 impl<R: RegisterLongName> FieldU32<R> {
     #[flux::trusted]
     #[flux::sig(fn(mask: u32, shift: usize) -> FieldU32<R>[bv_int_to_bv32(mask), bv_int_to_bv32(shift)])]
-    fn new(mask: u32, shift: usize) -> FieldU32<R> {
+    pub fn new(mask: u32, shift: usize) -> FieldU32<R> {
         Self {
             inner: Field::new(mask, shift),
         }
@@ -25,7 +25,7 @@ impl<R: RegisterLongName> FieldU32<R> {
     */
     #[flux::trusted]
     #[flux::sig(fn(&FieldU32<R>[@mask, @shift], value: u32) -> FieldValueU32<R>[bv_shl(mask, shift), bv_shl(bv_and(bv_int_to_bv32(value), mask), shift)])]
-    fn val(&self, value: u32) -> FieldValueU32<R> {
+    pub fn val(&self, value: u32) -> FieldValueU32<R> {
         FieldValueU32 {
             inner: FieldValue::<u32, R>::new(self.inner.mask, self.inner.shift, value),
         }
@@ -73,26 +73,26 @@ impl<R: RegisterLongName> ReadWriteU32<R> {
 
     #[flux::trusted]
     #[flux::sig(fn(&ReadWriteU32<R>[@n]) -> u32[bv_bv32_to_int(n)])]
-    fn get(&self) -> u32 {
+    pub fn get(&self) -> u32 {
         self.inner.get()
     }
 
     #[flux::trusted]
     #[flux::sig(fn(reg: &strg ReadWriteU32<R>, u32[@n]) ensures reg: ReadWriteU32<R>[bv_int_to_bv32(n)])]
-    fn set(&mut self, value: u32) {
+    pub fn set(&mut self, value: u32) {
         self.inner.set(value)
     }
 
     //(val & (self.mask << self.shift)) >> self.shift
     #[flux::trusted]
     #[flux::sig(fn(&ReadWriteU32<R>[@n], FieldU32<R>[@mask, @shift]) -> u32[ bv_bv32_to_int(bv_lshr(bv_and(n, bv_shl(mask, shift)), shift))])]
-    fn read(&self, field: FieldU32<R>) -> u32 {
+    pub fn read(&self, field: FieldU32<R>) -> u32 {
         self.inner.read(field.inner)
     }
 
     #[flux::trusted]
     #[flux::sig(fn(reg: &strg ReadWriteU32<R>, FieldValueU32<R>[@mask, @value]) ensures reg: ReadWriteU32<R>[value])]
-    fn write(&mut self, fieldval: FieldValueU32<R>) {
+    pub fn write(&mut self, fieldval: FieldValueU32<R>) {
         self.inner.write(fieldval.inner);
     }
 }

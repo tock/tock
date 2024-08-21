@@ -133,7 +133,7 @@ pub struct ProcessBinary {
 }
 
 impl ProcessBinary {
-    #[flux::trusted]
+    #[flux::trusted] // Arithmetic
     pub(crate) fn create(
         app_flash: &'static [u8],
         header_length: usize,

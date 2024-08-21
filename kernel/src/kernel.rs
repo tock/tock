@@ -128,7 +128,7 @@ impl Kernel {
     /// different index in the processes array. Note that a match _will_ be
     /// found if the process still exists in the correct location in the array
     /// but is in any "stopped" state.
-    #[flux::trusted]
+    #[flux::trusted] // ICE: unexpected types
     pub(crate) fn process_map_or<F, R>(&self, default: R, processid: ProcessId, closure: F) -> R
     where
         F: FnOnce(&dyn process::Process) -> R,
@@ -154,7 +154,7 @@ impl Kernel {
     /// This is functionally the same as `process_map_or()`, but this method is
     /// available outside the kernel crate and requires a
     /// `ProcessManagementCapability` to use.
-    #[flux::trusted]
+    #[flux::trusted] // ICE: unexpected types
     pub fn process_map_or_external<F, R>(
         &self,
         default: R,
@@ -229,7 +229,7 @@ impl Kernel {
     /// Run a closure on every process, but only continue if the closure returns
     /// `None`. That is, if the closure returns any non-`None` value, iteration
     /// stops and the value is returned from this function to the called.
-    #[flux::trusted]
+    #[flux::trusted] // IFE: incompatible types
     pub(crate) fn process_until<T, F>(&self, closure: F) -> Option<T>
     where
         F: Fn(&dyn process::Process) -> Option<T>,
@@ -477,7 +477,6 @@ impl Kernel {
     /// cooperatively). Notably, time spent in this function by the kernel,
     /// executing system calls or merely setting up the switch to/from
     /// userspace, is charged to the process.
-    #[flux::trusted]
     fn do_process<KR: KernelResources<C>, C: Chip, const NUM_PROCS: u8>(
         &self,
         resources: &KR,
@@ -720,7 +719,10 @@ impl Kernel {
                 timeslice
             } else {
                 match scheduler_timer.get_remaining_us() {
-                    Some(remaining) => timeslice - remaining,
+                    Some(remaining) => {
+                        assume(timeslice >= remaining);
+                        timeslice - remaining
+                    }
                     None => timeslice, // used whole timeslice
                 }
             }
@@ -740,7 +742,7 @@ impl Kernel {
     /// driver system calls to peripheral driver capsules through the platforms
     /// `with_driver` method.
     #[inline]
-    #[flux::trusted]
+    #[flux::trusted] // ICE: extracting field of non-tuple non-adt
     fn handle_syscall<KR: KernelResources<C>, C: Chip>(
         &self,
         resources: &KR,

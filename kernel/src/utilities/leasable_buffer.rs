@@ -170,6 +170,7 @@
 use core::ops::{Bound, Range, RangeBounds};
 use core::ops::{Index, IndexMut};
 use core::slice::SliceIndex;
+use flux_support::*;
 
 /// A mutable leasable buffer implementation.
 ///
@@ -315,7 +316,7 @@ impl<'a, T> SubSliceMut<'a, T> {
     /// s.slice(0..250);
     /// network.send(s);
     /// ```
-    #[flux::trusted]
+    #[flux::trusted] // Arithmetic
     pub fn slice<R: RangeBounds<usize>>(&mut self, range: R) {
         let start = match range.start_bound() {
             Bound::Included(s) => *s,
@@ -330,6 +331,7 @@ impl<'a, T> SubSliceMut<'a, T> {
         };
 
         let new_start = self.active_range.start + start;
+        assume(end > start);
         let new_end = new_start + (end - start);
 
         self.active_range = Range {
@@ -436,7 +438,7 @@ impl<'a, T> SubSlice<'a, T> {
     /// s.slice(0..250);
     /// network.send(s);
     /// ```
-    #[flux::trusted]
+    #[flux::trusted] // Arithmetic
     pub fn slice<R: RangeBounds<usize>>(&mut self, range: R) {
         let start = match range.start_bound() {
             Bound::Included(s) => *s,

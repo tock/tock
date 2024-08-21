@@ -145,18 +145,18 @@ pub struct MpuRegisters {
     ///   * Enables the MPU (bit 0).
     ///   * Enables MPU in hard-fault, non-maskable interrupt (NMI).
     ///   * Enables the default memory map background region in privileged mode.
-    pub ctrl: ReadWrite<u32, Control::Register>,
+    pub ctrl: ReadWriteU32<Control::Register>,
 
     /// Selects the region number (zero-indexed) referenced by the region base
     /// address and region attribute and size registers.
-    pub rnr: ReadWrite<u32, RegionNumber::Register>,
+    pub rnr: ReadWriteU32<RegionNumber::Register>,
 
     /// Defines the base address of the currently selected MPU region.
-    pub rbar: ReadWrite<u32, RegionBaseAddress::Register>,
+    pub rbar: ReadWriteU32<RegionBaseAddress::Register>,
 
     /// Defines the region size and memory attributes of the selected MPU
     /// region. The bits are defined as in 4.5.5 of the Cortex-M4 user guide.
-    pub rasr: ReadWrite<u32, RegionAttributes::Register>,
+    pub rasr: ReadWriteU32<RegionAttributes::Register>,
 }
 
 register_bitfields![u32,
@@ -194,7 +194,7 @@ register_bitfields![u32,
 
     RegionNumber [
         /// Region indicating the MPU region referenced by the MPU_RBAR and
-        /// MPU_RASR registers. Range 0-7 corresponding to the MPU regions.
+        /// MPU_RASR registers. Range 0-7 corresponding to the MPU regions.FieldValue<
         REGION OFFSET(0) NUMBITS(8) []
     ],
 
@@ -389,8 +389,8 @@ struct CortexMLocation {
 #[derive(Copy, Clone)]
 pub struct CortexMRegion {
     location: Option<CortexMLocation>,
-    base_address: FieldValue<u32, RegionBaseAddress::Register>,
-    attributes: FieldValue<u32, RegionAttributes::Register>,
+    base_address: FieldValueU32<RegionBaseAddress::Register>,
+    attributes: FieldValueU32<RegionAttributes::Register>,
 }
 
 impl PartialEq<mpu::Region> for CortexMRegion {
@@ -488,11 +488,11 @@ impl CortexMRegion {
         Some((loc.addr, loc.size))
     }
 
-    fn base_address(&self) -> FieldValue<u32, RegionBaseAddress::Register> {
+    fn base_address(&self) -> FieldValueU32<RegionBaseAddress::Register> {
         self.base_address
     }
 
-    fn attributes(&self) -> FieldValue<u32, RegionAttributes::Register> {
+    fn attributes(&self) -> FieldValueU32<RegionAttributes::Register> {
         self.attributes
     }
 

@@ -94,7 +94,7 @@ impl<'a> WriteToBinaryOffsetWrapper<'a> {
 }
 
 impl<'a> core::fmt::Write for WriteToBinaryOffsetWrapper<'a> {
-    #[flux::trusted]
+    #[flux::trusted] // arithmetic
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         let string_len = s.len();
         if self.index + string_len < self.offset {
