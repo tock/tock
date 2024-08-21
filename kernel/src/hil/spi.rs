@@ -43,6 +43,8 @@ pub enum ClockPhase {
 /// Utility types for modeling chip select pins in a [SpiMaster] implementation.
 pub mod cs {
 
+    /// Represents the Polarity of a chip-select pin (i.e. whether
+    /// high or low indicates the peripheral is active)
     #[derive(Copy, Clone)]
     pub enum Polarity {
         High,
@@ -53,35 +55,83 @@ pub mod cs {
         pub trait Sealed {}
     }
 
-    pub trait ChipSelect: private::Sealed {
+    /// Marker trait indicating whether a peripheral requires active
+    /// high or low polarity as well as whether a [SpiMaster](super::SpiMaster)
+    /// implementation can support either or both polarities.
+    ///
+    /// This trait is sealed and only implemented for [ActiveLow] and
+    /// [ActiveHigh].
+    pub trait ChipSelectActivePolarity: private::Sealed {
         const POLARITY: Polarity;
     }
 
+    /// Marks a peripheral as requiring or controller as supprting
+    /// active low chip select pins
     pub enum ActiveLow {}
+    /// Marks a peripheral as requiring or controller as supprting
+    /// active high chip select pins
     pub enum ActiveHigh {}
 
     impl private::Sealed for ActiveLow {}
     impl private::Sealed for ActiveHigh {}
 
-    impl ChipSelect for ActiveLow {
+    impl ChipSelectActivePolarity for ActiveLow {
         const POLARITY: Polarity = Polarity::Low;
     }
 
-    impl ChipSelect for ActiveHigh {
+    impl ChipSelectActivePolarity for ActiveHigh {
         const POLARITY: Polarity = Polarity::High;
     }
 
-    pub trait IntoChipSelect<T, ChipSelectActivePolarity> {
+    /// A type that can be converted to the appropriate type for
+    /// [SpiMaster::ChipSelect](super::SpiMaster::ChipSelect) for a
+    /// particular `POLARITY`.
+    ///
+    /// # Examples:
+    ///
+    /// Some SPI host controllers only support active low or active
+    /// high chip select pins. Such a controller might provide a unit
+    /// implementation of this trait _only_ for the [ActiveLow] marker.
+    ///
+    /// ```rust
+    /// use kernel::hil::spi::cs::*;
+    ///
+    /// #[derive(Copy, Clone)]
+    /// enum PeripheralSelect {
+    ///     Peripheral0,
+    ///     Peripheral1,
+    /// }
+    ///
+    /// impl IntoChipSelect<PeripheralSelect, ActiveLow> for PeripheralSelect {
+    ///     fn into_cs(self) -> Self { self }
+    /// }
+    /// ```
+    ///
+    /// Many other controllers can handle both active low and active
+    /// high chip select pins, in which case, they should implement
+    /// both the [ActiveLow] and [ActiveHigh] variants, for example,
+    /// using the [ChipSelectPolar] wrapper struct (which implements
+    /// both).
+    pub trait IntoChipSelect<T, POLARITY> {
         fn into_cs(self) -> T;
     }
 
+    /// A convenience wrapper type around any chip select type `P`,
+    /// and implements [IntoChipSelect] for both [ActiveLow] and
+    /// [ActiveHigh].
+    ///
+    /// Notably, there is a blanket implementation for all
+    /// [gpio::Output](crate::hil::gpio::Output) types.
     #[derive(Copy, Clone)]
     pub struct ChipSelectPolar<P> {
+        /// The underlying chip select "pin"
         pub pin: P,
+        /// The polarity from which this wrapper was derived using
+        /// [IntoChipSelect]
         pub polarity: Polarity,
     }
 
-    impl<P, A: ChipSelect> IntoChipSelect<ChipSelectPolar<P>, A> for P {
+    impl<P, A: ChipSelectActivePolarity> IntoChipSelect<ChipSelectPolar<P>, A> for P {
         fn into_cs(self) -> ChipSelectPolar<P> {
             ChipSelectPolar {
                 pin: self,
@@ -90,7 +140,14 @@ pub mod cs {
         }
     }
 
+    /// When wrapping a GPIO pin that implements
+    /// [gpio::Output](crate::hil::gpio::Output), users can use the
+    /// `activate` and `deactivate` methods to automatically set or
+    /// clear the chip select pin based on the stored polarity.
     impl<P: crate::hil::gpio::Output> ChipSelectPolar<P> {
+        /// Deactive the chip select pin
+        ///
+        /// High if active low, low if active high
         pub fn deactivate(&self) {
             match self.polarity {
                 Polarity::Low => self.pin.set(),
@@ -98,6 +155,9 @@ pub mod cs {
             }
         }
 
+        /// Active the chip select pin
+        ///
+        /// Low if active low, high if active high
         pub fn activate(&self) {
             match self.polarity {
                 Polarity::Low => self.pin.clear(),
