@@ -381,20 +381,6 @@ impl<'a> SpiHw<'a> {
         }
     }
 
-    pub fn set_active_peripheral(&self, peripheral: Peripheral) {
-        // Slave cannot set active peripheral
-        if self.role.get() == SpiRole::SpiMaster {
-            let spi = &SpiRegisterManager::new(self);
-            let mr = match peripheral {
-                Peripheral::Peripheral0 => Mode::PCS::PCS0,
-                Peripheral::Peripheral1 => Mode::PCS::PCS1,
-                Peripheral::Peripheral2 => Mode::PCS::PCS2,
-                Peripheral::Peripheral3 => Mode::PCS::PCS3,
-            };
-            spi.registers.mr.modify(mr);
-        }
-    }
-
     /// Returns the currently active peripheral
     fn get_active_peripheral(&self, spi: &SpiRegisterManager<'a, '_>) -> Peripheral {
         if self.role.get() == SpiRole::SpiMaster {
@@ -642,8 +628,20 @@ impl<'a> spi::SpiMaster<'a> for SpiHw<'a> {
     }
 
     fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), ErrorCode> {
-        self.set_active_peripheral(cs);
-        Ok(())
+        // Slave cannot set active peripheral
+        if self.role.get() == SpiRole::SpiMaster {
+            let spi = &SpiRegisterManager::new(self);
+            let mr = match cs {
+                Peripheral::Peripheral0 => Mode::PCS::PCS0,
+                Peripheral::Peripheral1 => Mode::PCS::PCS1,
+                Peripheral::Peripheral2 => Mode::PCS::PCS2,
+                Peripheral::Peripheral3 => Mode::PCS::PCS3,
+            };
+            spi.registers.mr.modify(mr);
+            Ok(())
+        } else {
+            Err(ErrorCode::INVAL)
+        }
     }
 }
 

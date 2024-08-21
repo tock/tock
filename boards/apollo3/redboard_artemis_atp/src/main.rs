@@ -326,7 +326,9 @@ unsafe fn setup() -> (
     let spi_controller = components::spi::SpiSyscallComponent::new(
         board_kernel,
         mux_spi,
-        &peripherals.gpio_port[13], // A13
+        kernel::hil::spi::util::IntoChipSelect::<_, kernel::hil::spi::util::ActiveLow>::into_cs(
+            &peripherals.gpio_port[13], // A13
+        ),
         capsules_core::spi_controller::DRIVER_NUM,
     )
     .finalize(components::spi_syscall_component_static!(
