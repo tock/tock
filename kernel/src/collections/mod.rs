@@ -7,3 +7,5 @@
 pub mod list;
 pub mod queue;
 pub mod ring_buffer;
+pub mod sync_queue;
+pub mod atomic_ring_buffer;
