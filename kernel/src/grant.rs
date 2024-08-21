@@ -1308,7 +1308,6 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
     /// If `panic_on_reenter` is `true`, this will panic if the grant region is
     /// already currently entered. If `panic_on_reenter` is `false`, this will
     /// return `None` if the grant region is entered and do nothing.
-    #[flux::trusted] // ICE: incompatible types
     fn access_grant<F, R>(self, fun: F, panic_on_reenter: bool) -> Option<R>
     where
         F: FnOnce(&mut GrantData<T>, &GrantKernelData) -> R,
@@ -1508,7 +1507,6 @@ impl<T> CustomGrant<T> {
     /// Because this function requires `&mut self`, it should be impossible to
     /// access the inner data of a given `CustomGrant` reentrantly. Thus the
     /// reentrance detection we use for non-custom grants is not needed here.
-    #[flux::trusted]
     pub fn enter<F, R>(&self, fun: F) -> Result<R, Error>
     where
         F: FnOnce(GrantData<'_, T>) -> R,
@@ -1561,7 +1559,6 @@ impl GrantRegionAllocator {
     /// # Panic Safety
     ///
     /// If `init` panics, the freshly allocated memory may leak.
-    #[flux::trusted]
     pub fn alloc_with<T, F>(&self, init: F) -> Result<CustomGrant<T>, Error>
     where
         F: FnOnce() -> T,
@@ -1591,7 +1588,6 @@ impl GrantRegionAllocator {
     ///
     /// If `val_func` panics, the freshly allocated memory and any values
     /// already written will be leaked.
-    #[flux::trusted]
     pub fn alloc_n_with<T, F, const NUM_ITEMS: usize>(
         &self,
         mut init: F,
@@ -1712,7 +1708,7 @@ impl<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSi
     /// This creates a [`ProcessGrant`] which is a handle for a grant allocated
     /// for a specific process. Then, that [`ProcessGrant`] is entered and the
     /// provided closure is run with access to the memory in the grant region.
-    #[flux::trusted]
+    #[flux::trusted] // check_oblig_fn_trait_pred: unexpected self_ty F
     pub fn enter<F, R>(&self, processid: ProcessId, fun: F) -> Result<R, Error>
     where
         F: FnOnce(&mut GrantData<T>, &GrantKernelData) -> R,
@@ -1734,7 +1730,7 @@ impl<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSi
     ///
     /// The allocator allows the caller to dynamically allocate additional
     /// memory in the process's grant region.
-    #[flux::trusted]
+    #[flux::trusted] // check_oblig_fn_trait_pred: unexpected self_ty F
     pub fn enter_with_allocator<F, R>(&self, processid: ProcessId, fun: F) -> Result<R, Error>
     where
         F: FnOnce(&mut GrantData<T>, &GrantKernelData, &mut GrantRegionAllocator) -> R,
@@ -1760,7 +1756,7 @@ impl<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSi
     ///
     /// Calling this function when an [`ProcessGrant`] for a process is
     /// currently entered will result in a panic.
-    #[flux::trusted]
+    #[flux::trusted] // Use of ignored function `iter`
     pub fn each<F>(&self, mut fun: F)
     where
         F: FnMut(ProcessId, &mut GrantData<T>, &GrantKernelData),

@@ -434,7 +434,7 @@ impl DebugWriterWrapper {
 }
 
 impl DebugWriter {
-    #[flux::trusted]
+    #[flux::trusted] //  assertion left == right ExistentialTraitRef
     pub fn new(
         uart: &'static dyn hil::uart::Transmit,
         out_buffer: &'static mut [u8],
@@ -458,7 +458,7 @@ impl DebugWriter {
 
     /// Write as many of the bytes from the internal_buffer to the output
     /// mechanism as possible, returning the number written.
-    #[flux::trusted]
+    #[flux::trusted] // assertion left == right ExistentialTraitRef
     fn publish_bytes(&self) -> usize {
         // Can only publish if we have the output_buffer. If we don't that is
         // fine, we will do it when the transmit done callback happens.

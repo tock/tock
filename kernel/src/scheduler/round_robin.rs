@@ -74,7 +74,7 @@ impl<'a> RoundRobinSched<'a> {
 }
 
 impl<'a, C: Chip> Scheduler<C> for RoundRobinSched<'a> {
-    #[flux::trusted]
+    #[flux::trusted] // Unsupported statement: rvalue `&raw const`
     fn next(&self) -> SchedulingDecision {
         let mut first_head = None;
         let mut next = None;
@@ -126,7 +126,7 @@ impl<'a, C: Chip> Scheduler<C> for RoundRobinSched<'a> {
         SchedulingDecision::RunProcess((next, Some(timeslice)))
     }
 
-    #[flux::trusted]
+    #[flux::trusted] // arithmetic
     fn result(&self, result: StoppedExecutingReason, execution_time_us: Option<u32>) {
         let execution_time_us = execution_time_us.unwrap(); // should never fail
         let reschedule = match result {

@@ -128,7 +128,6 @@ impl Kernel {
     /// different index in the processes array. Note that a match _will_ be
     /// found if the process still exists in the correct location in the array
     /// but is in any "stopped" state.
-    #[flux::trusted] // ICE: unexpected types
     pub(crate) fn process_map_or<F, R>(&self, default: R, processid: ProcessId, closure: F) -> R
     where
         F: FnOnce(&dyn process::Process) -> R,
@@ -154,7 +153,6 @@ impl Kernel {
     /// This is functionally the same as `process_map_or()`, but this method is
     /// available outside the kernel crate and requires a
     /// `ProcessManagementCapability` to use.
-    #[flux::trusted] // ICE: unexpected types
     pub fn process_map_or_external<F, R>(
         &self,
         default: R,
@@ -229,7 +227,6 @@ impl Kernel {
     /// Run a closure on every process, but only continue if the closure returns
     /// `None`. That is, if the closure returns any non-`None` value, iteration
     /// stops and the value is returned from this function to the called.
-    #[flux::trusted] // IFE: incompatible types
     pub(crate) fn process_until<T, F>(&self, closure: F) -> Option<T>
     where
         F: Fn(&dyn process::Process) -> Option<T>,
