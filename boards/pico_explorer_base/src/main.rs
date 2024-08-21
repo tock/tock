@@ -26,6 +26,7 @@ use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{capabilities, create_capability, static_init, Kernel};
+use kernel::utilities::registers::interfaces::Readable;
 use rp2040::adc::{Adc, Channel};
 use rp2040::chip::{Rp2040, Rp2040DefaultPeripherals};
 use rp2040::clocks::{
@@ -34,7 +35,7 @@ use rp2040::clocks::{
     SystemAuxiliaryClockSource, SystemClockSource, UsbAuxiliaryClockSource,
 };
 use rp2040::gpio::{GpioFunction, RPGpio, RPGpioPin};
-use rp2040::pio::Pio;
+use rp2040::pio::{Pio, SMNumber};
 use rp2040::pio::SMNumber::SM0;
 use rp2040::resets::Peripheral;
 use rp2040::spi::Spi;
@@ -695,11 +696,11 @@ pub unsafe fn start() -> (
     });
 
     let pio: Pio = Pio::new_pio0();
-    let path = include_bytes!("pio_blink.bin");
+    let path: [u8; 6] = [0x80, 0xa0, 0x60, 0x01, 0x00, 0x00];
     pio.init();
     pio.gpio_init(peripherals.pins.get_pin(RPGpio::GPIO6));
-    pio.add_program(path);
-    pio.blink_program_init(SM0,6);
+    pio.hello_program_init(SM0, 6);
+    pio.add_program(&path);
 
     (board_kernel, pico_explorer_base, chip)
 }

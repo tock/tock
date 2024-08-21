@@ -688,7 +688,7 @@ impl Pio {
     }
 
     /// Set a state machine's state to enabled or to disabled.
-    pub fn set_enabled(&self, sm_number: SMNumber, enabled: bool) {
+    pub fn sm_set_enabled(&self, sm_number: SMNumber, enabled: bool) {
         match sm_number {
             SMNumber::SM0 => self.registers.ctrl.modify(match enabled {
                 true => CTRL::SM0_ENABLE::SET,
@@ -719,6 +719,19 @@ impl Pio {
         }
     }
 
+    fn sm_exec(&self, sm_number: SMNumber, instr: u32) {
+        self.registers.sm[sm_number as usize]
+            .instr
+            .modify(SMx_INSTR::INSTR.val(instr));
+    }
+
+    fn sm_clear_fifos(&self, sm_number: SMNumber){
+        self.registers.sm[sm_number as usize]
+            .shiftctrl.modify(SMx_SHIFTCTRL::FJOIN_RX::SET);
+        self.registers.sm[sm_number as usize]
+            .shiftctrl.modify(SMx_SHIFTCTRL::FJOIN_TX::SET);
+    }
+
     /// Restart a state machine's clock divider.
     pub fn sm_clkdiv_restart(&self, sm_number: SMNumber) {
         match sm_number {
@@ -727,6 +740,14 @@ impl Pio {
             SMNumber::SM2 => self.registers.ctrl.modify(CTRL::CLKDIV2_RESTART::SET),
             SMNumber::SM3 => self.registers.ctrl.modify(CTRL::CLKDIV3_RESTART::SET),
         }
+    }
+
+    pub fn sm_init(&self, sm_number: SMNumber, config: &StateMachineConfiguration) {
+        self.sm_set_enabled(sm_number, false);
+        self.sm_config(sm_number, config);
+        self.sm_clear_fifos(sm_number);
+        self.restart_sm(sm_number);
+        self.sm_clkdiv_restart(sm_number);
     }
 
     /// Setup 'in' shifting parameters.
@@ -906,11 +927,13 @@ impl Pio {
             .modify(SMx_EXECCTRL::OUT_EN_SEL.val(enable_pin_index));
     }
 
-    fn set_consecutive_pindirs(&self, sm_number: SMNumber, pin: u32, count: u32){
+    fn set_consecutive_pindirs(&self, sm_number: SMNumber, pin: u32, count: u32) {
         self.registers.sm[sm_number as usize]
-            .pinctrl.modify(SMx_PINCTRL::SET_COUNT.val(count));
+            .pinctrl
+            .modify(SMx_PINCTRL::SET_COUNT.val(count));
         self.registers.sm[sm_number as usize]
-            .pinctrl.modify(SMx_PINCTRL::SET_BASE.val(pin));
+            .pinctrl
+            .modify(SMx_PINCTRL::SET_BASE.val(pin));
     }
 
     // Call this with add_program(include_bytes!("path_to_file")).
@@ -940,12 +963,18 @@ impl Pio {
     pub fn pio_pwm(&self, sm_number: SMNumber) {
         self.set_side_set(sm_number, 1, false, true);
     }
-    pub fn blink_program_init(self, sm_number: SMNumber, pin: u32) {
-    // self.restart_sm(sm_number);
-    self.set_consecutive_pindirs(sm_number, pin, 1);
-    self.set_set_pins(sm_number, pin, 1);
-    self.set_enabled(sm_number, true);
-    // self.registers.sm[sm_number as usize]
-    //    .instr.modify(SMx_INSTR::INSTR::SET);
+    pub fn blink_program_init(&self, sm_number: SMNumber, pin: u32) {
+        self.set_consecutive_pindirs(sm_number, pin, 1);
+        self.set_set_pins(sm_number, pin, 1);
+        self.sm_set_enabled(sm_number, true);
+        self.registers.sm[sm_number as usize]
+            .instr
+            .modify(SMx_INSTR::INSTR.val(0));
+    }
+
+    pub fn hello_program_init(&self, sm_number: SMNumber, pin: u32) {
+        self.set_out_pins(sm_number, pin, 1);
+        self.set_consecutive_pindirs(sm_number, pin, 1);
+        self.sm_set_enabled(sm_number, true);
     }
 }
