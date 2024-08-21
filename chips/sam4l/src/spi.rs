@@ -179,6 +179,12 @@ pub enum Peripheral {
     Peripheral3,
 }
 
+impl spi::util::IntoChipSelect<Peripheral, spi::util::ActiveLow> for Peripheral {
+    fn into_cs(self) -> Peripheral {
+        self
+    }
+}
+
 #[derive(Copy, Clone, PartialEq)]
 pub enum SpiRole {
     SpiMaster,
@@ -519,17 +525,8 @@ impl<'a> SpiHw<'a> {
     }
 }
 
-#[derive(Copy, Clone)]
-pub struct CS(pub u8);
-
-impl spi::util::IntoChipSelect<CS, spi::util::ActiveLow> for CS {
-    fn into_cs(self) -> CS {
-        self
-    }
-}
-
 impl<'a> spi::SpiMaster<'a> for SpiHw<'a> {
-    type ChipSelect = CS;
+    type ChipSelect = Peripheral;
 
     fn set_client(&self, client: &'a dyn SpiMasterClient) {
         self.client.set(client);
@@ -645,19 +642,8 @@ impl<'a> spi::SpiMaster<'a> for SpiHw<'a> {
     }
 
     fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), ErrorCode> {
-        match match cs.0 {
-            0 => Some(Peripheral::Peripheral0),
-            1 => Some(Peripheral::Peripheral1),
-            2 => Some(Peripheral::Peripheral2),
-            3 => Some(Peripheral::Peripheral3),
-            _ => None,
-        } {
-            Some(peripheral_number) => {
-                self.set_active_peripheral(peripheral_number);
-                Ok(())
-            }
-            None => Err(ErrorCode::INVAL),
-        }
+        self.set_active_peripheral(cs);
+        Ok(())
     }
 }
 

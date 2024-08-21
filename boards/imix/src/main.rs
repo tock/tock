@@ -465,13 +465,13 @@ unsafe fn start() -> (
     let spi_syscalls = SpiSyscallComponent::new(
         board_kernel,
         mux_spi,
-        sam4l::spi::CS(2),
+        sam4l::spi::Peripheral::Peripheral2,
         capsules_core::spi_controller::DRIVER_NUM,
     )
     .finalize(components::spi_syscall_component_static!(
         sam4l::spi::SpiHw<'static>
     ));
-    let rf233_spi = SpiComponent::new(mux_spi, sam4l::spi::CS(3)).finalize(
+    let rf233_spi = SpiComponent::new(mux_spi, sam4l::spi::Peripheral::Peripheral3).finalize(
         components::spi_component_static!(sam4l::spi::SpiHw<'static>),
     );
     let rf233 = components::rf233::RF233Component::new(

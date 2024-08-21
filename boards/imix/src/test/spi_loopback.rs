@@ -112,9 +112,9 @@ pub unsafe fn spi_loopback_test(
 #[inline(never)]
 #[allow(unused_variables, dead_code)]
 pub unsafe fn spi_two_loopback_test(mux: &'static MuxSpiMaster<'static, sam4l::spi::SpiHw>) {
-    let spi_fast = SpiComponent::new(mux, sam4l::spi::CS(0))
+    let spi_fast = SpiComponent::new(mux, sam4l::spi::Peripheral::Peripheral0)
         .finalize(components::spi_component_static!(sam4l::spi::SpiHw));
-    let spi_slow = SpiComponent::new(mux, sam4l::spi::CS(1))
+    let spi_slow = SpiComponent::new(mux, sam4l::spi::Peripheral::Peripheral1)
         .finalize(components::spi_component_static!(sam4l::spi::SpiHw));
 
     let spicb_fast = kernel::static_init!(SpiLoopback, SpiLoopback::new(spi_fast, 0, 0x80));
