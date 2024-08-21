@@ -40,6 +40,42 @@ pub enum ClockPhase {
     SampleTrailing,
 }
 
+pub mod util {
+    #[derive(Copy, Clone)]
+    pub enum ChipSelectActivePolarity {
+        ActiveLow,
+        ActiveHigh,
+    }
+
+    #[derive(Copy, Clone)]
+    pub struct ChipSelect<P> {
+        pub pin: P,
+        pub polarity: ChipSelectActivePolarity,
+    }
+
+    impl<P> ChipSelect<P> {
+        pub fn new(pin: P, polarity: ChipSelectActivePolarity) -> Self {
+            Self { pin, polarity }
+        }
+    }
+
+    impl<P: crate::hil::gpio::Output> ChipSelect<P> {
+        pub fn deactivate(&self) {
+            match self.polarity {
+                ChipSelectActivePolarity::ActiveLow => self.pin.set(),
+                ChipSelectActivePolarity::ActiveHigh => self.pin.clear(),
+            }
+        }
+
+        pub fn activate(&self) {
+            match self.polarity {
+                ChipSelectActivePolarity::ActiveLow => self.pin.clear(),
+                ChipSelectActivePolarity::ActiveHigh => self.pin.set(),
+            }
+        }
+    }
+}
+
 /// Trait for clients of a SPI bus in master mode.
 pub trait SpiMasterClient {
     /// Callback when a read/write operation finishes: `read_buffer`

@@ -372,7 +372,10 @@ pub unsafe fn start() -> (
     let lr1110_spi = components::spi::SpiSyscallComponent::new(
         board_kernel,
         mux_spi,
-        &nrf52840_peripherals.gpio_port[SPI_CS_PIN],
+        kernel::hil::spi::util::ChipSelect::new(
+            &nrf52840_peripherals.gpio_port[SPI_CS_PIN],
+            kernel::hil::spi::util::ChipSelectActivePolarity::ActiveLow,
+        ),
         LORA_SPI_DRIVER_NUM,
     )
     .finalize(components::spi_syscall_component_static!(
@@ -387,7 +390,10 @@ pub unsafe fn start() -> (
 
     base_peripherals
         .spim0
-        .specify_chip_select(&nrf52840_peripherals.gpio_port[SPI_CS_PIN])
+        .specify_chip_select(kernel::hil::spi::util::ChipSelect::new(
+            &nrf52840_peripherals.gpio_port[SPI_CS_PIN],
+            kernel::hil::spi::util::ChipSelectActivePolarity::ActiveLow,
+        ))
         .unwrap();
 
     // Pin mappings from the original WM1110 source code.

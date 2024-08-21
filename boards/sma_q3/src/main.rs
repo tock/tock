@@ -454,9 +454,9 @@ pub unsafe fn start() -> (
         );
 
         let disp_pin = &nrf52840_peripherals.gpio_port[Pin::P0_07];
-        let cs_pin = static_init!(
-            components::lpm013m126::Inverted<'static, nrf52840::gpio::GPIOPin>,
-            components::lpm013m126::Inverted(&nrf52840_peripherals.gpio_port[Pin::P0_05])
+        let cs_pin = kernel::hil::spi::util::ChipSelect::new(
+            &nrf52840_peripherals.gpio_port[Pin::P0_05],
+            kernel::hil::spi::util::ChipSelectActivePolarity::ActiveHigh,
         );
 
         let display = components::lpm013m126::Lpm013m126Component::new(

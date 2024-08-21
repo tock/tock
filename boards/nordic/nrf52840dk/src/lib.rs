@@ -697,7 +697,10 @@ pub unsafe fn start() -> (
     let spi_controller = components::spi::SpiSyscallComponent::new(
         board_kernel,
         mux_spi,
-        &gpio_port[SPI_CS],
+        kernel::hil::spi::util::ChipSelect::new(
+            &gpio_port[SPI_CS],
+            kernel::hil::spi::util::ChipSelectActivePolarity::ActiveLow,
+        ),
         capsules_core::spi_controller::DRIVER_NUM,
     )
     .finalize(components::spi_syscall_component_static!(
@@ -717,7 +720,10 @@ pub unsafe fn start() -> (
     let mx25r6435f = components::mx25r6435f::Mx25r6435fComponent::new(
         Some(&gpio_port[SPI_MX25R6435F_WRITE_PROTECT_PIN]),
         Some(&gpio_port[SPI_MX25R6435F_HOLD_PIN]),
-        &gpio_port[SPI_MX25R6435F_CHIP_SELECT] as &dyn kernel::hil::gpio::Pin,
+        kernel::hil::spi::util::ChipSelect::new(
+            &gpio_port[SPI_MX25R6435F_CHIP_SELECT],
+            kernel::hil::spi::util::ChipSelectActivePolarity::ActiveLow,
+        ),
         mux_alarm,
         mux_spi,
     )
