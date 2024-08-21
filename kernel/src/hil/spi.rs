@@ -40,7 +40,8 @@ pub enum ClockPhase {
     SampleTrailing,
 }
 
-pub mod util {
+/// Utility types for modeling chip select pins in a [SpiMaster] implementation.
+pub mod cs {
 
     #[derive(Copy, Clone)]
     pub enum Polarity {

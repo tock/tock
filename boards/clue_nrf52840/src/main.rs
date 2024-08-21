@@ -653,7 +653,7 @@ unsafe fn start() -> (
 
     let bus = components::bus::SpiMasterBusComponent::new(
         spi_mux,
-        hil::spi::util::IntoChipSelect::<_, hil::spi::util::ActiveLow>::into_cs(
+        hil::spi::cs::IntoChipSelect::<_, hil::spi::cs::ActiveLow>::into_cs(
             &nrf52840_peripherals.gpio_port[ST7789H2_CS],
         ),
         20_000_000,

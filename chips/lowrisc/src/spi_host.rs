@@ -553,7 +553,7 @@ impl<'a> SpiHost<'a> {
 #[derive(Copy, Clone)]
 pub struct CS(pub u32);
 
-impl hil::spi::util::IntoChipSelect<CS, hil::spi::util::ActiveLow> for CS {
+impl hil::spi::cs::IntoChipSelect<CS, hil::spi::cs::ActiveLow> for CS {
     fn into_cs(self) -> CS {
         self
     }

@@ -6,7 +6,7 @@ use crate::clocks;
 use core::cell::Cell;
 use core::cmp;
 use kernel::hil;
-use kernel::hil::spi::util::ChipSelectPolar;
+use kernel::hil::spi::cs::ChipSelectPolar;
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::spi::SpiMasterClient;
 use kernel::hil::spi::{ClockPhase, ClockPolarity};

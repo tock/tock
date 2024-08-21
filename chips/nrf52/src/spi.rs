@@ -37,7 +37,7 @@ use core::cell::Cell;
 use core::{cmp, ptr};
 use kernel::hil;
 use kernel::hil::gpio::Configure;
-use kernel::hil::spi::util::ChipSelectPolar;
+use kernel::hil::spi::cs::ChipSelectPolar;
 use kernel::utilities::cells::{OptionalCell, TakeCell, VolatileCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};

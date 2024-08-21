@@ -373,7 +373,7 @@ pub unsafe fn start() -> (
     let lr1110_spi = components::spi::SpiSyscallComponent::new(
         board_kernel,
         mux_spi,
-        hil::spi::util::IntoChipSelect::<_, hil::spi::util::ActiveLow>::into_cs(
+        hil::spi::cs::IntoChipSelect::<_, hil::spi::cs::ActiveLow>::into_cs(
             &nrf52840_peripherals.gpio_port[SPI_CS_PIN],
         ),
         LORA_SPI_DRIVER_NUM,
@@ -391,7 +391,7 @@ pub unsafe fn start() -> (
     base_peripherals
         .spim0
         .specify_chip_select(
-            hil::spi::util::IntoChipSelect::<_, hil::spi::util::ActiveLow>::into_cs(
+            hil::spi::cs::IntoChipSelect::<_, hil::spi::cs::ActiveLow>::into_cs(
                 &nrf52840_peripherals.gpio_port[SPI_CS_PIN],
             ),
         )

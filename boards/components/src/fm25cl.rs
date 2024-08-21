@@ -42,7 +42,7 @@ macro_rules! fm25cl_component_static {
 
 pub struct Fm25clComponent<
     S: 'static + spi::SpiMaster<'static>,
-    CS: spi::util::IntoChipSelect<S::ChipSelect, spi::util::ActiveLow>,
+    CS: spi::cs::IntoChipSelect<S::ChipSelect, spi::cs::ActiveLow>,
 > {
     spi_mux: &'static MuxSpiMaster<'static, S>,
     chip_select: CS,
@@ -50,7 +50,7 @@ pub struct Fm25clComponent<
 
 impl<
         S: 'static + spi::SpiMaster<'static>,
-        CS: spi::util::IntoChipSelect<S::ChipSelect, spi::util::ActiveLow>,
+        CS: spi::cs::IntoChipSelect<S::ChipSelect, spi::cs::ActiveLow>,
     > Fm25clComponent<S, CS>
 {
     pub fn new(spi_mux: &'static MuxSpiMaster<'static, S>, chip_select: CS) -> Self {
@@ -63,7 +63,7 @@ impl<
 
 impl<
         S: 'static + spi::SpiMaster<'static>,
-        CS: spi::util::IntoChipSelect<S::ChipSelect, spi::util::ActiveLow>,
+        CS: spi::cs::IntoChipSelect<S::ChipSelect, spi::cs::ActiveLow>,
     > Component for Fm25clComponent<S, CS>
 {
     type StaticInput = (

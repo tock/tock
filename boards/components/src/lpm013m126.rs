@@ -87,9 +87,7 @@ where
     P: 'static + gpio::Pin,
     S: 'static + SpiMaster<'static>,
 {
-    pub fn new<
-        I: kernel::hil::spi::util::IntoChipSelect<S::ChipSelect, hil::spi::util::ActiveHigh>,
-    >(
+    pub fn new<I: kernel::hil::spi::cs::IntoChipSelect<S::ChipSelect, hil::spi::cs::ActiveHigh>>(
         spi: &'static MuxSpiMaster<'static, S>,
 
         chip_select: I,

@@ -511,7 +511,7 @@ unsafe fn setup() -> (
     let external_spi_controller = components::spi::SpiSyscallComponent::new(
         board_kernel,
         external_mux_spi,
-        kernel::hil::spi::util::IntoChipSelect::<_, kernel::hil::spi::util::ActiveLow>::into_cs(
+        kernel::hil::spi::cs::IntoChipSelect::<_, kernel::hil::spi::cs::ActiveLow>::into_cs(
             &peripherals.gpio_port[11], // A5
         ),
         capsules_core::spi_controller::DRIVER_NUM,
@@ -528,7 +528,7 @@ unsafe fn setup() -> (
     let sx1262_spi_controller = components::spi::SpiSyscallComponent::new(
         board_kernel,
         sx1262_mux_spi,
-        kernel::hil::spi::util::IntoChipSelect::<_, kernel::hil::spi::util::ActiveLow>::into_cs(
+        kernel::hil::spi::cs::IntoChipSelect::<_, kernel::hil::spi::cs::ActiveLow>::into_cs(
             &peripherals.gpio_port[36], // H6 - SX1262 Slave Select
         ),
         LORA_SPI_DRIVER_NUM,
@@ -538,9 +538,9 @@ unsafe fn setup() -> (
     ));
     peripherals
         .iom3
-        .specify_chip_select(kernel::hil::spi::util::IntoChipSelect::<
+        .specify_chip_select(kernel::hil::spi::cs::IntoChipSelect::<
             _,
-            kernel::hil::spi::util::ActiveLow,
+            kernel::hil::spi::cs::ActiveLow,
         >::into_cs(
             &peripherals.gpio_port[36], // H6 - SX1262 Slave Select
         ))

@@ -8,7 +8,7 @@ use core::cell::Cell;
 use kernel::hil;
 use kernel::hil::gpio::Configure;
 use kernel::hil::i2c;
-use kernel::hil::spi::util::ChipSelectPolar;
+use kernel::hil::spi::cs::ChipSelectPolar;
 use kernel::hil::spi::{ClockPhase, ClockPolarity, SpiMaster, SpiMasterClient};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;

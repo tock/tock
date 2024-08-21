@@ -81,9 +81,7 @@ impl<
         A: 'static + hil::time::Alarm<'static>,
     > Mx25r6435fComponent<S, P, A>
 {
-    pub fn new<
-        CS: kernel::hil::spi::util::IntoChipSelect<S::ChipSelect, hil::spi::util::ActiveLow>,
-    >(
+    pub fn new<CS: kernel::hil::spi::cs::IntoChipSelect<S::ChipSelect, hil::spi::cs::ActiveLow>>(
         write_protect_pin: Option<&'static P>,
         hold_pin: Option<&'static P>,
         chip_select: CS,

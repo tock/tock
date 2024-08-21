@@ -179,7 +179,7 @@ pub enum Peripheral {
     Peripheral3,
 }
 
-impl spi::util::IntoChipSelect<Peripheral, spi::util::ActiveLow> for Peripheral {
+impl spi::cs::IntoChipSelect<Peripheral, spi::cs::ActiveLow> for Peripheral {
     fn into_cs(self) -> Peripheral {
         self
     }

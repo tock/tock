@@ -128,8 +128,8 @@ pub struct SpiSyscallPComponent<S: 'static + spi::SpiSlave<'static>> {
 
 pub struct SpiComponent<
     S: 'static + spi::SpiMaster<'static>,
-    CS: spi::util::IntoChipSelect<S::ChipSelect, AP>,
-    AP: spi::util::ChipSelect,
+    CS: spi::cs::IntoChipSelect<S::ChipSelect, AP>,
+    AP: spi::cs::ChipSelectActivePolarity,
 > {
     spi_mux: &'static MuxSpiMaster<'static, S>,
     chip_select: CS,
@@ -254,8 +254,8 @@ impl<S: 'static + spi::SpiSlave<'static>> Component for SpiSyscallPComponent<S> 
 
 impl<
         S: 'static + spi::SpiMaster<'static>,
-        CS: spi::util::IntoChipSelect<S::ChipSelect, AP>,
-        AP: spi::util::ChipSelect,
+        CS: spi::cs::IntoChipSelect<S::ChipSelect, AP>,
+        AP: spi::cs::ChipSelectActivePolarity,
     > SpiComponent<S, CS, AP>
 {
     pub fn new(mux: &'static MuxSpiMaster<'static, S>, chip_select: CS) -> Self {
@@ -269,8 +269,8 @@ impl<
 
 impl<
         S: 'static + spi::SpiMaster<'static>,
-        CS: spi::util::IntoChipSelect<S::ChipSelect, AP>,
-        AP: spi::util::ChipSelect,
+        CS: spi::cs::IntoChipSelect<S::ChipSelect, AP>,
+        AP: spi::cs::ChipSelectActivePolarity,
     > Component for SpiComponent<S, CS, AP>
 {
     type StaticInput = &'static mut MaybeUninit<VirtualSpiMasterDevice<'static, S>>;

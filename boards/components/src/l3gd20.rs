@@ -47,7 +47,7 @@ pub type L3gd20ComponentType<S> = capsules_extra::l3gd20::L3gd20Spi<'static, S>;
 
 pub struct L3gd20Component<
     S: 'static + spi::SpiMaster<'static>,
-    CS: spi::util::IntoChipSelect<S::ChipSelect, spi::util::ActiveLow>,
+    CS: spi::cs::IntoChipSelect<S::ChipSelect, spi::cs::ActiveLow>,
 > {
     spi_mux: &'static MuxSpiMaster<'static, S>,
     chip_select: CS,
@@ -57,7 +57,7 @@ pub struct L3gd20Component<
 
 impl<
         S: 'static + spi::SpiMaster<'static>,
-        CS: spi::util::IntoChipSelect<S::ChipSelect, spi::util::ActiveLow>,
+        CS: spi::cs::IntoChipSelect<S::ChipSelect, spi::cs::ActiveLow>,
     > L3gd20Component<S, CS>
 {
     pub fn new(
@@ -77,7 +77,7 @@ impl<
 
 impl<
         S: 'static + spi::SpiMaster<'static>,
-        CS: spi::util::IntoChipSelect<S::ChipSelect, spi::util::ActiveLow>,
+        CS: spi::cs::IntoChipSelect<S::ChipSelect, spi::cs::ActiveLow>,
     > Component for L3gd20Component<S, CS>
 {
     type StaticInput = (

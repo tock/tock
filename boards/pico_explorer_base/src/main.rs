@@ -465,7 +465,7 @@ pub unsafe fn start() -> (
 
     let bus = components::bus::SpiMasterBusComponent::new(
         mux_spi,
-        hil::spi::util::IntoChipSelect::<_, hil::spi::util::ActiveLow>::into_cs(
+        hil::spi::cs::IntoChipSelect::<_, hil::spi::cs::ActiveLow>::into_cs(
             peripherals.pins.get_pin(RPGpio::GPIO17),
         ),
         20_000_000,
