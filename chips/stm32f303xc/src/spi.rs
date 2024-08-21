@@ -191,7 +191,7 @@ pub struct Spi<'a> {
     // SPI slave support not yet implemented
     master_client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
 
-    active_slave: OptionalCell<spi::util::ChipSelect<&'a crate::gpio::Pin<'a>>>,
+    active_slave: OptionalCell<spi::util::ChipSelectPolar<&'a crate::gpio::Pin<'a>>>,
 
     tx_buffer: TakeCell<'static, [u8]>,
     tx_position: Cell<usize>,
@@ -411,7 +411,7 @@ impl<'a> Spi<'a> {
 }
 
 impl<'a> spi::SpiMaster<'a> for Spi<'a> {
-    type ChipSelect = spi::util::ChipSelect<&'a crate::gpio::Pin<'a>>;
+    type ChipSelect = spi::util::ChipSelectPolar<&'a crate::gpio::Pin<'a>>;
 
     fn set_client(&self, client: &'a dyn SpiMasterClient) {
         self.master_client.set(client);

@@ -6,7 +6,7 @@ use crate::clocks;
 use core::cell::Cell;
 use core::cmp;
 use kernel::hil;
-use kernel::hil::spi::util::ChipSelect;
+use kernel::hil::spi::util::ChipSelectPolar;
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::spi::SpiMasterClient;
 use kernel::hil::spi::{ClockPhase, ClockPolarity};
@@ -238,7 +238,7 @@ pub struct Spi<'a> {
     registers: StaticRef<SpiRegisters>,
     clocks: OptionalCell<&'a clocks::Clocks>,
     master_client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
-    active_slave: OptionalCell<ChipSelect<&'a crate::gpio::RPGpioPin<'a>>>,
+    active_slave: OptionalCell<ChipSelectPolar<&'a crate::gpio::RPGpioPin<'a>>>,
 
     tx_buffer: TakeCell<'static, [u8]>,
     tx_position: Cell<usize>,
@@ -482,7 +482,7 @@ impl<'a> Spi<'a> {
 }
 
 impl<'a> SpiMaster<'a> for Spi<'a> {
-    type ChipSelect = ChipSelect<&'a crate::gpio::RPGpioPin<'a>>;
+    type ChipSelect = ChipSelectPolar<&'a crate::gpio::RPGpioPin<'a>>;
 
     fn set_client(&self, client: &'a dyn SpiMasterClient) {
         self.master_client.set(client);

@@ -28,6 +28,7 @@
 // Author: Philip Levis <pal@cs.stanford.edu>
 // Last modified: 6/20/2018
 
+use core::marker::PhantomData;
 use core::mem::MaybeUninit;
 
 use capsules_core::spi_controller::{Spi, DEFAULT_READ_BUF_LENGTH, DEFAULT_WRITE_BUF_LENGTH};
@@ -127,11 +128,12 @@ pub struct SpiSyscallPComponent<S: 'static + spi::SpiSlave<'static>> {
 
 pub struct SpiComponent<
     S: 'static + spi::SpiMaster<'static>,
-    CS: spi::util::IntoChipSelect<S::ChipSelect, AL>,
-    const AL: bool,
+    CS: spi::util::IntoChipSelect<S::ChipSelect, AP>,
+    AP: spi::util::ChipSelect,
 > {
     spi_mux: &'static MuxSpiMaster<'static, S>,
     chip_select: CS,
+    _phantom: PhantomData<AP>,
 }
 
 impl<S: 'static + spi::SpiMaster<'static>> SpiMuxComponent<S> {
@@ -252,13 +254,14 @@ impl<S: 'static + spi::SpiSlave<'static>> Component for SpiSyscallPComponent<S> 
 
 impl<
         S: 'static + spi::SpiMaster<'static>,
-        CS: spi::util::IntoChipSelect<S::ChipSelect, AL>,
-        const AL: bool,
-    > SpiComponent<S, CS, AL>
+        CS: spi::util::IntoChipSelect<S::ChipSelect, AP>,
+        AP: spi::util::ChipSelect,
+    > SpiComponent<S, CS, AP>
 {
     pub fn new(mux: &'static MuxSpiMaster<'static, S>, chip_select: CS) -> Self {
         SpiComponent {
             spi_mux: mux,
+            _phantom: PhantomData,
             chip_select,
         }
     }
@@ -266,9 +269,9 @@ impl<
 
 impl<
         S: 'static + spi::SpiMaster<'static>,
-        CS: spi::util::IntoChipSelect<S::ChipSelect, AL>,
-        const AL: bool,
-    > Component for SpiComponent<S, CS, AL>
+        CS: spi::util::IntoChipSelect<S::ChipSelect, AP>,
+        AP: spi::util::ChipSelect,
+    > Component for SpiComponent<S, CS, AP>
 {
     type StaticInput = &'static mut MaybeUninit<VirtualSpiMasterDevice<'static, S>>;
     type Output = &'static VirtualSpiMasterDevice<'static, S>;

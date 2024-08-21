@@ -522,7 +522,7 @@ impl<'a> SpiHw<'a> {
 #[derive(Copy, Clone)]
 pub struct CS(pub u8);
 
-impl spi::util::IntoChipSelect<CS, true> for CS {
+impl spi::util::IntoChipSelect<CS, spi::util::ActiveLow> for CS {
     fn into_cs(self) -> CS {
         self
     }

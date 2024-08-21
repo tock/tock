@@ -19,12 +19,12 @@ use components::gpio::GpioComponent;
 use components::led::LedsComponent;
 use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
-use kernel::debug;
 use kernel::hil::led::LedHigh;
 use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{capabilities, create_capability, static_init, Kernel};
+use kernel::{debug, hil};
 
 use rp2040::adc::{Adc, Channel};
 use rp2040::chip::{Rp2040, Rp2040DefaultPeripherals};
@@ -465,9 +465,8 @@ pub unsafe fn start() -> (
 
     let bus = components::bus::SpiMasterBusComponent::new(
         mux_spi,
-        kernel::hil::spi::util::ChipSelect::new(
+        hil::spi::util::IntoChipSelect::<_, hil::spi::util::ActiveLow>::into_cs(
             peripherals.pins.get_pin(RPGpio::GPIO17),
-            kernel::hil::spi::util::ChipSelectActivePolarity::ActiveLow,
         ),
         20_000_000,
         kernel::hil::spi::ClockPhase::SampleLeading,

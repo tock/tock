@@ -17,6 +17,7 @@ use core::ptr::addr_of_mut;
 
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::hil;
 use kernel::hil::gpio::Configure;
 use kernel::hil::gpio::Output;
 use kernel::hil::led::LedHigh;
@@ -372,9 +373,8 @@ pub unsafe fn start() -> (
     let lr1110_spi = components::spi::SpiSyscallComponent::new(
         board_kernel,
         mux_spi,
-        kernel::hil::spi::util::ChipSelect::new(
+        hil::spi::util::IntoChipSelect::<_, hil::spi::util::ActiveLow>::into_cs(
             &nrf52840_peripherals.gpio_port[SPI_CS_PIN],
-            kernel::hil::spi::util::ChipSelectActivePolarity::ActiveLow,
         ),
         LORA_SPI_DRIVER_NUM,
     )
@@ -390,10 +390,11 @@ pub unsafe fn start() -> (
 
     base_peripherals
         .spim0
-        .specify_chip_select(kernel::hil::spi::util::ChipSelect::new(
-            &nrf52840_peripherals.gpio_port[SPI_CS_PIN],
-            kernel::hil::spi::util::ChipSelectActivePolarity::ActiveLow,
-        ))
+        .specify_chip_select(
+            hil::spi::util::IntoChipSelect::<_, hil::spi::util::ActiveLow>::into_cs(
+                &nrf52840_peripherals.gpio_port[SPI_CS_PIN],
+            ),
+        )
         .unwrap();
 
     // Pin mappings from the original WM1110 source code.

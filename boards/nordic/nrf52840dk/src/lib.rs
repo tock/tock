@@ -697,9 +697,8 @@ pub unsafe fn start() -> (
     let spi_controller = components::spi::SpiSyscallComponent::new(
         board_kernel,
         mux_spi,
-        kernel::hil::spi::util::ChipSelect::new(
+        kernel::hil::spi::util::IntoChipSelect::<_, kernel::hil::spi::util::ActiveLow>::into_cs(
             &gpio_port[SPI_CS],
-            kernel::hil::spi::util::ChipSelectActivePolarity::ActiveLow,
         ),
         capsules_core::spi_controller::DRIVER_NUM,
     )

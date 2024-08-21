@@ -47,7 +47,7 @@ pub type L3gd20ComponentType<S> = capsules_extra::l3gd20::L3gd20Spi<'static, S>;
 
 pub struct L3gd20Component<
     S: 'static + spi::SpiMaster<'static>,
-    CS: spi::util::IntoChipSelect<S::ChipSelect, true>,
+    CS: spi::util::IntoChipSelect<S::ChipSelect, spi::util::ActiveLow>,
 > {
     spi_mux: &'static MuxSpiMaster<'static, S>,
     chip_select: CS,
@@ -55,8 +55,10 @@ pub struct L3gd20Component<
     driver_num: usize,
 }
 
-impl<S: 'static + spi::SpiMaster<'static>, CS: spi::util::IntoChipSelect<S::ChipSelect, true>>
-    L3gd20Component<S, CS>
+impl<
+        S: 'static + spi::SpiMaster<'static>,
+        CS: spi::util::IntoChipSelect<S::ChipSelect, spi::util::ActiveLow>,
+    > L3gd20Component<S, CS>
 {
     pub fn new(
         spi_mux: &'static MuxSpiMaster<'static, S>,
@@ -73,8 +75,10 @@ impl<S: 'static + spi::SpiMaster<'static>, CS: spi::util::IntoChipSelect<S::Chip
     }
 }
 
-impl<S: 'static + spi::SpiMaster<'static>, CS: spi::util::IntoChipSelect<S::ChipSelect, true>>
-    Component for L3gd20Component<S, CS>
+impl<
+        S: 'static + spi::SpiMaster<'static>,
+        CS: spi::util::IntoChipSelect<S::ChipSelect, spi::util::ActiveLow>,
+    > Component for L3gd20Component<S, CS>
 {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualSpiMasterDevice<'static, S>>,

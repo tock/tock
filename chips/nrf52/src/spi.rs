@@ -37,7 +37,7 @@ use core::cell::Cell;
 use core::{cmp, ptr};
 use kernel::hil;
 use kernel::hil::gpio::Configure;
-use kernel::hil::spi::util::ChipSelect;
+use kernel::hil::spi::util::ChipSelectPolar;
 use kernel::utilities::cells::{OptionalCell, TakeCell, VolatileCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};
@@ -242,7 +242,7 @@ impl Frequency {
 pub struct SPIM<'a> {
     registers: StaticRef<SpimRegisters>,
     client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
-    chip_select: OptionalCell<ChipSelect<&'a crate::gpio::GPIOPin<'a>>>,
+    chip_select: OptionalCell<ChipSelectPolar<&'a crate::gpio::GPIOPin<'a>>>,
     busy: Cell<bool>,
     tx_buf: TakeCell<'static, [u8]>,
     rx_buf: TakeCell<'static, [u8]>,
@@ -339,7 +339,7 @@ impl<'a> SPIM<'a> {
 }
 
 impl<'a> hil::spi::SpiMaster<'a> for SPIM<'a> {
-    type ChipSelect = ChipSelect<&'a crate::gpio::GPIOPin<'a>>;
+    type ChipSelect = ChipSelectPolar<&'a crate::gpio::GPIOPin<'a>>;
 
     fn set_client(&self, client: &'a dyn hil::spi::SpiMasterClient) {
         self.client.set(client);

@@ -42,14 +42,16 @@ macro_rules! fm25cl_component_static {
 
 pub struct Fm25clComponent<
     S: 'static + spi::SpiMaster<'static>,
-    CS: spi::util::IntoChipSelect<S::ChipSelect, true>,
+    CS: spi::util::IntoChipSelect<S::ChipSelect, spi::util::ActiveLow>,
 > {
     spi_mux: &'static MuxSpiMaster<'static, S>,
     chip_select: CS,
 }
 
-impl<S: 'static + spi::SpiMaster<'static>, CS: spi::util::IntoChipSelect<S::ChipSelect, true>>
-    Fm25clComponent<S, CS>
+impl<
+        S: 'static + spi::SpiMaster<'static>,
+        CS: spi::util::IntoChipSelect<S::ChipSelect, spi::util::ActiveLow>,
+    > Fm25clComponent<S, CS>
 {
     pub fn new(spi_mux: &'static MuxSpiMaster<'static, S>, chip_select: CS) -> Self {
         Self {
@@ -59,8 +61,10 @@ impl<S: 'static + spi::SpiMaster<'static>, CS: spi::util::IntoChipSelect<S::Chip
     }
 }
 
-impl<S: 'static + spi::SpiMaster<'static>, CS: spi::util::IntoChipSelect<S::ChipSelect, true>>
-    Component for Fm25clComponent<S, CS>
+impl<
+        S: 'static + spi::SpiMaster<'static>,
+        CS: spi::util::IntoChipSelect<S::ChipSelect, spi::util::ActiveLow>,
+    > Component for Fm25clComponent<S, CS>
 {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualSpiMasterDevice<'static, S>>,

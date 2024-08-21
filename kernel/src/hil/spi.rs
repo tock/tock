@@ -42,54 +42,65 @@ pub enum ClockPhase {
 
 pub mod util {
 
-    pub trait IntoChipSelect<T, const ACTIVE_LOW: bool> {
+    #[derive(Copy, Clone)]
+    pub enum Polarity {
+        High,
+        Low,
+    }
+
+    mod private {
+        pub trait Sealed {}
+    }
+
+    pub trait ChipSelect: private::Sealed {
+        const POLARITY: Polarity;
+    }
+
+    pub enum ActiveLow {}
+    pub enum ActiveHigh {}
+
+    impl private::Sealed for ActiveLow {}
+    impl private::Sealed for ActiveHigh {}
+
+    impl ChipSelect for ActiveLow {
+        const POLARITY: Polarity = Polarity::Low;
+    }
+
+    impl ChipSelect for ActiveHigh {
+        const POLARITY: Polarity = Polarity::High;
+    }
+
+    pub trait IntoChipSelect<T, ChipSelectActivePolarity> {
         fn into_cs(self) -> T;
     }
 
-    #[repr(u8)]
-    #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-    pub enum ChipSelectActivePolarity {
-        ActiveLow,
-        ActiveHigh,
-    }
-
     #[derive(Copy, Clone)]
-    pub struct ChipSelect<P> {
+    pub struct ChipSelectPolar<P> {
         pub pin: P,
-        pub polarity: ChipSelectActivePolarity,
+        pub polarity: Polarity,
     }
 
-    impl<P, const A: bool> IntoChipSelect<ChipSelect<P>, A> for P {
-        fn into_cs(self) -> ChipSelect<P> {
-            ChipSelect {
+    impl<P, A: ChipSelect> IntoChipSelect<ChipSelectPolar<P>, A> for P {
+        fn into_cs(self) -> ChipSelectPolar<P> {
+            ChipSelectPolar {
                 pin: self,
-                polarity: if A {
-                    ChipSelectActivePolarity::ActiveLow
-                } else {
-                    ChipSelectActivePolarity::ActiveHigh
-                },
+                polarity: A::POLARITY,
             }
         }
     }
 
-    impl<P> ChipSelect<P> {
-        pub fn new(pin: P, polarity: ChipSelectActivePolarity) -> Self {
-            Self { pin, polarity }
-        }
-    }
-
-    impl<P: crate::hil::gpio::Output> ChipSelect<P> {
+    impl<P: crate::hil::gpio::Output> ChipSelectPolar<P> {
         pub fn deactivate(&self) {
             match self.polarity {
-                ChipSelectActivePolarity::ActiveLow => self.pin.set(),
-                ChipSelectActivePolarity::ActiveHigh => self.pin.clear(),
+                Polarity::Low => self.pin.set(),
+                Polarity::High => self.pin.clear(),
             }
         }
 
         pub fn activate(&self) {
             match self.polarity {
-                ChipSelectActivePolarity::ActiveLow => self.pin.clear(),
-                ChipSelectActivePolarity::ActiveHigh => self.pin.set(),
+                Polarity::Low => self.pin.clear(),
+                Polarity::High => self.pin.set(),
             }
         }
     }

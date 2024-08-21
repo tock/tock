@@ -40,9 +40,9 @@ use capsules_core::virtualizers::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDev
 use capsules_extra::lpm013m126::Lpm013m126;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
-use kernel::hil::gpio;
 use kernel::hil::spi::{SpiMaster, SpiMasterDevice};
 use kernel::hil::time::Alarm;
+use kernel::hil::{self, gpio};
 
 /// Setup static space for the driver and its requirements.
 #[macro_export]
@@ -87,7 +87,9 @@ where
     P: 'static + gpio::Pin,
     S: 'static + SpiMaster<'static>,
 {
-    pub fn new<I: kernel::hil::spi::util::IntoChipSelect<S::ChipSelect, false>>(
+    pub fn new<
+        I: kernel::hil::spi::util::IntoChipSelect<S::ChipSelect, hil::spi::util::ActiveHigh>,
+    >(
         spi: &'static MuxSpiMaster<'static, S>,
 
         chip_select: I,
