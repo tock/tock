@@ -87,17 +87,17 @@ where
     P: 'static + gpio::Pin,
     S: 'static + SpiMaster<'static>,
 {
-    pub fn new(
+    pub fn new<I: kernel::hil::spi::util::IntoChipSelect<S::ChipSelect, false>>(
         spi: &'static MuxSpiMaster<'static, S>,
 
-        chip_select: S::ChipSelect,
+        chip_select: I,
         disp: &'static P,
         extcomin: &'static P,
         alarm_mux: &'static MuxAlarm<'static, A>,
     ) -> Self {
         Self {
             spi,
-            chip_select,
+            chip_select: chip_select.into_cs(),
             disp,
             extcomin,
             alarm_mux,

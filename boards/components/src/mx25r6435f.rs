@@ -81,17 +81,17 @@ impl<
         A: 'static + hil::time::Alarm<'static>,
     > Mx25r6435fComponent<S, P, A>
 {
-    pub fn new(
+    pub fn new<CS: kernel::hil::spi::util::IntoChipSelect<S::ChipSelect, true>>(
         write_protect_pin: Option<&'static P>,
         hold_pin: Option<&'static P>,
-        chip_select: S::ChipSelect,
+        chip_select: CS,
         mux_alarm: &'static MuxAlarm<'static, A>,
         mux_spi: &'static MuxSpiMaster<'static, S>,
     ) -> Mx25r6435fComponent<S, P, A> {
         Mx25r6435fComponent {
             write_protect_pin,
             hold_pin,
-            chip_select,
+            chip_select: chip_select.into_cs(),
             mux_alarm,
             mux_spi,
         }

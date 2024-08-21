@@ -7,7 +7,6 @@ use core::cmp;
 use kernel::ErrorCode;
 
 use kernel::hil;
-use kernel::hil::gpio::Output;
 use kernel::hil::spi::{self, ClockPhase, ClockPolarity, SpiMasterClient};
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -192,7 +191,7 @@ pub struct Spi<'a> {
     // SPI slave support not yet implemented
     master_client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
 
-    active_slave: OptionalCell<&'a crate::gpio::Pin<'a>>,
+    active_slave: OptionalCell<spi::util::ChipSelect<&'a crate::gpio::Pin<'a>>>,
 
     tx_buffer: TakeCell<'static, [u8]>,
     tx_position: Cell<usize>,
@@ -289,7 +288,7 @@ impl<'a> Spi<'a> {
             // initiate another SPI transfer right away
             if !self.active_after.get() {
                 self.active_slave.map(|p| {
-                    p.set();
+                    p.deactivate();
                 });
             }
             self.transfers.set(SPI_IDLE);
@@ -300,10 +299,6 @@ impl<'a> Spi<'a> {
             });
             self.transfers.set(SPI_IDLE);
         }
-    }
-
-    fn set_active_slave(&self, slave_pin: &'a crate::gpio::Pin<'a>) {
-        self.active_slave.set(slave_pin);
     }
 
     fn set_cr<F>(&self, f: F)
@@ -369,7 +364,7 @@ impl<'a> Spi<'a> {
         if self.transfers.get() == 0 {
             self.registers.cr2.modify(CR2::RXNEIE::CLEAR);
             self.active_slave.map(|p| {
-                p.clear();
+                p.activate();
             });
 
             self.transfers.set(self.transfers.get() | SPI_IN_PROGRESS);
@@ -416,7 +411,7 @@ impl<'a> Spi<'a> {
 }
 
 impl<'a> spi::SpiMaster<'a> for Spi<'a> {
-    type ChipSelect = &'a crate::gpio::Pin<'a>;
+    type ChipSelect = spi::util::ChipSelect<&'a crate::gpio::Pin<'a>>;
 
     fn set_client(&self, client: &'a dyn SpiMasterClient) {
         self.master_client.set(client);
@@ -539,7 +534,7 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
     }
 
     fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), ErrorCode> {
-        self.set_active_slave(cs);
+        self.active_slave.set(cs);
         Ok(())
     }
 }

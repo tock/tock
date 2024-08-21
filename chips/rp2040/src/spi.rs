@@ -6,7 +6,7 @@ use crate::clocks;
 use core::cell::Cell;
 use core::cmp;
 use kernel::hil;
-use kernel::hil::gpio::Output;
+use kernel::hil::spi::util::ChipSelect;
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::spi::SpiMasterClient;
 use kernel::hil::spi::{ClockPhase, ClockPolarity};
@@ -238,7 +238,7 @@ pub struct Spi<'a> {
     registers: StaticRef<SpiRegisters>,
     clocks: OptionalCell<&'a clocks::Clocks>,
     master_client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
-    active_slave: OptionalCell<&'a crate::gpio::RPGpioPin<'a>>,
+    active_slave: OptionalCell<ChipSelect<&'a crate::gpio::RPGpioPin<'a>>>,
 
     tx_buffer: TakeCell<'static, [u8]>,
     tx_position: Cell<usize>,
@@ -346,7 +346,7 @@ impl<'a> Spi<'a> {
         if self.transfers.get() == SPI_IN_PROGRESS {
             if !self.active_after.get() {
                 self.active_slave.map(|p| {
-                    p.set();
+                    p.deactivate();
                 });
             }
             self.master_client.map(|client| {
@@ -383,7 +383,7 @@ impl<'a> Spi<'a> {
             self.registers.sspimsc.modify(SSPIMSC::TXIM::CLEAR);
             self.registers.sspimsc.modify(SSPIMSC::RXIM::CLEAR);
             self.active_slave.map(|p| {
-                p.clear();
+                p.activate();
             });
 
             self.transfers.set(SPI_IN_PROGRESS);
@@ -474,10 +474,6 @@ impl<'a> Spi<'a> {
         }
     }
 
-    fn set_active_slave(&self, slave_pin: &'a crate::gpio::RPGpioPin<'a>) {
-        self.active_slave.set(slave_pin);
-    }
-
     fn set_format(&self) {
         self.registers.sspcr0.modify(SSPCR0::DSS::DATA_8_BIT);
         self.registers.sspcr0.modify(SSPCR0::SPO::CLEAR);
@@ -486,7 +482,7 @@ impl<'a> Spi<'a> {
 }
 
 impl<'a> SpiMaster<'a> for Spi<'a> {
-    type ChipSelect = &'a crate::gpio::RPGpioPin<'a>;
+    type ChipSelect = ChipSelect<&'a crate::gpio::RPGpioPin<'a>>;
 
     fn set_client(&self, client: &'a dyn SpiMasterClient) {
         self.master_client.set(client);
@@ -564,7 +560,7 @@ impl<'a> SpiMaster<'a> for Spi<'a> {
 
     fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), ErrorCode> {
         if !self.is_busy() {
-            self.set_active_slave(cs);
+            self.active_slave.set(cs);
             Ok(())
         } else {
             Err(ErrorCode::BUSY)

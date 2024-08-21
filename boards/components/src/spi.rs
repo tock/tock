@@ -125,9 +125,13 @@ pub struct SpiSyscallPComponent<S: 'static + spi::SpiSlave<'static>> {
     driver_num: usize,
 }
 
-pub struct SpiComponent<S: 'static + spi::SpiMaster<'static>> {
+pub struct SpiComponent<
+    S: 'static + spi::SpiMaster<'static>,
+    CS: spi::util::IntoChipSelect<S::ChipSelect, AL>,
+    const AL: bool,
+> {
     spi_mux: &'static MuxSpiMaster<'static, S>,
-    chip_select: S::ChipSelect,
+    chip_select: CS,
 }
 
 impl<S: 'static + spi::SpiMaster<'static>> SpiMuxComponent<S> {
@@ -246,8 +250,13 @@ impl<S: 'static + spi::SpiSlave<'static>> Component for SpiSyscallPComponent<S> 
     }
 }
 
-impl<S: 'static + spi::SpiMaster<'static>> SpiComponent<S> {
-    pub fn new(mux: &'static MuxSpiMaster<'static, S>, chip_select: S::ChipSelect) -> Self {
+impl<
+        S: 'static + spi::SpiMaster<'static>,
+        CS: spi::util::IntoChipSelect<S::ChipSelect, AL>,
+        const AL: bool,
+    > SpiComponent<S, CS, AL>
+{
+    pub fn new(mux: &'static MuxSpiMaster<'static, S>, chip_select: CS) -> Self {
         SpiComponent {
             spi_mux: mux,
             chip_select,
@@ -255,13 +264,20 @@ impl<S: 'static + spi::SpiMaster<'static>> SpiComponent<S> {
     }
 }
 
-impl<S: 'static + spi::SpiMaster<'static>> Component for SpiComponent<S> {
+impl<
+        S: 'static + spi::SpiMaster<'static>,
+        CS: spi::util::IntoChipSelect<S::ChipSelect, AL>,
+        const AL: bool,
+    > Component for SpiComponent<S, CS, AL>
+{
     type StaticInput = &'static mut MaybeUninit<VirtualSpiMasterDevice<'static, S>>;
     type Output = &'static VirtualSpiMasterDevice<'static, S>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let spi_device =
-            static_buffer.write(VirtualSpiMasterDevice::new(self.spi_mux, self.chip_select));
+        let spi_device = static_buffer.write(VirtualSpiMasterDevice::new(
+            self.spi_mux,
+            self.chip_select.into_cs(),
+        ));
         spi_device.setup();
         spi_device
     }

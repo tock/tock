@@ -41,7 +41,13 @@ pub enum ClockPhase {
 }
 
 pub mod util {
-    #[derive(Copy, Clone)]
+
+    pub trait IntoChipSelect<T, const ACTIVE_LOW: bool> {
+        fn into_cs(self) -> T;
+    }
+
+    #[repr(u8)]
+    #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
     pub enum ChipSelectActivePolarity {
         ActiveLow,
         ActiveHigh,
@@ -51,6 +57,19 @@ pub mod util {
     pub struct ChipSelect<P> {
         pub pin: P,
         pub polarity: ChipSelectActivePolarity,
+    }
+
+    impl<P, const A: bool> IntoChipSelect<ChipSelect<P>, A> for P {
+        fn into_cs(self) -> ChipSelect<P> {
+            ChipSelect {
+                pin: self,
+                polarity: if A {
+                    ChipSelectActivePolarity::ActiveLow
+                } else {
+                    ChipSelectActivePolarity::ActiveHigh
+                },
+            }
+        }
     }
 
     impl<P> ChipSelect<P> {

@@ -519,8 +519,17 @@ impl<'a> SpiHw<'a> {
     }
 }
 
+#[derive(Copy, Clone)]
+pub struct CS(pub u8);
+
+impl spi::util::IntoChipSelect<CS, true> for CS {
+    fn into_cs(self) -> CS {
+        self
+    }
+}
+
 impl<'a> spi::SpiMaster<'a> for SpiHw<'a> {
-    type ChipSelect = u8;
+    type ChipSelect = CS;
 
     fn set_client(&self, client: &'a dyn SpiMasterClient) {
         self.client.set(client);
@@ -636,7 +645,7 @@ impl<'a> spi::SpiMaster<'a> for SpiHw<'a> {
     }
 
     fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), ErrorCode> {
-        match match cs {
+        match match cs.0 {
             0 => Some(Peripheral::Peripheral0),
             1 => Some(Peripheral::Peripheral1),
             2 => Some(Peripheral::Peripheral2),

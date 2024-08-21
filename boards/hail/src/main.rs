@@ -381,7 +381,7 @@ unsafe fn start() -> (
     let spi_syscalls = components::spi::SpiSyscallComponent::new(
         board_kernel,
         mux_spi,
-        0,
+        sam4l::spi::CS(0),
         capsules_core::spi_controller::DRIVER_NUM,
     )
     .finalize(components::spi_syscall_component_static!(sam4l::spi::SpiHw));

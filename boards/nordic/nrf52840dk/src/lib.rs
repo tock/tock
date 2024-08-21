@@ -720,10 +720,7 @@ pub unsafe fn start() -> (
     let mx25r6435f = components::mx25r6435f::Mx25r6435fComponent::new(
         Some(&gpio_port[SPI_MX25R6435F_WRITE_PROTECT_PIN]),
         Some(&gpio_port[SPI_MX25R6435F_HOLD_PIN]),
-        kernel::hil::spi::util::ChipSelect::new(
-            &gpio_port[SPI_MX25R6435F_CHIP_SELECT],
-            kernel::hil::spi::util::ChipSelectActivePolarity::ActiveLow,
-        ),
+        &gpio_port[SPI_MX25R6435F_CHIP_SELECT],
         mux_alarm,
         mux_spi,
     )
