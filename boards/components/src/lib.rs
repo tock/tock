@@ -23,6 +23,7 @@ pub mod button;
 pub mod can;
 pub mod ccs811;
 pub mod cdc;
+pub mod chirp_i2c_moisture;
 pub mod console;
 pub mod crc;
 pub mod ctap;
