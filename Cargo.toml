@@ -82,6 +82,7 @@ members = [
     "chips/qemu_rv32_virt_chip",
     "chips/rp2040",
     "chips/sam4l",
+    "chips/segger",
     "chips/sifive",
     "chips/stm32f303xc",
     "chips/stm32f401cc",

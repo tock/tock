@@ -176,7 +176,7 @@ extern "C" {
     fn jump_to_bootloader();
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 core::arch::global_asm!(
     "
     .section .jump_to_bootloader, \"ax\"
@@ -416,8 +416,6 @@ pub unsafe fn start() -> (
             20 => peripherals.pins.get_pin(RPGpio::GPIO20),
             21 => peripherals.pins.get_pin(RPGpio::GPIO21),
             22 => peripherals.pins.get_pin(RPGpio::GPIO22),
-            23 => peripherals.pins.get_pin(RPGpio::GPIO23),
-            24 => peripherals.pins.get_pin(RPGpio::GPIO24),
         ),
     )
     .finalize(components::gpio_component_static!(RPGpioPin<'static>));

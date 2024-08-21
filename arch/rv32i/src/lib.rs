@@ -10,9 +10,6 @@
 
 use core::fmt::Write;
 
-#[cfg(all(target_arch = "riscv32", target_os = "none"))]
-use core::arch::global_asm;
-
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 
 pub mod clic;
@@ -47,7 +44,7 @@ extern "C" {
     static __global_pointer: usize;
 }
 
-#[cfg(all(target_arch = "riscv32", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
 extern "C" {
     // Entry point of all programs (`_start`).
     ///
@@ -62,8 +59,8 @@ extern "C" {
     pub fn _start();
 }
 
-#[cfg(all(target_arch = "riscv32", target_os = "none"))]
-global_asm! ("
+#[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
+core::arch::global_asm!("
             .section .riscv.start, \"ax\"
             .globl _start
           _start:
@@ -175,12 +172,12 @@ pub unsafe fn configure_trap_handler() {
 }
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
+#[cfg(not(any(doc, all(target_arch = "riscv32", target_os = "none"))))]
 pub extern "C" fn _start_trap() {
     unimplemented!()
 }
 
-#[cfg(all(target_arch = "riscv32", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
 extern "C" {
     /// This is the trap handler function. This code is called on all traps,
     /// including interrupts, exceptions, and system calls from applications.
@@ -271,8 +268,8 @@ extern "C" {
     pub fn _start_trap();
 }
 
-#[cfg(all(target_arch = "riscv32", target_os = "none"))]
-global_asm!(
+#[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
+core::arch::global_asm!(
     "
             .section .riscv.trap, \"ax\"
             .globl _start_trap
@@ -397,7 +394,7 @@ global_asm!(
 /// <https://elixir.bootlin.com/linux/v5.12.10/source/arch/riscv/include/asm/jump_label.h#L21>
 /// as suggested by the RISC-V developers:
 /// <https://groups.google.com/a/groups.riscv.org/g/isa-dev/c/XKkYacERM04/m/CdpOcqtRAgAJ>
-#[cfg(all(target_arch = "riscv32", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
 pub unsafe fn semihost_command(command: usize, arg0: usize, arg1: usize) -> usize {
     use core::arch::asm;
     let res;
@@ -421,7 +418,7 @@ pub unsafe fn semihost_command(command: usize, arg0: usize, arg1: usize) -> usiz
 }
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
+#[cfg(not(any(doc, all(target_arch = "riscv32", target_os = "none"))))]
 pub unsafe fn semihost_command(_command: usize, _arg0: usize, _arg1: usize) -> usize {
     unimplemented!()
 }

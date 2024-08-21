@@ -10,9 +10,6 @@
 
 use core::fmt::Write;
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
-use core::arch::global_asm;
-
 pub mod dcb;
 pub mod dwt;
 pub mod mpu;
@@ -116,7 +113,7 @@ pub trait CortexMVariant {
     unsafe fn print_cortexm_state(writer: &mut dyn Write);
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 pub unsafe extern "C" fn unhandled_interrupt() {
     use core::arch::asm;
     let mut interrupt_number: u32;
@@ -133,7 +130,7 @@ pub unsafe extern "C" fn unhandled_interrupt() {
     panic!("Unhandled Interrupt. ISR {} is active.", interrupt_number);
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 extern "C" {
     /// Assembly function to initialize the .bss and .data sections in RAM.
     ///
@@ -144,8 +141,8 @@ extern "C" {
     pub fn initialize_ram_jump_to_main();
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
-global_asm!(
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+core::arch::global_asm!(
 "
     .section .initialize_ram_jump_to_main, \"ax\"
     .global initialize_ram_jump_to_main
@@ -384,12 +381,12 @@ pub unsafe fn print_cortexm_state(writer: &mut dyn Write) {
 // ARM assembly since it will not compile.
 ///////////////////////////////////////////////////////////////////
 
-#[cfg(not(all(target_arch = "arm", target_os = "none")))]
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
 pub unsafe extern "C" fn unhandled_interrupt() {
     unimplemented!()
 }
 
-#[cfg(not(all(target_arch = "arm", target_os = "none")))]
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
 pub unsafe extern "C" fn initialize_ram_jump_to_main() {
     unimplemented!()
 }

@@ -20,10 +20,12 @@ use core::ptr::{addr_of, addr_of_mut};
 
 use capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
+use capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice;
 use kernel::component::Component;
 use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
+use kernel::hil::screen::Screen;
 use kernel::hil::symmetric_encryption::AES128;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -125,6 +127,7 @@ pub struct Platform {
             nrf52840::rtc::Rtc<'static>,
         >,
     >,
+    screen: &'static capsules_extra::screen::Screen<'static>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
@@ -145,6 +148,7 @@ impl SyscallDriverLookup for Platform {
             capsules_extra::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules_extra::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
+            capsules_extra::screen::DRIVER_NUM => f(Some(self.screen)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -433,6 +437,53 @@ pub unsafe fn start() -> (
     );
     periodic_virtual_alarm.setup();
 
+    let screen = {
+        let mux_spi = components::spi::SpiMuxComponent::new(&base_peripherals.spim2)
+            .finalize(components::spi_mux_component_static!(nrf52840::spi::SPIM));
+
+        use kernel::hil::spi::SpiMaster;
+        base_peripherals
+            .spim2
+            .set_rate(1_000_000)
+            .expect("SPIM2 set rate");
+
+        base_peripherals.spim2.configure(
+            nrf52840::pinmux::Pinmux::new(Pin::P0_27 as u32),
+            nrf52840::pinmux::Pinmux::new(Pin::P0_28 as u32),
+            nrf52840::pinmux::Pinmux::new(Pin::P0_26 as u32),
+        );
+
+        let disp_pin = &nrf52840_peripherals.gpio_port[Pin::P0_07];
+        let cs_pin = static_init!(
+            components::lpm013m126::Inverted<'static, nrf52840::gpio::GPIOPin>,
+            components::lpm013m126::Inverted(&nrf52840_peripherals.gpio_port[Pin::P0_05])
+        );
+
+        let display = components::lpm013m126::Lpm013m126Component::new(
+            mux_spi,
+            cs_pin,
+            disp_pin,
+            &nrf52840_peripherals.gpio_port[Pin::P0_06],
+            mux_alarm,
+        )
+        .finalize(components::lpm013m126_component_static!(
+            nrf52840::rtc::Rtc<'static>,
+            nrf52840::gpio::GPIOPin,
+            nrf52840::spi::SPIM
+        ));
+
+        let screen = components::screen::ScreenComponent::new(
+            board_kernel,
+            capsules_extra::screen::DRIVER_NUM,
+            display,
+            None,
+        )
+        .finalize(components::screen_component_static!(4096));
+        // Power on screen if not already powered
+        let _ = display.set_power(true);
+        screen
+    };
+
     let platform = Platform {
         temperature,
         button,
@@ -445,6 +496,7 @@ pub unsafe fn start() -> (
         rng,
         alarm,
         analog_comparator,
+        screen,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,

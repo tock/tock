@@ -10,9 +10,6 @@
 
 use core::fmt::Write;
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
-use core::arch::global_asm;
-
 // Re-export the base generic cortex-m functions here as they are
 // valid on cortex-m0.
 pub use cortexm::support;
@@ -20,7 +17,7 @@ pub use cortexm::support;
 pub use cortexm::nvic;
 pub use cortexm::syscall;
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 struct HardFaultStackedRegisters {
     r0: u32,
     r1: u32,
@@ -32,7 +29,7 @@ struct HardFaultStackedRegisters {
     xpsr: u32,
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 /// Handle a hard fault that occurred in the kernel. This function is invoked
 /// by the naked hard_fault_handler function.
 unsafe extern "C" fn hard_fault_handler_kernel(faulting_stack: *mut u32) -> ! {
@@ -72,19 +69,19 @@ unsafe extern "C" fn hard_fault_handler_kernel(faulting_stack: *mut u32) -> ! {
 }
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(all(target_arch = "arm", target_os = "none")))]
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
 unsafe extern "C" fn generic_isr() {
     unimplemented!()
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 extern "C" {
     /// All ISRs are caught by this handler which disables the NVIC and switches to the kernel.
     pub fn generic_isr();
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
-global_asm!(
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+core::arch::global_asm!(
     "
     .section .generic_isr, \"ax\"
     .global generic_isr
@@ -167,12 +164,12 @@ global_asm!(
 );
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(all(target_arch = "arm", target_os = "none")))]
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
 unsafe extern "C" fn systick_handler_m0() {
     unimplemented!()
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 extern "C" {
     /// The `systick_handler` is called when the systick interrupt occurs, signaling
     /// that an application executed for longer than its timeslice. This interrupt
@@ -183,8 +180,8 @@ extern "C" {
     pub fn systick_handler_m0();
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
-global_asm!(
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+core::arch::global_asm!(
     "
     .section .systick_handler_m0, \"ax\"
     .global systick_handler_m0
@@ -210,18 +207,18 @@ global_asm!(
 );
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(all(target_arch = "arm", target_os = "none")))]
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
 unsafe extern "C" fn svc_handler() {
     unimplemented!()
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 extern "C" {
     pub fn svc_handler();
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
-global_asm!(
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+core::arch::global_asm!(
     "
   .section .svc_handler, \"ax\"
   .global svc_handler
@@ -249,20 +246,20 @@ svc_handler:
 );
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(all(target_arch = "arm", target_os = "none")))]
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
 unsafe extern "C" fn hard_fault_handler() {
     unimplemented!()
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 extern "C" {
     pub fn hard_fault_handler();
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 // If `kernel_stack` is non-zero, then hard-fault occurred in
 // kernel, otherwise the hard-fault occurred in user.
-global_asm!(
+core::arch::global_asm!(
 "
     .section .hard_fault_handler, \"ax\"
     .global hard_fault_handler
@@ -365,7 +362,7 @@ impl cortexm::CortexMVariant for CortexM0 {
     const HARD_FAULT_HANDLER: unsafe extern "C" fn() = hard_fault_handler;
 
     // Mock implementation for tests on Travis-CI.
-    #[cfg(not(all(target_arch = "arm", target_os = "none")))]
+    #[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
     unsafe fn switch_to_user(
         _user_stack: *const usize,
         _process_regs: &mut [usize; 8],
@@ -373,7 +370,7 @@ impl cortexm::CortexMVariant for CortexM0 {
         unimplemented!()
     }
 
-    #[cfg(all(target_arch = "arm", target_os = "none"))]
+    #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
     unsafe fn switch_to_user(
         mut user_stack: *const usize,
         process_regs: &mut [usize; 8],
