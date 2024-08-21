@@ -14,6 +14,8 @@ use kernel::hil::sensors::{MoistureClient, MoistureDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
+pub const BUFFER_SIZE: usize = 2;
+
 const GET_CAPACITANCE: u8 = 0x00;
 #[allow(dead_code)]
 const SET_ADDRESS: u8 = 0x01;
