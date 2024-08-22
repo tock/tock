@@ -38,6 +38,8 @@ fn trivial_assertion() {
 mod atecc508a;
 #[cfg(feature = "atecc508a")]
 mod csrng;
+#[cfg(feature = "atecc508a")]
+mod sha;
 
 mod environmental_sensors;
 mod multi_alarm;
