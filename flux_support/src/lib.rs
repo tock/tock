@@ -110,3 +110,9 @@ impl DerefMut for FluxPtr {
         unimplemented!()
     }
 }
+
+
+
+// #[flux::extern_spec(core::ops::range)]
+// #[flux::refined_by(lo: int, hi: int)]
+// struct Range;

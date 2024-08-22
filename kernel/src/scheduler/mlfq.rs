@@ -160,7 +160,7 @@ impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<
         SchedulingDecision::RunProcess((next, Some(timeslice)))
     }
 
-    #[flux::trusted] // arithmetic / OOB
+    #[flux::trusted] // arithmetic / OOB - Needs refined List Collection
     fn result(&self, result: StoppedExecutingReason, execution_time_us: Option<u32>) {
         let execution_time_us = execution_time_us.unwrap(); // should never fail as we never run cooperatively
         let queue_idx = self.last_queue_idx.get();

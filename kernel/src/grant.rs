@@ -360,7 +360,9 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
             + allow_rw_num.0 as usize * size_of::<SavedAllowRw>();
         // We know that grant_t_align is a power of 2, so we can make a mask
         // that will save only the remainder bits.
+        assume(grant_t_align.0 > 0);
         let grant_t_align_mask = grant_t_align.0 - 1;
+
         // Determine padding to get to the next multiple of grant_t_align by
         // taking the remainder and subtracting that from the alignment, then
         // ensuring a full alignment value maps to 0.

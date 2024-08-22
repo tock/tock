@@ -28,6 +28,7 @@ use crate::process_checker::{AppIdPolicy, ProcessCheckError, ProcessCheckerMachi
 use crate::process_policies::ProcessFaultPolicy;
 use crate::process_standard::ProcessStandard;
 use crate::utilities::cells::{MapCell, OptionalCell};
+use flux_support::*;
 
 /// Errors that can occur when trying to load and create processes.
 pub enum ProcessLoadError {
@@ -908,7 +909,7 @@ impl<'a, C: Chip> DeferredCallClient for SequentialProcessLoaderMachine<'a, C> {
 impl<'a, C: Chip> crate::process_checker::ProcessCheckerMachineClient
     for SequentialProcessLoaderMachine<'a, C>
 {
-    #[flux::trusted] // OOB warning
+    #[flux::trusted] // Expected array or slice type
     fn done(
         &self,
         process_binary: ProcessBinary,
@@ -927,6 +928,7 @@ impl<'a, C: Chip> crate::process_checker::ProcessCheckerMachineClient
                 match self.find_open_process_binary_slot() {
                     Some(index) => {
                         self.proc_binaries.map(|proc_binaries| {
+                            assume(proc_binaries.len() > index);
                             process_binary.credential.insert(optional_credential);
                             proc_binaries[index] = Some(process_binary);
                         });
