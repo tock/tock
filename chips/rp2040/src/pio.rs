@@ -535,9 +535,9 @@ const STATE_MACHINE_NUMBERS: [SMNumber; NUMBER_STATE_MACHINES] =
 pub struct Pio {
     registers: StaticRef<PioRegisters>,
     pio_number: PIONumber,
-    pub xor_registers: StaticRef<PioRegisters>,
-    pub set_registers: StaticRef<PioRegisters>,
-    pub clear_registers: StaticRef<PioRegisters>,
+    xor_registers: StaticRef<PioRegisters>,
+    set_registers: StaticRef<PioRegisters>,
+    clear_registers: StaticRef<PioRegisters>,
 }
 
 /// 'MOV STATUS' types.
@@ -733,6 +733,7 @@ impl Pio {
 
     /// Restart a state machine.
     pub fn restart_sm(&self, sm_number: SMNumber) {
+        /// SET Reg
         match sm_number {
             SMNumber::SM0 => self.registers.ctrl.modify(CTRL::SM0_RESTART::SET),
             SMNumber::SM1 => self.registers.ctrl.modify(CTRL::SM1_RESTART::SET),
@@ -750,17 +751,20 @@ impl Pio {
 
     /// Clear a state machine’s TX and RX FIFOs.
     fn sm_clear_fifos(&self, sm_number: SMNumber) {
-        self.registers.sm[sm_number as usize]
+        ///XOR Reg
+        self.xor_registers.sm[sm_number as usize]
             .shiftctrl
             .modify(SMx_SHIFTCTRL::FJOIN_RX::SET);
-        self.registers.sm[sm_number as usize]
+        ///XOR Reg
+        self.xor_registers.sm[sm_number as usize]
             .shiftctrl
-            .modify(SMx_SHIFTCTRL::FJOIN_TX::SET);
+            .modify(SMx_SHIFTCTRL::FJOIN_RX::SET);
     }
 
     /// Restart a state machine's clock divider.
     pub fn sm_clkdiv_restart(&self, sm_number: SMNumber) {
         match sm_number {
+            /// SET Reg
             SMNumber::SM0 => self.registers.ctrl.modify(CTRL::CLKDIV0_RESTART::SET),
             SMNumber::SM1 => self.registers.ctrl.modify(CTRL::CLKDIV1_RESTART::SET),
             SMNumber::SM2 => self.registers.ctrl.modify(CTRL::CLKDIV2_RESTART::SET),
@@ -768,7 +772,7 @@ impl Pio {
         }
     }
 
-    pub fn sm_put(&self, sm_number: SMNumber, data: u32){
+    pub fn sm_put(&self, sm_number: SMNumber, data: u32) {
         self.registers.txf[sm_number as usize].set(data);
     }
 
