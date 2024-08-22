@@ -13,7 +13,7 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 
-use kernel::collections::ring_buffer::RingBuffer;
+use kernel::collections::atomic_ring_buffer::AtomicRingBuffer;
 use kernel::platform::chip::Chip;
 use kernel::smp;
 use kernel::static_init_once;
@@ -72,8 +72,8 @@ pub unsafe fn main(thread_type: ThreadType) {
 
     // TODO: replace it with a lock-free channel implementation
     let channel = static_init_once!(
-        smp::mutex::Mutex<RingBuffer<Option<qemu_rv32_virt_chip::channel::QemuRv32VirtMessage>>>,
-        smp::mutex::Mutex::new(RingBuffer::new(channel_buffer)),
+        AtomicRingBuffer<Option<qemu_rv32_virt_chip::channel::QemuRv32VirtMessage>>,
+        AtomicRingBuffer::new(channel_buffer),
     );
 
     use ThreadType as T;
