@@ -124,7 +124,7 @@ pub mod cs {
     }
 
     /// A convenience wrapper type around
-    /// [Output](crate::hil::gpio::Output] GPIO pins that implements
+    /// [Output](crate::hil::gpio::Output) GPIO pins that implements
     /// [IntoChipSelect] for both [ActiveLow] and [ActiveHigh].
     #[derive(Copy, Clone)]
     pub struct ChipSelectPolar<P: crate::hil::gpio::Output> {
