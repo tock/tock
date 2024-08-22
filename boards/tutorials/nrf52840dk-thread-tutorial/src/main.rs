@@ -207,6 +207,8 @@ pub unsafe fn main() {
         nrf52840::nvmc::Nvmc
     ));
 
+    let _ = nonvolatile_storage.init();
+
     //--------------------------------------------------------------------------
     // PLATFORM SETUP, SCHEDULER, AND START KERNEL LOOP
     //--------------------------------------------------------------------------
