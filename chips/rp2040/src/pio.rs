@@ -719,17 +719,21 @@ impl Pio {
         }
     }
 
+    /// Immediately execute an instruction on a state machine.
     fn sm_exec(&self, sm_number: SMNumber, instr: u32) {
         self.registers.sm[sm_number as usize]
             .instr
             .modify(SMx_INSTR::INSTR.val(instr));
     }
 
-    fn sm_clear_fifos(&self, sm_number: SMNumber){
+    /// Clear a state machine’s TX and RX FIFOs.
+    fn sm_clear_fifos(&self, sm_number: SMNumber) {
         self.registers.sm[sm_number as usize]
-            .shiftctrl.modify(SMx_SHIFTCTRL::FJOIN_RX::SET);
+            .shiftctrl
+            .modify(SMx_SHIFTCTRL::FJOIN_RX::SET);
         self.registers.sm[sm_number as usize]
-            .shiftctrl.modify(SMx_SHIFTCTRL::FJOIN_TX::SET);
+            .shiftctrl
+            .modify(SMx_SHIFTCTRL::FJOIN_TX::SET);
     }
 
     /// Restart a state machine's clock divider.
@@ -970,7 +974,12 @@ impl Pio {
         self.sm_init(sm_number, config);
         self.sm_set_enabled(sm_number, true);
     }
-    pub fn blink_program_init(&self, sm_number: SMNumber, pin: u32, config: &StateMachineConfiguration) {
+    pub fn blink_program_init(
+        &self,
+        sm_number: SMNumber,
+        pin: u32,
+        config: &StateMachineConfiguration,
+    ) {
         self.gpio_init(&RPGpioPin::new(RPGpio::GPIO6));
         self.set_consecutive_pindirs(sm_number, pin, 1);
         self.set_set_pins(sm_number, pin, 1);
@@ -978,7 +987,12 @@ impl Pio {
         self.sm_set_enabled(sm_number, true);
     }
 
-    pub fn hello_program_init(&self, sm_number: SMNumber, pin: u32, config: &StateMachineConfiguration) {
+    pub fn hello_program_init(
+        &self,
+        sm_number: SMNumber,
+        pin: u32,
+        config: &StateMachineConfiguration,
+    ) {
         self.gpio_init(&RPGpioPin::new(RPGpio::GPIO25));
         self.set_out_pins(sm_number, pin, 1);
         self.set_consecutive_pindirs(sm_number, pin, 1);
