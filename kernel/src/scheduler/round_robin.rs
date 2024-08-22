@@ -126,14 +126,13 @@ impl<'a, C: Chip> Scheduler<C> for RoundRobinSched<'a> {
         SchedulingDecision::RunProcess((next, Some(timeslice)))
     }
 
-    #[flux::trusted] // arithmetic
     fn result(&self, result: StoppedExecutingReason, execution_time_us: Option<u32>) {
         let execution_time_us = execution_time_us.unwrap(); // should never fail
         let reschedule = match result {
             StoppedExecutingReason::KernelPreemption => {
-                if self.time_remaining.get() > execution_time_us {
-                    self.time_remaining
-                        .set(self.time_remaining.get() - execution_time_us);
+                let t = self.time_remaining.get();
+                if t > execution_time_us {
+                    self.time_remaining.set(t - execution_time_us);
                     true
                 } else {
                     false
