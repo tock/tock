@@ -123,14 +123,11 @@ pub mod cs {
         fn into_cs(self) -> T;
     }
 
-    /// A convenience wrapper type around any chip select type `P`,
-    /// and implements [IntoChipSelect] for both [ActiveLow] and
-    /// [ActiveHigh].
-    ///
-    /// Notably, there is a blanket implementation for all
-    /// [gpio::Output](crate::hil::gpio::Output) types.
+    /// A convenience wrapper type around
+    /// [Output](crate::hil::gpio::Output] GPIO pins that implements
+    /// [IntoChipSelect] for both [ActiveLow] and [ActiveHigh].
     #[derive(Copy, Clone)]
-    pub struct ChipSelectPolar<P> {
+    pub struct ChipSelectPolar<P: crate::hil::gpio::Output> {
         /// The underlying chip select "pin"
         pub pin: P,
         /// The polarity from which this wrapper was derived using
@@ -138,7 +135,9 @@ pub mod cs {
         pub polarity: Polarity,
     }
 
-    impl<P, A: ChipSelectActivePolarity> IntoChipSelect<ChipSelectPolar<P>, A> for P {
+    impl<P: crate::hil::gpio::Output, A: ChipSelectActivePolarity>
+        IntoChipSelect<ChipSelectPolar<P>, A> for P
+    {
         fn into_cs(self) -> ChipSelectPolar<P> {
             ChipSelectPolar {
                 pin: self,
