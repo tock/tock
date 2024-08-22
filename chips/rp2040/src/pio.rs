@@ -751,11 +751,11 @@ impl Pio {
 
     /// Clear a state machine’s TX and RX FIFOs.
     fn sm_clear_fifos(&self, sm_number: SMNumber) {
-        ///XOR Reg
+        /// XOR Reg
         self.xor_registers.sm[sm_number as usize]
             .shiftctrl
             .modify(SMx_SHIFTCTRL::FJOIN_RX::SET);
-        ///XOR Reg
+        /// XOR Reg
         self.xor_registers.sm[sm_number as usize]
             .shiftctrl
             .modify(SMx_SHIFTCTRL::FJOIN_RX::SET);
@@ -772,10 +772,12 @@ impl Pio {
         }
     }
 
+    /// Write a word of data to a state machine’s TX FIFO.
     pub fn sm_put(&self, sm_number: SMNumber, data: u32) {
         self.registers.txf[sm_number as usize].set(data);
     }
 
+    /// Resets the state machine to a consistent state, and configures it.
     pub fn sm_init(&self, sm_number: SMNumber, config: &StateMachineConfiguration) {
         self.sm_set_enabled(sm_number, false);
         self.sm_config(sm_number, config);
@@ -902,6 +904,7 @@ impl Pio {
             .modify(SMx_EXECCTRL::SIDE_PINDIR.val(pindirs as u32));
     }
 
+    /// Setup the function select for a GPIO to use output from the given PIO instance.
     pub fn gpio_init(&self, pin: &RPGpioPin) {
         if self.pio_number == PIONumber::PIO0 {
             pin.set_function(GpioFunction::PIO0)
@@ -964,6 +967,7 @@ impl Pio {
             .modify(SMx_EXECCTRL::OUT_EN_SEL.val(enable_pin_index));
     }
 
+    /// Use a state machine to set the same pin direction for multiple consecutive pins for the PIO instance.
     fn set_consecutive_pindirs(&self, sm_number: SMNumber, pin: u32, count: u32) {
         self.registers.sm[sm_number as usize]
             .pinctrl
@@ -990,6 +994,7 @@ impl Pio {
         debug!("Program added")
     }
 
+    /// Clears all of a PIO instance's instruction memory.
     fn clear_instr_registers(&self) {
         for i in 0..31 {
             self.registers.instr_mem[i]
