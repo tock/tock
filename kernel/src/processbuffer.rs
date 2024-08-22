@@ -688,7 +688,9 @@ impl ReadableProcessByte {
 /// be checked each time a slice is created. This is usually enforced
 /// by the anonymous lifetime defined by the creation of the slice.
 #[repr(transparent)]
+#[flux::refined_by(len: int)]
 pub struct ReadableProcessSlice {
+    #[flux::field([ReadableProcessByte][len])]
     slice: [ReadableProcessByte],
 }
 
@@ -859,13 +861,13 @@ impl Index<RangeFrom<usize>> for ReadableProcessSlice {
         &self[idx.start..self.len()]
     }
 }
-#[flux::trusted] // OOB access
 impl Index<usize> for ReadableProcessSlice {
     // Indexing into a ReadableProcessSlice must yield a
     // ReadableProcessByte, to limit the API surface of the wrapped
     // Cell to read-only operations
     type Output = ReadableProcessByte;
 
+    #[flux::sig(fn(self: &ReadableProcessSlice[@len], idx: usize) -> &Self::Output requires len > idx)]
     fn index(&self, idx: usize) -> &Self::Output {
         // As ReadableProcessSlice is a transparent wrapper around its
         // inner type, [ReadableProcessByte], we can use the regular
@@ -884,7 +886,9 @@ impl Index<usize> for ReadableProcessSlice {
 /// be checked each time a slice is created. This is usually enforced
 /// by the anonymous lifetime defined by the creation of the slice.
 #[repr(transparent)]
+#[flux::refined_by(len: int)]
 pub struct WriteableProcessSlice {
+    #[flux::field([Cell<u8>][len])]
     slice: [Cell<u8>],
 }
 
@@ -1097,12 +1101,13 @@ impl Index<RangeFrom<usize>> for WriteableProcessSlice {
         &self[idx.start..self.len()]
     }
 }
-#[flux::trusted] // OOB
+
 impl Index<usize> for WriteableProcessSlice {
     // Indexing into a WriteableProcessSlice yields a Cell<u8>, as
     // mutating the memory contents is allowed.
     type Output = Cell<u8>;
 
+    #[flux::sig(fn(self: &WriteableProcessSlice[@len], idx: usize) -> &Self::Output requires len > idx)]
     fn index(&self, idx: usize) -> &Self::Output {
         // As WriteableProcessSlice is a transparent wrapper around
         // its inner type, [Cell<u8>], we can use the regular slicing
