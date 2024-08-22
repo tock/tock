@@ -17,7 +17,7 @@
 //! initialization syscall. Note that only verified apps can reserve regions
 //! since this capsule uses the unique and persistent ShortID to identify
 //! the app across reboots. See this page in the Tock book for how to
-//! sign apps: https://book.tockos.org/course/usb-security-key/key-hotp-access#signing-apps.
+//! sign apps: <https://book.tockos.org/course/usb-security-key/key-hotp-access#signing-apps>
 //!
 //! Here is the sequence of events that happen when this initialization syscall is invoked:
 //!  1. The capsule starts traversing a "linked-list" of app regions to find
@@ -132,9 +132,9 @@
 //!                                      // that is accessible by the kernel.
 //!         3000,                        // The length of the kernel region.
 //!         2048,                        // The length of each region accessible to each app.
-//!         &mut [u8; capsules::nonvolatile_storage_driver::BUF_LEN),    // buffer for reading/writing
+//!         &mut [u8; capsules::nonvolatile_storage_driver::BUF_LEN],    // buffer for reading/writing
 //!                                                                      // userpace data
-//!         &mut capsules::nonvolatile_storage_driver::HEADER_BUF_LEN)); // buffer for reading/writing
+//!         &mut [u8; capsules::nonvolatile_storage_driver::HEADER_BUF_LEN])); // buffer for reading/writing
 //!                                                                      // header data
 //! hil::nonvolatile_storage::NonvolatileStorage::set_client(fm25cl, nonvolatile_storage);
 //! ```
