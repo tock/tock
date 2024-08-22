@@ -9,7 +9,7 @@ use kernel::scheduler::cooperative::CooperativeSched;
 use kernel::threadlocal::ConstThreadId;
 use kernel::threadlocal::ThreadLocalDyn;
 use kernel::utilities::registers::interfaces::ReadWriteable;
-use kernel::collections::ring_buffer::RingBuffer;
+use kernel::collections::atomic_ring_buffer::AtomicRingBuffer;
 use kernel::platform::chip::InterruptService;
 use kernel::{create_capability, debug, static_init};
 use kernel::smp;
@@ -136,7 +136,7 @@ impl
 }
 
 pub unsafe fn spawn<const ID: usize>(
-    channel: &'static smp::mutex::Mutex<RingBuffer<Option<qemu_rv32_virt_chip::channel::QemuRv32VirtMessage>>>
+    channel: &'static AtomicRingBuffer<Option<qemu_rv32_virt_chip::channel::QemuRv32VirtMessage>>,
 ) {
     // These symbols are defined in the linker script.
     extern "C" {

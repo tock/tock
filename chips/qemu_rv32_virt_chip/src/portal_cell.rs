@@ -8,18 +8,23 @@ use kernel::hil;
 
 use rv32i::csr::CSR;
 
+use core::cell::Cell;
+
 use crate::channel::{self, QemuRv32VirtChannel, QemuRv32VirtMessage, QemuRv32VirtMessageBody};
 use crate::uart::Uart16550;
 use crate::chip::QemuRv32VirtClint;
+use crate::{plic, interrupts};
 
 pub struct QemuRv32VirtPortalCell<'a, T: ?Sized> {
     portal: PortalCell<'a, T>,
+    conjured: Cell<bool>,
 }
 
 impl<'a, T: ?Sized> QemuRv32VirtPortalCell<'a, T> {
     pub fn empty(id: usize) -> QemuRv32VirtPortalCell<'a, T> {
         QemuRv32VirtPortalCell {
             portal: PortalCell::empty(id),
+            conjured: Cell::new(false),
         }
     }
 
@@ -28,6 +33,7 @@ impl<'a, T: ?Sized> QemuRv32VirtPortalCell<'a, T> {
     ) -> QemuRv32VirtPortalCell<'a, T> {
         QemuRv32VirtPortalCell {
             portal: PortalCell::new(value, id),
+            conjured: Cell::new(false),
         }
     }
 
@@ -54,33 +60,31 @@ impl<'a, T: ?Sized> QemuRv32VirtPortalCell<'a, T> {
         self.portal.enter(f)
     }
 
-}
-
-
-impl<'a, T: ?Sized> Portalable for QemuRv32VirtPortalCell<'a, T> {
-    type Entrant = &'a mut T;
-
-    fn conjure(&self) {
-        // Note: this will try to flood the channel
+    fn conjure_from_all(&self) {
         if self.portal.is_none() {
             let id = CSR.mhartid.extract().get();
-            // TODO: notify all
-            let receiver_id = if id == 0 { 1 } else { 0 };
+            let receiver_id = if id == 0 { 1 } else { 0 }; // TODO: notify all kernel threads
 
-            let do_request = move |channel: &mut Option<QemuRv32VirtChannel>| {
-                channel
-                    .as_mut()
-                    .expect("Uninitialized channel")
-                    .write(QemuRv32VirtMessage {
-                        src: id,
-                        dst: receiver_id,
-                        body: QemuRv32VirtMessageBody::PortalRequest(self.portal.get_id()),
-                    })
-            };
+            if !self.conjured.get() {
+                let do_request = move |channel: &mut Option<QemuRv32VirtChannel>| {
+                    channel
+                        .as_mut()
+                        .expect("Uninitialized channel")
+                        .write(QemuRv32VirtMessage {
+                            src: id,
+                            dst: receiver_id,
+                            body: QemuRv32VirtMessageBody::PortalRequest(self.portal.get_id()),
+                        })
+                };
 
-            let success = unsafe { channel::with_shared_channel_panic(do_request) };
+                let success = unsafe { channel::with_shared_channel_panic(do_request) };
 
-            if success {
+                if success {
+                    self.conjured.set(true);
+                }
+            }
+
+            if self.conjured.get() {
                 let closure = |c: &mut QemuRv32VirtClint| c.set_soft_interrupt(receiver_id);
                 unsafe {
                     crate::clint::with_clic_panic(closure);
@@ -89,12 +93,17 @@ impl<'a, T: ?Sized> Portalable for QemuRv32VirtPortalCell<'a, T> {
         }
     }
 
-    fn teleport(&self, dst: &dyn ThreadId) {
+    fn teleport_with_context<F>(&self, dst: &dyn ThreadId, save_context: F)
+    where
+        F: FnOnce(&mut T),
+    {
         if let Some(val) = self.portal.take() {
             let id = CSR.mhartid.extract().get();
             let dst_id = dst.get_id();
 
-            let do_response = move |channel: &mut Option<QemuRv32VirtChannel>| {
+            save_context(val);
+
+            let do_response = |channel: &mut Option<QemuRv32VirtChannel>| {
                 channel
                     .as_mut()
                     .expect("Uninitialized channel")
@@ -111,20 +120,59 @@ impl<'a, T: ?Sized> Portalable for QemuRv32VirtPortalCell<'a, T> {
             let success = unsafe { channel::with_shared_channel_panic(do_response) };
 
             if success {
+                self.conjured.set(false);
                 let closure = move |c: &mut QemuRv32VirtClint| c.set_soft_interrupt(dst_id);
                 unsafe {
                     crate::clint::with_clic_panic(closure);
                 }
+            } else {
+                assert!(self.portal.replace(val))
             }
         }
     }
+}
+
+trait ContextFree {}
+impl ContextFree for usize {}
+
+impl<'a, T: ?Sized + ContextFree> Portalable for QemuRv32VirtPortalCell<'a, T> {
+    type Entrant = &'a mut T;
+
+    fn conjure(&self) {
+        self.conjure_from_all()
+    }
+
+    fn teleport(&self, dst: &dyn ThreadId) {
+        self.teleport_with_context(dst, |_| ());
+    }
 
     fn link(&self, entrant: Self::Entrant) -> Option<()> {
-        if self.portal.replace(entrant) {
-            Some(())
-        } else {
-            None
-        }
+        self.portal.replace(entrant).then(|| ())
+    }
+}
+
+impl<'a> Portalable for QemuRv32VirtPortalCell<'a, Uart16550> {
+    type Entrant = &'a mut Uart16550;
+
+    fn conjure(&self) {
+        self.conjure_from_all()
+    }
+
+    fn teleport(&self, dst: &dyn ThreadId) {
+        let hart_id = CSR.mhartid.extract().get();
+        self.teleport_with_context(dst, move |uart| {
+            uart.save_context();
+            unsafe {
+                plic::with_plic_panic(|plic| {
+                    plic.disable(hart_id * 2,
+                                 (interrupts::UART0 as u32).try_into().unwrap());
+                });
+            }
+        });
+    }
+
+    fn link(&self, entrant: Self::Entrant) -> Option<()> {
+        self.portal.replace(entrant).then(|| ())
     }
 }
 

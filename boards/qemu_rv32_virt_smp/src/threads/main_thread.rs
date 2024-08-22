@@ -11,7 +11,7 @@ use kernel::threadlocal::{
     ThreadLocalDyn
 };
 use kernel::utilities::registers::interfaces::ReadWriteable;
-use kernel::collections::ring_buffer::RingBuffer;
+use kernel::collections::atomic_ring_buffer::AtomicRingBuffer;
 use kernel::{create_capability, debug, static_init};
 use kernel::smp;
 
@@ -72,7 +72,6 @@ struct QemuRv32VirtPlatform {
             qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng<'static, 'static>,
         >,
     >,
-    // shared_channel: &'static qemu_rv32_virt_chip::channel::QemuRv32VirtChannel<'static>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -116,7 +115,6 @@ impl
     >;
     type WatchDog = ();
     type ContextSwitchCallback = ();
-    // type SharedChannel = qemu_rv32_virt_chip::channel::QemuRv32VirtChannel<'static>;
 
     fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
         self
@@ -142,13 +140,10 @@ impl
     fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
         &()
     }
-    // fn shared_channel(&self) -> &Self::SharedChannel {
-    //     self.shared_channel
-    // }
 }
 
 pub unsafe fn spawn<const ID: usize>(
-    channel: &'static smp::mutex::Mutex<RingBuffer<Option<qemu_rv32_virt_chip::channel::QemuRv32VirtMessage>>>,
+    channel: &'static AtomicRingBuffer<Option<qemu_rv32_virt_chip::channel::QemuRv32VirtMessage>>,
     has_app_thread: bool,
 ) {
     // These symbols are defined in the linker script.
@@ -633,7 +628,6 @@ pub unsafe fn spawn<const ID: usize>(
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_cap,
         ),
-        // shared_channel: channel,
     };
 
     // Start the process console:

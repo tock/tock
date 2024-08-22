@@ -7,8 +7,11 @@ use kernel::utilities::registers::interfaces::Readable;
 use kernel::smp::shared_channel::SharedChannel;
 use kernel::smp::portal::Portalable;
 use kernel::smp::mutex::Mutex;
-use kernel::collections::queue::Queue;
-use kernel::collections::ring_buffer::RingBuffer;
+// use kernel::collections::queue::Queue;
+// use kernel::collections::ring_buffer::RingBuffer;
+
+use kernel::collections::sync_queue::SyncQueue;
+use kernel::collections::atomic_ring_buffer::AtomicRingBuffer;
 
 use rv32i::csr::CSR;
 
@@ -58,13 +61,14 @@ where
 }
 
 pub struct QemuRv32VirtChannel<'a> {
-    channel: &'a Mutex<RingBuffer<'a, Option<QemuRv32VirtMessage>>>,
+    channel: &'a AtomicRingBuffer<'a, Option<QemuRv32VirtMessage>>,
+    // local buffer
     notified: core::cell::Cell<usize>,
 }
 
 impl<'a> QemuRv32VirtChannel<'a> {
     pub fn new(
-        channel: &'a Mutex<RingBuffer<'a, Option<QemuRv32VirtMessage>>>
+        channel: &'a AtomicRingBuffer<'a, Option<QemuRv32VirtMessage>>,
     ) -> Self {
         QemuRv32VirtChannel {
             channel,
@@ -72,22 +76,19 @@ impl<'a> QemuRv32VirtChannel<'a> {
         }
     }
 
-    fn find<P>(
-        channel: &mut RingBuffer<'a, Option<QemuRv32VirtMessage>>,
-        predicate: P
-    ) -> Option<QemuRv32VirtMessage>
+    fn find<P>(&self, predicate: P) -> Option<QemuRv32VirtMessage>
     where
         P: Fn(&QemuRv32VirtMessage) -> bool
     {
-        let mut len = channel.len();
+        let mut len = self.channel.len();
         while len != 0 {
-            let msg = channel.dequeue()
+            let msg = self.channel.dequeue()
                 .expect("Invalid QemuRv32VirtChannel State")
                 .expect("Invalid Message Type");
             if predicate(&msg) {
                 return Some(msg)
             }
-            channel.enqueue(Some(msg));
+            self.channel.enqueue(Some(msg));
             len -= 1;
         }
         None
@@ -96,60 +97,32 @@ impl<'a> QemuRv32VirtChannel<'a> {
     pub fn service(&self) {
         let hart_id = CSR.mhartid.extract().get();
 
-        // Acquire the mutex for the entire operation to reserve a slot for a potential
-        // response. Invoking teleport inside the scope will result in a deadlock.
-        // TODO: switch to a non-blocking channel
-        let mut channel = self.channel.lock();
-        if let Some(msg) = Self::find(&mut channel, |msg| msg.dst == hart_id) {
+        if let Some(msg) = self.find(|msg| msg.dst == hart_id) {
             use QemuRv32VirtMessageBody as M;
             match msg.body {
                 M::PortalRequest(portal_id) => {
                     let closure = |ps: &mut [QemuRv32VirtPortal; NUM_PORTALS]| {
                         use QemuRv32VirtPortal as P;
-                        let traveler = match ps[portal_id] {
+
+                        let target = unsafe { DynThreadId::new(msg.src) };
+
+                        match ps[portal_id] {
                             P::Uart16550(val) => {
                                 let portal = unsafe {
                                     &*(val as *const QemuRv32VirtPortalCell<crate::uart::Uart16550>)
                                 };
                                 assert!(portal.get_id() == portal_id);
-                                if let Some(uart) = portal.take() {
-                                    uart.save_context();
-                                    unsafe {
-                                        plic::with_plic_panic(|plic| {
-                                            plic.disable(hart_id * 2,
-                                                         (interrupts::UART0 as u32).try_into().unwrap());
-                                        });
-                                    }
-                                    Some(uart as *mut _ as *const _)
-                                } else {
-                                    None
-                                }
+                                portal.teleport(&target);
                             }
                             P::Counter(val) => {
                                 let portal = unsafe {
                                     &*(val as *const QemuRv32VirtPortalCell<usize>)
                                 };
                                 assert!(portal.get_id() == portal_id);
-                                portal.take().map(|val| val as *mut _ as *const _)
+                                portal.teleport(&target);
                             }
                             _ => panic!("Invalid Portal"),
                         };
-
-                        if let Some(val) = traveler {
-                            assert!(channel.enqueue(Some(QemuRv32VirtMessage {
-                                src: hart_id,
-                                dst: msg.src,
-                                body: QemuRv32VirtMessageBody::PortalResponse(
-                                    portal_id,
-                                    val
-                                ),
-                            })));
-
-                            let closure = move |c: &mut crate::chip::QemuRv32VirtClint| c.set_soft_interrupt(msg.src);
-                            unsafe {
-                                crate::clint::with_clic_panic(closure);
-                            }
-                        }
                     };
 
                     unsafe {
@@ -228,13 +201,11 @@ impl SharedChannel for QemuRv32VirtChannel<'_> {
 
     fn write(&self, message: Self::Message) -> bool {
         self.channel
-            .lock()
             .enqueue(Some(message))
     }
 
     fn read(&self) -> Option<Self::Message> {
         self.channel
-            .lock()
             .dequeue()
             .map(|val| val.expect("Invalid message"))
     }
