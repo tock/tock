@@ -1,9 +1,10 @@
 use kernel::debug;
-use kernel::utilities::registers::interfaces::ReadWriteable;
+use kernel::utilities::registers::interfaces::{ReadWriteable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
 use crate::gpio::{GpioFunction, RPGpio, RPGpioPin};
+use crate::pio::PIONumber::PIO1;
 
 const NUMBER_STATE_MACHINES: usize = 4;
 const NUMBER_INSTR_MEMORY_LOCATIONS: usize = 32;
@@ -489,8 +490,20 @@ const PIO_0_BASE_ADDRESS: usize = 0x50200000;
 const PIO_1_BASE_ADDRESS: usize = 0x50300000;
 const PIO0_BASE: StaticRef<PioRegisters> =
     unsafe { StaticRef::new(PIO_0_BASE_ADDRESS as *const PioRegisters) };
+const PIO0_XOR_BASE: StaticRef<PioRegisters> =
+    unsafe { StaticRef::new((PIO_0_BASE_ADDRESS + 0x1000) as *const PioRegisters) };
+const PIO0_SET_BASE: StaticRef<PioRegisters> =
+    unsafe { StaticRef::new((PIO_0_BASE_ADDRESS + 0x2000) as *const PioRegisters) };
+const PIO0_CLEAR_BASE: StaticRef<PioRegisters> =
+    unsafe { StaticRef::new((PIO_0_BASE_ADDRESS + 0x3000) as *const PioRegisters) };
 const PIO1_BASE: StaticRef<PioRegisters> =
     unsafe { StaticRef::new(PIO_1_BASE_ADDRESS as *const PioRegisters) };
+const PIO1_XOR_BASE: StaticRef<PioRegisters> =
+    unsafe { StaticRef::new((PIO_1_BASE_ADDRESS + 0x1000) as *const PioRegisters) };
+const PIO1_SET_BASE: StaticRef<PioRegisters> =
+    unsafe { StaticRef::new((PIO_1_BASE_ADDRESS + 0x2000) as *const PioRegisters) };
+const PIO1_CLEAR_BASE: StaticRef<PioRegisters> =
+    unsafe { StaticRef::new((PIO_1_BASE_ADDRESS + 0x3000) as *const PioRegisters) };
 
 /// There are a total of 4 State Machines per PIO.
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -522,6 +535,9 @@ const STATE_MACHINE_NUMBERS: [SMNumber; NUMBER_STATE_MACHINES] =
 pub struct Pio {
     registers: StaticRef<PioRegisters>,
     pio_number: PIONumber,
+    pub xor_registers: StaticRef<PioRegisters>,
+    pub set_registers: StaticRef<PioRegisters>,
+    pub clear_registers: StaticRef<PioRegisters>,
 }
 
 /// 'MOV STATUS' types.
@@ -630,6 +646,9 @@ impl Pio {
     pub fn new_pio0() -> Self {
         Self {
             registers: PIO0_BASE,
+            xor_registers: PIO0_XOR_BASE,
+            set_registers: PIO0_SET_BASE,
+            clear_registers: PIO0_CLEAR_BASE,
             pio_number: PIONumber::PIO0,
         }
     }
@@ -638,6 +657,9 @@ impl Pio {
     pub fn new_pio1() -> Self {
         Self {
             registers: PIO1_BASE,
+            xor_registers: PIO1_XOR_BASE,
+            set_registers: PIO1_SET_BASE,
+            clear_registers: PIO1_CLEAR_BASE,
             pio_number: PIONumber::PIO1,
         }
     }
@@ -744,6 +766,10 @@ impl Pio {
             SMNumber::SM2 => self.registers.ctrl.modify(CTRL::CLKDIV2_RESTART::SET),
             SMNumber::SM3 => self.registers.ctrl.modify(CTRL::CLKDIV3_RESTART::SET),
         }
+    }
+
+    pub fn sm_put(&self, sm_number: SMNumber, data: u32){
+        self.registers.txf[sm_number as usize].set(data);
     }
 
     pub fn sm_init(&self, sm_number: SMNumber, config: &StateMachineConfiguration) {
