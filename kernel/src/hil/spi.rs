@@ -87,6 +87,13 @@ pub mod cs {
     /// [SpiMaster::ChipSelect](super::SpiMaster::ChipSelect) for a
     /// particular `POLARITY`.
     ///
+    /// Instantiating a driver for any SPI peripheral should require a type that
+    /// implements [IntoChipSelect]. That enforces that whatever object is used
+    /// as the chip select can support the correct polarity for the particular SPI
+    /// peripheral. This is mostly commonly handled by the component for the
+    /// peripheral, which requires an object with type [IntoChipSelect] and then
+    /// converts the object to the [SpiMaster::ChipSelect](super::SpiMaster::ChipSelect)
+    /// type.
     /// # Examples:
     ///
     /// Some SPI host controllers only support active low or active
