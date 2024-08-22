@@ -3,7 +3,7 @@ use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
-use crate::gpio::{GpioFunction, RPGpioPin};
+use crate::gpio::{GpioFunction, RPGpio, RPGpioPin};
 
 const NUMBER_STATE_MACHINES: usize = 4;
 const NUMBER_INSTR_MEMORY_LOCATIONS: usize = 32;
@@ -960,10 +960,17 @@ impl Pio {
                 .modify(INSTR_MEMx::INSTR_MEM::CLEAR);
         }
     }
-    pub fn pio_pwm(&self, sm_number: SMNumber) {
+    pub fn pio_pwm(&self, sm_number: SMNumber, pin: u32) {
+        self.gpio_init(&RPGpioPin::new(RPGpio::GPIO6));
+        self.set_consecutive_pindirs(sm_number, pin, 1);
         self.set_side_set(sm_number, 1, false, true);
+        self.sm_set_enabled(sm_number, true);
+        self.registers.sm[sm_number as usize]
+            .instr
+            .modify(SMx_INSTR::INSTR.val(0));
     }
     pub fn blink_program_init(&self, sm_number: SMNumber, pin: u32) {
+        self.gpio_init(&RPGpioPin::new(RPGpio::GPIO6));
         self.set_consecutive_pindirs(sm_number, pin, 1);
         self.set_set_pins(sm_number, pin, 1);
         self.sm_set_enabled(sm_number, true);
@@ -973,6 +980,7 @@ impl Pio {
     }
 
     pub fn hello_program_init(&self, sm_number: SMNumber, pin: u32) {
+        self.gpio_init(&RPGpioPin::new(RPGpio::GPIO25));
         self.set_out_pins(sm_number, pin, 1);
         self.set_consecutive_pindirs(sm_number, pin, 1);
         self.sm_set_enabled(sm_number, true);
