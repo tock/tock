@@ -64,6 +64,7 @@ jobs:
       - name: Launch Treadmill CI Jobs
         id: treadmill-job-launch
         run: |
+          echo "change1"
           echo 'treadmill-job-ids=["cc627a0b-8c8d-4edc-8394-5bdeedcee60c", "e80dfe6c-1a13-4653-a3b2-e01aafdb990d"]' >> "$GITHUB_OUTPUT"
 
   # test-execute:
