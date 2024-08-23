@@ -35,7 +35,7 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
-          path: tock-kernel
+          path: tock
 
       - name: Checkout Treadmill repository
         uses: actions/checkout@v4
@@ -89,7 +89,7 @@ jobs:
             0d01d28b9134b046f9d3ca2bc1942e40a2b04a1b44f08219bf5b259a95b88e36 \
             --tag-config 'supervisor:1bdc10a7-9bea-4da5-9e9c-02c046223dfb' \
             --ssh-keys 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFjLuM7C6emv+xAFYnXA+mSUKmMEmKDM0A6WzZ0HliFb cardno:23_559_180' \
-            --parameters "{"gh-actions-runner-encoded-jit-config": {"secret": true, "value": "$(echo "$RUNNER_CONFIG_JSON" | jq -r '.encoded_jit_config')"}}"
+            --parameters "{\"gh-actions-runner-encoded-jit-config\": {\"secret\": true, \"value\": \"$(echo "$RUNNER_CONFIG_JSON" | jq -r '.encoded_jit_config')\"}}"
 
       - name: Launch Treadmill CI Jobs
         id: treadmill-job-launch
