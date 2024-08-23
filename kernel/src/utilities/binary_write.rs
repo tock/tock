@@ -8,6 +8,7 @@
 //! binary slice. This mirrors the `core::fmt::Write` interface but doesn't
 //! expect a `&str`.
 
+
 /// Interface for writing an arbitrary buffer.
 pub trait BinaryWrite {
     /// Write the `buffer` to some underlying print mechanism.
@@ -94,23 +95,24 @@ impl<'a> WriteToBinaryOffsetWrapper<'a> {
 }
 
 impl<'a> core::fmt::Write for WriteToBinaryOffsetWrapper<'a> {
-    #[flux::trusted] // arithmetic
+    // VTOCK-TODO: change this code back when mutable folding works
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         let string_len = s.len();
-        if self.index + string_len < self.offset {
+        let offset = self.offset;
+        let index = self.index;
+        if index + string_len < offset {
             // We are still waiting for `self.offset` bytes to be send before we
             // actually start printing.
             self.index += string_len;
             Ok(())
         } else {
             // We need to be printing at least some of this.
-            let start = if self.offset <= self.index {
+            let start = if offset <= index {
                 // We're past our offset, so we can display this entire str.
                 0
             } else {
                 // We want to start in the middle.
-                // assume(self.offset > self.index);
-                self.offset - self.index
+                offset - index
             };
 
             // Calculate the number of bytes we are going to pass to the
