@@ -143,6 +143,7 @@ pub trait Ticks: Clone + Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
 /// an associated type for an implementation of the `Time` trait.
 pub trait Frequency {
     /// Returns frequency in Hz.
+    #[flux::sig(fn() -> u32{r: r > 0})]
     fn frequency() -> u32;
 }
 
