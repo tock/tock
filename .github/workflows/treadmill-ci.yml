@@ -54,7 +54,7 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             /repos/treadmill-tb/tock/actions/runners/generate-jitconfig \
-            -f "name=sometreadmillrunner" \
+            -f "name=sometreadmillrunner2" \
             -F "runner_group_id=1" \
             -f "labels[]=self-hosted" \
             -f "labels[]=X64" \
