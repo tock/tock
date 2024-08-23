@@ -829,11 +829,7 @@ impl<'a> NonvolatileStorage<'a> {
                         app.region.replace(region);
 
                         // bump the start of the unallocated regions
-                        let Some(next_header_addr) =
-                            self.next_unallocated_region_header_address.get()
-                        else {
-                            return Err(ErrorCode::FAIL);
-                        };
+                        let next_header_addr = self.next_unallocated_region_header_address.get().ok_or(ErrorCode::FAIL)?;
 
                         let next_header_address =
                             next_header_addr + REGION_HEADER_LEN + self.app_region_size;
