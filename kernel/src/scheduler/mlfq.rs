@@ -160,16 +160,18 @@ impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<
         SchedulingDecision::RunProcess((next, Some(timeslice)))
     }
 
-    #[flux::trusted] // arithmetic / OOB - Needs refined List Collection
     fn result(&self, result: StoppedExecutingReason, execution_time_us: Option<u32>) {
         let execution_time_us = execution_time_us.unwrap(); // should never fail as we never run cooperatively
         let queue_idx = self.last_queue_idx.get();
+        flux_support::assume(queue_idx < 3); // Needs extern spec for cell?
         // Last executed node will always be at head of its queue
         let node_ref = self.processes[queue_idx].head().unwrap();
+        let last_timeslice = self.last_timeslice.get();
+        flux_support::assume(last_timeslice >= execution_time_us); // needs extern spec for cell
         node_ref
             .state
             .us_used_this_queue
-            .set(self.last_timeslice.get() - execution_time_us);
+            .set(last_timeslice - execution_time_us);
 
         let punish = result == StoppedExecutingReason::TimesliceExpired;
         if punish {
