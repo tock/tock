@@ -31,8 +31,11 @@ jobs:
       treadmill-job-ids: ${{ steps.treadmill-job-launch.outputs.treadmill-job-ids }}
 
     steps:
-      - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - uses: actions/checkout@v4
+        with:
+          path: tock-kernel
 
       - name: Checkout Treadmill repository
         uses: actions/checkout@v4
@@ -51,7 +54,7 @@ jobs:
         run:
           tml login lschuermann ${{ secrets.TREADMILL_LOGIN_PASSWORD }}
 
-      - name: Analyze changes And determine types of tests to run
+      - name: Analyze changes and determine types of tests to run
         run: |
           echo "TODO: implement this!"
 
@@ -77,7 +80,7 @@ jobs:
             /repos/treadmill-tb/tock/actions/runners/generate-jitconfig \
             -f "name=$RUNNER_ID" \
             -F "runner_group_id=1" \
-            -f "labels[]=$RUNNER_ID"
+            -f "labels[]=$RUNNER_ID" \
             -f "work_folder=_work")"
 
           echo "Generated configuration for runner $(echo "$RUNNER_CONFIG_JSON" | jq -r '.runner.name')"
