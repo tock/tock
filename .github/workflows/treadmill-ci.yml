@@ -49,8 +49,8 @@ jobs:
           # cargo build --release --package tml-cli
           cargo build --package tml-cli
           popd
-          # echo "$PWD/treadmill/target/release" >> $GITHUB_PATH
-          echo "$PWD/treadmill/target/debug" >> $GITHUB_PATH
+          # echo "$PWD/treadmill/target/release" >> "$GITHUB_PATH"
+          echo "$PWD/treadmill/target/debug" >> "$GITHUB_PATH"
 
       - name: Login to the Treadmill Switchboard
         run:
@@ -69,6 +69,7 @@ jobs:
           owner: ${{ github.repository_owner }}
 
       - name: Create GitHub just-in-time runners and enqueue Treadmill jobs
+        id: treadmill-job-launch
         env:
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
         run: |
@@ -90,27 +91,27 @@ jobs:
           TML_JOB_PARAMETERS="{\"gh-actions-runner-encoded-jit-config\": {\"secret\": true, \"value\": \"$(echo "$RUNNER_CONFIG_JSON" | jq -r '.encoded_jit_config')\"}}"
           # echo "Parameters: $TML_JOB_PARAMETERS"
           tml job enqueue \
-            0d01d28b9134b046f9d3ca2bc1942e40a2b04a1b44f08219bf5b259a95b88e36 \
+            e96e97f229edca8a2c68f792badf9e2b3ff2fd18a3c51258cd20f9d842e56599 \
             --tag-config 'supervisor:1bdc10a7-9bea-4da5-9e9c-02c046223dfb' \
             --ssh-keys 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFjLuM7C6emv+xAFYnXA+mSUKmMEmKDM0A6WzZ0HliFb cardno:23_559_180' \
             --parameters "$TML_JOB_PARAMETERS"
 
-      - name: Launch Treadmill CI Jobs
-        id: treadmill-job-launch
+          echo "runner-ids=[\"$RUNNER_ID\"]" >> "$GITHUB_OUTPUT"
+
+  test-execute:
+    needs: test-strategy
+
+    strategy:
+      matrix:
+        runner-id: ${{ fromJSON(needs.test-strategy.outputs.runner-ids) }}
+
+    runs-on: ${{ matrix.runner-id }}
+
+    steps:
+      - name: Print Treadmill Job Id
         run: |
-          echo "change3"
-          echo 'treadmill-job-ids=["cc627a0b-8c8d-4edc-8394-5bdeedcee60c", "e80dfe6c-1a13-4653-a3b2-e01aafdb990d"]' >> "$GITHUB_OUTPUT"
+          echo "Runner ID: ${{ matrix.runner-id }}"
 
-  # test-execute:
-  #   needs: test-strategy
-
-  #   strategy:
-  #     matrix:
-  #       treadmill-job-id: ${{ fromJSON(needs.test-strategy.outputs.treadmill-job-ids) }}
-
-  #   runs-on: tml-ghactions-runner-${{ matrix.treadmill-job-id }}
-
-  #   steps:
-  #     - name: Print Treadmill Job Id
-  #       run: |
-  #         echo ${{ matrix.treadmill-job-id }}
+      - name: Print attached USB devices
+        run: |
+          lsusb
