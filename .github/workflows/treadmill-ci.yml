@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
 
     outputs:
-      treadmill-job-ids: ${{ steps.treadmill-job-launch.outputs.treadmill-job-ids }}
+      runner-ids: ${{ steps.treadmill-job-launch.outputs.runner-ids }}
 
     steps:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
