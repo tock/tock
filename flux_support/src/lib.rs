@@ -112,6 +112,15 @@ impl DerefMut for FluxPtr {
 }
 
 
+// #[extern_spec]
+// impl<T> [T] {
+//     #[flux::sig(fn(&[T][@n]) -> usize[n])]
+//     fn len(v: &[T]) -> usize;
+
+//     #[flux::sig(fn(&[T][@n]) -> bool[n == 0])]
+//     fn is_empty(v: &[T]) -> bool;
+// }
+
 
 // #[flux::extern_spec(core::ops::range)]
 // #[flux::refined_by(lo: int, hi: int)]
