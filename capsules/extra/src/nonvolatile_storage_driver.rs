@@ -511,9 +511,7 @@ impl<'a> NonvolatileStorage<'a> {
     fn allocate_app_region(&self, processid: ProcessId) -> Result<(), ErrorCode> {
         // can't allocate a region if we haven't previously traversed existing regions
         // and found where they stop
-        let Some(new_header_addr) = self.next_unallocated_region_header_address.get() else {
-            return Err(ErrorCode::FAIL);
-        };
+        let new_header_addr = self.next_unallocated_region_header_address.get().ok_or(ErrorCode::FAIL)?;
 
         // Apps must have a fixed ShortID value. LocallyUnique apps
         // are not allowed since we need a unique fixed ID to write to
