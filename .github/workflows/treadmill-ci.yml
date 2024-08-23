@@ -50,16 +50,18 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
         run: |
-          gh api \
+          RUNNER_CONFIG_JSON="$(gh api \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             /repos/treadmill-tb/tock/actions/runners/generate-jitconfig \
-            -f "name=sometreadmillrunner2" \
+            -f "name=sometreadmillrunner" \
             -F "runner_group_id=1" \
             -f "labels[]=self-hosted" \
             -f "labels[]=X64" \
             -f "labels[]=Linux" \
-            -f "work_folder=_work"
+            -f "work_folder=_work")"
+
+        echo "Runner name: $(echo "$RUNNER_CONFIG_JSON" | jq -r '.runner.name')"
 
       - name: Launch Treadmill CI Jobs
         id: treadmill-job-launch
