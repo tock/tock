@@ -41,7 +41,7 @@ jobs:
           path: treadmill
 
       - name: Compile the Treadmill CLI binary
-        run:
+        run: |
           pushd treadmill
           cargo build --release --package tml-cli
           popd
