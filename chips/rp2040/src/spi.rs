@@ -238,7 +238,7 @@ pub struct Spi<'a> {
     registers: StaticRef<SpiRegisters>,
     clocks: OptionalCell<&'a clocks::Clocks>,
     master_client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
-    active_slave: OptionalCell<ChipSelectPolar<&'a crate::gpio::RPGpioPin<'a>>>,
+    active_slave: OptionalCell<ChipSelectPolar<'a, crate::gpio::RPGpioPin<'a>>>,
 
     tx_buffer: TakeCell<'static, [u8]>,
     tx_position: Cell<usize>,
@@ -482,7 +482,7 @@ impl<'a> Spi<'a> {
 }
 
 impl<'a> SpiMaster<'a> for Spi<'a> {
-    type ChipSelect = ChipSelectPolar<&'a crate::gpio::RPGpioPin<'a>>;
+    type ChipSelect = ChipSelectPolar<'a, crate::gpio::RPGpioPin<'a>>;
 
     fn set_client(&self, client: &'a dyn SpiMasterClient) {
         self.master_client.set(client);

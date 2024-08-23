@@ -290,7 +290,7 @@ pub struct Iom<'a> {
 
     op: Cell<Operation>,
     spi_phase: Cell<ClockPhase>,
-    spi_cs: OptionalCell<ChipSelectPolar<&'a crate::gpio::GpioPin<'a>>>,
+    spi_cs: OptionalCell<ChipSelectPolar<'a, crate::gpio::GpioPin<'a>>>,
     smbus: Cell<bool>,
 }
 
@@ -1176,7 +1176,7 @@ impl<'a> hil::i2c::SMBusMaster<'a> for Iom<'a> {
 }
 
 impl<'a> SpiMaster<'a> for Iom<'a> {
-    type ChipSelect = ChipSelectPolar<&'a crate::gpio::GpioPin<'a>>;
+    type ChipSelect = ChipSelectPolar<'a, crate::gpio::GpioPin<'a>>;
 
     fn init(&self) -> Result<(), ErrorCode> {
         self.op.set(Operation::SPI);

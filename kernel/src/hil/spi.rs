@@ -126,19 +126,26 @@ pub mod cs {
     /// A convenience wrapper type around
     /// [Output](crate::hil::gpio::Output) GPIO pins that implements
     /// [IntoChipSelect] for both [ActiveLow] and [ActiveHigh].
-    #[derive(Copy, Clone)]
-    pub struct ChipSelectPolar<P: crate::hil::gpio::Output> {
+    pub struct ChipSelectPolar<'a, P: crate::hil::gpio::Output> {
         /// The underlying chip select "pin"
-        pub pin: P,
+        pub pin: &'a P,
         /// The polarity from which this wrapper was derived using
         /// [IntoChipSelect]
         pub polarity: Polarity,
     }
 
-    impl<P: crate::hil::gpio::Output, A: ChipSelectActivePolarity>
-        IntoChipSelect<ChipSelectPolar<P>, A> for P
+    impl<'a, P: crate::hil::gpio::Output> Clone for ChipSelectPolar<'a, P> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+
+    impl<'a, P: crate::hil::gpio::Output> Copy for ChipSelectPolar<'a, P> {}
+
+    impl<'a, P: crate::hil::gpio::Output, A: ChipSelectActivePolarity>
+        IntoChipSelect<ChipSelectPolar<'a, P>, A> for &'a P
     {
-        fn into_cs(self) -> ChipSelectPolar<P> {
+        fn into_cs(self) -> ChipSelectPolar<'a, P> {
             ChipSelectPolar {
                 pin: self,
                 polarity: A::POLARITY,
@@ -150,7 +157,7 @@ pub mod cs {
     /// [gpio::Output](crate::hil::gpio::Output), users can use the
     /// `activate` and `deactivate` methods to automatically set or
     /// clear the chip select pin based on the stored polarity.
-    impl<P: crate::hil::gpio::Output> ChipSelectPolar<P> {
+    impl<'a, P: crate::hil::gpio::Output> ChipSelectPolar<'a, P> {
         /// Deactive the chip select pin
         ///
         /// High if active low, low if active high
