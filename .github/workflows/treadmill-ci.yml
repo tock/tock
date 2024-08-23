@@ -61,7 +61,7 @@ jobs:
             -f "labels[]=Linux" \
             -f "work_folder=_work")"
 
-        echo "Runner name: $(echo "$RUNNER_CONFIG_JSON" | jq -r '.runner.name')"
+          echo "Runner name: $(echo "$RUNNER_CONFIG_JSON" | jq -r '.runner.name')"
 
       - name: Launch Treadmill CI Jobs
         id: treadmill-job-launch
