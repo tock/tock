@@ -517,7 +517,7 @@ impl<'a> NonvolatileStorage<'a> {
         // are not allowed since we need a unique fixed ID to write to
         // storage and use to identify apps.
         let ShortId::Fixed(shortid) = processid.short_app_id() else {
-            return Err(ErrorCode::FAIL);
+            return Err(ErrorCode::NOSUPPORT);
         };
 
         self.apps
@@ -773,7 +773,7 @@ impl<'a> NonvolatileStorage<'a> {
                         Some(shortid) => shortid,
                         // can't create a shortid if the owner value is 0 since that
                         // conflicts with the TERMINATING_REGION_OWNER value
-                        None => return Err(ErrorCode::FAIL),
+                        None => return Err(ErrorCode::NOSUPPORT),
                     });
 
                     // Find the app with the corresponding shortid.
