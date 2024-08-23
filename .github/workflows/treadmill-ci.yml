@@ -50,7 +50,7 @@ jobs:
           cargo build --package tml-cli
           popd
           # echo "$PWD/treadmill/target/release" >> $GITHUB_PATH
-          echo "$PWD/treadmill/target/debug >> $GITHUB_PATH
+          echo "$PWD/treadmill/target/debug" >> $GITHUB_PATH
 
       - name: Login to the Treadmill Switchboard
         run:
