@@ -1343,7 +1343,7 @@ impl SyscallDriver for NonvolatileStorage<'_> {
                 let res = self.apps.enter(processid, |app, _kernel_data| app.region);
 
                 // handle case where we fail to enter grant
-                res.map_or(CommandReturn::failure(ErrorCode::FAIL), |region| {
+                res.map_or(CommandReturn::failure(ErrorCode::NOMEM), |region| {
                     // handle case where app's region is not assigned
                     region.map_or(CommandReturn::failure(ErrorCode::FAIL), |region| {
                         // TODO: Would break on 64-bit platforms
