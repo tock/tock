@@ -44,6 +44,7 @@ jobs:
         with:
           app-id: ${{ vars.TREADMILL_GH_APP_CLIENT_ID }}
           private-key: ${{ secrets.TREADMILL_GH_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
 
       - name: Create JIT runner
         env:
