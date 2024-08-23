@@ -348,7 +348,7 @@ fn discover_process_binary(
 /// pool that its RAM should be allocated from. Returns `Ok` if the process
 /// object was created, `Err` with a relevant error if the process object could
 /// not be created.
-#[flux::trusted] // Arithmetic warnings
+#[flux::trusted] // Arithmetic warnings - needs slice extern spec
 fn load_process<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,

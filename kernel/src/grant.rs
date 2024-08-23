@@ -355,7 +355,7 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         grant_t_size: GrantDataSize,
         grant_t_align: GrantDataAlign,
     ) -> usize {
-        #[flux::trusted]
+        #[flux::trusted] // bitwise arithmetic
         #[flux::sig(fn(usize, usize{align: align > 0}) -> usize{n: n > 0})]
         fn calc_padding(kernel_managed_size: usize, align: usize) -> usize {
             let grant_t_align_mask = align - 1;
