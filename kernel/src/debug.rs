@@ -269,7 +269,7 @@ pub static mut DEBUG_GPIOS: (
     Option<&'static dyn hil::gpio::Pin>,
 ) = (None, None, None);
 
-#[flux::ignore] // ICE: Invalid deref of *mut
+#[flux::trusted] // ICE: Invalid deref of *mut
 pub unsafe fn assign_gpios(
     gpio0: Option<&'static dyn hil::gpio::Pin>,
     gpio1: Option<&'static dyn hil::gpio::Pin>,
