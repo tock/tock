@@ -31,14 +31,31 @@ jobs:
       treadmill-job-ids: ${{ steps.treadmill-job-launch.outputs.treadmill-job-ids }}
 
     steps:
-      - name: Checkout the revision to analyze
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
 
-      - name: Analyze changes and determine types of tests to run
+      - name: Checkout Treadmill repository
+        uses: actions/checkout@v4
+        with:
+          repository: treadmill-tb/treadmill
+          path: treadmill
+
+      - name: Compile the Treadmill CLI binary
+        run:
+          pushd treadmill
+          cargo build --release --package tml-cli
+          popd
+          echo "$PWD/treadmill/target/release" >> $GITHUB_PATH
+
+      - name: Login to the Treadmill Switchboard
+        run:
+          tml login lschuermann ${{ secrets.TREADMILL_LOGIN_PASSWORD }}
+
+      - name: Analyze changes And determine types of tests to run
         run: |
-          echo "Hello World"
+          echo "TODO: implement this!"
 
-      - name: Generate a token
+      - name: Generate a token to register new just-in-time runners
         id: generate-token
         uses: actions/create-github-app-token@v1
         with:
@@ -46,22 +63,30 @@ jobs:
           private-key: ${{ secrets.TREADMILL_GH_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
 
-      - name: Create JIT runner
+      - name: Create GitHub just-in-time runners and enqueue Treadmill jobs
         env:
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
         run: |
+          SUB_TEST_ID="0"
+
+          RUNNER_ID="tml-gh-actions-runner-${GITHUB_REPOSITORY_ID}-${GITHUB_RUN_ID}-${SUB_TEST_ID}"
+
           RUNNER_CONFIG_JSON="$(gh api \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             /repos/treadmill-tb/tock/actions/runners/generate-jitconfig \
-            -f "name=sometreadmillrunner" \
+            -f "name=$RUNNER_ID" \
             -F "runner_group_id=1" \
-            -f "labels[]=self-hosted" \
-            -f "labels[]=X64" \
-            -f "labels[]=Linux" \
+            -f "labels[]=$RUNNER_ID"
             -f "work_folder=_work")"
 
-          echo "Runner name: $(echo "$RUNNER_CONFIG_JSON" | jq -r '.runner.name')"
+          echo "Generated configuration for runner $(echo "$RUNNER_CONFIG_JSON" | jq -r '.runner.name')"
+          echo "Enqueueing treadmill job:"
+          tml job enqueue \
+            0d01d28b9134b046f9d3ca2bc1942e40a2b04a1b44f08219bf5b259a95b88e36 \
+            --tag-config 'supervisor:1bdc10a7-9bea-4da5-9e9c-02c046223dfb' \
+            --ssh-keys 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFjLuM7C6emv+xAFYnXA+mSUKmMEmKDM0A6WzZ0HliFb cardno:23_559_180' \
+            --parameters "{"gh-actions-runner-encoded-jit-config": {"secret": true, "value": "$(echo "$RUNNER_CONFIG_JSON" | jq -r '.encoded_jit_config')"}}"
 
       - name: Launch Treadmill CI Jobs
         id: treadmill-job-launch
