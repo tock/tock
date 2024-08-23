@@ -343,10 +343,11 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         }
     }
 
+
+
     /// Returns the entire grant size including the kernel owned memory,
     /// padding, and data for T. Requires that grant_t_align be a power of 2,
     /// which is guaranteed from align_of rust calls.
-    #[flux::trusted] // Arithmetic
     fn grant_size(
         upcalls_num: UpcallItems,
         allow_ro_num: AllowRoItems,
@@ -354,6 +355,17 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         grant_t_size: GrantDataSize,
         grant_t_align: GrantDataAlign,
     ) -> usize {
+        #[flux::trusted]
+        #[flux::sig(fn(usize, usize{align: align > 0}) -> usize{n: n > 0})]
+        fn calc_padding(kernel_managed_size: usize, align: usize) -> usize {
+            let grant_t_align_mask = align - 1;
+    
+            // Determine padding to get to the next multiple of grant_t_align by
+            // taking the remainder and subtracting that from the alignment, then
+            // ensuring a full alignment value maps to 0.
+            (align - (kernel_managed_size & grant_t_align_mask)) & grant_t_align_mask
+        } 
+
         let kernel_managed_size = size_of::<usize>()
             + upcalls_num.0 as usize * size_of::<SavedUpcall>()
             + allow_ro_num.0 as usize * size_of::<SavedAllowRo>()
@@ -361,13 +373,11 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         // We know that grant_t_align is a power of 2, so we can make a mask
         // that will save only the remainder bits.
         assume(grant_t_align.0 > 0);
-        let grant_t_align_mask = grant_t_align.0 - 1;
 
         // Determine padding to get to the next multiple of grant_t_align by
         // taking the remainder and subtracting that from the alignment, then
         // ensuring a full alignment value maps to 0.
-        let padding =
-            (grant_t_align.0 - (kernel_managed_size & grant_t_align_mask)) & grant_t_align_mask;
+        let padding = calc_padding(kernel_managed_size, grant_t_align.0);
         kernel_managed_size + padding + grant_t_size.0
     }
 
