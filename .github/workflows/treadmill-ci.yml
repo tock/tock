@@ -47,7 +47,7 @@ jobs:
         run: |
           pushd treadmill
           # cargo build --release --package tml-cli
-          cargo build --debug --package tml-cli
+          cargo build --package tml-cli
           popd
           # echo "$PWD/treadmill/target/release" >> $GITHUB_PATH
           echo "$PWD/treadmill/debug/release" >> $GITHUB_PATH
