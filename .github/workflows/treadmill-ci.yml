@@ -21,6 +21,7 @@ on:
 # If you add additional jobs, remember to add them to bors.toml
 permissions:
   contents: read
+  actions: write
 
 jobs:
   test-strategy:
@@ -37,21 +38,36 @@ jobs:
         run: |
           echo "Hello World"
 
+      - name: Create JIT runner
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /repos/treadmill-tb/tock/actions/runners/generate-jitconfig \
+            -f "name=sometreadmillrunner" \
+            -F "runner_group_id=1" \
+            -f "labels[]=self-hosted" \
+            -f "labels[]=X64" \
+            -f "labels[]=Linux" \
+            -f "work_folder=_work"
+
       - name: Launch Treadmill CI Jobs
         id: treadmill-job-launch
         run: |
           echo 'treadmill-job-ids=["cc627a0b-8c8d-4edc-8394-5bdeedcee60c", "e80dfe6c-1a13-4653-a3b2-e01aafdb990d"]' >> "$GITHUB_OUTPUT"
 
-  test-execute:
-    needs: test-strategy
+  # test-execute:
+  #   needs: test-strategy
 
-    strategy:
-      matrix:
-        treadmill-job-id: ${{ fromJSON(needs.test-strategy.outputs.treadmill-job-ids) }}
+  #   strategy:
+  #     matrix:
+  #       treadmill-job-id: ${{ fromJSON(needs.test-strategy.outputs.treadmill-job-ids) }}
 
-    runs-on: tml-ghactions-runner-${{ matrix.treadmill-job-id }}
+  #   runs-on: tml-ghactions-runner-${{ matrix.treadmill-job-id }}
 
-    steps:
-      - name: Print Treadmill Job Id
-        run: |
-          echo ${{ matrix.treadmill-job-id }}
+  #   steps:
+  #     - name: Print Treadmill Job Id
+  #       run: |
+  #         echo ${{ matrix.treadmill-job-id }}
