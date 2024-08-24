@@ -80,7 +80,7 @@ pub trait DeferredCallClient: Sized {
 /// per instance, but this alternative stores only the data and function pointers,
 /// 8 bytes per instance.
 #[derive(Copy, Clone)]
-#[flux::opaque]
+#[flux_rs::opaque]
 struct DynDefCallRef<'a> {
     data: *const (),
     callback: fn(*const ()),
@@ -95,7 +95,7 @@ impl<'a> DynDefCallRef<'a> {
     // are identical, making this zero-cost, but saving us from having to trust
     // that `fn(*const ())` and `fn handle_deferred_call(&self)` will always have the same calling
     // convention for any type.
-    #[flux::trusted] // Unsupported statement: rvalue `&raw const`
+    #[flux_rs::trusted] // Unsupported statement: rvalue `&raw const`
     fn new<T: DeferredCallClient>(x: &'a T) -> Self {
         Self {
             data: x as *const _ as *const (),
@@ -107,7 +107,7 @@ impl<'a> DynDefCallRef<'a> {
 
 impl DynDefCallRef<'_> {
     // more efficient pass by `self` if we don't have to implement `DeferredCallClient` directly
-    #[flux::trusted] // Unsupported Terminator
+    #[flux_rs::trusted] // Unsupported Terminator
     fn handle_deferred_call(self) {
         (self.callback)(self.data)
     }
@@ -141,7 +141,7 @@ pub struct DeferredCall {
     idx: usize,
 }
 
-#[flux::trusted]
+#[flux_rs::trusted]
 impl DeferredCall {
     /// Creates a new deferred call with a unique ID.
     pub fn new() -> Self {

@@ -223,7 +223,7 @@ pub trait RsaKey: PubKey {
     /// The modulus is returned MSB (big endian)
     /// Returns `Some()` if the key exists and the closure was called,
     /// otherwise returns `None`.
-    #[flux::ignore] // ICE: unexpected! conv_poly_dyn_trait_ref
+    #[flux_rs::ignore] // ICE: unexpected! conv_poly_dyn_trait_ref
     fn map_modulus(&self, closure: &dyn Fn(&[u8])) -> Option<()>;
 
     /// The the modulus if it exists.
@@ -242,7 +242,7 @@ pub trait RsaPrivKey: PubPrivKey + RsaKey {
     /// The exponent is returned MSB (big endian)
     /// Returns `Some()` if the key exists and the closure was called,
     /// otherwise returns `None`.
-    #[flux::ignore] // ICE: unexpected! conv_poly_dyn_trait_ref
+    #[flux_rs::ignore] // ICE: unexpected! conv_poly_dyn_trait_ref
     fn map_exponent(&self, closure: &dyn Fn(&[u8])) -> Option<()>;
 
     /// The the private exponent if it exists.
@@ -258,7 +258,7 @@ pub trait RsaKeyMut: PubKeyMut {
     /// The modulus is returned MSB (big endian)
     /// Returns `Some()` if the key exists and the closure was called,
     /// otherwise returns `None`.
-    #[flux::ignore] // ICE: unexpected! conv_poly_dyn_trait_ref
+    #[flux_rs::ignore] // ICE: unexpected! conv_poly_dyn_trait_ref
     fn map_modulus(&self, closure: &dyn Fn(&mut [u8])) -> Option<()>;
 
     /// The the modulus if it exists.
@@ -277,7 +277,7 @@ pub trait RsaPrivKeyMut: PubPrivKeyMut + RsaKeyMut {
     /// The exponent is returned MSB (big endian)
     /// Returns `Some()` if the key exists and the closure was called,
     /// otherwise returns `None`.
-    #[flux::ignore] // ICE: unexpected! conv_poly_dyn_trait_ref
+    #[flux_rs::ignore] // ICE: unexpected! conv_poly_dyn_trait_ref
     fn map_exponent(&self, closure: &dyn Fn(&mut [u8])) -> Option<()>;
 
     /// The the private exponent if it exists.

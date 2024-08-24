@@ -186,7 +186,7 @@ impl Kernel {
     }
 
     /// Returns an iterator over all processes loaded by the kernel.
-    #[flux::ignore] // Refinement of unsupported associated function / unsupported type
+    #[flux_rs::ignore] // Refinement of unsupported associated function / unsupported type
     pub(crate) fn get_process_iter(
         &self,
     ) -> core::iter::FilterMap<
@@ -717,7 +717,7 @@ impl Kernel {
             } else {
                 match scheduler_timer.get_remaining_us() {
                     Some(remaining) => {
-                        assume(timeslice >= remaining);
+                        assume(timeslice >= remaining); // Needs refined timer? talk to eric
                         timeslice - remaining
                     }
                     None => timeslice, // used whole timeslice
@@ -739,7 +739,7 @@ impl Kernel {
     /// driver system calls to peripheral driver capsules through the platforms
     /// `with_driver` method.
     #[inline]
-    #[flux::trusted] // ICE: extracting field of non-tuple non-adt
+    #[flux_rs::trusted] // ICE: extracting field of non-tuple non-adt
     fn handle_syscall<KR: KernelResources<C>, C: Chip>(
         &self,
         resources: &KR,

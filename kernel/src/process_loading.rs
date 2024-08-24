@@ -183,7 +183,7 @@ pub fn load_processes<C: Chip>(
 /// `ProcessLoadError` if something goes wrong during TBF parsing or process
 /// creation.
 #[inline(always)]
-#[flux::trusted] // ICE: Expected array or slice type
+#[flux_rs::trusted] // ICE: Expected array or slice type
 fn load_processes_from_flash<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
@@ -281,7 +281,7 @@ fn load_processes_from_flash<C: Chip>(
 
 /// Find a process binary stored at the beginning of `flash` and create a
 /// `ProcessBinary` object if the process is viable to run on this kernel.
-#[flux::trusted] // ICE: ambigous substitution
+#[flux_rs::trusted] // ICE: ambigous substitution
 fn discover_process_binary(
     flash: &'static [u8],
 ) -> Result<(&'static [u8], ProcessBinary), (&'static [u8], ProcessBinaryError)> {
@@ -348,7 +348,7 @@ fn discover_process_binary(
 /// pool that its RAM should be allocated from. Returns `Ok` if the process
 /// object was created, `Err` with a relevant error if the process object could
 /// not be created.
-#[flux::trusted] // Arithmetic warnings - needs slice extern spec
+#[flux_rs::trusted] // Arithmetic warnings - needs slice extern spec
 fn load_process<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
@@ -534,6 +534,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
     }
 
     /// Find a slot in the `PROCESS_BINARIES` array to store this process.
+    #[flux_rs::sig(fn(&Self) -> Option<usize>)]
     fn find_open_process_binary_slot(&self) -> Option<usize> {
         self.proc_binaries.map_or(None, |proc_bins| {
             for (i, p) in proc_bins.iter().enumerate() {
@@ -585,7 +586,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
     ///
     /// Returns the process binary object or an error if a valid process
     /// binary could not be extracted.
-    #[flux::trusted] // ICE: Ambiguous substitution
+    #[flux_rs::trusted] // ICE: Ambiguous substitution
     fn discover_process_binary(&self) -> Result<ProcessBinary, ProcessBinaryError> {
         let flash = self.flash.get();
 
@@ -649,7 +650,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
     /// Create process objects from the discovered process binaries.
     ///
     /// This verifies that the discovered processes are valid to run.
-    #[flux::trusted] // ICE: Expected array or slice type
+    #[flux_rs::trusted] // ICE: Expected array or slice type
     fn load_process_objects(&self) -> Result<(), ()> {
         let proc_binaries = self.proc_binaries.take().ok_or(())?;
         let proc_binaries_len = proc_binaries.len();
@@ -909,7 +910,7 @@ impl<'a, C: Chip> DeferredCallClient for SequentialProcessLoaderMachine<'a, C> {
 impl<'a, C: Chip> crate::process_checker::ProcessCheckerMachineClient
     for SequentialProcessLoaderMachine<'a, C>
 {
-    #[flux::trusted] // Expected array or slice type
+    #[flux_rs::trusted] // Expected array or slice type
     fn done(
         &self,
         process_binary: ProcessBinary,
@@ -928,7 +929,7 @@ impl<'a, C: Chip> crate::process_checker::ProcessCheckerMachineClient
                 match self.find_open_process_binary_slot() {
                     Some(index) => {
                         self.proc_binaries.map(|proc_binaries| {
-                            assume(proc_binaries.len() > index);
+                            assume(proc_binaries.len() > index); // requires spec for enumerate() ???
                             process_binary.credential.insert(optional_credential);
                             proc_binaries[index] = Some(process_binary);
                         });

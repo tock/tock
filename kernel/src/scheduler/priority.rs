@@ -38,7 +38,7 @@ impl PrioritySched {
 }
 
 impl<C: Chip> Scheduler<C> for PrioritySched {
-    #[flux::trusted] // use of ignored get_process_iter
+    #[flux_rs::trusted] // use of ignored get_process_iter
     fn next(&self) -> SchedulingDecision {
         // Iterates in-order through the process array, always running the
         // first process it finds that is ready to run. This enforces the
@@ -55,7 +55,7 @@ impl<C: Chip> Scheduler<C> for PrioritySched {
         })
     }
 
-    #[flux::trusted] // use of ignored get_process_iter
+    #[flux_rs::trusted] // use of ignored get_process_iter
     unsafe fn continue_process(&self, _: ProcessId, chip: &C) -> bool {
         // In addition to checking for interrupts, also checks if any higher
         // priority processes have become ready. This check is necessary because

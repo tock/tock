@@ -65,7 +65,7 @@ impl<const NUM_PROCS: u8> IPC<NUM_PROCS> {
 
     /// Schedule an IPC upcall for a process. This is called by the main
     /// scheduler loop if an IPC task was queued for the process.
-    #[flux::trusted] // ICE: extracting field of non-tuple non-adt
+    #[flux_rs::trusted] // ICE: extracting field of non-tuple non-adt
     pub(crate) unsafe fn schedule_upcall(
         &self,
         schedule_on: ProcessId,

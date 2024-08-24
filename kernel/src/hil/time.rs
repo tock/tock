@@ -142,7 +142,7 @@ pub trait Ticks: Clone + Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
 /// an associated type for an implementation of the `Time` trait.
 pub trait Frequency {
     /// Returns frequency in Hz.
-    #[flux::sig(fn() -> u32{r: r > 0})]
+    #[flux_rs::sig(fn() -> u32{r: r > 0})]
     fn frequency() -> u32;
 }
 
@@ -515,7 +515,7 @@ impl Ticks for Ticks32 {
     }
 
     #[inline]
-    #[flux::sig(fn(Self, u32, u32{denom: denom > 0}) -> u32)]
+    #[flux_rs::sig(fn(Self, u32, u32{denom: denom > 0}) -> u32)]
     fn saturating_scale(self, numerator: u32, denominator: u32) -> u32 {
         let scaled = self.0 as u64 * numerator as u64 / denominator as u64;
         if scaled < u32::MAX as u64 {
@@ -605,7 +605,7 @@ impl Ticks for Ticks24 {
     }
 
     #[inline]
-    #[flux::sig(fn(Self, u32, u32{denom: denom > 0}) -> u32)]
+    #[flux_rs::sig(fn(Self, u32, u32{denom: denom > 0}) -> u32)]
     fn saturating_scale(self, numerator: u32, denominator: u32) -> u32 {
         let scaled = self.0 as u64 * numerator as u64 / denominator as u64;
         if scaled < u32::MAX as u64 {
@@ -703,7 +703,7 @@ impl Ticks for Ticks16 {
     }
 
     #[inline]
-    #[flux::sig(fn(Self, u32, u32{denom: denom > 0}) -> u32)]
+    #[flux_rs::sig(fn(Self, u32, u32{denom: denom > 0}) -> u32)]
     fn saturating_scale(self, numerator: u32, denominator: u32) -> u32 {
         let scaled = self.0 as u64 * numerator as u64 / denominator as u64;
         if scaled < u32::MAX as u64 {
@@ -797,7 +797,7 @@ impl Ticks for Ticks64 {
     }
 
     #[inline]
-    #[flux::sig(fn(Self, u32, u32{denom: denom > 0}) -> u32)]
+    #[flux_rs::sig(fn(Self, u32, u32{denom: denom > 0}) -> u32)]
     fn saturating_scale(self, num: u32, den: u32) -> u32 {
         let scaled = self.0.saturating_mul(num as u64) / den as u64;
         if scaled < u32::MAX as u64 {

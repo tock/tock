@@ -56,7 +56,7 @@ impl<'a> CooperativeSched<'a> {
 }
 
 impl<'a, C: Chip> Scheduler<C> for CooperativeSched<'a> {
-    #[flux::trusted] // unsupported statement:  unsupported rvalue `&raw const (*_14)`
+    #[flux_rs::trusted] // unsupported statement:  unsupported rvalue `&raw const (*_14)`
     fn next(&self) -> SchedulingDecision {
         let mut first_head = None;
         let mut next = None;

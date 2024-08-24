@@ -133,8 +133,7 @@ pub struct ProcessBinary {
 }
 
 impl ProcessBinary {
-    #[flux::trusted] // Arithmetic - needs extern spec for slice.len()
-    // #[flux::sig(fn(&[u8][@len], usize, u16, bool) -> Result<ProcessBinary, ProcessBinaryError> requires len > 0)]
+    #[flux_rs::sig(fn(&[u8]{len: len > 0}, usize, u16, bool) -> Result<ProcessBinary, ProcessBinaryError>)]
     pub(crate) fn create(
         app_flash: &'static [u8],
         header_length: usize,

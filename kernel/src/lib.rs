@@ -123,6 +123,7 @@ pub mod storage_permissions;
 pub mod syscall;
 pub mod upcall;
 pub mod utilities;
+pub mod flux_specs;
 
 mod config;
 mod kernel;

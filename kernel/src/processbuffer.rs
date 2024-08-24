@@ -688,9 +688,9 @@ impl ReadableProcessByte {
 /// be checked each time a slice is created. This is usually enforced
 /// by the anonymous lifetime defined by the creation of the slice.
 #[repr(transparent)]
-#[flux::refined_by(len: int)]
+#[flux_rs::refined_by(len: int)]
 pub struct ReadableProcessSlice {
-    #[flux::field([ReadableProcessByte][len])]
+    #[field([ReadableProcessByte][len])]
     slice: [ReadableProcessByte],
 }
 
@@ -761,7 +761,7 @@ impl ReadableProcessSlice {
     ///
     /// The length of `self` must be the same as `dest`. Subslicing
     /// can be used to obtain a slice of matching length.
-    #[flux::trusted] // ICE" expected array or slice type
+    #[flux_rs::trusted] // ICE" expected array or slice type
     pub fn copy_to_slice_or_err(&self, dest: &mut [u8]) -> Result<(), ErrorCode> {
         // Method implemetation adopted from the
         // core::slice::copy_from_slice method implementation:
@@ -794,7 +794,7 @@ impl ReadableProcessSlice {
     }
 
     /// Iterate the slice in chunks.
-    #[flux::trusted] // Unsupported Terminator
+    #[flux_rs::trusted] // Unsupported Terminator
     pub fn chunks(
         &self,
         chunk_size: usize,
@@ -867,7 +867,7 @@ impl Index<usize> for ReadableProcessSlice {
     // Cell to read-only operations
     type Output = ReadableProcessByte;
 
-    #[flux::sig(fn(self: &ReadableProcessSlice[@len], idx: usize) -> &Self::Output requires len > idx)]
+    #[flux_rs::sig(fn(self: &ReadableProcessSlice[@len], idx: usize) -> &Self::Output requires len > idx)]
     fn index(&self, idx: usize) -> &Self::Output {
         // As ReadableProcessSlice is a transparent wrapper around its
         // inner type, [ReadableProcessByte], we can use the regular
@@ -886,9 +886,9 @@ impl Index<usize> for ReadableProcessSlice {
 /// be checked each time a slice is created. This is usually enforced
 /// by the anonymous lifetime defined by the creation of the slice.
 #[repr(transparent)]
-#[flux::refined_by(len: int)]
+#[flux_rs::refined_by(len: int)]
 pub struct WriteableProcessSlice {
-    #[flux::field([Cell<u8>][len])]
+    #[field([Cell<u8>][len])]
     slice: [Cell<u8>],
 }
 
@@ -1034,7 +1034,7 @@ impl WriteableProcessSlice {
     }
 
     /// Iterate over the slice in chunks.
-    #[flux::trusted] // Unsupported Terminator
+    #[flux_rs::trusted] // Unsupported Terminator
     pub fn chunks(
         &self,
         chunk_size: usize,
@@ -1107,7 +1107,7 @@ impl Index<usize> for WriteableProcessSlice {
     // mutating the memory contents is allowed.
     type Output = Cell<u8>;
 
-    #[flux::sig(fn(self: &WriteableProcessSlice[@len], idx: usize) -> &Self::Output requires len > idx)]
+    #[flux_rs::sig(fn(self: &WriteableProcessSlice[@len], idx: usize) -> &Self::Output requires len > idx)]
     fn index(&self, idx: usize) -> &Self::Output {
         // As WriteableProcessSlice is a transparent wrapper around
         // its inner type, [Cell<u8>], we can use the regular slicing

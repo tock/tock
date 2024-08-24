@@ -74,7 +74,7 @@ impl<'a> RoundRobinSched<'a> {
 }
 
 impl<'a, C: Chip> Scheduler<C> for RoundRobinSched<'a> {
-    #[flux::trusted] // Unsupported statement: rvalue `&raw const`
+    #[flux_rs::trusted] // Unsupported statement: rvalue `&raw const`
     fn next(&self) -> SchedulingDecision {
         let mut first_head = None;
         let mut next = None;

@@ -105,7 +105,7 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
     /// Returns the process at the head of the highest priority queue containing a process
     /// that is ready to execute (as determined by `has_tasks()`)
     /// This method moves that node to the head of its queue.
-    #[flux::trusted] // unsupported statement:  unsupported rvalue `&raw const (*_14)`
+    #[flux_rs::trusted] // unsupported statement:  unsupported rvalue `&raw const (*_14)`
     fn get_next_ready_process_node(&self) -> (Option<&MLFQProcessNode<'a>>, usize) {
         for (idx, queue) in self.processes.iter().enumerate() {
             let next = queue
@@ -132,7 +132,7 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
 }
 
 impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<'a, A> {
-    #[flux::trusted] // arithmetic - complicated
+    #[flux_rs::trusted] // arithmetic - complicated
     fn next(&self) -> SchedulingDecision {
         let now = self.alarm.now();
         let next_reset = self.next_reset.get();

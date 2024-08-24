@@ -4,19 +4,19 @@ use core::ptr::NonNull;
 pub use flux_register_interface::*;
 
 #[allow(dead_code)]
-#[flux::sig(fn(x: bool[true]))]
+#[flux_rs::sig(fn(x: bool[true]))]
 pub fn assert(_x: bool) {}
 
-#[flux::sig(fn(b:bool) ensures b)]
+#[flux_rs::sig(fn(b:bool) ensures b)]
 pub fn assume(b: bool) {
     if !b {
         panic!("assume fails")
     }
 }
 
-#[flux::opaque]
+#[flux_rs::opaque]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-#[flux::refined_by(ptr: int)]
+#[flux_rs::refined_by(ptr: int)]
 pub struct FluxPtr {
     _inner: *mut u8,
 }
@@ -64,9 +64,9 @@ impl FluxPtr {
     }
 }
 
-#[flux::alias(type FluxPtrU8[n: int] = FluxPtr[n])]
+#[flux_rs::alias(type FluxPtrU8[n: int] = FluxPtr[n])]
 pub type FluxPtrU8 = FluxPtr;
-#[flux::alias(type FluxPtrU8Mut[n: int] = FluxPtr[n])]
+#[flux_rs::alias(type FluxPtrU8Mut[n: int] = FluxPtr[n])]
 pub type FluxPtrU8Mut = FluxPtr;
 
 pub trait FluxPtrExt {
@@ -114,14 +114,14 @@ impl DerefMut for FluxPtr {
 
 // #[extern_spec]
 // impl<T> [T] {
-//     #[flux::sig(fn(&[T][@n]) -> usize[n])]
+//     #[flux_rs::sig(fn(&[T][@n]) -> usize[n])]
 //     fn len(v: &[T]) -> usize;
 
-//     #[flux::sig(fn(&[T][@n]) -> bool[n == 0])]
+//     #[flux_rs::sig(fn(&[T][@n]) -> bool[n == 0])]
 //     fn is_empty(v: &[T]) -> bool;
 // }
 
 
-// #[flux::extern_spec(core::ops::range)]
-// #[flux::refined_by(lo: int, hi: int)]
+// #[flux_rs::extern_spec(core::ops::range)]
+// #[flux_rs::refined_by(lo: int, hi: int)]
 // struct Range;

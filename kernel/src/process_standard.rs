@@ -1315,7 +1315,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     const PROCESS_STRUCT_OFFSET: usize = mem::size_of::<ProcessStandard<C>>();
 
     /// Create a `ProcessStandard` object based on the found `ProcessBinary`.
-    #[flux::trusted] // ICE: Cannot move out of non-strong reference
+    #[flux_rs::trusted] // ICE: Cannot move out of non-strong reference
     pub(crate) unsafe fn create<'a>(
         kernel: &'static Kernel,
         chip: &'static C,
@@ -1971,6 +1971,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     /// If there is not enough memory, or the MPU cannot isolate the process
     /// accessible region from the new kernel memory break after doing the
     /// allocation, then this will return `None`.
+    // #[flux_rs::sig(fn(&Self, usize, usize{align: align > 0}) -> Option<NonNull<u8>>)]
     fn allocate_in_grant_region_internal(&self, size: usize, align: usize) -> Option<NonNull<u8>> {
         self.mpu_config.and_then(|config| {
             // First, compute the candidate new pointer. Note that at this point
@@ -1983,6 +1984,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             // as a flag. It doesn't hurt to increase the alignment (except for
             // potentially a wasted byte) so we make sure `align` is at least
             // two.
+            // assume(align > 0);
             let align = cmp::max(align, 2);
 
             // The alignment must be a power of two, 2^a. The expression

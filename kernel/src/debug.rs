@@ -108,7 +108,6 @@ pub trait IoWrite {
 /// the system once this function returns.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
-#[flux::ignore] // unsupported signature: Projection(Output = ())
 pub unsafe fn panic_print<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
     writer: &mut W,
     panic_info: &PanicInfo,
@@ -141,7 +140,6 @@ pub unsafe fn panic_print<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
 ///
 /// This will print a detailed debugging message and then loop forever while
 /// blinking an LED in a recognizable pattern.
-#[flux::ignore] // unsupported signature: Projection(Output = ())
 pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
     leds: &mut [&L],
     writer: &mut W,
@@ -167,7 +165,6 @@ pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip, PP: ProcessPr
 /// This opaque method should always be called at the beginning of a board's
 /// panic method to allow hooks for any core kernel cleanups that may be
 /// appropriate.
-#[flux::ignore] // unsupported signature: Projection(Output = ())
 pub unsafe fn panic_begin(nop: &dyn Fn()) {
     // Let any outstanding uart DMA's finish
     for _ in 0..200000 {
@@ -269,7 +266,7 @@ pub static mut DEBUG_GPIOS: (
     Option<&'static dyn hil::gpio::Pin>,
 ) = (None, None, None);
 
-#[flux::trusted] // ICE: Invalid deref of *mut
+#[flux_rs::trusted] // ICE: Invalid deref of *mut
 pub unsafe fn assign_gpios(
     gpio0: Option<&'static dyn hil::gpio::Pin>,
     gpio1: Option<&'static dyn hil::gpio::Pin>,
@@ -434,7 +431,7 @@ impl DebugWriterWrapper {
 }
 
 impl DebugWriter {
-    #[flux::trusted] //  assertion left == right ExistentialTraitRef
+    #[flux_rs::trusted] //  assertion left == right ExistentialTraitRef
     pub fn new(
         uart: &'static dyn hil::uart::Transmit,
         out_buffer: &'static mut [u8],
@@ -458,7 +455,7 @@ impl DebugWriter {
 
     /// Write as many of the bytes from the internal_buffer to the output
     /// mechanism as possible, returning the number written.
-    #[flux::trusted] // assertion left == right ExistentialTraitRef
+    #[flux_rs::trusted] // assertion left == right ExistentialTraitRef
     fn publish_bytes(&self) -> usize {
         // Can only publish if we have the output_buffer. If we don't that is
         // fine, we will do it when the transmit done callback happens.

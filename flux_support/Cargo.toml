@@ -9,3 +9,4 @@ enabled = true
 
 [dependencies]
 tock-registers = { path = "../libraries/tock-register-interface" }
+flux-rs = { git  = "https://github.com/flux-rs/flux.git" }
