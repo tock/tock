@@ -119,7 +119,12 @@ to elements of Tock.
 
 If using a linker script named `layout.ld`, your board crate can make use of the
 Tock submodule's `build.rs` script to ensure it rebuilds when any linker scripts
-change.
+change. Alternatively if you have a linker script with a different name, you can
+set the `LINKER_SCRIPT_OVERRIDE` environment variable to pass the name of this
+script, so long as it still is in the same directory as your board's `Cargo.toml`.
+This approach can also be used if you need a different linker script for tests or
+similar and do not want to have to duplicate your board directory.
+See `boards/opentitan/earlgrey-cw310` for an example.
 
 Everything Else
 ---------------

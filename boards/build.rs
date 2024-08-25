@@ -13,14 +13,21 @@
 //! # ...
 //! build = "../path/to/build.rs"
 //! ```
+//!
+//! If boards wish to use a linker script with a name other than Tock's
+//! default "layout.ld", they can do so by setting the LINKER_SCRIPT_OVERRIDE
+//! environment variable.
 
 use std::fs;
 use std::path::Path;
 
-const LINKER_SCRIPT: &str = "layout.ld";
+const LINKER_SCRIPT_OVERRIDE_ENV: &str = "LINKER_SCRIPT_OVERRIDE";
 
 fn main() {
-    if !Path::new(LINKER_SCRIPT).exists() {
+    let linker_script =
+        std::env::var(LINKER_SCRIPT_OVERRIDE_ENV).unwrap_or("layout.ld".to_string());
+
+    if !Path::new(&linker_script).exists() {
         panic!("Boards must provide a `layout.ld` link script file");
     }
 
@@ -55,9 +62,9 @@ fn main() {
     // search path.
     println!("cargo:rustc-link-arg=-L{}", std::env!("CARGO_MANIFEST_DIR"));
     // `-Tlayout.ld`: Use the linker script `layout.ld` all boards must provide.
-    println!("cargo:rustc-link-arg=-T{}", LINKER_SCRIPT);
+    println!("cargo:rustc-link-arg=-T{}", linker_script);
 
-    track_linker_script(LINKER_SCRIPT);
+    track_linker_script(linker_script);
 }
 
 /// Track the given linker script and all of its `INCLUDE`s so that the build
@@ -66,7 +73,7 @@ fn track_linker_script<P: AsRef<Path>>(path: P) {
     let path = path.as_ref();
 
     assert!(path.is_file(), "expected path {path:?} to be a file");
-
+    println!("cargo:rerun-if-env-changed={}", LINKER_SCRIPT_OVERRIDE_ENV);
     println!("cargo:rerun-if-changed={}", path.display());
 
     // Find all the `INCLUDE <relative path>` lines in the linker script.
