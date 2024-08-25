@@ -65,15 +65,22 @@ impl TryFrom<usize> for ThreadType {
 #[no_mangle]
 pub unsafe fn main(thread_type: ThreadType) {
 
+    const LEN: usize = 32;
+
     let channel_buffer = static_init_once!(
-        [Option<qemu_rv32_virt_chip::channel::QemuRv32VirtMessage>; 128],
-        [const { None }; 128 ],
+        [qemu_rv32_virt_chip::channel::QemuRv32VirtMessage; LEN],
+        core::mem::MaybeUninit::uninit().assume_init(),
+    );
+
+    let channel_ready_buffer = static_init_once!(
+        [core::sync::atomic::AtomicBool; LEN],
+        [const { core::sync::atomic::AtomicBool::new(false) }; LEN],
     );
 
     // TODO: replace it with a lock-free channel implementation
     let channel = static_init_once!(
-        AtomicRingBuffer<Option<qemu_rv32_virt_chip::channel::QemuRv32VirtMessage>>,
-        AtomicRingBuffer::new(channel_buffer),
+        AtomicRingBuffer<qemu_rv32_virt_chip::channel::QemuRv32VirtMessage>,
+        AtomicRingBuffer::new(channel_buffer, channel_ready_buffer).unwrap(),
     );
 
     use ThreadType as T;

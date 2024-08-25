@@ -12,6 +12,7 @@ use kernel::threadlocal::{
 };
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::collections::atomic_ring_buffer::AtomicRingBuffer;
+use kernel::collections::ring_buffer::RingBuffer;
 use kernel::{create_capability, debug, static_init};
 use kernel::smp;
 
@@ -143,7 +144,7 @@ impl
 }
 
 pub unsafe fn spawn<const ID: usize>(
-    channel: &'static AtomicRingBuffer<Option<qemu_rv32_virt_chip::channel::QemuRv32VirtMessage>>,
+    channel: &'static AtomicRingBuffer<qemu_rv32_virt_chip::channel::QemuRv32VirtMessage>,
     has_app_thread: bool,
 ) {
     // These symbols are defined in the linker script.
@@ -275,12 +276,21 @@ pub unsafe fn spawn<const ID: usize>(
 
     // Initialize the kernel's local channel
     qemu_rv32_virt_chip::channel::with_shared_channel_panic(|c| {
-        let _ = c.replace(qemu_rv32_virt_chip::channel::QemuRv32VirtChannel::new(channel));
+        let _ = c.replace(qemu_rv32_virt_chip::channel::QemuRv32VirtChannel::new(
+            channel,
+            static_init!(
+                RingBuffer<qemu_rv32_virt_chip::channel::QemuRv32VirtMessage>,
+                RingBuffer::new(static_init!(
+                    [qemu_rv32_virt_chip::channel::QemuRv32VirtMessage; 128],
+                    core::mem::MaybeUninit::uninit().assume_init()
+                ))
+            )
+        ));
     });
 
     // ---------- QEMU-SYSTEM-RISCV32 "virt" MACHINE PORTALS ----------
 
-    use qemu_rv32_virt_chip::portal::{QemuRv32VirtPortal, PORTALS};
+    use qemu_rv32_virt_chip::portal::{QemuRv32VirtPortalKey, PORTALS};
     use qemu_rv32_virt_chip::portal_cell::QemuRv32VirtPortalCell;
     use qemu_rv32_virt_chip::uart::{Uart16550, UART0_BASE};
     use qemu_rv32_virt_chip::chip::COUNTER;
@@ -293,14 +303,14 @@ pub unsafe fn spawn<const ID: usize>(
 
     let uart_portal = static_init!(
         QemuRv32VirtPortalCell<Uart16550>,
-        QemuRv32VirtPortalCell::new(uart, QemuRv32VirtPortal::Uart16550(core::ptr::null()).id())
+        QemuRv32VirtPortalCell::new(uart, QemuRv32VirtPortalKey::Uart16550 as usize)
     );
 
     // Open a portal for a counter
     let counter_portal = static_init!(
         QemuRv32VirtPortalCell<usize>,
         QemuRv32VirtPortalCell::new(
-            &mut *addr_of_mut!(COUNTER), QemuRv32VirtPortal::Counter(core::ptr::null()).id()
+            &mut *addr_of_mut!(COUNTER), QemuRv32VirtPortalKey::Counter as usize
         )
     );
 
@@ -309,8 +319,8 @@ pub unsafe fn spawn<const ID: usize>(
         .get_mut()
         .expect("Main thread doesn't not have access to its local portals")
         .enter_nonreentrant(|ps| {
-            ps[uart_portal.get_id()] = QemuRv32VirtPortal::Uart16550(uart_portal as *mut _ as *const _);
-            ps[counter_portal.get_id()] = QemuRv32VirtPortal::Counter(counter_portal as *mut _ as *const _);
+            ps[uart_portal.get_id()].replace(uart_portal);
+            ps[counter_portal.get_id()].replace(counter_portal);
         });
 
 

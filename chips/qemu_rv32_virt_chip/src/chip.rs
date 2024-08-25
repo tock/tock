@@ -151,6 +151,26 @@ impl<'a, I: InterruptService + 'a> QemuRv32VirtChip<'a, I> {
             channel::with_shared_channel_panic(closure);
         }
     }
+
+    fn has_channel_unsents(&self) -> bool {
+        let closure = |c: &mut Option<QemuRv32VirtChannel>| {
+            c.as_mut()
+                .expect("Uninitialized channel")
+                .has_unsents()
+        };
+
+        unsafe { channel::with_shared_channel_panic(closure) }
+    }
+
+    unsafe fn handle_channel_unsents(&self) {
+        let closure = |c: &mut Option<QemuRv32VirtChannel>| {
+            c.as_mut()
+                .expect("Uninitialized channel")
+                .flush_unsents()
+        };
+
+        channel::with_shared_channel_panic(closure);
+    }
 }
 
 impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
@@ -181,11 +201,13 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
 
             unsafe {
                 self.handle_next_channel_request();
+                self.handle_channel_unsents();
             }
 
             if !mip.any_matching_bits_set(mip::mtimer::SET)
                 && self.plic.get_saved_interrupts().is_none()
                 && !self.has_channel_requests()
+                && !self.has_channel_unsents()
             {
                 break;
             }
