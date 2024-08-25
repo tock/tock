@@ -907,6 +907,7 @@ impl hil::pwm::PwmPin for PwmPin<'_> {
 /// PWM HIL trait OK
 /// ```
 
+#[allow(clippy::wildcard_imports)]
 pub mod unit_tests {
     use super::*;
 

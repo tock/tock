@@ -166,6 +166,7 @@ impl<'a> Hsi<'a> {
 /// ```
 ///
 /// **NOTE:** All these tests assume default boot configuration.
+#[allow(clippy::wildcard_imports)]
 pub mod tests {
     use super::*;
 

@@ -268,6 +268,7 @@ impl<FlashChipSpecific: FlashChipSpecificTrait> Flash<FlashChipSpecific> {
 ///
 /// In case of any errors, open an issue ticket at <https://github.com/tock/tock>. Please provide
 /// the output of the test execution.
+#[allow(clippy::wildcard_imports)]
 pub mod tests {
     use super::*;
     use crate::clocks::hsi::HSI_FREQUENCY_MHZ;
