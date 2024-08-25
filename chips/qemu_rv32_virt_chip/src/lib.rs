@@ -8,6 +8,7 @@
 #![crate_name = "qemu_rv32_virt_chip"]
 #![crate_type = "rlib"]
 #![feature(variant_count)]
+#![feature(inline_const_pat)]
 
 pub const MAX_THREADS: usize = 2;
 pub const MAX_CONTEXTS: usize = MAX_THREADS * 2;

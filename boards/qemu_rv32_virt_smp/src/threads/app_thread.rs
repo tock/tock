@@ -10,6 +10,7 @@ use kernel::threadlocal::ConstThreadId;
 use kernel::threadlocal::ThreadLocalDyn;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::collections::atomic_ring_buffer::AtomicRingBuffer;
+use kernel::collections::ring_buffer::RingBuffer;
 use kernel::platform::chip::InterruptService;
 use kernel::{create_capability, debug, static_init};
 use kernel::smp;
@@ -54,7 +55,7 @@ impl<'a> InterruptService for QemuRv32VirtPeripherals<'a> {
             interrupts::UART0 => {
                 use kernel::smp::portal::Portalable;
                 self.uart0.enter(|u: &mut Uart16550| u.handle_interrupt())
-                    .unwrap_or_else(|| self.uart0.conjure());
+                    .unwrap_or_else(|| { self.uart0.conjure(); });
             }
             _ => return false,
         }
@@ -136,7 +137,7 @@ impl
 }
 
 pub unsafe fn spawn<const ID: usize>(
-    channel: &'static AtomicRingBuffer<Option<qemu_rv32_virt_chip::channel::QemuRv32VirtMessage>>,
+    channel: &'static AtomicRingBuffer<qemu_rv32_virt_chip::channel::QemuRv32VirtMessage>,
 ) {
     // These symbols are defined in the linker script.
     extern "C" {
@@ -225,31 +226,40 @@ pub unsafe fn spawn<const ID: usize>(
 
     // Initialize the kernel-local channel
     qemu_rv32_virt_chip::channel::with_shared_channel_panic(|c| {
-        let _ = c.replace(qemu_rv32_virt_chip::channel::QemuRv32VirtChannel::new(channel));
+        let _ = c.replace(qemu_rv32_virt_chip::channel::QemuRv32VirtChannel::new(
+            channel,
+            static_init!(
+                RingBuffer<qemu_rv32_virt_chip::channel::QemuRv32VirtMessage>,
+                RingBuffer::new(static_init!(
+                    [qemu_rv32_virt_chip::channel::QemuRv32VirtMessage; 128],
+                    core::mem::MaybeUninit::uninit().assume_init()
+                ))
+            )
+        ));
     });
 
     // Initialize the kernel-local uart state
     qemu_rv32_virt_chip::uart::init_uart_state();
 
     // Open an empty uart portal
-    use qemu_rv32_virt_chip::portal::{QemuRv32VirtPortal, PORTALS};
+    use qemu_rv32_virt_chip::portal::{QemuRv32VirtPortalKey, PORTALS};
 
     let uart_portal = static_init!(
         QemuRv32VirtPortalCell<Uart16550>,
-        QemuRv32VirtPortalCell::empty(QemuRv32VirtPortal::Uart16550(core::ptr::null()).id())
+        QemuRv32VirtPortalCell::empty(QemuRv32VirtPortalKey::Uart16550 as usize)
     );
 
     let counter_portal = static_init!(
         QemuRv32VirtPortalCell<usize>,
-        QemuRv32VirtPortalCell::empty(QemuRv32VirtPortal::Counter(core::ptr::null()).id())
+        QemuRv32VirtPortalCell::empty(QemuRv32VirtPortalKey::Counter as usize)
     );
 
     (&*core::ptr::addr_of!(PORTALS))
         .get_mut()
         .expect("App thread doesn't not have access to its local portals")
         .enter_nonreentrant(|ps| {
-            ps[uart_portal.get_id()] = QemuRv32VirtPortal::Uart16550(uart_portal as *mut _ as *const _);
-            ps[counter_portal.get_id()] = QemuRv32VirtPortal::Counter(counter_portal as *mut _ as *const _);
+            ps[uart_portal.get_id()].replace(uart_portal);
+            ps[counter_portal.get_id()].replace(counter_portal);
         });
 
     // Initialize peripherals
