@@ -25,6 +25,43 @@ pub fn default_linker_script() {
         panic!("Boards must provide a `layout.ld` link script file");
     }
 
+    rustflags_check();
+
+    include_tock_kernel_layout();
+
+    add_board_dir_to_linker_search_path();
+
+    set_and_track_linker_script(LINKER_SCRIPT);
+}
+
+/// Include the folder where the board's Cargo.toml is in the linker file
+/// search path.
+pub fn add_board_dir_to_linker_search_path() {
+    // Note this is a different path than the one returned by
+    // `std::env!("CARGO_MANIFEST_DIR")` in `include_tock_kernel_layout()`,
+    // since that is evaluated at compile
+    // time while this `std::env::var("CARGO_MANIFEST_DIR")` is evaluated at runtime.
+    println!(
+        "cargo:rustc-link-arg=-L{}",
+        std::env::var("CARGO_MANIFEST_DIR").unwrap()
+    );
+}
+
+/// Include the folder where this build_script crate's Cargo.toml is in the
+/// linker file search path for `tock_kernel_layout.ld`, and instruct cargo
+/// to rebuild if that linker script is changed.
+pub fn include_tock_kernel_layout() {
+    println!("cargo:rustc-link-arg=-L{}", std::env!("CARGO_MANIFEST_DIR"));
+    // Directive to rebuild if the linker script in this crate is changed.
+    println!(
+        "cargo:rerun-if-changed={}",
+        Path::new(std::env!("CARGO_MANIFEST_DIR"))
+            .join("tock_kernel_layout.ld")
+            .to_string_lossy()
+    );
+}
+
+pub fn rustflags_check() {
     // The `RUSTFLAGS` that the Tock config files set can be easily overridden
     // by command line flags. The build will still succeed but the resulting
     // binary may be invalid as it was not built with the intended flags. This
@@ -50,33 +87,18 @@ pub fn default_linker_script() {
             );
         }
     }
+}
 
-    // Include the folder where this build_script crate's Cargo.toml is in the
-    // linker file search path for `tock_kernel_layout.ld`.
-    println!("cargo:rustc-link-arg=-L{}", std::env!("CARGO_MANIFEST_DIR"));
-    // Directive to rebuild if the linker script in this crate is changed.
-    println!(
-        "cargo:rerun-if-changed={}",
-        Path::new(std::env!("CARGO_MANIFEST_DIR"))
-            .join("tock_kernel_layout.ld")
-            .to_string_lossy()
-    );
-
-    // Include the folder where the board's Cargo.toml is in the linker file
-    // search path.
-    println!(
-        "cargo:rustc-link-arg=-L{}",
-        std::env::var("CARGO_MANIFEST_DIR").unwrap()
-    );
-    // `-Tlayout.ld`: Use the linker script `layout.ld` all boards must provide.
-    println!("cargo:rustc-link-arg=-T{}", LINKER_SCRIPT);
-
-    track_linker_script(LINKER_SCRIPT);
+/// Pass the given linker script to cargo, and track it and all of its `INCLUDE`s
+pub fn set_and_track_linker_script<P: AsRef<Path> + ToString>(path: P) {
+    // Use the passed linker script
+    println!("cargo:rustc-link-arg=-T{}", path.to_string());
+    track_linker_script(path);
 }
 
 /// Track the given linker script and all of its `INCLUDE`s so that the build
 /// is rerun when any of them change.
-fn track_linker_script<P: AsRef<Path>>(path: P) {
+pub fn track_linker_script<P: AsRef<Path>>(path: P) {
     let path = path.as_ref();
 
     // Skip the default Tock linker script as we have manually added the
