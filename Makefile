@@ -350,6 +350,12 @@ ci-runner-netlify:\
 ## The order of rules within a runner try to optimize for performance if
 ## executed in linear order.
 
+# TODO: choose appropriate path on windows & mac
+TOCK_CI_CARGO_HOME ?= ${HOME}/.cache/tock-ci-cargo-home
+
+$(TOCK_CI_CARGO_HOME)/config.toml:
+	mkdir -p $(TOCK_CI_CARGO_HOME)/
+	cp boards/cargo/tock_ci_flags.toml $(TOCK_CI_CARGO_HOME)/config.toml
 
 
 ### ci-runner-github-format jobs:
@@ -372,7 +378,7 @@ ci-setup-markdown-toc:
 
 define ci_job_markdown_toc
 	$(call banner,CI-Job: Markdown Table of Contents Validation)
-	@NOWARNINGS=true PATH="node_modules/.bin:${PATH}" tools/toc.sh
+	@PATH="node_modules/.bin:${PATH}" tools/toc.sh
 endef
 
 .PHONY: ci-job-markdown-toc
@@ -394,38 +400,38 @@ ci-job-readme-check:
 
 ### ci-runner-github-clippy jobs:
 .PHONY: ci-job-clippy
-ci-job-clippy:
+ci-job-clippy: $(TOCK_CI_CARGO_HOME)/config.toml
 	$(call banner,CI-Job: Clippy)
-	@cargo clippy -- -D warnings
+	@CARGO_HOME=$(TOCK_CI_CARGO_HOME) cargo clippy -- -D warnings
 	# Run `cargo clippy` in select boards so we run clippy with targets that
 	# actually check the arch-specific functions.
-	@cd boards/nordic/nrf52840dk && cargo clippy -- -D warnings
-	@cd boards/hifive1 && cargo clippy -- -D warnings
+	@CARGO_HOME=$(TOCK_CI_CARGO_HOME) cd boards/nordic/nrf52840dk && cargo clippy -- -D warnings
+	@CARGO_HOME=$(TOCK_CI_CARGO_HOME) cd boards/hifive1 && cargo clippy -- -D warnings
 
 
 
 ### ci-runner-github-build jobs:
 .PHONY: ci-job-syntax
-ci-job-syntax:
+ci-job-syntax: $(TOCK_CI_CARGO_HOME)/config.toml
 	$(call banner,CI-Job: Syntax)
-	@NOWARNINGS=true $(MAKE) allcheck
+	@CARGO_HOME=$(TOCK_CI_CARGO_HOME) $(MAKE) allcheck
 
 .PHONY: ci-job-compilation
-ci-job-compilation:
+ci-job-compilation: $(TOCK_CI_CARGO_HOME)/config.toml
 	$(call banner,CI-Job: Compilation)
-	@NOWARNINGS=true $(MAKE) allboards
+	@CARGO_HOME=$(TOCK_CI_CARGO_HOME) $(MAKE) allboards
 
 .PHONY: ci-job-debug-support-targets
-ci-job-debug-support-targets:
+ci-job-debug-support-targets: $(TOCK_CI_CARGO_HOME)/config.toml
 	$(call banner, CI-Job: Debug Support Targets)
 	# These are rules that build additional debugging information, but are
 	# also quite time consuming. So we want to verify that the rules still
 	# work, but don't build them for every board.
 	#
 	# The choice of building for the nrf52dk was chosen by random die roll.
-	@NOWARNINGS=true $(MAKE) -C boards/nordic/nrf52dk lst
-	@NOWARNINGS=true $(MAKE) -C boards/nordic/nrf52dk debug
-	@NOWARNINGS=true $(MAKE) -C boards/nordic/nrf52dk debug-lst
+	@CARGO_HOME=$(TOCK_CI_CARGO_HOME) $(MAKE) -C boards/nordic/nrf52dk lst
+	@CARGO_HOME=$(TOCK_CI_CARGO_HOME) $(MAKE) -C boards/nordic/nrf52dk debug
+	@CARGO_HOME=$(TOCK_CI_CARGO_HOME) $(MAKE) -C boards/nordic/nrf52dk debug-lst
 
 .PHONY: ci-job-collect-artifacts
 ci-job-collect-artifacts: ci-job-compilation
@@ -445,44 +451,44 @@ ci-job-collect-artifacts: ci-job-compilation
 
 ### ci-runner-github-tests jobs:
 .PHONY: ci-job-libraries
-ci-job-libraries:
+ci-job-libraries: $(TOCK_CI_CARGO_HOME)/config.toml
 	$(call banner,CI-Job: Libraries)
-	@cd libraries/enum_primitive && NOWARNINGS=true RUSTFLAGS="-D warnings" cargo test
-	@cd libraries/riscv-csr && NOWARNINGS=true RUSTFLAGS="-D warnings" cargo test
-	@cd libraries/tock-cells && NOWARNINGS=true RUSTFLAGS="-D warnings" cargo test
-	@cd libraries/tock-register-interface && NOWARNINGS=true RUSTFLAGS="-D warnings" cargo test
-	@cd libraries/tickv && NOWARNINGS=true RUSTFLAGS="-D warnings" cargo test
+	@cd libraries/enum_primitive && CARGO_HOME=$(TOCK_CI_CARGO_HOME) cargo test
+	@cd libraries/riscv-csr && CARGO_HOME=$(TOCK_CI_CARGO_HOME) cargo test
+	@cd libraries/tock-cells && CARGO_HOME=$(TOCK_CI_CARGO_HOME) cargo test
+	@cd libraries/tock-register-interface && CARGO_HOME=$(TOCK_CI_CARGO_HOME) cargo test
+	@cd libraries/tickv && CARGO_HOME=$(TOCK_CI_CARGO_HOME) cargo test
 
 .PHONY: ci-job-archs
-ci-job-archs:
+ci-job-archs: $(TOCK_CI_CARGO_HOME)/config.toml
 	$(call banner,CI-Job: Archs)
 	@for arch in `./tools/list_archs.sh`;\
 		do echo "$$(tput bold)Test $$arch";\
 		cd arch/$$arch;\
-		NOWARNINGS=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test || exit 1;\
+		CARGO_HOME=$(TOCK_CI_CARGO_HOME) TOCK_KERNEL_VERSION=ci_test cargo test || exit 1;\
 		cd ../..;\
 		done
 
 .PHONY: ci-job-kernel
-ci-job-kernel:
+ci-job-kernel: $(TOCK_CI_CARGO_HOME)/config.toml
 	$(call banner,CI-Job: Kernel)
-	@cd kernel && NOWARNINGS=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test
+	@cd kernel && CARGO_HOME=$(TOCK_CI_CARGO_HOME) TOCK_KERNEL_VERSION=ci_test cargo test
 
 .PHONY: ci-job-capsules
-ci-job-capsules:
+ci-job-capsules: $(TOCK_CI_CARGO_HOME)/config.toml
 	$(call banner,CI-Job: Capsules)
 	@# Capsule initialization depends on board/chip specific imports, so ignore doc tests
-	@cd capsules/core && NOWARNINGS=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test
-	@cd capsules/extra && NOWARNINGS=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test
-	@cd capsules/system && NOWARNINGS=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test
+	@cd capsules/core && CARGO_HOME=$(TOCK_CI_CARGO_HOME) TOCK_KERNEL_VERSION=ci_test cargo test
+	@cd capsules/extra && CARGO_HOME=$(TOCK_CI_CARGO_HOME) TOCK_KERNEL_VERSION=ci_test cargo test
+	@cd capsules/system && CARGO_HOME=$(TOCK_CI_CARGO_HOME) TOCK_KERNEL_VERSION=ci_test cargo test
 
 .PHONY: ci-job-chips
-ci-job-chips:
+ci-job-chips: $(TOCK_CI_CARGO_HOME)/config.toml
 	$(call banner,CI-Job: Chips)
 	@for chip in `./tools/list_chips.sh`;\
 		do echo "$$(tput bold)Test $$chip";\
 		cd chips/$$chip;\
-		NOWARNINGS=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test || exit 1;\
+		CARGO_HOME=$(TOCK_CI_CARGO_HOME) TOCK_KERNEL_VERSION=ci_test cargo test || exit 1;\
 		cd ../..;\
 		done
 
@@ -514,29 +520,29 @@ ci-setup-tools:
 
 define ci_job_tools
 	$(call banner,CI-Job: Tools)
-	@NOWARNINGS=true RUSTFLAGS="-D warnings" \
+	@CARGO_HOME=$(TOCK_CI_CARGO_HOME) \
 		cargo test --all-targets --manifest-path=tools/Cargo.toml --workspace || exit 1
 endef
 
 .PHONY: ci-job-tools
-ci-job-tools: ci-setup-tools
+ci-job-tools: ci-setup-tools $(TOCK_CI_CARGO_HOME)/config.toml
 	$(if $(CI_JOB_TOOLS),$(call ci_job_tools))
 
 
 .PHONY: ci-job-miri
-ci-job-miri:
+ci-job-miri: $(TOCK_CI_CARGO_HOME)/config.toml
 	$(call banner,CI-Job: Miri)
 	#
 	# Note: This is highly experimental and limited at the moment.
 	#
 	@# Hangs forever during `Building` for this one :shrug:
-	@#cd libraries/tock-register-interface && NOWARNINGS=true cargo miri test
-	@cd kernel && NOWARNINGS=true cargo miri test
-	@for a in $$(tools/list_archs.sh); do cd arch/$$a && NOWARNINGS=true cargo miri test && cd ../..; done
-	@cd capsules/core && NOWARNINGS=true cargo miri test
-	@cd capsules/extra && NOWARNINGS=true cargo miri test
-	@cd capsules/system && NOWARNINGS=true cargo miri test
-	@for c in $$(tools/list_chips.sh); do cd chips/$$c && NOWARNINGS=true cargo miri test && cd ../..; done
+	@#cd libraries/tock-register-interface && CARGO_HOME=$(TOCK_CI_CARGO_HOME) cargo miri test
+	@cd kernel && CARGO_HOME=$(TOCK_CI_CARGO_HOME) cargo miri test
+	@for a in $$(tools/list_archs.sh); do cd arch/$$a && CARGO_HOME=$(TOCK_CI_CARGO_HOME) cargo miri test && cd ../..; done
+	@cd capsules/core && CARGO_HOME=$(TOCK_CI_CARGO_HOME) cargo miri test
+	@cd capsules/extra && CARGO_HOME=$(TOCK_CI_CARGO_HOME) cargo miri test
+	@cd capsules/system && CARGO_HOME=$(TOCK_CI_CARGO_HOME) cargo miri test
+	@for c in $$(tools/list_chips.sh); do cd chips/$$c && CARGO_HOME=$(TOCK_CI_CARGO_HOME) cargo miri test && cd ../..; done
 
 
 .PHONY: ci-job-cargo-test-build
@@ -576,23 +582,23 @@ define ci_job_qemu
 	$(call banner,CI-Job: QEMU)
 	@cd tools/qemu-runner;\
 		PATH="$(shell pwd)/tools/qemu/build/riscv32-softmmu/:${PATH}"\
-		NOWARNINGS=true cargo run
+		CARGO_HOME=$(TOCK_CI_CARGO_HOME) cargo run
 	@cd boards/opentitan/earlgrey-cw310;\
 		PATH="$(shell pwd)/tools/qemu/build/riscv32-softmmu/:${PATH}"\
-		make test
+		CARGO_HOME=$(TOCK_CI_CARGO_HOME) make test
 endef
 
 .PHONY: ci-job-qemu
-ci-job-qemu: ci-setup-qemu
+ci-job-qemu: ci-setup-qemu $(TOCK_CI_CARGO_HOME)/config.toml
 	$(if $(CI_JOB_QEMU),$(call ci_job_qemu))
 
 
 
 ### ci-runner-netlify jobs:
 .PHONY: ci-job-rustdoc
-ci-job-rustdoc:
+ci-job-rustdoc: $(TOCK_CI_CARGO_HOME)/config.toml
 	$(call banner,CI-Job: Rustdoc Documentation)
-	@NOWARNINGS=true tools/build-all-docs.sh
+	@CARGO_HOME=$(TOCK_CI_CARGO_HOME) tools/build-all-docs.sh
 
 ## End CI rules
 ##
