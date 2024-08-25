@@ -547,12 +547,12 @@ ci-job-miri: $(TOCK_CI_CARGO_HOME)/config.toml
 
 .PHONY: ci-job-cargo-test-build
 ci-job-cargo-test-build:
-	@$(MAKE) NO_RUN="--no-run" -C "boards/opentitan/earlgrey-cw310" test
-	@$(MAKE) NO_RUN="--no-run" -C "boards/esp32-c3-devkitM-1" test
-	@$(MAKE) NO_RUN="--no-run" -C "boards/apollo3/lora_things_plus" test
-	@$(MAKE) NO_RUN="--no-run" -C "boards/apollo3/lora_things_plus" test-atecc508a
-	@$(MAKE) NO_RUN="--no-run" -C "boards/apollo3/redboard_artemis_atp" test
-	@$(MAKE) NO_RUN="--no-run" -C "boards/apollo3/redboard_artemis_nano" test
+	@$(MAKE) CARGO_HOME=$(TOCK_CI_CARGO_HOME) NO_RUN="--no-run" -C "boards/opentitan/earlgrey-cw310" test
+	@$(MAKE) CARGO_HOME=$(TOCK_CI_CARGO_HOME) NO_RUN="--no-run" -C "boards/esp32-c3-devkitM-1" test
+	@$(MAKE) CARGO_HOME=$(TOCK_CI_CARGO_HOME) NO_RUN="--no-run" -C "boards/apollo3/lora_things_plus" test
+	@$(MAKE) CARGO_HOME=$(TOCK_CI_CARGO_HOME) NO_RUN="--no-run" -C "boards/apollo3/lora_things_plus" test-atecc508a
+	@$(MAKE) CARGO_HOME=$(TOCK_CI_CARGO_HOME) NO_RUN="--no-run" -C "boards/apollo3/redboard_artemis_atp" test
+	@$(MAKE) CARGO_HOME=$(TOCK_CI_CARGO_HOME) NO_RUN="--no-run" -C "boards/apollo3/redboard_artemis_nano" test
 
 
 
