@@ -95,7 +95,7 @@ impl<'a> DynDefCallRef<'a> {
     // are identical, making this zero-cost, but saving us from having to trust
     // that `fn(*const ())` and `fn handle_deferred_call(&self)` will always have the same calling
     // convention for any type.
-    #[flux_rs::trusted] // Unsupported statement: rvalue `&raw const`
+    #[flux_rs::trusted] // unsupported cast `PointerCoercion(ClosureFnPointer(Safe))`
     fn new<T: DeferredCallClient>(x: &'a T) -> Self {
         Self {
             data: x as *const _ as *const (),
