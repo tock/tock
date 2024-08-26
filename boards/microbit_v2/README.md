@@ -43,8 +43,10 @@ As MicroBit v2 has an on board debugger that provides several ways of programmin
 
 There are two ways for flashing the bootloader:
  1. Using the MicroBit USB drive
- 2. Using openocd
- 3. Using [probe-rs](https://github.com/probe-rs/probe-rs)
+ 2. Using [cargo flash](https://probe.rs/docs/tools/cargo-flash/)
+ 3. Using openocd
+ 4. Using [probe-rs](https://github.com/probe-rs/probe-rs)
+
 
 ### Building the bootloader
 
@@ -62,19 +64,11 @@ Drag and drop the [tock-bootloader.microbit_v2.vv1.1.1.bin](https://github.com/t
 
 The board will reset and the bootloader should be running on it. To check whether it's working, press and hold the Button A while pressing the reset button. The Microphone LED should light up.
 
-### Using openocd
+### Using cargo flash
 Use the `make flash-bootloader` command to flash [Tock Bootloader](https://github.com/tock/tock-bootloader) to the board.
 
 ```bash
 $ make flash-bootloader
-```
-
-### Using probe-rs
-
-Use the `make flash-bootloader` command to flash [Tock Bootloader](https://github.com/tock/tock-bootloader) to the board.
-
-```bash
-$ USE_PROBE_RS=1 make flash-bootloader
 ```
 
 ## Uploading the kernel
@@ -116,7 +110,7 @@ MEMORY
 Not using a bootloader has the advantage of having an extra 64 KB of flash.
 ### Flashing the kernel
 
-The kernel can be programmed using OpenOCD. 
+The kernel can be programmed using cargo flash. 
 `cd` into `boards/microbit_v2` directory and run:
 
 ```bash
@@ -125,18 +119,6 @@ $ make flash
 (or)
 
 $ make flash-debug
-```
-
-The kernel can also be programmed using [probe-rs](https://github.com/probe-rs/probe-rs). 
-`cd` into `boards/microbit_v2` directory and run:
-
-```bash
-$ USE_PROBE_RS=1 make flash
-
-(or)
-
-$ USE_PROBE_RS=1 make flash-debug
-
 ```
 
 ## Managing applications
