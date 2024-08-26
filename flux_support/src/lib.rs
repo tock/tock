@@ -23,6 +23,7 @@ pub struct FluxPtr {
 
 // VTOCK-TODO: fill in these functions with obvious implementations
 impl FluxPtr {
+    #[flux_rs::sig(fn(self: Self[@lhs], rhs: usize) -> Self{r: ((lhs + rhs <= usize::MAX) => r == lhs + rhs) && ((lhs + rhs > usize::MAX) => r == lhs + rhs - usize::MAX) })]
     pub const fn wrapping_add(self, _count: usize) -> FluxPtr {
         unimplemented!()
     }
@@ -31,10 +32,12 @@ impl FluxPtr {
         unimplemented!()
     }
 
+    #[flux_rs::sig(fn(self: Self[@n]) -> bool[n == 0] )]
     pub fn is_null(self) -> bool {
         unimplemented!()
     }
 
+    #[flux_rs::sig(fn(self: Self[@n]) -> usize[n])]
     pub fn as_usize(self) -> usize {
         unimplemented!()
     }
@@ -43,10 +46,12 @@ impl FluxPtr {
         unimplemented!()
     }
 
+    #[flux_rs::sig(fn() -> Self[0])]
     pub const fn null() -> Self {
         unimplemented!()
     }
 
+    #[flux_rs::sig(fn() -> Self[0])]
     pub const fn null_mut() -> Self {
         unimplemented!()
     }
@@ -111,7 +116,6 @@ impl DerefMut for FluxPtr {
     }
 }
 
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[flux_rs::refined_by(start: int, end: int)]
 pub struct FluxRange {
@@ -130,7 +134,15 @@ pub struct FluxRange {
 //     fn is_empty(v: &[T]) -> bool;
 // }
 
-
 // #[flux_rs::extern_spec(core::ops::range)]
 // #[flux_rs::refined_by(lo: int, hi: int)]
 // struct Range;
+
+#[flux_rs::sig(fn(lhs: usize, rhs: usize) -> usize {r: (lhs >= rhs => r == lhs) && (rhs > lhs => r == rhs)})]
+pub fn max_usize(lhs: usize, rhs: usize) -> usize {
+    if lhs >= rhs {
+        lhs
+    } else {
+        rhs
+    }
+}
