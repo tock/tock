@@ -36,7 +36,6 @@ use rp2040::clocks::{
 };
 use rp2040::gpio::{GpioFunction, RPGpio, RPGpioPin};
 use rp2040::pio::{Pio, SMNumber, StateMachineConfiguration};
-use rp2040::pio::SMNumber::SM0;
 use rp2040::resets::Peripheral;
 use rp2040::spi::Spi;
 use rp2040::sysinfo;
@@ -696,14 +695,16 @@ pub unsafe fn start() -> (
     });
 
     let pio: Pio = Pio::new_pio0();
-    let path: [u8; 6] = [0xa0,0x80, 0x01, 0x60, 0x00, 0x00];
-    //let path: [u8; 6] = [0x80, 0xa0, 0x60, 0x01, 0x00, 0x00];
+    // let path: [u8; 6] = [0xa0,0x80, 0x01, 0x60, 0x00, 0x00];
+    let path: [u8; 6] = [0x80, 0xa0, 0x60, 0x01, 0x00, 0x00];
     pio.init();
     //pio.gpio_init(peripherals.pins.get_pin(RPGpio::GPIO25));
     pio.add_program(&path);
-    pio.hello_program_init(SM0, 25, &StateMachineConfiguration::default());
-    pio.sm_put(SM0, 1);
-    debug!("Continuing");
+    pio.hello_program_init(SMNumber::SM0, 25, &StateMachineConfiguration::default());
+    pio.sm_put(SMNumber::SM0, 1);
+    for _ in 1..100 {
+        debug!("{}", pio.debugger(SMNumber::SM0));
+    }
 
     (board_kernel, pico_explorer_base, chip)
 }

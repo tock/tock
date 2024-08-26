@@ -1,10 +1,9 @@
 use kernel::debug;
-use kernel::utilities::registers::interfaces::{ReadWriteable, Writeable};
+use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
 use crate::gpio::{GpioFunction, RPGpio, RPGpioPin};
-use crate::pio::PIONumber::PIO1;
 
 const NUMBER_STATE_MACHINES: usize = 4;
 const NUMBER_INSTR_MEMORY_LOCATIONS: usize = 32;
@@ -470,7 +469,6 @@ IRQ1_INTF [
     SM0_RXNEMPTY OFFSET(0) NUMBITS(1) []
 ],
 IRQ1_INTS [
-
     SM3 OFFSET(11) NUMBITS(1) [],
     SM2 OFFSET(10) NUMBITS(1) [],
     SM1 OFFSET(9) NUMBITS(1) [],
@@ -1006,6 +1004,7 @@ impl Pio {
         self.gpio_init(&RPGpioPin::new(RPGpio::GPIO6));
         self.set_consecutive_pindirs(sm_number, pin, 1);
         self.set_side_set(sm_number, 1, false, true);
+        self.sm_exec(sm_number, 1);
         self.sm_init(sm_number, config);
         self.sm_set_enabled(sm_number, true);
     }
@@ -1033,5 +1032,11 @@ impl Pio {
         self.set_consecutive_pindirs(sm_number, pin, 1);
         self.sm_init(sm_number, config);
         self.sm_set_enabled(sm_number, true);
+    }
+
+    pub fn debugger(&self, sm_number: SMNumber) -> u32 {
+        self.registers.sm[sm_number as usize]
+            .instr
+            .read(SMx_INSTR::INSTR)
     }
 }
