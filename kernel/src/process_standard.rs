@@ -103,6 +103,8 @@ struct GrantPointerEntry {
 }
 
 /// A type for userspace processes in Tock.
+#[flux_rs::refined_by(mem_start: FluxPtrU8Mut, mem_len: int)]
+#[flux_rs::invariant(mem_start + mem_len <= usize::MAX)] // mem doesn't overflow address space
 pub struct ProcessStandard<'a, C: 'static + Chip> {
     /// Identifier of this process and the index of the process in the process
     /// table.
@@ -154,8 +156,10 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
     /// not a slice due to Rust aliasing rules. If we were to store a slice,
     /// then any time another slice to the same memory or an ProcessBuffer is
     /// used in the kernel would be undefined behavior.
+    #[field(FluxPtrU8Mut[mem_start])]
     memory_start: FluxPtrU8Mut,
     /// Number of bytes of memory allocated to this process.
+    #[field({usize[mem_len] | mem_start + mem_len <= usize::MAX})]
     memory_len: usize,
 
     /// Reference to the slice of `GrantPointerEntry`s stored in the process's
@@ -301,6 +305,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     fn remove_pending_upcalls(&self, upcall_id: UpcallId) {
         self.tasks.map(|tasks| {
             let count_before = tasks.len();
+            // VTOCK-TODO: prove tasks.retain() reduces number of tasks
             tasks.retain(|task| match task {
                 // Remove only tasks that are function calls with an id equal
                 // to `upcall_id`.
@@ -312,7 +317,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             });
             if config::CONFIG.trace_syscalls {
                 let count_after = tasks.len();
-                assume(count_before >= count_after);
+                assume(count_before >= count_after); // requires refined ringbuffer
                 debug!(
                     "[{:?}] remove_pending_upcalls[{:#x}:{}] = {} upcall(s) removed",
                     self.processid(),
@@ -1984,13 +1989,11 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             // as a flag. It doesn't hurt to increase the alignment (except for
             // potentially a wasted byte) so we make sure `align` is at least
             // two.
-            // assume(align > 0);
-            let align = cmp::max(align, 2);
+            let align = max_usize(align, 2);
 
             // The alignment must be a power of two, 2^a. The expression
             // `!(align - 1)` then returns a mask with leading ones, followed by
             // `a` trailing zeros.
-            assume(align > 0);
             let alignment_mask = !(align - 1);
             let new_break = (new_break_unaligned.as_usize() & alignment_mask).as_fluxptr();
 
@@ -2037,7 +2040,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         let custom_grant_address = ptr.as_fluxptr().as_usize();
         let process_memory_end = self.mem_end().as_usize();
 
-        assume(process_memory_end > custom_grant_address);
+        assume(process_memory_end > custom_grant_address); // refine ProcessStandard by mem_end + add precondition for input
 
         ProcessCustomGrantIdentifier {
             offset: process_memory_end - custom_grant_address,
@@ -2057,11 +2060,13 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     }
 
     /// The start address of allocated RAM for this process.
+    #[flux_rs::sig(fn(self: &Self[@mem_start, @mem_len]) -> FluxPtrU8Mut[mem_start])]
     fn mem_start(&self) -> FluxPtrU8Mut {
         self.memory_start
     }
 
     /// The first address after the end of the allocated RAM for this process.
+    #[flux_rs::sig(fn(self: &Self[@mem_start, @mem_len]) -> FluxPtrU8Mut[mem_start + mem_len])]
     fn mem_end(&self) -> FluxPtrU8Mut {
         self.memory_start.wrapping_add(self.memory_len)
     }
