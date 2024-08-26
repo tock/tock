@@ -20,7 +20,7 @@ install: flash
 
 .PHONY: flash-debug
 flash-debug: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).elf
-		$(CARGO) flash --chip nRF52833_xxAA --verify --path $<
+	$(CARGO) flash --chip nRF52833_xxAA --verify --path $<
 
 
 .PHONY: flash/kernel/probe-rs/debug
