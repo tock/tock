@@ -237,6 +237,42 @@ pub const BUF_LEN: usize = 512;
 pub const HEADER_BUF_LEN: usize =
     [REGION_HEADER_LEN, MAGIC_HEADER_LEN][(REGION_HEADER_LEN < MAGIC_HEADER_LEN) as usize];
 
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum HeaderReadAction {
+    /// In the middle of checking the first few bytes of
+    /// userspace nonvolatile storage to see if the magic header
+    /// is intact and valid. If it matches the expected value, we
+    /// know that this nonvolatile storage has been previously initialized
+    /// by this capsule. If it doesn't match, we assume this capsule has
+    /// never run and start allocating regions from the start.
+    ReadingMagicHeader,
+
+    /// In the middle of reading an app's region header to find out
+    /// which app owns the region and how large the region is. This
+    /// variant contains a usize which represents the starting address
+    /// of the region header to be reading from. Note that the address is
+    /// of the **header** and not the region itself.
+    ReadingRegionHeader(usize),
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum HeaderWriteAction {
+    /// In the middle of writing magic header to the start of
+    /// userspace nonvolatile storage.
+    WritingMagicHeader,
+
+    /// In the middle of reserving storage for an app and writing an app's region
+    /// header. This variant contains the ProcessId of the requesting app as well as
+    /// the region information that tells us the location and size of the region.
+    WritingRegionHeader(ProcessId, AppRegion),
+
+    /// Zeroing out a region header with a shortid of a special terminating value.
+    /// Once the region header is zeroed out, it signifies the end of the regions
+    /// that have been allocated. The bool signifies if the capsule should look
+    /// to allocat regions for requesting apps once it's done zeroing out a header.
+    ZeroingRegionHeader(bool),
+}
+
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum HeaderState {
     Read(HeaderReadAction),
@@ -284,84 +320,6 @@ impl Default for App {
             region: None,
         }
     }
-}
-
-// the following helper functions are used for converting to/from
-// u8 slices that are read/written to nonvolatile storage
-fn u8_slice_to_usize(bytes: &[u8]) -> usize {
-    let mut result: usize = 0;
-
-    for (i, &byte) in bytes.iter().enumerate() {
-        result |= (byte as usize) << (8 * i);
-    }
-
-    result
-}
-
-fn u8_slice_to_u32(bytes: &[u8]) -> u32 {
-    let mut result: u32 = 0;
-
-    for (i, &byte) in bytes.iter().enumerate() {
-        result |= (byte as u32) << (8 * i);
-    }
-
-    result
-}
-
-fn u32_to_u8_slice(val: u32) -> [u8; core::mem::size_of::<u32>()] {
-    let mut result = [0; core::mem::size_of::<u32>()];
-
-    for i in 0..core::mem::size_of::<u32>() {
-        result[i] = ((val >> (8 * i)) & 0xFF) as u8;
-    }
-
-    result
-}
-
-fn usize_to_u8_slice(val: usize) -> [u8; core::mem::size_of::<usize>()] {
-    let mut result = [0; core::mem::size_of::<usize>()];
-
-    for i in 0..core::mem::size_of::<usize>() {
-        result[i] = ((val >> (8 * i)) & 0xFF) as u8;
-    }
-
-    result
-}
-
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub enum HeaderReadAction {
-    /// In the middle of checking the first few bytes of
-    /// userspace nonvolatile storage to see if the magic header
-    /// is intact and valid. If it matches the expected value, we
-    /// know that this nonvolatile storage has been previously initialized
-    /// by this capsule. If it doesn't match, we assume this capsule has
-    /// never run and start allocating regions from the start.
-    ReadingMagicHeader,
-
-    /// In the middle of reading an app's region header to find out
-    /// which app owns the region and how large the region is. This
-    /// variant contains a usize which represents the starting address
-    /// of the region header to be reading from. Note that the address is
-    /// of the **header** and not the region itself.
-    ReadingRegionHeader(usize),
-}
-
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub enum HeaderWriteAction {
-    /// In the middle of writing magic header to the start of
-    /// userspace nonvolatile storage.
-    WritingMagicHeader,
-
-    /// In the middle of reserving storage for an app and writing an app's region
-    /// header. This variant contains the ProcessId of the requesting app as well as
-    /// the region information that tells us the location and size of the region.
-    WritingRegionHeader(ProcessId, AppRegion),
-
-    /// Zeroing out a region header with a shortid of a special terminating value.
-    /// Once the region header is zeroed out, it signifies the end of the regions
-    /// that have been allocated. The bool signifies if the capsule should look
-    /// to allocat regions for requesting apps once it's done zeroing out a header.
-    ZeroingRegionHeader(bool),
 }
 
 pub struct NonvolatileStorage<'a> {
@@ -577,7 +535,7 @@ impl<'a> NonvolatileStorage<'a> {
             debug!("[NONVOLATILE_STORAGE_DRIVER]: Writing magic header");
         }
 
-        let magic_header_slice = u32_to_u8_slice(MAGIC_HEADER);
+        let magic_header_slice = u32::to_le_bytes(MAGIC_HEADER);
         self.header_buffer.map_or(Err(ErrorCode::NOMEM), |buf| {
             // copy magic value to static buffer
             for (i, c) in buf[0..magic_header_slice.len()].iter_mut().enumerate() {
@@ -654,8 +612,8 @@ impl<'a> NonvolatileStorage<'a> {
             );
         }
 
-        let owner_slice = u32_to_u8_slice(region_header.shortid);
-        let length_slice = usize_to_u8_slice(region_header.length);
+        let owner_slice = u32::to_le_bytes(region_header.shortid);
+        let length_slice = usize::to_le_bytes(region_header.length);
 
         self.header_buffer.map_or(Err(ErrorCode::NOMEM), |buffer| {
             // copy owner to static buffer
@@ -696,7 +654,7 @@ impl<'a> NonvolatileStorage<'a> {
                     for (i, c) in buffer[0..magic_header_slice.len()].iter().enumerate() {
                         magic_header_slice[i] = *c;
                     }
-                    Ok(u8_slice_to_u32(&magic_header_slice))
+                    Ok(u32::from_le_bytes(magic_header_slice))
                 })?;
 
                 // check validity of magic header read from storage
@@ -709,24 +667,20 @@ impl<'a> NonvolatileStorage<'a> {
                 }
             }
             HeaderReadAction::ReadingRegionHeader(region_header_address) => {
-                // copy first few bytes from static buffer to local slice
-                let mut header_slice = [0; REGION_HEADER_LEN];
-                self.header_buffer.map_or(Err(ErrorCode::NOMEM), |buffer| {
-                    for (i, c) in buffer[0..header_slice.len()].iter().enumerate() {
-                        header_slice[i] = *c;
-                    }
-                    Ok(())
+                let header = self.header_buffer.map_or(Err(ErrorCode::NOMEM), |buffer| {
+                    let mut owner_slice = [0; core::mem::size_of::<u32>()];
+                    owner_slice.copy_from_slice(&buffer[0..core::mem::size_of::<u32>()]);
+                    let owner = u32::from_le_bytes(owner_slice);
+
+                    let mut region_length_slice = [0; core::mem::size_of::<usize>()];
+                    region_length_slice.copy_from_slice(&buffer[owner_slice.len()..REGION_HEADER_LEN]);
+                    let region_length = usize::from_le_bytes(region_length_slice);
+
+                    Ok(AppRegionHeader {
+                        shortid: owner,
+                        length: region_length,
+                    })
                 })?;
-
-                let owner = u8_slice_to_u32(&header_slice[0..core::mem::size_of::<u32>()]);
-                let region_length = u8_slice_to_usize(
-                    &header_slice[core::mem::size_of::<u32>()..REGION_HEADER_LEN],
-                );
-
-                let header = AppRegionHeader {
-                    shortid: owner,
-                    length: region_length,
-                };
 
                 // if the owner value for this region matches a special terminating
                 // value, assume we've finished traversing the allocated app
