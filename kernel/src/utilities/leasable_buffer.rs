@@ -167,7 +167,7 @@
 //!
 //! Author: Amit Levy
 
-use core::ops::{Bound, Range, RangeBounds};
+use core::ops::{Bound, RangeBounds};
 use core::ops::{Index, IndexMut};
 use core::slice::SliceIndex;
 use flux_support::*;
@@ -177,9 +177,12 @@ use flux_support::*;
 /// A leasable buffer can be used to pass a section of a larger mutable buffer
 /// but still get the entire buffer back in a callback.
 #[derive(Debug, PartialEq)]
+// #[flux_rs::refined_by(lo: int, hi: int, len: int)]
 pub struct SubSliceMut<'a, T> {
+    // #[field(&mut [T][len])]
     internal: &'a mut [T],
-    active_range: Range<usize>,
+    // #[field(FluxRange[lo, hi])]
+    active_range: FluxRange,
 }
 
 /// An immutable leasable buffer implementation.
@@ -187,9 +190,12 @@ pub struct SubSliceMut<'a, T> {
 /// A leasable buffer can be used to pass a section of a larger mutable buffer
 /// but still get the entire buffer back in a callback.
 #[derive(Debug, PartialEq)]
+// #[flux_rs::refined_by(lo: int, hi: int, len: int)]
 pub struct SubSlice<'a, T> {
+    // #[field(&[T][len])]
     internal: &'a [T],
-    active_range: Range<usize>,
+    // #[field(FluxRange[lo, hi])]
+    active_range: FluxRange,
 }
 
 /// Holder for either a mutable or immutable SubSlice.
@@ -247,12 +253,12 @@ impl<'a, T> SubSliceMut<'a, T> {
         let len = buffer.len();
         SubSliceMut {
             internal: buffer,
-            active_range: 0..len,
+            active_range: FluxRange { start: 0, end: len },
         }
     }
 
     fn active_slice(&self) -> &[T] {
-        &self.internal[self.active_range.clone()]
+        &self.internal[self.active_range.start..self.active_range.end]
     }
 
     /// Retrieve the raw buffer used to create the SubSlice. Consumes the
@@ -272,7 +278,10 @@ impl<'a, T> SubSliceMut<'a, T> {
     /// Most commonly, this is called once a sliced leasable buffer is returned
     /// through a callback.
     pub fn reset(&mut self) {
-        self.active_range = 0..self.internal.len();
+        self.active_range = FluxRange {
+            start: 0,
+            end: self.internal.len(),
+        };
     }
 
     /// Returns the length of the currently accessible portion of the SubSlice.
@@ -288,7 +297,7 @@ impl<'a, T> SubSliceMut<'a, T> {
     /// Returns a slice of the currently accessible portion of the
     /// LeasableBuffer.
     pub fn as_slice(&mut self) -> &mut [T] {
-        &mut self.internal[self.active_range.clone()]
+        &mut self.internal[self.active_range.start..self.active_range.end]
     }
 
     /// Returns `true` if the LeasableBuffer is sliced internally.
@@ -334,7 +343,7 @@ impl<'a, T> SubSliceMut<'a, T> {
         assume(end > start);
         let new_end = new_start + (end - start);
 
-        self.active_range = Range {
+        self.active_range = FluxRange {
             start: new_start,
             end: new_end,
         };
@@ -348,7 +357,7 @@ where
     type Output = <I as SliceIndex<[T]>>::Output;
 
     fn index(&self, idx: I) -> &Self::Output {
-        &self.internal[self.active_range.clone()][idx]
+        &self.internal[self.active_range.start..self.active_range.end][idx]
     }
 }
 
@@ -357,7 +366,7 @@ where
     I: SliceIndex<[T]>,
 {
     fn index_mut(&mut self, idx: I) -> &mut Self::Output {
-        &mut self.internal[self.active_range.clone()][idx]
+        &mut self.internal[self.active_range.start..self.active_range.end][idx]
     }
 }
 
@@ -367,12 +376,12 @@ impl<'a, T> SubSlice<'a, T> {
         let len = buffer.len();
         SubSlice {
             internal: buffer,
-            active_range: 0..len,
+            active_range: FluxRange { start: 0, end: len },
         }
     }
 
     fn active_slice(&self) -> &[T] {
-        &self.internal[self.active_range.clone()]
+        &self.internal[self.active_range.start..self.active_range.end]
     }
 
     /// Retrieve the raw buffer used to create the SubSlice. Consumes the
@@ -392,7 +401,10 @@ impl<'a, T> SubSlice<'a, T> {
     /// Most commonly, this is called once a sliced leasable buffer is returned
     /// through a callback.
     pub fn reset(&mut self) {
-        self.active_range = 0..self.internal.len();
+        self.active_range = FluxRange {
+            start: 0,
+            end: self.internal.len(),
+        };
     }
 
     /// Returns the length of the currently accessible portion of the SubSlice.
@@ -408,7 +420,7 @@ impl<'a, T> SubSlice<'a, T> {
     /// Returns a slice of the currently accessible portion of the
     /// LeasableBuffer.
     pub fn as_slice(&self) -> &[T] {
-        &self.internal[self.active_range.clone()]
+        &self.internal[self.active_range.start..self.active_range.end]
     }
 
     /// Returns `true` if the LeasableBuffer is sliced internally.
@@ -455,7 +467,7 @@ impl<'a, T> SubSlice<'a, T> {
         let new_start = self.active_range.start + start;
         let new_end = new_start + (end - start);
 
-        self.active_range = Range {
+        self.active_range = FluxRange {
             start: new_start,
             end: new_end,
         };
@@ -469,6 +481,6 @@ where
     type Output = <I as SliceIndex<[T]>>::Output;
 
     fn index(&self, idx: I) -> &Self::Output {
-        &self.internal[self.active_range.clone()][idx]
+        &self.internal[self.active_range.start..self.active_range.end][idx]
     }
 }

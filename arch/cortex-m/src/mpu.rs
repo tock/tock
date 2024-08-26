@@ -36,12 +36,12 @@ use core::fmt;
 use core::num::NonZeroUsize;
 
 use flux_support::*;
+use flux_support::register_bitfields;
 use kernel::platform::mpu;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::math;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::Field;
-use kernel::utilities::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite};
+use kernel::utilities::registers::{ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
 // VTOCK-TODO: supplementary proof?

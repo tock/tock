@@ -112,6 +112,15 @@ impl DerefMut for FluxPtr {
 }
 
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[flux_rs::refined_by(start: int, end: int)]
+pub struct FluxRange {
+    #[field(usize[start])]
+    pub start: usize,
+    #[field(usize[end])]
+    pub end: usize,
+}
+
 // #[extern_spec]
 // impl<T> [T] {
 //     #[flux_rs::sig(fn(&[T][@n]) -> usize[n])]

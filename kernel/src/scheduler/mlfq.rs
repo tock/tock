@@ -105,7 +105,6 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
     /// Returns the process at the head of the highest priority queue containing a process
     /// that is ready to execute (as determined by `has_tasks()`)
     /// This method moves that node to the head of its queue.
-    #[flux_rs::trusted] // unsupported statement:  unsupported rvalue `&raw const (*_14)`
     fn get_next_ready_process_node(&self) -> (Option<&MLFQProcessNode<'a>>, usize) {
         for (idx, queue) in self.processes.iter().enumerate() {
             let next = queue
@@ -164,7 +163,7 @@ impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<
         let execution_time_us = execution_time_us.unwrap(); // should never fail as we never run cooperatively
         let queue_idx = self.last_queue_idx.get();
         flux_support::assume(queue_idx < 3); // Needs extern spec for cell?
-        // Last executed node will always be at head of its queue
+                                             // Last executed node will always be at head of its queue
         let node_ref = self.processes[queue_idx].head().unwrap();
         let last_timeslice = self.last_timeslice.get();
         flux_support::assume(last_timeslice >= execution_time_us); // needs extern spec for cell
