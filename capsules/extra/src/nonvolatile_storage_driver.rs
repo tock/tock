@@ -668,12 +668,12 @@ impl<'a> NonvolatileStorage<'a> {
             }
             HeaderReadAction::ReadingRegionHeader(region_header_address) => {
                 let header = self.header_buffer.map_or(Err(ErrorCode::NOMEM), |buffer| {
-                    let mut owner_slice = [0; core::mem::size_of::<u32>()];
-                    owner_slice.copy_from_slice(&buffer[0..core::mem::size_of::<u32>()]);
+                    // convert first part of header buffer to owner
+                    let owner_slice = buffer[0..core::mem::size_of::<u32>()].try_into().or(Err(ErrorCode::FAIL))?;
                     let owner = u32::from_le_bytes(owner_slice);
 
-                    let mut region_length_slice = [0; core::mem::size_of::<usize>()];
-                    region_length_slice.copy_from_slice(&buffer[owner_slice.len()..REGION_HEADER_LEN]);
+                    // convert next part of header buffer to region owner
+                    let region_length_slice = buffer[owner_slice.len()..REGION_HEADER_LEN].try_into().or(Err(ErrorCode::FAIL))?;
                     let region_length = usize::from_le_bytes(region_length_slice);
 
                     Ok(AppRegionHeader {
