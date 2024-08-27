@@ -14,7 +14,7 @@ chip configuration `JSON` files, similar to:
 {
 	"chip": {
 		"init_expr": null,
-		"dependenicies": null,
+		"dependencies": null,
 		"after_init": null,
 		"before_init": null,
 		"ident": "auto"
