@@ -164,6 +164,15 @@ jobs:
           popd
           echo "$PWD/treadmill/target/debug" >> "$GITHUB_PATH"
 
-      - name: Print tml help
+      - name: Login to the Treadmill Switchboard
+        run:
+          tml login lschuermann ${{ secrets.TREADMILL_LOGIN_PASSWORD }}
+
+      - name: Cancel Treadmill jobs
         run: |
-          tml help
+          echo "${{ needs.test-strategy.outputs.tml-job-ids }} \
+            | jq -rc '.[]' \
+            | while read $JOB_ID; do
+              echo "Canceling job ID $JOB_ID..."
+              tml job cancel "$JOB_ID"
+            done
