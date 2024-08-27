@@ -88,7 +88,7 @@
 //!     │
 //!     ╞════════ ← Start of userspace region
 //!     ├──────── ← Start of App 1's region header
-//!     │ App 1's magic value (usize) = ShortID ^ length
+//!     │ App 1's magic value (usize) = HEADER_V1 ^ ShortID ^ length
 //!     │ App 1's ShortID (u32)  
 //!     │ region 1 length (usize)
 //!     ├──────── ← Start of App 1's Region          ═╗
@@ -100,7 +100,7 @@
 //!     │                                             ║
 //!     │                                            ═╝
 //!     ├──────── ← Start of App 2's region header   
-//!     │ App 2's magic value (usize) = ShortID ^ length
+//!     │ App 2's magic value (usize) = HEADER_V1 ^ ShortID ^ length
 //!     │ App 2's ShortID (u32)                      
 //!     │ region 2 length (usize)                    
 //!     ├──────── ← Start of App 2's Region          ═╗
@@ -190,10 +190,8 @@ mod rw_allow {
     pub const COUNT: u8 = 1;
 }
 
-/// Magic constant value written to the start of the entire userspace
-/// nonvolatile storage region. If the first 4 bytes (size of u32) of
-/// the userpace region match this magic constant, then we know the
-/// nonvolatile storage has been initialized by this capsule.
+// Constants to distinguish what version of this capsule
+// a given header was created with.
 const V1: usize = 0x2FA7B3;
 
 // Note that the magic header is versioned to maintain
@@ -358,7 +356,7 @@ pub struct NonvolatileStorage<'a> {
     // Where to read/write from the kernel request.
     kernel_readwrite_address: Cell<usize>,
 
-    /// static buffer to store region/magic headers
+    /// static buffer to store region headers
     /// before they get written to nonvolatile storage
     header_buffer: TakeCell<'static, [u8]>,
 
@@ -618,8 +616,8 @@ impl<'a> NonvolatileStorage<'a> {
             })
         })?;
 
-        // if the owner value for this region matches a special terminating
-        // value, assume we've finished traversing the allocated app regions.
+        // If a header is invalid, we've reached the end
+        // of all previously allocated regions.
         match header.is_valid() {
             Some(version) => {
                 let shortid =
