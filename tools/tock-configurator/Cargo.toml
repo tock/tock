@@ -1,0 +1,14 @@
+# Copyright OxidOS Automotive 2024.
+
+[workspace]
+members = ["chips/nrf52833", "chips/common", "configurator", "generator", "parse", "parse-macros"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+
+[profile.release]
+panic = "abort"
+lto = true
+codegen-units = 1

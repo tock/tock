@@ -22,6 +22,7 @@ Tock Policies
 - **[Out of Tree Boards](OutOfTree.md)** - Best practices for maintaining boards not in Tock master.
 - **[Style](Style.md)** - Stylistic aspects of Tock code.
 - **[External Dependencies](ExternalDependencies.md)** - Policy for including external dependencies.
+- **[Configurator](Tock_Configurator.md)** - Configurator for Tock's supported boards.
 
 ### Management of Tock
 - **[Working Groups](wg)** - Development groups for specific aspects of Tock.

@@ -1,0 +1,28 @@
+# Copyright OxidOS Automotive 2024.
+
+[package]
+name = "parse"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde_json = "1.0.116"
+thiserror = "1.0.60"
+proc-macro2 = "1.0.82"
+quote = "1.0.36"
+parse-macros = {path = "../parse-macros"}
+once_cell = "1.19.0"
+
+[dependencies.uuid]
+version = "1.10.0"
+features = [
+    "v4",                
+    "fast-rng",
+	"serde"
+]
+
+[dependencies.serde]
+version = "1.0.197"
+default-features = false
+features = ["derive", "alloc", "rc"]
+

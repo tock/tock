@@ -1,0 +1,18 @@
+# Copyright OxidOS Automotive 2024.
+
+[package]
+name = "tock-generator"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+prettyplease = "0.2.20"
+proc-macro2 = "1.0.82"
+quote = "1.0.36"
+syn = "2.0.61"
+parse = { path = "../parse" }
+serde_json = "1.0.116"
+
+# Supported chips
+nrf52833 = { path = "../chips/nrf52833" }
+

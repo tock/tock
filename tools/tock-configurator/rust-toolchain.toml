@@ -1,0 +1,4 @@
+# Copyright OxidOS Automotive 2024.
+
+[toolchain]
+channel = "nightly-2024-07-15"

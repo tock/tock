@@ -1,0 +1,14 @@
+# Copyright OxidOS Automotive 2024.
+
+[package]
+name = "common"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+parse = { path = "../../parse" }
+serde = { version = "1.0.197", default-features = false, features = [
+    "derive",
+    "alloc",
+] }
+quote = "1.0.36"

@@ -1,0 +1,5 @@
+error: expected `struct`
+ --> ./tests/02.rs:4:5
+  |
+4 | pub enum Uart2 {}
+  |     ^^^^

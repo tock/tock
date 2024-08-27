@@ -1,0 +1,19 @@
+# Copyright OxidOS Automotive 2024.
+
+[package]
+name = "parse-macros"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+darling = "0.20.10"
+proc-macro2 = "1.0.82"
+quote = "1.0.36"
+syn = { version = "2.0.70", features = ["full"] }
+
+[dev-dependencies]
+trybuild = "1.0"
+parse = { path = "../parse" }
+
+[lib]
+proc-macro = true
