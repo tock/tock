@@ -36,11 +36,11 @@ as a dependency.
                 "uart1"
             ]
         },
-		{
-			"timer": [
-				"rtc"
-			]
-		}
+        {
+             "timer": [
+                 "rtc"
+             ]
+         }
     ],
     "systick": null
 }
