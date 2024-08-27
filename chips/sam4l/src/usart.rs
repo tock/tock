@@ -10,8 +10,8 @@ use core::cell::Cell;
 use core::cmp;
 use core::sync::atomic::{AtomicBool, Ordering};
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
-use kernel::hil;
 use kernel::hil::spi;
+use kernel::hil::spi::cs::ChipSelectPolar;
 use kernel::hil::uart;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -406,7 +406,7 @@ pub struct USART<'a> {
 
     client: OptionalCell<UsartClient<'a>>,
 
-    spi_chip_select: OptionalCell<&'a dyn hil::gpio::Pin>,
+    spi_chip_select: OptionalCell<ChipSelectPolar<'a, crate::gpio::GPIOPin<'a>>>,
     pm: &'a pm::PowerManager,
     dc_state: OptionalCell<DeferredCallState>,
     deferred_call: DeferredCall,
@@ -685,7 +685,7 @@ impl<'a> USART<'a> {
                                 self.rts_disable_spi_deassert_cs(usart);
                             },
                             |cs| {
-                                cs.set();
+                                cs.deactivate();
                             },
                         );
 
@@ -1051,7 +1051,7 @@ impl<'a> uart::ReceiveAdvanced<'a> for USART<'a> {
 
 /// SPI
 impl<'a> spi::SpiMaster<'a> for USART<'a> {
-    type ChipSelect = Option<&'static dyn hil::gpio::Pin>;
+    type ChipSelect = ChipSelectPolar<'a, crate::gpio::GPIOPin<'a>>;
 
     fn init(&self) -> Result<(), ErrorCode> {
         let usart = &USARTRegManager::new(self);
@@ -1111,7 +1111,7 @@ impl<'a> spi::SpiMaster<'a> for USART<'a> {
                 self.rts_enable_spi_assert_cs(usart);
             },
             |cs| {
-                cs.clear();
+                cs.activate();
             },
         );
 
@@ -1185,7 +1185,7 @@ impl<'a> spi::SpiMaster<'a> for USART<'a> {
 
     /// Pass in a None to use the HW chip select pin on the USART (RTS).
     fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), ErrorCode> {
-        self.spi_chip_select.insert(cs);
+        self.spi_chip_select.set(cs);
         Ok(())
     }
 

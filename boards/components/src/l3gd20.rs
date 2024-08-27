@@ -45,21 +45,28 @@ macro_rules! l3gd20_component_static {
 
 pub type L3gd20ComponentType<S> = capsules_extra::l3gd20::L3gd20Spi<'static, S>;
 
-pub struct L3gd20Component<S: 'static + spi::SpiMaster<'static>> {
+pub struct L3gd20Component<
+    S: 'static + spi::SpiMaster<'static>,
+    CS: spi::cs::IntoChipSelect<S::ChipSelect, spi::cs::ActiveLow>,
+> {
     spi_mux: &'static MuxSpiMaster<'static, S>,
-    chip_select: S::ChipSelect,
+    chip_select: CS,
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
 }
 
-impl<S: 'static + spi::SpiMaster<'static>> L3gd20Component<S> {
+impl<
+        S: 'static + spi::SpiMaster<'static>,
+        CS: spi::cs::IntoChipSelect<S::ChipSelect, spi::cs::ActiveLow>,
+    > L3gd20Component<S, CS>
+{
     pub fn new(
         spi_mux: &'static MuxSpiMaster<'static, S>,
-        chip_select: S::ChipSelect,
+        chip_select: CS,
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
-    ) -> L3gd20Component<S> {
-        L3gd20Component {
+    ) -> Self {
+        Self {
             spi_mux,
             chip_select,
             board_kernel,
@@ -68,7 +75,11 @@ impl<S: 'static + spi::SpiMaster<'static>> L3gd20Component<S> {
     }
 }
 
-impl<S: 'static + spi::SpiMaster<'static>> Component for L3gd20Component<S> {
+impl<
+        S: 'static + spi::SpiMaster<'static>,
+        CS: spi::cs::IntoChipSelect<S::ChipSelect, spi::cs::ActiveLow>,
+    > Component for L3gd20Component<S, CS>
+{
     type StaticInput = (
         &'static mut MaybeUninit<VirtualSpiMasterDevice<'static, S>>,
         &'static mut MaybeUninit<L3gd20Spi<'static, VirtualSpiMasterDevice<'static, S>>>,
@@ -81,9 +92,10 @@ impl<S: 'static + spi::SpiMaster<'static>> Component for L3gd20Component<S> {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
         let grant = self.board_kernel.create_grant(self.driver_num, &grant_cap);
 
-        let spi_device = static_buffer
-            .0
-            .write(VirtualSpiMasterDevice::new(self.spi_mux, self.chip_select));
+        let spi_device = static_buffer.0.write(VirtualSpiMasterDevice::new(
+            self.spi_mux,
+            self.chip_select.into_cs(),
+        ));
         spi_device.setup();
 
         let txbuffer = static_buffer

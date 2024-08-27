@@ -6,7 +6,7 @@ use crate::tests::run_kernel_op;
 use crate::PERIPHERALS;
 use core::cell::Cell;
 #[allow(unused_imports)]
-use kernel::hil::spi::{ClockPhase, ClockPolarity};
+use kernel::hil::spi::{self, ClockPhase, ClockPolarity};
 use kernel::hil::spi::{SpiMaster, SpiMasterClient};
 use kernel::static_init;
 use kernel::utilities::cells::TakeCell;
@@ -150,9 +150,9 @@ fn spi_host_transfer_partial() {
 
     // Set iom2 Configs
     spi_host
-        .specify_chip_select(
+        .specify_chip_select(spi::cs::IntoChipSelect::<_, spi::cs::ActiveLow>::into_cs(
             &perf.gpio_port[11], // A5
-        )
+        ))
         .ok();
     spi_host.set_rate(100000).ok();
     spi_host.set_polarity(ClockPolarity::IdleLow).ok();
