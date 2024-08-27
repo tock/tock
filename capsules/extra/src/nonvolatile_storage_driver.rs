@@ -144,10 +144,8 @@
 
 use core::cell::Cell;
 use core::cmp;
-use core::num::NonZeroU32;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
-use kernel::process::ShortId;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -462,12 +460,14 @@ impl<'a> NonvolatileStorage<'a> {
             .get()
             .ok_or(ErrorCode::FAIL)?;
 
-        // Apps must have a fixed ShortID value. LocallyUnique apps
-        // are not allowed since we need a unique fixed ID to write to
-        // storage and use to identify apps.
-        let ShortId::Fixed(shortid) = processid.short_app_id() else {
-            return Err(ErrorCode::NOSUPPORT);
-        };
+        // Get an app's write_id (same as ShortID) for saving to region header. Note that
+        // if an app doesn't have the valid permissions, it will be unable to create
+        // storage regions.
+        let shortid = processid
+            .get_storage_permissions()
+            .ok_or(ErrorCode::NOSUPPORT)?
+            .get_write_id()
+            .ok_or(ErrorCode::NOSUPPORT)?;
 
         self.apps
             .enter(processid, |app, _kernel_data| {
@@ -492,7 +492,7 @@ impl<'a> NonvolatileStorage<'a> {
                         return Err(ErrorCode::FAIL);
                     }
 
-                    let header = AppRegionHeader::new(region.version, shortid.get(), region.length);
+                    let header = AppRegionHeader::new(region.version, shortid, region.length);
 
                     // write this new region header to the end of the existing ones
                     self.write_region_header(processid, &region, &header, new_header_addr)
@@ -620,12 +620,17 @@ impl<'a> NonvolatileStorage<'a> {
         // of all previously allocated regions.
         match header.is_valid() {
             Some(version) => {
-                let shortid =
-                    ShortId::Fixed(NonZeroU32::new(header.shortid).ok_or(ErrorCode::NOSUPPORT)?);
-
                 // Find the app with the corresponding shortid.
                 for app in self.apps.iter() {
-                    if app.processid().short_app_id() == shortid {
+                    // skip an app if it doesn't have the proper storage permissions
+                    let shortid = match app.processid().get_storage_permissions() {
+                        Some(perms) => match perms.get_write_id() {
+                            Some(write_id) => write_id,
+                            None => continue,
+                        },
+                        None => continue,
+                    };
+                    if shortid == header.shortid {
                         app.enter(|app, kernel_data| {
                             // only populate region and signal app that explicitly
                             // requested to initialize storage
@@ -659,14 +664,20 @@ impl<'a> NonvolatileStorage<'a> {
                     debug!("[NONVOLATILE_STORAGE_DRIVER]: Read invalid region header. Stopping region traversal. {:#x}", region_header_address);
 
                     for app in self.apps.iter() {
-                        match app.processid().short_app_id() {
-                            ShortId::Fixed(id) => {
-                                debug!("[NONVOLATILE_STORAGE_DRIVER]: App shortid: {:#x}", id)
+                        match app.processid().get_storage_permissions() {
+                            Some(perms) => match perms.get_write_id() {
+                                Some(write_id) => debug!(
+                                    "[NONVOLATILE_STORAGE_DRIVER]: App shortid: {:#x}",
+                                    write_id
+                                ),
+                                None => {
+                                    debug!("[NONVOLATILE_STORAGE_DRIVER]: App missing write_id")
+                                }
+                            },
+                            None => {
+                                debug!("[NONVOLATILE_STORAGE_DRIVER]: App missing storage perms")
                             }
-                            ShortId::LocallyUnique => {
-                                debug!("[NONVOLATILE_STORAGE_DRIVER]: App shortid: none")
-                            }
-                        }
+                        };
 
                         app.enter(|app, _kernel_data| match app.region {
                             Some(region) => debug!(
@@ -723,6 +734,35 @@ impl<'a> NonvolatileStorage<'a> {
             Some(processid) => self.allocate_app_region(processid),
             None => Ok(()),
         }
+    }
+    fn check_userspace_perms(
+        &self,
+        processid: Option<ProcessId>,
+        command: NonvolatileCommand,
+    ) -> Result<(), ErrorCode> {
+        processid.map_or(Err(ErrorCode::FAIL), |processid| {
+            let perms = processid
+                .get_storage_permissions()
+                .ok_or(ErrorCode::NOSUPPORT)?;
+            let write_id = perms.get_write_id().ok_or(ErrorCode::NOSUPPORT)?;
+            match command {
+                NonvolatileCommand::UserspaceRead => {
+                    if !perms.check_read_permission(write_id) {
+                        Err(ErrorCode::NOSUPPORT)
+                    } else {
+                        Ok(())
+                    }
+                }
+                NonvolatileCommand::UserspaceWrite => {
+                    if !perms.check_write_permission(write_id) {
+                        Err(ErrorCode::NOSUPPORT)
+                    } else {
+                        Ok(())
+                    }
+                }
+                _ => Err(ErrorCode::FAIL),
+            }
+        })
     }
 
     fn check_userspace_access(
@@ -800,6 +840,7 @@ impl<'a> NonvolatileStorage<'a> {
         match command {
             NonvolatileCommand::UserspaceRead | NonvolatileCommand::UserspaceWrite => {
                 self.check_userspace_access(offset, length, processid)?;
+                self.check_userspace_perms(processid, command)?;
             }
             NonvolatileCommand::HeaderRead(_) | NonvolatileCommand::HeaderWrite(_, _) => {
                 self.check_header_access(offset, length)?;
