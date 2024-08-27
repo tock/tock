@@ -135,7 +135,9 @@ jobs:
           lsusb
 
   test-terminate:
-    needs: test-strategy test-execute
+    needs:
+      - test-strategy
+      - test-execute
 
     runs-on: ubuntu-latest
 
