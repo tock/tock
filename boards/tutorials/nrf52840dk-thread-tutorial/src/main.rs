@@ -20,7 +20,7 @@ use kernel::static_init;
 use kernel::{capabilities, create_capability};
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
-use nrf52840dk_lib::{self, PROCESSES};
+use nrf52840dk_lib::{self, PROCESSES, NUM_PROCS};
 
 type ScreenDriver = components::screen::ScreenComponentType;
 
@@ -164,27 +164,6 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
     // NONVOLATILE STORAGE
     //--------------------------------------------------------------------------
-    // Create the software-based SHA engine.
-    let sha = components::sha::ShaSoftware256Component::new()
-        .finalize(components::sha_software_256_component_static!());
-
-    // Create the credential checker.
-    let checking_policy = components::appid::checker_sha::AppCheckerSha256Component::new(sha)
-        .finalize(components::app_checker_sha256_component_static!());
-
-    // Create the AppID assigner.
-    let assigner = components::appid::assigner_name::AppIdAssignerNamesComponent::new()
-        .finalize(components::appid_assigner_names_component_static!());
-
-    // Create the process checking machine.
-    let checker = components::appid::checker::ProcessCheckerMachineComponent::new(checking_policy)
-        .finalize(components::process_checker_machine_component_static!());
-
-    let process_binary_array = static_init!(
-        [Option<kernel::process::ProcessBinary>; nrf52840dk_lib::NUM_PROCS],
-        [None, None, None, None, None, None, None, None]
-    );
-
     // How many bytes of nonvolatile storage to allocate
     // to each app
     const NONVOLATILE_REGION_SIZE_PER_APP: usize = 2048;
@@ -206,8 +185,6 @@ pub unsafe fn main() {
     .finalize(components::nonvolatile_storage_component_static!(
         nrf52840::nvmc::Nvmc
     ));
-
-    let _ = nonvolatile_storage.init();
 
     //--------------------------------------------------------------------------
     // PLATFORM SETUP, SCHEDULER, AND START KERNEL LOOP
@@ -233,32 +210,51 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
+    //--------------------------------------------------------------------------
+    // Credential Checking
+    //--------------------------------------------------------------------------
 
-    let loader = static_init!(
-        kernel::process::SequentialProcessLoaderMachine<
-            nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
-        >,
-        kernel::process::SequentialProcessLoaderMachine::new(
-            checker,
-            &mut *addr_of_mut!(PROCESSES),
-            process_binary_array,
-            board_kernel,
-            chip,
-            core::slice::from_raw_parts(
-                core::ptr::addr_of!(_sapps),
-                core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
+    // Create the credential checker.
+    let checking_policy = components::appid::checker_null::AppCheckerNullComponent::new()
+        .finalize(components::app_checker_null_component_static!());
+
+    // Create the AppID assigner.
+    let assigner = components::appid::assigner_name::AppIdAssignerNamesComponent::new()
+        .finalize(components::appid_assigner_names_component_static!());
+
+    // Create the process checking machine.
+    let checker = components::appid::checker::ProcessCheckerMachineComponent::new(checking_policy)
+        .finalize(components::process_checker_machine_component_static!());
+
+    //--------------------------------------------------------------------------
+    // STORAGE PERMISSIONS
+    //--------------------------------------------------------------------------
+
+    let storage_permissions_policy =
+        components::storage_permissions::individual::StoragePermissionsIndividualComponent::new().finalize(
+            components::storage_permissions_individual_component_static!(
+                nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>
             ),
-            core::slice::from_raw_parts_mut(
-                core::ptr::addr_of_mut!(_sappmem),
-                core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
-            ),
-            &FAULT_RESPONSE,
-            assigner,
-            &process_management_capability
-        )
-    );
+        );
+
+    //--------------------------------------------------------------------------
+    // PROCESS LOADING
+    //--------------------------------------------------------------------------
+
+    // Create and start the asynchronous process loader.
+    let loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
+        checker,
+        &mut *addr_of_mut!(PROCESSES),
+        board_kernel,
+        chip,
+        &FAULT_RESPONSE,
+        assigner,
+        storage_permissions_policy,
+    )
+    .finalize(components::process_loader_sequential_component_static!(
+        nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+        NUM_PROCS
+    ));
 
     checker.set_client(loader);
 
