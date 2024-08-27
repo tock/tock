@@ -266,10 +266,15 @@ impl AppRegionHeader {
 // Enough space for a buffer to be used for reading/writing userspace data
 pub const BUF_LEN: usize = 512;
 
+// Enough space for a buffer to be used for holding zeroes that are used
+// to 
+pub const REGION_ERASE_BUF_LEN: usize = 512;
+
 #[derive(Clone, Copy, PartialEq, Debug)]
-pub enum HeaderState {
-    Read(usize),
-    Write(ProcessId, AppRegion),
+pub enum RegionState {
+    ReadHeader(usize),
+    WriteHeader(ProcessId, AppRegion),
+    EraseRegion{processid: ProcessId, next_erase_start: usize, remaining_bytes: usize},
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -278,6 +283,7 @@ pub enum NonvolatileCommand {
     UserspaceWrite,
     HeaderRead(usize),
     HeaderWrite(ProcessId, AppRegion),
+    RegionErase(ProcessId),
     KernelRead,
     KernelWrite,
 }
@@ -285,7 +291,7 @@ pub enum NonvolatileCommand {
 #[derive(Clone, Copy)]
 pub enum NonvolatileUser {
     App { processid: ProcessId },
-    HeaderManager(HeaderState),
+    RegionManager(RegionState),
     Kernel,
 }
 
@@ -367,6 +373,10 @@ pub struct NonvolatileStorage<'a> {
     // capsule, a new region of storage will be handed out and this
     // address will point to the header of a new unallocated region.
     next_unallocated_region_header_address: OptionalCell<usize>,
+
+    // static buffer to store zeroes to write to regions when
+    // they need to be erased
+    region_erase_buffer: TakeCell<'static, [u8]>
 }
 
 impl<'a> NonvolatileStorage<'a> {
@@ -385,6 +395,7 @@ impl<'a> NonvolatileStorage<'a> {
         app_region_size: usize,
         buffer: &'static mut [u8],
         header_buffer: &'static mut [u8],
+        region_erase_buffer: &'static mut [u8],
     ) -> NonvolatileStorage<'a> {
         NonvolatileStorage {
             driver,
@@ -404,6 +415,7 @@ impl<'a> NonvolatileStorage<'a> {
             app_region_size: app_region_size,
             header_buffer: TakeCell::new(header_buffer),
             next_unallocated_region_header_address: OptionalCell::empty(),
+            region_erase_buffer: TakeCell::new(region_erase_buffer)
         }
     }
 
@@ -582,6 +594,58 @@ impl<'a> NonvolatileStorage<'a> {
         )
     }
 
+    fn erase_region_content(&self, processid: ProcessId, region: AppRegion) -> Result<(), ErrorCode> {
+        if DEBUG {
+            debug!(
+                "[NONVOLATILE_STORAGE_DRIVER]: Erasing content of region with header starting at {:#x}",
+               region.offset 
+            );
+        }
+        self.region_erase_buffer.map_or(Err(ErrorCode::NOMEM), |buffer| {
+            // clear the erase buffer in case there was any nonzero value there
+            for c in buffer.iter_mut() {
+                *c = 0;
+            }
+            Ok(())
+        })?;
+
+        self.enqueue_command(
+            NonvolatileCommand::RegionErase(processid),
+            region.offset + REGION_HEADER_LEN,
+            region.length,
+            None,
+        )
+    }
+
+    fn region_erase_done(&self, processid: ProcessId, next_erase_start: usize, remaining_bytes: usize) -> Result<(), ErrorCode> {
+        if remaining_bytes > 0 {
+            // we still have more to erase, so kick off another one
+            self.enqueue_command(
+                NonvolatileCommand::RegionErase(processid),
+                next_erase_start,
+                remaining_bytes,
+                None,
+            )
+        } else {
+            // done erasing entire region
+            self.apps.enter(processid, |_app, kernel_data| {
+                // region is erased and we're ready to let the app
+                // know that it's region is ready
+                kernel_data
+                    .schedule_upcall(upcall::INIT_DONE, (0, 0, 0))
+                    .ok();
+                Ok::<(), ErrorCode>(())
+            }).unwrap_or_else(|err| Err(err.into()))?;
+
+            // check for apps that haven't had regions allocated
+            // for them after requesting one
+            match self.find_app_to_allocate_region() {
+                Some(processid) => self.allocate_app_region(processid),
+                None => Ok(()),
+            }
+        }
+    }
+
     fn header_read_done(&self, region_header_address: usize) -> Result<(), ErrorCode> {
         // reconstruct header from bytes we just read
         let header = self.header_buffer.map_or(Err(ErrorCode::NOMEM), |buffer| {
@@ -620,6 +684,9 @@ impl<'a> NonvolatileStorage<'a> {
         // of all previously allocated regions.
         match header.is_valid() {
             Some(version) => {
+                if DEBUG {
+                    debug!("[NONVOLATILE_STORAGE_DRIVER]: Found a valid header at {:#x}. Header: {:#x?}", region_header_address, header);
+                }
                 // Find the app with the corresponding shortid.
                 for app in self.apps.iter() {
                     // skip an app if it doesn't have the proper storage permissions
@@ -710,31 +777,24 @@ impl<'a> NonvolatileStorage<'a> {
                 app.region.replace(region);
 
                 // bump the start of the unallocated regions
-                let next_header_addr = self
+                let curr_header_addr = self
                     .next_unallocated_region_header_address
                     .get()
                     .ok_or(ErrorCode::FAIL)?;
 
-                let next_header_address =
-                    next_header_addr + REGION_HEADER_LEN + self.app_region_size;
+                let next_header_addr =
+                    curr_header_addr + REGION_HEADER_LEN + self.app_region_size;
 
                 self.next_unallocated_region_header_address
-                    .set(next_header_address);
+                    .set(next_header_addr);
 
-                kernel_data
-                    .schedule_upcall(upcall::INIT_DONE, (0, 0, 0))
-                    .ok();
-                Ok::<(), ErrorCode>(())
+                // erase the userpace accessible content of the region
+                // before handing it off to an app
+                self.erase_region_content(processid, region)
             })
-            .unwrap_or_else(|err| Err(err.into()))?;
-
-        // check for apps that haven't had regions allocated
-        // for them after requesting one
-        match self.find_app_to_allocate_region() {
-            Some(processid) => self.allocate_app_region(processid),
-            None => Ok(()),
-        }
+            .unwrap_or_else(|err| Err(err.into()))
     }
+
     fn check_userspace_perms(
         &self,
         processid: Option<ProcessId>,
@@ -842,7 +902,7 @@ impl<'a> NonvolatileStorage<'a> {
                 self.check_userspace_access(offset, length, processid)?;
                 self.check_userspace_perms(processid, command)?;
             }
-            NonvolatileCommand::HeaderRead(_) | NonvolatileCommand::HeaderWrite(_, _) => {
+            NonvolatileCommand::HeaderRead(_) | NonvolatileCommand::HeaderWrite(_, _) | NonvolatileCommand::RegionErase(_) => {
                 self.check_header_access(offset, length)?;
             }
             NonvolatileCommand::KernelRead | NonvolatileCommand::KernelWrite => {
@@ -950,14 +1010,14 @@ impl<'a> NonvolatileStorage<'a> {
                         if self.current_user.is_none() {
                             match command {
                                 NonvolatileCommand::HeaderRead(address) => {
-                                    self.current_user.set(NonvolatileUser::HeaderManager(
-                                        HeaderState::Read(address),
+                                    self.current_user.set(NonvolatileUser::RegionManager(
+                                        RegionState::ReadHeader(address),
                                     ));
                                     self.driver.read(header_buffer, offset, active_len)
                                 }
                                 NonvolatileCommand::HeaderWrite(processid, region) => {
-                                    self.current_user.set(NonvolatileUser::HeaderManager(
-                                        HeaderState::Write(processid, region),
+                                    self.current_user.set(NonvolatileUser::RegionManager(
+                                        RegionState::WriteHeader(processid, region),
                                     ));
                                     self.driver.write(header_buffer, offset, active_len)
                                 }
@@ -968,6 +1028,42 @@ impl<'a> NonvolatileStorage<'a> {
                         }
                     })
             }
+            NonvolatileCommand::RegionErase(_) => {
+                self.region_erase_buffer
+                    .take()
+                    .map_or(Err(ErrorCode::NOMEM), |buffer| {
+                        let active_len = cmp::min(length, buffer.len());
+
+                        // how many more bytes to erase after this operation
+                        let remaining_len = if length > buffer.len() {
+                            length - buffer.len()
+                        } else {
+                            0
+                        };
+
+                        // Check if there is something going on.
+                        if self.current_user.is_none() {
+                            match command {
+                                NonvolatileCommand::RegionErase(processid) => {
+                                    self.current_user.set(NonvolatileUser::RegionManager(
+                                        // need to pass on where the next erase should start
+                                        // how long it should be.
+                                        RegionState::EraseRegion{
+                                            processid: processid,
+                                            next_erase_start: offset + active_len,
+                                            remaining_bytes: remaining_len
+                                       },
+                                    ));
+                                    self.driver.write(buffer, offset, active_len)
+                                }
+                                _ => Err(ErrorCode::FAIL),
+                            }
+                        } else {
+                            Err(ErrorCode::BUSY)
+                        }
+                    })
+            }
+
             NonvolatileCommand::KernelRead | NonvolatileCommand::KernelWrite => {
                 self.kernel_buffer
                     .take()
@@ -1094,10 +1190,10 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient for NonvolatileStorage<'
                         client.read_done(buffer, length);
                     });
                 }
-                NonvolatileUser::HeaderManager(state) => {
+                NonvolatileUser::RegionManager(state) => {
                     self.header_buffer.replace(buffer);
                     let res = match state {
-                        HeaderState::Read(action) => self.header_read_done(action),
+                        RegionState::ReadHeader(action) => self.header_read_done(action),
                         _ => Err(ErrorCode::FAIL),
                     };
                     if DEBUG {
@@ -1144,10 +1240,10 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient for NonvolatileStorage<'
                         client.write_done(buffer, length);
                     });
                 }
-                NonvolatileUser::HeaderManager(state) => {
-                    self.header_buffer.replace(buffer);
+                NonvolatileUser::RegionManager(state) => {
                     let res = match state {
-                        HeaderState::Write(processid, region) => {
+                        RegionState::WriteHeader(processid, region) => {
+                            self.header_buffer.replace(buffer);
                             let write_res = self.header_write_done(processid, region);
 
                             // signal app if we fail to write its region header
@@ -1159,6 +1255,10 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient for NonvolatileStorage<'
                                 });
                             }
                             write_res
+                        },
+                        RegionState::EraseRegion { processid, next_erase_start, remaining_bytes } => {
+                            self.region_erase_buffer.replace(buffer);
+                            self.region_erase_done(processid, next_erase_start, remaining_bytes)
                         },
                         _ => Err(ErrorCode::FAIL),
                     };
