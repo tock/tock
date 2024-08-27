@@ -81,7 +81,7 @@ jobs:
         run: |
           SUB_TEST_ID="0"
 
-          RUNNER_ID="tml-gh-actions-runner-${GITHUB_REPOSITORY_ID}-${GITHUB_RUN_ID}-${SUB_TEST_ID}"
+          RUNNER_ID="tml-gh-actions-runner-${GITHUB_REPOSITORY_ID}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${SUB_TEST_ID}"
 
           RUNNER_CONFIG_JSON="$(gh api \
             -H "Accept: application/vnd.github+json" \
