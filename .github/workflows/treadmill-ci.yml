@@ -38,28 +38,33 @@ jobs:
         with:
           path: tock
 
-      # - name: Checkout Treadmill repository
-      #   uses: actions/checkout@v4
-      #   with:
-      #     repository: treadmill-tb/treadmill
-      #     path: treadmill
+      - name: Checkout Treadmill repository
+        uses: actions/checkout@v4
+        with:
+          repository: treadmill-tb/treadmill
+          path: treadmill
 
-      # - name: Compile the Treadmill CLI binary
-      #   run: |
-      #     pushd treadmill
-      #     # cargo build --release --package tml-cli
-      #     cargo build --package tml-cli
-      #     popd
-      #     # echo "$PWD/treadmill/target/release" >> "$GITHUB_PATH"
-      #     echo "$PWD/treadmill/target/debug" >> "$GITHUB_PATH"
+      - name: Cache Treadmill CLI compilation artifacts
+        id: cache-tml-cli
+        uses: actions/cache@v4
+        with:
+          path: treadmill/target
+          key: ${{ runner.os }}-tml-cli
 
-      # - name: Login to the Treadmill Switchboard
-      #   run:
-      #     tml login lschuermann ${{ secrets.TREADMILL_LOGIN_PASSWORD }}
+      - name: Compile the Treadmill CLI binary
+        run: |
+          pushd treadmill
+          cargo build --package tml-cli
+          popd
+          echo "$PWD/treadmill/target/debug" >> "$GITHUB_PATH"
 
-      # - name: Analyze changes and determine types of tests to run
-      #   run: |
-      #     echo "TODO: implement this!"
+      - name: Login to the Treadmill Switchboard
+        run:
+          tml login lschuermann ${{ secrets.TREADMILL_LOGIN_PASSWORD }}
+
+      - name: Analyze changes and determine types of tests to run
+        run: |
+          echo "TODO: implement this!"
 
       - name: Generate a token to register new just-in-time runners
         id: generate-token
@@ -78,28 +83,27 @@ jobs:
 
           RUNNER_ID="tml-gh-actions-runner-${GITHUB_REPOSITORY_ID}-${GITHUB_RUN_ID}-${SUB_TEST_ID}"
 
-          # RUNNER_CONFIG_JSON="$(gh api \
-          #   -H "Accept: application/vnd.github+json" \
-          #   -H "X-GitHub-Api-Version: 2022-11-28" \
-          #   /repos/treadmill-tb/tock/actions/runners/generate-jitconfig \
-          #   -f "name=$RUNNER_ID" \
-          #   -F "runner_group_id=1" \
-          #   -f "labels[]=$RUNNER_ID" \
-          #   -f "work_folder=_work")"
+          RUNNER_CONFIG_JSON="$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /repos/treadmill-tb/tock/actions/runners/generate-jitconfig \
+            -f "name=$RUNNER_ID" \
+            -F "runner_group_id=1" \
+            -f "labels[]=$RUNNER_ID" \
+            -f "work_folder=_work")"
 
-          # echo "Generated configuration for runner $(echo "$RUNNER_CONFIG_JSON" | jq -r '.runner.name')"
-          # echo "Enqueueing treadmill job:"
-          # TML_JOB_PARAMETERS="{\"gh-actions-runner-encoded-jit-config\": {\"secret\": true, \"value\": \"$(echo "$RUNNER_CONFIG_JSON" | jq -r '.encoded_jit_config')\"}}"
-          # # echo "Parameters: $TML_JOB_PARAMETERS"
-          # TML_JOB_ID_JSON="$(tml job enqueue \
-          #   e96e97f229edca8a2c68f792badf9e2b3ff2fd18a3c51258cd20f9d842e56599 \
-          #   --tag-config 'supervisor:1bdc10a7-9bea-4da5-9e9c-02c046223dfb' \
-          #   --ssh-keys 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFjLuM7C6emv+xAFYnXA+mSUKmMEmKDM0A6WzZ0HliFb cardno:23_559_180' \
-          #   --parameters "$TML_JOB_PARAMETERS" \
-          # )"
-          # TML_JOB_ID_JSON="$(echo "$TML_JOB_ID_JSON" | cut -d':' -f1-)" # terrible terrible terrible hack
-          # TML_JOB_ID="$(echo TML_JOB_ID_JSON | jq -r .job_id)"
-          TML_JOB_ID="68abc954-464a-4e12-b814-21f2342a61e0"
+          echo "Generated configuration for runner $(echo "$RUNNER_CONFIG_JSON" | jq -r '.runner.name')"
+          echo "Enqueueing treadmill job:"
+          TML_JOB_PARAMETERS="{\"gh-actions-runner-encoded-jit-config\": {\"secret\": true, \"value\": \"$(echo "$RUNNER_CONFIG_JSON" | jq -r '.encoded_jit_config')\"}}"
+          # echo "Parameters: $TML_JOB_PARAMETERS"
+          TML_JOB_ID_JSON="$(tml job enqueue \
+            e96e97f229edca8a2c68f792badf9e2b3ff2fd18a3c51258cd20f9d842e56599 \
+            --tag-config 'supervisor:1bdc10a7-9bea-4da5-9e9c-02c046223dfb' \
+            --ssh-keys 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFjLuM7C6emv+xAFYnXA+mSUKmMEmKDM0A6WzZ0HliFb cardno:23_559_180' \
+            --parameters "$TML_JOB_PARAMETERS" \
+          )"
+          TML_JOB_ID_JSON="$(echo "$TML_JOB_ID_JSON" | cut -d':' -f1-)" # terrible terrible terrible hack
+          TML_JOB_ID="$(echo TML_JOB_ID_JSON | jq -r .job_id)"
 
           echo "tml-job-ids=[ \
             \"$TML_JOB_ID\" \
@@ -130,9 +134,30 @@ jobs:
         run: |
           lsusb
 
-  # test-terminate:
-  #   needs: test-strategy test-execute
+  test-terminate:
+    needs: test-strategy test-execute
 
-  #   strategy:
-  #     matrix:
-  #       runner-id: ${{ fromJSON(needs.test-strategy.outputs.runner-ids) }}
+    steps:
+      - name: Checkout Treadmill repository
+        uses: actions/checkout@v4
+        with:
+          repository: treadmill-tb/treadmill
+          path: treadmill
+
+      - name: Cache Treadmill CLI compilation artifacts
+        id: cache-tml-cli
+        uses: actions/cache@v4
+        with:
+          path: treadmill/target
+          key: ${{ runner.os }}-tml-cli
+
+      - name: Compile the Treadmill CLI binary
+        run: |
+          pushd treadmill
+          cargo build --package tml-cli
+          popd
+          echo "$PWD/treadmill/target/debug" >> "$GITHUB_PATH"
+
+      - name: Print tml help
+        run: |
+          tml help
