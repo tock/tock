@@ -133,6 +133,15 @@ jobs:
       - name: Print attached USB devices
         run: |
           lsusb
+          ls -lh /dev
+          ls -lh /dev/bus/usb
+          whoami
+          groups
+          sudo cat /etc/passwd
+          sudo cat /etc/group
+
+      - name: Wait some time for interactive session
+        run: sleep 600
 
   test-terminate:
     needs:
