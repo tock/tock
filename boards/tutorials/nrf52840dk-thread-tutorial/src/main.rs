@@ -256,11 +256,6 @@ pub unsafe fn main() {
         NUM_PROCS
     ));
 
-    checker.set_client(loader);
-
-    loader.register();
-    loader.start();
-
     board_kernel.kernel_loop(
         &platform,
         chip,
