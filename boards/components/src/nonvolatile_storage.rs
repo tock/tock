@@ -44,8 +44,9 @@ macro_rules! nonvolatile_storage_component_static {
         );
         let buffer = kernel::static_buf!([u8; capsules_extra::nonvolatile_storage_driver::BUF_LEN]);
 
-        let header_buffer =
-            kernel::static_buf!([u8; capsules_extra::nonvolatile_storage_driver::HEADER_BUF_LEN]);
+        let header_buffer = kernel::static_buf!(
+            [u8; capsules_extra::nonvolatile_storage_driver::REGION_HEADER_LEN]
+        );
 
         (page, ntp, ns, buffer, header_buffer)
     };};
@@ -106,7 +107,9 @@ impl<
         &'static mut MaybeUninit<NonvolatileToPages<'static, F>>,
         &'static mut MaybeUninit<NonvolatileStorage<'static>>,
         &'static mut MaybeUninit<[u8; capsules_extra::nonvolatile_storage_driver::BUF_LEN]>,
-        &'static mut MaybeUninit<[u8; capsules_extra::nonvolatile_storage_driver::HEADER_BUF_LEN]>,
+        &'static mut MaybeUninit<
+            [u8; capsules_extra::nonvolatile_storage_driver::REGION_HEADER_LEN],
+        >,
     );
     type Output = &'static NonvolatileStorage<'static>;
 
@@ -119,7 +122,7 @@ impl<
 
         let header_buffer = static_buffer
             .4
-            .write([0; capsules_extra::nonvolatile_storage_driver::HEADER_BUF_LEN]);
+            .write([0; capsules_extra::nonvolatile_storage_driver::REGION_HEADER_LEN]);
 
         let flash_pagebuffer = static_buffer
             .0
