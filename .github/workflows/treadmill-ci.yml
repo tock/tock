@@ -98,13 +98,15 @@ jobs:
             --parameters "$TML_JOB_PARAMETERS" \
           )"
           TML_JOB_ID_JSON="$(echo "$TML_JOB_ID_JSON" | cut -d':' -f1-)" # terrible terrible terrible hack
+          TML_JOB_ID="$(echo TML_JOB_ID_JSON | jq -r .job_id)"
 
           echo "tml-job-ids=[ \
-            \"$(tml_job_id_json | jq -r .job_id)\" \
+            \"$TML_JOB_ID\" \
           ]" >> "$GITHUB_OUTPUT"
+
           echo "tml-jobs={ \
-            \"$(tml_job_id_json | jq -r .job_id)\": { \
-              \"runner_id\": \"$RUNNER_ID\", \
+            \"$TML_JOB_ID\": { \
+              \"runner-id\": \"$RUNNER_ID\", \
             } \
           }" >> "$GITHUB_OUTPUT"
 
@@ -115,7 +117,7 @@ jobs:
       matrix:
         tml-job-id: ${{ fromJSON(needs.test-strategy.outputs.tml-job-ids) }}
 
-    runs-on: ${{ fromJSON(needs.test-strategy.outputs.tml-jobs)[matrix.tml-job-id] }}
+    runs-on: ${{ fromJSON(needs.test-strategy.outputs.tml-jobs)[matrix.tml-job-id].runner-id }}
 
     steps:
       - name: Print Treadmill Job Id
