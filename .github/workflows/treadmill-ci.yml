@@ -103,7 +103,7 @@ jobs:
             --parameters "$TML_JOB_PARAMETERS" \
           )"
           TML_JOB_ID_JSON="$(echo "$TML_JOB_ID_JSON" | cut -d':' -f1-)" # terrible terrible terrible hack
-          TML_JOB_ID="$(echo TML_JOB_ID_JSON | jq -r .job_id)"
+          TML_JOB_ID="$(echo "$TML_JOB_ID_JSON" | jq -r .job_id)"
 
           echo "tml-job-ids=[ \
             \"$TML_JOB_ID\" \
