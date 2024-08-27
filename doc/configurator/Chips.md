@@ -4,7 +4,7 @@ Supported chips
 The `chips` directory keeps the supported chips implementations as crates. Each supported peripheral
 must implement the corresponding traits from the `parse` crate.
 
-### Important
+### TODO 
 
 The approach is not yet considered scalable. The approach this should be moving towards is to have
 chip configuration `JSON` files, similar to:
