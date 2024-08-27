@@ -18,6 +18,7 @@ quote = "1.0.36"
 syn = "2.0.61"
 parse = { path = "../parse" }
 serde_json = "1.0.116"
+clap = { version = "4.1", features = ["derive"] }
 
 # Supported chips
 nrf52833 = { path = "../chips/nrf52833" }

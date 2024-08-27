@@ -54,13 +54,21 @@ to this:
 ```
 
 The crate `tock-generator` deals with parsing the configuration file into
-`Rust` code. Add it as a dependency in your crate.
+`Rust` code. The main purpose was for it to be used in a build script, so that the file
+would be created and integrated into the build flow.
 
 ```rust
+// build.rs
 use tock_generator::{TockMain, Nrf52833};
 
-let tock_main = TockMain::from_json(Nrf52833::default(), ".config.json")?;
-tock_main.write_to_file("main.rs")?;
+fn main() {
+    let tock_main = TockMain::from_json(Nrf52833::default(), ".config.json").unwrap();
+    tock_main.write_to_file("main.rs").unwrap();
+
+    // The rest of the build script... 
+}
 ```
+
+> Under `tock-configurator/generator/examples` is found an example of using the generator as a CLI tool.
 
 **Currently work in progress 🚧**

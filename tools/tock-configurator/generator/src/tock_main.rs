@@ -7,6 +7,7 @@
 // Author: Darius Jipa <darius.jipa@oxidos.io>
 
 use parse::{context::Context, Chip, Component, Ident};
+use proc_macro2::Literal;
 use quote::{format_ident, quote};
 use std::error::Error;
 use std::fs::File;
@@ -80,6 +81,7 @@ impl<C: Chip + 'static> TockMain<C> {
     /// The `main` function of the module. The whole logic is moved to the `setup`
     /// function.
     fn main(&self) -> proc_macro2::TokenStream {
+        let process_count = Literal::usize_unsuffixed(self.context.process_count);
         quote! {
             #[no_mangle]
             pub unsafe fn main() {
@@ -88,7 +90,7 @@ impl<C: Chip + 'static> TockMain<C> {
                 board_kernel.kernel_loop(
                     &platform,
                     chip,
-                    None::<&kernel::ipc::IPC<0>>,
+                    None::<&kernel::ipc::IPC<#process_count>>,
                     &__main_loop_capability,
                 );
             }
