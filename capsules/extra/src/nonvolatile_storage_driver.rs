@@ -754,7 +754,7 @@ impl<'a> NonvolatileStorage<'a> {
                     }
                 }
                 NonvolatileCommand::UserspaceWrite => {
-                    if !perms.check_write_permission(write_id) {
+                    if !perms.check_modify_permission(write_id) {
                         Err(ErrorCode::NOSUPPORT)
                     } else {
                         Ok(())
