@@ -102,7 +102,6 @@ jobs:
             --ssh-keys 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFjLuM7C6emv+xAFYnXA+mSUKmMEmKDM0A6WzZ0HliFb cardno:23_559_180' \
             --parameters "$TML_JOB_PARAMETERS" \
           )"
-          TML_JOB_ID_JSON="$(echo "$TML_JOB_ID_JSON" | cut -d':' -f1-)" # terrible terrible terrible hack
           echo "TML_JOB_ID_JSON: $TML_JOB_ID_JSON"
           TML_JOB_ID="$(echo "$TML_JOB_ID_JSON" | jq -r .job_id)"
 
