@@ -1,4 +1,10 @@
-// Copyright OxidOS Automotive 2024.
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2024
+// Copyright OxidOS Automotive SRL 2024
+//
+// Author: Irina Nita <irina.nita@oxidos.io>
+// Author: Darius Jipa <darius.jipa@oxidos.io>
 
 use crate::items::ToMenuItem;
 use crate::menu::{capsule_popup, checkbox_popup, no_support, pin_list_disabled};
@@ -29,7 +35,7 @@ impl ConfigMenu for GpioConfig {
                     .collect(),
                 |siv, submit| on_gpio_capsule_submit::<C>(siv, Rc::clone(submit)),
             )),
-            // If we don't have any GPIO peripheral, we show a popup 
+            // If we don't have any GPIO peripheral, we show a popup
             // with an error describing this.
             Err(_) => capsule_popup::<C, _>(no_support(PERIPHERAL)),
         }
@@ -98,7 +104,7 @@ fn on_gpio_pin_submit<C: Chip + 'static + serde::Serialize>(
             });
         }
 
-        // Create a list with all the previously selected pins that 
+        // Create a list with all the previously selected pins that
         // are now unselected.
         let mut unselected_pins = Vec::new();
         for (pin, pin_function) in data.gpio(&gpio).unwrap().pins() {
