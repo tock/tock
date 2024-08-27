@@ -172,7 +172,7 @@ jobs:
         run: |
           echo '${{ needs.test-strategy.outputs.tml-job-ids }}' \
             | jq -rc '.[]' \
-            | while read $JOB_ID; do
+            | while read JOB_ID; do
               echo "Canceling job ID $JOB_ID..."
               tml job cancel "$JOB_ID"
             done
