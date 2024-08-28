@@ -28,12 +28,7 @@
 //!     regions, the capsule uses the length to determine where the next region
 //!     header starts.
 //!  2. The capsule reads the header and performs a check to see if the region header
-//!     is valid. If it is valid, we move to step 3. If not, we move to step 4. This
-//!     header validation is done by XORing the three fields of the header together
-//!     (a usize "magic", a u32 shortid, and a usize region length value) and checking
-//!     if their result matches one of the known HeaderVersion numbers. This works
-//!     since the "magic" value is previously set to the XOR of a HeaderVerion number, the
-//!     shortid of the app that owns the region and length of the region.
+//!     is valid. If it is valid, we move to step 3. If not, we move to step 4. 
 //!  3. If the capsule finds a valid region header, it tries to save the informaton of the region
 //!     to the grant of the app that has the same ShortID of the header it just read. It's
 //!     possible that the app previously owned a region but currently isn't running on the
@@ -88,9 +83,9 @@
 //!     │
 //!     ╞════════ ← Start of userspace region
 //!     ├──────── ← Start of App 1's region header
-//!     │ App 1's magic value (usize) = HEADER_V1 ^ ShortID ^ length
+//!     │ Region version number (8 bits) | Region length (24 bits) (Note that | inidcates bitwise concatenation)
 //!     │ App 1's ShortID (u32)  
-//!     │ region 1 length (usize)
+//!     │ XOR of previous two u32 fields (u32)
 //!     ├──────── ← Start of App 1's Region          ═╗
 //!     │                                             ║
 //!     │
@@ -100,9 +95,9 @@
 //!     │                                             ║
 //!     │                                            ═╝
 //!     ├──────── ← Start of App 2's region header   
-//!     │ App 2's magic value (usize) = HEADER_V1 ^ ShortID ^ length
-//!     │ App 2's ShortID (u32)                      
-//!     │ region 2 length (usize)                    
+//!     │ Region version number (8 bits) | Region length (24 bits) (Note that | inidcates bitwise concatenation)
+//!     │ App 2's ShortID (u32)  
+//!     │ XOR of previous two u32 fields (u32)
 //!     ├──────── ← Start of App 2's Region          ═╗
 //!     │                                             ║
 //!     │                                               
@@ -190,19 +185,17 @@ mod rw_allow {
 
 // Constants to distinguish what version of this capsule
 // a given header was created with.
-const V1: usize = 0x2FA7B3;
+const HEADER_V1: u8 = 0x01;
 
-// Note that the magic header is versioned to maintain
-// compatibility across multiple capsule versions.
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum HeaderVersion {
     V1,
 }
 
 impl HeaderVersion {
-    fn value(&self) -> usize {
+    fn value(&self) -> u8 {
         match self {
-            HeaderVersion::V1 => V1,
+            HeaderVersion::V1 => HEADER_V1,
         }
     }
 }
@@ -228,38 +221,97 @@ pub struct AppRegion {
 // the owner and size of the region.
 #[derive(Clone, Copy, Debug)]
 struct AppRegionHeader {
-    /// Magic value to determine if a region is valid and what version
-    /// of this capsule it was created with. The value stored in
-    /// mmeory is an XOR of the header version number, shortid, and length.
-    magic: usize,
+    // an 8 bit version number concatenated with a 24 bit length value
+    version_and_length: u32,
     /// Unique per-app identifier. This comes from
     /// the Fixed variant of the ShortID type.
     shortid: u32,
-    /// How many bytes allocated to a certain app.
-    /// Note that the size of the region header is not
-    /// included in this length value.
-    length: usize,
+    // xor between version_and_length and shortid fields
+    xor: u32,
 }
-// Enough space to store the magic(usize), shortid (u32) and length (usize) to nonvolatile storage
+// Enough space to store the three u32 field of the header
 pub const REGION_HEADER_LEN: usize =
-    core::mem::size_of::<usize>() + core::mem::size_of::<u32>() + core::mem::size_of::<usize>();
+    3 * core::mem::size_of::<u32>();
 
 impl AppRegionHeader {
-    fn new(version: HeaderVersion, shortid: u32, length: usize) -> Self {
-        let magic = version.value() ^ (shortid as usize) ^ length;
-        AppRegionHeader {
-            magic,
-            shortid,
-            length,
+    fn new(version: HeaderVersion, shortid: u32, length: usize) -> Option<Self> {
+        // check that length will fit in 3 bytes
+        if length > (2 << 23) {
+            return None
+        }
+
+        let version_and_length = ((version.value() as u32) << 24) | length as u32;
+
+        let xor = version_and_length ^ shortid;
+
+        Some(AppRegionHeader {
+            version_and_length: version_and_length,
+            shortid: shortid,
+            xor: xor,
+        })
+    }
+
+    fn from_bytes(bytes: [u8; REGION_HEADER_LEN]) -> Option<Self> {
+        // first 4 bytes are split between a 8 bit version and 24 bit length
+        let version = bytes[0];
+        let length_slice = &bytes[1..4];
+        let version_and_length_slice = [version, length_slice[0], length_slice[1], length_slice[2]];
+        let version_and_length = u32::from_le_bytes(version_and_length_slice);
+
+        let shortid_slice = bytes[4..8].try_into().ok()?;
+        let shortid = u32::from_le_bytes(shortid_slice);
+
+        let xor_slice = bytes[8..12].try_into().ok()?;
+        let xor = u32::from_le_bytes(xor_slice);
+
+        Some(AppRegionHeader{
+            version_and_length: version_and_length,
+            shortid: shortid,
+            xor: xor
+        })
+    }
+
+    fn to_bytes(&self) -> [u8; REGION_HEADER_LEN] {
+        let mut header_slice = [0; REGION_HEADER_LEN];
+
+        // copy version and length
+        let version_and_length_slice = u32::to_le_bytes(self.version_and_length);
+        let version_and_length_start_idx = 0;
+        let version_and_length_end_idx = version_and_length_slice.len();
+        header_slice[version_and_length_start_idx..version_and_length_end_idx].copy_from_slice(&version_and_length_slice);
+
+        // copy shortid
+        let shortid_slice = u32::to_le_bytes(self.shortid);
+        let shortid_start_idx = version_and_length_end_idx;
+        let shortid_end_idx = shortid_start_idx + shortid_slice.len();
+        header_slice[shortid_start_idx..shortid_end_idx].copy_from_slice(&shortid_slice);
+
+        // copy version and length
+        let xor_slice = u32::to_le_bytes(self.xor);
+        let xor_start_idx = shortid_end_idx;
+        let xor_end_idx = xor_start_idx + xor_slice.len();
+        header_slice[xor_start_idx..xor_end_idx].copy_from_slice(&xor_slice);
+
+        header_slice
+    }
+
+    fn is_valid(&self) -> bool {
+        self.version().is_some() && self.xor == (self.version_and_length ^ self.shortid)
+    }
+
+    fn version(&self) -> Option<HeaderVersion> {
+        // extract the 8 most significant bits from 
+        // the concatenated version and length
+        match (self.version_and_length >> 24) as u8  {
+           HEADER_V1 => Some(HeaderVersion::V1),
+           _ => None
         }
     }
 
-    fn is_valid(&self) -> Option<HeaderVersion> {
-        let version = self.magic ^ (self.shortid as usize) ^ self.length;
-        match version {
-            V1 => Some(HeaderVersion::V1),
-            _ => None,
-        }
+    fn length(&self) -> u32 {
+        // extract the 24 least significant bits from
+        // the concatenated verion and length
+        self.version_and_length & 0x00ffffff
     }
 }
 
@@ -434,8 +486,7 @@ impl<'a> NonvolatileStorage<'a> {
         self.start_region_traversal()
     }
 
-    // Start reading app region headers. The first read will be from the region immediately
-    // following the magic header. See the storage layout diagram at the top of this file.
+    // Start reading app region headers.
     fn start_region_traversal(&self) -> Result<(), ErrorCode> {
         self.read_region_header(self.userspace_start_address)
     }
@@ -504,7 +555,9 @@ impl<'a> NonvolatileStorage<'a> {
                         return Err(ErrorCode::FAIL);
                     }
 
-                    let header = AppRegionHeader::new(region.version, shortid, region.length);
+                    let Some(header) = AppRegionHeader::new(region.version, shortid, region.length) else {
+                        return Err(ErrorCode::FAIL);
+                    };
 
                     // write this new region header to the end of the existing ones
                     self.write_region_header(processid, &region, &header, new_header_addr)
@@ -543,44 +596,19 @@ impl<'a> NonvolatileStorage<'a> {
     ) -> Result<(), ErrorCode> {
         if DEBUG {
             debug!(
-                "[NONVOLATILE_STORAGE_DRIVER]: Writing region header to {:#x}",
-                region_header_address
+                "[NONVOLATILE_STORAGE_DRIVER]: Writing region header to {:#x}. Header: {:#x?}",
+                region_header_address, region_header
             );
         }
 
-        let magic_slice = usize::to_le_bytes(region_header.magic);
-        let owner_slice = u32::to_le_bytes(region_header.shortid);
-        let length_slice = usize::to_le_bytes(region_header.length);
+        let header_slice = region_header.to_bytes();
 
         self.header_buffer.map_or(Err(ErrorCode::NOMEM), |buffer| {
-            // copy magic value
-            let magic_start_idx = 0;
-            let magic_end_idx = core::mem::size_of::<usize>();
-            for (i, c) in buffer[magic_start_idx..magic_end_idx]
+            for (i, c) in buffer
                 .iter_mut()
                 .enumerate()
             {
-                *c = magic_slice[i];
-            }
-
-            // copy region owner
-            let owner_start_idx = magic_end_idx;
-            let owner_end_idx = owner_start_idx + core::mem::size_of::<u32>();
-            for (i, c) in buffer[owner_start_idx..owner_end_idx]
-                .iter_mut()
-                .enumerate()
-            {
-                *c = owner_slice[i];
-            }
-
-            // copy region length
-            let length_start_idx = owner_end_idx;
-            let length_end_idx = length_start_idx + core::mem::size_of::<usize>();
-            for (i, c) in buffer[length_start_idx..length_end_idx]
-                .iter_mut()
-                .enumerate()
-            {
-                *c = length_slice[i];
+                *c = header_slice[i];
             }
 
             Ok(())
@@ -649,123 +677,96 @@ impl<'a> NonvolatileStorage<'a> {
     fn header_read_done(&self, region_header_address: usize) -> Result<(), ErrorCode> {
         // reconstruct header from bytes we just read
         let header = self.header_buffer.map_or(Err(ErrorCode::NOMEM), |buffer| {
-            // convert first part of header buffer to magic value
-            let magic_start_idx = 0;
-            let magic_end_idx = core::mem::size_of::<usize>();
-            let magic_slice = buffer[magic_start_idx..magic_end_idx]
-                .try_into()
-                .or(Err(ErrorCode::FAIL))?;
-            let magic = usize::from_le_bytes(magic_slice);
-
-            // convert next part of header buffer to region owner
-            let owner_start_idx = magic_end_idx;
-            let owner_end_idx = owner_start_idx + core::mem::size_of::<u32>();
-            let owner_slice = buffer[owner_start_idx..owner_end_idx]
-                .try_into()
-                .or(Err(ErrorCode::FAIL))?;
-            let owner = u32::from_le_bytes(owner_slice);
-
-            // convert next part of header buffer to region length
-            let length_start_idx = owner_end_idx;
-            let length_end_idx = length_start_idx + core::mem::size_of::<usize>();
-            let length_slice = buffer[length_start_idx..length_end_idx]
-                .try_into()
-                .or(Err(ErrorCode::FAIL))?;
-            let length = usize::from_le_bytes(length_slice);
-
-            Ok(AppRegionHeader {
-                magic: magic,
-                shortid: owner,
-                length: length,
-            })
+            let header_buffer = buffer.try_into().or(Err(ErrorCode::FAIL))?; 
+            AppRegionHeader::from_bytes(header_buffer).ok_or(ErrorCode::FAIL)
         })?;
 
         // If a header is invalid, we've reached the end
         // of all previously allocated regions.
-        match header.is_valid() {
-            Some(version) => {
-                if DEBUG {
-                    debug!("[NONVOLATILE_STORAGE_DRIVER]: Found a valid header at {:#x}. Header: {:#x?}", region_header_address, header);
-                }
-                // Find the app with the corresponding shortid.
-                for app in self.apps.iter() {
-                    // skip an app if it doesn't have the proper storage permissions
-                    let shortid = match app.processid().get_storage_permissions() {
-                        Some(perms) => match perms.get_write_id() {
-                            Some(write_id) => write_id,
-                            None => continue,
-                        },
-                        None => continue,
-                    };
-                    if shortid == header.shortid {
-                        app.enter(|app, kernel_data| {
-                            // only populate region and signal app that explicitly
-                            // requested to initialize storage
-                            if app.has_requested_region && app.region.is_none() {
-                                app.region.replace(AppRegion {
-                                    version,
-                                    // the app's actual region starts after the
-                                    // region header
-                                    offset: region_header_address + REGION_HEADER_LEN,
-                                    length: header.length,
-                                });
-
-                                kernel_data
-                                    .schedule_upcall(
-                                        upcall::INIT_DONE,
-                                        (kernel::errorcode::into_statuscode(Ok(())), 0, 0),
-                                    )
-                                    .ok();
-                            }
-                        });
-
-                        break;
-                    }
-                }
-
-                let next_header_address = region_header_address + REGION_HEADER_LEN + header.length;
-                self.read_region_header(next_header_address)
+        if header.is_valid() {
+            if DEBUG {
+                debug!("[NONVOLATILE_STORAGE_DRIVER]: Found a valid header at {:#x}. Header: {:#x?}", region_header_address, header);
             }
-            None => {
-                if DEBUG {
-                    debug!("[NONVOLATILE_STORAGE_DRIVER]: Read invalid region header. Stopping region traversal. {:#x}", region_header_address);
+            // Find the app with the corresponding shortid.
+            for app in self.apps.iter() {
+                // skip an app if it doesn't have the proper storage permissions
+                let shortid = match app.processid().get_storage_permissions() {
+                    Some(perms) => match perms.get_write_id() {
+                        Some(write_id) => write_id,
+                        None => continue,
+                    },
+                    None => continue,
+                };
+                if shortid == header.shortid {
+                    app.enter(|app, kernel_data| {
+                        // only populate region and signal app that explicitly
+                        // requested to initialize storage
+                        if app.has_requested_region && app.region.is_none() {
+                            let version = header.version().ok_or(ErrorCode::FAIL)?;
+                            app.region.replace(AppRegion {
+                                version: version,
+                                // the app's actual region starts after the
+                                // region header
+                                offset: region_header_address + REGION_HEADER_LEN,
+                                length: header.length() as usize,
+                            });
 
-                    for app in self.apps.iter() {
-                        match app.processid().get_storage_permissions() {
-                            Some(perms) => match perms.get_write_id() {
-                                Some(write_id) => debug!(
-                                    "[NONVOLATILE_STORAGE_DRIVER]: App shortid: {:#x}",
-                                    write_id
-                                ),
-                                None => {
-                                    debug!("[NONVOLATILE_STORAGE_DRIVER]: App missing write_id")
-                                }
-                            },
-                            None => {
-                                debug!("[NONVOLATILE_STORAGE_DRIVER]: App missing storage perms")
-                            }
-                        };
+                            kernel_data
+                                .schedule_upcall(
+                                    upcall::INIT_DONE,
+                                    (kernel::errorcode::into_statuscode(Ok(())), 0, 0),
+                                )
+                                .ok();
+                        }
+                        Ok::<(), ErrorCode>(())
+                    })?;
 
-                        app.enter(|app, _kernel_data| match app.region {
-                            Some(region) => debug!(
-                                "\tStorage region:\n\toffset: {:#x}\n\tlength: {:#x}",
-                                region.offset, region.length
+                    break;
+                }
+            }
+
+            let next_header_address = region_header_address + REGION_HEADER_LEN + header.length() as usize;
+            self.read_region_header(next_header_address)
+        }
+        else {
+            if DEBUG {
+                debug!("[NONVOLATILE_STORAGE_DRIVER]: Read invalid region header. Stopping region traversal. {:#x}", region_header_address);
+
+                for app in self.apps.iter() {
+                    match app.processid().get_storage_permissions() {
+                        Some(perms) => match perms.get_write_id() {
+                            Some(write_id) => debug!(
+                                "[NONVOLATILE_STORAGE_DRIVER]: App shortid: {:#x}",
+                                write_id
                             ),
-                            None => debug!("\tNo region assigned"),
-                        });
-                    }
-                }
+                            None => {
+                                debug!("[NONVOLATILE_STORAGE_DRIVER]: App missing write_id")
+                            }
+                        },
+                        None => {
+                            debug!("[NONVOLATILE_STORAGE_DRIVER]: App missing storage perms")
+                        }
+                    };
 
-                // save this region header address so that we can allocate new regions
-                // here later
-                self.next_unallocated_region_header_address
-                    .set(region_header_address);
-
-                // start allocating any outstanding region allocation requests
-                match self.find_app_to_allocate_region() {
-                    Some(processid) => self.allocate_app_region(processid),
-                    None => Ok(()),
+                    app.enter(|app, _kernel_data| match app.region {
+                        Some(region) => debug!(
+                            "\tStorage region:\n\toffset: {:#x}\n\tlength: {:#x}",
+                            region.offset, region.length
+                        ),
+                        None => debug!("\tNo region assigned"),
+                    });
                 }
+            }
+
+            // save this region header address so that we can allocate new regions
+            // here later
+            self.next_unallocated_region_header_address
+                .set(region_header_address);
+
+            // start allocating any outstanding region allocation requests
+            match self.find_app_to_allocate_region() {
+                Some(processid) => self.allocate_app_region(processid),
+                None => Ok(()),
             }
         }
     }
