@@ -60,12 +60,14 @@ impl<'a> ListNode<'a, MLFQProcessNode<'a>> for MLFQProcessNode<'a> {
     }
 }
 
+// #[flux_rs::refined_by()]
 pub struct MLFQSched<'a, A: 'static + time::Alarm<'static>> {
     alarm: &'static A,
     pub processes: [List<'a, MLFQProcessNode<'a>>; 3], // Using Self::NUM_QUEUES causes rustc to crash..
     next_reset: Cell<A::Ticks>,
     last_reset_check: Cell<A::Ticks>,
     last_timeslice: Cell<u32>,
+    // #[field(Cell<usize{v: v < 3}>)]
     last_queue_idx: Cell<usize>,
 }
 
@@ -166,7 +168,7 @@ impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<
                                              // Last executed node will always be at head of its queue
         let node_ref = self.processes[queue_idx].head().unwrap();
         let last_timeslice = self.last_timeslice.get();
-        flux_support::assume(last_timeslice >= execution_time_us); // needs extern spec for cell
+        flux_support::assume(last_timeslice >= execution_time_us); // need refined scheduler_timer()?
         node_ref
             .state
             .us_used_this_queue

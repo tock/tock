@@ -4,31 +4,31 @@
 
 //! Implementation of the memory protection unit for the Cortex-M0+, Cortex-M3,
 //! Cortex-M4, and Cortex-M7
-#![flux::defs(
-    // fn can_service(self: &CortexMRegion) -> bool{self.}
-    fn contains(raddr: int, rsize: int, addr: int, size: int) -> bool {
-        ((addr >= raddr) && (addr + size < raddr + rsize))
-    }
+// #![flux_rs::defs(
+//     // fn can_service(self: &CortexMRegion) -> bool{self.}
+//     fn contains(raddr: int, rsize: int, addr: int, size: int) -> bool {
+//         ((addr >= raddr) && (addr + size < raddr + rsize))
+//     }
 
-    fn subregion_enabled(raddr: int, rsize: int, addr: int, size: int, srd: bitvec<8>) -> bool {
-        rsize >= 256
-        // VTOCK-TODO: how to implement cleanly?
+//     fn subregion_enabled(raddr: int, rsize: int, addr: int, size: int, srd: bitvec<8>) -> bool {
+//         rsize >= 256
+//         // VTOCK-TODO: how to implement cleanly?
         
-        // ((addr >= raddr) && (addr + size < raddr + rsize))
-    }
+//         // ((addr >= raddr) && (addr + size < raddr + rsize))
+//     }
 
-    fn can_service(raddr: int, rsize: int, addr: int, size: int, srd: bitvec<8>, enabled: bool) -> bool { 
-        enabled && contains(raddr, rsize, addr, size) && subregion_enabled(addr, rsize, addr, size, srd)
-    }
+//     fn can_service(raddr: int, rsize: int, addr: int, size: int, srd: bitvec<8>, enabled: bool) -> bool { 
+//         enabled && contains(raddr, rsize, addr, size) && subregion_enabled(addr, rsize, addr, size, srd)
+//     }
 
-    // given an array of length 8, returns index of reigon that services a particular request
-    // fn servicing_region(regions: [CortexMRegion; 8], addr: usize, size: usize) -> usize {
-    //     // TODO:
-    //     0
-    // }
+//     // given an array of length 8, returns index of reigon that services a particular request
+//     // fn servicing_region(regions: [CortexMRegion; 8], addr: usize, size: usize) -> usize {
+//     //     // TODO:
+//     //     0
+//     // }
 
-    // fn pow2bv(x:bitvec<32>) -> bool { bv_and(x, bv_sub(x, bv_int_to_bv32(1))) == bv_int_to_bv32(0) }
-)]
+//     // fn pow2bv(x:bitvec<32>) -> bool { bv_and(x, bv_sub(x, bv_int_to_bv32(1))) == bv_int_to_bv32(0) }
+// )]
 
 use core::cell::Cell;
 use core::cmp;
@@ -40,18 +40,15 @@ use flux_support::register_bitfields;
 use kernel::platform::mpu;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::math;
-use kernel::utilities::registers::interfaces::{Readable, Writeable};
-use kernel::utilities::registers::{ReadOnly, ReadWrite};
-use kernel::utilities::StaticRef;
 
 // VTOCK-TODO: supplementary proof?
-#[flux::sig(fn(n: u32{n < 32}) -> usize {r: r > 0 })]
-#[flux::trusted]
+#[flux_rs::sig(fn(n: u32{n < 32}) -> usize {r: r > 0 })]
+#[flux_rs::trusted]
 fn power_of_two(n: u32) -> usize {
     1_usize << n
 }
 
-// #[flux::opaque]
+// #[flux_rs::opaque]
 // // #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 // pub struct TypeReg {
 //     _inner: ReadOnly<u32, Type::Register>,
@@ -63,45 +60,45 @@ fn power_of_two(n: u32) -> usize {
 //     }
 // }
 
-// // #[flux::refined_by(privdefena: bool, hfnmiena: bool, enable: bool)]
-// // #[flux::invariant()]
-// #[flux::refined_by(privdefena: bool, hfnmiena: bool, enable: bool)]
-// #[flux::opaque]
+// // #[flux_rs::refined_by(privdefena: bool, hfnmiena: bool, enable: bool)]
+// // #[flux_rs::invariant()]
+// #[flux_rs::refined_by(privdefena: bool, hfnmiena: bool, enable: bool)]
+// #[flux_rs::opaque]
 // pub struct CtrlReg {
 //     _inner: ReadWrite<u32, Control::Register>,
 // }
 
 // impl CtrlReg {
-//     // #[flux::sig(fn(&CtrlReg, field: Field<u32, Control::Register>) -> u32{r: field == })]
+//     // #[flux_rs::sig(fn(&CtrlReg, field: Field<u32, Control::Register>) -> u32{r: field == })]
 //     pub fn read(&self, _field: Field<u32, Control::Register>) -> u32 {
 //         unimplemented!()
 //     }
 
-//     // #[flux::sig(fn(self: &CtrlReg[@a,@b,@c], field: FieldValue<u32, Control::Register>) ensures self: CtrlReg[a,b,false])]
+//     // #[flux_rs::sig(fn(self: &CtrlReg[@a,@b,@c], field: FieldValue<u32, Control::Register>) ensures self: CtrlReg[a,b,false])]
 //     pub fn write(&self, _field: FieldValue<u32, Control::Register>) {
 //         unimplemented!()
 //     }
 // }
 
-// #[flux::refined_by(num: int)]
-// #[flux::invariant(num >= 0 && num < 256)] // 8 bits
-// #[flux::opaque]
+// #[flux_rs::refined_by(num: int)]
+// #[flux_rs::invariant(num >= 0 && num < 256)] // 8 bits
+// #[flux_rs::opaque]
 // pub struct RnrReg {
 //     _inner: RegionNumber::Register,
 // }
 // impl RnrReg {
-//     #[flux::sig(fn(&RnrReg[@n], field: Field<u32, RegionNumber::Register>) -> u32[n])]
+//     #[flux_rs::sig(fn(&RnrReg[@n], field: Field<u32, RegionNumber::Register>) -> u32[n])]
 //     pub fn read(&self, _field: Field<u32, RegionNumber::Register>) -> u32 {
 //         unimplemented!()
 //     }
 
-//     // #[flux::sig(fn(&RnrReg, field: FieldValue<u32, RegionNumber::Register>) ensures self: RnrReg[])]
+//     // #[flux_rs::sig(fn(&RnrReg, field: FieldValue<u32, RegionNumber::Register>) ensures self: RnrReg[])]
 //     pub fn write(&self, _field: FieldValue<u32, RegionNumber::Register>) {
 //         unimplemented!()
 //     }
 // }
 
-// // #[flux::refined_by(valid: int, region: int, addr: int)]
+// // #[flux_rs::refined_by(valid: int, region: int, addr: int)]
 // pub struct RbarReg {
 //     _inner: ReadWrite<u32, RegionBaseAddress::Register>,
 // }
@@ -115,14 +112,14 @@ fn power_of_two(n: u32) -> usize {
 //     }
 // }
 
-// #[flux::refined_by(xn: int, ap: int, srd: int, size: int, region_enable: int)]
-// #[flux::opaque]
+// #[flux_rs::refined_by(xn: int, ap: int, srd: int, size: int, region_enable: int)]
+// #[flux_rs::opaque]
 // pub struct RasrReg {
 //     _inner: ReadWrite<u32, RegionAttributes::Register>,
 // }
 
 // impl RasrReg {
-//     // #[flux::sig(fn(&RasrReg[@xn, @ap, @srd, @size, @region_enable], field: Field<u32, RegionAttributes::Register>) -> u32{r: field == RegionAttributes::AP => r == xn})]
+//     // #[flux_rs::sig(fn(&RasrReg[@xn, @ap, @srd, @size, @region_enable], field: Field<u32, RegionAttributes::Register>) -> u32{r: field == RegionAttributes::AP => r == xn})]
 //     pub fn read(&self, _field: Field<u32, RegionAttributes::Register>) -> u32 {
 //         unimplemented!()
 //     }
@@ -139,7 +136,8 @@ fn power_of_two(n: u32) -> usize {
 pub struct MpuRegisters {
     /// Indicates whether the MPU is present and, if so, how many regions it
     /// supports.
-    pub mpu_type: ReadOnly<u32, Type::Register>,
+    // VTOCK-TODO: this should be read-only
+    pub mpu_type: ReadWriteU32<Type::Register>,
 
     /// The control register:
     ///   * Enables the MPU (bit 0).
@@ -240,22 +238,22 @@ register_bitfields![u32,
     ]
 ];
 
-const MPU_BASE_ADDRESS: StaticRef<MpuRegisters> =
-    unsafe { StaticRef::new(0xE000ED90 as *const MpuRegisters) };
+// const MPU_BASE_ADDRESS: StaticRef<MpuRegisters> =
+//     unsafe { StaticRef::new(0xE000ED90 as *const MpuRegisters) };
 
 /// State related to the real physical MPU.
 ///
 /// There should only be one instantiation of this object as it represents
 /// real hardware.
 ///
-#[flux::invariant(MIN_REGION_SIZE > 0 && MIN_REGION_SIZE < 2147483648)]
-// #[flux::refined_by(enable: bool)]
+#[flux_rs::invariant(MIN_REGION_SIZE > 0 && MIN_REGION_SIZE < 2147483648)]
+#[flux_rs::refined_by()]
 pub struct MPU<const MIN_REGION_SIZE: usize> {
     /// MMIO reference to MPU registers.
-    registers: StaticRef<MpuRegisters>,
+    registers: MpuRegisters,
     /// Monotonically increasing counter for allocated regions, used
     /// to assign unique IDs to `CortexMConfig` instances.
-    #[flux::field({Cell<NonZeroUsize> | MIN_REGION_SIZE > 0 && MIN_REGION_SIZE < 2147483648})]
+    #[field({Cell<NonZeroUsize> | MIN_REGION_SIZE > 0 && MIN_REGION_SIZE < 2147483648})]
     config_count: Cell<NonZeroUsize>,
     /// Optimization logic. This is used to indicate which application the MPU
     /// is currently configured for so that the MPU can skip updating when the
@@ -264,19 +262,41 @@ pub struct MPU<const MIN_REGION_SIZE: usize> {
 }
 
 impl<const MIN_REGION_SIZE: usize> MPU<MIN_REGION_SIZE> {
-    #[flux::trusted]
+    #[flux_rs::trusted]
     pub const unsafe fn new() -> Self {
+        let mpu_addr = 0xE000ED90;
+        let mpu_type = ReadWriteU32::new(mpu_addr);
+        let ctrl = ReadWriteU32::new(mpu_addr + 4);
+        let rnr = ReadWriteU32::new(mpu_addr + 8);
+        let rbar = ReadWriteU32::new(mpu_addr + 12);
+        let rasr = ReadWriteU32::new(mpu_addr + 16);
+        let regs = MpuRegisters {mpu_type, ctrl, rnr, rbar, rasr};
+
         Self {
-            registers: MPU_BASE_ADDRESS,
+            registers: regs,
             config_count: Cell::new(NonZeroUsize::MIN),
             hardware_is_configured_for: OptionalCell::empty(),
         }
     }
+    /* 
+    #[flux_rs::trusted]
+    pub fn new() -> Self {
+        let mpu_addr = 0xE000ED90;
+        let mpu_type = ReadWriteU32::new(mpu_addr);
+        let ctrl = ReadWriteU32::new(mpu_addr + 4);
+        let rnr = ReadWriteU32::new(mpu_addr + 8);
+        let rbar = ReadWriteU32::new(mpu_addr + 12);
+        let rasr = ReadWriteU32::new(mpu_addr + 16);
+        let regs = MpuRegisters {mpu_type, ctrl, rnr, rbar, rasr};
+        Self { regs }
+    }
+    */
 
     // Function useful for boards where the bootloader sets up some
     // MPU configuration that conflicts with Tock's configuration:
-    // #[flux::sig(fn(self: &strg MPU<MIN_REGION_SIZE>) ensures self: &MPU<MIN_REGION_SIZE>[false])]
-    pub unsafe fn clear_mpu(&self) {
+    // #[flux_rs::sig(fn(self: &strg MPU<MIN_REGION_SIZE>) ensures self: &MPU<MIN_REGION_SIZE>)]
+    #[flux_rs::trusted]
+    pub unsafe fn clear_mpu(&mut self) {
         self.registers.ctrl.write(Control::ENABLE::CLEAR);
     }
 }
@@ -307,6 +327,7 @@ pub struct CortexMConfig {
 const APP_MEMORY_REGION_MAX_NUM: usize = 1;
 
 impl fmt::Display for CortexMConfig {
+    #[flux_rs::trusted]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "\r\n Cortex-M MPU")?;
         for (i, region) in self.regions.iter().enumerate() {
@@ -361,8 +382,8 @@ impl fmt::Display for CortexMConfig {
 }
 
 impl CortexMConfig {
-    #[flux::trusted]
-    #[flux::sig(fn(&CortexMConfig) -> Option<usize{r: r > 1 && r < 8}>)]
+    #[flux_rs::trusted]
+    #[flux_rs::sig(fn(&CortexMConfig) -> Option<usize{r: r > 1 && r < 8}>)]
     fn unused_region_number(&self) -> Option<usize> {
         for (number, region) in self.regions.iter().enumerate() {
             if number <= APP_MEMORY_REGION_MAX_NUM {
@@ -377,11 +398,11 @@ impl CortexMConfig {
 }
 
 #[derive(Copy, Clone)]
-#[flux::refined_by(addr: int, size: int)]
+#[flux_rs::refined_by(addr: int, size: int)]
 struct CortexMLocation {
-    #[flux::field(FluxPtrU8[addr])]
+    #[field(FluxPtrU8[addr])]
     pub addr: FluxPtrU8,
-    #[flux::field({usize[size] | size >= 8})]
+    #[field({usize[size] | size >= 8})]
     pub size: usize,
 }
 
@@ -482,7 +503,7 @@ impl CortexMRegion {
         }
     }
 
-    // #[flux::sig(fn(&CortexMRegion[@addr, @size]) -> Option<(FluxPtrU8{a: a == addr}, usize{s: s == size})>)]
+    // #[flux_rs::sig(fn(&CortexMRegion[@addr, @size]) -> Option<(FluxPtrU8{a: a == addr}, usize{s: s == size})>)]
     fn location(&self) -> Option<(FluxPtrU8, usize)> {
         let loc = self.location?;
         Some((loc.addr, loc.size))
@@ -516,7 +537,8 @@ impl CortexMRegion {
 impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
     type MpuConfig = CortexMConfig;
 
-    fn enable_app_mpu(&self) {
+    #[flux_rs::trusted]
+    fn enable_app_mpu(&mut self) {
         // Enable the MPU, disable it during HardFault/NMI handlers, and allow
         // privileged code access to all unprotected memory.
         self.registers
@@ -524,7 +546,8 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
             .write(Control::ENABLE::SET + Control::HFNMIENA::CLEAR + Control::PRIVDEFENA::SET);
     }
 
-    fn disable_app_mpu(&self) {
+    #[flux_rs::trusted]
+    fn disable_app_mpu(&mut self) {
         // The MPU is not enabled for privileged mode, so we don't have to do
         // anything
         self.registers.ctrl.write(Control::ENABLE::CLEAR);
@@ -696,7 +719,7 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
         Some(mpu::Region::new(start.as_fluxptr(), size))
     }
 
-    #[flux::trusted]
+    #[flux_rs::trusted]
     fn remove_memory_region(
         &self,
         region: mpu::Region,
@@ -936,7 +959,8 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
         Ok(())
     }
 
-    fn configure_mpu(&self, config: &Self::MpuConfig) {
+    #[flux_rs::trusted]
+    fn configure_mpu(&mut self, config: &Self::MpuConfig) {
         // If the hardware is already configured for this app and the app's MPU
         // configuration has not changed, then skip the hardware update.
         if !self.hardware_is_configured_for.contains(&config.id) || config.is_dirty.get() {

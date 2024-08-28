@@ -38,7 +38,7 @@ pub trait Chip {
     fn has_pending_interrupts(&self) -> bool;
 
     /// Returns a reference to the implementation for the MPU on this chip.
-    fn mpu(&self) -> &Self::MPU;
+    fn mpu(&self) -> &mut Self::MPU;
 
     /// Returns a reference to the implementation for the interface between
     /// userspace and kernelspace.
