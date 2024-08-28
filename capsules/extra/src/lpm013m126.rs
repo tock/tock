@@ -54,7 +54,7 @@ impl<'a> FrameBuffer<'a> {
             let line = self.get_line_mut(i);
             let bytes = CommandHeader {
                 mode: Mode::Input1Bit,
-                gate_line: i,
+                gate_line: i + 1,
             }
             .encode();
             line[..2].copy_from_slice(&bytes);
@@ -89,17 +89,6 @@ impl<'a> FrameBuffer<'a> {
         let line_bytes = 176 / 8 + 2;
         &mut self.data[(line_bytes * index as usize + 2)..][..(176 / 8)]
     }
-
-    /// Transform into a view of raw data for submitting to the DMA driver
-    fn with_raw_rows(
-        frame_buffer: FrameBuffer<'static>,
-        _start: u16,
-        _end: u16,
-    ) -> SubSliceMut<'static, u8> {
-        // HILs typically can't use offsets :/
-        // Best we can do is limit length (TODO)
-        frame_buffer.data
-    }
 }
 
 /// Modes are 6-bit, network order.
@@ -113,6 +102,7 @@ enum Mode {
     /// Input 1-bit data
     /// bits: 1 No function, X, 0 Data Update, 01 1-bit, X
     Input1Bit = 0b100_01_0,
+    NoUpdate = 0b101000,
 }
 
 /// Command header is composed of a 6-bit mode and 10 bits of address,
@@ -125,7 +115,7 @@ struct CommandHeader {
 impl CommandHeader {
     /// Formats header for transfer
     fn encode(&self) -> [u8; 2] {
-        (self.gate_line | ((self.mode as u16) << 10)).to_be_bytes()
+        ((self.gate_line & 0b1111111111) | ((self.mode as u16) << 10)).to_be_bytes()
     }
 }
 
@@ -152,8 +142,9 @@ enum State {
     InitializingRest,
 
     // Normal operation
-    Idle(WriteFrame),
-    Writing(WriteFrame),
+    Idle,
+    AllClearing,
+    Writing,
 
     /// This driver is buggy. Turning off and on will try to recover it.
     Bug,
@@ -170,6 +161,8 @@ pub struct Lpm013m126<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> {
     disp: &'a P,
 
     state: Cell<State>,
+
+    frame: Cell<WriteFrame>,
 
     /// Fields responsible for sending callbacks
     /// for actions completed in software.
@@ -226,6 +219,12 @@ where
                 buffer: TakeCell::empty(),
                 client: OptionalCell::empty(),
                 state: Cell::new(State::Uninitialized),
+                frame: Cell::new(WriteFrame {
+                    row: 0,
+                    column: 0,
+                    width: 176,
+                    height: 176,
+                }),
             })
         }
     }
@@ -284,12 +283,9 @@ where
                             }
                             .encode(),
                         );
-                        let mut l = FrameBuffer::with_raw_rows(frame_buffer, 0, 1);
+                        let mut l = frame_buffer.data;
                         l.slice(0..2);
-                        let res = self.spi.read_write_bytes(
-                            l, //FrameBuffer::with_raw_rows(frame_buffer, 0, 1),
-                            None,
-                        );
+                        let res = self.spi.read_write_bytes(l, None);
 
                         let (res, new_state) = match res {
                             Ok(()) => (Ok(()), State::InitializingPixelMemory),
@@ -397,29 +393,11 @@ where
             width: width as u16,
             height: height as u16,
         };
-
-        let mut new_state = None;
-        let ret = match self.state.get() {
-            State::Uninitialized | State::Off => Err(ErrorCode::OFF),
-            State::InitializingPixelMemory | State::InitializingRest => Err(ErrorCode::BUSY),
-            State::Idle(..) => {
-                new_state = Some(State::Idle(frame));
-                Ok(())
-            }
-            State::Writing(..) => {
-                new_state = Some(State::Writing(frame));
-                Ok(())
-            }
-            State::Bug => Err(ErrorCode::FAIL),
-        };
+        self.frame.set(frame);
 
         self.command_complete_callback.set();
 
-        if let Some(new_state) = new_state {
-            self.state.set(new_state);
-        }
-
-        ret
+        Ok(())
     }
 
     fn write(
@@ -433,38 +411,45 @@ where
         let ret = match self.state.get() {
             State::Uninitialized | State::Off => Err(ErrorCode::OFF),
             State::InitializingPixelMemory | State::InitializingRest => Err(ErrorCode::BUSY),
-            State::Idle(frame) => {
+            State::Idle => {
                 self.frame_buffer
                     .take()
                     .map_or(Err(ErrorCode::NOMEM), |mut frame_buffer| {
                         // TODO: reject if buffer is shorter than frame
-                        frame_buffer.blit(&buffer[..cmp::min(buffer.len(), len)], &frame);
-                        let send_buf = FrameBuffer::with_raw_rows(
-                            frame_buffer,
-                            frame.row,
-                            frame.row + frame.height,
-                        );
+                        frame_buffer
+                            .blit(&buffer[..cmp::min(buffer.len(), len)], &self.frame.get());
 
-                        let sent = self.spi.read_write_bytes(send_buf, None);
+                        let buf = &mut frame_buffer.get_line_mut(0)[..2];
+                        buf.copy_from_slice(
+                            &CommandHeader {
+                                mode: Mode::NoUpdate,
+                                gate_line: 0,
+                            }
+                            .encode(),
+                        );
+                        let mut l = frame_buffer.data;
+                        l.slice(0..2);
+                        let sent = self.spi.read_write_bytes(l, None);
+
                         let (ret, new_state) = match sent {
-                            Ok(()) => (Ok(()), State::Writing(frame)),
+                            Ok(()) => (Ok(()), State::AllClearing),
                             Err((e, buf, _)) => {
                                 self.frame_buffer.replace(FrameBuffer::new(buf));
-                                (Err(e), State::Idle(frame))
+                                (Err(e), State::Idle)
                             }
                         };
                         self.state.set(new_state);
                         ret
                     })
             }
-            State::Writing(..) => Err(ErrorCode::BUSY),
+            State::AllClearing | State::Writing => Err(ErrorCode::BUSY),
             State::Bug => Err(ErrorCode::FAIL),
         };
 
         self.buffer.replace(buffer);
 
         match self.state.get() {
-            State::Writing(..) => {}
+            State::Writing => {}
             _ => self.call_write_complete(ret),
         };
 
@@ -511,7 +496,8 @@ where
             State::InitializingRest => {
                 // Better flip it once too many than go out of spec
                 // by stretching the flip period.
-                self.extcomin.toggle();
+                self.extcomin.set();
+                self.disp.set();
                 self.arm_alarm();
                 let new_state = self.frame_buffer.take().map_or_else(
                     || {
@@ -524,34 +510,18 @@ where
                     |mut buffer| {
                         buffer.initialize();
                         self.frame_buffer.replace(buffer);
-                        State::Idle(
-                            // The HIL doesn't specify the initial frame
-                            WriteFrame {
-                                row: 0,
-                                column: 0,
-                                width: 176,
-                                height: 176,
-                            },
-                        )
+                        State::Idle
                     },
                 );
 
                 self.state.set(new_state);
 
-                if let State::Idle(..) = new_state {
+                if let State::Idle = new_state {
                     self.client.map(|client| client.screen_is_ready());
                 }
             }
-            State::Idle(..) | State::Writing(..) => {
+            _ => {
                 self.extcomin.toggle();
-                self.arm_alarm();
-            }
-            other => {
-                debug!(
-                    "LPM013M126 driver got alarm in unexpected state {:?}",
-                    other
-                );
-                self.state.set(State::Bug);
             }
         };
     }
@@ -571,13 +541,32 @@ impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> SpiMasterClient for Lpm01
                 // for 2 reasons:
                 // 1. the upper limit of waiting is only specified for both,
                 // 2. and state flipping code is annoying and bug-friendly.
-                self.disp.set();
-                self.extcomin.set();
-                let delay = self.alarm.ticks_from_us(200);
+                let delay = self.alarm.ticks_from_us(150);
                 self.alarm.set_alarm(self.alarm.now(), delay);
                 State::InitializingRest
             }
-            State::Writing(frame) => State::Idle(frame),
+            State::AllClearing => {
+                if let Some(mut fb) = self.frame_buffer.take() {
+                    let buf = &mut fb.get_line_mut(0)[..2];
+                    buf.copy_from_slice(
+                        &CommandHeader {
+                            mode: Mode::Input1Bit,
+                            gate_line: 1,
+                        }
+                        .encode(),
+                    );
+                    let send_buf = fb.data;
+                    let _ = self.spi.read_write_bytes(send_buf, None);
+                }
+                State::Writing
+            }
+            State::Writing => {
+                if let Some(mut fb) = self.frame_buffer.take() {
+                    fb.initialize();
+                    self.frame_buffer.set(fb);
+                }
+                State::Idle
+            }
             // can't get more buggy than buggy
             other => {
                 debug!(
@@ -588,13 +577,15 @@ impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> SpiMasterClient for Lpm01
             }
         });
 
-        // Device frame buffer is now up to date, return pixel buffer to client.
-        self.client.map(|client| {
-            self.buffer.take().map(|buf| {
-                let data = SubSliceMut::new(buf);
-                client.write_complete(data, status.map(|_| ()))
-            })
-        });
+        if let State::Idle = self.state.get() {
+            // Device frame buffer is now up to date, return pixel buffer to client.
+            self.client.map(|client| {
+                self.buffer.take().map(|buf| {
+                    let data = SubSliceMut::new(buf);
+                    client.write_complete(data, status.map(|_| ()))
+                })
+            });
+        }
     }
 }
 
