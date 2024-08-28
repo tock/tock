@@ -480,6 +480,16 @@ impl<'a> Iom<'_> {
             for i in (data_popped / 4)..(len / 4) {
                 let data_idx = i * 4;
 
+                // The IOM doesn't correctly pop the data if we read it too fast
+                // there are a few erratas against the IOM when reading data
+                // from the FIFO (compared to DMA). Adding a small delay here is
+                // enough to ensure the fifoptr values update before the next
+                // iteration.
+                // See: https://ambiq.com/wp-content/uploads/2022/01/Apollo3-Blue-Errata-List.pdf
+                for _i in 0..3000 {
+                    cortexm4::support::nop();
+                }
+
                 if regs.fifoptr.read(FIFOPTR::FIFO1SIZ) < 4 {
                     self.read_index.set(data_popped);
                     break;
