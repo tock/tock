@@ -28,7 +28,7 @@
 //!     regions, the capsule uses the length to determine where the next region
 //!     header starts.
 //!  2. The capsule reads the header and performs a check to see if the region header
-//!     is valid. If it is valid, we move to step 3. If not, we move to step 4. 
+//!     is valid. If it is valid, we move to step 3. If not, we move to step 4.
 //!  3. If the capsule finds a valid region header, it tries to save the informaton of the region
 //!     to the grant of the app that has the same ShortID of the header it just read. It's
 //!     possible that the app previously owned a region but currently isn't running on the
@@ -84,7 +84,7 @@
 //!     ╞════════ ← Start of userspace region
 //!     ├──────── ← Start of App 1's region header
 //!     │ Region version number (8 bits) | Region length (24 bits) (Note that | inidcates bitwise concatenation)
-//!     │ App 1's ShortID (u32)  
+//!     │ App 1's ShortID (u32)
 //!     │ XOR of previous two u32 fields (u32)
 //!     ├──────── ← Start of App 1's Region          ═╗
 //!     │                                             ║
@@ -94,13 +94,13 @@
 //!     │
 //!     │                                             ║
 //!     │                                            ═╝
-//!     ├──────── ← Start of App 2's region header   
+//!     ├──────── ← Start of App 2's region header
 //!     │ Region version number (8 bits) | Region length (24 bits) (Note that | inidcates bitwise concatenation)
-//!     │ App 2's ShortID (u32)  
+//!     │ App 2's ShortID (u32)
 //!     │ XOR of previous two u32 fields (u32)
 //!     ├──────── ← Start of App 2's Region          ═╗
 //!     │                                             ║
-//!     │                                               
+//!     │
 //!     │
 //!     │                                            region 2
 //!     │                                            length
@@ -141,10 +141,10 @@ use core::cell::Cell;
 use core::cmp;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
+use kernel::hil;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::hil;
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
@@ -223,14 +223,13 @@ struct AppRegionHeader {
     xor: u32,
 }
 // Enough space to store the three u32 field of the header
-pub const REGION_HEADER_LEN: usize =
-    3 * core::mem::size_of::<u32>();
+pub const REGION_HEADER_LEN: usize = 3 * core::mem::size_of::<u32>();
 
 impl AppRegionHeader {
     fn new(version: HeaderVersion, shortid: u32, length: usize) -> Option<Self> {
         // check that length will fit in 3 bytes
         if length > (2 << 23) {
-            return None
+            return None;
         }
 
         let version_and_length = ((version.value() as u32) << 24) | length as u32;
@@ -257,10 +256,10 @@ impl AppRegionHeader {
         let xor_slice = bytes[8..12].try_into().ok()?;
         let xor = u32::from_le_bytes(xor_slice);
 
-        Some(AppRegionHeader{
+        Some(AppRegionHeader {
             version_and_length: version_and_length,
             shortid: shortid,
-            xor: xor
+            xor: xor,
         })
     }
 
@@ -271,7 +270,8 @@ impl AppRegionHeader {
         let version_and_length_slice = u32::to_le_bytes(self.version_and_length);
         let version_and_length_start_idx = 0;
         let version_and_length_end_idx = version_and_length_slice.len();
-        header_slice[version_and_length_start_idx..version_and_length_end_idx].copy_from_slice(&version_and_length_slice);
+        header_slice[version_and_length_start_idx..version_and_length_end_idx]
+            .copy_from_slice(&version_and_length_slice);
 
         // copy shortid
         let shortid_slice = u32::to_le_bytes(self.shortid);
@@ -293,11 +293,11 @@ impl AppRegionHeader {
     }
 
     fn version(&self) -> Option<HeaderVersion> {
-        // extract the 8 most significant bits from 
+        // extract the 8 most significant bits from
         // the concatenated version and length
-        match (self.version_and_length >> 24) as u8  {
-           HEADER_V1 => Some(HeaderVersion::V1),
-           _ => None
+        match (self.version_and_length >> 24) as u8 {
+            HEADER_V1 => Some(HeaderVersion::V1),
+            _ => None,
         }
     }
 
@@ -312,14 +312,18 @@ impl AppRegionHeader {
 pub const BUF_LEN: usize = 512;
 
 // Enough space for a buffer to be used for holding zeroes that are used
-// to 
+// to
 pub const REGION_ERASE_BUF_LEN: usize = 512;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum RegionState {
     ReadHeader(usize),
     WriteHeader(ProcessId, AppRegion),
-    EraseRegion{processid: ProcessId, next_erase_start: usize, remaining_bytes: usize},
+    EraseRegion {
+        processid: ProcessId,
+        next_erase_start: usize,
+        remaining_bytes: usize,
+    },
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -421,7 +425,7 @@ pub struct NonvolatileStorage<'a> {
 
     // static buffer to store zeroes to write to regions when
     // they need to be erased
-    region_erase_buffer: TakeCell<'static, [u8]>
+    region_erase_buffer: TakeCell<'static, [u8]>,
 }
 
 impl<'a> NonvolatileStorage<'a> {
@@ -460,7 +464,7 @@ impl<'a> NonvolatileStorage<'a> {
             app_region_size: app_region_size,
             header_buffer: TakeCell::new(header_buffer),
             next_unallocated_region_header_address: OptionalCell::empty(),
-            region_erase_buffer: TakeCell::new(region_erase_buffer)
+            region_erase_buffer: TakeCell::new(region_erase_buffer),
         }
     }
 
@@ -548,7 +552,8 @@ impl<'a> NonvolatileStorage<'a> {
                         return Err(ErrorCode::NOMEM);
                     }
 
-                    let Some(header) = AppRegionHeader::new(region.version, shortid, region.length) else {
+                    let Some(header) = AppRegionHeader::new(region.version, shortid, region.length)
+                    else {
                         return Err(ErrorCode::FAIL);
                     };
 
@@ -584,10 +589,7 @@ impl<'a> NonvolatileStorage<'a> {
         let header_slice = region_header.to_bytes();
 
         self.header_buffer.map_or(Err(ErrorCode::NOMEM), |buffer| {
-            for (i, c) in buffer
-                .iter_mut()
-                .enumerate()
-            {
+            for (i, c) in buffer.iter_mut().enumerate() {
                 *c = header_slice[i];
             }
 
@@ -602,14 +604,19 @@ impl<'a> NonvolatileStorage<'a> {
         )
     }
 
-    fn erase_region_content(&self, processid: ProcessId, region: AppRegion) -> Result<(), ErrorCode> {
-        self.region_erase_buffer.map_or(Err(ErrorCode::NOMEM), |buffer| {
-            // clear the erase buffer in case there was any nonzero value there
-            for c in buffer.iter_mut() {
-                *c = 0;
-            }
-            Ok(())
-        })?;
+    fn erase_region_content(
+        &self,
+        processid: ProcessId,
+        region: AppRegion,
+    ) -> Result<(), ErrorCode> {
+        self.region_erase_buffer
+            .map_or(Err(ErrorCode::NOMEM), |buffer| {
+                // clear the erase buffer in case there was any nonzero value there
+                for c in buffer.iter_mut() {
+                    *c = 0;
+                }
+                Ok(())
+            })?;
 
         self.enqueue_command(
             NonvolatileCommand::RegionErase(processid),
@@ -619,7 +626,12 @@ impl<'a> NonvolatileStorage<'a> {
         )
     }
 
-    fn region_erase_done(&self, processid: ProcessId, next_erase_start: usize, remaining_bytes: usize) -> Result<(), ErrorCode> {
+    fn region_erase_done(
+        &self,
+        processid: ProcessId,
+        next_erase_start: usize,
+        remaining_bytes: usize,
+    ) -> Result<(), ErrorCode> {
         if remaining_bytes > 0 {
             // we still have more to erase, so kick off another one
             self.enqueue_command(
@@ -630,14 +642,16 @@ impl<'a> NonvolatileStorage<'a> {
             )
         } else {
             // done erasing entire region
-            self.apps.enter(processid, |_app, kernel_data| {
-                // region is erased and we're ready to let the app
-                // know that it's region is ready
-                kernel_data
-                    .schedule_upcall(upcall::INIT_DONE, (0, 0, 0))
-                    .ok();
-                Ok::<(), ErrorCode>(())
-            }).unwrap_or_else(|err| Err(err.into()))?;
+            self.apps
+                .enter(processid, |_app, kernel_data| {
+                    // region is erased and we're ready to let the app
+                    // know that it's region is ready
+                    kernel_data
+                        .schedule_upcall(upcall::INIT_DONE, (0, 0, 0))
+                        .ok();
+                    Ok::<(), ErrorCode>(())
+                })
+                .unwrap_or_else(|err| Err(err.into()))?;
 
             // check for apps that haven't had regions allocated
             // for them after requesting one
@@ -651,7 +665,7 @@ impl<'a> NonvolatileStorage<'a> {
     fn header_read_done(&self, region_header_address: usize) -> Result<(), ErrorCode> {
         // reconstruct header from bytes we just read
         let header = self.header_buffer.map_or(Err(ErrorCode::NOMEM), |buffer| {
-            let header_buffer = buffer.try_into().or(Err(ErrorCode::FAIL))?; 
+            let header_buffer = buffer.try_into().or(Err(ErrorCode::FAIL))?;
             AppRegionHeader::from_bytes(header_buffer).ok_or(ErrorCode::FAIL)
         })?;
 
@@ -696,10 +710,10 @@ impl<'a> NonvolatileStorage<'a> {
                 }
             }
 
-            let next_header_address = region_header_address + REGION_HEADER_LEN + header.length() as usize;
+            let next_header_address =
+                region_header_address + REGION_HEADER_LEN + header.length() as usize;
             self.read_region_header(next_header_address)
-        }
-        else {
+        } else {
             // save this region header address so that we can allocate new regions
             // here later
             self.next_unallocated_region_header_address
@@ -725,8 +739,7 @@ impl<'a> NonvolatileStorage<'a> {
                     .get()
                     .ok_or(ErrorCode::FAIL)?;
 
-                let next_header_addr =
-                    curr_header_addr + REGION_HEADER_LEN + self.app_region_size;
+                let next_header_addr = curr_header_addr + REGION_HEADER_LEN + self.app_region_size;
 
                 self.next_unallocated_region_header_address
                     .set(next_header_addr);
@@ -845,7 +858,9 @@ impl<'a> NonvolatileStorage<'a> {
                 self.check_userspace_access(offset, length, processid)?;
                 self.check_userspace_perms(processid, command)?;
             }
-            NonvolatileCommand::HeaderRead(_) | NonvolatileCommand::HeaderWrite(_, _) | NonvolatileCommand::RegionErase(_) => {
+            NonvolatileCommand::HeaderRead(_)
+            | NonvolatileCommand::HeaderWrite(_, _)
+            | NonvolatileCommand::RegionErase(_) => {
                 self.check_header_access(offset, length)?;
             }
             NonvolatileCommand::KernelRead | NonvolatileCommand::KernelWrite => {
@@ -991,11 +1006,11 @@ impl<'a> NonvolatileStorage<'a> {
                                     self.current_user.set(NonvolatileUser::RegionManager(
                                         // need to pass on where the next erase should start
                                         // how long it should be.
-                                        RegionState::EraseRegion{
+                                        RegionState::EraseRegion {
                                             processid: processid,
                                             next_erase_start: offset + active_len,
-                                            remaining_bytes: remaining_len
-                                       },
+                                            remaining_bytes: remaining_len,
+                                        },
                                     ));
                                     self.driver.write(buffer, offset, active_len)
                                 }
@@ -1190,16 +1205,23 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient for NonvolatileStorage<'
                             if write_res.is_err() {
                                 let _ = self.apps.enter(processid, |_, kernel_data| {
                                     kernel_data
-                                        .schedule_upcall(upcall::INIT_DONE, (kernel::errorcode::into_statuscode(write_res), 0, 0))
+                                        .schedule_upcall(
+                                            upcall::INIT_DONE,
+                                            (kernel::errorcode::into_statuscode(write_res), 0, 0),
+                                        )
                                         .ok();
                                 });
                             }
                             write_res
-                        },
-                        RegionState::EraseRegion { processid, next_erase_start, remaining_bytes } => {
+                        }
+                        RegionState::EraseRegion {
+                            processid,
+                            next_erase_start,
+                            remaining_bytes,
+                        } => {
                             self.region_erase_buffer.replace(buffer);
                             self.region_erase_done(processid, next_erase_start, remaining_bytes)
-                        },
+                        }
                         _ => Err(ErrorCode::FAIL),
                     };
                 }
