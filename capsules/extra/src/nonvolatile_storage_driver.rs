@@ -293,9 +293,9 @@ impl AppRegionHeader {
     }
 
     fn version(&self) -> Option<HeaderVersion> {
-        // need to do this since we can't pattern match 
+        // need to do this since we can't pattern match
         // against a method call
-        const HEADER_V1 : u8 = HeaderVersion::V1.value();
+        const HEADER_V1: u8 = HeaderVersion::V1.value();
 
         // extract the 8 most significant bits from
         // the concatenated version and length
