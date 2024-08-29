@@ -63,7 +63,14 @@ fn main() {
 /// Track the given linker script and all of its `INCLUDE`s so that the build
 /// is rerun when any of them change.
 fn track_linker_script<P: AsRef<Path>>(path: P) {
-    let path = path.as_ref();
+    track_linker_script_inner(
+        path.as_ref().to_path_buf(),
+        std::env::current_dir().unwrap(),
+    )
+}
+fn track_linker_script_inner(linker_script: std::path::PathBuf, directory: std::path::PathBuf) {
+    let path = std::path::absolute(directory.join(linker_script)).unwrap();
+    let parent_buf = path.parent().unwrap().to_path_buf();
 
     assert!(path.is_file(), "expected path {path:?} to be a file");
 
@@ -77,6 +84,6 @@ fn track_linker_script<P: AsRef<Path>>(path: P) {
 
     // Recursively track included linker scripts.
     for include in includes {
-        track_linker_script(include);
+        track_linker_script_inner(include.into(), parent_buf.clone());
     }
 }
