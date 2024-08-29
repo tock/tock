@@ -186,7 +186,7 @@ enum HeaderVersion {
 }
 
 impl HeaderVersion {
-    fn value(&self) -> u8 {
+    const fn value(&self) -> u8 {
         match self {
             HeaderVersion::V1 => 0x01,
         }
@@ -293,6 +293,10 @@ impl AppRegionHeader {
     }
 
     fn version(&self) -> Option<HeaderVersion> {
+        // need to do this since we can't pattern match 
+        // against a method call
+        const HEADER_V1 : u8 = HeaderVersion::V1.value();
+
         // extract the 8 most significant bits from
         // the concatenated version and length
         match (self.version_and_length >> 24) as u8 {
