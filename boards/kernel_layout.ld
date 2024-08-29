@@ -222,41 +222,6 @@ SECTIONS
     } > ccfg
 
 
-    /* Section for application binaries in flash.
-     *
-     * This section is put into the "prog" memory, which is reserved for
-     * applications. This section is not used for the kernel, but including it
-     * in the .elf file allows for concatenating application binaries with the
-     * kernel.
-     */
-    .apps :
-    {
-        /* _sapps symbol used by Tock to look for first application. */
-        . = ALIGN(4);
-        _sapps = .;
-
-        /* Include placeholder bytes in this section so that the linker
-         * includes a segment for it. Otherwise the section will be empty and
-         * the linker will ignore it when defining the segments.
-         * If less then 4 bytes, some linkers set this section to size 0
-         * and openocd fails to write it.
-         *
-         * An issue has been submitted https://github.com/raspberrypi/openocd/issues/25
-         */
-        BYTE(0xFF)
-        BYTE(0xFF)
-        BYTE(0xFF)
-        BYTE(0xFF)
-    } > prog
-    /* _eapps symbol used by tock to calculate the length of app flash */
-    _eapps = _sapps + LENGTH(prog);
-
-
-
-
-
-
-
     /* Kernel data that must be relocated. This is program data that is
      * expected to live in SRAM, but is initialized with a value. This data is
      * physically placed into flash and is copied into SRAM by Tock. The
@@ -395,6 +360,11 @@ SECTIONS
       *(.eh_frame*);
     }
 }
+
+/* _sapps symbol used by Tock to look for first application. */
+_sapps = ALIGN(ORIGIN(prog), 4);
+/* _eapps symbol used by tock to calculate the length of app flash */
+_eapps = ORIGIN(prog) + LENGTH(prog);
 
 /* LOADADDR: Return the absolute load address of the named section. This is
  * normally the same as ADDR, but it may be different if the AT keyword is used
