@@ -144,14 +144,11 @@ use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::{debug, hil};
+use kernel::hil;
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
 use capsules_core::driver;
-
-/// enable/disable debug prints
-const DEBUG: bool = false;
 
 pub const DRIVER_NUM: usize = driver::NUM::NvmStorage as usize;
 
@@ -573,12 +570,6 @@ impl<'a> NonvolatileStorage<'a> {
     // Read the header of an app's storage region. The region_header_address argument
     // describes the start of the **header** and not the usable region itself.
     fn read_region_header(&self, region_header_address: usize) -> Result<(), ErrorCode> {
-        if DEBUG {
-            debug!(
-                "[NONVOLATILE_STORAGE_DRIVER]: Reading region header from {:#x}",
-                region_header_address
-            );
-        }
         self.enqueue_command(
             NonvolatileCommand::HeaderRead(region_header_address),
             region_header_address,
@@ -594,13 +585,6 @@ impl<'a> NonvolatileStorage<'a> {
         region_header: &AppRegionHeader,
         region_header_address: usize,
     ) -> Result<(), ErrorCode> {
-        if DEBUG {
-            debug!(
-                "[NONVOLATILE_STORAGE_DRIVER]: Writing region header to {:#x}. Header: {:#x?}",
-                region_header_address, region_header
-            );
-        }
-
         let header_slice = region_header.to_bytes();
 
         self.header_buffer.map_or(Err(ErrorCode::NOMEM), |buffer| {
@@ -623,12 +607,6 @@ impl<'a> NonvolatileStorage<'a> {
     }
 
     fn erase_region_content(&self, processid: ProcessId, region: AppRegion) -> Result<(), ErrorCode> {
-        if DEBUG {
-            debug!(
-                "[NONVOLATILE_STORAGE_DRIVER]: Erasing content of region with header starting at {:#x}",
-               region.offset 
-            );
-        }
         self.region_erase_buffer.map_or(Err(ErrorCode::NOMEM), |buffer| {
             // clear the erase buffer in case there was any nonzero value there
             for c in buffer.iter_mut() {
@@ -684,9 +662,6 @@ impl<'a> NonvolatileStorage<'a> {
         // If a header is invalid, we've reached the end
         // of all previously allocated regions.
         if header.is_valid() {
-            if DEBUG {
-                debug!("[NONVOLATILE_STORAGE_DRIVER]: Found a valid header at {:#x}. Header: {:#x?}", region_header_address, header);
-            }
             // Find the app with the corresponding shortid.
             for app in self.apps.iter() {
                 // skip an app if it doesn't have the proper storage permissions
@@ -729,35 +704,6 @@ impl<'a> NonvolatileStorage<'a> {
             self.read_region_header(next_header_address)
         }
         else {
-            if DEBUG {
-                debug!("[NONVOLATILE_STORAGE_DRIVER]: Read invalid region header. Stopping region traversal. {:#x}", region_header_address);
-
-                for app in self.apps.iter() {
-                    match app.processid().get_storage_permissions() {
-                        Some(perms) => match perms.get_write_id() {
-                            Some(write_id) => debug!(
-                                "[NONVOLATILE_STORAGE_DRIVER]: App shortid: {:#x}",
-                                write_id
-                            ),
-                            None => {
-                                debug!("[NONVOLATILE_STORAGE_DRIVER]: App missing write_id")
-                            }
-                        },
-                        None => {
-                            debug!("[NONVOLATILE_STORAGE_DRIVER]: App missing storage perms")
-                        }
-                    };
-
-                    app.enter(|app, _kernel_data| match app.region {
-                        Some(region) => debug!(
-                            "\tStorage region:\n\toffset: {:#x}\n\tlength: {:#x}",
-                            region.offset, region.length
-                        ),
-                        None => debug!("\tNo region assigned"),
-                    });
-                }
-            }
-
             // save this region header address so that we can allocate new regions
             // here later
             self.next_unallocated_region_header_address
@@ -1197,9 +1143,6 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient for NonvolatileStorage<'
                         RegionState::ReadHeader(action) => self.header_read_done(action),
                         _ => Err(ErrorCode::FAIL),
                     };
-                    if DEBUG {
-                        debug!("[NONVOLATILE_STORAGE_DRIVER]: Header read operation ({:#x?}) finished with {:?}", state, res);
-                    }
                 }
                 NonvolatileUser::App { processid } => {
                     let _ = self.apps.enter(processid, move |_, kernel_data| {
@@ -1263,9 +1206,6 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient for NonvolatileStorage<'
                         },
                         _ => Err(ErrorCode::FAIL),
                     };
-                    if DEBUG {
-                        debug!("[NONVOLATILE_STORAGE_DRIVER]: Header write operation ({:#x?}) finished with {:?}", state, res);
-                    }
                 }
                 NonvolatileUser::App { processid } => {
                     let _ = self.apps.enter(processid, move |_app, kernel_data| {
