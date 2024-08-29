@@ -1,3 +1,4 @@
+// VTOCK-TODO: how to do defs without breaking compilation
 use tock_registers::fields::{Field, FieldValue};
 use tock_registers::interfaces::{Readable, Writeable};
 use tock_registers::registers::ReadWrite;
@@ -6,6 +7,12 @@ pub use tock_registers::fields::TryFromValue;
 pub use tock_registers::debug;
 use core::ops::{Add,AddAssign};
 
+flux_rs::defs!{
+    fn bv32(x:int) -> bitvec<32> { bv_int_to_bv32(x) }
+}
+
+
+// VTOCK_TODO: simplify specs with some helper funcs
 
 #[flux_rs::opaque]
 #[flux_rs::refined_by(mask: bitvec<32>, shift: bitvec<32>)]
@@ -16,8 +23,8 @@ pub struct FieldU32<R: RegisterLongName> {
 #[allow(dead_code)]
 impl<R: RegisterLongName> FieldU32<R> {
     #[flux_rs::trusted]
-    #[flux_rs::sig(fn(mask: u32, shift: usize) -> FieldU32<R>[bv_int_to_bv32(mask), bv_int_to_bv32(shift)])]
-    pub const fn new(mask: u32, shift: usize) -> FieldU32<R> {
+    #[flux_rs::sig(fn(mask: u32, shift: usize) -> Self[bv32(mask), bv32(shift)])]
+    pub const fn new(mask: u32, shift: usize) -> Self {
         Self {
             inner: Field::new(mask, shift),
         }
@@ -28,7 +35,7 @@ impl<R: RegisterLongName> FieldU32<R> {
         value: (value & mask) << shift,
     */
     #[flux_rs::trusted]
-    #[flux_rs::sig(fn(&FieldU32<R>[@mask, @shift], value: u32) -> FieldValueU32<R>[bv_shl(mask, shift), bv_shl(bv_and(bv_int_to_bv32(value), mask), shift)])]
+    #[flux_rs::sig(fn(&Self[@mask, @shift], value: u32) -> FieldValueU32<R>[bv_shl(mask, shift), bv_shl(bv_and(bv32(value), mask), shift)])]
     pub fn val(&self, value: u32) -> FieldValueU32<R> {
         FieldValueU32 {
             inner: FieldValue::<u32, R>::new(self.inner.mask, self.inner.shift, value),
@@ -46,14 +53,32 @@ pub struct FieldValueU32<R: RegisterLongName> {
 
 impl<R: RegisterLongName> FieldValueU32<R> {
     #[flux_rs::trusted]
+    // mask << shift, value << shift
+    #[flux_rs::sig(fn(u32[@mask], usize[@shift], u32[@value]) -> Self[bv_shl(bv32(mask), bv32(shift)), bv_shl(bv32(value), bv32(shift))])]
     pub const fn new(mask: u32, shift: usize, value: u32) -> Self {
         FieldValueU32 {inner: FieldValue::<u32, R>::new(mask, shift, value) }
     }
 
     #[inline]
     #[flux_rs::trusted]
+    // (val & (mask << shift)) >> shift
+    #[flux_rs::sig(fn(&Self[@mask, @val], FieldU32<R>[@_mask2, @shift]) -> u32[bv_bv32_to_int(bv_lshr(bv_and(val, bv_shl(mask, shift)), shift))])]
     pub fn read(&self, field: FieldU32<R>) -> u32 {
         field.inner.read(self.inner.value)
+    }
+
+    #[inline]
+    #[flux_rs::trusted]
+    #[flux_rs::sig(fn(self: &Self[@mask, @_value]) -> u32[bv_bv32_to_int(mask)])]
+    pub fn mask(&self) -> u32 {
+        self.inner.mask
+    }
+
+    #[inline]
+    #[flux_rs::trusted]
+    #[flux_rs::sig(fn(self: &Self[@_mask, @value]) -> u32[bv_bv32_to_int(value)])]
+    pub fn value(&self) -> u32 {
+        self.inner.value
     }
 }
 
@@ -63,7 +88,7 @@ impl<R: RegisterLongName> Add for FieldValueU32<R> {
 
     #[inline]
     #[flux_rs::trusted]
-    #[flux_rs::sig(fn(FieldValueU32<R>[@mask0, @value0], FieldValueU32<R>[@mask1, @value1]) -> FieldValueU32<R>[bv_or(mask0, mask1), bv_or(value0, value1)])]
+    #[flux_rs::sig(fn(Self[@mask0, @value0], Self[@mask1, @value1]) -> FieldValueU32<R>[bv_or(mask0, mask1), bv_or(value0, value1)])]
     fn add(self, rhs: Self) -> Self {
         FieldValueU32 {
             inner: FieldValue::<u32, R>::new(
@@ -78,6 +103,7 @@ impl<R: RegisterLongName> Add for FieldValueU32<R> {
 
 impl<R: RegisterLongName> AddAssign for FieldValueU32<R> {
     #[flux_rs::trusted]
+    #[flux_rs::sig(fn(self: &strg Self[@mask0, @value0], Self[@mask1, @value1]) ensures self: Self[bv_or(mask0, mask1), bv_or(value0, value1)])]
     fn add_assign(&mut self, other: Self) {
         self.inner += other.inner;
     }
@@ -97,20 +123,20 @@ impl<R: RegisterLongName> ReadWriteU32<R> {
     }
 
     #[flux_rs::trusted]
-    #[flux_rs::sig(fn(&ReadWriteU32<R>[@n]) -> u32[bv_bv32_to_int(n)])]
+    #[flux_rs::sig(fn(&Self[@n]) -> u32[bv_bv32_to_int(n)])]
     pub fn get(&self) -> u32 {
         self.inner.get()
     }
 
     #[flux_rs::trusted]
-    #[flux_rs::sig(fn(reg: &strg ReadWriteU32<R>, u32[@n]) ensures reg: ReadWriteU32<R>[bv_int_to_bv32(n)])]
+    #[flux_rs::sig(fn(self: &strg Self, u32[@n]) ensures self: Self[bv32(n)])]
     pub fn set(&mut self, value: u32) {
         self.inner.set(value)
     }
 
     //(val & (self.mask << self.shift)) >> self.shift
     #[flux_rs::trusted]
-    #[flux_rs::sig(fn(&ReadWriteU32<R>[@n], FieldU32<R>[@mask, @shift]) -> u32[ bv_bv32_to_int(bv_lshr(bv_and(n, bv_shl(mask, shift)), shift))])]
+    #[flux_rs::sig(fn(&Self[@n], FieldU32<R>[@mask, @shift]) -> u32[ bv_bv32_to_int(bv_lshr(bv_and(n, bv_shl(mask, shift)), shift))])]
     pub fn read(&self, field: FieldU32<R>) -> u32 {
         self.inner.read(field.inner)
     }
