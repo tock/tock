@@ -9,4 +9,4 @@ MEMORY
   prog (rx) : ORIGIN = 0x403B0000, LENGTH = 0x30000
 }
 
-INCLUDE ../kernel_layout.ld
+INCLUDE ../kernel_layout_apps.ld

@@ -26,7 +26,7 @@ SECTIONS {
     {
         KEEP (*(.flash_bootloader));
         . = ALIGN (256);
-    } > rom 
+    } > rom
 }
 
-INCLUDE ../kernel_layout.ld
+INCLUDE ../kernel_layout_apps.ld
