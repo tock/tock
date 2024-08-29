@@ -545,7 +545,7 @@ impl<'a> NonvolatileStorage<'a> {
                         || region.offset + region.length
                             > self.userspace_start_address + self.userspace_length
                     {
-                        return Err(ErrorCode::FAIL);
+                        return Err(ErrorCode::NOMEM);
                     }
 
                     let Some(header) = AppRegionHeader::new(region.version, shortid, region.length) else {
