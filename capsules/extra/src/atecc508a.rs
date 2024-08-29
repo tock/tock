@@ -279,7 +279,7 @@ impl<'a> Atecc508a<'a> {
         self.buffer.take().map(|buffer| {
             buffer[ATRCC508A_PROTOCOL_FIELD_COMMAND] = WORD_ADDRESS_VALUE_IDLE;
 
-            self.i2c.write(buffer, 1).unwrap();
+            let _ = self.i2c.write(buffer, 1);
         });
     }
 
@@ -289,7 +289,7 @@ impl<'a> Atecc508a<'a> {
 
             buffer[ATRCC508A_PROTOCOL_FIELD_COMMAND] = WORD_ADDRESS_VALUE_RESET;
 
-            self.i2c.write(buffer, 1).unwrap();
+            let _ = self.i2c.write(buffer, 1);
         });
     }
 
@@ -315,7 +315,7 @@ impl<'a> Atecc508a<'a> {
             buffer[i2c_length - ATRCC508A_PROTOCOL_FIELD_SIZE_CRC] = (crc & 0xFF) as u8;
             buffer[i2c_length - ATRCC508A_PROTOCOL_FIELD_SIZE_CRC + 1] = ((crc >> 8) & 0xFF) as u8;
 
-            self.i2c.write(buffer, i2c_length).unwrap();
+            let _ = self.i2c.write(buffer, i2c_length);
         });
     }
 
@@ -536,9 +536,9 @@ impl<'a> I2CClient for Atecc508a<'a> {
             Operation::ReadConfigZeroCommand => {
                 self.op.set(Operation::ReadConfigZeroResult(0));
 
-                self.i2c
-                    .read(buffer, self.op_len.get() + RESPONSE_COUNT_SIZE + CRC_SIZE)
-                    .unwrap();
+                let _ = self
+                    .i2c
+                    .read(buffer, self.op_len.get() + RESPONSE_COUNT_SIZE + CRC_SIZE);
             }
             Operation::ReadConfigZeroResult(run) => {
                 if status == Err(i2c::Error::DataNak) || status == Err(i2c::Error::AddressNak) {
@@ -549,9 +549,9 @@ impl<'a> I2CClient for Atecc508a<'a> {
 
                     self.op.set(Operation::ReadConfigZeroResult(run + 1));
 
-                    self.i2c
-                        .read(buffer, self.op_len.get() + RESPONSE_COUNT_SIZE + CRC_SIZE)
-                        .unwrap();
+                    let _ = self
+                        .i2c
+                        .read(buffer, self.op_len.get() + RESPONSE_COUNT_SIZE + CRC_SIZE);
 
                     return;
                 }
@@ -569,19 +569,18 @@ impl<'a> I2CClient for Atecc508a<'a> {
 
                 self.buffer.replace(buffer);
 
-                self.read(
+                let _ = self.read(
                     ZONE_CONFIG,
                     ADDRESS_CONFIG_READ_BLOCK_2,
                     CONFIG_ZONE_READ_SIZE,
-                )
-                .unwrap();
+                );
             }
             Operation::ReadConfigTwoCommand => {
                 self.op.set(Operation::ReadConfigTwoResult(0));
 
-                self.i2c
-                    .read(buffer, self.op_len.get() + RESPONSE_COUNT_SIZE + CRC_SIZE)
-                    .unwrap();
+                let _ = self
+                    .i2c
+                    .read(buffer, self.op_len.get() + RESPONSE_COUNT_SIZE + CRC_SIZE);
             }
             Operation::ReadConfigTwoResult(run) => {
                 if status == Err(i2c::Error::DataNak) || status == Err(i2c::Error::AddressNak) {
@@ -592,9 +591,9 @@ impl<'a> I2CClient for Atecc508a<'a> {
 
                     self.op.set(Operation::ReadConfigTwoResult(run + 1));
 
-                    self.i2c
-                        .read(buffer, self.op_len.get() + RESPONSE_COUNT_SIZE + CRC_SIZE)
-                        .unwrap();
+                    let _ = self
+                        .i2c
+                        .read(buffer, self.op_len.get() + RESPONSE_COUNT_SIZE + CRC_SIZE);
 
                     return;
                 }
@@ -655,12 +654,10 @@ impl<'a> I2CClient for Atecc508a<'a> {
 
                 self.op.set(Operation::GenerateEntropyResult(0));
 
-                self.i2c
-                    .read(
-                        buffer,
-                        RESPONSE_COUNT_SIZE + RESPONSE_RANDOM_SIZE + CRC_SIZE,
-                    )
-                    .unwrap();
+                let _ = self.i2c.read(
+                    buffer,
+                    RESPONSE_COUNT_SIZE + RESPONSE_RANDOM_SIZE + CRC_SIZE,
+                );
             }
             Operation::GenerateEntropyResult(run) => {
                 if status == Err(i2c::Error::DataNak) || status == Err(i2c::Error::AddressNak) {
@@ -679,12 +676,10 @@ impl<'a> I2CClient for Atecc508a<'a> {
 
                     self.op.set(Operation::GenerateEntropyResult(run + 1));
 
-                    self.i2c
-                        .read(
-                            buffer,
-                            RESPONSE_COUNT_SIZE + RESPONSE_RANDOM_SIZE + CRC_SIZE,
-                        )
-                        .unwrap();
+                    let _ = self.i2c.read(
+                        buffer,
+                        RESPONSE_COUNT_SIZE + RESPONSE_RANDOM_SIZE + CRC_SIZE,
+                    );
 
                     return;
                 }
@@ -726,7 +721,7 @@ impl<'a> I2CClient for Atecc508a<'a> {
                     self.buffer.replace(buffer);
                 });
 
-                self.write(ZONE_CONFIG, 20 / 4, 4).unwrap();
+                let _ = self.write(ZONE_CONFIG, 20 / 4, 4);
             }
             Operation::SetupConfigTwo(run) => {
                 self.buffer.replace(buffer);
@@ -739,7 +734,7 @@ impl<'a> I2CClient for Atecc508a<'a> {
                     }
 
                     self.op.set(Operation::SetupConfigTwo(run + 1));
-                    self.write(ZONE_CONFIG, 20 / 4, 4).unwrap();
+                    let _ = self.write(ZONE_CONFIG, 20 / 4, 4);
                     return;
                 }
 
@@ -762,12 +757,10 @@ impl<'a> I2CClient for Atecc508a<'a> {
 
                 self.op.set(Operation::LockResponse(0));
 
-                self.i2c
-                    .read(
-                        buffer,
-                        RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE,
-                    )
-                    .unwrap();
+                let _ = self.i2c.read(
+                    buffer,
+                    RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE,
+                );
             }
             Operation::LockResponse(run) => {
                 if status == Err(i2c::Error::DataNak) || status == Err(i2c::Error::AddressNak) {
@@ -779,12 +772,10 @@ impl<'a> I2CClient for Atecc508a<'a> {
                     }
 
                     self.op.set(Operation::LockResponse(run + 1));
-                    self.i2c
-                        .read(
-                            buffer,
-                            RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE,
-                        )
-                        .unwrap();
+                    let _ = self.i2c.read(
+                        buffer,
+                        RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE,
+                    );
                     return;
                 }
 
@@ -815,9 +806,9 @@ impl<'a> I2CClient for Atecc508a<'a> {
 
                 self.op.set(Operation::ReadKeyPair(0));
 
-                self.i2c
-                    .read(buffer, RESPONSE_COUNT_SIZE + PUBLIC_KEY_SIZE + CRC_SIZE)
-                    .unwrap();
+                let _ = self
+                    .i2c
+                    .read(buffer, RESPONSE_COUNT_SIZE + PUBLIC_KEY_SIZE + CRC_SIZE);
             }
             Operation::ReadKeyPair(run) => {
                 if status == Err(i2c::Error::DataNak) || status == Err(i2c::Error::AddressNak) {
@@ -830,9 +821,9 @@ impl<'a> I2CClient for Atecc508a<'a> {
                     }
 
                     self.op.set(Operation::ReadKeyPair(run + 1));
-                    self.i2c
-                        .read(buffer, RESPONSE_COUNT_SIZE + PUBLIC_KEY_SIZE + CRC_SIZE)
-                        .unwrap();
+                    let _ = self
+                        .i2c
+                        .read(buffer, RESPONSE_COUNT_SIZE + PUBLIC_KEY_SIZE + CRC_SIZE);
                     return;
                 }
 
@@ -863,12 +854,10 @@ impl<'a> I2CClient for Atecc508a<'a> {
 
                 self.op.set(Operation::LockResponse(0));
 
-                self.i2c
-                    .read(
-                        buffer,
-                        RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE,
-                    )
-                    .unwrap();
+                let _ = self.i2c.read(
+                    buffer,
+                    RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE,
+                );
             }
             Operation::LockSlot0(run) => {
                 if status == Err(i2c::Error::DataNak) || status == Err(i2c::Error::AddressNak) {
@@ -887,12 +876,10 @@ impl<'a> I2CClient for Atecc508a<'a> {
 
                 self.op.set(Operation::LockResponse(0));
 
-                self.i2c
-                    .read(
-                        buffer,
-                        RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE,
-                    )
-                    .unwrap();
+                let _ = self.i2c.read(
+                    buffer,
+                    RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE,
+                );
             }
             Operation::StartSha(run) => {
                 if status == Err(i2c::Error::DataNak) || status == Err(i2c::Error::AddressNak) {
@@ -911,12 +898,10 @@ impl<'a> I2CClient for Atecc508a<'a> {
 
                 self.op.set(Operation::ShaLoad(0));
 
-                self.i2c
-                    .read(
-                        buffer,
-                        RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE,
-                    )
-                    .unwrap();
+                let _ = self.i2c.read(
+                    buffer,
+                    RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE,
+                );
             }
             Operation::ShaLoad(run) => {
                 if status == Err(i2c::Error::DataNak) || status == Err(i2c::Error::AddressNak) {
@@ -927,12 +912,10 @@ impl<'a> I2CClient for Atecc508a<'a> {
                     }
 
                     self.op.set(Operation::ShaLoad(run + 1));
-                    self.i2c
-                        .read(
-                            buffer,
-                            RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE,
-                        )
-                        .unwrap();
+                    let _ = self.i2c.read(
+                        buffer,
+                        RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE,
+                    );
                     return;
                 }
 
@@ -957,12 +940,10 @@ impl<'a> I2CClient for Atecc508a<'a> {
                 }
 
                 self.op.set(Operation::ShaLoad(0));
-                self.i2c
-                    .read(
-                        buffer,
-                        RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE,
-                    )
-                    .unwrap();
+                let _ = self.i2c.read(
+                    buffer,
+                    RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE,
+                );
             }
             Operation::ShaRun(run) => {
                 if status == Err(i2c::Error::DataNak) || status == Err(i2c::Error::AddressNak) {
@@ -987,9 +968,9 @@ impl<'a> I2CClient for Atecc508a<'a> {
                 self.op.set(Operation::ShaEnd(0));
                 self.remain_len.set(0);
 
-                self.i2c
-                    .read(buffer, RESPONSE_COUNT_SIZE + RESPONSE_SHA_SIZE + CRC_SIZE)
-                    .unwrap();
+                let _ = self
+                    .i2c
+                    .read(buffer, RESPONSE_COUNT_SIZE + RESPONSE_SHA_SIZE + CRC_SIZE);
             }
             Operation::ShaEnd(run) => {
                 if status == Err(i2c::Error::DataNak) || status == Err(i2c::Error::AddressNak) {
@@ -1000,9 +981,9 @@ impl<'a> I2CClient for Atecc508a<'a> {
                     }
 
                     self.op.set(Operation::ShaEnd(run + 1));
-                    self.i2c
-                        .read(buffer, RESPONSE_COUNT_SIZE + RESPONSE_SHA_SIZE + CRC_SIZE)
-                        .unwrap();
+                    let _ = self
+                        .i2c
+                        .read(buffer, RESPONSE_COUNT_SIZE + RESPONSE_SHA_SIZE + CRC_SIZE);
                     return;
                 }
 
