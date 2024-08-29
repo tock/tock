@@ -180,10 +180,6 @@ mod rw_allow {
     pub const COUNT: u8 = 1;
 }
 
-// Constants to distinguish what version of this capsule
-// a given header was created with.
-const HEADER_V1: u8 = 0x01;
-
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum HeaderVersion {
     V1,
@@ -192,7 +188,7 @@ enum HeaderVersion {
 impl HeaderVersion {
     fn value(&self) -> u8 {
         match self {
-            HeaderVersion::V1 => HEADER_V1,
+            HeaderVersion::V1 => 0x01,
         }
     }
 }
