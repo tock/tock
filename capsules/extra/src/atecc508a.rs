@@ -254,7 +254,7 @@ impl<'a> Atecc508a<'a> {
 
         self.op_len.set(length);
 
-        self.send_command(COMMAND_OPCODE_READ, zone_calc, address, 0)?;
+        self.send_command(COMMAND_OPCODE_READ, zone_calc, address, 0);
 
         Ok(())
     }
@@ -270,7 +270,7 @@ impl<'a> Atecc508a<'a> {
 
         self.op_len.set(length);
 
-        self.send_command(COMMAND_OPCODE_WRITE, zone_calc, address, length)?;
+        self.send_command(COMMAND_OPCODE_WRITE, zone_calc, address, length);
 
         Ok(())
     }
@@ -293,13 +293,7 @@ impl<'a> Atecc508a<'a> {
         });
     }
 
-    fn send_command(
-        &self,
-        command_opcode: u8,
-        param1: u8,
-        param2: u16,
-        length: usize,
-    ) -> Result<(), ErrorCode> {
+    fn send_command(&self, command_opcode: u8, param1: u8, param2: u16, length: usize) {
         let i2c_length = length + ATRCC508A_PROTOCOL_OVERHEAD;
 
         self.buffer.take().map(|buffer| {
@@ -323,8 +317,6 @@ impl<'a> Atecc508a<'a> {
 
             self.i2c.write(buffer, i2c_length).unwrap();
         });
-
-        Ok(())
     }
 
     /// Read information from the configuration zone and print it
@@ -400,7 +392,7 @@ impl<'a> Atecc508a<'a> {
     pub fn lock_zone_config(&self) -> Result<(), ErrorCode> {
         self.op.set(Operation::LockZoneConfig(0));
 
-        self.send_command(COMMAND_OPCODE_LOCK, LOCK_MODE_ZONE_CONFIG, 0x0000, 0)?;
+        self.send_command(COMMAND_OPCODE_LOCK, LOCK_MODE_ZONE_CONFIG, 0x0000, 0);
 
         Ok(())
     }
@@ -411,7 +403,7 @@ impl<'a> Atecc508a<'a> {
 
         (self.wakeup_device)();
 
-        self.send_command(COMMAND_OPCODE_GENKEY, GENKEY_MODE_NEW_PRIVATE, slot, 0)?;
+        self.send_command(COMMAND_OPCODE_GENKEY, GENKEY_MODE_NEW_PRIVATE, slot, 0);
 
         Ok(())
     }
@@ -436,7 +428,7 @@ impl<'a> Atecc508a<'a> {
 
         (self.wakeup_device)();
 
-        self.send_command(COMMAND_OPCODE_LOCK, LOCK_MODE_ZONE_DATA_AND_OTP, 0x0000, 0)?;
+        self.send_command(COMMAND_OPCODE_LOCK, LOCK_MODE_ZONE_DATA_AND_OTP, 0x0000, 0);
 
         Ok(())
     }
@@ -447,7 +439,7 @@ impl<'a> Atecc508a<'a> {
 
         (self.wakeup_device)();
 
-        self.send_command(COMMAND_OPCODE_LOCK, LOCK_MODE_SLOT0, 0x0000, 0)?;
+        self.send_command(COMMAND_OPCODE_LOCK, LOCK_MODE_SLOT0, 0x0000, 0);
 
         Ok(())
     }
@@ -656,8 +648,7 @@ impl<'a> I2CClient for Atecc508a<'a> {
                     }
 
                     self.op.set(Operation::GenerateEntropyCommand(run + 1));
-                    self.send_command(COMMAND_OPCODE_RANDOM, 0x00, 0x0000, 0)
-                        .unwrap();
+                    self.send_command(COMMAND_OPCODE_RANDOM, 0x00, 0x0000, 0);
 
                     return;
                 }
@@ -765,8 +756,7 @@ impl<'a> I2CClient for Atecc508a<'a> {
                     }
 
                     self.op.set(Operation::LockZoneConfig(run + 1));
-                    self.send_command(COMMAND_OPCODE_LOCK, LOCK_MODE_ZONE_CONFIG, 0x0000, 0)
-                        .unwrap();
+                    self.send_command(COMMAND_OPCODE_LOCK, LOCK_MODE_ZONE_CONFIG, 0x0000, 0);
                     return;
                 }
 
@@ -819,8 +809,7 @@ impl<'a> I2CClient for Atecc508a<'a> {
                     }
 
                     self.op.set(Operation::CreateKeyPair(run + 1, slot));
-                    self.send_command(COMMAND_OPCODE_GENKEY, GENKEY_MODE_NEW_PRIVATE, slot, 0)
-                        .unwrap();
+                    self.send_command(COMMAND_OPCODE_GENKEY, GENKEY_MODE_NEW_PRIVATE, slot, 0);
                     return;
                 }
 
@@ -868,8 +857,7 @@ impl<'a> I2CClient for Atecc508a<'a> {
                     }
 
                     self.op.set(Operation::LockDataOtp(run + 1));
-                    self.send_command(COMMAND_OPCODE_LOCK, LOCK_MODE_ZONE_DATA_AND_OTP, 0x0000, 0)
-                        .unwrap();
+                    self.send_command(COMMAND_OPCODE_LOCK, LOCK_MODE_ZONE_DATA_AND_OTP, 0x0000, 0);
                     return;
                 }
 
@@ -893,8 +881,7 @@ impl<'a> I2CClient for Atecc508a<'a> {
                     }
 
                     self.op.set(Operation::LockSlot0(run + 1));
-                    self.send_command(COMMAND_OPCODE_LOCK, LOCK_MODE_SLOT0, 0x0000, 0)
-                        .unwrap();
+                    self.send_command(COMMAND_OPCODE_LOCK, LOCK_MODE_SLOT0, 0x0000, 0);
                     return;
                 }
 
@@ -918,8 +905,7 @@ impl<'a> I2CClient for Atecc508a<'a> {
                     }
 
                     self.op.set(Operation::StartSha(run + 1));
-                    self.send_command(COMMAND_OPCODE_SHA, SHA_START, 0x0000, 0)
-                        .unwrap();
+                    self.send_command(COMMAND_OPCODE_SHA, SHA_START, 0x0000, 0);
                     return;
                 }
 
@@ -953,8 +939,7 @@ impl<'a> I2CClient for Atecc508a<'a> {
                 self.buffer.replace(buffer);
 
                 if self.sha_update() {
-                    self.send_command(COMMAND_OPCODE_SHA, SHA_UPDATE, 64, 64)
-                        .unwrap();
+                    self.send_command(COMMAND_OPCODE_SHA, SHA_UPDATE, 64, 64);
                 }
             }
             Operation::ShaLoadResponse(run) => {
@@ -966,8 +951,7 @@ impl<'a> I2CClient for Atecc508a<'a> {
                     }
 
                     self.op.set(Operation::ShaLoadResponse(run + 1));
-                    self.send_command(COMMAND_OPCODE_SHA, SHA_UPDATE, 64, 64)
-                        .unwrap();
+                    self.send_command(COMMAND_OPCODE_SHA, SHA_UPDATE, 64, 64);
 
                     return;
                 }
@@ -996,8 +980,7 @@ impl<'a> I2CClient for Atecc508a<'a> {
                         SHA_END,
                         self.remain_len.get() as u16,
                         self.remain_len.get(),
-                    )
-                    .unwrap();
+                    );
                     return;
                 }
 
@@ -1074,7 +1057,7 @@ impl<'a> entropy::Entropy32<'a> for Atecc508a<'a> {
 
         (self.wakeup_device)();
 
-        self.send_command(COMMAND_OPCODE_RANDOM, 0x00, 0x0000, 0)?;
+        self.send_command(COMMAND_OPCODE_RANDOM, 0x00, 0x0000, 0);
 
         Ok(())
     }
@@ -1105,24 +1088,12 @@ impl<'a> digest::DigestData<'a, 32> for Atecc508a<'a> {
         if self.op.get() == Operation::Ready {
             self.op.set(Operation::StartSha(0));
 
-            if let Err(e) = self.send_command(COMMAND_OPCODE_SHA, SHA_START, 0x0000, 0) {
-                return Err(self
-                    .hash_data
-                    .take()
-                    .map(|buf| match buf {
-                        SubSliceMutImmut::Immutable(b) => (e, b),
-                        SubSliceMutImmut::Mutable(_b) => {
-                            unreachable!()
-                        }
-                    })
-                    .unwrap());
-            }
+            self.send_command(COMMAND_OPCODE_SHA, SHA_START, 0x0000, 0);
         } else {
             self.op.set(Operation::ShaLoad(0));
 
             if self.sha_update() {
-                self.send_command(COMMAND_OPCODE_SHA, SHA_UPDATE, 64, 64)
-                    .unwrap();
+                self.send_command(COMMAND_OPCODE_SHA, SHA_UPDATE, 64, 64);
             }
         }
 
@@ -1145,26 +1116,14 @@ impl<'a> digest::DigestData<'a, 32> for Atecc508a<'a> {
 
             (self.wakeup_device)();
 
-            if let Err(e) = self.send_command(COMMAND_OPCODE_SHA, SHA_START, 0x0000, 0) {
-                return Err(self
-                    .hash_data
-                    .take()
-                    .map(|buf| match buf {
-                        SubSliceMutImmut::Immutable(_b) => {
-                            unreachable!()
-                        }
-                        SubSliceMutImmut::Mutable(b) => (e, b),
-                    })
-                    .unwrap());
-            }
+            self.send_command(COMMAND_OPCODE_SHA, SHA_START, 0x0000, 0);
         } else {
             self.op.set(Operation::ShaLoad(0));
 
             if self.sha_update() {
                 (self.wakeup_device)();
 
-                self.send_command(COMMAND_OPCODE_SHA, SHA_UPDATE, 64, 64)
-                    .unwrap();
+                self.send_command(COMMAND_OPCODE_SHA, SHA_UPDATE, 64, 64);
             }
         }
 
@@ -1210,14 +1169,12 @@ impl<'a> digest::DigestHash<'a, 32> for Atecc508a<'a> {
             });
         }
 
-        if let Err(e) = self.send_command(
+        self.send_command(
             COMMAND_OPCODE_SHA,
             SHA_END,
             self.remain_len.get() as u16,
             remain_len,
-        ) {
-            return Err((e, self.digest_data.take().unwrap()));
-        }
+        );
 
         Ok(())
     }
