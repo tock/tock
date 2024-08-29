@@ -677,9 +677,15 @@ impl<'a> Iom<'_> {
                         && transfered_bytes < 24
                     {
                         let idx = self.write_index.get();
-                        let data = u32::from_le_bytes(
-                            write_buffer[idx..(idx + 4)].try_into().unwrap_or([0; 4]),
-                        );
+
+                        let chunk = write_buffer[idx..].chunks(4).next().unwrap_or(&[]);
+
+                        let data = u32::from_le_bytes([
+                            chunk.get(0).copied().unwrap_or(0),
+                            chunk.get(1).copied().unwrap_or(0),
+                            chunk.get(2).copied().unwrap_or(0),
+                            chunk.get(3).copied().unwrap_or(0),
+                        ]);
 
                         self.registers.fifopush.set(data);
                         self.write_index.set(idx + 4);
