@@ -13,14 +13,11 @@
 use core::ptr::addr_of_mut;
 
 use kernel::component::Component;
-use kernel::deferred_call::DeferredCallClient;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::process::ProcessLoadingAsync;
 use kernel::{capabilities, create_capability};
-use kernel::{debug, static_init};
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
-use nrf52840dk_lib::{self, PROCESSES, NUM_PROCS};
+use nrf52840dk_lib::{self, NUM_PROCS, PROCESSES};
 
 type ScreenDriver = components::screen::ScreenComponentType;
 
@@ -231,18 +228,19 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
 
     let storage_permissions_policy =
-        components::storage_permissions::individual::StoragePermissionsIndividualComponent::new().finalize(
-            components::storage_permissions_individual_component_static!(
-                nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>
-            ),
-        );
+        components::storage_permissions::individual::StoragePermissionsIndividualComponent::new()
+            .finalize(
+                components::storage_permissions_individual_component_static!(
+                    nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>
+                ),
+            );
 
     //--------------------------------------------------------------------------
     // PROCESS LOADING
     //--------------------------------------------------------------------------
 
     // Create and start the asynchronous process loader.
-    let loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
+    let _loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
         checker,
         &mut *addr_of_mut!(PROCESSES),
         board_kernel,

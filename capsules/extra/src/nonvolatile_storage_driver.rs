@@ -237,9 +237,9 @@ impl AppRegionHeader {
         let xor = version_and_length ^ shortid;
 
         Some(AppRegionHeader {
-            version_and_length: version_and_length,
-            shortid: shortid,
-            xor: xor,
+            version_and_length,
+            shortid,
+            xor,
         })
     }
 
@@ -257,13 +257,13 @@ impl AppRegionHeader {
         let xor = u32::from_le_bytes(xor_slice);
 
         Some(AppRegionHeader {
-            version_and_length: version_and_length,
-            shortid: shortid,
-            xor: xor,
+            version_and_length,
+            shortid,
+            xor,
         })
     }
 
-    fn to_bytes(&self) -> [u8; REGION_HEADER_LEN] {
+    fn to_bytes(self) -> [u8; REGION_HEADER_LEN] {
         let mut header_slice = [0; REGION_HEADER_LEN];
 
         // copy version and length
@@ -465,7 +465,7 @@ impl<'a> NonvolatileStorage<'a> {
             kernel_buffer: TakeCell::empty(),
             kernel_readwrite_length: Cell::new(0),
             kernel_readwrite_address: Cell::new(0),
-            app_region_size: app_region_size,
+            app_region_size,
             header_buffer: TakeCell::new(header_buffer),
             next_unallocated_region_header_address: OptionalCell::empty(),
             region_erase_buffer: TakeCell::new(region_erase_buffer),
@@ -693,7 +693,7 @@ impl<'a> NonvolatileStorage<'a> {
                         if app.has_requested_region && app.region.is_none() {
                             let version = header.version().ok_or(ErrorCode::FAIL)?;
                             app.region.replace(AppRegion {
-                                version: version,
+                                version,
                                 // the app's actual region starts after the
                                 // region header
                                 offset: region_header_address + REGION_HEADER_LEN,
@@ -733,7 +733,7 @@ impl<'a> NonvolatileStorage<'a> {
 
     fn header_write_done(&self, processid: ProcessId, region: AppRegion) -> Result<(), ErrorCode> {
         self.apps
-            .enter(processid, |app, kernel_data| {
+            .enter(processid, |app, _kernel_data| {
                 // set region data in app's grant
                 app.region.replace(region);
 
@@ -1011,7 +1011,7 @@ impl<'a> NonvolatileStorage<'a> {
                                         // need to pass on where the next erase should start
                                         // how long it should be.
                                         RegionState::EraseRegion {
-                                            processid: processid,
+                                            processid,
                                             next_erase_start: offset + active_len,
                                             remaining_bytes: remaining_len,
                                         },
@@ -1154,7 +1154,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient for NonvolatileStorage<'
                 }
                 NonvolatileUser::RegionManager(state) => {
                     self.header_buffer.replace(buffer);
-                    let res = match state {
+                    let _ = match state {
                         RegionState::ReadHeader(action) => self.header_read_done(action),
                         _ => Err(ErrorCode::FAIL),
                     };
@@ -1200,7 +1200,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient for NonvolatileStorage<'
                     });
                 }
                 NonvolatileUser::RegionManager(state) => {
-                    let res = match state {
+                    let _ = match state {
                         RegionState::WriteHeader(processid, region) => {
                             self.header_buffer.replace(buffer);
                             let write_res = self.header_write_done(processid, region);
