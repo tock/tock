@@ -111,7 +111,7 @@ struct GrantPointerEntry {
 #[derive(Clone, Copy)]
 struct ProcessBreaks {
     /// Pointer to the end of the allocated (and MPU protected) grant region.
-    #[field({FluxPtrU8Mut[kernel_break] | kernel_break > app_break})]
+    #[field({FluxPtrU8Mut[kernel_break] | kernel_break >= app_break})]
     pub kernel_memory_break: FluxPtrU8Mut,
     /// Pointer to the end of process RAM that has been sbrk'd to the process.
     #[field(FluxPtrU8Mut[app_break])]
@@ -191,6 +191,7 @@ pub struct ProcessStandard<'a, C: 'static + Chip> {
     grant_pointers: MapCell<&'static mut [GrantPointerEntry]>,
 
     /// Pointers that demarcate kernel-managed regions and userspace-managed regions.
+    // #[field(Cell<ProcessBreaks[breaks]>)]
     breaks: Cell<ProcessBreaks>,
 
     /// Process flash segment. This is the region of nonvolatile flash that
@@ -621,7 +622,6 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.brk(new_break)
     }
 
-    #[flux_rs::trusted]
     fn brk(&self, new_break: FluxPtrU8Mut) -> Result<FluxPtrU8Mut, Error> {
         // Do not modify an inactive process.
         if !self.is_running() {
@@ -643,10 +643,6 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             ) {
                 Err(Error::OutOfMemory)
             } else {
-                assert(new_break >= high_water_mark);
-                assert(new_break <= breaks.kernel_memory_break);
-                // assert(new_break < breaks.allow_highwater_mark);
-                // assert(breaks.kernel_memory_break > breaks.allow_high_water_mark);
                 let old_break = breaks.app_break;
                 breaks.app_break = new_break;
                 self.breaks.set(breaks);
@@ -657,7 +653,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
-    #[flux_rs::trusted]
+    // #[flux_rs::trusted]
     fn build_readwrite_process_buffer(
         &self,
         buf_start_addr: FluxPtrU8Mut,
@@ -691,12 +687,18 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             Ok(unsafe { ReadWriteProcessBuffer::new(buf_start_addr, 0, self.processid()) })
         } else if self.in_app_owned_memory(buf_start_addr, size) {
             // TODO: Check for buffer aliasing here
+            let mut breaks = self.breaks.get();
 
             // Valid buffer, we need to adjust the app's watermark
             // note: `in_app_owned_memory` ensures this offset does not wrap
             let buf_end_addr = buf_start_addr.wrapping_add(size);
-            let mut breaks = self.breaks.get();
-            let new_water_mark = cmp::max(breaks.allow_high_water_mark, buf_end_addr);
+            assume(breaks.app_break >= buf_end_addr);
+
+            let new_water_mark = max_ptr(breaks.allow_high_water_mark, buf_end_addr);
+            assert(breaks.kernel_memory_break >= breaks.app_break);
+            assert(breaks.app_break >= breaks.allow_high_water_mark);
+
+            assert(breaks.app_break >= new_water_mark);
             breaks.allow_high_water_mark = new_water_mark;
             self.breaks.set(breaks);
 
@@ -1974,12 +1976,15 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     /// at `app_break`). If this method returns `true`, the buffer is guaranteed
     /// to be accessible to the process and to not overlap with the grant
     /// region.
+    #[flux_rs::sig(fn(&Self[@p], FluxPtr[@ptr], usize[@sz]) -> bool{b: b == true => ptr >= p.mem_start})]
+    // ptr + sz <= usize::MAX
     fn in_app_owned_memory(&self, buf_start_addr: FluxPtrU8Mut, size: usize) -> bool {
         let buf_end_addr = buf_start_addr.wrapping_add(size);
 
         buf_end_addr >= buf_start_addr
             && buf_start_addr >= self.mem_start()
             && buf_end_addr <= self.app_memory_break()
+        // buf_start_addr >= self.mem_start()
     }
 
     /// Checks if the buffer represented by the passed in base pointer and size
@@ -2013,7 +2018,6 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     /// accessible region from the new kernel memory break after doing the
     /// allocation, then this will return `None`.
     // #[flux_rs::sig(fn(&Self, usize, usize{align: align > 0}) -> Option<NonNull<u8>>)]
-    #[flux_rs::trusted]
     fn allocate_in_grant_region_internal(&self, size: usize, align: usize) -> Option<NonNull<u8>> {
         self.mpu_config.and_then(|config| {
             let breaks = self.breaks.get();
@@ -2102,13 +2106,13 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     }
 
     /// The start address of allocated RAM for this process.
-    #[flux_rs::sig(fn(self: &Self[@mem_start, @mem_len]) -> FluxPtrU8Mut[mem_start])]
+    #[flux_rs::sig(fn(self: &Self[@p]) -> FluxPtrU8Mut[p.mem_start])]
     fn mem_start(&self) -> FluxPtrU8Mut {
         self.memory_start
     }
 
     /// The first address after the end of the allocated RAM for this process.
-    #[flux_rs::sig(fn(self: &Self[@mem_start, @mem_len]) -> FluxPtrU8Mut[mem_start + mem_len])]
+    #[flux_rs::sig(fn(self: &Self[@p]) -> FluxPtrU8Mut[p.mem_start + p.mem_len])]
     fn mem_end(&self) -> FluxPtrU8Mut {
         self.memory_start.wrapping_add(self.memory_len)
     }
