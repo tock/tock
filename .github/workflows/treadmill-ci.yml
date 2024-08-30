@@ -126,6 +126,16 @@ jobs:
     runs-on: ${{ fromJSON(needs.test-strategy.outputs.tml-jobs)[matrix.tml-job-id].runner-id }}
 
     steps:
+      - name: Install required packages
+        run: |
+          sudo apt update
+          sudo apt install git rustup cargo openocd python3 python3-pip pipx tockloader gcc-arm-none-eabi libnewlib-arm-none-eabi pkg-config libudev-dev cmake libusb-1.0-0-dev udev vim tree make gdb-multiarch gcc-arm-none-eabi build-essential
+          curl --proto '=https' --tlsv1.2 -LsSf https://github.com/probe-rs/probe-rs/releases/latest/download/probe-rs-tools-installer.sh | sh
+
+      - uses: actions/checkout@v4
+        with:
+          path: tock
+
       - name: Print Treadmill Job Id
         run: |
           echo "tml job id: ${{ matrix.tml-job-id }}"
@@ -138,11 +148,13 @@ jobs:
           ls -lh /dev/bus/usb
           whoami
           groups
-          sudo cat /etc/passwd
-          sudo cat /etc/group
 
-      - name: Wait some time for interactive session
-        run: sleep 10
+      - name: Run test script
+        run: |
+          ls
+          pwd
+          pipx install tockloader
+          python3 ./tock/hwci.py
 
   test-terminate:
     needs:
