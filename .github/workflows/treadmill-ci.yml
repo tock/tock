@@ -98,7 +98,7 @@ jobs:
           TML_JOB_PARAMETERS="{\"gh-actions-runner-encoded-jit-config\": {\"secret\": true, \"value\": \"$(echo "$RUNNER_CONFIG_JSON" | jq -r '.encoded_jit_config')\"}}"
           # echo "Parameters: $TML_JOB_PARAMETERS"
           TML_JOB_ID_JSON="$(tml job enqueue \
-            e96e97f229edca8a2c68f792badf9e2b3ff2fd18a3c51258cd20f9d842e56599 \
+            63a18ae3923c06b923942f82d47c60448a6ab370b2155dc36479e678e3e74603 \
             --tag-config 'supervisor:1bdc10a7-9bea-4da5-9e9c-02c046223dfb' \
             --ssh-keys 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFjLuM7C6emv+xAFYnXA+mSUKmMEmKDM0A6WzZ0HliFb cardno:23_559_180' \
             --parameters "$TML_JOB_PARAMETERS" \
@@ -147,7 +147,7 @@ jobs:
         run: |
           lsusb
           ls -lh /dev
-          ls -lh /dev/bus/usb
+          ls -lh /dev/bus/usb/**
           whoami
           groups
 

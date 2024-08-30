@@ -104,6 +104,8 @@ def main():
 
     run_command("tockloader enable-app c_hello")
 
+    run_command("tockloader list")
+
     # available_ports = find_serial_ports()
     # if not available_ports:
     #     logging.error("No serial ports found. Make sure your board is connected.")
