@@ -141,7 +141,7 @@ jobs:
           sudo cat /etc/group
 
       - name: Wait some time for interactive session
-        run: sleep 600
+        run: sleep 10
 
   test-terminate:
     needs:
