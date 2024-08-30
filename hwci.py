@@ -2,9 +2,9 @@ import os
 import subprocess
 import logging
 import time
-import serial
+# import serial
 import sys
-import glob
+# import glob
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
