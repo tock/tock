@@ -23,7 +23,7 @@ macro_rules! atecc508a_component_static {
     ($I:ty $(,)?) => {{
         let i2c_device =
             kernel::static_buf!(capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, $I>);
-        let i2c_buffer = kernel::static_buf!([u8; 72]);
+        let i2c_buffer = kernel::static_buf!([u8; 140]);
         let entropy_buffer = kernel::static_buf!([u8; 32]);
         let digest_buffer = kernel::static_buf!([u8; 64]);
         let atecc508a = kernel::static_buf!(capsules_extra::atecc508a::Atecc508a<'static>);
@@ -57,7 +57,7 @@ impl<I: 'static + i2c::I2CMaster<'static>> Atecc508aComponent<I> {
 impl<I: 'static + i2c::I2CMaster<'static>> Component for Atecc508aComponent<I> {
     type StaticInput = (
         &'static mut MaybeUninit<I2CDevice<'static, I>>,
-        &'static mut MaybeUninit<[u8; 72]>,
+        &'static mut MaybeUninit<[u8; 140]>,
         &'static mut MaybeUninit<[u8; 32]>,
         &'static mut MaybeUninit<[u8; 64]>,
         &'static mut MaybeUninit<Atecc508a<'static>>,
@@ -67,7 +67,7 @@ impl<I: 'static + i2c::I2CMaster<'static>> Component for Atecc508aComponent<I> {
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let atecc508a_i2c = s.0.write(I2CDevice::new(self.i2c_mux, self.i2c_address));
 
-        let i2c_buffer = s.1.write([0; 72]);
+        let i2c_buffer = s.1.write([0; 140]);
         let entropy_buffer = s.2.write([0; 32]);
         let digest_buffer = s.3.write([0; 64]);
 
