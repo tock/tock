@@ -156,6 +156,7 @@ jobs:
           ls
           pwd
           pipx install tockloader
+          unset RUSTFLAGS
           python3 ./tock/hwci.py
 
   test-terminate:
