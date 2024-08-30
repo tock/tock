@@ -126,10 +126,12 @@ jobs:
     runs-on: ${{ fromJSON(needs.test-strategy.outputs.tml-jobs)[matrix.tml-job-id].runner-id }}
 
     steps:
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+
       - name: Install required packages
         run: |
-          sudo apt update
-          sudo apt install -y git cargo openocd python3 python3-pip pipx gcc-arm-none-eabi libnewlib-arm-none-eabi pkg-config libudev-dev cmake libusb-1.0-0-dev udev vim tree make gdb-multiarch gcc-arm-none-eabi build-essential
+          sudo DEBIAN_FRONTEND=noninteractive apt update
+          sudo DEBIAN_FRONTEND=noninteractive apt install -y git cargo openocd python3 python3-pip pipx gcc-arm-none-eabi libnewlib-arm-none-eabi pkg-config libudev-dev cmake libusb-1.0-0-dev udev make gdb-multiarch gcc-arm-none-eabi build-essential
           curl --proto '=https' --tlsv1.2 -LsSf https://github.com/probe-rs/probe-rs/releases/latest/download/probe-rs-tools-installer.sh | sh
 
       - uses: actions/checkout@v4
