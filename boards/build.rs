@@ -70,9 +70,14 @@ fn track_linker_script<P: AsRef<Path>>(path: P) {
 }
 fn track_linker_script_inner(linker_script: std::path::PathBuf, directory: std::path::PathBuf) {
     let path = std::path::absolute(directory.join(linker_script)).unwrap();
-    let parent_buf = path.parent().unwrap().to_path_buf();
+    let parent = path.parent().unwrap();
+    let parent_buf = parent.to_path_buf();
 
     assert!(path.is_file(), "expected path {path:?} to be a file");
+
+    // Make sure we include the path of the linker script in the search so we
+    // can use relative imports inside the linker script.
+    println!("cargo:rustc-link-arg=-L{}", parent.display());
 
     println!("cargo:rerun-if-changed={}", path.display());
 
