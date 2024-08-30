@@ -1305,7 +1305,6 @@ impl SyscallDriver for NonvolatileStorage<'_> {
                 res.map_or(CommandReturn::failure(ErrorCode::NOMEM), |region| {
                     // handle case where app's region is not assigned
                     region.map_or(CommandReturn::failure(ErrorCode::FAIL), |region| {
-                        // TODO: Would break on 64-bit platforms
                         CommandReturn::success_u32(region.length as u32)
                     })
                 })
