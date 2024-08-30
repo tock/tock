@@ -653,7 +653,6 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
-    // #[flux_rs::trusted]
     fn build_readwrite_process_buffer(
         &self,
         buf_start_addr: FluxPtrU8Mut,
