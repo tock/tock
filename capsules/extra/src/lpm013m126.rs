@@ -24,14 +24,91 @@ use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
 
-/// Monochrome frame buffer bytes.
-/// 176 × 176 bits = 3872 bytes.
+/// 4-bit frame buffer bytes.
 ///
-/// 2 bytes for the start of each row (command header),
-/// plus 2 bytes of data transfer period at the end
-///
-/// 176 * 2 + 2 = 354 bytes.
+/// 176 rows, of 176 4-bit pixels and a 2-byte command header, plus a
+/// trailing 2 byte transfer period
 pub const BUF_LEN: usize = 176 * (176 / 2 + 2) + 2;
+
+struct InputBuffer<'a> {
+    data: &'a [u8],
+    frame: &'a WriteFrame,
+}
+
+impl<'a> InputBuffer<'a> {
+    fn rows<'b>(&'b self) -> impl Iterator<Item = Row<'b>> {
+        self.data
+            .chunks(self.frame.width as usize / 2)
+            .map(|data| Row { data })
+    }
+}
+
+struct Pixel<'a> {
+    data: &'a u8,
+    top: bool,
+}
+
+impl<'a> Pixel<'a> {
+    fn get(&self) -> u8 {
+        if self.top {
+            (*self.data >> 4) & 0xf
+        } else {
+            *self.data & 0xf
+        }
+    }
+}
+
+struct PixelMut<'a> {
+    data: &'a Cell<u8>,
+    top: bool,
+}
+
+impl<'a> PixelMut<'a> {
+    fn transform<F>(&self, f: F)
+    where
+        F: FnOnce(&mut u8),
+    {
+        let mut data = if self.top {
+            (self.data.get() & 0xf0) >> 4
+        } else {
+            self.data.get() & 0x0f
+        };
+
+        f(&mut data);
+
+        if self.top {
+            self.data.set(self.data.get() & 0x0f | ((data << 4) & 0xf0));
+        } else {
+            self.data.set(self.data.get() & 0xf0 | (data & 0x0f));
+        }
+    }
+}
+
+struct Row<'a> {
+    data: &'a [u8],
+}
+
+impl<'a> Row<'a> {
+    fn iter<'b>(&'b self) -> impl Iterator<Item = Pixel<'a>> {
+        self.data
+            .iter()
+            .map(|data| [Pixel { data, top: true }, Pixel { data, top: false }])
+            .flatten()
+    }
+}
+
+struct RowMut<'a> {
+    data: &'a [Cell<u8>],
+}
+
+impl<'a> RowMut<'a> {
+    fn iter_mut<'b>(&'b self) -> impl Iterator<Item = PixelMut<'b>> {
+        self.data
+            .iter()
+            .map(|data| [PixelMut { data, top: true }, PixelMut { data, top: false }])
+            .flatten()
+    }
+}
 
 /// Arranges frame data in a buffer
 /// whose portions can be sent directly to the device.
@@ -62,46 +139,37 @@ impl<'a> FrameBuffer<'a> {
     }
 
     /// Copy pixels from the buffer. The buffer may be shorter than frame.
-    fn blit(&mut self, buffer: &[u8], frame: &WriteFrame) {
-        if frame.column % 2 != 0 {
-            // Can't be arsed to bit shift pixels…
-            panic!("Horizontal offset not supported");
-        }
-        let frame_row_idxs = (frame.row)..(frame.row + frame.height);
-        // There are 2 pixels in each row per byte.
-        let buf_rows = buffer.chunks(frame.width as usize / 2);
+    fn blit(&mut self, data: &[u8], frame: &WriteFrame) {
+        let buffer = InputBuffer { data, frame };
 
-        for (frame_row_idx, buf_row) in frame_row_idxs.zip(buf_rows) {
-            let frame_row = self.get_row_mut(frame_row_idx).unwrap_or(&mut []);
-	    for (frame_cell, buf_cell) in frame_row.iter_mut().skip(frame.column as usize / 2).take(buf_row.len()).zip(buf_row.iter()) {
-		// transform from sRGB to the LPM native 4-bit format.
-		//
-		// 4-bit sRGB is encoded as `| B | G | R | s |`, where
-		// `s` is something like intensity.  We'll interpret
-		// intensity `0` to mean transparent, and intensity
-		// `1` to mean opaque.  Meanwhile LPM native 4-bit is
-		// encoded as `| R | G | B | x |`, where `x` is
-		// ignored.  So we need to swap the R & B bits, and
-		// only apply the pixel if `s` is 1.
-		if *buf_cell & 0b1 != 0 {
-		    *frame_cell = (*frame_cell & 0xf0) |
-		    (
-			(
-			    (((*buf_cell) & 0b10) << 2) |
-			    (((*buf_cell) & 0b100)) |
-			    (((*buf_cell) & 0b1000) >> 2)
-			) & 0x0f);
-		}
-		if *buf_cell & 0b10000 != 0 {
-		    *frame_cell = (*frame_cell & 0x0f) |
-		    (
-			(
-			    (((*buf_cell) & 0b100000) << 2) |
-			    (((*buf_cell) & 0b1000000)) |
-			    (((*buf_cell) & 0b10000000) >> 2)
-			) & 0xf0);
-		}
-	    }
+        let frame_rows = self
+            .rows()
+            .skip(frame.row as usize)
+            .take(frame.height as usize);
+        let buf_rows = buffer.rows();
+
+        for (frame_row, buf_row) in frame_rows.zip(buf_rows) {
+            for (frame_pixel, buf_pixel) in frame_row
+                .iter_mut()
+                .skip(frame.column as usize)
+                .zip(buf_row.iter())
+            {
+                let buf_p: u8 = buf_pixel.get();
+                if buf_p & 0b1 != 0 {
+                    frame_pixel.transform(|pixel| {
+                        // transform from sRGB to the LPM native 4-bit format.
+                        //
+                        // 4-bit sRGB is encoded as `| B | G | R | s |`, where
+                        // `s` is something like intensity.  We'll interpret
+                        // intensity `0` to mean transparent, and intensity
+                        // `1` to mean opaque.  Meanwhile LPM native 4-bit is
+                        // encoded as `| R | G | B | x |`, where `x` is
+                        // ignored.  So we need to swap the R & B bits, and
+                        // only apply the pixel if `s` is 1.
+                        *pixel = ((buf_p & 0b10) << 2) | (buf_p & 0b100) | ((buf_p & 0b1000) >> 2);
+                    });
+                }
+            }
         }
     }
 
@@ -113,16 +181,12 @@ impl<'a> FrameBuffer<'a> {
         &mut self.data[(line_bytes * index as usize)..][..line_bytes + TRANSFER_PERIOD]
     }
 
-    /// Gets pixel data.
-    fn get_row_mut(&mut self, index: u16) -> Option<&mut [u8]> {
-        let start_line = (176 / 2 + 2) * index as usize + 2;
-	let end_line = start_line + 176 / 2;
-	if end_line < self.data.len() {
-	    let result = &mut self.data[start_line..end_line];
-	    Some(result)
-	} else {
-	    None
-	}
+    fn rows(&mut self) -> impl Iterator<Item = RowMut> {
+        self.data.as_slice().chunks_mut(2 + 176 / 2).map_while(|c| {
+            c.get_mut(2..).map(|data| RowMut {
+                data: Cell::from_mut(data).as_slice_of_cells(),
+            })
+        })
     }
 }
 
