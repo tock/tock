@@ -31,7 +31,7 @@ use kernel::ErrorCode;
 /// plus 2 bytes of data transfer period at the end
 ///
 /// 176 * 2 + 2 = 354 bytes.
-pub const BUF_LEN: usize = 3872 + 354;
+pub const BUF_LEN: usize = 176 * (176 / 2 + 2) + 2;
 
 /// Arranges frame data in a buffer
 /// whose portions can be sent directly to the device.
@@ -53,7 +53,7 @@ impl<'a> FrameBuffer<'a> {
         for i in 0..176 {
             let line = self.get_line_mut(i);
             let bytes = CommandHeader {
-                mode: Mode::Input1Bit,
+                mode: Mode::Input4Bit,
                 gate_line: i + 1,
             }
             .encode();
@@ -63,16 +63,45 @@ impl<'a> FrameBuffer<'a> {
 
     /// Copy pixels from the buffer. The buffer may be shorter than frame.
     fn blit(&mut self, buffer: &[u8], frame: &WriteFrame) {
-        if frame.column % 8 != 0 {
+        if frame.column % 2 != 0 {
             // Can't be arsed to bit shift pixels…
             panic!("Horizontal offset not supported");
         }
-        let rows = (frame.row)..(frame.row + frame.height);
-        // There are 8 pixels in each row per byte.
-        let sources = buffer.chunks(frame.width as usize / 8);
-        for (i, source) in rows.zip(sources) {
-            let row = self.get_row_mut(i);
-            row[(frame.column as usize / 8)..][..(source.len())].copy_from_slice(source);
+        let frame_row_idxs = (frame.row)..(frame.row + frame.height);
+        // There are 2 pixels in each row per byte.
+        let buf_rows = buffer.chunks(frame.width as usize / 2);
+
+        for (frame_row_idx, buf_row) in frame_row_idxs.zip(buf_rows) {
+            let frame_row = self.get_row_mut(frame_row_idx).unwrap_or(&mut []);
+	    for (frame_cell, buf_cell) in frame_row.iter_mut().skip(frame.column as usize / 2).take(buf_row.len()).zip(buf_row.iter()) {
+		// transform from sRGB to the LPM native 4-bit format.
+		//
+		// 4-bit sRGB is encoded as `| B | G | R | s |`, where
+		// `s` is something like intensity.  We'll interpret
+		// intensity `0` to mean transparent, and intensity
+		// `1` to mean opaque.  Meanwhile LPM native 4-bit is
+		// encoded as `| R | G | B | x |`, where `x` is
+		// ignored.  So we need to swap the R & B bits, and
+		// only apply the pixel if `s` is 1.
+		if *buf_cell & 0b1 != 0 {
+		    *frame_cell = (*frame_cell & 0xf0) |
+		    (
+			(
+			    (((*buf_cell) & 0b10) << 2) |
+			    (((*buf_cell) & 0b100)) |
+			    (((*buf_cell) & 0b1000) >> 2)
+			) & 0x0f);
+		}
+		if *buf_cell & 0b10000 != 0 {
+		    *frame_cell = (*frame_cell & 0x0f) |
+		    (
+			(
+			    (((*buf_cell) & 0b100000) << 2) |
+			    (((*buf_cell) & 0b1000000)) |
+			    (((*buf_cell) & 0b10000000) >> 2)
+			) & 0xf0);
+		}
+	    }
         }
     }
 
@@ -80,14 +109,20 @@ impl<'a> FrameBuffer<'a> {
     fn get_line_mut(&mut self, index: u16) -> &mut [u8] {
         const CMD: usize = 2;
         const TRANSFER_PERIOD: usize = 2;
-        let line_bytes = CMD + 176 / 8;
+        let line_bytes = CMD + 176 / 2;
         &mut self.data[(line_bytes * index as usize)..][..line_bytes + TRANSFER_PERIOD]
     }
 
     /// Gets pixel data.
-    fn get_row_mut(&mut self, index: u16) -> &mut [u8] {
-        let line_bytes = 176 / 8 + 2;
-        &mut self.data[(line_bytes * index as usize + 2)..][..(176 / 8)]
+    fn get_row_mut(&mut self, index: u16) -> Option<&mut [u8]> {
+        let start_line = (176 / 2 + 2) * index as usize + 2;
+	let end_line = start_line + 176 / 2;
+	if end_line < self.data.len() {
+	    let result = &mut self.data[start_line..end_line];
+	    Some(result)
+	} else {
+	    None
+	}
     }
 }
 
@@ -102,6 +137,7 @@ enum Mode {
     /// Input 1-bit data
     /// bits: 1 No function, X, 0 Data Update, 01 1-bit, X
     Input1Bit = 0b100_01_0,
+    Input4Bit = 0b100100,
     NoUpdate = 0b101000,
 }
 
@@ -331,7 +367,7 @@ where
     fn arm_alarm(&self) {
         // Datasheet says 2Hz or more often flipping is required
         // for transmissive mode.
-        let delay = self.alarm.ticks_from_ms(500);
+        let delay = self.alarm.ticks_from_ms(100);
         self.alarm.set_alarm(self.alarm.now(), delay);
     }
 
@@ -384,7 +420,7 @@ where
     ) -> Result<(), ErrorCode> {
         let (columns, rows) = self.get_resolution();
         if y >= rows || y + height > rows || x >= columns || x + width > columns {
-            return Err(ErrorCode::INVAL);
+            //return Err(ErrorCode::INVAL);
         }
 
         let frame = WriteFrame {
@@ -550,7 +586,7 @@ impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> SpiMasterClient for Lpm01
                     let buf = &mut fb.get_line_mut(0)[..2];
                     buf.copy_from_slice(
                         &CommandHeader {
-                            mode: Mode::Input1Bit,
+                            mode: Mode::Input4Bit,
                             gate_line: 1,
                         }
                         .encode(),
