@@ -716,17 +716,17 @@ pub unsafe fn start() -> (
     // set pins, 0
     // jmp loop
     // After Pioasm => e001 e000 0000
-    let path: [u8; 6] = [0xee, 0x01, 0xee, 0x00, 0x00, 0x00];
+    let path: [u8; 6] = [0xe0, 0x01, 0xe0, 0x00, 0x00, 0x00];
     pio.init();
     //pio.gpio_init(peripherals.pins.get_pin(RPGpio::GPIO25));
     pio.add_program(&path);
     pio.hello_program_init(SMNumber::SM0, 25, &StateMachineConfiguration::default());
     // pio.sm_put(SMNumber::SM0, 62519);
-    for _ in 1..200 {
+    for _ in 1..100 {
         // pio.sm_put(SMNumber::SM0, 62519);
-        debug!("Instruction on SM0: {}", pio.debugger(SMNumber::SM0));
-        debug!("Set base = {}", pio.read_set_base(SMNumber::SM0));
-        debug!("Set count = {}", pio.read_set_count(SMNumber::SM0));
+        debug!("Instr_SM0:{}", pio.debugger(SMNumber::SM0));
+        // debug!("Set base = {}", pio.read_set_base(SMNumber::SM0));
+        // debug!("Set count = {}", pio.read_set_count(SMNumber::SM0));
     }
 
     (board_kernel, pico_explorer_base, chip)
