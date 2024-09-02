@@ -25,8 +25,8 @@ use kernel::hil::led::LedHigh;
 use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
-use kernel::{capabilities, create_capability, static_init, Kernel};
 use kernel::utilities::registers::interfaces::Readable;
+use kernel::{capabilities, create_capability, static_init, Kernel};
 use rp2040::adc::{Adc, Channel};
 use rp2040::chip::{Rp2040, Rp2040DefaultPeripherals};
 use rp2040::clocks::{
@@ -357,32 +357,29 @@ pub unsafe fn start() -> (
         ]
     );
 
-    let cdc = components::cdc::CdcAcmComponent::new(
-        &peripherals.usb,
-        //capsules::usb::cdc::MAX_CTRL_PACKET_SIZE_RP2040,
-        64,
-        peripherals.sysinfo.get_manufacturer_rp2040(),
-        peripherals.sysinfo.get_part(),
-        strings,
-        mux_alarm,
-        None,
-    )
-    .finalize(components::cdc_acm_component_static!(
-        rp2040::usb::UsbCtrl,
-        rp2040::timer::RPTimer
-    ));
+    // let cdc = components::cdc::CdcAcmComponent::new(
+    //     &peripherals.usb,
+    //     //capsules::usb::cdc::MAX_CTRL_PACKET_SIZE_RP2040,
+    //     64,
+    //     peripherals.sysinfo.get_manufacturer_rp2040(),
+    //     peripherals.sysinfo.get_part(),
+    //     strings,
+    //     mux_alarm,
+    //     None,
+    // )
+    // .finalize(components::cdc_acm_component_static!(
+    //     rp2040::usb::UsbCtrl,
+    //     rp2040::timer::RPTimer
+    // ));
 
-    // UART
-    // Create a shared UART channel for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(cdc, 115200)
-        .finalize(components::uart_mux_component_static!());
+    // // UART
+    // // Create a shared UART channel for kernel debug.
+    // let uart_mux = components::console::UartMuxComponent::new(cdc, 115200)
+    //     .finalize(components::uart_mux_component_static!());
 
     // Uncomment this to use UART as an output
-    // let uart_mux = components::console::UartMuxComponent::new(
-    //     &peripherals.uart0,
-    //     115200,
-    // )
-    // .finalize(components::uart_mux_component_static!());
+    let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
+        .finalize(components::uart_mux_component_static!());
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
@@ -395,8 +392,8 @@ pub unsafe fn start() -> (
     components::debug_writer::DebugWriterComponent::new(uart_mux)
         .finalize(components::debug_writer_component_static!());
 
-    cdc.enable();
-    cdc.attach();
+    // cdc.enable();
+    // cdc.attach();
 
     let gpio = GpioComponent::new(
         board_kernel,
@@ -694,16 +691,42 @@ pub unsafe fn start() -> (
         debug!("{:?}", err);
     });
 
-    let pio: Pio = Pio::new_pio0();
+    let mut pio: Pio = Pio::new_pio0();
     // let path: [u8; 6] = [0xa0,0x80, 0x01, 0x60, 0x00, 0x00];
-    let path: [u8; 6] = [0x80, 0xa0, 0x60, 0x01, 0x00, 0x00];
+    // let path: [u8; 6] = [0x80, 0xa0, 0x60, 0x01, 0x00, 0x00];
+    // loop:
+    // set pins, 1 [14]
+    // set pins, 0 [14]
+    // jmp loop
+    // After Pioasm => ee01 ee00 0000
+    // let path: [u8; 6] = [0xee, 0x01, 0xee, 0x00, 0x00, 0x00];
+    // loop:
+    // set pins, 1 [31]
+    // set pins, 0 [31]
+    // jmp loop
+    // After Pioasm => ff01 ff00 0000
+    // let path: [u8; 6] = [0xff, 0x01, 0xff, 0x00, 0x00, 0x00];
+    // loop:
+    // set pins, 1
+    // jmp loop
+    // After Pioasm => e001 0000
+    // let path: [u8; 4] = [0xe0, 0x01, 0x00, 0x00];
+    // loop:
+    // set pins, 1
+    // set pins, 0
+    // jmp loop
+    // After Pioasm => e001 e000 0000
+    let path: [u8; 6] = [0xe0, 0x01, 0xe0, 0x00, 0x00, 0x00];
     pio.init();
     //pio.gpio_init(peripherals.pins.get_pin(RPGpio::GPIO25));
     pio.add_program(&path);
     pio.hello_program_init(SMNumber::SM0, 25, &StateMachineConfiguration::default());
-    pio.sm_put(SMNumber::SM0, 1);
-    for _ in 1..100 {
-        debug!("{}", pio.debugger(SMNumber::SM0));
+    // pio.sm_put(SMNumber::SM0, 62519);
+    for _ in 1..200 {
+        // pio.sm_put(SMNumber::SM0, 62519);
+        debug!("Instruction on SM0: {}", pio.debugger(SMNumber::SM0));
+        debug!("Set base = {}", pio.read_set_base(SMNumber::SM0));
+        debug!("Set count = {}", pio.read_set_count(SMNumber::SM0));
     }
 
     (board_kernel, pico_explorer_base, chip)

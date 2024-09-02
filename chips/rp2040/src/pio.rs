@@ -640,6 +640,42 @@ impl Pio {
         )
     }
 
+    /// Resets the state machine to a consistent state, and configures it.
+    pub fn sm_init(&self, sm_number: SMNumber, config: &StateMachineConfiguration) {
+        self.sm_set_enabled(sm_number, false);
+        self.sm_config(sm_number, config);
+        // self.sm_clear_fifos(sm_number);
+        self.restart_sm(sm_number);
+        self.sm_clkdiv_restart(sm_number);
+        self.set_clkdiv_int_frac(sm_number, 1, 0);
+        self.sm_set_enabled(sm_number, true);
+        self.registers.sm[sm_number as usize]
+            .instr
+            .modify(SMx_INSTR::INSTR.val(0));
+    }
+
+    /// Set a state machine's state to enabled or to disabled.
+    pub fn sm_set_enabled(&self, sm_number: SMNumber, enabled: bool) {
+        match sm_number {
+            SMNumber::SM0 => self.registers.ctrl.modify(match enabled {
+                true => CTRL::SM0_ENABLE::SET,
+                false => CTRL::SM0_ENABLE::CLEAR,
+            }),
+            SMNumber::SM1 => self.registers.ctrl.modify(match enabled {
+                true => CTRL::SM1_ENABLE::SET,
+                false => CTRL::SM1_ENABLE::CLEAR,
+            }),
+            SMNumber::SM2 => self.registers.ctrl.modify(match enabled {
+                true => CTRL::SM2_ENABLE::SET,
+                false => CTRL::SM2_ENABLE::CLEAR,
+            }),
+            SMNumber::SM3 => self.registers.ctrl.modify(match enabled {
+                true => CTRL::SM3_ENABLE::SET,
+                false => CTRL::SM3_ENABLE::CLEAR,
+            }),
+        }
+    }
+
     /// Create a new PIO0 struct.
     pub fn new_pio0() -> Self {
         Self {
@@ -707,28 +743,6 @@ impl Pio {
             .modify(SMx_PINCTRL::OUT_COUNT.val(out_count));
     }
 
-    /// Set a state machine's state to enabled or to disabled.
-    pub fn sm_set_enabled(&self, sm_number: SMNumber, enabled: bool) {
-        match sm_number {
-            SMNumber::SM0 => self.registers.ctrl.modify(match enabled {
-                true => CTRL::SM0_ENABLE::SET,
-                false => CTRL::SM0_ENABLE::CLEAR,
-            }),
-            SMNumber::SM1 => self.registers.ctrl.modify(match enabled {
-                true => CTRL::SM1_ENABLE::SET,
-                false => CTRL::SM1_ENABLE::CLEAR,
-            }),
-            SMNumber::SM2 => self.registers.ctrl.modify(match enabled {
-                true => CTRL::SM2_ENABLE::SET,
-                false => CTRL::SM2_ENABLE::CLEAR,
-            }),
-            SMNumber::SM3 => self.registers.ctrl.modify(match enabled {
-                true => CTRL::SM3_ENABLE::SET,
-                false => CTRL::SM3_ENABLE::CLEAR,
-            }),
-        }
-    }
-
     /// Restart a state machine.
     pub fn restart_sm(&self, sm_number: SMNumber) {
         /// SET Reg
@@ -741,10 +755,13 @@ impl Pio {
     }
 
     /// Immediately execute an instruction on a state machine.
-    fn sm_exec(&self, sm_number: SMNumber, instr: u32) {
+    fn sm_exec(&self, sm_number: SMNumber, instr: u16) {
+        let instruction: u32 = self.registers.sm[sm_number as usize]
+            .instr
+            .read(SMx_INSTR::INSTR);
         self.registers.sm[sm_number as usize]
             .instr
-            .modify(SMx_INSTR::INSTR.val(instr));
+            .modify(SMx_INSTR::INSTR.val((instruction & 0xFFFF0000) & instr as u32));
     }
 
     /// Clear a state machine’s TX and RX FIFOs.
@@ -773,18 +790,6 @@ impl Pio {
     /// Write a word of data to a state machine’s TX FIFO.
     pub fn sm_put(&self, sm_number: SMNumber, data: u32) {
         self.registers.txf[sm_number as usize].set(data);
-    }
-
-    /// Resets the state machine to a consistent state, and configures it.
-    pub fn sm_init(&self, sm_number: SMNumber, config: &StateMachineConfiguration) {
-        self.sm_set_enabled(sm_number, false);
-        self.sm_config(sm_number, config);
-        self.sm_clear_fifos(sm_number);
-        self.restart_sm(sm_number);
-        self.sm_clkdiv_restart(sm_number);
-        self.registers.sm[sm_number as usize]
-            .instr
-            .modify(SMx_INSTR::INSTR.val(0));
     }
 
     /// Setup 'in' shifting parameters.
@@ -904,10 +909,10 @@ impl Pio {
 
     /// Setup the function select for a GPIO to use output from the given PIO instance.
     pub fn gpio_init(&self, pin: &RPGpioPin) {
-        if self.pio_number == PIONumber::PIO0 {
-            pin.set_function(GpioFunction::PIO0)
-        } else {
+        if self.pio_number == PIONumber::PIO1 {
             pin.set_function(GpioFunction::PIO1)
+        } else {
+            pin.set_function(GpioFunction::PIO0)
         }
     }
 
@@ -1022,16 +1027,28 @@ impl Pio {
     }
 
     pub fn hello_program_init(
-        &self,
+        &mut self,
         sm_number: SMNumber,
         pin: u32,
         config: &StateMachineConfiguration,
     ) {
+        self.pio_number = PIONumber::PIO0;
         self.gpio_init(&RPGpioPin::new(RPGpio::GPIO25));
-        self.set_out_pins(sm_number, pin, 1);
-        self.set_consecutive_pindirs(sm_number, pin, 1);
         self.sm_init(sm_number, config);
-        self.sm_set_enabled(sm_number, true);
+        self.set_set_pins(sm_number, pin, 1);
+        //self.set_out_pins(sm_number, pin, 1);
+    }
+
+    pub fn read_set_base(&self, sm_number: SMNumber) -> u32 {
+        self.registers.sm[sm_number as usize]
+            .pinctrl
+            .read(SMx_PINCTRL::SET_BASE)
+    }
+
+    pub fn read_set_count(&self, sm_number: SMNumber) -> u32 {
+        self.registers.sm[sm_number as usize]
+            .pinctrl
+            .read(SMx_PINCTRL::SET_COUNT)
     }
 
     pub fn debugger(&self, sm_number: SMNumber) -> u32 {
