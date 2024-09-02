@@ -716,7 +716,7 @@ pub unsafe fn start() -> (
     // set pins, 0
     // jmp loop
     // After Pioasm => e001 e000 0000
-    let path: [u8; 6] = [0xe0, 0x01, 0xe0, 0x00, 0x00, 0x00];
+    let path: [u8; 6] = [0xee, 0x01, 0xee, 0x00, 0x00, 0x00];
     pio.init();
     //pio.gpio_init(peripherals.pins.get_pin(RPGpio::GPIO25));
     pio.add_program(&path);
