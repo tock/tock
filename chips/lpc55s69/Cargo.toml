@@ -11,6 +11,7 @@ edition.workspace = true
 [dependencies]
 cortexm4 = { path = "../../arch/cortex-m4" }
 kernel = { path = "../../kernel" }
+panic-halt = "0.2.0"
 
 [lints]
 workspace = true

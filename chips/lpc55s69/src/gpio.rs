@@ -13,6 +13,10 @@ use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
 };
 use kernel::utilities::StaticRef;
+use kernel::hil::gpio;
+use kernel::utilities::cells::OptionalCell;
+use core::cell::Cell;
+use panic_halt as _;
 
 const GPIO_BASE: StaticRef<GpioRegisters> =
     unsafe { StaticRef::new(0x4008C000 as *const GpioRegisters) };
@@ -158,3 +162,10 @@ register_bitfields![u32,
     ]
 ];
 
+pub struct IntPin<'a> {
+    pin: u8,
+    registers: StaticRef<GpioRegisters>,
+    reg_idx: usize,
+    detect_both_edges: Cell<bool>,
+    client: OptionalCell<&'a dyn gpio::Client>,
+}
