@@ -17,7 +17,7 @@ use core::cmp;
 use kernel::debug;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::gpio::Pin;
-use kernel::hil::screen::{Screen, ScreenClient, ScreenPixelFormat, ScreenRotation};
+use kernel::hil::screen::{Screen, ScreenClient, ScreenPixelFormat, ScreenRotation, ScreenSetup};
 use kernel::hil::spi::{SpiMasterClient, SpiMasterDevice};
 use kernel::hil::time::{Alarm, AlarmClient, ConvertTicks};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -30,15 +30,15 @@ use kernel::ErrorCode;
 /// trailing 2 byte transfer period
 pub const BUF_LEN: usize = 176 * (176 / 2 + 2) + 2;
 
-struct InputBuffer<'a> {
+struct InputBuffer<'a, const PIXEL_BITS: usize> {
     data: &'a [u8],
     frame: &'a WriteFrame,
 }
 
-impl<'a> InputBuffer<'a> {
+impl<'a, const PIXEL_BITS: usize> InputBuffer<'a, PIXEL_BITS> {
     fn rows<'b>(&'b self) -> impl Iterator<Item = Row<'b>> {
         self.data
-            .chunks(self.frame.width as usize / 2)
+            .chunks(self.frame.width as usize / (8 / PIXEL_BITS))
             .map(|data| Row { data })
     }
 }
@@ -128,30 +128,71 @@ impl<'a> FrameBuffer<'a> {
     /// Initialize header bytes for each line.
     fn initialize(&mut self) {
         for i in 0..176 {
-            let line = self.get_line_mut(i);
-            let bytes = CommandHeader {
-                mode: Mode::Input4Bit,
-                gate_line: i + 1,
-            }
-            .encode();
-            line[..2].copy_from_slice(&bytes);
+            self.set_line_header(
+                i,
+                &CommandHeader {
+                    mode: Mode::Input4Bit,
+                    gate_line: (i + 1) as u16,
+                },
+            );
         }
     }
 
     /// Copy pixels from the buffer. The buffer may be shorter than frame.
-    fn blit(&mut self, data: &[u8], frame: &WriteFrame) {
-        let buffer = InputBuffer { data, frame };
-
+    fn blit_rgb332(&mut self, buffer: InputBuffer<8>) {
         let frame_rows = self
             .rows()
-            .skip(frame.row as usize)
-            .take(frame.height as usize);
+            .skip(buffer.frame.row as usize)
+            .take(buffer.frame.height as usize);
         let buf_rows = buffer.rows();
 
         for (frame_row, buf_row) in frame_rows.zip(buf_rows) {
             for (frame_pixel, buf_pixel) in frame_row
                 .iter_mut()
-                .skip(frame.column as usize)
+                .skip(buffer.frame.column as usize)
+                .zip(buf_row.data.iter())
+            {
+                let buf_p: u8 = *buf_pixel;
+                frame_pixel.transform(|pixel| {
+                    let red = if (buf_p >> 5) & 0b111 >= 7 / 2 {
+                        // are red three bits more than 50%?
+                        0b1000
+                    } else {
+                        0
+                    };
+
+                    let green = if (buf_p >> 2) & 0b111 >= 7 / 2 {
+                        // green three bits more than 50%?
+                        0b0100
+                    } else {
+                        0
+                    };
+
+                    let blue = if buf_p & 0b11 >= 3 / 2 {
+                        // blue two bits more than 50%?
+                        0b0010
+                    } else {
+                        0
+                    };
+
+                    *pixel = red | green | blue;
+                });
+            }
+        }
+    }
+
+    /// Copy pixels from the buffer. The buffer may be shorter than frame.
+    fn blit_4bit_srgb(&mut self, buffer: InputBuffer<4>) {
+        let frame_rows = self
+            .rows()
+            .skip(buffer.frame.row as usize)
+            .take(buffer.frame.height as usize);
+        let buf_rows = buffer.rows();
+
+        for (frame_row, buf_row) in frame_rows.zip(buf_rows) {
+            for (frame_pixel, buf_pixel) in frame_row
+                .iter_mut()
+                .skip(buffer.frame.column as usize)
                 .zip(buf_row.iter())
             {
                 let buf_p: u8 = buf_pixel.get();
@@ -173,12 +214,12 @@ impl<'a> FrameBuffer<'a> {
         }
     }
 
-    /// Gets an entire raw line, ready to send.
-    fn get_line_mut(&mut self, index: u16) -> &mut [u8] {
+    fn set_line_header(&mut self, index: usize, header: &CommandHeader) {
         const CMD: usize = 2;
-        const TRANSFER_PERIOD: usize = 2;
         let line_bytes = CMD + 176 / 2;
-        &mut self.data[(line_bytes * index as usize)..][..line_bytes + TRANSFER_PERIOD]
+        if let Some(buf) = self.data[(line_bytes * index)..].first_chunk_mut::<2>() {
+            *buf = header.encode();
+        }
     }
 
     fn rows(&mut self) -> impl Iterator<Item = RowMut> {
@@ -262,6 +303,7 @@ pub struct Lpm013m126<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> {
 
     state: Cell<State>,
 
+    pixel_format: Cell<ScreenPixelFormat>,
     frame: Cell<WriteFrame>,
 
     /// Fields responsible for sending callbacks
@@ -316,6 +358,7 @@ where
                 write_complete_callback_handler: WriteCompleteCallbackHandler::new(),
                 write_complete_pending_call: OptionalCell::empty(),
                 frame_buffer: OptionalCell::new(FrameBuffer::new(frame_buffer.into())),
+                pixel_format: Cell::new(ScreenPixelFormat::RGB_332),
                 buffer: TakeCell::empty(),
                 client: OptionalCell::empty(),
                 state: Cell::new(State::Uninitialized),
@@ -375,13 +418,12 @@ where
                         // Cheating a little:
                         // the frame buffer does not yet contain pixels,
                         // so use its beginning to send the clear command.
-                        let buf = &mut frame_buffer.get_line_mut(0)[..2];
-                        buf.copy_from_slice(
+                        frame_buffer.set_line_header(
+                            0,
                             &CommandHeader {
                                 mode: Mode::AllClear,
                                 gate_line: 0,
-                            }
-                            .encode(),
+                            },
                         );
                         let mut l = frame_buffer.data;
                         l.slice(0..2);
@@ -468,7 +510,7 @@ where
     }
 
     fn get_pixel_format(&self) -> ScreenPixelFormat {
-        ScreenPixelFormat::Mono
+        self.pixel_format.get()
     }
 
     fn get_rotation(&self) -> ScreenRotation {
@@ -515,17 +557,24 @@ where
                 self.frame_buffer
                     .take()
                     .map_or(Err(ErrorCode::NOMEM), |mut frame_buffer| {
-                        // TODO: reject if buffer is shorter than frame
-                        frame_buffer
-                            .blit(&buffer[..cmp::min(buffer.len(), len)], &self.frame.get());
+                        if self.pixel_format.get() == ScreenPixelFormat::RGB_332 {
+                            frame_buffer.blit_rgb332(InputBuffer {
+                                data: &buffer[..cmp::min(buffer.len(), len)],
+                                frame: &self.frame.get(),
+                            });
+                        } else {
+                            frame_buffer.blit_4bit_srgb(InputBuffer {
+                                data: &buffer[..cmp::min(buffer.len(), len)],
+                                frame: &self.frame.get(),
+                            });
+                        }
 
-                        let buf = &mut frame_buffer.get_line_mut(0)[..2];
-                        buf.copy_from_slice(
+                        frame_buffer.set_line_header(
+                            0,
                             &CommandHeader {
                                 mode: Mode::NoUpdate,
                                 gate_line: 0,
-                            }
-                            .encode(),
+                            },
                         );
                         let mut l = frame_buffer.data;
                         l.slice(0..2);
@@ -584,6 +633,57 @@ where
 
     fn set_invert(&self, _inverted: bool) -> Result<(), ErrorCode> {
         Err(ErrorCode::NOSUPPORT)
+    }
+}
+
+impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> ScreenSetup<'a> for Lpm013m126<'a, A, P, S> {
+    fn set_client(&self, client: &'a dyn kernel::hil::screen::ScreenSetupClient) {
+        todo!()
+    }
+
+    fn set_resolution(&self, resolution: (usize, usize)) -> Result<(), ErrorCode> {
+        if resolution == (176, 176) {
+            Ok(())
+        } else {
+            Err(ErrorCode::NOSUPPORT)
+        }
+    }
+
+    fn set_pixel_format(&self, format: ScreenPixelFormat) -> Result<(), ErrorCode> {
+        match format {
+            ScreenPixelFormat::RGB_4BIT | ScreenPixelFormat::RGB_332 => {
+                self.pixel_format.set(format);
+                Ok(())
+            }
+            _ => Err(ErrorCode::NOSUPPORT),
+        }
+    }
+
+    fn set_rotation(&self, rotation: ScreenRotation) -> Result<(), ErrorCode> {
+        todo!()
+    }
+
+    fn get_num_supported_resolutions(&self) -> usize {
+        1
+    }
+
+    fn get_supported_resolution(&self, index: usize) -> Option<(usize, usize)> {
+        match index {
+            0 => Some((176, 176)),
+            _ => None,
+        }
+    }
+
+    fn get_num_supported_pixel_formats(&self) -> usize {
+        2
+    }
+
+    fn get_supported_pixel_format(&self, index: usize) -> Option<ScreenPixelFormat> {
+        match index {
+            0 => Some(ScreenPixelFormat::RGB_4BIT),
+            1 => Some(ScreenPixelFormat::RGB_332),
+            _ => None,
+        }
     }
 }
 
@@ -647,13 +747,12 @@ impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> SpiMasterClient for Lpm01
             }
             State::AllClearing => {
                 if let Some(mut fb) = self.frame_buffer.take() {
-                    let buf = &mut fb.get_line_mut(0)[..2];
-                    buf.copy_from_slice(
+                    fb.set_line_header(
+                        0,
                         &CommandHeader {
                             mode: Mode::Input4Bit,
                             gate_line: 1,
-                        }
-                        .encode(),
+                        },
                     );
                     let send_buf = fb.data;
                     let _ = self.spi.read_write_bytes(send_buf, None);

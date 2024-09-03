@@ -98,9 +98,12 @@ impl Sub for ScreenRotation {
 pub enum ScreenPixelFormat {
     /// Pixels encoded as 1-bit, used for monochromatic displays.
     Mono,
-    /// Pixels encoded as 2-bit red channel, 3-bit green channel, 3-bit blue
+    /// Pixels encoded as 1-bit blue, 1-bit green, 1-bit red,
+    /// and 1-bit for opaque (1) vs transparent (0)
+    RGB_4BIT,
+    /// Pixels encoded as 3-bit red channel, 3-bit green channel, 2-bit blue
     /// channel.
-    RGB_233,
+    RGB_332,
     /// Pixels encoded as 5-bit red channel, 6-bit green channel, 5-bit blue
     /// channel.
     RGB_565,
@@ -117,7 +120,8 @@ impl ScreenPixelFormat {
     pub fn get_bits_per_pixel(&self) -> usize {
         match self {
             Self::Mono => 1,
-            Self::RGB_233 => 8,
+            Self::RGB_4BIT => 4,
+            Self::RGB_332 => 8,
             Self::RGB_565 => 16,
             Self::RGB_888 => 24,
             Self::ARGB_8888 => 32,
