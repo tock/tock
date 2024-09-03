@@ -37,9 +37,12 @@ struct InputBuffer<'a, const PIXEL_BITS: usize> {
 
 impl<'a, const PIXEL_BITS: usize> InputBuffer<'a, PIXEL_BITS> {
     fn rows<'b>(&'b self) -> impl Iterator<Item = Row<'b>> {
-        self.data
-            .chunks(self.frame.width as usize / (8 / PIXEL_BITS))
-            .map(|data| Row { data })
+        let chunk_width = if PIXEL_BITS < 8 {
+            self.frame.width as usize / (8 / PIXEL_BITS)
+        } else {
+            self.frame.width as usize * (PIXEL_BITS / 8)
+        };
+        self.data.chunks(chunk_width).map(|data| Row { data })
     }
 }
 
@@ -135,6 +138,50 @@ impl<'a> FrameBuffer<'a> {
                     gate_line: (i + 1) as u16,
                 },
             );
+        }
+    }
+
+    /// Copy pixels from the buffer. The buffer may be shorter than frame.
+    fn blit_rgb565(&mut self, buffer: InputBuffer<16>) {
+        let frame_rows = self
+            .rows()
+            .skip(buffer.frame.row as usize)
+            .take(buffer.frame.height as usize);
+        let buf_rows = buffer.rows();
+
+        for (frame_row, buf_row) in frame_rows.zip(buf_rows) {
+            for (frame_pixel, buf_pixel) in frame_row
+                .iter_mut()
+                .skip(buffer.frame.column as usize)
+                .zip(buf_row.data.chunks_exact(2))
+            {
+                let buf_pixel = [buf_pixel[0], buf_pixel[1]];
+                let buf_p = u16::from_le_bytes(buf_pixel);
+                frame_pixel.transform(|pixel| {
+                    let red = if (buf_p >> 11) & 0b11111 >= 32 / 2 {
+                        // are red five bits more than 50%?
+                        0b1000
+                    } else {
+                        0
+                    };
+
+                    let green = if (buf_p >> 5) & 0b111111 >= 64 / 2 {
+                        // green 6 bits more than 50%?
+                        0b0100
+                    } else {
+                        0
+                    };
+
+                    let blue = if buf_p & 0b11111 >= 32 / 2 {
+                        // blue five bits more than 50%?
+                        0b0010
+                    } else {
+                        0
+                    };
+
+                    *pixel = red | green | blue;
+                });
+            }
         }
     }
 
@@ -358,7 +405,7 @@ where
                 write_complete_callback_handler: WriteCompleteCallbackHandler::new(),
                 write_complete_pending_call: OptionalCell::empty(),
                 frame_buffer: OptionalCell::new(FrameBuffer::new(frame_buffer.into())),
-                pixel_format: Cell::new(ScreenPixelFormat::RGB_332),
+                pixel_format: Cell::new(ScreenPixelFormat::RGB_565),
                 buffer: TakeCell::empty(),
                 client: OptionalCell::empty(),
                 state: Cell::new(State::Uninitialized),
@@ -557,16 +604,23 @@ where
                 self.frame_buffer
                     .take()
                     .map_or(Err(ErrorCode::NOMEM), |mut frame_buffer| {
-                        if self.pixel_format.get() == ScreenPixelFormat::RGB_332 {
-                            frame_buffer.blit_rgb332(InputBuffer {
+                        match self.pixel_format.get() {
+                            ScreenPixelFormat::RGB_332 => {
+                                frame_buffer.blit_rgb332(InputBuffer {
+                                    data: &buffer[..cmp::min(buffer.len(), len)],
+                                    frame: &self.frame.get(),
+                                });
+                            }
+                            ScreenPixelFormat::RGB_565 => {
+                                frame_buffer.blit_rgb565(InputBuffer {
+                                    data: &buffer[..cmp::min(buffer.len(), len)],
+                                    frame: &self.frame.get(),
+                                });
+                            }
+                            _ => frame_buffer.blit_4bit_srgb(InputBuffer {
                                 data: &buffer[..cmp::min(buffer.len(), len)],
                                 frame: &self.frame.get(),
-                            });
-                        } else {
-                            frame_buffer.blit_4bit_srgb(InputBuffer {
-                                data: &buffer[..cmp::min(buffer.len(), len)],
-                                frame: &self.frame.get(),
-                            });
+                            }),
                         }
 
                         frame_buffer.set_line_header(
@@ -637,7 +691,7 @@ where
 }
 
 impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> ScreenSetup<'a> for Lpm013m126<'a, A, P, S> {
-    fn set_client(&self, client: &'a dyn kernel::hil::screen::ScreenSetupClient) {
+    fn set_client(&self, _client: &'a dyn kernel::hil::screen::ScreenSetupClient) {
         todo!()
     }
 
@@ -659,7 +713,7 @@ impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> ScreenSetup<'a> for Lpm01
         }
     }
 
-    fn set_rotation(&self, rotation: ScreenRotation) -> Result<(), ErrorCode> {
+    fn set_rotation(&self, _rotation: ScreenRotation) -> Result<(), ErrorCode> {
         todo!()
     }
 
@@ -675,13 +729,14 @@ impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> ScreenSetup<'a> for Lpm01
     }
 
     fn get_num_supported_pixel_formats(&self) -> usize {
-        2
+        3
     }
 
     fn get_supported_pixel_format(&self, index: usize) -> Option<ScreenPixelFormat> {
         match index {
             0 => Some(ScreenPixelFormat::RGB_4BIT),
             1 => Some(ScreenPixelFormat::RGB_332),
+            2 => Some(ScreenPixelFormat::RGB_565),
             _ => None,
         }
     }
