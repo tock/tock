@@ -144,8 +144,8 @@ impl DeferredCall {
         // SAFETY: No accesses to CTR are via an &mut, and the Tock kernel is
         // single-threaded so all accesses will occur from this thread.
         let ctr = unsafe { &*addr_of!(CTR) };
-        let idx = ctr.get() + 1;
-        ctr.set(idx);
+        let idx = ctr.get();
+        ctr.set(idx + 1);
         DeferredCall { idx }
     }
 
@@ -253,7 +253,9 @@ impl DeferredCall {
         let defcalls = unsafe { &*addr_of!(DEFCALLS) };
         let num_deferred_calls = ctr.get();
         let num_registered_calls = defcalls.iter().filter(|opt| opt.is_some()).count();
-        if num_deferred_calls >= defcalls.len() || num_registered_calls != num_deferred_calls {
+        if num_deferred_calls > defcalls.len() {
+            panic!("ERROR: too many deferred calls: {}", num_deferred_calls);
+        } else if num_deferred_calls != num_registered_calls {
             panic!(
                 "ERROR: {} deferred calls, {} registered. A component may have forgotten to register a deferred call.",
                 num_deferred_calls, num_registered_calls
