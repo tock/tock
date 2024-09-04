@@ -45,8 +45,7 @@ fn main() {
             .any(|f| f.contains("cfg_tock_buildflagssentinel"))
         {
             panic!(
-                "Incorrect build configuration. \
-            Verify you have not unintentionally set the RUSTFLAGS environment variable."
+                "Incorrect build configuration. Verify you are using unstable cargo and have not unintentionally set the RUSTFLAGS environment variable."
             );
         }
     }
