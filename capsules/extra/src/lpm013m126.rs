@@ -359,10 +359,6 @@ pub struct Lpm013m126<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> {
     ready_callback_handler: ReadyCallbackHandler<'a, A, P, S>,
     command_complete_callback: DeferredCall,
     command_complete_callback_handler: CommandCompleteCallbackHandler<'a, A, P, S>,
-    write_complete_callback: DeferredCall,
-    write_complete_callback_handler: WriteCompleteCallbackHandler<'a, A, P, S>,
-    /// Holds the pending call parameter
-    write_complete_pending_call: OptionalCell<Result<(), ErrorCode>>,
 
     /// The HIL requires updates to arbitrary rectangles.
     /// The display supports only updating entire rows,
@@ -401,9 +397,6 @@ where
                 ready_callback_handler: ReadyCallbackHandler::new(),
                 command_complete_callback: DeferredCall::new(),
                 command_complete_callback_handler: CommandCompleteCallbackHandler::new(),
-                write_complete_callback: DeferredCall::new(),
-                write_complete_callback_handler: WriteCompleteCallbackHandler::new(),
-                write_complete_pending_call: OptionalCell::empty(),
                 frame_buffer: OptionalCell::new(FrameBuffer::new(frame_buffer.into())),
                 pixel_format: Cell::new(ScreenPixelFormat::RGB_565),
                 buffer: TakeCell::empty(),
@@ -433,9 +426,6 @@ where
                 self.command_complete_callback_handler.lpm.set(self);
                 self.command_complete_callback
                     .register(&self.command_complete_callback_handler);
-                self.write_complete_callback_handler.lpm.set(self);
-                self.write_complete_callback
-                    .register(&self.write_complete_callback_handler);
 
                 self.state.set(State::Off);
                 Ok(())
@@ -512,11 +502,6 @@ where
         }
     }
 
-    fn call_write_complete(&self, ret: Result<(), ErrorCode>) {
-        self.write_complete_callback.set();
-        self.write_complete_pending_call.set(ret);
-    }
-
     fn arm_alarm(&self) {
         // Datasheet says 2Hz or more often flipping is required
         // for transmissive mode.
@@ -526,18 +511,6 @@ where
 
     fn handle_ready_callback(&self) {
         self.client.map(|client| client.screen_is_ready());
-    }
-
-    fn handle_write_complete_callback(&self) {
-        self.client.map(|client| {
-            self.write_complete_pending_call.map(|pend| {
-                self.buffer.take().map(|buffer| {
-                    let data = SubSliceMut::new(buffer);
-                    client.write_complete(data, pend)
-                });
-            });
-            self.write_complete_pending_call.take();
-        });
     }
 
     fn handle_command_complete_callback(&self) {
@@ -650,11 +623,6 @@ where
         };
 
         self.buffer.replace(buffer);
-
-        match self.state.get() {
-            State::Writing => {}
-            _ => self.call_write_complete(ret),
-        };
 
         ret
     }
@@ -894,31 +862,5 @@ where
 
     fn register(&'static self) {
         self.lpm.map(|l| l.command_complete_callback.register(self));
-    }
-}
-
-struct WriteCompleteCallbackHandler<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> {
-    lpm: OptionalCell<&'a Lpm013m126<'a, A, P, S>>,
-}
-
-impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> WriteCompleteCallbackHandler<'a, A, P, S> {
-    fn new() -> Self {
-        Self {
-            lpm: OptionalCell::empty(),
-        }
-    }
-}
-
-impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> DeferredCallClient
-    for WriteCompleteCallbackHandler<'a, A, P, S>
-where
-    Self: 'static,
-{
-    fn handle_deferred_call(&self) {
-        self.lpm.map(|l| l.handle_write_complete_callback());
-    }
-
-    fn register(&'static self) {
-        self.lpm.map(|l| l.write_complete_callback.register(self));
     }
 }
