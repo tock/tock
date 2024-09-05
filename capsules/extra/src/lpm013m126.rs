@@ -28,7 +28,11 @@ use kernel::ErrorCode;
 ///
 /// 176 rows, of 176 4-bit pixels and a 2-byte command header, plus a
 /// trailing 2 byte transfer period
-pub const BUF_LEN: usize = 176 * (176 / 2 + 2) + 2;
+const ROWS: usize = 176;
+const COLS: usize = 176;
+const ROW_BYTES: usize = COLS / 2;
+const LINE_LEN: usize = ROW_BYTES + 2;
+pub const BUF_LEN: usize = ROWS * LINE_LEN + 2;
 
 struct InputBuffer<'a, const PIXEL_BITS: usize> {
     data: &'a [u8],
@@ -36,7 +40,7 @@ struct InputBuffer<'a, const PIXEL_BITS: usize> {
 }
 
 impl<'a, const PIXEL_BITS: usize> InputBuffer<'a, PIXEL_BITS> {
-    fn rows<'b>(&'b self) -> impl Iterator<Item = Row<'b>> {
+    fn rows(&self) -> impl Iterator<Item = Row> {
         let chunk_width = if PIXEL_BITS < 8 {
             self.frame.width as usize / (8 / PIXEL_BITS)
         } else {
@@ -95,8 +99,7 @@ impl<'a> Row<'a> {
     fn iter<'b>(&'b self) -> impl Iterator<Item = Pixel<'a>> {
         self.data
             .iter()
-            .map(|data| [Pixel { data, top: true }, Pixel { data, top: false }])
-            .flatten()
+            .flat_map(|data| [Pixel { data, top: true }, Pixel { data, top: false }])
     }
 }
 
@@ -105,11 +108,10 @@ struct RowMut<'a> {
 }
 
 impl<'a> RowMut<'a> {
-    fn iter_mut<'b>(&'b self) -> impl Iterator<Item = PixelMut<'b>> {
+    fn iter_mut(&self) -> impl Iterator<Item = PixelMut> {
         self.data
             .iter()
-            .map(|data| [PixelMut { data, top: true }, PixelMut { data, top: false }])
-            .flatten()
+            .flat_map(|data| [PixelMut { data, top: true }, PixelMut { data, top: false }])
     }
 }
 
@@ -130,7 +132,7 @@ impl<'a> FrameBuffer<'a> {
 
     /// Initialize header bytes for each line.
     fn initialize(&mut self) {
-        for i in 0..176 {
+        for i in 0..ROWS {
             self.set_line_header(
                 i,
                 &CommandHeader {
@@ -263,14 +265,13 @@ impl<'a> FrameBuffer<'a> {
 
     fn set_line_header(&mut self, index: usize, header: &CommandHeader) {
         const CMD: usize = 2;
-        let line_bytes = CMD + 176 / 2;
-        if let Some(buf) = self.data[(line_bytes * index)..].first_chunk_mut::<2>() {
+        if let Some(buf) = self.data[(LINE_LEN * index)..].first_chunk_mut::<CMD>() {
             *buf = header.encode();
         }
     }
 
     fn rows(&mut self) -> impl Iterator<Item = RowMut> {
-        self.data.as_slice().chunks_mut(2 + 176 / 2).map_while(|c| {
+        self.data.as_slice().chunks_mut(LINE_LEN).map_while(|c| {
             c.get_mut(2..).map(|data| RowMut {
                 data: Cell::from_mut(data).as_slice_of_cells(),
             })
@@ -383,33 +384,29 @@ where
         extcomin: &'a P,
         disp: &'a P,
         alarm: &'a A,
-        frame_buffer: &'static mut [u8],
+        frame_buffer: &'static mut [u8; BUF_LEN],
     ) -> Result<Self, InitError> {
-        if frame_buffer.len() < BUF_LEN {
-            Err(InitError::BufferTooSmall)
-        } else {
-            Ok(Self {
-                spi,
-                alarm,
-                disp,
-                extcomin,
-                ready_callback: DeferredCall::new(),
-                ready_callback_handler: ReadyCallbackHandler::new(),
-                command_complete_callback: DeferredCall::new(),
-                command_complete_callback_handler: CommandCompleteCallbackHandler::new(),
-                frame_buffer: OptionalCell::new(FrameBuffer::new(frame_buffer.into())),
-                pixel_format: Cell::new(ScreenPixelFormat::RGB_565),
-                buffer: TakeCell::empty(),
-                client: OptionalCell::empty(),
-                state: Cell::new(State::Uninitialized),
-                frame: Cell::new(WriteFrame {
-                    row: 0,
-                    column: 0,
-                    width: 176,
-                    height: 176,
-                }),
-            })
-        }
+        Ok(Self {
+            spi,
+            alarm,
+            disp,
+            extcomin,
+            ready_callback: DeferredCall::new(),
+            ready_callback_handler: ReadyCallbackHandler::new(),
+            command_complete_callback: DeferredCall::new(),
+            command_complete_callback_handler: CommandCompleteCallbackHandler::new(),
+            frame_buffer: OptionalCell::new(FrameBuffer::new((frame_buffer as &mut [u8]).into())),
+            pixel_format: Cell::new(ScreenPixelFormat::RGB_565),
+            buffer: TakeCell::empty(),
+            client: OptionalCell::empty(),
+            state: Cell::new(State::Uninitialized),
+            frame: Cell::new(WriteFrame {
+                row: 0,
+                column: 0,
+                width: COLS as u16,
+                height: ROWS as u16,
+            }),
+        })
     }
 
     /// Set up internal data structures.
@@ -526,7 +523,7 @@ where
     Self: 'static,
 {
     fn get_resolution(&self) -> (usize, usize) {
-        (176, 176)
+        (ROWS, COLS)
     }
 
     fn get_pixel_format(&self) -> ScreenPixelFormat {
@@ -664,7 +661,7 @@ impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> ScreenSetup<'a> for Lpm01
     }
 
     fn set_resolution(&self, resolution: (usize, usize)) -> Result<(), ErrorCode> {
-        if resolution == (176, 176) {
+        if resolution == (ROWS, COLS) {
             Ok(())
         } else {
             Err(ErrorCode::NOSUPPORT)
@@ -691,7 +688,7 @@ impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> ScreenSetup<'a> for Lpm01
 
     fn get_supported_resolution(&self, index: usize) -> Option<(usize, usize)> {
         match index {
-            0 => Some((176, 176)),
+            0 => Some((ROWS, COLS)),
             _ => None,
         }
     }
@@ -777,7 +774,14 @@ impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> SpiMasterClient for Lpm01
                             gate_line: 1,
                         },
                     );
-                    let send_buf = fb.data;
+                    let mut send_buf = fb.data;
+
+                    let first_row = cmp::min(ROWS as u16, self.frame.get().row);
+                    let offset = first_row as usize * LINE_LEN;
+                    let len = cmp::min(ROWS as u16 - first_row, self.frame.get().height) as usize
+                        * LINE_LEN;
+                    send_buf.slice(offset..(offset + len + 2));
+
                     let _ = self.spi.read_write_bytes(send_buf, None);
                 }
                 State::Writing
