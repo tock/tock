@@ -1,16 +1,15 @@
 // VTOCK-TODO: how to do defs without breaking compilation
+use core::ops::{Add, AddAssign};
+pub use tock_registers::debug;
+pub use tock_registers::fields::TryFromValue;
 use tock_registers::fields::{Field, FieldValue};
 use tock_registers::interfaces::{Readable, Writeable};
 use tock_registers::registers::ReadWrite;
 pub use tock_registers::RegisterLongName;
-pub use tock_registers::fields::TryFromValue;
-pub use tock_registers::debug;
-use core::ops::{Add,AddAssign};
 
-flux_rs::defs!{
+flux_rs::defs! {
     fn bv32(x:int) -> bitvec<32> { bv_int_to_bv32(x) }
 }
-
 
 // VTOCK_TODO: simplify specs with some helper funcs
 
@@ -43,7 +42,6 @@ impl<R: RegisterLongName> FieldU32<R> {
     }
 }
 
-
 #[derive(Copy, Clone)]
 #[flux_rs::opaque]
 #[flux_rs::refined_by(mask: bitvec<32>, value: bitvec<32>)]
@@ -56,7 +54,9 @@ impl<R: RegisterLongName> FieldValueU32<R> {
     // mask << shift, value << shift
     #[flux_rs::sig(fn(u32[@mask], usize[@shift], u32[@value]) -> Self[bv_shl(bv32(mask), bv32(shift)), bv_shl(bv32(value), bv32(shift))])]
     pub const fn new(mask: u32, shift: usize, value: u32) -> Self {
-        FieldValueU32 {inner: FieldValue::<u32, R>::new(mask, shift, value) }
+        FieldValueU32 {
+            inner: FieldValue::<u32, R>::new(mask, shift, value),
+        }
     }
 
     #[inline]
@@ -100,7 +100,6 @@ impl<R: RegisterLongName> Add for FieldValueU32<R> {
     }
 }
 
-
 impl<R: RegisterLongName> AddAssign for FieldValueU32<R> {
     #[flux_rs::trusted]
     #[flux_rs::sig(fn(self: &strg Self[@mask0, @value0], Self[@mask1, @value1]) ensures self: Self[bv_or(mask0, mask1), bv_or(value0, value1)])]
@@ -108,7 +107,6 @@ impl<R: RegisterLongName> AddAssign for FieldValueU32<R> {
         self.inner += other.inner;
     }
 }
-
 
 #[flux_rs::opaque]
 #[flux_rs::refined_by(value: bitvec<32>)]
@@ -177,7 +175,6 @@ macro_rules! register_bitfields {
         )*
     }
 }
-
 
 #[macro_export]
 macro_rules! bitmask {
@@ -260,26 +257,44 @@ macro_rules! register_bitmasks {
             use $crate::{FieldValueU32, TryFromValue};
             use super::$reg_desc;
 
+            const MASK: u32 = $crate::bitmask!($numbits);
+            const OFFSET: usize = $offset;
+
             $(
             #[allow(non_upper_case_globals)]
             #[allow(unused)]
             $(#[$inner])*
-            pub const $valname: FieldValueU32<$reg_desc> =
-                FieldValueU32::<$reg_desc>::new($crate::bitmask!($numbits),
-                    $offset, $value);
+            mod $valname {
+                use $crate::{FieldValueU32, TryFromValue};
+                use super::$reg_desc;
+
+                const MASK: u32 = $crate::bitmask!($numbits);
+                const OFFSET: usize = $offset;
+                const VALUE: u32 = $value;
+
+                #[flux_rs::sig(fn() -> FieldValueU32<$reg_desc>[bv_shl(bv_int_to_bv32(MASK), bv_int_to_bv32(OFFSET)), bv_shl(bv_int_to_bv32(VALUE), bv_int_to_bv32(OFFSET))])]
+                pub const fn $valname() -> FieldValueU32<$reg_desc> {
+                FieldValueU32::<$reg_desc>::new(MASK, OFFSET, $value)
+                }
+            }
+            pub use $valname::$valname;
             )*
 
-            #[allow(non_upper_case_globals)]
-            #[allow(unused)]
-            pub const SET: FieldValueU32<$reg_desc> =
-                FieldValueU32::<$reg_desc>::new($crate::bitmask!($numbits),
-                    $offset, $crate::bitmask!($numbits));
+            // #[allow(non_upper_case_globals)]
+            // #[allow(unused)]
+            // pub const SET: FieldValueU32<$reg_desc> =
+            //     FieldValueU32::<$reg_desc>::new($crate::bitmask!($numbits),
+            //         $offset, $crate::bitmask!($numbits));
 
-            #[allow(non_upper_case_globals)]
-            #[allow(unused)]
-            pub const CLEAR: FieldValueU32<$reg_desc> =
-                FieldValueU32::<$reg_desc>::new($crate::bitmask!($numbits),
-                    $offset, 0);
+            #[flux_rs::sig(fn() -> FieldValueU32<$reg_desc>[bv_shl(bv_int_to_bv32(MASK), bv_int_to_bv32(OFFSET)), bv_shl(bv_int_to_bv32(MASK), bv_int_to_bv32(OFFSET))])]
+            pub const fn SET() -> FieldValueU32<$reg_desc> {
+                FieldValueU32::<$reg_desc>::new(MASK, OFFSET, MASK)
+            }
+
+            #[flux_rs::sig(fn() -> FieldValueU32<$reg_desc>[bv_shl(bv_int_to_bv32(MASK), bv_int_to_bv32(OFFSET)), bv_shl(bv_int_to_bv32(0), bv_int_to_bv32(OFFSET))])]
+            pub const fn CLEAR() -> FieldValueU32<$reg_desc> {
+                FieldValueU32::<$reg_desc>::new(MASK, OFFSET, 0)
+            }
 
             #[allow(dead_code)]
             #[allow(non_camel_case_types)]
@@ -333,17 +348,21 @@ macro_rules! register_bitmasks {
             use $crate::{FieldValueU32, TryFromValue};
             use super::$reg_desc;
 
-            #[allow(non_upper_case_globals)]
-            #[allow(unused)]
-            pub const SET: FieldValueU32<$reg_desc> =
-                FieldValueU32::<$reg_desc>::new($crate::bitmask!($numbits),
-                    $offset, $crate::bitmask!($numbits));
+            const MASK: u32 = $crate::bitmask!($numbits);
+            const OFFSET: usize = $offset;
 
             #[allow(non_upper_case_globals)]
             #[allow(unused)]
-            pub const CLEAR: FieldValueU32<$reg_desc> =
-                FieldValueU32::<$reg_desc>::new($crate::bitmask!($numbits),
-                    $offset, 0);
+            #[flux_rs::sig(fn() -> FieldValueU32<$reg_desc>[bv_shl(bv_int_to_bv32(MASK), bv_int_to_bv32(OFFSET)), bv_shl(bv_int_to_bv32(MASK), bv_int_to_bv32(OFFSET))])]
+            pub const fn SET() -> FieldValueU32<$reg_desc> {
+                FieldValueU32::<$reg_desc>::new(MASK, OFFSET, MASK)
+            }
+
+
+            #[flux_rs::sig(fn() -> FieldValueU32<$reg_desc>[bv_shl(bv_int_to_bv32(MASK), bv_int_to_bv32(OFFSET)), bv_shl(bv_int_to_bv32(0), bv_int_to_bv32(OFFSET))])]
+            pub const fn CLEAR() -> FieldValueU32<$reg_desc> {
+                FieldValueU32::<$reg_desc>::new(MASK, OFFSET, 0)
+            }
 
             #[allow(dead_code)]
             #[allow(non_camel_case_types)]
@@ -366,6 +385,6 @@ macro_rules! register_bitmasks {
     (
         // final implementation of the macro
         @debug $valtype:ident, $reg_mod:ident, $reg_desc:ident, [$($field:ident),*]
-    ) => {};    
+    ) => {};
 
 }

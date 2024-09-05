@@ -13,11 +13,11 @@
 //     fn subregion_enabled(raddr: int, rsize: int, addr: int, size: int, srd: bitvec<8>) -> bool {
 //         rsize >= 256
 //         // VTOCK-TODO: how to implement cleanly?
-        
+
 //         // ((addr >= raddr) && (addr + size < raddr + rsize))
 //     }
 
-//     fn can_service(raddr: int, rsize: int, addr: int, size: int, srd: bitvec<8>, enabled: bool) -> bool { 
+//     fn can_service(raddr: int, rsize: int, addr: int, size: int, srd: bitvec<8>, enabled: bool) -> bool {
 //         enabled && contains(raddr, rsize, addr, size) && subregion_enabled(addr, rsize, addr, size, srd)
 //     }
 
@@ -34,8 +34,8 @@ use core::cmp;
 use core::fmt;
 use core::num::NonZeroUsize;
 
-use flux_support::*;
 use flux_support::register_bitfields;
+use flux_support::*;
 use kernel::platform::mpu;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::math;
@@ -46,7 +46,6 @@ use kernel::utilities::math;
 fn power_of_two(n: u32) -> usize {
     1_usize << n
 }
-
 
 // // #[flux_rs::refined_by(privdefena: bool, hfnmiena: bool, enable: bool)]
 // // #[flux_rs::invariant()]
@@ -121,7 +120,7 @@ fn power_of_two(n: u32) -> usize {
 /// Described in section 4.5 of
 /// <http://infocenter.arm.com/help/topic/com.arm.doc.dui0553a/DUI0553A_cortex_m4_dgug.pdf>
 #[repr(C)]
-#[flux_rs::refined_by(ctrl: bitvec<32>)]
+#[flux_rs::refined_by(ctrl: bitvec<32>, rnr: bitvec<32>, rbar: bitvec<32>, rasr: bitvec<32>)]
 pub struct MpuRegisters {
     /// Indicates whether the MPU is present and, if so, how many regions it
     /// supports.
@@ -137,13 +136,16 @@ pub struct MpuRegisters {
 
     /// Selects the region number (zero-indexed) referenced by the region base
     /// address and region attribute and size registers.
+    #[field(ReadWriteU32<RegionNumber::Register>[rnr])]
     pub rnr: ReadWriteU32<RegionNumber::Register>,
 
     /// Defines the base address of the currently selected MPU region.
+    #[field(ReadWriteU32<RegionBaseAddress::Register>[rbar])]
     pub rbar: ReadWriteU32<RegionBaseAddress::Register>,
 
     /// Defines the region size and memory attributes of the selected MPU
     /// region. The bits are defined as in 4.5.5 of the Cortex-M4 user guide.
+    #[field(ReadWriteU32<RegionAttributes::Register>[rasr])]
     pub rasr: ReadWriteU32<RegionAttributes::Register>,
 }
 
@@ -237,10 +239,10 @@ register_bitfields![u32,
 /// real hardware.
 ///
 #[flux_rs::invariant(MIN_REGION_SIZE > 0 && MIN_REGION_SIZE < 2147483648)]
-#[flux_rs::refined_by(ctrl: bitvec<32>)]
+#[flux_rs::refined_by(ctrl: bitvec<32>, rnr: bitvec<32>, rbar: bitvec<32>, rasr: bitvec<32>)]
 pub struct MPU<const MIN_REGION_SIZE: usize> {
     /// MMIO reference to MPU registers.
-    #[field(MpuRegisters[ctrl])]
+    #[field(MpuRegisters[ctrl, rnr, rbar, rasr])]
     registers: MpuRegisters,
     /// Monotonically increasing counter for allocated regions, used
     /// to assign unique IDs to `CortexMConfig` instances.
@@ -262,7 +264,13 @@ impl<const MIN_REGION_SIZE: usize> MPU<MIN_REGION_SIZE> {
         let rnr = ReadWriteU32::new(mpu_addr + 8);
         let rbar = ReadWriteU32::new(mpu_addr + 12);
         let rasr = ReadWriteU32::new(mpu_addr + 16);
-        let regs = MpuRegisters {mpu_type, ctrl, rnr, rbar, rasr};
+        let regs = MpuRegisters {
+            mpu_type,
+            ctrl,
+            rnr,
+            rbar,
+            rasr,
+        };
 
         Self {
             registers: regs,
@@ -273,10 +281,9 @@ impl<const MIN_REGION_SIZE: usize> MPU<MIN_REGION_SIZE> {
 
     // Function useful for boards where the bootloader sets up some
     // MPU configuration that conflicts with Tock's configuration:
-    #[flux_rs::trusted]
     #[flux_rs::sig(fn(self: &strg Self) ensures self: Self{mpu: bv_and(mpu.ctrl, bv_int_to_bv32(0x00000001)) == bv_int_to_bv32(0) })]
     pub unsafe fn clear_mpu(&mut self) {
-        self.registers.ctrl.write(Control::ENABLE::CLEAR);
+        self.registers.ctrl.write(Control::ENABLE::CLEAR());
     }
 }
 
@@ -417,36 +424,36 @@ impl CortexMRegion {
         // Determine access and execute permissions
         let (access, execute) = match permissions {
             mpu::Permissions::ReadWriteExecute => (
-                RegionAttributes::AP::ReadWrite,
-                RegionAttributes::XN::Enable,
+                RegionAttributes::AP::ReadWrite(),
+                RegionAttributes::XN::Enable(),
             ),
             mpu::Permissions::ReadWriteOnly => (
-                RegionAttributes::AP::ReadWrite,
-                RegionAttributes::XN::Disable,
+                RegionAttributes::AP::ReadWrite(),
+                RegionAttributes::XN::Disable(),
             ),
             mpu::Permissions::ReadExecuteOnly => (
-                RegionAttributes::AP::UnprivilegedReadOnly,
-                RegionAttributes::XN::Enable,
+                RegionAttributes::AP::UnprivilegedReadOnly(),
+                RegionAttributes::XN::Enable(),
             ),
             mpu::Permissions::ReadOnly => (
-                RegionAttributes::AP::UnprivilegedReadOnly,
-                RegionAttributes::XN::Disable,
+                RegionAttributes::AP::UnprivilegedReadOnly(),
+                RegionAttributes::XN::Disable(),
             ),
             mpu::Permissions::ExecuteOnly => (
-                RegionAttributes::AP::PrivilegedOnly,
-                RegionAttributes::XN::Enable,
+                RegionAttributes::AP::PrivilegedOnly(),
+                RegionAttributes::XN::Enable(),
             ),
         };
 
         // Base address register
         let base_address = RegionBaseAddress::ADDR.val((region_start.as_u32()) >> 5)
-            + RegionBaseAddress::VALID::UseRBAR
+            + RegionBaseAddress::VALID::UseRBAR()
             + RegionBaseAddress::REGION.val(region_num as u32);
 
         let size_value = math::log_base_two_u32_usize(region_size) - 1;
 
         // Attributes register
-        let mut attributes = RegionAttributes::ENABLE::SET
+        let mut attributes = RegionAttributes::ENABLE::SET()
             + RegionAttributes::SIZE.val(size_value)
             + access
             + execute;
@@ -476,9 +483,9 @@ impl CortexMRegion {
     fn empty(region_num: usize) -> CortexMRegion {
         CortexMRegion {
             location: None,
-            base_address: RegionBaseAddress::VALID::UseRBAR
+            base_address: RegionBaseAddress::VALID::UseRBAR()
                 + RegionBaseAddress::REGION.val(region_num as u32),
-            attributes: RegionAttributes::ENABLE::CLEAR,
+            attributes: RegionAttributes::ENABLE::CLEAR(),
         }
     }
 
@@ -520,17 +527,16 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
     fn enable_app_mpu(&mut self) {
         // Enable the MPU, disable it during HardFault/NMI handlers, and allow
         // privileged code access to all unprotected memory.
-        self.registers
-            .ctrl
-            .write(Control::ENABLE::SET + Control::HFNMIENA::CLEAR + Control::PRIVDEFENA::SET);
+        self.registers.ctrl.write(
+            Control::ENABLE::SET() + Control::HFNMIENA::CLEAR() + Control::PRIVDEFENA::SET(),
+        );
     }
 
-    #[flux_rs::trusted]
-    #[flux_rs::sig(fn(self: &strg Self) ensures self: Self{mpu: bv_and(mpu.ctrl, bv_int_to_bv32(0x00000001)) == bv_int_to_bv32(1) })]
+    #[flux_rs::sig(fn(self: &strg Self) ensures self: Self{mpu: bv_and(mpu.ctrl, bv_int_to_bv32(0x00000001)) == bv_int_to_bv32(0) })]
     fn disable_app_mpu(&mut self) {
         // The MPU is not enabled for privileged mode, so we don't have to do
         // anything
-        self.registers.ctrl.write(Control::ENABLE::CLEAR);
+        self.registers.ctrl.write(Control::ENABLE::CLEAR());
     }
 
     fn number_total_regions(&self) -> usize {
@@ -699,7 +705,6 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
         Some(mpu::Region::new(start.as_fluxptr(), size))
     }
 
-    #[flux_rs::trusted] // need spec for enumerate and find?
     fn remove_memory_region(
         &self,
         region: mpu::Region,
@@ -715,6 +720,7 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
         if idx <= APP_MEMORY_REGION_MAX_NUM {
             return Err(());
         }
+        assume(idx < 8); // need spec for find
 
         config.regions[idx] = CortexMRegion::empty(idx);
         config.is_dirty.set(true);
@@ -939,7 +945,7 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
         Ok(())
     }
 
-    #[flux_rs::sig(fn(self: &strg Self, &Self::MpuConfig) ensures self: Self)]    
+    #[flux_rs::sig(fn(self: &strg Self, &Self::MpuConfig) ensures self: Self)]
     fn configure_mpu(&mut self, config: &Self::MpuConfig) {
         // If the hardware is already configured for this app and the app's MPU
         // configuration has not changed, then skip the hardware update.
