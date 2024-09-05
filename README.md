@@ -1,4 +1,4 @@
-# ![TockOS](http://www.tockos.org/assets/img/tock.svg "TockOS Logo") Hello OSFC 24!
+# ![TockOS](http://www.tockos.org/assets/img/tock.svg "TockOS Logo") Hello OSFC!
 
 [![tock-ci](https://github.com/tock/tock/workflows/tock-ci/badge.svg)][tock-ci]
 [![slack](https://img.shields.io/badge/slack-tockos-informational)][slack]
