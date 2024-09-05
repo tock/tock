@@ -244,21 +244,27 @@ macro_rules! register_bitmasks {
     } => { // this match arm is duplicated below with an allowance for 0 elements in the valname -> value array,
         // to seperately support the case of zero-variant enums not supporting non-default
         // representations.
-        #[allow(non_upper_case_globals)]
-        #[allow(unused)]
-        pub const $field: FieldU32<$reg_desc> =
-            FieldU32::<$reg_desc>::new($crate::bitmask!($numbits), $offset);
+
+        pub use $field::$field;
 
         #[allow(non_snake_case)]
         #[allow(unused)]
         $(#[$outer])*
         pub mod $field {
             #[allow(unused_imports)]
-            use $crate::{FieldValueU32, TryFromValue};
+            use $crate::{FieldValueU32, TryFromValue, FieldU32};
             use super::$reg_desc;
 
-            const MASK: u32 = $crate::bitmask!($numbits);
-            const OFFSET: usize = $offset;
+            pub const MASK: u32 = $crate::bitmask!($numbits);
+            pub const OFFSET: usize = $offset;
+
+            #[allow(non_upper_case_globals)]
+            #[allow(unused)]
+            #[flux_rs::sig(fn() -> FieldU32<$reg_desc>[bv_int_to_bv32(MASK), bv_int_to_bv32(OFFSET)])]
+            pub const fn $field() -> FieldU32<$reg_desc> {
+                FieldU32::<$reg_desc>::new(MASK, OFFSET)
+            }
+
 
             $(
             #[allow(non_upper_case_globals)]
@@ -279,12 +285,6 @@ macro_rules! register_bitmasks {
             }
             pub use $valname::$valname;
             )*
-
-            // #[allow(non_upper_case_globals)]
-            // #[allow(unused)]
-            // pub const SET: FieldValueU32<$reg_desc> =
-            //     FieldValueU32::<$reg_desc>::new($crate::bitmask!($numbits),
-            //         $offset, $crate::bitmask!($numbits));
 
             #[flux_rs::sig(fn() -> FieldValueU32<$reg_desc>[bv_shl(bv_int_to_bv32(MASK), bv_int_to_bv32(OFFSET)), bv_shl(bv_int_to_bv32(MASK), bv_int_to_bv32(OFFSET))])]
             pub const fn SET() -> FieldValueU32<$reg_desc> {
@@ -335,21 +335,27 @@ macro_rules! register_bitmasks {
                     $offset:expr, $numbits:expr,
                     []
     } => { //same pattern as previous match arm, for 0 elements in array. Removes code associated with array.
-        #[allow(non_upper_case_globals)]
-        #[allow(unused)]
-        pub const $field: FieldU32<$reg_desc> =
-            FieldU32::<$reg_desc>::new($crate::bitmask!($numbits), $offset);
+
+        pub use $field::$field;
 
         #[allow(non_snake_case)]
         #[allow(unused)]
         $(#[$outer])*
         pub mod $field {
             #[allow(unused_imports)]
-            use $crate::{FieldValueU32, TryFromValue};
+            use $crate::{FieldValueU32, TryFromValue, FieldU32};
             use super::$reg_desc;
 
             const MASK: u32 = $crate::bitmask!($numbits);
             const OFFSET: usize = $offset;
+
+            #[allow(non_upper_case_globals)]
+            #[allow(unused)]
+            #[flux_rs::sig(fn() -> FieldU32<$reg_desc>[bv_int_to_bv32(MASK), bv_int_to_bv32(OFFSET)])]
+            pub const fn $field() -> FieldU32<$reg_desc> {
+                FieldU32::<$reg_desc>::new(MASK, OFFSET)
+            }
+
 
             #[allow(non_upper_case_globals)]
             #[allow(unused)]

@@ -318,7 +318,7 @@ impl fmt::Display for CortexMConfig {
         write!(f, "\r\n Cortex-M MPU")?;
         for (i, region) in self.regions.iter().enumerate() {
             if let Some(location) = region.location() {
-                let access_bits = region.attributes().read(RegionAttributes::AP);
+                let access_bits = region.attributes().read(RegionAttributes::AP());
                 let access_str = match access_bits {
                     0b000 => "NoAccess",
                     0b001 => "PrivilegedOnly",
@@ -342,7 +342,7 @@ impl fmt::Display for CortexMConfig {
                     access_str,
                     access_bits,
                 )?;
-                let subregion_bits = region.attributes().read(RegionAttributes::SRD);
+                let subregion_bits = region.attributes().read(RegionAttributes::SRD());
                 let subregion_size = location.1 / 8;
                 for j in 0..8 {
                     write!(
@@ -446,15 +446,15 @@ impl CortexMRegion {
         };
 
         // Base address register
-        let base_address = RegionBaseAddress::ADDR.val((region_start.as_u32()) >> 5)
+        let base_address = RegionBaseAddress::ADDR().val((region_start.as_u32()) >> 5)
             + RegionBaseAddress::VALID::UseRBAR()
-            + RegionBaseAddress::REGION.val(region_num as u32);
+            + RegionBaseAddress::REGION().val(region_num as u32);
 
         let size_value = math::log_base_two_u32_usize(region_size) - 1;
 
         // Attributes register
         let mut attributes = RegionAttributes::ENABLE::SET()
-            + RegionAttributes::SIZE.val(size_value)
+            + RegionAttributes::SIZE().val(size_value)
             + access
             + execute;
 
@@ -467,7 +467,7 @@ impl CortexMRegion {
                 // Enable subregions bit by bit (1 ^ 1 == 0)
                 res ^ (1 << i)
             });
-            attributes += RegionAttributes::SRD.val(mask as u32);
+            attributes += RegionAttributes::SRD().val(mask as u32);
         }
 
         CortexMRegion {
@@ -484,7 +484,7 @@ impl CortexMRegion {
         CortexMRegion {
             location: None,
             base_address: RegionBaseAddress::VALID::UseRBAR()
-                + RegionBaseAddress::REGION.val(region_num as u32),
+                + RegionBaseAddress::REGION().val(region_num as u32),
             attributes: RegionAttributes::ENABLE::CLEAR(),
         }
     }
@@ -540,7 +540,7 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
     }
 
     fn number_total_regions(&self) -> usize {
-        self.registers.mpu_type.read(Type::DREGION) as usize
+        self.registers.mpu_type.read(Type::DREGION()) as usize
     }
 
     fn new_config(&self) -> Option<Self::MpuConfig> {
