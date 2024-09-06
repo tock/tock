@@ -1,4 +1,5 @@
 use kernel::debug;
+use kernel::hil::gpio::{Configure, FloatingState, Output};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
@@ -643,15 +644,23 @@ impl Pio {
 
     /// Resets the state machine to a consistent state, and configures it.
     pub fn sm_init(&self, sm_number: SMNumber, config: &StateMachineConfiguration) {
-        self.sm_set_enabled(sm_number, false);
-        self.sm_config(sm_number, config);
-        self.sm_clear_fifos(sm_number);
         self.restart_sm(sm_number);
+        // let count = self.read_set_count(sm_number);
+        // debug!("{}", count);
+        // let base = self.read_set_base(sm_number);
+        // debug!("{}", base);
         self.sm_clkdiv_restart(sm_number);
-        self.sm_set_enabled(sm_number, true);
+        // self.sm_config(sm_number, config);
+        self.sm_clear_fifos(sm_number);
         self.registers.sm[sm_number as usize]
             .instr
             .modify(SMx_INSTR::INSTR.val(0));
+        self.sm_set_enabled(sm_number, true);
+        // self.sm_set_enabled(sm_number, false);
+        // let count = self.read_set_count(sm_number);
+        // debug!("{}", count);
+        // let base = self.read_set_base(sm_number);
+        // debug!("{}", base);
     }
 
     /// Set a state machine's state to enabled or to disabled.
@@ -683,6 +692,8 @@ impl Pio {
         } else {
             pin.set_function(GpioFunction::PIO0)
         }
+        // pin.make_output();
+        // pin.set();
     }
 
     /// Create a new PIO0 struct.
@@ -915,12 +926,12 @@ impl Pio {
 
     /// Use a state machine to set the same pin direction for multiple consecutive pins for the PIO instance.
     fn set_consecutive_pindirs(&self, sm_number: SMNumber, pin: u32, count: u32) {
-        self.registers.sm[sm_number as usize]
-            .pinctrl
-            .modify(SMx_PINCTRL::SET_COUNT.val(count));
-        self.registers.sm[sm_number as usize]
-            .pinctrl
-            .modify(SMx_PINCTRL::SET_BASE.val(pin));
+        // self.registers.sm[sm_number as usize]
+        //     .pinctrl
+        //     .modify(SMx_PINCTRL::SET_COUNT.val(count));
+        // self.registers.sm[sm_number as usize]
+        //     .pinctrl
+        //     .modify(SMx_PINCTRL::SET_BASE.val(pin));
     }
 
     /// Immediately execute an instruction on a state machine.
@@ -940,7 +951,7 @@ impl Pio {
 
     /// Restart a state machine.
     pub fn restart_sm(&self, sm_number: SMNumber) {
-        /// SET Reg
+        // SET Reg
         match sm_number {
             SMNumber::SM0 => self.registers.ctrl.modify(CTRL::SM0_RESTART::SET),
             SMNumber::SM1 => self.registers.ctrl.modify(CTRL::SM1_RESTART::SET),
@@ -951,11 +962,11 @@ impl Pio {
 
     /// Clear a state machine’s TX and RX FIFOs.
     fn sm_clear_fifos(&self, sm_number: SMNumber) {
-        /// XOR Reg
+        // XOR Reg
         self.xor_registers.sm[sm_number as usize]
             .shiftctrl
             .modify(SMx_SHIFTCTRL::FJOIN_RX::SET);
-        /// XOR Reg
+        // XOR Reg
         self.xor_registers.sm[sm_number as usize]
             .shiftctrl
             .modify(SMx_SHIFTCTRL::FJOIN_RX::SET);
@@ -964,7 +975,7 @@ impl Pio {
     /// Restart a state machine's clock divider.
     pub fn sm_clkdiv_restart(&self, sm_number: SMNumber) {
         match sm_number {
-            /// SET Reg
+            // SET Reg
             SMNumber::SM0 => self.registers.ctrl.modify(CTRL::CLKDIV0_RESTART::SET),
             SMNumber::SM1 => self.registers.ctrl.modify(CTRL::CLKDIV1_RESTART::SET),
             SMNumber::SM2 => self.registers.ctrl.modify(CTRL::CLKDIV2_RESTART::SET),
@@ -1002,8 +1013,8 @@ impl Pio {
     pub fn init(&self) {
         let default_config: StateMachineConfiguration = StateMachineConfiguration::default();
         for state_machine in STATE_MACHINE_NUMBERS {
-            //self.sm_config(state_machine, &default_config);
-            self.sm_init(state_machine, &default_config)
+            self.sm_config(state_machine, &default_config);
+            // self.sm_init(state_machine, &default_config)
         }
     }
 
@@ -1035,10 +1046,16 @@ impl Pio {
         config: &StateMachineConfiguration,
     ) {
         self.pio_number = PIONumber::PIO0;
-        self.gpio_init(&RPGpioPin::new(RPGpio::GPIO25));
-        self.sm_init(sm_number, config);
+        self.gpio_init(&RPGpioPin::new(RPGpio::GPIO7));
+        // self.sm_init(sm_number, config);
+        // self.set_out_pins(sm_number, pin, 1);
+        self.sm_set_enabled(sm_number, false);
         self.set_set_pins(sm_number, pin, 1);
-        //self.set_out_pins(sm_number, pin, 1);
+        let count = self.read_set_count(sm_number);
+        debug!("{}", count);
+        let base = self.read_set_base(sm_number);
+        debug!("{}", base);
+        self.sm_init(sm_number, config);
     }
 
     pub fn read_set_base(&self, sm_number: SMNumber) -> u32 {

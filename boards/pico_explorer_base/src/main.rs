@@ -710,24 +710,26 @@ pub unsafe fn start() -> (
     // set pins, 1
     // jmp loop
     // After Pioasm => e001 0000
-    // let path: [u8; 4] = [0xe0, 0x01, 0x00, 0x00];
+    let path: [u8; 4] = [0xe0, 0x01, 0x00, 0x00];
+    // let path: [u8; 4] = [0x01, 0xe0, 0x01, 0x00];
     // loop:
     // set pins, 1
     // set pins, 0
     // jmp loop
     // After Pioasm => e001 e000 0000
-    let path: [u8; 6] = [0xe0, 0x01, 0xe0, 0x00, 0x00, 0x00];
+    // let path: [u8; 6] = [0xe0, 0x01, 0xe0, 0x00, 0x00, 0x00];
+    // let path: [u8; 2] = [0x00, 0x00];
     pio.init();
     //pio.gpio_init(peripherals.pins.get_pin(RPGpio::GPIO25));
     pio.add_program(&path);
-    pio.hello_program_init(SMNumber::SM0, 25, &StateMachineConfiguration::default());
-    // pio.sm_put(SMNumber::SM0, 62519);
+    pio.hello_program_init(SMNumber::SM0, 7, &StateMachineConfiguration::default());
+    // pio.add_program(&path);
     for _ in 1..100 {
-        // pio.sm_put(SMNumber::SM0, 62519);
         debug!("Instr_SM0:{}", pio.debugger(SMNumber::SM0));
-        // debug!("Set base = {}", pio.read_set_base(SMNumber::SM0));
-        // debug!("Set count = {}", pio.read_set_count(SMNumber::SM0));
     }
+    // pio.sm_set_enabled(SMNumber::SM0, false);
+    // debug!("{}", pio.read_set_count(SMNumber::SM0));
+    // debug!("{}", pio.read_set_base(SMNumber::SM0));
 
     (board_kernel, pico_explorer_base, chip)
 }
