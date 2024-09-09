@@ -13,6 +13,7 @@ members = [
     "arch/cortex-m7",
     "arch/riscv",
     "arch/rv32i",
+    "arch/x86",
     "boards/acd52832",
     "boards/nano_rp2040_connect",
     "boards/arty_e21",
