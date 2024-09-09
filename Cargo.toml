@@ -80,6 +80,7 @@ members = [
     "chips/nrf52833",
     "chips/nrf52840",
     "chips/nrf5x",
+    "chips/pc",
     "chips/qemu_rv32_virt_chip",
     "chips/rp2040",
     "chips/sam4l",
