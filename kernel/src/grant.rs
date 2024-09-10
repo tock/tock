@@ -257,7 +257,11 @@ struct AllowRwItems(u8);
 struct GrantDataSize(usize);
 /// Represents the alignment of data T within the grant.
 #[derive(Copy, Clone)]
-struct GrantDataAlign(usize);
+#[flux_rs::refined_by(val: int)]
+struct GrantDataAlign {
+    #[field(usize[val])]
+    val: usize,
+}
 
 impl<'a> EnteredGrantKernelManagedLayout<'a> {
     /// Reads the specified pointer as the base of the kernel owned grant region
@@ -343,11 +347,10 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         }
     }
 
-
-
     /// Returns the entire grant size including the kernel owned memory,
     /// padding, and data for T. Requires that grant_t_align be a power of 2,
     /// which is guaranteed from align_of rust calls.
+    #[flux_rs::sig(fn(UpcallItems, AllowRoItems, AllowRwItems, GrantDataSize, GrantDataAlign{g: g > 0}) -> usize)]
     fn grant_size(
         upcalls_num: UpcallItems,
         allow_ro_num: AllowRoItems,
@@ -358,26 +361,27 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         #[flux_rs::trusted] // bitwise arithmetic
         #[flux_rs::sig(fn(usize, usize{align: align > 0}) -> usize{n: n > 0})]
         fn calc_padding(kernel_managed_size: usize, align: usize) -> usize {
+            // We know that grant_t_align is a power of 2, so we can make a mask
+            // that will save only the remainder bits.
             let grant_t_align_mask = align - 1;
-    
+
             // Determine padding to get to the next multiple of grant_t_align by
             // taking the remainder and subtracting that from the alignment, then
             // ensuring a full alignment value maps to 0.
             (align - (kernel_managed_size & grant_t_align_mask)) & grant_t_align_mask
-        } 
+        }
+
+        // assume(grant_t_align.val > 0);
 
         let kernel_managed_size = size_of::<usize>()
             + upcalls_num.0 as usize * size_of::<SavedUpcall>()
             + allow_ro_num.0 as usize * size_of::<SavedAllowRo>()
             + allow_rw_num.0 as usize * size_of::<SavedAllowRw>();
-        // We know that grant_t_align is a power of 2, so we can make a mask
-        // that will save only the remainder bits.
-        assume(grant_t_align.0 > 0);
 
         // Determine padding to get to the next multiple of grant_t_align by
         // taking the remainder and subtracting that from the alignment, then
         // ensuring a full alignment value maps to 0.
-        let padding = calc_padding(kernel_managed_size, grant_t_align.0);
+        let padding = calc_padding(kernel_managed_size, grant_t_align.val);
         kernel_managed_size + padding + grant_t_size.0
     }
 
@@ -387,7 +391,7 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         // The kernel owned memory all aligned to usize. We need to use the
         // higher of the two alignment to ensure our padding calculations work
         // for any alignment of T.
-        cmp::max(align_of::<usize>(), grant_t_align.0)
+        cmp::max(align_of::<usize>(), grant_t_align.val)
     }
 
     /// Returns the offset for the grant data t within the entire grant region.
@@ -1017,6 +1021,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
             num_allow_rws: AllowRwItems,
             processid: ProcessId,
         ) -> Result<(Option<NonNull<u8>>, &'a dyn Process), Error> {
+            assume(grant_t_align.val > 0);
             // Here is an example of how the grants are laid out in the grant
             // region of process's memory:
             //
@@ -1131,7 +1136,9 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
             grant.grant_num,
             grant.driver_num,
             GrantDataSize(size_of::<T>()),
-            GrantDataAlign(align_of::<T>()),
+            GrantDataAlign {
+                val: align_of::<T>(),
+            },
             UpcallItems(Upcalls::COUNT),
             AllowRoItems(AllowROs::COUNT),
             AllowRwItems(AllowRWs::COUNT),
@@ -1409,7 +1416,9 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
                 panic!("Attempted to re-enter a grant region.");
             })
             .ok()?;
-        let grant_t_align = GrantDataAlign(align_of::<T>());
+        let grant_t_align = GrantDataAlign {
+            val: align_of::<T>(),
+        };
         let grant_t_size = GrantDataSize(size_of::<T>());
 
         let alloc_size = EnteredGrantKernelManagedLayout::grant_size(
@@ -1768,7 +1777,6 @@ impl<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSi
     ///
     /// Calling this function when an [`ProcessGrant`] for a process is
     /// currently entered will result in a panic.
-    #[flux_rs::trusted] // Use of ignored function `iter`
     pub fn each<F>(&self, mut fun: F)
     where
         F: FnMut(ProcessId, &mut GrantData<T>, &GrantKernelData),
@@ -1787,7 +1795,7 @@ impl<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSi
     ///
     /// Calling this function when an [`ProcessGrant`] for a process is
     /// currently entered will result in a panic.
-    #[flux_rs::ignore] // Uses Iter
+    #[flux_rs::trusted] // Incompatible base types
     pub fn iter(&self) -> Iter<T, Upcalls, AllowROs, AllowRWs> {
         Iter {
             grant: self,
@@ -1797,7 +1805,6 @@ impl<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSi
 }
 
 /// Type to iterate [`ProcessGrant`]s across processes.
-#[flux_rs::ignore] // Refinement of unsupported type: `for<'_> fn(: &'_ Option<&'static dyn Process>) -> Option<&'static dyn Process>`
 pub struct Iter<
     'a,
     T: 'a + Default,
@@ -1815,7 +1822,7 @@ pub struct Iter<
     >,
 }
 
-#[flux_rs::ignore] // Uses Iter
+#[flux_rs::trusted] // `to_sort_list` called on bound variable list with non-refinements
 impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSize> Iterator
     for Iter<'a, T, Upcalls, AllowROs, AllowRWs>
 {
