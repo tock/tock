@@ -227,8 +227,71 @@ pub trait StandardBitTiming {
 /// is inspired by the Zephyr CAN driver available at
 /// `<https://github.com/zephyrproject-rtos/zephyr/tree/main/drivers/can>`
 impl<T: Configure> StandardBitTiming for T {
-    #[flux_rs::trusted] // VTOCK: Timeout
+    #[flux_rs::trusted] // VTOCK: Arithmetic + error jumping to join point
     fn bit_timing_for_bitrate(clock_rate: u32, bitrate: u32) -> Result<BitTiming, ErrorCode> {
+        // #[flux_rs::trusted]
+        fn calc_sample_point_err(
+            sp: u32,
+            ts: u32,
+            res_timing: &mut BitTiming,
+            sync_seg: u8,
+            max_bit_timings: &BitTiming,
+        ) -> i32 {
+            {
+                let ts1_max = max_bit_timings.propagation + max_bit_timings.segment1;
+                let ts1_min = max_bit_timings.propagation + max_bit_timings.segment1;
+                let mut ts1;
+                let mut ts2;
+                let mut res: i32 = 0;
+
+                ts2 = ts - (ts * sp) / 1000;
+                ts2 = if ts2 < max_bit_timings.segment2 as u32 {
+                    max_bit_timings.segment2 as u32
+                } else if ts2 > max_bit_timings.segment2 as u32 {
+                    max_bit_timings.segment2 as u32
+                } else {
+                    ts2
+                };
+                ts1 = ts - sync_seg as u32 - ts2;
+
+                if ts1 > ts1_max as u32 {
+                    ts1 = ts1_max as u32;
+                    ts2 = ts - sync_seg as u32 - ts1;
+                    if ts2 > max_bit_timings.segment2 as u32 {
+                        res = -1;
+                    }
+                } else if ts1 < ts1_min as u32 {
+                    ts1 = ts1_min as u32;
+                    ts2 = ts - ts1;
+                    if ts2 < max_bit_timings.segment2 as u32 {
+                        res = -1;
+                    }
+                }
+
+                if res != -1 {
+                    res_timing.propagation = if ts1 / 2 < max_bit_timings.propagation as u32 {
+                        max_bit_timings.propagation
+                    } else if ts1 / 2 > max_bit_timings.propagation as u32 {
+                        max_bit_timings.propagation
+                    } else {
+                        (ts1 / 2) as u8
+                    };
+
+                    res_timing.segment1 = ts1 as u8 - res_timing.propagation;
+                    res_timing.segment2 = ts2 as u8;
+
+                    res = ((sync_seg as u32 + ts1) * 1000 / ts) as i32;
+                    if res > sp as i32 {
+                        res - sp as i32
+                    } else {
+                        sp as i32 - res
+                    }
+                } else {
+                    res
+                }
+            }
+        }
+
         if bitrate > 8_000_000 {
             return Err(ErrorCode::INVAL);
         }
@@ -256,59 +319,13 @@ impl<T: Configure> StandardBitTiming for T {
             }
             ts = clock_rate / (prescaler * bitrate);
 
-            sample_point_err = {
-                let ts1_max = Self::MAX_BIT_TIMINGS.propagation + Self::MAX_BIT_TIMINGS.segment1;
-                let ts1_min = Self::MIN_BIT_TIMINGS.propagation + Self::MIN_BIT_TIMINGS.segment1;
-                let mut ts1;
-                let mut ts2;
-                let mut res: i32 = 0;
-
-                ts2 = ts - (ts * sp) / 1000;
-                ts2 = if ts2 < Self::MIN_BIT_TIMINGS.segment2 as u32 {
-                    Self::MIN_BIT_TIMINGS.segment2 as u32
-                } else if ts2 > Self::MAX_BIT_TIMINGS.segment2 as u32 {
-                    Self::MAX_BIT_TIMINGS.segment2 as u32
-                } else {
-                    ts2
-                };
-                ts1 = ts - Self::SYNC_SEG as u32 - ts2;
-
-                if ts1 > ts1_max as u32 {
-                    ts1 = ts1_max as u32;
-                    ts2 = ts - Self::SYNC_SEG as u32 - ts1;
-                    if ts2 > Self::MAX_BIT_TIMINGS.segment2 as u32 {
-                        res = -1;
-                    }
-                } else if ts1 < ts1_min as u32 {
-                    ts1 = ts1_min as u32;
-                    ts2 = ts - ts1;
-                    if ts2 < Self::MIN_BIT_TIMINGS.segment2 as u32 {
-                        res = -1;
-                    }
-                }
-
-                if res != -1 {
-                    res_timing.propagation = if ts1 / 2 < Self::MIN_BIT_TIMINGS.propagation as u32 {
-                        Self::MIN_BIT_TIMINGS.propagation
-                    } else if ts1 / 2 > Self::MAX_BIT_TIMINGS.propagation as u32 {
-                        Self::MAX_BIT_TIMINGS.propagation
-                    } else {
-                        (ts1 / 2) as u8
-                    };
-
-                    res_timing.segment1 = ts1 as u8 - res_timing.propagation;
-                    res_timing.segment2 = ts2 as u8;
-
-                    res = ((Self::SYNC_SEG as u32 + ts1) * 1000 / ts) as i32;
-                    if res > sp as i32 {
-                        res - sp as i32
-                    } else {
-                        sp as i32 - res
-                    }
-                } else {
-                    res
-                }
-            };
+            sample_point_err = calc_sample_point_err(
+                sp,
+                ts,
+                &mut res_timing,
+                Self::SYNC_SEG,
+                &Self::MAX_BIT_TIMINGS,
+            );
 
             if sample_point_err < 0 {
                 continue;
