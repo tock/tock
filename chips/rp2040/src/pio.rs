@@ -573,8 +573,8 @@ pub struct StateMachineConfiguration {
     out_special_enable_pin_index: u32,
     mov_status_sel: PioMovStatusType,
     mov_status_n: u32,
-    div_int: u32,
-    div_frac: u32,
+    pub div_int: u32,
+    pub div_frac: u32,
 }
 
 impl Default for StateMachineConfiguration {
@@ -647,24 +647,14 @@ impl Pio {
     }
 
     /// Resets the state machine to a consistent state, and configures it.
-    pub fn sm_init(&self, sm_number: SMNumber, config: &StateMachineConfiguration) {
+    pub fn sm_init(&self, sm_number: SMNumber) {
         self.restart_sm(sm_number);
-        // let count = self.read_set_count(sm_number);
-        // debug!("{}", count);
-        // let base = self.read_set_base(sm_number);
-        // debug!("{}", base);
         self.sm_clkdiv_restart(sm_number);
-        // self.sm_config(sm_number, config);
         self.sm_clear_fifos(sm_number);
         self.registers.sm[sm_number as usize]
             .instr
             .modify(SMx_INSTR::INSTR.val(0));
         self.sm_set_enabled(sm_number, true);
-        // self.sm_set_enabled(sm_number, false);
-        // let count = self.read_set_count(sm_number);
-        // debug!("{}", count);
-        // let base = self.read_set_base(sm_number);
-        // debug!("{}", base);
     }
 
     /// Set a state machine's state to enabled or to disabled.
@@ -696,8 +686,6 @@ impl Pio {
         } else {
             pin.set_function(GpioFunction::PIO0)
         }
-        // pin.make_output();
-        // pin.set();
     }
 
     /// Create a new PIO0 struct.
@@ -930,29 +918,57 @@ impl Pio {
 
     // TODO: set_consecutive_pindirs
     /// Use a state machine to set the same pin direction for multiple consecutive pins for the PIO instance.
-    // fn set_consecutive_pindirs(&self, sm_number: SMNumber, pin: u32, count: u32, is_out: bool) {
-    //     let pinctrl = self.registers.sm[sm_number as usize].pinctrl.get();
-    //     let execctrl = self.registers.sm[sm_number as usize].execctrl.modify(field);
-    //     self.registers.sm[sm_number as usize]
-    //         .execctrl
-    //         .modify(SMx_EXECCTRL::OUT_STICKY.val(0));
-    //     if (is_out)
-    //     // self.registers.sm[sm_number as usize]
-    //     //     .pinctrl
-    //     //     .modify(SMx_PINCTRL::SET_COUNT.val(count));
-    //     // self.registers.sm[sm_number as usize]
-    //     //     .pinctrl
-    //     //     .modify(SMx_PINCTRL::SET_BASE.val(pin));
-    // }
+    /// This is the pio_sm_set_consecutive_pindirs function from the pico sdk, renamed to be more clear.
+    /// ```
+    /// pin => starting pin
+    /// count => how many pins (including the base) should be changed
+    /// is_out => true to set the pin as OUT
+    ///        => false to set the pin as IN
+    /// ```
+    fn set_pins_out(&self, sm_number: SMNumber, mut pin: u32, mut count: u32, is_out: bool) {
+        let pinctrl = self.registers.sm[sm_number as usize].pinctrl.get();
+        let execctrl = self.registers.sm[sm_number as usize].execctrl.get();
+        self.registers.sm[sm_number as usize]
+            .execctrl
+            .modify(SMx_EXECCTRL::OUT_STICKY.val(0));
+        let mut pindir_val: u8 = 0x00;
+        if is_out {
+            pindir_val = 0x1f;
+        }
+        while count > 5 {
+            self.registers.sm[sm_number as usize]
+                .pinctrl
+                .modify(SMx_PINCTRL::SET_COUNT.val(5));
+            self.registers.sm[sm_number as usize]
+                .pinctrl
+                .modify(SMx_PINCTRL::SET_BASE.val(pin));
+            // TODO: Execute a set pindirs, x instruction where x is pindir_val
+            // self.sm_exec(sm_number, instr);
+            count -= 5;
+            pin = (pin + 5) & 0x1f;
+        }
+        self.registers.sm[sm_number as usize]
+            .pinctrl
+            .modify(SMx_PINCTRL::SET_COUNT.val(count));
+        self.registers.sm[sm_number as usize]
+            .pinctrl
+            .modify(SMx_PINCTRL::SET_BASE.val(pin));
+        // self.sm_exec(sm_number, instr);
+        self.registers.sm[sm_number as usize].execctrl.set(execctrl);
+        self.registers.sm[sm_number as usize].pinctrl.set(pinctrl);
+    }
 
     /// Immediately execute an instruction on a state machine.
-    fn sm_exec(&self, sm_number: SMNumber, instr: u16) {
-        let instruction: u32 = self.registers.sm[sm_number as usize]
-            .instr
-            .read(SMx_INSTR::INSTR);
+    fn sm_exec(&self, sm_number: SMNumber, instr: u32) {
+        // let instruction: u32 = self.registers.sm[sm_number as usize]
+        //     .instr
+        //     .read(SMx_INSTR::INSTR);
+        // self.registers.sm[sm_number as usize]
+        //     .instr
+        //     .modify(SMx_INSTR::INSTR.val((instruction & 0xFFFF0000) & instr as u32));
         self.registers.sm[sm_number as usize]
             .instr
-            .modify(SMx_INSTR::INSTR.val((instruction & 0xFFFF0000) & instr as u32));
+            .modify(SMx_INSTR::INSTR.val(instr));
     }
 
     /// Write a word of data to a state machine’s TX FIFO.
@@ -1025,7 +1041,6 @@ impl Pio {
         let default_config: StateMachineConfiguration = StateMachineConfiguration::default();
         for state_machine in STATE_MACHINE_NUMBERS {
             self.sm_config(state_machine, &default_config);
-            // self.sm_init(state_machine, &default_config)
         }
     }
 
@@ -1035,6 +1050,7 @@ impl Pio {
         pin: u32,
         config: &StateMachineConfiguration,
     ) {
+        self.sm_config(sm_number, config);
         self.pio_number = PIONumber::PIO0;
         self.gpio_init(&RPGpioPin::new(RPGpio::GPIO7));
         // self.sm_init(sm_number, config);
@@ -1042,11 +1058,7 @@ impl Pio {
         self.sm_set_enabled(sm_number, false);
         // self.set_consecutive_pindirs(sm_number, pin, 1);
         self.set_set_pins(sm_number, pin, 1);
-        // let count = self.read_set_count(sm_number);
-        // debug!("{}", count);
-        // let base = self.read_set_base(sm_number);
-        // debug!("{}", base);
-        self.sm_init(sm_number, config);
+        self.sm_init(sm_number);
     }
 
     pub fn read_set_base(&self, sm_number: SMNumber) -> u32 {

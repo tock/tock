@@ -741,17 +741,14 @@ pub unsafe fn start() -> (
     // 1f01
     let path: [u8; 10] = [0xe0, 0x81, 0xff, 0x01, 0x1f, 0x03, 0xff, 0x00, 0x1f, 0x01];
     pio.init();
-    //pio.gpio_init(peripherals.pins.get_pin(RPGpio::GPIO25));
     pio.add_program(&path);
-    pio.hello_program_init(SMNumber::SM0, 7, &StateMachineConfiguration::default());
-    // pio.add_program(&path);
+    let mut custom_config = StateMachineConfiguration::default();
+    custom_config.div_int = 0;
+    custom_config.div_frac = 0;
+    pio.hello_program_init(SMNumber::SM0, 7, &custom_config);
     for _ in 1..100 {
         debug!("Instr_SM0:{}", pio.debugger(SMNumber::SM0));
     }
-    // pio.sm_set_enabled(SMNumber::SM0, false);
-    // debug!("{}", pio.read_set_count(SMNumber::SM0));
-    // debug!("{}", pio.read_set_base(SMNumber::SM0));
-
     (board_kernel, pico_explorer_base, chip)
 }
 
