@@ -19,5 +19,5 @@ flash: $(KERNEL)
 	$(OPENOCD) $(OPENOCD_OPTIONS) -c "init; reset halt; flash write_image erase $<; verify_image $<; reset; shutdown"
 
 flash-app: $(KERNEL)
-	arm-none-eabi-objcopy --update-section .apps=$(APP) $< $(KERNEL_WITH_APP)
+	arm-none-eabi-objcopy --set-section-flags .apps=LOAD --update-section .apps=$(APP) $< $(KERNEL_WITH_APP)
 	$(OPENOCD) $(OPENOCD_OPTIONS) -c "init; reset halt; flash write_image erase $(KERNEL_WITH_APP); verify_image $(KERNEL_WITH_APP); reset; shutdown"
