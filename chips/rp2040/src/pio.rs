@@ -573,6 +573,8 @@ pub struct StateMachineConfiguration {
     out_special_enable_pin_index: u32,
     mov_status_sel: PioMovStatusType,
     mov_status_n: u32,
+    div_int: u32,
+    div_frac: u32,
 }
 
 impl Default for StateMachineConfiguration {
@@ -601,6 +603,8 @@ impl Default for StateMachineConfiguration {
             out_special_enable_pin_index: 0,
             mov_status_sel: PioMovStatusType::StatusTxLessthan,
             mov_status_n: 0,
+            div_int: 0,
+            div_frac: 0,
         }
     }
 }
@@ -639,7 +643,7 @@ impl Pio {
             config.out_special_has_enable_pin,
             config.out_special_enable_pin_index,
         );
-        self.set_clkdiv_int_frac(sm_number, 1, 0);
+        self.set_clkdiv_int_frac(sm_number, config.div_int, config.div_frac);
     }
 
     /// Resets the state machine to a consistent state, and configures it.
@@ -924,15 +928,22 @@ impl Pio {
             .modify(SMx_EXECCTRL::OUT_EN_SEL.val(enable_pin_index));
     }
 
+    // TODO: set_consecutive_pindirs
     /// Use a state machine to set the same pin direction for multiple consecutive pins for the PIO instance.
-    fn set_consecutive_pindirs(&self, sm_number: SMNumber, pin: u32, count: u32) {
-        // self.registers.sm[sm_number as usize]
-        //     .pinctrl
-        //     .modify(SMx_PINCTRL::SET_COUNT.val(count));
-        // self.registers.sm[sm_number as usize]
-        //     .pinctrl
-        //     .modify(SMx_PINCTRL::SET_BASE.val(pin));
-    }
+    // fn set_consecutive_pindirs(&self, sm_number: SMNumber, pin: u32, count: u32, is_out: bool) {
+    //     let pinctrl = self.registers.sm[sm_number as usize].pinctrl.get();
+    //     let execctrl = self.registers.sm[sm_number as usize].execctrl.modify(field);
+    //     self.registers.sm[sm_number as usize]
+    //         .execctrl
+    //         .modify(SMx_EXECCTRL::OUT_STICKY.val(0));
+    //     if (is_out)
+    //     // self.registers.sm[sm_number as usize]
+    //     //     .pinctrl
+    //     //     .modify(SMx_PINCTRL::SET_COUNT.val(count));
+    //     // self.registers.sm[sm_number as usize]
+    //     //     .pinctrl
+    //     //     .modify(SMx_PINCTRL::SET_BASE.val(pin));
+    // }
 
     /// Immediately execute an instruction on a state machine.
     fn sm_exec(&self, sm_number: SMNumber, instr: u16) {
@@ -1018,27 +1029,6 @@ impl Pio {
         }
     }
 
-    pub fn pio_pwm(&self, sm_number: SMNumber, pin: u32, config: &StateMachineConfiguration) {
-        self.gpio_init(&RPGpioPin::new(RPGpio::GPIO6));
-        self.set_consecutive_pindirs(sm_number, pin, 1);
-        self.set_side_set(sm_number, 1, false, true);
-        self.sm_exec(sm_number, 1);
-        self.sm_init(sm_number, config);
-        self.sm_set_enabled(sm_number, true);
-    }
-    pub fn blink_program_init(
-        &self,
-        sm_number: SMNumber,
-        pin: u32,
-        config: &StateMachineConfiguration,
-    ) {
-        self.gpio_init(&RPGpioPin::new(RPGpio::GPIO6));
-        self.set_consecutive_pindirs(sm_number, pin, 1);
-        self.set_set_pins(sm_number, pin, 1);
-        self.sm_init(sm_number, &config);
-        self.sm_set_enabled(sm_number, true);
-    }
-
     pub fn hello_program_init(
         &mut self,
         sm_number: SMNumber,
@@ -1050,11 +1040,12 @@ impl Pio {
         // self.sm_init(sm_number, config);
         // self.set_out_pins(sm_number, pin, 1);
         self.sm_set_enabled(sm_number, false);
+        // self.set_consecutive_pindirs(sm_number, pin, 1);
         self.set_set_pins(sm_number, pin, 1);
-        let count = self.read_set_count(sm_number);
-        debug!("{}", count);
-        let base = self.read_set_base(sm_number);
-        debug!("{}", base);
+        // let count = self.read_set_count(sm_number);
+        // debug!("{}", count);
+        // let base = self.read_set_base(sm_number);
+        // debug!("{}", base);
         self.sm_init(sm_number, config);
     }
 
@@ -1075,4 +1066,25 @@ impl Pio {
             .instr
             .read(SMx_INSTR::INSTR)
     }
+
+    // pub fn pio_pwm(&self, sm_number: SMNumber, pin: u32, config: &StateMachineConfiguration) {
+    //     self.gpio_init(&RPGpioPin::new(RPGpio::GPIO6));
+    //     self.set_consecutive_pindirs(sm_number, pin, 1);
+    //     self.set_side_set(sm_number, 1, false, true);
+    //     self.sm_exec(sm_number, 1);
+    //     self.sm_init(sm_number, config);
+    //     self.sm_set_enabled(sm_number, true);
+    // }
+    // pub fn blink_program_init(
+    //     &self,
+    //     sm_number: SMNumber,
+    //     pin: u32,
+    //     config: &StateMachineConfiguration,
+    // ) {
+    //     self.gpio_init(&RPGpioPin::new(RPGpio::GPIO6));
+    //     self.set_consecutive_pindirs(sm_number, pin, 1);
+    //     self.set_set_pins(sm_number, pin, 1);
+    //     self.sm_init(sm_number, &config);
+    //     self.sm_set_enabled(sm_number, true);
+    // }
 }

@@ -700,17 +700,18 @@ pub unsafe fn start() -> (
     // jmp loop
     // After Pioasm => ee01 ee00 0000
     // let path: [u8; 6] = [0xee, 0x01, 0xee, 0x00, 0x00, 0x00];
+    // let path: [u8; 8] = [0xe0, 0x81, 0xee, 0x01, 0xee, 0x00, 0x00, 0x01];
     // loop:
     // set pins, 1 [31]
     // set pins, 0 [31]
     // jmp loop
     // After Pioasm => ff01 ff00 0000
     // let path: [u8; 6] = [0xff, 0x01, 0xff, 0x00, 0x00, 0x00];
+    // let path: [u8; 8] = [0xe0, 0x81, 0xf5, 0x01, 0xf5, 0x00, 0x00, 0x01];
     // loop:
     // set pins, 1
     // jmp loop
     // After Pioasm => e001 0000
-    let path: [u8; 4] = [0xe0, 0x01, 0x00, 0x00];
     // let path: [u8; 4] = [0x01, 0xe0, 0x01, 0x00];
     // loop:
     // set pins, 1
@@ -718,7 +719,27 @@ pub unsafe fn start() -> (
     // jmp loop
     // After Pioasm => e001 e000 0000
     // let path: [u8; 6] = [0xe0, 0x01, 0xe0, 0x00, 0x00, 0x00];
+    // let path: [u8; 6] = [0xe0, 0x01, 0xe0, 0x00, 0x00, 0x01];
     // let path: [u8; 2] = [0x00, 0x00];
+    // set pindirs, 1
+    // loop:
+    // set pins, 1
+    // jmp loop
+    // After Pioasm => e001 0000
+    // let path: [u8; 6] = [0xe0, 0x81, 0xe0, 0x01, 0x00, 0x01];
+    // set pindirs, 1
+    // loop:
+    // set pins, 1 [31]
+    // jmp label [31]
+    // label:
+    // set pins, 0 [31]
+    // jmp loop [31]
+    // e081
+    // ff01
+    // 1f03
+    // ff00
+    // 1f01
+    let path: [u8; 10] = [0xe0, 0x81, 0xff, 0x01, 0x1f, 0x03, 0xff, 0x00, 0x1f, 0x01];
     pio.init();
     //pio.gpio_init(peripherals.pins.get_pin(RPGpio::GPIO25));
     pio.add_program(&path);
