@@ -916,7 +916,6 @@ impl Pio {
             .modify(SMx_EXECCTRL::OUT_EN_SEL.val(enable_pin_index));
     }
 
-    // TODO: set_consecutive_pindirs
     /// Use a state machine to set the same pin direction for multiple consecutive pins for the PIO instance.
     /// This is the pio_sm_set_consecutive_pindirs function from the pico sdk, renamed to be more clear.
     /// ```
@@ -942,8 +941,10 @@ impl Pio {
             self.registers.sm[sm_number as usize]
                 .pinctrl
                 .modify(SMx_PINCTRL::SET_BASE.val(pin));
-            // TODO: Execute a set pindirs, x instruction where x is pindir_val
-            // self.sm_exec(sm_number, instr);
+            self.sm_exec(
+                sm_number,
+                ((0b11100000100 as u32) << 5) | (pindir_val as u32),
+            );
             count -= 5;
             pin = (pin + 5) & 0x1f;
         }
@@ -953,19 +954,16 @@ impl Pio {
         self.registers.sm[sm_number as usize]
             .pinctrl
             .modify(SMx_PINCTRL::SET_BASE.val(pin));
-        // self.sm_exec(sm_number, instr);
+        self.sm_exec(
+            sm_number,
+            ((0b11100000100 as u32) << 5) | (pindir_val as u32),
+        );
         self.registers.sm[sm_number as usize].execctrl.set(execctrl);
         self.registers.sm[sm_number as usize].pinctrl.set(pinctrl);
     }
 
     /// Immediately execute an instruction on a state machine.
     fn sm_exec(&self, sm_number: SMNumber, instr: u32) {
-        // let instruction: u32 = self.registers.sm[sm_number as usize]
-        //     .instr
-        //     .read(SMx_INSTR::INSTR);
-        // self.registers.sm[sm_number as usize]
-        //     .instr
-        //     .modify(SMx_INSTR::INSTR.val((instruction & 0xFFFF0000) & instr as u32));
         self.registers.sm[sm_number as usize]
             .instr
             .modify(SMx_INSTR::INSTR.val(instr));
@@ -1056,7 +1054,7 @@ impl Pio {
         // self.sm_init(sm_number, config);
         // self.set_out_pins(sm_number, pin, 1);
         self.sm_set_enabled(sm_number, false);
-        // self.set_consecutive_pindirs(sm_number, pin, 1);
+        self.set_pins_out(sm_number, pin, 1, true);
         self.set_set_pins(sm_number, pin, 1);
         self.sm_init(sm_number);
     }
