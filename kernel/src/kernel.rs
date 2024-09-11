@@ -409,7 +409,7 @@ impl Kernel {
                                     // starts, the interrupt will not be
                                     // serviced and the chip will never wake
                                     // from sleep.
-                                    if !chip.has_pending_interrupts() && !DeferredCall::has_requested_tasks()
+                                    if !chip.has_pending_interrupts() && !DeferredCall::has_tasks()
                                     {
                                         resources.watchdog().suspend();
                                         chip.sleep();

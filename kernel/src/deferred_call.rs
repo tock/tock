@@ -53,7 +53,8 @@
 //! some_capsule.register();
 //! ```
 
-use crate::threadlocal::{ThreadLocal, ThreadLocalDyn};
+use crate::threadlocal::{ThreadLocal, ThreadLocalDyn, ThreadLocalDynInit};
+use crate::utilities::cells::OptionalCell;
 use core::marker::Copy;
 use core::marker::PhantomData;
 use core::ptr::addr_of;
@@ -149,13 +150,10 @@ pub struct ThreadLocalDeferredCallState {
     /// to the index of that bit has been scheduled and not yet serviced.
     bitmask: u32,
     /// An array that stores references to up to 32 `DeferredCall`s via the low-cost
-    /// `DynDefCallRef` and numbers of requests of each to be scheduled. This decouples
-    /// scheduling decisions from the deferred call clients from the actual scheduling
-    /// of the kernel, which allows more fine-grained scheduling policies over deferred
-    /// calls in the future.
+    /// `DynDefCallRef`.
     // This is a 256 byte array, but at least resides in .bss
-    // TODO: is this still true?
-    defcalls: [Option<(u32, DynDefCallRef<'static>)>; 32],
+    // TODO: is still still true?
+    defcalls: [Option<DynDefCallRef<'static>>; 32],
 }
 
 static DEFAULT_DEFCALL_STATE: ThreadLocal::<0, ThreadLocalDeferredCallState> = ThreadLocal::new([]);
@@ -220,7 +218,7 @@ impl DeferredCall {
                 return;
             }
 
-            defcall_state.defcalls[self.idx] = Some((0, handler));
+            defcall_state.defcalls[self.idx] = Some(handler);
         };
 
         // SAFETY: This function is non-reentrant per thread, and the panic
@@ -240,12 +238,10 @@ impl DeferredCall {
         self.register_internal_non_generic(handler);
     }
 
-    /// Request to scheduled a deferred callback on the client associated with
-    /// this deferred call
+    /// Schedule a deferred callback on the client associated with this deferred call
     pub fn set(&self) {
         let closure = |defcall_state: &mut ThreadLocalDeferredCallState| {
-            defcall_state.defcalls[self.idx].as_mut().expect("Not registered").0 += 1;
-            // defcall_state.bitmask |= 1 << self.idx;
+            defcall_state.bitmask |= 1 << self.idx;
         };
 
         // SAFETY: This function is non-reentrant per thread, and the panic
@@ -260,8 +256,7 @@ impl DeferredCall {
     /// deferred call.
     pub fn is_pending(&self) -> bool {
         let closure = |defcall_state: &mut ThreadLocalDeferredCallState| {
-            defcall_state.defcalls[self.idx].expect("Not registered").0 > 0
-            // (defcall_state.bitmask & 1 << self.idx) == 1
+            (defcall_state.bitmask & 1 << self.idx) == 1
         };
 
         // SAFETY: This function is non-reentrant per thread, and the panic
@@ -283,7 +278,7 @@ impl DeferredCall {
                 let bit = val.trailing_zeros() as usize;
                 let new_val = val & !(1 << bit);
                 defcall_state.bitmask = new_val;
-                defcall_state.defcalls[bit].map(|(_, dc)| (dc, bit))
+                defcall_state.defcalls[bit].map(|dc| (dc, bit))
             }
         };
 
@@ -313,9 +308,9 @@ impl DeferredCall {
         // }
     }
 
-    /// Returns true if any deferred calls are scheduled and waiting to be serviced,
+    /// Returns true if any deferred calls are waiting to be serviced,
     /// false otherwise.
-    pub fn has_scheduled_tasks() -> bool {
+    pub fn has_tasks() -> bool {
         let closure = |defcall_state: &mut ThreadLocalDeferredCallState| {
             defcall_state.bitmask != 0
         };
@@ -328,47 +323,6 @@ impl DeferredCall {
         unsafe { with_defcall_state_panic(closure) }
     }
 
-    /// Returns true if any deferred calls are requested, false otherwise.
-    pub fn has_requested_tasks() -> bool {
-        let closure = |defcall_state: &mut ThreadLocalDeferredCallState| {
-            defcall_state.defcalls.iter().any(|v| v.is_some_and(|(c, _)| c > 0))
-        };
-
-        // SAFETY: This function is non-reentrant per thread, and the panic
-        // handler will not attempt to execute this function. It will be called
-        // only after `DEFCALL_STATE` has been initialized, either in the static
-        // initialization above, or in the early board initialization of the
-        // board.
-        unsafe { with_defcall_state_panic(closure) }
-    }
-
-    /// Schedule requested deferred calls. Return true if any deferred calls
-    /// are scheduled, false otherwise.
-    pub fn schedule() -> bool {
-        let closure = |defcall_state: &mut ThreadLocalDeferredCallState| {
-            let old_val = defcall_state.bitmask;
-            let new_val = defcall_state.defcalls
-                .iter_mut()
-                .enumerate()
-                .fold(old_val, |acc, (idx, v)| {
-                    acc | v.as_mut().map(|(c, _)| {
-                        if let Some(c_sub_one) = (*c).checked_sub(1) {
-                            if old_val & 1 << idx > 0 {
-                                *c = c_sub_one;
-                            }
-                            1 << idx
-                        } else {
-                            0
-                        }
-                    }).unwrap_or(0)
-                });
-            defcall_state.bitmask = new_val;
-            new_val != 0
-        };
-
-        // TODO: doc safety
-        unsafe { with_defcall_state_panic(closure) }
-    }
 
     /// This function should be called at the beginning of the kernel loop to
     /// verify that deferred calls have been correctly initialized. This

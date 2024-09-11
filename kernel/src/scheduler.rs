@@ -52,12 +52,8 @@ pub trait Scheduler<C: Chip> {
     /// as this function is called in the core kernel loop.
     unsafe fn execute_kernel_work(&self, chip: &C) {
         chip.service_pending_interrupts();
-        if DeferredCall::schedule() {
-            while DeferredCall::has_scheduled_tasks()
-                && !chip.has_pending_interrupts()
-            {
-                DeferredCall::service_next_pending();
-            }
+        while DeferredCall::has_tasks() && !chip.has_pending_interrupts() {
+            DeferredCall::service_next_pending();
         }
     }
 
@@ -66,8 +62,7 @@ pub trait Scheduler<C: Chip> {
     /// implementation, which always prioritizes kernel work, but schedulers
     /// that wish to defer interrupt handling may reimplement it.
     unsafe fn do_kernel_work_now(&self, chip: &C) -> bool {
-        chip.has_pending_interrupts()
-            || DeferredCall::has_requested_tasks()
+        chip.has_pending_interrupts() || DeferredCall::has_tasks()
     }
 
     /// Ask the scheduler whether to continue trying to execute a process.
@@ -87,7 +82,7 @@ pub trait Scheduler<C: Chip> {
     ///
     /// `id` is the identifier of the currently active process.
     unsafe fn continue_process(&self, _id: ProcessId, chip: &C) -> bool {
-        !(chip.has_pending_interrupts() || DeferredCall::has_requested_tasks())
+        !(chip.has_pending_interrupts() || DeferredCall::has_tasks())
     }
 }
 

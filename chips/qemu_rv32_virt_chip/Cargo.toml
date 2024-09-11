@@ -13,6 +13,7 @@ sifive = { path = "../sifive" }
 virtio = { path = "../virtio" }
 rv32i = { path = "../../arch/rv32i" }
 kernel = { path = "../../kernel" }
+capsules-core = { path = "../../capsules/core" }
 
 [lints]
 workspace = true

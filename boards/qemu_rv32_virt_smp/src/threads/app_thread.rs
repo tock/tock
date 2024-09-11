@@ -13,10 +13,10 @@ use kernel::collections::atomic_ring_buffer::AtomicRingBuffer;
 use kernel::collections::ring_buffer::RingBuffer;
 use kernel::platform::chip::InterruptService;
 use kernel::{create_capability, debug, static_init};
-use kernel::smp;
+
+use kernel::threadlocal::DynThreadId;
 
 use qemu_rv32_virt_chip::chip::QemuRv32VirtChip;
-use qemu_rv32_virt_chip::portal_cell::QemuRv32VirtPortalCell;
 use qemu_rv32_virt_chip::uart::Uart16550;
 use qemu_rv32_virt_chip::interrupts;
 
@@ -39,24 +39,17 @@ const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::Panic
 
 
 // Peripherals supported by this thread
-pub struct QemuRv32VirtPeripherals<'a> {
-    pub uart0: &'a QemuRv32VirtPortalCell<'a, Uart16550>,
-}
+pub struct QemuRv32VirtPeripherals;
 
-impl<'a> QemuRv32VirtPeripherals<'a> {
-    pub fn new(uart0: &'a QemuRv32VirtPortalCell<'a, Uart16550>) -> Self {
-        Self { uart0 }
+impl<'a> QemuRv32VirtPeripherals {
+    pub fn new() -> Self {
+        Self
     }
 }
 
-impl<'a> InterruptService for QemuRv32VirtPeripherals<'a> {
+impl InterruptService for QemuRv32VirtPeripherals {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
-            interrupts::UART0 => {
-                use kernel::smp::portal::Portalable;
-                self.uart0.enter(|u: &mut Uart16550| u.handle_interrupt())
-                    .unwrap_or_else(|| { self.uart0.conjure(); });
-            }
             _ => return false,
         }
         true
@@ -95,7 +88,7 @@ impl
     KernelResources<
         qemu_rv32_virt_chip::chip::QemuRv32VirtChip<
             'static,
-            QemuRv32VirtPeripherals<'static>,
+            QemuRv32VirtPeripherals,
         >,
     > for QemuRv32VirtPlatform
 {
@@ -137,7 +130,7 @@ impl
 }
 
 pub unsafe fn spawn<const ID: usize>(
-    channel: &'static AtomicRingBuffer<qemu_rv32_virt_chip::channel::QemuRv32VirtMessage>,
+    channel: &'static AtomicRingBuffer<qemu_rv32_virt_chip::portal::QemuRv32VirtVoyagerReference>,
 ) {
     // These symbols are defined in the linker script.
     extern "C" {
@@ -224,54 +217,48 @@ pub unsafe fn spawn<const ID: usize>(
     // Initialize the core-local interrupt controler
     qemu_rv32_virt_chip::clint::init_clic();
 
-    // Initialize the kernel-local channel
-    qemu_rv32_virt_chip::channel::with_shared_channel_panic(|c| {
-        let _ = c.replace(qemu_rv32_virt_chip::channel::QemuRv32VirtChannel::new(
+
+    // Initialize the hardware portal
+    let hw_portal = static_init!(
+        qemu_rv32_virt_chip::portal::QemuRv32VirtPortal,
+        qemu_rv32_virt_chip::portal::QemuRv32VirtPortal::new(
             channel,
+            unsafe { DynThreadId::new(0) },
             static_init!(
-                RingBuffer<qemu_rv32_virt_chip::channel::QemuRv32VirtMessage>,
-                RingBuffer::new(static_init!(
-                    [qemu_rv32_virt_chip::channel::QemuRv32VirtMessage; 128],
-                    core::mem::MaybeUninit::uninit().assume_init()
-                ))
+                qemu_rv32_virt_chip::portal::QemuRv32VirtVoyager,
+                qemu_rv32_virt_chip::portal::QemuRv32VirtVoyager::Empty,
             )
-        ));
-    });
-
-    // Initialize the kernel-local uart state
-    qemu_rv32_virt_chip::uart::init_uart_state();
-
-    // Open an empty uart portal
-    use qemu_rv32_virt_chip::portal::{QemuRv32VirtPortalKey, PORTALS};
-
-    let uart_portal = static_init!(
-        QemuRv32VirtPortalCell<Uart16550>,
-        QemuRv32VirtPortalCell::empty(QemuRv32VirtPortalKey::Uart16550 as usize)
+        )
     );
 
-    let counter_portal = static_init!(
-        QemuRv32VirtPortalCell<usize>,
-        QemuRv32VirtPortalCell::empty(QemuRv32VirtPortalKey::Counter as usize)
-    );
+    qemu_rv32_virt_chip::portal::init_portal_panic(hw_portal);
 
-    (&*core::ptr::addr_of!(PORTALS))
-        .get_mut()
-        .expect("App thread doesn't not have access to its local portals")
-        .enter_nonreentrant(|ps| {
-            ps[uart_portal.get_id()].replace(uart_portal);
-            ps[counter_portal.get_id()].replace(counter_portal);
-        });
+    // Initialize the uart portal client and connect it to the hardware portal
+    use capsules_core::portals::teleportable_uart::{UartPortalClient, UartTraveler};
+    let uart_portal_client =
+        static_init!(
+            UartPortalClient,
+            UartPortalClient::new(
+                static_init!(
+                    UartTraveler,
+                    UartTraveler::empty(),
+                ),
+                hw_portal,
+            )
+        );
+
+    hil::portal::Portal::set_portal_client(hw_portal, uart_portal_client);
 
     // Initialize peripherals
     let peripherals = static_init!(
         QemuRv32VirtPeripherals,
-        QemuRv32VirtPeripherals::new(uart_portal),
+        QemuRv32VirtPeripherals::new(),
     );
 
     // Create a shared UART channel for the console and for kernel
     // debug over the provided memory-mapped 16550-compatible
     // UART.
-    let uart_mux = components::console::UartMuxComponent::new(uart_portal, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(uart_portal_client, 115200)
         .finalize(components::uart_mux_component_static!());
 
     // Create the debugger object that handles calls to `debug!()`.
@@ -404,23 +391,8 @@ pub unsafe fn spawn<const ID: usize>(
     });
 
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap,
-                             true,
+                             false,
                              Some(&|| {
-                                 static mut ENTERED: bool = false;
-                                 counter_portal.enter(|c| {
-                                     unsafe {
-                                         if !ENTERED {
-                                             debug!("{}: Pong!", *c);
-                                             ENTERED = true;
-                                             *c += 1;
-                                         }
-                                     }
-                                 }).unwrap_or_else(|| {
-                                     unsafe {
-                                         ENTERED = false;
-                                     }
-                                     use kernel::smp::portal::Portalable;
-                                     counter_portal.conjure();
-                                 });
+                                 debug!("debug message from app core");
                              }));
 }

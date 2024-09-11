@@ -60,7 +60,7 @@ impl<C: Chip> Scheduler<C> for PrioritySched {
         // a system call by this process could make another process ready, if
         // this app is communicating via IPC with a higher priority app.
         !(chip.has_pending_interrupts()
-            || DeferredCall::has_requested_tasks()
+            || DeferredCall::has_tasks()
             || self
                 .kernel
                 .get_process_iter()

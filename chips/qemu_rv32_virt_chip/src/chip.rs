@@ -18,10 +18,9 @@ use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
 
 use sifive::plic::Plic;
 
-use crate::{interrupts, plic, clint, MAX_CONTEXTS};
-use crate::channel::{self, QemuRv32VirtChannel};
-use crate::portal_cell::QemuRv32VirtPortalCell;
+use crate::{interrupts, plic, clint, portal, MAX_CONTEXTS};
 use crate::uart::Uart16550;
+use crate::portal::QemuRv32VirtPortal;
 
 use virtio::transports::mmio::VirtIOMMIODevice;
 
@@ -41,12 +40,12 @@ pub struct QemuRv32VirtChip<'a, I: InterruptService + 'a> {
 }
 
 pub struct QemuRv32VirtDefaultPeripherals<'a> {
-    pub uart0: &'a QemuRv32VirtPortalCell<'a, Uart16550>,
+    pub uart0: &'a Uart16550<'a>,
     pub virtio_mmio: [VirtIOMMIODevice; 8],
 }
 
 impl<'a> QemuRv32VirtDefaultPeripherals<'a> {
-    pub fn new(uart0: &'a QemuRv32VirtPortalCell<'a, Uart16550>) -> Self {
+    pub fn new(uart0: &'a Uart16550<'a>) -> Self {
         Self {
             uart0,
             virtio_mmio: [
@@ -67,7 +66,7 @@ impl InterruptService for QemuRv32VirtDefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::UART0 => {
-                let _ = self.uart0.enter(|u: &mut Uart16550| u.handle_interrupt());
+                let _ = self.uart0.handle_interrupt();
             }
             interrupts::VIRTIO_MMIO_0 => self.virtio_mmio[0].handle_interrupt(),
             interrupts::VIRTIO_MMIO_1 => self.virtio_mmio[1].handle_interrupt(),
@@ -127,49 +126,24 @@ impl<'a, I: InterruptService + 'a> QemuRv32VirtChip<'a, I> {
         }
     }
 
-    fn has_channel_requests(&self) -> bool {
-        let closure = |c: &mut Option<QemuRv32VirtChannel>| {
-            c.as_mut()
-                .expect("Uninitialized channel")
-                .has_pending_requests()
+    fn has_portal_voyager(&self) -> bool {
+        let closure = |portal: &QemuRv32VirtPortal| -> bool {
+            portal.has_received()
         };
 
-        unsafe { channel::with_shared_channel_panic(closure) }
+        unsafe { portal::with_portal_panic(closure) }
     }
 
-    unsafe fn handle_next_channel_request(&self) {
-        if self.has_channel_requests() {
-            let closure = |c: &mut Option<QemuRv32VirtChannel>| {
-                let channel = c.as_mut().expect("Uninitialized channel");
-                channel.service();
+    unsafe fn handle_portal_voyager(&self) {
+        let closure = |portal: &QemuRv32VirtPortal| {
+            portal.receive_voyager();
 
-                self.atomic(|| {
-                    channel.service_complete();
-                });
-            };
-
-            channel::with_shared_channel_panic(closure);
-        }
-    }
-
-    fn has_channel_unsents(&self) -> bool {
-        let closure = |c: &mut Option<QemuRv32VirtChannel>| {
-            c.as_mut()
-                .expect("Uninitialized channel")
-                .has_unsents()
+            self.atomic(|| {
+                portal.received();
+            });
         };
 
-        unsafe { channel::with_shared_channel_panic(closure) }
-    }
-
-    unsafe fn handle_channel_unsents(&self) {
-        let closure = |c: &mut Option<QemuRv32VirtChannel>| {
-            c.as_mut()
-                .expect("Uninitialized channel")
-                .flush_unsents()
-        };
-
-        channel::with_shared_channel_panic(closure);
+        portal::with_portal_panic(closure);
     }
 }
 
@@ -193,21 +167,22 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
             if mip.is_set(mip::mtimer) {
                 self.timer.handle_interrupt();
             }
+
             if self.plic.get_saved_interrupts().is_some() {
                 unsafe {
                     self.handle_plic_interrupts();
                 }
             }
 
-            unsafe {
-                self.handle_next_channel_request();
-                self.handle_channel_unsents();
+            if self.has_portal_voyager() {
+                unsafe {
+                    self.handle_portal_voyager();
+                }
             }
 
             if !mip.any_matching_bits_set(mip::mtimer::SET)
                 && self.plic.get_saved_interrupts().is_none()
-                && !self.has_channel_requests()
-                && !self.has_channel_unsents()
+                && !self.has_portal_voyager()
             {
                 break;
             }
@@ -226,20 +201,8 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
             return true;
         }
 
-        // Check if there is any pending inter-kernel messages
-        let closure = |channel: &mut Option<QemuRv32VirtChannel>| {
-            channel.as_mut()
-                .expect("Uninitialized channel")
-                .has_pending_requests()
-        };
-
-        let has_pending_channel_requests = unsafe {
-            channel::with_shared_channel_panic(closure)
-        };
-
-        // Then we can check the PLIC.
-        self.plic.get_saved_interrupts().is_some()
-            || has_pending_channel_requests
+        // Then we can check the PLIC and inter-core portal requests.
+        self.plic.get_saved_interrupts().is_some() || self.has_portal_voyager()
     }
 
     fn sleep(&self) {
@@ -295,7 +258,7 @@ fn handle_exception(exception: mcause::Exception) {
     }
 }
 
-pub static mut COUNTER: usize = 0;
+pub static mut COUNTER: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
 
 unsafe fn handle_interrupt(intr: mcause::Interrupt) {
     match intr {
@@ -320,11 +283,8 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
                 clic.clear_soft_interrupt(hart_id);
             });
 
-            channel::with_shared_channel_panic(|channel| {
-                channel
-                    .as_mut()
-                    .expect("uninitialized channel")
-                    .service_async();
+            portal::with_portal_panic(|portal| {
+                portal.receive_voyager_async();
             });
 
             CSR.mie.modify(mie::msoft::SET);
