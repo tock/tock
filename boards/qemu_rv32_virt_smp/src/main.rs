@@ -15,7 +15,6 @@
 
 use kernel::collections::atomic_ring_buffer::AtomicRingBuffer;
 use kernel::platform::chip::Chip;
-use kernel::smp;
 use kernel::static_init_once;
 use kernel::threadlocal::ThreadLocalDyn;
 
@@ -65,10 +64,10 @@ impl TryFrom<usize> for ThreadType {
 #[no_mangle]
 pub unsafe fn main(thread_type: ThreadType) {
 
-    const LEN: usize = 32;
+    const LEN: usize = 2;
 
     let channel_buffer = static_init_once!(
-        [qemu_rv32_virt_chip::channel::QemuRv32VirtMessage; LEN],
+        [qemu_rv32_virt_chip::portal::QemuRv32VirtVoyagerReference; LEN],
         core::mem::MaybeUninit::uninit().assume_init(),
     );
 
@@ -77,9 +76,8 @@ pub unsafe fn main(thread_type: ThreadType) {
         [const { core::sync::atomic::AtomicBool::new(false) }; LEN],
     );
 
-    // TODO: replace it with a lock-free channel implementation
     let channel = static_init_once!(
-        AtomicRingBuffer<qemu_rv32_virt_chip::channel::QemuRv32VirtMessage>,
+        AtomicRingBuffer<qemu_rv32_virt_chip::portal::QemuRv32VirtVoyagerReference>,
         AtomicRingBuffer::new(channel_buffer, channel_ready_buffer).unwrap(),
     );
 

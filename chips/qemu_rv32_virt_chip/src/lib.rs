@@ -23,8 +23,6 @@ pub mod clint;
 pub mod plic;
 pub mod uart;
 
-pub mod channel;
-pub mod portal_cell;
 pub mod portal;
 
 pub struct QemuRv32VirtThreadLocal<T>(kernel::threadlocal::ThreadLocal<MAX_THREADS, T>);
@@ -51,9 +49,3 @@ unsafe impl<T> kernel::threadlocal::ThreadLocalDyn<T> for QemuRv32VirtThreadLoca
         })
     }
 }
-
-// impl<T: Copy> kernel::threadlocal::ThreadLocalDynInit<T> for QemuRv32VirtThreadLocal<T> {
-//     unsafe fn init(init: T) -> Self {
-// 	    QemuRv32VirtThreadLocal(kernel::threadlocal::ThreadLocal::init(init))
-//     }
-// }
