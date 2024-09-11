@@ -29,6 +29,7 @@ pub struct ListIterator<'a, T: 'a + ?Sized + ListNode<'a, T>> {
 impl<'a, T: ?Sized + ListNode<'a, T>> Iterator for ListIterator<'a, T> {
     type Item = &'a T;
 
+    #[flux_rs::trusted] // see https://github.com/flux-rs/flux/issues/782
     fn next(&mut self) -> Option<&'a T> {
         match self.cur {
             Some(res) => {
