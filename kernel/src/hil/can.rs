@@ -39,7 +39,7 @@
 //!
 
 use crate::ErrorCode;
-use core::cmp;
+use flux_support::*;
 
 pub const STANDARD_CAN_PACKET_SIZE: usize = 8;
 pub const FD_CAN_PACKET_SIZE: usize = 64;
@@ -229,7 +229,7 @@ pub trait StandardBitTiming {
 impl<T: Configure> StandardBitTiming for T {
     #[flux_rs::trusted] // VTOCK: Arithmetic + error jumping to join point
     fn bit_timing_for_bitrate(clock_rate: u32, bitrate: u32) -> Result<BitTiming, ErrorCode> {
-        // #[flux_rs::trusted]
+        #[flux_rs::trusted]
         fn calc_sample_point_err(
             sp: u32,
             ts: u32,
@@ -312,12 +312,14 @@ impl<T: Configure> StandardBitTiming for T {
             + Self::SYNC_SEG) as u32;
 
         for prescaler in
-            cmp::max(clock_rate / (ts * bitrate), 1)..Self::MAX_BIT_TIMINGS.baud_rate_prescaler
+            max_u32(clock_rate / (ts * bitrate), 1)..Self::MAX_BIT_TIMINGS.baud_rate_prescaler
         {
+            assume(prescaler != 0);
             if clock_rate % (prescaler * bitrate) != 0 {
                 continue;
             }
             ts = clock_rate / (prescaler * bitrate);
+
 
             sample_point_err = calc_sample_point_err(
                 sp,
@@ -343,6 +345,11 @@ impl<T: Configure> StandardBitTiming for T {
         if sample_point_err_min != 0 {
             return Err(ErrorCode::INVAL);
         }
+
+        assume(res_timing.segment1 > 0);
+        assume(res_timing.segment2 > 0);
+        assume(res_timing.baud_rate_prescaler > 0);
+        assume(res_timing.sync_jump_width > 0);
 
         Ok(BitTiming {
             segment1: res_timing.segment1 - 1,
