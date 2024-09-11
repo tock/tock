@@ -1,13 +1,16 @@
 import os
 import subprocess
 import logging
-import time
-# import serial
 import sys
-# import glob
+import argparse
+import serial.tools.list_ports
+import asyncio
+import time
+import re
 
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.DEBUG,  # Changed to DEBUG for more verbose output
+    format="%(asctime)s - %(levelname)s - %(message)s",
 )
 
 
@@ -23,111 +26,182 @@ def run_command(command, cwd=None):
         bufsize=1,
         universal_newlines=True,
     )
-
     for line in process.stdout:
         print(line, end="")
         sys.stdout.flush()
-
     process.wait()
-
     if process.returncode != 0:
         logging.error(f"Command failed with return code {process.returncode}")
         raise subprocess.CalledProcessError(process.returncode, command)
 
 
-# def wait_for_console_output(port, expected_string, timeout=60):
-#     logging.info(f"Waiting for '{expected_string}' on console...")
-#     ser = serial.Serial(port, 115200, timeout=1)
-#     start_time = time.time()
-# 
-#     while time.time() - start_time < timeout:
-#         if ser.in_waiting:
-#             line = ser.readline().decode("utf-8").strip()
-#             print(f"Console output: {line}")  # Print in real-time
-#             sys.stdout.flush()
-#             if expected_string in line:
-#                 logging.info(f"Found expected string: '{expected_string}'")
-#                 ser.close()
-#                 return True
-# 
-#     logging.error(
-#         f"Timeout: Did not receive '{expected_string}' within {timeout} seconds"
-#     )
-#     ser.close()
-#     return False
-
-
-#def find_serial_ports():
-#    if sys.platform.startswith("win"):
-#        ports = ["COM%s" % (i + 1) for i in range(256)]
-#    elif sys.platform.startswith("linux") or sys.platform.startswith("cygwin"):
-#        ports = glob.glob("/dev/tty[A-Za-z]*")
-#    elif sys.platform.startswith("darwin"):
-#        ports = glob.glob("/dev/tty.*")
-#    else:
-#        raise EnvironmentError("Unsupported platform")
-#
-#    result = []
-#    for port in ports:
-#        try:
-#            s = serial.Serial(port)
-#            s.close()
-#            result.append(port)
-#        except (OSError, serial.SerialException):
-#            pass
-#    return result
-
-
-def main():
-    # run_command("git clone https://github.com/tock/tock.git")
+def flash_kernel():
+    if not os.path.exists("tock"):
+        run_command("git clone https://github.com/tock/tock")
 
     os.chdir("tock/boards/nordic/nrf52840dk")
     logging.info(f"Changed directory to: {os.getcwd()}")
-
     run_command(
         "openocd -c 'interface jlink; transport select swd; source [find target/nrf52.cfg]; init; nrf52_recover; exit'"
     )
-
     run_command("make flash-openocd")
-
     os.chdir("../../../../")
-    logging.info(f"Changed directory to: {os.getcwd()}")
 
-    run_command("git clone https://github.com/tock/libtock-c")
 
-    os.chdir("libtock-c/examples/c_hello")
-    logging.info(f"Changed directory to: {os.getcwd()}")
+def install_apps(apps, target):
+    if not os.path.exists("libtock-c"):
+        run_command("git clone https://github.com/tock/libtock-c")
 
-    run_command("make TOCK_TARGETS=cortex-m4")
+    os.chdir("libtock-c")
+    run_command("git checkout multi_alarm")
+    for app in apps:
+        app_dir = f"examples/{app}"
+        if app == "multi_alarm":
+            app_dir = f"examples/tests/{app}"
+        if not os.path.exists(app_dir):
+            logging.error(f"App directory {app_dir} not found")
+            continue
 
-    run_command("tockloader install --board nrf52dk --openocd build/c_hello.tab")
-
-    run_command("tockloader enable-app c_hello")
+        os.chdir(app_dir)
+        logging.info(f"Changed directory to: {os.getcwd()}")
+        run_command(f"make TOCK_TARGETS={target}")
+        run_command(f"tockloader install --board nrf52dk --openocd build/{app}.tab")
+        run_command(f"tockloader enable-app {app}")
+        os.chdir("../../")
 
     run_command("tockloader list")
+    os.chdir("../../")
 
-    # available_ports = find_serial_ports()
-    # if not available_ports:
-    #     logging.error("No serial ports found. Make sure your board is connected.")
-    #     return
 
-    # logging.info(f"Available serial ports: {', '.join(available_ports)}")
+def get_serial_ports():
+    return list(serial.tools.list_ports.comports())
 
-    # for port in available_ports:
-    #     logging.info(f"Attempting to communicate on port: {port}")
-    #     if wait_for_console_output(port, "Hello World!"):
-    #         logging.info(
-    #             f"Successfully received 'Hello World!' from the board on port {port}"
-    #         )
-    #         break
-    # else:
-    #     logging.error("Failed to receive 'Hello World!' on any available port")
 
-    logging.info("Script completed successfully")
+async def listen_for_output(port, test_type):
+    process = await asyncio.create_subprocess_shell(
+        f"tockloader listen --port {port}",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+
+    output_lines = []
+    try:
+        while True:
+            line = await process.stdout.readline()
+            if not line:
+                break
+            line = line.decode().strip()
+            print(f"Raw output: {line}")  # Print all received lines
+            logging.debug(f"Received line: {line}")
+            output_lines.append(line)
+    except asyncio.TimeoutError:
+        logging.error("Test timed out")
+    finally:
+        process.terminate()
+        await process.wait()
+
+    return analyze_output(output_lines, test_type)
+
+
+def analyze_output(output_lines, test_type):
+    if test_type == "hello_world":
+        return "Hello World!" in output_lines
+    elif test_type == "multi_alarm":
+        return analyze_multi_alarm_output(output_lines)
+    else:
+        logging.error(f"Unknown test type: {test_type}")
+        return False
+
+
+def analyze_multi_alarm_output(output_lines):
+    pattern = re.compile(r"^(\d) (\d+) (\d+)$")
+    alarm_1_count = 0
+    alarm_2_count = 0
+    last_time = 0
+
+    for line in output_lines:
+        match = pattern.match(line)
+        if match:
+            alarm_id, current_time, expiration = map(int, match.groups())
+            if alarm_id == 1:
+                alarm_1_count += 1
+            elif alarm_id == 2:
+                alarm_2_count += 1
+
+            if int(current_time) < last_time:
+                logging.error("Time went backwards")
+                return False
+            last_time = int(current_time)
+
+    if alarm_1_count == 0 or alarm_2_count == 0:
+        logging.error("One or both alarms did not fire")
+        return False
+
+    if abs(alarm_1_count - 2 * alarm_2_count) > 1:
+        logging.error(
+            f"Alarm 1 ({alarm_1_count}) did not fire approximately twice as often as Alarm 2 ({alarm_2_count})"
+        )
+        return False
+
+    logging.info(
+        f"Test passed: Alarm 1 fired {alarm_1_count} times, Alarm 2 fired {alarm_2_count} times"
+    )
+    return True
+
+
+async def main():
+    parser = argparse.ArgumentParser(description="Run tests on Tock OS")
+    parser.add_argument("--port", help="Serial port to use (e.g., /dev/ttyACM0)")
+    parser.add_argument(
+        "--test",
+        choices=["hello_world", "multi_alarm"],
+        default="hello_world",
+        help="Test to run (hello_world or multi_alarm)",
+    )
+    parser.add_argument(
+        "--target", default="cortex-m4", help="Target architecture (e.g., cortex-m4)"
+    )
+    args = parser.parse_args()
+
+    try:
+        flash_kernel()
+
+        if args.port:
+            port = args.port
+        else:
+            ports = get_serial_ports()
+            if not ports:
+                logging.error("No serial ports found")
+                return
+            port = ports[0].device
+            logging.info(f"Automatically selected port: {port}")
+
+        if args.test == "hello_world":
+            apps = ["c_hello"]
+        elif args.test == "multi_alarm":
+            apps = ["multi_alarm_simple_test"]
+        else:
+            logging.error(f"Unknown test type: {args.test}")
+            return
+
+        listen_task = asyncio.create_task(listen_for_output(port, args.test))
+
+        await asyncio.sleep(1)
+
+        install_apps(apps, args.target)
+
+        try:
+            test_result = await asyncio.wait_for(listen_task, timeout=600)
+            if test_result:
+                logging.info("Test completed successfully")
+            else:
+                logging.error("Test failed")
+        except asyncio.TimeoutError:
+            logging.error("Test timed out waiting for result")
+
+    except Exception as e:
+        logging.exception("An error occurred during script execution")
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as e:
-        logging.exception("An error occurred during script execution")
+    asyncio.run(main())
