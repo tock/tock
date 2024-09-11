@@ -1,6 +1,7 @@
 mod flux_register_interface;
 use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
+mod extern_specs;
 pub use flux_register_interface::*;
 use flux_rs::{extern_spec, refined_by, sig};
 
@@ -169,31 +170,6 @@ pub fn max_ptr(lhs: FluxPtr, rhs: FluxPtr) -> FluxPtr {
     }
 }
 
-#[extern_spec]
-impl<T> [T] {
-    #[sig(fn(&[T][@n]) -> usize[n])]
-    fn len(v: &[T]) -> usize;
-}
-
 #[extern_spec(core::ptr)]
 #[refined_by(n: int)]
 struct NonNull<T>;
-
-
-#[extern_spec]
-#[refined_by(b: bool)]
-enum Option<T> {
-    #[flux_rs::variant(Option<T>[false])]
-    None,
-    #[flux_rs::variant({T} -> Option<T>[true])]
-    Some(T),
-}
-
-#[extern_spec]
-impl<T> Option<T> {
-    #[sig(fn(&Option<T>[@b]) -> bool[b])]
-    const fn is_some(&self) -> bool;
-
-    #[sig(fn(&Option<T>[@b]) -> bool[!b])]
-    const fn is_none(&self) -> bool;
-}
