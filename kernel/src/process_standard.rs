@@ -1139,6 +1139,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         }
     }
 
+    #[flux_rs::trusted] // https://github.com/flux-rs/flux/issues/782
     fn switch_to(&self) -> Option<syscall::ContextSwitchReason> {
         // Cannot switch to an invalid process
         if !self.is_running() {
