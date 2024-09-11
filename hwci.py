@@ -91,7 +91,7 @@ async def listen_for_output(port, test_type):
             if not line:
                 break
             line = line.decode().strip()
-            print(f"Raw output: {line}")  # Print all received lines
+            print(f"Raw output: {line}")
             logging.debug(f"Received line: {line}")
             output_lines.append(line)
     except asyncio.TimeoutError:
