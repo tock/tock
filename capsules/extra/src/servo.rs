@@ -45,12 +45,12 @@ use kernel::{ErrorCode, ProcessId};
 use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Servo as usize;
 
-pub struct Servo<'a, /*S: hil::servo::Servo<'a>,*/ const NUM_SERVO: usize> {
+pub struct Servo<'a, const NUM_SERVO: usize> {
     /// The service capsule servo.
     servo: &'a [&'a dyn hil::servo::Servo<'a>; NUM_SERVO],
 }
 
-impl<'a, /*S: hil::servo::Servo<'a>,*/ const NUM_SERVO: usize> Servo<'a, /*S,*/ NUM_SERVO> {
+impl<'a, const NUM_SERVO: usize> Servo<'a, NUM_SERVO> {
     pub fn new(servo: &'a [&'a dyn hil::servo::Servo<'a>; NUM_SERVO]) -> Self {
         for servo in servo.iter() {
             let _ = servo.set_angle(0);
@@ -59,9 +59,7 @@ impl<'a, /*S: hil::servo::Servo<'a>,*/ const NUM_SERVO: usize> Servo<'a, /*S,*/ 
     }
 }
 /// Provide an interface for userland.
-impl<'a, /*S: hil::servo::Servo<'a>,*/ const NUM_SERVO: usize> SyscallDriver
-    for Servo<'a, /*S,*/ NUM_SERVO>
-{
+impl<'a, const NUM_SERVO: usize> SyscallDriver for Servo<'a, NUM_SERVO> {
     /// Command interface.
     ///
     /// ### `command_num`
@@ -72,8 +70,8 @@ impl<'a, /*S: hil::servo::Servo<'a>,*/ const NUM_SERVO: usize> SyscallDriver
     fn command(
         &self,
         command_num: usize,
-        data1: usize,
-        data2: usize,
+        servo_index: usize,
+        angle: usize,
         _processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
@@ -81,11 +79,11 @@ impl<'a, /*S: hil::servo::Servo<'a>,*/ const NUM_SERVO: usize> SyscallDriver
             0 => CommandReturn::success(),
             // Change the angle immediately.
             1 => {
-                if data2 >= NUM_SERVO {
+                if servo_index >= NUM_SERVO {
                     CommandReturn::failure(ErrorCode::INVAL)
                 } else {
-                    match data1.try_into() {
-                        Ok(angle) => match self.servo[data2].set_angle(angle) {
+                    match angle.try_into() {
+                        Ok(angle) => match self.servo[servo_index].set_angle(angle) {
                             Ok(()) => CommandReturn::success(),
                             Err(err) => CommandReturn::failure(err),
                         },
@@ -94,7 +92,7 @@ impl<'a, /*S: hil::servo::Servo<'a>,*/ const NUM_SERVO: usize> SyscallDriver
                 }
             }
             // Return the current angle.
-            2 => match self.servo[data2].get_angle() {
+            2 => match self.servo[servo_index].get_angle() {
                 Ok(angle) => CommandReturn::success_u32(angle as u32),
                 Err(err) => CommandReturn::failure(err),
             },
