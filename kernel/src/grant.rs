@@ -1223,7 +1223,6 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
     /// Note, a grant can only be entered once at a time. Attempting to call
     /// `.enter()` on a grant while it is already entered will result in a
     /// `panic!()`. See the comment in `access_grant()` for more information.
-    #[flux_rs::trusted] // ICE: check_oblig_fn_trait_pred
     pub fn enter<F, R>(self, fun: F) -> R
     where
         F: FnOnce(&mut GrantData<T>, &GrantKernelData) -> R,
@@ -1289,7 +1288,6 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
     ///
     /// Returns `None` if the grant is already entered. Otherwise returns
     /// `Some(fun())`.
-    #[flux_rs::trusted] // check_oblig_fn_trait_pred
     pub fn try_enter<F, R>(self, fun: F) -> Option<R>
     where
         F: FnOnce(&mut GrantData<T>, &GrantKernelData) -> R,
@@ -1308,7 +1306,6 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
     /// Note, a grant can only be entered once at a time. Attempting to call
     /// `.enter()` on a grant while it is already entered will result in a
     /// panic!()`. See the comment in `access_grant()` for more information.
-    #[flux_rs::trusted] // check_oblig_fn_trait_pred
     pub fn enter_with_allocator<F, R>(self, fun: F) -> R
     where
         F: FnOnce(&mut GrantData<T>, &GrantKernelData, &mut GrantRegionAllocator) -> R,
@@ -1729,7 +1726,6 @@ impl<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSi
     /// This creates a [`ProcessGrant`] which is a handle for a grant allocated
     /// for a specific process. Then, that [`ProcessGrant`] is entered and the
     /// provided closure is run with access to the memory in the grant region.
-    #[flux_rs::trusted] // check_oblig_fn_trait_pred: unexpected self_ty F
     pub fn enter<F, R>(&self, processid: ProcessId, fun: F) -> Result<R, Error>
     where
         F: FnOnce(&mut GrantData<T>, &GrantKernelData) -> R,
@@ -1751,7 +1747,6 @@ impl<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSi
     ///
     /// The allocator allows the caller to dynamically allocate additional
     /// memory in the process's grant region.
-    #[flux_rs::trusted] // check_oblig_fn_trait_pred: unexpected self_ty F
     pub fn enter_with_allocator<F, R>(&self, processid: ProcessId, fun: F) -> Result<R, Error>
     where
         F: FnOnce(&mut GrantData<T>, &GrantKernelData, &mut GrantRegionAllocator) -> R,
