@@ -60,7 +60,7 @@ ifeq ($(TARGET),)
   # Get the specified target using the unstable `cargo config get` command.
   TARGET_QUOTES := $(shell $(CARGO) config get --format json-value build.target)
   # Remove the quotes from around the target name.
-  TARGET := $(patsubst "%",%,$(TARGET_QUOTES))
+  TARGET := $(subst .json,,$(patsubst "%",%,$(TARGET_QUOTES)))
 endif
 
 
