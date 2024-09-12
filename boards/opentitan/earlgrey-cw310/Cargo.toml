@@ -22,6 +22,9 @@ capsules-extra = { path = "../../../capsules/extra" }
 capsules-aes-gcm = { path = "../../../capsules/aes_gcm" }
 capsules-system = { path = "../../../capsules/system" }
 
+[build-dependencies]
+tock_build_scripts = { path = "../../build_scripts" }
+
 
 [features]
 default = ["fpga_cw310"]

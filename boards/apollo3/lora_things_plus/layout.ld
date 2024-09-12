@@ -20,4 +20,4 @@ _lkv_data = LENGTH(kv_data);
 
 PAGE_SIZE = 8K;
 
-INCLUDE ../../kernel_layout.ld
+INCLUDE tock_kernel_layout.ld
