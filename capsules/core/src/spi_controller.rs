@@ -14,7 +14,8 @@ use kernel::hil::spi::ClockPolarity;
 use kernel::hil::spi::{SpiMasterClient, SpiMasterDevice};
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
-use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::cells::{MapCell, OptionalCell};
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
@@ -57,8 +58,8 @@ pub struct App {
 pub struct Spi<'a, S: SpiMasterDevice<'a>> {
     spi_master: &'a S,
     busy: Cell<bool>,
-    kernel_read: TakeCell<'static, [u8]>,
-    kernel_write: TakeCell<'static, [u8]>,
+    kernel_read: MapCell<SubSliceMut<'static, u8>>,
+    kernel_write: MapCell<SubSliceMut<'static, u8>>,
     kernel_len: Cell<usize>,
     grants: Grant<
         App,
@@ -90,8 +91,8 @@ impl<'a, S: SpiMasterDevice<'a>> Spi<'a, S> {
             spi_master,
             busy: Cell::new(false),
             kernel_len: Cell::new(0),
-            kernel_read: TakeCell::empty(),
-            kernel_write: TakeCell::empty(),
+            kernel_read: MapCell::empty(),
+            kernel_write: MapCell::empty(),
             grants,
             current_process: OptionalCell::empty(),
             command: Cell::new(UserCommand::ReadBytes),
@@ -101,8 +102,8 @@ impl<'a, S: SpiMasterDevice<'a>> Spi<'a, S> {
     pub fn config_buffers(&self, read: &'static mut [u8], write: &'static mut [u8]) {
         let len = cmp::min(read.len(), write.len());
         self.kernel_len.set(len);
-        self.kernel_read.replace(read);
-        self.kernel_write.replace(write);
+        self.kernel_read.replace(read.into());
+        self.kernel_write.replace(write.into());
     }
 
     // Assumes checks for busy/etc. already done
@@ -135,14 +136,17 @@ impl<'a, S: SpiMasterDevice<'a>> Spi<'a, S> {
 
         // TODO verify SPI return value
         let _ = if rlen == 0 {
-            self.spi_master
-                .read_write_bytes(self.kernel_write.take().unwrap(), None, write_len)
+            let kwbuf = self
+                .kernel_write
+                .take()
+                .unwrap_or((&mut [] as &'static mut [u8]).into());
+            self.spi_master.read_write_bytes(kwbuf, None)
         } else if write_len == 0 {
             let read_len = self
                 .kernel_write
                 .map_or(0, |kwbuf| match self.command.get() {
                     UserCommand::ReadBytes => {
-                        kwbuf.fill(0xFF);
+                        kwbuf[..].fill(0xFF);
 
                         cmp::min(kwbuf.len(), rlen)
                     }
@@ -165,17 +169,19 @@ impl<'a, S: SpiMasterDevice<'a>> Spi<'a, S> {
                         .unwrap_or(0),
                 });
             app.index += read_len;
-            self.spi_master.read_write_bytes(
-                self.kernel_write.take().unwrap(),
-                self.kernel_read.take(),
-                read_len,
-            )
+            let kwbuf = self
+                .kernel_write
+                .take()
+                .unwrap_or((&mut [] as &'static mut [u8]).into());
+            self.spi_master
+                .read_write_bytes(kwbuf, self.kernel_read.take())
         } else {
-            self.spi_master.read_write_bytes(
-                self.kernel_write.take().unwrap(),
-                self.kernel_read.take(),
-                write_len,
-            )
+            let kwbuf = self
+                .kernel_write
+                .take()
+                .unwrap_or((&mut [] as &'static mut [u8]).into());
+            self.spi_master
+                .read_write_bytes(kwbuf, self.kernel_read.take())
         };
     }
 }
@@ -404,10 +410,9 @@ impl<'a, S: SpiMasterDevice<'a>> SyscallDriver for Spi<'a, S> {
 impl<'a, S: SpiMasterDevice<'a>> SpiMasterClient for Spi<'a, S> {
     fn read_write_done(
         &self,
-        writebuf: &'static mut [u8],
-        readbuf: Option<&'static mut [u8]>,
-        length: usize,
-        _status: Result<(), ErrorCode>,
+        writebuf: SubSliceMut<'static, u8>,
+        readbuf: Option<SubSliceMut<'static, u8>>,
+        status: Result<usize, ErrorCode>,
     ) {
         self.current_process.map(|process_id| {
             let _ = self.grants.enter(process_id, move |app, kernel_data| {
@@ -425,7 +430,7 @@ impl<'a, S: SpiMasterDevice<'a>> SpiMasterClient for Spi<'a, S> {
                                 // than what we have read would require, then truncate.
                                 // -pal 12/9/20
                                 let end = index;
-                                let start = index - length;
+                                let start = index - status.unwrap_or(0);
                                 let end = cmp::min(end, dest.len());
 
                                 // If the new endpoint is earlier than our expected
@@ -444,9 +449,10 @@ impl<'a, S: SpiMasterDevice<'a>> SpiMasterClient for Spi<'a, S> {
                         });
                 });
 
-                if rbuf.is_some() {
-                    self.kernel_read.put(rbuf);
+                if let Some(rb) = rbuf {
+                    self.kernel_read.put(rb);
                 }
+
                 self.kernel_write.replace(writebuf);
 
                 if app.index == app.len {

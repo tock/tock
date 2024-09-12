@@ -33,6 +33,7 @@ use kernel::hil::bus8080::{self, Bus8080};
 use kernel::hil::i2c::{Error, I2CClient, I2CDevice};
 use kernel::hil::spi::{ClockPhase, ClockPolarity, SpiMasterClient, SpiMasterDevice};
 use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
 
 /// Bus width used for address width and data width
@@ -115,10 +116,10 @@ enum BusStatus {
 
 pub struct SpiMasterBus<'a, S: SpiMasterDevice<'a>> {
     spi: &'a S,
-    read_write_buffer: OptionalCell<&'static mut [u8]>,
+    read_write_buffer: OptionalCell<SubSliceMut<'static, u8>>,
     bus_width: Cell<usize>,
     client: OptionalCell<&'a dyn Client>,
-    addr_buffer: OptionalCell<&'static mut [u8]>,
+    addr_buffer: OptionalCell<SubSliceMut<'static, u8>>,
     status: Cell<BusStatus>,
 }
 
@@ -129,13 +130,13 @@ impl<'a, S: SpiMasterDevice<'a>> SpiMasterBus<'a, S> {
             read_write_buffer: OptionalCell::empty(),
             bus_width: Cell::new(1),
             client: OptionalCell::empty(),
-            addr_buffer: OptionalCell::new(addr_buffer),
+            addr_buffer: OptionalCell::new(addr_buffer.into()),
             status: Cell::new(BusStatus::Idle),
         }
     }
 
     pub fn set_read_write_buffer(&self, buffer: &'static mut [u8]) {
-        self.read_write_buffer.replace(buffer);
+        self.read_write_buffer.replace(buffer.into());
     }
 
     pub fn configure(
@@ -151,20 +152,23 @@ impl<'a, S: SpiMasterDevice<'a>> SpiMasterBus<'a, S> {
 impl<'a, S: SpiMasterDevice<'a>> Bus<'a> for SpiMasterBus<'a, S> {
     fn set_addr(&self, addr_width: BusWidth, addr: usize) -> Result<(), ErrorCode> {
         match addr_width {
-            BusWidth::Bits8 => self
-                .addr_buffer
-                .take()
-                .map_or(Err(ErrorCode::NOMEM), |buffer| {
-                    self.status.set(BusStatus::SetAddress);
-                    buffer[0] = addr as u8;
-                    if let Err((error, buffer, _)) = self.spi.read_write_bytes(buffer, None, 1) {
-                        self.status.set(BusStatus::Idle);
-                        self.addr_buffer.replace(buffer);
-                        Err(error)
-                    } else {
-                        Ok(())
-                    }
-                }),
+            BusWidth::Bits8 => {
+                self.addr_buffer
+                    .take()
+                    .map_or(Err(ErrorCode::NOMEM), |mut buffer| {
+                        self.status.set(BusStatus::SetAddress);
+                        buffer.reset();
+                        buffer.slice(0..1);
+                        buffer[0] = addr as u8;
+                        if let Err((error, buffer, _)) = self.spi.read_write_bytes(buffer, None) {
+                            self.status.set(BusStatus::Idle);
+                            self.addr_buffer.replace(buffer);
+                            Err(error)
+                        } else {
+                            Ok(())
+                        }
+                    })
+            }
 
             _ => Err(ErrorCode::NOSUPPORT),
         }
@@ -180,10 +184,12 @@ impl<'a, S: SpiMasterDevice<'a>> Bus<'a> for SpiMasterBus<'a, S> {
         let bytes = data_width.width_in_bytes();
         self.bus_width.set(bytes);
         if buffer.len() >= len * bytes {
+            let mut buffer_slice: SubSliceMut<'static, u8> = buffer.into();
+            buffer_slice.slice(0..(len * bytes));
             self.status.set(BusStatus::Write);
-            if let Err((error, buffer, _)) = self.spi.read_write_bytes(buffer, None, len * bytes) {
+            if let Err((error, buffer, _)) = self.spi.read_write_bytes(buffer_slice, None) {
                 self.status.set(BusStatus::Idle);
-                Err((error, buffer))
+                Err((error, buffer.take()))
             } else {
                 Ok(())
             }
@@ -208,14 +214,16 @@ impl<'a, S: SpiMasterDevice<'a>> Bus<'a> for SpiMasterBus<'a, S> {
                     && write_buffer.len() > 0
                     && buffer.len() > len * bytes
                 {
+                    let mut buffer_slice: SubSliceMut<'static, u8> = buffer.into();
+                    buffer_slice.slice(0..(len * bytes));
                     self.status.set(BusStatus::Read);
-                    if let Err((error, write_buffer, buffer)) =
-                        self.spi
-                            .read_write_bytes(write_buffer, Some(buffer), len * bytes)
+                    if let Err((error, write_buffer, buffer)) = self
+                        .spi
+                        .read_write_bytes(write_buffer.into(), Some(buffer_slice))
                     {
                         self.status.set(BusStatus::Idle);
                         self.read_write_buffer.replace(write_buffer);
-                        Err((error, buffer.unwrap()))
+                        Err((error, buffer.map(|b| b.take()).unwrap_or(&mut [])))
                     } else {
                         Ok(())
                     }
@@ -234,16 +242,16 @@ impl<'a, S: SpiMasterDevice<'a>> Bus<'a> for SpiMasterBus<'a, S> {
 impl<'a, S: SpiMasterDevice<'a>> SpiMasterClient for SpiMasterBus<'a, S> {
     fn read_write_done(
         &self,
-        write_buffer: &'static mut [u8],
-        read_buffer: Option<&'static mut [u8]>,
-        len: usize,
-        status: Result<(), ErrorCode>,
+        write_buffer: SubSliceMut<'static, u8>,
+        read_buffer: Option<SubSliceMut<'static, u8>>,
+        status: Result<usize, ErrorCode>,
     ) {
         match self.status.get() {
             BusStatus::SetAddress => {
                 self.addr_buffer.replace(write_buffer);
-                self.client
-                    .map(move |client| client.command_complete(None, 0, status));
+                self.client.map(move |client| {
+                    client.command_complete(None, status.unwrap_or(0), status.map(|_| ()))
+                });
             }
             BusStatus::Write | BusStatus::Read => {
                 let mut buffer = write_buffer;
@@ -252,7 +260,11 @@ impl<'a, S: SpiMasterDevice<'a>> SpiMasterClient for SpiMasterBus<'a, S> {
                     buffer = buf;
                 }
                 self.client.map(move |client| {
-                    client.command_complete(Some(buffer), len / self.bus_width.get(), status)
+                    client.command_complete(
+                        Some(buffer.take()),
+                        status.unwrap_or(0) / self.bus_width.get(),
+                        status.map(|_| ()),
+                    )
                 });
             }
             _ => {
