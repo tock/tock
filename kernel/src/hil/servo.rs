@@ -11,6 +11,7 @@ pub trait Servo<'a> {
     /// - `FAIL`: Cannot change the angle.
     /// - `INVAL`: The value exceeds u16, indicating it's incorrect
     /// since servomotors can only have a maximum of 360 degrees.
+    /// - `NODEVICE`: The index exceeds the number of servomotors provided.
     ///  # Arguments
     /// - `angle` - the variable that receives the angle
     /// (in degrees from 0 to 180) from the servo driver.

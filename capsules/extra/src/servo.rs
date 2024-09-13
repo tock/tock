@@ -77,12 +77,11 @@ impl<'a, const NUM_SERVO: usize> SyscallDriver for Servo<'a, NUM_SERVO> {
             0 => CommandReturn::success(),
             // Change the angle immediately.
             1 => {
-                // We use `servo_index` - 1 to adjust the indexing so that the API displays it starting from 1.
-                if servo_index - 1 >= NUM_SERVO {
+                if servo_index >= NUM_SERVO {
                     CommandReturn::failure(ErrorCode::NODEVICE)
                 } else {
                     match angle.try_into() {
-                        Ok(angle) => match self.servo[servo_index - 1].set_angle(angle) {
+                        Ok(angle) => match self.servo[servo_index].set_angle(angle) {
                             Ok(()) => CommandReturn::success(),
                             Err(err) => CommandReturn::failure(err),
                         },
@@ -92,10 +91,10 @@ impl<'a, const NUM_SERVO: usize> SyscallDriver for Servo<'a, NUM_SERVO> {
             }
             // Return the current angle.
             2 => {
-                if servo_index - 1 >= NUM_SERVO {
+                if servo_index >= NUM_SERVO {
                     CommandReturn::failure(ErrorCode::NODEVICE)
                 } else {
-                    match self.servo[servo_index - 1].get_angle() {
+                    match self.servo[servo_index].get_angle() {
                         Ok(angle) => CommandReturn::success_u32(angle as u32),
                         Err(err) => CommandReturn::failure(err),
                     }
