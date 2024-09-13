@@ -217,13 +217,12 @@ impl<'a, S: SpiMasterDevice<'a>> Bus<'a> for SpiMasterBus<'a, S> {
                     let mut buffer_slice: SubSliceMut<'static, u8> = buffer.into();
                     buffer_slice.slice(0..(len * bytes));
                     self.status.set(BusStatus::Read);
-                    if let Err((error, write_buffer, buffer)) = self
-                        .spi
-                        .read_write_bytes(write_buffer.into(), Some(buffer_slice))
+                    if let Err((error, write_buffer, buffer)) =
+                        self.spi.read_write_bytes(write_buffer, Some(buffer_slice))
                     {
                         self.status.set(BusStatus::Idle);
                         self.read_write_buffer.replace(write_buffer);
-                        Err((error, buffer.map(|b| b.take()).unwrap_or(&mut [])))
+                        Err((error, buffer.map_or(&mut [] as &mut [u8], |b| b.take())))
                     } else {
                         Ok(())
                     }
