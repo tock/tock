@@ -8,4 +8,6 @@ impl<T> [T] {
 
     #[flux_rs::sig(fn(&[T][@n]) -> Iter<T>[0, n])]
     fn iter(v: &[T]) -> Iter<'_, T>;
+
+    // slice::from_raw_parts_mut
 }

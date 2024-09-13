@@ -1,4 +1,4 @@
-#![allow(dead_code, unused_variables)]
+#![allow(unused)]
 use crate::assert;
 use std::slice::Iter;
 
