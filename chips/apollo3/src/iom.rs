@@ -10,8 +10,8 @@ use kernel::hil::gpio::Configure;
 use kernel::hil::i2c;
 use kernel::hil::spi::cs::ChipSelectPolar;
 use kernel::hil::spi::{ClockPhase, ClockPolarity, SpiMaster, SpiMasterClient};
-use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::cells::TakeCell;
+use kernel::utilities::cells::{MapCell, OptionalCell};
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
@@ -280,8 +280,8 @@ pub struct Iom<'a> {
     i2c_master_client: OptionalCell<&'a dyn hil::i2c::I2CHwMasterClient>,
     spi_master_client: OptionalCell<&'a dyn SpiMasterClient>,
 
-    buffer: TakeCell<'static, [u8]>,
-    spi_read_buffer: TakeCell<'static, [u8]>,
+    buffer: MapCell<SubSliceMut<'static, u8>>,
+    spi_read_buffer: MapCell<SubSliceMut<'static, u8>>,
     write_len: Cell<usize>,
     write_index: Cell<usize>,
 
@@ -300,8 +300,8 @@ impl<'a> Iom<'_> {
             registers: IOM0_BASE,
             i2c_master_client: OptionalCell::empty(),
             spi_master_client: OptionalCell::empty(),
-            buffer: TakeCell::empty(),
-            spi_read_buffer: TakeCell::empty(),
+            buffer: MapCell::empty(),
+            spi_read_buffer: MapCell::empty(),
             write_len: Cell::new(0),
             write_index: Cell::new(0),
             read_len: Cell::new(0),
@@ -317,8 +317,8 @@ impl<'a> Iom<'_> {
             registers: IOM1_BASE,
             i2c_master_client: OptionalCell::empty(),
             spi_master_client: OptionalCell::empty(),
-            buffer: TakeCell::empty(),
-            spi_read_buffer: TakeCell::empty(),
+            buffer: MapCell::empty(),
+            spi_read_buffer: MapCell::empty(),
             write_len: Cell::new(0),
             write_index: Cell::new(0),
             read_len: Cell::new(0),
@@ -334,8 +334,8 @@ impl<'a> Iom<'_> {
             registers: IOM2_BASE,
             i2c_master_client: OptionalCell::empty(),
             spi_master_client: OptionalCell::empty(),
-            buffer: TakeCell::empty(),
-            spi_read_buffer: TakeCell::empty(),
+            buffer: MapCell::empty(),
+            spi_read_buffer: MapCell::empty(),
             write_len: Cell::new(0),
             write_index: Cell::new(0),
             read_len: Cell::new(0),
@@ -351,8 +351,8 @@ impl<'a> Iom<'_> {
             registers: IOM3_BASE,
             i2c_master_client: OptionalCell::empty(),
             spi_master_client: OptionalCell::empty(),
-            buffer: TakeCell::empty(),
-            spi_read_buffer: TakeCell::empty(),
+            buffer: MapCell::empty(),
+            spi_read_buffer: MapCell::empty(),
             write_len: Cell::new(0),
             write_index: Cell::new(0),
             read_len: Cell::new(0),
@@ -368,8 +368,8 @@ impl<'a> Iom<'_> {
             registers: IOM4_BASE,
             i2c_master_client: OptionalCell::empty(),
             spi_master_client: OptionalCell::empty(),
-            buffer: TakeCell::empty(),
-            spi_read_buffer: TakeCell::empty(),
+            buffer: MapCell::empty(),
+            spi_read_buffer: MapCell::empty(),
             write_len: Cell::new(0),
             write_index: Cell::new(0),
             read_len: Cell::new(0),
@@ -385,8 +385,8 @@ impl<'a> Iom<'_> {
             registers: IOM5_BASE,
             i2c_master_client: OptionalCell::empty(),
             spi_master_client: OptionalCell::empty(),
-            buffer: TakeCell::empty(),
-            spi_read_buffer: TakeCell::empty(),
+            buffer: MapCell::empty(),
+            spi_read_buffer: MapCell::empty(),
             write_len: Cell::new(0),
             write_index: Cell::new(0),
             read_len: Cell::new(0),
@@ -546,7 +546,7 @@ impl<'a> Iom<'_> {
 
                 self.i2c_master_client.map(|client| {
                     self.buffer.take().map(|buffer| {
-                        client.command_complete(buffer, Err(i2c::Error::DataNak));
+                        client.command_complete(buffer.take(), Err(i2c::Error::DataNak));
                     });
                 });
 
@@ -576,12 +576,7 @@ impl<'a> Iom<'_> {
                 self.spi_master_client.map(|client| {
                     self.buffer.take().map(|buffer| {
                         let read_buffer = self.spi_read_buffer.take();
-                        client.read_write_done(
-                            buffer,
-                            read_buffer,
-                            self.write_len.get(),
-                            Err(ErrorCode::NOACK),
-                        );
+                        client.read_write_done(buffer, read_buffer, Err(ErrorCode::NOACK));
                     });
                 });
             }
@@ -590,7 +585,7 @@ impl<'a> Iom<'_> {
 
         if self.op.get() == Operation::SPI {
             // Read the incoming data
-            if let Some(buf) = self.spi_read_buffer.take() {
+            if let Some(mut buf) = self.spi_read_buffer.take() {
                 while self.registers.fifoptr.read(FIFOPTR::FIFO1SIZ) > 0 {
                     // The IOM doesn't correctly pop the data if we read it too fast
                     // there are a few erratas against the IOM when reading data
@@ -605,19 +600,19 @@ impl<'a> Iom<'_> {
                     let d = self.registers.fifopop.get().to_ne_bytes();
                     let data_idx = self.read_index.get();
 
-                    if let Some(b) = buf.get_mut(data_idx + 0) {
+                    if let Some(b) = buf.as_slice().get_mut(data_idx + 0) {
                         *b = d[0];
                         self.read_index.set(data_idx + 1);
                     }
-                    if let Some(b) = buf.get_mut(data_idx + 1) {
+                    if let Some(b) = buf.as_slice().get_mut(data_idx + 1) {
                         *b = d[1];
                         self.read_index.set(data_idx + 2);
                     }
-                    if let Some(b) = buf.get_mut(data_idx + 2) {
+                    if let Some(b) = buf.as_slice().get_mut(data_idx + 2) {
                         *b = d[2];
                         self.read_index.set(data_idx + 3);
                     }
-                    if let Some(b) = buf.get_mut(data_idx + 3) {
+                    if let Some(b) = buf.as_slice().get_mut(data_idx + 3) {
                         *b = d[3];
                         self.read_index.set(data_idx + 4);
                     }
@@ -720,7 +715,7 @@ impl<'a> Iom<'_> {
                 self.spi_master_client.map(|client| {
                     self.buffer.take().map(|buffer| {
                         let read_buffer = self.spi_read_buffer.take();
-                        client.read_write_done(buffer, read_buffer, self.write_len.get(), Ok(()));
+                        client.read_write_done(buffer, read_buffer, Ok(self.write_len.get()));
                     });
                 });
             }
@@ -773,7 +768,7 @@ impl<'a> Iom<'_> {
 
                         self.i2c_master_client.map(|client| {
                             self.buffer.take().map(|buffer| {
-                                client.command_complete(buffer, Ok(()));
+                                client.command_complete(buffer.take(), Ok(()));
                             });
                         });
 
@@ -896,7 +891,7 @@ impl<'a> Iom<'_> {
             Err((i2c::Error::NotSupported, data))
         } else {
             // Save all the data and offsets we still need to send
-            self.buffer.replace(data);
+            self.buffer.replace(data.into());
             self.write_len.set(write_len);
             self.read_len.set(read_len);
             self.write_index.set(0);
@@ -946,7 +941,7 @@ impl<'a> Iom<'_> {
         self.i2c_reset_fifo();
 
         // Save all the data and offsets we still need to send
-        self.buffer.replace(data);
+        self.buffer.replace(data.into());
         self.write_len.set(len);
         self.read_len.set(0);
         self.write_index.set(0);
@@ -1000,7 +995,7 @@ impl<'a> Iom<'_> {
             .write(CMD::TSIZE.val(len as u32) + CMD::CMD::READ + CMD::CONT::CLEAR);
 
         // Save all the data and offsets we still need to send
-        self.buffer.replace(buffer);
+        self.buffer.replace(buffer.into());
         self.read_len.set(len);
         self.write_len.set(0);
         self.read_index.set(0);
@@ -1231,16 +1226,18 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
 
     fn read_write_bytes(
         &self,
-        write_buffer: &'static mut [u8],
-        read_buffer: Option<&'static mut [u8]>,
-        len: usize,
-    ) -> Result<(), (ErrorCode, &'static mut [u8], Option<&'static mut [u8]>)> {
-        let write_len = write_buffer.len().min(len);
-        let read_len = if let Some(ref buffer) = read_buffer {
-            buffer.len().min(len)
-        } else {
-            0
-        };
+        write_buffer: SubSliceMut<'static, u8>,
+        read_buffer: Option<SubSliceMut<'static, u8>>,
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            SubSliceMut<'static, u8>,
+            Option<SubSliceMut<'static, u8>>,
+        ),
+    > {
+        let write_len = write_buffer.len();
+        let read_len = read_buffer.as_ref().map(|b| b.len()).unwrap_or(0);
 
         // Disable DMA as we don't support it
         self.registers.dmacfg.write(DMACFG::DMAEN::CLEAR);
@@ -1303,7 +1300,7 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
             self.write_index.set(idx + 4);
             transfered_bytes += 4;
 
-            if let Some(buf) = self.spi_read_buffer.take() {
+            if let Some(mut buf) = self.spi_read_buffer.take() {
                 if self.registers.fifoptr.read(FIFOPTR::FIFO1SIZ) > 0
                     && self.read_index.get() < read_len
                 {
