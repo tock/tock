@@ -1237,7 +1237,7 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
         ),
     > {
         let write_len = write_buffer.len();
-        let read_len = read_buffer.as_ref().map(|b| b.len()).unwrap_or(0);
+        let read_len = read_buffer.as_ref().map_or(0, |b| b.len());
 
         // Disable DMA as we don't support it
         self.registers.dmacfg.write(DMACFG::DMAEN::CLEAR);
