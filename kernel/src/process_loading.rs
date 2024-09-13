@@ -281,7 +281,7 @@ fn load_processes_from_flash<C: Chip>(
 
 /// Find a process binary stored at the beginning of `flash` and create a
 /// `ProcessBinary` object if the process is viable to run on this kernel.
-#[flux_rs::trusted] // ICE: ambigous substitution
+#[flux_rs::trusted] // Arithmetic + refinement failure
 fn discover_process_binary(
     flash: &'static [u8],
 ) -> Result<(&'static [u8], ProcessBinary), (&'static [u8], ProcessBinaryError)> {
@@ -349,6 +349,7 @@ fn discover_process_binary(
 /// object was created, `Err` with a relevant error if the process object could
 /// not be created.
 #[flux_rs::trusted] // Arithmetic warnings - needs slice extern spec
+// #[flux_rs::sig(fn<C>(&Kernel, &C, ProcessBinary, &mut [u8]{len: len > 0}, ShortId, usize, _ ) -> Result<_,_>)]
 fn load_process<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
@@ -359,6 +360,7 @@ fn load_process<C: Chip>(
     fault_policy: &'static dyn ProcessFaultPolicy,
 ) -> Result<(&'static mut [u8], Option<&'static dyn Process>), (&'static mut [u8], ProcessLoadError)>
 {
+    // assume(app_memory.len() > 0);
     if config::CONFIG.debug_load_processes {
         debug!(
             "Loading: process flash={:#010X}-{:#010X} ram={:#010X}-{:#010X}",
@@ -586,7 +588,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
     ///
     /// Returns the process binary object or an error if a valid process
     /// binary could not be extracted.
-    #[flux_rs::trusted] // ICE: Ambiguous substitution
+    #[flux_rs::trusted] // Arithmetic + refinement failure
     fn discover_process_binary(&self) -> Result<ProcessBinary, ProcessBinaryError> {
         let flash = self.flash.get();
 

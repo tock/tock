@@ -60,7 +60,7 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
     }
 }
 
-#[flux_rs::trusted]
+#[flux_rs::trusted] // Expected array or slice type
 impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
     fn has_elements(&self) -> bool {
         self.head != self.tail

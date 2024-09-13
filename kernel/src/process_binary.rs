@@ -13,6 +13,7 @@ use crate::config;
 use crate::debug;
 use crate::process_checker::AcceptedCredential;
 use crate::utilities::cells::OptionalCell;
+use flux_support::*;
 
 /// Errors resulting from trying to load a process binary structure from flash.
 pub enum ProcessBinaryError {
@@ -113,14 +114,18 @@ impl fmt::Debug for ProcessBinaryError {
 }
 
 /// A process stored in flash.
+#[flux_rs::refined_by(flash_len: int, footers_len: int)]
+#[flux_rs::invariant(flash_len > 0 && footers_len > 0)]
 pub struct ProcessBinary {
     /// Process flash segment. This is the entire region of nonvolatile flash
     /// that the process occupies.
+    #[field({&[u8][flash_len] | flash_len > 0})]
     pub flash: &'static [u8],
 
     /// The footers of the process binary (may be zero-sized), which are metadata
     /// about the process not covered by integrity. Used, among other things, to
     /// store signatures.
+    #[field({&[u8][footers_len] | footers_len > 0})]
     pub footers: &'static [u8],
 
     /// Collection of pointers to the TBF header in flash.
@@ -134,12 +139,14 @@ pub struct ProcessBinary {
 
 impl ProcessBinary {
     #[flux_rs::sig(fn(&[u8]{len: len > 0}, usize, u16, bool) -> Result<ProcessBinary, ProcessBinaryError>)]
+    #[flux_rs::trusted]
     pub(crate) fn create(
         app_flash: &'static [u8],
         header_length: usize,
         tbf_version: u16,
         require_kernel_version: bool,
     ) -> Result<Self, ProcessBinaryError> {
+
         // Get a slice for just the app header.
         let header_flash = app_flash
             .get(0..header_length)
@@ -241,6 +248,7 @@ impl ProcessBinary {
                 });
             }
         }
+        assert(app_flash.len() > 0);
 
         Ok(Self {
             header: tbf_header,

@@ -727,7 +727,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
-    #[flux_rs::trusted]
+    #[flux_rs::trusted] // refinement error
     fn build_readonly_process_buffer(
         &self,
         buf_start_addr: FluxPtrU8Mut,
@@ -897,7 +897,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         }
     }
 
-    #[flux_rs::trusted]
+    #[flux_rs::trusted] // refinement error
     fn allocate_custom_grant(
         &self,
         size: usize,
@@ -1817,7 +1817,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     /// Reset the process, resetting all of its state and re-initializing it so
     /// it can start running. Assumes the process is not running but is still in
     /// flash and still has its memory region allocated to it.
-    #[flux_rs::trusted]
+    #[flux_rs::trusted] // refinement error
     fn reset(&self) -> Result<(), ErrorCode> {
         // We need a new process identifier for this process since the restarted
         // version is in effect a new process. This is also necessary to

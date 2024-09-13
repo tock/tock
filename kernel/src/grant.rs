@@ -274,7 +274,6 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
     /// `EnteredGrantKernelManagedLayout` for the given `base_ptr` at the same
     /// time, otherwise multiple mutable references to the same upcall/allow
     /// slices could be created.
-    #[flux_rs::trusted] // Unsupported statement (Const Index?)
     unsafe fn read_from_base(
         base_ptr: NonNull<u8>,
         process: &'a dyn Process,

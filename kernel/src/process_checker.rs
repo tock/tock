@@ -253,7 +253,6 @@ pub struct ProcessCheckerMachine {
     footer_index: Cell<usize>,
 }
 
-#[flux_rs::trusted] // assertion left == right ExistentialTraitRef (normalization issue?)
 impl ProcessCheckerMachine {
     pub fn new(policy: &'static dyn AppCredentialsPolicy<'static>) -> Self {
         Self {

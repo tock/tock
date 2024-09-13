@@ -7,9 +7,10 @@
 use core::f32;
 
 // VTOCK-TODO: supplementary Z3 proofs for these two functions
+// VTOCK-TODO: use actual const names
 
 /// Get closest power of two greater than the given number.
-#[flux_rs::trusted]
+#[flux_rs::trusted] // Bitwise arithmetic
 // 2147483648 is half of u32::MAX. Anything higher than that causes overflow
 #[flux_rs::sig(fn(num: u32) -> u32{r: (num < 2147483648 => r > num)})]
 pub fn closest_power_of_two(mut num: u32) -> u32 {
@@ -23,7 +24,7 @@ pub fn closest_power_of_two(mut num: u32) -> u32 {
     num
 }
 
-#[flux_rs::trusted]
+#[flux_rs::trusted] // bitwise arithmetic
 // 2147483648 is half of u32::MAX. Anything higher than that deviates from closest_power_of_two
 // I added this function to avoid unnecessary downcasts, which can be dangerous.
 #[flux_rs::sig(fn(num: usize) -> usize{r: (num < 2147483648 => r > num)})]
@@ -76,7 +77,6 @@ impl PowerOfTwo {
 /// Get log base 2 of a number.
 /// Note: this is the floor of the result. Also, an input of 0 results in an
 /// output of 0
-#[flux_rs::trusted]
 #[flux_rs::sig(fn(num: u32) -> u32{r: (r < 32) && (num > 1 => r > 0)})]
 pub fn log_base_two(num: u32) -> u32 {
     if num == 0 {
@@ -86,10 +86,7 @@ pub fn log_base_two(num: u32) -> u32 {
     }
 }
 
-#[flux_rs::trusted]
-#[flux_rs::sig(fn(num: usize{num < 4294967295}) -> u32{r: (r < 32) && (num > 1 => r > 0)})]
-// Push cast into trusted function
-// can only be used if downcast is not required
+#[flux_rs::sig(fn(num: usize{num < 4294967295}) -> u32{r: (r < 64) && (num > 1 => r > 0)})]
 pub fn log_base_two_u32_usize(num: usize) -> u32 {
     if num == 0 {
         0
@@ -99,7 +96,6 @@ pub fn log_base_two_u32_usize(num: usize) -> u32 {
 }
 
 /// Log base 2 of 64 bit unsigned integers.
-#[flux_rs::trusted]
 #[flux_rs::sig(fn(num: u64) -> u32{r: r < 64 && (num > 1 => r > 0)})]
 pub fn log_base_two_u64(num: u64) -> u32 {
     if num == 0 {

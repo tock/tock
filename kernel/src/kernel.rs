@@ -171,7 +171,7 @@ impl Kernel {
 
     /// Run a closure on every valid process. This will iterate the array of
     /// processes and call the closure on every process that exists.
-    #[flux_rs::trusted]
+    #[flux_rs::trusted] // error jumping to join point
     pub(crate) fn process_each<F>(&self, mut closure: F)
     where
         F: FnMut(&dyn process::Process),
