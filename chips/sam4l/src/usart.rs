@@ -14,6 +14,7 @@ use kernel::hil::spi;
 use kernel::hil::spi::cs::ChipSelectPolar;
 use kernel::hil::uart;
 use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
@@ -702,7 +703,11 @@ impl<'a> USART<'a> {
                         // state.
                         let len = self.tx_len.get();
                         self.tx_len.set(0);
-                        client.read_write_done(txbuffer.unwrap(), rxbuf, len, Ok(()));
+                        client.read_write_done(
+                            txbuffer.unwrap().into(),
+                            rxbuf.map(|b| b.into()),
+                            Ok(len),
+                        );
                     }
                 }
             });
@@ -1086,20 +1091,25 @@ impl<'a> spi::SpiMaster<'a> for USART<'a> {
 
     fn read_write_bytes(
         &self,
-        write_buffer: &'static mut [u8],
-        read_buffer: Option<&'static mut [u8]>,
-        len: usize,
-    ) -> Result<(), (ErrorCode, &'static mut [u8], Option<&'static mut [u8]>)> {
+        write_buffer: SubSliceMut<'static, u8>,
+        read_buffer: Option<SubSliceMut<'static, u8>>,
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            SubSliceMut<'static, u8>,
+            Option<SubSliceMut<'static, u8>>,
+        ),
+    > {
         let usart = &USARTRegManager::new(self);
 
         self.enable_tx(usart);
         self.enable_rx(usart);
 
         // Calculate the correct length for the transmission
-        let buflen = read_buffer.as_ref().map_or(write_buffer.len(), |rbuf| {
+        let count = read_buffer.as_ref().map_or(write_buffer.len(), |rbuf| {
             cmp::min(rbuf.len(), write_buffer.len())
         });
-        let count = cmp::min(buflen, len);
 
         self.tx_len.set(count);
 
@@ -1128,12 +1138,12 @@ impl<'a> spi::SpiMaster<'a> for USART<'a> {
                         self.usart_tx_state.set(USARTStateTX::DMA_Transmitting);
                         self.usart_rx_state.set(USARTStateRX::Idle);
                         dma.enable();
-                        dma.do_transfer(self.tx_dma_peripheral, write_buffer, count);
+                        dma.do_transfer(self.tx_dma_peripheral, write_buffer.take(), count);
 
                         // Start the read transaction.
                         self.usart_rx_state.set(USARTStateRX::DMA_Receiving);
                         read.enable();
-                        read.do_transfer(self.rx_dma_peripheral, rbuf, count);
+                        read.do_transfer(self.rx_dma_peripheral, rbuf.take(), count);
                     });
                 });
             });
@@ -1143,7 +1153,7 @@ impl<'a> spi::SpiMaster<'a> for USART<'a> {
                 self.usart_tx_state.set(USARTStateTX::DMA_Transmitting);
                 self.usart_rx_state.set(USARTStateRX::Idle);
                 dma.enable();
-                dma.do_transfer(self.tx_dma_peripheral, write_buffer, count);
+                dma.do_transfer(self.tx_dma_peripheral, write_buffer.take(), count);
             });
         }
 
