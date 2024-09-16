@@ -35,7 +35,7 @@ use rp2040::clocks::{
     SystemAuxiliaryClockSource, SystemClockSource, UsbAuxiliaryClockSource,
 };
 use rp2040::gpio::{GpioFunction, RPGpio, RPGpioPin};
-use rp2040::pio::{Pio, SMNumber, StateMachineConfiguration};
+use rp2040::pio::{PIONumber, Pio, SMNumber, StateMachineConfiguration};
 use rp2040::resets::Peripheral;
 use rp2040::spi::Spi;
 use rp2040::sysinfo;
@@ -692,42 +692,6 @@ pub unsafe fn start() -> (
     });
 
     let mut pio: Pio = Pio::new_pio0();
-    // let path: [u8; 6] = [0xa0,0x80, 0x01, 0x60, 0x00, 0x00];
-    // let path: [u8; 6] = [0x80, 0xa0, 0x60, 0x01, 0x00, 0x00];
-    // loop:
-    // set pins, 1 [14]
-    // set pins, 0 [14]
-    // jmp loop
-    // After Pioasm => ee01 ee00 0000
-    // let path: [u8; 6] = [0xee, 0x01, 0xee, 0x00, 0x00, 0x00];
-    // let path: [u8; 8] = [0xe0, 0x81, 0xee, 0x01, 0xee, 0x00, 0x00, 0x01];
-    // loop:
-    // set pins, 1 [31]
-    // set pins, 0 [31]
-    // jmp loop
-    // After Pioasm => ff01 ff00 0000
-    // let path: [u8; 6] = [0xff, 0x01, 0xff, 0x00, 0x00, 0x00];
-    // let path: [u8; 8] = [0xe0, 0x81, 0xf5, 0x01, 0xf5, 0x00, 0x00, 0x01];
-    // loop:
-    // set pins, 1
-    // jmp loop
-    // After Pioasm => e001 0000
-    // let path: [u8; 4] = [0x01, 0xe0, 0x01, 0x00];
-    // loop:
-    // set pins, 1
-    // set pins, 0
-    // jmp loop
-    // After Pioasm => e001 e000 0000
-    // let path: [u8; 6] = [0xe0, 0x01, 0xe0, 0x00, 0x00, 0x00];
-    // let path: [u8; 6] = [0xe0, 0x01, 0xe0, 0x00, 0x00, 0x01];
-    // let path: [u8; 2] = [0x00, 0x00];
-    // set pindirs, 1
-    // loop:
-    // set pins, 1
-    // jmp loop
-    // After Pioasm => e001 0000
-    // let path: [u8; 6] = [0xe0, 0x81, 0xe0, 0x01, 0x00, 0x01];
-    // set pindirs, 1
     // loop:
     // set pins, 1 [31]
     // jmp label [31]
@@ -739,16 +703,45 @@ pub unsafe fn start() -> (
     // 1f03
     // ff00
     // 1f01
-    // let path: [u8; 10] = [0xe0, 0x81, 0xff, 0x01, 0x1f, 0x03, 0xff, 0x00, 0x1f, 0x01];
+    // let path: [u8; 10] = [0xe0, 0x81, 0xff, 0x01, 0x1f, 0x03, 0xff, 0x00, 0x1f, 0x01]; - still with set pindirs, 1
     let path: [u8; 8] = [0xff, 0x01, 0x1f, 0x02, 0xff, 0x00, 0x1f, 0x00];
+    // .program pwm
+    // .side_set 1 opt
+    //     pull noblock    side 0 ; Pull from FIFO to OSR if available, else copy X to OSR.
+    //     mov x, osr             ; Copy most-recently-pulled value back to scratch X
+    //     mov y, isr             ; ISR contains PWM period. Y used as counter.
+    // countloop:
+    //     jmp x!=y noset         ; Set pin high if X == Y, keep the two paths length matched
+    //     jmp skip        side 1
+    // noset:
+    //     nop                    ; Single dummy cycle to keep the two paths the same length
+    // skip:
+    //     jmp y-- countloop      ; Loop until Y hits 0, then pull a fresh PWM value from FIFO
+    // let path: [u8; 14] = [
+    //     0x90, 0x80, 0xa0, 0x27, 0xa0, 0x46, 0x00, 0xa5, 0x18, 0x06, 0xa0, 0x42, 0x00, 0x83,
+    // ];
     pio.init();
     pio.add_program(&path);
     let mut custom_config = StateMachineConfiguration::default();
-    custom_config.div_int = 0;
     custom_config.div_frac = 0;
-    pio.hello_program_init(SMNumber::SM0, 7, &custom_config);
+    custom_config.div_int = 0;
+    // custom_config.side_set_base = 7;
+    // custom_config.side_set_bit_count = 1;
+    // custom_config.side_set_enable = true;
+    // custom_config.side_set_pindirs = false;
+    // pio.pwm_program_init(PIONumber::PIO0, SMNumber::SM0, 7, 30000, &custom_config);
+    pio.hello_program_init(PIONumber::PIO0, SMNumber::SM0, 7, &custom_config);
+    // pio.sm_put_blocking(SMNumber::SM0, 3000);
+    // let mut level = 0;
+    // for _ in 1..512 {
+    //     debug!("{}", level);
+    //     pio.sm_put_blocking(SMNumber::SM0, level * level);
+    //     level = (level + 1) % 256;
+    // }
     for _ in 1..100 {
-        debug!("Instr_SM0:{}", pio.debugger(SMNumber::SM0));
+        // debug!("Instr_SM0:{}", pio.debugger(SMNumber::SM0));
+        pio.sm_put(SMNumber::SM0, 1);
+        debug!("TXF0:{}", pio.read_txf(SMNumber::SM0));
     }
     (board_kernel, pico_explorer_base, chip)
 }

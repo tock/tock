@@ -3,6 +3,7 @@ use kernel::hil::gpio::{Configure, FloatingState, Output};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
+use FSTAT::TXFULL0;
 
 use crate::gpio::{GpioFunction, RPGpio, RPGpioPin};
 
@@ -172,9 +173,15 @@ CTRL [
 ],
 FSTAT [
     /// State machine TX FIFO is empty
-    TXEMPTY OFFSET(24) NUMBITS(4) [],
+    TXEMPTY3 OFFSET(27) NUMBITS(1) [],
+    TXEMPTY2 OFFSET(26) NUMBITS(1) [],
+    TXEMPTY1 OFFSET(25) NUMBITS(1) [],
+    TXEMPTY0 OFFSET(24) NUMBITS(1) [],
     /// State machine TX FIFO is full
-    TXFULL OFFSET(16) NUMBITS(4) [],
+    TXFULL3 OFFSET(19) NUMBITS(1) [],
+    TXFULL2 OFFSET(18) NUMBITS(1) [],
+    TXFULL1 OFFSET(17) NUMBITS(1) [],
+    TXFULL0 OFFSET(16) NUMBITS(1) [],
     /// State machine RX FIFO is empty
     RXEMPTY OFFSET(8) NUMBITS(4) [],
     /// State machine RX FIFO is full
@@ -520,6 +527,47 @@ pub enum PIONumber {
     PIO1 = 1,
 }
 
+impl RPGpio {
+    fn from_u32(value: u32) -> RPGpio {
+        match value {
+            0 => RPGpio::GPIO0,
+            1 => RPGpio::GPIO1,
+            2 => RPGpio::GPIO2,
+            3 => RPGpio::GPIO3,
+            4 => RPGpio::GPIO4,
+            5 => RPGpio::GPIO5,
+            6 => RPGpio::GPIO6,
+            7 => RPGpio::GPIO7,
+            8 => RPGpio::GPIO8,
+            9 => RPGpio::GPIO9,
+            10 => RPGpio::GPIO10,
+            11 => RPGpio::GPIO11,
+            12 => RPGpio::GPIO12,
+            13 => RPGpio::GPIO13,
+            14 => RPGpio::GPIO14,
+            15 => RPGpio::GPIO15,
+            16 => RPGpio::GPIO16,
+            17 => RPGpio::GPIO17,
+            18 => RPGpio::GPIO18,
+            19 => RPGpio::GPIO19,
+            20 => RPGpio::GPIO20,
+            21 => RPGpio::GPIO21,
+            22 => RPGpio::GPIO22,
+            23 => RPGpio::GPIO23,
+            24 => RPGpio::GPIO24,
+            25 => RPGpio::GPIO25,
+            26 => RPGpio::GPIO26,
+            27 => RPGpio::GPIO27,
+            28 => RPGpio::GPIO28,
+            29 => RPGpio::GPIO29,
+            _ => panic!(
+                "Unknown value for GPIO pin: {} (should be from 0 to 29)",
+                value
+            ),
+        }
+    }
+}
+
 /// The FIFO queues can be joined together for twice the length in one direction.
 #[derive(PartialEq)]
 pub enum PioFifoJoin {
@@ -550,29 +598,29 @@ pub enum PioMovStatusType {
 ///
 /// Used to initialize a PIO with all of its state machines.
 pub struct StateMachineConfiguration {
-    out_pins_count: u32,
-    out_pins_base: u32,
-    set_pins_count: u32,
-    set_pins_base: u32,
-    in_pins_base: u32,
-    side_set_base: u32,
-    side_set_enable: bool,
-    side_set_bit_count: u32,
-    side_set_pindirs: bool,
-    wrap: u32,
-    wrap_to: u32,
-    in_shift_direction_right: bool,
-    in_autopush: bool,
-    in_push_threshold: u32,
-    out_shift_direction_right: bool,
-    out_autopull: bool,
-    out_pull_threshold: u32,
-    jmp_pin: u32,
-    out_special_sticky: bool,
-    out_special_has_enable_pin: bool,
-    out_special_enable_pin_index: u32,
-    mov_status_sel: PioMovStatusType,
-    mov_status_n: u32,
+    pub out_pins_count: u32,
+    pub out_pins_base: u32,
+    pub set_pins_count: u32,
+    pub set_pins_base: u32,
+    pub in_pins_base: u32,
+    pub side_set_base: u32,
+    pub side_set_enable: bool,
+    pub side_set_bit_count: u32,
+    pub side_set_pindirs: bool,
+    pub wrap: u32,
+    pub wrap_to: u32,
+    pub in_shift_direction_right: bool,
+    pub in_autopush: bool,
+    pub in_push_threshold: u32,
+    pub out_shift_direction_right: bool,
+    pub out_autopull: bool,
+    pub out_pull_threshold: u32,
+    pub jmp_pin: u32,
+    pub out_special_sticky: bool,
+    pub out_special_has_enable_pin: bool,
+    pub out_special_enable_pin_index: u32,
+    pub mov_status_sel: PioMovStatusType,
+    pub mov_status_n: u32,
     pub div_int: u32,
     pub div_frac: u32,
 }
@@ -972,6 +1020,17 @@ impl Pio {
     /// Write a word of data to a state machine’s TX FIFO.
     pub fn sm_put(&self, sm_number: SMNumber, data: u32) {
         self.registers.txf[sm_number as usize].set(data);
+        // self.registers.txf[sm_number as usize].modify(TXFx::TXF.val(data));
+    }
+
+    pub fn wait(&self) {}
+
+    /// Wait until a state machine's TX FIFO is empty, then write a word of data to it.
+    pub fn sm_put_blocking(&self, sm_number: SMNumber, data: u32) {
+        while self.registers.fstat.read(FSTAT::TXFULL0) != 0 {
+            self.wait();
+        }
+        self.registers.txf[sm_number as usize].set(data);
     }
 
     /// Restart a state machine.
@@ -1042,40 +1101,66 @@ impl Pio {
         }
     }
 
+    /// Returns current instruction running on the state machine.
+    pub fn debugger(&self, sm_number: SMNumber) -> u32 {
+        self.registers.sm[sm_number as usize]
+            .instr
+            .read(SMx_INSTR::INSTR)
+    }
+
     pub fn hello_program_init(
         &mut self,
+        pio_number: PIONumber,
         sm_number: SMNumber,
         pin: u32,
         config: &StateMachineConfiguration,
     ) {
         self.sm_config(sm_number, config);
-        self.pio_number = PIONumber::PIO0;
-        self.gpio_init(&RPGpioPin::new(RPGpio::GPIO7));
-        // self.sm_init(sm_number, config);
-        // self.set_out_pins(sm_number, pin, 1);
+        self.pio_number = pio_number;
+        self.gpio_init(&RPGpioPin::new(RPGpio::from_u32(
+            pin, /*RPGpio::GPIO7*/
+        )));
         self.sm_set_enabled(sm_number, false);
         self.set_pins_out(sm_number, pin, 1, true);
         self.set_set_pins(sm_number, pin, 1);
         self.sm_init(sm_number);
     }
 
-    pub fn read_set_base(&self, sm_number: SMNumber) -> u32 {
-        self.registers.sm[sm_number as usize]
-            .pinctrl
-            .read(SMx_PINCTRL::SET_BASE)
+    pub fn pwm_program_init(
+        &mut self,
+        pio_number: PIONumber,
+        sm_number: SMNumber,
+        pin: u32,
+        pwm_period: u32,
+        config: &StateMachineConfiguration,
+    ) {
+        self.sm_config(sm_number, config);
+        self.pio_number = pio_number;
+        self.gpio_init(&RPGpioPin::new(RPGpio::from_u32(pin)));
+        self.sm_set_enabled(sm_number, false);
+        self.set_pins_out(sm_number, pin, 1, true);
+        self.set_side_set_pins(sm_number, pin);
+        self.sm_init(sm_number);
+        self.sm_put_blocking(sm_number, pwm_period);
+        self.sm_exec(sm_number, 0x8080 as u32);
+        self.sm_exec(sm_number, 0x60c0 as u32);
     }
 
-    pub fn read_set_count(&self, sm_number: SMNumber) -> u32 {
-        self.registers.sm[sm_number as usize]
-            .pinctrl
-            .read(SMx_PINCTRL::SET_COUNT)
+    pub fn read_txf(&self, sm_number: SMNumber) -> u32 {
+        self.registers.txf[sm_number as usize].read(TXFx::TXF)
     }
 
-    pub fn debugger(&self, sm_number: SMNumber) -> u32 {
-        self.registers.sm[sm_number as usize]
-            .instr
-            .read(SMx_INSTR::INSTR)
-    }
+    // pub fn read_set_base(&self, sm_number: SMNumber) -> u32 {
+    //     self.registers.sm[sm_number as usize]
+    //         .pinctrl
+    //         .read(SMx_PINCTRL::SET_BASE)
+    // }
+
+    // pub fn read_set_count(&self, sm_number: SMNumber) -> u32 {
+    //     self.registers.sm[sm_number as usize]
+    //         .pinctrl
+    //         .read(SMx_PINCTRL::SET_COUNT)
+    // }
 
     // pub fn pio_pwm(&self, sm_number: SMNumber, pin: u32, config: &StateMachineConfiguration) {
     //     self.gpio_init(&RPGpioPin::new(RPGpio::GPIO6));
