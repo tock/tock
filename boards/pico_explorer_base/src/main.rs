@@ -692,19 +692,52 @@ pub unsafe fn start() -> (
     });
 
     let mut pio: Pio = Pio::new_pio0();
+    // .program hello
     // loop:
     // set pins, 1 [31]
     // jmp label [31]
     // label:
     // set pins, 0 [31]
     // jmp loop [31]
-    // e081
-    // ff01
-    // 1f03
-    // ff00
-    // 1f01
     // let path: [u8; 10] = [0xe0, 0x81, 0xff, 0x01, 0x1f, 0x03, 0xff, 0x00, 0x1f, 0x01]; - still with set pindirs, 1
-    let path: [u8; 8] = [0xff, 0x01, 0x1f, 0x02, 0xff, 0x00, 0x1f, 0x00];
+    // let path: [u8; 8] = [0xff, 0x01, 0x1f, 0x02, 0xff, 0x00, 0x1f, 0x00];
+
+    // .program blink
+    // set pins, 1 [19]
+    // nop         [19]
+    // nop         [19]
+    // nop         [19]
+    // nop         [19]
+    // set pins, 0 [19]
+    // nop         [19]
+    // nop         [19]
+    // nop         [19]
+    // nop         [19]
+    // let path: [u8; 20] = [
+    //     0xf3, 0x01, 0xb3, 0x42, 0xb3, 0x42, 0xb3, 0x42, 0xb3, 0x42, 0xf3, 0x00, 0xb3, 0x42, 0xb3,
+    //     0x42, 0xb3, 0x42, 0xb3, 0x42,
+    // ];
+
+    // .program sideset
+    // .side_set 1
+    // pull            side 1
+    // out pins, 32    side 0
+    // let path: [u8; 4] = [0x90, 0xa0, 0x60, 0x00];
+
+    // .program sideset
+    // .side_set 1
+    // set pins, 0     side 1  [15]
+    // nop             side 1  [15]
+    // set pins, 1     side 0  [15]
+    // nop             side 0  [15]
+    let path: [u8; 8] = [0xff, 0x00, 0xbf, 0x42, 0xef, 0x01, 0xaf, 0x42];
+
+    // .program sideseteasy
+    // .side_set 1
+    // nop    side 1
+    // nop    side 0
+    // let path: [u8; 4] = [0xb0, 0x42, 0xa0, 0x42];
+
     // .program pwm
     // .side_set 1 opt
     //     pull noblock    side 0 ; Pull from FIFO to OSR if available, else copy X to OSR.
@@ -719,19 +752,39 @@ pub unsafe fn start() -> (
     //     jmp y-- countloop      ; Loop until Y hits 0, then pull a fresh PWM value from FIFO
     // jmp 0
     // let path: [u8; 16] = [
-    //     0x90, 0x80, 0xa0, 0x27, 0xa0, 0x46, 0x00, 0xa5, 0x18, 0x06, 0xa0, 0x42, 0x00, 0x83, 0x00, 0x00
+    //     0x90, 0x80, 0xa0, 0x27, 0xa0, 0x46, 0x00, 0xa5, 0x18, 0x06, 0xa0, 0x42, 0x00, 0x83, 0x00,
+    //     0x00,
     // ];
     pio.init();
     pio.add_program(&path);
     let mut custom_config = StateMachineConfiguration::default();
+
+    // CONFIG FOR HELLO
+    // custom_config.div_frac = 0;
+    // custom_config.div_int = 0;
+    // pio.hello_program_init(PIONumber::PIO0, SMNumber::SM0, 7, &custom_config);
+
+    // CONFIG FOR BLINK
+    // custom_config.div_frac = 0;
+    // custom_config.div_int = 0;
+    // pio.blink_program_init(PIONumber::PIO0, SMNumber::SM0, 7, &custom_config);
+
+    // CONFIG FOR SIDESET TEST
     custom_config.div_frac = 0;
     custom_config.div_int = 0;
+    custom_config.side_set_base = 7;
+    custom_config.side_set_bit_count = 1;
+    custom_config.side_set_enable = true;
+    custom_config.side_set_pindirs = false;
+    pio.sideset_program_init(PIONumber::PIO0, SMNumber::SM0, 6, &custom_config);
+
+    // CONFIG FOR PWM
     // custom_config.side_set_base = 7;
     // custom_config.side_set_bit_count = 1;
     // custom_config.side_set_enable = true;
     // custom_config.side_set_pindirs = false;
     // pio.pwm_program_init(PIONumber::PIO0, SMNumber::SM0, 7, 30000, &custom_config);
-    pio.hello_program_init(PIONumber::PIO0, SMNumber::SM0, 7, &custom_config);
+
     // pio.sm_put_blocking(SMNumber::SM0, 3000);
     // let mut level = 0;
     // for _ in 1..512 {
@@ -740,9 +793,12 @@ pub unsafe fn start() -> (
     //     level = (level + 1) % 256;
     // }
     for _ in 1..100 {
-        // debug!("Instr_SM0:{}", pio.debugger(SMNumber::SM0));
-        pio.sm_put(SMNumber::SM0, 1);
-        debug!("TXF0:{}", pio.read_txf(SMNumber::SM0));
+        debug!("Instr_SM0:{}", pio.debugger(SMNumber::SM0));
+        // pio.read_sideset_reg(SMNumber::SM0);
+        // pio.sm_put(SMNumber::SM0, 1234567891);
+        // debug!("TXF0:{}", pio.read_txf(SMNumber::SM0));
+        // pio.sm_put(SMNumber::SM0, 1234567891);
+        // debug!("TXFULL0:{}", pio.txf_full_0());
     }
     (board_kernel, pico_explorer_base, chip)
 }

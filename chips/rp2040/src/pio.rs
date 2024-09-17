@@ -1126,6 +1126,41 @@ impl Pio {
         self.sm_init(sm_number);
     }
 
+    pub fn blink_program_init(
+        &mut self,
+        pio_number: PIONumber,
+        sm_number: SMNumber,
+        pin: u32,
+        config: &StateMachineConfiguration,
+    ) {
+        self.sm_config(sm_number, config);
+        self.pio_number = pio_number;
+        self.gpio_init(&RPGpioPin::new(RPGpio::from_u32(pin)));
+        self.sm_set_enabled(sm_number, false);
+        self.set_pins_out(sm_number, pin, 1, true);
+        self.set_set_pins(sm_number, pin, 1);
+        self.sm_init(sm_number);
+    }
+
+    pub fn sideset_program_init(
+        &mut self,
+        pio_number: PIONumber,
+        sm_number: SMNumber,
+        pin: u32,
+        config: &StateMachineConfiguration,
+    ) {
+        self.sm_config(sm_number, config);
+        self.pio_number = pio_number;
+        self.gpio_init(&RPGpioPin::new(RPGpio::from_u32(pin)));
+        self.gpio_init(&RPGpioPin::new(RPGpio::GPIO7));
+        self.sm_set_enabled(sm_number, false);
+        self.set_pins_out(sm_number, pin, 1, true);
+        self.set_pins_out(sm_number, 7, 1, true);
+        self.set_set_pins(sm_number, pin, 1);
+        self.set_side_set_pins(sm_number, 7);
+        self.sm_init(sm_number);
+    }
+
     pub fn pwm_program_init(
         &mut self,
         pio_number: PIONumber,
@@ -1146,8 +1181,39 @@ impl Pio {
         self.sm_exec(sm_number, 0x60c0 as u32);
     }
 
+    pub fn read_sideset_reg(&self, sm_number: SMNumber) {
+        debug!(
+            "{}",
+            self.registers.sm[sm_number as usize]
+                .pinctrl
+                .read(SMx_PINCTRL::SIDESET_COUNT)
+        );
+        debug!(
+            "{}",
+            self.registers.sm[sm_number as usize]
+                .execctrl
+                .read(SMx_EXECCTRL::SIDE_EN)
+        );
+        debug!(
+            "{}",
+            self.registers.sm[sm_number as usize]
+                .execctrl
+                .read(SMx_EXECCTRL::SIDE_PINDIR)
+        );
+        debug!(
+            "{}",
+            self.registers.sm[sm_number as usize]
+                .pinctrl
+                .read(SMx_PINCTRL::SIDESET_BASE)
+        );
+    }
+
     pub fn read_txf(&self, sm_number: SMNumber) -> u32 {
         self.registers.txf[sm_number as usize].read(TXFx::TXF)
+    }
+
+    pub fn txf_full_0(&self) -> u32 {
+        self.registers.fstat.read(FSTAT::TXFULL0)
     }
 
     // pub fn read_set_base(&self, sm_number: SMNumber) -> u32 {
@@ -1160,26 +1226,5 @@ impl Pio {
     //     self.registers.sm[sm_number as usize]
     //         .pinctrl
     //         .read(SMx_PINCTRL::SET_COUNT)
-    // }
-
-    // pub fn pio_pwm(&self, sm_number: SMNumber, pin: u32, config: &StateMachineConfiguration) {
-    //     self.gpio_init(&RPGpioPin::new(RPGpio::GPIO6));
-    //     self.set_consecutive_pindirs(sm_number, pin, 1);
-    //     self.set_side_set(sm_number, 1, false, true);
-    //     self.sm_exec(sm_number, 1);
-    //     self.sm_init(sm_number, config);
-    //     self.sm_set_enabled(sm_number, true);
-    // }
-    // pub fn blink_program_init(
-    //     &self,
-    //     sm_number: SMNumber,
-    //     pin: u32,
-    //     config: &StateMachineConfiguration,
-    // ) {
-    //     self.gpio_init(&RPGpioPin::new(RPGpio::GPIO6));
-    //     self.set_consecutive_pindirs(sm_number, pin, 1);
-    //     self.set_set_pins(sm_number, pin, 1);
-    //     self.sm_init(sm_number, &config);
-    //     self.sm_set_enabled(sm_number, true);
     // }
 }
