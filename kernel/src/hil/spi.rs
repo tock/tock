@@ -198,9 +198,18 @@ pub mod cs {
 
 /// Trait for clients of a SPI bus in master mode.
 pub trait SpiMasterClient {
-    /// Callback when a read/write operation finishes: `read_buffer` is an
-    /// `Option` because the call passes an `Option` (with `None` if it's a
-    /// write-only operation.
+    /// Callback issued when a read/write operation finishes.
+    ///
+    /// `write_buffer` and `read_buffer` always contain the buffers
+    /// passed to the [SpiMaster::read_write_bytes]
+    /// down-call, with `read_buffer` as an `Option` because the
+    /// down-call passes an `Option`. The contents of `write_buffer`
+    /// is unmodified, while `read_buffer` contains the bytes read
+    /// over SPI. Each buffer's bounds are unmodified from their state
+    /// when `read_write_bytes` is called.
+    ///
+    /// `status` signals if the operation was successful, and if so,
+    /// the length of the operation, or an appropriate `ErrorCode`.
     fn read_write_done(
         &self,
         write_buffer: SubSliceMut<'static, u8>,
