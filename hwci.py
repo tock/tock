@@ -8,6 +8,8 @@ import asyncio
 import time
 import re
 
+### HW CI TEST
+
 logging.basicConfig(
     level=logging.DEBUG,  # Changed to DEBUG for more verbose output
     format="%(asctime)s - %(levelname)s - %(message)s",
