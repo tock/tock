@@ -1816,12 +1816,12 @@ pub struct Iter<
     >,
 }
 
-#[flux_rs::trusted] // `to_sort_list` called on bound variable list with non-refinements
 impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSize> Iterator
     for Iter<'a, T, Upcalls, AllowROs, AllowRWs>
 {
     type Item = ProcessGrant<'a, T, Upcalls, AllowROs, AllowRWs>;
 
+    #[flux_rs::trusted] // `to_sort_list` called on bound variable list with non-refinements
     fn next(&mut self) -> Option<Self::Item> {
         let grant = self.grant;
         // Get the next `ProcessId` from the kernel processes array that is

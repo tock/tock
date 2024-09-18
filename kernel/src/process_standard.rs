@@ -775,7 +775,6 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 breaks.allow_high_water_mark = new_water_mark;
                 self.breaks.set(breaks);
 
-
                 // self.allow_high_water_mark.set(new_water_mark);
             }
 
@@ -1720,7 +1719,11 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         process.header = pb.header;
         // process.kernel_memory_break = Cell::new(kernel_memory_break);
         // process.app_break = Cell::new(initial_app_brk);
-        let breaks = ProcessBreaks {kernel_memory_break, app_break: initial_app_brk, allow_high_water_mark: initial_allow_high_water_mark};
+        let breaks = ProcessBreaks {
+            kernel_memory_break,
+            app_break: initial_app_brk,
+            allow_high_water_mark: initial_allow_high_water_mark,
+        };
         process.breaks.set(breaks);
         process.grant_pointers = MapCell::new(grant_pointers);
 
@@ -1921,7 +1924,11 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // High water mark for `allow`ed memory is reset to the start of the
         // process's memory region.
         // self.allow_high_water_mark.set(app_mpu_mem_start);
-        let breaks = ProcessBreaks {kernel_memory_break: kernel_brk, app_break: app_brk, allow_high_water_mark: app_mpu_mem_start};
+        let breaks = ProcessBreaks {
+            kernel_memory_break: kernel_brk,
+            app_break: app_brk,
+            allow_high_water_mark: app_mpu_mem_start,
+        };
         self.breaks.set(breaks);
         // Store the adjusted MPU configuration:
         self.mpu_config.replace(mpu_config);
@@ -2061,7 +2068,11 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
                 // kernel_memory_break.
                 // self.kernel_memory_break.set(new_break);
 
-                self.breaks.set(ProcessBreaks {kernel_memory_break: new_break, app_break: breaks.app_break, allow_high_water_mark: breaks.allow_high_water_mark });
+                self.breaks.set(ProcessBreaks {
+                    kernel_memory_break: new_break,
+                    app_break: breaks.app_break,
+                    allow_high_water_mark: breaks.allow_high_water_mark,
+                });
 
                 // We need `grant_ptr` as a mutable pointer.
                 let grant_ptr = new_break;

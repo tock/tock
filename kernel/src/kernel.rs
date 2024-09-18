@@ -740,7 +740,6 @@ impl Kernel {
     /// driver system calls to peripheral driver capsules through the platforms
     /// `with_driver` method.
     #[inline]
-    #[flux_rs::trusted] // ICE: extracting field of non-tuple non-adt
     fn handle_syscall<KR: KernelResources<C>, C: Chip>(
         &self,
         resources: &KR,

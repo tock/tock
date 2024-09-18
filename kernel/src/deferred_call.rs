@@ -141,7 +141,6 @@ pub struct DeferredCall {
     idx: usize,
 }
 
-#[flux_rs::trusted] // OOB access
 impl DeferredCall {
     /// Creates a new deferred call with a unique ID.
     pub fn new() -> Self {

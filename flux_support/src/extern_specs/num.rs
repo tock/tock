@@ -6,6 +6,9 @@ impl u32 {
                                  (num > 1 => r <= 30) 
                             })]
     fn leading_zeros(self) -> u32;
+    
+    #[sig(fn(num: u32) -> u32{r: (num == 0 => r == 32) && (num != 0 =>r <= 31) })]
+    fn trailing_zeros(self) -> u32;
 }
 
 #[flux_rs::extern_spec]

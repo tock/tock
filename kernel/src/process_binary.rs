@@ -114,8 +114,8 @@ impl fmt::Debug for ProcessBinaryError {
 }
 
 /// A process stored in flash.
-#[flux_rs::refined_by(flash_len: int, footers_len: int)]
-#[flux_rs::invariant(flash_len > 0 && footers_len > 0)]
+#[flux_rs::refined_by(flash_len: int)]
+#[flux_rs::invariant(flash_len > 0)]
 pub struct ProcessBinary {
     /// Process flash segment. This is the entire region of nonvolatile flash
     /// that the process occupies.
@@ -125,7 +125,6 @@ pub struct ProcessBinary {
     /// The footers of the process binary (may be zero-sized), which are metadata
     /// about the process not covered by integrity. Used, among other things, to
     /// store signatures.
-    #[field({&[u8][footers_len] | footers_len > 0})]
     pub footers: &'static [u8],
 
     /// Collection of pointers to the TBF header in flash.
@@ -139,7 +138,6 @@ pub struct ProcessBinary {
 
 impl ProcessBinary {
     #[flux_rs::sig(fn(&[u8]{len: len > 0}, usize, u16, bool) -> Result<ProcessBinary, ProcessBinaryError>)]
-    #[flux_rs::trusted]
     pub(crate) fn create(
         app_flash: &'static [u8],
         header_length: usize,

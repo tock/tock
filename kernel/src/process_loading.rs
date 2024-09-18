@@ -281,7 +281,7 @@ fn load_processes_from_flash<C: Chip>(
 
 /// Find a process binary stored at the beginning of `flash` and create a
 /// `ProcessBinary` object if the process is viable to run on this kernel.
-#[flux_rs::trusted] // Arithmetic + refinement failure
+#[flux_rs::sig(fn(&[u8]{len: len > 0}) -> _ )]
 fn discover_process_binary(
     flash: &'static [u8],
 ) -> Result<(&'static [u8], ProcessBinary), (&'static [u8], ProcessBinaryError)> {
@@ -331,6 +331,7 @@ fn discover_process_binary(
         .get(0..app_length as usize)
         .ok_or((flash, ProcessBinaryError::NotEnoughFlash))?;
 
+    assume(app_flash.len() > 0); // Need extern_spec for get and SliceIndex
     // Advance the flash slice for process discovery beyond this last entry.
     // This will be the start of where we look for a new process since Tock
     // processes are allocated back-to-back in flash.
@@ -588,9 +589,10 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
     ///
     /// Returns the process binary object or an error if a valid process
     /// binary could not be extracted.
-    #[flux_rs::trusted] // Arithmetic + refinement failure
+    #[flux_rs::trusted] // error jumping to join point
     fn discover_process_binary(&self) -> Result<ProcessBinary, ProcessBinaryError> {
         let flash = self.flash.get();
+        assume(flash.len() > 0); // Need to guarantee &[u8] inside Cell is not 0
 
         if config::CONFIG.debug_load_processes {
             debug!(
@@ -636,6 +638,8 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
             .get(0..app_length as usize)
             .ok_or(ProcessBinaryError::NotEnoughFlash)?;
 
+        assume(app_flash.len() > 0); // Need extern_spec for get and SliceIndex
+        
         // Advance the flash slice for process discovery beyond this last entry.
         // This will be the start of where we look for a new process since Tock
         // processes are allocated back-to-back in flash.
