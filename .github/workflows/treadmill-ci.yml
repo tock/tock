@@ -42,7 +42,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: treadmill-tb/treadmill
-          ref: refs/heads/dev/switchboard
           path: treadmill
 
       - name: Cache Treadmill CLI compilation artifacts
@@ -174,7 +173,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: treadmill-tb/treadmill
-          ref: refs/heads/dev/switchboard
           path: treadmill
 
       - name: Cache Treadmill CLI compilation artifacts
