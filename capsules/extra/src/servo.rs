@@ -48,9 +48,6 @@ pub struct Servo<'a, const NUM_SERVO: usize> {
 
 impl<'a, const NUM_SERVO: usize> Servo<'a, NUM_SERVO> {
     pub fn new(servo: &'a [&'a dyn hil::servo::Servo<'a>; NUM_SERVO]) -> Self {
-        for servo in servo.iter() {
-            let _ = servo.set_angle(0);
-        }
         Self { servo }
     }
 }
