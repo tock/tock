@@ -7,65 +7,52 @@
 name: treadmill-ci
 env:
   TERM: xterm # Makes tput work in actions output
-
 # Controls when the action will run. Triggers the workflow on push or pull request
 # events but only for the master branch
 on:
   push: # Run CI for all branches except GitHub merge queue tmp branches
     branches-ignore:
-    - "gh-readonly-queue/**"
+      - 'gh-readonly-queue/**'
   pull_request: # Run CI for PRs on any branch
   merge_group: # Run CI for the GitHub merge queue
-
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 # If you add additional jobs, remember to add them to bors.toml
 permissions:
   contents: read
   actions: write
-
 jobs:
   test-strategy:
     runs-on: ubuntu-latest
-
     outputs:
       tml-job-ids: ${{ steps.treadmill-job-launch.outputs.tml-job-ids }}
       tml-jobs: ${{ steps.treadmill-job-launch.outputs.tml-jobs }}
-
     steps:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-
       - uses: actions/checkout@v4
         with:
           path: tock
-
       - name: Checkout Treadmill repository
         uses: actions/checkout@v4
         with:
           repository: treadmill-tb/treadmill
           path: treadmill
-
       - name: Cache Treadmill CLI compilation artifacts
         id: cache-tml-cli
         uses: actions/cache@v4
         with:
           path: treadmill/target
           key: ${{ runner.os }}-tml-cli
-
       - name: Compile the Treadmill CLI binary
         run: |
           pushd treadmill
           cargo build --package tml-cli
           popd
           echo "$PWD/treadmill/target/debug" >> "$GITHUB_PATH"
-
       - name: Login to the Treadmill Switchboard
-        run:
-          tml login lschuermann ${{ secrets.TREADMILL_LOGIN_PASSWORD }}
-
+        run: tml login lschuermann ${{ secrets.TREADMILL_LOGIN_PASSWORD }}
       - name: Analyze changes and determine types of tests to run
         run: |
           echo "TODO: implement this!"
-
       - name: Generate a token to register new just-in-time runners
         id: generate-token
         uses: actions/create-github-app-token@v1
@@ -73,7 +60,6 @@ jobs:
           app-id: ${{ vars.TREADMILL_GH_APP_CLIENT_ID }}
           private-key: ${{ secrets.TREADMILL_GH_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-
       - name: Create GitHub just-in-time runners and enqueue Treadmill jobs
         id: treadmill-job-launch
         env:
@@ -114,34 +100,26 @@ jobs:
               \"runner-id\": \"$RUNNER_ID\", \
             } \
           }" >> "$GITHUB_OUTPUT"
-
   test-execute:
     needs: test-strategy
-
     strategy:
       matrix:
         tml-job-id: ${{ fromJSON(needs.test-strategy.outputs.tml-job-ids) }}
-
     runs-on: ${{ fromJSON(needs.test-strategy.outputs.tml-jobs)[matrix.tml-job-id].runner-id }}
-
     steps:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-
       - name: Install required packages
         run: |
           sudo DEBIAN_FRONTEND=noninteractive apt update
-          sudo DEBIAN_FRONTEND=noninteractive apt install -y git cargo openocd python3 python3-pip pipx gcc-arm-none-eabi libnewlib-arm-none-eabi pkg-config libudev-dev cmake libusb-1.0-0-dev udev make gdb-multiarch gcc-arm-none-eabi build-essential
+          sudo DEBIAN_FRONTEND=noninteractive apt install -y git cargo openocd python3 python3-pip python3-serial pipx gcc-arm-none-eabi libnewlib-arm-none-eabi pkg-config libudev-dev cmake libusb-1.0-0-dev udev make gdb-multiarch gcc-arm-none-eabi build-essential
           curl --proto '=https' --tlsv1.2 -LsSf https://github.com/probe-rs/probe-rs/releases/latest/download/probe-rs-tools-installer.sh | sh
-
       - uses: actions/checkout@v4
         with:
           path: tock
-
       - name: Print Treadmill Job Id
         run: |
           echo "tml job id: ${{ matrix.tml-job-id }}"
           echo "Runner ID: ${{ fromJSON(needs.test-strategy.outputs.tml-jobs)[matrix.tml-job-id] }}"
-
       - name: Print attached USB devices
         run: |
           lsusb
@@ -149,7 +127,6 @@ jobs:
           ls -lh /dev/bus/usb/**
           whoami
           groups
-
       - name: Run test script
         run: |
           ls
@@ -158,41 +135,32 @@ jobs:
           pipx install tockloader
           unset RUSTFLAGS
           python3 ./tock/hwci.py
-
   test-terminate:
     needs:
       - test-strategy
       - test-execute
-
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-
       - name: Checkout Treadmill repository
         uses: actions/checkout@v4
         with:
           repository: treadmill-tb/treadmill
           path: treadmill
-
       - name: Cache Treadmill CLI compilation artifacts
         id: cache-tml-cli
         uses: actions/cache@v4
         with:
           path: treadmill/target
           key: ${{ runner.os }}-tml-cli
-
       - name: Compile the Treadmill CLI binary
         run: |
           pushd treadmill
           cargo build --package tml-cli
           popd
           echo "$PWD/treadmill/target/debug" >> "$GITHUB_PATH"
-
       - name: Login to the Treadmill Switchboard
-        run:
-          tml login lschuermann ${{ secrets.TREADMILL_LOGIN_PASSWORD }}
-
+        run: tml login lschuermann ${{ secrets.TREADMILL_LOGIN_PASSWORD }}
       - name: Cancel Treadmill jobs
         run: |
           echo '${{ needs.test-strategy.outputs.tml-job-ids }}' \
