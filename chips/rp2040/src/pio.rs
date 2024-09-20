@@ -3,7 +3,6 @@ use kernel::hil::gpio::{Configure, FloatingState, Output};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
-use FSTAT::TXFULL0;
 
 use crate::gpio::{GpioFunction, RPGpio, RPGpioPin};
 
@@ -604,7 +603,7 @@ pub struct StateMachineConfiguration {
     pub set_pins_base: u32,
     pub in_pins_base: u32,
     pub side_set_base: u32,
-    pub side_set_enable: bool,
+    pub side_set_opt_enable: bool,
     pub side_set_bit_count: u32,
     pub side_set_pindirs: bool,
     pub wrap: u32,
@@ -634,7 +633,7 @@ impl Default for StateMachineConfiguration {
             set_pins_base: 0,
             in_pins_base: 0,
             side_set_base: 0,
-            side_set_enable: false,
+            side_set_opt_enable: false,
             side_set_bit_count: 0,
             side_set_pindirs: false,
             wrap: 31,
@@ -667,7 +666,7 @@ impl Pio {
         self.set_side_set(
             sm_number,
             config.side_set_bit_count,
-            config.side_set_enable,
+            config.side_set_opt_enable,
             config.side_set_pindirs,
         );
         self.set_in_shift(
@@ -1101,14 +1100,7 @@ impl Pio {
         }
     }
 
-    /// Returns current instruction running on the state machine.
-    pub fn debugger(&self, sm_number: SMNumber) -> u32 {
-        self.registers.sm[sm_number as usize]
-            .instr
-            .read(SMx_INSTR::INSTR)
-    }
-
-    pub fn hello_program_init(
+    pub fn blinking_hello_program_init(
         &mut self,
         pio_number: PIONumber,
         sm_number: SMNumber,
@@ -1161,6 +1153,31 @@ impl Pio {
         self.sm_init(sm_number);
     }
 
+    pub fn hello_program_init(
+        &mut self,
+        pio_number: PIONumber,
+        sm_number: SMNumber,
+        pin: u32,
+        config: &StateMachineConfiguration,
+    ) {
+        self.sm_config(sm_number, config);
+        self.pio_number = pio_number;
+        self.gpio_init(&RPGpioPin::new(RPGpio::from_u32(pin)));
+        self.sm_set_enabled(sm_number, false);
+        self.sm_put(sm_number, 0b11001100110011001100110011001100);
+        self.set_pins_out(sm_number, pin, 1, true);
+        self.sm_init(sm_number);
+        // self.sm_put_blocking(sm_number, 1);
+        // for _ in 1..100 {
+        //     self.wait();
+        // }
+        // self.sm_put_blocking(sm_number, 0);
+        // for _ in 1..100 {
+        //     self.wait();
+        // }
+        // self.sm_put_blocking(sm_number, 1);
+    }
+
     pub fn pwm_program_init(
         &mut self,
         pio_number: PIONumber,
@@ -1177,8 +1194,18 @@ impl Pio {
         self.set_side_set_pins(sm_number, pin);
         self.sm_init(sm_number);
         self.sm_put_blocking(sm_number, pwm_period);
-        self.sm_exec(sm_number, 0x8080 as u32);
-        self.sm_exec(sm_number, 0x60c0 as u32);
+        self.sm_exec(sm_number, 0x8080 as u32); // pull
+        self.sm_exec(sm_number, 0x60c0 as u32); // out isr, 1
+    }
+
+    /// Returns current instruction running on the state machine.
+    pub fn debugger(&self, sm_number: SMNumber) {
+        debug!(
+            "SM0:{}",
+            self.registers.sm[sm_number as usize]
+                .instr
+                .read(SMx_INSTR::INSTR)
+        );
     }
 
     pub fn read_sideset_reg(&self, sm_number: SMNumber) {
@@ -1214,6 +1241,24 @@ impl Pio {
 
     pub fn txf_full_0(&self) -> u32 {
         self.registers.fstat.read(FSTAT::TXFULL0)
+    }
+
+    pub fn read_dbg_padout(&self) {
+        debug!("{}", self.registers.dbg_padout.read(DBG_PADOUT::DBG_PADOUT));
+    }
+
+    pub fn read_fdebug(&self, tx: bool, stall: bool) {
+        if tx {
+            if stall {
+                debug!("{}", self.registers.fdebug.read(FDEBUG::TXSTALL))
+            } else {
+                debug!("{}", self.registers.fdebug.read(FDEBUG::TXOVER))
+            }
+        } else if stall {
+            debug!("{}", self.registers.fdebug.read(FDEBUG::RXSTALL))
+        } else {
+            debug!("{}", self.registers.fdebug.read(FDEBUG::RXUNDER))
+        }
     }
 
     // pub fn read_set_base(&self, sm_number: SMNumber) -> u32 {

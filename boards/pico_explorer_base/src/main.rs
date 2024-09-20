@@ -718,25 +718,48 @@ pub unsafe fn start() -> (
     //     0x42, 0xb3, 0x42, 0xb3, 0x42,
     // ];
 
-    // .program sideset
-    // .side_set 1
-    // pull            side 1
-    // out pins, 32    side 0
-    // let path: [u8; 4] = [0x90, 0xa0, 0x60, 0x00];
+    // .program hello
+    // pull
+    // out pins, 1
+    let path: [u8; 4] = [0x80, 0xa0, 0x60, 0x01];
 
     // .program sideset
     // .side_set 1
     // set pins, 0     side 1  [15]
     // nop             side 1  [15]
+    // nop             side 1  [15]
+    // nop             side 1  [15]
+    // nop             side 1  [15]
+    // nop             side 1  [15]
     // set pins, 1     side 0  [15]
     // nop             side 0  [15]
-    let path: [u8; 8] = [0xff, 0x00, 0xbf, 0x42, 0xef, 0x01, 0xaf, 0x42];
+    // nop             side 0  [15]
+    // nop             side 0  [15]
+    // nop             side 0  [15]
+    // nop             side 0  [15]
+    // let path: [u8; 24] = [
+    //     0xff, 0x00, 0xbf, 0x42, 0xbf, 0x42, 0xbf, 0x42, 0xbf, 0x42, 0xbf, 0x42, 0xef, 0x01, 0xaf,
+    //     0x42, 0xaf, 0x42, 0xaf, 0x42, 0xaf, 0x42, 0xaf, 0x42,
+    // ];
 
-    // .program sideseteasy
-    // .side_set 1
-    // nop    side 1
-    // nop    side 0
-    // let path: [u8; 4] = [0xb0, 0x42, 0xa0, 0x42];
+    // .program
+    // .side_set 1 opt
+    // set pins, 0     side 1  [7]
+    // nop                     [7]
+    // nop                     [7]
+    // nop                     [7]
+    // nop                     [7]
+    // nop                     [7]
+    // set pins, 1     side 0  [7]
+    // nop                     [7]
+    // nop                     [7]
+    // nop                     [7]
+    // nop                     [7]
+    // nop                     [7]
+    // let path: [u8; 26] = [
+    //     0xff, 0x00, 0xa7, 0x42, 0xa7, 0x42, 0xa7, 0x42, 0xa7, 0x42, 0xa7, 0x42, 0xf7, 0x01, 0xa7,
+    //     0x42, 0xa7, 0x42, 0xa7, 0x42, 0xa7, 0x42, 0xa7, 0x42, 0x00, 0x00,
+    // ];
 
     // .program pwm
     // .side_set 1 opt
@@ -750,19 +773,18 @@ pub unsafe fn start() -> (
     //     nop                    ; Single dummy cycle to keep the two paths the same length
     // skip:
     //     jmp y-- countloop      ; Loop until Y hits 0, then pull a fresh PWM value from FIFO
-    // jmp 0
-    // let path: [u8; 16] = [
-    //     0x90, 0x80, 0xa0, 0x27, 0xa0, 0x46, 0x00, 0xa5, 0x18, 0x06, 0xa0, 0x42, 0x00, 0x83, 0x00,
-    //     0x00,
+    // let path: [u8; 14] = [
+    //     0x90, 0x80, 0xa0, 0x27, 0xa0, 0x46, 0x00, 0xa5, 0x18, 0x06, 0xa0, 0x42, 0x00, 0x83,
     // ];
+
     pio.init();
     pio.add_program(&path);
     let mut custom_config = StateMachineConfiguration::default();
 
-    // CONFIG FOR HELLO
+    // CONFIG FOR BLINKING HELLO
     // custom_config.div_frac = 0;
     // custom_config.div_int = 0;
-    // pio.hello_program_init(PIONumber::PIO0, SMNumber::SM0, 7, &custom_config);
+    // pio.blinking_hello_program_init(PIONumber::PIO0, SMNumber::SM0, 7, &custom_config);
 
     // CONFIG FOR BLINK
     // custom_config.div_frac = 0;
@@ -770,18 +792,23 @@ pub unsafe fn start() -> (
     // pio.blink_program_init(PIONumber::PIO0, SMNumber::SM0, 7, &custom_config);
 
     // CONFIG FOR SIDESET TEST
+    // custom_config.div_frac = 0;
+    // custom_config.div_int = 0;
+    // custom_config.side_set_base = 7;
+    // custom_config.side_set_bit_count = 2;
+    // custom_config.side_set_opt_enable = true;
+    // custom_config.side_set_pindirs = false;
+    // pio.sideset_program_init(PIONumber::PIO0, SMNumber::SM0, 6, &custom_config);
+
+    // CONFIG FOR HELLO
     custom_config.div_frac = 0;
     custom_config.div_int = 0;
-    custom_config.side_set_base = 7;
-    custom_config.side_set_bit_count = 1;
-    custom_config.side_set_enable = true;
-    custom_config.side_set_pindirs = false;
-    pio.sideset_program_init(PIONumber::PIO0, SMNumber::SM0, 6, &custom_config);
+    pio.hello_program_init(PIONumber::PIO0, SMNumber::SM0, 7, &custom_config);
 
     // CONFIG FOR PWM
     // custom_config.side_set_base = 7;
-    // custom_config.side_set_bit_count = 1;
-    // custom_config.side_set_enable = true;
+    // custom_config.side_set_bit_count = 2;
+    // custom_config.side_set_opt_enable = true;
     // custom_config.side_set_pindirs = false;
     // pio.pwm_program_init(PIONumber::PIO0, SMNumber::SM0, 7, 30000, &custom_config);
 
@@ -793,9 +820,12 @@ pub unsafe fn start() -> (
     //     level = (level + 1) % 256;
     // }
     for _ in 1..100 {
-        debug!("Instr_SM0:{}", pio.debugger(SMNumber::SM0));
+        pio.debugger(SMNumber::SM0);
+        pio.read_fdebug(true, false);
+        pio.read_fdebug(true, true);
+        pio.read_dbg_padout();
         // pio.read_sideset_reg(SMNumber::SM0);
-        // pio.sm_put(SMNumber::SM0, 1234567891);
+        // pio.sm_put(SMNumber::SM0, 1);
         // debug!("TXF0:{}", pio.read_txf(SMNumber::SM0));
         // pio.sm_put(SMNumber::SM0, 1234567891);
         // debug!("TXFULL0:{}", pio.txf_full_0());
