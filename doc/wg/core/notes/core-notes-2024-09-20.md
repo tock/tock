@@ -37,7 +37,7 @@
 - Amit: It hadn't been clear to us what the relationship betwene swerv and veer
   is. We were waiting to understand whether veer should be separate or replace
   it, and now it's been answered.
-- Branden: There are chip-specific files like `io.rs`. Are we okay with that as
+- Branden: There are chip-specific files like `io.rs`. That probably none of us are able to truly review since we don't know this chip. Are we okay with that as
   long as they're self-contained to the chip?
 - Amit: I think so.
 - Branden: That's what I think too, but I wanted to make sure everyone is
