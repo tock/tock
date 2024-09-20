@@ -53,10 +53,7 @@ impl<'a, P: hil::pwm::PwmPin> kernel::hil::servo::Servo<'a> for Sg90<'a, P> {
     }
 
     fn get_angle(&self) -> Result<usize, ErrorCode> {
-        match self.current_angle.get() {
-            Some(value) => Ok(value),
-            // If `Option` returns `None`, it means the servo has not yet been set to an angle.
-            None => Err(ErrorCode::OFF),
-        }
+        //The SG90 servomotor cannot return it's angle.
+        Err(ErrorCode::NOSUPPORT)
     }
 }

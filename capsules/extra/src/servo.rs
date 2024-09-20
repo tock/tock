@@ -83,7 +83,7 @@ impl<'a, const NUM_SERVO: usize> SyscallDriver for Servo<'a, NUM_SERVO> {
                     match angle.try_into() {
                         Ok(angle) => match self.servo[servo_index].set_angle(angle) {
                             Ok(()) => CommandReturn::success(),
-                            Err(err) => CommandReturn::failure(err),
+                            Err(_) => CommandReturn::failure(ErrorCode::FAIL),
                         },
                         Err(_) => CommandReturn::failure(ErrorCode::INVAL),
                     }

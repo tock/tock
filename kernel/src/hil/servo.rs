@@ -21,6 +21,7 @@ pub trait Servo<'a> {
     /// Return values:
     ///
     /// - `angle`: The value, in angles from 0 to 360, of the servo.
-    /// - `OFF`:  The servo was not set to an angle.
+    /// - `NOSUPPORT`:  The servo cannot return it's angle.
+    /// - `NODEVICE`: The index exceeds the number of servomotors provided.
     fn get_angle(&self) -> Result<usize, ErrorCode>;
 }
