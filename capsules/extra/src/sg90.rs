@@ -53,7 +53,7 @@ impl<'a, P: hil::pwm::PwmPin> kernel::hil::servo::Servo<'a> for Sg90<'a, P> {
     }
 
     fn get_angle(&self) -> Result<usize, ErrorCode> {
-        //The SG90 servomotor cannot return it's angle.
+        //The SG90 servomotor cannot return its angle.
         Err(ErrorCode::NOSUPPORT)
     }
 }
