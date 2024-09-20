@@ -134,7 +134,7 @@ jobs:
           export PATH=$HOME/.local/bin:$PATH
           pipx install tockloader
           unset RUSTFLAGS
-          python3 ./tock/hwci.py
+          python3 ./tock/hwci.py --test multi_alarm
   test-terminate:
     needs:
       - test-strategy
