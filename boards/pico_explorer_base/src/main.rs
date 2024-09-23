@@ -19,14 +19,10 @@ use components::gpio::GpioComponent;
 use components::led::LedsComponent;
 use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
-use kernel::debug;
-use kernel::hil::gpio::Configure;
-
 use kernel::hil::led::LedHigh;
 use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
-use kernel::utilities::registers::interfaces::Readable;
 use kernel::{capabilities, create_capability, static_init, Kernel};
 use kernel::{debug, hil};
 
@@ -367,7 +363,7 @@ pub unsafe fn start() -> (
         peripherals.sysinfo.get_manufacturer_rp2040(),
         peripherals.sysinfo.get_part(),
         strings,
-         mux_alarm,
+        mux_alarm,
         None,
     )
     .finalize(components::cdc_acm_component_static!(
