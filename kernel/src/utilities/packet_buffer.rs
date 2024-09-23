@@ -58,7 +58,7 @@ pub unsafe trait PacketBufferDyn: Any + Debug {
     fn append_from_slice_max(&mut self, src: &[u8]) -> usize;
 
     // has to be guaranteed to fit !!!!!
-    unsafe fn prepand_unchecked(&mut self, header: &[u8]);
+    unsafe fn prepend_unchecked(&mut self, header: &[u8]);
 
     fn payload(&self) -> &[u8];
 
@@ -270,7 +270,7 @@ impl<const HEAD: usize, const TAIL: usize> PacketBufferMut<HEAD, TAIL> {
         // used like this to be a compile time check
         assert!(NEW_HEAD <= HEAD - N);
         unsafe {
-            self.inner.prepand_unchecked(header);
+            self.inner.prepend_unchecked(header);
         }
 
         self.reduce_headroom()
@@ -546,7 +546,7 @@ unsafe impl PacketBufferDyn for PacketSliceMut {
         count
     }
 
-    unsafe fn prepand_unchecked(&mut self, header: &[u8]) {
+    unsafe fn prepend_unchecked(&mut self, header: &[u8]) {
         self.set_headroom(self.get_headroom().saturating_sub(header.len()));
         let headroom = self.get_headroom();
         self.data_slice_mut()[headroom..headroom + header.len()].copy_from_slice(header);

@@ -287,7 +287,7 @@ impl<
                         // let packet_slice = PacketSliceMut::new(buf).unwrap();
 
                         // put some headers
-                        // let new_buffer = buf.prepand([...])
+                        // let new_buffer = buf.prepend([...])
                         // let new_buffer = buf.reduce_headroom();
                         // ----------------
                         match op {
