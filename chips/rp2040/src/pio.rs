@@ -1,5 +1,4 @@
 use kernel::debug;
-use kernel::hil::gpio::{Configure, FloatingState, Output};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
@@ -8,123 +7,106 @@ use crate::gpio::{GpioFunction, RPGpio, RPGpioPin};
 
 const NUMBER_STATE_MACHINES: usize = 4;
 const NUMBER_INSTR_MEMORY_LOCATIONS: usize = 32;
-const NUMBER_IRQS: usize = 2;
 
 #[repr(C)]
 struct InstrMem {
-    /// Write-only access to instruction memory locations 0-31
+    // Write-only access to instruction memory locations 0-31
     instr_mem: ReadWrite<u32, INSTR_MEMx::Register>,
 }
 
 #[repr(C)]
 struct StateMachine {
-    /// Clock divisor register for state machine x
-    /// Frequency = clock freq / (CLKDIV_INT + CLKDIV_FRAC / 256)
+    // Clock divisor register for state machine x
+    // Frequency = clock freq / (CLKDIV_INT + CLKDIV_FRAC / 256)
     clkdiv: ReadWrite<u32, SMx_CLKDIV::Register>,
-    /// Execution/behavioural settings for state machine x
+    // Execution/behavioural settings for state machine x
     execctrl: ReadWrite<u32, SMx_EXECCTRL::Register>,
-    /// Control behaviour of the input/output shift registers for
-    /// state machine x
+    // Control behaviour of the input/output shift registers for
+    // state machine x
     shiftctrl: ReadWrite<u32, SMx_SHIFTCTRL::Register>,
-    /// Current instruction address of state machine x
+    // Current instruction address of state machine x
     addr: ReadOnly<u32, SMx_ADDR::Register>,
-    /// Read to see the instruction currently addressed by state
-    /// machine x’s program counter Write to execute an instruction
-    /// immediately (including jumps) and then resume execution.
+    // Read to see the instruction currently addressed by state
+    // machine x’s program counter Write to execute an instruction
+    // immediately (including jumps) and then resume execution.
     instr: ReadWrite<u32, SMx_INSTR::Register>,
-    /// State machine pin control
+    // State machine pin control
     pinctrl: ReadWrite<u32, SMx_PINCTRL::Register>,
-}
-
-#[repr(C)]
-struct Irq {
-    /// Interrupt Enable for irq x
-    enable0: ReadWrite<u32, IRQ0_INTS::Register>,
-    /// Interrupt Force for irq x
-    force0: ReadWrite<u32, IRQ0_INTS::Register>,
-    /// Interrupt status after masking & forcing for irq x
-    status0: ReadOnly<u32, IRQ0_INTS::Register>,
-    /// Interrupt Enable for irq x
-    enable1: ReadWrite<u32, IRQ1_INTE::Register>,
-    /// Interrupt Force for irq x
-    force1: ReadWrite<u32, IRQ1_INTE::Register>,
-    /// Interrupt status after masking & forcing for irq x
-    status1: ReadOnly<u32, IRQ1_INTE::Register>,
 }
 
 register_structs! {
 PioRegisters {
-        /// PIO control register
+        // PIO control register
         (0x000 => ctrl: ReadWrite<u32, CTRL::Register>),
-        /// FIFO status register
+        // FIFO status register
         (0x004 => fstat: ReadOnly<u32, FSTAT::Register>),
-        /// FIFO debug register
+        // FIFO debug register
         (0x008 => fdebug: ReadWrite<u32, FDEBUG::Register>),
-        /// FIFO levels
+        // FIFO levels
         (0x00C => flevel: ReadOnly<u32, FLEVEL::Register>),
-        /// Direct write access to the TX FIFO for this state machine. Each
-        /// write pushes one word to the FIFO. Attempting to write to a full
-        /// FIFO has no effect on the FIFO state or contents, and sets the
-        /// sticky FDEBUG_TXOVER error flag for this FIFO.
+        // Direct write access to the TX FIFO for this state machine. Each
+        // write pushes one word to the FIFO. Attempting to write to a full
+        // FIFO has no effect on the FIFO state or contents, and sets the
+        // sticky FDEBUG_TXOVER error flag for this FIFO.
         (0x010 => txf: [ReadWrite<u32, TXFx::Register>; 4]),
-        /// Direct read access to the RX FIFO for this state machine. Each
-        /// read pops one word from the FIFO. Attempting to read from an empty
-        /// FIFO has no effect on the FIFO state, and sets the sticky
-        /// FDEBUG_RXUNDER error flag for this FIFO. The data returned
-        /// to the system on a read from an empty FIFO is undefined.
+        // Direct read access to the RX FIFO for this state machine. Each
+        // read pops one word from the FIFO. Attempting to read from an empty
+        // FIFO has no effect on the FIFO state, and sets the sticky
+        // FDEBUG_RXUNDER error flag for this FIFO. The data returned
+        // to the system on a read from an empty FIFO is undefined.
         (0x020 => rxf: [ReadOnly<u32, RXFx::Register>; 4]),
-        /// State machine IRQ flags register. Write 1 to clear. There are 8
-        /// state machine IRQ flags, which can be set, cleared, and waited on
-        /// by the state machines. There’s no fixed association between
-        /// flags and state machines — any state machine can use any flag.
-        /// Any of the 8 flags can be used for timing synchronisation
-        /// between state machines, using IRQ and WAIT instructions. The
-        /// lower four of these flags are also routed out to system-level
-        /// interrupt requests, alongside FIFO status interrupts —
-        /// see e.g. IRQ0_INTE.
+        // State machine IRQ flags register. Write 1 to clear. There are 8
+        // state machine IRQ flags, which can be set, cleared, and waited on
+        // by the state machines. There’s no fixed association between
+        // flags and state machines — any state machine can use any flag.
+        // Any of the 8 flags can be used for timing synchronisation
+        // between state machines, using IRQ and WAIT instructions. The
+        // lower four of these flags are also routed out to system-level
+        // interrupt requests, alongside FIFO status interrupts —
+        // see e.g. IRQ0_INTE.
         (0x030 => irq: ReadWrite<u32, IRQ::Register>),
-        /// Writing a 1 to each of these bits will forcibly assert the
-        /// corresponding IRQ. Note this is different to the INTF register:
-        /// writing here affects PIO internal state. INTF just asserts the
-        /// processor-facing IRQ signal for testing ISRs, and is not visible to
-        /// the state machines.
+        // Writing a 1 to each of these bits will forcibly assert the
+        // corresponding IRQ. Note this is different to the INTF register:
+        // writing here affects PIO internal state. INTF just asserts the
+        // processor-facing IRQ signal for testing ISRs, and is not visible to
+        // the state machines.
         (0x034 => irq_force: ReadWrite<u32, IRQ_FORCE::Register>),
-        /// There is a 2-flipflop synchronizer on each GPIO input, which
-        /// protects PIO logic from metastabilities. This increases input
-        /// delay, and for fast synchronous IO (e.g. SPI) these synchronizers
-        /// may need to be bypassed. Each bit in this register corresponds
-        /// to one GPIO.
-        /// 0 → input is synchronized (default)
-        /// 1 → synchronizer is bypassed
-        /// If in doubt, leave this register as all zeroes.
+        // There is a 2-flipflop synchronizer on each GPIO input, which
+        // protects PIO logic from metastabilities. This increases input
+        // delay, and for fast synchronous IO (e.g. SPI) these synchronizers
+        // may need to be bypassed. Each bit in this register corresponds
+        // to one GPIO.
+        // 0 → input is synchronized (default)
+        // 1 → synchronizer is bypassed
+        // If in doubt, leave this register as all zeroes.
         (0x038 => input_sync_bypass: ReadWrite<u32, INPUT_SYNC_BYPASS::Register>),
-        /// Read to sample the pad output values PIO is currently driving
-        /// to the GPIOs.
+        // Read to sample the pad output values PIO is currently driving
+        // to the GPIOs.
         (0x03C => dbg_padout: ReadOnly<u32, DBG_PADOUT::Register>),
-        /// Read to sample the pad output enables (direction) PIO is
-        /// currently driving to the GPIOs. On RP2040 there are 30 GPIOs,
-        /// so the two most significant bits are hardwired to 0.
+        // Read to sample the pad output enables (direction) PIO is
+        // currently driving to the GPIOs. On RP2040 there are 30 GPIOs,
+        // so the two most significant bits are hardwired to 0.
         (0x040 => dbg_padoe: ReadOnly<u32, DBG_PADOE::Register>),
-        /// The PIO hardware has some free parameters that may vary
-        /// between chip products.
+        // The PIO hardware has some free parameters that may vary
+        // between chip products.
         (0x044 => dbg_cfginfo: ReadOnly<u32, DBG_CFGINFO::Register>),
-        /// Write-only access to instruction memory locations 0-31
+        // Write-only access to instruction memory locations 0-31
         (0x048 => instr_mem: [InstrMem; NUMBER_INSTR_MEMORY_LOCATIONS]),
-        /// State Machines
+        // State Machines
         (0x0c8 => sm: [StateMachine; NUMBER_STATE_MACHINES]),
-        /// Raw Interrupts
+        // Raw Interrupts
         (0x128 => intr: ReadWrite<u32, INTR::Register>),
-        /// Interrupt Enable for irq0
+        // Interrupt Enable for irq0
         (0x12C => irq0_inte: ReadWrite<u32, IRQ0_INTE::Register>),
-        /// Interrupt Force for irq0
+        // Interrupt Force for irq0
         (0x130 => irq0_intf: ReadWrite<u32, IRQ0_INTF::Register>),
-        /// Interrupt status after masking & forcing for irq0
+        // Interrupt status after masking & forcing for irq0
         (0x134 => irq0_ints: ReadWrite<u32, IRQ0_INTS::Register>),
-        /// Interrupt Enable for irq1
+        // Interrupt Enable for irq1
         (0x138 => irq1_inte: ReadWrite<u32, IRQ1_INTE::Register>),
-        /// Interrupt Force for irq1
+        // Interrupt Force for irq1
         (0x13C => irq1_intf: ReadWrite<u32, IRQ1_INTF::Register>),
-        /// Interrupt status after masking & forcing for irq1
+        // Interrupt status after masking & forcing for irq1
         (0x140 => irq1_ints: ReadWrite<u32, IRQ1_INTS::Register>),
         (0x144 => @END),
     }
@@ -132,84 +114,84 @@ PioRegisters {
 
 register_bitfields![u32,
 CTRL [
-    /// Restart a state machine’s clock divider from an initial
-    /// phase of 0. Clock dividers are free-running, so once
-    /// started, their output (including fractional jitter) is
-    /// completely determined by the integer/fractional divisor
-    /// configured in SMx_CLKDIV. This means that, if multiple
-    /// clock dividers with the same divisor are restarted
-    /// simultaneously, by writing multiple 1 bits to this field, the
-    /// execution clocks of those state machines will run in
-    /// precise lockstep.
-    /// - SM_ENABLE does not stop the clock divider from running
-    /// - CLKDIV_RESTART can be written to whilst the state machine is running
+    // Restart a state machine’s clock divider from an initial
+    // phase of 0. Clock dividers are free-running, so once
+    // started, their output (including fractional jitter) is
+    // completely determined by the integer/fractional divisor
+    // configured in SMx_CLKDIV. This means that, if multiple
+    // clock dividers with the same divisor are restarted
+    // simultaneously, by writing multiple 1 bits to this field, the
+    // execution clocks of those state machines will run in
+    // precise lockstep.
+    // - SM_ENABLE does not stop the clock divider from running
+    // - CLKDIV_RESTART can be written to whilst the state machine is running
     CLKDIV3_RESTART OFFSET(11) NUMBITS(1) [],
     CLKDIV2_RESTART OFFSET(10) NUMBITS(1) [],
     CLKDIV1_RESTART OFFSET(9) NUMBITS(1) [],
     CLKDIV0_RESTART OFFSET(8) NUMBITS(1) [],
-    /// Write 1 to instantly clear internal SM state which may be
-    /// otherwise difficult to access and will affect future
-    /// execution.
-    /// Specifically, the following are cleared: input and output
-    /// shift counters; the contents of the input shift register; the
-    /// delay counter; the waiting-on-IRQ state; any stalled
-    /// instruction written to SMx_INSTR or run by OUT/MOV
-    /// EXEC; any pin write left asserted due to OUT_STICKY.
+    // Write 1 to instantly clear internal SM state which may be
+    // otherwise difficult to access and will affect future
+    // execution.
+    // Specifically, the following are cleared: input and output
+    // shift counters; the contents of the input shift register; the
+    // delay counter; the waiting-on-IRQ state; any stalled
+    // instruction written to SMx_INSTR or run by OUT/MOV
+    // EXEC; any pin write left asserted due to OUT_STICKY.
     SM3_RESTART OFFSET(7) NUMBITS(1) [],
     SM2_RESTART OFFSET(6) NUMBITS(1) [],
     SM1_RESTART OFFSET(5) NUMBITS(1) [],
     SM0_RESTART OFFSET(4) NUMBITS(1) [],
-    /// Enable/disable each of the four state machines by writing
-    /// 1/0 to each of these four bits. When disabled, a state
-    /// machine will cease executing instructions, except those
-    /// written directly to SMx_INSTR by the system. Multiple bits
-    /// can be set/cleared at once to run/halt multiple state
-    /// machines simultaneously.
+    // Enable/disable each of the four state machines by writing
+    // 1/0 to each of these four bits. When disabled, a state
+    // machine will cease executing instructions, except those
+    // written directly to SMx_INSTR by the system. Multiple bits
+    // can be set/cleared at once to run/halt multiple state
+    // machines simultaneously.
     SM3_ENABLE OFFSET(3) NUMBITS(1) [],
     SM2_ENABLE OFFSET(2) NUMBITS(1) [],
     SM1_ENABLE OFFSET(1) NUMBITS(1) [],
     SM0_ENABLE OFFSET(0) NUMBITS(1) [],
 ],
 FSTAT [
-    /// State machine TX FIFO is empty
+    // State machine TX FIFO is empty
     TXEMPTY3 OFFSET(27) NUMBITS(1) [],
     TXEMPTY2 OFFSET(26) NUMBITS(1) [],
     TXEMPTY1 OFFSET(25) NUMBITS(1) [],
     TXEMPTY0 OFFSET(24) NUMBITS(1) [],
-    /// State machine TX FIFO is full
+    // State machine TX FIFO is full
     TXFULL3 OFFSET(19) NUMBITS(1) [],
     TXFULL2 OFFSET(18) NUMBITS(1) [],
     TXFULL1 OFFSET(17) NUMBITS(1) [],
     TXFULL0 OFFSET(16) NUMBITS(1) [],
-    /// State machine RX FIFO is empty
+    // State machine RX FIFO is empty
     RXEMPTY OFFSET(8) NUMBITS(4) [],
-    /// State machine RX FIFO is full
+    // State machine RX FIFO is full
     RXFULL OFFSET(0) NUMBITS(4) []
 ],
 FDEBUG [
-    /// State machine has stalled on empty TX FIFO during a
-    /// blocking PULL, or an OUT with autopull enabled. Write 1 to
-    /// clear.
+    // State machine has stalled on empty TX FIFO during a
+    // blocking PULL, or an OUT with autopull enabled. Write 1 to
+    // clear.
     TXSTALL OFFSET(24) NUMBITS(4) [],
-    /// TX FIFO overflow (i.e. write-on-full by the system) has
-    /// occurred. Write 1 to clear. Note that write-on-full does not
-    /// alter the state or contents of the FIFO in any way, but the
-    /// data that the system attempted to write is dropped, so if
-    /// this flag is set, your software has quite likely dropped
-    /// some data on the floor.
+    // TX FIFO overflow (i.e. write-on-full by the system) has
+    // occurred. Write 1 to clear. Note that write-on-full does not
+    // alter the state or contents of the FIFO in any way, but the
+    // data that the system attempted to write is dropped, so if
+    // this flag is set, your software has quite likely dropped
+    // some data on the floor.
     TXOVER OFFSET(16) NUMBITS(4) [],
-    /// RX FIFO underflow (i.e. read-on-empty by the system) has
-    /// occurred. Write 1 to clear. Note that read-on-empty does
-    /// not perturb the state of the FIFO in any way, but the data
-    /// returned by reading from an empty FIFO is undefined, so
-    /// this flag generally only becomes set due to some kind of
-    /// software error.
+    // RX FIFO underflow (i.e. read-on-empty by the system) has
+    // occurred. Write 1 to clear. Note that read-on-empty does
+    // not perturb the state of the FIFO in any way, but the data
+    // returned by reading from an empty FIFO is undefined, so
+    // this flag generally only becomes set due to some kind of
+    // software error.
     RXUNDER OFFSET(8) NUMBITS(4) [],
-    /// State machine has stalled on full RX FIFO during a
-    /// blocking PUSH, or an IN with autopush enabled. This flag
-    /// is also set when a nonblocking PUSH to a full FIFO took
-    /// place, in which case the state machine has dropped data.
-    /// Write 1 to clear.
+    // State machine has stalled on full RX FIFO during a
+    // blocking PUSH, or an IN with autopush enabled. This flag
+    // is also set when a nonblocking PUSH to a full FIFO took
+    // place, in which case the state machine has dropped data.
+    // Write 1 to clear.
     RXSTALL OFFSET(0) NUMBITS(4) []
 ],
 FLEVEL [
@@ -244,90 +226,90 @@ DBG_PADOE [
     DBG_PADOE OFFSET(0) NUMBITS(32) []
 ],
 DBG_CFGINFO [
-    /// The size of the instruction memory, measured in units of
-    /// one instruction
+    // The size of the instruction memory, measured in units of
+    // one instruction
     IMEM_SIZE OFFSET(16) NUMBITS(6) [],
-    /// The number of state machines this PIO instance is
-    /// equipped with.
+    // The number of state machines this PIO instance is
+    // equipped with.
     SM_COUNT OFFSET(8) NUMBITS(4) [],
-    /// The depth of the state machine TX/RX FIFOs, measured in
-    /// words.
+    // The depth of the state machine TX/RX FIFOs, measured in
+    // words.
     FIFO_DEPTH OFFSET(0) NUMBITS(6) []
 ],
 INSTR_MEMx [
-    /// Write-only access to instruction memory location x
+    // Write-only access to instruction memory location x
     INSTR_MEM OFFSET(0) NUMBITS(16) []
 ],
 SMx_CLKDIV [
-    /// Effective frequency is sysclk/(int + frac/256).
-    /// Value of 0 is interpreted as 65536. If INT is 0, FRAC must
-    /// also be 0.
+    // Effective frequency is sysclk/(int + frac/256).
+    // Value of 0 is interpreted as 65536. If INT is 0, FRAC must
+    // also be 0.
     INT OFFSET(16) NUMBITS(16) [],
-    /// Fractional part of clock divisor
+    // Fractional part of clock divisor
     FRAC OFFSET(8) NUMBITS(8) []
 ],
 SMx_EXECCTRL [
-    /// If 1, an instruction written to SMx_INSTR is stalled, and
-    /// latched by the state machine. Will clear to 0 once this
-    /// instruction completes.
+    // If 1, an instruction written to SMx_INSTR is stalled, and
+    // latched by the state machine. Will clear to 0 once this
+    // instruction completes.
     EXEC_STALLED OFFSET(31) NUMBITS(1) [],
-    /// If 1, the MSB of the Delay/Side-set instruction field is used
-    /// as side-set enable, rather than a side-set data bit. This
-    /// allows instructions to perform side-set optionally, rather
-    /// than on every instruction, but the maximum possible side-
-    /// set width is reduced from 5 to 4. Note that the value of
-    /// PINCTRL_SIDESET_COUNT is inclusive of this enable bit.
+    // If 1, the MSB of the Delay/Side-set instruction field is used
+    // as side-set enable, rather than a side-set data bit. This
+    // allows instructions to perform side-set optionally, rather
+    // than on every instruction, but the maximum possible side-
+    // set width is reduced from 5 to 4. Note that the value of
+    // PINCTRL_SIDESET_COUNT is inclusive of this enable bit.
     SIDE_EN OFFSET(30) NUMBITS(1) [],
-    /// If 1, side-set data is asserted to pin directions, instead of
-    /// pin values
+    // If 1, side-set data is asserted to pin directions, instead of
+    // pin values
     SIDE_PINDIR OFFSET(29) NUMBITS(1) [],
-    /// The GPIO number to use as condition for JMP PIN.
-    /// Unaffected by input mapping.
+    // The GPIO number to use as condition for JMP PIN.
+    // Unaffected by input mapping.
     JMP_PIN OFFSET(24) NUMBITS(5) [],
-    /// Which data bit to use for inline OUT enable
+    // Which data bit to use for inline OUT enable
     OUT_EN_SEL OFFSET(19) NUMBITS(5) [],
-    /// If 1, use a bit of OUT data as an auxiliary write enable
-    /// When used in conjunction with OUT_STICKY, writes with
-    /// an enable of 0 will
-    /// deassert the latest pin write. This can create useful
-    /// masking/override behaviour
-    /// due to the priority ordering of state machine pin writes
-    /// (SM0 < SM1 < …)
+    // If 1, use a bit of OUT data as an auxiliary write enable
+    // When used in conjunction with OUT_STICKY, writes with
+    // an enable of 0 will
+    // deassert the latest pin write. This can create useful
+    // masking/override behaviour
+    // due to the priority ordering of state machine pin writes
+    // (SM0 < SM1 < …)
     INLINE_OUT_EN OFFSET(18) NUMBITS(1) [],
-    /// Continuously assert the most recent OUT/SET to the pins
+    // Continuously assert the most recent OUT/SET to the pins
     OUT_STICKY OFFSET(17) NUMBITS(1) [],
-    /// After reaching this address, execution is wrapped to
-    /// wrap_bottom.
-    /// If the instruction is a jump, and the jump condition is true,
-    /// the jump takes priority.
+    // After reaching this address, execution is wrapped to
+    // wrap_bottom.
+    // If the instruction is a jump, and the jump condition is true,
+    // the jump takes priority.
     WRAP_TOP OFFSET(12) NUMBITS(5) [],
-    /// After reaching wrap_top, execution is wrapped to this
-    /// address.
+    // After reaching wrap_top, execution is wrapped to this
+    // address.
     WRAP_BOTTOM OFFSET(7) NUMBITS(5) [],
     STATUS_SEL OFFSET(4) NUMBITS(1) [],
-    /// Comparison level for the MOV x, STATUS instruction
+    // Comparison level for the MOV x, STATUS instruction
     STATUS_N OFFSET(0) NUMBITS(4) []
 ],
 SMx_SHIFTCTRL [
-    /// When 1, RX FIFO steals the TX FIFO’s storage, and
-    /// becomes twice as deep.
-    /// TX FIFO is disabled as a result (always reads as both full
-    /// and empty).
-    /// FIFOs are flushed when this bit is changed.
+    // When 1, RX FIFO steals the TX FIFO’s storage, and
+    // becomes twice as deep.
+    // TX FIFO is disabled as a result (always reads as both full
+    // and empty).
+    // FIFOs are flushed when this bit is changed.
     FJOIN_RX OFFSET(31) NUMBITS(1) [],
-    /// When 1, TX FIFO steals the RX FIFO’s storage, and
-    /// becomes twice as deep.
-    /// RX FIFO is disabled as a result (always reads as both full
-    /// and empty).
-    /// FIFOs are flushed when this bit is changed.
+    // When 1, TX FIFO steals the RX FIFO’s storage, and
+    // becomes twice as deep.
+    // RX FIFO is disabled as a result (always reads as both full
+    // and empty).
+    // FIFOs are flushed when this bit is changed.
     FJOIN_TX OFFSET(30) NUMBITS(1) [],
-    /// Number of bits shifted out of OSR before autopull, or
-    /// conditional pull (PULL IFEMPTY), will take place.
-    /// Write 0 for value of 32.
+    // Number of bits shifted out of OSR before autopull, or
+    // conditional pull (PULL IFEMPTY), will take place.
+    // Write 0 for value of 32.
     PULL_THRESH OFFSET(25) NUMBITS(5) [],
-    /// Number of bits shifted into ISR before autopush, or
-    /// conditional push (PUSH IFFULL), will take place.
-    /// Write 0 for value of 32
+    // Number of bits shifted into ISR before autopush, or
+    // conditional push (PUSH IFFULL), will take place.
+    // Write 0 for value of 32
     PUSH_THRESH OFFSET(20) NUMBITS(5) [],
     OUT_SHIFTDIR OFFSET(19) NUMBITS(1) [
         ShiftRight = 1,
@@ -337,14 +319,14 @@ SMx_SHIFTCTRL [
         ShiftRight = 1,
         ShiftLeft = 0
     ],
-    /// Pull automatically when the output shift register is
-    /// emptied, i.e. on or following an OUT instruction which
-    /// causes the output shift counter to reach or exceed
-    /// PULL_THRESH.
+    // Pull automatically when the output shift register is
+    // emptied, i.e. on or following an OUT instruction which
+    // causes the output shift counter to reach or exceed
+    // PULL_THRESH.
     AUTOPULL OFFSET(17) NUMBITS(1) [],
-    /// Push automatically when the input shift register is filled,
-    /// i.e. on an IN instruction which causes the input shift
-    /// counter to reach or exceed PUSH_THRESH.
+    // Push automatically when the input shift register is filled,
+    // i.e. on an IN instruction which causes the input shift
+    // counter to reach or exceed PUSH_THRESH.
     AUTOPUSH OFFSET(16) NUMBITS(1) []
 ],
 SMx_ADDR [
@@ -354,39 +336,39 @@ SMx_INSTR [
     INSTR OFFSET(0) NUMBITS(16) []
 ],
 SMx_PINCTRL [
-    /// The number of MSBs of the Delay/Side-set instruction
-    /// field which are used for side-set. Inclusive of the enable
-    /// bit, if present. Minimum of 0 (all delay bits, no side-set)
-    /// and maximum of 5 (all side-set, no delay).
+    // The number of MSBs of the Delay/Side-set instruction
+    // field which are used for side-set. Inclusive of the enable
+    // bit, if present. Minimum of 0 (all delay bits, no side-set)
+    // and maximum of 5 (all side-set, no delay).
     SIDESET_COUNT OFFSET(29) NUMBITS(3) [],
-    /// The number of pins asserted by a SET. In the range 0 to 5
+    // The number of pins asserted by a SET. In the range 0 to 5
     // inclusive.
     SET_COUNT OFFSET(26) NUMBITS(3) [],
-    /// The number of pins asserted by an OUT PINS, OUT
-    /// PINDIRS or MOV PINS instruction. In the range 0 to 32
-    /// inclusive.
+    // The number of pins asserted by an OUT PINS, OUT
+    // PINDIRS or MOV PINS instruction. In the range 0 to 32
+    // inclusive.
     OUT_COUNT OFFSET(20) NUMBITS(6) [],
-    /// The pin which is mapped to the least-significant bit of a
-    /// state machine’s IN data bus. Higher-numbered pins are
-    /// mapped to consecutively more-significant data bits, with a
-    /// modulo of 32 applied to pin number.
+    // The pin which is mapped to the least-significant bit of a
+    // state machine’s IN data bus. Higher-numbered pins are
+    // mapped to consecutively more-significant data bits, with a
+    // modulo of 32 applied to pin number.
     IN_BASE OFFSET(15) NUMBITS(5) [],
-    /// The lowest-numbered pin that will be affected by a side-
-    /// set operation. The MSBs of an instruction’s side-set/delay
-    /// field (up to 5, determined by SIDESET_COUNT) are used
-    /// for side-set data, with the remaining LSBs used for delay.
-    /// The least-significant bit of the side-set portion is the bit
-    /// written to this pin, with more-significant bits written to
-    /// higher-numbered pins.
+    // The lowest-numbered pin that will be affected by a side-
+    // set operation. The MSBs of an instruction’s side-set/delay
+    // field (up to 5, determined by SIDESET_COUNT) are used
+    // for side-set data, with the remaining LSBs used for delay.
+    // The least-significant bit of the side-set portion is the bit
+    // written to this pin, with more-significant bits written to
+    // higher-numbered pins.
     SIDESET_BASE OFFSET(10) NUMBITS(5) [],
-    /// The lowest-numbered pin that will be affected by a SET
-    /// PINS or SET PINDIRS instruction. The data written to this
-    /// pin is the least-significant bit of the SET data.
+    // The lowest-numbered pin that will be affected by a SET
+    // PINS or SET PINDIRS instruction. The data written to this
+    // pin is the least-significant bit of the SET data.
     SET_BASE OFFSET(5) NUMBITS(5) [],
-    /// The lowest-numbered pin that will be affected by an OUT
-    /// PINS, OUT PINDIRS or MOV PINS instruction. The data
-    /// written to this pin will always be the least-significant bit of
-    /// the OUT or MOV data.
+    // The lowest-numbered pin that will be affected by an OUT
+    // PINS, OUT PINDIRS or MOV PINS instruction. The data
+    // written to this pin will always be the least-significant bit of
+    // the OUT or MOV data.
     OUT_BASE OFFSET(0) NUMBITS(5) []
 ],
     INTR [
@@ -510,7 +492,7 @@ const PIO1_SET_BASE: StaticRef<PioRegisters> =
 const PIO1_CLEAR_BASE: StaticRef<PioRegisters> =
     unsafe { StaticRef::new((PIO_1_BASE_ADDRESS + 0x3000) as *const PioRegisters) };
 
-/// There are a total of 4 State Machines per PIO.
+// There are a total of 4 State Machines per PIO.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum SMNumber {
     SM0 = 0,
@@ -519,7 +501,7 @@ pub enum SMNumber {
     SM3 = 3,
 }
 
-/// There can be 2 PIOs per RP2040.
+// There can be 2 PIOs per RP2040.
 #[derive(PartialEq)]
 pub enum PIONumber {
     PIO0 = 0,
@@ -567,7 +549,7 @@ impl RPGpio {
     }
 }
 
-/// The FIFO queues can be joined together for twice the length in one direction.
+// The FIFO queues can be joined together for twice the length in one direction.
 #[derive(PartialEq)]
 pub enum PioFifoJoin {
     PioFifoJoinNone = 0,
@@ -586,16 +568,16 @@ pub struct Pio {
     clear_registers: StaticRef<PioRegisters>,
 }
 
-/// 'MOV STATUS' types.
+// 'MOV STATUS' types.
 #[derive(Clone, Copy)]
 pub enum PioMovStatusType {
     StatusTxLessthan = 0,
     StatusRxLessthan = 1,
 }
 
-/// PIO State Machine configuration structure
-///
-/// Used to initialize a PIO with all of its state machines.
+// PIO State Machine configuration structure
+//
+// Used to initialize a PIO with all of its state machines.
 pub struct StateMachineConfiguration {
     pub out_pins_count: u32,
     pub out_pins_base: u32,
