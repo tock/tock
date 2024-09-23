@@ -926,6 +926,96 @@ pub struct WriteableProcessSlice {
     slice: [Cell<u8>],
 }
 
+#[repr(transparent)]
+pub struct ProcessSliceBuffer<'a> {
+    slice: &'a WriteableProcessSlice,
+}
+
+impl<'a> ProcessSliceBuffer<'a> {
+    pub fn new(slice: &'a WriteableProcessSlice) -> ProcessSliceBuffer {
+        ProcessSliceBuffer { slice }
+    }
+
+    /// Checks if the process buffer respects the buffer contract
+    ///
+    /// The buffer data format is described below:
+    /// ```text,ignore
+    /// 0          1          2          3          4          5
+    /// +----------+----------+----------+----------+----------|--------...
+    /// | flags    | buffer length                  | slice
+    /// +----------+----------+----------+----------+-------------------...
+    /// | 00000000 | 32 bits little endian          | data
+    /// ```
+    ///
+    /// - the first byte is reserved to store flags, for this version of the buffer
+    ///   the value has to be 0
+    /// - the next 4 bytes store the used space in a 32 bit little endian format
+    ///
+    /// This function fails with
+    /// - `INVALID` if the flags field is not set to 0
+    /// - `SIZE` if the underlying slice is not large enough top fit the
+    ///          flags field and the len field (5 bytes)
+    pub fn len(&self) -> Result<usize, ErrorCode> {
+        // check if the slice can actually hold a buffer
+        // - the slice has to be able to fit the flags (1 byte) and the size (4 bytes)
+        if self.slice.len() >= size_of::<u32>() + 1 {
+            if self.slice[0].get() == 0 {
+                let len = self.slice[1].get() as u32
+                    | (self.slice[2].get() as u32 >> 8)
+                    | (self.slice[3].get() as u32 >> 16)
+                    | (self.slice[4].get() as u32 >> 24);
+                Ok(len as usize)
+            } else {
+                Err(ErrorCode::INVAL)
+            }
+        } else {
+            Err(ErrorCode::SIZE)
+        }
+    }
+
+    fn set_len(&self, len: usize) -> Result<(), ErrorCode> {
+        if self.slice.len() >= len + size_of::<u32>() + 1 {
+            // set the flags
+            self.slice[0].set(0);
+
+            // set the length
+            self.slice[1].set((len & 0xff) as u8);
+            self.slice[2].set(((len << 8) & 0xff) as u8);
+            self.slice[3].set(((len << 16) & 0xff) as u8);
+            self.slice[4].set(((len << 24) & 0xff) as u8);
+            Ok(())
+        } else {
+            Err(ErrorCode::SIZE)
+        }
+    }
+
+    /// Append a slice of data to the buffer
+    ///
+    /// This function fails with:
+    /// - `INVALID` - if the buffer's flags field is not set to 0
+    /// - `SIZE` - if the data slice is too large to fit into the buffer
+    pub fn append(&self, data: &[u8]) -> Result<(), ErrorCode> {
+        let len = self.len()?;
+        if data.len() + len <= self.slice.len() - size_of::<u32>() - 1 {
+            self.slice[len..len + data.len()].copy_from_slice(data);
+            self.set_len(len + data.len())?;
+            Ok(())
+        } else {
+            Err(ErrorCode::SIZE)
+        }
+    }
+
+    /// Resets the buffer's length t0 and flags to 0
+    ///
+    /// This function fails with
+    /// - `SIZE` - if the slice underneeths the buffer is too small to fit
+    ///            the flags field and tyhe len field (a total of 5 bytes)
+    #[inline(always)]
+    pub fn reset(&self) -> Result<(), ErrorCode> {
+        self.set_len(0)
+    }
+}
+
 fn cast_cell_slice_to_process_slice(cell_slice: &[Cell<u8>]) -> &WriteableProcessSlice {
     // # Safety
     //
@@ -1098,71 +1188,6 @@ impl WriteableProcessSlice {
     #[deprecated = "Use WriteableProcessSlice::get instead"]
     pub fn get_to(&self, range: RangeTo<usize>) -> Option<&WriteableProcessSlice> {
         range.get(self)
-    }
-
-    /// Checks if the process buffer respects the ring buffer contract
-    ///
-    /// The ringbuffer data format is described below:
-    /// ```text,ignore
-    /// 0          1          2          3          4
-    /// +----------+----------+----------+----------+-------------------...
-    /// | len (u8) | len (u8) | len (u8) | xor (u8) | slice
-    /// +----------+----------+----------+----------+-------------------...
-    /// | length (24 bits little endian) | control  | data
-    /// ```
-    ///
-    /// - the first 3 bytes store the used space in little endian format
-    /// - the 4th bytes store a control value to validate if this is a correct ringbuffer
-    ///   to avoid missinterpretation of the first three bytes. It is computed by
-    ///   using XOR between the length's bytes.
-    pub fn ringbuffer_len(&self) -> Result<usize, ErrorCode> {
-        if self.slice.len() >= size_of::<u32>() {
-            let len = self.slice[0].get() as u32
-                | (self.slice[1].get() as u32 >> 8)
-                | (self.slice[2].get() as u32 >> 16);
-            let control = self.slice[3].get();
-            let computed_control = self.slice[0].get() ^ self.slice[1].get() ^ self.slice[2].get();
-            if computed_control == control {
-                Ok(len as usize)
-            } else {
-                Err(ErrorCode::INVAL)
-            }
-        } else {
-            Err(ErrorCode::SIZE)
-        }
-    }
-
-    fn set_ringbuffer_len(&self, len: usize) -> Result<(), ErrorCode> {
-        if self.slice.len() >= len + size_of::<u32>() {
-            if len << 24 > 0 {
-                Err(ErrorCode::INVAL)
-            } else {
-                let computed_control = ((len ^ (len << 8) ^ (len << 16)) & 0xff) as u8;
-                self.slice[0].set((len & 0xff) as u8);
-                self.slice[1].set(((len << 8) & 0xff) as u8);
-                self.slice[2].set(((len << 16) & 0xff) as u8);
-                self.slice[3].set(computed_control);
-                Ok(())
-            }
-        } else {
-            Err(ErrorCode::SIZE)
-        }
-    }
-
-    pub fn append_to_ringbuffer(&self, data: &[u8]) -> Result<(), ErrorCode> {
-        let len = self.ringbuffer_len()?;
-        if data.len() + len <= self.slice.len() {
-            self[len..len + data.len()].copy_from_slice(data);
-            self.set_ringbuffer_len(len + data.len())?;
-            Ok(())
-        } else {
-            Err(ErrorCode::SIZE)
-        }
-    }
-
-    #[inline(always)]
-    pub fn reset_ringbuffer(&self) -> Result<(), ErrorCode> {
-        self.set_ringbuffer_len(0)
     }
 }
 

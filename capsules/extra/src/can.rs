@@ -53,7 +53,7 @@ use core::mem::size_of;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::can;
-use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
+use kernel::processbuffer::{ProcessSliceBuffer, ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
@@ -458,22 +458,22 @@ impl<'a, Can: can::Can> can::ReceiveClient<{ can::STANDARD_CAN_PACKET_SIZE }>
                                     |err| err.into(),
                                     |buffer_ref| {
                                         buffer_ref
-                                            .mut_enter(|user_buffer| {
-                                                shared_len = user_buffer.len();
+                                            .mut_enter(|user_slice| {
+                                                let user_buffer =
+                                                    ProcessSliceBuffer::new(user_slice);
+                                                shared_len = user_buffer.len()?;
                                                 // This uses the ringbuffer interpretation of the
                                                 // ProcessBufferSlice
-                                                new_buffer = match user_buffer.ringbuffer_len() {
+                                                new_buffer = match user_buffer.len() {
                                                     Err(ErrorCode::INVAL) => {
-                                                        user_buffer.reset_ringbuffer().map(|()| 0)
+                                                        user_buffer.reset().map(|()| 0)
                                                     }
                                                     value => value,
                                                 }? == 0;
-                                                user_buffer.append_to_ringbuffer(buffer).map_err(
-                                                    |err| {
-                                                        app_data.lost_messages += 1;
-                                                        err
-                                                    },
-                                                )
+                                                user_buffer.append(buffer).map_err(|err| {
+                                                    app_data.lost_messages += 1;
+                                                    err
+                                                })
                                             })
                                             .unwrap_or_else(|err| err.into())
                                     },
