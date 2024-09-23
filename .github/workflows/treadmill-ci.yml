@@ -10,6 +10,8 @@ env:
 
 # Controls when the action will run. Triggers the workflow on pull request and
 # merge group checks:
+#
+# KEEP IN SYNC WITH `environment:` ATTRIBUTE BELOW:
 on:
   push:
     branches:
@@ -24,9 +26,13 @@ jobs:
   test-prepare:
     runs-on: ubuntu-latest
 
-    # This provides access to the secrets required below, after approval by
-    # certain persons or GH teams:
-    environment: treadmill-ci
+    # This provides access to the secrets required below:
+    # - for `treadmill-ci`: after approval by certain persons or GH teams
+    # - for `treadmill-ci-merged`: without approval, on merge queue branches
+    #   and the master branch
+    #
+    # KEEP IN SYNC WITH `on:` EVENTS ABOVE:
+    environment: ${{ github.event_name == 'pull_request' && 'treadmill-ci' || 'treadmill-ci-merged' }}
 
     outputs:
       tml-job-ids: ${{ steps.treadmill-job-launch.outputs.tml-job-ids }}
@@ -163,9 +169,13 @@ jobs:
       - test-prepare
       - test-execute
 
-    # This provides access to the secrets required below, after approval by
-    # certain persons or GH teams:
-    environment: treadmill-ci
+    # This provides access to the secrets required below:
+    # - for `treadmill-ci`: after approval by certain persons or GH teams
+    # - for `treadmill-ci-merged`: without approval, on merge queue branches
+    #   and the master branch
+    #
+    # KEEP IN SYNC WITH `on:` EVENTS ABOVE:
+    environment: ${{ github.event_name == 'pull_request' && 'treadmill-ci' || 'treadmill-ci-merged' }}
 
     runs-on: ubuntu-latest
 
