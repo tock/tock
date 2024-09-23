@@ -36,6 +36,8 @@
 use core::cell::Cell;
 use core::{cmp, ptr};
 use kernel::hil;
+use kernel::hil::gpio::Configure;
+use kernel::hil::spi::cs::ChipSelectPolar;
 use kernel::utilities::cells::{OptionalCell, TakeCell, VolatileCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};
@@ -240,7 +242,7 @@ impl Frequency {
 pub struct SPIM<'a> {
     registers: StaticRef<SpimRegisters>,
     client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
-    chip_select: OptionalCell<&'a dyn hil::gpio::Pin>,
+    chip_select: OptionalCell<ChipSelectPolar<'a, crate::gpio::GPIOPin<'a>>>,
     busy: Cell<bool>,
     tx_buf: TakeCell<'static, [u8]>,
     rx_buf: TakeCell<'static, [u8]>,
@@ -270,7 +272,7 @@ impl<'a> SPIM<'a> {
                 return;
             }
 
-            self.chip_select.map(|cs| cs.set());
+            self.chip_select.map(|cs| cs.deactivate());
             self.registers.events_end.write(EVENT::EVENT::CLEAR);
 
             // When we are no longer active or busy we can disable the
@@ -337,7 +339,7 @@ impl<'a> SPIM<'a> {
 }
 
 impl<'a> hil::spi::SpiMaster<'a> for SPIM<'a> {
-    type ChipSelect = &'a dyn hil::gpio::Pin;
+    type ChipSelect = ChipSelectPolar<'a, crate::gpio::GPIOPin<'a>>;
 
     fn set_client(&self, client: &'a dyn hil::spi::SpiMasterClient) {
         self.client.set(client);
@@ -365,7 +367,7 @@ impl<'a> hil::spi::SpiMaster<'a> for SPIM<'a> {
         if self.chip_select.is_none() {
             return Err((ErrorCode::NODEVICE, tx_buf, rx_buf));
         }
-        self.chip_select.map(|cs| cs.clear());
+        self.chip_select.map(|cs| cs.activate());
 
         // Setup transmit data registers
         let tx_len: u32 = cmp::min(len, tx_buf.len()) as u32;
@@ -418,8 +420,8 @@ impl<'a> hil::spi::SpiMaster<'a> for SPIM<'a> {
     // The type of the argument is based on what makes sense for the
     // peripheral when this trait is implemented.
     fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), ErrorCode> {
-        cs.make_output();
-        cs.set();
+        cs.pin.make_output();
+        cs.deactivate();
         self.chip_select.set(cs);
         Ok(())
     }

@@ -265,6 +265,10 @@ fn load_processes_from_flash<C: Chip>(
                     | ProcessBinaryError::IncorrectFlashAddress { .. }
                     | ProcessBinaryError::NotEnabledProcess
                     | ProcessBinaryError::Padding => {
+                        if config::CONFIG.debug_load_processes {
+                            debug!("Unable to use process binary: {:?}.", err);
+                        }
+
                         // Skip this binary and move to the next one.
                         continue;
                     }
@@ -286,7 +290,7 @@ fn discover_process_binary(
 ) -> Result<(&'static [u8], ProcessBinary), (&'static [u8], ProcessBinaryError)> {
     if config::CONFIG.debug_load_processes {
         debug!(
-            "Loading process binary from flash={:#010X}-{:#010X}",
+            "Looking for process binary in flash={:#010X}-{:#010X}",
             flash.as_ptr() as usize,
             flash.as_ptr() as usize + flash.len() - 1
         );
@@ -572,7 +576,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
             }
             Err(e) => {
                 if config::CONFIG.debug_load_processes {
-                    debug!("Loading: unable to create ProcessBinary");
+                    debug!("Loading: unable to create ProcessBinary: {:?}", e);
                 }
 
                 // Other process binary errors indicate the process is not
@@ -594,7 +598,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
 
         if config::CONFIG.debug_load_processes {
             debug!(
-                "Loading process binary from flash={:#010X}-{:#010X}",
+                "Looking for process binary in flash={:#010X}-{:#010X}",
                 flash.as_ptr() as usize,
                 flash.as_ptr() as usize + flash.len() - 1
             );

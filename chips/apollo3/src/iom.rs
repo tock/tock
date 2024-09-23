@@ -6,8 +6,9 @@
 
 use core::cell::Cell;
 use kernel::hil;
-use kernel::hil::gpio::{Configure, Output};
+use kernel::hil::gpio::Configure;
 use kernel::hil::i2c;
+use kernel::hil::spi::cs::ChipSelectPolar;
 use kernel::hil::spi::{ClockPhase, ClockPolarity, SpiMaster, SpiMasterClient};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
@@ -289,7 +290,7 @@ pub struct Iom<'a> {
 
     op: Cell<Operation>,
     spi_phase: Cell<ClockPhase>,
-    spi_cs: OptionalCell<&'a crate::gpio::GpioPin<'a>>,
+    spi_cs: OptionalCell<ChipSelectPolar<'a, crate::gpio::GpioPin<'a>>>,
     smbus: Cell<bool>,
 }
 
@@ -479,6 +480,16 @@ impl<'a> Iom<'_> {
             for i in (data_popped / 4)..(len / 4) {
                 let data_idx = i * 4;
 
+                // The IOM doesn't correctly pop the data if we read it too fast
+                // there are a few erratas against the IOM when reading data
+                // from the FIFO (compared to DMA). Adding a small delay here is
+                // enough to ensure the fifoptr values update before the next
+                // iteration.
+                // See: https://ambiq.com/wp-content/uploads/2022/01/Apollo3-Blue-Errata-List.pdf
+                for _i in 0..3000 {
+                    cortexm4::support::nop();
+                }
+
                 if regs.fifoptr.read(FIFOPTR::FIFO1SIZ) < 4 {
                     self.read_index.set(data_popped);
                     break;
@@ -558,7 +569,7 @@ impl<'a> Iom<'_> {
                 regs.inten.set(0x00);
 
                 // Clear CS
-                self.spi_cs.map(|cs| cs.set());
+                self.spi_cs.map(|cs| cs.deactivate());
 
                 self.op.set(Operation::None);
 
@@ -666,9 +677,15 @@ impl<'a> Iom<'_> {
                         && transfered_bytes < 24
                     {
                         let idx = self.write_index.get();
-                        let data = u32::from_le_bytes(
-                            write_buffer[idx..(idx + 4)].try_into().unwrap_or([0; 4]),
-                        );
+
+                        let chunk = write_buffer[idx..].chunks(4).next().unwrap_or(&[]);
+
+                        let data = u32::from_le_bytes([
+                            chunk.get(0).copied().unwrap_or(0),
+                            chunk.get(1).copied().unwrap_or(0),
+                            chunk.get(2).copied().unwrap_or(0),
+                            chunk.get(3).copied().unwrap_or(0),
+                        ]);
 
                         self.registers.fifopush.set(data);
                         self.write_index.set(idx + 4);
@@ -696,7 +713,7 @@ impl<'a> Iom<'_> {
                 regs.inten.set(0x00);
 
                 // Clear CS
-                self.spi_cs.map(|cs| cs.set());
+                self.spi_cs.map(|cs| cs.deactivate());
 
                 self.op.set(Operation::None);
 
@@ -1175,7 +1192,7 @@ impl<'a> hil::i2c::SMBusMaster<'a> for Iom<'a> {
 }
 
 impl<'a> SpiMaster<'a> for Iom<'a> {
-    type ChipSelect = &'a crate::gpio::GpioPin<'a>;
+    type ChipSelect = ChipSelectPolar<'a, crate::gpio::GpioPin<'a>>;
 
     fn init(&self) -> Result<(), ErrorCode> {
         self.op.set(Operation::SPI);
@@ -1238,7 +1255,7 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
         self.registers.intclr.set(0xFFFF_FFFF);
 
         // Trigger CS
-        self.spi_cs.map(|cs| cs.clear());
+        self.spi_cs.map(|cs| cs.activate());
 
         // Start the transfer
         self.registers.cmd.write(
@@ -1354,7 +1371,7 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
         self.registers.intclr.set(0xFFFF_FFFF);
 
         // Trigger CS
-        self.spi_cs.map(|cs| cs.clear());
+        self.spi_cs.map(|cs| cs.activate());
 
         // Start the transfer
         self.registers.cmd.write(
@@ -1368,7 +1385,7 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
 
         self.registers.fifopush.set(val as u32);
 
-        self.spi_cs.map(|cs| cs.set());
+        self.spi_cs.map(|cs| cs.deactivate());
 
         Ok(())
     }
@@ -1386,7 +1403,7 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
         self.registers.intclr.set(0xFFFF_FFFF);
 
         // Trigger CS
-        self.spi_cs.map(|cs| cs.clear());
+        self.spi_cs.map(|cs| cs.activate());
 
         // Start the transfer
         self.registers.cmd.write(
@@ -1401,11 +1418,11 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
         if self.registers.fifoptr.read(FIFOPTR::FIFO1SIZ) > 0 {
             let d = self.registers.fifopop.get().to_ne_bytes();
 
-            self.spi_cs.map(|cs| cs.set());
+            self.spi_cs.map(|cs| cs.deactivate());
             return Ok(d[0]);
         }
 
-        self.spi_cs.map(|cs| cs.set());
+        self.spi_cs.map(|cs| cs.deactivate());
 
         Err(ErrorCode::FAIL)
     }
@@ -1423,7 +1440,7 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
         self.registers.intclr.set(0xFFFF_FFFF);
 
         // Trigger CS
-        self.spi_cs.map(|cs| cs.clear());
+        self.spi_cs.map(|cs| cs.activate());
 
         // Start the transfer
         self.registers.cmd.write(
@@ -1440,18 +1457,18 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
         if self.registers.fifoptr.read(FIFOPTR::FIFO1SIZ) > 0 {
             let d = self.registers.fifopop.get().to_ne_bytes();
 
-            self.spi_cs.map(|cs| cs.set());
+            self.spi_cs.map(|cs| cs.deactivate());
             return Ok(d[0]);
         }
 
-        self.spi_cs.map(|cs| cs.set());
+        self.spi_cs.map(|cs| cs.deactivate());
 
         Err(ErrorCode::FAIL)
     }
 
     fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), ErrorCode> {
-        cs.make_output();
-        cs.set();
+        cs.pin.make_output();
+        cs.deactivate();
         self.spi_cs.set(cs);
 
         Ok(())
@@ -1569,10 +1586,10 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
     }
 
     fn hold_low(&self) {
-        self.spi_cs.map(|cs| cs.clear());
+        self.spi_cs.map(|cs| cs.activate());
     }
 
     fn release_low(&self) {
-        self.spi_cs.map(|cs| cs.set());
+        self.spi_cs.map(|cs| cs.deactivate());
     }
 }

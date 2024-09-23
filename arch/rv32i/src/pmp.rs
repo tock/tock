@@ -1070,8 +1070,7 @@ pub mod test {
                 }
                 None => {
                     panic!(
-                        "Failed to allocate region that does not overlap and \
-                         should meet alignment constraints: {:?}",
+                        "Failed to allocate region that does not overlap and should meet alignment constraints: {:?}",
                         region
                     );
                 }

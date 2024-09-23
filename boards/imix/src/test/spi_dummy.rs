@@ -80,7 +80,8 @@ pub unsafe fn spi_dummy_test(spi: &'static sam4l::spi::SpiHw<'static>) {
     pin2.set();
 
     let spicb = kernel::static_init!(DummyCB, DummyCB::new(spi));
-    spi.set_active_peripheral(sam4l::spi::Peripheral::Peripheral0);
+    spi.specify_chip_select(sam4l::spi::Peripheral::Peripheral0)
+        .unwrap();
     spi.set_client(spicb);
 
     spi.init().unwrap();
