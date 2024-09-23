@@ -11,6 +11,7 @@ mod deferred_calls;
 pub mod gpio;
 pub mod i2c;
 pub mod interrupts;
+pub mod pio;
 pub mod pwm;
 pub mod resets;
 pub mod rtc;

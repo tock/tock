@@ -19,10 +19,14 @@ use components::gpio::GpioComponent;
 use components::led::LedsComponent;
 use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
+use kernel::debug;
+use kernel::hil::gpio::Configure;
+
 use kernel::hil::led::LedHigh;
 use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
+use kernel::utilities::registers::interfaces::Readable;
 use kernel::{capabilities, create_capability, static_init, Kernel};
 use kernel::{debug, hil};
 
@@ -34,6 +38,7 @@ use rp2040::clocks::{
     SystemAuxiliaryClockSource, SystemClockSource, UsbAuxiliaryClockSource,
 };
 use rp2040::gpio::{GpioFunction, RPGpio, RPGpioPin};
+use rp2040::pio::{PIONumber, Pio, SMNumber, StateMachineConfiguration};
 use rp2040::resets::Peripheral;
 use rp2040::spi::Spi;
 use rp2040::sysinfo;
@@ -355,32 +360,29 @@ pub unsafe fn start() -> (
         ]
     );
 
-    let cdc = components::cdc::CdcAcmComponent::new(
-        &peripherals.usb,
-        //capsules::usb::cdc::MAX_CTRL_PACKET_SIZE_RP2040,
-        64,
-        peripherals.sysinfo.get_manufacturer_rp2040(),
-        peripherals.sysinfo.get_part(),
-        strings,
-        mux_alarm,
-        None,
-    )
-    .finalize(components::cdc_acm_component_static!(
-        rp2040::usb::UsbCtrl,
-        rp2040::timer::RPTimer
-    ));
+    // let cdc = components::cdc::CdcAcmComponent::new(
+    //     &peripherals.usb,
+    //     //capsules::usb::cdc::MAX_CTRL_PACKET_SIZE_RP2040,
+    //     64,
+    //     peripherals.sysinfo.get_manufacturer_rp2040(),
+    //     peripherals.sysinfo.get_part(),
+    //     strings,
+    //     mux_alarm,
+    //     None,
+    // )
+    // .finalize(components::cdc_acm_component_static!(
+    //     rp2040::usb::UsbCtrl,
+    //     rp2040::timer::RPTimer
+    // ));
 
-    // UART
-    // Create a shared UART channel for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(cdc, 115200)
-        .finalize(components::uart_mux_component_static!());
+    // // UART
+    // // Create a shared UART channel for kernel debug.
+    // let uart_mux = components::console::UartMuxComponent::new(cdc, 115200)
+    //     .finalize(components::uart_mux_component_static!());
 
     // Uncomment this to use UART as an output
-    // let uart_mux = components::console::UartMuxComponent::new(
-    //     &peripherals.uart0,
-    //     115200,
-    // )
-    // .finalize(components::uart_mux_component_static!());
+    let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
+        .finalize(components::uart_mux_component_static!());
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
@@ -393,8 +395,8 @@ pub unsafe fn start() -> (
     components::debug_writer::DebugWriterComponent::new(uart_mux)
         .finalize(components::debug_writer_component_static!());
 
-    cdc.enable();
-    cdc.attach();
+    // cdc.enable();
+    // cdc.attach();
 
     let gpio = GpioComponent::new(
         board_kernel,
@@ -694,6 +696,152 @@ pub unsafe fn start() -> (
         debug!("{:?}", err);
     });
 
+    let mut pio: Pio = Pio::new_pio0();
+    // .program hello
+    // loop:
+    // set pins, 1 [31]
+    // jmp label [31]
+    // label:
+    // set pins, 0 [31]
+    // jmp loop [31]
+    // let path: [u8; 10] = [0xe0, 0x81, 0xff, 0x01, 0x1f, 0x03, 0xff, 0x00, 0x1f, 0x01]; - still with set pindirs, 1
+    // let path: [u8; 8] = [0xff, 0x01, 0x1f, 0x02, 0xff, 0x00, 0x1f, 0x00];
+
+    // .program blink
+    // set pins, 1 [19]
+    // nop         [19]
+    // nop         [19]
+    // nop         [19]
+    // nop         [19]
+    // set pins, 0 [19]
+    // nop         [19]
+    // nop         [19]
+    // nop         [19]
+    // nop         [19]
+    // let path: [u8; 20] = [
+    //     0xf3, 0x01, 0xb3, 0x42, 0xb3, 0x42, 0xb3, 0x42, 0xb3, 0x42, 0xf3, 0x00, 0xb3, 0x42, 0xb3,
+    //     0x42, 0xb3, 0x42, 0xb3, 0x42,
+    // ];
+
+    // .program hello
+    // pull
+    // out pins, 32
+    // let path: [u8; 4] = [0x80, 0xa0, 0x60, 0x00];
+
+    // .program sideset
+    // .side_set 1
+    // set pins, 0     side 1  [15]
+    // nop             side 1  [15]
+    // nop             side 1  [15]
+    // nop             side 1  [15]
+    // nop             side 1  [15]
+    // nop             side 1  [15]
+    // set pins, 1     side 0  [15]
+    // nop             side 0  [15]
+    // nop             side 0  [15]
+    // nop             side 0  [15]
+    // nop             side 0  [15]
+    // nop             side 0  [15]
+    // let path: [u8; 24] = [
+    //     0xff, 0x00, 0xbf, 0x42, 0xbf, 0x42, 0xbf, 0x42, 0xbf, 0x42, 0xbf, 0x42, 0xef, 0x01, 0xaf,
+    //     0x42, 0xaf, 0x42, 0xaf, 0x42, 0xaf, 0x42, 0xaf, 0x42,
+    // ];
+
+    // .program
+    // .side_set 1 opt
+    // set pins, 0     side 1  [7]
+    // nop                     [7]
+    // nop                     [7]
+    // nop                     [7]
+    // nop                     [7]
+    // nop                     [7]
+    // set pins, 1     side 0  [7]
+    // nop                     [7]
+    // nop                     [7]
+    // nop                     [7]
+    // nop                     [7]
+    // nop                     [7]
+    // let path: [u8; 26] = [
+    //     0xff, 0x00, 0xa7, 0x42, 0xa7, 0x42, 0xa7, 0x42, 0xa7, 0x42, 0xa7, 0x42, 0xf7, 0x01, 0xa7,
+    //     0x42, 0xa7, 0x42, 0xa7, 0x42, 0xa7, 0x42, 0xa7, 0x42, 0x00, 0x00,
+    // ];
+
+    // .program pwm
+    // .side_set 1 opt
+    //     pull noblock    side 0 ; Pull from FIFO to OSR if available, else copy X to OSR.
+    //     mov x, osr             ; Copy most-recently-pulled value back to scratch X
+    //     mov y, isr             ; ISR contains PWM period. Y used as counter.
+    // countloop:
+    //     jmp x!=y noset         ; Set pin high if X == Y, keep the two paths length matched
+    //     jmp skip        side 1
+    // noset:
+    //     nop                    ; Single dummy cycle to keep the two paths the same length
+    // skip:
+    //     jmp y-- countloop      ; Loop until Y hits 0, then pull a fresh PWM value from FIFO
+    let path: [u8; 14] = [
+        0x90, 0x80, 0xa0, 0x27, 0xa0, 0x46, 0x00, 0xa5, 0x18, 0x06, 0xa0, 0x42, 0x00, 0x83,
+    ];
+
+    pio.init();
+    pio.add_program(&path);
+    let mut custom_config = StateMachineConfiguration::default();
+
+    // CONFIG FOR BLINKING HELLO
+    // custom_config.div_frac = 0;
+    // custom_config.div_int = 0;
+    // pio.blinking_hello_program_init(PIONumber::PIO0, SMNumber::SM0, 7, &custom_config);
+
+    // CONFIG FOR BLINK
+    // custom_config.div_frac = 0;
+    // custom_config.div_int = 0;
+    // pio.blink_program_init(PIONumber::PIO0, SMNumber::SM0, 7, &custom_config);
+
+    // CONFIG FOR SIDESET TEST
+    // custom_config.div_frac = 0;
+    // custom_config.div_int = 0;
+    // custom_config.side_set_base = 7;
+    // custom_config.side_set_bit_count = 2;
+    // custom_config.side_set_opt_enable = true;
+    // custom_config.side_set_pindirs = false;
+    // pio.sideset_program_init(PIONumber::PIO0, SMNumber::SM0, 6, &custom_config);
+
+    // CONFIG FOR HELLO
+    // custom_config.div_frac = 0;
+    // custom_config.div_int = 0;
+    // pio.hello_program_init(PIONumber::PIO0, SMNumber::SM0, 6, 7, &custom_config);
+
+    // CONFIG FOR PWM
+    custom_config.side_set_base = 7;
+    custom_config.side_set_bit_count = 2;
+    custom_config.side_set_opt_enable = true;
+    custom_config.side_set_pindirs = false;
+    let pwm_period = 12;
+    let sm_number = SMNumber::SM0;
+    let loops = 1000;
+    pio.pwm_program_init(PIONumber::PIO0, sm_number, 7, pwm_period, &custom_config);
+
+    // pio.sm_put_blocking(SMNumber::SM0, 2);
+
+    let mut level = 0;
+    for _ in 1..loops {
+        debug!("{}", level);
+        pio.sm_put_blocking(sm_number, level);
+        level = (level + 1) % pwm_period;
+    }
+    // for _ in 1..100 {
+    // debug!(
+    //     "{} {} {} {}",
+    //     pio.debugger(SMNumber::SM0),
+    //     pio.read_fdebug(true, false),
+    //     pio.read_fdebug(true, true),
+    //     pio.read_dbg_padout()
+    // );
+    // pio.read_sideset_reg(SMNumber::SM0);
+    // pio.sm_put(SMNumber::SM0, 1);
+    // debug!("TXF0:{}", pio.read_txf(SMNumber::SM0));
+    // pio.sm_put(SMNumber::SM0, 1234567891);
+    // debug!("TXFULL0:{}", pio.txf_full_0());
+    // }
     (board_kernel, pico_explorer_base, chip)
 }
 
