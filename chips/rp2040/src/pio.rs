@@ -701,7 +701,7 @@ impl Pio {
         self.registers.sm[sm_number as usize]
             .instr
             .modify(SMx_INSTR::INSTR.val(0));
-        self.sm_set_enabled(sm_number, true);
+        // self.sm_set_enabled(sm_number, true);
     }
 
     /// Set a state machine's state to enabled or to disabled.
@@ -1116,6 +1116,7 @@ impl Pio {
         self.set_pins_out(sm_number, pin, 1, true);
         self.set_set_pins(sm_number, pin, 1);
         self.sm_init(sm_number);
+        self.sm_set_enabled(sm_number, true);
     }
 
     pub fn blink_program_init(
@@ -1132,6 +1133,7 @@ impl Pio {
         self.set_pins_out(sm_number, pin, 1, true);
         self.set_set_pins(sm_number, pin, 1);
         self.sm_init(sm_number);
+        self.sm_set_enabled(sm_number, true);
     }
 
     pub fn sideset_program_init(
@@ -1151,31 +1153,34 @@ impl Pio {
         self.set_set_pins(sm_number, pin, 1);
         self.set_side_set_pins(sm_number, 7);
         self.sm_init(sm_number);
+        self.sm_set_enabled(sm_number, true);
     }
 
     pub fn hello_program_init(
         &mut self,
         pio_number: PIONumber,
         sm_number: SMNumber,
-        pin: u32,
+        pin1: u32,
+        pin2: u32,
         config: &StateMachineConfiguration,
     ) {
         self.sm_config(sm_number, config);
         self.pio_number = pio_number;
-        self.gpio_init(&RPGpioPin::new(RPGpio::from_u32(pin)));
+        self.gpio_init(&RPGpioPin::new(RPGpio::from_u32(pin1)));
+        self.gpio_init(&RPGpioPin::new(RPGpio::from_u32(pin2)));
         self.sm_set_enabled(sm_number, false);
-        self.sm_put(sm_number, 0b11001100110011001100110011001100);
-        self.set_pins_out(sm_number, pin, 1, true);
+        self.set_pins_out(sm_number, pin1, 2, true);
         self.sm_init(sm_number);
-        // self.sm_put_blocking(sm_number, 1);
-        // for _ in 1..100 {
-        //     self.wait();
-        // }
-        // self.sm_put_blocking(sm_number, 0);
-        // for _ in 1..100 {
-        //     self.wait();
-        // }
-        // self.sm_put_blocking(sm_number, 1);
+        self.sm_set_enabled(sm_number, true);
+        self.sm_put_blocking(sm_number, 0b11000000);
+        for _ in 1..10000000 {
+            self.wait();
+        }
+        self.sm_put_blocking(sm_number, 0);
+        for _ in 1..10000000 {
+            self.wait();
+        }
+        // self.sm_put_blocking(sm_number, 0b11000000);
     }
 
     pub fn pwm_program_init(
@@ -1193,19 +1198,18 @@ impl Pio {
         self.set_pins_out(sm_number, pin, 1, true);
         self.set_side_set_pins(sm_number, pin);
         self.sm_init(sm_number);
+        // self.sm_set_enabled(sm_number, false);
         self.sm_put_blocking(sm_number, pwm_period);
         self.sm_exec(sm_number, 0x8080 as u32); // pull
-        self.sm_exec(sm_number, 0x60c0 as u32); // out isr, 1
+        self.sm_exec(sm_number, 0x60c0 as u32); // out isr, 32
+        self.sm_set_enabled(sm_number, true);
     }
 
     /// Returns current instruction running on the state machine.
-    pub fn debugger(&self, sm_number: SMNumber) {
-        debug!(
-            "SM0:{}",
-            self.registers.sm[sm_number as usize]
-                .instr
-                .read(SMx_INSTR::INSTR)
-        );
+    pub fn debugger(&self, sm_number: SMNumber) -> u32 {
+        self.registers.sm[sm_number as usize]
+            .instr
+            .read(SMx_INSTR::INSTR)
     }
 
     pub fn read_sideset_reg(&self, sm_number: SMNumber) {
@@ -1243,21 +1247,21 @@ impl Pio {
         self.registers.fstat.read(FSTAT::TXFULL0)
     }
 
-    pub fn read_dbg_padout(&self) {
-        debug!("{}", self.registers.dbg_padout.read(DBG_PADOUT::DBG_PADOUT));
+    pub fn read_dbg_padout(&self) -> u32 {
+        self.registers.dbg_padout.read(DBG_PADOUT::DBG_PADOUT)
     }
 
-    pub fn read_fdebug(&self, tx: bool, stall: bool) {
+    pub fn read_fdebug(&self, tx: bool, stall: bool) -> u32 {
         if tx {
             if stall {
-                debug!("{}", self.registers.fdebug.read(FDEBUG::TXSTALL))
+                self.registers.fdebug.read(FDEBUG::TXSTALL)
             } else {
-                debug!("{}", self.registers.fdebug.read(FDEBUG::TXOVER))
+                self.registers.fdebug.read(FDEBUG::TXOVER)
             }
         } else if stall {
-            debug!("{}", self.registers.fdebug.read(FDEBUG::RXSTALL))
+            self.registers.fdebug.read(FDEBUG::RXSTALL)
         } else {
-            debug!("{}", self.registers.fdebug.read(FDEBUG::RXUNDER))
+            self.registers.fdebug.read(FDEBUG::RXUNDER)
         }
     }
 

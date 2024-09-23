@@ -720,8 +720,8 @@ pub unsafe fn start() -> (
 
     // .program hello
     // pull
-    // out pins, 1
-    let path: [u8; 4] = [0x80, 0xa0, 0x60, 0x01];
+    // out pins, 32
+    // let path: [u8; 4] = [0x80, 0xa0, 0x60, 0x00];
 
     // .program sideset
     // .side_set 1
@@ -773,9 +773,9 @@ pub unsafe fn start() -> (
     //     nop                    ; Single dummy cycle to keep the two paths the same length
     // skip:
     //     jmp y-- countloop      ; Loop until Y hits 0, then pull a fresh PWM value from FIFO
-    // let path: [u8; 14] = [
-    //     0x90, 0x80, 0xa0, 0x27, 0xa0, 0x46, 0x00, 0xa5, 0x18, 0x06, 0xa0, 0x42, 0x00, 0x83,
-    // ];
+    let path: [u8; 14] = [
+        0x90, 0x80, 0xa0, 0x27, 0xa0, 0x46, 0x00, 0xa5, 0x18, 0x06, 0xa0, 0x42, 0x00, 0x83,
+    ];
 
     pio.init();
     pio.add_program(&path);
@@ -801,35 +801,42 @@ pub unsafe fn start() -> (
     // pio.sideset_program_init(PIONumber::PIO0, SMNumber::SM0, 6, &custom_config);
 
     // CONFIG FOR HELLO
-    custom_config.div_frac = 0;
-    custom_config.div_int = 0;
-    pio.hello_program_init(PIONumber::PIO0, SMNumber::SM0, 7, &custom_config);
+    // custom_config.div_frac = 0;
+    // custom_config.div_int = 0;
+    // pio.hello_program_init(PIONumber::PIO0, SMNumber::SM0, 6, 7, &custom_config);
 
     // CONFIG FOR PWM
-    // custom_config.side_set_base = 7;
-    // custom_config.side_set_bit_count = 2;
-    // custom_config.side_set_opt_enable = true;
-    // custom_config.side_set_pindirs = false;
-    // pio.pwm_program_init(PIONumber::PIO0, SMNumber::SM0, 7, 30000, &custom_config);
+    custom_config.side_set_base = 7;
+    custom_config.side_set_bit_count = 2;
+    custom_config.side_set_opt_enable = true;
+    custom_config.side_set_pindirs = false;
+    let pwm_period = 12;
+    let sm_number = SMNumber::SM0;
+    let loops = 1000;
+    pio.pwm_program_init(PIONumber::PIO0, sm_number, 7, pwm_period, &custom_config);
 
-    // pio.sm_put_blocking(SMNumber::SM0, 3000);
-    // let mut level = 0;
-    // for _ in 1..512 {
-    //     debug!("{}", level);
-    //     pio.sm_put_blocking(SMNumber::SM0, level * level);
-    //     level = (level + 1) % 256;
-    // }
-    for _ in 1..100 {
-        pio.debugger(SMNumber::SM0);
-        pio.read_fdebug(true, false);
-        pio.read_fdebug(true, true);
-        pio.read_dbg_padout();
-        // pio.read_sideset_reg(SMNumber::SM0);
-        // pio.sm_put(SMNumber::SM0, 1);
-        // debug!("TXF0:{}", pio.read_txf(SMNumber::SM0));
-        // pio.sm_put(SMNumber::SM0, 1234567891);
-        // debug!("TXFULL0:{}", pio.txf_full_0());
+    // pio.sm_put_blocking(SMNumber::SM0, 2);
+
+    let mut level = 0;
+    for _ in 1..loops {
+        debug!("{}", level);
+        pio.sm_put_blocking(sm_number, level);
+        level = (level + 1) % pwm_period;
     }
+    // for _ in 1..100 {
+    // debug!(
+    //     "{} {} {} {}",
+    //     pio.debugger(SMNumber::SM0),
+    //     pio.read_fdebug(true, false),
+    //     pio.read_fdebug(true, true),
+    //     pio.read_dbg_padout()
+    // );
+    // pio.read_sideset_reg(SMNumber::SM0);
+    // pio.sm_put(SMNumber::SM0, 1);
+    // debug!("TXF0:{}", pio.read_txf(SMNumber::SM0));
+    // pio.sm_put(SMNumber::SM0, 1234567891);
+    // debug!("TXFULL0:{}", pio.txf_full_0());
+    // }
     (board_kernel, pico_explorer_base, chip)
 }
 
