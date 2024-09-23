@@ -360,29 +360,29 @@ pub unsafe fn start() -> (
         ]
     );
 
-    // let cdc = components::cdc::CdcAcmComponent::new(
-    //     &peripherals.usb,
-    //     //capsules::usb::cdc::MAX_CTRL_PACKET_SIZE_RP2040,
-    //     64,
-    //     peripherals.sysinfo.get_manufacturer_rp2040(),
-    //     peripherals.sysinfo.get_part(),
-    //     strings,
-    //     mux_alarm,
-    //     None,
-    // )
-    // .finalize(components::cdc_acm_component_static!(
-    //     rp2040::usb::UsbCtrl,
-    //     rp2040::timer::RPTimer
-    // ));
+    let cdc = components::cdc::CdcAcmComponent::new(
+        &peripherals.usb,
+        //capsules::usb::cdc::MAX_CTRL_PACKET_SIZE_RP2040,
+        64,
+        peripherals.sysinfo.get_manufacturer_rp2040(),
+        peripherals.sysinfo.get_part(),
+        strings,
+         mux_alarm,
+        None,
+    )
+    .finalize(components::cdc_acm_component_static!(
+        rp2040::usb::UsbCtrl,
+        rp2040::timer::RPTimer
+    ));
 
-    // // UART
-    // // Create a shared UART channel for kernel debug.
-    // let uart_mux = components::console::UartMuxComponent::new(cdc, 115200)
-    //     .finalize(components::uart_mux_component_static!());
+    // UART
+    // Create a shared UART channel for kernel debug.
+    let uart_mux = components::console::UartMuxComponent::new(cdc, 115200)
+        .finalize(components::uart_mux_component_static!());
 
     // Uncomment this to use UART as an output
-    let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
-        .finalize(components::uart_mux_component_static!());
+    // let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
+    //     .finalize(components::uart_mux_component_static!());
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
