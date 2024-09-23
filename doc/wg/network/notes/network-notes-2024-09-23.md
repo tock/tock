@@ -50,7 +50,7 @@
  * Tyler: So reservations: we could have three RPis here at UCSD which are only for networks?
  * Leon: Well, we don't really have reservations, but we have permissions. So only one user could put stuff on some RPis. Which works about the same
  * Tyler: And my scripts just rely on the serial output to see if packets are received. There were some messages on the Matrix channel about how to do that. Are tests currently using serial output?
- * Tyler: We don't have a working proposal or consensus right now. Ben is actively working on it. We really want to separate the testing workloads from the Treadmill platform. Treadmill can run arbitrary commands. We will want a standard way to do integration tests, but we haven't fully decided that. And 15.4 testing could have a different interface if it needs
+ * Leon: We don't have a working proposal or consensus right now. Ben is actively working on it. We really want to separate the testing workloads from the Treadmill platform. Treadmill can run arbitrary commands. We will want a standard way to do integration tests, but we haven't fully decided that. And 15.4 testing could have a different interface if it needs
  * Leon: I do think there will be at least two types of tests: short running integration tests and long running nightly/weekly tests. The long-running tests might look very different from the basic tests. They could need coordination between RPis, for instance.
  * Tyler: Does Treadmill have support for flashing boards?
  * Leon: Our script can flash boards via Tockloader. Really just invoking Tockloader
