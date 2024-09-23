@@ -36,6 +36,12 @@ pub unsafe trait PacketBufferDyn: Any + Debug {
     /// indicates that the `PacketBufferDyn` was not modified.
     fn reclaim_headroom(&mut self, new_headroom: usize) -> bool;
 
+    /// Force-reclaim a given amount of tailroom in this buffer. This will
+    /// ignore any current data stored in the buffer (but not immediately
+    /// overwrite it). It will not move past the tailroom marker.
+    ///
+    /// This method returns a boolean indicating success. A `false` return value
+    /// indicates that the `PacketBufferDyn` was not modified.
     fn reclaim_tailroom(&mut self, new_tailroom: usize) -> bool;
 
     /// Force-reset the payload to length `0`, and set a new headroom
@@ -43,9 +49,8 @@ pub unsafe trait PacketBufferDyn: Any + Debug {
     /// this new headroom pointer.
     ///
     /// This method returns a boolean indicating success. It may fail if
-    /// `new_headroom > self.headroom() + self.len() + self.tailroom()`. A
-    /// `false` return value indicates that the `PacketBufferDyn` was not
-    /// modified.
+    /// `new_headroom > self.len()`. A `false` return value indicates that the
+    /// `PacketBufferDyn` was not modified.
     fn reset(&mut self, new_headroom: usize) -> bool;
 
     fn copy_from_slice_or_err(&mut self, src: &[u8]) -> Result<(), ErrorCode>;
@@ -125,10 +130,6 @@ pub struct PacketBufferMut<const HEAD: usize, const TAIL: usize> {
 impl<const HEAD: usize, const TAIL: usize> PacketBufferMut<HEAD, TAIL> {
     #[inline(always)]
     pub fn new(inner: &'static mut dyn PacketBufferDyn) -> Option<Self> {
-        //     HEAD,
-        //     inner.tailroom(),
-        //     TAIL
-        // );
         if inner.headroom() >= HEAD && inner.tailroom() >= TAIL {
             Some(PacketBufferMut { inner })
         } else {
