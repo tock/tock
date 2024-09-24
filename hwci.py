@@ -105,6 +105,8 @@ async def listen_for_output(port, test_type):
 
 
 def analyze_output(output_lines, test_type):
+    print("Output lines: ")
+    print(output_lines)
     if test_type == "hello_world":
         return "Hello World!" in output_lines
     elif test_type == "multi_alarm_simple_test":
@@ -156,7 +158,7 @@ async def main():
     parser.add_argument(
         "--test",
         choices=["hello_world", "multi_alarm_simple_test"],
-        default="multi_alarm_simple_test",
+        default="hello_world",
         help="Test to run (hello_world or multi_alarm_simple_test)",
     )
     parser.add_argument(
