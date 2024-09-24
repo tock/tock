@@ -33,6 +33,11 @@ use crate::capabilities;
 use crate::process::{self, ProcessId};
 use crate::ErrorCode;
 
+// the offset where the buffer data starts
+// - skip the flags field (1 byte)
+// - skip the len field (size_of::<u32>() bytes)
+const BUFFER_OFFSET: usize = 1 + size_of::<u32>();
+
 /// Convert a process buffer's internal representation to a
 /// [`ReadableProcessSlice`].
 ///
@@ -958,7 +963,7 @@ impl<'a> ProcessSliceBuffer<'a> {
     pub fn len(&self) -> Result<usize, ErrorCode> {
         // check if the slice can actually hold a buffer
         // - the slice has to be able to fit the flags (1 byte) and the size (4 bytes)
-        if self.slice.len() > size_of::<u32>() {
+        if self.slice.len() >= BUFFER_OFFSET {
             if self.slice[0].get() == 0 {
                 let len = self.slice[1].get() as u32
                     | (self.slice[2].get() as u32 >> 8)
@@ -974,7 +979,7 @@ impl<'a> ProcessSliceBuffer<'a> {
     }
 
     fn set_len(&self, len: usize) -> Result<(), ErrorCode> {
-        if self.slice.len() > len + size_of::<u32>() {
+        if self.slice.len() >= len + BUFFER_OFFSET {
             // set the flags
             self.slice[0].set(0);
 
@@ -996,8 +1001,8 @@ impl<'a> ProcessSliceBuffer<'a> {
     /// - `SIZE` - if the data slice is too large to fit into the buffer
     pub fn append(&self, data: &[u8]) -> Result<(), ErrorCode> {
         let len = self.len()?;
-        if data.len() + len <= self.slice.len() - size_of::<u32>() - 1 {
-            self.slice[len..len + data.len()].copy_from_slice(data);
+        if data.len() + len <= self.slice.len() - BUFFER_OFFSET {
+            self.slice[BUFFER_OFFSET + len..BUFFER_OFFSET + len + data.len()].copy_from_slice(data);
             self.set_len(len + data.len())?;
             Ok(())
         } else {
