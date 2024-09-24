@@ -470,9 +470,8 @@ impl<'a, Can: can::Can> can::ReceiveClient<{ can::STANDARD_CAN_PACKET_SIZE }>
                                                     }
                                                     value => value,
                                                 }? == 0;
-                                                user_buffer.append(buffer).map_err(|err| {
+                                                user_buffer.append(buffer).inspect_err(|_err| {
                                                     app_data.lost_messages += 1;
-                                                    err
                                                 })
                                             })
                                             .unwrap_or_else(|err| err.into())
