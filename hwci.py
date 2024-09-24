@@ -156,7 +156,7 @@ async def main():
     parser.add_argument(
         "--test",
         choices=["hello_world", "multi_alarm"],
-        default="hello_world",
+        default="mutli_alarm",
         help="Test to run (hello_world or multi_alarm)",
     )
     parser.add_argument(
