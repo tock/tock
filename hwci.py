@@ -181,7 +181,7 @@ async def main():
 
         if args.test == "hello_world":
             apps = ["c_hello"]
-        elif args.test == "multi_alarm":
+        elif args.test == "multi_alarm_simple_test":
             apps = ["multi_alarm_simple_test"]
         else:
             logging.error(f"Unknown test type: {args.test}")
