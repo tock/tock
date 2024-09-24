@@ -181,6 +181,16 @@ pub struct SubSliceMut<'a, T> {
     active_range: Range<usize>,
 }
 
+impl<'a, T> From<&'a mut [T]> for SubSliceMut<'a, T> {
+    fn from(internal: &'a mut [T]) -> Self {
+        let active_range = 0..(internal.len());
+        Self {
+            internal,
+            active_range,
+        }
+    }
+}
+
 /// An immutable leasable buffer implementation.
 ///
 /// A leasable buffer can be used to pass a section of a larger mutable buffer
@@ -191,6 +201,16 @@ pub struct SubSlice<'a, T> {
     active_range: Range<usize>,
 }
 
+impl<'a, T> From<&'a [T]> for SubSlice<'a, T> {
+    fn from(internal: &'a [T]) -> Self {
+        let active_range = 0..(internal.len());
+        Self {
+            internal,
+            active_range,
+        }
+    }
+}
+
 /// Holder for either a mutable or immutable SubSlice.
 ///
 /// In cases where code needs to support either a mutable or immutable SubSlice,
@@ -199,6 +219,18 @@ pub struct SubSlice<'a, T> {
 pub enum SubSliceMutImmut<'a, T> {
     Immutable(SubSlice<'a, T>),
     Mutable(SubSliceMut<'a, T>),
+}
+
+impl<'a, T> From<&'a [T]> for SubSliceMutImmut<'a, T> {
+    fn from(value: &'a [T]) -> Self {
+        Self::Immutable(value.into())
+    }
+}
+
+impl<'a, T> From<&'a mut [T]> for SubSliceMutImmut<'a, T> {
+    fn from(value: &'a mut [T]) -> Self {
+        Self::Mutable(value.into())
+    }
 }
 
 impl<'a, T> SubSliceMutImmut<'a, T> {
@@ -222,6 +254,20 @@ impl<'a, T> SubSliceMutImmut<'a, T> {
         match *self {
             SubSliceMutImmut::Immutable(ref mut buf) => buf.slice(range),
             SubSliceMutImmut::Mutable(ref mut buf) => buf.slice(range),
+        }
+    }
+
+    pub fn as_ptr(&self) -> *const T {
+        match *self {
+            SubSliceMutImmut::Immutable(ref buf) => buf.as_ptr(),
+            SubSliceMutImmut::Mutable(ref buf) => buf.as_ptr(),
+        }
+    }
+
+    pub fn map_mut(&mut self, f: impl Fn(&mut SubSliceMut<'a, T>)) {
+        match self {
+            SubSliceMutImmut::Immutable(_) => (),
+            SubSliceMutImmut::Mutable(subslice) => f(subslice),
         }
     }
 }
@@ -254,6 +300,10 @@ impl<'a, T> SubSliceMut<'a, T> {
         &self.internal[self.active_range.clone()]
     }
 
+    fn active_slice_mut(&mut self) -> &mut [T] {
+        &mut self.internal[self.active_range.clone()]
+    }
+
     /// Retrieve the raw buffer used to create the SubSlice. Consumes the
     /// SubSlice.
     pub fn take(self) -> &'a mut [T] {
@@ -282,6 +332,10 @@ impl<'a, T> SubSliceMut<'a, T> {
     /// Returns a pointer to the currently accessible portion of the SubSlice.
     pub fn as_ptr(&self) -> *const T {
         self.active_slice().as_ptr()
+    }
+
+    pub fn as_mut_ptr(&mut self) -> *mut T {
+        self.active_slice_mut().as_mut_ptr()
     }
 
     /// Returns a slice of the currently accessible portion of the

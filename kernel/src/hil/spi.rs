@@ -14,7 +14,7 @@
 // Author: Brad Campbell <bradjc5@gmail.com>
 // Author: Amit Aryeh Levy <amit@amitlevy.com>
 
-use crate::ErrorCode;
+use crate::{utilities::leasable_buffer::SubSliceMut, ErrorCode};
 
 /// Data order defines the order of bits sent over the wire: most significant
 /// first, or least significant first.
@@ -198,15 +198,23 @@ pub mod cs {
 
 /// Trait for clients of a SPI bus in master mode.
 pub trait SpiMasterClient {
-    /// Callback when a read/write operation finishes: `read_buffer` is an
-    /// `Option` because the call passes an `Option` (with `None` if it's a
-    /// write-only operation.
+    /// Callback issued when a read/write operation finishes.
+    ///
+    /// `write_buffer` and `read_buffer` always contain the buffers
+    /// passed to the [SpiMaster::read_write_bytes]
+    /// down-call, with `read_buffer` as an `Option` because the
+    /// down-call passes an `Option`. The contents of `write_buffer`
+    /// is unmodified, while `read_buffer` contains the bytes read
+    /// over SPI. Each buffer's bounds are unmodified from their state
+    /// when `read_write_bytes` is called.
+    ///
+    /// `status` signals if the operation was successful, and if so,
+    /// the length of the operation, or an appropriate `ErrorCode`.
     fn read_write_done(
         &self,
-        write_buffer: &'static mut [u8],
-        read_buffer: Option<&'static mut [u8]>,
-        len: usize,
-        status: Result<(), ErrorCode>,
+        write_buffer: SubSliceMut<'static, u8>,
+        read_buffer: Option<SubSliceMut<'static, u8>>,
+        status: Result<usize, ErrorCode>,
     );
 }
 /// Trait for interacting with SPI peripheral devices at a byte or buffer level.
@@ -286,11 +294,11 @@ pub trait SpiMaster<'a> {
     /// operations may pass `None` for `read_buffer`, while read-write
     /// operations pass `Some` for `read_buffer`.
     ///
-    /// If `read_buffer` is `None`, the number of bytes written will be the
-    /// minimum of the length of `write_buffer` and the `len` argument. If
-    /// `read_buffer` is `Some`, the number of bytes read/written will be the
-    /// minimum of the `len` argument, the length of `write_buffer`, and the
-    /// length of `read_buffer`.
+    /// If `read_buffer` is `None`, the number of bytes written will
+    /// be the the length of `write_buffer`. If `read_buffer` is
+    /// `Some`, the number of bytes read/written will be the minimum
+    /// of the length of `write_buffer` and the length of
+    /// `read_buffer`.
     ///
     /// ### Return values
     ///
@@ -306,10 +314,16 @@ pub trait SpiMaster<'a> {
     ///   called yet.
     fn read_write_bytes(
         &self,
-        write_buffer: &'static mut [u8],
-        read_buffer: Option<&'static mut [u8]>,
-        len: usize,
-    ) -> Result<(), (ErrorCode, &'static mut [u8], Option<&'static mut [u8]>)>;
+        write_buffer: SubSliceMut<'static, u8>,
+        read_buffer: Option<SubSliceMut<'static, u8>>,
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            SubSliceMut<'static, u8>,
+            Option<SubSliceMut<'static, u8>>,
+        ),
+    >;
 
     /// Synchronously write a single byte on the bus. Not for general use
     /// because it is blocking: intended for debugging.
@@ -433,10 +447,16 @@ pub trait SpiMasterDevice<'a> {
     /// Same as [`SpiMaster::read_write_bytes`].
     fn read_write_bytes(
         &self,
-        write_buffer: &'static mut [u8],
-        read_buffer: Option<&'static mut [u8]>,
-        len: usize,
-    ) -> Result<(), (ErrorCode, &'static mut [u8], Option<&'static mut [u8]>)>;
+        write_buffer: SubSliceMut<'static, u8>,
+        read_buffer: Option<SubSliceMut<'static, u8>>,
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            SubSliceMut<'static, u8>,
+            Option<SubSliceMut<'static, u8>>,
+        ),
+    >;
 
     /// Same as [`SpiMaster::set_rate`].
     fn set_rate(&self, rate: u32) -> Result<(), ErrorCode>;
