@@ -1,9 +1,10 @@
 # Licensed under the Apache License, Version 2.0 or the MIT License.
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright Tock Contributors 2022.
+# Copyright (c) 2024 Antmicro <www.antmicro.com>
 
 [package]
-name = "swervolf"
+name = "veer_el2_sim"
 version.workspace = true
 authors.workspace = true
 build = "../build.rs"
@@ -13,8 +14,7 @@ edition.workspace = true
 components = { path = "../components" }
 rv32i = { path = "../../arch/rv32i" }
 kernel = { path = "../../kernel" }
-swervolf-eh1 = { path = "../../chips/swervolf-eh1" }
-swerv = { path = "../../chips/swerv" }
+veer_el2 = { path = "../../chips/veer_el2" }
 
 capsules-core = { path = "../../capsules/core" }
 capsules-extra = { path = "../../capsules/extra" }

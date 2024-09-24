@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! Drivers and support modules for SweRV SoCs
-
 #![no_std]
-#![crate_name = "swerv"]
+#![crate_name = "veer_el2"]
 #![crate_type = "rlib"]
 
-pub mod eh1_pic;
-pub mod eh1_timer;
+pub mod chip;
+pub mod io;
+pub mod machine_timer;
+pub mod pic;
+pub mod uart;

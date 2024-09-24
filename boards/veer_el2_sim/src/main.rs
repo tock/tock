@@ -1,41 +1,44 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
+// Copyright (c) 2024 Antmicro <www.antmicro.com>
 
-//! Board file for SweRVolf RISC-V development platform.
-//!
-//! - <https://github.com/chipsalliance/Cores-SweRVolf>
-//!
+//! Board file for VeeR EL2 simulation platform.
 
 #![no_std]
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 
-use core::ptr::{addr_of, addr_of_mut};
-
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core::ptr::{addr_of, addr_of_mut};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
+use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::cooperative::CooperativeSched;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::{create_capability, debug, static_init};
 use rv32i::csr;
-use swervolf_eh1::chip::SweRVolfDefaultPeripherals;
+use veer_el2::chip::VeeRDefaultPeripherals;
+
+use veer_el2::machine_timer::Clint;
+use veer_el2::machine_timer::CLINT_BASE;
 
 pub mod io;
 
 pub const NUM_PROCS: usize = 4;
-//
+
 // Actual memory for holding the active process structures. Need an empty list
 // at least.
 static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
     [None; NUM_PROCS];
 
+pub type VeeRChip = veer_el2::chip::VeeR<'static, VeeRDefaultPeripherals>;
+
 // Reference to the chip for panic dumps.
-static mut CHIP: Option<&'static swervolf_eh1::chip::SweRVolf<SweRVolfDefaultPeripherals>> = None;
+static mut CHIP: Option<&'static VeeRChip> = None;
 // Static reference to process printer for panic dumps.
 static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
     None;
@@ -50,19 +53,19 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 pub static mut STACK_MEMORY: [u8; 0x900] = [0; 0x900];
 
 /// A structure representing this platform that holds references to all
-/// capsules for this platform. We've included an alarm and console.
-struct SweRVolf {
+/// capsules for this platform.
+struct VeeR {
     console: &'static capsules_core::console::Console<'static>,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
-        VirtualMuxAlarm<'static, swervolf_eh1::syscon::SysCon<'static>>,
+        VirtualMuxAlarm<'static, Clint<'static>>,
     >,
     scheduler: &'static CooperativeSched<'static>,
-    scheduler_timer: &'static swerv::eh1_timer::Timer<'static>,
+    scheduler_timer: &'static VirtualSchedulerTimer<VirtualMuxAlarm<'static, Clint<'static>>>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
-impl SyscallDriverLookup for SweRVolf {
+impl SyscallDriverLookup for VeeR {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
@@ -75,14 +78,12 @@ impl SyscallDriverLookup for SweRVolf {
     }
 }
 
-impl KernelResources<swervolf_eh1::chip::SweRVolf<'static, SweRVolfDefaultPeripherals<'static>>>
-    for SweRVolf
-{
+impl KernelResources<VeeRChip> for VeeR {
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
     type Scheduler = CooperativeSched<'static>;
-    type SchedulerTimer = swerv::eh1_timer::Timer<'static>;
+    type SchedulerTimer = VirtualSchedulerTimer<VirtualMuxAlarm<'static, Clint<'static>>>;
     type WatchDog = ();
     type ContextSwitchCallback = ();
 
@@ -113,18 +114,12 @@ impl KernelResources<swervolf_eh1::chip::SweRVolf<'static, SweRVolfDefaultPeriph
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn start() -> (
-    &'static kernel::Kernel,
-    SweRVolf,
-    &'static swervolf_eh1::chip::SweRVolf<'static, SweRVolfDefaultPeripherals<'static>>,
-) {
+unsafe fn start() -> (&'static kernel::Kernel, VeeR, &'static VeeRChip) {
     // only machine mode
     rv32i::configure_trap_handler();
 
-    let peripherals = static_init!(
-        SweRVolfDefaultPeripherals,
-        SweRVolfDefaultPeripherals::new()
-    );
+    let peripherals = static_init!(VeeRDefaultPeripherals, VeeRDefaultPeripherals::new());
+    peripherals.init();
 
     // initialize capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
@@ -136,34 +131,31 @@ unsafe fn start() -> (
     kernel::debug::assign_gpios(None, None, None);
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(&peripherals.sim_uart, 115200)
         .finalize(components::uart_mux_component_static!());
 
-    let mtimer = static_init!(
-        swervolf_eh1::syscon::SysCon,
-        swervolf_eh1::syscon::SysCon::new()
-    );
+    let mtimer = static_init!(Clint, Clint::new(&CLINT_BASE));
 
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
-    let mux_alarm = static_init!(
-        MuxAlarm<'static, swervolf_eh1::syscon::SysCon>,
-        MuxAlarm::new(mtimer)
-    );
+    let mux_alarm = static_init!(MuxAlarm<'static, Clint>, MuxAlarm::new(mtimer));
     hil::time::Alarm::set_alarm_client(mtimer, mux_alarm);
 
     // Alarm
     let virtual_alarm_user = static_init!(
-        VirtualMuxAlarm<'static, swervolf_eh1::syscon::SysCon>,
+        VirtualMuxAlarm<'static, Clint>,
         VirtualMuxAlarm::new(mux_alarm)
     );
     virtual_alarm_user.setup();
 
+    let systick_virtual_alarm = static_init!(
+        VirtualMuxAlarm<'static, Clint>,
+        VirtualMuxAlarm::new(mux_alarm)
+    );
+    systick_virtual_alarm.setup();
+
     let alarm = static_init!(
-        capsules_core::alarm::AlarmDriver<
-            'static,
-            VirtualMuxAlarm<'static, swervolf_eh1::syscon::SysCon>,
-        >,
+        capsules_core::alarm::AlarmDriver<'static, VirtualMuxAlarm<'static, Clint>>,
         capsules_core::alarm::AlarmDriver::new(
             virtual_alarm_user,
             board_kernel.create_grant(capsules_core::alarm::DRIVER_NUM, &memory_allocation_cap)
@@ -171,12 +163,7 @@ unsafe fn start() -> (
     );
     hil::time::Alarm::set_alarm_client(virtual_alarm_user, alarm);
 
-    let chip = static_init!(
-        swervolf_eh1::chip::SweRVolf<
-            SweRVolfDefaultPeripherals,
-        >,
-        swervolf_eh1::chip::SweRVolf::new(peripherals, mtimer)
-    );
+    let chip = static_init!(VeeRChip, veer_el2::chip::VeeR::new(peripherals, mtimer));
     CHIP = Some(chip);
 
     // Create a process printer for panic.
@@ -184,17 +171,23 @@ unsafe fn start() -> (
         .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
+    let process_console = components::process_console::ProcessConsoleComponent::new(
+        board_kernel,
+        uart_mux,
+        mux_alarm,
+        process_printer,
+        None,
+    )
+    .finalize(components::process_console_component_static!(Clint));
+    let _ = process_console.start();
+
     // Need to enable all interrupts for Tock Kernel
     chip.enable_pic_interrupts();
 
-    // enable interrupts globally, including timer0 (bit 29) and timer1 (bit 28)
-    csr::CSR.mie.modify(
-        csr::mie::mie::mext::SET
-            + csr::mie::mie::msoft::SET
-            + csr::mie::mie::mtimer::SET
-            + csr::mie::mie::BIT28::SET
-            + csr::mie::mie::BIT29::SET,
-    );
+    // enable interrupts globally
+    csr::CSR
+        .mie
+        .modify(csr::mie::mie::mext::SET + csr::mie::mie::msoft::SET + csr::mie::mie::mtimer::SET);
     csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
 
     // Setup the console.
@@ -208,7 +201,7 @@ unsafe fn start() -> (
     components::debug_writer::DebugWriterComponent::new(uart_mux)
         .finalize(components::debug_writer_component_static!());
 
-    debug!("SweRVolf initialisation complete.");
+    debug!("VeeR EL2 initialisation complete.");
     debug!("Entering main loop.");
 
     // These symbols are defined in the linker script.
@@ -227,11 +220,16 @@ unsafe fn start() -> (
         components::sched::cooperative::CooperativeComponent::new(&*addr_of!(PROCESSES))
             .finalize(components::cooperative_component_static!(NUM_PROCS));
 
-    let swervolf = SweRVolf {
+    let scheduler_timer = static_init!(
+        VirtualSchedulerTimer<VirtualMuxAlarm<'static, Clint<'static>>>,
+        VirtualSchedulerTimer::new(systick_virtual_alarm)
+    );
+
+    let veer = VeeR {
         console,
         alarm,
         scheduler,
-        scheduler_timer: chip.get_scheduler_timer(),
+        scheduler_timer,
     };
 
     kernel::process::load_processes(
@@ -254,19 +252,16 @@ unsafe fn start() -> (
         debug!("{:?}", err);
     });
 
-    (board_kernel, swervolf, chip)
+    (board_kernel, veer, chip)
 }
 
 /// Main function called after RAM initialized.
+///
+/// # Safety
+/// Accesses memory, memory-mapped registers and CSRs.
 #[no_mangle]
 pub unsafe fn main() {
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
-
-    let (board_kernel, platform, chip) = start();
-    board_kernel.kernel_loop(
-        &platform,
-        chip,
-        None::<&kernel::ipc::IPC<0>>,
-        &main_loop_capability,
-    );
+    let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
+    let (board_kernel, veer, chip) = start();
+    board_kernel.kernel_loop(&veer, chip, None::<&kernel::ipc::IPC<0>>, &main_loop_cap);
 }

@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! Platform Level Interrupt Control peripheral driver for SweRV EH1.
+//! Platform Level Interrupt Control peripheral driver for VeeR.
+/* Currently no peripheral that would generate interupts is defined in the reference
+testbench for VeeR EL2, so the Pic is not expected to handle any interrupts. */
 
 use kernel::utilities::cells::VolatileCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
@@ -182,7 +184,7 @@ impl Pic {
     /// Interrupts must be disabled before this is called.
     /// Saved interrupts can be retrieved by calling `get_saved_interrupts()`.
     /// Saved interrupts are cleared when `'complete()` is called.
-    pub unsafe fn save_interrupt(&self, index: u32) {
+    pub fn save_interrupt(&self, index: u32) {
         let offset = if index < 32 {
             0
         } else if index < 64 {
@@ -218,6 +220,10 @@ impl Pic {
     /// Signal that an interrupt is finished being handled. In Tock, this should be
     /// called from the normal main loop (not the interrupt handler).
     /// Interrupts must be disabled before this is called.
+    ///
+    /// # Safety
+    ///
+    /// access to memory-mapped registers
     pub unsafe fn complete(&self, index: u32) {
         // Clear the interrupt
         self.registers.meigwclr[index as usize - 1].set(0);
