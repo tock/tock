@@ -958,7 +958,7 @@ impl<'a> ProcessSliceBuffer<'a> {
     pub fn len(&self) -> Result<usize, ErrorCode> {
         // check if the slice can actually hold a buffer
         // - the slice has to be able to fit the flags (1 byte) and the size (4 bytes)
-        if self.slice.len() >= size_of::<u32>() + 1 {
+        if self.slice.len() > size_of::<u32>() {
             if self.slice[0].get() == 0 {
                 let len = self.slice[1].get() as u32
                     | (self.slice[2].get() as u32 >> 8)
@@ -974,7 +974,7 @@ impl<'a> ProcessSliceBuffer<'a> {
     }
 
     fn set_len(&self, len: usize) -> Result<(), ErrorCode> {
-        if self.slice.len() >= len + size_of::<u32>() + 1 {
+        if self.slice.len() > len + size_of::<u32>() {
             // set the flags
             self.slice[0].set(0);
 
