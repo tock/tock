@@ -98,8 +98,10 @@ jobs:
           # Currently, all tests run only on hosts attached to an nRF52840DK
           DUT_BOARD: nrf52840dk
 
-          # A Ubuntu 22.04 image with a GitHub Actions self-hosted runner pre-configured:
-          IMAGE_ID: 489d1b9f677856e415b87c6ffa3312b567de437b75a462a0253cf359a0bd51e9
+          # A Ubuntu 22.04 image with a GitHub Actions self-hosted runner pre-configured.
+          #
+          # For the available images see https://book.treadmill.ci/treadmillci-deployment/images.html
+          IMAGE_ID: 0373bb7d728b36cb6083cfe12f27038b71972ceb90563b0037d4012df7b62bf4
         run: |
           # When we eventually launch tests on multiple hardware platforms in
           # parallel, we need to supply different SUB_TEST_IDs here:
