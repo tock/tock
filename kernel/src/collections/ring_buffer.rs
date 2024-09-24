@@ -167,6 +167,7 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
         self.tail = 0;
     }
 
+    #[flux_rs::sig(fn(&mut RingBuffer<T>[@ring_len, @hd, @tl], _))]
     fn retain<F>(&mut self, mut f: F)
     where
         F: FnMut(&T) -> bool,
