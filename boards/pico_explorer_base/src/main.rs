@@ -692,17 +692,26 @@ pub unsafe fn start() -> (
         debug!("{:?}", err);
     });
 
+    //--------------------------------------------------------------------------
+    // PIO
+    //--------------------------------------------------------------------------
+
     let mut pio: Pio = Pio::new_pio0();
-    // .program hello
+
+    // # Examples
+    // To use, uncomment the path (let path: [u8; x] = [a,b,c];) and the config below.
+
+    // Blinks a pin using set.
+    // .program blinkinghello
     // loop:
     // set pins, 1 [31]
     // jmp label [31]
     // label:
     // set pins, 0 [31]
     // jmp loop [31]
-    // let path: [u8; 10] = [0xe0, 0x81, 0xff, 0x01, 0x1f, 0x03, 0xff, 0x00, 0x1f, 0x01]; - still with set pindirs, 1
     // let path: [u8; 8] = [0xff, 0x01, 0x1f, 0x02, 0xff, 0x00, 0x1f, 0x00];
 
+    // Blinks a pin using set with a longer delay.
     // .program blink
     // set pins, 1 [19]
     // nop         [19]
@@ -719,11 +728,14 @@ pub unsafe fn start() -> (
     //     0x42, 0xb3, 0x42, 0xb3, 0x42,
     // ];
 
+    // Blinks LEDs with data from TX FIFO.
+    // In this example is set to blink just once.
     // .program hello
     // pull
     // out pins, 32
     // let path: [u8; 4] = [0x80, 0xa0, 0x60, 0x00];
 
+    // Blinks 2 alternating LEDs using set and sideset with a big delay.
     // .program sideset
     // .side_set 1
     // set pins, 0     side 1  [15]
@@ -743,7 +755,8 @@ pub unsafe fn start() -> (
     //     0x42, 0xaf, 0x42, 0xaf, 0x42, 0xaf, 0x42, 0xaf, 0x42,
     // ];
 
-    // .program
+    // Blinks 2 alternating LEDs using set and an optional sideset.
+    // .program sidesetopt
     // .side_set 1 opt
     // set pins, 0     side 1  [7]
     // nop                     [7]
@@ -762,6 +775,7 @@ pub unsafe fn start() -> (
     //     0x42, 0xa7, 0x42, 0xa7, 0x42, 0xa7, 0x42, 0xa7, 0x42, 0x00, 0x00,
     // ];
 
+    // Ramps up the intensity of an LED using PWM.
     // .program pwm
     // .side_set 1 opt
     //     pull noblock    side 0 ; Pull from FIFO to OSR if available, else copy X to OSR.
@@ -816,28 +830,14 @@ pub unsafe fn start() -> (
     let loops = 1000;
     pio.pwm_program_init(PIONumber::PIO0, sm_number, 7, pwm_period, &custom_config);
 
-    // pio.sm_put_blocking(SMNumber::SM0, 2);
-
+    // PART OF PWM PROGRAM
     let mut level = 0;
     for _ in 1..loops {
         debug!("{}", level);
         pio.sm_put_blocking(sm_number, level);
         level = (level + 1) % pwm_period;
     }
-    // for _ in 1..100 {
-    // debug!(
-    //     "{} {} {} {}",
-    //     pio.debugger(SMNumber::SM0),
-    //     pio.read_fdebug(true, false),
-    //     pio.read_fdebug(true, true),
-    //     pio.read_dbg_padout()
-    // );
-    // pio.read_sideset_reg(SMNumber::SM0);
-    // pio.sm_put(SMNumber::SM0, 1);
-    // debug!("TXF0:{}", pio.read_txf(SMNumber::SM0));
-    // pio.sm_put(SMNumber::SM0, 1234567891);
-    // debug!("TXFULL0:{}", pio.txf_full_0());
-    // }
+
     (board_kernel, pico_explorer_base, chip)
 }
 
