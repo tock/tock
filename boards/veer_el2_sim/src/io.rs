@@ -5,7 +5,7 @@
 use core::fmt::Write;
 use core::panic::PanicInfo;
 use core::ptr::write_volatile;
-use core::str;
+use core::ptr::{addr_of, addr_of_mut};
 use kernel::debug;
 use kernel::debug::IoWrite;
 
@@ -29,7 +29,7 @@ impl IoWrite for Writer {
         for b in buf {
             // Print to a special address for simulation output
             unsafe {
-                write_volatile(0x8000_1008 as *mut u8, *b);
+                write_volatile(0xd0580000 as *mut u32, (*b) as u32);
             }
         }
         buf.len()
@@ -37,12 +37,13 @@ impl IoWrite for Writer {
 }
 
 /// Panic handler.
+///
+/// # Safety
+/// Accesses memory-mapped registers.
 #[cfg(not(test))]
 #[no_mangle]
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
-    use core::ptr::{addr_of, addr_of_mut};
-
     let writer = &mut *addr_of_mut!(WRITER);
 
     debug::panic_print(
@@ -54,9 +55,9 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
         &*addr_of!(PROCESS_PRINTER),
     );
 
-    // By writing to address 0x80001009 we can exit the simulation.
+    // By writing 0xff to this address we can exit the simulation.
     // So instead of blinking in a loop let's exit the simulation.
-    write_volatile(0x8000_1009 as *mut u8, 20);
+    write_volatile(0xd0580000 as *mut u8, 0xff);
 
     unreachable!()
 }
