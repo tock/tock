@@ -749,8 +749,7 @@ impl Pio {
 
     /// Set every config for the SET pins.
     ///
-    /// set_base => the starting location for the SET pins
-    ///
+    /// set_base => the starting location for the SET pins   
     /// set_count => the number of SET pins
     pub fn set_set_pins(&self, sm_number: SMNumber, set_base: u32, set_count: u32) {
         self.registers.sm[sm_number as usize]
@@ -763,8 +762,7 @@ impl Pio {
 
     /// Set every config for the OUT pins.
     ///
-    /// out_base => the starting location for the OUT pins
-    ///
+    /// out_base => the starting location for the OUT pins   
     /// out_count => the number of OUT pins
     pub fn set_out_pins(&self, sm_number: SMNumber, out_base: u32, out_count: u32) {
         self.registers.sm[sm_number as usize]
@@ -777,12 +775,9 @@ impl Pio {
 
     /// Setup 'in' shifting parameters.
     ///
-    ///  shift_right => true to shift ISR to right or false to shift to left
-    ///
-    ///  autopush => true to enable, false to disable
-    ///
+    ///  shift_right => true to shift ISR to right or false to shift to left   
+    ///  autopush => true to enable, false to disable   
     ///  push_threshold => threshold in bits to shift in before auto/conditional re-pushing of the ISR
-    ///
     pub fn set_in_shift(
         &self,
         sm_number: SMNumber,
@@ -803,10 +798,8 @@ impl Pio {
 
     /// Setup 'out' shifting parameters.
     ///
-    /// shift_right => `true` to shift OSR to right or false to shift to left
-    ///
-    /// autopull => true to enable, false to disable
-    ///
+    /// shift_right => `true` to shift OSR to right or false to shift to left   
+    /// autopull => true to enable, false to disable   
     /// pull_threshold => threshold in bits to shift out before auto/conditional re-pulling of the OSR
     pub fn set_out_shift(
         &self,
@@ -837,8 +830,7 @@ impl Pio {
 
     /// Set the clock divider for a state machine.
     ///
-    /// div_int => Integer part of the divisor
-    ///
+    /// div_int => Integer part of the divisor   
     /// div_frac => Fractional part in 1/256ths
     pub fn set_clkdiv_int_frac(&self, sm_number: SMNumber, div_int: u32, div_frac: u32) {
         self.registers.sm[sm_number as usize]
@@ -873,12 +865,10 @@ impl Pio {
 
     /// Set every config for the SIDESET pins.
     ///
-    /// bit_count => number of SIDESET bits per instruction - max 5
-    /// 
+    /// bit_count => number of SIDESET bits per instruction - max 5   
     /// optional   
     /// => true to use the topmost sideset bit as a flag for whether to apply side set on that instruction   
-    /// => false to use sideset with every instruction
-    /// 
+    /// => false to use sideset with every instruction   
     /// pindirs   
     /// => true to affect pin direction   
     /// => false to affect value of a pin 
@@ -896,8 +886,7 @@ impl Pio {
 
     /// Set the wrap addresses for a state machine.
     ///
-    /// wrap_target => the instruction memory address to wrap to
-    ///
+    /// wrap_target => the instruction memory address to wrap to   
     /// wrap => the instruction memory address after which the program counters wraps to the target
     pub fn set_wrap(&self, sm_number: SMNumber, wrap_target: u32, wrap: u32) {
         self.registers.sm[sm_number as usize]
@@ -910,8 +899,7 @@ impl Pio {
 
     /// Set source for 'mov status' in a state machine.
     ///
-    /// status_sel => comparison used for the `MOV x, STATUS` instruction
-    ///
+    /// status_sel => comparison used for the `MOV x, STATUS` instruction   
     /// status_n => comparison level for the `MOV x, STATUS` instruction
     pub fn set_mov_status(&self, sm_number: SMNumber, status_sel: PioMovStatusType, status_n: u32) {
         self.registers.sm[sm_number as usize]
@@ -923,13 +911,14 @@ impl Pio {
     }
 
     /// Set special OUT operations in a state machine.
-    /// ```
-    /// sticky => true to enable sticky output (rere-asserting most recent OUT/SET pin values on subsequent cycles)
-    ///        => false to disable sticky output
-    /// has_enable_pin => true to enable auxiliary OUT enable pin
-    ///                => false to disable auxiliary OUT enable pin
+    ///
+    /// sticky   
+    /// => true to enable sticky output (rere-asserting most recent OUT/SET pin values on subsequent cycles)   
+    /// => false to disable sticky output   
+    /// has_enable_pin   
+    /// => true to enable auxiliary OUT enable pin   
+    /// => false to disable auxiliary OUT enable pin   
     /// enable_pin_index => pin index for auxiliary OUT enable
-    /// ```
     pub fn set_out_special(
         &self,
         sm_number: SMNumber,
@@ -950,12 +939,12 @@ impl Pio {
 
     /// Use a state machine to set the same pin direction for multiple consecutive pins for the PIO instance.
     /// This is the pio_sm_set_consecutive_pindirs function from the pico sdk, renamed to be more clear.
-    /// ```
-    /// pin => starting pin
-    /// count => how many pins (including the base) should be changed
-    /// is_out => true to set the pin as OUT
-    ///        => false to set the pin as IN
-    /// ```
+    /// 
+    /// pin => starting pin   
+    /// count => how many pins (including the base) should be changed   
+    /// is_out   
+    /// => true to set the pin as OUT   
+    /// => false to set the pin as IN
     pub fn set_pins_out(&self, sm_number: SMNumber, mut pin: u32, mut count: u32, is_out: bool) {
         let pinctrl = self.registers.sm[sm_number as usize].pinctrl.get();
         let execctrl = self.registers.sm[sm_number as usize].execctrl.get();
@@ -1050,7 +1039,7 @@ impl Pio {
         }
     }
 
-    /// Adds a program to PIO.
+    /// Adds a program to PIO.   
     /// Call this with add_program(include_bytes!("path_to_file")).
     pub fn add_program(&self, program: &[u8]) {
         self.clear_instr_registers();
@@ -1084,8 +1073,9 @@ impl Pio {
         }
     }
 
-    /// # Examples
-    /// Used for the examples in the pico explorer base main.rs file.
+    // # Examples
+    // Used for the examples in the pico explorer base main.rs file.
+    
     pub fn blinking_hello_program_init(
         &mut self,
         pio_number: PIONumber,
@@ -1182,7 +1172,7 @@ impl Pio {
         self.sm_set_enabled(sm_number, true);
     }
 
-    /// # Debugging
+    // # Debugging
     /// Returns current instruction running on the state machine.
     pub fn read_instr(&self, sm_number: SMNumber) -> u32 {
         self.registers.sm[sm_number as usize]
