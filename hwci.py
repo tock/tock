@@ -57,7 +57,7 @@ def install_apps(apps, target):
     os.chdir("libtock-c")
     for app in apps:
         app_dir = f"examples/{app}"
-        if app == "multi_alarm":
+        if app == "multi_alarm_simple_test":
             app_dir = f"examples/tests/{app}"
         if not os.path.exists(app_dir):
             logging.error(f"App directory {app_dir} not found")
@@ -107,7 +107,7 @@ async def listen_for_output(port, test_type):
 def analyze_output(output_lines, test_type):
     if test_type == "hello_world":
         return "Hello World!" in output_lines
-    elif test_type == "multi_alarm":
+    elif test_type == "multi_alarm_simple_test":
         return analyze_multi_alarm_output(output_lines)
     else:
         logging.error(f"Unknown test type: {test_type}")
@@ -155,9 +155,9 @@ async def main():
     parser.add_argument("--port", help="Serial port to use (e.g., /dev/ttyACM0)")
     parser.add_argument(
         "--test",
-        choices=["hello_world", "multi_alarm"],
-        default="mutli_alarm",
-        help="Test to run (hello_world or multi_alarm)",
+        choices=["hello_world", "multi_alarm_simple_test"],
+        default="multi_alarm_simple_test",
+        help="Test to run (hello_world or multi_alarm_simple_test)",
     )
     parser.add_argument(
         "--target", default="cortex-m4", help="Target architecture (e.g., cortex-m4)"
