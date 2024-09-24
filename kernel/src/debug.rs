@@ -324,6 +324,7 @@ pub unsafe fn set_debug_queue(buffer: &'static mut DebugQueueWrapper) {
     DEBUG_QUEUE = Some(buffer);
 }
 
+#[flux_rs::trusted] // incompatible types
 impl Write for DebugQueueWrapper {
     fn write_str(&mut self, s: &str) -> Result {
         self.dw.map(|dw| {
@@ -346,6 +347,7 @@ pub fn debug_enqueue_fmt(args: Arguments) {
     });
 }
 
+#[flux_rs::trusted] // incompatible types
 pub fn debug_flush_queue_() {
     let writer = unsafe { get_debug_writer() };
 
@@ -454,6 +456,7 @@ impl DebugWriter {
 
     /// Write as many of the bytes from the internal_buffer to the output
     /// mechanism as possible, returning the number written.
+    #[flux_rs::trusted] // incompatible types
     fn publish_bytes(&self) -> usize {
         // Can only publish if we have the output_buffer. If we don't that is
         // fine, we will do it when the transmit done callback happens.
@@ -543,6 +546,7 @@ impl DebugWriterWrapper {
 }
 
 impl IoWrite for DebugWriterWrapper {
+    #[flux_rs::trusted] // incompatible types
     fn write(&mut self, bytes: &[u8]) -> usize {
         const FULL_MSG: &[u8] = b"\n*** DEBUG BUFFER FULL ***\n";
         self.dw.map_or(0, |dw| {
