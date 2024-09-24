@@ -6,13 +6,19 @@
 
 use crate::collections::queue;
 
+#[flux_rs::refined_by(ring_len: int, head: int, tail: int)]
+#[flux_rs::invariant(ring_len > 0)]
 pub struct RingBuffer<'a, T: 'a> {
+    #[field({&mut [T][ring_len] | ring_len > 0})]
     ring: &'a mut [T],
+    #[field({usize[head] | head < ring_len && head >= tail})]
     head: usize,
+    #[field({usize[tail] | tail < ring_len && tail <= head })]
     tail: usize,
 }
 
 impl<'a, T: Copy> RingBuffer<'a, T> {
+    #[flux_rs::sig(fn({&mut [T][@ring_len] | ring_len > 0}) -> RingBuffer<T>[ring_len, 0, 0])]
     pub fn new(ring: &'a mut [T]) -> RingBuffer<'a, T> {
         RingBuffer {
             head: 0,
@@ -21,6 +27,7 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
         }
     }
 
+    #[flux_rs::sig(fn(&RingBuffer<T>[@ring_len, @hd, @tl]) -> usize[ring_len]) ]
     fn ring_len(&self) -> usize {
         self.ring.len()
     }
@@ -60,16 +67,19 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
     }
 }
 
-#[flux_rs::trusted] // Expected array or slice type
+// #[flux_rs::trusted] // Expected array or slice type
 impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
+    #[flux_rs::sig(fn(&RingBuffer<T>[@ring_len, @hd, @tl]) -> bool[hd != tl]) ]
     fn has_elements(&self) -> bool {
         self.head != self.tail
     }
 
+    #[flux_rs::sig(fn(&RingBuffer<T>[@ring_len, @hd, @tl]) -> bool[hd == (tl + 1) % ring_len])]
     fn is_full(&self) -> bool {
         self.head == ((self.tail + 1) % self.ring_len())
     }
 
+    #[flux_rs::sig(fn(&RingBuffer<T>[@ring_len, @hd, @tl]) -> usize)]
     fn len(&self) -> usize {
         if self.tail > self.head {
             self.tail - self.head
@@ -81,6 +91,7 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
         }
     }
 
+    #[flux_rs::sig(fn(&mut RingBuffer<T>[@ring_len, @hd, @tl], _) -> bool)]
     fn enqueue(&mut self, val: T) -> bool {
         if self.is_full() {
             // Incrementing tail will overwrite head
@@ -92,6 +103,7 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
         }
     }
 
+    #[flux_rs::sig(fn(&mut RingBuffer<T>[@ring_len, @hd, @tl], _) -> Option<T>)]
     fn push(&mut self, val: T) -> Option<T> {
         let result = if self.is_full() {
             let val = self.ring[self.head];
@@ -106,6 +118,7 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
         result
     }
 
+    #[flux_rs::sig(fn(&mut RingBuffer<T>[@ring_len, @hd, @tl]) -> Option<T>)]
     fn dequeue(&mut self) -> Option<T> {
         if self.has_elements() {
             let val = self.ring[self.head];
