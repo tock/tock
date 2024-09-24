@@ -55,7 +55,6 @@ def install_apps(apps, target):
         run_command("git clone https://github.com/tock/libtock-c")
 
     os.chdir("libtock-c")
-    run_command("git checkout multi_alarm")
     for app in apps:
         app_dir = f"examples/{app}"
         if app == "multi_alarm":
