@@ -189,3 +189,6 @@ jobs:
           unset RUSTFLAGS
           make
           popd
+
+      # TODO: this job runs on the Treadmill host, with access to the target
+      # board. Add additional test & testing scripts.
