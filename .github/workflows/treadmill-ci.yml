@@ -86,16 +86,18 @@ jobs:
           DUT_BOARD: nrf52840dk
 
           # A Ubuntu 22.04 image with a GitHub Actions self-hosted runner pre-configured:
-          IMAGE_ID: d407b09b9f56c666d0d3350890e364ba16aad08b484f4ca1de19d42569cc79b1
+          IMAGE_ID: 489d1b9f677856e415b87c6ffa3312b567de437b75a462a0253cf359a0bd51e9
         run: |
-          TREADMILL_DUT_BOARD="nrf52840dk"
-
           # When we eventually launch tests on multiple hardware platforms in
           # parallel, we need to supply different SUB_TEST_IDs here:
           SUB_TEST_ID="0"
 
+          # This runner ID uniquely identifies the GitHub Actions runner we're
+          # registering and allows us to launch test-execute jobs on this exact
+          # runner (connected to the exact board we want to run tests on).
           RUNNER_ID="tml-gh-actions-runner-${GITHUB_REPOSITORY_ID}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${SUB_TEST_ID}"
 
+          # Obtain a new just-in-time runner registration token:
           RUNNER_CONFIG_JSON="$(gh api \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
@@ -106,8 +108,21 @@ jobs:
             -f "work_folder=_work")"
           echo "Generated configuration for runner $(echo "$RUNNER_CONFIG_JSON" | jq -r '.runner.name')"
 
+          # Generate a set of job paramters that includes the GitHub runner
+          # registration token and a script that shuts down the host once the
+          # runner has run through successfully:
+          TML_JOB_PARAMETERS="{\
+            \"gh-actions-runner-encoded-jit-config\": {\
+              \"secret\": true, \
+              \"value\": \"$(echo "$RUNNER_CONFIG_JSON" | jq -r '.encoded_jit_config')\" \
+            }, \
+            \"gh-actions-runner-exec-stop-post-sh\": {\
+              \"secret\": false, \
+              \"value\": \"if [ \\\"\$SERVICE_RESULT\\\" = \\\"success\\\" ]; then systemctl poweroff; fi\" \
+            }\
+          }"
+
           echo "Enqueueing treadmill job:"
-          TML_JOB_PARAMETERS="{\"gh-actions-runner-encoded-jit-config\": {\"secret\": true, \"value\": \"$(echo "$RUNNER_CONFIG_JSON" | jq -r '.encoded_jit_config')\"}}"
           TML_JOB_ID_JSON="$(tml job enqueue \
             "$IMAGE_ID" \
             --tag-config "board:$DUT_BOARD" \
@@ -161,54 +176,3 @@ jobs:
           unset RUSTFLAGS
           make
           popd
-
-  # TODO: remove once jobs are automatically terminated when the QEMU
-  # process exits...
-  test-terminate:
-    needs:
-      - test-prepare
-      - test-execute
-
-    # This provides access to the secrets required below:
-    # - for `treadmill-ci`: after approval by certain persons or GH teams
-    # - for `treadmill-ci-merged`: without approval, on merge queue branches
-    #   and the master branch
-    #
-    # KEEP IN SYNC WITH `on:` EVENTS ABOVE:
-    environment: ${{ github.event_name == 'pull_request' && 'treadmill-ci' || 'treadmill-ci-merged' }}
-
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-
-      - name: Checkout Treadmill repository
-        uses: actions/checkout@v4
-        with:
-          repository: treadmill-tb/treadmill
-          path: treadmill
-
-      - name: Cache Treadmill CLI compilation artifacts
-        id: cache-tml-cli
-        uses: actions/cache@v4
-        with:
-          path: treadmill/target
-          key: ${{ runner.os }}-tml-cli
-
-      - name: Compile the Treadmill CLI binary
-        run: |
-          pushd treadmill
-          cargo build --package tml-cli
-          popd
-          echo "$PWD/treadmill/target/debug" >> "$GITHUB_PATH"
-
-      - name: Cancel Treadmill jobs
-        env:
-          TML_API_TOKEN: ${{ secrets.TREADMILL_API_TOKEN }}
-        run: |
-          echo '${{ needs.test-prepare.outputs.tml-job-ids }}' \
-            | jq -rc '.[]' \
-            | while read JOB_ID; do
-              echo "Canceling job ID $JOB_ID..."
-              tml job cancel "$JOB_ID"
-            done
