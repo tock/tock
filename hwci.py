@@ -165,6 +165,8 @@ async def main():
     )
     args = parser.parse_args()
 
+    logging.info(f"Running test: {args.test}")
+
     try:
         flash_kernel()
 
