@@ -741,7 +741,7 @@ impl Pio {
     /// Set every config for the IN pins.
     ///
     /// in_base => the starting location for the input pins
-    fn set_in_pins(&self, sm_number: SMNumber, in_base: u32) {
+    pub fn set_in_pins(&self, sm_number: SMNumber, in_base: u32) {
         self.registers.sm[sm_number as usize]
             .pinctrl
             .modify(SMx_PINCTRL::IN_BASE.val(in_base));
@@ -752,7 +752,7 @@ impl Pio {
     /// set_base => the starting location for the SET pins
     ///
     /// set_count => the number of SET pins
-    fn set_set_pins(&self, sm_number: SMNumber, set_base: u32, set_count: u32) {
+    pub fn set_set_pins(&self, sm_number: SMNumber, set_base: u32, set_count: u32) {
         self.registers.sm[sm_number as usize]
             .pinctrl
             .modify(SMx_PINCTRL::SET_BASE.val(set_base));
@@ -766,7 +766,7 @@ impl Pio {
     /// out_base => the starting location for the OUT pins
     ///
     /// out_count => the number of OUT pins
-    fn set_out_pins(&self, sm_number: SMNumber, out_base: u32, out_count: u32) {
+    pub fn set_out_pins(&self, sm_number: SMNumber, out_base: u32, out_count: u32) {
         self.registers.sm[sm_number as usize]
             .pinctrl
             .modify(SMx_PINCTRL::OUT_BASE.val(out_base));
@@ -783,7 +783,7 @@ impl Pio {
     ///
     ///  push_threshold => threshold in bits to shift in before auto/conditional re-pushing of the ISR
     ///
-    fn set_in_shift(
+    pub fn set_in_shift(
         &self,
         sm_number: SMNumber,
         shift_right: bool,
@@ -808,7 +808,7 @@ impl Pio {
     /// autopull => true to enable, false to disable
     ///
     /// pull_threshold => threshold in bits to shift out before auto/conditional re-pulling of the OSR
-    fn set_out_shift(
+    pub fn set_out_shift(
         &self,
         sm_number: SMNumber,
         shift_right: bool,
@@ -829,7 +829,7 @@ impl Pio {
     /// Set the 'jmp' pin.
     ///
     /// pin => the raw GPIO pin number to use as the source for a jmp pin instruction
-    fn set_jmp_pin(&self, sm_number: SMNumber, pin: u32) {
+    pub fn set_jmp_pin(&self, sm_number: SMNumber, pin: u32) {
         self.registers.sm[sm_number as usize]
             .execctrl
             .modify(SMx_EXECCTRL::JMP_PIN.val(pin));
@@ -840,7 +840,7 @@ impl Pio {
     /// div_int => Integer part of the divisor
     ///
     /// div_frac => Fractional part in 1/256ths
-    fn set_clkdiv_int_frac(&self, sm_number: SMNumber, div_int: u32, div_frac: u32) {
+    pub fn set_clkdiv_int_frac(&self, sm_number: SMNumber, div_int: u32, div_frac: u32) {
         self.registers.sm[sm_number as usize]
             .clkdiv
             .modify(SMx_CLKDIV::INT.val(div_int));
@@ -852,7 +852,7 @@ impl Pio {
     /// Setup the FIFO joining in a state machine.
     ///
     /// fifo_join => specifies the join type - see the `PioFifoJoin` type
-    fn set_fifo_join(&self, sm_number: SMNumber, fifo_join: PioFifoJoin) {
+    pub fn set_fifo_join(&self, sm_number: SMNumber, fifo_join: PioFifoJoin) {
         if fifo_join == PioFifoJoin::PioFifoJoinRx {
             self.registers.sm[sm_number as usize]
                 .shiftctrl
@@ -865,7 +865,7 @@ impl Pio {
     }
 
     /// Set the starting location for the sideset pins.
-    fn set_side_set_pins(&self, sm_number: SMNumber, sideset_base: u32) {
+    pub fn set_side_set_pins(&self, sm_number: SMNumber, sideset_base: u32) {
         self.registers.sm[sm_number as usize]
             .pinctrl
             .modify(SMx_PINCTRL::SIDESET_BASE.val(sideset_base));
@@ -882,7 +882,7 @@ impl Pio {
     /// pindirs   
     /// => true to affect pin direction   
     /// => false to affect value of a pin 
-    fn set_side_set(&self, sm_number: SMNumber, bit_count: u32, optional: bool, pindirs: bool) {
+    pub fn set_side_set(&self, sm_number: SMNumber, bit_count: u32, optional: bool, pindirs: bool) {
         self.registers.sm[sm_number as usize]
             .pinctrl
             .modify(SMx_PINCTRL::SIDESET_COUNT.val(bit_count));
@@ -899,7 +899,7 @@ impl Pio {
     /// wrap_target => the instruction memory address to wrap to
     ///
     /// wrap => the instruction memory address after which the program counters wraps to the target
-    fn set_wrap(&self, sm_number: SMNumber, wrap_target: u32, wrap: u32) {
+    pub fn set_wrap(&self, sm_number: SMNumber, wrap_target: u32, wrap: u32) {
         self.registers.sm[sm_number as usize]
             .execctrl
             .modify(SMx_EXECCTRL::WRAP_BOTTOM.val(wrap_target));
@@ -913,7 +913,7 @@ impl Pio {
     /// status_sel => comparison used for the `MOV x, STATUS` instruction
     ///
     /// status_n => comparison level for the `MOV x, STATUS` instruction
-    fn set_mov_status(&self, sm_number: SMNumber, status_sel: PioMovStatusType, status_n: u32) {
+    pub fn set_mov_status(&self, sm_number: SMNumber, status_sel: PioMovStatusType, status_n: u32) {
         self.registers.sm[sm_number as usize]
             .execctrl
             .modify(SMx_EXECCTRL::STATUS_SEL.val(status_sel as u32));
@@ -930,7 +930,7 @@ impl Pio {
     ///                => false to disable auxiliary OUT enable pin
     /// enable_pin_index => pin index for auxiliary OUT enable
     /// ```
-    fn set_out_special(
+    pub fn set_out_special(
         &self,
         sm_number: SMNumber,
         sticky: bool,
@@ -956,7 +956,7 @@ impl Pio {
     /// is_out => true to set the pin as OUT
     ///        => false to set the pin as IN
     /// ```
-    fn set_pins_out(&self, sm_number: SMNumber, mut pin: u32, mut count: u32, is_out: bool) {
+    pub fn set_pins_out(&self, sm_number: SMNumber, mut pin: u32, mut count: u32, is_out: bool) {
         let pinctrl = self.registers.sm[sm_number as usize].pinctrl.get();
         let execctrl = self.registers.sm[sm_number as usize].execctrl.get();
         self.registers.sm[sm_number as usize]
@@ -995,7 +995,7 @@ impl Pio {
     }
 
     /// Immediately execute an instruction on a state machine.
-    fn sm_exec(&self, sm_number: SMNumber, instr: u32) {
+    pub fn sm_exec(&self, sm_number: SMNumber, instr: u32) {
         self.registers.sm[sm_number as usize]
             .instr
             .modify(SMx_INSTR::INSTR.val(instr));
@@ -1028,7 +1028,7 @@ impl Pio {
     }
 
     /// Clear a state machine’s TX and RX FIFOs.
-    fn sm_clear_fifos(&self, sm_number: SMNumber) {
+    pub fn sm_clear_fifos(&self, sm_number: SMNumber) {
         // XOR Reg
         self.xor_registers.sm[sm_number as usize]
             .shiftctrl
@@ -1068,7 +1068,7 @@ impl Pio {
     }
 
     /// Clears all of a PIO instance's instruction memory.
-    fn clear_instr_registers(&self) {
+    pub fn clear_instr_registers(&self) {
         for i in 0..31 {
             self.registers.instr_mem[i]
                 .instr_mem
