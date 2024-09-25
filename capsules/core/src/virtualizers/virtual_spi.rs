@@ -9,7 +9,8 @@ use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::hil::spi::SpiMasterClient;
-use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::cells::{MapCell, OptionalCell};
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
 
 /// The Mux struct manages multiple Spi clients. Each client may have
@@ -24,10 +25,9 @@ pub struct MuxSpiMaster<'a, Spi: hil::spi::SpiMaster<'a>> {
 impl<'a, Spi: hil::spi::SpiMaster<'a>> hil::spi::SpiMasterClient for MuxSpiMaster<'a, Spi> {
     fn read_write_done(
         &self,
-        write_buffer: &'static mut [u8],
-        read_buffer: Option<&'static mut [u8]>,
-        len: usize,
-        status: Result<(), ErrorCode>,
+        write_buffer: SubSliceMut<'static, u8>,
+        read_buffer: Option<SubSliceMut<'static, u8>>,
+        status: Result<usize, ErrorCode>,
     ) {
         let dev = self.inflight.take();
         // Need to do next op before signaling so we get some kind of
@@ -36,7 +36,7 @@ impl<'a, Spi: hil::spi::SpiMaster<'a>> hil::spi::SpiMasterClient for MuxSpiMaste
         // -pal 7/30/21
         self.do_next_op();
         dev.map(move |device| {
-            device.read_write_done(write_buffer, read_buffer, len, status);
+            device.read_write_done(write_buffer, read_buffer, status);
         });
     }
 }
@@ -66,7 +66,7 @@ impl<'a, Spi: hil::spi::SpiMaster<'a>> MuxSpiMaster<'a, Spi> {
                 // Need to set idle here in case callback changes state
                 node.operation.set(Op::Idle);
                 match op {
-                    Op::ReadWriteBytes(len) => {
+                    Op::ReadWriteBytes => {
                         // Only async operations want to block by setting
                         // the devices as inflight.
                         self.inflight.set(node);
@@ -76,28 +76,27 @@ impl<'a, Spi: hil::spi::SpiMaster<'a>> MuxSpiMaster<'a, Spi> {
                             let phaseresult = self.spi.set_phase(configuration.phase);
                             if rresult.is_err() || polresult.is_err() || phaseresult.is_err() {
                                 node.txbuffer.replace(txbuffer);
-                                node.operation
-                                    .set(Op::ReadWriteDone(Err(ErrorCode::INVAL), len));
+                                node.operation.set(Op::ReadWriteDone(Err(ErrorCode::INVAL)));
                                 self.do_next_op_async();
                             } else {
                                 let rxbuffer = node.rxbuffer.take();
                                 if let Err((e, write_buffer, read_buffer)) =
-                                    self.spi.read_write_bytes(txbuffer, rxbuffer, len)
+                                    self.spi.read_write_bytes(txbuffer, rxbuffer)
                                 {
                                     node.txbuffer.replace(write_buffer);
                                     read_buffer.map(|buffer| {
                                         node.rxbuffer.replace(buffer);
                                     });
-                                    node.operation.set(Op::ReadWriteDone(Err(e), len));
+                                    node.operation.set(Op::ReadWriteDone(Err(e)));
                                     self.do_next_op_async();
                                 }
                             }
                         });
                     }
-                    Op::ReadWriteDone(status, len) => {
+                    Op::ReadWriteDone(status) => {
                         node.txbuffer.take().map(|write_buffer| {
                             let read_buffer = node.rxbuffer.take();
-                            self.read_write_done(write_buffer, read_buffer, len, status);
+                            self.read_write_done(write_buffer, read_buffer, status);
                         });
                     }
                     Op::Idle => {} // Can't get here...
@@ -107,10 +106,10 @@ impl<'a, Spi: hil::spi::SpiMaster<'a>> MuxSpiMaster<'a, Spi> {
             self.inflight.map(|node| {
                 match node.operation.get() {
                     // we have to report an error
-                    Op::ReadWriteDone(status, len) => {
+                    Op::ReadWriteDone(status) => {
                         node.txbuffer.take().map(|write_buffer| {
                             let read_buffer = node.rxbuffer.take();
-                            self.read_write_done(write_buffer, read_buffer, len, status);
+                            self.read_write_done(write_buffer, read_buffer, status);
                         });
                     }
                     _ => {} // Something is really in flight
@@ -144,8 +143,8 @@ impl<'a, Spi: hil::spi::SpiMaster<'a>> DeferredCallClient for MuxSpiMaster<'a, S
 #[derive(Copy, Clone, PartialEq)]
 enum Op {
     Idle,
-    ReadWriteBytes(usize),
-    ReadWriteDone(Result<(), ErrorCode>, usize),
+    ReadWriteBytes,
+    ReadWriteDone(Result<usize, ErrorCode>),
 }
 
 // Structure used to store the SPI configuration of a client/virtual device,
@@ -170,8 +169,8 @@ impl<'a, Spi: hil::spi::SpiMaster<'a>> Clone for SpiConfiguration<'a, Spi> {
 pub struct VirtualSpiMasterDevice<'a, Spi: hil::spi::SpiMaster<'a>> {
     mux: &'a MuxSpiMaster<'a, Spi>,
     configuration: Cell<SpiConfiguration<'a, Spi>>,
-    txbuffer: TakeCell<'static, [u8]>,
-    rxbuffer: TakeCell<'static, [u8]>,
+    txbuffer: MapCell<SubSliceMut<'static, u8>>,
+    rxbuffer: MapCell<SubSliceMut<'static, u8>>,
     operation: Cell<Op>,
     next: ListLink<'a, VirtualSpiMasterDevice<'a, Spi>>,
     client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
@@ -190,8 +189,8 @@ impl<'a, Spi: hil::spi::SpiMaster<'a>> VirtualSpiMasterDevice<'a, Spi> {
                 phase: hil::spi::ClockPhase::SampleLeading,
                 rate: 100_000,
             }),
-            txbuffer: TakeCell::empty(),
-            rxbuffer: TakeCell::empty(),
+            txbuffer: MapCell::empty(),
+            rxbuffer: MapCell::empty(),
             operation: Cell::new(Op::Idle),
             next: ListLink::empty(),
             client: OptionalCell::empty(),
@@ -209,13 +208,12 @@ impl<'a, Spi: hil::spi::SpiMaster<'a>> hil::spi::SpiMasterClient
 {
     fn read_write_done(
         &self,
-        write_buffer: &'static mut [u8],
-        read_buffer: Option<&'static mut [u8]>,
-        len: usize,
-        status: Result<(), ErrorCode>,
+        write_buffer: SubSliceMut<'static, u8>,
+        read_buffer: Option<SubSliceMut<'static, u8>>,
+        status: Result<usize, ErrorCode>,
     ) {
         self.client.map(move |client| {
-            client.read_write_done(write_buffer, read_buffer, len, status);
+            client.read_write_done(write_buffer, read_buffer, status);
         });
     }
 }
@@ -255,14 +253,22 @@ impl<'a, Spi: hil::spi::SpiMaster<'a>> hil::spi::SpiMasterDevice<'a>
 
     fn read_write_bytes(
         &self,
-        write_buffer: &'static mut [u8],
-        read_buffer: Option<&'static mut [u8]>,
-        len: usize,
-    ) -> Result<(), (ErrorCode, &'static mut [u8], Option<&'static mut [u8]>)> {
+        write_buffer: SubSliceMut<'static, u8>,
+        mut read_buffer: Option<SubSliceMut<'static, u8>>,
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            SubSliceMut<'static, u8>,
+            Option<SubSliceMut<'static, u8>>,
+        ),
+    > {
         if self.operation.get() == Op::Idle {
             self.txbuffer.replace(write_buffer);
-            self.rxbuffer.put(read_buffer);
-            self.operation.set(Op::ReadWriteBytes(len));
+            if let Some(rb) = read_buffer.take() {
+                self.rxbuffer.put(rb);
+            }
+            self.operation.set(Op::ReadWriteBytes);
             self.mux.do_next_op();
             Ok(())
         } else {

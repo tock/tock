@@ -5,7 +5,8 @@
 use core::fmt::Debug;
 
 use kernel::platform::chip::ClockInterface;
-use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::cells::{MapCell, OptionalCell};
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
@@ -782,7 +783,7 @@ pub enum TransferMode {
 pub struct Stream<'a, DMA: StreamServer<'a>> {
     streamid: StreamId,
     client: OptionalCell<&'a dyn StreamClient<'a, DMA>>,
-    buffer: TakeCell<'static, [u8]>,
+    buffer: MapCell<SubSliceMut<'static, u8>>,
     peripheral: OptionalCell<DMA::Peripheral>,
     dma: &'a DMA,
 }
@@ -791,7 +792,7 @@ impl<'a, DMA: StreamServer<'a>> Stream<'a, DMA> {
     fn new(streamid: StreamId, dma: &'a DMA) -> Self {
         Self {
             streamid,
-            buffer: TakeCell::empty(),
+            buffer: MapCell::empty(),
             client: OptionalCell::empty(),
             peripheral: OptionalCell::empty(),
             dma,
@@ -841,7 +842,7 @@ impl<'a, DMA: StreamServer<'a>> Stream<'a, DMA> {
         self.set_data_width_for_peripheral();
     }
 
-    pub fn do_transfer(&self, buf: &'static mut [u8], len: usize) {
+    pub fn do_transfer(&self, mut buf: SubSliceMut<'static, u8>) {
         self.disable_interrupt();
 
         // The numbers below are from Section 1.2 of AN4031
@@ -854,9 +855,9 @@ impl<'a, DMA: StreamServer<'a>> Stream<'a, DMA> {
         // 2
         self.set_peripheral_address();
         // 3
-        self.set_memory_address(core::ptr::from_ref::<u8>(&buf[0]) as u32);
+        self.set_memory_address(buf.as_mut_ptr() as u32);
         // 4
-        self.set_data_items(len as u32);
+        self.set_data_items(buf.len() as u32);
         // 5
         self.set_channel();
         // 9
@@ -871,7 +872,7 @@ impl<'a, DMA: StreamServer<'a>> Stream<'a, DMA> {
         self.buffer.replace(buf);
     }
 
-    pub fn abort_transfer(&self) -> (Option<&'static mut [u8]>, u32) {
+    pub fn abort_transfer(&self) -> (Option<SubSliceMut<'static, u8>>, u32) {
         self.disable_interrupt();
 
         self.disable();
@@ -879,7 +880,7 @@ impl<'a, DMA: StreamServer<'a>> Stream<'a, DMA> {
         (self.buffer.take(), self.get_data_items())
     }
 
-    pub fn return_buffer(&self) -> Option<&'static mut [u8]> {
+    pub fn return_buffer(&self) -> Option<SubSliceMut<'static, u8>> {
         self.buffer.take()
     }
 

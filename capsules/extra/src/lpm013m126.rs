@@ -33,21 +33,18 @@ use kernel::ErrorCode;
 /// 176 * 2 + 2 = 354 bytes.
 pub const BUF_LEN: usize = 3872 + 354;
 
-/// Best Tock can do, sadly.
-/// Would be better to have it offset.
-type SubmitBuffer<'a> = &'a mut [u8];
-
 /// Arranges frame data in a buffer
 /// whose portions can be sent directly to the device.
 struct FrameBuffer<'a> {
-    data: &'a mut [u8],
+    data: SubSliceMut<'a, u8>,
 }
 
 impl<'a> FrameBuffer<'a> {
     /// Turns a regular buffer (back) into a FrameBuffer.
     /// If the buffer is fresh, and the display is initialized,
     /// this *MUST* be initialized after the call to `new`.
-    fn new(frame_buffer: &'a mut [u8]) -> Self {
+    fn new(mut frame_buffer: SubSliceMut<'a, u8>) -> Self {
+        frame_buffer.reset();
         Self { data: frame_buffer }
     }
 
@@ -98,7 +95,7 @@ impl<'a> FrameBuffer<'a> {
         frame_buffer: FrameBuffer<'static>,
         _start: u16,
         _end: u16,
-    ) -> SubmitBuffer<'static> {
+    ) -> SubSliceMut<'static, u8> {
         // HILs typically can't use offsets :/
         // Best we can do is limit length (TODO)
         frame_buffer.data
@@ -225,7 +222,7 @@ where
                 write_complete_callback: DeferredCall::new(),
                 write_complete_callback_handler: WriteCompleteCallbackHandler::new(),
                 write_complete_pending_call: OptionalCell::empty(),
-                frame_buffer: OptionalCell::new(FrameBuffer::new(frame_buffer)),
+                frame_buffer: OptionalCell::new(FrameBuffer::new(frame_buffer.into())),
                 buffer: TakeCell::empty(),
                 client: OptionalCell::empty(),
                 state: Cell::new(State::Uninitialized),
@@ -287,10 +284,11 @@ where
                             }
                             .encode(),
                         );
-                        let l = FrameBuffer::with_raw_rows(frame_buffer, 0, 1);
+                        let mut l = FrameBuffer::with_raw_rows(frame_buffer, 0, 1);
+                        l.slice(0..2);
                         let res = self.spi.read_write_bytes(
                             l, //FrameBuffer::with_raw_rows(frame_buffer, 0, 1),
-                            None, 2,
+                            None,
                         );
 
                         let (res, new_state) = match res {
@@ -447,7 +445,7 @@ where
                             frame.row + frame.height,
                         );
 
-                        let sent = self.spi.read_write_bytes(send_buf, None, send_buf.len());
+                        let sent = self.spi.read_write_bytes(send_buf, None);
                         let (ret, new_state) = match sent {
                             Ok(()) => (Ok(()), State::Writing(frame)),
                             Err((e, buf, _)) => {
@@ -562,10 +560,9 @@ where
 impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> SpiMasterClient for Lpm013m126<'a, A, P, S> {
     fn read_write_done(
         &self,
-        write_buffer: SubmitBuffer<'static>,
-        _read_buffer: Option<&'static mut [u8]>,
-        _len: usize,
-        status: Result<(), ErrorCode>,
+        write_buffer: SubSliceMut<'static, u8>,
+        _read_buffer: Option<SubSliceMut<'static, u8>>,
+        status: Result<usize, ErrorCode>,
     ) {
         self.frame_buffer.replace(FrameBuffer::new(write_buffer));
         self.state.set(match self.state.get() {
@@ -595,7 +592,7 @@ impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> SpiMasterClient for Lpm01
         self.client.map(|client| {
             self.buffer.take().map(|buf| {
                 let data = SubSliceMut::new(buf);
-                client.write_complete(data, status)
+                client.write_complete(data, status.map(|_| ()))
             })
         });
     }
