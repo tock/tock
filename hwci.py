@@ -86,14 +86,17 @@ async def listen_for_output(port, test_type):
     )
 
     output_lines = []
+    logging.info("Listening for output")
     try:
         while True:
             line = await process.stdout.readline()
+            logging.info(f"Received line: {line}")
             if not line:
                 break
+            if line == b"hello_world!\n":
+                logging.info("Test passed")
+                break
             line = line.decode().strip()
-            print(f"Raw output: {line}")
-            logging.debug(f"Received line: {line}")
             output_lines.append(line)
     except asyncio.TimeoutError:
         logging.error("Test timed out")
@@ -196,7 +199,6 @@ async def main():
         install_apps(apps, args.target)
 
         try:
-            test_result = await asyncio.wait_for(listen_task, timeout=600)
             if test_result:
                 logging.info("Test completed successfully")
             else:
