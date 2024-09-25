@@ -192,7 +192,7 @@ async def main():
             logging.error(f"Unknown test type: {args.test}")
             return
 
-        listen_task = asyncio.create_task(listen_for_output(port, args.test))
+        test_result = asyncio.create_task(listen_for_output(port, args.test))
 
         await asyncio.sleep(1)
 
