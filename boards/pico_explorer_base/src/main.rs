@@ -20,6 +20,7 @@ use components::led::LedsComponent;
 use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
 use kernel::hil::led::LedHigh;
+use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{capabilities, create_capability, static_init, Kernel};
@@ -390,8 +391,8 @@ pub unsafe fn start() -> (
     components::debug_writer::DebugWriterComponent::new(uart_mux)
         .finalize(components::debug_writer_component_static!());
 
-    // cdc.enable();
-    // cdc.attach();
+    cdc.enable();
+    cdc.attach();
 
     let gpio = GpioComponent::new(
         board_kernel,
