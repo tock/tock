@@ -6,6 +6,8 @@
 
 use crate::collections::queue;
 
+
+
 #[flux_rs::refined_by(ring_len: int, head: int, tail: int)]
 #[flux_rs::invariant(ring_len > 0)]
 pub struct RingBuffer<'a, T: 'a> {
@@ -16,6 +18,15 @@ pub struct RingBuffer<'a, T: 'a> {
     #[field({usize[tail] | tail < ring_len})]
     tail: usize,
 }
+
+flux_rs::defs! {
+    fn rb_next(x:int, ring_len: int) -> int { (x + 1) % ring_len }
+    // VTOCK_TODO: ask nico why we need full crate path again
+    fn full(rb: crate::collections::ring_buffer::RingBuffer) -> bool { rb.head == rb_next(rb.tail, rb.ring_len) }
+    fn next_hd(rb: crate::collections::ring_buffer::RingBuffer) -> int { rb_next(rb.head, rb.ring_len) }
+    fn next_tl(rb: crate::collections::ring_buffer::RingBuffer) -> int { rb_next(rb.tail, rb.ring_len) }
+}
+
 
 impl<'a, T: Copy> RingBuffer<'a, T> {
     #[flux_rs::sig(fn({&mut [T][@ring_len] | ring_len > 0}) -> RingBuffer<T>[ring_len, 0, 0])]
@@ -73,7 +84,7 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
         self.head != self.tail
     }
 
-    #[flux_rs::sig(fn(&RingBuffer<T>[@ring_len, @hd, @tl]) -> bool[hd == (tl + 1) % ring_len]) ]
+    #[flux_rs::sig(fn(&RingBuffer<T>[@ring_len, @hd, @tl]) -> bool[hd == rb_next(tl, ring_len)]) ]
     fn is_full(&self) -> bool {
         self.head == ((self.tail + 1) % self.ring_len())
     }
@@ -99,12 +110,12 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
                 && 
                 (
                     // either we're full and don't update
-                    // hd == (tl + 1) % ring_len -> rg.tail == tl && rg.head == hd
-                    (hd != (tl + 1) % ring_len || rg.tail == tl && rg.head == hd)
+                    // hd == rb_next(tl, ring_len) -> rg.tail == tl && rg.head == hd
+                    (hd != rb_next(tl, ring_len) || rg.tail == tl && rg.head == hd)
                     ||
                     // or we updated which means the new value of tail is (tl + 1) % r
-                    // hd != (tl + 1) % ring_len -> rg.tail = (tl + 1) % ring_len
-                    (hd == (tl + 1) % ring_len || rg.tail == (tl + 1) % ring_len)
+                    // hd != rb_next(tl, ring_len) -> rg.tail = rb_next(tl, ring_len)
+                    (hd == rb_next(tl, ring_len) || rg.tail == rb_next(tl, ring_len))
                 )
             }
     )]
@@ -126,21 +137,18 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
     }
 
     #[flux_rs::sig(
-        fn(self: &strg RingBuffer<T>[@ring_len, @hd, @tl], _) -> Option<T> 
+        fn(self: &strg RingBuffer<T>[@old], _) -> Option<T> 
             ensures self: RingBuffer<T>{ rg: 
                 // if this is the case then we've overlapped and will overwrite a space
                 // that hasn't been read
                 rg.head != rg.tail
                 && 
-                (
-                    // either the buffer is full so we dequeue and then enqueue 
-                    // or we have space so we just enqueue
-                    // hd == (tl + 1) % ring_len -> (rg.head == (hd + 1) % ring_len && rg.tail == (tl + 1) % ring_len)
-                    (hd != (tl + 1) % ring_len || (rg.head == (hd + 1) % ring_len && rg.tail == (tl + 1) % ring_len))
-                    ||
-                    // hd != (tl + 1) % ring_len -> (rg.tail == (tl + 1) % ring_len && rg.head == hd)
-                    (hd == (tl + 1) % ring_len || (rg.tail == (tl + 1) % ring_len && rg.head == hd))
-                )
+                // either the buffer is full so we dequeue and then enqueue 
+                (full(old) => (rg.head == next_hd(old) && rg.tail == next_tl(old)))
+                &&
+                // or we have space so we just enqueue
+                (!full(old) => (rg.tail == next_tl(old) && rg.head == old.head))
+                
             }
     )]
     fn push(&mut self, val: T) -> Option<T> {
@@ -167,8 +175,8 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
                     // hd == tl -> (rg.head == hd && rg.tail == tl && rg.head == rg.tail)
                     (hd != tl || (rg.head == hd && rg.tail == tl && rg.head == rg.tail))
                     ||
-                    // hd != tl -> (rg.head == (hd + 1) % ring_len)
-                    (hd == tl || rg.head == (hd + 1) % ring_len)
+                    // hd != tl -> (rg.head == rb_next(tl, ring_len))
+                    (hd == tl || rg.head == rb_next(hd, ring_len))
              }
     )]
     fn dequeue(&mut self) -> Option<T> {
