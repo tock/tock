@@ -78,74 +78,60 @@ def get_serial_ports():
     return list(serial.tools.list_ports.comports())
 
 
-import asyncio
-import logging
-
-
-async def listen_for_output(port, test_type, timeout=60):
+async def listen_for_output(command, search_text="Hello World!", timeout=60):
     process = await asyncio.create_subprocess_shell(
-        f"tockloader listen",
+        command,
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
 
-    output_lines = []
-    logging.info("Listening for output")
-
-    expected_output = get_expected_output(test_type)
+    logging.info(f"Listening for output from command: {command}")
 
     try:
-        async with asyncio.timeout(timeout):
+        if process.stdin:
+            process.stdin.write(b"0\n")
+            await process.stdin.drain()
+            process.stdin.close()
+
+        async def read_stream(stream, name):
+            found = False
             while True:
-                line = await process.stdout.readline()
+                line = await stream.readline()
                 if not line:
-                    break
-                line = line.decode().strip()
-                logging.info(f"Received line: {line}")
-
-                if "Which option?" in line:
-                    # Select port 0
-                    process.stdin.write(b"0\n")
-                    await process.stdin.drain()
-                    logging.info("Automatically selected port 0")
-                else:
-                    output_lines.append(line)
-
-                if expected_output in line:
-                    logging.info(f"Expected output '{expected_output}' found. Exiting.")
+                    break  # EOF
+                decoded_line = line.decode().strip()
+                logging.info(f"{name}: {decoded_line}")
+                if search_text in decoded_line:
                     return True
+            return False
+
+        stdout_task = asyncio.create_task(read_stream(process.stdout, "STDOUT"))
+        stderr_task = asyncio.create_task(read_stream(process.stderr, "STDERR"))
+
+        done, pending = await asyncio.wait(
+            [stdout_task, stderr_task],
+            timeout=timeout,
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+
+        if done:
+            for task in done:
+                if task.result():
+                    logging.info(f"Found '{search_text}' in output")
+                    break
+            else:
+                logging.error(f"'{search_text}' not found in output")
+        else:
+            logging.error(f"Timeout expired after {timeout} seconds")
 
     except asyncio.TimeoutError:
-        logging.error(f"Test timed out after {timeout} seconds")
-        return False
+        logging.error(f"Timeout expired after {timeout} seconds")
     finally:
-        process.terminate()
+        for task in pending:
+            task.cancel()
+        process.kill()
         await process.wait()
-
-    logging.error("Process ended without finding expected output")
-    return False
-
-
-def get_expected_output(test_type):
-    if test_type == "hello_world":
-        return "Hello World!"
-    elif test_type == "multi_alarm_simple_test":
-        return "Test complete"
-    else:
-        raise ValueError(f"Unknown test type: {test_type}")
-
-
-def analyze_output(output_lines, test_type):
-    print("Output lines: ")
-    print(output_lines)
-    if test_type == "hello_world":
-        return "Hello World!" in output_lines
-    elif test_type == "multi_alarm_simple_test":
-        return analyze_multi_alarm_output(output_lines)
-    else:
-        logging.error(f"Unknown test type: {test_type}")
-        return False
 
 
 def analyze_multi_alarm_output(output_lines):
@@ -221,14 +207,16 @@ async def main():
             logging.error(f"Unknown test type: {args.test}")
             return
 
-        listen_task = asyncio.create_task(listen_for_output(port, args.test))
+        install_apps(apps, args.target)
 
         await asyncio.sleep(1)
 
-        install_apps(apps, args.target)
-
         try:
-            test_result = await listen_task
+            test_result = await listen_for_output(
+                f"tockloader listen",
+                search_text="Hello World!",
+                timeout=60,
+            )
             if test_result:
                 logging.info("Test completed successfully")
             else:
