@@ -1,5 +1,6 @@
 mod iter;
-mod option;
-mod slice;
+mod mem;
 mod non_null;
 mod num;
+mod option;
+mod slice;

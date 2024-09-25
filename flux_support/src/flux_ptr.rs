@@ -1,7 +1,6 @@
-
 use core::ops::{Deref, DerefMut};
-use flux_rs::{refined_by, sig};
 use core::ptr::NonNull;
+use flux_rs::{refined_by, sig};
 
 #[flux_rs::opaque]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Ord)]
@@ -42,6 +41,12 @@ impl FluxPtr {
 
     #[sig(fn() -> Self[0])]
     pub const fn null_mut() -> Self {
+        unimplemented!()
+    }
+
+    // VTOCK-TODO: Add precondition that input isn't zero
+    #[sig(fn(Self[@ptr]) -> NonNull<u8>[ptr])]
+    pub fn as_nonnull(self) -> NonNull<u8> {
         unimplemented!()
     }
 

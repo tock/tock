@@ -332,9 +332,9 @@ fn discover_process_binary(
         .ok_or((flash, ProcessBinaryError::NotEnoughFlash))?;
 
     assume(app_flash.len() > 0); // Need extern_spec for get and SliceIndex
-    // Advance the flash slice for process discovery beyond this last entry.
-    // This will be the start of where we look for a new process since Tock
-    // processes are allocated back-to-back in flash.
+                                 // Advance the flash slice for process discovery beyond this last entry.
+                                 // This will be the start of where we look for a new process since Tock
+                                 // processes are allocated back-to-back in flash.
     let remaining_flash = flash
         .get(app_flash.len()..)
         .ok_or((flash, ProcessBinaryError::NotEnoughFlash))?;
@@ -350,7 +350,7 @@ fn discover_process_binary(
 /// object was created, `Err` with a relevant error if the process object could
 /// not be created.
 #[flux_rs::trusted] // Arithmetic warnings - needs slice extern spec
-// #[flux_rs::sig(fn<C>(&Kernel, &C, ProcessBinary, &mut [u8]{len: len > 0}, ShortId, usize, _ ) -> Result<_,_>)]
+                    // #[flux_rs::sig(fn<C>(&Kernel, &C, ProcessBinary, &mut [u8]{len: len > 0}, ShortId, usize, _ ) -> Result<_,_>)]
 fn load_process<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
@@ -361,7 +361,6 @@ fn load_process<C: Chip>(
     fault_policy: &'static dyn ProcessFaultPolicy,
 ) -> Result<(&'static mut [u8], Option<&'static dyn Process>), (&'static mut [u8], ProcessLoadError)>
 {
-    // assume(app_memory.len() > 0);
     if config::CONFIG.debug_load_processes {
         debug!(
             "Loading: process flash={:#010X}-{:#010X} ram={:#010X}-{:#010X}",
@@ -639,7 +638,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
             .ok_or(ProcessBinaryError::NotEnoughFlash)?;
 
         assume(app_flash.len() > 0); // Need extern_spec for get and SliceIndex
-        
+
         // Advance the flash slice for process discovery beyond this last entry.
         // This will be the start of where we look for a new process since Tock
         // processes are allocated back-to-back in flash.

@@ -347,7 +347,7 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
     /// Returns the entire grant size including the kernel owned memory,
     /// padding, and data for T. Requires that grant_t_align be a power of 2,
     /// which is guaranteed from align_of rust calls.
-    #[flux_rs::sig(fn(UpcallItems, AllowRoItems, AllowRwItems, GrantDataSize, GrantDataAlign{g: g > 0}) -> usize)]
+    #[flux_rs::sig(fn(UpcallItems, AllowRoItems, AllowRwItems, GrantDataSize[@data_sz], GrantDataAlign{g: g > 0}) -> usize{alloc_sz: alloc_sz >= data_sz})]
     fn grant_size(
         upcalls_num: UpcallItems,
         allow_ro_num: AllowRoItems,
@@ -396,6 +396,7 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
     /// The caller must ensure that the specified base pointer is aligned to at
     /// least the alignment of T and points to a grant that is of size
     /// grant_size bytes.
+    #[flux_rs::sig(fn(NonNull<u8>, usize[@grant_sz], GrantDataSize{data_sz: data_sz <= grant_sz}) -> NonNull<u8>)]
     unsafe fn offset_of_grant_data_t(
         base_ptr: NonNull<u8>,
         grant_size: usize,
@@ -404,8 +405,6 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         // The location of the grant data T is the last element in the entire
         // grant region. Caller must verify that memory is accessible and well
         // aligned to T.
-        // let grant_t_size_usize: usize = grant_t_size.0;
-        assume(grant_size > grant_t_size.0);
         NonNull::new_unchecked(base_ptr.as_ptr().add(grant_size - grant_t_size.0))
     }
 
@@ -1006,6 +1005,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
         // thus 50+ copies of this function). The returned Option indicates if
         // the returned pointer still needs to be initialized (in the case where
         // the grant was only just allocated).
+        #[flux_rs::sig(fn(_,_,_,GrantDataAlign{dalign: dalign > 0},_,_,_,_) -> _)]
         fn new_inner<'a>(
             grant_num: usize,
             driver_num: usize,
@@ -1016,7 +1016,6 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
             num_allow_rws: AllowRwItems,
             processid: ProcessId,
         ) -> Result<(Option<NonNull<u8>>, &'a dyn Process), Error> {
-            assume(grant_t_align.0 > 0);
             // Here is an example of how the grants are laid out in the grant
             // region of process's memory:
             //
