@@ -78,33 +78,62 @@ def get_serial_ports():
     return list(serial.tools.list_ports.comports())
 
 
-async def listen_for_output(port, test_type):
+import asyncio
+import logging
+
+
+async def listen_for_output(port, test_type, timeout=60):
     process = await asyncio.create_subprocess_shell(
         f"tockloader listen",
+        stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
 
     output_lines = []
     logging.info("Listening for output")
+
+    expected_output = get_expected_output(test_type)
+
     try:
-        while True:
-            line = await process.stdout.readline()
-            logging.info(f"Received line: {line}")
-            if not line:
-                break
-            if line == b"hello_world!\n":
-                logging.info("Test passed")
-                break
-            line = line.decode().strip()
-            output_lines.append(line)
+        async with asyncio.timeout(timeout):
+            while True:
+                line = await process.stdout.readline()
+                if not line:
+                    break
+                line = line.decode().strip()
+                logging.info(f"Received line: {line}")
+
+                if "Which option?" in line:
+                    # Select port 0
+                    process.stdin.write(b"0\n")
+                    await process.stdin.drain()
+                    logging.info("Automatically selected port 0")
+                else:
+                    output_lines.append(line)
+
+                if expected_output in line:
+                    logging.info(f"Expected output '{expected_output}' found. Exiting.")
+                    return True
+
     except asyncio.TimeoutError:
-        logging.error("Test timed out")
+        logging.error(f"Test timed out after {timeout} seconds")
+        return False
     finally:
         process.terminate()
         await process.wait()
 
-    return analyze_output(output_lines, test_type)
+    logging.error("Process ended without finding expected output")
+    return False
+
+
+def get_expected_output(test_type):
+    if test_type == "hello_world":
+        return "Hello World!"
+    elif test_type == "multi_alarm_simple_test":
+        return "Test complete"
+    else:
+        raise ValueError(f"Unknown test type: {test_type}")
 
 
 def analyze_output(output_lines, test_type):
