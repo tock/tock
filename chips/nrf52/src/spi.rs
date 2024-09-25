@@ -38,7 +38,8 @@ use core::{cmp, ptr};
 use kernel::hil;
 use kernel::hil::gpio::Configure;
 use kernel::hil::spi::cs::ChipSelectPolar;
-use kernel::utilities::cells::{OptionalCell, TakeCell, VolatileCell};
+use kernel::utilities::cells::{MapCell, OptionalCell, VolatileCell};
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
@@ -244,8 +245,8 @@ pub struct SPIM<'a> {
     client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
     chip_select: OptionalCell<ChipSelectPolar<'a, crate::gpio::GPIOPin<'a>>>,
     busy: Cell<bool>,
-    tx_buf: TakeCell<'static, [u8]>,
-    rx_buf: TakeCell<'static, [u8]>,
+    tx_buf: MapCell<SubSliceMut<'static, u8>>,
+    rx_buf: MapCell<SubSliceMut<'static, u8>>,
     transfer_len: Cell<usize>,
 }
 
@@ -256,8 +257,8 @@ impl<'a> SPIM<'a> {
             client: OptionalCell::empty(),
             chip_select: OptionalCell::empty(),
             busy: Cell::new(false),
-            tx_buf: TakeCell::empty(),
-            rx_buf: TakeCell::empty(),
+            tx_buf: MapCell::empty(),
+            rx_buf: MapCell::empty(),
             transfer_len: Cell::new(0),
         }
     }
@@ -282,12 +283,9 @@ impl<'a> SPIM<'a> {
 
             self.client.map(|client| match self.tx_buf.take() {
                 None => (),
-                Some(tx_buf) => client.read_write_done(
-                    tx_buf,
-                    self.rx_buf.take(),
-                    self.transfer_len.take(),
-                    Ok(()),
-                ),
+                Some(tx_buf) => {
+                    client.read_write_done(tx_buf, self.rx_buf.take(), Ok(self.transfer_len.get()))
+                }
             });
         }
 
@@ -355,10 +353,16 @@ impl<'a> hil::spi::SpiMaster<'a> for SPIM<'a> {
 
     fn read_write_bytes(
         &self,
-        tx_buf: &'static mut [u8],
-        rx_buf: Option<&'static mut [u8]>,
-        len: usize,
-    ) -> Result<(), (ErrorCode, &'static mut [u8], Option<&'static mut [u8]>)> {
+        tx_buf: SubSliceMut<'static, u8>,
+        rx_buf: Option<SubSliceMut<'static, u8>>,
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            SubSliceMut<'static, u8>,
+            Option<SubSliceMut<'static, u8>>,
+        ),
+    > {
         debug_assert!(!self.busy.get());
         debug_assert!(self.tx_buf.is_none());
         debug_assert!(self.rx_buf.is_none());
@@ -370,7 +374,7 @@ impl<'a> hil::spi::SpiMaster<'a> for SPIM<'a> {
         self.chip_select.map(|cs| cs.activate());
 
         // Setup transmit data registers
-        let tx_len: u32 = cmp::min(len, tx_buf.len()) as u32;
+        let tx_len: u32 = tx_buf.len() as u32;
         self.registers.txd_ptr.set(tx_buf.as_ptr());
         self.registers.txd_maxcnt.write(MAXCNT::MAXCNT.val(tx_len));
         self.tx_buf.replace(tx_buf);
@@ -381,14 +385,14 @@ impl<'a> hil::spi::SpiMaster<'a> for SPIM<'a> {
                 self.registers.rxd_ptr.set(ptr::null_mut());
                 self.registers.rxd_maxcnt.write(MAXCNT::MAXCNT.val(0));
                 self.transfer_len.set(tx_len as usize);
-                self.rx_buf.put(None);
+                self.rx_buf.take();
             }
-            Some(buf) => {
+            Some(mut buf) => {
                 self.registers.rxd_ptr.set(buf.as_mut_ptr());
-                let rx_len: u32 = cmp::min(len, buf.len()) as u32;
+                let rx_len: u32 = buf.len() as u32;
                 self.registers.rxd_maxcnt.write(MAXCNT::MAXCNT.val(rx_len));
                 self.transfer_len.set(cmp::min(tx_len, rx_len) as usize);
-                self.rx_buf.put(Some(buf));
+                self.rx_buf.put(buf);
             }
         }
 

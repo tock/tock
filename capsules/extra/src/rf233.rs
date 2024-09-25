@@ -22,7 +22,9 @@ use core::cell::Cell;
 use kernel::hil::gpio;
 use kernel::hil::radio;
 use kernel::hil::spi;
-use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::cells::MapCell;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
 
 use crate::rf233_const::CSMA_SEED_1;
@@ -208,8 +210,8 @@ pub struct RF233<'a, S: spi::SpiMasterDevice<'a>> {
     sleep_pin: &'a dyn gpio::Pin,
     irq_pin: &'a dyn gpio::InterruptPin<'a>,
     state: Cell<InternalState>,
-    tx_buf: TakeCell<'static, [u8]>,
-    rx_buf: TakeCell<'static, [u8]>,
+    tx_buf: MapCell<SubSliceMut<'static, u8>>,
+    rx_buf: MapCell<SubSliceMut<'static, u8>>,
     tx_len: Cell<u8>,
     tx_client: OptionalCell<&'a dyn radio::TxClient>,
     rx_client: OptionalCell<&'a dyn radio::RxClient>,
@@ -220,9 +222,9 @@ pub struct RF233<'a, S: spi::SpiMasterDevice<'a>> {
     pan: Cell<u16>,
     tx_power: Cell<i8>,
     channel: Cell<radio::RadioChannel>,
-    spi_rx: TakeCell<'static, [u8]>,
-    spi_tx: TakeCell<'static, [u8]>,
-    spi_buf: TakeCell<'static, [u8]>,
+    spi_rx: MapCell<SubSliceMut<'static, u8>>,
+    spi_tx: MapCell<SubSliceMut<'static, u8>>,
+    spi_buf: MapCell<SubSliceMut<'static, u8>>,
 }
 
 fn setting_to_power(setting: u8) -> i8 {
@@ -288,10 +290,9 @@ impl<'a, S: spi::SpiMasterDevice<'a>> spi::SpiMasterClient for RF233<'a, S> {
     // and reception.
     fn read_write_done(
         &self,
-        mut _write: &'static mut [u8],
-        mut read: Option<&'static mut [u8]>,
-        _len: usize,
-        _spi_status: Result<(), ErrorCode>,
+        mut _write: SubSliceMut<'static, u8>,
+        mut read: Option<SubSliceMut<'static, u8>>,
+        _spi_status: Result<usize, ErrorCode>,
     ) {
         self.spi_busy.set(false);
         let rbuf = read.take().unwrap();
@@ -715,7 +716,7 @@ impl<'a, S: spi::SpiMasterDevice<'a>> spi::SpiMasterClient for RF233<'a, S> {
                     // Something wrong here?
                     self.state.set(InternalState::TX_WRITING_FRAME);
                     let wbuf = self.tx_buf.take().unwrap();
-                    let _ = self.frame_write(wbuf, self.tx_len.get());
+                    let _ = self.frame_write(wbuf.take(), self.tx_len.get());
                 }
             }
             InternalState::TX_WRITING_FRAME => {} // Should never get here
@@ -806,7 +807,7 @@ impl<'a, S: spi::SpiMasterDevice<'a>> spi::SpiMasterClient for RF233<'a, S> {
                     self.state_transition_read(RF233Register::TRX_STATUS, InternalState::READY);
 
                     self.tx_client.map(|c| {
-                        c.send_done(buf.unwrap(), ack, return_code);
+                        c.send_done(buf.unwrap().take(), ack, return_code);
                     });
                 } else {
                     let _ = self.register_read(RF233Register::TRX_STATUS);
@@ -845,7 +846,7 @@ impl<'a, S: spi::SpiMasterDevice<'a>> spi::SpiMasterClient for RF233<'a, S> {
                 // A frame read of frame_length 0 results in the received SPI
                 // buffer only containing two bytes, the chip status and the
                 // frame length.
-                let _ = self.frame_read(self.rx_buf.take().unwrap(), 0);
+                let _ = self.frame_read(self.rx_buf.take().unwrap().take(), 0);
             }
 
             InternalState::RX_READING_FRAME_LEN => {} // Should not get this
@@ -862,7 +863,7 @@ impl<'a, S: spi::SpiMasterDevice<'a>> spi::SpiMasterClient for RF233<'a, S> {
                 {
                     self.state.set(InternalState::RX_READING_FRAME);
                     let rbuf = self.rx_buf.take().unwrap();
-                    let _ = self.frame_read(rbuf, frame_len);
+                    let _ = self.frame_read(rbuf.take(), frame_len);
                 } else if self.transmitting.get() {
                     // Packet was too long and a transmission is pending,
                     // start the transmission
@@ -918,7 +919,7 @@ impl<'a, S: spi::SpiMasterDevice<'a>> spi::SpiMasterClient for RF233<'a, S> {
                     let frame_len = rbuf[1] as usize - radio::MFR_SIZE;
 
                     // lqi is currently unimplemented for rf233 and is subsequently hardcoded to zero
-                    client.receive(rbuf, frame_len, 0, self.crc_valid.get(), Ok(()));
+                    client.receive(rbuf.take(), frame_len, 0, self.crc_valid.get(), Ok(()));
                 });
             }
 
@@ -1060,8 +1061,8 @@ impl<'a, S: spi::SpiMasterDevice<'a>> RF233<'a, S> {
             sleep_pending: Cell::new(false),
             wake_pending: Cell::new(false),
             power_client_pending: Cell::new(false),
-            tx_buf: TakeCell::empty(),
-            rx_buf: TakeCell::empty(),
+            tx_buf: MapCell::empty(),
+            rx_buf: MapCell::empty(),
             tx_len: Cell::new(0),
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
@@ -1072,9 +1073,9 @@ impl<'a, S: spi::SpiMasterDevice<'a>> RF233<'a, S> {
             pan: Cell::new(0),
             tx_power: Cell::new(setting_to_power(PHY_TX_PWR)),
             channel: Cell::new(channel),
-            spi_rx: TakeCell::new(reg_read),
-            spi_tx: TakeCell::new(reg_write),
-            spi_buf: TakeCell::new(spi_buf),
+            spi_rx: MapCell::new((&mut reg_read[..]).into()),
+            spi_tx: MapCell::new((&mut reg_write[..]).into()),
+            spi_buf: MapCell::new(spi_buf.into()),
         }
     }
 
@@ -1113,12 +1114,13 @@ impl<'a, S: spi::SpiMasterDevice<'a>> RF233<'a, S> {
         if (self.spi_busy.get() || self.spi_tx.is_none() || self.spi_rx.is_none()) {
             return Err(ErrorCode::BUSY);
         }
-        let wbuf = self.spi_tx.take().unwrap();
+        let mut wbuf = self.spi_tx.take().unwrap();
         let rbuf = self.spi_rx.take().unwrap();
         wbuf[0] = (reg as u8) | RF233BusCommand::REGISTER_WRITE as u8;
         wbuf[1] = val;
+        wbuf.slice(0..2);
         // TODO verify SPI return value
-        let _ = self.spi.read_write_bytes(wbuf, Some(rbuf), 2);
+        let _ = self.spi.read_write_bytes(wbuf, Some(rbuf));
         self.spi_busy.set(true);
 
         Ok(())
@@ -1129,12 +1131,14 @@ impl<'a, S: spi::SpiMasterDevice<'a>> RF233<'a, S> {
             return Err(ErrorCode::BUSY);
         }
 
-        let wbuf = self.spi_tx.take().unwrap();
+        let mut wbuf = self.spi_tx.take().unwrap();
         let rbuf = self.spi_rx.take().unwrap();
+        wbuf.reset();
+        wbuf.slice(0..2);
         wbuf[0] = (reg as u8) | RF233BusCommand::REGISTER_READ as u8;
         wbuf[1] = 0;
         // TODO verify SPI return value
-        let _ = self.spi.read_write_bytes(wbuf, Some(rbuf), 2);
+        let _ = self.spi.read_write_bytes(wbuf, Some(rbuf));
         self.spi_busy.set(true);
 
         Ok(())
@@ -1147,8 +1151,10 @@ impl<'a, S: spi::SpiMasterDevice<'a>> RF233<'a, S> {
 
         let buf_len = radio::PSDU_OFFSET + frame_len as usize;
         buf[0] = RF233BusCommand::FRAME_WRITE as u8;
+        let mut buf: SubSliceMut<'static, u8> = buf.into();
+        buf.slice(0..buf_len);
         // TODO verify SPI return value
-        let _ = self.spi.read_write_bytes(buf, self.spi_buf.take(), buf_len);
+        let _ = self.spi.read_write_bytes(buf, self.spi_buf.take());
         self.spi_busy.set(true);
         Ok(())
     }
@@ -1159,10 +1165,12 @@ impl<'a, S: spi::SpiMasterDevice<'a>> RF233<'a, S> {
         }
 
         let buf_len = radio::PSDU_OFFSET + frame_len as usize;
-        let wbuf = self.spi_buf.take().unwrap();
+        let mut wbuf = self.spi_buf.take().unwrap();
         wbuf[0] = RF233BusCommand::FRAME_READ as u8;
+        wbuf.reset();
+        wbuf.slice(0..buf_len);
         // TODO verify SPI return value
-        let _ = self.spi.read_write_bytes(wbuf, Some(buf), buf_len);
+        let _ = self.spi.read_write_bytes(wbuf, Some(buf.into()));
         self.spi_busy.set(true);
         Ok(())
     }
@@ -1337,7 +1345,7 @@ impl<'a, S: spi::SpiMasterDevice<'a>> radio::RadioData<'a> for RF233<'a, S> {
     }
 
     fn set_receive_buffer(&self, buffer: &'static mut [u8]) {
-        self.rx_buf.replace(buffer);
+        self.rx_buf.replace(buffer.into());
     }
 
     // The payload length is the length of the MAC payload, not the PSDU
@@ -1360,7 +1368,7 @@ impl<'a, S: spi::SpiMasterDevice<'a>> radio::RadioData<'a> for RF233<'a, S> {
 
         // Set PHY header to be the frame length
         spi_buf[1] = frame_len as u8;
-        self.tx_buf.replace(spi_buf);
+        self.tx_buf.replace(spi_buf.into());
         self.tx_len.set(frame_len as u8);
         self.transmitting.set(true);
 

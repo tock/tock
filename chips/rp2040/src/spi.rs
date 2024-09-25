@@ -10,7 +10,9 @@ use kernel::hil::spi::cs::ChipSelectPolar;
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::spi::SpiMasterClient;
 use kernel::hil::spi::{ClockPhase, ClockPolarity};
-use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::cells::MapCell;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
@@ -240,10 +242,10 @@ pub struct Spi<'a> {
     master_client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
     active_slave: OptionalCell<ChipSelectPolar<'a, crate::gpio::RPGpioPin<'a>>>,
 
-    tx_buffer: TakeCell<'static, [u8]>,
+    tx_buffer: MapCell<SubSliceMut<'static, u8>>,
     tx_position: Cell<usize>,
 
-    rx_buffer: TakeCell<'static, [u8]>,
+    rx_buffer: MapCell<SubSliceMut<'static, u8>>,
     rx_position: Cell<usize>,
     len: Cell<usize>,
 
@@ -259,10 +261,10 @@ impl<'a> Spi<'a> {
             master_client: OptionalCell::empty(),
             active_slave: OptionalCell::empty(),
 
-            tx_buffer: TakeCell::empty(),
+            tx_buffer: MapCell::empty(),
             tx_position: Cell::new(0),
 
-            rx_buffer: TakeCell::empty(),
+            rx_buffer: MapCell::empty(),
             rx_position: Cell::new(0),
 
             len: Cell::new(0),
@@ -279,10 +281,10 @@ impl<'a> Spi<'a> {
             master_client: OptionalCell::empty(),
             active_slave: OptionalCell::empty(),
 
-            tx_buffer: TakeCell::empty(),
+            tx_buffer: MapCell::empty(),
             tx_position: Cell::new(0),
 
-            rx_buffer: TakeCell::empty(),
+            rx_buffer: MapCell::empty(),
             rx_position: Cell::new(0),
 
             len: Cell::new(0),
@@ -355,7 +357,7 @@ impl<'a> Spi<'a> {
                 self.disable();
                 self.transfers.set(SPI_IDLE);
                 self.tx_buffer.take().map(|buf| {
-                    client.read_write_done(buf, self.rx_buffer.take(), self.len.get(), Ok(()))
+                    client.read_write_done(buf, self.rx_buffer.take(), Ok(self.len.get()))
                 });
             });
         }
@@ -363,15 +365,14 @@ impl<'a> Spi<'a> {
 
     fn read_write_bytes(
         &self,
-        write_buffer: Option<&'static mut [u8]>,
-        read_buffer: Option<&'static mut [u8]>,
-        len: usize,
+        write_buffer: Option<SubSliceMut<'static, u8>>,
+        read_buffer: Option<SubSliceMut<'static, u8>>,
     ) -> Result<
         (),
         (
             ErrorCode,
-            Option<&'static mut [u8]>,
-            Option<&'static mut [u8]>,
+            Option<SubSliceMut<'static, u8>>,
+            Option<SubSliceMut<'static, u8>>,
         ),
     > {
         if write_buffer.is_none() && read_buffer.is_none() {
@@ -388,13 +389,15 @@ impl<'a> Spi<'a> {
 
             self.transfers.set(SPI_IN_PROGRESS);
 
-            let mut count: usize = len;
-            write_buffer
-                .as_ref()
-                .map(|buf| count = cmp::min(count, buf.len()));
-            read_buffer
-                .as_ref()
-                .map(|buf| count = cmp::min(count, buf.len()));
+            let len = match (
+                write_buffer.as_ref().map(|b| b.len()),
+                read_buffer.as_ref().map(|b| b.len()),
+            ) {
+                (Some(wl), Some(rl)) => cmp::min(wl, rl),
+                (Some(wl), None) => wl,
+                (None, Some(rl)) => rl,
+                (None, None) => 0,
+            };
 
             if write_buffer.is_some() {
                 self.transfers
@@ -408,14 +411,14 @@ impl<'a> Spi<'a> {
 
             read_buffer.map(|buf| {
                 self.rx_buffer.replace(buf);
-                self.len.set(count);
+                self.len.set(len);
                 self.rx_position.set(0);
                 self.registers.sspimsc.modify(SSPIMSC::RXIM::SET);
             });
 
             write_buffer.map(|buf| {
                 self.tx_buffer.replace(buf);
-                self.len.set(count);
+                self.len.set(len);
                 self.tx_position.set(0);
                 self.registers.sspimsc.modify(SSPIMSC::TXIM::SET);
             });
@@ -513,15 +516,21 @@ impl<'a> SpiMaster<'a> for Spi<'a> {
 
     fn read_write_bytes(
         &self,
-        write_buffer: &'static mut [u8],
-        read_buffer: Option<&'static mut [u8]>,
-        len: usize,
-    ) -> Result<(), (ErrorCode, &'static mut [u8], Option<&'static mut [u8]>)> {
+        write_buffer: SubSliceMut<'static, u8>,
+        read_buffer: Option<SubSliceMut<'static, u8>>,
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            SubSliceMut<'static, u8>,
+            Option<SubSliceMut<'static, u8>>,
+        ),
+    > {
         if self.is_busy() {
             return Err((ErrorCode::BUSY, write_buffer, read_buffer));
         }
 
-        match self.read_write_bytes(Some(write_buffer), read_buffer, len) {
+        match self.read_write_bytes(Some(write_buffer), read_buffer) {
             // some_write_buffer should always be Some(write_buffer)
             Err((error, some_write_buffer, read_buffer)) => {
                 Err((error, some_write_buffer.unwrap(), read_buffer))

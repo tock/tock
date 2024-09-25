@@ -23,6 +23,7 @@ use kernel::hil::spi::SpiMasterClient;
 use kernel::hil::spi::SpiSlaveClient;
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::peripheral_management::{PeripheralManagement, PeripheralManager};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{self, register_bitfields, ReadOnly, ReadWrite, WriteOnly};
@@ -443,34 +444,25 @@ impl<'a> SpiHw<'a> {
     // the caller, and the caller may want to be able write into it.
     fn read_write_bytes(
         &self,
-        write_buffer: Option<&'static mut [u8]>,
-        read_buffer: Option<&'static mut [u8]>,
-        len: usize,
+        write_buffer: Option<SubSliceMut<'static, u8>>,
+        read_buffer: Option<SubSliceMut<'static, u8>>,
     ) -> Result<
         (),
         (
             ErrorCode,
-            Option<&'static mut [u8]>,
-            Option<&'static mut [u8]>,
+            Option<SubSliceMut<'static, u8>>,
+            Option<SubSliceMut<'static, u8>>,
         ),
     > {
-        if write_buffer.is_none() && read_buffer.is_none() {
-            return Err((ErrorCode::INVAL, write_buffer, read_buffer));
-        }
+        let count = match (&write_buffer, &read_buffer) {
+            (Some(ref wb), Some(ref rb)) => cmp::min(wb.len(), rb.len()),
+            (Some(ref wb), None) => wb.len(),
+            (None, Some(ref rb)) => rb.len(),
+            (None, None) => return Err((ErrorCode::INVAL, write_buffer, read_buffer)),
+        };
 
         // Start by enabling the SPI driver.
         self.enable();
-
-        // Determine how many bytes to move based on the shortest of the
-        // write_buffer length, the read_buffer length, and the user requested
-        // len.
-        let mut count: usize = len;
-        write_buffer
-            .as_ref()
-            .map(|buf| count = cmp::min(count, buf.len()));
-        read_buffer
-            .as_ref()
-            .map(|buf| count = cmp::min(count, buf.len()));
 
         // Configure DMA to transfer that many bytes.
         self.dma_length.set(count);
@@ -491,19 +483,19 @@ impl<'a> SpiHw<'a> {
                 .set(self.transfers_in_progress.get() + 1);
             self.dma_read.map(move |read| {
                 read.enable();
-                read.do_transfer(DMAPeripheral::SPI_RX, rbuf, count);
+                read.do_transfer(DMAPeripheral::SPI_RX, rbuf.take(), count);
             });
         });
 
         // The ordering of these operations matters.
         // For transfers 4 bytes or longer, this will work as expected.
         // For shorter transfers, the first byte will be missing.
-        write_buffer.map(|wbuf| {
+        write_buffer.map(|buf| {
             self.transfers_in_progress
                 .set(self.transfers_in_progress.get() + 1);
             self.dma_write.map(move |write| {
                 write.enable();
-                write.do_transfer(DMAPeripheral::SPI_TX, wbuf, count);
+                write.do_transfer(DMAPeripheral::SPI_TX, buf.take(), count);
             });
         });
 
@@ -571,19 +563,29 @@ impl<'a> spi::SpiMaster<'a> for SpiHw<'a> {
     // the caller, and the caller may want to be able write into it.
     fn read_write_bytes(
         &self,
-        write_buffer: &'static mut [u8],
-        read_buffer: Option<&'static mut [u8]>,
-        len: usize,
-    ) -> Result<(), (ErrorCode, &'static mut [u8], Option<&'static mut [u8]>)> {
+        write_buffer: SubSliceMut<'static, u8>,
+        read_buffer: Option<SubSliceMut<'static, u8>>,
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            SubSliceMut<'static, u8>,
+            Option<SubSliceMut<'static, u8>>,
+        ),
+    > {
         // If busy, don't start.
         if self.is_busy() {
             return Err((ErrorCode::BUSY, write_buffer, read_buffer));
         }
 
         if let Err((err, write_buffer, read_buffer)) =
-            self.read_write_bytes(Some(write_buffer), read_buffer, len)
+            self.read_write_bytes(Some(write_buffer), read_buffer)
         {
-            Err((err, write_buffer.unwrap(), read_buffer))
+            Err((
+                err,
+                write_buffer.unwrap_or((&mut [] as &mut [u8]).into()),
+                read_buffer,
+            ))
         } else {
             Ok(())
         }
@@ -686,7 +688,26 @@ impl<'a> spi::SpiSlave<'a> for SpiHw<'a> {
             Option<&'static mut [u8]>,
         ),
     > {
-        self.read_write_bytes(write_buffer, read_buffer, len)
+        let write_buffer = write_buffer.map(|b| {
+            let mut buf: SubSliceMut<u8> = b.into();
+            if buf.len() > len {
+                buf.slice(..len);
+            }
+            buf
+        });
+        let read_buffer = read_buffer.map(|b| {
+            let mut buf: SubSliceMut<u8> = b.into();
+            if buf.len() > len {
+                buf.slice(..len);
+            }
+            buf
+        });
+
+        if let Err((e, mwb, mrb)) = self.read_write_bytes(write_buffer, read_buffer) {
+            Err((e, mwb.map(|b| b.take()), mrb.map(|b| b.take())))
+        } else {
+            Ok(())
+        }
     }
 
     fn set_polarity(&self, polarity: ClockPolarity) -> Result<(), ErrorCode> {
@@ -740,7 +761,7 @@ impl DMAClient for SpiHw<'_> {
                 SpiRole::SpiMaster => {
                     self.client.map(|cb| {
                         txbuf.map(|txbuf| {
-                            cb.read_write_done(txbuf, rxbuf, len, Ok(()));
+                            cb.read_write_done(txbuf.into(), rxbuf.map(|b| b.into()), Ok(len));
                         });
                     });
                 }

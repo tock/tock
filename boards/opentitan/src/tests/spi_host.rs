@@ -9,14 +9,15 @@ use core::cell::Cell;
 use kernel::hil::spi::{ClockPhase, ClockPolarity};
 use kernel::hil::spi::{SpiMaster, SpiMasterClient};
 use kernel::static_init;
-use kernel::utilities::cells::TakeCell;
+use kernel::utilities::cells::MapCell;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::{debug, ErrorCode};
 
 struct SpiHostCallback {
     transfer_done: Cell<bool>,
     tx_len: Cell<usize>,
-    tx_data: TakeCell<'static, [u8]>,
-    rx_data: TakeCell<'static, [u8]>,
+    tx_data: MapCell<SubSliceMut<'static, u8>>,
+    rx_data: MapCell<SubSliceMut<'static, u8>>,
 }
 
 impl<'a> SpiHostCallback {
@@ -24,8 +25,8 @@ impl<'a> SpiHostCallback {
         SpiHostCallback {
             transfer_done: Cell::new(false),
             tx_len: Cell::new(0),
-            tx_data: TakeCell::new(tx_data),
-            rx_data: TakeCell::new(rx_data),
+            tx_data: MapCell::new(tx_data.into()),
+            rx_data: MapCell::new(rx_data.into()),
         }
     }
 
@@ -38,13 +39,13 @@ impl<'a> SpiHostCallback {
 impl<'a> SpiMasterClient for SpiHostCallback {
     fn read_write_done(
         &self,
-        tx_data: &'static mut [u8],
-        rx_done: Option<&'static mut [u8]>,
-        tx_len: usize,
-        rc: Result<(), ErrorCode>,
+        tx_data: SubSliceMut<'static, u8>,
+        rx_done: Option<SubSliceMut<'static, u8>>,
+        rc: Result<usize, ErrorCode>,
     ) {
         //Transfer Complete
-        assert_eq!(rc, Ok(()));
+        assert!(rc.is_ok());
+        let tx_len = rc.unwrap();
         assert_eq!(tx_len, self.tx_len.get());
 
         //Capture Buffers
@@ -154,10 +155,7 @@ fn spi_host_transfer_partial() {
     spi_host.set_polarity(ClockPolarity::IdleLow).ok();
     spi_host.set_phase(ClockPhase::SampleLeading).ok();
 
-    assert_eq!(
-        spi_host.read_write_bytes(tx, Some(rx), cb.tx_len.get()),
-        Ok(())
-    );
+    assert_eq!(spi_host.read_write_bytes(tx, Some(rx)), Ok(()));
     run_kernel_op(5000);
 
     assert_eq!(cb.transfer_done.get(), true);
@@ -192,10 +190,7 @@ fn spi_host_transfer_single() {
     spi_host.set_polarity(ClockPolarity::IdleLow).ok();
     spi_host.set_phase(ClockPhase::SampleLeading).ok();
 
-    assert_eq!(
-        spi_host.read_write_bytes(tx, Some(rx), cb.tx_len.get()),
-        Ok(())
-    );
+    assert_eq!(spi_host.read_write_bytes(tx, Some(rx)), Ok(()));
     run_kernel_op(5000);
 
     assert_eq!(cb.transfer_done.get(), true);
@@ -213,10 +208,7 @@ fn spi_host_transfer_single() {
     let rx2 = cb.rx_data.take().unwrap();
     cb.tx_len.set(tx2.len());
 
-    assert_eq!(
-        spi_host.read_write_bytes(tx2, Some(rx2), cb.tx_len.get()),
-        Ok(())
-    );
+    assert_eq!(spi_host.read_write_bytes(tx2, Some(rx2)), Ok(()));
     run_kernel_op(5000);
 
     assert_eq!(cb.transfer_done.get(), true);
