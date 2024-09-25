@@ -20,7 +20,6 @@ use components::led::LedsComponent;
 use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
 use kernel::hil::led::LedHigh;
-use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{capabilities, create_capability, static_init, Kernel};
