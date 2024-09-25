@@ -1,11 +1,11 @@
-mod flux_register_interface;
+mod extern_specs;
 mod flux_ptr;
 mod flux_range;
-mod extern_specs;
+mod flux_register_interface;
 mod math;
-pub use flux_register_interface::*;
 pub use flux_ptr::*;
 pub use flux_range::*;
+pub use flux_register_interface::*;
 pub use math::*;
 
 #[allow(dead_code)]
