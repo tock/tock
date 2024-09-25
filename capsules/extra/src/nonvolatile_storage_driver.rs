@@ -81,7 +81,7 @@
 //!     │
 //!     ╘════════ ← End of kernel region
 //!
-//!     ╞════════ ← Start of userspace region
+//!     ╒════════ ← Start of userspace region
 //!     ├──────── ← Start of App 1's region header
 //!     │ Region version number (8 bits) | Region length (24 bits) (Note that | inidcates bitwise concatenation)
 //!     │ App 1's ShortID (u32)
