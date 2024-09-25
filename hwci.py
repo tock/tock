@@ -80,7 +80,7 @@ def get_serial_ports():
 
 async def listen_for_output(port, test_type):
     process = await asyncio.create_subprocess_shell(
-        f"tockloader listen --port {port}",
+        f"tockloader listen",
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
