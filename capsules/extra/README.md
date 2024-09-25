@@ -18,6 +18,7 @@ These implement a driver to setup and read various physical sensors.
 - **[ADC Microphone](src/adc_microphone.rs)**: Single ADC pin microphone.
 - **[Analog Sensors](src/analog_sensor.rs)**: Single ADC pin sensors.
 - **[APDS9960](src/apds9960.rs)**: Proximity sensor.
+- **[ATECC508A](src/atecc508a.rs)**: Cryptographic Co-Processor Breakout.
 - **[BME280](src/bme280.rs)**: Humidity and air pressure sensor.
 - **[BMM150](src/bmm150.rs)**: Geomagnetic sensor.
 - **[BMP280](src/bmp280.rs)**: Temperature (and air pressure) sensor.

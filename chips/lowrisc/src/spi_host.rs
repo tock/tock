@@ -143,7 +143,6 @@ pub struct SpiHost<'a> {
     registers: StaticRef<SpiHostRegisters>,
     client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
     busy: Cell<bool>,
-    chip_select: Cell<u32>,
     cpu_clk: u32,
     tsclk: Cell<u32>,
     tx_buf: TakeCell<'static, [u8]>,
@@ -164,7 +163,6 @@ impl<'a> SpiHost<'a> {
             registers: base,
             client: OptionalCell::empty(),
             busy: Cell::new(false),
-            chip_select: Cell::new(0),
             cpu_clk,
             tsclk: Cell::new(0),
             tx_buf: TakeCell::empty(),
@@ -552,8 +550,17 @@ impl<'a> SpiHost<'a> {
     }
 }
 
+#[derive(Copy, Clone)]
+pub struct CS(pub u32);
+
+impl hil::spi::cs::IntoChipSelect<CS, hil::spi::cs::ActiveLow> for CS {
+    fn into_cs(self) -> CS {
+        self
+    }
+}
+
 impl<'a> hil::spi::SpiMaster<'a> for SpiHost<'a> {
-    type ChipSelect = u32;
+    type ChipSelect = CS;
 
     fn init(&self) -> Result<(), ErrorCode> {
         let regs = self.registers;
@@ -660,8 +667,7 @@ impl<'a> hil::spi::SpiMaster<'a> for SpiHost<'a> {
         let regs = self.registers;
 
         //CSID will index the CONFIGOPTS multi-register
-        regs.csid.write(csid_ctrl::CSID.val(cs));
-        self.chip_select.set(cs);
+        regs.csid.write(csid_ctrl::CSID.val(cs.0));
 
         Ok(())
     }

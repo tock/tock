@@ -179,6 +179,12 @@ pub enum Peripheral {
     Peripheral3,
 }
 
+impl spi::cs::IntoChipSelect<Peripheral, spi::cs::ActiveLow> for Peripheral {
+    fn into_cs(self) -> Peripheral {
+        self
+    }
+}
+
 #[derive(Copy, Clone, PartialEq)]
 pub enum SpiRole {
     SpiMaster,
@@ -375,20 +381,6 @@ impl<'a> SpiHw<'a> {
         }
     }
 
-    pub fn set_active_peripheral(&self, peripheral: Peripheral) {
-        // Slave cannot set active peripheral
-        if self.role.get() == SpiRole::SpiMaster {
-            let spi = &SpiRegisterManager::new(self);
-            let mr = match peripheral {
-                Peripheral::Peripheral0 => Mode::PCS::PCS0,
-                Peripheral::Peripheral1 => Mode::PCS::PCS1,
-                Peripheral::Peripheral2 => Mode::PCS::PCS2,
-                Peripheral::Peripheral3 => Mode::PCS::PCS3,
-            };
-            spi.registers.mr.modify(mr);
-        }
-    }
-
     /// Returns the currently active peripheral
     fn get_active_peripheral(&self, spi: &SpiRegisterManager<'a, '_>) -> Peripheral {
         if self.role.get() == SpiRole::SpiMaster {
@@ -520,7 +512,7 @@ impl<'a> SpiHw<'a> {
 }
 
 impl<'a> spi::SpiMaster<'a> for SpiHw<'a> {
-    type ChipSelect = u8;
+    type ChipSelect = Peripheral;
 
     fn set_client(&self, client: &'a dyn SpiMasterClient) {
         self.client.set(client);
@@ -636,18 +628,19 @@ impl<'a> spi::SpiMaster<'a> for SpiHw<'a> {
     }
 
     fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), ErrorCode> {
-        match match cs {
-            0 => Some(Peripheral::Peripheral0),
-            1 => Some(Peripheral::Peripheral1),
-            2 => Some(Peripheral::Peripheral2),
-            3 => Some(Peripheral::Peripheral3),
-            _ => None,
-        } {
-            Some(peripheral_number) => {
-                self.set_active_peripheral(peripheral_number);
-                Ok(())
-            }
-            None => Err(ErrorCode::INVAL),
+        // Slave cannot set active peripheral
+        if self.role.get() == SpiRole::SpiMaster {
+            let spi = &SpiRegisterManager::new(self);
+            let mr = match cs {
+                Peripheral::Peripheral0 => Mode::PCS::PCS0,
+                Peripheral::Peripheral1 => Mode::PCS::PCS1,
+                Peripheral::Peripheral2 => Mode::PCS::PCS2,
+                Peripheral::Peripheral3 => Mode::PCS::PCS3,
+            };
+            spi.registers.mr.modify(mr);
+            Ok(())
+        } else {
+            Err(ErrorCode::INVAL)
         }
     }
 }

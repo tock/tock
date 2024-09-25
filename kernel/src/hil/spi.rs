@@ -40,6 +40,146 @@ pub enum ClockPhase {
     SampleTrailing,
 }
 
+/// Utility types for modeling chip select pins in a [SpiMaster] implementation.
+pub mod cs {
+
+    /// Represents the Polarity of a chip-select pin (i.e. whether
+    /// high or low indicates the peripheral is active)
+    #[derive(Copy, Clone)]
+    pub enum Polarity {
+        High,
+        Low,
+    }
+
+    mod private {
+        pub trait Sealed {}
+    }
+
+    /// Marker trait indicating whether a peripheral requires active
+    /// high or low polarity as well as whether a [SpiMaster](super::SpiMaster)
+    /// implementation can support either or both polarities.
+    ///
+    /// This trait is sealed and only implemented for [ActiveLow] and
+    /// [ActiveHigh].
+    pub trait ChipSelectActivePolarity: private::Sealed {
+        const POLARITY: Polarity;
+    }
+
+    /// Marks a peripheral as requiring or controller as supprting
+    /// active low chip select pins
+    pub enum ActiveLow {}
+    /// Marks a peripheral as requiring or controller as supprting
+    /// active high chip select pins
+    pub enum ActiveHigh {}
+
+    impl private::Sealed for ActiveLow {}
+    impl private::Sealed for ActiveHigh {}
+
+    impl ChipSelectActivePolarity for ActiveLow {
+        const POLARITY: Polarity = Polarity::Low;
+    }
+
+    impl ChipSelectActivePolarity for ActiveHigh {
+        const POLARITY: Polarity = Polarity::High;
+    }
+
+    /// A type that can be converted to the appropriate type for
+    /// [SpiMaster::ChipSelect](super::SpiMaster::ChipSelect) for a
+    /// particular `POLARITY`.
+    ///
+    /// Instantiating a driver for any SPI peripheral should require a type that
+    /// implements [IntoChipSelect]. That enforces that whatever object is used
+    /// as the chip select can support the correct polarity for the particular SPI
+    /// peripheral. This is mostly commonly handled by the component for the
+    /// peripheral, which requires an object with type [IntoChipSelect] and then
+    /// converts the object to the [SpiMaster::ChipSelect](super::SpiMaster::ChipSelect)
+    /// type.
+    /// # Examples:
+    ///
+    /// Some SPI host controllers only support active low or active
+    /// high chip select pins. Such a controller might provide a unit
+    /// implementation of this trait _only_ for the [ActiveLow] marker.
+    ///
+    /// ```rust
+    /// use kernel::hil::spi::cs::*;
+    ///
+    /// #[derive(Copy, Clone)]
+    /// enum PeripheralSelect {
+    ///     Peripheral0,
+    ///     Peripheral1,
+    /// }
+    ///
+    /// impl IntoChipSelect<PeripheralSelect, ActiveLow> for PeripheralSelect {
+    ///     fn into_cs(self) -> Self { self }
+    /// }
+    /// ```
+    ///
+    /// Many other controllers can handle both active low and active
+    /// high chip select pins, in which case, they should implement
+    /// both the [ActiveLow] and [ActiveHigh] variants, for example,
+    /// using the [ChipSelectPolar] wrapper struct (which implements
+    /// both).
+    pub trait IntoChipSelect<T, POLARITY> {
+        fn into_cs(self) -> T;
+    }
+
+    /// A convenience wrapper type around
+    /// [Output](crate::hil::gpio::Output) GPIO pins that implements
+    /// [IntoChipSelect] for both [ActiveLow] and [ActiveHigh].
+    pub struct ChipSelectPolar<'a, P: crate::hil::gpio::Output> {
+        /// The underlying chip select "pin"
+        pub pin: &'a P,
+        /// The polarity from which this wrapper was derived using
+        /// [IntoChipSelect]
+        pub polarity: Polarity,
+    }
+
+    impl<'a, P: crate::hil::gpio::Output> Clone for ChipSelectPolar<'a, P> {
+        fn clone(&self) -> Self {
+            *self
+        }
+    }
+
+    impl<'a, P: crate::hil::gpio::Output> Copy for ChipSelectPolar<'a, P> {}
+
+    impl<'a, P: crate::hil::gpio::Output, A: ChipSelectActivePolarity>
+        IntoChipSelect<ChipSelectPolar<'a, P>, A> for &'a P
+    {
+        fn into_cs(self) -> ChipSelectPolar<'a, P> {
+            ChipSelectPolar {
+                pin: self,
+                polarity: A::POLARITY,
+            }
+        }
+    }
+
+    /// When wrapping a GPIO pin that implements
+    /// [gpio::Output](crate::hil::gpio::Output), users can use the
+    /// `activate` and `deactivate` methods to automatically set or
+    /// clear the chip select pin based on the stored polarity.
+    impl<'a, P: crate::hil::gpio::Output> ChipSelectPolar<'a, P> {
+        /// Deactive the chip select pin
+        ///
+        /// High if active low, low if active high
+        pub fn deactivate(&self) {
+            match self.polarity {
+                Polarity::Low => self.pin.set(),
+                Polarity::High => self.pin.clear(),
+            }
+        }
+
+        /// Active the chip select pin
+        ///
+        /// Low if active low, high if active high
+        pub fn activate(&self) {
+            match self.polarity {
+                Polarity::Low => self.pin.clear(),
+                Polarity::High => self.pin.set(),
+            }
+        }
+    }
+}
+
 /// Trait for clients of a SPI bus in master mode.
 pub trait SpiMasterClient {
     /// Callback when a read/write operation finishes: `read_buffer`

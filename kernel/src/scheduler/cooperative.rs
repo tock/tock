@@ -58,7 +58,6 @@ impl<'a> CooperativeSched<'a> {
 impl<'a, C: Chip> Scheduler<C> for CooperativeSched<'a> {
     fn next(&self) -> SchedulingDecision {
         let mut first_head = None;
-        let mut next = None;
 
         // Find the first ready process in the queue. Place any *empty* process slots,
         // or not-ready processes, at the back of the queue.
@@ -76,8 +75,8 @@ impl<'a, C: Chip> Scheduler<C> for CooperativeSched<'a> {
             match node.proc {
                 Some(proc) => {
                     if proc.ready() {
-                        next = Some(proc.processid());
-                        break;
+                        let next = proc.processid();
+                        return SchedulingDecision::RunProcess((next, None));
                     }
                     self.processes.push_tail(self.processes.pop_head().unwrap());
                 }
@@ -87,9 +86,9 @@ impl<'a, C: Chip> Scheduler<C> for CooperativeSched<'a> {
             }
         }
 
-        // next will not be None, because if we make a full iteration and nothing
-        // is ready we return early
-        SchedulingDecision::RunProcess((next.unwrap(), None))
+        // If the length of `self.processes` is 0, the while loop never executes. In this case,
+        // return `SchedulingDecision::TrySleep` as there is no process that can be scheduled.
+        SchedulingDecision::TrySleep
     }
 
     fn result(&self, result: StoppedExecutingReason, _: Option<u32>) {

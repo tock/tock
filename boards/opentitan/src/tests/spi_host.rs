@@ -149,7 +149,7 @@ fn spi_host_transfer_partial() {
     cb.tx_len.set(tx.len());
 
     //Set SPI_HOST0 Configs
-    spi_host.specify_chip_select(0).ok();
+    spi_host.specify_chip_select(lowrisc::spi_host::CS(0)).ok();
     spi_host.set_rate(100000).ok();
     spi_host.set_polarity(ClockPolarity::IdleLow).ok();
     spi_host.set_phase(ClockPhase::SampleLeading).ok();
@@ -187,7 +187,7 @@ fn spi_host_transfer_single() {
     cb.tx_len.set(tx.len());
 
     //Set SPI_HOST0 Configs
-    spi_host.specify_chip_select(0).ok();
+    spi_host.specify_chip_select(lowrisc::spi_host::CS(0)).ok();
     spi_host.set_rate(100000).ok();
     spi_host.set_polarity(ClockPolarity::IdleLow).ok();
     spi_host.set_phase(ClockPhase::SampleLeading).ok();
