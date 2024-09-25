@@ -50,7 +50,7 @@ def flash_kernel():
     os.chdir("../../../../")
 
 
-def install_apps(apps, target):
+def install_apps(apps, target, port):
     if not os.path.exists("libtock-c"):
         run_command("git clone https://github.com/tock/libtock-c")
 
@@ -66,11 +66,13 @@ def install_apps(apps, target):
         os.chdir(app_dir)
         logging.info(f"Changed directory to: {os.getcwd()}")
         run_command(f"make TOCK_TARGETS={target}")
-        run_command(f"tockloader install --board nrf52dk --openocd build/{app}.tab")
-        run_command(f"tockloader enable-app {app}")
+        run_command(
+            f"tockloader install --port {port} --board nrf52dk --openocd build/{app}.tab"
+        )
+        run_command(f"tockloader enable-app {app} --port {port}")
         os.chdir("../../")
 
-    run_command("tockloader list")
+    run_command(f"tockloader list --port {port}")
     os.chdir("../../")
 
 
@@ -81,7 +83,6 @@ def get_serial_ports():
 async def listen_for_output(command, search_text="Hello World!", timeout=60):
     process = await asyncio.create_subprocess_shell(
         command,
-        stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
@@ -89,11 +90,7 @@ async def listen_for_output(command, search_text="Hello World!", timeout=60):
     logging.info(f"Listening for output from command: {command}")
 
     try:
-        if process.stdin:
-            process.stdin.write(b"0\n")
-            await process.stdin.drain()
-            process.stdin.close()
-
+        # No need to write to stdin since we're specifying the port
         async def read_stream(stream, name):
             found = False
             while True:
@@ -130,8 +127,10 @@ async def listen_for_output(command, search_text="Hello World!", timeout=60):
     finally:
         for task in pending:
             task.cancel()
-        process.kill()
-        await process.wait()
+        # Check if process is still running before killing
+        if process.returncode is None:
+            process.kill()
+            await process.wait()
 
 
 def analyze_multi_alarm_output(output_lines):
@@ -207,13 +206,13 @@ async def main():
             logging.error(f"Unknown test type: {args.test}")
             return
 
-        install_apps(apps, args.target)
+        install_apps(apps, args.target, port)
 
         await asyncio.sleep(1)
 
         try:
             test_result = await listen_for_output(
-                f"tockloader listen",
+                f"tockloader listen --port {port} --no-terminal",
                 search_text="Hello World!",
                 timeout=60,
             )
