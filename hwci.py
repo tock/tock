@@ -200,6 +200,7 @@ async def main():
 
         try:
             if test_result:
+                logging.info("Test Result: " + str(test_result))
                 logging.info("Test completed successfully")
             else:
                 logging.error("Test failed")
