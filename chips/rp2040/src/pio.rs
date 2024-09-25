@@ -995,13 +995,9 @@ impl Pio {
         self.registers.txf[sm_number as usize].set(data);
     }
 
-    pub fn wait(&self) {}
-
     /// Wait until a state machine's TX FIFO is empty, then write a word of data to it.
     pub fn sm_put_blocking(&self, sm_number: SMNumber, data: u32) {
-        while self.registers.fstat.read(FSTAT::TXFULL0) != 0 {
-            self.wait();
-        }
+        while self.registers.fstat.read(FSTAT::TXFULL0) != 0 {}
         self.registers.txf[sm_number as usize].set(data);
     }
 
