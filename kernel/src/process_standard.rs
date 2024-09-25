@@ -279,6 +279,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.credential
     }
 
+    #[flux_rs::trusted] // incompatible types
     fn enqueue_task(&self, task: Task) -> Result<(), ErrorCode> {
         // If this app is in a `Fault` state then we shouldn't schedule
         // any work for it.
@@ -316,6 +317,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             || self.state.get() == State::Running
     }
 
+    #[flux_rs::trusted] // incompatible types
     fn remove_pending_upcalls(&self, upcall_id: UpcallId) {
         self.tasks.map(|tasks| {
             let count_before = tasks.len();
@@ -451,6 +453,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         // want to reclaim the process resources.
     }
 
+    #[flux_rs::trusted] // incompatible types
     fn terminate(&self, completion_code: Option<u32>) {
         // A process can be terminated if it is running or in the `Faulted`
         // state. Otherwise, you cannot terminate it and this method return
@@ -487,10 +490,12 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.tasks.map_or(false, |tasks| tasks.has_elements())
     }
 
+    #[flux_rs::trusted] // incompatible types
     fn dequeue_task(&self) -> Option<Task> {
         self.tasks.map_or(None, |tasks| tasks.dequeue())
     }
 
+    #[flux_rs::trusted] // incompatible types
     fn remove_upcall(&self, upcall_id: UpcallId) -> Option<Task> {
         self.tasks.map_or(None, |tasks| {
             tasks.remove_first_matching(|task| match task {

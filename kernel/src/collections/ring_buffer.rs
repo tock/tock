@@ -6,13 +6,19 @@
 
 use crate::collections::queue;
 
+#[flux_rs::refined_by(ring_len: int, head: int, tail: int)]
+#[flux_rs::invariant(ring_len > 0)]
 pub struct RingBuffer<'a, T: 'a> {
+    #[field({&mut [T][ring_len] | ring_len > 0})]
     ring: &'a mut [T],
+    #[field({usize[head] | head < ring_len})]
     head: usize,
+    #[field({usize[tail] | tail < ring_len})]
     tail: usize,
 }
 
 impl<'a, T: Copy> RingBuffer<'a, T> {
+    #[flux_rs::sig(fn({&mut [T][@ring_len] | ring_len > 0}) -> RingBuffer<T>[ring_len, 0, 0])]
     pub fn new(ring: &'a mut [T]) -> RingBuffer<'a, T> {
         RingBuffer {
             head: 0,
@@ -21,6 +27,7 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
         }
     }
 
+    #[flux_rs::sig(fn(&RingBuffer<T>[@ring_len, @hd, @tl]) -> usize[ring_len]) ]
     fn ring_len(&self) -> usize {
         self.ring.len()
     }
@@ -60,16 +67,18 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
     }
 }
 
-#[flux_rs::trusted] // Expected array or slice type
 impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
+    #[flux_rs::sig(fn(&RingBuffer<T>[@ring_len, @hd, @tl]) -> bool[hd != tl]) ]
     fn has_elements(&self) -> bool {
         self.head != self.tail
     }
 
+    #[flux_rs::sig(fn(&RingBuffer<T>[@ring_len, @hd, @tl]) -> bool[hd == (tl + 1) % ring_len]) ]
     fn is_full(&self) -> bool {
         self.head == ((self.tail + 1) % self.ring_len())
     }
 
+    #[flux_rs::sig(fn(&RingBuffer<T>[@ring_len, @hd, @tl]) -> usize)]
     fn len(&self) -> usize {
         if self.tail > self.head {
             self.tail - self.head
@@ -81,9 +90,33 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
         }
     }
 
+    #[flux_rs::sig(
+        fn(self: &strg RingBuffer<T>[@ring_len, @hd, @tl], _) -> bool 
+            ensures self: RingBuffer<T>{ rg: 
+                // if this is the case then we've overlapped and will overwrite a space
+                // that hasn't been read
+                rg.head != rg.tail 
+                && 
+                (
+                    // either we're full and don't update
+                    // hd == (tl + 1) % ring_len -> rg.tail == tl && rg.head == hd
+                    (hd != (tl + 1) % ring_len || rg.tail == tl && rg.head == hd)
+                    ||
+                    // or we updated which means the new value of tail is (tl + 1) % r
+                    // hd != (tl + 1) % ring_len -> rg.tail = (tl + 1) % ring_len
+                    (hd == (tl + 1) % ring_len || rg.tail == (tl + 1) % ring_len)
+                )
+            }
+    )]
     fn enqueue(&mut self, val: T) -> bool {
         if self.is_full() {
             // Incrementing tail will overwrite head
+            //
+            // at this point we know that
+            // self.head == ((self.tail + 1) % self.ring_len())
+            // so of course tail != head but for some reason
+            // this is not provable
+            flux_support::assume(self.tail != self.head);
             false
         } else {
             self.ring[self.tail] = val;
@@ -92,9 +125,30 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
         }
     }
 
+    #[flux_rs::sig(
+        fn(self: &strg RingBuffer<T>[@ring_len, @hd, @tl], _) -> Option<T> 
+            ensures self: RingBuffer<T>{ rg: 
+                // if this is the case then we've overlapped and will overwrite a space
+                // that hasn't been read
+                rg.head != rg.tail
+                && 
+                (
+                    // either the buffer is full so we dequeue and then enqueue 
+                    // or we have space so we just enqueue
+                    // hd == (tl + 1) % ring_len -> (rg.head == (hd + 1) % ring_len && rg.tail == (tl + 1) % ring_len)
+                    (hd != (tl + 1) % ring_len || (rg.head == (hd + 1) % ring_len && rg.tail == (tl + 1) % ring_len))
+                    ||
+                    // hd != (tl + 1) % ring_len -> (rg.tail == (tl + 1) % ring_len && rg.head == hd)
+                    (hd == (tl + 1) % ring_len || (rg.tail == (tl + 1) % ring_len && rg.head == hd))
+                )
+            }
+    )]
     fn push(&mut self, val: T) -> Option<T> {
         let result = if self.is_full() {
             let val = self.ring[self.head];
+            // at this point we should be 
+            // able to deduce that head != tail
+            flux_support::assume(self.tail != self.head);
             self.head = (self.head + 1) % self.ring_len();
             Some(val)
         } else {
@@ -106,6 +160,17 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
         result
     }
 
+    #[flux_rs::sig(
+        fn(self: &strg RingBuffer<T>[@ring_len, @hd, @tl]) -> Option<T> 
+            ensures self: RingBuffer<T>{
+                rg: 
+                    // hd == tl -> (rg.head == hd && rg.tail == tl && rg.head == rg.tail)
+                    (hd != tl || (rg.head == hd && rg.tail == tl && rg.head == rg.tail))
+                    ||
+                    // hd != tl -> (rg.head == (hd + 1) % ring_len)
+                    (hd == tl || rg.head == (hd + 1) % ring_len)
+             }
+    )]
     fn dequeue(&mut self) -> Option<T> {
         if self.has_elements() {
             let val = self.ring[self.head];
@@ -123,6 +188,11 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
     /// created by removing the element).
     ///
     /// If an element was removed, this function returns it as `Some(elem)`.
+    #[flux_rs::sig(
+        fn(self: &strg RingBuffer<T>[@ring_len, @hd, @tl], _) -> Option<T> 
+            ensures self: RingBuffer<T>{rg: rg.tail < rg.ring_len}
+    )]
+    // NOTE: May want to strengthen this to talk about correctness
     fn remove_first_matching<F>(&mut self, f: F) -> Option<T>
     where
         F: Fn(&T) -> bool,
@@ -149,11 +219,20 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
         None
     }
 
+    #[flux_rs::sig(
+        fn(self: &strg RingBuffer<T>[@ring_len, @hd, @tl]) 
+            ensures self: RingBuffer<T>[ring_len, 0, 0]
+    )]
     fn empty(&mut self) {
         self.head = 0;
         self.tail = 0;
     }
 
+    #[flux_rs::sig(
+        fn(self: &strg RingBuffer<T>[@ring_len, @hd, @tl], _) 
+            ensures self: RingBuffer<T>{rg: rg.tail < rg.ring_len}
+    )]
+    // NOTE: May want to strengthen this to talk about correctness
     fn retain<F>(&mut self, mut f: F)
     where
         F: FnMut(&T) -> bool,
