@@ -108,7 +108,7 @@
 //!     │
 //!     │                                             ║
 //!     ...                                          ═╝
-//!     ╘════════ ← End of storage
+//!     ╘════════ ← End of userspace region
 //! ```
 
 //!
