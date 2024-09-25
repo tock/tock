@@ -58,10 +58,11 @@ impl<'a, const NUM_SERVO: usize> SyscallDriver for Servo<'a, NUM_SERVO> {
     /// ### `command_num`
     ///
     /// - `0`: Return Ok(()) if this driver is included on the platform.
-    /// - `1`: Changing the angle immediatelly.`servo_index` receives the index
+    /// - `1`: Returns an u32 representing the number of available servomotors.
+    /// - `2`: Changing the angle immediatelly.`servo_index` receives the index
     /// corresponding to the servo whose angle we want to adjust
     /// `angle` is used to receive a value between 0 and 180.
-    /// - `2`: Returning the current angle for a specific index.
+    /// - `3`: Returning the current angle for a specific index.
     fn command(
         &self,
         command_num: usize,
@@ -72,8 +73,10 @@ impl<'a, const NUM_SERVO: usize> SyscallDriver for Servo<'a, NUM_SERVO> {
         match command_num {
             // Check whether the driver exists.
             0 => CommandReturn::success(),
+            // Returns the number of available servomotors.
+            1 => CommandReturn::success_u32(NUM_SERVO as u32),
             // Change the angle immediately.
-            1 => {
+            2 => {
                 if servo_index >= NUM_SERVO {
                     CommandReturn::failure(ErrorCode::NODEVICE)
                 } else {
@@ -87,7 +90,7 @@ impl<'a, const NUM_SERVO: usize> SyscallDriver for Servo<'a, NUM_SERVO> {
                 }
             }
             // Return the current angle.
-            2 => {
+            3 => {
                 if servo_index >= NUM_SERVO {
                     CommandReturn::failure(ErrorCode::NODEVICE)
                 } else {
