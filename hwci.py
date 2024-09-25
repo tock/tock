@@ -192,15 +192,15 @@ async def main():
             logging.error(f"Unknown test type: {args.test}")
             return
 
-        test_result = asyncio.create_task(listen_for_output(port, args.test))
+        listen_task = asyncio.create_task(listen_for_output(port, args.test))
 
         await asyncio.sleep(1)
 
         install_apps(apps, args.target)
 
         try:
+            test_result = await listen_task
             if test_result:
-                logging.info("Test Result: " + str(test_result))
                 logging.info("Test completed successfully")
             else:
                 logging.error("Test failed")
