@@ -254,14 +254,12 @@ struct AllowRoItems(u8);
 struct AllowRwItems(u8);
 /// Represents the size data (in bytes) T within the grant.
 #[derive(Copy, Clone)]
-struct GrantDataSize(usize);
+#[flux_rs::refined_by(v: int)]
+struct GrantDataSize(#[field(usize[v])] usize);
 /// Represents the alignment of data T within the grant.
 #[derive(Copy, Clone)]
-#[flux_rs::refined_by(val: int)]
-struct GrantDataAlign {
-    #[field(usize[val])]
-    val: usize,
-}
+#[flux_rs::refined_by(v: int)]
+struct GrantDataAlign(#[field(usize[v])] usize);
 
 impl<'a> EnteredGrantKernelManagedLayout<'a> {
     /// Reads the specified pointer as the base of the kernel owned grant region
@@ -370,8 +368,6 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
             (align - (kernel_managed_size & grant_t_align_mask)) & grant_t_align_mask
         }
 
-        // assume(grant_t_align.val > 0);
-
         let kernel_managed_size = size_of::<usize>()
             + upcalls_num.0 as usize * size_of::<SavedUpcall>()
             + allow_ro_num.0 as usize * size_of::<SavedAllowRo>()
@@ -380,7 +376,7 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         // Determine padding to get to the next multiple of grant_t_align by
         // taking the remainder and subtracting that from the alignment, then
         // ensuring a full alignment value maps to 0.
-        let padding = calc_padding(kernel_managed_size, grant_t_align.val);
+        let padding = calc_padding(kernel_managed_size, grant_t_align.0);
         kernel_managed_size + padding + grant_t_size.0
     }
 
@@ -390,7 +386,7 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         // The kernel owned memory all aligned to usize. We need to use the
         // higher of the two alignment to ensure our padding calculations work
         // for any alignment of T.
-        cmp::max(align_of::<usize>(), grant_t_align.val)
+        cmp::max(align_of::<usize>(), grant_t_align.0)
     }
 
     /// Returns the offset for the grant data t within the entire grant region.
@@ -408,9 +404,9 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         // The location of the grant data T is the last element in the entire
         // grant region. Caller must verify that memory is accessible and well
         // aligned to T.
-        let grant_t_size_usize: usize = grant_t_size.0;
-        assume(grant_size > grant_t_size_usize);
-        NonNull::new_unchecked(base_ptr.as_ptr().add(grant_size - grant_t_size_usize))
+        // let grant_t_size_usize: usize = grant_t_size.0;
+        assume(grant_size > grant_t_size.0);
+        NonNull::new_unchecked(base_ptr.as_ptr().add(grant_size - grant_t_size.0))
     }
 
     /// Read an 8 bit value from the counter field offset by the specified
@@ -1020,7 +1016,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
             num_allow_rws: AllowRwItems,
             processid: ProcessId,
         ) -> Result<(Option<NonNull<u8>>, &'a dyn Process), Error> {
-            assume(grant_t_align.val > 0);
+            assume(grant_t_align.0 > 0);
             // Here is an example of how the grants are laid out in the grant
             // region of process's memory:
             //
@@ -1135,9 +1131,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
             grant.grant_num,
             grant.driver_num,
             GrantDataSize(size_of::<T>()),
-            GrantDataAlign {
-                val: align_of::<T>(),
-            },
+            GrantDataAlign(align_of::<T>()),
             UpcallItems(Upcalls::COUNT),
             AllowRoItems(AllowROs::COUNT),
             AllowRwItems(AllowRWs::COUNT),
@@ -1412,9 +1406,7 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
                 panic!("Attempted to re-enter a grant region.");
             })
             .ok()?;
-        let grant_t_align = GrantDataAlign {
-            val: align_of::<T>(),
-        };
+        let grant_t_align = GrantDataAlign(align_of::<T>());
         let grant_t_size = GrantDataSize(size_of::<T>());
 
         let alloc_size = EnteredGrantKernelManagedLayout::grant_size(
