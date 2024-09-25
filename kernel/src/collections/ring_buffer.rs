@@ -22,9 +22,9 @@ pub struct RingBuffer<'a, T: 'a> {
 flux_rs::defs! {
     fn rb_next(x:int, ring_len: int) -> int { (x + 1) % ring_len }
     // VTOCK_TODO: ask nico why we need full crate path again
-    fn full(rb: crate::collections::ring_buffer::RingBuffer) -> bool { rb.head == rb_next(rb.tail, rb.ring_len) }
-    fn next_hd(rb: crate::collections::ring_buffer::RingBuffer) -> int { rb_next(rb.head, rb.ring_len) }
-    fn next_tl(rb: crate::collections::ring_buffer::RingBuffer) -> int { rb_next(rb.tail, rb.ring_len) }
+    fn full(rb: RingBuffer) -> bool { rb.head == rb_next(rb.tail, rb.ring_len) }
+    fn next_hd(rb: RingBuffer) -> int { rb_next(rb.head, rb.ring_len) }
+    fn next_tl(rb: RingBuffer) -> int { rb_next(rb.tail, rb.ring_len) }
 }
 
 
