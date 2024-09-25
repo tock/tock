@@ -49,6 +49,7 @@ with your app(s) included.
 
 ```bash
 $ arm-none-eabi-objcopy  \
+    --set-section-flags .apps=LOAD \
     --update-section .apps=../../../libtock-c/examples/c_hello/build/cortex-m7/cortex-m7.tbf \
     target/thumbv7em-none-eabi/debug/imxrt1050-evkb.elf \
     target/thumbv7em-none-eabi/debug/imxrt1050-evkb-app.axf

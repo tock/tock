@@ -42,6 +42,7 @@ with the Teensy 4 Tock kernel.
 
 ```bash
 $ arm-none-eabi-objcopy \
+    --set-section-flags .apps=LOAD \
     --update-section .apps=../../../libtock-c/examples/blink/build/cortex-m7/cortex-m7.tbf \
     ../../target/thumbv7em-none-eabi/release/teensy40.elf \
     ../../target/thumbv7em-none-eabi/release/teensy40-app.elf
@@ -72,7 +73,7 @@ KERNEL_WITH_APP_HEX=$(TOCK_ROOT_DIRECTORY)/target/teensy40/release/teensy40-app.
 
 .PHONY: program
 program: target/thumbv7em-none-eabi/release/teensy40.elf
-	arm-none-eabi-objcopy --update-section .apps=$(APP) $(KERNEL) $(KERNEL_WITH_APP)
+	arm-none-eabi-objcopy --set-section-flags .apps=LOAD --update-section .apps=$(APP) $(KERNEL) $(KERNEL_WITH_APP)
 	arm-none-eabi-objcopy -O ihex $(KERNEL_WITH_APP) $(KERNEL_WITH_APP_HEX)
     teensy_loader_cli -w -v --mcu=TEENSY40 $(KERNEL_WITH_APP_HEX)
 ```
