@@ -320,7 +320,6 @@ impl<T: Configure> StandardBitTiming for T {
             }
             ts = clock_rate / (prescaler * bitrate);
 
-
             sample_point_err = calc_sample_point_err(
                 sp,
                 ts,

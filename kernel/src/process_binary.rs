@@ -144,7 +144,6 @@ impl ProcessBinary {
         tbf_version: u16,
         require_kernel_version: bool,
     ) -> Result<Self, ProcessBinaryError> {
-
         // Get a slice for just the app header.
         let header_flash = app_flash
             .get(0..header_length)

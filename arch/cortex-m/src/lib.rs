@@ -7,6 +7,7 @@
 #![crate_name = "cortexm"]
 #![crate_type = "rlib"]
 #![no_std]
+#![feature(proc_macro_hygiene)]
 
 use core::fmt::Write;
 

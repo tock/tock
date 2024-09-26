@@ -6,8 +6,6 @@
 
 use crate::collections::queue;
 
-
-
 #[flux_rs::refined_by(ring_len: int, head: int, tail: int)]
 #[flux_rs::invariant(ring_len > 1)]
 pub struct RingBuffer<'a, T: 'a> {
@@ -26,7 +24,6 @@ flux_rs::defs! {
     fn next_hd(rb: RingBuffer) -> int { rb_next(rb.head, rb.ring_len) }
     fn next_tl(rb: RingBuffer) -> int { rb_next(rb.tail, rb.ring_len) }
 }
-
 
 impl<'a, T: Copy> RingBuffer<'a, T> {
     #[flux_rs::sig(fn({&mut [T][@ring_len] | ring_len > 1}) -> RingBuffer<T>[ring_len, 0, 0])]
@@ -102,12 +99,12 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
     }
 
     #[flux_rs::sig(
-        fn(self: &strg RingBuffer<T>[@ring_len, @hd, @tl], _) -> bool 
-            ensures self: RingBuffer<T>{ rg: 
+        fn(self: &strg RingBuffer<T>[@ring_len, @hd, @tl], _) -> bool
+            ensures self: RingBuffer<T>{ rg:
                 // if this is the case then we've overlapped and will overwrite a space
                 // that hasn't been read
-                rg.head != rg.tail 
-                && 
+                rg.head != rg.tail
+                &&
                 // either we're full and don't update
                 // hd == rb_next(tl, ring_len) -> rg.tail == tl && rg.head == hd
                 (hd == rb_next(tl, ring_len) => rg.tail == tl && rg.head == hd)
@@ -129,13 +126,13 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
     }
 
     #[flux_rs::sig(
-        fn(self: &strg RingBuffer<T>[@old], _) -> Option<T> 
-            ensures self: RingBuffer<T>{ rg: 
+        fn(self: &strg RingBuffer<T>[@old], _) -> Option<T>
+            ensures self: RingBuffer<T>{ rg:
                 // if this is the case then we've overlapped and will overwrite a space
                 // that hasn't been read
                 rg.head != rg.tail
-                && 
-                // either the buffer is full so we dequeue and then enqueue 
+                &&
+                // either the buffer is full so we dequeue and then enqueue
                 (full(old) => (rg.head == next_hd(old) && rg.tail == next_tl(old)))
                 &&
                 // or we have space so we just enqueue
@@ -157,9 +154,9 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
     }
 
     #[flux_rs::sig(
-        fn(self: &strg RingBuffer<T>[@ring_len, @hd, @tl]) -> Option<T> 
+        fn(self: &strg RingBuffer<T>[@ring_len, @hd, @tl]) -> Option<T>
             ensures self: RingBuffer<T>{
-                rg: 
+                rg:
                 (hd == tl => (rg.head == hd && rg.tail == tl && rg.head == rg.tail))
                 &&
                 (hd != tl => rg.head == rb_next(hd, ring_len))
@@ -183,7 +180,7 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
     ///
     /// If an element was removed, this function returns it as `Some(elem)`.
     #[flux_rs::sig(
-        fn(self: &strg RingBuffer<T>[@ring_len, @hd, @tl], _) -> Option<T> 
+        fn(self: &strg RingBuffer<T>[@ring_len, @hd, @tl], _) -> Option<T>
             ensures self: RingBuffer<T>{rg: rg.tail < rg.ring_len}
     )]
     // NOTE: May want to strengthen this to talk about correctness
@@ -214,7 +211,7 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
     }
 
     #[flux_rs::sig(
-        fn(self: &strg RingBuffer<T>[@ring_len, @hd, @tl]) 
+        fn(self: &strg RingBuffer<T>[@ring_len, @hd, @tl])
             ensures self: RingBuffer<T>[ring_len, 0, 0]
     )]
     fn empty(&mut self) {
@@ -223,7 +220,7 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
     }
 
     #[flux_rs::sig(
-        fn(self: &strg RingBuffer<T>[@ring_len, @hd, @tl], _) 
+        fn(self: &strg RingBuffer<T>[@ring_len, @hd, @tl], _)
             ensures self: RingBuffer<T>{rg: rg.tail < rg.ring_len}
     )]
     fn retain<F>(&mut self, mut f: F)
