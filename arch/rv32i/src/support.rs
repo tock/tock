@@ -5,6 +5,8 @@
 //! Core low-level operations.
 
 use crate::csr::{mstatus::mstatus, CSR};
+use flux_rs::*;
+use flux_support::*;
 
 #[cfg(all(target_arch = "riscv32", target_os = "none"))]
 #[inline(always)]
@@ -24,7 +26,7 @@ pub unsafe fn wfi() {
     asm!("wfi", options(nomem, nostack));
 }
 
-#[flux::trusted]
+#[flux_rs::trusted]
 pub unsafe fn atomic<F, R>(f: F) -> R
 where
     F: FnOnce() -> R,

@@ -9,9 +9,10 @@ use core::mem::size_of;
 use core::ops::Range;
 
 use crate::csr::mcause;
+use flux_rs::*;
+use flux_support::*;
 use kernel::errorcode::ErrorCode;
 use kernel::syscall::ContextSwitchReason;
-
 /// This holds all of the state that the kernel must keep for the process when
 /// the process is not executing.
 #[derive(Default)]
@@ -128,8 +129,8 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
     unsafe fn initialize_process(
         &self,
-        accessible_memory_start: *const u8,
-        _app_brk: *const u8,
+        accessible_memory_start: FluxPtr,
+        _app_brk: FluxPtr,
         state: &mut Self::StoredState,
     ) -> Result<(), ()> {
         // Need to clear the stored state when initializing.
@@ -141,7 +142,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         // pointer in the sp register.
         //
         // We do not pre-allocate any stack for RV32I processes.
-        state.regs[R_SP] = accessible_memory_start as u32;
+        state.regs[R_SP] = u32::from(accessible_memory_start);
 
         // We do not use memory for UKB, so just return ok.
         Ok(())
@@ -149,8 +150,8 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
     unsafe fn set_syscall_return_value(
         &self,
-        _accessible_memory_start: *const u8,
-        _app_brk: *const u8,
+        _accessible_memory_start: FluxPtr,
+        _app_brk: FluxPtr,
         state: &mut Self::StoredState,
         return_value: kernel::syscall::SyscallReturn,
     ) -> Result<(), ()> {
@@ -185,8 +186,8 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
     unsafe fn set_process_function(
         &self,
-        _accessible_memory_start: *const u8,
-        _app_brk: *const u8,
+        _accessible_memory_start: FluxPtr,
+        _app_brk: FluxPtr,
         state: &mut Riscv32iStoredState,
         callback: kernel::process::FunctionCall,
     ) -> Result<(), ()> {
@@ -215,10 +216,10 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     #[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
     unsafe fn switch_to_process(
         &self,
-        _accessible_memory_start: *const u8,
-        _app_brk: *const u8,
+        _accessible_memory_start: FluxPtr,
+        _app_brk: FluxPtr,
         _state: &mut Riscv32iStoredState,
-    ) -> (ContextSwitchReason, Option<*const u8>) {
+    ) -> (ContextSwitchReason, Option<FluxPtr>) {
         // Convince lint that 'mcause' and 'R_A4' are used during test build
         let _cause = mcause::Trap::from(_state.mcause as usize);
         let _arg4 = _state.regs[R_A4];
@@ -651,11 +652,11 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         let new_stack_pointer = state.regs[R_SP];
         (ret, Some(new_stack_pointer as *const u8))
     }
-    #[flux::ignore]
+    #[flux_rs::ignore]
     unsafe fn print_context(
         &self,
-        _accessible_memory_start: *const u8,
-        _app_brk: *const u8,
+        _accessible_memory_start: FluxPtr,
+        _app_brk: FluxPtr,
         state: &Riscv32iStoredState,
         writer: &mut dyn Write,
     ) {

@@ -7,11 +7,11 @@ use core::num::NonZeroUsize;
 use core::ops::Range;
 use core::{cmp, fmt};
 
+use crate::csr;
+use flux_support::*;
 use kernel::platform::mpu;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::{register_bitfields, LocalRegisterCopy};
-
-use crate::csr;
 
 register_bitfields![u8,
     /// Generic `pmpcfg` octet.
@@ -569,7 +569,7 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
 {
     type MpuConfig = PMPUserMPUConfig<MAX_REGIONS>;
 
-    fn enable_app_mpu(&self) {
+    fn enable_app_mpu(&mut self) {
         // TODO: This operation may fail when the PMP is not exclusively used
         // for userspace. Instead of panicing, we should handle this case more
         // gracefully and return an error in the `MPU` trait. Process
@@ -579,7 +579,7 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
         self.pmp.enable_user_pmp().unwrap()
     }
 
-    fn disable_app_mpu(&self) {
+    fn disable_app_mpu(&mut self) {
         self.pmp.disable_user_pmp()
     }
 
@@ -617,7 +617,7 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
 
     fn allocate_region(
         &self,
-        unallocated_memory_start: *const u8,
+        unallocated_memory_start: FluxPtr,
         unallocated_memory_size: usize,
         min_region_size: usize,
         permissions: mpu::Permissions,
@@ -635,7 +635,7 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
         // provided start address and size, transform them to meet the
         // constraints, and then check that we're still within the bounds of the
         // provided values:
-        let mut start = unallocated_memory_start as usize;
+        let mut start = usize::from(unallocated_memory_start);
         let mut size = min_region_size;
 
         // Region start always has to align to 4 bytes. Round up to a 4 byte
@@ -659,7 +659,7 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
         // allocation constraints, namely ensure that
         //
         //     start + size <= unallocated_memory_start + unallocated_memory_size
-        if start + size > (unallocated_memory_start as usize) + unallocated_memory_size {
+        if start + size > (usize::from(unallocated_memory_start)) + unallocated_memory_size {
             // We're overflowing the provided memory region, can't make
             // allocation. Normally, we'd abort here.
             //
@@ -686,7 +686,7 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
 
             if writeable
                 || (start + size
-                    > (unallocated_memory_start as usize) + unallocated_memory_size + 3)
+                    > (usize::from(unallocated_memory_start)) + unallocated_memory_size + 3)
             {
                 return None;
             }
@@ -708,7 +708,7 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
         );
         config.is_dirty.set(true);
 
-        Some(mpu::Region::new(start as *const u8, size))
+        Some(mpu::Region::new(flux_support::FluxPtr::from(start), size))
     }
 
     fn remove_memory_region(
@@ -723,8 +723,8 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
             .find(|(_i, r)| {
                 // `start as usize + size` in lieu of a safe pointer offset method
                 r.0 != TORUserPMPCFG::OFF
-                    && r.1 == region.start_address()
-                    && r.2 == (region.start_address() as usize + region.size()) as *const u8
+                    && r.1 == u8::from(region.start_address()) as *const u8
+                    && r.2 == (usize::from(region.start_address()) + region.size()) as *const u8
             })
             .map(|(i, _)| i)
             .ok_or(())?;
@@ -737,14 +737,14 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
 
     fn allocate_app_memory_region(
         &self,
-        unallocated_memory_start: *const u8,
+        unallocated_memory_start: FluxPtr,
         unallocated_memory_size: usize,
         min_memory_size: usize,
         initial_app_memory_size: usize,
         initial_kernel_memory_size: usize,
         permissions: mpu::Permissions,
         config: &mut Self::MpuConfig,
-    ) -> Option<(*const u8, usize)> {
+    ) -> Option<(FluxPtr, usize)> {
         // An app memory region can only be allocated once per `MpuConfig`.
         // If we already have one, abort:
         if config.app_memory_region.is_some() {
@@ -764,7 +764,7 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
         // protected by the PMP). For this, start with the provided start
         // address and size, transform them to meet the constraints, and then
         // check that we're still within the bounds of the provided values:
-        let mut start = unallocated_memory_start as usize;
+        let mut start = usize::from(unallocated_memory_start);
         let mut pmp_region_size = initial_app_memory_size;
 
         // Region start always has to align to 4 bytes. Round up to a 4 byte
@@ -802,7 +802,8 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
         // , which ensures the PMP constraints didn't push us over the bounds of
         // the provided memory region, and we can fit the entire allocation as
         // requested by the kernel:
-        if start + memory_block_size > (unallocated_memory_start as usize) + unallocated_memory_size
+        if start + memory_block_size
+            > (usize::from(unallocated_memory_start)) + unallocated_memory_size
         {
             // Overflowing the provided memory region, can't make allocation:
             return None;
@@ -828,20 +829,20 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
         config.is_dirty.set(true);
         config.app_memory_region.replace(region_num);
 
-        Some((start as *const u8, memory_block_size))
+        Some((flux_support::FluxPtr::from(start), memory_block_size))
     }
 
     fn update_app_memory_region(
         &self,
-        app_memory_break: *const u8,
-        kernel_memory_break: *const u8,
+        app_memory_break: FluxPtr,
+        kernel_memory_break: FluxPtr,
         permissions: mpu::Permissions,
         config: &mut Self::MpuConfig,
     ) -> Result<(), ()> {
         let region_num = config.app_memory_region.get().ok_or(())?;
 
-        let mut app_memory_break = app_memory_break as usize;
-        let kernel_memory_break = kernel_memory_break as usize;
+        let mut app_memory_break = app_memory_break as FluxPtr;
+        let kernel_memory_break = kernel_memory_break as FluxPtr;
 
         // Ensure that the requested app_memory_break complies with PMP
         // alignment constraints, namely that the region's end address is 4 byte
@@ -858,13 +859,13 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
         // If we're not out of memory, update the region configuration
         // accordingly:
         config.regions[region_num].0 = permissions.into();
-        config.regions[region_num].2 = app_memory_break as *const u8;
+        config.regions[region_num].2 = u8::from(app_memory_break) as *const u8;
         config.is_dirty.set(true);
 
         Ok(())
     }
 
-    fn configure_mpu(&self, config: &Self::MpuConfig) {
+    fn configure_mpu(&mut self, config: &Self::MpuConfig) {
         if !self.last_configured_for.contains(&config.id) || config.is_dirty.get() {
             self.pmp.configure_pmp(&config.regions).unwrap();
             config.is_dirty.set(false);

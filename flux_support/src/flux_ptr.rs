@@ -1,12 +1,58 @@
 use core::ops::{Deref, DerefMut};
 use core::ptr::NonNull;
 use flux_rs::{refined_by, sig};
+use std::ops::Rem;
 
 #[flux_rs::opaque]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Ord)]
 #[refined_by(ptr: int)]
 pub struct FluxPtr {
     inner: *mut u8,
+}
+
+impl From<usize> for FluxPtr {
+    fn from(value: usize) -> Self {
+        FluxPtr {
+            inner: value as *mut u8,
+        }
+    }
+}
+
+// Support cast from FluxPtr to u32
+impl From<FluxPtr> for u32 {
+    fn from(ptr: FluxPtr) -> u32 {
+        ptr.as_u32()
+    }
+}
+// convert FluxPtr to *const u8
+impl From<FluxPtr> for u8 {
+    fn from(ptr: FluxPtr) -> u8 {
+        ptr.inner as u8
+    }
+}
+// FluxPtr to usize
+impl From<FluxPtr> for usize {
+    fn from(ptr: FluxPtr) -> usize {
+        ptr.as_usize()
+    }
+}
+
+// Implement Rem trait for FluxPtr
+impl Rem<usize> for FluxPtr {
+    type Output = usize;
+
+    fn rem(self, rhs: usize) -> Self::Output {
+        (self.inner as usize) % rhs
+    }
+}
+
+// implement implement `AddAssign<usize>`` for FluxPtr
+impl core::ops::AddAssign<usize> for FluxPtr {
+    fn add_assign(&mut self, rhs: usize) {
+        *self = FluxPtr {
+            inner: (self.inner as usize + rhs) as *mut u8,
+        }
+    }
 }
 
 // VTOCK-TODO: fill in these functions with obvious implementations

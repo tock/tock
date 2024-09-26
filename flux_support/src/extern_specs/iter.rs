@@ -25,18 +25,18 @@ struct Iter<'a, T>;
 // }
 
 // #[flux_rs::extern_spec(std::slice)]
-// #[flux::generics(T as base)]
-// #[flux::assoc(fn done(x: Iter<T>) -> bool { x.idx >= x.len })]
-// #[flux::assoc(fn step(x: Iter<T>, y: Iter<T>) -> bool { x.idx + 1 == y.idx && x.len == y.len})]
+// #[flux_rs::generics(T as base)]
+// #[flux_rs::assoc(fn done(x: Iter<T>) -> bool { x.idx >= x.len })]
+// #[flux_rs::assoc(fn step(x: Iter<T>, y: Iter<T>) -> bool { x.idx + 1 == y.idx && x.len == y.len})]
 // impl<'a, T> Iterator for Iter<'a, T> {
 //     #[flux_rs::sig(fn(self: &strg Iter<T>[@curr_s]) -> Option<_>[curr_s.idx < curr_s.len] ensures self: Iter<T>{next_s: curr_s.idx + 1 == next_s.idx && curr_s.len == next_s.len})]
 //     fn next(&mut self) -> Option<&'a T>;
 // }
 
 // #[flux_rs::extern_spec(std::iter)]
-// #[flux::generics(I as base)]
-// #[flux::assoc(fn done(x: Enumerate<I>) -> bool { <I as Iterator>::done(x.inner)})]
-// #[flux::assoc(fn step(x: Enumerate<I>, y: Enumerate<I>) -> bool { <I as Iterator>::step(x.inner, y.inner)})]
+// #[flux_rs::generics(I as base)]
+// #[flux_rs::assoc(fn done(x: Enumerate<I>) -> bool { <I as Iterator>::done(x.inner)})]
+// #[flux_rs::assoc(fn step(x: Enumerate<I>, y: Enumerate<I>) -> bool { <I as Iterator>::step(x.inner, y.inner)})]
 // impl<I: Iterator> Iterator for Enumerate<I> {
 //     // #[flux_rs::sig(fn(self: &strg Enumerate<I>[@curr_s]) -> Option<(usize[curr_s.idx], _)>[curr_s.idx < curr_s.len] ensures self: Enumerate<I>{next_s: curr_s.idx + 1 == next_s.idx && curr_s.len == next_s.len})]
 //     #[flux_rs::sig(fn(self: &strg Enumerate<I>[@curr_s]) -> Option<(usize[curr_s.idx], _)>[!<I as Iterator>::done(curr_s.inner)]

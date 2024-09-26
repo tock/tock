@@ -4,9 +4,11 @@
 
 //! Support for the 32-bit RISC-V architecture.
 
+#![feature(proc_macro_hygiene)]
 #![crate_name = "rv32i"]
 #![crate_type = "rlib"]
 #![no_std]
+use flux_rs::*;
 
 use core::fmt::Write;
 
@@ -18,9 +20,9 @@ use kernel::utilities::registers::interfaces::{Readable, Writeable};
 pub mod clic;
 pub mod machine_timer;
 pub mod pmp;
-#[flux::ignore]
+#[flux_rs::ignore]
 pub mod support;
-#[flux::ignore]
+#[flux_rs::ignore]
 pub mod syscall;
 
 // Re-export the shared CSR library so that dependent crates do not have to have
@@ -429,7 +431,7 @@ pub unsafe fn semihost_command(_command: usize, _arg0: usize, _arg1: usize) -> u
 }
 
 /// Print a readable string for an mcause reason.
-#[flux::ignore]
+#[flux_rs::ignore]
 pub unsafe fn print_mcause(mcval: csr::mcause::Trap, writer: &mut dyn Write) {
     match mcval {
         csr::mcause::Trap::Interrupt(interrupt) => match interrupt {
@@ -516,7 +518,7 @@ pub unsafe fn print_mcause(mcval: csr::mcause::Trap, writer: &mut dyn Write) {
 
 /// Prints out RISCV machine state, including basic system registers
 /// (mcause, mstatus, mtvec, mepc, mtval, interrupt status).
-#[flux::ignore]
+#[flux_rs::ignore]
 pub unsafe fn print_riscv_state(writer: &mut dyn Write) {
     let mcval: csr::mcause::Trap = core::convert::From::from(csr::CSR.mcause.extract());
     let _ = writer.write_fmt(format_args!("\r\n---| RISC-V Machine State |---\r\n"));
