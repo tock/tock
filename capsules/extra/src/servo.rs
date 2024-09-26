@@ -41,18 +41,18 @@ use kernel::{ErrorCode, ProcessId};
 use capsules_core::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Servo as usize;
 
-pub struct Servo<'a, const NUM_SERVO: usize> {
+pub struct Servo<'a, const SERVO_COUNT: usize> {
     /// The service capsule servo.
-    servo: &'a [&'a dyn hil::servo::Servo<'a>; NUM_SERVO],
+    servo: &'a [&'a dyn hil::servo::Servo<'a>; SERVO_COUNT],
 }
 
-impl<'a, const NUM_SERVO: usize> Servo<'a, NUM_SERVO> {
-    pub fn new(servo: &'a [&'a dyn hil::servo::Servo<'a>; NUM_SERVO]) -> Self {
+impl<'a, const SERVO_COUNT: usize> Servo<'a, SERVO_COUNT> {
+    pub fn new(servo: &'a [&'a dyn hil::servo::Servo<'a>; SERVO_COUNT]) -> Self {
         Self { servo }
     }
 }
 /// Provide an interface for userland.
-impl<'a, const NUM_SERVO: usize> SyscallDriver for Servo<'a, NUM_SERVO> {
+impl<'a, const SERVO_COUNT: usize> SyscallDriver for Servo<'a, SERVO_COUNT> {
     /// Command interface.
     ///
     /// ### `command_num`
@@ -74,10 +74,10 @@ impl<'a, const NUM_SERVO: usize> SyscallDriver for Servo<'a, NUM_SERVO> {
             // Check whether the driver exists.
             0 => CommandReturn::success(),
             // Returns the number of available servomotors.
-            1 => CommandReturn::success_u32(NUM_SERVO as u32),
+            1 => CommandReturn::success_u32(SERVO_COUNT as u32),
             // Change the angle immediately.
             2 => {
-                if servo_index >= NUM_SERVO {
+                if servo_index >= SERVO_COUNT {
                     CommandReturn::failure(ErrorCode::NODEVICE)
                 } else {
                     match angle.try_into() {
@@ -91,7 +91,7 @@ impl<'a, const NUM_SERVO: usize> SyscallDriver for Servo<'a, NUM_SERVO> {
             }
             // Return the current angle.
             3 => {
-                if servo_index >= NUM_SERVO {
+                if servo_index >= SERVO_COUNT {
                     CommandReturn::failure(ErrorCode::NODEVICE)
                 } else {
                     match self.servo[servo_index].get_angle() {
