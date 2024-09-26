@@ -7,30 +7,27 @@
 name: treadmill-ci
 env:
   TERM: xterm # Makes tput work in actions output
-# Controls when the action will run. Triggers the workflow on push or pull request
-# events but only for the master branch
+# Controls when the action will run. Triggers the workflow on pull request and
+# merge group checks:
 on:
-  push: # Run CI for all branches except GitHub merge queue tmp branches
-    branches-ignore:
-      - 'gh-readonly-queue/**'
+  push:
+    branches:
+      - master
   pull_request: # Run CI for PRs on any branch
   merge_group: # Run CI for the GitHub merge queue
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
-# If you add additional jobs, remember to add them to bors.toml
 permissions:
   contents: read
-  actions: write
 jobs:
-  test-strategy:
+  test-prepare:
     runs-on: ubuntu-latest
+    # This provides access to the secrets required below, after approval by
+    # certain persons or GH teams:
+    environment: treadmill-ci
     outputs:
       tml-job-ids: ${{ steps.treadmill-job-launch.outputs.tml-job-ids }}
       tml-jobs: ${{ steps.treadmill-job-launch.outputs.tml-jobs }}
     steps:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - uses: actions/checkout@v4
-        with:
-          path: tock
       - name: Checkout Treadmill repository
         uses: actions/checkout@v4
         with:
@@ -48,11 +45,13 @@ jobs:
           cargo build --package tml-cli
           popd
           echo "$PWD/treadmill/target/debug" >> "$GITHUB_PATH"
-      - name: Login to the Treadmill Switchboard
-        run: tml login lschuermann ${{ secrets.TREADMILL_LOGIN_PASSWORD }}
-      - name: Analyze changes and determine types of tests to run
-        run: |
-          echo "TODO: implement this!"
+      # - uses: actions/checkout@v4
+      #   with:
+      #     path: tock
+
+      # - name: Analyze changes and determine types of tests to run
+      #   run: |
+      #     echo "TODO: implement this!"
       - name: Generate a token to register new just-in-time runners
         id: generate-token
         uses: actions/create-github-app-token@v1
@@ -64,7 +63,16 @@ jobs:
         id: treadmill-job-launch
         env:
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+          TML_API_TOKEN: ${{ secrets.TREADMILL_API_TOKEN }}
+          # Currently, all tests run only on hosts attached to an nRF52840DK
+          DUT_BOARD: nrf52840dk
+          # A Ubuntu 22.04 image with a GitHub Actions self-hosted runner pre-configured:
+          IMAGE_ID: d407b09b9f56c666d0d3350890e364ba16aad08b484f4ca1de19d42569cc79b1
         run: |
+          TREADMILL_DUT_BOARD="nrf52840dk"
+
+          # When we eventually launch tests on multiple hardware platforms in
+          # parallel, we need to supply different SUB_TEST_IDs here:
           SUB_TEST_ID="0"
 
           RUNNER_ID="tml-gh-actions-runner-${GITHUB_REPOSITORY_ID}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${SUB_TEST_ID}"
@@ -77,20 +85,22 @@ jobs:
             -F "runner_group_id=1" \
             -f "labels[]=$RUNNER_ID" \
             -f "work_folder=_work")"
-
           echo "Generated configuration for runner $(echo "$RUNNER_CONFIG_JSON" | jq -r '.runner.name')"
+
           echo "Enqueueing treadmill job:"
           TML_JOB_PARAMETERS="{\"gh-actions-runner-encoded-jit-config\": {\"secret\": true, \"value\": \"$(echo "$RUNNER_CONFIG_JSON" | jq -r '.encoded_jit_config')\"}}"
-          # echo "Parameters: $TML_JOB_PARAMETERS"
           TML_JOB_ID_JSON="$(tml job enqueue \
-            0373bb7d728b36cb6083cfe12f27038b71972ceb90563b0037d4012df7b62bf4 \
-            --tag-config 'supervisor:1bdc10a7-9bea-4da5-9e9c-02c046223dfb' \
-            --ssh-keys 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFjLuM7C6emv+xAFYnXA+mSUKmMEmKDM0A6WzZ0HliFb cardno:23_559_180' \
+            "$IMAGE_ID" \
+            --tag-config "board:$DUT_BOARD" \
             --parameters "$TML_JOB_PARAMETERS" \
           )"
-          echo "TML_JOB_ID_JSON: $TML_JOB_ID_JSON"
-          TML_JOB_ID="$(echo "$TML_JOB_ID_JSON" | jq -r .job_id)"
 
+          TML_JOB_ID="$(echo "$TML_JOB_ID_JSON" | jq -r .job_id)"
+          echo "Enqueued Treadmill job with ID $TML_JOB_ID"
+
+          # Pass the job IDs and other configuration data into the outputs of
+          # this step, such that we can run test-execute job instances for each
+          # Treadmill job we've started:
           echo "tml-job-ids=[ \
             \"$TML_JOB_ID\" \
           ]" >> "$GITHUB_OUTPUT"
@@ -101,43 +111,35 @@ jobs:
             } \
           }" >> "$GITHUB_OUTPUT"
   test-execute:
-    needs: test-strategy
+    needs: test-prepare
     strategy:
       matrix:
-        tml-job-id: ${{ fromJSON(needs.test-strategy.outputs.tml-job-ids) }}
-    runs-on: ${{ fromJSON(needs.test-strategy.outputs.tml-jobs)[matrix.tml-job-id].runner-id }}
+        tml-job-id: ${{ fromJSON(needs.test-prepare.outputs.tml-job-ids) }}
+    runs-on: ${{ fromJSON(needs.test-prepare.outputs.tml-jobs)[matrix.tml-job-id].runner-id }}
     steps:
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - name: Install required packages
+      - name: Print Treadmill Job Context and Debug Information
         run: |
-          sudo DEBIAN_FRONTEND=noninteractive apt update
-          sudo DEBIAN_FRONTEND=noninteractive apt install -y git cargo openocd python3 python3-pip python3-serial pipx gcc-arm-none-eabi libnewlib-arm-none-eabi pkg-config libudev-dev cmake libusb-1.0-0-dev udev make gdb-multiarch gcc-arm-none-eabi build-essential
-          curl --proto '=https' --tlsv1.2 -LsSf https://github.com/probe-rs/probe-rs/releases/latest/download/probe-rs-tools-installer.sh | sh
-      - uses: actions/checkout@v4
-        with:
-          path: tock
-      - name: Print Treadmill Job Id
-        run: |
-          echo "tml job id: ${{ matrix.tml-job-id }}"
-          echo "Runner ID: ${{ fromJSON(needs.test-strategy.outputs.tml-jobs)[matrix.tml-job-id] }}"
-      - name: Print attached USB devices
-        run: |
+          echo "Treadmill job id: ${{ matrix.tml-job-id }}"
+          echo "GitHub Actions Runner ID: ${{ fromJSON(needs.test-prepare.outputs.tml-jobs)[matrix.tml-job-id] }}"
+          echo "Network configration:"
+          ip address
+          echo "Attached USB devices:"
           lsusb
-          ls -lh /dev
-          ls -lh /dev/bus/usb/**
-          whoami
-          groups
-      - name: Run test script
+          echo "Parameters:"
+          ls /run/tml/parameters
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Build the Tock kernel
         run: |
-          ls
-          pwd
-          export PATH=$HOME/.local/bin:$PATH
-          pipx install tockloader
+          pushd boards/nordic/nrf52840dk
           unset RUSTFLAGS
-          python3 ./tock/hwci.py
+          make
+          popd
+  # TODO: remove once jobs are automatically terminated when the QEMU
+  # process exits...
   test-terminate:
     needs:
-      - test-strategy
+      - test-prepare
       - test-execute
     runs-on: ubuntu-latest
     steps:
@@ -159,11 +161,11 @@ jobs:
           cargo build --package tml-cli
           popd
           echo "$PWD/treadmill/target/debug" >> "$GITHUB_PATH"
-      - name: Login to the Treadmill Switchboard
-        run: tml login lschuermann ${{ secrets.TREADMILL_LOGIN_PASSWORD }}
       - name: Cancel Treadmill jobs
+        env:
+          TML_API_TOKEN: ${{ secrets.TREADMILL_API_TOKEN }}
         run: |
-          echo '${{ needs.test-strategy.outputs.tml-job-ids }}' \
+          echo '${{ needs.test-prepare.outputs.tml-job-ids }}' \
             | jq -rc '.[]' \
             | while read JOB_ID; do
               echo "Canceling job ID $JOB_ID..."
