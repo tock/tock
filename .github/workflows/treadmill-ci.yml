@@ -20,9 +20,6 @@ permissions:
 jobs:
   test-prepare:
     runs-on: ubuntu-latest
-    # This provides access to the secrets required below, after approval by
-    # certain persons or GH teams:
-    environment: treadmill-ci
     outputs:
       tml-job-ids: ${{ steps.treadmill-job-launch.outputs.tml-job-ids }}
       tml-jobs: ${{ steps.treadmill-job-launch.outputs.tml-jobs }}
