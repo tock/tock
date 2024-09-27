@@ -8,7 +8,7 @@ import asyncio
 import time
 import re
 
-### HW CI TEST multi_alarm_simple default test
+### HW CI TEST multi_alarm_simple default test WIP
 
 logging.basicConfig(
     level=logging.DEBUG,
