@@ -92,6 +92,7 @@ pub mod test;
 pub mod text_screen;
 pub mod thread_network;
 pub mod tickv;
+pub mod tmp431;
 pub mod touch;
 pub mod udp_driver;
 pub mod udp_mux;
