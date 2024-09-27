@@ -11,8 +11,6 @@ env:
 # merge group checks:
 on:
   push:
-    branches:
-      - master
   pull_request: # Run CI for PRs on any branch
   merge_group: # Run CI for the GitHub merge queue
 permissions:
