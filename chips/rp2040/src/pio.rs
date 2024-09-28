@@ -4,6 +4,8 @@
 //
 // Author: Radu Matei <radu.matei.05.21@gmail.com>
 
+//! Programmable Input Output (PIO) hardware.
+
 use kernel::debug;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
@@ -581,9 +583,9 @@ pub enum PioMovStatusType {
     StatusRxLessthan = 1,
 }
 
-// PIO State Machine configuration structure
-//
-// Used to initialize a PIO with all of its state machines.
+/// PIO State Machine configuration structure
+///
+/// Used to initialize a PIO with all of its state machines.
 pub struct StateMachineConfiguration {
     pub out_pins_count: u32,
     pub out_pins_base: u32,

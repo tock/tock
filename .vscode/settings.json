@@ -6,5 +6,4 @@
         "RUSTUP_TOOLCHAIN": "nightly-2024-07-08"
     },
     "rust-analyzer.check.allTargets": false,
-    "makefile.configureOnOpen": false,
 }
