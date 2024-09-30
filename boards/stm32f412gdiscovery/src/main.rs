@@ -25,6 +25,7 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 use stm32f412g::chip_specs::Stm32f412Specs;
+use stm32f412g::clocks::hsi::HSI_FREQUENCY_MHZ;
 use stm32f412g::interrupt_service::Stm32f412gDefaultPeripherals;
 
 /// Support routines for debugging I/O.
@@ -766,7 +767,9 @@ unsafe fn start() -> (
         rng,
 
         scheduler,
-        systick: cortexm4::systick::SysTick::new(),
+        systick: cortexm4::systick::SysTick::new_with_calibration(
+            (HSI_FREQUENCY_MHZ * 1_000_000) as u32,
+        ),
     };
 
     // // Optional kernel tests
