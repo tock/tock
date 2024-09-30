@@ -23,6 +23,7 @@ use qemu_rv32_virt_chip::interrupts;
 use rv32i::csr;
 
 use crate::CHIP;
+use crate::PortalInstanceKey;
 
 const NUM_PROCS: usize = 4;
 
@@ -230,7 +231,6 @@ pub unsafe fn spawn<const ID: usize>(
             )
         )
     );
-
     qemu_rv32_virt_chip::portal::init_portal_panic(hw_portal);
 
     // ----- Creating a mux portal and deivce -----
@@ -241,10 +241,9 @@ pub unsafe fn spawn<const ID: usize>(
         MuxPortal::new(hw_portal),
     );
     kernel::deferred_call::DeferredCallClient::register(mux_portal);
-
     hil::portal::Portal::set_portal_client(hw_portal, mux_portal);
 
-    let mux_portal_client = static_init!(
+    let mux_portal_device = static_init!(
         MuxPortalDevice,
         MuxPortalDevice::new(
             mux_portal,
@@ -252,10 +251,10 @@ pub unsafe fn spawn<const ID: usize>(
                 MuxTraveler,
                 MuxTraveler::Uart(0, kernel::utilities::cells::TakeCell::empty()),
             ),
-            1337, // portal id
+            PortalInstanceKey::AppKernelUart as usize,
         ),
     );
-    mux_portal_client.setup();
+    mux_portal_device.setup();
 
     // ---------- End of setting a mux portal and device --------
 
@@ -268,11 +267,10 @@ pub unsafe fn spawn<const ID: usize>(
                 UartTraveler,
                 UartTraveler::empty(),
             ),
-            mux_portal_client,
+            mux_portal_device,
         )
     );
-
-    hil::portal::Portal::set_portal_client(mux_portal_client, uart_portal_client);
+    hil::portal::Portal::set_portal_client(mux_portal_device, uart_portal_client);
 
 
     // Initialize peripherals

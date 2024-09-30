@@ -57,6 +57,10 @@ impl TryFrom<usize> for ThreadType {
     }
 }
 
+pub enum PortalInstanceKey {
+    AppKernelUart = 1337,
+}
+
 /// Main function.
 ///
 /// This function is called from the arch crate after some very basic
