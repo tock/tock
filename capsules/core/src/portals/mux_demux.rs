@@ -1,21 +1,34 @@
-use kernel::hil::portal::{Portal, PortalClient};
-use capsules_core::portals::teleportable_uart::{UartPortal, UartPortalClient, UartTraveler};
-
-use kernel::collections::list::{List, ListLink, ListNode};
-use kernel::utilities::cells::{TakeCell, OptionalCell};
 use kernel::errorcode::ErrorCode;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
+use kernel::hil::portal::{Portal, PortalClient};
+use kernel::collections::list::{List, ListLink, ListNode};
+use kernel::utilities::cells::{TakeCell, OptionalCell};
 
 use core::cell::Cell;
+
+use crate::portals::teleportable_uart::{UartPortal, UartPortalClient, UartTraveler};
 
 pub enum MuxTraveler {
     Uart(usize, TakeCell<'static, UartTraveler>),
 }
 
+
+#[derive(Clone, Copy)]
+pub enum MuxDevice<'a> {
+    Uart(&'a dyn PortalClient<UartTraveler>),
+}
+
+
+#[derive(Clone, Copy)]
+pub enum DemuxDevice<'a> {
+    Uart(&'a dyn Portal<'a, UartTraveler>),
+}
+
+
 pub struct MuxPortal<'a> {
     portal: &'a dyn Portal<'a, MuxTraveler>,
-    portal_clients: List<'a, MuxPortalClient<'a>>,
-    inflight: OptionalCell<&'a MuxPortalClient<'a>>,
+    portal_clients: List<'a, MuxPortalDevice<'a>>,
+    inflight: OptionalCell<&'a MuxPortalDevice<'a>>,
     deferred_call: DeferredCall,
 }
 
@@ -77,23 +90,18 @@ impl DeferredCallClient for MuxPortal<'_> {
     }
 }
 
-#[derive(Clone, Copy)]
-pub enum MuxClient<'a> {
-    Uart(&'a dyn PortalClient<UartTraveler>),
-}
-
-pub struct MuxPortalClient<'a> {
+pub struct MuxPortalDevice<'a> {
     mux: &'a MuxPortal<'a>,
-    next: ListLink<'a, MuxPortalClient<'a>>,
+    next: ListLink<'a, MuxPortalDevice<'a>>,
     traveler: TakeCell<'static, MuxTraveler>,
-    portal_client: OptionalCell<MuxClient<'a>>,
+    portal_client: OptionalCell<MuxDevice<'a>>,
     teleporting: Cell<bool>,
     id: usize,
 }
 
-impl<'a> MuxPortalClient<'a> {
-    pub fn new(mux: &'a MuxPortal<'a>, traveler: &'static mut MuxTraveler, id: usize) -> MuxPortalClient<'a> {
-        MuxPortalClient {
+impl<'a> MuxPortalDevice<'a> {
+    pub fn new(mux: &'a MuxPortal<'a>, traveler: &'static mut MuxTraveler, id: usize) -> MuxPortalDevice<'a> {
+        MuxPortalDevice {
             mux,
             id,
             next: ListLink::empty(),
@@ -116,15 +124,15 @@ impl<'a> MuxPortalClient<'a> {
     }
 }
 
-impl<'a> ListNode<'a, MuxPortalClient<'a>> for MuxPortalClient<'a> {
-    fn next(&'a self) -> &'a ListLink<'a, MuxPortalClient<'a>> {
+impl<'a> ListNode<'a, MuxPortalDevice<'a>> for MuxPortalDevice<'a> {
+    fn next(&'a self) -> &'a ListLink<'a, MuxPortalDevice<'a>> {
         &self.next
     }
 }
 
-impl<'a> Portal<'a, UartTraveler> for MuxPortalClient<'a> {
+impl<'a> Portal<'a, UartTraveler> for MuxPortalDevice<'a> {
     fn set_portal_client(&self, client: &'a dyn PortalClient<UartTraveler>) {
-        self.portal_client.set(MuxClient::Uart(client))
+        self.portal_client.set(MuxDevice::Uart(client))
     }
 
     fn teleport(
@@ -144,14 +152,14 @@ impl<'a> Portal<'a, UartTraveler> for MuxPortalClient<'a> {
     }
 }
 
-impl<'a> PortalClient<MuxTraveler> for MuxPortalClient<'a> {
+impl<'a> PortalClient<MuxTraveler> for MuxPortalDevice<'a> {
     fn teleported(
         &self,
         traveler: &'static mut MuxTraveler,
         rcode: Result<(), ErrorCode>,
     ) {
         match self.portal_client.get() {
-            Some(MuxClient::Uart(uart_client)) => {
+            Some(MuxDevice::Uart(uart_client)) => {
                 match traveler {
                     MuxTraveler::Uart(_, uart_traveler) => {
                         uart_traveler.take().map(|utraveler| uart_client.teleported(utraveler, rcode));
@@ -166,7 +174,6 @@ impl<'a> PortalClient<MuxTraveler> for MuxPortalClient<'a> {
     }
 }
 
-// --------------------------------------- DEMUX ----------------------------------------------
 
 pub struct DemuxPortal<'a> {
     portals: List<'a, DemuxPortalDevice<'a>>,
@@ -213,12 +220,6 @@ impl<'a> PortalClient<MuxTraveler> for DemuxPortal<'a> {
         self.portal_client.map(|client| client.teleported(traveler, rcode));
     }
 }
-
-#[derive(Clone, Copy)]
-pub enum DemuxDevice<'a> {
-    Uart(&'a dyn Portal<'a, UartTraveler>),
-}
-
 
 pub struct DemuxPortalDevice<'a> {
     portal: DemuxDevice<'a>,

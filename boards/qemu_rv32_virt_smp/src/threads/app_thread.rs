@@ -233,8 +233,8 @@ pub unsafe fn spawn<const ID: usize>(
 
     qemu_rv32_virt_chip::portal::init_portal_panic(hw_portal);
 
-    // ----- creating a mux portal and deivce -----
-    use qemu_rv32_virt_chip::portal_mux::{MuxPortal, MuxPortalClient, MuxClient, MuxTraveler};
+    // ----- Creating a mux portal and deivce -----
+    use capsules_core::portals::mux_demux::{MuxPortal, MuxPortalDevice, MuxDevice, MuxTraveler};
 
     let mux_portal = static_init!(
         MuxPortal,
@@ -245,8 +245,8 @@ pub unsafe fn spawn<const ID: usize>(
     hil::portal::Portal::set_portal_client(hw_portal, mux_portal);
 
     let mux_portal_client = static_init!(
-        MuxPortalClient,
-        MuxPortalClient::new(
+        MuxPortalDevice,
+        MuxPortalDevice::new(
             mux_portal,
             static_init!(
                 MuxTraveler,
@@ -257,7 +257,7 @@ pub unsafe fn spawn<const ID: usize>(
     );
     mux_portal_client.setup();
 
-    // ------------ end of setting a mux portal and device --------
+    // ---------- End of setting a mux portal and device --------
 
     // Initialize the uart portal client and connect it to the hardware portal
     use capsules_core::portals::teleportable_uart::{UartPortalClient, UartTraveler};
