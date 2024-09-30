@@ -18,10 +18,21 @@ pub enum MuxDevice<'a> {
     Uart(&'a dyn PortalClient<UartTraveler>),
 }
 
+impl<'a> From<&'a dyn PortalClient<UartTraveler>> for MuxDevice<'a> {
+    fn from(value: &'a dyn PortalClient<UartTraveler>) -> Self {
+        MuxDevice::Uart(value)
+    }
+}
 
 #[derive(Clone, Copy)]
 pub enum DemuxDevice<'a> {
     Uart(&'a dyn Portal<'a, UartTraveler>),
+}
+
+impl<'a> From<&'a dyn Portal<'a, UartTraveler>> for DemuxDevice<'a> {
+    fn from(value: &'a dyn Portal<'a, UartTraveler>) -> Self {
+        DemuxDevice::Uart(value)
+    }
 }
 
 
@@ -258,8 +269,7 @@ impl<'a> ListNode<'a, DemuxPortalDevice<'a>> for DemuxPortalDevice<'a> {
 
 impl<'a> Portal<'a, MuxTraveler> for DemuxPortalDevice<'a> {
     fn set_portal_client(&self, client: &'a dyn PortalClient<MuxTraveler>) {
-        // self.portal_client.set(client);
-        unimplemented!()
+        unimplemented!("Use DemuxPortalDevice::setup(...) instead!")
     }
 
     fn teleport(

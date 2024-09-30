@@ -25,6 +25,7 @@ use rv32i::csr;
 use core::ptr::{addr_of, addr_of_mut};
 
 use crate::CHIP;
+use crate::PortalInstanceKey;
 
 const NUM_PROCS: usize = 4;
 
@@ -319,21 +320,25 @@ pub unsafe fn spawn<const ID: usize>(
 
     // ---------- Creating a demux portal and deivce -----
     use capsules_core::portals::mux_demux::{DemuxPortal, DemuxPortalDevice, DemuxDevice};
+    use capsules_core::portals::teleportable_uart::UartTraveler;
+    use kernel::hil::portal::Portal;
 
     let demux_portal = static_init!(
         DemuxPortal,
         DemuxPortal::new(),
     );
+    hil::portal::Portal::set_portal_client(demux_portal, hw_portal);
 
     let uart_portal_device = static_init!(
         DemuxPortalDevice,
-        DemuxPortalDevice::new(DemuxDevice::Uart(uart_portal), demux_portal, 1337),
+        DemuxPortalDevice::new(
+            (uart_portal as &dyn Portal<UartTraveler>).into(),
+            demux_portal,
+            PortalInstanceKey::AppKernelUart as usize,
+        ),
     );
     uart_portal_device.setup();
-
-
     hil::portal::Portal::set_portal_client(uart_portal, uart_portal_device);
-    hil::portal::Portal::set_portal_client(demux_portal, hw_portal);
 
     hw_portal.set_downstream_portal(demux_portal);
     // ------------ End of setting a demux portal -----------------
