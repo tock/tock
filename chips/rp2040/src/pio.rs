@@ -498,7 +498,7 @@ const PIO1_SET_BASE: StaticRef<PioRegisters> =
 const PIO1_CLEAR_BASE: StaticRef<PioRegisters> =
     unsafe { StaticRef::new((PIO_1_BASE_ADDRESS + 0x3000) as *const PioRegisters) };
 
-// There are a total of 4 State Machines per PIO.
+/// There are a total of 4 State Machines per PIO.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum SMNumber {
     SM0 = 0,
@@ -507,7 +507,7 @@ pub enum SMNumber {
     SM3 = 3,
 }
 
-// There can be 2 PIOs per RP2040.
+/// There can be 2 PIOs per RP2040.
 #[derive(PartialEq)]
 pub enum PIONumber {
     PIO0 = 0,
@@ -555,7 +555,7 @@ impl RPGpio {
     }
 }
 
-// The FIFO queues can be joined together for twice the length in one direction.
+/// The FIFO queues can be joined together for twice the length in one direction.
 #[derive(PartialEq)]
 pub enum PioFifoJoin {
     PioFifoJoinNone = 0,
@@ -574,7 +574,7 @@ pub struct Pio {
     _clear_registers: StaticRef<PioRegisters>,
 }
 
-// 'MOV STATUS' types.
+/// 'MOV STATUS' types.
 #[derive(Clone, Copy)]
 pub enum PioMovStatusType {
     StatusTxLessthan = 0,
