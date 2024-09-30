@@ -301,7 +301,6 @@ pub unsafe fn spawn<const ID: usize>(
     let uart_mux = components::console::UartMuxComponent::new(peripherals.uart0, 115200)
         .finalize(components::uart_mux_component_static!());
 
-
     // Set up a portal server and connect to to the UART multiplexer
     use capsules_core::virtualizers::virtual_uart::UartDevice;
     let uart_device = static_init!(
@@ -317,9 +316,27 @@ pub unsafe fn spawn<const ID: usize>(
     );
     hil::uart::Transmit::set_transmit_client(uart_device, uart_portal);
 
-    hil::portal::Portal::set_portal_client(uart_portal, hw_portal);
 
-    hw_portal.set_downstream_portal(uart_portal);
+    // ----- creating a demux portal and deivce -----
+    use qemu_rv32_virt_chip::portal_mux::{DemuxPortal, DemuxPortalDevice, DemuxDevice};
+
+    let demux_portal = static_init!(
+        DemuxPortal,
+        DemuxPortal::new(),
+    );
+
+    let uart_portal_device = static_init!(
+        DemuxPortalDevice,
+        DemuxPortalDevice::new(DemuxDevice::Uart(uart_portal), demux_portal, 1337),
+    );
+    uart_portal_device.setup();
+
+
+    hil::portal::Portal::set_portal_client(uart_portal, uart_portal_device);
+    hil::portal::Portal::set_portal_client(demux_portal, hw_portal);
+
+    hw_portal.set_downstream_portal(demux_portal);
+    // ---------------- end of setting demux portal -----------------
 
 
     // Use the RISC-V machine timer timesource

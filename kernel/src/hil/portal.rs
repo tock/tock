@@ -3,7 +3,7 @@
 use crate::ErrorCode;
 
 pub trait Portal<'a, Traveler> {
-    fn set_portal_client(&self, client: &'a dyn PortalClient<Traveler=Traveler>);
+    fn set_portal_client(&self, client: &'a dyn PortalClient<Traveler>);
 
     fn teleport(
         &self,
@@ -11,11 +11,10 @@ pub trait Portal<'a, Traveler> {
     ) -> Result<(), (ErrorCode, &'static mut Traveler)>;
 }
 
-pub trait PortalClient {
-    type Traveler;
-
+pub trait PortalClient<Traveler> {
     fn teleported(
         &self,
-        traveler: &'static mut Self::Traveler,
-    ) -> Result<(), (ErrorCode, &'static mut Self::Traveler)>;
+        traveler: &'static mut Traveler,
+        rcode: Result<(), ErrorCode>,
+    );
 }
