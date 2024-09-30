@@ -379,7 +379,7 @@ SMx_PINCTRL [
     // the OUT or MOV data.
     OUT_BASE OFFSET(0) NUMBITS(5) []
 ],
-    INTR [
+INTR [
     SM3 OFFSET(11) NUMBITS(1) [],
     SM2 OFFSET(10) NUMBITS(1) [],
     SM1 OFFSET(9) NUMBITS(1) [],
@@ -393,8 +393,7 @@ SMx_PINCTRL [
     SM1_RXNEMPTY OFFSET(1) NUMBITS(1) [],
     SM0_RXNEMPTY OFFSET(0) NUMBITS(1) []
 ],
-
-   IRQ0_INTE [
+IRQ0_INTE [
     SM3 OFFSET(11) NUMBITS(1) [],
     SM2 OFFSET(10) NUMBITS(1) [],
     SM1 OFFSET(9) NUMBITS(1) [],
@@ -408,7 +407,6 @@ SMx_PINCTRL [
     SM1_RXNEMPTY OFFSET(1) NUMBITS(1) [],
     SM0_RXNEMPTY OFFSET(0) NUMBITS(1) []
 ],
-
 IRQ0_INTF [
     SM3 OFFSET(11) NUMBITS(1) [],
     SM2 OFFSET(10) NUMBITS(1) [],
@@ -437,7 +435,7 @@ IRQ0_INTS [
     SM1_RXNEMPTY OFFSET(0) NUMBITS(1) [],
     SM0_RXNEMPTY OFFSET(0) NUMBITS(1) []
 ],
-    IRQ1_INTE [
+IRQ1_INTE [
     SM3 OFFSET(11) NUMBITS(1) [],
     SM2 OFFSET(10) NUMBITS(1) [],
     SM1 OFFSET(9) NUMBITS(1) [],
@@ -1044,19 +1042,20 @@ impl Pio {
         let iter = program.chunks(2);
         let mut x = 0;
         for i in iter {
+            if x == NUMBER_INSTR_MEMORY_LOCATIONS {
+                debug!("Maximum limit of instructions reached!");
+                break;
+            }
             self.registers.instr_mem[x]
                 .instr_mem
                 .modify(INSTR_MEMx::INSTR_MEM.val((i[0] as u32) << 8 | (i[1] as u32)));
             x += 1;
-            if x == 32 {
-                break;
-            }
         }
     }
 
     /// Clears all of a PIO instance's instruction memory.
     pub fn clear_instr_registers(&self) {
-        for i in 0..31 {
+        for i in 0..NUMBER_INSTR_MEMORY_LOCATIONS {
             self.registers.instr_mem[i]
                 .instr_mem
                 .modify(INSTR_MEMx::INSTR_MEM::CLEAR);
@@ -1136,6 +1135,8 @@ impl Pio {
         pin2: u32,
         config: &StateMachineConfiguration,
     ) {
+        // This is used to turn on specifically GPIOs 6 and 7 - LSB is for GPIO 0, next bit is for GPIO 1 etc.
+        let turn_on_gpio_6_7 = 0b11000000;
         self.sm_config(sm_number, config);
         self.pio_number = pio_number;
         self.gpio_init(&RPGpioPin::new(RPGpio::from_u32(pin1)));
@@ -1145,7 +1146,7 @@ impl Pio {
         self.set_pins_out(sm_number, pin2, 1, true);
         self.sm_init(sm_number);
         self.sm_set_enabled(sm_number, true);
-        self.sm_put_blocking(sm_number, 0b11000000);
+        self.sm_put_blocking(sm_number, turn_on_gpio_6_7);
         self.sm_put_blocking(sm_number, 0);
     }
 
@@ -1157,6 +1158,10 @@ impl Pio {
         pwm_period: u32,
         config: &StateMachineConfiguration,
     ) {
+        // "pull" command created by pioasm
+        let pull_command = 0x8080_u32;
+        // "out isr, 32" command created by pioasm
+        let out_isr_32_command = 0x60c0_u32;
         self.sm_config(sm_number, config);
         self.pio_number = pio_number;
         self.gpio_init(&RPGpioPin::new(RPGpio::from_u32(pin)));
@@ -1165,8 +1170,8 @@ impl Pio {
         self.set_side_set_pins(sm_number, pin);
         self.sm_init(sm_number);
         self.sm_put_blocking(sm_number, pwm_period);
-        self.sm_exec(sm_number, 0x8080_u32); // pull
-        self.sm_exec(sm_number, 0x60c0_u32); // out isr, 32
+        self.sm_exec(sm_number, pull_command);
+        self.sm_exec(sm_number, out_isr_32_command);
         self.sm_set_enabled(sm_number, true);
     }
 
