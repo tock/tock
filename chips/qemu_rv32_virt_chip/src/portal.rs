@@ -11,7 +11,7 @@ use core::ptr::NonNull;
 
 use crate::clint;
 
-use crate::portal_mux::MuxTraveler;
+use capsules_core::portals::mux_demux::MuxTraveler;
 
 // enum QemuRv32VirtTraveler<'a> {
 //     Uart(TakeCell<'a, UartTraveler>),

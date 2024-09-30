@@ -317,8 +317,8 @@ pub unsafe fn spawn<const ID: usize>(
     hil::uart::Transmit::set_transmit_client(uart_device, uart_portal);
 
 
-    // ----- creating a demux portal and deivce -----
-    use qemu_rv32_virt_chip::portal_mux::{DemuxPortal, DemuxPortalDevice, DemuxDevice};
+    // ---------- Creating a demux portal and deivce -----
+    use capsules_core::portals::mux_demux::{DemuxPortal, DemuxPortalDevice, DemuxDevice};
 
     let demux_portal = static_init!(
         DemuxPortal,
@@ -336,7 +336,7 @@ pub unsafe fn spawn<const ID: usize>(
     hil::portal::Portal::set_portal_client(demux_portal, hw_portal);
 
     hw_portal.set_downstream_portal(demux_portal);
-    // ---------------- end of setting demux portal -----------------
+    // ------------ End of setting a demux portal -----------------
 
 
     // Use the RISC-V machine timer timesource
