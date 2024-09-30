@@ -24,6 +24,7 @@ pub mod plic;
 pub mod uart;
 
 pub mod portal;
+pub mod portal_mux;
 
 pub struct QemuRv32VirtThreadLocal<T>(kernel::threadlocal::ThreadLocal<MAX_THREADS, T>);
 

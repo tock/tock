@@ -47,13 +47,12 @@ impl<'a> UartPortalClient<'a> {
     }
 }
 
-impl PortalClient for UartPortalClient<'_> {
-    type Traveler = UartTraveler;
-
+impl PortalClient<UartTraveler> for UartPortalClient<'_> {
     fn teleported(
         &self,
-        traveler: &'static mut Self::Traveler,
-    ) -> Result<(), (ErrorCode, &'static mut Self::Traveler)> {
+        traveler: &'static mut UartTraveler,
+        _rcode: Result<(), ErrorCode>,
+    ) {
         match traveler.op {
             UartOperation::TransmittedBuffer { len, rcode } => {
                 traveler.buffer.take().map(|buffer| {
@@ -62,9 +61,8 @@ impl PortalClient for UartPortalClient<'_> {
                     });
                 });
                 self.traveler.replace(traveler);
-                Ok(())
             }
-            _ => Err((ErrorCode::FAIL, traveler))
+            _ => (),
         }
     }
 }
@@ -128,7 +126,7 @@ impl<'a> uart::Receive<'a> for UartPortalClient<'a> {
 pub struct UartPortal<'a> {
     uart: &'a dyn uart::UartData<'a>,
     traveler: TakeCell<'static, UartTraveler>,
-    portal_client: OptionalCell<&'a dyn PortalClient<Traveler=UartTraveler>>,
+    portal_client: OptionalCell<&'a dyn PortalClient<UartTraveler>>,
 }
 
 impl<'a> UartPortal<'a> {
@@ -153,7 +151,7 @@ impl<'a> uart::TransmitClient for UartPortal<'a> {
         self.traveler.take().map(|traveler| {
             traveler.op = UartOperation::TransmittedBuffer { len: tx_len, rcode };
             traveler.buffer.replace(tx_buffer);
-            self.portal_client.map(|client| client.teleported(traveler));
+            self.portal_client.map(|client| client.teleported(traveler, Ok(())));
         });
     }
 
@@ -163,7 +161,7 @@ impl<'a> uart::TransmitClient for UartPortal<'a> {
 }
 
 impl<'a> Portal<'a, UartTraveler> for UartPortal<'a> {
-    fn set_portal_client(&self, client: &'a dyn PortalClient<Traveler=UartTraveler>) {
+    fn set_portal_client(&self, client: &'a dyn PortalClient<UartTraveler>) {
         self.portal_client.set(client);
     }
 
@@ -182,7 +180,7 @@ impl<'a> Portal<'a, UartTraveler> for UartPortal<'a> {
                             self.portal_client.map(|client| {
                                 traveler.op = UartOperation::TransmittedBuffer { len, rcode: Err(ecode) };
                                 traveler.buffer.replace(buf);
-                                let _ = client.teleported(traveler);
+                                let _ = client.teleported(traveler, Ok(()));
                             });
                         }
                     }

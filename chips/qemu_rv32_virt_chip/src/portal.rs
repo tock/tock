@@ -1,5 +1,5 @@
 use kernel::hil::portal::{Portal, PortalClient};
-use capsules_core::portals::teleportable_uart::{UartPortal, UartPortalClient, UartTraveler};
+// use capsules_core::portals::teleportable_uart::{UartPortal, UartPortalClient, UartTraveler};
 
 use kernel::collections::sync_queue::SyncQueue;
 use kernel::collections::atomic_ring_buffer::AtomicRingBuffer;
@@ -11,30 +11,32 @@ use core::ptr::NonNull;
 
 use crate::clint;
 
-enum QemuRv32VirtTraveler<'a> {
-    Uart(TakeCell<'a, UartTraveler>),
-}
+use crate::portal_mux::MuxTraveler;
 
-pub enum QemuRv32VirtVoyager<'a> {
-    Teleport(QemuRv32VirtTraveler<'a>),
-    Teleported(QemuRv32VirtTraveler<'a>),
+// enum QemuRv32VirtTraveler<'a> {
+//     Uart(TakeCell<'a, UartTraveler>),
+// }
+
+pub enum QemuRv32VirtVoyager {
+    Teleport(TakeCell<'static, MuxTraveler>),
+    Teleported(TakeCell<'static, MuxTraveler>, Result<(), ErrorCode>),
     Empty,
 }
 
-pub type QemuRv32VirtVoyagerReference = NonNull<QemuRv32VirtVoyager<'static>>;
+pub type QemuRv32VirtVoyagerReference = NonNull<QemuRv32VirtVoyager>;
 
 pub struct QemuRv32VirtPortal<'a> {
-    shared_channel: &'a AtomicRingBuffer<'a, NonNull<QemuRv32VirtVoyager<'static>>>,
+    shared_channel: &'a AtomicRingBuffer<'a, NonNull<QemuRv32VirtVoyager>>,
     portal_dest: DynThreadId,
-    voyager: TakeCell<'static, QemuRv32VirtVoyager<'static>>,
+    voyager: TakeCell<'static, QemuRv32VirtVoyager>,
     received: core::cell::Cell<bool>,
-    portal_client: OptionalCell<&'a dyn PortalClient<Traveler=UartTraveler>>,
-    portal: OptionalCell<&'a dyn Portal<'a, UartTraveler>>,
+    portal_client: OptionalCell<&'a dyn PortalClient<MuxTraveler>>,
+    portal: OptionalCell<&'a dyn Portal<'a, MuxTraveler>>,
 }
 
 impl<'a> QemuRv32VirtPortal<'a> {
     pub fn new(
-        shared_channel: &'a AtomicRingBuffer<'a, NonNull<QemuRv32VirtVoyager<'static>>>,
+        shared_channel: &'a AtomicRingBuffer<'a, NonNull<QemuRv32VirtVoyager>>,
         portal_dest: DynThreadId,
         voyager: &'static mut QemuRv32VirtVoyager,
     ) -> QemuRv32VirtPortal<'a> {
@@ -49,7 +51,7 @@ impl<'a> QemuRv32VirtPortal<'a> {
     }
 
     pub fn empty(
-        shared_channel: &'a AtomicRingBuffer<'a, NonNull<QemuRv32VirtVoyager<'static>>>,
+        shared_channel: &'a AtomicRingBuffer<'a, NonNull<QemuRv32VirtVoyager>>,
         portal_dest: DynThreadId,
     ) -> QemuRv32VirtPortal<'a> {
         QemuRv32VirtPortal {
@@ -62,7 +64,7 @@ impl<'a> QemuRv32VirtPortal<'a> {
         }
     }
 
-    pub fn set_downstream_portal(&self, portal: &'a dyn Portal<'a, UartTraveler>) {
+    pub fn set_downstream_portal(&self, portal: &'a dyn Portal<'a, MuxTraveler>) {
         self.portal.replace(portal);
     }
 
@@ -73,23 +75,15 @@ impl<'a> QemuRv32VirtPortal<'a> {
     fn do_receive_voyager(&self, voyager: &'static mut QemuRv32VirtVoyager) {
         match voyager {
             QemuRv32VirtVoyager::Teleport(traveler) => {
-                match traveler {
-                    QemuRv32VirtTraveler::Uart(uart_traveler) => {
-                        uart_traveler.take().map(|utraveler| {
-                            self.portal.map(|portal| portal.teleport(utraveler))
-                        });
-                    }
-                };
+                traveler.take().map(|itraveler| {
+                    self.portal.map(|portal| portal.teleport(itraveler))
+                });
                 self.voyager.replace(voyager);
             }
-            QemuRv32VirtVoyager::Teleported(traveler) => {
-                match traveler {
-                    QemuRv32VirtTraveler::Uart(uart_traveler) => {
-                        uart_traveler.take().map(|utraveler| {
-                            self.portal_client.map(|client| client.teleported(utraveler))
-                        });
-                    }
-                };
+            QemuRv32VirtVoyager::Teleported(traveler, rcode) => {
+                traveler.take().map(|itraveler| {
+                    self.portal_client.map(|client| client.teleported(itraveler, *rcode))
+                });
                 self.voyager.replace(voyager);
             }
             _ => ()
@@ -116,31 +110,29 @@ impl<'a> QemuRv32VirtPortal<'a> {
     }
 }
 
-impl<'a> Portal<'a, UartTraveler> for QemuRv32VirtPortal<'a> {
-    fn set_portal_client(&self, client: &'a dyn PortalClient<Traveler=UartTraveler>) {
+impl<'a> Portal<'a, MuxTraveler> for QemuRv32VirtPortal<'a> {
+    fn set_portal_client(&self, client: &'a dyn PortalClient<MuxTraveler>) {
         self.portal_client.set(client);
     }
 
     fn teleport(
         &self,
-        traveler: &'static mut UartTraveler,
-    ) -> Result<(), (ErrorCode, &'static mut UartTraveler)> {
+        traveler: &'static mut MuxTraveler,
+    ) -> Result<(), (ErrorCode, &'static mut MuxTraveler)> {
         match self.voyager.take() {
             Some(voyager) => {
-                *voyager = QemuRv32VirtVoyager::Teleport(
-                    QemuRv32VirtTraveler::Uart(TakeCell::new(traveler))
-                );
+                *voyager = QemuRv32VirtVoyager::Teleport(TakeCell::new(traveler));
                 self.shared_channel
                     .enqueue(NonNull::new(voyager).unwrap())
                     .then(|| { unsafe {
                         clint::with_clic_panic(|c| c.set_soft_interrupt(self.portal_dest.get_id()));
                     }; })
                     .ok_or_else(move || { match voyager {
-                        QemuRv32VirtVoyager::Teleport(QemuRv32VirtTraveler::Uart(traveler)) => {
+                        QemuRv32VirtVoyager::Teleport(traveler) => {
                             let rtraveler = traveler.take().unwrap();
                             self.voyager.replace(voyager);
                             (ErrorCode::FAIL, rtraveler)
-                            }
+                        }
                         _ => unreachable!()
                     }})
             }
@@ -149,26 +141,22 @@ impl<'a> Portal<'a, UartTraveler> for QemuRv32VirtPortal<'a> {
     }
 }
 
-impl<'a> PortalClient for QemuRv32VirtPortal<'a> {
-    type Traveler = UartTraveler;
-
+impl<'a> PortalClient<MuxTraveler> for QemuRv32VirtPortal<'a> {
     fn teleported(
         &self,
-        traveler: &'static mut Self::Traveler,
-    ) -> Result<(), (ErrorCode, &'static mut Self::Traveler)> {
+        traveler: &'static mut MuxTraveler,
+        rcode: Result<(), ErrorCode>,
+    ) {
         match self.voyager.take() {
             Some(voyager) => {
-                *voyager = QemuRv32VirtVoyager::Teleported(
-                    QemuRv32VirtTraveler::Uart(TakeCell::new(traveler))
-                );
+                *voyager = QemuRv32VirtVoyager::Teleported(TakeCell::new(traveler), rcode);
                 self.shared_channel.enqueue(NonNull::new(voyager).unwrap()).then(|| {
                     unsafe {
                         clint::with_clic_panic(|c| c.set_soft_interrupt(self.portal_dest.get_id()));
                     }
                 });
-                Ok(())
             }
-            None => Err((ErrorCode::FAIL, traveler))
+            None => (),
         }
     }
 }
