@@ -6,6 +6,7 @@
 
 use core::cmp;
 use core::fmt::{self, Display};
+#[allow(clippy::wildcard_imports)]
 use flux_support::*;
 
 /// User mode access permissions.

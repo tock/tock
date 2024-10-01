@@ -9,7 +9,6 @@ use core::mem::size_of;
 use core::ops::Range;
 
 use crate::csr::mcause;
-use flux_rs::*;
 use flux_support::*;
 use kernel::errorcode::ErrorCode;
 use kernel::syscall::ContextSwitchReason;

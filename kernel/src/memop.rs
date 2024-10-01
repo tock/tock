@@ -7,6 +7,7 @@
 use crate::process::Process;
 use crate::syscall::SyscallReturn;
 use crate::ErrorCode;
+#[allow(clippy::wildcard_imports)]
 use flux_support::*;
 
 /// Handle the `memop` syscall.

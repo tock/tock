@@ -39,6 +39,7 @@
 //!
 
 use crate::ErrorCode;
+#[allow(clippy::wildcard_imports)]
 use flux_support::*;
 
 pub const STANDARD_CAN_PACKET_SIZE: usize = 8;

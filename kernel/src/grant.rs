@@ -139,6 +139,7 @@ use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::processbuffer::{ReadOnlyProcessBufferRef, ReadWriteProcessBufferRef};
 use crate::upcall::{Upcall, UpcallError, UpcallId};
 use crate::ErrorCode;
+#[allow(clippy::wildcard_imports)]
 use flux_support::*;
 
 /// Tracks how many upcalls a grant instance supports automatically.

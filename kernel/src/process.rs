@@ -19,6 +19,7 @@ use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::storage_permissions;
 use crate::syscall::{self, Syscall, SyscallReturn};
 use crate::upcall::UpcallId;
+#[allow(clippy::wildcard_imports)]
 use flux_support::*;
 use tock_tbf::types::CommandPermissions;
 

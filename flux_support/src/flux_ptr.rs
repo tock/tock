@@ -4,7 +4,7 @@ use flux_rs::{refined_by, sig};
 use std::ops::Rem;
 
 #[flux_rs::opaque]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[refined_by(ptr: int)]
 pub struct FluxPtr {
     inner: *mut u8,
@@ -55,6 +55,12 @@ impl core::ops::AddAssign<usize> for FluxPtr {
     }
 }
 
+impl core::cmp::Ord for FluxPtr {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.as_usize().cmp(&other.as_usize())
+    }
+}
+
 // VTOCK-TODO: fill in these functions with obvious implementations
 impl FluxPtr {
     #[sig(fn(self: Self[@lhs], rhs: usize) -> Self{r: ((lhs + rhs <= usize::MAX) => r == lhs + rhs) && ((lhs + rhs > usize::MAX) => r == lhs + rhs - usize::MAX) })]
@@ -96,10 +102,12 @@ impl FluxPtr {
         unimplemented!()
     }
 
+    /// # Safety
     pub const unsafe fn offset(self, _count: isize) -> Self {
         unimplemented!()
     }
 
+    /// # Safety
     pub const unsafe fn add(self, _count: usize) -> Self {
         unimplemented!()
     }
@@ -111,8 +119,8 @@ impl FluxPtr {
 
 #[flux_rs::trusted]
 impl PartialOrd for FluxPtr {
-    fn partial_cmp(&self, _other: &Self) -> Option<core::cmp::Ordering> {
-        todo!()
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 
     // Provided methods

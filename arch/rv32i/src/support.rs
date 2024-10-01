@@ -5,8 +5,6 @@
 //! Core low-level operations.
 
 use crate::csr::{mstatus::mstatus, CSR};
-use flux_rs::*;
-use flux_support::*;
 
 #[cfg(all(target_arch = "riscv32", target_os = "none"))]
 #[inline(always)]

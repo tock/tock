@@ -8,7 +8,6 @@
 #![crate_name = "rv32i"]
 #![crate_type = "rlib"]
 #![no_std]
-use flux_rs::*;
 
 use core::fmt::Write;
 

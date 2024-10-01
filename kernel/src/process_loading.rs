@@ -28,6 +28,7 @@ use crate::process_checker::{AppIdPolicy, ProcessCheckError, ProcessCheckerMachi
 use crate::process_policies::ProcessFaultPolicy;
 use crate::process_standard::ProcessStandard;
 use crate::utilities::cells::{MapCell, OptionalCell};
+#[allow(clippy::wildcard_imports)]
 use flux_support::*;
 
 /// Errors that can occur when trying to load and create processes.
