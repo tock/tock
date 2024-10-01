@@ -1,11 +1,19 @@
+use core::clone::Clone;
+use core::cmp::Eq;
+use core::cmp::PartialEq;
 use core::cmp::PartialOrd;
 use core::convert::From;
+use core::fmt::Debug;
+use core::marker::Copy;
 use core::ops::{Deref, DerefMut};
 use core::option::Option;
 use core::option::Option::Some;
+use core::prelude::rust_2021::derive;
 use core::ptr::NonNull;
+use core::todo;
+use core::unimplemented;
 use flux_rs::{refined_by, sig};
-use std::ops::Rem;
+use std::ops::Rem; // TODO: not allowed to use std
 
 #[flux_rs::opaque]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
