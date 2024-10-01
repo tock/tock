@@ -19,6 +19,9 @@ permissions:
 
 jobs:
   ci-build:
+    # Do not run job on forks
+    if: github.repository == 'tock/tock'
+
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
@@ -43,6 +46,9 @@ jobs:
           path: tools/ci-artifacts
 
   ci-tests:
+    # Do not run job on forks
+    if: github.repository == 'tock/tock'
+
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
