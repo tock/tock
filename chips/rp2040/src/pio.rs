@@ -219,7 +219,14 @@ RXFx [
     RXF OFFSET(0) NUMBITS(32) []
 ],
 IRQ [
-    IRQ OFFSET(0) NUMBITS(8) []
+    IRQ7 OFFSET(7) NUMBITS(1) [],
+    IRQ6 OFFSET(6) NUMBITS(1) [],
+    IRQ5 OFFSET(5) NUMBITS(1) [],
+    IRQ4 OFFSET(4) NUMBITS(1) [],
+    IRQ3 OFFSET(3) NUMBITS(1) [],
+    IRQ2 OFFSET(2) NUMBITS(1) [],
+    IRQ1 OFFSET(1) NUMBITS(1) [],
+    IRQ0 OFFSET(0) NUMBITS(1) []
 ],
 IRQ_FORCE [
     IRQ_FORCE OFFSET(0) NUMBITS(8) []
@@ -561,6 +568,23 @@ pub enum PioFifoJoin {
     PioFifoJoinNone = 0,
     PioFifoJoinTx = 1,
     PioFifoJoinRx = 2,
+}
+
+/// PIO interrupt source numbers for PIO related interrupts
+#[derive(PartialEq)]
+pub enum InterruptSources {
+    Interrupt0 = 0,
+    Interrupt1 = 1,
+    Interrupt2 = 2,
+    Interrupt3 = 3,
+    Sm0TXNotFull = 4,
+    Sm1TXNotFull = 5,
+    Sm2TXNotFull = 6,
+    Sm3TXNotFull = 7,
+    Sm0RXNotEmpty = 8,
+    Sm1RXNotEmpty = 9,
+    Sm2RXNotEmpty = 10,
+    Sm3RXNotEmpty = 11,
 }
 
 const STATE_MACHINE_NUMBERS: [SMNumber; NUMBER_STATE_MACHINES] =
@@ -952,6 +976,8 @@ impl Pio {
     /// => true to set the pin as OUT
     /// => false to set the pin as IN
     pub fn set_pins_out(&self, sm_number: SMNumber, mut pin: u32, mut count: u32, is_out: bool) {
+        // "set pindirs, 0" command created by pioasm
+        let set_pindirs_0: u32 = 0b1110000010000000;
         let pinctrl = self.registers.sm[sm_number as usize].pinctrl.get();
         let execctrl = self.registers.sm[sm_number as usize].execctrl.get();
         self.registers.sm[sm_number as usize]
@@ -968,7 +994,7 @@ impl Pio {
             self.registers.sm[sm_number as usize]
                 .pinctrl
                 .modify(SMx_PINCTRL::SET_BASE.val(pin));
-            self.sm_exec(sm_number, ((0b11100000100_u32) << 5) | (pindir_val as u32));
+            self.sm_exec(sm_number, (set_pindirs_0) | (pindir_val as u32));
             count -= 5;
             pin = (pin + 5) & 0x1f;
         }
@@ -978,9 +1004,155 @@ impl Pio {
         self.registers.sm[sm_number as usize]
             .pinctrl
             .modify(SMx_PINCTRL::SET_BASE.val(pin));
-        self.sm_exec(sm_number, ((0b11100000100_u32) << 5) | (pindir_val as u32));
+        self.sm_exec(sm_number, (set_pindirs_0) | (pindir_val as u32));
         self.registers.sm[sm_number as usize].execctrl.set(execctrl);
         self.registers.sm[sm_number as usize].pinctrl.set(pinctrl);
+    }
+
+    /// Enable/Disable a single source on a PIO's IRQ index.
+    pub fn set_irq_source(
+        &self,
+        irq_index: u32,
+        interrupt_source: InterruptSources,
+        enabled: bool,
+    ) {
+        if irq_index == 0 {
+            match interrupt_source {
+                InterruptSources::Interrupt0 => self
+                    .registers
+                    .irq0_inte
+                    .modify(IRQ0_INTE::SM0.val(enabled as u32)),
+                InterruptSources::Interrupt1 => self
+                    .registers
+                    .irq0_inte
+                    .modify(IRQ0_INTE::SM1.val(enabled as u32)),
+                InterruptSources::Interrupt2 => self
+                    .registers
+                    .irq0_inte
+                    .modify(IRQ0_INTE::SM2.val(enabled as u32)),
+                InterruptSources::Interrupt3 => self
+                    .registers
+                    .irq0_inte
+                    .modify(IRQ0_INTE::SM3.val(enabled as u32)),
+                InterruptSources::Sm0TXNotFull => self
+                    .registers
+                    .irq0_inte
+                    .modify(IRQ0_INTE::SM0_TXNFULL.val(enabled as u32)),
+                InterruptSources::Sm1TXNotFull => self
+                    .registers
+                    .irq0_inte
+                    .modify(IRQ0_INTE::SM1_TXNFULL.val(enabled as u32)),
+                InterruptSources::Sm2TXNotFull => self
+                    .registers
+                    .irq0_inte
+                    .modify(IRQ0_INTE::SM2_TXNFULL.val(enabled as u32)),
+                InterruptSources::Sm3TXNotFull => self
+                    .registers
+                    .irq0_inte
+                    .modify(IRQ0_INTE::SM3_TXNFULL.val(enabled as u32)),
+                InterruptSources::Sm0RXNotEmpty => self
+                    .registers
+                    .irq0_inte
+                    .modify(IRQ0_INTE::SM0_RXNEMPTY.val(enabled as u32)),
+                InterruptSources::Sm1RXNotEmpty => self
+                    .registers
+                    .irq0_inte
+                    .modify(IRQ0_INTE::SM1_RXNEMPTY.val(enabled as u32)),
+                InterruptSources::Sm2RXNotEmpty => self
+                    .registers
+                    .irq0_inte
+                    .modify(IRQ0_INTE::SM2_RXNEMPTY.val(enabled as u32)),
+                InterruptSources::Sm3RXNotEmpty => self
+                    .registers
+                    .irq0_inte
+                    .modify(IRQ0_INTE::SM3_RXNEMPTY.val(enabled as u32)),
+            }
+        } else if irq_index == 1 {
+            match interrupt_source {
+                InterruptSources::Interrupt0 => self
+                    .registers
+                    .irq1_inte
+                    .modify(IRQ1_INTE::SM0.val(enabled as u32)),
+                InterruptSources::Interrupt1 => self
+                    .registers
+                    .irq1_inte
+                    .modify(IRQ1_INTE::SM1.val(enabled as u32)),
+                InterruptSources::Interrupt2 => self
+                    .registers
+                    .irq1_inte
+                    .modify(IRQ1_INTE::SM2.val(enabled as u32)),
+                InterruptSources::Interrupt3 => self
+                    .registers
+                    .irq1_inte
+                    .modify(IRQ1_INTE::SM3.val(enabled as u32)),
+                InterruptSources::Sm0TXNotFull => self
+                    .registers
+                    .irq1_inte
+                    .modify(IRQ1_INTE::SM0_TXNFULL.val(enabled as u32)),
+                InterruptSources::Sm1TXNotFull => self
+                    .registers
+                    .irq1_inte
+                    .modify(IRQ1_INTE::SM1_TXNFULL.val(enabled as u32)),
+                InterruptSources::Sm2TXNotFull => self
+                    .registers
+                    .irq1_inte
+                    .modify(IRQ1_INTE::SM2_TXNFULL.val(enabled as u32)),
+                InterruptSources::Sm3TXNotFull => self
+                    .registers
+                    .irq1_inte
+                    .modify(IRQ1_INTE::SM3_TXNFULL.val(enabled as u32)),
+                InterruptSources::Sm0RXNotEmpty => self
+                    .registers
+                    .irq1_inte
+                    .modify(IRQ1_INTE::SM0_RXNEMPTY.val(enabled as u32)),
+                InterruptSources::Sm1RXNotEmpty => self
+                    .registers
+                    .irq1_inte
+                    .modify(IRQ1_INTE::SM1_RXNEMPTY.val(enabled as u32)),
+                InterruptSources::Sm2RXNotEmpty => self
+                    .registers
+                    .irq1_inte
+                    .modify(IRQ1_INTE::SM2_RXNEMPTY.val(enabled as u32)),
+                InterruptSources::Sm3RXNotEmpty => self
+                    .registers
+                    .irq1_inte
+                    .modify(IRQ1_INTE::SM3_RXNEMPTY.val(enabled as u32)),
+            }
+        } else {
+            debug!("IRQ Index invalid - must be 0 or 1");
+        }
+    }
+
+    /// Checks if a PIO interrupt is set.
+    pub fn interrupt_get(&self, irq_num: u32) -> bool {
+        let mut temp = 0;
+        temp = match irq_num {
+            0 => self.registers.irq.read(IRQ::IRQ0),
+            1 => self.registers.irq.read(IRQ::IRQ1),
+            2 => self.registers.irq.read(IRQ::IRQ2),
+            3 => self.registers.irq.read(IRQ::IRQ3),
+            4 => self.registers.irq.read(IRQ::IRQ4),
+            5 => self.registers.irq.read(IRQ::IRQ5),
+            6 => self.registers.irq.read(IRQ::IRQ6),
+            7 => self.registers.irq.read(IRQ::IRQ7),
+            _ => debug!("IRQ Number invalid - must be from 0 to 7"),
+        };
+        return temp != 0;
+    }
+
+    /// Clear a PIO interrupt.
+    pub fn interrupt_clear(&self, irq_num: u32) {
+        match irq_num {
+            0 => self.registers.irq.modify(IRQ::IRQ0.val(1)),
+            1 => self.registers.irq.modify(IRQ::IRQ1.val(1)),
+            2 => self.registers.irq.modify(IRQ::IRQ2.val(1)),
+            3 => self.registers.irq.modify(IRQ::IRQ3.val(1)),
+            4 => self.registers.irq.modify(IRQ::IRQ4.val(1)),
+            5 => self.registers.irq.modify(IRQ::IRQ5.val(1)),
+            6 => self.registers.irq.modify(IRQ::IRQ6.val(1)),
+            7 => self.registers.irq.modify(IRQ::IRQ7.val(1)),
+            _ => debug!("IRQ Number invalid - must be from 0 to 7"),
+        }
     }
 
     /// Immediately execute an instruction on a state machine.
