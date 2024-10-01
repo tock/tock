@@ -54,6 +54,13 @@ pub fn default_linker_script() {
     // Include the folder where this build_script crate's Cargo.toml is in the
     // linker file search path for `tock_kernel_layout.ld`.
     println!("cargo:rustc-link-arg=-L{}", std::env!("CARGO_MANIFEST_DIR"));
+    // Directive to rebuild if the linker script in this crate is changed.
+    println!(
+        "cargo:rerun-if-changed={}",
+        Path::new(std::env!("CARGO_MANIFEST_DIR"))
+            .join("tock_kernel_layout.ld")
+            .to_string_lossy()
+    );
 
     // Include the folder where the board's Cargo.toml is in the linker file
     // search path.
@@ -72,7 +79,10 @@ pub fn default_linker_script() {
 fn track_linker_script<P: AsRef<Path>>(path: P) {
     let path = path.as_ref();
 
-    // Skip the default Tock linker script.
+    // Skip the default Tock linker script as we have manually added the
+    // containing directory to the linker search path and we do not know the
+    // path to add the rerun directive here. Instead, we add the rerun directory
+    // for the default Tock linker script manually before calling this function.
     if path.to_str() == Some("tock_kernel_layout.ld") {
         return;
     }
