@@ -1126,15 +1126,15 @@ impl Pio {
     /// Checks if a PIO interrupt is set.
     pub fn interrupt_get(&self, irq_num: u32) -> bool {
         let mut temp = 0;
-        temp = match irq_num {
-            0 => self.registers.irq.read(IRQ::IRQ0),
-            1 => self.registers.irq.read(IRQ::IRQ1),
-            2 => self.registers.irq.read(IRQ::IRQ2),
-            3 => self.registers.irq.read(IRQ::IRQ3),
-            4 => self.registers.irq.read(IRQ::IRQ4),
-            5 => self.registers.irq.read(IRQ::IRQ5),
-            6 => self.registers.irq.read(IRQ::IRQ6),
-            7 => self.registers.irq.read(IRQ::IRQ7),
+        match irq_num {
+            0 => temp = self.registers.irq.read(IRQ::IRQ0),
+            1 => temp = self.registers.irq.read(IRQ::IRQ1),
+            2 => temp = self.registers.irq.read(IRQ::IRQ2),
+            3 => temp = self.registers.irq.read(IRQ::IRQ3),
+            4 => temp = self.registers.irq.read(IRQ::IRQ4),
+            5 => temp = self.registers.irq.read(IRQ::IRQ5),
+            6 => temp = self.registers.irq.read(IRQ::IRQ6),
+            7 => temp = self.registers.irq.read(IRQ::IRQ7),
             _ => debug!("IRQ Number invalid - must be from 0 to 7"),
         };
         return temp != 0;
