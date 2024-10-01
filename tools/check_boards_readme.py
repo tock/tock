@@ -13,6 +13,7 @@ import re
 import sys
 
 SKIP = [
+    "boards/build_scripts",
     "boards/components",
     "boards/nordic/nrf52_components",
     "boards/configurations",
