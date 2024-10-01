@@ -1,4 +1,8 @@
+use core::cmp::PartialOrd;
+use core::convert::From;
 use core::ops::{Deref, DerefMut};
+use core::option::Option;
+use core::option::Option::Some;
 use core::ptr::NonNull;
 use flux_rs::{refined_by, sig};
 use std::ops::Rem;

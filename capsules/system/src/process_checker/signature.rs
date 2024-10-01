@@ -1,9 +1,9 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2024.
+
 //! Signature credential checker for checking process credentials.
 
-use flux_rs::*;
 use kernel::hil;
 use kernel::process_checker::CheckResult;
 use kernel::process_checker::{AppCredentialsPolicy, AppCredentialsPolicyClient};
