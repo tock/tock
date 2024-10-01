@@ -20,7 +20,8 @@ There are three general steps to use this crate.
 
    ```toml
    # Cargo.toml
-   ...
+
+   # ...Existing Cargo.toml contents...
 
    [build-dependencies]
    tock_build_scripts = { git = "https://github.com/tock/tock"}
