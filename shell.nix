@@ -63,6 +63,7 @@ in
 
       # --- CI support packages ---
       qemu
+      z3
 
       # --- Flashing tools ---
       # If your board requires J-Link to flash and you are on NixOS,
@@ -88,5 +89,6 @@ in
     shellHook = ''
       unset OBJCOPY
       unset OBJDUMP
+      PATH=/home/mod/.local/bin:$PATH
     '';
   }

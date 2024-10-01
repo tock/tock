@@ -10,6 +10,7 @@ edition.workspace = true
 
 [dependencies]
 kernel = { path = "../../kernel" }
+flux-rs = { git = "https://github.com/flux-rs/flux" }
 
 [lints]
 workspace = true

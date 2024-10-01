@@ -17,7 +17,7 @@ flux_support = { path = "../../flux_support" }
 tock-registers = { path = "../../libraries/tock-register-interface" }
 riscv-csr = { path = "../../libraries/riscv-csr" }
 riscv = { path = "../riscv" }
-flux-rs = { git = "https://github.com/flux-rs/flux" }
+flux-rs = { git  = "https://github.com/flux-rs/flux.git" }
 
 [lints]
 workspace = true

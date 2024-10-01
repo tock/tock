@@ -3,6 +3,7 @@
 // Copyright Tock Contributors 2024.
 //! Signature credential checker for checking process credentials.
 
+use flux_rs::*;
 use kernel::hil;
 use kernel::process_checker::CheckResult;
 use kernel::process_checker::{AppCredentialsPolicy, AppCredentialsPolicyClient};
