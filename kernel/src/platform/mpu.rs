@@ -78,6 +78,14 @@ impl Display for MpuConfigDefault {
 /// requirements, and also allows the MPU to specify some addresses used by the
 /// kernel when deciding where to place certain application memory regions so
 /// that the MPU can appropriately provide protection for those memory regions.
+
+// VTOCK_TODO: can we hide `enabled`?
+// VTOCK-TODO: remove default associated refinements
+// #[flux_rs::generics(Self as base)]
+#[flux_rs::assoc(fn enabled(self: Self) -> bool {false} )]
+// VTOCK-TODO: add argument to `configured_for` for Self::MPUConfig once thats possible
+#[flux_rs::assoc(fn configured_for(self: Self) -> bool {false} )]
+#[flux_rs::assoc(fn can_access(self: Self, addr: int, sz: int, perms: Permissions) -> bool {false} )]
 pub trait MPU {
     /// MPU-specific state that defines a particular configuration for the MPU.
     /// That is, this should contain all of the required state such that the
@@ -97,6 +105,7 @@ pub trait MPU {
     ///
     /// This function must enable the permission restrictions on the various
     /// regions protected by the MPU.
+    // #[flux_rs::sig(fn(self: &strg Self) ensures self: Self{r: <Self as MPU>::enabled(r)})]
     fn enable_app_mpu(&mut self);
 
     /// Disables the MPU for userspace apps.
