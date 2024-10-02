@@ -1,8 +1,8 @@
 #![allow(unused)]
 use crate::assert;
-use std::slice::Iter; // TODO: not allowed to use std
+use core::slice::Iter;
 
-#[flux_rs::extern_spec(std::slice)]
+#[flux_rs::extern_spec(core::slice)]
 #[flux_rs::refined_by(idx: int, len: int)]
 struct Iter<'a, T>;
 

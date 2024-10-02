@@ -1,3 +1,5 @@
+#![no_std]
+
 mod extern_specs;
 mod flux_ptr;
 mod flux_range;

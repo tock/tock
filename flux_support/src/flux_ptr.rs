@@ -1,10 +1,12 @@
 use core::clone::Clone;
 use core::cmp::Eq;
+use core::cmp::Ord;
 use core::cmp::PartialEq;
 use core::cmp::PartialOrd;
 use core::convert::From;
 use core::fmt::Debug;
 use core::marker::Copy;
+use core::ops::Rem;
 use core::ops::{Deref, DerefMut};
 use core::option::Option;
 use core::option::Option::Some;
@@ -13,7 +15,6 @@ use core::ptr::NonNull;
 use core::todo;
 use core::unimplemented;
 use flux_rs::{refined_by, sig};
-use std::ops::Rem; // TODO: not allowed to use std
 
 #[flux_rs::opaque]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -22,6 +23,7 @@ pub struct FluxPtr {
     inner: *mut u8,
 }
 
+#[flux_rs::trusted]
 impl From<usize> for FluxPtr {
     fn from(value: usize) -> Self {
         FluxPtr {
@@ -37,6 +39,7 @@ impl From<FluxPtr> for u32 {
     }
 }
 // convert FluxPtr to *const u8
+#[flux_rs::trusted]
 impl From<FluxPtr> for u8 {
     fn from(ptr: FluxPtr) -> u8 {
         ptr.inner as u8
@@ -50,6 +53,7 @@ impl From<FluxPtr> for usize {
 }
 
 // Implement Rem trait for FluxPtr
+#[flux_rs::trusted]
 impl Rem<usize> for FluxPtr {
     type Output = usize;
 
@@ -59,6 +63,7 @@ impl Rem<usize> for FluxPtr {
 }
 
 // implement implement `AddAssign<usize>`` for FluxPtr
+#[flux_rs::trusted]
 impl core::ops::AddAssign<usize> for FluxPtr {
     fn add_assign(&mut self, rhs: usize) {
         *self = FluxPtr {
