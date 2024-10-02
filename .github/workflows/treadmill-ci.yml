@@ -130,7 +130,7 @@ jobs:
           unset RUSTFLAGS
           make
           popd
-            - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
       - name: Install required packages
         run: |
           sudo DEBIAN_FRONTEND=noninteractive apt update
