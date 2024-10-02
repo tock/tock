@@ -29,7 +29,15 @@ on:
   push:
     branches:
       - master
-  pull_request: # Run CI for PRs on any branch
+  # Pull requests from forks will not have access to the required GitHub API
+  # secrets below, even if they are using an appropriate deployment environment
+  # and the workflow runs have been approved according to this environment's
+  # rules. We don't know whether this is a bug on GitHub's end or deliberate.
+  # Either way, for now we disable this workflow to run on PRs until we have
+  # an API proxy that securely performs these GitHub API calls (adding runners
+  # and starting Treadmill jobs with those runner registration tokens), which
+  # allows this workflow to run without access to repository secrets.
+  #pull_request:
   merge_group: # Run CI for the GitHub merge queue
 
 permissions:
@@ -38,6 +46,9 @@ permissions:
 jobs:
   test-prepare:
     runs-on: ubuntu-latest
+
+    # Do not run job on forks
+    if: github.repository == 'tock/tock'
 
     # This provides access to the secrets required below:
     # - for `treadmill-ci`: after approval by certain persons or GH teams
