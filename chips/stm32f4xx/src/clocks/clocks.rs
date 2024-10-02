@@ -621,6 +621,7 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Stm32f4Clocks for Clocks<'a, ChipSpecs> {
 ///
 /// If there are any errors, open an issue ticket at <https://github.com/tock/tock>. Please provide the
 /// output of the test execution.
+#[allow(clippy::wildcard_imports)]
 pub mod tests {
     use super::*;
 

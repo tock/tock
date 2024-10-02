@@ -25,7 +25,4 @@ endif
 	esptool.py --port /dev/ttyUSB0 --chip esp32c3 write_flash --flash_mode dio --flash_size detect --flash_freq 80m 0x0 binary.hex
 
 test:
-	mkdir -p $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
-	$(Q)cp layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
-	$(Q)cp ../kernel_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/
 	$(Q)$(CARGO) test $(NO_RUN) --bin $(PLATFORM) --release

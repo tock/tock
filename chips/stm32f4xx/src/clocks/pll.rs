@@ -461,6 +461,7 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
 ///
 /// If there are any errors, open an issue ticket at <https://github.com/tock/tock>. Please provide the
 /// output of the test execution.
+#[allow(clippy::wildcard_imports)]
 pub mod tests {
     use super::*;
 

@@ -141,6 +141,9 @@ impl<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>> Component
         // debugging in process console.
         // SAFETY: These statics are defined by the linker script, and we are merely creating
         // pointers to them.
+        // TODO (hudson ayers, 07-25-2024): Remove this allow+unsafe once we update our
+        // MSRV to 1.82.0 or later
+        #[allow(unused_unsafe)]
         let kernel_addresses = unsafe {
             process_console::KernelAddresses {
                 stack_start: core::ptr::addr_of!(_sstack),
