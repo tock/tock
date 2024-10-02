@@ -38,7 +38,7 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
         }
     }
 
-    #[flux_rs::sig(fn(&RingBuffer<T>[@ring_len, @hd, @tl]) -> usize[ring_len]) ]
+    #[flux_rs::sig(fn(&RingBuffer<T>[@rb]) -> usize[rb.ring_len]) ]
     fn ring_len(&self) -> usize {
         self.ring.len()
     }
