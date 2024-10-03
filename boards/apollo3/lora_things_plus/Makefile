@@ -44,11 +44,13 @@ flash-app:
 
 .PHONY: test
 test:
-	$(Q)OBJCOPY=${OBJCOPY} PORT=$(PORT) $(CARGO) test $(NO_RUN) --bin $(PLATFORM) --release
+	$(Q)OBJCOPY=${OBJCOPY} PORT=$(PORT) $(CARGO) test $(NO_RUN) \
+	    --bin $(PLATFORM) --release
 
 .PHONY: test-atecc508a
 test-atecc508a:
-	$(Q)OBJCOPY=${OBJCOPY} PORT=$(PORT) $(CARGO) test $(NO_RUN) --bin $(PLATFORM) --release --features atecc508a
+	$(Q)OBJCOPY=${OBJCOPY} PORT=$(PORT) $(CARGO) test $(NO_RUN) \
+	    --bin $(PLATFORM) --release --features atecc508a
 
 .PHONY: test-chirp_i2c_moisture
 test-chirp_i2c_moisture:
