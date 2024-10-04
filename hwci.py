@@ -216,7 +216,7 @@ async def main():
         await asyncio.sleep(1)
 
         output = await listen_for_output(
-            f"tockloader listen --port {port} --no-terminal",
+            f"echo '0' | tockloader listen",
             analysis_func=analysis_func,
             timeout=60,
         )
