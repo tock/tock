@@ -103,10 +103,12 @@ async def listen_for_output(command, analysis_func=None, timeout=60):
     logging.info(f"Listening for output from command: {command}")
 
     output_lines = []
+    j_link_selected = False
 
     try:
 
         async def read_stream(stream, name):
+            nonlocal j_link_selected
             while True:
                 line = await stream.readline()
                 if not line:
@@ -117,7 +119,7 @@ async def listen_for_output(command, analysis_func=None, timeout=60):
 
                 if "Multiple serial port options found" in decoded_line:
                     # Wait for all options to be printed
-                    await asyncio.sleep(0.1)
+                    await asyncio.sleep(0.5)
 
                     # Find the J-Link option
                     j_link_option = next(
@@ -130,6 +132,7 @@ async def listen_for_output(command, analysis_func=None, timeout=60):
                         process.stdin.write(f"{j_link_option}\n".encode())
                         await process.stdin.drain()
                         logging.info(f"Selected J-Link option: {j_link_option}")
+                        j_link_selected = True
                     else:
                         logging.warning("J-Link option not found, using default")
                         process.stdin.write(b"0\n")
@@ -138,23 +141,34 @@ async def listen_for_output(command, analysis_func=None, timeout=60):
         stdout_task = asyncio.create_task(read_stream(process.stdout, "STDOUT"))
         stderr_task = asyncio.create_task(read_stream(process.stderr, "STDERR"))
 
-        await asyncio.wait(
-            [stdout_task, stderr_task],
-            timeout=timeout,
-            return_when=asyncio.ALL_COMPLETED,
-        )
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(stdout_task, stderr_task), timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            logging.warning(f"Timeout expired after {timeout} seconds")
+
+        if j_link_selected:
+            # If J-Link was selected, wait a bit longer for potential output
+            await asyncio.sleep(5)
 
         if analysis_func:
             return analysis_func(output_lines)
         else:
             return output_lines
 
-    except asyncio.TimeoutError:
-        logging.error(f"Timeout expired after {timeout} seconds")
+    except Exception as e:
+        logging.error(f"An error occurred: {str(e)}")
         return None
     finally:
-        process.kill()
-        await process.wait()
+        try:
+            process.terminate()
+            await asyncio.wait_for(process.wait(), timeout=5.0)
+        except asyncio.TimeoutError:
+            logging.warning("Process did not terminate, forcing it to close.")
+            process.kill()
+        except ProcessLookupError:
+            logging.info("Process already terminated.")
 
 
 def analyze_multi_alarm_output(output_lines):
@@ -220,7 +234,7 @@ async def main():
                 return
             port = ports[0].device
             logging.info(f"Found serial ports: {ports}")
-            logging.info(f"Automatically selected port: {port}")
+            # logging.info(f"Automatically selected port: {port}")
 
         if args.test == "hello_world":
             apps = ["c_hello"]
