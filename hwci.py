@@ -95,6 +95,7 @@ def get_serial_ports():
 async def listen_for_output(command, analysis_func=None, timeout=60):
     process = await asyncio.create_subprocess_shell(
         command,
+        stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
@@ -113,6 +114,26 @@ async def listen_for_output(command, analysis_func=None, timeout=60):
                 decoded_line = line.decode().strip()
                 logging.info(f"{name}: {decoded_line}")
                 output_lines.append(decoded_line)
+
+                if "Multiple serial port options found" in decoded_line:
+                    # Wait for all options to be printed
+                    await asyncio.sleep(0.1)
+
+                    # Find the J-Link option
+                    j_link_option = next(
+                        (i for i, line in enumerate(output_lines) if "J-Link" in line),
+                        None,
+                    )
+
+                    if j_link_option is not None:
+                        # Send the J-Link option number
+                        process.stdin.write(f"{j_link_option}\n".encode())
+                        await process.stdin.drain()
+                        logging.info(f"Selected J-Link option: {j_link_option}")
+                    else:
+                        logging.warning("J-Link option not found, using default")
+                        process.stdin.write(b"0\n")
+                        await process.stdin.drain()
 
         stdout_task = asyncio.create_task(read_stream(process.stdout, "STDOUT"))
         stderr_task = asyncio.create_task(read_stream(process.stderr, "STDERR"))
@@ -198,6 +219,7 @@ async def main():
                 logging.error("No serial ports found")
                 return
             port = ports[0].device
+            logging.info(f"Found serial ports: {ports}")
             logging.info(f"Automatically selected port: {port}")
 
         if args.test == "hello_world":
@@ -216,7 +238,7 @@ async def main():
         await asyncio.sleep(1)
 
         output = await listen_for_output(
-            f"echo '0' | tockloader listen",
+            f"tockloader listen",
             analysis_func=analysis_func,
             timeout=60,
         )
