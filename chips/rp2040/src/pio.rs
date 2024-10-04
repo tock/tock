@@ -1175,7 +1175,6 @@ impl Pio {
 
     /// Restart a state machine.
     pub fn restart_sm(&self, sm_number: SMNumber) {
-        // SET Reg
         match sm_number {
             SMNumber::SM0 => self.set_registers.ctrl.modify(CTRL::SM0_RESTART::SET),
             SMNumber::SM1 => self.set_registers.ctrl.modify(CTRL::SM1_RESTART::SET),
@@ -1186,11 +1185,9 @@ impl Pio {
 
     /// Clear a state machine’s TX and RX FIFOs.
     pub fn sm_clear_fifos(&self, sm_number: SMNumber) {
-        // XOR Reg
         self.xor_registers.sm[sm_number as usize]
             .shiftctrl
             .modify(SMx_SHIFTCTRL::FJOIN_RX::SET);
-        // XOR Reg
         self.xor_registers.sm[sm_number as usize]
             .shiftctrl
             .modify(SMx_SHIFTCTRL::FJOIN_RX::SET);
@@ -1199,7 +1196,6 @@ impl Pio {
     /// Restart a state machine's clock divider.
     pub fn sm_clkdiv_restart(&self, sm_number: SMNumber) {
         match sm_number {
-            // SET Reg
             SMNumber::SM0 => self.set_registers.ctrl.modify(CTRL::CLKDIV0_RESTART::SET),
             SMNumber::SM1 => self.set_registers.ctrl.modify(CTRL::CLKDIV1_RESTART::SET),
             SMNumber::SM2 => self.set_registers.ctrl.modify(CTRL::CLKDIV2_RESTART::SET),
@@ -1212,7 +1208,6 @@ impl Pio {
     pub fn add_program(&self, program: &[u8]) {
         self.clear_instr_registers();
         let iter = program.chunks(2);
-        // let mut x = 0;
         for (x, i) in iter.enumerate() {
             if x == NUMBER_INSTR_MEMORY_LOCATIONS {
                 debug!("Maximum limit of instructions reached!");
@@ -1221,7 +1216,6 @@ impl Pio {
             self.registers.instr_mem[x]
                 .instr_mem
                 .modify(INSTR_MEMx::INSTR_MEM.val((i[0] as u32) << 8 | (i[1] as u32)));
-            // x += 1;
         }
     }
 
