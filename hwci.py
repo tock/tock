@@ -18,23 +18,21 @@ logging.basicConfig(
 )
 
 
-def run_command(command, cwd=None):
-    logging.info(f"Running command: {' '.join(command)}")
+def run_command(command):
+    if isinstance(command, str):
+        command = command.split()
     process = subprocess.Popen(
         command,
-        cwd=cwd,
         stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
     )
-    for line in process.stdout:
-        print(line, end="")
-        sys.stdout.flush()
-    process.wait()
+    stdout, stderr = process.communicate()
     if process.returncode != 0:
-        logging.error(f"Command failed with return code {process.returncode}")
-        raise subprocess.CalledProcessError(process.returncode, command)
+        raise subprocess.CalledProcessError(
+            process.returncode, command, output=stdout, stderr=stderr
+        )
+    return stdout
 
 
 @contextmanager
@@ -66,7 +64,7 @@ def flash_kernel():
 
 def install_apps(apps, target, port):
     if not os.path.exists("libtock-c"):
-        run_command("git clone https://github.com/tock/libtock-c")
+        run_command(["git", "clone", "https://github.com/tock/libtock-c"])
 
     os.chdir("libtock-c")
     for app in apps:
