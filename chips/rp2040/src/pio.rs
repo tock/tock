@@ -1137,7 +1137,7 @@ impl Pio {
             7 => temp = self.registers.irq.read(IRQ::IRQ7),
             _ => debug!("IRQ Number invalid - must be from 0 to 7"),
         };
-        return temp != 0;
+        temp != 0
     }
 
     /// Clear a PIO interrupt.
@@ -1212,8 +1212,8 @@ impl Pio {
     pub fn add_program(&self, program: &[u8]) {
         self.clear_instr_registers();
         let iter = program.chunks(2);
-        let mut x = 0;
-        for i in iter {
+        // let mut x = 0;
+        for (x, i) in iter.enumerate() {
             if x == NUMBER_INSTR_MEMORY_LOCATIONS {
                 debug!("Maximum limit of instructions reached!");
                 break;
@@ -1221,7 +1221,7 @@ impl Pio {
             self.registers.instr_mem[x]
                 .instr_mem
                 .modify(INSTR_MEMx::INSTR_MEM.val((i[0] as u32) << 8 | (i[1] as u32)));
-            x += 1;
+            // x += 1;
         }
     }
 
