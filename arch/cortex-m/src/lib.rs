@@ -7,26 +7,27 @@
 #![crate_name = "cortexm"]
 #![crate_type = "rlib"]
 #![no_std]
+#![feature(proc_macro_hygiene)]
 
 use core::fmt::Write;
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 use core::arch::global_asm;
 
-#[flux::ignore]
+#[flux_rs::ignore]
 pub mod dcb;
-#[flux::ignore]
+#[flux_rs::ignore]
 pub mod dwt;
 pub mod mpu;
-#[flux::ignore]
+#[flux_rs::ignore]
 pub mod nvic;
-#[flux::ignore]
+#[flux_rs::ignore]
 pub mod scb;
-#[flux::ignore]
+#[flux_rs::ignore]
 pub mod support;
-#[flux::ignore]
+#[flux_rs::ignore]
 pub mod syscall;
-#[flux::ignore]
+#[flux_rs::ignore]
 pub mod systick;
 
 // These constants are defined in the linker script.
@@ -120,7 +121,7 @@ pub trait CortexMVariant {
     /// Format and display architecture-specific state useful for debugging.
     ///
     /// This is generally used after a `panic!()` to aid debugging.
-    #[flux::ignore]
+    #[flux_rs::ignore]
     unsafe fn print_cortexm_state(writer: &mut dyn Write);
 }
 
@@ -207,7 +208,7 @@ global_asm!(
     etext = sym _etext,
 );
 
-#[flux::ignore]
+#[flux_rs::ignore]
 pub unsafe fn print_cortexm_state(writer: &mut dyn Write) {
     let _ccr = syscall::SCB_REGISTERS[0];
     let cfsr = syscall::SCB_REGISTERS[1];

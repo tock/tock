@@ -30,6 +30,7 @@ use crate::ErrorCode;
 use core::cell::Cell;
 use core::marker::PhantomData;
 use core::ops::{Deref, Index, Range, RangeFrom, RangeTo};
+#[allow(clippy::wildcard_imports)]
 use flux_support::*;
 
 /// Convert a process buffer's internal representation to a

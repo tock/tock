@@ -170,6 +170,7 @@
 use core::ops::{Bound, RangeBounds};
 use core::ops::{Index, IndexMut};
 use core::slice::SliceIndex;
+#[allow(clippy::wildcard_imports)]
 use flux_support::*;
 
 /// A mutable leasable buffer implementation.

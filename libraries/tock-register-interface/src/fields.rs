@@ -200,7 +200,7 @@ Field_impl_for!(usize);
 pub struct FieldValue<T: UIntLike, R: RegisterLongName> {
     pub mask: T,
     pub value: T,
-    associated_register: PhantomData<R>,
+    pub associated_register: PhantomData<R>,
 }
 
 macro_rules! FieldValue_impl_for {

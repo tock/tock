@@ -1060,7 +1060,7 @@ impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> hil::adc::HighSpeedC
                             kernel_data
                                 .schedule_upcall(
                                     0,
-                                    (self.mode.get() as usize, len_chan, buf_ptr as usize),
+                                    (self.mode.get() as usize, len_chan, usize::from(buf_ptr)),
                                 )
                                 .ok();
 

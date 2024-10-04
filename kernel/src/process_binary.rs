@@ -13,6 +13,7 @@ use crate::config;
 use crate::debug;
 use crate::process_checker::AcceptedCredential;
 use crate::utilities::cells::OptionalCell;
+#[allow(clippy::wildcard_imports)]
 use flux_support::*;
 
 /// Errors resulting from trying to load a process binary structure from flash.
@@ -144,7 +145,6 @@ impl ProcessBinary {
         tbf_version: u16,
         require_kernel_version: bool,
     ) -> Result<Self, ProcessBinaryError> {
-
         // Get a slice for just the app header.
         let header_flash = app_flash
             .get(0..header_length)

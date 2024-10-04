@@ -13,6 +13,7 @@ use core::fmt::Write;
 use core::num::NonZeroU32;
 use core::ptr::NonNull;
 use core::{mem, slice, str};
+#[allow(clippy::wildcard_imports)]
 use flux_support::*;
 
 use crate::collections::queue::Queue;
@@ -2155,7 +2156,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
 
     /// The lowest address of the grant region for the process.
     fn kernel_memory_break(&self) -> FluxPtrU8Mut {
-        self.breaks.get().app_break
+        self.breaks.get().kernel_memory_break
     }
 
     /// Return the highest address the process has access to, or the current

@@ -98,7 +98,7 @@ impl<'a> DynDefCallRef<'a> {
     #[flux_rs::trusted] // unsupported cast `PointerCoercion(ClosureFnPointer(Safe))`
     fn new<T: DeferredCallClient>(x: &'a T) -> Self {
         Self {
-            data: x as *const _ as *const (),
+            data: core::ptr::from_ref(x) as *const (),
             callback: |p| unsafe { T::handle_deferred_call(&*p.cast()) },
             _lifetime: PhantomData,
         }

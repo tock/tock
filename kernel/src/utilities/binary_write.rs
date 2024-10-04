@@ -8,7 +8,6 @@
 //! binary slice. This mirrors the `core::fmt::Write` interface but doesn't
 //! expect a `&str`.
 
-
 /// Interface for writing an arbitrary buffer.
 pub trait BinaryWrite {
     /// Write the `buffer` to some underlying print mechanism.

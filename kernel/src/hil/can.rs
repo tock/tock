@@ -39,6 +39,7 @@
 //!
 
 use crate::ErrorCode;
+#[allow(clippy::wildcard_imports)]
 use flux_support::*;
 
 pub const STANDARD_CAN_PACKET_SIZE: usize = 8;
@@ -319,7 +320,6 @@ impl<T: Configure> StandardBitTiming for T {
                 continue;
             }
             ts = clock_rate / (prescaler * bitrate);
-
 
             sample_point_err = calc_sample_point_err(
                 sp,

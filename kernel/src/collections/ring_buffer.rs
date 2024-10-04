@@ -7,7 +7,6 @@
 use crate::collections::queue;
 
 
-
 #[flux_rs::refined_by(ring_len: int, hd: int, tl: int)]
 #[flux_rs::invariant(ring_len > 1)]
 pub struct RingBuffer<'a, T: 'a> {
@@ -26,7 +25,6 @@ flux_rs::defs! {
     fn next_hd(rb: RingBuffer) -> int { rb_next(rb.hd, rb.ring_len) }
     fn next_tl(rb: RingBuffer) -> int { rb_next(rb.tl, rb.ring_len) }
 }
-
 
 impl<'a, T: Copy> RingBuffer<'a, T> {
     #[flux_rs::sig(fn({&mut [T][@ring_len] | ring_len > 1}) -> RingBuffer<T>[ring_len, 0, 0])]

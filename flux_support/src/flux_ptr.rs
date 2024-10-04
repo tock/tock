@@ -1,12 +1,81 @@
+use core::clone::Clone;
+use core::cmp::Eq;
+use core::cmp::Ord;
+use core::cmp::PartialEq;
+use core::cmp::PartialOrd;
+use core::convert::From;
+use core::fmt::Debug;
+use core::marker::Copy;
+use core::ops::Rem;
 use core::ops::{Deref, DerefMut};
+use core::option::Option;
+use core::option::Option::Some;
+use core::prelude::rust_2021::derive;
 use core::ptr::NonNull;
+use core::todo;
+use core::unimplemented;
 use flux_rs::{refined_by, sig};
 
 #[flux_rs::opaque]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[refined_by(ptr: int)]
 pub struct FluxPtr {
     inner: *mut u8,
+}
+
+#[flux_rs::trusted]
+impl From<usize> for FluxPtr {
+    fn from(value: usize) -> Self {
+        FluxPtr {
+            inner: value as *mut u8,
+        }
+    }
+}
+
+// Support cast from FluxPtr to u32
+impl From<FluxPtr> for u32 {
+    fn from(ptr: FluxPtr) -> u32 {
+        ptr.as_u32()
+    }
+}
+// convert FluxPtr to *const u8
+#[flux_rs::trusted]
+impl From<FluxPtr> for u8 {
+    fn from(ptr: FluxPtr) -> u8 {
+        ptr.inner as u8
+    }
+}
+// FluxPtr to usize
+impl From<FluxPtr> for usize {
+    fn from(ptr: FluxPtr) -> usize {
+        ptr.as_usize()
+    }
+}
+
+// Implement Rem trait for FluxPtr
+#[flux_rs::trusted]
+impl Rem<usize> for FluxPtr {
+    type Output = usize;
+
+    fn rem(self, rhs: usize) -> Self::Output {
+        (self.inner as usize) % rhs
+    }
+}
+
+// implement implement `AddAssign<usize>`` for FluxPtr
+#[flux_rs::trusted]
+impl core::ops::AddAssign<usize> for FluxPtr {
+    fn add_assign(&mut self, rhs: usize) {
+        *self = FluxPtr {
+            inner: (self.inner as usize + rhs) as *mut u8,
+        }
+    }
+}
+
+impl core::cmp::Ord for FluxPtr {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.as_usize().cmp(&other.as_usize())
+    }
 }
 
 // VTOCK-TODO: fill in these functions with obvious implementations
@@ -50,10 +119,12 @@ impl FluxPtr {
         unimplemented!()
     }
 
+    /// # Safety
     pub const unsafe fn offset(self, _count: isize) -> Self {
         unimplemented!()
     }
 
+    /// # Safety
     pub const unsafe fn add(self, _count: usize) -> Self {
         unimplemented!()
     }
@@ -65,8 +136,8 @@ impl FluxPtr {
 
 #[flux_rs::trusted]
 impl PartialOrd for FluxPtr {
-    fn partial_cmp(&self, _other: &Self) -> Option<core::cmp::Ordering> {
-        todo!()
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 
     // Provided methods

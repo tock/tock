@@ -34,6 +34,7 @@ use crate::syscall::{Syscall, YieldCall};
 use crate::syscall_driver::CommandReturn;
 use crate::upcall::{Upcall, UpcallId};
 use crate::utilities::cells::NumericCellExt;
+#[allow(clippy::wildcard_imports)]
 use flux_support::*;
 
 /// Threshold in microseconds to consider a process's timeslice to be exhausted.

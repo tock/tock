@@ -1,5 +1,9 @@
 // VTOCK-TODO: how to do defs without breaking compilation
+use core::clone::Clone;
+use core::marker::Copy;
 use core::ops::{Add, AddAssign};
+use core::prelude::rust_2021::derive;
+use core::unimplemented;
 pub use tock_registers::debug;
 pub use tock_registers::fields::TryFromValue;
 use tock_registers::fields::{Field, FieldValue};
