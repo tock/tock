@@ -26,6 +26,4 @@ endif
 
 test:
 	mkdir -p $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
-	$(Q)cp layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
-	$(Q)cp ../kernel_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/
 	$(Q)$(CARGO) test $(NO_RUN) --bin $(PLATFORM) --release

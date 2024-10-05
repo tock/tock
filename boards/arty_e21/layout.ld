@@ -9,4 +9,4 @@ MEMORY
   ram (rwx) : ORIGIN = 0x80000000, LENGTH = 64K
 }
 
-INCLUDE ../kernel_layout.ld
+INCLUDE tock_kernel_layout.ld

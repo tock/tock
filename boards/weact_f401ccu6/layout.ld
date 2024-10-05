@@ -17,4 +17,4 @@ MEMORY
 
 PAGE_SIZE = 2K;
 
-INCLUDE ../kernel_layout.ld
+INCLUDE tock_kernel_layout.ld

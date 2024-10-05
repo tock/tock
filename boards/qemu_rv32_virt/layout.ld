@@ -30,4 +30,4 @@ SECTIONS {
     _esram  = ORIGIN(ram) + LENGTH(ram);
 }
 
-INCLUDE ../kernel_layout.ld
+INCLUDE tock_kernel_layout.ld

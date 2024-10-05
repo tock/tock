@@ -14,4 +14,4 @@ MEMORY
 
 MPU_MIN_ALIGN = 1K;
 
-INCLUDE ../kernel_layout.ld
+INCLUDE tock_kernel_layout.ld
