@@ -650,12 +650,12 @@ pub unsafe fn spawn<const ID: usize>(
     // let _ = platform.pconsole.start();
 
     if has_app_thread {
-        // Global initialization is done. Wake up all threads.
-        (0..MAX_THREADS)
-            .filter(|&id| id != ID)
-            .for_each(|id| hardware_timer.set_soft_interrupt(id));
+        use rv32i::{INITIALIZED, INITIALIZED_ACK};
+        while INITIALIZED_ACK.load(Ordering::SeqCst) != 1 {
+            INITIALIZED.store(1, Ordering::SeqCst);
+        }
 
-        // Block until the app thread finishes initialization
+        // Block until the app thread kernel is initialized.
         while !APP_THREAD_READY.load(Ordering::SeqCst) {}
     }
 

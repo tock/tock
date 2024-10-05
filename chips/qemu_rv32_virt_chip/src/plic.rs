@@ -6,7 +6,7 @@
 
 use kernel::utilities::StaticRef;
 use sifive::plic::{Plic, PlicRegisters};
-use kernel::threadlocal::{ThreadLocal, ThreadLocalDyn};
+use kernel::threadlocal::{ThreadLocal, ThreadLocalDyn, ThreadId};
 
 use crate::{MAX_THREADS, MAX_CONTEXTS};
 
@@ -32,7 +32,10 @@ pub fn init_plic() {
         let threadlocal: &'static dyn ThreadLocalDyn<_> = *core::ptr::addr_of_mut!(PLIC);
         threadlocal
             .get_mut()
-            .expect("Current thread does not have access to its local PLIC")
+            .unwrap_or_else(|| {
+                panic!("Thread {} does not have access to its local PLIC",
+                       rv32i::support::current_hart_id().get_id());
+            })
             .enter_nonreentrant(closure);
     }
 }
@@ -52,5 +55,8 @@ where
     F: FnOnce(&mut Plic<MAX_CONTEXTS>) -> R
 {
     with_plic(f)
-        .expect("Current thread does not have access to a valid PLIC")
+        .unwrap_or_else(|| {
+            panic!("Thread {} does not have access to a valid PLIC",
+                   rv32i::support::current_hart_id().get_id());
+        })
 }
