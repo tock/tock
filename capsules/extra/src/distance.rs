@@ -32,6 +32,8 @@
 //! The possible returns from the `command` system call indicate the following:
 //!
 //! * `Ok(())`: The operation has been successful.
+//! * `NOACK`: No acknowledgment was received from the sensor during distance measurement.
+//! * `INVAL`: Invalid measurement, such as when the object is out of range or no valid echo is received.
 //! * `ENOSUPPORT`: Invalid `cmd`.
 //! * `NOMEM`: Insufficient memory available.
 //! * `INVAL`: Invalid address of the buffer or other error.
@@ -41,7 +43,7 @@
 //! * `0`: Indicates a successful distance measurement, with the second parameter containing the distance, in millimeters.
 //! * Non-zero: Indicates an error, with the first parameter containing the error code, and the second parameter being `0`.
 //!
-//! Components for the HD447880 LCD controller.
+//! Components for the distance sensor.
 //!
 //! Usage
 //! -----
@@ -50,6 +52,8 @@
 //! Here is an example of how to set up a distance sensor with the HC-SR04.
 //!
 //! ```rust
+//! use components::hcsr04::HcSr04Component;
+
 //! let trig_pin = peripherals.pins.get_pin(RPGpio::GPIO4);
 //! let echo_pin = peripherals.pins.get_pin(RPGpio::GPIO5);
 //!
@@ -125,7 +129,7 @@ impl<'a, T: hil::sensors::Distance<'a>> DistanceSensor<'a, T> {
 }
 
 impl<'a, T: hil::sensors::Distance<'a>> hil::sensors::DistanceClient for DistanceSensor<'a, T> {
-    fn callback(&self, distance_val: Result<u32, ErrorCode>) {
+    fn callback(&self, distance_val: Result<u64, ErrorCode>) {
         // We completed the operation so we clear the busy flag in case we get
         // another measurement request.
         self.busy.set(false);

@@ -259,5 +259,5 @@ pub trait DistanceClient {
     ///
     /// - `distance`: the most recently measured distance in millimeters.
     ///                If there was an error, this will be `Err(ErrorCode)`.
-    fn callback(&self, distance: Result<u32, ErrorCode>);
+    fn callback(&self, distance: Result<u64, ErrorCode>);
 }
