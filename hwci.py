@@ -43,8 +43,13 @@ def flash_kernel():
         run_command("git clone https://github.com/tock/tock")
 
     with change_directory("tock/boards/nordic/nrf52840dk"):
+        # Fix: Use a list of arguments instead of a single string
         run_command(
-            "openocd -c 'interface jlink; transport select swd; source [find target/nrf52.cfg]; init; nrf52_recover; exit'"
+            [
+                "openocd",
+                "-c",
+                "interface jlink; transport select swd; source [find target/nrf52.cfg]; init; nrf52_recover; exit",
+            ]
         )
         run_command("make flash-openocd")
 
