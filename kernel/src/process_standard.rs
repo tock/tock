@@ -142,6 +142,7 @@ pub struct ProcessStandardDebugFull {
 ///
 /// These pointers and counters are not strictly required for kernel operation,
 /// but provide helpful information when an app crashes.
+#[derive(Default)]
 struct ProcessStandardDebugFullInner {
     /// If this process was compiled for fixed addresses, save the address
     /// it must be at in flash. This is useful for debugging and saves having
@@ -268,17 +269,7 @@ impl ProcessStandardDebug for ProcessStandardDebugFull {
 impl Default for ProcessStandardDebugFull {
     fn default() -> Self {
         Self {
-            debug: MapCell::new(ProcessStandardDebugFullInner {
-                fixed_address_flash: None,
-                fixed_address_ram: None,
-                app_heap_start_pointer: None,
-                app_stack_start_pointer: None,
-                app_stack_min_pointer: None,
-                syscall_count: 0,
-                last_syscall: None,
-                dropped_upcall_count: 0,
-                timeslice_expiration_count: 0,
-            }),
+            debug: MapCell::new(ProcessStandardDebugFullInner::default()),
         }
     }
 }
