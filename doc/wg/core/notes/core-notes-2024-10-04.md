@@ -64,7 +64,7 @@
  * Lawrence: Maybe the free interface. Or locations of buffers that applications already own
  * Johnathan: About metaptr, does it represent capabilities that are pointers only? Aren't there other types of capabilities?
  * Lawrence: I'm also using it for the register file, so any capabilities.
- * Johnathan: So it's more than just pointers. Okay. The other thing I'm puzzled on, in non-CHERI you're relying on the cast to copy information.
+ * Johnathan: So it's more than just pointers. Okay. The other thing that confused me, in non-CHERI you're relying on the cast to copy provenance information, correct?
  * Lawrence: I wonder if I could rewrite that wrapper layer with strict provenance in mind.
  * Johnathan: I used `*mut ()` in libtock-rs for similar things. Maybe I'm thinking too strictly about it.
  * Lawrence: Maybe I should change to strict provenance. Would that cause issues across the kernel?
