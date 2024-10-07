@@ -60,7 +60,7 @@ use core::cell::Cell;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::gpio;
 use kernel::hil::gpio::{Configure, Input, InterruptWithValue};
-use kernel::syscall::{CommandReturn, SyscallDriver};
+use kernel::syscall::CommandReturn;
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
@@ -88,7 +88,7 @@ pub struct Button<'a, P: gpio::InterruptPin<'a>> {
         gpio::ActivationMode,
         gpio::FloatingState,
     )],
-    apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
+    apps: ButtonGrant<App>,
 }
 
 impl<'a, P: gpio::InterruptPin<'a>> Button<'a, P> {
@@ -115,113 +115,89 @@ impl<'a, P: gpio::InterruptPin<'a>> Button<'a, P> {
     }
 }
 
-/// ### `subscribe_num`
-///
-/// - `0`: Set callback for pin interrupts. Note setting this callback has
-///   no reliance on individual pins being configured as interrupts. The
-///   interrupt will be called with two parameters: the index of the button
-///   that triggered the interrupt and the pressed/not pressed state of the
-///   button.
-const UPCALL_NUM: usize = 0;
+auto::syscall_driver!(Button<'a, P: gpio::InterruptPin<'a>> {
 
-impl<'a, P: gpio::InterruptPin<'a>> SyscallDriver for Button<'a, P> {
-    /// Configure interrupts and read state for buttons.
-    ///
-    /// `data` is the index of the button in the button array as passed to
-    /// `Button::new()`.
-    ///
-    /// All commands greater than zero return `INVAL` if an invalid button
-    /// number is passed in.
-    ///
-    /// ### `command_num`
-    ///
-    /// - `0`: Driver existence check and get number of buttons on the board.
-    /// - `1`: Enable interrupts for a given button. This will enable both press
-    ///   and depress events.
-    /// - `2`: Disable interrupts for a button. No affect or reliance on
-    ///   registered callback.
-    /// - `3`: Read the current state of the button.
-    fn command(
-        &self,
-        command_num: usize,
-        data: usize,
-        _: usize,
-        processid: ProcessId,
-    ) -> CommandReturn {
-        let pins = self.pins;
-        match command_num {
-            // return button count
-            // TODO(Tock 3.0): TRD104 specifies that Command 0 should return Success, not SuccessU32,
-            // but this driver is unchanged since it has been stabilized. It will be brought into
-            // compliance as part of the next major release of Tock. See #3375.
-            0 => CommandReturn::success_u32(pins.len() as u32),
-
-            // enable interrupts for a button
-            1 => {
-                if data < pins.len() {
-                    self.apps
-                        .enter(processid, |cntr, _| {
-                            cntr.subscribe_map |= 1 << data;
-                            let _ = pins[data]
-                                .0
-                                .enable_interrupts(gpio::InterruptEdge::EitherEdge);
-                            CommandReturn::success()
-                        })
-                        .unwrap_or_else(|err| CommandReturn::failure(err.into()))
-                } else {
-                    CommandReturn::failure(ErrorCode::INVAL) /* impossible button */
-                }
-            }
-
-            // disable interrupts for a button
-            2 => {
-                if data >= pins.len() {
-                    CommandReturn::failure(ErrorCode::INVAL) /* impossible button */
-                } else {
-                    let res = self
-                        .apps
-                        .enter(processid, |cntr, _| {
-                            cntr.subscribe_map &= !(1 << data);
-                            CommandReturn::success()
-                        })
-                        .unwrap_or_else(|err| CommandReturn::failure(err.into()));
-
-                    // are any processes waiting for this button?
-                    let interrupt_count = Cell::new(0);
-                    self.apps.each(|_, cntr, _| {
-                        if cntr.subscribe_map & (1 << data) != 0 {
-                            interrupt_count.set(interrupt_count.get() + 1);
-                        }
-                    });
-
-                    // if not, disable the interrupt
-                    if interrupt_count.get() == 0 {
-                        self.pins[data].0.disable_interrupts();
-                    }
-
-                    res
-                }
-            }
-
-            // read input
-            3 => {
-                if data >= pins.len() {
-                    CommandReturn::failure(ErrorCode::INVAL) /* impossible button */
-                } else {
-                    let button_state = self.get_button_state(data as u32);
-                    CommandReturn::success_u32(button_state as u32)
-                }
-            }
-
-            // default
-            _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
+    commands {
+    /// return button count
+    /// TODO(Tock 3.0): TRD104 specifies that Command 0 should return Success, not SuccessU32,
+    /// but this driver is unchanged since it has been stabilized. It will be brought into
+    /// compliance as part of the next major release of Tock. See #3375.
+    0: num() => CommandReturn::success_u32(self.pins.len() as u32),
+    /// Enable interrupts for a given button. This will enable both press
+    /// and depress events.
+    1: enable_interrupt(pin_num) => {
+        if pin_num < self.pins.len() {
+        self.apps
+            .enter(processid, |cntr, _| {
+            cntr.subscribe_map |= 1 << pin_num;
+            let _ = self.pins[pin_num]
+                .0
+                .enable_interrupts(gpio::InterruptEdge::EitherEdge);
+            CommandReturn::success()
+            })
+            .unwrap_or_else(|err| CommandReturn::failure(err.into()))
+        } else {
+        CommandReturn::failure(ErrorCode::INVAL) /* impossible button */
         }
-    }
+    },
+    /// Disable interrupts for a button. No affect or reliance on
+    /// registered callback.
+    2: disable_interrupt(pin_num) => {
+        if pin_num >= self.pins.len() {
+        CommandReturn::failure(ErrorCode::INVAL) /* impossible button */
+        } else {
+        let res = self
+            .apps
+            .enter(processid, |cntr, _| {
+            cntr.subscribe_map &= !(1 << pin_num);
+            CommandReturn::success()
+            })
+            .unwrap_or_else(|err| CommandReturn::failure(err.into()));
 
-    fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
-        self.apps.enter(processid, |_, _| {})
-    }
+        // are any processes waiting for this button?
+        let interrupt_count = Cell::new(0);
+        self.apps.each(|_, cntr, _| {
+            if cntr.subscribe_map & (1 << pin_num) != 0 {
+            interrupt_count.set(interrupt_count.get() + 1);
+            }
+        });
+
+        // if not, disable the interrupt
+        if interrupt_count.get() == 0 {
+            self.pins[pin_num].0.disable_interrupts();
+        }
+
+        res
+        }
+    },
+    /// Read the current state of the button.
+    3: read(pin_num) => {
+        if pin_num >= self.pins.len() {
+        CommandReturn::failure(ErrorCode::INVAL) /* impossible button */
+        } else {
+        let button_state = self.get_button_state(pin_num as u32);
+        CommandReturn::success_u32(button_state as u32)
+        }
+    },
+    },
+    subscribes {
+    /// Button press callbacks.
+    ///
+    /// ## Arguments
+    /// - `pin_num`: Button index
+    /// - `pressed`: 1 if pressed, 0 otherwise.
+    0: toggled(pin_num, pressed)
+    },
+    allow_ro {},
+    allow_rw {},
+
+
 }
+
+fn allocate_grant(&self, processid: ProcessId) -> Result<(), kernel::process::Error> {
+    self.apps.enter(processid, |_, _| {})
+}
+);
 
 impl<'a, P: gpio::InterruptPin<'a>> gpio::ClientWithValue for Button<'a, P> {
     fn fired(&self, pin_num: u32) {
@@ -234,7 +210,7 @@ impl<'a, P: gpio::InterruptPin<'a>> gpio::ClientWithValue for Button<'a, P> {
             if cntr.subscribe_map & (1 << pin_num) != 0 {
                 interrupt_count.set(interrupt_count.get() + 1);
                 upcalls
-                    .schedule_upcall(UPCALL_NUM, (pin_num as usize, button_state as usize, 0))
+                    .schedule_upcall(UPCALL_TOGGLED, (pin_num as usize, button_state as usize, 0))
                     .ok();
             }
         });
