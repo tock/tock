@@ -14,18 +14,23 @@ logging.basicConfig(
 )
 
 
-def run_command(command):
+def run_command(command, timeout=None):
     if isinstance(command, str):
         command = command.split()
     try:
         logging.info(f"Running command: {' '.join(command)}")
-        result = subprocess.run(command, check=True, capture_output=True, text=True)
+        result = subprocess.run(
+            command, check=True, capture_output=True, text=True, timeout=timeout
+        )
         logging.debug(f"Command output: {result.stdout}")
         return result.stdout
     except subprocess.CalledProcessError as e:
         logging.error(f"Command failed: {e}")
         logging.error(f"Stderr: {e.stderr}")
         raise
+    except subprocess.TimeoutExpired:
+        logging.error(f"Command timed out after {timeout} seconds")
+        return None
 
 
 @contextmanager
@@ -110,20 +115,40 @@ def listen_for_output(port, analysis_func=None, timeout=60):
     logging.info(
         f"Starting to listen for output on port {port} with timeout {timeout} seconds"
     )
-    with serial.Serial(port, 115200, timeout=1) as ser:
+
+    # Run tockloader listen command
+    command = ["tockloader", "listen", "--port", port]
+    try:
+        # Use Popen to get real-time output
+        process = subprocess.Popen(
+            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        )
+
         start_time = time.time()
         output_lines = []
+
         while time.time() - start_time < timeout:
-            if ser.in_waiting:
-                line = ser.readline().decode().strip()
-                logging.info(f"SERIAL: {line}")
-                output_lines.append(line)
-                if analysis_func and analysis_func(output_lines):
-                    logging.info(
-                        "Analysis function returned True, ending listen_for_output"
-                    )
-                    return True
+            line = process.stdout.readline()
+            if not line:
+                break
+            line = line.strip()
+            logging.info(f"TOCKLOADER: {line}")
+            output_lines.append(line)
+
+            if analysis_func and analysis_func(output_lines):
+                logging.info(
+                    "Analysis function returned True, ending listen_for_output"
+                )
+                process.terminate()
+                return True
+
+        # If we've reached here, we've timed out
+        process.terminate()
         logging.warning(f"Timeout reached after {timeout} seconds")
+        return False
+
+    except Exception as e:
+        logging.error(f"Error in listen_for_output: {e}")
         return False
 
 
