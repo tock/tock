@@ -48,6 +48,10 @@ use tock_tbf::types::CommandPermissions;
 ///
 /// Platforms that want to only maintain certain debugging information can
 /// implement only part of this trait.
+///
+/// Tock provides a default implementation of this trait on the `()` type.
+/// Kernels that wish to use [`ProcessStandard`] but do not need process-level
+/// debugging information can use `()` as the `ProcessStandardDebug` type.
 pub trait ProcessStandardDebug: Default {
     /// Record the address in flash the process expects to start at.
     fn set_fixed_address_flash(&self, address: u32);
