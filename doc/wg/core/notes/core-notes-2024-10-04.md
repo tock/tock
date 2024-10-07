@@ -47,7 +47,7 @@
  * Lawrence: And there's an assumption that the user trusts the kernel to return a valid enum
  * Johnathan: Is this about the different types the kernel can return? That seems to be expansible in the future?
  * Lawrence: Yes. I was just worried that the types of enums in userland and kernel could be out-of-sync
- * Johnathan: There's certainly checking in libtock-rs right now
+ * Johnathan: `libtock-rs` certainly assumes there may be new syscall return variants in the future
  * Leon: Is there any dissenting opinion about these options?
  * Brad: Not quite a dissent, but I struggle with how we're going to resolve this if we assume we can have pointers anywhere. If a command argument can take a pointer, for instance
  * Lawrence: I think the plan would be to not allow that. Those must go through allow
