@@ -35,6 +35,21 @@ pub trait HumidityClient {
     fn callback(&self, value: usize);
 }
 
+/// A basic interface for a moisture sensor
+pub trait MoistureDriver<'a> {
+    fn set_client(&self, client: &'a dyn MoistureClient);
+    fn read_moisture(&self) -> Result<(), ErrorCode>;
+}
+
+/// Client for receiving moisture readings.
+pub trait MoistureClient {
+    /// Called when a moisture reading has completed.
+    ///
+    /// - `value`: the most recently read moisture in hundredths of
+    /// percent, or Err on failure.
+    fn callback(&self, value: Result<usize, ErrorCode>);
+}
+
 /// A basic interface for a Air Quality sensor
 pub trait AirQualityDriver<'a> {
     /// Set the client to be notified when the capsule has data ready.
