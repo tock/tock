@@ -149,6 +149,54 @@ def analyze_hello_world_output(output_lines):
     return any("Hello World!" in line for line in output_lines)
 
 
+def analyze_multi_alarm_output(output_lines):
+    """
+    Analyzes the output lines from the multi_alarm_simple_test.
+    Checks if both alarms are firing and if alarm 1 fires approximately
+    twice as often as alarm 2.
+    """
+    from collections import defaultdict
+    import re
+
+    alarm_times = defaultdict(list)
+
+    # Regular expression to match the output lines
+    pattern = re.compile(r"^(\d+)\s+(\d+)\s+(\d+)$")
+
+    for line in output_lines:
+        match = pattern.match(line)
+        if match:
+            alarm_index = int(match.group(1))
+            now = int(match.group(2))
+            expiration = int(match.group(3))
+            alarm_times[alarm_index].append(now)
+        else:
+            logging.debug(f"Ignoring non-matching line: {line}")
+
+    # Check if both alarms are present
+    if 1 not in alarm_times or 2 not in alarm_times:
+        logging.error("Not all alarms are present in the output")
+        return False
+
+    # Get the counts
+    count_alarm_1 = len(alarm_times[1])
+    count_alarm_2 = len(alarm_times[2])
+
+    logging.info(f"Alarm 1 fired {count_alarm_1} times")
+    logging.info(f"Alarm 2 fired {count_alarm_2} times")
+
+    # Check if alarm 1 fires approximately twice as often as alarm 2
+    ratio = count_alarm_1 / count_alarm_2
+    if ratio < 1.5 or ratio > 2.5:
+        logging.error(
+            f"Alarm 1 did not fire approximately twice as often as Alarm 2. Ratio: {ratio}"
+        )
+        return False
+
+    logging.info("Alarms are firing as expected")
+    return True
+
+
 def main():
     parser = argparse.ArgumentParser(description="Run tests on Tock OS")
     parser.add_argument("--port", help="Serial port to use (e.g., /dev/ttyACM0)")
@@ -184,7 +232,7 @@ def main():
             analysis_func = analyze_hello_world_output
         elif args.test == "multi_alarm_simple_test":
             apps = ["multi_alarm_simple_test"]
-            analysis_func = None  # Implement analysis function if needed
+            analysis_func = analyze_multi_alarm_output
         else:
             logging.error(f"Unknown test type: {args.test}")
             return
