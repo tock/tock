@@ -105,7 +105,7 @@ jobs:
               \"runner-id\": \"$RUNNER_ID\", \
             } \
           }" >> "$GITHUB_OUTPUT"
-  test-execute:
+    test-execute:
     needs: test-prepare
     strategy:
       matrix:
@@ -116,7 +116,7 @@ jobs:
         run: |
           echo "Treadmill job id: ${{ matrix.tml-job-id }}"
           echo "GitHub Actions Runner ID: ${{ fromJSON(needs.test-prepare.outputs.tml-jobs)[matrix.tml-job-id] }}"
-          echo "Network configration:"
+          echo "Network configuration:"
           ip address
           echo "Attached USB devices:"
           lsusb
@@ -136,6 +136,17 @@ jobs:
           sudo DEBIAN_FRONTEND=noninteractive apt update
           sudo DEBIAN_FRONTEND=noninteractive apt install -y git cargo openocd python3 python3-pip python3-serial pipx gcc-arm-none-eabi libnewlib-arm-none-eabi pkg-config libudev-dev cmake libusb-1.0-0-dev udev make gdb-multiarch gcc-arm-none-eabi build-essential
           curl --proto '=https' --tlsv1.2 -LsSf https://github.com/probe-rs/probe-rs/releases/latest/download/probe-rs-tools-installer.sh | sh
+      - name: Adjust serial port permissions
+        run: |
+          echo "Adjusting serial port permissions..."
+          # List potential serial devices
+          SERIAL_DEVICES=$(ls /dev/ttyACM* /dev/ttyUSB* 2>/dev/null || true)
+          if [ -z "$SERIAL_DEVICES" ]; then
+            echo "No serial devices found."
+          else
+            echo "Found serial devices: $SERIAL_DEVICES"
+            sudo chmod a+rw $SERIAL_DEVICES
+          fi
       - name: Run test script
         run: |
           ls
@@ -143,7 +154,7 @@ jobs:
           export PATH=$HOME/.local/bin:$PATH
           pipx install tockloader
           unset RUSTFLAGS
-          python3 ./hwci.py
+          python3 ./hwci.py  
   # TODO: remove once jobs are automatically terminated when the QEMU
   # process exits...
   test-terminate:

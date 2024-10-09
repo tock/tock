@@ -191,7 +191,7 @@ def main():
 
         # Start listening in a separate thread before installing apps
         listener_thread = threading.Thread(
-            target=listen_serial_port, args=(args.port, analysis_func, 300)
+            target=listen_serial_port, args=(args.port, analysis_func, 500)
         )
         listener_thread.start()
 
