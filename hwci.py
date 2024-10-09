@@ -3,9 +3,9 @@ import subprocess
 import logging
 import sys
 import argparse
+import serial
 import serial.tools.list_ports
 import time
-import re
 import threading
 from contextlib import contextmanager
 
@@ -66,7 +66,7 @@ def flash_kernel():
             [
                 "openocd",
                 "-c",
-                "interface jlink; transport select swd; source [find target/nrf52.cfg]; init; nrf52_recover; exit",
+                "adapter driver jlink; transport select swd; source [find target/nrf52.cfg]; init; nrf52_recover; exit",
             ]
         )
         logging.info("Flashing Tock kernel")
@@ -75,9 +75,7 @@ def flash_kernel():
 
 
 def install_apps(apps, target, port):
-    logging.info(
-        f"Starting install_apps function with apps: {apps}, target: {target}, port: {port}"
-    )
+    logging.info(f"Starting install_apps function with apps: {apps}, target: {target}")
     if not os.path.exists("libtock-c"):
         logging.info("Cloning libtock-c repository")
         run_command("git clone https://github.com/tock/libtock-c")
@@ -101,10 +99,10 @@ def install_apps(apps, target, port):
                 run_command(f"make TOCK_TARGETS={target}")
                 logging.info(f"Installing app: {app}")
                 run_command(
-                    f"tockloader install --port {port} --board nrf52dk --openocd build/{app}.tab"
+                    f"tockloader install --board nrf52dk --openocd build/{app}.tab"
                 )
                 logging.info(f"Enabling app: {app}")
-                run_command(f"tockloader enable-app {app} --port {port}")
+                run_command(f"tockloader enable-app {app}")
 
         logging.info("Listing installed apps")
         run_command(f"tockloader list")
@@ -118,60 +116,37 @@ def get_serial_ports():
     return ports
 
 
-def listen_for_output(port, analysis_func=None, timeout=60):
+def listen_serial_port(port_device, analysis_func=None, timeout=60):
     logging.info(
-        f"Starting to listen for output on port {port} with timeout {timeout} seconds"
+        f"Starting to listen on serial port {port_device} with timeout {timeout} seconds"
     )
-
-    command = ["tockloader", "listen", "--port", port]
     try:
-        process = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1,
-            universal_newlines=True,
-        )
-
+        ser = serial.Serial(port_device, baudrate=115200, timeout=1)
+        ser.flushInput()
         start_time = time.time()
         output_lines = []
 
-        def read_stream(stream, prefix):
-            for line in iter(stream.readline, ""):
-                line = line.strip()
-                logging.info(f"{prefix}: {line}")
+        while time.time() - start_time < timeout:
+            if ser.in_waiting > 0:
+                line = ser.readline().decode("utf-8", errors="replace").strip()
+                logging.info(f"SERIAL PORT OUTPUT: {line}")
                 output_lines.append(line)
                 if analysis_func and analysis_func(output_lines):
-                    return True
-            return False
+                    logging.info("Analysis function returned True, stopping listener")
+                    break
+            else:
+                time.sleep(0.1)  # Sleep briefly to avoid busy waiting
 
-        while time.time() - start_time < timeout:
-            if read_stream(process.stdout, "TOCKLOADER STDOUT") or read_stream(
-                process.stderr, "TOCKLOADER STDERR"
-            ):
-                logging.info(
-                    "Analysis function returned True, ending listen_for_output"
-                )
-                process.terminate()
-                return True
-
-            if process.poll() is not None:
-                break
-
-        process.terminate()
-        logging.warning(
-            f"Tockloader listen ended or timed out after {time.time() - start_time:.2f} seconds"
-        )
-        return False
-
+        ser.close()
+        logging.info("Finished listening on serial port")
+        return True
     except Exception as e:
-        logging.error(f"Error in listen_for_output: {e}")
+        logging.error(f"Error in listen_serial_port: {e}")
         return False
 
 
 def analyze_hello_world_output(output_lines):
-    return "Hello World!" in "\n".join(output_lines)
+    return any("Hello World!" in line for line in output_lines)
 
 
 def main():
@@ -216,9 +191,12 @@ def main():
 
         # Start listening in a separate thread before installing apps
         listener_thread = threading.Thread(
-            target=listen_for_output, args=(args.port, analysis_func, 60)
+            target=listen_serial_port, args=(args.port, analysis_func, 300)
         )
         listener_thread.start()
+
+        # Wait a bit to ensure the listener is ready
+        time.sleep(2)
 
         # Install apps
         install_apps(apps, args.target, args.port)
