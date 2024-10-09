@@ -105,7 +105,7 @@ jobs:
               \"runner-id\": \"$RUNNER_ID\", \
             } \
           }" >> "$GITHUB_OUTPUT"
-    test-execute:
+  test-execute:
     needs: test-prepare
     strategy:
       matrix:
@@ -154,7 +154,7 @@ jobs:
           export PATH=$HOME/.local/bin:$PATH
           pipx install tockloader
           unset RUSTFLAGS
-          python3 ./hwci.py  
+          python3 ./hwci.py
   # TODO: remove once jobs are automatically terminated when the QEMU
   # process exits...
   test-terminate:
