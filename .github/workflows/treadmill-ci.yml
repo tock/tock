@@ -83,12 +83,16 @@ jobs:
           echo "Generated configuration for runner $(echo "$RUNNER_CONFIG_JSON" | jq -r '.runner.name')"
 
           echo "Enqueueing treadmill job:"
-          TML_JOB_PARAMETERS="{\"gh-actions-runner-encoded-jit-config\": {\"secret\": true, \"value\": \"$(echo "$RUNNER_CONFIG_JSON" | jq -r '.encoded_jit_config')\"}}"
-          TML_JOB_ID_JSON="$(tml job enqueue \
-            "$IMAGE_ID" \
-            --tag-config "board:$DUT_BOARD" \
-            --parameters "$TML_JOB_PARAMETERS" \
-          )"
+          TML_JOB_PARAMETERS="{\
+            \"gh-actions-runner-encoded-jit-config\": {\
+              \"secret\": true, \
+              \"value\": \"$(echo "$RUNNER_CONFIG_JSON" | jq -r '.encoded_jit_config')\" \
+            }, \
+            \"gh-actions-runner-exec-stop-post-sh\": {\
+              \"secret\": false, \
+              \"value\": \"if [ \\\"\$SERVICE_RESULT\\\" = \\\"success\\\" ] && [ -f /run/github-actions-shutdown ]; then systemctl poweroff; fi\" \
+            }\
+          }"
 
           TML_JOB_ID="$(echo "$TML_JOB_ID_JSON" | jq -r .job_id)"
           echo "Enqueued Treadmill job with ID $TML_JOB_ID"
@@ -155,6 +159,9 @@ jobs:
           pipx install tockloader
           unset RUSTFLAGS
           python3 ./hwci.py
+      - name: Request shutdown after successful job completion
+        run: |
+          touch /run/github-actions-shutdown
   # --test "multi_alarm_simple_test"
   # TODO: remove once jobs are automatically terminated when the QEMU
   # process exits...

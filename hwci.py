@@ -134,6 +134,8 @@ def listen_serial_port(port_device, analysis_func=None, timeout=500):
                 output_lines.append(line)
                 if analysis_func and analysis_func(output_lines):
                     logging.info("Analysis function returned True, stopping listener")
+                    with open("output.txt", "w") as f:
+                        f.write("success")
                     break
             else:
                 time.sleep(0.1)  # Sleep briefly to avoid busy waiting
@@ -253,7 +255,10 @@ def main():
         install_apps(apps, args.target, args.port)
 
         # Wait for the listener thread to finish
-        listener_thread.join()
+        if listener_thread.join():
+            logging.info("Listener thread finished successfully")
+        else:
+            sys.exit(1)
 
         logging.info("Main function completed")
 
