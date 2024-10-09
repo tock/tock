@@ -90,9 +90,11 @@ jobs:
             }, \
             \"gh-actions-runner-exec-stop-post-sh\": {\
               \"secret\": false, \
-              \"value\": \"if [ \\\"\$SERVICE_RESULT\\\" = \\\"success\\\" ] && [ -f /run/github-actions-shutdown ]; then systemctl poweroff; fi\" \
+              \"value\": \"if [ \\\"\$SERVICE_RESULT\\\" = \\\"success\\\" ]; then systemctl poweroff; fi\" \
             }\
           }"
+
+          # \"value\": \"if [ \\\"\$SERVICE_RESULT\\\" = \\\"success\\\" ] && [ -f /run/github-actions-shutdown ]; then systemctl poweroff; fi\" \
 
           TML_JOB_ID_JSON="$(tml job enqueue \
             "$IMAGE_ID" \
@@ -134,12 +136,6 @@ jobs:
           ls /run/tml/parameters
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - name: Build the Tock kernel
-        run: |
-          pushd boards/nordic/nrf52840dk
-          unset RUSTFLAGS
-          make
-          popd
       - name: Install required system packages
         run: |
           sudo DEBIAN_FRONTEND=noninteractive apt update
@@ -147,7 +143,7 @@ jobs:
           curl --proto '=https' --tlsv1.2 -LsSf https://github.com/probe-rs/probe-rs/releases/latest/download/probe-rs-tools-installer.sh | sh
       - name: Install Python packages in user space
         run: |
-          pip3 install --user fdpexpect tockloader pyserial pexpect
+          pip3 install --user tockloader pyserial pexpect
           # Add user's local bin to PATH for this and subsequent steps
           echo "$HOME/.local/bin" >> $GITHUB_PATH
       - name: Adjust serial port permissions

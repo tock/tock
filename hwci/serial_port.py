@@ -1,5 +1,5 @@
 import serial
-import fdpexpect
+from pexpect import fdpexpect
 import logging
 
 
