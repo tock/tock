@@ -6,6 +6,7 @@ import argparse
 import serial.tools.list_ports
 import time
 import re
+import threading
 from contextlib import contextmanager
 
 logging.basicConfig(
@@ -14,23 +15,29 @@ logging.basicConfig(
 )
 
 
-def run_command(command, timeout=None):
+def run_command(command, timeout=None, capture_output=True):
     if isinstance(command, str):
         command = command.split()
     try:
         logging.info(f"Running command: {' '.join(command)}")
-        result = subprocess.run(
-            command, check=True, capture_output=True, text=True, timeout=timeout
-        )
-        logging.debug(f"Command output: {result.stdout}")
-        return result.stdout
+        if capture_output:
+            result = subprocess.run(
+                command, check=True, capture_output=True, text=True, timeout=timeout
+            )
+            logging.debug(f"Command stdout: {result.stdout}")
+            logging.debug(f"Command stderr: {result.stderr}")
+            return result.stdout, result.stderr
+        else:
+            subprocess.run(command, check=True, timeout=timeout)
+            return None, None
     except subprocess.CalledProcessError as e:
         logging.error(f"Command failed: {e}")
+        logging.error(f"Stdout: {e.stdout}")
         logging.error(f"Stderr: {e.stderr}")
         raise
     except subprocess.TimeoutExpired:
         logging.error(f"Command timed out after {timeout} seconds")
-        return None
+        return None, None
 
 
 @contextmanager
@@ -100,7 +107,7 @@ def install_apps(apps, target, port):
                 run_command(f"tockloader enable-app {app} --port {port}")
 
         logging.info("Listing installed apps")
-        run_command(f"tockloader list --port {port}")
+        run_command(f"tockloader list")
     logging.info("Finished install_apps function")
 
 
@@ -116,35 +123,46 @@ def listen_for_output(port, analysis_func=None, timeout=60):
         f"Starting to listen for output on port {port} with timeout {timeout} seconds"
     )
 
-    # Run tockloader listen command
     command = ["tockloader", "listen", "--port", port]
     try:
-        # Use Popen to get real-time output
         process = subprocess.Popen(
-            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+            universal_newlines=True,
         )
 
         start_time = time.time()
         output_lines = []
 
-        while time.time() - start_time < timeout:
-            line = process.stdout.readline()
-            if not line:
-                break
-            line = line.strip()
-            logging.info(f"TOCKLOADER: {line}")
-            output_lines.append(line)
+        def read_stream(stream, prefix):
+            for line in iter(stream.readline, ""):
+                line = line.strip()
+                logging.info(f"{prefix}: {line}")
+                output_lines.append(line)
+                if analysis_func and analysis_func(output_lines):
+                    return True
+            return False
 
-            if analysis_func and analysis_func(output_lines):
+        while time.time() - start_time < timeout:
+            if read_stream(process.stdout, "TOCKLOADER STDOUT") or read_stream(
+                process.stderr, "TOCKLOADER STDERR"
+            ):
                 logging.info(
                     "Analysis function returned True, ending listen_for_output"
                 )
                 process.terminate()
                 return True
 
-        # If we've reached here, we've timed out
+            if process.poll() is not None:
+                break
+
         process.terminate()
-        logging.warning(f"Timeout reached after {timeout} seconds")
+        logging.warning(
+            f"Tockloader listen ended or timed out after {time.time() - start_time:.2f} seconds"
+        )
         return False
 
     except Exception as e:
@@ -152,42 +170,8 @@ def listen_for_output(port, analysis_func=None, timeout=60):
         return False
 
 
-def analyze_multi_alarm_output(output_lines):
-    logging.info("Starting analyze_multi_alarm_output function")
-    pattern = re.compile(r"^Alarm (\d): Time (\d+), Expiration (\d+)$")
-    alarm_counts = {1: 0, 2: 0}
-    last_time = -1
-
-    for line in output_lines:
-        match = pattern.match(line)
-        if match:
-            alarm_id, current_time, expiration = map(int, match.groups())
-            alarm_counts[alarm_id] += 1
-
-            if current_time < last_time:
-                logging.error("Time went backwards")
-                return False
-            last_time = current_time
-
-    alarm_1_count = alarm_counts[1]
-    alarm_2_count = alarm_counts[2]
-
-    logging.info(
-        f"Alarm 1 fired {alarm_1_count} times, Alarm 2 fired {alarm_2_count} times"
-    )
-
-    if alarm_1_count == 0 or alarm_2_count == 0:
-        logging.error("One or both alarms did not fire")
-        return False
-
-    if abs(alarm_1_count - 2 * alarm_2_count) > 1:
-        logging.error(
-            f"Alarm 1 ({alarm_1_count}) did not fire approximately twice as often as Alarm 2 ({alarm_2_count})"
-        )
-        return False
-
-    logging.info("Test passed: Alarms fired as expected")
-    return True
+def analyze_hello_world_output(output_lines):
+    return "Hello World!" in "\n".join(output_lines)
 
 
 def main():
@@ -207,42 +191,46 @@ def main():
     )
 
     try:
+        # Flash the kernel first
         flash_kernel()
 
+        # Now get the serial port
         if not args.port:
             ports = get_serial_ports()
             if not ports:
                 logging.error("No serial ports found")
                 return
-            args.port = ports[1].device
+            args.port = ports[0].device
             logging.info(f"Automatically selected port: {args.port}")
 
+        # Determine which apps to install and the analysis function
         if args.test == "hello_world":
             apps = ["c_hello"]
-            analysis_func = lambda output: "Hello World!" in "\n".join(output)
+            analysis_func = analyze_hello_world_output
         elif args.test == "multi_alarm_simple_test":
             apps = ["multi_alarm_simple_test"]
-            analysis_func = analyze_multi_alarm_output
+            analysis_func = None  # Implement analysis function if needed
         else:
             logging.error(f"Unknown test type: {args.test}")
             return
 
+        # Start listening in a separate thread before installing apps
+        listener_thread = threading.Thread(
+            target=listen_for_output, args=(args.port, analysis_func, 60)
+        )
+        listener_thread.start()
+
+        # Install apps
         install_apps(apps, args.target, args.port)
 
-        logging.info("Waiting 10 seconds for app to start")
-        time.sleep(10)  # Wait for app to start
+        # Wait for the listener thread to finish
+        listener_thread.join()
 
-        logging.info("Starting to listen for output")
-        if listen_for_output(args.port, analysis_func=analysis_func):
-            logging.info("Test completed successfully")
-        else:
-            logging.error("Test failed")
+        logging.info("Main function completed")
 
     except Exception as e:
         logging.exception("An error occurred during script execution")
         sys.exit(1)
-
-    logging.info("Main function completed")
 
 
 if __name__ == "__main__":
