@@ -1543,8 +1543,8 @@ pub struct Dma1<'a> {
 }
 
 impl<'a> Dma1<'a> {
-    pub const fn new(clocks: &'a dyn Stm32f4Clocks) -> Dma1 {
-        Dma1 {
+    pub const fn new(clocks: &'a dyn Stm32f4Clocks) -> Self {
+        Self {
             registers: DMA1_BASE,
             clock: DmaClock(phclk::PeripheralClock::new(
                 phclk::PeripheralClockType::AHB1(phclk::HCLK1::DMA1),
@@ -1664,8 +1664,8 @@ pub struct Dma2<'a> {
 }
 
 impl<'a> Dma2<'a> {
-    pub const fn new(clocks: &'a dyn Stm32f4Clocks) -> Dma2 {
-        Dma2 {
+    pub const fn new(clocks: &'a dyn Stm32f4Clocks) -> Self {
+        Self {
             registers: DMA2_BASE,
             clock: DmaClock(phclk::PeripheralClock::new(
                 phclk::PeripheralClockType::AHB1(phclk::HCLK1::DMA2),

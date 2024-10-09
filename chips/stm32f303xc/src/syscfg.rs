@@ -125,8 +125,8 @@ pub struct Syscfg<'a> {
 }
 
 impl<'a> Syscfg<'a> {
-    pub const fn new(rcc: &'a rcc::Rcc) -> Syscfg {
-        Syscfg {
+    pub const fn new(rcc: &'a rcc::Rcc) -> Self {
+        Self {
             registers: SYSCFG_BASE,
             clock: SyscfgClock(rcc::PeripheralClock::new(
                 rcc::PeripheralClockType::APB2(rcc::PCLK2::SYSCFG),

@@ -141,18 +141,16 @@ impl<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>> Component
         // debugging in process console.
         // SAFETY: These statics are defined by the linker script, and we are merely creating
         // pointers to them.
-        let kernel_addresses = unsafe {
-            process_console::KernelAddresses {
-                stack_start: core::ptr::addr_of!(_sstack),
-                stack_end: core::ptr::addr_of!(_estack),
-                text_start: core::ptr::addr_of!(_stext),
-                text_end: core::ptr::addr_of!(_etext),
-                read_only_data_start: core::ptr::addr_of!(_srodata),
-                relocations_start: core::ptr::addr_of!(_srelocate),
-                relocations_end: core::ptr::addr_of!(_erelocate),
-                bss_start: core::ptr::addr_of!(_szero),
-                bss_end: core::ptr::addr_of!(_ezero),
-            }
+        let kernel_addresses = process_console::KernelAddresses {
+            stack_start: core::ptr::addr_of!(_sstack),
+            stack_end: core::ptr::addr_of!(_estack),
+            text_start: core::ptr::addr_of!(_stext),
+            text_end: core::ptr::addr_of!(_etext),
+            read_only_data_start: core::ptr::addr_of!(_srodata),
+            relocations_start: core::ptr::addr_of!(_srelocate),
+            relocations_end: core::ptr::addr_of!(_erelocate),
+            bss_start: core::ptr::addr_of!(_szero),
+            bss_end: core::ptr::addr_of!(_ezero),
         };
 
         let console_alarm = static_buffer.0.write(VirtualMuxAlarm::new(self.alarm_mux));
