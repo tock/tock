@@ -22,7 +22,8 @@ program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).hex
 .PHONY: program-app
 program-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	@: $(if $(value APP),,$(error Please set APP to the path of a TBF file to program applications))
-	$(Q)arm-none-eabi-objcopy --set-section-flags .apps=LOAD --update-section .apps=$(APP) $< $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-apps.elf
+	$(Q)arm-none-eabi-objcopy --set-section-flags .apps=LOAD,ALLOC $< $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-apps.elf
+	$(Q)arm-none-eabi-objcopy --update-section .apps=$(APP) $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-apps.elf
 	$(Q)$(OBJCOPY) -O ihex $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-apps.elf $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-apps.hex
 	teensy_loader_cli --mcu=TEENSY40 -w -v $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-apps.hex
 
