@@ -140,12 +140,16 @@ jobs:
           unset RUSTFLAGS
           make
           popd
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - name: Install required packages
+      - name: Install required system packages
         run: |
           sudo DEBIAN_FRONTEND=noninteractive apt update
-          sudo DEBIAN_FRONTEND=noninteractive apt install -y git cargo openocd python3 python3-pip python3-serial python3-pexpect pipx gcc-arm-none-eabi libnewlib-arm-none-eabi pkg-config libudev-dev cmake libusb-1.0-0-dev udev make gdb-multiarch gcc-arm-none-eabi build-essential
+          sudo DEBIAN_FRONTEND=noninteractive apt install -y git cargo openocd python3 python3-pip python3-serial python3-pexpect gcc-arm-none-eabi libnewlib-arm-none-eabi pkg-config libudev-dev cmake libusb-1.0-0-dev udev make gdb-multiarch gcc-arm-none-eabi build-essential
           curl --proto '=https' --tlsv1.2 -LsSf https://github.com/probe-rs/probe-rs/releases/latest/download/probe-rs-tools-installer.sh | sh
+      - name: Install Python packages in user space
+        run: |
+          pip3 install --user fdpexpect tockloader pyserial pexpect
+          # Add user's local bin to PATH for this and subsequent steps
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
       - name: Adjust serial port permissions
         run: |
           echo "Adjusting serial port permissions..."
@@ -161,10 +165,9 @@ jobs:
         run: |
           ls
           pwd
-          export PATH=$HOME/.local/bin:$PATH
-          pipx install tockloader
           unset RUSTFLAGS
-          python3 ./async_hwci.py --test "multi_alarm_simple_test"
+          cd ./hwci
+          python3 main.py --board nrf52dk.py --test c_hello.py
       - name: Request shutdown after successful job completion
         run: |
           touch /run/github-actions-shutdown
