@@ -2,6 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2024.
 
-mod default;
+pub mod default;
 
 pub use default::default_linker_script;

@@ -6,9 +6,6 @@
 
 BUILD_DIR="verilator_build/"
 
-# Preemptively cleanup layout (incase this was a test) so that following apps (non-tests) load the correct layout.
-rm $TOCK_ROOT_DIRECTORY/target/$TARGET/release/deps/layout.ld
-
 if [[ "${VERILATOR}" == "yes" ]]; then
 		if [ -d "$BUILD_DIR" ]; then
 			# Cleanup before we build again

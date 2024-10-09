@@ -44,5 +44,4 @@ flash-app:
 
 .PHONY: test
 test:
-	mkdir -p $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
 	$(Q)OBJCOPY=${OBJCOPY} PORT=$(PORT) $(CARGO) test $(NO_RUN) --bin $(PLATFORM) --release
