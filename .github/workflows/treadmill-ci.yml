@@ -154,7 +154,8 @@ jobs:
           export PATH=$HOME/.local/bin:$PATH
           pipx install tockloader
           unset RUSTFLAGS
-          python3 ./hwci.py --test "multi_alarm_simple_test"
+          python3 ./hwci.py
+  # --test "multi_alarm_simple_test"
   # TODO: remove once jobs are automatically terminated when the QEMU
   # process exits...
   test-terminate:
