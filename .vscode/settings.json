@@ -3,7 +3,7 @@
     "editor.defaultFormatter": "rust-lang.rust-analyzer",
     "editor.formatOnSave": true,
     "rust-analyzer.server.extraEnv": {
-        "RUSTUP_TOOLCHAIN": "nightly-2024-07-08"
+        "RUSTUP_TOOLCHAIN": "nightly-2024-10-09"
     },
     "rust-analyzer.check.allTargets": false,
 }
