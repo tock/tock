@@ -94,6 +94,12 @@ jobs:
             }\
           }"
 
+          TML_JOB_ID_JSON="$(tml job enqueue \
+            "$IMAGE_ID" \
+            --tag-config "board:$DUT_BOARD" \
+            --parameters "$TML_JOB_PARAMETERS" \
+          )"
+
           TML_JOB_ID="$(echo "$TML_JOB_ID_JSON" | jq -r .job_id)"
           echo "Enqueued Treadmill job with ID $TML_JOB_ID"
 
