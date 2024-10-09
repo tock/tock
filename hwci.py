@@ -116,7 +116,7 @@ def get_serial_ports():
     return ports
 
 
-def listen_serial_port(port_device, analysis_func=None, timeout=60):
+def listen_serial_port(port_device, analysis_func=None, timeout=500):
     logging.info(
         f"Starting to listen on serial port {port_device} with timeout {timeout} seconds"
     )
@@ -125,6 +125,7 @@ def listen_serial_port(port_device, analysis_func=None, timeout=60):
         ser.flushInput()
         start_time = time.time()
         output_lines = []
+        print("Listening on serial port, timeout: {}", timeout)
 
         while time.time() - start_time < timeout:
             if ser.in_waiting > 0:
@@ -159,6 +160,7 @@ def analyze_multi_alarm_output(output_lines):
     import re
 
     alarm_times = defaultdict(list)
+    logging.debug(f"Analyzing output lines: {output_lines}")
 
     # Regular expression to match the output lines
     pattern = re.compile(r"^(\d+)\s+(\d+)\s+(\d+)$")
@@ -173,6 +175,7 @@ def analyze_multi_alarm_output(output_lines):
         else:
             logging.debug(f"Ignoring non-matching line: {line}")
 
+    logging.info(f"Alarm times: {alarm_times}")
     # Check if both alarms are present
     if 1 not in alarm_times or 2 not in alarm_times:
         logging.error("Not all alarms are present in the output")
@@ -239,7 +242,7 @@ def main():
 
         # Start listening in a separate thread before installing apps
         listener_thread = threading.Thread(
-            target=listen_serial_port, args=(args.port, analysis_func, 500)
+            target=listen_serial_port, args=(args.port, analysis_func, 1000)
         )
         listener_thread.start()
 
