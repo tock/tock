@@ -84,7 +84,7 @@ impl From<Result<(), ErrorCode>> for CommandReturn {
     fn from(rc: Result<(), ErrorCode>) -> Self {
         match rc {
             Ok(()) => CommandReturn::success(),
-            _ => CommandReturn::failure(ErrorCode::try_from(rc).unwrap()),
+            Err(e) => CommandReturn::failure(e),
         }
     }
 }
