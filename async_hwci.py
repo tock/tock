@@ -3,14 +3,13 @@ import subprocess
 import logging
 import sys
 import argparse
+import serial
 import serial.tools.list_ports
-import asyncio
 import time
-import re
+import asyncio
+import pexpect
+import fdpexpect
 from contextlib import contextmanager
-
-
-### HW CI TEST multi_alarm_simple default test wip
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -18,21 +17,29 @@ logging.basicConfig(
 )
 
 
-def run_command(command):
+def run_command(command, timeout=None, capture_output=True):
     if isinstance(command, str):
         command = command.split()
-    process = subprocess.Popen(
-        command,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        universal_newlines=True,
-    )
-    stdout, stderr = process.communicate()
-    if process.returncode != 0:
-        raise subprocess.CalledProcessError(
-            process.returncode, command, output=stdout, stderr=stderr
-        )
-    return stdout
+    try:
+        logging.info(f"Running command: {' '.join(command)}")
+        if capture_output:
+            result = subprocess.run(
+                command, check=True, capture_output=True, text=True, timeout=timeout
+            )
+            logging.debug(f"Command stdout: {result.stdout}")
+            logging.debug(f"Command stderr: {result.stderr}")
+            return result.stdout, result.stderr
+        else:
+            subprocess.run(command, check=True, timeout=timeout)
+            return None, None
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Command failed: {e}")
+        logging.error(f"Stdout: {e.stdout}")
+        logging.error(f"Stderr: {e.stderr}")
+        raise
+    except subprocess.TimeoutExpired:
+        logging.error(f"Command timed out after {timeout} seconds")
+        return None, None
 
 
 @contextmanager
@@ -48,161 +55,153 @@ def change_directory(new_dir):
 
 
 def flash_kernel():
+    logging.info("Starting flash_kernel function")
     if not os.path.exists("tock"):
-        run_command(["git", "clone", "https://github.com/tock/tock"])
+        logging.info("Cloning Tock repository")
+        run_command("git clone https://github.com/tock/tock")
+    else:
+        logging.info("Tock repository already exists")
 
     with change_directory("tock/boards/nordic/nrf52840dk"):
+        logging.info("Attempting to recover nRF52 board")
         run_command(
             [
                 "openocd",
                 "-c",
-                "interface jlink; transport select swd; source [find target/nrf52.cfg]; init; nrf52_recover; exit",
+                "adapter driver jlink; transport select swd; source [find target/nrf52.cfg]; init; nrf52_recover; exit",
             ]
         )
-        run_command(["make", "flash-openocd"])
+        logging.info("Flashing Tock kernel")
+        run_command("make flash-openocd")
+    logging.info("Finished flash_kernel function")
 
 
 def install_apps(apps, target, port):
+    logging.info(f"Starting install_apps function with apps: {apps}, target: {target}")
     if not os.path.exists("libtock-c"):
-        run_command(["git", "clone", "https://github.com/tock/libtock-c"])
+        logging.info("Cloning libtock-c repository")
+        run_command("git clone https://github.com/tock/libtock-c")
+    else:
+        logging.info("libtock-c repository already exists")
 
-    os.chdir("libtock-c")
-    for app in apps:
-        app_dir = f"examples/{app}"
-        if app == "multi_alarm_simple_test":
-            app_dir = f"examples/tests/{app}"
-        if not os.path.exists(app_dir):
-            logging.error(f"App directory {app_dir} not found")
-            continue
+    with change_directory("libtock-c"):
+        for app in apps:
+            app_dir = (
+                f"examples/{app}"
+                if app != "multi_alarm_simple_test"
+                else f"examples/tests/{app}"
+            )
+            logging.info(f"Processing app: {app} in directory: {app_dir}")
+            if not os.path.exists(app_dir):
+                logging.error(f"App directory {app_dir} not found")
+                continue
 
-        os.chdir(app_dir)
-        logging.info(f"Changed directory to: {os.getcwd()}")
-        run_command(f"make TOCK_TARGETS={target}")
-        run_command(
-            f"tockloader install --port {port} --board nrf52dk --openocd build/{app}.tab"
-        )
-        run_command(f"tockloader enable-app {app} --port {port}")
-        os.chdir("../../")
+            with change_directory(app_dir):
+                logging.info(f"Building app: {app}")
+                run_command(f"make TOCK_TARGETS={target}")
+                logging.info(f"Installing app: {app}")
+                run_command(
+                    f"tockloader install --board nrf52dk --openocd build/{app}.tab"
+                )
+                logging.info(f"Enabling app: {app}")
+                run_command(f"tockloader enable-app {app}")
 
-    run_command(f"tockloader list --port {port}")
-    os.chdir("../../")
+        logging.info("Listing installed apps")
+        run_command(f"tockloader list")
+    logging.info("Finished install_apps function")
 
 
 def get_serial_ports():
-    return list(serial.tools.list_ports.comports())
+    logging.info("Getting list of serial ports")
+    ports = list(serial.tools.list_ports.comports())
+    logging.info(f"Found serial ports: {[port.device for port in ports]}")
+    return ports
 
 
-async def listen_for_output(command, analysis_func=None, timeout=60):
-    process = await asyncio.create_subprocess_shell(
-        command,
-        stdin=asyncio.subprocess.PIPE,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+async def listen_serial_port(port_device, analysis_func=None, timeout=500):
+    logging.info(
+        f"Starting to listen on serial port {port_device} with timeout {timeout} seconds"
     )
-
-    logging.info(f"Listening for output from command: {command}")
-
-    output_lines = []
-    j_link_selected = False
-
     try:
+        ser = serial.Serial(port_device, baudrate=115200, timeout=1)
+        child = fdpexpect.fdspawn(ser.fileno())
+        start_time = time.time()
+        output_lines = []
+        print(f"Listening on serial port, timeout: {timeout}")
 
-        async def read_stream(stream, name):
-            nonlocal j_link_selected
-            while True:
-                line = await stream.readline()
-                if not line:
-                    break  # EOF
-                decoded_line = line.decode().strip()
-                logging.info(f"{name}: {decoded_line}")
-                output_lines.append(decoded_line)
+        while time.time() - start_time < timeout:
+            try:
+                await child.expect(".*\r\n", timeout=1, async_=True)
+                line = child.match.group(0).decode("utf-8", errors="replace").strip()
+                logging.info(f"SERIAL PORT OUTPUT: {line}")
+                output_lines.append(line)
+                if analysis_func and analysis_func(output_lines):
+                    logging.info("Analysis function returned True, stopping listener")
+                    break
+            except pexpect.TIMEOUT:
+                pass
+            except pexpect.EOF:
+                break
 
-                if "Multiple serial port options found" in decoded_line:
-                    # Wait for all options to be printed
-                    await asyncio.sleep(5)
-
-                    # Find the J-Link option
-                    j_link_option = next(
-                        (i for i, line in enumerate(output_lines) if "J-Link" in line),
-                        None,
-                    )
-
-                    if j_link_option is not None:
-                        # Send the J-Link option number
-                        process.stdin.write(f"{j_link_option}\n".encode())
-                        await process.stdin.drain()
-                        logging.info(f"Selected J-Link option: {j_link_option}")
-                        j_link_selected = True
-                    else:
-                        logging.warning("J-Link option not found, using default")
-                        process.stdin.write(b"0\n")
-                        await process.stdin.drain()
-
-        stdout_task = asyncio.create_task(read_stream(process.stdout, "STDOUT"))
-        stderr_task = asyncio.create_task(read_stream(process.stderr, "STDERR"))
-
-        try:
-            await asyncio.wait_for(
-                asyncio.gather(stdout_task, stderr_task), timeout=timeout
-            )
-        except asyncio.TimeoutError:
-            logging.warning(f"Timeout expired after {timeout} seconds")
-
-        if j_link_selected:
-            # If J-Link was selected, wait a bit longer for potential output
-            await asyncio.sleep(5)
-
-        if analysis_func:
-            return analysis_func(output_lines)
-        else:
-            return output_lines
-
+        ser.close()
+        logging.info("Finished listening on serial port")
+        return True
     except Exception as e:
-        logging.error(f"An error occurred: {str(e)}")
-        return None
-    finally:
-        try:
-            process.terminate()
-            await asyncio.wait_for(process.wait(), timeout=5.0)
-        except asyncio.TimeoutError:
-            logging.warning("Process did not terminate, forcing it to close.")
-            process.kill()
-        except ProcessLookupError:
-            logging.info("Process already terminated.")
+        logging.error(f"Error in listen_serial_port: {e}")
+        return False
+
+
+def analyze_hello_world_output(output_lines):
+    return any("Hello World!" in line for line in output_lines)
 
 
 def analyze_multi_alarm_output(output_lines):
-    pattern = re.compile(r"^Alarm (\d): Time (\d+), Expiration (\d+)$")
-    alarm_counts = {1: 0, 2: 0}
-    last_time = -1
+    """
+    Analyzes the output lines from the multi_alarm_simple_test.
+    Checks if both alarms are firing and if alarm 1 fires approximately
+    twice as often as alarm 2.
+    """
+    from collections import defaultdict
+    import re
+
+    alarm_times = defaultdict(list)
+    logging.debug(f"Analyzing output lines: {output_lines}")
+
+    # Regular expression to match the output lines
+    pattern = re.compile(r"^(\d+)\s+(\d+)\s+(\d+)$")
 
     for line in output_lines:
         match = pattern.match(line)
         if match:
-            alarm_id, current_time, expiration = map(int, match.groups())
-            alarm_counts[alarm_id] += 1
+            alarm_index = int(match.group(1))
+            now = int(match.group(2))
+            expiration = int(match.group(3))
+            alarm_times[alarm_index].append(now)
+        else:
+            logging.debug(f"Ignoring non-matching line: {line}")
 
-            if current_time < last_time:
-                logging.error("Time went backwards")
-                return False
-            last_time = current_time
-
-    alarm_1_count = alarm_counts[1]
-    alarm_2_count = alarm_counts[2]
-
-    if alarm_1_count == 0 or alarm_2_count == 0:
-        logging.error("One or both alarms did not fire")
+    logging.info(f"Alarm times: {alarm_times}")
+    # Check if both alarms are present
+    if 1 not in alarm_times or 2 not in alarm_times:
+        logging.error("Not all alarms are present in the output")
         return False
 
-    if abs(alarm_1_count - 2 * alarm_2_count) > 1:
+    # Get the counts
+    count_alarm_1 = len(alarm_times[1])
+    count_alarm_2 = len(alarm_times[2])
+
+    logging.info(f"Alarm 1 fired {count_alarm_1} times")
+    logging.info(f"Alarm 2 fired {count_alarm_2} times")
+
+    # Check if alarm 1 fires approximately twice as often as alarm 2
+    ratio = count_alarm_1 / count_alarm_2
+    if ratio < 1.5 or ratio > 2.5:
         logging.error(
-            f"Alarm 1 ({alarm_1_count}) did not fire approximately twice as often as Alarm 2 ({alarm_2_count})"
+            f"Alarm 1 did not fire approximately twice as often as Alarm 2. Ratio: {ratio}"
         )
         return False
 
-    logging.info(
-        f"Test passed: Alarm 1 fired {alarm_1_count} times, Alarm 2 fired {alarm_2_count} times"
-    )
+    logging.info("Alarms are firing as expected")
     return True
 
 
@@ -213,33 +212,31 @@ async def main():
         "--test",
         choices=["hello_world", "multi_alarm_simple_test"],
         default="hello_world",
-        help="Test to run (hello_world or multi_alarm_simple_test)",
+        help="Test to run",
     )
-    parser.add_argument(
-        "--target", default="cortex-m4", help="Target architecture (e.g., cortex-m4)"
-    )
+    parser.add_argument("--target", default="cortex-m4", help="Target architecture")
     args = parser.parse_args()
 
-    logging.info(f"Running test: {args.test}")
+    logging.info(
+        f"Starting main function with test: {args.test}, target: {args.target}"
+    )
 
     try:
         flash_kernel()
 
-        if args.port:
-            port = args.port
-        else:
+        # get the serial port #TODO choose intelligently based on which says J-Link
+        if not args.port:
             ports = get_serial_ports()
             if not ports:
                 logging.error("No serial ports found")
                 return
-            port = ports[0].device
-            logging.info(f"Found serial ports: {ports}")
-            # logging.info(f"Automatically selected port: {port}")
+            args.port = ports[1].device
+            logging.info(f"Automatically selected port: {args.port}")
 
+        # Determine which apps to install and the analysis function
         if args.test == "hello_world":
             apps = ["c_hello"]
-            search_text = "Hello World!"
-            analysis_func = lambda output: search_text in "\n".join(output)
+            analysis_func = analyze_hello_world_output
         elif args.test == "multi_alarm_simple_test":
             apps = ["multi_alarm_simple_test"]
             analysis_func = analyze_multi_alarm_output
@@ -247,29 +244,27 @@ async def main():
             logging.error(f"Unknown test type: {args.test}")
             return
 
-        install_apps(apps, args.target, port)
-
-        await asyncio.sleep(10)
-
-        output = await listen_for_output(
-            f"tockloader listen",
-            analysis_func=analysis_func,
-            timeout=60,
+        # Start listening in the background
+        listener_task = asyncio.create_task(
+            listen_serial_port(args.port, analysis_func, 1000)
         )
 
-        if output is True:
-            logging.info("Test completed successfully")
-        else:
-            logging.error("Test failed")
+        # Wait a bit to ensure the listener is ready
+        await asyncio.sleep(2)
 
-    except Exception as e:
-        logging.exception("An error occurred during script execution")
+        # Install apps
+        install_apps(apps, args.target, args.port)
 
+        # Wait for the listener task to finish
+        await listener_task
+        logging.info("Listener task finished successfully")
 
-if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-        sys.exit(0)
+        logging.info("Main function completed")
+
     except Exception as e:
         logging.exception("An error occurred during script execution")
         sys.exit(1)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

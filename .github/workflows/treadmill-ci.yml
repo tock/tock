@@ -144,7 +144,7 @@ jobs:
       - name: Install required packages
         run: |
           sudo DEBIAN_FRONTEND=noninteractive apt update
-          sudo DEBIAN_FRONTEND=noninteractive apt install -y git cargo openocd python3 python3-pip python3-serial pipx gcc-arm-none-eabi libnewlib-arm-none-eabi pkg-config libudev-dev cmake libusb-1.0-0-dev udev make gdb-multiarch gcc-arm-none-eabi build-essential
+          sudo DEBIAN_FRONTEND=noninteractive apt install -y git cargo openocd python3 python3-pip python3-serial python3-pexpect pipx gcc-arm-none-eabi libnewlib-arm-none-eabi pkg-config libudev-dev cmake libusb-1.0-0-dev udev make gdb-multiarch gcc-arm-none-eabi build-essential
           curl --proto '=https' --tlsv1.2 -LsSf https://github.com/probe-rs/probe-rs/releases/latest/download/probe-rs-tools-installer.sh | sh
       - name: Adjust serial port permissions
         run: |
@@ -164,7 +164,7 @@ jobs:
           export PATH=$HOME/.local/bin:$PATH
           pipx install tockloader
           unset RUSTFLAGS
-          python3 ./hwci.py --test "multi_alarm_simple_test"
+          python3 ./async_hwci --test "multi_alarm_simple_test"
       - name: Request shutdown after successful job completion
         run: |
           touch /run/github-actions-shutdown
