@@ -164,7 +164,7 @@ jobs:
           export PATH=$HOME/.local/bin:$PATH
           pipx install tockloader
           unset RUSTFLAGS
-          python3 ./async_hwci --test "multi_alarm_simple_test"
+          python3 ./async_hwci.py --test "multi_alarm_simple_test"
       - name: Request shutdown after successful job completion
         run: |
           touch /run/github-actions-shutdown
