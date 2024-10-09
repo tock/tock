@@ -166,7 +166,7 @@ jobs:
           python3 main.py --board nrf52dk.py --test c_hello.py
       - name: Request shutdown after successful job completion
         run: |
-          touch /run/github-actions-shutdown
+          sudo touch /run/github-actions-shutdown
   # TODO: remove once jobs are automatically terminated when the QEMU
   # process exits...
   test-terminate:
