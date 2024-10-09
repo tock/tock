@@ -461,10 +461,10 @@ impl<'a, Can: can::Can> can::ReceiveClient<{ can::STANDARD_CAN_PACKET_SIZE }>
                                             .mut_enter(|user_slice| {
                                                 let user_buffer =
                                                     ProcessSliceBuffer::new(user_slice);
-                                                shared_len = user_buffer.len()?;
+                                                shared_len = user_buffer.offset()?;
                                                 // This uses the ringbuffer interpretation of the
                                                 // ProcessBufferSlice
-                                                new_buffer = match user_buffer.len() {
+                                                new_buffer = match user_buffer.offset() {
                                                     Err(ErrorCode::INVAL) => {
                                                         user_buffer.reset().map(|()| 0)
                                                     }

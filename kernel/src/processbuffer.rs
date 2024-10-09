@@ -26,17 +26,11 @@
 
 use core::cell::Cell;
 use core::marker::PhantomData;
-use core::mem::size_of;
 use core::ops::{Deref, Index, Range, RangeFrom, RangeTo};
 
 use crate::capabilities;
 use crate::process::{self, ProcessId};
 use crate::ErrorCode;
-
-// the offset where the buffer data starts
-// - skip the flags field (1 byte)
-// - skip the len field (size_of::<u32>() bytes)
-const BUFFER_OFFSET: usize = 1 + size_of::<u32>();
 
 /// Convert a process buffer's internal representation to a
 /// [`ReadableProcessSlice`].
@@ -937,6 +931,12 @@ pub struct ProcessSliceBuffer<'a> {
 }
 
 impl<'a> ProcessSliceBuffer<'a> {
+    const RANGE_FLAGS: Range<usize> = 0..1;
+    const RANGE_OFFSET: Range<usize> = (Self::RANGE_FLAGS.end)..(Self::RANGE_FLAGS.end + 4);
+    const START_DATA: usize = Self::RANGE_OFFSET.end + 1;
+
+    const FLAGS_V0: u8 = 0;
+
     pub fn new(slice: &'a WriteableProcessSlice) -> ProcessSliceBuffer {
         ProcessSliceBuffer { slice }
     }
@@ -945,11 +945,11 @@ impl<'a> ProcessSliceBuffer<'a> {
     ///
     /// The buffer data format is described below:
     /// ```text,ignore
-    /// 0          1          2          3          4
-    /// +----------+----------+----------+----------+-------------------...
-    /// | flags    | buffer length                  | slice
-    /// +----------+----------+----------+----------+-------------------...
-    /// | 00000000 | 32 bits little endian          | data
+    /// 0          1          2          3          4          5
+    /// +----------+----------+----------+----------+----------+-------------------...
+    /// | flags    | buffer offset                             | slice
+    /// +----------+----------+----------+----------+----------+-------------------...
+    /// | 00000000 | 32 bits little endian                     | data
     /// ```
     ///
     /// - the first byte is reserved to store flags, for this version of the buffer
@@ -960,38 +960,55 @@ impl<'a> ProcessSliceBuffer<'a> {
     /// - `INVALID` if the flags field is not set to 0
     /// - `SIZE` if the underlying slice is not large enough top fit the
     ///          flags field and the len field (5 bytes)
-    pub fn len(&self) -> Result<usize, ErrorCode> {
-        // check if the slice can actually hold a buffer
-        // - the slice has to be able to fit the flags (1 byte) and the size (4 bytes)
-        if self.slice.len() >= BUFFER_OFFSET {
-            if self.slice[0].get() == 0 {
-                let len = self.slice[1].get() as u32
-                    | (self.slice[2].get() as u32 >> 8)
-                    | (self.slice[3].get() as u32 >> 16)
-                    | (self.slice[4].get() as u32 >> 24);
-                Ok(len as usize)
-            } else {
-                Err(ErrorCode::INVAL)
-            }
-        } else {
-            Err(ErrorCode::SIZE)
+    pub fn offset(&self) -> Result<usize, ErrorCode> {
+        // Ensure that the slice is of version 0 and has no unsupported flags
+        // enabled, all other versions are currently unsupported:
+        if (self
+            .slice
+            .get(Self::RANGE_FLAGS.start)
+            .ok_or(ErrorCode::SIZE)?)
+        .get()
+            != Self::FLAGS_V0
+        {
+            return Err(ErrorCode::INVAL);
         }
+
+        // Extract the offset into a u32 of native endinanness.
+        let mut offset_bytes = [0_u8; 4];
+        self.slice
+            .get(Self::RANGE_OFFSET)
+            .ok_or(ErrorCode::SIZE)?
+            .copy_to_slice_or_err(&mut offset_bytes)
+            .map_err(|_| ErrorCode::SIZE)?;
+
+        Ok(u32::from_ne_bytes(offset_bytes) as usize)
     }
 
-    fn set_len(&self, len: usize) -> Result<(), ErrorCode> {
-        if self.slice.len() >= len + BUFFER_OFFSET {
-            // set the flags
-            self.slice[0].set(0);
+    fn set_offset(&self, offset: usize) -> Result<(), ErrorCode> {
+        let offset_bytes = u32::to_ne_bytes(offset as u32);
 
-            // set the length
-            self.slice[1].set((len & 0xff) as u8);
-            self.slice[2].set(((len << 8) & 0xff) as u8);
-            self.slice[3].set(((len << 16) & 0xff) as u8);
-            self.slice[4].set(((len << 24) & 0xff) as u8);
-            Ok(())
-        } else {
-            Err(ErrorCode::SIZE)
-        }
+        // Write the offset first. We don't want to modify the buffer if it
+        // cannot fit the full-width offset value, and skip writing a new flags
+        // value in this case:
+        self.slice
+            .get(Self::RANGE_OFFSET)
+            .ok_or(ErrorCode::SIZE)?
+            .copy_from_slice_or_err(&offset_bytes)
+            .map_err(|_| ErrorCode::SIZE)?;
+
+        // Finally, write the new flags value:
+        self.slice
+            .get(Self::RANGE_FLAGS.start)
+            .ok_or(ErrorCode::SIZE)?
+            .set(0);
+
+        Ok(())
+    }
+
+    fn payload_slice(&self) -> &WriteableProcessSlice {
+        self.slice
+            .get(Self::START_DATA..)
+            .unwrap_or((&mut [][..]).into())
     }
 
     /// Append a slice of data to the buffer
@@ -1000,24 +1017,29 @@ impl<'a> ProcessSliceBuffer<'a> {
     /// - `INVALID` - if the buffer's flags field is not set to 0
     /// - `SIZE` - if the data slice is too large to fit into the buffer
     pub fn append(&self, data: &[u8]) -> Result<(), ErrorCode> {
-        let len = self.len()?;
-        if data.len() + len <= self.slice.len() - BUFFER_OFFSET {
-            self.slice[BUFFER_OFFSET + len..BUFFER_OFFSET + len + data.len()].copy_from_slice(data);
-            self.set_len(len + data.len())?;
-            Ok(())
-        } else {
-            Err(ErrorCode::SIZE)
-        }
+        // This includes a check for the buffers flags:
+        let current_offset = self.offset()?;
+        let new_offset = current_offset + data.len();
+
+        // Attempt to append the data to the buffer, otherwise fail with SIZE:
+        self.payload_slice()
+            .get(current_offset..new_offset)
+            .ok_or(ErrorCode::SIZE)?
+            .copy_from_slice(data);
+
+        self.set_offset(current_offset + new_offset)?;
+
+        Ok(())
     }
 
-    /// Resets the buffer's length t0 and flags to 0
+    /// Resets the buffer's offset and flags to 0
     ///
     /// This function fails with
     /// - `SIZE` - if the slice underneeths the buffer is too small to fit
-    ///            the flags field and tyhe len field (a total of 5 bytes)
+    ///            the flags field and the offset field (a total of 5 bytes)
     #[inline(always)]
     pub fn reset(&self) -> Result<(), ErrorCode> {
-        self.set_len(0)
+        self.set_offset(0)
     }
 }
 
