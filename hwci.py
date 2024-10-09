@@ -200,7 +200,7 @@ def main():
             if not ports:
                 logging.error("No serial ports found")
                 return
-            args.port = ports[0].device
+            args.port = ports[1].device
             logging.info(f"Automatically selected port: {args.port}")
 
         # Determine which apps to install and the analysis function
