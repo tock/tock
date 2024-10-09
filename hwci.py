@@ -134,11 +134,9 @@ def listen_serial_port(port_device, analysis_func=None, timeout=500):
                 output_lines.append(line)
                 if analysis_func and analysis_func(output_lines):
                     logging.info("Analysis function returned True, stopping listener")
-                    with open("output.txt", "w") as f:
-                        f.write("success")
                     break
             else:
-                time.sleep(0.1)  # Sleep briefly to avoid busy waiting
+                time.sleep(0.1)
 
         ser.close()
         logging.info("Finished listening on serial port")
@@ -219,10 +217,9 @@ def main():
     )
 
     try:
-        # Flash the kernel first
         flash_kernel()
 
-        # Now get the serial port
+        # getthe serial port #TODO choose intelligently based on which says J-Link
         if not args.port:
             ports = get_serial_ports()
             if not ports:

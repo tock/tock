@@ -164,10 +164,10 @@ jobs:
           export PATH=$HOME/.local/bin:$PATH
           pipx install tockloader
           unset RUSTFLAGS
-          python3 ./hwci.py
+          python3 ./hwci.py --test "multi_alarm_simple_test"
       - name: Request shutdown after successful job completion
         run: |
-          touch /run/github-actions-shutdown --test "multi_alarm_simple_test"
+          touch /run/github-actions-shutdown
   # TODO: remove once jobs are automatically terminated when the QEMU
   # process exits...
   test-terminate:
