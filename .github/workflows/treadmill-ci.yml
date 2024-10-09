@@ -62,7 +62,7 @@ jobs:
           # Currently, all tests run only on hosts attached to an nRF52840DK
           DUT_BOARD: nrf52840dk
           # A Ubuntu 22.04 image with a GitHub Actions self-hosted runner pre-configured:
-          IMAGE_ID: d407b09b9f56c666d0d3350890e364ba16aad08b484f4ca1de19d42569cc79b1
+          IMAGE_ID: 0373bb7d728b36cb6083cfe12f27038b71972ceb90563b0037d4012df7b62bf4
         run: |
           TREADMILL_DUT_BOARD="nrf52840dk"
 
@@ -161,8 +161,7 @@ jobs:
           python3 ./hwci.py
       - name: Request shutdown after successful job completion
         run: |
-          touch /run/github-actions-shutdown
-  # --test "multi_alarm_simple_test"
+          touch /run/github-actions-shutdown --test "multi_alarm_simple_test"
   # TODO: remove once jobs are automatically terminated when the QEMU
   # process exits...
   test-terminate:
