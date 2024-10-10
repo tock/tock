@@ -3,6 +3,7 @@
 // Copyright OxidOS Automotive 2024.
 //
 // Author: Radu Matei <radu.matei.05.21@gmail.com>
+//         Alberto Udrea <albertoudrea4@gmail.com>
 
 //! Programmable Input Output (PIO) hardware.
 
@@ -1237,7 +1238,7 @@ impl Pio {
     }
 
     // # Examples
-    // Used for the examples in the pico explorer base main.rs file.
+    /// Used for the examples in the pico explorer base main.rs file.
 
     pub fn blinking_hello_program_init(
         &mut self,
