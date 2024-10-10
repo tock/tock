@@ -6,18 +6,6 @@
 //! Implementation of the memory protection unit for the Cortex-M0+, Cortex-M3,
 //! Cortex-M4, and Cortex-M7
 // #![flux_rs::defs(
-//     // fn can_service(self: &CortexMRegion) -> bool{self.}
-//     fn contains(raddr: int, rsize: int, addr: int, size: int) -> bool {
-//         ((addr >= raddr) && (addr + size < raddr + rsize))
-//     }
-
-//     fn subregion_enabled(raddr: int, rsize: int, addr: int, size: int, srd: bitvec<8>) -> bool {
-//         rsize >= 256
-//         // VTOCK-TODO: how to implement cleanly?
-
-//         // ((addr >= raddr) && (addr + size < raddr + rsize))
-//     }
-
 //     fn can_service(raddr: int, rsize: int, addr: int, size: int, srd: bitvec<8>, enabled: bool) -> bool {
 //         enabled && contains(raddr, rsize, addr, size) && subregion_enabled(addr, rsize, addr, size, srd)
 //     }
@@ -73,16 +61,6 @@ flux_rs::defs! {
     fn map_get(m: Map<int, int>, k:int) -> int { map_select(m, k) }
     fn map_def(v: int) -> Map<int, int> { map_default(v) }
 
-    // fn subregion_enabled(rbar: bitvec<32>, rasr: bitvec<32>) -> bool {
-    //     size(rasr) >= 8 && // must be at least 256 bits
-    //     {
-    //         let subregion_size = size(rasr) - 3;
-    //         let offset = addr(rbar) & size(rasr);
-    //         let subregion_id = offset / subregion_size;
-    //         bit(srd(rasr) ,subregion_id)
-    //     }
-    // }
-
 
     fn enabled(mpu: MPU) -> bool { enable(mpu.ctrl)}
     // VTOCK_TODO: simplify
@@ -104,11 +82,24 @@ flux_rs::defs! {
         map_get(mpu.regions, 7) == map_get(config.regions, 7) &&
         map_get(mpu.attrs, 7) == map_get(config.attrs, 7)
     }
+
+    fn subregion_enabled(rasr: bitvec<32>, rbar: bitvec<32>) -> bool {
+        size(rasr) >= 8 && // must be at least 256 bits
+        // {
+            // let subregion_size = size(rasr) - 3;
+            // let offset = addr(rbar) % size(rasr);
+            // let subregion_id = (addr(rbar) & size(rasr)) / (size(rasr) - 3);
+            bit(bv_int_to_bv32(srd(rasr)), (addr(rbar) % size(rasr)) / (size(rasr) - 3))
+        // }
+    }
+
     // fn user_can_access(mpu: Mpu, addr: int, sz: int, perms: mpu::Permissions) -> {
+
     // }
-    // fn contains(raddr: int, rsize: int, addr: int, size: int) -> bool {
-    //     ((addr >= raddr) && (addr + size < raddr + rsize))
-    // }
+
+    fn contains(rbar: bitvec<32>, rasr: bitvec<32>, ptr: int, sz: int) -> bool {
+        (ptr >= addr(rbar)) && (ptr + sz < addr(rbar) + size(rasr))
+    }
 
 
 }
@@ -458,12 +449,12 @@ type Attrs = FieldValueU32<RegionAttributes::Register>;
 // VTOCK_TODO: maybe cleaner implementation using aliases and refine by the field values?
 /// Struct storing configuration for a Cortex-M MPU region.
 #[derive(Copy, Clone)]
-#[flux_rs::refined_by(addr: BaseAddr, attrs: Attrs)]
+#[flux_rs::refined_by(rbar: BaseAddr, rasr: Attrs)]
 pub struct CortexMRegion {
     location: Option<CortexMLocation>,
-    #[field(BaseAddr[addr])]
+    #[field(BaseAddr[rbar])]
     base_address: FieldValueU32<RegionBaseAddress::Register>,
-    #[field(Attrs[attrs])]
+    #[field(Attrs[rasr])]
     attributes: FieldValueU32<RegionAttributes::Register>,
 }
 
