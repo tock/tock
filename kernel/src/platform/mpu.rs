@@ -11,11 +11,17 @@ use flux_support::*;
 
 /// User mode access permissions.
 #[derive(Copy, Clone, Debug)]
+#[flux_rs::refined_by(r: bool, w: bool, x: bool)]
 pub enum Permissions {
+    #[flux::variant(Permissions[true, true, true])]
     ReadWriteExecute,
+    #[flux::variant(Permissions[true, true, false])]
     ReadWriteOnly,
+    #[flux::variant(Permissions[true, false, true])]
     ReadExecuteOnly,
+    #[flux::variant(Permissions[true, false, false])]
     ReadOnly,
+    #[flux::variant(Permissions[false, false, true])]
     ExecuteOnly,
 }
 
