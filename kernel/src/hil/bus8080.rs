@@ -12,15 +12,15 @@ pub enum BusWidth {
     Bits16LE,
     Bits16BE,
 }
-
+/// The enum represents the address of a bus-attached device.
+/// For addresses larger than a single byte the enum variant
+/// captures the endianess used by the device on the bus.
+/// The address is stored in the host endianess in the u16 and
+/// must be converted to the correct endianess before using the
+/// address on the bus.
 pub enum BusAddr8080 {
-    /// An 8-bit bus address
     BusAddr8(u8),
-    /// We use a `u16` and perform the conversion
-    /// in the `BusAddr::bytes` function.
     BusAddr16BE(u16),
-    /// We use a `u16` and perform the conversion
-    /// in the `BusAddr::bytes` function.
     BusAddr16LE(u16),
 }
 
