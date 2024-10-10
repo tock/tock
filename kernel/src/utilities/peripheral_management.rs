@@ -4,9 +4,9 @@
 
 //! Peripheral Management
 //!
-//! Most peripherals are implemented as memory mapped I/O (MMIO).
-//! Intrinsically, this means that accessing a peripheral requires
-//! dereferencing a raw pointer that points to the peripheral's memory.
+//! Most peripherals are implemented as memory mapped I/O (MMIO). Intrinsically,
+//! this means that accessing a peripheral requires dereferencing a raw pointer
+//! that points to the peripheral's memory.
 //!
 //! Generally, Tock peripherals are modeled by two structures, such as:
 //!
@@ -88,19 +88,20 @@
 //!
 //! Note, this example kept the `mmio_address` in the `PeripheralHardware`
 //! structure, which is useful when there are multiple copies of the same
-//! peripheral (e.g. multiple UARTs). For single-instance peripherals, it's
-//! fine to simply return the address directly from `get_registers`.
+//! peripheral (e.g. multiple UARTs). For single-instance peripherals, it's fine
+//! to simply return the address directly from `get_registers`.
 //!
 //! Peripheral Clocks
 //! -----------------
 //!
-//! To facilitate low-power operation, PeripheralManager captures the peripheral's
-//! clock upon instantiation. The intention is to exploit
-//! [Ownership Based Resource Management](https://doc.rust-lang.org/beta/nomicon/obrm.html)
-//! to capture peripheral power state.
+//! To facilitate low-power operation, PeripheralManager captures the
+//! peripheral's clock upon instantiation. The intention is to exploit
+//! [Ownership Based Resource
+//! Management](https://doc.rust-lang.org/beta/nomicon/obrm.html) to capture
+//! peripheral power state.
 //!
-//! To enable this, peripherals must inform the kernel which clock they use,
-//! and when the clock should be enabled and disabled. Implementations of the
+//! To enable this, peripherals must inform the kernel which clock they use, and
+//! when the clock should be enabled and disabled. Implementations of the
 //! `before/after_mmio_access` methods must take care to not access hardware
 //! without enabling clocks if needed if they use hardware for bookkeeping.
 //!
@@ -154,30 +155,35 @@ where
 {
     type RegisterType;
 
-    /// How to get a reference to the physical hardware registers (the MMIO struct).
+    /// How to get a reference to the physical hardware registers (the MMIO
+    /// struct).
     fn get_registers(&self) -> &Self::RegisterType;
 
     /// Which clock feeds this peripheral.
     ///
-    /// For peripherals with no clock, use `&::kernel::platform::chip::NO_CLOCK_CONTROL`.
+    /// For peripherals with no clock, use
+    /// `&::kernel::platform::chip::NO_CLOCK_CONTROL`.
     fn get_clock(&self) -> &C;
 
     /// Called before peripheral access.
     ///
-    /// Responsible for ensure the periphal can be safely accessed, e.g. that
+    /// Responsible for ensure the peripheral can be safely accessed, e.g. that
     /// its clock is powered on.
     fn before_peripheral_access(&self, _: &C, _: &Self::RegisterType);
 
-    /// Called after periphal access.
+    /// Called after peripheral access.
     ///
     /// Currently used primarily for power management to check whether the
     /// peripheral can be powered off.
     fn after_peripheral_access(&self, _: &C, _: &Self::RegisterType);
 }
 
+/// Object used to access memory mapped registers with the
+/// [`PeripheralManagement`] interface.
+///
 /// Structures encapsulating peripheral hardware (those implementing the
-/// PeripheralManagement trait) should instantiate an instance of this
-/// method to access memory mapped registers.
+/// [`PeripheralManagement`] trait) should instantiate an instance of this
+/// object.
 ///
 /// ```
 /// # use kernel::utilities::cells::VolatileCell;
