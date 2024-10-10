@@ -292,9 +292,9 @@ impl<'a, A: BusAddr, S: SpiMasterDevice<'a>> Bus<'a, A> for SpiMasterBus<'a, S> 
             .take()
             .map_or(Err(ErrorCode::NOMEM), |mut buffer| {
                 let bytes = addr.bytes();
-                buffer.reset();
-                buffer.slice(0..addr.len());
                 if buffer.len() >= addr.len() {
+                    buffer.reset();
+                    buffer.slice(0..addr.len());
                     self.status.set(BusStatus::SetAddress);
                     buffer
                         .as_slice()
