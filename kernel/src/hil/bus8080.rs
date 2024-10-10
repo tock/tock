@@ -13,6 +13,17 @@ pub enum BusWidth {
     Bits16BE,
 }
 
+pub enum BusAddr8080 {
+    /// An 8-bit bus address
+    BusAddr8(u8),
+    /// We use a `u16` and perform the conversion
+    /// in the `BusAddr::bytes` function.
+    BusAddr16BE(u16),
+    /// We use a `u16` and perform the conversion
+    /// in the `BusAddr::bytes` function.
+    BusAddr16LE(u16),
+}
+
 impl BusWidth {
     pub fn width_in_bytes(&self) -> usize {
         match self {
@@ -24,8 +35,7 @@ impl BusWidth {
 
 pub trait Bus8080<'a> {
     /// Set the address to write to
-    fn set_addr(&self, addr_width: BusWidth, addr: usize) -> Result<(), ErrorCode>;
-
+    fn set_addr(&self, addr: BusAddr8080) -> Result<(), ErrorCode>;
     /// Write data items to the previously set address
     fn write(
         &self,
