@@ -13,6 +13,7 @@ pub enum BusWidth {
     Bits16BE,
 }
 /// The enum represents the address of a bus-attached device.
+///
 /// For addresses larger than a single byte the enum variant
 /// captures the endianess used by the device on the bus.
 /// The address is stored in the host endianess in the u16 and
