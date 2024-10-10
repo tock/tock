@@ -1,3 +1,4 @@
+#![allow(unused)]
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
@@ -29,12 +30,6 @@
 
 // )]
 
-// VTOCK_TODO: better solution for hardware register spooky-action-at-a-distance
-/* VTOCK TODOS
-    1. Implement configured_for
-    2. Implement can_service
-*/
-
 use core::cell::Cell;
 use core::cmp;
 use core::fmt;
@@ -45,6 +40,8 @@ use flux_support::*;
 use kernel::platform::mpu;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::math;
+
+// VTOCK-TODO: NUM_REGIONS currently fixed to 8. Need to also handle 16
 
 flux_rs::defs! {
     fn bv32(x:int) -> bitvec<32> { bv_int_to_bv32(x) }
@@ -86,7 +83,42 @@ flux_rs::defs! {
     //     }
     // }
 
+
+    fn enabled(mpu: MPU) -> bool { enable(mpu.ctrl)}
+    // VTOCK_TODO: simplify
+    fn configured_for(mpu: MPU, config: CortexMConfig) -> bool {
+        map_get(mpu.regions, 0) == map_get(config.regions, 0) &&
+        map_get(mpu.attrs, 0) == map_get(config.attrs, 0) &&
+        map_get(mpu.regions, 1) == map_get(config.regions, 1) &&
+        map_get(mpu.attrs, 1) == map_get(config.attrs, 1) &&
+        map_get(mpu.regions, 2) == map_get(config.regions, 2) &&
+        map_get(mpu.attrs, 2) == map_get(config.attrs, 2) &&
+        map_get(mpu.regions, 3) == map_get(config.regions, 3) &&
+        map_get(mpu.attrs, 3) == map_get(config.attrs, 3) &&
+        map_get(mpu.regions, 4) == map_get(config.regions, 4) &&
+        map_get(mpu.attrs, 4) == map_get(config.attrs, 4) &&
+        map_get(mpu.regions, 5) == map_get(config.regions, 5) &&
+        map_get(mpu.attrs, 5) == map_get(config.attrs, 5) &&
+        map_get(mpu.regions, 6) == map_get(config.regions, 6) &&
+        map_get(mpu.attrs, 6) == map_get(config.attrs, 6) &&
+        map_get(mpu.regions, 7) == map_get(config.regions, 7) &&
+        map_get(mpu.attrs, 7) == map_get(config.attrs, 7)
+    }
+    // fn user_can_access(mpu: Mpu, addr: int, sz: int, perms: mpu::Permissions) -> {
+    // }
+    // fn contains(raddr: int, rsize: int, addr: int, size: int) -> bool {
+    //     ((addr >= raddr) && (addr + size < raddr + rsize))
+    // }
+
+
 }
+
+// VTOCK_TODO: better solution for hardware register spooky-action-at-a-distance
+/* VTOCK TODOS
+    1. enabled
+    2. Implement configured_for
+    3. Implement can_service
+*/
 
 // VTOCK-TODO: supplementary proof?
 #[flux_rs::sig(fn(n: u32{n < 32}) -> usize {r: r > 0 })]
@@ -296,6 +328,8 @@ impl<const MIN_REGION_SIZE: usize> MPU<MIN_REGION_SIZE> {
 
 const NUM_REGIONS: usize = 8;
 
+#[flux_rs::opaque]
+#[flux_rs::refined_by(dirty: bool, regions: Map<int, int>, attrs: Map<int, int>)]
 pub struct CortexMConfig {
     /// Unique ID for this configuration, assigned from a
     /// monotonically increasing counter in the MPU struct.
@@ -316,7 +350,7 @@ const APP_MEMORY_REGION_MAX_NUM: usize = 1;
 impl fmt::Display for CortexMConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "\r\n Cortex-M MPU")?;
-        for (i, region) in self.regions.iter().enumerate() {
+        for (i, region) in self.regions_iter().enumerate() {
             if let Some(location) = region.location() {
                 let access_bits = region.attributes().read(RegionAttributes::AP());
                 let start = location.0.as_usize();
@@ -357,10 +391,44 @@ impl fmt::Display for CortexMConfig {
 }
 
 impl CortexMConfig {
+    #[flux_rs::trusted]
+    fn id(&self) -> NonZeroUsize {
+        self.id
+    }
+
+    #[flux_rs::trusted]
+    fn is_dirty(&self) -> bool {
+        self.is_dirty.get()
+    }
+
+    #[flux_rs::trusted]
+    fn set_dirty(&self, b: bool) {
+        self.is_dirty.set(b)
+    }
+
+    #[flux_rs::trusted]
+    // #[flux_rs::sig(fn(self: &Self, idx: usize, region: CortexMRegion))]
+    // map_get
+    fn region_get(&self, idx: usize) -> &CortexMRegion {
+        &self.regions[idx]
+    }
+
+    #[flux_rs::trusted]
+    // map_set
+    // #[flux_rs::sig(fn(self: &strg Self[@dirty, @regions, @attrs], idx: usize, region: CortexMRegion) ensures self: Self[dirty, map_set(regions, idx, region.addr), map_set(attrs, idx, region.attrs)])]
+    fn region_set(&mut self, idx: usize, region: CortexMRegion) {
+        self.regions[idx] = region
+    }
+
+    #[flux_rs::trusted]
+    fn regions_iter(&self) -> core::slice::Iter<'_, CortexMRegion> {
+        self.regions.iter()
+    }
+
     #[flux_rs::trusted] // need spec for enumerate for this to work
     #[flux_rs::sig(fn(&CortexMConfig) -> Option<usize{r: r > 1 && r < 8}>)]
     fn unused_region_number(&self) -> Option<usize> {
-        for (number, region) in self.regions.iter().enumerate() {
+        for (number, region) in self.regions_iter().enumerate() {
             if number <= APP_MEMORY_REGION_MAX_NUM {
                 continue;
             }
@@ -543,6 +611,7 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
         self.registers.mpu_type.read(Type::DREGION()) as usize
     }
 
+    #[flux_rs::trusted]
     fn new_config(&self) -> Option<Self::MpuConfig> {
         let id = self.config_count.get();
         self.config_count.set(id.checked_add(1)?);
@@ -551,7 +620,7 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
         // write the properly-indexed `CortexMRegion`s:
         let mut ret = CortexMConfig {
             id,
-            regions: [CortexMRegion::empty(0); NUM_REGIONS],
+            regions: [CortexMRegion::empty(0); 8],
             is_dirty: Cell::new(true),
         };
 
@@ -561,16 +630,16 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
     }
 
     fn reset_config(&self, config: &mut Self::MpuConfig) {
-        config.regions[0] = CortexMRegion::empty(0);
-        config.regions[1] = CortexMRegion::empty(1);
-        config.regions[2] = CortexMRegion::empty(2);
-        config.regions[3] = CortexMRegion::empty(3);
-        config.regions[4] = CortexMRegion::empty(4);
-        config.regions[5] = CortexMRegion::empty(5);
-        config.regions[6] = CortexMRegion::empty(6);
-        config.regions[7] = CortexMRegion::empty(7);
+        config.region_set(0, CortexMRegion::empty(0));
+        config.region_set(1, CortexMRegion::empty(1));
+        config.region_set(2, CortexMRegion::empty(2));
+        config.region_set(3, CortexMRegion::empty(3));
+        config.region_set(4, CortexMRegion::empty(4));
+        config.region_set(5, CortexMRegion::empty(5));
+        config.region_set(6, CortexMRegion::empty(6));
+        config.region_set(7, CortexMRegion::empty(7));
 
-        config.is_dirty.set(true);
+        config.set_dirty(true);
     }
 
     fn allocate_region(
@@ -584,7 +653,7 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
         assume(min_region_size < 2147483648);
 
         // Check that no previously allocated regions overlap the unallocated memory.
-        for region in config.regions.iter() {
+        for region in config.regions_iter() {
             if region.overlaps(unallocated_memory_start, unallocated_memory_size) {
                 return None;
             }
@@ -699,8 +768,8 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
             permissions,
         );
 
-        config.regions[region_num] = region;
-        config.is_dirty.set(true);
+        config.region_set(region_num, region);
+        config.set_dirty(true);
 
         Some(mpu::Region::new(start.as_fluxptr(), size))
     }
@@ -711,8 +780,7 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
         config: &mut Self::MpuConfig,
     ) -> Result<(), ()> {
         let (idx, _r) = config
-            .regions
-            .iter()
+            .regions_iter()
             .enumerate()
             .find(|(_idx, r)| **r == region)
             .ok_or(())?;
@@ -722,8 +790,8 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
         }
         assume(idx < 8); // need spec for find
 
-        config.regions[idx] = CortexMRegion::empty(idx);
-        config.is_dirty.set(true);
+        config.region_set(idx, CortexMRegion::empty(idx));
+        config.set_dirty(true);
 
         Ok(())
     }
@@ -743,7 +811,7 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
     ) -> Option<(FluxPtrU8, usize)> {
         // Check that no previously allocated regions overlap the unallocated
         // memory.
-        for region in config.regions.iter() {
+        for region in config.regions_iter() {
             if region.overlaps(unallocated_memory_start, unallocated_memory_size) {
                 return None;
             }
@@ -861,9 +929,9 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
             )
         };
 
-        config.regions[0] = region0;
-        config.regions[1] = region1;
-        config.is_dirty.set(true);
+        config.region_set(0, region0);
+        config.region_set(1, region1);
+        config.set_dirty(true);
 
         Some((region_start.as_fluxptr(), memory_size_po2))
     }
@@ -877,7 +945,7 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
     ) -> Result<(), ()> {
         // Get first region, or error if the process tried to update app memory
         // MPU region before it was created.
-        let (region_start_ptr, region_size) = config.regions[0].location().ok_or(())?;
+        let (region_start_ptr, region_size) = config.region_get(0).location().ok_or(())?;
         let region_start = region_start_ptr.as_usize();
 
         let app_memory_break = app_memory_break.as_usize();
@@ -938,9 +1006,9 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
             )
         };
 
-        config.regions[0] = region0;
-        config.regions[1] = region1;
-        config.is_dirty.set(true);
+        config.region_set(0, region0);
+        config.region_set(1, region1);
+        config.set_dirty(true);
 
         Ok(())
     }
@@ -949,13 +1017,13 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
     fn configure_mpu(&mut self, config: &Self::MpuConfig) {
         // If the hardware is already configured for this app and the app's MPU
         // configuration has not changed, then skip the hardware update.
-        if !self.hardware_is_configured_for.contains(&config.id) || config.is_dirty.get() {
+        if !self.hardware_is_configured_for.contains(&config.id()) || config.is_dirty() {
             // Set MPU regions
-            for region in config.regions.iter() {
+            for region in config.regions_iter() {
                 self.commit_region(region);
             }
-            self.hardware_is_configured_for.set(config.id);
-            config.is_dirty.set(false);
+            self.hardware_is_configured_for.set(config.id());
+            config.set_dirty(false);
         }
     }
 }
