@@ -31,16 +31,21 @@ use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
 
+pub const NONVOLATILE_STORAGE_APP_REGION_SIZE_DEFAULT: usize = 2048;
+
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! nonvolatile_storage_component_static {
-    ($F:ty $(,)?) => {{
+    ($F:ty, $APP_REGION_SIZE:expr $(,)?) => {{
         let page = kernel::static_buf!(<$F as kernel::hil::flash::Flash>::Page);
         let ntp = kernel::static_buf!(
             capsules_extra::nonvolatile_to_pages::NonvolatileToPages<'static, $F>
         );
         let ns = kernel::static_buf!(
-            capsules_extra::nonvolatile_storage_driver::NonvolatileStorage<'static>
+            capsules_extra::nonvolatile_storage_driver::NonvolatileStorage<
+                'static,
+                $APP_REGION_SIZE,
+            >
         );
         let buffer = kernel::static_buf!([u8; capsules_extra::nonvolatile_storage_driver::BUF_LEN]);
 
@@ -56,10 +61,12 @@ macro_rules! nonvolatile_storage_component_static {
     };};
 }
 
-pub type NonvolatileStorageComponentType = NonvolatileStorage<'static>;
+pub type NonvolatileStorageComponentType<const APP_REGION_SIZE: usize> =
+    NonvolatileStorage<'static, APP_REGION_SIZE>;
 
 pub struct NonvolatileStorageComponent<
     F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
+    const APP_REGION_SIZE: usize,
 > {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
@@ -68,14 +75,14 @@ pub struct NonvolatileStorageComponent<
     userspace_length: usize,
     kernel_start: usize,
     kernel_length: usize,
-    app_region_size: usize,
 }
 
 impl<
         F: 'static
             + hil::flash::Flash
             + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
-    > NonvolatileStorageComponent<F>
+        const APP_REGION_SIZE: usize,
+    > NonvolatileStorageComponent<F, APP_REGION_SIZE>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
@@ -85,7 +92,6 @@ impl<
         userspace_length: usize,
         kernel_start: usize,
         kernel_length: usize,
-        app_region_size: usize,
     ) -> Self {
         Self {
             board_kernel,
@@ -95,7 +101,6 @@ impl<
             userspace_length,
             kernel_start,
             kernel_length,
-            app_region_size,
         }
     }
 }
@@ -104,12 +109,13 @@ impl<
         F: 'static
             + hil::flash::Flash
             + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
-    > Component for NonvolatileStorageComponent<F>
+        const APP_REGION_SIZE: usize,
+    > Component for NonvolatileStorageComponent<F, APP_REGION_SIZE>
 {
     type StaticInput = (
         &'static mut MaybeUninit<<F as hil::flash::Flash>::Page>,
         &'static mut MaybeUninit<NonvolatileToPages<'static, F>>,
-        &'static mut MaybeUninit<NonvolatileStorage<'static>>,
+        &'static mut MaybeUninit<NonvolatileStorage<'static, APP_REGION_SIZE>>,
         &'static mut MaybeUninit<[u8; capsules_extra::nonvolatile_storage_driver::BUF_LEN]>,
         &'static mut MaybeUninit<
             [u8; capsules_extra::nonvolatile_storage_driver::REGION_HEADER_LEN],
@@ -118,7 +124,7 @@ impl<
             [u8; capsules_extra::nonvolatile_storage_driver::REGION_ERASE_BUF_LEN],
         >,
     );
-    type Output = &'static NonvolatileStorage<'static>;
+    type Output = &'static NonvolatileStorage<'static, APP_REGION_SIZE>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -151,7 +157,6 @@ impl<
             self.userspace_length, // Length of userspace accessible region
             self.kernel_start,    // Start address of kernel region
             self.kernel_length,   // Length of kernel region
-            self.app_region_size, // Length of region accessible to each app
             buffer,
             header_buffer,
             region_erase_buffer,

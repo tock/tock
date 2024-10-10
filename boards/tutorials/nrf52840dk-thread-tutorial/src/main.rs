@@ -34,8 +34,10 @@ struct Platform {
     ieee802154: &'static Ieee802154RawDriver,
     eui64: &'static nrf52840dk_lib::Eui64Driver,
     screen: &'static ScreenDriver,
-    nonvolatile_storage:
-        &'static capsules_extra::nonvolatile_storage_driver::NonvolatileStorage<'static>,
+    nonvolatile_storage: &'static capsules_extra::nonvolatile_storage_driver::NonvolatileStorage<
+        'static,
+        { components::nonvolatile_storage::NONVOLATILE_STORAGE_APP_REGION_SIZE_DEFAULT },
+    >,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -161,9 +163,6 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
     // NONVOLATILE STORAGE
     //--------------------------------------------------------------------------
-    // How many bytes of nonvolatile storage to allocate
-    // to each app
-    const NONVOLATILE_REGION_SIZE_PER_APP: usize = 2048;
 
     // 32kB of userspace-accessible storage, page aligned:
     kernel::storage_volume!(APP_STORAGE, 32);
@@ -177,10 +176,10 @@ pub unsafe fn main() {
         // No kernel-writeable flash:
         core::ptr::null::<()>() as usize,
         0,
-        NONVOLATILE_REGION_SIZE_PER_APP,
     )
     .finalize(components::nonvolatile_storage_component_static!(
-        nrf52840::nvmc::Nvmc
+        nrf52840::nvmc::Nvmc,
+        { components::nonvolatile_storage::NONVOLATILE_STORAGE_APP_REGION_SIZE_DEFAULT }
     ));
 
     //--------------------------------------------------------------------------

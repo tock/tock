@@ -374,7 +374,7 @@ impl Default for App {
     }
 }
 
-pub struct NonvolatileStorage<'a> {
+pub struct NonvolatileStorage<'a, const APP_REGION_SIZE: usize> {
     // The underlying physical storage device.
     driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'a>,
     // Per-app state.
@@ -417,10 +417,6 @@ pub struct NonvolatileStorage<'a> {
     /// before they get written to nonvolatile storage
     header_buffer: TakeCell<'static, [u8]>,
 
-    // How many bytes each app should be allocted. Configurable at capsule
-    // creation time.
-    app_region_size: usize,
-
     // Absolute address of the header of the next region of userspace
     // that's not allocated to an app yet. Each time an app uses this
     // capsule, a new region of storage will be handed out and this
@@ -432,7 +428,7 @@ pub struct NonvolatileStorage<'a> {
     region_erase_buffer: TakeCell<'static, [u8]>,
 }
 
-impl<'a> NonvolatileStorage<'a> {
+impl<'a, const APP_REGION_SIZE: usize> NonvolatileStorage<'a, APP_REGION_SIZE> {
     pub fn new(
         driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'a>,
         grant: Grant<
@@ -445,12 +441,11 @@ impl<'a> NonvolatileStorage<'a> {
         userspace_length: usize,
         kernel_start_address: usize,
         kernel_length: usize,
-        app_region_size: usize,
         buffer: &'static mut [u8],
         header_buffer: &'static mut [u8],
         region_erase_buffer: &'static mut [u8],
-    ) -> NonvolatileStorage<'a> {
-        NonvolatileStorage {
+    ) -> Self {
+        Self {
             driver,
             apps: grant,
             buffer: TakeCell::new(buffer),
@@ -465,7 +460,6 @@ impl<'a> NonvolatileStorage<'a> {
             kernel_buffer: TakeCell::empty(),
             kernel_readwrite_length: Cell::new(0),
             kernel_readwrite_address: Cell::new(0),
-            app_region_size,
             header_buffer: TakeCell::new(header_buffer),
             next_unallocated_region_header_address: OptionalCell::empty(),
             region_erase_buffer: TakeCell::new(region_erase_buffer),
@@ -543,9 +537,7 @@ impl<'a> NonvolatileStorage<'a> {
                         // Have this region start where all the existing regions end.
                         // Note that the app's actual region starts after the region header.
                         offset: new_header_addr + REGION_HEADER_LEN,
-                        // new regions get handed the same size. this can be
-                        // configured when the capsule is created.
-                        length: self.app_region_size,
+                        length: APP_REGION_SIZE,
                     };
 
                     // fail if new region is outside userpace area
@@ -743,7 +735,7 @@ impl<'a> NonvolatileStorage<'a> {
                     .get()
                     .ok_or(ErrorCode::FAIL)?;
 
-                let next_header_addr = curr_header_addr + REGION_HEADER_LEN + self.app_region_size;
+                let next_header_addr = curr_header_addr + REGION_HEADER_LEN + APP_REGION_SIZE;
 
                 self.next_unallocated_region_header_address
                     .set(next_header_addr);
@@ -1142,7 +1134,9 @@ impl<'a> NonvolatileStorage<'a> {
 }
 
 /// This is the callback client for the underlying physical storage driver.
-impl hil::nonvolatile_storage::NonvolatileStorageClient for NonvolatileStorage<'_> {
+impl<const APP_REGION_SIZE: usize> hil::nonvolatile_storage::NonvolatileStorageClient
+    for NonvolatileStorage<'_, APP_REGION_SIZE>
+{
     fn read_done(&self, buffer: &'static mut [u8], length: usize) {
         // Switch on which user of this capsule generated this callback.
         self.current_user.take().map(|user| {
@@ -1248,7 +1242,9 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient for NonvolatileStorage<'
 }
 
 /// Provide an interface for the kernel.
-impl<'a> hil::nonvolatile_storage::NonvolatileStorage<'a> for NonvolatileStorage<'a> {
+impl<'a, const APP_REGION_SIZE: usize> hil::nonvolatile_storage::NonvolatileStorage<'a>
+    for NonvolatileStorage<'a, APP_REGION_SIZE>
+{
     fn set_client(&self, client: &'a dyn hil::nonvolatile_storage::NonvolatileStorageClient) {
         self.kernel_client.set(client);
     }
@@ -1275,7 +1271,7 @@ impl<'a> hil::nonvolatile_storage::NonvolatileStorage<'a> for NonvolatileStorage
 }
 
 /// Provide an interface for userland.
-impl SyscallDriver for NonvolatileStorage<'_> {
+impl<const APP_REGION_SIZE: usize> SyscallDriver for NonvolatileStorage<'_, APP_REGION_SIZE> {
     /// Command interface.
     ///
     /// Commands are selected by the lowest 8 bits of the first argument.
