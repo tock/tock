@@ -714,10 +714,6 @@ macro_rules! debug_expr {
     };
 }
 
-pub trait Debug {
-    fn write(&self, buf: &'static mut [u8], len: usize) -> usize;
-}
-
 pub unsafe fn flush<W: Write + IoWrite>(writer: &mut W) {
     if let Some(debug_writer) = try_get_debug_writer() {
         if let Some(ring_buffer) = debug_writer.extract() {
