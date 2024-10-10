@@ -98,6 +98,7 @@ pub mod temperature_stm;
 pub mod text_screen;
 pub mod tickv;
 pub mod tickv_kv_store;
+pub mod tmp431;
 pub mod touch;
 pub mod tsl2561;
 pub mod usb;
