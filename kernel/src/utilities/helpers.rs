@@ -2,7 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! Helper macros.
+//! Helper functions and macros.
+//!
+//! These are various utility functions and macros that are useful throughout
+//! the Tock kernel and are provided here for convenience.
+//!
+//! The macros are exported through the top level of the `kernel` crate.
 
 /// Create an object with the given capability.
 ///
