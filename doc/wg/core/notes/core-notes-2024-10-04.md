@@ -67,7 +67,7 @@
  * Johnathan: So it's more than just pointers. Okay. The other thing that confused me, in non-CHERI you're relying on the cast to copy provenance information, correct?
  * Lawrence: I wonder if I could rewrite that wrapper layer with strict provenance in mind.
  * Johnathan: I used `*mut ()` in libtock-rs for similar things. Maybe I'm thinking too strictly about it.
- * Lawrence: Maybe I should change to strict provenance. Would that cause issues across the kernel?
+ * Lawrence: Maybe I should change to strict provenance APIs. Would that cause issues across the kernel?
  * Johnathan: It's problematic. There is a library that would help, but the authors are not responsive about how we could license it.
  * Lawrence: Okay, maybe I'll make a partial step that direction but not a full one
  * Lawrence: Right now I'm either making it a usize or a CHERI type, which is wider on CHERI platforms. It should probably be `*const ()` in my Rust code
