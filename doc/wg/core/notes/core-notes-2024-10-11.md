@@ -35,7 +35,7 @@
  * Brad: Are those tests on LiteX?
  * Leon: No, they're capsule tests
  * Brad: And those have smaller sizes?
- * Leon: 32, 24, and 16. Came out of the major rewrite where I ripped out the timer logic from the userspace boundary
+ * Leon: 32, 24, and 64. Came out of the major rewrite where I ripped out the timer logic from the userspace boundary
 ### Non-Volatile Storage
  * https://github.com/tock/tock/pull/4109
  * Brad: PR from UCSD for process-specific non-volatile storage. And that's starting to be important for many things, like OpenSK. Also motivated by Thread. So I've been pushing on that
@@ -49,7 +49,7 @@
  * https://github.com/tock/tock/pull/4193
  * Brad: This PR has some static mut issues. Amit says they're "easy to handle" and he'll help.
  * Hudson: We could also make a partial jump if we needed, to somewhere less than here
- * Leon: The warnings in this nightly are good, but they haven't reached the level where there are a TON of them. And they occur in tests
+ * Leon: The warnings in this nightly are not too bad, but they haven't gotten the point of checking board-tests, where there's a ton of mutable statics still
  * Hudson: Notably, I think warnings in tests don't block the build right now
  * Leon: Oh, that's on me to get to
 
@@ -62,7 +62,7 @@
  * Ben: Two types of tests, AnalyzeConsole expects output from serial ports. There's also a WaitForConsoleMessage test which instead just waits for a single message.
  * Ben: This can run on real hardware with Treadmill now. In the test-execute for Treadmill, the runner will load things, wait for a message, and then return success/failure
  * Leon: The basic idea here is that for any given test we want to combine a specification for interaction with a board with a specification for how the test works. So the board is interaction and the test is the strategy of when to flash things, when to flush buffers, when to expect output, when to use GPIO pins, etc. We can inherit parts of this to abstract away common choices here that many tests use. For example WaitForConsoleMessage is an abstraction that just takes an app and a string.
- * Leon: So the goal here was to balance expressibility and abstracting detail away for simple tasks
+ * Leon: So the goal here was to balance expressiveness and abstracting detail away for simple tasks
  * Ben: And if we want the c_hello test, for example, on a different board, we just need a new board file, but the same test framework will apply. Separates tests and board specifics
  * Branden: What about tests that rely on certain resources such that only some boards can satisfy it?
  * Ben: Tests can require certain attributes from boards in the test
