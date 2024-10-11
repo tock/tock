@@ -145,6 +145,7 @@ use kernel::hil;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::copy_slice::CopyOrErr;
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
@@ -315,8 +316,7 @@ impl AppRegionHeader {
 // Enough space for a buffer to be used for reading/writing userspace data
 pub const BUF_LEN: usize = 512;
 
-// Enough space for a buffer to be used for holding zeroes that are used
-// to
+// Enough space for a buffer to be used for holding zeroes that are used to.
 pub const REGION_ERASE_BUF_LEN: usize = 512;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -332,13 +332,17 @@ pub enum RegionState {
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum NonvolatileCommand {
-    UserspaceRead,
-    UserspaceWrite,
+    Read { offset: usize, length: usize },
+    Write { offset: usize, length: usize },
+}
+
+#[derive(Clone, Copy, PartialEq)]
+pub enum NonvolatileOperation {
+    UserspaceAccess(NonvolatileCommand),
+    KernelAccess(NonvolatileCommand),
     HeaderRead(usize),
     HeaderWrite(ProcessId, AppRegion),
-    RegionErase(ProcessId),
-    KernelRead,
-    KernelWrite,
+    RegionErase,
 }
 
 #[derive(Clone, Copy)]
@@ -348,36 +352,22 @@ pub enum NonvolatileUser {
     Kernel,
 }
 
+#[derive(Default)]
 pub struct App {
-    pending_command: bool,
-    command: NonvolatileCommand,
-    offset: usize,
-    length: usize,
-    /// if this certain app has previously requested to initialize
-    /// its nonvolatile storage.
+    /// The operation the app has requested, if any.
+    command: Option<NonvolatileCommand>,
+    /// Whether this app has previously requested to initialize its nonvolatile
+    /// storage.
     has_requested_region: bool,
-    /// describe the location and size of an app's region (if it has
-    /// been initialized)
+    /// Describe the location and size of an app's region (if it has been
+    /// initialized).
     region: Option<AppRegion>,
 }
 
-impl Default for App {
-    fn default() -> App {
-        App {
-            pending_command: false,
-            command: NonvolatileCommand::UserspaceRead,
-            offset: 0,
-            length: 0,
-            has_requested_region: false,
-            region: None,
-        }
-    }
-}
-
 pub struct NonvolatileStorage<'a, const APP_REGION_SIZE: usize> {
-    // The underlying physical storage device.
+    /// The underlying physical storage device.
     driver: &'a dyn hil::nonvolatile_storage::NonvolatileStorage<'a>,
-    // Per-app state.
+    /// Per-app state.
     apps: Grant<
         App,
         UpcallCount<{ upcall::COUNT }>,
@@ -385,47 +375,33 @@ pub struct NonvolatileStorage<'a, const APP_REGION_SIZE: usize> {
         AllowRwCount<{ rw_allow::COUNT }>,
     >,
 
-    // Internal buffer for copying appslices into.
+    /// Internal buffer for copying appslices into.
     buffer: TakeCell<'static, [u8]>,
-    // What issued the currently executing call. This can be an app or the kernel.
+    /// What issued the currently executing call. This can be an app or the kernel.
     current_user: OptionalCell<NonvolatileUser>,
 
-    // The first byte that is accessible from userspace.
+    /// The first byte that is accessible from userspace.
     userspace_start_address: usize,
-    // How many bytes allocated to userspace.
+    /// How many bytes allocated to userspace.
     userspace_length: usize,
-    // The first byte that is accessible from the kernel.
+    /// The first byte that is accessible from the kernel.
     kernel_start_address: usize,
-    // How many bytes allocated to kernel.
+    /// How many bytes allocated to kernel.
     kernel_length: usize,
 
-    // Optional client for the kernel. Only needed if the kernel intends to use
-    // this nonvolatile storage.
+    /// Optional client for the kernel. Only needed if the kernel intends to use
+    /// this nonvolatile storage.
     kernel_client: OptionalCell<&'a dyn hil::nonvolatile_storage::NonvolatileStorageClient>,
-    // Whether the kernel is waiting for a read/write.
-    kernel_pending_command: Cell<bool>,
-    // Whether the kernel wanted a read/write.
-    kernel_command: Cell<NonvolatileCommand>,
-    // Holder for the buffer passed from the kernel in case we need to wait.
+    /// Whether the kernel wanted a read/write.
+    kernel_command: OptionalCell<NonvolatileCommand>,
+    /// Holder for the buffer passed from the kernel in case we need to wait.
     kernel_buffer: TakeCell<'static, [u8]>,
-    // How many bytes to read/write from the kernel buffer.
-    kernel_readwrite_length: Cell<usize>,
-    // Where to read/write from the kernel request.
-    kernel_readwrite_address: Cell<usize>,
 
-    /// static buffer to store region headers
-    /// before they get written to nonvolatile storage
-    header_buffer: TakeCell<'static, [u8]>,
-
-    // Absolute address of the header of the next region of userspace
-    // that's not allocated to an app yet. Each time an app uses this
-    // capsule, a new region of storage will be handed out and this
-    // address will point to the header of a new unallocated region.
+    /// Absolute address of the header of the next region of userspace
+    /// that's not allocated to an app yet. Each time an app uses this
+    /// capsule, a new region of storage will be handed out and this
+    /// address will point to the header of a new unallocated region.
     next_unallocated_region_header_address: OptionalCell<usize>,
-
-    // static buffer to store zeroes to write to regions when
-    // they need to be erased
-    region_erase_buffer: TakeCell<'static, [u8]>,
 }
 
 impl<'a, const APP_REGION_SIZE: usize> NonvolatileStorage<'a, APP_REGION_SIZE> {
@@ -442,8 +418,6 @@ impl<'a, const APP_REGION_SIZE: usize> NonvolatileStorage<'a, APP_REGION_SIZE> {
         kernel_start_address: usize,
         kernel_length: usize,
         buffer: &'static mut [u8],
-        header_buffer: &'static mut [u8],
-        region_erase_buffer: &'static mut [u8],
     ) -> Self {
         Self {
             driver,
@@ -455,29 +429,25 @@ impl<'a, const APP_REGION_SIZE: usize> NonvolatileStorage<'a, APP_REGION_SIZE> {
             kernel_start_address,
             kernel_length,
             kernel_client: OptionalCell::empty(),
-            kernel_pending_command: Cell::new(false),
-            kernel_command: Cell::new(NonvolatileCommand::KernelRead),
+            kernel_command: OptionalCell::empty(),
             kernel_buffer: TakeCell::empty(),
-            kernel_readwrite_length: Cell::new(0),
-            kernel_readwrite_address: Cell::new(0),
-            header_buffer: TakeCell::new(header_buffer),
             next_unallocated_region_header_address: OptionalCell::empty(),
-            region_erase_buffer: TakeCell::new(region_erase_buffer),
         }
     }
 
     // App-level initialization that allocates a region for an app or fetches
     // an app's existing region from nonvolatile storage
     fn init_app(&self, processid: ProcessId) -> Result<(), ErrorCode> {
-        // Signal that this app requested a storage region. If it isn't
+        // Mark that this app requested a storage region. If it isn't
         // allocated immediately, it will be handled after previous requests
         // are handled.
         self.apps.enter(processid, |app, _kernel_data| {
             app.has_requested_region = true;
         })?;
 
-        // Start traversing the storage regions to find where the requesting app's
-        // storage region is located. If it doesn't exist, a new one will be allocated
+        // Start traversing the storage regions to find where the requesting
+        // app's storage region is located. If it doesn't exist, a new one will
+        // be allocated.
         self.start_region_traversal()
     }
 
@@ -564,13 +534,12 @@ impl<'a, const APP_REGION_SIZE: usize> NonvolatileStorage<'a, APP_REGION_SIZE> {
             .unwrap_or(Err(ErrorCode::FAIL))
     }
 
-    // Read the header of an app's storage region. The region_header_address argument
-    // describes the start of the **header** and not the usable region itself.
+    // Read the header of an app's storage region. The region_header_address
+    // argument describes the start of the **header** and not the usable region
+    // itself.
     fn read_region_header(&self, region_header_address: usize) -> Result<(), ErrorCode> {
         self.enqueue_command(
-            NonvolatileCommand::HeaderRead(region_header_address),
-            region_header_address,
-            REGION_HEADER_LEN,
+            NonvolatileOperation::HeaderRead(region_header_address, REGION_HEADER_LEN),
             None,
         )
     }
@@ -584,12 +553,21 @@ impl<'a, const APP_REGION_SIZE: usize> NonvolatileStorage<'a, APP_REGION_SIZE> {
     ) -> Result<(), ErrorCode> {
         let header_slice = region_header.to_bytes();
 
-        self.header_buffer.map_or(Err(ErrorCode::NOMEM), |buffer| {
-            for (i, c) in buffer.iter_mut().enumerate() {
-                *c = header_slice[i];
-            }
+        self.buffer.map_or(Err(ErrorCode::NOMEM), |buffer| {
+            // for (i, c) in buffer.iter_mut().enumerate() {
+            //     *c = header_slice[i];
+            // }
 
-            Ok(())
+            buffer
+                .get(0..REGION_HEADER_LEN)
+                .ok_or(ErrorCode::NOMEM)?
+                .copy_from_slice_or_err(
+                    header_slice
+                        .get(0..REGION_HEADER_LEN)
+                        .ok_or(ErrorCode::NOMEM)?,
+                )
+
+            // Ok(())
         })?;
 
         self.enqueue_command(
@@ -740,7 +718,7 @@ impl<'a, const APP_REGION_SIZE: usize> NonvolatileStorage<'a, APP_REGION_SIZE> {
                 self.next_unallocated_region_header_address
                     .set(next_header_addr);
 
-                // erase the userpace accessible content of the region
+                // erase the userspace accessible content of the region
                 // before handing it off to an app
                 self.erase_region_content(processid, region)
             })
@@ -843,25 +821,42 @@ impl<'a, const APP_REGION_SIZE: usize> NonvolatileStorage<'a, APP_REGION_SIZE> {
     // command completes.
     fn enqueue_command(
         &self,
-        command: NonvolatileCommand,
-        offset: usize,
-        length: usize,
+        operation: NonvolatileCommand,
         processid: Option<ProcessId>,
     ) -> Result<(), ErrorCode> {
-        // Do different bounds check depending on userpace vs kernel accesses
-        match command {
-            NonvolatileCommand::UserspaceRead | NonvolatileCommand::UserspaceWrite => {
-                self.check_userspace_access(offset, length, processid)?;
+        // Do different bounds check depending on userspace vs kernel accesses.
+        match operation {
+            NonvolatileOperation::UserspaceAccess(command) => {
+                self.check_userspace_access(command::offset, command::length, processid)?;
                 self.check_userspace_perms(processid, command)?;
             }
-            NonvolatileCommand::HeaderRead(_)
-            | NonvolatileCommand::HeaderWrite(_, _)
-            | NonvolatileCommand::RegionErase(_) => {
-                self.check_header_access(offset, length)?;
+
+            NonvolatileOperation::KernelAccess(command) => {
+                self.check_kernel_access(command.offset, command.length)?;
             }
-            NonvolatileCommand::KernelRead | NonvolatileCommand::KernelWrite => {
-                self.check_kernel_access(offset, length)?;
+
+            NonvolatileOperation::HeaderRead(region) => {
+                self.check_header_access(region.offset, region.length)?;
             }
+
+            NonvolatileOperation::HeaderWrite(_, region) => {
+                self.check_header_access(region.offset, region.length)?;
+            }
+
+            NonvolatileOperation::RegionErase(region) => {
+                self.check_header_access(region.offset, region.length)?;
+            } // NonvolatileCommand::UserspaceRead | NonvolatileCommand::UserspaceWrite => {
+              //     self.check_userspace_access(offset, length, processid)?;
+              //     self.check_userspace_perms(processid, command)?;
+              // }
+              // NonvolatileCommand::HeaderRead(_)
+              // | NonvolatileCommand::HeaderWrite(_, _)
+              // | NonvolatileCommand::RegionErase(_) => {
+              //     self.check_header_access(offset, length)?;
+              // }
+              // NonvolatileCommand::KernelRead | NonvolatileCommand::KernelWrite => {
+              //     self.check_kernel_access(offset, length)?;
+              // }
         }
 
         // Do very different actions if this is a call from userspace
