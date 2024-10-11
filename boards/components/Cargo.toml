@@ -16,5 +16,7 @@ capsules-extra = { path = "../../capsules/extra" }
 capsules-system = { path = "../../capsules/system" }
 segger = { path = "../../chips/segger" }
 
+tock-tbf = { path = "../../libraries/tock-tbf" }
+
 [lints]
 workspace = true
