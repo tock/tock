@@ -5,18 +5,6 @@
 
 //! Implementation of the memory protection unit for the Cortex-M0+, Cortex-M3,
 //! Cortex-M4, and Cortex-M7
-// #![flux_rs::defs(
-//     fn can_service(raddr: int, rsize: int, addr: int, size: int, srd: bitvec<8>, enabled: bool) -> bool {
-//         enabled && contains(raddr, rsize, addr, size) && subregion_enabled(addr, rsize, addr, size, srd)
-//     }
-
-//     // given an array of length 8, returns index of region that services a particular request
-//     // fn servicing_region(regions: [CortexMRegion; 8], addr: usize, size: usize) -> usize {
-//     //     // TODO:
-//     //     0
-//     // }
-
-// )]
 
 use core::cell::Cell;
 use core::cmp;
@@ -30,7 +18,6 @@ use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::math;
 
 // VTOCK-TODO: NUM_REGIONS currently fixed to 8. Need to also handle 16
-
 flux_rs::defs! {
     fn bv32(x:int) -> bitvec<32> { bv_int_to_bv32(x) }
     fn bit(reg: bitvec<32>, power_of_two:int) -> bool { bv_bv32_to_int(bv_and(reg, bv32(power_of_two))) != 0}
@@ -83,25 +70,50 @@ flux_rs::defs! {
         map_get(mpu.attrs, 7) == map_get(config.attrs, 7)
     }
 
-    fn subregion_enabled(rasr: bitvec<32>, rbar: bitvec<32>) -> bool {
-        size(rasr) >= 8 && // must be at least 256 bits
-        // {
-            // let subregion_size = size(rasr) - 3;
-            // let offset = addr(rbar) % size(rasr);
-            // let subregion_id = (addr(rbar) & size(rasr)) / (size(rasr) - 3);
-            bit(bv_int_to_bv32(srd(rasr)), (addr(rbar) % size(rasr)) / (size(rasr) - 3))
-        // }
-    }
-
-    // fn user_can_access(mpu: Mpu, addr: int, sz: int, perms: mpu::Permissions) -> {
-
-    // }
-
     fn contains(rbar: bitvec<32>, rasr: bitvec<32>, ptr: int, sz: int) -> bool {
         (ptr >= addr(rbar)) && (ptr + sz < addr(rbar) + size(rasr))
     }
 
+    fn subregion_enabled(rasr: bitvec<32>, rbar: bitvec<32>, ptr: int, sz: int) -> bool {
+        size(rasr) >= 8 && // must be at least 256 bits
+        // {
+            // let subregion_size = size(rasr) - 3;
+            // let offset = ptr % size(rasr);
+            // let subregion_id = (addr(rbar) & size(rasr)) / (size(rasr) - 3);
+            bit(bv_int_to_bv32(srd(rasr)), (ptr % size(rasr)) / (size(rasr) - 3))
+        // }
+    }
 
+    fn can_service(rbar: bitvec<32>, rasr: bitvec<32>, ptr: int, sz: int) -> bool {
+        region_enable(rasr) &&
+        contains(rbar, rasr, ptr, sz) &&
+        subregion_enabled(rasr, rbar, ptr, sz)
+    }
+
+    // https://developer.arm.com/documentation/dui0552/a/cortex-m3-peripherals/optional-memory-protection-unit/mpu-access-permission-attributes?lang=en
+    fn can_read(rasr: bitvec<32>) -> bool {
+        ap(rasr) == 2 ||
+        ap(rasr) == 3 ||
+        ap(rasr) == 6 ||
+        ap(rasr) == 7
+    }
+
+    // https://developer.arm.com/documentation/dui0552/a/cortex-m3-peripherals/optional-memory-protection-unit/mpu-access-permission-attributes?lang=en
+    fn can_write(rasr: bitvec<32>) -> bool {
+        ap(rasr) == 3
+    }
+
+    fn access_succeeds(rbar: bitvec<32>, rasr: bitvec<32>, perms: mpu::Permissions) -> bool {
+        xn(rasr) => !perms.x &&
+        can_read(rasr) => perms.r &&
+        can_write(rasr) => perms.w
+    }
+
+    fn can_access(mpu: MPU, addr: int, sz: int, perms: mpu::Permissions) -> bool {
+        true // TODO:
+
+
+    }
 }
 
 // VTOCK_TODO: better solution for hardware register spooky-action-at-a-distance
