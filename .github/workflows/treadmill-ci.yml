@@ -69,6 +69,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: treadmill-tb/treadmill
+          # treadmill-tb/treadmill main as of Oct 1, 2024, 3:05 PM EDT
+          ref: 'c82f4d7ebddd17f8275ba52139e64e04623f30cb'
           path: treadmill
 
       - name: Cache Treadmill CLI compilation artifacts
