@@ -93,5 +93,6 @@ pub enum NUM {
     KeyboardHid           = 0x90005,
     DateTime              = 0x90007,
     CycleCount            = 0x90008,
+    Servo                 = 0x90009,
 }
 }
