@@ -56,22 +56,22 @@ pub(crate) fn memop(process: &dyn Process, op_type: usize, r1: usize) -> Syscall
             .unwrap_or(SyscallReturn::Failure(ErrorCode::NOMEM)),
 
         // Op Type 2: Process memory start
-        2 => SyscallReturn::SuccessUSize(process.get_addresses().sram_start),
+        2 => SyscallReturn::SuccessUsize(process.get_addresses().sram_start),
 
         // Op Type 3: Process memory end
-        3 => SyscallReturn::SuccessUSize(process.get_addresses().sram_end),
+        3 => SyscallReturn::SuccessUsize(process.get_addresses().sram_end),
 
         // Op Type 4: Process flash start
-        4 => SyscallReturn::SuccessUSize(process.get_addresses().flash_start),
+        4 => SyscallReturn::SuccessUsize(process.get_addresses().flash_start),
 
         // Op Type 5: Process flash end
-        5 => SyscallReturn::SuccessUSize(process.get_addresses().flash_end),
+        5 => SyscallReturn::SuccessUsize(process.get_addresses().flash_end),
 
         // Op Type 6: Grant region begin
-        6 => SyscallReturn::SuccessUSize(process.get_addresses().sram_grant_start),
+        6 => SyscallReturn::SuccessUsize(process.get_addresses().sram_grant_start),
 
         // Op Type 7: Number of defined writeable regions in the TBF header.
-        7 => SyscallReturn::SuccessUSize(process.number_writeable_flash_regions()),
+        7 => SyscallReturn::SuccessUsize(process.number_writeable_flash_regions()),
 
         // Op Type 8: The start address of the writeable region indexed by r1.
         8 => {
@@ -80,7 +80,7 @@ pub(crate) fn memop(process: &dyn Process, op_type: usize, r1: usize) -> Syscall
             if size == 0 {
                 SyscallReturn::Failure(ErrorCode::FAIL)
             } else {
-                SyscallReturn::SuccessUSize(flash_start + offset)
+                SyscallReturn::SuccessUsize(flash_start + offset)
             }
         }
 
@@ -93,7 +93,7 @@ pub(crate) fn memop(process: &dyn Process, op_type: usize, r1: usize) -> Syscall
             if size == 0 {
                 SyscallReturn::Failure(ErrorCode::FAIL)
             } else {
-                SyscallReturn::SuccessUSize(flash_start + offset + size)
+                SyscallReturn::SuccessUsize(flash_start + offset + size)
             }
         }
 
