@@ -182,8 +182,8 @@ impl Upcall {
                 self.upcall_id.driver_num,
                 self.upcall_id.subscribe_num,
                 self.fn_ptr
-                    .map_or(core::ptr::null_mut::<()>(), |fp| fp.as_ptr() as *mut ())
-                    as usize,
+                    .map_or(core::ptr::null_mut::<()>(), |fp| fp.as_ptr::<()>()
+                        as *mut ()) as usize,
                 r0,
                 r1,
                 r2,

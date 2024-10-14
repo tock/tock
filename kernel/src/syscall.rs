@@ -280,19 +280,20 @@ impl Syscall {
             Ok(SyscallClass::ReadWriteAllow) => Some(Syscall::ReadWriteAllow {
                 driver_number: r0,
                 subdriver_number: r1.into(),
-                allow_address: r2.as_ptr_checked(r3.into(), MetaPermissions::ReadWrite) as *mut u8,
+                allow_address: r2.as_ptr_checked::<u8>(r3.into(), MetaPermissions::ReadWrite)
+                    as *mut u8,
                 allow_size: r3.into(),
             }),
             Ok(SyscallClass::UserspaceReadableAllow) => Some(Syscall::UserspaceReadableAllow {
                 driver_number: r0,
                 subdriver_number: r1.into(),
-                allow_address: r2.as_ptr_checked(r3.into(), MetaPermissions::Read) as *mut u8,
+                allow_address: r2.as_ptr_checked::<u8>(r3.into(), MetaPermissions::Read) as *mut u8,
                 allow_size: r3.into(),
             }),
             Ok(SyscallClass::ReadOnlyAllow) => Some(Syscall::ReadOnlyAllow {
                 driver_number: r0,
                 subdriver_number: r1.into(),
-                allow_address: r2.as_ptr_checked(r3.into(), MetaPermissions::Read) as *mut u8,
+                allow_address: r2.as_ptr_checked::<u8>(r3.into(), MetaPermissions::Read) as *mut u8,
                 allow_size: r3.into(),
             }),
             Ok(SyscallClass::Memop) => Some(Syscall::Memop {

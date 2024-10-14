@@ -10,10 +10,18 @@ use core::ops::AddAssign;
 /// A pointer with target specific metadata.
 /// This should be used any time the kernel wishes to grant authority to the user, or any time
 /// the user should be required to prove validity of a pointer.
-#[derive(Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[repr(transparent)]
 pub struct MetaPtr {
-    ptr: usize,
+    ptr: *const (),
+}
+
+impl Default for MetaPtr {
+    fn default() -> Self {
+        Self {
+            ptr: core::ptr::null(),
+        }
+    }
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -28,41 +36,43 @@ pub enum MetaPermissions {
 impl From<MetaPtr> for usize {
     #[inline]
     fn from(from: MetaPtr) -> Self {
-        from.ptr
+        from.ptr as usize
     }
 }
 
 impl From<usize> for MetaPtr {
     #[inline]
     fn from(from: usize) -> Self {
-        Self { ptr: from }
+        Self {
+            ptr: from as *const (),
+        }
     }
 }
 
 impl UpperHex for MetaPtr {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        UpperHex::fmt(&self.ptr, f)
+        UpperHex::fmt(&(self.ptr as usize), f)
     }
 }
 
 impl LowerHex for MetaPtr {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        LowerHex::fmt(&self.ptr, f)
+        LowerHex::fmt(&(self.ptr as usize), f)
     }
 }
 
 impl AddAssign<usize> for MetaPtr {
     #[inline]
     fn add_assign(&mut self, rhs: usize) {
-        self.ptr.add_assign(rhs)
+        self.ptr = (self.ptr as *const u8).wrapping_add(rhs) as *const ();
     }
 }
 
 impl MetaPtr {
-    pub fn as_ptr(&self) -> *const () {
-        self.ptr as *const ()
+    pub fn as_ptr<T>(&self) -> *const T {
+        self.ptr as *const T
     }
 
     /// Convert to a raw pointer, checking that metadata allows a particular set of permissions over
@@ -70,8 +80,8 @@ impl MetaPtr {
     /// If the metadata does not allow for this, returns null.
     /// If no such metadata exists, this succeeds.
     #[inline]
-    pub fn as_ptr_checked(&self, _length: usize, _perms: MetaPermissions) -> *const () {
-        self.ptr as *const ()
+    pub fn as_ptr_checked<T>(&self, _length: usize, _perms: MetaPermissions) -> *const T {
+        self.ptr as *const T
     }
 
     #[inline]
@@ -81,7 +91,7 @@ impl MetaPtr {
         _length: usize,
         _perms: MetaPermissions,
     ) -> Self {
-        Self { ptr: ptr as usize }
+        Self { ptr }
     }
 
     #[inline]
@@ -89,7 +99,7 @@ impl MetaPtr {
     where
         F: FnOnce(&Self) -> U,
     {
-        if self.ptr == 0usize {
+        if self.ptr.is_null() {
             default
         } else {
             f(self)
@@ -102,9 +112,7 @@ impl MetaPtr {
         D: FnOnce() -> U,
         F: FnOnce(&Self) -> U,
     {
-        let addr: usize = (*self).into();
-
-        if addr == 0 {
+        if self.ptr.is_null() {
             default()
         } else {
             f(self)
