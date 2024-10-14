@@ -7,9 +7,26 @@
 use core::fmt::{Formatter, LowerHex, UpperHex};
 use core::ops::AddAssign;
 
-/// A pointer with target specific metadata.
+/// A pointer with target specific metadata concerning validity or access rights.
+///
 /// This should be used any time the kernel wishes to grant authority to the user, or any time
 /// the user should be required to prove validity of a pointer.
+///
+/// Values that are just raw addresses but imply nothing about a rust object at that location
+/// should be `usize`.
+/// Values that are references, but do not cross the boundary between the user and the
+/// kernel (or do cross the boundary but are merely informative and do not imply any rights)
+/// can be `*const T` (or `&T` if the kernel knows they are valid).
+/// Values that are references, and do need to cross the boundary, should be this type.
+///
+/// For example, allow is meant to grant authority to the kernel to access a buffer, so is `MetaPtr`.
+/// When the user tells the kernel the location of its stack (for debug diagnostics) it need not
+/// be `MetaPtr` as the kernel is not making any access.
+///
+/// `MetaPtr` is also assumed to be wide enough that it could contain a raw pointer (`*const ()`) or
+/// A `usize`, possibly podding with extra bits. It is therefore an appropriate choice for the type
+/// of a register that may contain any one of these in the syscall ABI at a point where it is not
+/// yet clear which of these it is yet.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[repr(transparent)]
 pub struct MetaPtr {
