@@ -877,7 +877,7 @@ impl Kernel {
                         };
 
                         // TODO: when the compiler supports capability types bring this back
-                        // as a NonNull type.
+                        // as a NonNull type. https://github.com/tock/tock/issues/4134.
                         // First check if `upcall_ptr` is null. A null
                         // `upcall_ptr` will result in `None` here and
                         // represents the special "unsubscribe" operation.

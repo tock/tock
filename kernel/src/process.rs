@@ -791,6 +791,8 @@ pub trait Process {
     ///
     /// Returns `true` if the upcall function pointer is valid for this process,
     /// and `false` otherwise.
+    /// upcall_fn can eventually be a better type:
+    /// https://github.com/tock/tock/issues/4134
     fn is_valid_upcall_function_pointer(&self, upcall_fn: *const ()) -> bool;
 
     // functions for processes that are architecture specific

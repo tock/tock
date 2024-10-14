@@ -71,6 +71,7 @@ pub enum UpcallError {
 
 // FIXME: When we get CHERI compiler support, these can go back to the proper types
 // b/274586199
+// https://github.com/tock/tock/issues/4134
 pub(crate) type AppdataType = MetaPtr;
 pub(crate) type FnPtrType = MetaPtr;
 
