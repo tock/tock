@@ -53,7 +53,7 @@ Attendees:
 
 * Hudson: Does anyone else have any context about the want for using
   `usize`-sized return values? Jett posted issue #2981 -- he wants to have
-  `FailureUsize` and `SuccessUsize` return variants.
+  `FailureUsize` and `SUCCESS_USIZE` return variants.
 * Alyssa: I can give a bit of background on this. Essentially, it is because of
   host emulation, where `usize` is 64 bits. You can't really return pointers
   from Command anymore. [Editor's note: Alyssa's last sentence was hard to hear]
