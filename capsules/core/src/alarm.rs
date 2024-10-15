@@ -171,7 +171,10 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
                         ALARM_CALLBACK_NUM,
                         (
                             now.into_u32_left_justified() as usize,
-                            expired.reference.wrapping_add(expired.dt).into_usize(),
+                            expired
+                                .reference
+                                .wrapping_add(expired.dt)
+                                .into_u32_left_justified() as usize,
                             0,
                         ),
                     )
