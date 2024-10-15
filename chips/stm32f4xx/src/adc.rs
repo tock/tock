@@ -314,8 +314,8 @@ pub struct Adc<'a> {
 }
 
 impl<'a> Adc<'a> {
-    pub const fn new(clocks: &'a dyn Stm32f4Clocks) -> Adc {
-        Adc {
+    pub const fn new(clocks: &'a dyn Stm32f4Clocks) -> Self {
+        Self {
             registers: ADC1_BASE,
             common_registers: ADC_COMMON_BASE,
             clock: AdcClock(phclk::PeripheralClock::new(
