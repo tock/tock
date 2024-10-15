@@ -229,6 +229,8 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
         dt_u32: u32,
         expiration: &mut Option<Expiration<A::Ticks>>,
     ) -> u32 {
+        let reference_unshifted = reference_u32.map(|ref_u32| ref_u32 >> A::Ticks::u32_padding());
+
         // If the underlying timer is less than 32-bit wide, userspace is able
         // to provide a finer `reference` and `dt` resolution than we can
         // possibly represent in the kernel.
@@ -238,10 +240,27 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
         // with a precision unrepresentible using our Ticks object, we round
         // `reference` down, and `dt` up (ensuring that the timer cannot fire
         // earlier than requested).
-        let reference_unshifted = reference_u32.map(|ref_u32| ref_u32 >> A::Ticks::u32_padding());
+        let dt_unshifted = if let Some(reference_u32) = reference_u32 {
+	    // Computing unshifted dt for a userspace alarm can
+	    // underestimate dt in some cases where both reference and
+	    // dt had low-order bits that are rounded off by
+	    // unshifting. To ensure `dt` results in an actual
+	    // expiration that is at least as long as the expected
+	    // expiration in user space, compute unshifted dt from an
+	    // unshifted expiration.
+            let expiration_shifted = reference_u32.wrapping_add(dt_u32);
+            let expiration_unshifted =
+                if expiration_shifted & ((1 << A::Ticks::u32_padding()) - 1) != 0 {
+                    // By right-shifting, we would decrease the requested dt value,
+                    // firing _before_ the time requested by userspace. Add one to
+                    // compensate this:
+                    (expiration_shifted >> A::Ticks::u32_padding()) + 1
+                } else {
+                    expiration_shifted >> A::Ticks::u32_padding()
+                };
 
-        // Round dt up:
-        let dt_unshifted = if dt_u32 & ((1 << A::Ticks::u32_padding()) - 1) != 0 {
+            expiration_unshifted.wrapping_sub(reference_u32 >> A::Ticks::u32_padding())
+        } else if dt_u32 & ((1 << A::Ticks::u32_padding()) - 1) != 0 {
             // By right-shifting, we would decrease the requested dt value,
             // firing _before_ the time requested by userspace. Add one to
             // compensate this:
@@ -334,6 +353,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
             (Some(userspace_reference_unshifted), false) => {
                 // We have a userspace reference and timer is (less than) 32
                 // bit. Simply set to unshifted values:
+
                 Expiration {
                     reference: A::Ticks::from(userspace_reference_unshifted),
                     dt: A::Ticks::from(dt_unshifted),
@@ -878,6 +898,58 @@ mod test {
             // dt is rounded up to the next representable tick:
             ((u32::MAX - (42 << Ticks24::u32_padding())) >> Ticks24::u32_padding()) + 1
         );
+    }
+
+    #[test]
+    fn test_rearm_24bit_left_justified_ref_low_bits_basic() {
+        let mut expiration = None;
+
+        assert!(Ticks24::u32_padding() == 8);
+
+        let armed_time =
+            AlarmDriver::<MockAlarm<Ticks24, Freq10MHz>>::rearm_u32_left_justified_expiration(
+                // Current time:
+                Ticks24::from(0_u32),
+                // Userspace-provided reference:
+                Some(1_u32),
+                // Left-justified `dt` value:
+                3_u32,
+                // Reference to the `Option<Expiration>`, also used
+                // to update the counter of armed alarms:
+                &mut expiration,
+            );
+
+        let expiration = expiration.unwrap();
+
+        assert_eq!(armed_time, 1 << 8);
+        assert_eq!(expiration.reference.into_u32(), 0);
+        assert_eq!(expiration.dt.into_u32(), 1);
+    }
+
+    #[test]
+    fn test_rearm_24bit_left_justified_ref_low_bits_max_int() {
+        let mut expiration = None;
+
+        assert!(Ticks24::u32_padding() == 8);
+
+        let armed_time =
+            AlarmDriver::<MockAlarm<Ticks24, Freq10MHz>>::rearm_u32_left_justified_expiration(
+                // Current time:
+                Ticks24::from(6_u32),
+                // Userspace-provided reference:
+                Some(Ticks24::from(5_u32).into_u32_left_justified() - 43),
+                // Left-justified `dt` value:
+                Ticks24::from(2_u32).into_u32_left_justified() + 43,
+                // Reference to the `Option<Expiration>`, also used
+                // to update the counter of armed alarms:
+                &mut expiration,
+            );
+
+        let expiration = expiration.unwrap();
+
+        assert_eq!(armed_time, 7 << 8);
+        assert_eq!(expiration.reference.into_u32(), 4);
+        assert_eq!(expiration.dt, Ticks24::from(3));
     }
 
     #[test]
