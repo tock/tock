@@ -69,6 +69,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: treadmill-tb/treadmill
+          # treadmill-tb/treadmill main as of Oct 1, 2024, 3:05 PM EDT
+          ref: 'c82f4d7ebddd17f8275ba52139e64e04623f30cb'
           path: treadmill
 
       - name: Cache Treadmill CLI compilation artifacts
@@ -109,10 +111,19 @@ jobs:
           # Currently, all tests run only on hosts attached to an nRF52840DK
           DUT_BOARD: nrf52840dk
 
-          # A Ubuntu 22.04 image with a GitHub Actions self-hosted runner pre-configured.
+          # A Raspberry Pi OS netboot (NBD) image with a GitHub Actions
+          # self-hosted runner pre-configured.
           #
-          # For the available images see https://book.treadmill.ci/treadmillci-deployment/images.html
-          IMAGE_ID: 0373bb7d728b36cb6083cfe12f27038b71972ceb90563b0037d4012df7b62bf4
+          # For the available images see
+          # https://book.treadmill.ci/treadmillci-deployment/images.html
+          IMAGE_ID: 5f4b61324c27472b5354cd11229a0936320148cd6e852fbf05e1b7ff5b4598e6
+
+          # Limit the supervisors to hosts that are compatible with this
+          # image. This is a hack until we introduce "image sets" which define
+          # multiple images for various supervisor hosts, but otherwise behave
+          # identically:
+          HOST_TYPE: nbd-netboot
+          HOST_ARCH: arm64
         run: |
           # When we eventually launch tests on multiple hardware platforms in
           # parallel, we need to supply different SUB_TEST_IDs here:
@@ -144,14 +155,14 @@ jobs:
             }, \
             \"gh-actions-runner-exec-stop-post-sh\": {\
               \"secret\": false, \
-              \"value\": \"if [ \\\"\$SERVICE_RESULT\\\" = \\\"success\\\" ]; then systemctl poweroff; fi\" \
+              \"value\": \"if [ \\\"\$SERVICE_RESULT\\\" = \\\"success\\\" ]; then tml-puppet job terminate; fi\" \
             }\
           }"
 
           echo "Enqueueing treadmill job:"
           TML_JOB_ID_JSON="$(tml job enqueue \
             "$IMAGE_ID" \
-            --tag-config "board:$DUT_BOARD" \
+            --tag-config "board:$DUT_BOARD;host-type:$HOST_TYPE;host-arch:$HOST_ARCH" \
             --parameters "$TML_JOB_PARAMETERS" \
           )"
 
