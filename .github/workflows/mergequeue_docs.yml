@@ -28,7 +28,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - # This also sets up the rustup environment
         name: ci-netlify-build
         run: tools/netlify-build.sh
