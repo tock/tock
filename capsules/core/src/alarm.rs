@@ -241,13 +241,13 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
         // `reference` down, and `dt` up (ensuring that the timer cannot fire
         // earlier than requested).
         let dt_unshifted = if let Some(reference_u32) = reference_u32 {
-	    // Computing unshifted dt for a userspace alarm can
-	    // underestimate dt in some cases where both reference and
-	    // dt had low-order bits that are rounded off by
-	    // unshifting. To ensure `dt` results in an actual
-	    // expiration that is at least as long as the expected
-	    // expiration in user space, compute unshifted dt from an
-	    // unshifted expiration.
+            // Computing unshifted dt for a userspace alarm can
+            // underestimate dt in some cases where both reference and
+            // dt had low-order bits that are rounded off by
+            // unshifting. To ensure `dt` results in an actual
+            // expiration that is at least as long as the expected
+            // expiration in user space, compute unshifted dt from an
+            // unshifted expiration.
             let expiration_shifted = reference_u32.wrapping_add(dt_u32);
             let expiration_unshifted =
                 if expiration_shifted & ((1 << A::Ticks::u32_padding()) - 1) != 0 {
@@ -910,9 +910,9 @@ mod test {
             AlarmDriver::<MockAlarm<Ticks24, Freq10MHz>>::rearm_u32_left_justified_expiration(
                 // Current time:
                 Ticks24::from(0_u32),
-                // Userspace-provided reference:
+                // Userspace-provided reference, below minimum precision of Ticks24, will be rounded down:
                 Some(1_u32),
-                // Left-justified `dt` value:
+                // Left-justified `dt` value, below minimum precision of Ticks24, will be rounded up:
                 3_u32,
                 // Reference to the `Option<Expiration>`, also used
                 // to update the counter of armed alarms:
@@ -921,6 +921,7 @@ mod test {
 
         let expiration = expiration.unwrap();
 
+        // ((1 >> 8) + ((3 >> 8) + 1)  << 8) = 1
         assert_eq!(armed_time, 1 << 8);
         assert_eq!(expiration.reference.into_u32(), 0);
         assert_eq!(expiration.dt.into_u32(), 1);
@@ -936,9 +937,11 @@ mod test {
             AlarmDriver::<MockAlarm<Ticks24, Freq10MHz>>::rearm_u32_left_justified_expiration(
                 // Current time:
                 Ticks24::from(6_u32),
-                // Userspace-provided reference:
+                // Userspace-provided reference, including bits not representable in Ticks24:
+                // (5 << 8) - 43 = 1237
                 Some(Ticks24::from(5_u32).into_u32_left_justified() - 43),
-                // Left-justified `dt` value:
+                // Left-justified `dt` value, including bits not representable in Ticks24:
+                // (2 << 8) - 43 = 469
                 Ticks24::from(2_u32).into_u32_left_justified() + 43,
                 // Reference to the `Option<Expiration>`, also used
                 // to update the counter of armed alarms:
@@ -947,6 +950,13 @@ mod test {
 
         let expiration = expiration.unwrap();
 
+        // When we naively round down reference `(1237 / 256 ~= 4.83 -> 4)` and
+        // round up dt `(469 / 256 ~= 1.83 -> 2)` we'd arm the alarm to
+        // `2 + 4 = 6`. However, when considering the full resolution
+        // `reference + dt` `(1237 + 256) / 256 ~= 6.67` we can see that arming
+        // to `6` will have the alarm fire too early. The alarm rearm code needs
+        // to compensate for the case that (reference + dt) overflow and generate
+        // a dt from that rounded value, in this case `7`.
         assert_eq!(armed_time, 7 << 8);
         assert_eq!(expiration.reference.into_u32(), 4);
         assert_eq!(expiration.dt, Ticks24::from(3));
