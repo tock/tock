@@ -1329,10 +1329,10 @@ impl Pio {
         let pull_command = 0x8080_u32;
         // "out isr, 32" command created by pioasm
         let out_isr_32_command = 0x60c0_u32;
+        self.sm_set_enabled(sm_number, false);
         self.sm_config(sm_number, config);
         self.pio_number = pio_number;
         self.gpio_init(&RPGpioPin::new(RPGpio::from_u32(pin)));
-        self.sm_set_enabled(sm_number, false);
         self.set_pins_out(sm_number, pin, 1, true);
         self.set_side_set_pins(sm_number, pin);
         self.sm_init(sm_number);

@@ -1,16 +1,33 @@
-use crate::clocks;
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright OxidOS Automotive 2024.
+//
+// Author: Radu Matei <radu.matei.05.21@gmail.com>
+
+//! Programmable Input Output (PIO) hardware test file.
+use crate::clocks::{self, Clocks};
 use crate::gpio::RPGpio;
 use crate::pio::{PIONumber, Pio, SMNumber, StateMachineConfiguration};
 
-use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::{hil, ErrorCode};
 
 pub struct PioPwm<'a> {
     clocks: OptionalCell<&'a clocks::Clocks>,
+    pio: TakeCell<'a, Pio>,
 }
 
 impl<'a> PioPwm<'a> {
-    pub fn start_pwm() {}
+    pub fn new(pio: &'a mut Pio) -> Self {
+        Self {
+            clocks: OptionalCell::empty(),
+            pio: TakeCell::new(pio),
+        }
+    }
+
+    pub fn set_clocks(&self, clocks: &'a clocks::Clocks) {
+        self.clocks.set(clocks);
+    }
 }
 
 impl<'a> hil::pwm::Pwm for PioPwm<'a> {
@@ -22,8 +39,6 @@ impl<'a> hil::pwm::Pwm for PioPwm<'a> {
         frequency_hz: usize,
         duty_cycle_percentage: usize,
     ) -> Result<(), ErrorCode> {
-        let mut pio: Pio = Pio::new_pio0();
-
         // Ramps up the intensity of an LED using PWM.
         // .program pwm
         // .side_set 1 opt
@@ -41,34 +56,43 @@ impl<'a> hil::pwm::Pwm for PioPwm<'a> {
             0x90, 0x80, 0xa0, 0x27, 0xa0, 0x46, 0x00, 0xa5, 0x18, 0x06, 0xa0, 0x42, 0x00, 0x83,
         ];
 
-        pio.init();
-        pio.add_program(&path);
-        let mut custom_config = StateMachineConfiguration::default();
+        self.pio.map(|pio| {
+            pio.init();
+            pio.add_program(&path);
+            let mut custom_config = StateMachineConfiguration::default();
 
-        let pin_nr = pin as *const _ as u32;
-        custom_config.side_set_base = pin_nr;
-        custom_config.side_set_bit_count = 2;
-        custom_config.side_set_opt_enable = true;
-        custom_config.side_set_pindirs = false;
-        let max_freq = self.get_maximum_frequency_hz();
-        let pwm_period = (max_freq / frequency_hz) as u32;
-        let sm_number = SMNumber::SM0;
-        let duty_cycle = (duty_cycle_percentage / 100) as u32;
-        pio.pwm_program_init(
-            PIONumber::PIO0,
-            sm_number,
-            pin_nr,
-            pwm_period,
-            &custom_config,
-        );
-        pio.sm_put_blocking(sm_number, pwm_period * duty_cycle / 100);
+            let pin_nr = *pin as u32;
+            custom_config.side_set_base = pin_nr;
+            custom_config.side_set_bit_count = 2;
+            custom_config.side_set_opt_enable = true;
+            custom_config.side_set_pindirs = false;
+            let max_freq = self.get_maximum_frequency_hz();
+            let pwm_period = (max_freq / frequency_hz) as u32;
+
+            // pwm_period_us = 1_000_000 / frequency_hz
+            // pio_cycle_period_us = 1_000_000 / max_freq
+            // y -> pio_cycles
+            // pio_cycles = pwm_period_us / pio_cycle_period_us = max_freq / frequency_hz
+            // x -> pio_cycles * duty_cycle / self.get_maximum_duty_cycle()
+            let sm_number = SMNumber::SM0;
+            let duty_cycle = (duty_cycle_percentage / 100) as u32;
+            pio.pwm_program_init(
+                PIONumber::PIO0,
+                sm_number,
+                pin_nr,
+                pwm_period,
+                &custom_config,
+            );
+            pio.sm_put_blocking(sm_number, pwm_period * duty_cycle / 100);
+        });
+
         Ok(())
     }
 
     fn stop(&self, _pin: &Self::Pin) -> Result<(), ErrorCode> {
-        let pio: Pio = Pio::new_pio0();
         // pio.sm_put_blocking(SMNumber::SM0, 0);
-        pio.clear_instr_registers();
+
+        self.pio.map(|pio| pio.clear_instr_registers());
         Ok(())
     }
 
