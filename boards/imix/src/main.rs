@@ -716,7 +716,8 @@ unsafe fn start() -> (
         components::storage_permissions::individual::StoragePermissionsIndividualComponent::new()
             .finalize(
                 components::storage_permissions_individual_component_static!(
-                    sam4l::chip::Sam4l<Sam4lDefaultPeripherals>
+                    sam4l::chip::Sam4l<Sam4lDefaultPeripherals>,
+                    kernel::process::ProcessStandardDebugFull,
                 ),
             );
 
@@ -736,6 +737,7 @@ unsafe fn start() -> (
     )
     .finalize(components::process_loader_sequential_component_static!(
         sam4l::chip::Sam4l<Sam4lDefaultPeripherals>,
+        kernel::process::ProcessStandardDebugFull,
         NUM_PROCS
     ));
 

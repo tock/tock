@@ -32,6 +32,7 @@ pub use crate::process_loading::{ProcessLoadingAsync, ProcessLoadingAsyncClient}
 pub use crate::process_policies::{ProcessFaultPolicy, ProcessStandardStoragePermissionsPolicy};
 pub use crate::process_printer::{ProcessPrinter, ProcessPrinterContext};
 pub use crate::process_standard::ProcessStandard;
+pub use crate::process_standard::{ProcessStandardDebug, ProcessStandardDebugFull};
 
 /// Userspace process identifier.
 ///

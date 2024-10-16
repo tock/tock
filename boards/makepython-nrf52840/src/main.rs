@@ -659,7 +659,8 @@ pub unsafe fn start() -> (
         components::storage_permissions::individual::StoragePermissionsIndividualComponent::new()
             .finalize(
                 components::storage_permissions_individual_component_static!(
-                    nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>
+                    nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+                    kernel::process::ProcessStandardDebugFull,
                 ),
             );
 
@@ -679,6 +680,7 @@ pub unsafe fn start() -> (
     )
     .finalize(components::process_loader_sequential_component_static!(
         nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+        kernel::process::ProcessStandardDebugFull,
         NUM_PROCS
     ));
 

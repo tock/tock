@@ -17,13 +17,15 @@ use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::platform::chip::Chip;
+use kernel::process::ProcessStandardDebug;
 
 #[macro_export]
 macro_rules! storage_permissions_individual_component_static {
-    ($C:ty $(,)?) => {{
+    ($C:ty, $D:ty $(,)?) => {{
         kernel::static_buf!(
             capsules_system::storage_permissions::individual::IndividualStoragePermissions<
                 $C,
+                $D,
                 components::storage_permissions::individual::AppStoreCapability
             >
         )
@@ -33,34 +35,41 @@ macro_rules! storage_permissions_individual_component_static {
 pub struct AppStoreCapability;
 unsafe impl capabilities::ApplicationStorageCapability for AppStoreCapability {}
 
-pub type StoragePermissionsIndividualComponentType<C> =
+pub type StoragePermissionsIndividualComponentType<C, D> =
     capsules_system::storage_permissions::individual::IndividualStoragePermissions<
         C,
+        D,
         AppStoreCapability,
     >;
 
-pub struct StoragePermissionsIndividualComponent<C: Chip> {
+pub struct StoragePermissionsIndividualComponent<C: Chip, D: ProcessStandardDebug> {
     _chip: core::marker::PhantomData<C>,
+    _debug: core::marker::PhantomData<D>,
 }
 
-impl<C: Chip> StoragePermissionsIndividualComponent<C> {
+impl<C: Chip, D: ProcessStandardDebug> StoragePermissionsIndividualComponent<C, D> {
     pub fn new() -> Self {
         Self {
             _chip: core::marker::PhantomData,
+            _debug: core::marker::PhantomData,
         }
     }
 }
 
-impl<C: Chip + 'static> Component for StoragePermissionsIndividualComponent<C> {
+impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> Component
+    for StoragePermissionsIndividualComponent<C, D>
+{
     type StaticInput = &'static mut MaybeUninit<
         capsules_system::storage_permissions::individual::IndividualStoragePermissions<
             C,
+            D,
             AppStoreCapability,
         >,
     >;
     type Output =
         &'static capsules_system::storage_permissions::individual::IndividualStoragePermissions<
             C,
+            D,
             AppStoreCapability,
         >;
 
