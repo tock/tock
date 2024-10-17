@@ -62,6 +62,8 @@ impl<'a> hil::pwm::Pwm for PioPwm<'a> {
             let mut custom_config = StateMachineConfiguration::default();
 
             let pin_nr = *pin as u32;
+            custom_config.div_frac = 0;
+            custom_config.div_int = 1;
             custom_config.side_set_base = pin_nr;
             custom_config.side_set_bit_count = 2;
             custom_config.side_set_opt_enable = true;
@@ -75,7 +77,7 @@ impl<'a> hil::pwm::Pwm for PioPwm<'a> {
             // pio_cycles = pwm_period_us / pio_cycle_period_us = max_freq / frequency_hz
             // x -> pio_cycles * duty_cycle / self.get_maximum_duty_cycle()
             let sm_number = SMNumber::SM0;
-            let duty_cycle = (duty_cycle_percentage / 100) as u32;
+            let duty_cycle = duty_cycle_percentage as u32;
             pio.pwm_program_init(
                 PIONumber::PIO0,
                 sm_number,
