@@ -116,7 +116,7 @@ jobs:
           #
           # For the available images see
           # https://book.treadmill.ci/treadmillci-deployment/images.html
-          IMAGE_ID: 5f4b61324c27472b5354cd11229a0936320148cd6e852fbf05e1b7ff5b4598e6
+          IMAGE_ID: 1b6900eff30f37b6d012240f63aa77a22e20934e7f6ebf38e25310552dc08378
 
           # Limit the supervisors to hosts that are compatible with this
           # image. This is a hack until we introduce "image sets" which define
@@ -147,7 +147,8 @@ jobs:
 
           # Generate a set of job paramters that includes the GitHub runner
           # registration token and a script that shuts down the host once the
-          # runner has run through successfully:
+          # runner has run through successfully (and created a file indicating
+          # successful job completion, /run/github-actions-shutdown):
           TML_JOB_PARAMETERS="{\
             \"gh-actions-runner-encoded-jit-config\": {\
               \"secret\": true, \
@@ -155,7 +156,7 @@ jobs:
             }, \
             \"gh-actions-runner-exec-stop-post-sh\": {\
               \"secret\": false, \
-              \"value\": \"if [ \\\"\$SERVICE_RESULT\\\" = \\\"success\\\" ]; then tml-puppet job terminate; fi\" \
+              \"value\": \"if [ \\\"\$SERVICE_RESULT\\\" = \\\"success\\\" ] && [ -f /run/github-actions-shutdown ]; then tml-puppet job terminate; fi\" \
             }\
           }"
 
@@ -196,23 +197,78 @@ jobs:
         run: |
           echo "Treadmill job id: ${{ matrix.tml-job-id }}"
           echo "GitHub Actions Runner ID: ${{ fromJSON(needs.test-prepare.outputs.tml-jobs)[matrix.tml-job-id] }}"
-          echo "Network configration:"
-          ip address
-          echo "Attached USB devices:"
-          lsusb
-          echo "Parameters:"
+          echo "===== Parameters: ====="
           ls /run/tml/parameters
+          echo "===== User & group configuration: ====="
+          echo "whoami: $(whoami)"
+          echo "groups: $(groups)"
+          echo "===== Network configration: ====="
+          ip address
+          echo "===== Attached USB & serial console devices: ====="
+          lsusb
+          ls -lh /dev/ttyAMA* 2>/dev/null || true
+          ls -lh /dev/ttyACM* 2>/dev/null || true
+          ls -lh /dev/ttyUSB* 2>/dev/null || true
+          ls -lh /dev/bus/usb/*/* 2>/dev/null || true
+
+      - name: Disable wget progress output
+        run: |
+          echo "verbose = off" >> $HOME/.wgetrc
 
       - uses: actions/checkout@v4
 
       - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          # Avoid overwriting the RUSTFLAGS environment variable
+          rustflags: ""
 
-      - name: Build the Tock kernel
+      - name: Install required system packages
         run: |
-          pushd boards/nordic/nrf52840dk
-          unset RUSTFLAGS
-          make
-          popd
+          # TODO: currently, the Netboot NBD targets have no access to their
+          # boot parition (e.g., mounted on /boot/firmware) on a Raspberry Pi OS
+          # host. This causes certain hooks in response to dpkg / apt commands
+          # to fail. Thus we ignore errors in these steps until we figure this
+          # part out.
+          sudo DEBIAN_FRONTEND=noninteractive apt update || true
+          sudo DEBIAN_FRONTEND=noninteractive apt install -y \
+            git cargo openocd python3 python3-pip python3-serial \
+            python3-pexpect gcc-arm-none-eabi libnewlib-arm-none-eabi \
+            pkg-config libudev-dev cmake libusb-1.0-0-dev udev make \
+            gdb-multiarch gcc-arm-none-eabi build-essential || true
 
-      # TODO: this job runs on the Treadmill host, with access to the target
-      # board. Add additional test & testing scripts.
+          # Install probe-rs:
+          curl --proto '=https' --tlsv1.2 -LsSf \
+            https://github.com/probe-rs/probe-rs/releases/latest/download/probe-rs-tools-installer.sh \
+            | sh
+
+      - name: Create Python virtual environment and install required dependencies
+        run: |
+          python3 -m venv ./hwcienv
+          source ./hwcienv/bin/activate
+          pip install -r tools/hwci/requirements.txt -c tools/hwci/requirements-frozen.txt
+
+      - name: Run tests
+        run: |
+          source ./hwcienv/bin/activate
+          cd ./tools/hwci
+          export PYTHONPATH="$PWD:$PYTHONPATH"
+          python3 core/main.py --board boards/nrf52dk.py --test tests/c_hello.py
+
+      - name: Request shutdown after successful job completion
+        run: |
+          sudo touch /run/github-actions-shutdown
+
+      - name: Provide connection information on job failure
+        if: failure()
+        run: |
+          echo "This CI job has failed, we avoid terminating the Treadmill job"
+          echo "immediately. It will be active until it reaches its timeout."
+          echo ""
+          echo "If you added SSH keys to the `job enqueue` command, you can"
+          echo "open an interactive session to this host. Connection"
+          echo "information is available here:"
+          echo "https://book.treadmill.ci/treadmillci-deployment/sites.html"
+          echo ""
+          echo "TODO: print host / supervisor ID as part of workflow"
+          echo "TODO: determine public SSH endpoint automatically and print"
+          echo "TODO: allow adding SSH keys to running Treadmill jobs"
