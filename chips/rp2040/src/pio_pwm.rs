@@ -10,7 +10,7 @@ use crate::gpio::RPGpio;
 use crate::pio::{PIONumber, Pio, SMNumber, StateMachineConfiguration};
 
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::{hil, ErrorCode};
+use kernel::{debug, hil, ErrorCode};
 
 pub struct PioPwm<'a> {
     clocks: OptionalCell<&'a clocks::Clocks>,
@@ -70,12 +70,6 @@ impl<'a> hil::pwm::Pwm for PioPwm<'a> {
             custom_config.side_set_pindirs = false;
             let max_freq = self.get_maximum_frequency_hz();
             let pwm_period = (max_freq / frequency_hz) as u32;
-
-            // pwm_period_us = 1_000_000 / frequency_hz
-            // pio_cycle_period_us = 1_000_000 / max_freq
-            // y -> pio_cycles
-            // pio_cycles = pwm_period_us / pio_cycle_period_us = max_freq / frequency_hz
-            // x -> pio_cycles * duty_cycle / self.get_maximum_duty_cycle()
             let sm_number = SMNumber::SM0;
             let duty_cycle = duty_cycle_percentage as u32;
             pio.pwm_program_init(
@@ -85,23 +79,23 @@ impl<'a> hil::pwm::Pwm for PioPwm<'a> {
                 pwm_period,
                 &custom_config,
             );
-            pio.sm_put_blocking(sm_number, pwm_period * duty_cycle / 100);
+            pio.sm_put_blocking(
+                sm_number,
+                pwm_period * duty_cycle / (self.get_maximum_duty_cycle()) as u32,
+            );
         });
 
         Ok(())
     }
 
     fn stop(&self, _pin: &Self::Pin) -> Result<(), ErrorCode> {
-        // pio.sm_put_blocking(SMNumber::SM0, 0);
-
         self.pio.map(|pio| pio.clear_instr_registers());
         Ok(())
     }
 
     fn get_maximum_duty_cycle(&self) -> usize {
-        // u16::MAX as usize + 1
         // being a percentage, max duty cycle is 100
-        100
+        10000
     }
 
     fn get_maximum_frequency_hz(&self) -> usize {
