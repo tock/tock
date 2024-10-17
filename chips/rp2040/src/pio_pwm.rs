@@ -5,12 +5,12 @@
 // Author: Radu Matei <radu.matei.05.21@gmail.com>
 
 //! Programmable Input Output (PIO) hardware test file.
-use crate::clocks::{self, Clocks};
+use crate::clocks::{self};
 use crate::gpio::RPGpio;
 use crate::pio::{PIONumber, Pio, SMNumber, StateMachineConfiguration};
 
 use kernel::utilities::cells::{OptionalCell, TakeCell};
-use kernel::{debug, hil, ErrorCode};
+use kernel::{hil, ErrorCode};
 
 pub struct PioPwm<'a> {
     clocks: OptionalCell<&'a clocks::Clocks>,
