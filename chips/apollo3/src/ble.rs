@@ -8,6 +8,7 @@ use core::cell::Cell;
 use core::ptr::addr_of_mut;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
+use kernel::hil::passthrough;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -264,6 +265,7 @@ pub struct Ble<'a> {
     registers: StaticRef<BleRegisters>,
     rx_client: OptionalCell<&'a dyn ble_advertising::RxClient>,
     tx_client: OptionalCell<&'a dyn ble_advertising::TxClient>,
+    passthrough_client: OptionalCell<&'a dyn passthrough::Client>,
 
     buffer: TakeCell<'static, [u8]>,
     write_len: Cell<usize>,
@@ -272,12 +274,19 @@ pub struct Ble<'a> {
     read_index: Cell<usize>,
 }
 
+impl<'a> passthrough::PassThroughDevice<'a> for Ble<'a> {
+    fn set_client(&self, client: &'a dyn passthrough::Client) {
+        self.passthrough_client.set(client);
+    }
+}
+
 impl<'a> Ble<'a> {
     pub fn new() -> Self {
         Self {
             registers: BLE_BASE,
             rx_client: OptionalCell::empty(),
             tx_client: OptionalCell::empty(),
+            passthrough_client: OptionalCell::empty(),
             buffer: TakeCell::empty(),
             write_len: Cell::new(0),
             read_len: Cell::new(0),
@@ -363,67 +372,75 @@ impl<'a> Ble<'a> {
         // Disable and clear interrupts
         self.disable_interrupts();
 
-        if irqs.is_set(INT::BLECSSTAT) || irqs.is_set(INT::B2MST) {
-            // Enable interrupts
-            self.enable_interrupts();
+        // Pass the information to the device passthrough
+        // and then stop processing the interrupt
+        if self.passthrough_client.is_some() {
+            self.passthrough_client.map(|client| {
+                client.interrupt_occurred(irqs.get() as usize);
+            });
+        } else {
+            if irqs.is_set(INT::BLECSSTAT) || irqs.is_set(INT::B2MST) {
+                // Enable interrupts
+                self.enable_interrupts();
 
-            if self.registers.bstatus.is_set(BSTATUS::BLEIRQ) {
-                panic!("Read requested while trying to write");
+                if self.registers.bstatus.is_set(BSTATUS::BLEIRQ) {
+                    panic!("Read requested while trying to write");
+                }
+
+                if !self.registers.bstatus.is_set(BSTATUS::SPISTATUS) {
+                    panic!("SPI not ready");
+                }
+
+                // If we have data, send it
+                if self.buffer.is_some() {
+                    // Send the data
+                    self.send_data();
+                }
             }
 
-            if !self.registers.bstatus.is_set(BSTATUS::SPISTATUS) {
-                panic!("SPI not ready");
+            if irqs.is_set(INT::DCMP) {
+                // Disable and clear DMA
+                self.registers.dmacfg.set(0x00000000);
+
+                // Disable the wake controller
+                self.registers.blecfg.modify(BLECFG::WAKEUPCTL::OFF);
+
+                // Reset FIFOs
+                self.reset_fifo();
+
+                if self.buffer.is_some() {
+                    self.tx_client.map(|client| {
+                        client.transmit_event(self.buffer.take().unwrap(), Ok(()));
+                    });
+                }
+
+                self.enable_interrupts();
             }
 
-            // If we have data, send it
-            if self.buffer.is_some() {
-                // Send the data
-                self.send_data();
-            }
-        }
+            if irqs.is_set(INT::BLECIRQ) {
+                self.rx_client.map(|client| {
+                    self.registers
+                        .cmd
+                        .modify(CMD::TSIZE.val(0) + CMD::CMD::READ);
 
-        if irqs.is_set(INT::DCMP) {
-            // Disable and clear DMA
-            self.registers.dmacfg.set(0x00000000);
+                    unsafe {
+                        let mut i = 0;
 
-            // Disable the wake controller
-            self.registers.blecfg.modify(BLECFG::WAKEUPCTL::OFF);
+                        while self.registers.fifoptr.read(FIFOPTR::FIFO1SIZ) > 0 && i < 40 {
+                            let temp = self.registers.fifopop.get().to_ne_bytes();
 
-            // Reset FIFOs
-            self.reset_fifo();
+                            PAYLOAD[i + 0] = temp[0];
+                            PAYLOAD[i + 1] = temp[1];
+                            PAYLOAD[i + 2] = temp[2];
+                            PAYLOAD[i + 3] = temp[3];
 
-            if self.buffer.is_some() {
-                self.tx_client.map(|client| {
-                    client.transmit_event(self.buffer.take().unwrap(), Ok(()));
+                            i += 4;
+                        }
+
+                        client.receive_event(&mut *addr_of_mut!(PAYLOAD), 10, Ok(()));
+                    }
                 });
             }
-
-            self.enable_interrupts();
-        }
-
-        if irqs.is_set(INT::BLECIRQ) {
-            self.rx_client.map(|client| {
-                self.registers
-                    .cmd
-                    .modify(CMD::TSIZE.val(0) + CMD::CMD::READ);
-
-                unsafe {
-                    let mut i = 0;
-
-                    while self.registers.fifoptr.read(FIFOPTR::FIFO1SIZ) > 0 && i < 40 {
-                        let temp = self.registers.fifopop.get().to_ne_bytes();
-
-                        PAYLOAD[i + 0] = temp[0];
-                        PAYLOAD[i + 1] = temp[1];
-                        PAYLOAD[i + 2] = temp[2];
-                        PAYLOAD[i + 3] = temp[3];
-
-                        i += 4;
-                    }
-
-                    client.receive_event(&mut *addr_of_mut!(PAYLOAD), 10, Ok(()));
-                }
-            });
         }
     }
 
