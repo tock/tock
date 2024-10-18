@@ -418,7 +418,8 @@ pub struct DebugWriter {
 
 /// Static variable that holds the kernel's reference to the debug tool.
 ///
-/// This is needed so the debug!() macros have a reference to the object to use.
+/// This is needed so the `debug!()` macros have a reference to the object to
+/// use.
 static mut DEBUG_WRITER: Option<&'static mut DebugWriterWrapper> = None;
 
 unsafe fn try_get_debug_writer() -> Option<&'static mut DebugWriterWrapper> {

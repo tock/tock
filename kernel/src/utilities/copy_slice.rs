@@ -22,7 +22,7 @@ use core::ptr;
 pub trait CopyOrErr {
     /// Copy a non-overlapping slice from `src` to `self`.
     ///
-    /// This is a non-panicing version of [`slice::copy_from_slice`].
+    /// This is a non-panicking version of [`slice::copy_from_slice`].
     ///
     /// Returns `Err(ErrorCode)` if `src` and `self` are not the same length.
     fn copy_from_slice_or_err(&mut self, src: &Self) -> Result<(), ErrorCode>;
