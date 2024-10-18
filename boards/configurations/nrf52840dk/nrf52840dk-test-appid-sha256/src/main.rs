@@ -278,7 +278,8 @@ pub unsafe fn main() {
     let storage_permissions_policy =
         components::storage_permissions::null::StoragePermissionsNullComponent::new().finalize(
             components::storage_permissions_null_component_static!(
-                nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>
+                nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+                kernel::process::ProcessStandardDebugFull,
             ),
         );
 
@@ -298,6 +299,7 @@ pub unsafe fn main() {
     )
     .finalize(components::process_loader_sequential_component_static!(
         nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+        kernel::process::ProcessStandardDebugFull,
         NUM_PROCS
     ));
 

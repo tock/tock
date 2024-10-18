@@ -17,25 +17,36 @@ use kernel::storage_permissions::StoragePermissions;
 ///
 /// If the header is _not_ present, then the process will be assigned null
 /// permissions.
-pub struct TbfHeaderStoragePermissions<C: Chip, CAP: ApplicationStorageCapability> {
+pub struct TbfHeaderStoragePermissions<
+    C: Chip,
+    D: kernel::process::ProcessStandardDebug,
+    CAP: ApplicationStorageCapability,
+> {
     cap: CAP,
     _chip: core::marker::PhantomData<C>,
+    _debug: core::marker::PhantomData<D>,
 }
 
-impl<C: Chip, CAP: ApplicationStorageCapability> TbfHeaderStoragePermissions<C, CAP> {
+impl<C: Chip, D: kernel::process::ProcessStandardDebug, CAP: ApplicationStorageCapability>
+    TbfHeaderStoragePermissions<C, D, CAP>
+{
     pub fn new(cap: CAP) -> Self {
         Self {
             cap,
             _chip: core::marker::PhantomData,
+            _debug: core::marker::PhantomData,
         }
     }
 }
 
-impl<C: Chip, CAP: ApplicationStorageCapability>
-    kernel::process::ProcessStandardStoragePermissionsPolicy<C>
-    for TbfHeaderStoragePermissions<C, CAP>
+impl<C: Chip, D: kernel::process::ProcessStandardDebug, CAP: ApplicationStorageCapability>
+    kernel::process::ProcessStandardStoragePermissionsPolicy<C, D>
+    for TbfHeaderStoragePermissions<C, D, CAP>
 {
-    fn get_permissions(&self, process: &kernel::process::ProcessStandard<C>) -> StoragePermissions {
+    fn get_permissions(
+        &self,
+        process: &kernel::process::ProcessStandard<C, D>,
+    ) -> StoragePermissions {
         // If we have a fixed ShortId then this process can have storage
         // permissions. Otherwise we get null permissions.
         match process.short_app_id() {

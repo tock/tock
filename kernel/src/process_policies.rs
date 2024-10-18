@@ -12,6 +12,7 @@ use crate::platform::chip::Chip;
 use crate::process;
 use crate::process::Process;
 use crate::process_standard::ProcessStandard;
+use crate::process_standard::ProcessStandardDebug;
 use crate::storage_permissions::StoragePermissions;
 
 /// Generic trait for implementing a policy on what to do when a process faults.
@@ -26,16 +27,16 @@ pub trait ProcessFaultPolicy {
 
 /// Generic trait for implementing a policy on how applications should be
 /// assigned storage permissions.
-pub trait ProcessStandardStoragePermissionsPolicy<C: Chip> {
+pub trait ProcessStandardStoragePermissionsPolicy<C: Chip, D: ProcessStandardDebug> {
     /// Return the storage permissions for the specified `process`.
-    fn get_permissions(&self, process: &ProcessStandard<C>) -> StoragePermissions;
+    fn get_permissions(&self, process: &ProcessStandard<C, D>) -> StoragePermissions;
 }
 
 // Any platforms that do not issue storage permissions can use `&()` as the
 // [`ProcessStandardStoragePermissionsPolicy`]. This will only provide null
 // permissions (that is, no permission to access persistent storage).
-impl<C: Chip> ProcessStandardStoragePermissionsPolicy<C> for () {
-    fn get_permissions(&self, _process: &ProcessStandard<C>) -> StoragePermissions {
+impl<C: Chip, D: ProcessStandardDebug> ProcessStandardStoragePermissionsPolicy<C, D> for () {
+    fn get_permissions(&self, _process: &ProcessStandard<C, D>) -> StoragePermissions {
         StoragePermissions::new_null()
     }
 }
