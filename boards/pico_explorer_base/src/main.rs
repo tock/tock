@@ -20,6 +20,7 @@ use components::led::LedsComponent;
 use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
 use kernel::hil::led::LedHigh;
+use kernel::hil::pwm::Pwm;
 use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
@@ -34,6 +35,8 @@ use rp2040::clocks::{
     SystemAuxiliaryClockSource, SystemClockSource, UsbAuxiliaryClockSource,
 };
 use rp2040::gpio::{GpioFunction, RPGpio, RPGpioPin};
+use rp2040::pio::{PIONumber, Pio, SMNumber, StateMachineConfiguration};
+use rp2040::pio_pwm::PioPwm;
 use rp2040::resets::Peripheral;
 use rp2040::spi::Spi;
 use rp2040::sysinfo;
@@ -376,11 +379,8 @@ pub unsafe fn start() -> (
         .finalize(components::uart_mux_component_static!());
 
     // Uncomment this to use UART as an output
-    // let uart_mux = components::console::UartMuxComponent::new(
-    //     &peripherals.uart0,
-    //     115200,
-    // )
-    // .finalize(components::uart_mux_component_static!());
+    // let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
+    //     .finalize(components::uart_mux_component_static!());
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
@@ -693,6 +693,16 @@ pub unsafe fn start() -> (
         debug!("Error loading processes!");
         debug!("{:?}", err);
     });
+
+    //--------------------------------------------------------------------------
+    // PIO
+    //--------------------------------------------------------------------------
+
+    let mut pio: Pio = Pio::new_pio0();
+
+    let pio_pwm = PioPwm::new(&mut pio);
+    pio_pwm.set_clocks(&peripherals.clocks);
+    pio_pwm.start(&RPGpio::GPIO7, 12_500_000, 50).unwrap();
 
     (board_kernel, pico_explorer_base, chip)
 }
