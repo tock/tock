@@ -23,14 +23,15 @@ class TockloaderBoard(BoardHarness):
             subprocess.run(
                 ["git", "clone", "https://github.com/tock/libtock-c"], check=True
             )
-        app_dir = os.path.join("libtock-c", "examples", app)
+        app_path_parts = app.split("/")
+        app_dir = os.path.join("libtock-c", "examples", *app_path_parts)
         if not os.path.exists(app_dir):
             logging.error(f"App directory {app_dir} not found")
             raise FileNotFoundError(f"App directory {app_dir} not found")
         with self.change_directory(app_dir):
             logging.info(f"Building app: {app}")
             subprocess.run(["make", f"TOCK_TARGETS={self.arch}"], check=True)
-            tab_file = f"build/{app}.tab"
+            tab_file = f"build/{app_path_parts[-1]}.tab"
             if not os.path.exists(tab_file):
                 logging.error(f"Tab file {tab_file} not found")
                 raise FileNotFoundError(f"Tab file {tab_file} not found")

@@ -20,15 +20,13 @@
 name: treadmill-ci
 env:
   TERM: xterm # Makes tput work in actions output
-
 # Controls when the action will run. Triggers the workflow on pull request and
 # merge group checks:
 #
 # KEEP IN SYNC WITH `environment:` ATTRIBUTE BELOW:
 on:
   push:
-    branches:
-      - master
+  pull_request:
   # Pull requests from forks will not have access to the required GitHub API
   # secrets below, even if they are using an appropriate deployment environment
   # and the workflow runs have been approved according to this environment's
@@ -39,17 +37,13 @@ on:
   # allows this workflow to run without access to repository secrets.
   #pull_request:
   merge_group: # Run CI for the GitHub merge queue
-
 permissions:
   contents: read
-
 jobs:
   test-prepare:
     runs-on: ubuntu-latest
-
     # Do not run job on forks
-    if: github.repository == 'tock/tock'
-
+    if: github.repository == 'treadmill-tb/tock'
     # This provides access to the secrets required below:
     # - for `treadmill-ci`: after approval by certain persons or GH teams
     # - for `treadmill-ci-merged`: without approval, on merge queue branches
@@ -57,14 +51,11 @@ jobs:
     #
     # KEEP IN SYNC WITH `on:` EVENTS ABOVE:
     environment: ${{ github.event_name == 'pull_request' && 'treadmill-ci' || 'treadmill-ci-merged' }}
-
     outputs:
       tml-job-ids: ${{ steps.treadmill-job-launch.outputs.tml-job-ids }}
       tml-jobs: ${{ steps.treadmill-job-launch.outputs.tml-jobs }}
-
     steps:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-
       - name: Checkout Treadmill repository
         uses: actions/checkout@v4
         with:
@@ -72,59 +63,79 @@ jobs:
           # treadmill-tb/treadmill main as of Oct 1, 2024, 3:05 PM EDT
           ref: 'c82f4d7ebddd17f8275ba52139e64e04623f30cb'
           path: treadmill
-
       - name: Cache Treadmill CLI compilation artifacts
         id: cache-tml-cli
         uses: actions/cache@v4
         with:
           path: treadmill/target
           key: ${{ runner.os }}-tml-cli
-
       - name: Compile the Treadmill CLI binary
         run: |
           pushd treadmill
           cargo build --package tml-cli
           popd
           echo "$PWD/treadmill/target/debug" >> "$GITHUB_PATH"
-
-      # - uses: actions/checkout@v4
-      #   with:
-      #     path: tock
-
       # - name: Analyze changes and determine types of tests to run
       #   run: |
       #     echo "TODO: implement this!"
-
       - name: Generate a token to register new just-in-time runners
+        # - uses: actions/checkout@v4
+        #   with:
+        #     path: tock
+
         id: generate-token
         uses: actions/create-github-app-token@v1
         with:
           app-id: ${{ vars.TREADMILL_GH_APP_CLIENT_ID }}
           private-key: ${{ secrets.TREADMILL_GH_APP_PRIVATE_KEY }}
-
+          owner: ${{ github.repository_owner }}
       - name: Create GitHub just-in-time runners and enqueue Treadmill jobs
         id: treadmill-job-launch
         env:
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
           TML_API_TOKEN: ${{ secrets.TREADMILL_API_TOKEN }}
-
           # Currently, all tests run only on hosts attached to an nRF52840DK
           DUT_BOARD: nrf52840dk
-
           # A Raspberry Pi OS netboot (NBD) image with a GitHub Actions
           # self-hosted runner pre-configured.
           #
           # For the available images see
           # https://book.treadmill.ci/treadmillci-deployment/images.html
           IMAGE_ID: 1b6900eff30f37b6d012240f63aa77a22e20934e7f6ebf38e25310552dc08378
-
           # Limit the supervisors to hosts that are compatible with this
           # image. This is a hack until we introduce "image sets" which define
           # multiple images for various supervisor hosts, but otherwise behave
           # identically:
           HOST_TYPE: nbd-netboot
           HOST_ARCH: arm64
+          # List of tests to run (as test names corresponding to the test scripts)
+          TESTS: |
+            tests/ble_env_sense.py
+            tests/ble_advertising.py
+            tests/ble_passive_scanning.py
+            tests/c_hello.py
+            tests/printf_long.py
+            tests/c_hello_and_printf_long.py
+            tests/sensors.py
+            tests/console_recv_short.py
+            tests/console_recv_long.py
+            tests/lua_hello.py
+            tests/malloc_test01.py
+            tests/malloc_test02.py
+            tests/stack_size_test01.py
+            tests/stack_size_test02.py
+            tests/mpu_stack_growth.py
+            tests/mpu_walk_region.py
+            tests/adc.py
+            tests/adc_continuous.py
+            tests/ipc_logic.py
+            tests/gpio_interrupt.py
+            tests/whileone.py
+            tests/multi_alarm_simple_test.py
         run: |
+          # Read the list of tests and convert to JSON array
+          TEST_LIST=$(echo "$TESTS" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+
           # When we eventually launch tests on multiple hardware platforms in
           # parallel, we need to supply different SUB_TEST_IDs here:
           SUB_TEST_ID="0"
@@ -180,18 +191,20 @@ jobs:
           echo "tml-jobs={ \
             \"$TML_JOB_ID\": { \
               \"runner-id\": \"$RUNNER_ID\", \
+              \"tests\": $TEST_LIST \
             } \
           }" >> "$GITHUB_OUTPUT"
-
   test-execute:
     needs: test-prepare
-
     strategy:
       matrix:
         tml-job-id: ${{ fromJSON(needs.test-prepare.outputs.tml-job-ids) }}
-
-    runs-on: ${{ fromJSON(needs.test-prepare.outputs.tml-jobs)[matrix.tml-job-id].runner-id }}
-
+        test: ${{ fromJSON(needs.test-prepare.outputs.tml-jobs)[matrix.tml-job-id].tests }}
+        include:
+          - tml-job-id: ${{ fromJSON(needs.test-prepare.outputs.tml-job-ids)[0] }}
+            runner-id: ${{ fromJSON(needs.test-prepare.outputs.tml-jobs)[matrix.tml-job-id].runner-id }}
+            test: ${{ fromJSON(needs.test-prepare.outputs.tml-jobs)[matrix.tml-job-id].tests }}
+    runs-on: ${{ matrix.runner-id }}
     steps:
       - name: Print Treadmill Job Context and Debug Information
         run: |
@@ -210,18 +223,14 @@ jobs:
           ls -lh /dev/ttyACM* 2>/dev/null || true
           ls -lh /dev/ttyUSB* 2>/dev/null || true
           ls -lh /dev/bus/usb/*/* 2>/dev/null || true
-
       - name: Disable wget progress output
         run: |
           echo "verbose = off" >> $HOME/.wgetrc
-
       - uses: actions/checkout@v4
-
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           # Avoid overwriting the RUSTFLAGS environment variable
-          rustflags: ""
-
+          rustflags: ''
       - name: Install required system packages
         run: |
           # TODO: currently, the Netboot NBD targets have no access to their
@@ -240,24 +249,21 @@ jobs:
           curl --proto '=https' --tlsv1.2 -LsSf \
             https://github.com/probe-rs/probe-rs/releases/latest/download/probe-rs-tools-installer.sh \
             | sh
-
       - name: Create Python virtual environment and install required dependencies
         run: |
           python3 -m venv ./hwcienv
           source ./hwcienv/bin/activate
           pip install -r tools/hwci/requirements.txt -c tools/hwci/requirements-frozen.txt
-
-      - name: Run tests
+      - name: Run test ${{ matrix.test }}
         run: |
           source ./hwcienv/bin/activate
           cd ./tools/hwci
           export PYTHONPATH="$PWD:$PYTHONPATH"
-          python3 core/main.py --board boards/nrf52dk.py --test tests/c_hello.py
-
+          python3 core/main.py --board boards/nrf52dk.py --test ${{ matrix.test }}
       - name: Request shutdown after successful job completion
+        if: ${{ matrix.test == fromJSON(needs.test-prepare.outputs.tml-jobs)[matrix.tml-job-id].tests[-1] }}
         run: |
           sudo touch /run/github-actions-shutdown
-
       - name: Provide connection information on job failure
         if: failure()
         run: |
