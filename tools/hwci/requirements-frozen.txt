@@ -1,0 +1,14 @@
+argcomplete==3.5.1
+colorama==0.4.6
+crcmod==1.7
+pexpect==4.9.0
+prompt-toolkit==3.0.36
+ptyprocess==0.7.0
+pycryptodome==3.21.0
+pyserial==3.5
+questionary==2.0.1
+siphash==0.0.1
+tockloader==1.13.0
+toml==0.10.2
+tqdm==4.66.5
+wcwidth==0.2.13
