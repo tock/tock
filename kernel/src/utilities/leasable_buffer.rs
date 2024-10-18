@@ -143,9 +143,8 @@
 //! will be called prior to passing the buffer down to lower layers, and
 //! `reset()` will be called once the `SubSlice` is returned via a callback.
 //!
-//!  ```rust
+//! ```rust
 //! # use kernel::utilities::leasable_buffer::SubSlice;
-//!
 //! let mut internal = ['a', 'b', 'c', 'd'];
 //! let original_base_addr = internal.as_ptr();
 //!
@@ -164,8 +163,8 @@
 //! assert_eq!((buffer[0], buffer[1]), ('a', 'b'));
 //!
 //!  ```
-//!
-//! Author: Amit Levy
+
+// Author: Amit Levy
 
 use core::ops::{Bound, Range, RangeBounds};
 use core::ops::{Index, IndexMut};
