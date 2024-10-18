@@ -792,8 +792,18 @@ impl<'a, A: Alarm<'a>, B: Bus<'a, BusAddr8>, P: Pin> screen::Screen<'a> for ST77
         }
     }
 
-    fn write(&self, data: SubSliceMut<'static, u8>, continue_write: bool) -> Result<(), ErrorCode> {
+    fn write(
+        &self,
+        mut data: SubSliceMut<'static, u8>,
+        continue_write: bool,
+    ) -> Result<(), ErrorCode> {
         if self.status.get() == Status::Idle {
+            // Data is provided as RGB565 ( RRRRR GGG | GGG BBBBB ), but the device expects it to come over the bus in little endian, so ( GGG BBBBB | RRRRR GGG ).
+            // TODO(alevy): replace `chunks_mut` wit `array_chunks` when stable.
+            for pair in data.as_slice().chunks_mut(2) {
+                pair.swap(0, 1);
+            }
+
             self.setup_command.set(false);
             let len = data.len();
             self.write_buffer.replace(data.take());
