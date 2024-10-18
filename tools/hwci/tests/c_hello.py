@@ -2,6 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright Tock Contributors 2024.
 
-from tests.console_hello_test import WaitForConsoleMessageTest
+from utils.test_helpers import WaitForConsoleMessageTest
 
 test = WaitForConsoleMessageTest(["c_hello"], "Hello World!")
