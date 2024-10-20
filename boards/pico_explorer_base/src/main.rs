@@ -35,7 +35,7 @@ use rp2040::clocks::{
     SystemAuxiliaryClockSource, SystemClockSource, UsbAuxiliaryClockSource,
 };
 use rp2040::gpio::{GpioFunction, RPGpio, RPGpioPin};
-use rp2040::pio::{PIONumber, Pio, SMNumber, StateMachineConfiguration};
+use rp2040::pio::Pio;
 use rp2040::pio_pwm::PioPwm;
 use rp2040::resets::Peripheral;
 use rp2040::spi::Spi;
