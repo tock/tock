@@ -53,9 +53,10 @@ use core::mem::size_of;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::can;
-use kernel::processbuffer::{ProcessSliceBuffer, ReadableProcessBuffer, WriteableProcessBuffer};
+use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::streaming_process_slice::StreamingProcessSlice;
 use kernel::ErrorCode;
 use kernel::ProcessId;
 
@@ -445,60 +446,48 @@ impl<'a, Can: can::Can> can::ReceiveClient<{ can::STANDARD_CAN_PACKET_SIZE }>
         _len: usize,
         status: Result<(), can::Error>,
     ) {
-        let mut new_buffer = false;
-        let mut shared_len = 0;
         match status {
             Ok(()) => {
-                match self.processid.map_or(Err(ErrorCode::NOMEM), |processid| {
-                    self.processes
-                        .enter(processid, |app_data, kernel_data| {
-                            kernel_data
-                                .get_readwrite_processbuffer(rw_allow::RW_ALLOW_BUFFER)
-                                .map_or_else(
-                                    |err| err.into(),
-                                    |buffer_ref| {
-                                        buffer_ref
-                                            .mut_enter(|user_slice| {
-                                                let user_buffer =
-                                                    ProcessSliceBuffer::new(user_slice);
-                                                shared_len = user_buffer.offset()?;
-                                                // This uses the ringbuffer interpretation of the
-                                                // ProcessBufferSlice
-                                                new_buffer = match user_buffer.offset() {
-                                                    Err(ErrorCode::INVAL) => {
-                                                        user_buffer.reset().map(|()| 0)
-                                                    }
-                                                    value => value,
-                                                }? == 0;
-                                                user_buffer.append(buffer).inspect_err(|_err| {
-                                                    app_data.lost_messages += 1;
+                let res: Result<(bool, u32), ErrorCode> =
+                    self.processid.map_or(Err(ErrorCode::NOMEM), |processid| {
+                        self.processes
+                            .enter(processid, |app_data, kernel_data| {
+                                kernel_data
+                                    .get_readwrite_processbuffer(rw_allow::RW_ALLOW_BUFFER)
+                                    .map_or_else(
+                                        |err| Err(err.into()),
+                                        |buffer_ref| {
+                                            buffer_ref
+                                                .mut_enter(|user_slice| {
+                                                    StreamingProcessSlice::new(user_slice)
+                                                        .append_chunk(buffer)
+                                                        .inspect_err(|_err| {
+                                                            app_data.lost_messages += 1;
+                                                        })
                                                 })
-                                            })
-                                            .unwrap_or_else(|err| err.into())
-                                    },
-                                )
-                        })
-                        .unwrap_or_else(|err| err.into())
-                }) {
+                                                .unwrap_or_else(|err| Err(err.into()))
+                                        },
+                                    )
+                            })
+                            .unwrap_or_else(|err| Err(err.into()))
+                    });
+
+                match res {
                     Err(err) => self.schedule_callback(
                         up_calls::UPCALL_TRANSMISSION_ERROR,
                         (error_upcalls::ERROR_RX, err as usize, 0),
                     ),
-                    Ok(()) => {
-                        if new_buffer {
-                            self.schedule_callback(
-                                up_calls::UPCALL_MESSAGE_RECEIVED,
-                                (
-                                    0,
-                                    shared_len,
-                                    match id {
-                                        can::Id::Standard(u16) => u16 as usize,
-                                        can::Id::Extended(u32) => u32 as usize,
-                                    },
-                                ),
-                            )
-                        }
-                    }
+                    Ok((_first_chunk, new_offset)) => self.schedule_callback(
+                        up_calls::UPCALL_MESSAGE_RECEIVED,
+                        (
+                            0,
+                            new_offset as usize,
+                            match id {
+                                can::Id::Standard(u16) => u16 as usize,
+                                can::Id::Extended(u32) => u32 as usize,
+                            },
+                        ),
+                    ),
                 }
             }
             Err(err) => {
