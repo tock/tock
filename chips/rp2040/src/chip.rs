@@ -13,6 +13,7 @@ use crate::clocks::Clocks;
 use crate::gpio::{RPGpio, RPPins, SIO};
 use crate::i2c;
 use crate::interrupts;
+use crate::pio::Pio;
 use crate::pwm;
 use crate::resets::Resets;
 use crate::rtc;
@@ -123,6 +124,8 @@ pub struct Rp2040DefaultPeripherals<'a> {
     pub clocks: Clocks,
     pub i2c0: i2c::I2c<'a, 'a>,
     pub pins: RPPins<'a>,
+    pub pio0: Pio,
+    pub pio1: Pio,
     pub pwm: pwm::Pwm<'a>,
     pub resets: Resets,
     pub sio: SIO,
@@ -144,6 +147,8 @@ impl<'a> Rp2040DefaultPeripherals<'a> {
             clocks: Clocks::new(),
             i2c0: i2c::I2c::new_i2c0(),
             pins: RPPins::new(),
+            pio0: Pio::new_pio0(),
+            pio1: Pio::new_pio1(),
             pwm: pwm::Pwm::new(),
             resets: Resets::new(),
             sio: SIO::new(),
@@ -176,6 +181,13 @@ impl<'a> Rp2040DefaultPeripherals<'a> {
 impl InterruptService for Rp2040DefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
+            interrupts::PIO0_IRQ_0 => {
+                // As the current PIO interface does not provide support for interrupts, they are
+                // simply ignored.
+                //
+                // Note that PIO interrupts are raised only during unit tests.
+                true
+            }
             interrupts::TIMER_IRQ_0 => {
                 self.timer.handle_interrupt();
                 true
