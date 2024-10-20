@@ -30,3 +30,6 @@
 /tools/license-checker/testdata/many_errors.rs
 /tools/license-checker/testdata/no_copyright.rs
 /tools/license-checker/testdata/no_spdx.rs
+
+# The requirements-frozen.txt file does not support comments
+/tools/hwci/requirements-frozen.txt
