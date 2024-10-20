@@ -6,24 +6,27 @@ use kernel::platform::chip::Chip;
 use kernel::storage_permissions::StoragePermissions;
 
 /// Always assign no storage permissions.
-pub struct NullStoragePermissions<C: Chip> {
+pub struct NullStoragePermissions<C: Chip, D: kernel::process::ProcessStandardDebug> {
     _chip: core::marker::PhantomData<C>,
+    _debug: core::marker::PhantomData<D>,
 }
 
-impl<C: Chip> NullStoragePermissions<C> {
+impl<C: Chip, D: kernel::process::ProcessStandardDebug> NullStoragePermissions<C, D> {
     pub fn new() -> Self {
         Self {
             _chip: core::marker::PhantomData,
+            _debug: core::marker::PhantomData,
         }
     }
 }
 
-impl<C: Chip> kernel::process::ProcessStandardStoragePermissionsPolicy<C>
-    for NullStoragePermissions<C>
+impl<C: Chip, D: kernel::process::ProcessStandardDebug>
+    kernel::process::ProcessStandardStoragePermissionsPolicy<C, D>
+    for NullStoragePermissions<C, D>
 {
     fn get_permissions(
         &self,
-        _process: &kernel::process::ProcessStandard<C>,
+        _process: &kernel::process::ProcessStandard<C, D>,
     ) -> StoragePermissions {
         StoragePermissions::new_null()
     }
