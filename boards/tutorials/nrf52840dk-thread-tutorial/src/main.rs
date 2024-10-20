@@ -13,11 +13,11 @@
 use core::ptr::addr_of_mut;
 
 use kernel::component::Component;
-use kernel::debug;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::{capabilities, create_capability};
 use nrf52840::gpio::Pin;
-use nrf52840dk_lib::{self, PROCESSES};
+use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
+use nrf52840dk_lib::{self, NUM_PROCS, PROCESSES};
 
 type ScreenDriver = components::screen::ScreenComponentType;
 
@@ -161,6 +161,9 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
     // NONVOLATILE STORAGE
     //--------------------------------------------------------------------------
+    // How many bytes of nonvolatile storage to allocate
+    // to each app
+    const NONVOLATILE_REGION_SIZE_PER_APP: usize = 2048;
 
     // 32kB of userspace-accessible storage, page aligned:
     kernel::storage_volume!(APP_STORAGE, 32);
@@ -174,6 +177,7 @@ pub unsafe fn main() {
         // No kernel-writeable flash:
         core::ptr::null::<()>() as usize,
         0,
+        NONVOLATILE_REGION_SIZE_PER_APP,
     )
     .finalize(components::nonvolatile_storage_component_static!(
         nrf52840::nvmc::Nvmc
@@ -203,28 +207,52 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
+    //--------------------------------------------------------------------------
+    // CREDENTIAL CHECKING
+    //--------------------------------------------------------------------------
 
-    kernel::process::load_processes(
+    // Create the credential checker.
+    let checking_policy = components::appid::checker_null::AppCheckerNullComponent::new()
+        .finalize(components::app_checker_null_component_static!());
+
+    // Create the AppID assigner.
+    let assigner = components::appid::assigner_name::AppIdAssignerNamesComponent::new()
+        .finalize(components::appid_assigner_names_component_static!());
+
+    // Create the process checking machine.
+    let checker = components::appid::checker::ProcessCheckerMachineComponent::new(checking_policy)
+        .finalize(components::process_checker_machine_component_static!());
+
+    //--------------------------------------------------------------------------
+    // STORAGE PERMISSIONS
+    //--------------------------------------------------------------------------
+
+    let storage_permissions_policy =
+        components::storage_permissions::individual::StoragePermissionsIndividualComponent::new()
+            .finalize(
+                components::storage_permissions_individual_component_static!(
+                    nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>
+                ),
+            );
+
+    //--------------------------------------------------------------------------
+    // PROCESS LOADING
+    //--------------------------------------------------------------------------
+
+    // Create and start the asynchronous process loader.
+    let _loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
+        checker,
+        &mut *addr_of_mut!(PROCESSES),
         board_kernel,
         chip,
-        core::slice::from_raw_parts(
-            core::ptr::addr_of!(_sapps),
-            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-        ),
-        core::slice::from_raw_parts_mut(
-            core::ptr::addr_of_mut!(_sappmem),
-            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
-        ),
-        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
-        &process_management_capability,
+        assigner,
+        storage_permissions_policy,
     )
-    .unwrap_or_else(|err| {
-        debug!("Error loading processes!");
-        debug!("{:?}", err);
-    });
+    .finalize(components::process_loader_sequential_component_static!(
+        nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+        NUM_PROCS
+    ));
 
     board_kernel.kernel_loop(
         &platform,
