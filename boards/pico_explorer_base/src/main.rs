@@ -702,7 +702,14 @@ pub unsafe fn start() -> (
 
     let pio_pwm = PioPwm::new(&mut pio);
     pio_pwm.set_clocks(&peripherals.clocks);
-    pio_pwm.start(&RPGpio::GPIO7, 12_500_000, 50).unwrap();
+    // This will start a PWM with PIO with the set frequency and duty cycle on the specified pin.
+    // pio_pwm
+    //     .start(
+    //         &RPGpio::GPIO7,
+    //         pio_pwm.get_maximum_frequency_hz() / 125000, /*1_000*/
+    //         pio_pwm.get_maximum_duty_cycle() / 2,
+    //     )
+    //     .unwrap();
 
     (board_kernel, pico_explorer_base, chip)
 }
