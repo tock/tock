@@ -69,7 +69,7 @@ impl<'a> hil::pwm::Pwm for PioPwm<'a> {
             custom_config.side_set_opt_enable = true;
             custom_config.side_set_pindirs = false;
             let max_freq = self.get_maximum_frequency_hz();
-            let pwm_period = (max_freq / frequency_hz) as u32;
+            let pwm_period = ((max_freq / frequency_hz) / 3) as u32;
             let sm_number = SMNumber::SM0;
             let duty_cycle = duty_cycle_percentage as u32;
             pio.pwm_program_init(
@@ -94,10 +94,12 @@ impl<'a> hil::pwm::Pwm for PioPwm<'a> {
     }
 
     fn get_maximum_duty_cycle(&self) -> usize {
-        // being a percentage, max duty cycle is 100
+        // being a percentage out of 10000, max duty cycle is 10000
         10000
     }
 
+    // For the rp2040, this will always return 125_000_000. Watch out as any value above
+    // 1_000_000 is not precise and WILL give modified frequency and duty cycle values.
     fn get_maximum_frequency_hz(&self) -> usize {
         self.clocks
             .unwrap_or_panic()
