@@ -8,6 +8,7 @@
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::platform::chip::Chip;
+use kernel::process::ProcessStandardDebug;
 
 #[macro_export]
 macro_rules! storage_permissions_tbf_header_component_static {
@@ -24,34 +25,41 @@ macro_rules! storage_permissions_tbf_header_component_static {
 pub struct AppStoreCapability;
 unsafe impl kernel::capabilities::ApplicationStorageCapability for AppStoreCapability {}
 
-pub type StoragePermissionsTbfHeaderComponentType<C> =
+pub type StoragePermissionsTbfHeaderComponentType<C, D> =
     capsules_system::storage_permissions::tbf_header::TbfHeaderStoragePermissions<
         C,
+        D,
         AppStoreCapability,
     >;
 
-pub struct StoragePermissionsTbfHeaderComponent<C: Chip> {
+pub struct StoragePermissionsTbfHeaderComponent<C: Chip, D: ProcessStandardDebug> {
     _chip: core::marker::PhantomData<C>,
+    _debug: core::marker::PhantomData<D>,
 }
 
-impl<C: Chip> StoragePermissionsTbfHeaderComponent<C> {
+impl<C: Chip, D: ProcessStandardDebug> StoragePermissionsTbfHeaderComponent<C, D> {
     pub fn new() -> Self {
         Self {
             _chip: core::marker::PhantomData,
+            _debug: core::marker::PhantomData,
         }
     }
 }
 
-impl<C: Chip + 'static> Component for StoragePermissionsTbfHeaderComponent<C> {
+impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> Component
+    for StoragePermissionsTbfHeaderComponent<C, D>
+{
     type StaticInput = &'static mut MaybeUninit<
         capsules_system::storage_permissions::tbf_header::TbfHeaderStoragePermissions<
             C,
+            D,
             AppStoreCapability,
         >,
     >;
     type Output =
         &'static capsules_system::storage_permissions::tbf_header::TbfHeaderStoragePermissions<
             C,
+            D,
             AppStoreCapability,
         >;
 

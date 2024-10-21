@@ -32,7 +32,7 @@ jobs:
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/setup-node@v3
       - name:      ci-job-format
         run:  make ci-job-format
@@ -50,7 +50,7 @@ jobs:
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name:      ci-job-clippy
         run:  make ci-job-clippy
 
@@ -61,7 +61,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name:      ci-job-syntax
         run:  make ci-job-syntax
       - name:      ci-job-compilation
@@ -91,7 +91,7 @@ jobs:
         run: |
           sudo apt install libudev-dev libzmq3-dev
         if: matrix.os == 'ubuntu-latest'
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name:      ci-job-libraries
         run:  make ci-job-libraries
       - name:      ci-job-archs
@@ -121,6 +121,6 @@ jobs:
         continue-on-error: true
         run: |
           sudo apt install meson
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name:      ci-job-qemu
         run:  make ci-job-qemu

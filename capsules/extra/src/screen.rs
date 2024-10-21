@@ -49,7 +49,7 @@ fn screen_rotation_from(screen_rotation: usize) -> Option<ScreenRotation> {
 fn screen_pixel_format_from(screen_pixel_format: usize) -> Option<ScreenPixelFormat> {
     match screen_pixel_format {
         0 => Some(ScreenPixelFormat::Mono),
-        1 => Some(ScreenPixelFormat::RGB_233),
+        1 => Some(ScreenPixelFormat::RGB_332),
         2 => Some(ScreenPixelFormat::RGB_565),
         3 => Some(ScreenPixelFormat::RGB_888),
         4 => Some(ScreenPixelFormat::ARGB_8888),

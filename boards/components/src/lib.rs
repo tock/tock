@@ -74,6 +74,7 @@ pub mod rng;
 pub mod sched;
 pub mod screen;
 pub mod segger_rtt;
+pub mod servo;
 pub mod sh1106;
 pub mod sha;
 pub mod sht3x;

@@ -5,7 +5,7 @@
 use crate::clocks::{phclk, Stm32f4Clocks};
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
-use kernel::hil::bus8080::{Bus8080, BusWidth, Client};
+use kernel::hil::bus8080::{Bus8080, BusAddr8080, BusWidth, Client};
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
@@ -315,9 +315,9 @@ impl ClockInterface for FsmcClock<'_> {
 }
 
 impl Bus8080<'static> for Fsmc<'_> {
-    fn set_addr(&self, addr_width: BusWidth, addr: usize) -> Result<(), ErrorCode> {
-        match addr_width {
-            BusWidth::Bits8 => {
+    fn set_addr(&self, addr: BusAddr8080) -> Result<(), ErrorCode> {
+        match addr {
+            BusAddr8080::BusAddr8(addr) => {
                 self.write_reg(FsmcBanks::Bank1, addr as u16);
                 self.deferred_call.set();
                 Ok(())

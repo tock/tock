@@ -28,6 +28,7 @@ use crate::process_checker::{AppIdPolicy, ProcessCheckError, ProcessCheckerMachi
 use crate::process_policies::ProcessFaultPolicy;
 use crate::process_policies::ProcessStandardStoragePermissionsPolicy;
 use crate::process_standard::ProcessStandard;
+use crate::process_standard::{ProcessStandardDebug, ProcessStandardDebugFull};
 use crate::utilities::cells::{MapCell, OptionalCell};
 
 /// Errors that can occur when trying to load and create processes.
@@ -142,7 +143,7 @@ pub fn load_processes<C: Chip>(
     fault_policy: &'static dyn ProcessFaultPolicy,
     _capability_management: &dyn ProcessManagementCapability,
 ) -> Result<(), ProcessLoadError> {
-    load_processes_from_flash(
+    load_processes_from_flash::<C, ProcessStandardDebugFull>(
         kernel,
         chip,
         app_flash,
@@ -183,7 +184,7 @@ pub fn load_processes<C: Chip>(
 /// `ProcessLoadError` if something goes wrong during TBF parsing or process
 /// creation.
 #[inline(always)]
-fn load_processes_from_flash<C: Chip>(
+fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
     kernel: &'static Kernel,
     chip: &'static C,
     app_flash: &'static [u8],
@@ -213,7 +214,7 @@ fn load_processes_from_flash<C: Chip>(
             Ok((new_flash, process_binary)) => {
                 remaining_flash = new_flash;
 
-                let load_result = load_process(
+                let load_result = load_process::<C, D>(
                     kernel,
                     chip,
                     process_binary,
@@ -351,7 +352,7 @@ fn discover_process_binary(
 /// pool that its RAM should be allocated from. Returns `Ok` if the process
 /// object was created, `Err` with a relevant error if the process object could
 /// not be created.
-fn load_process<C: Chip>(
+fn load_process<C: Chip, D: ProcessStandardDebug>(
     kernel: &'static Kernel,
     chip: &'static C,
     process_binary: ProcessBinary,
@@ -359,7 +360,7 @@ fn load_process<C: Chip>(
     app_id: ShortId,
     index: usize,
     fault_policy: &'static dyn ProcessFaultPolicy,
-    storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C>,
+    storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C, D>,
 ) -> Result<(&'static mut [u8], Option<&'static dyn Process>), (&'static mut [u8], ProcessLoadError)>
 {
     if config::CONFIG.debug_load_processes {
@@ -383,7 +384,7 @@ fn load_process<C: Chip>(
     // get a process and we didn't get a loading error (aka we got to
     // this point), then the app is a disabled process or just padding.
     let (process_option, unused_memory) = unsafe {
-        ProcessStandard::create(
+        ProcessStandard::<C, D>::create(
             kernel,
             chip,
             process_binary,
@@ -465,7 +466,8 @@ enum SequentialProcessLoaderMachineState {
 /// structures stored in the `procs` array. This machine scans the footers in
 /// the TBF for cryptographic credentials for binary integrity, passing them to
 /// the checker to decide whether the process has sufficient credentials to run.
-pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static> {
+pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static, D: ProcessStandardDebug + 'static>
+{
     /// Client to notify as processes are loaded and process loading finishes.
     client: OptionalCell<&'a dyn ProcessLoadingAsyncClient>,
     /// Machine to use to check process credentials.
@@ -489,12 +491,12 @@ pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static> {
     /// The fault policy to assign to each created Process.
     fault_policy: &'static dyn ProcessFaultPolicy,
     /// The storage permissions policy to assign to each created Process.
-    storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C>,
+    storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C, D>,
     /// Current mode of the loading machine.
     state: OptionalCell<SequentialProcessLoaderMachineState>,
 }
 
-impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
+impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C, D> {
     /// This function is made `pub` so that board files can use it, but loading
     /// processes from slices of flash an memory is fundamentally unsafe.
     /// Therefore, we require the `ProcessManagementCapability` to call this
@@ -508,7 +510,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
         flash: &'static [u8],
         app_memory: &'static mut [u8],
         fault_policy: &'static dyn ProcessFaultPolicy,
-        storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C>,
+        storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C, D>,
         policy: &'static dyn AppIdPolicy,
         _capability_management: &dyn ProcessManagementCapability,
     ) -> Self {
@@ -867,7 +869,9 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
     }
 }
 
-impl<'a, C: Chip> ProcessLoadingAsync<'a> for SequentialProcessLoaderMachine<'a, C> {
+impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
+    for SequentialProcessLoaderMachine<'a, C, D>
+{
     fn set_client(&self, client: &'a dyn ProcessLoadingAsyncClient) {
         self.client.set(client);
     }
@@ -884,7 +888,9 @@ impl<'a, C: Chip> ProcessLoadingAsync<'a> for SequentialProcessLoaderMachine<'a,
     }
 }
 
-impl<'a, C: Chip> DeferredCallClient for SequentialProcessLoaderMachine<'a, C> {
+impl<'a, C: Chip, D: ProcessStandardDebug> DeferredCallClient
+    for SequentialProcessLoaderMachine<'a, C, D>
+{
     fn handle_deferred_call(&self) {
         // We use deferred calls to start the operation in the async loop.
         match self.state.get() {
@@ -913,8 +919,8 @@ impl<'a, C: Chip> DeferredCallClient for SequentialProcessLoaderMachine<'a, C> {
     }
 }
 
-impl<'a, C: Chip> crate::process_checker::ProcessCheckerMachineClient
-    for SequentialProcessLoaderMachine<'a, C>
+impl<'a, C: Chip, D: ProcessStandardDebug> crate::process_checker::ProcessCheckerMachineClient
+    for SequentialProcessLoaderMachine<'a, C, D>
 {
     fn done(
         &self,

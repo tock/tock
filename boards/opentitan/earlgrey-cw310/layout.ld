@@ -63,4 +63,4 @@ SECTIONS {
     } > rom
 }
 ASSERT (((_etext - _manifest) > 0), "Error: PMP and Flash protection setup assumes _etext follows _manifest");
-INCLUDE ../../kernel_layout.ld
+INCLUDE tock_kernel_layout.ld
