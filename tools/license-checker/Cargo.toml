@@ -18,4 +18,9 @@ thiserror = "1.0.44"
 [dependencies.syntect]
 default-features = false
 features = ["default-syntaxes", "regex-onig", "yaml-load"]
-version = "5.2.0"
+# version = "5.2.0"
+
+# v5.2.0-23-g31bce65, including a patch to accelerate compressed
+# bincode dumps in debug builds
+git = "https://github.com/trishume/syntect.git"
+rev = "31bce65e2989d594f226af7e7868a96f9d38bef8"
