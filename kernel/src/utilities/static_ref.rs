@@ -13,7 +13,7 @@ use core::ptr::NonNull;
 /// This is a simple wrapper around a raw pointer that encapsulates an unsafe
 /// dereference in a safe manner. It serve the role of creating a `&'static T`
 /// given a raw address and acts similarly to `extern` definitions, except
-/// `StaticRef` is subject to module and crate boundaries, while `extern`
+/// [`StaticRef`] is subject to module and crate boundaries, while `extern`
 /// definitions can be imported anywhere.
 ///
 /// Because this defers the actual dereference, this can be put in a `const`,
@@ -26,7 +26,7 @@ pub struct StaticRef<T> {
 }
 
 impl<T> StaticRef<T> {
-    /// Create a new `StaticRef` from a raw pointer
+    /// Create a new [`StaticRef`] from a raw pointer
     ///
     /// ## Safety
     ///
@@ -51,8 +51,8 @@ impl<T> Copy for StaticRef<T> {}
 impl<T> Deref for StaticRef<T> {
     type Target = T;
     fn deref(&self) -> &T {
-        // SAFETY: `ptr` is aligned and dereferencable for the program
-        // duration as promised by the caller of `StaticRef::new`.
+        // SAFETY: `ptr` is aligned and dereferencable for the program duration
+        // as promised by the caller of `StaticRef::new`.
         unsafe { self.ptr.as_ref() }
     }
 }
