@@ -26,11 +26,17 @@
 
 use core::cell::Cell;
 use core::marker::PhantomData;
+use core::mem::size_of;
 use core::ops::{Deref, Index, Range, RangeFrom, RangeTo};
 
 use crate::capabilities;
 use crate::process::{self, ProcessId};
 use crate::ErrorCode;
+
+// the offset where the buffer data starts
+// - skip the flags field (1 byte)
+// - skip the len field (size_of::<u32>() bytes)
+const BUFFER_OFFSET: usize = 1 + size_of::<u32>();
 
 /// Convert a process buffer's internal representation to a
 /// [`ReadableProcessSlice`].
@@ -923,6 +929,96 @@ impl<I: ProcessSliceIndex<Self>> Index<I> for ReadableProcessSlice {
 #[repr(transparent)]
 pub struct WriteableProcessSlice {
     slice: [Cell<u8>],
+}
+
+#[repr(transparent)]
+pub struct ProcessSliceBuffer<'a> {
+    slice: &'a WriteableProcessSlice,
+}
+
+impl<'a> ProcessSliceBuffer<'a> {
+    pub fn new(slice: &'a WriteableProcessSlice) -> ProcessSliceBuffer {
+        ProcessSliceBuffer { slice }
+    }
+
+    /// Checks if the process buffer respects the buffer contract
+    ///
+    /// The buffer data format is described below:
+    /// ```text,ignore
+    /// 0          1          2          3          4
+    /// +----------+----------+----------+----------+-------------------...
+    /// | flags    | buffer length                  | slice
+    /// +----------+----------+----------+----------+-------------------...
+    /// | 00000000 | 32 bits little endian          | data
+    /// ```
+    ///
+    /// - the first byte is reserved to store flags, for this version of the buffer
+    ///   the value has to be 0
+    /// - the next 4 bytes store the used space in a 32 bit little endian format
+    ///
+    /// This function fails with
+    /// - `INVALID` if the flags field is not set to 0
+    /// - `SIZE` if the underlying slice is not large enough top fit the
+    ///          flags field and the len field (5 bytes)
+    pub fn len(&self) -> Result<usize, ErrorCode> {
+        // check if the slice can actually hold a buffer
+        // - the slice has to be able to fit the flags (1 byte) and the size (4 bytes)
+        if self.slice.len() >= BUFFER_OFFSET {
+            if self.slice[0].get() == 0 {
+                let len = self.slice[1].get() as u32
+                    | (self.slice[2].get() as u32 >> 8)
+                    | (self.slice[3].get() as u32 >> 16)
+                    | (self.slice[4].get() as u32 >> 24);
+                Ok(len as usize)
+            } else {
+                Err(ErrorCode::INVAL)
+            }
+        } else {
+            Err(ErrorCode::SIZE)
+        }
+    }
+
+    fn set_len(&self, len: usize) -> Result<(), ErrorCode> {
+        if self.slice.len() >= len + BUFFER_OFFSET {
+            // set the flags
+            self.slice[0].set(0);
+
+            // set the length
+            self.slice[1].set((len & 0xff) as u8);
+            self.slice[2].set(((len << 8) & 0xff) as u8);
+            self.slice[3].set(((len << 16) & 0xff) as u8);
+            self.slice[4].set(((len << 24) & 0xff) as u8);
+            Ok(())
+        } else {
+            Err(ErrorCode::SIZE)
+        }
+    }
+
+    /// Append a slice of data to the buffer
+    ///
+    /// This function fails with:
+    /// - `INVALID` - if the buffer's flags field is not set to 0
+    /// - `SIZE` - if the data slice is too large to fit into the buffer
+    pub fn append(&self, data: &[u8]) -> Result<(), ErrorCode> {
+        let len = self.len()?;
+        if data.len() + len <= self.slice.len() - BUFFER_OFFSET {
+            self.slice[BUFFER_OFFSET + len..BUFFER_OFFSET + len + data.len()].copy_from_slice(data);
+            self.set_len(len + data.len())?;
+            Ok(())
+        } else {
+            Err(ErrorCode::SIZE)
+        }
+    }
+
+    /// Resets the buffer's length t0 and flags to 0
+    ///
+    /// This function fails with
+    /// - `SIZE` - if the slice underneeths the buffer is too small to fit
+    ///            the flags field and tyhe len field (a total of 5 bytes)
+    #[inline(always)]
+    pub fn reset(&self) -> Result<(), ErrorCode> {
+        self.set_len(0)
+    }
 }
 
 fn cast_cell_slice_to_process_slice(cell_slice: &[Cell<u8>]) -> &WriteableProcessSlice {
