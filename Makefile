@@ -545,6 +545,7 @@ ci-job-cargo-test-build:
 	@$(MAKE) NO_RUN="--no-run" -C "boards/esp32-c3-devkitM-1" test
 	@$(MAKE) NO_RUN="--no-run" -C "boards/apollo3/lora_things_plus" test
 	@$(MAKE) NO_RUN="--no-run" -C "boards/apollo3/lora_things_plus" test-atecc508a
+	@$(MAKE) NO_RUN="--no-run" -C "boards/apollo3/lora_things_plus" test-chirp_i2c_moisture
 	@$(MAKE) NO_RUN="--no-run" -C "boards/apollo3/redboard_artemis_atp" test
 	@$(MAKE) NO_RUN="--no-run" -C "boards/apollo3/redboard_artemis_nano" test
 
