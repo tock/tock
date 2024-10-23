@@ -1,0 +1,24 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright OxidOS Automotive SRL 2024
+#
+# Author: Irina Nita <irina.nita@oxidos.io>
+# Author: Darius Jipa <darius.jipa@oxidos.io>
+
+[package]
+name = "parse-macros"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+darling = "0.20.10"
+proc-macro2 = "1.0.82"
+quote = "1.0.36"
+syn = { version = "2.0.70", features = ["full"] }
+
+[dev-dependencies]
+trybuild = "1.0"
+parse = { path = "../parse" }
+
+[lib]
+proc-macro = true
