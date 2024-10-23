@@ -6,6 +6,7 @@ include = [
   "../../../cargo/tock_flags.toml",
   "../../../cargo/unstable_flags.toml",
   "../../../cargo/riscv_flags.toml",
+  "../../../cargo/riscv_bitmanip.toml",
   "../../../cargo/virtual_function_elimination.toml",
   "../../../cargo/panic_abort_tests.toml",
 ]
