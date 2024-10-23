@@ -1,23 +1,5 @@
-# Licensed under the Apache License, Version 2.0 or the MIT License.
-# SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright Tock Contributors 2024.
-
-# This workflow contains all Treadmill-based hardware CI jobs.
-#
-# Treadmill is a distributed hardware testbed developed within the Tock OS
-# project. For more information on Treadmill, have a look at its documentation
-# [1] or repository [2].
-#
-# This workflow is based on the Treadmill GitHub Actions integration guide [3].
-# In addition, it features the ability to run multiple Treadmill jobs and
-# test-execute stages through GitHub Action's job matrices, and uses a GitHub
-# environment to allow deployments with access to secrets for select PRs.
-#
-# [1]: https://book.treadmill.ci/
-# [2]: https://github.com/treadmill-tb/treadmill
-# [3]: https://book.treadmill.ci/user-guide/github-actions-integration.html
-
 name: treadmill-ci
+
 env:
   TERM: xterm # Makes tput work in actions output
 
@@ -44,231 +26,23 @@ permissions:
   contents: read
 
 jobs:
-  test-prepare:
-    runs-on: ubuntu-latest
+  treadmill-ci:
+    uses: tock/tock-hardware-ci/.github/workflows/treadmill-ci.yml@main
+    with:
+      # Only run on a specific repository, as others will not have the right
+      # environments set up and secrets configured. Forks may want to change
+      # this parameter.
+      repository-filter: 'tock/tock'
 
-    # Do not run job on forks
-    if: github.repository == 'tock/tock'
+      # Provide access to the required Treadmill secrets by running in the
+      # appropriate environment (depending on the on: triggers above)
+      job-environment: ${{ github.event_name == 'pull_request' && 'treadmill-ci' || 'treadmill-ci-merged' }}
 
-    # This provides access to the secrets required below:
-    # - for `treadmill-ci`: after approval by certain persons or GH teams
-    # - for `treadmill-ci-merged`: without approval, on merge queue branches
-    #   and the master branch
-    #
-    # KEEP IN SYNC WITH `on:` EVENTS ABOVE:
-    environment: ${{ github.event_name == 'pull_request' && 'treadmill-ci' || 'treadmill-ci-merged' }}
+      # Use the latest upstream Tock hardware CI tests and userspace components:
+      libtock-c-ref: 'master'
+      tock-hardware-ci-ref: 'main'
 
-    outputs:
-      tml-job-ids: ${{ steps.treadmill-job-launch.outputs.tml-job-ids }}
-      tml-jobs: ${{ steps.treadmill-job-launch.outputs.tml-jobs }}
+      # Test the tock kernel revision that triggered this workflow
+      tock-kernel-ref: ${{ github.sha }}
 
-    steps:
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-
-      - name: Checkout Treadmill repository
-        uses: actions/checkout@v4
-        with:
-          repository: treadmill-tb/treadmill
-          # treadmill-tb/treadmill main as of Oct 1, 2024, 3:05 PM EDT
-          ref: 'c82f4d7ebddd17f8275ba52139e64e04623f30cb'
-          path: treadmill
-
-      - name: Cache Treadmill CLI compilation artifacts
-        id: cache-tml-cli
-        uses: actions/cache@v4
-        with:
-          path: treadmill/target
-          key: ${{ runner.os }}-tml-cli
-
-      - name: Compile the Treadmill CLI binary
-        run: |
-          pushd treadmill
-          cargo build --package tml-cli
-          popd
-          echo "$PWD/treadmill/target/debug" >> "$GITHUB_PATH"
-
-      # - uses: actions/checkout@v4
-      #   with:
-      #     path: tock
-
-      # - name: Analyze changes and determine types of tests to run
-      #   run: |
-      #     echo "TODO: implement this!"
-
-      - name: Generate a token to register new just-in-time runners
-        id: generate-token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ vars.TREADMILL_GH_APP_CLIENT_ID }}
-          private-key: ${{ secrets.TREADMILL_GH_APP_PRIVATE_KEY }}
-
-      - name: Create GitHub just-in-time runners and enqueue Treadmill jobs
-        id: treadmill-job-launch
-        env:
-          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
-          TML_API_TOKEN: ${{ secrets.TREADMILL_API_TOKEN }}
-
-          # Currently, all tests run only on hosts attached to an nRF52840DK
-          DUT_BOARD: nrf52840dk
-
-          # A Raspberry Pi OS netboot (NBD) image with a GitHub Actions
-          # self-hosted runner pre-configured.
-          #
-          # For the available images see
-          # https://book.treadmill.ci/treadmillci-deployment/images.html
-          IMAGE_ID: 1b6900eff30f37b6d012240f63aa77a22e20934e7f6ebf38e25310552dc08378
-
-          # Limit the supervisors to hosts that are compatible with this
-          # image. This is a hack until we introduce "image sets" which define
-          # multiple images for various supervisor hosts, but otherwise behave
-          # identically:
-          HOST_TYPE: nbd-netboot
-          HOST_ARCH: arm64
-        run: |
-          # When we eventually launch tests on multiple hardware platforms in
-          # parallel, we need to supply different SUB_TEST_IDs here:
-          SUB_TEST_ID="0"
-
-          # This runner ID uniquely identifies the GitHub Actions runner we're
-          # registering and allows us to launch test-execute jobs on this exact
-          # runner (connected to the exact board we want to run tests on).
-          RUNNER_ID="tml-gh-actions-runner-${GITHUB_REPOSITORY_ID}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${SUB_TEST_ID}"
-
-          # Obtain a new just-in-time runner registration token:
-          RUNNER_CONFIG_JSON="$(gh api \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            /repos/${{ github.repository }}/actions/runners/generate-jitconfig \
-            -f "name=$RUNNER_ID" \
-            -F "runner_group_id=1" \
-            -f "labels[]=$RUNNER_ID" \
-            -f "work_folder=_work")"
-          echo "Generated configuration for runner $(echo "$RUNNER_CONFIG_JSON" | jq -r '.runner.name')"
-
-          # Generate a set of job paramters that includes the GitHub runner
-          # registration token and a script that shuts down the host once the
-          # runner has run through successfully (and created a file indicating
-          # successful job completion, /run/github-actions-shutdown):
-          TML_JOB_PARAMETERS="{\
-            \"gh-actions-runner-encoded-jit-config\": {\
-              \"secret\": true, \
-              \"value\": \"$(echo "$RUNNER_CONFIG_JSON" | jq -r '.encoded_jit_config')\" \
-            }, \
-            \"gh-actions-runner-exec-stop-post-sh\": {\
-              \"secret\": false, \
-              \"value\": \"if [ \\\"\$SERVICE_RESULT\\\" = \\\"success\\\" ] && [ -f /run/github-actions-shutdown ]; then tml-puppet job terminate; fi\" \
-            }\
-          }"
-
-          echo "Enqueueing treadmill job:"
-          TML_JOB_ID_JSON="$(tml job enqueue \
-            "$IMAGE_ID" \
-            --tag-config "board:$DUT_BOARD;host-type:$HOST_TYPE;host-arch:$HOST_ARCH" \
-            --parameters "$TML_JOB_PARAMETERS" \
-          )"
-
-          TML_JOB_ID="$(echo "$TML_JOB_ID_JSON" | jq -r .job_id)"
-          echo "Enqueued Treadmill job with ID $TML_JOB_ID"
-
-          # Pass the job IDs and other configuration data into the outputs of
-          # this step, such that we can run test-execute job instances for each
-          # Treadmill job we've started:
-          echo "tml-job-ids=[ \
-            \"$TML_JOB_ID\" \
-          ]" >> "$GITHUB_OUTPUT"
-
-          echo "tml-jobs={ \
-            \"$TML_JOB_ID\": { \
-              \"runner-id\": \"$RUNNER_ID\", \
-            } \
-          }" >> "$GITHUB_OUTPUT"
-
-  test-execute:
-    needs: test-prepare
-
-    strategy:
-      matrix:
-        tml-job-id: ${{ fromJSON(needs.test-prepare.outputs.tml-job-ids) }}
-
-    runs-on: ${{ fromJSON(needs.test-prepare.outputs.tml-jobs)[matrix.tml-job-id].runner-id }}
-
-    steps:
-      - name: Print Treadmill Job Context and Debug Information
-        run: |
-          echo "Treadmill job id: ${{ matrix.tml-job-id }}"
-          echo "GitHub Actions Runner ID: ${{ fromJSON(needs.test-prepare.outputs.tml-jobs)[matrix.tml-job-id] }}"
-          echo "===== Parameters: ====="
-          ls /run/tml/parameters
-          echo "===== User & group configuration: ====="
-          echo "whoami: $(whoami)"
-          echo "groups: $(groups)"
-          echo "===== Network configration: ====="
-          ip address
-          echo "===== Attached USB & serial console devices: ====="
-          lsusb
-          ls -lh /dev/ttyAMA* 2>/dev/null || true
-          ls -lh /dev/ttyACM* 2>/dev/null || true
-          ls -lh /dev/ttyUSB* 2>/dev/null || true
-          ls -lh /dev/bus/usb/*/* 2>/dev/null || true
-
-      - name: Disable wget progress output
-        run: |
-          echo "verbose = off" >> $HOME/.wgetrc
-
-      - uses: actions/checkout@v4
-
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          # Avoid overwriting the RUSTFLAGS environment variable
-          rustflags: ""
-
-      - name: Install required system packages
-        run: |
-          # TODO: currently, the Netboot NBD targets have no access to their
-          # boot parition (e.g., mounted on /boot/firmware) on a Raspberry Pi OS
-          # host. This causes certain hooks in response to dpkg / apt commands
-          # to fail. Thus we ignore errors in these steps until we figure this
-          # part out.
-          sudo DEBIAN_FRONTEND=noninteractive apt update || true
-          sudo DEBIAN_FRONTEND=noninteractive apt install -y \
-            git cargo openocd python3 python3-pip python3-serial \
-            python3-pexpect gcc-arm-none-eabi libnewlib-arm-none-eabi \
-            pkg-config libudev-dev cmake libusb-1.0-0-dev udev make \
-            gdb-multiarch gcc-arm-none-eabi build-essential || true
-
-          # Install probe-rs:
-          curl --proto '=https' --tlsv1.2 -LsSf \
-            https://github.com/probe-rs/probe-rs/releases/latest/download/probe-rs-tools-installer.sh \
-            | sh
-
-      - name: Create Python virtual environment and install required dependencies
-        run: |
-          python3 -m venv ./hwcienv
-          source ./hwcienv/bin/activate
-          pip install -r tools/hwci/requirements.txt -c tools/hwci/requirements-frozen.txt
-
-      - name: Run tests
-        run: |
-          source ./hwcienv/bin/activate
-          cd ./tools/hwci
-          export PYTHONPATH="$PWD:$PYTHONPATH"
-          python3 core/main.py --board boards/nrf52dk.py --test tests/c_hello.py
-
-      - name: Request shutdown after successful job completion
-        run: |
-          sudo touch /run/github-actions-shutdown
-
-      - name: Provide connection information on job failure
-        if: failure()
-        run: |
-          echo "This CI job has failed, we avoid terminating the Treadmill job"
-          echo "immediately. It will be active until it reaches its timeout."
-          echo ""
-          echo "If you added SSH keys to the `job enqueue` command, you can"
-          echo "open an interactive session to this host. Connection"
-          echo "information is available here:"
-          echo "https://book.treadmill.ci/treadmillci-deployment/sites.html"
-          echo ""
-          echo "TODO: print host / supervisor ID as part of workflow"
-          echo "TODO: determine public SSH endpoint automatically and print"
-          echo "TODO: allow adding SSH keys to running Treadmill jobs"
+    secrets: inherit
