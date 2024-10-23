@@ -1,3 +1,22 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2024.
+
+# This workflow contains all Treadmill-based hardware CI jobs.
+#
+# Treadmill is a distributed hardware testbed developed within the Tock OS
+# project. For more information on Treadmill, have a look at its documentation
+# [1] or repository [2].
+#
+# This workflow is based on the Treadmill GitHub Actions integration guide [3].
+# In addition, it features the ability to run multiple Treadmill jobs and
+# test-execute stages through GitHub Action's job matrices, and uses a GitHub
+# environment to allow deployments with access to secrets for select PRs.
+#
+# [1]: https://book.treadmill.ci/
+# [2]: https://github.com/treadmill-tb/treadmill
+# [3]: https://book.treadmill.ci/user-guide/github-actions-integration.html
+
 name: treadmill-ci
 
 env:
