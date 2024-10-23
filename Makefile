@@ -551,7 +551,7 @@ ci-job-cargo-test-build:
 
 
 ### ci-runner-github-qemu jobs:
-QEMU_COMMIT_HASH=1600b9f46b1bd08b00fe86c46ef6dbb48cbe10d6
+QEMU_COMMIT_HASH=0ff5ab6f57a2427a3e83969b2e7dd71e04caae39
 define ci_setup_qemu_riscv
 	$(call banner,CI-Setup: Build QEMU)
 	@# Use the latest QEMU as it has OpenTitan support
@@ -575,10 +575,10 @@ ci-setup-qemu:
 define ci_job_qemu
 	$(call banner,CI-Job: QEMU)
 	@cd tools/qemu-runner;\
-		PATH="$(shell pwd)/tools/qemu/build/riscv32-softmmu/:${PATH}"\
+		PATH="$(shell pwd)/tools/qemu/build/:${PATH}"\
 		NOWARNINGS=true cargo run
 	@cd boards/opentitan/earlgrey-cw310;\
-		PATH="$(shell pwd)/tools/qemu/build/riscv32-softmmu/:${PATH}"\
+		PATH="$(shell pwd)/tools/qemu/build/:${PATH}"\
 		make test
 endef
 
