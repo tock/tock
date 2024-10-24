@@ -1,0 +1,21 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2024.
+
+[package]
+name = "qemu_i486_q35"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+build = "../build.rs"
+
+[dependencies]
+components = { path = "../components" }
+kernel = { path = "../../kernel" }
+pc = { path = "../../chips/pc" }
+tock-x86 = { path = "../../arch/x86" }
+x86 = "0.51"
+
+capsules-core = { path = "../../capsules/core" }
+capsules-extra = { path = "../../capsules/extra" }
+capsules-system = { path = "../../capsules/system" }
