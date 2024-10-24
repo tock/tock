@@ -414,3 +414,75 @@ impl<'a> StreamingProcessSlice<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::StreamingProcessSlice;
+    use crate::processbuffer::WriteableProcessSlice;
+    use crate::ErrorCode;
+
+    #[test]
+    fn test_empty_process_slice() {
+        let process_slice: &WriteableProcessSlice = (&mut [][..]).into();
+        let s = StreamingProcessSlice::new(process_slice);
+
+        assert_eq!(s.append_chunk(b"The cake is a lie."), Err(ErrorCode::SIZE));
+        assert_eq!(
+            s.append_chunk_from_iter(b"The cake is a lie.".iter().copied()),
+            Err(ErrorCode::SIZE)
+        );
+    }
+
+    #[test]
+    fn test_header_only_process_slice() {
+        let mut buffer = [0_u8; 8];
+        let process_slice: &WriteableProcessSlice = (&mut buffer[..]).into();
+
+        let s = StreamingProcessSlice::new(process_slice);
+        let hdr = s.get_header().unwrap();
+        assert_eq!(hdr.version, 0);
+        assert_eq!(hdr.offset, 0);
+        assert_eq!(hdr.halt, false);
+        assert_eq!(hdr.exceeded, false);
+
+        assert_eq!(s.append_chunk(b""), Ok((false, 0)));
+        let hdr = s.get_header().unwrap();
+        assert_eq!(hdr.version, 0);
+        assert_eq!(hdr.offset, 0);
+        assert_eq!(hdr.halt, false);
+        assert_eq!(hdr.exceeded, false);
+
+        assert_eq!(
+            s.append_chunk_from_iter(b"".iter().copied()),
+            Ok((false, 0))
+        );
+        let hdr = s.get_header().unwrap();
+        assert_eq!(hdr.version, 0);
+        assert_eq!(hdr.offset, 0);
+        assert_eq!(hdr.halt, false);
+        assert_eq!(hdr.exceeded, false);
+
+        let prev_hdr = s.get_header().unwrap();
+        assert_eq!(s.append_chunk(b"The cake is a lie."), Err(ErrorCode::SIZE));
+        let hdr = s.get_header().unwrap();
+        assert_eq!(hdr.version, 0);
+        assert_eq!(hdr.offset, 0);
+        assert_eq!(hdr.halt, false);
+        assert_eq!(hdr.exceeded, true);
+
+        // Reset the header:
+        s.write_header(prev_hdr).unwrap();
+        let hdr = s.get_header().unwrap();
+        assert_eq!(prev_hdr, hdr);
+
+        assert_eq!(
+            s.append_chunk_from_iter(b"The cake is a lie.".iter().copied()),
+            Err(ErrorCode::SIZE)
+        );
+        let hdr = s.get_header().unwrap();
+        assert_eq!(hdr.version, 0);
+        assert_eq!(hdr.offset, 0);
+        assert_eq!(hdr.halt, false);
+        assert_eq!(hdr.exceeded, true);
+    }
+}
