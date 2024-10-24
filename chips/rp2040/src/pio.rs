@@ -7,10 +7,13 @@
 
 //! Programmable Input Output (PIO) hardware.
 
-use kernel::debug;
+use core::cell::Cell;
+
+use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
+use kernel::{debug, ErrorCode};
 
 use crate::gpio::{GpioFunction, RPGpio, RPGpioPin};
 
@@ -591,11 +594,24 @@ pub enum InterruptSources {
 const STATE_MACHINE_NUMBERS: [SMNumber; NUMBER_STATE_MACHINES] =
     [SMNumber::SM0, SMNumber::SM1, SMNumber::SM2, SMNumber::SM3];
 
+pub trait PioTxClient {
+    fn on_buffer_space_available(&self);
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+enum StateMachineState {
+    #[default]
+    Ready,
+    Waiting,
+}
+
 pub struct Pio {
     registers: StaticRef<PioRegisters>,
     pio_number: PIONumber,
     xor_registers: StaticRef<PioRegisters>,
     set_registers: StaticRef<PioRegisters>,
+    sm_state: [Cell<StateMachineState>; NUMBER_STATE_MACHINES],
+    tx_clients: [OptionalCell<&'static dyn PioTxClient>; NUMBER_STATE_MACHINES],
     _clear_registers: StaticRef<PioRegisters>,
 }
 
@@ -755,6 +771,8 @@ impl Pio {
             set_registers: PIO0_SET_BASE,
             _clear_registers: PIO0_CLEAR_BASE,
             pio_number: PIONumber::PIO0,
+            sm_state: core::array::from_fn(|_| Cell::default()),
+            tx_clients: core::array::from_fn(|_| OptionalCell::default()),
         }
     }
 
@@ -766,6 +784,8 @@ impl Pio {
             set_registers: PIO1_SET_BASE,
             _clear_registers: PIO1_CLEAR_BASE,
             pio_number: PIONumber::PIO1,
+            sm_state: core::array::from_fn(|_| Cell::default()),
+            tx_clients: core::array::from_fn(|_| OptionalCell::default()),
         }
     }
 
@@ -1164,8 +1184,63 @@ impl Pio {
     }
 
     /// Write a word of data to a state machine’s TX FIFO.
-    pub fn sm_put(&self, sm_number: SMNumber, data: u32) {
-        self.registers.txf[sm_number as usize].set(data);
+    pub fn sm_put(&self, sm_number: SMNumber, data: u32) -> Result<(), ErrorCode> {
+        match self.sm_state[sm_number as usize].get() {
+            StateMachineState::Ready => {
+                if self.txf_full(sm_number) {
+                    // TX queue is full, set interrupt
+                    let field = match sm_number {
+                        SMNumber::SM0 => IRQ0_INTE::SM0_TXNFULL::SET,
+                        SMNumber::SM1 => IRQ0_INTE::SM1_TXNFULL::SET,
+                        SMNumber::SM2 => IRQ0_INTE::SM2_TXNFULL::SET,
+                        SMNumber::SM3 => IRQ0_INTE::SM3_TXNFULL::SET,
+                    };
+                    self.registers.irq0_inte.modify(field);
+                    self.sm_state[sm_number as usize].set(StateMachineState::Waiting);
+                    Err(ErrorCode::BUSY)
+                } else {
+                    self.registers.txf[sm_number as usize].set(data);
+                    Ok(())
+                }
+            }
+            StateMachineState::Waiting => Err(ErrorCode::BUSY),
+        }
+    }
+
+    fn handle_tx_interrupt(&self, sm_number: SMNumber) {
+        match self.sm_state[sm_number as usize].get() {
+            StateMachineState::Waiting => {
+                // TX queue is full, set interrupt
+                let field = match sm_number {
+                    SMNumber::SM0 => IRQ0_INTE::SM0_TXNFULL::CLEAR,
+                    SMNumber::SM1 => IRQ0_INTE::SM1_TXNFULL::CLEAR,
+                    SMNumber::SM2 => IRQ0_INTE::SM2_TXNFULL::CLEAR,
+                    SMNumber::SM3 => IRQ0_INTE::SM3_TXNFULL::CLEAR,
+                };
+                self.registers.irq0_inte.modify(field);
+                self.sm_state[sm_number as usize].set(StateMachineState::Ready);
+                self.tx_clients[sm_number as usize].map(|client| {
+                    client.on_buffer_space_available();
+                });
+            }
+            StateMachineState::Ready => {}
+        }
+    }
+
+    /// Handle interrupts
+    /// todo distinguish between irq0 and irq1
+    pub fn handle_interrupt(&self) {
+        let ints = &self.registers.irq0_ints;
+        for sm_number in [SMNumber::SM0, SMNumber::SM1, SMNumber::SM2, SMNumber::SM3].iter() {
+            if ints.is_set(match sm_number {
+                SMNumber::SM0 => IRQ0_INTS::SM0_TXNFULL,
+                SMNumber::SM1 => IRQ0_INTS::SM1_TXNFULL,
+                SMNumber::SM2 => IRQ0_INTS::SM2_TXNFULL,
+                SMNumber::SM3 => IRQ0_INTS::SM3_TXNFULL,
+            }) {
+                self.handle_tx_interrupt(*sm_number);
+            }
+        }
     }
 
     /// Wait until a state machine's TX FIFO is empty, then write a word of data to it.
@@ -1381,8 +1456,14 @@ impl Pio {
         self.registers.txf[sm_number as usize].read(TXFx::TXF)
     }
 
-    pub fn txf_full_0(&self) -> u32 {
-        self.registers.fstat.read(FSTAT::TXFULL0)
+    pub fn txf_full(&self, sm_number: SMNumber) -> bool {
+        let field = match sm_number {
+            SMNumber::SM0 => FSTAT::TXFULL0,
+            SMNumber::SM1 => FSTAT::TXFULL1,
+            SMNumber::SM2 => FSTAT::TXFULL2,
+            SMNumber::SM3 => FSTAT::TXFULL3,
+        };
+        self.registers.fstat.read(field) != 0
     }
 
     pub fn read_dbg_padout(&self) -> u32 {
