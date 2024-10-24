@@ -13,6 +13,7 @@ pub mod mut_imut_buffer;
 pub mod peripheral_management;
 pub mod static_init;
 pub mod storage_volume;
+pub mod streaming_process_slice;
 
 mod static_ref;
 
