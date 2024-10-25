@@ -180,7 +180,7 @@ unsafe fn set_pin_primary_functions(
     syscfg: &stm32f412g::syscfg::Syscfg,
     i2c1: &stm32f412g::i2c::I2C,
     gpio_ports: &'static stm32f412g::gpio::GpioPorts<'static>,
-    system_frequency: usize,
+    peripheral_clock_frequency: usize,
 ) {
     use kernel::hil::gpio::Configure;
     use stm32f412g::gpio::{AlternateFunction, Mode, PinId, PortId};
@@ -271,7 +271,10 @@ unsafe fn set_pin_primary_functions(
     });
 
     i2c1.enable_clock();
-    i2c1.set_speed(stm32f412g::i2c::I2CSpeed::Speed400k, system_frequency);
+    i2c1.set_speed(
+        stm32f412g::i2c::I2CSpeed::Speed400k,
+        peripheral_clock_frequency,
+    );
 
     // FT6206 interrupt
     gpio_ports.get_pin(PinId::PG05).map(|pin| {
