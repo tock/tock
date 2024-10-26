@@ -7,6 +7,7 @@
 //! Usage
 //! -----
 //!
+//! ```ignore
 //! use kernel::static_init;
 //! let mux_pwm = components::pwm::PwmMuxComponent::new(&peripherals.pwm)
 //! .finalize(components::pwm_mux_component_static!(rp2040::pwm::Pwm));
@@ -19,7 +20,7 @@
 //! capsules_extra::sg90::Sg90<
 //!    'static,
 //!    capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, rp2040::pwm::Pwm>,
-//! \>,
+//! >,
 //! capsules_extra::sg90::Sg90::new(virtual_pwm_servo)
 //! );
 //!
@@ -32,6 +33,7 @@
 //! capsules_extra::servo::Servo<'static, 2>,
 //! capsules_extra::servo::Servo::new(multi_servo)
 //! );
+//! ```
 
 use kernel::hil;
 use kernel::syscall::{CommandReturn, SyscallDriver};
