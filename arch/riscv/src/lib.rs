@@ -10,9 +10,9 @@
 
 pub mod csr;
 
-#[cfg(target_arch = "riscv32")]
+#[cfg(all(target_arch = "riscv32", not(doc)))]
 pub const XLEN: usize = 32;
-#[cfg(target_arch = "riscv64")]
+#[cfg(all(target_arch = "riscv64", not(doc)))]
 pub const XLEN: usize = 64;
 
 // Default to 32 bit if no architecture is specified of if this is being

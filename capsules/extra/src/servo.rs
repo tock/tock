@@ -19,7 +19,7 @@
 //! capsules_extra::sg90::Sg90<
 //!    'static,
 //!    capsules_core::virtualizers::virtual_pwm::PwmPinUser<'static, rp2040::pwm::Pwm>,
-//! >,
+//! \>,
 //! capsules_extra::sg90::Sg90::new(virtual_pwm_servo)
 //! );
 //!
