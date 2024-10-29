@@ -4,9 +4,9 @@
 
 //! Data structure for storing an upcall from the kernel to a process.
 
+use crate::capability_ptr::CapabilityPtr;
 use crate::config;
 use crate::debug;
-use crate::metaptr::MetaPtr;
 use crate::process;
 use crate::process::ProcessId;
 use crate::syscall::SyscallReturn;
@@ -72,8 +72,8 @@ pub enum UpcallError {
 // FIXME: When we get CHERI compiler support, these can go back to the proper types
 // b/274586199
 // https://github.com/tock/tock/issues/4134
-pub(crate) type AppdataType = MetaPtr;
-pub(crate) type FnPtrType = MetaPtr;
+pub(crate) type AppdataType = CapabilityPtr;
+pub(crate) type FnPtrType = CapabilityPtr;
 
 /// Type for calling an upcall in a process.
 ///

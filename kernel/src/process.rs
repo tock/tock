@@ -11,10 +11,10 @@ use core::ptr::NonNull;
 use core::str;
 
 use crate::capabilities;
+use crate::capability_ptr::CapabilityPtr;
 use crate::errorcode::ErrorCode;
 use crate::ipc;
 use crate::kernel::Kernel;
-use crate::metaptr::MetaPtr;
 use crate::platform::mpu::{self};
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::storage_permissions;
@@ -540,7 +540,7 @@ pub trait Process {
     ///   process's memory region.
     /// - [`Error::KernelError`] if there was an internal kernel error. This is
     ///   a bug.
-    fn brk(&self, new_break: *const u8) -> Result<MetaPtr, Error>;
+    fn brk(&self, new_break: *const u8) -> Result<CapabilityPtr, Error>;
 
     /// Change the location of the program break by `increment` bytes,
     /// reallocate the MPU region covering program memory, and return the
@@ -560,7 +560,7 @@ pub trait Process {
     ///   process's memory region.
     /// - [`Error::KernelError`] if there was an internal kernel error. This is
     ///   a bug.
-    fn sbrk(&self, increment: isize) -> Result<MetaPtr, Error>;
+    fn sbrk(&self, increment: isize) -> Result<CapabilityPtr, Error>;
 
     /// How many writeable flash regions defined in the TBF header for this
     /// process.
@@ -1081,9 +1081,9 @@ pub struct FunctionCall {
     /// The third argument to the function.
     pub argument2: usize,
     /// The fourth argument to the function.
-    pub argument3: MetaPtr,
+    pub argument3: CapabilityPtr,
     /// The PC of the function to execute.
-    pub pc: MetaPtr,
+    pub pc: CapabilityPtr,
 }
 
 /// This is similar to `FunctionCall` but for the special case of the Null

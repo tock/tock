@@ -68,8 +68,8 @@
 
 use core::fmt::Write;
 
+use crate::capability_ptr::{CapabilityPtr, MetaPermissions};
 use crate::errorcode::ErrorCode;
-use crate::metaptr::{MetaPermissions, MetaPtr};
 use crate::process;
 
 pub use crate::syscall_driver::{CommandReturn, SyscallDriver};
@@ -170,9 +170,9 @@ pub enum Syscall {
         // On CHERI platforms we need to maintain metadata for
         // these two as they are used to access code/data.
         /// Upcall pointer to the upcall function.
-        upcall_ptr: MetaPtr,
+        upcall_ptr: CapabilityPtr,
         /// Userspace application data.
-        appdata: MetaPtr,
+        appdata: CapabilityPtr,
     },
 
     /// Structure representing an invocation of the Command system call class.
@@ -255,9 +255,9 @@ impl Syscall {
     pub fn from_register_arguments(
         syscall_number: u8,
         r0: usize,
-        r1: MetaPtr,
-        r2: MetaPtr,
-        r3: MetaPtr,
+        r1: CapabilityPtr,
+        r2: CapabilityPtr,
+        r3: CapabilityPtr,
     ) -> Option<Syscall> {
         match SyscallClass::try_from(syscall_number) {
             Ok(SyscallClass::Yield) => Some(Syscall::Yield {
@@ -473,7 +473,7 @@ pub enum SyscallReturn {
     /// Generic success case, with an additional pointer with metadata
     /// On CHERI, this grants authority.
     /// Access to this return is therefore privileged.
-    SuccessPtr(MetaPtr),
+    SuccessPtr(CapabilityPtr),
 
     // These following types are used by the scheduler so that it can return
     // values to userspace in an architecture (pointer-width) independent way.
@@ -573,17 +573,17 @@ impl SyscallReturn {
     /// are free to define their own encoding.
     /// TODO: deprecate in favour of the more general one
     pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
-        if core::mem::size_of::<MetaPtr>() == core::mem::size_of::<u32>() {
+        if core::mem::size_of::<CapabilityPtr>() == core::mem::size_of::<u32>() {
             // SAFETY: if the two unsized integers are the same size references to them
             // can be safely transmuted.
             // Ugly coercion could be avoided by first copying to the stack, then assigning with
             // "as" in order to satisfy the compiler. But I expect this function will disappear
             // in favour of just using the usize one.
             unsafe {
-                let a0 = &mut *(core::ptr::from_mut(a0) as *mut MetaPtr);
-                let a1 = &mut *(core::ptr::from_mut(a1) as *mut MetaPtr);
-                let a2 = &mut *(core::ptr::from_mut(a2) as *mut MetaPtr);
-                let a3 = &mut *(core::ptr::from_mut(a3) as *mut MetaPtr);
+                let a0 = &mut *(core::ptr::from_mut(a0) as *mut CapabilityPtr);
+                let a1 = &mut *(core::ptr::from_mut(a1) as *mut CapabilityPtr);
+                let a2 = &mut *(core::ptr::from_mut(a2) as *mut CapabilityPtr);
+                let a3 = &mut *(core::ptr::from_mut(a3) as *mut CapabilityPtr);
                 self.encode_syscall_return_mptr(a0, a1, a2, a3);
             }
         } else {
@@ -607,21 +607,21 @@ impl SyscallReturn {
     /// of user code.
     /// I have not considered usize other than 4 and 8 bytes.
     /// Also handles the CHERI extension as follows:
-    /// the high part of any MetaPtr register is zero'd if any non capability-sized arguments are
+    /// the high part of any CapabilityPtr register is zero'd if any non capability-sized arguments are
     /// passed.
-    /// SuccessPtr is as passed the full MetaPtr register.
+    /// SuccessPtr is as passed the full CapabilityPtr register.
     /// Pointers from allow'd buffers have minimal bounds attached that cover their length,
     /// and the same permissions that were checked at the syscall boundary.
     pub fn encode_syscall_return_mptr(
         &self,
-        a0: &mut MetaPtr,
-        a1: &mut MetaPtr,
-        a2: &mut MetaPtr,
-        a3: &mut MetaPtr,
+        a0: &mut CapabilityPtr,
+        a1: &mut CapabilityPtr,
+        a2: &mut CapabilityPtr,
+        a3: &mut CapabilityPtr,
     ) {
         // On 32-bit CHERI, given that capabilities cannot be used as 64-bit integers, 64-bit
         // integers will still be returned as two 32-bit values in different registers.
-        fn write_64(a: &mut MetaPtr, b: &mut MetaPtr, val: u64) {
+        fn write_64(a: &mut CapabilityPtr, b: &mut CapabilityPtr, val: u64) {
             let is_64_bit = core::mem::size_of::<usize>() == 8;
             if !is_64_bit {
                 let (msb, lsb) = u64_to_be_u32s(val);
@@ -682,7 +682,7 @@ impl SyscallReturn {
             }
             SyscallReturn::AllowReadWriteSuccess(ptr, len) => {
                 *a0 = (SyscallReturnVariant::SuccessPtrUsize.into_compat() as usize).into();
-                *a1 = MetaPtr::new_with_metadata(
+                *a1 = CapabilityPtr::new_with_metadata(
                     ptr as *const (),
                     ptr as usize,
                     len,
@@ -692,7 +692,7 @@ impl SyscallReturn {
             }
             SyscallReturn::UserspaceReadableAllowSuccess(ptr, len) => {
                 *a0 = (SyscallReturnVariant::SuccessPtrUsize.into_compat() as usize).into();
-                *a1 = MetaPtr::new_with_metadata(
+                *a1 = CapabilityPtr::new_with_metadata(
                     ptr as *const (),
                     ptr as usize,
                     len,
@@ -703,7 +703,7 @@ impl SyscallReturn {
             SyscallReturn::AllowReadWriteFailure(err, ptr, len) => {
                 *a0 = (SyscallReturnVariant::FailurePtrUsize.into_compat() as usize).into();
                 *a1 = (usize::from(err)).into();
-                *a2 = MetaPtr::new_with_metadata(
+                *a2 = CapabilityPtr::new_with_metadata(
                     ptr as *const (),
                     ptr as usize,
                     len,
@@ -714,7 +714,7 @@ impl SyscallReturn {
             SyscallReturn::UserspaceReadableAllowFailure(err, ptr, len) => {
                 *a0 = (SyscallReturnVariant::FailurePtrUsize.into_compat() as usize).into();
                 *a1 = (usize::from(err)).into();
-                *a2 = MetaPtr::new_with_metadata(
+                *a2 = CapabilityPtr::new_with_metadata(
                     ptr as *const (),
                     ptr as usize,
                     len,
@@ -724,7 +724,7 @@ impl SyscallReturn {
             }
             SyscallReturn::AllowReadOnlySuccess(ptr, len) => {
                 *a0 = (SyscallReturnVariant::SuccessPtrUsize.into_compat() as usize).into();
-                *a1 = MetaPtr::new_with_metadata(
+                *a1 = CapabilityPtr::new_with_metadata(
                     ptr as *const (),
                     ptr as usize,
                     len,
@@ -735,7 +735,7 @@ impl SyscallReturn {
             SyscallReturn::AllowReadOnlyFailure(err, ptr, len) => {
                 *a0 = (SyscallReturnVariant::FailurePtrUsize.into_compat() as usize).into();
                 *a1 = (usize::from(err)).into();
-                *a2 = MetaPtr::new_with_metadata(
+                *a2 = CapabilityPtr::new_with_metadata(
                     ptr as *const (),
                     ptr as usize,
                     len,
@@ -754,9 +754,9 @@ impl SyscallReturn {
                 *a2 = (ptr as usize).into();
                 *a3 = data.into();
             }
-            SyscallReturn::SuccessPtr(metaptr) => {
+            SyscallReturn::SuccessPtr(ptr) => {
                 *a0 = (SyscallReturnVariant::SuccessPtr.into_compat() as usize).into();
-                *a1 = metaptr;
+                *a1 = ptr;
             }
             SyscallReturn::YieldWaitFor(data0, data1, data2) => {
                 *a0 = data0.into();

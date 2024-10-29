@@ -14,14 +14,14 @@ use core::num::NonZeroU32;
 use core::ptr::NonNull;
 use core::{mem, ptr, slice, str};
 
+use crate::capability_ptr::MetaPermissions::Execute;
+use crate::capability_ptr::{CapabilityPtr, MetaPermissions};
 use crate::collections::queue::Queue;
 use crate::collections::ring_buffer::RingBuffer;
 use crate::config;
 use crate::debug;
 use crate::errorcode::ErrorCode;
 use crate::kernel::Kernel;
-use crate::metaptr::MetaPermissions::Execute;
-use crate::metaptr::{MetaPermissions, MetaPtr};
 use crate::platform::chip::Chip;
 use crate::platform::mpu::{self, MPU};
 use crate::process::BinaryVersion;
@@ -584,7 +584,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         })
     }
 
-    fn sbrk(&self, increment: isize) -> Result<MetaPtr, Error> {
+    fn sbrk(&self, increment: isize) -> Result<CapabilityPtr, Error> {
         // Do not modify an inactive process.
         if !self.is_running() {
             return Err(Error::InactiveApp);
@@ -594,7 +594,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.brk(new_break)
     }
 
-    fn brk(&self, new_break: *const u8) -> Result<MetaPtr, Error> {
+    fn brk(&self, new_break: *const u8) -> Result<CapabilityPtr, Error> {
         // Do not modify an inactive process.
         if !self.is_running() {
             return Err(Error::InactiveApp);
@@ -618,7 +618,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                 self.chip.mpu().configure_mpu(config);
 
                 let base = self.mem_start() as usize;
-                let break_result = MetaPtr::new_with_metadata(
+                let break_result = CapabilityPtr::new_with_metadata(
                     old_break as *const (),
                     base,
                     (new_break as usize) - base,
@@ -1754,7 +1754,8 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             flash_start.wrapping_add(process.header.get_init_function_offset() as usize) as usize;
         let fn_base = flash_start as usize;
         let fn_len = process.flash.len();
-        let init_fn = MetaPtr::new_with_metadata(init_addr as *const (), fn_base, fn_len, Execute);
+        let init_fn =
+            CapabilityPtr::new_with_metadata(init_addr as *const (), fn_base, fn_len, Execute);
 
         process.tasks.map(|tasks| {
             tasks.enqueue(Task::FunctionCall(FunctionCall {
@@ -1919,7 +1920,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         let init_addr =
             flash_start.wrapping_add(self.header.get_init_function_offset() as usize) as usize;
 
-        let init_fn = MetaPtr::new_with_metadata(
+        let init_fn = CapabilityPtr::new_with_metadata(
             init_addr as *const (),
             flash_start as usize,
             (self.flash_end() as usize) - (flash_start as usize),
@@ -1944,7 +1945,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     fn in_app_owned_memory(&self, buf_start_addr: *const u8, size: usize) -> bool {
         // TODO: On CHERI platforms, it impossible to form syscalls with pointers
         // that are not in app memory. However, buf_start_addr is not the right
-        // type to make this function always return true. If MetaPtr makes it
+        // type to make this function always return true. If CapabilityPtr makes it
         // slightly further, we can skip this check.
         let buf_end_addr = buf_start_addr.wrapping_add(size);
 
@@ -1960,7 +1961,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     fn in_app_flash_memory(&self, buf_start_addr: *const u8, size: usize) -> bool {
         // TODO: On CHERI platforms, it impossible to form syscalls with pointers
         // that are not in app memory. However, buf_start_addr is not the right
-        // type to make this function always return true. If MetaPtr makes it
+        // type to make this function always return true. If CapabilityPtr makes it
         // slightly further, we can skip this check.
         let buf_end_addr = buf_start_addr.wrapping_add(size);
 

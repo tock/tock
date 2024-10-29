@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Google LLC 2024.
 
-//! Defines the MetaPtr type
+//! Defines the CapabilityPtr type
 
 use core::fmt::{Formatter, LowerHex, UpperHex};
 use core::ops::AddAssign;
@@ -19,21 +19,21 @@ use core::ops::AddAssign;
 /// can be `*const T` (or `&T` if the kernel knows they are valid).
 /// Values that are references, and do need to cross the boundary, should be this type.
 ///
-/// For example, `allow` grants authority to the kernel to access a buffer, so passes [MetaPtr]s.
+/// For example, `allow` grants authority to the kernel to access a buffer, so passes [CapabilityPtr]s.
 /// Conversely, when a process communicates its stack location to the kernel it need not be
-/// passed as a [MetaPtr], as the kernel does not access it.
+/// passed as a [CapabilityPtr], as the kernel does not access it.
 ///
-/// [MetaPtr] is also assumed to be wide enough that it could contain a raw pointer (`*const ()`) or
+/// [CapabilityPtr] is also assumed to be wide enough that it could contain a raw pointer (`*const ()`) or
 /// A `usize`, possibly podding with extra bits. It is therefore an appropriate choice for the type
 /// of a register that may contain any one of these in the syscall ABI at a point where it is not
 /// yet clear which of these it is yet.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[repr(transparent)]
-pub struct MetaPtr {
+pub struct CapabilityPtr {
     ptr: *const (),
 }
 
-impl Default for MetaPtr {
+impl Default for CapabilityPtr {
     fn default() -> Self {
         Self {
             ptr: core::ptr::null(),
@@ -50,14 +50,14 @@ pub enum MetaPermissions {
     Execute,
 }
 
-impl From<MetaPtr> for usize {
+impl From<CapabilityPtr> for usize {
     #[inline]
-    fn from(from: MetaPtr) -> Self {
+    fn from(from: CapabilityPtr) -> Self {
         from.ptr as usize
     }
 }
 
-impl From<usize> for MetaPtr {
+impl From<usize> for CapabilityPtr {
     #[inline]
     fn from(from: usize) -> Self {
         Self {
@@ -66,28 +66,28 @@ impl From<usize> for MetaPtr {
     }
 }
 
-impl UpperHex for MetaPtr {
+impl UpperHex for CapabilityPtr {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         UpperHex::fmt(&(self.ptr as usize), f)
     }
 }
 
-impl LowerHex for MetaPtr {
+impl LowerHex for CapabilityPtr {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         LowerHex::fmt(&(self.ptr as usize), f)
     }
 }
 
-impl AddAssign<usize> for MetaPtr {
+impl AddAssign<usize> for CapabilityPtr {
     #[inline]
     fn add_assign(&mut self, rhs: usize) {
         self.ptr = (self.ptr as *const u8).wrapping_add(rhs) as *const ();
     }
 }
 
-impl MetaPtr {
+impl CapabilityPtr {
     pub fn as_ptr<T>(&self) -> *const T {
         self.ptr as *const T
     }
