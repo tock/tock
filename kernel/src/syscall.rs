@@ -415,6 +415,8 @@ pub enum SyscallReturnVariant {
 impl SyscallReturnVariant {
     /// Maps newly introduced return variants (usize and ptr)
     /// to old ones (u32) for backwards compatibility.
+    /// This should not be used for any newly designed interfaces,
+    /// and will eventually be deprecated once all interfaces are updated.
     pub const fn into_compat(self) -> Self {
         // We only need to be backwards compatible on 32-bit systems
         let compat = core::mem::size_of::<usize>() == core::mem::size_of::<u32>();
