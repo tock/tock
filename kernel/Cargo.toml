@@ -16,7 +16,8 @@ tock-registers = { path = "../libraries/tock-register-interface" }
 tock-cells = { path = "../libraries/tock-cells" }
 tock-tbf = { path = "../libraries/tock-tbf" }
 flux_support = { path = "../flux_support" }
-flux-rs = { git  = "https://github.com/flux-rs/flux.git" }
+# flux-rs = { git  = "https://github.com/flux-rs/flux.git" }
+flux-rs = { path = "../../flux/lib/flux-rs" }
 
 # In general, Tock discourages the use of cargo features. However for certain
 # kernel crate configuration, we have not found reasonable alternatives to
