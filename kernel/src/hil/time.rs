@@ -134,6 +134,7 @@ pub trait Ticks: Clone + Copy + From<u32> + fmt::Debug + Ord + PartialOrd + Eq {
 
     /// Scales the ticks by the specified numerator and denominator. If the resulting value would
     /// be greater than u32,`u32::MAX` is returned instead
+    #[flux_rs::sig(fn(Self, u32, u32{denom: denom > 0}) -> u32)]
     fn saturating_scale(self, numerator: u32, denominator: u32) -> u32;
 }
 
@@ -402,6 +403,7 @@ pub trait Timer<'a>: Time {
 #[derive(Debug)]
 pub enum Freq100MHz {}
 impl Frequency for Freq100MHz {
+    #[flux_rs::sig(fn() -> u32{r: r > 0})]
     fn frequency() -> u32 {
         100_000_000
     }
@@ -411,6 +413,7 @@ impl Frequency for Freq100MHz {
 #[derive(Debug)]
 pub enum Freq16MHz {}
 impl Frequency for Freq16MHz {
+    #[flux_rs::sig(fn() -> u32{r: r > 0})]
     fn frequency() -> u32 {
         16_000_000
     }
@@ -419,6 +422,7 @@ impl Frequency for Freq16MHz {
 /// 10MHz `Frequency`
 pub enum Freq10MHz {}
 impl Frequency for Freq10MHz {
+    #[flux_rs::sig(fn() -> u32{r: r > 0})]
     fn frequency() -> u32 {
         10_000_000
     }
@@ -428,6 +432,7 @@ impl Frequency for Freq10MHz {
 #[derive(Debug)]
 pub enum Freq1MHz {}
 impl Frequency for Freq1MHz {
+    #[flux_rs::sig(fn() -> u32{r: r > 0})]
     fn frequency() -> u32 {
         1_000_000
     }
@@ -437,6 +442,7 @@ impl Frequency for Freq1MHz {
 #[derive(Debug)]
 pub enum Freq32KHz {}
 impl Frequency for Freq32KHz {
+    #[flux_rs::sig(fn() -> u32{r: r > 0})]
     fn frequency() -> u32 {
         32_768
     }
@@ -446,6 +452,7 @@ impl Frequency for Freq32KHz {
 #[derive(Debug)]
 pub enum Freq16KHz {}
 impl Frequency for Freq16KHz {
+    #[flux_rs::sig(fn() -> u32{r: r > 0})]
     fn frequency() -> u32 {
         16_000
     }
@@ -455,6 +462,7 @@ impl Frequency for Freq16KHz {
 #[derive(Debug)]
 pub enum Freq1KHz {}
 impl Frequency for Freq1KHz {
+    #[flux_rs::sig(fn() -> u32{r: r > 0})]
     fn frequency() -> u32 {
         1_000
     }

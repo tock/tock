@@ -868,7 +868,8 @@ impl Index<usize> for ReadableProcessSlice {
     // Cell to read-only operations
     type Output = ReadableProcessByte;
 
-    #[flux_rs::sig(fn(self: &ReadableProcessSlice[@len], idx: usize) -> &Self::Output requires len > idx)]
+    #[flux_rs::trusted_impl]
+    #[flux_rs::sig(fn(self: &ReadableProcessSlice[@len], idx: usize ) -> &Self::Output requires len > idx)]
     fn index(&self, idx: usize) -> &Self::Output {
         // As ReadableProcessSlice is a transparent wrapper around its
         // inner type, [ReadableProcessByte], we can use the regular
@@ -1108,6 +1109,7 @@ impl Index<usize> for WriteableProcessSlice {
     // mutating the memory contents is allowed.
     type Output = Cell<u8>;
 
+    #[flux_rs::trusted_impl]
     #[flux_rs::sig(fn(self: &WriteableProcessSlice[@len], idx: usize) -> &Self::Output requires len > idx)]
     fn index(&self, idx: usize) -> &Self::Output {
         // As WriteableProcessSlice is a transparent wrapper around
