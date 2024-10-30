@@ -1416,7 +1416,7 @@ impl Pio {
         match origin {
             Some(origin) => self
                 .try_load_program_at(origin as usize, program)
-                .map(|_| origin)
+                .map(|()| origin)
                 .map_err(|_| ProgramError::AddrInUse(origin)),
             None => {
                 for origin in 0..NUMBER_INSTR_MEMORY_LOCATIONS {
@@ -1471,7 +1471,10 @@ impl Pio {
 }
 
 mod examples {
-    use super::*;
+    use super::{
+        debug, Pio, RPGpio, RPGpioPin, Readable, SMNumber, SMx_EXECCTRL, SMx_INSTR, SMx_PINCTRL,
+        StateMachineConfiguration, DBG_PADOUT, FDEBUG,
+    };
 
     impl RPGpio {
         fn from_u32(value: u32) -> RPGpio {
