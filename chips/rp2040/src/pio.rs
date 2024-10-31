@@ -516,6 +516,7 @@ const PIO1_CLEAR_BASE: StaticRef<PioRegisters> =
     unsafe { StaticRef::new((PIO_1_BASE_ADDRESS + 0x3000) as *const PioRegisters) };
 
 /// Used to relocate program in the PIO memory.
+/// Given program, relocates JMP instruction by adding an offset
 pub struct RelocatedProgram<'a, I>
 where
     I: Iterator<Item = &'a u16>,
@@ -1399,6 +1400,9 @@ impl Pio {
 
     /// Adds a program to PIO.
     /// Call this with add_program(include_bytes!("path_to_file")).
+    /// => origin: the address in the PIO instruction memory to start the program at or None to find an empty space
+    /// => program: the program to load into the PIO
+    /// Returns the address in the PIO instruction memory where the program was loaded.
     pub fn add_program(&self, origin: Option<u8>, program: &[u8]) -> Result<u8, ProgramError> {
         let mut program_u16: [u16; NUMBER_INSTR_MEMORY_LOCATIONS / 2] =
             [0; NUMBER_INSTR_MEMORY_LOCATIONS / 2];
@@ -1411,6 +1415,9 @@ impl Pio {
 
     /// Adds a program to PIO.
     /// Takes `&[u16]` as input, cause pio-asm operations are 16bit.
+    /// => origin: the address in the PIO instruction memory to start the program at or None to find an empty space
+    /// => program: the program to load into the PIO
+    /// Returns the address in the PIO instruction memory where the program was loaded.
     pub fn add_program16(&self, origin: Option<u8>, program: &[u16]) -> Result<u8, ProgramError> {
         // if origin is not set, try naively to find an empty space
         match origin {
