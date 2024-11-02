@@ -515,8 +515,10 @@ const PIO1_SET_BASE: StaticRef<PioRegisters> =
 const PIO1_CLEAR_BASE: StaticRef<PioRegisters> =
     unsafe { StaticRef::new((PIO_1_BASE_ADDRESS + 0x3000) as *const PioRegisters) };
 
-/// Used to relocate program in the PIO memory.
-/// Given program, relocates JMP instruction by adding an offset
+/// Represents a relocated PIO program.
+///
+/// An [Iterator] that yields the original program except `JMP` instructions have
+/// relocated target addresses based on an offset.
 pub struct RelocatedProgram<'a, I>
 where
     I: Iterator<Item = &'a u16>,
