@@ -9,24 +9,20 @@ use crate::clocks::{self};
 use crate::gpio::RPGpio;
 use crate::pio::{PIONumber, Pio, SMNumber, StateMachineConfiguration};
 
-use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::cells::TakeCell;
 use kernel::{hil, ErrorCode};
 
 pub struct PioPwm<'a> {
-    clocks: OptionalCell<&'a clocks::Clocks>,
+    clocks: &'a clocks::Clocks,
     pio: TakeCell<'a, Pio>,
 }
 
 impl<'a> PioPwm<'a> {
-    pub fn new(pio: &'a mut Pio) -> Self {
+    pub fn new(pio: &'a mut Pio, clocks: &'a clocks::Clocks) -> Self {
         Self {
-            clocks: OptionalCell::empty(),
+            clocks,
             pio: TakeCell::new(pio),
         }
-    }
-
-    pub fn set_clocks(&self, clocks: &'a clocks::Clocks) {
-        self.clocks.set(clocks);
     }
 }
 
@@ -101,8 +97,6 @@ impl<'a> hil::pwm::Pwm for PioPwm<'a> {
     // For the rp2040, this will always return 125_000_000. Watch out as any value above
     // 1_000_000 is not precise and WILL give modified frequency and duty cycle values.
     fn get_maximum_frequency_hz(&self) -> usize {
-        self.clocks
-            .unwrap_or_panic()
-            .get_frequency(clocks::Clock::System) as usize
+        self.clocks.get_frequency(clocks::Clock::System) as usize
     }
 }

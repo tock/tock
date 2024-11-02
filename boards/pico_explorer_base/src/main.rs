@@ -699,8 +699,7 @@ pub unsafe fn start() -> (
 
     let mut pio: Pio = Pio::new_pio0();
 
-    let pio_pwm = PioPwm::new(&mut pio);
-    pio_pwm.set_clocks(&peripherals.clocks);
+    let _pio_pwm = PioPwm::new(&mut pio, &peripherals.clocks);
     // This will start a PWM with PIO with the set frequency and duty cycle on the specified pin.
     // pio_pwm
     //     .start(
