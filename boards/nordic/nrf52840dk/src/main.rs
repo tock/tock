@@ -110,24 +110,28 @@ pub unsafe fn main() {
 
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
-    kernel::process::load_processes(
-        board_kernel,
-        chip,
-        core::slice::from_raw_parts(
-            core::ptr::addr_of!(_sapps),
-            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-        ),
-        core::slice::from_raw_parts_mut(
-            core::ptr::addr_of_mut!(_sappmem),
-            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
-        ),
-        processes,
-        &FAULT_RESPONSE,
-        &process_management_capability,
-    )
-    .unwrap_or_else(|err| {
-        debug!("Error loading processes!");
-        debug!("{:?}", err);
+    processes.with(|procs| {
+        procs.map(|procs| {
+            kernel::process::load_processes(
+                board_kernel,
+                chip,
+                core::slice::from_raw_parts(
+                    core::ptr::addr_of!(_sapps),
+                    core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
+                ),
+                core::slice::from_raw_parts_mut(
+                    core::ptr::addr_of_mut!(_sappmem),
+                    core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
+                ),
+                procs,
+                &FAULT_RESPONSE,
+                &process_management_capability,
+            )
+            .unwrap_or_else(|err| {
+                debug!("Error loading processes!");
+                debug!("{:?}", err);
+            })
+        })
     });
 
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
