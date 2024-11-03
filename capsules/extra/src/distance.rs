@@ -129,7 +129,7 @@ impl<'a, T: hil::sensors::Distance<'a>> DistanceSensor<'a, T> {
 }
 
 impl<'a, T: hil::sensors::Distance<'a>> hil::sensors::DistanceClient for DistanceSensor<'a, T> {
-    fn callback(&self, distance_val: Result<u64, ErrorCode>) {
+    fn callback(&self, distance_val: Result<u32, ErrorCode>) {
         // We completed the operation so we clear the busy flag in case we get
         // another measurement request.
         self.busy.set(false);

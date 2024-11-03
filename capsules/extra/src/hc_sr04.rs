@@ -15,7 +15,7 @@ use core::cell::Cell;
 
 use kernel::hil::gpio;
 use kernel::hil::sensors::{self, Distance, DistanceClient};
-use kernel::hil::time::{Alarm, Ticks};
+use kernel::hil::time::Alarm;
 use kernel::hil::time::{AlarmClient, ConvertTicks};
 use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
@@ -159,10 +159,8 @@ impl<'a, A: Alarm<'a>> AlarmClient for HcSr04<'a, A> {
 impl<'a, A: Alarm<'a>> gpio::Client for HcSr04<'a, A> {
     /// Handle the GPIO interrupt.
     fn fired(&self) {
-        // let frequency = <A as Time>::Frequency::frequency();
-        // let ticks = self.alarm.now().into_u32();
-        // // Convert ticks to microseconds.
-        // // Microseconds = (ticks * 1_000_000) / frequency
+        // Convert current ticks to microseconds using `ticks_to_us`,
+        // which handles the conversion based on the timer frequency.
         let time = self.alarm.ticks_to_us(self.alarm.now()) as u64;
         match self.state.get() {
             Status::EchoStart => {
@@ -176,22 +174,32 @@ impl<'a, A: Alarm<'a>> gpio::Client for HcSr04<'a, A> {
                 let end_time = time; // Use a local variable for the end time.
                 self.state.set(Status::Idle); // Update status to idle.
                 let duration = end_time.wrapping_sub(self.start_time.get()) as u32; // Calculate pulse duration.
-                if duration > self.alarm.ticks_from_ms(MAX_ECHO_DELAY_MS).into_u32() {
+                if duration > MAX_ECHO_DELAY_MS * 1000 {
                     // If the duration exceeds the maximum distance, return an error indicating invalid measurement.
                     // This means that the object is out of range or no valid echo was received.
                     if let Some(distance_client) = self.distance_client.get() {
                         distance_client.callback(Err(ErrorCode::INVAL));
                     }
                 } else {
-                    // Calculate distance in milimeters based on the duration of the echo.
+                    // Calculate distance in millimeters based on the duration of the echo.
                     // The formula for calculating distance is:
                     // Distance = (duration (µs) * SPEED_OF_SOUND (mm/s)) / (2 * 1_000_000), where
-                    // duration is the time taken for the echo to travel to the object and back, in microseconds,
-                    // SPEED_OF_SOUND is the speed of sound in air, in millimeters per second.
-                    // We divide by 2 because the duration includes the round trip time (to the object and back) and
-                    // we divide by 1_000_000 to convert the duration from microseconds to seconds.
-                    let distance =
-                        (duration as u64 * SPEED_OF_SOUND as u64) / (2 * 1_000_000) as u64;
+                    // - `duration` is the time taken for the echo to travel to the object and back, in microseconds,
+                    // - SPEED_OF_SOUND is the speed of sound in air, in millimeters per second.
+                    // We divide by 2 because `duration` includes the round-trip time (to the object and back),
+                    // and we divide by 1,000,000 to convert from microseconds to seconds.
+                    //
+                    // To avoid using 64-bit arithmetic (u64), we restructure this equation as:
+                    // ((SPEED_OF_SOUND / 1000) * duration) / (2 * 1000).
+                    // This rearrangement reduces the scale of intermediate values, keeping them within u32 limits:
+                    // - SPEED_OF_SOUND is divided by 1000, reducing it to 343 (in mm/ms), and
+                    // - duration remains in microseconds (µs).
+                    // The final division by 2000 adjusts for the round trip and scales to the correct unit.
+                    //
+                    // This form is less intuitive, but it ensures all calculations stay within 32-bit size (u32).
+                    // Given the HC-SR04 sensor's maximum `duration` of ~23,000 µs (datasheet limit), this u32 approach
+                    // is sufficient for accurate distance calculations without risking overflow.
+                    let distance = ((SPEED_OF_SOUND / 1000) * duration) / (2 * 1000);
                     if let Some(distance_client) = self.distance_client.get() {
                         distance_client.callback(Ok(distance));
                     }
