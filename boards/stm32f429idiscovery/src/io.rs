@@ -4,37 +4,42 @@
 
 use core::fmt::Write;
 use core::panic::PanicInfo;
-use core::ptr::addr_of;
-use core::ptr::addr_of_mut;
 
+use kernel::core_local::CoreLocal;
 use kernel::debug;
 use kernel::debug::IoWrite;
 use kernel::hil::led;
-use kernel::hil::uart;
-use kernel::hil::uart::Configure;
 
+use kernel::utilities::cells::MapCell;
+use kernel::utilities::cells::OptionalCell;
+use kernel::StaticSlice;
+use stm32f429zi::chip::Stm32f4xx;
 use stm32f429zi::chip_specs::Stm32f429Specs;
 use stm32f429zi::gpio::PinId;
+use stm32f429zi::interrupt_service::Stm32f429ziDefaultPeripherals;
 
-use crate::CHIP;
-use crate::PROCESSES;
-use crate::PROCESS_PRINTER;
+pub(crate) struct DebugInfo {
+    pub chip: &'static Stm32f4xx<'static, Stm32f429ziDefaultPeripherals<'static>>,
+    pub processes:
+        &'static CoreLocal<MapCell<StaticSlice<Option<&'static dyn kernel::process::Process>>>>,
+    pub process_printer: &'static capsules_system::process_printer::ProcessPrinterText,
+}
+
+pub(crate) static mut DEBUG_INFO: CoreLocal<MapCell<DebugInfo>> =
+    unsafe { CoreLocal::new_single_core(MapCell::empty()) };
 
 /// Writer is used by kernel::debug to panic message to the serial port.
 pub struct Writer {
-    initialized: bool,
+    uart:
+        OptionalCell<&'static stm32f429zi::usart::Usart<'static, stm32f429zi::dma::Dma2<'static>>>,
 }
 
 /// Global static for debug writer
-pub static mut WRITER: Writer = Writer { initialized: false };
-
-impl Writer {
-    /// Indicate that USART has already been initialized. Trying to double
-    /// initialize USART1 causes stm32f429zi to go into in in-deterministic state.
-    pub fn set_initialized(&mut self) {
-        self.initialized = true;
-    }
-}
+pub(crate) static WRITER: CoreLocal<MapCell<Writer>> = unsafe {
+    CoreLocal::new_single_core(MapCell::new(Writer {
+        uart: OptionalCell::empty(),
+    }))
+};
 
 impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
@@ -45,26 +50,11 @@ impl Write for Writer {
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) -> usize {
-        let rcc = stm32f429zi::rcc::Rcc::new();
-        let clocks: stm32f429zi::clocks::Clocks<Stm32f429Specs> =
-            stm32f429zi::clocks::Clocks::new(&rcc);
-        let uart = stm32f429zi::usart::Usart::new_usart1(&clocks);
-
-        if !self.initialized {
-            self.initialized = true;
-
-            let _ = uart.configure(uart::Parameters {
-                baud_rate: 115200,
-                stop_bits: uart::StopBits::One,
-                parity: uart::Parity::None,
-                hw_flow_control: false,
-                width: uart::Width::Eight,
-            });
-        }
-
-        for &c in buf {
-            uart.send_byte(c);
-        }
+        self.uart.map(|uart| {
+            for &c in buf {
+                uart.send_byte(c);
+            }
+        });
 
         buf.len()
     }
@@ -86,15 +76,24 @@ pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
     pin.set_ports_ref(&gpio_ports);
     let led = &mut led::LedHigh::new(&pin);
 
-    let writer = &mut *addr_of_mut!(WRITER);
+    let mut writer = WRITER.with(|w| w.take()).unwrap();
 
-    debug::panic(
-        &mut [led],
-        writer,
-        info,
-        &cortexm4::support::nop,
-        &*addr_of!(PROCESSES),
-        &*addr_of!(CHIP),
-        &*addr_of!(PROCESS_PRINTER),
-    )
+    DEBUG_INFO.with(|di| {
+        di.map(|debug_info| {
+            let processes = debug_info
+                .processes
+                .with(|processes| processes.take())
+                .unwrap_or(StaticSlice::new(&mut []));
+            debug::panic(
+                &mut [led],
+                &mut writer,
+                info,
+                &cortexm4::support::nop,
+                &processes[..],
+                debug_info.chip,
+                debug_info.process_printer,
+            )
+        })
+        .unwrap_or_else(|| loop {})
+    })
 }

@@ -18,8 +18,11 @@
 
 use core::mem::MaybeUninit;
 use kernel::component::Component;
+use kernel::core_local::CoreLocal;
 use kernel::process::Process;
 use kernel::scheduler::round_robin::{RoundRobinProcessNode, RoundRobinSched};
+use kernel::utilities::cells::MapCell;
+use kernel::StaticSlice;
 
 #[macro_export]
 macro_rules! round_robin_component_static {
@@ -36,12 +39,12 @@ macro_rules! round_robin_component_static {
 }
 
 pub struct RoundRobinComponent<const NUM_PROCS: usize> {
-    processes: &'static [Option<&'static dyn Process>],
+    processes: &'static CoreLocal<MapCell<StaticSlice<Option<&'static dyn Process>>>>,
 }
 
 impl<const NUM_PROCS: usize> RoundRobinComponent<NUM_PROCS> {
     pub fn new(
-        processes: &'static [Option<&'static dyn Process>],
+        processes: &'static CoreLocal<MapCell<StaticSlice<Option<&'static dyn Process>>>>,
     ) -> RoundRobinComponent<NUM_PROCS> {
         RoundRobinComponent { processes }
     }
@@ -56,14 +59,17 @@ impl<const NUM_PROCS: usize> Component for RoundRobinComponent<NUM_PROCS> {
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let scheduler = static_buffer.0.write(RoundRobinSched::new());
+        self.processes.with(|ps| {
+            const UNINIT: MaybeUninit<RoundRobinProcessNode<'static>> = MaybeUninit::uninit();
+            let nodes = static_buffer.1.write([UNINIT; NUM_PROCS]);
 
-        const UNINIT: MaybeUninit<RoundRobinProcessNode<'static>> = MaybeUninit::uninit();
-        let nodes = static_buffer.1.write([UNINIT; NUM_PROCS]);
-
-        for (i, node) in nodes.iter_mut().enumerate() {
-            let init_node = node.write(RoundRobinProcessNode::new(&self.processes[i]));
-            scheduler.processes.push_head(init_node);
-        }
+            ps.map(|ps| {
+                for (process, node) in ps.iter().zip(nodes.iter_mut()) {
+                    let init_node = node.write(RoundRobinProcessNode::new(*process));
+                    scheduler.processes.push_head(init_node);
+                }
+            });
+        });
         scheduler
     }
 }

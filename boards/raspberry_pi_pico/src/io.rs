@@ -5,22 +5,37 @@
 use core::fmt::Write;
 use core::panic::PanicInfo;
 
+use kernel::core_local::CoreLocal;
 use kernel::debug::{self, IoWrite};
 use kernel::hil::led::LedHigh;
 use kernel::hil::uart::{Configure, Parameters, Parity, StopBits, Width};
-use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::cells::{MapCell, OptionalCell};
+use kernel::StaticSlice;
 
+use rp2040::chip::{Rp2040, Rp2040DefaultPeripherals};
 use rp2040::gpio::{GpioFunction, RPGpio, RPGpioPin};
 use rp2040::uart::Uart;
 
-use crate::CHIP;
-use crate::PROCESSES;
-use crate::PROCESS_PRINTER;
+pub(crate) struct DebugInfo {
+    pub chip: &'static Rp2040<'static, Rp2040DefaultPeripherals<'static>>,
+    pub processes:
+        &'static CoreLocal<MapCell<StaticSlice<Option<&'static dyn kernel::process::Process>>>>,
+    pub process_printer: &'static capsules_system::process_printer::ProcessPrinterText,
+}
+
+pub(crate) static mut DEBUG_INFO: CoreLocal<MapCell<DebugInfo>> =
+    unsafe { CoreLocal::new_single_core(MapCell::empty()) };
 
 /// Writer is used by kernel::debug to panic message to the serial port.
 pub struct Writer {
     uart: OptionalCell<&'static Uart<'static>>,
 }
+
+pub(crate) static WRITER: CoreLocal<MapCell<Writer>> = unsafe {
+    CoreLocal::new_single_core(MapCell::new(Writer {
+        uart: OptionalCell::empty(),
+    }))
+};
 
 impl Writer {
     pub fn set_uart(&self, uart: &'static Uart) {
@@ -53,11 +68,6 @@ impl Writer {
     }
 }
 
-/// Global static for debug writer
-pub static mut WRITER: Writer = Writer {
-    uart: OptionalCell::empty(),
-};
-
 impl Write for Writer {
     fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
         self.write(s.as_bytes());
@@ -82,27 +92,33 @@ impl IoWrite for Writer {
     }
 }
 
-/// Default panic handler for the Raspberry Pi Pico board.
-///
-/// We just use the standard default provided by the debug module in the kernel.
 #[cfg(not(test))]
 #[no_mangle]
 #[panic_handler]
+/// Panic handler
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     // LED is connected to GPIO 25
 
-    use core::ptr::{addr_of, addr_of_mut};
     let led_kernel_pin = &RPGpioPin::new(RPGpio::GPIO25);
     let led = &mut LedHigh::new(led_kernel_pin);
-    let writer = &mut *addr_of_mut!(WRITER);
+    let mut writer = WRITER.with(|w| w.take()).unwrap();
 
-    debug::panic(
-        &mut [led],
-        writer,
-        pi,
-        &cortexm0p::support::nop,
-        &*addr_of!(PROCESSES),
-        &*addr_of!(CHIP),
-        &*addr_of!(PROCESS_PRINTER),
-    )
+    DEBUG_INFO.with(|di| {
+        di.map(|debug_info| {
+            let processes = debug_info
+                .processes
+                .with(|processes| processes.take())
+                .unwrap_or(StaticSlice::new(&mut []));
+            debug::panic(
+                &mut [led],
+                &mut writer,
+                pi,
+                &cortexm0p::support::nop,
+                &processes[..],
+                debug_info.chip,
+                debug_info.process_printer,
+            )
+        })
+        .unwrap_or_else(|| loop {})
+    })
 }

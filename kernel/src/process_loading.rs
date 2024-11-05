@@ -16,7 +16,6 @@ use core::cell::Cell;
 use core::fmt;
 
 use crate::capabilities::ProcessManagementCapability;
-use crate::config;
 use crate::debug;
 use crate::deferred_call::{DeferredCall, DeferredCallClient};
 use crate::kernel::Kernel;
@@ -30,6 +29,7 @@ use crate::process_policies::ProcessStandardStoragePermissionsPolicy;
 use crate::process_standard::ProcessStandard;
 use crate::process_standard::{ProcessStandardDebug, ProcessStandardDebugFull};
 use crate::utilities::cells::{MapCell, OptionalCell};
+use crate::{config, StaticSlice};
 
 /// Errors that can occur when trying to load and create processes.
 pub enum ProcessLoadError {
@@ -139,7 +139,7 @@ pub fn load_processes<C: Chip>(
     chip: &'static C,
     app_flash: &'static [u8],
     app_memory: &'static mut [u8],
-    mut procs: &'static mut [Option<&'static dyn Process>],
+    procs: &mut StaticSlice<Option<&'static dyn Process>>,
     fault_policy: &'static dyn ProcessFaultPolicy,
     _capability_management: &dyn ProcessManagementCapability,
 ) -> Result<(), ProcessLoadError> {
@@ -148,7 +148,7 @@ pub fn load_processes<C: Chip>(
         chip,
         app_flash,
         app_memory,
-        &mut procs,
+        procs,
         fault_policy,
     )?;
 
@@ -189,7 +189,7 @@ fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
     chip: &'static C,
     app_flash: &'static [u8],
     app_memory: &'static mut [u8],
-    procs: &mut &'static mut [Option<&'static dyn Process>],
+    procs: &mut StaticSlice<Option<&'static dyn Process>>,
     fault_policy: &'static dyn ProcessFaultPolicy,
 ) -> Result<(), ProcessLoadError> {
     if config::CONFIG.debug_load_processes {
