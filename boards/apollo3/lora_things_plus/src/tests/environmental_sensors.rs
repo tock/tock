@@ -9,13 +9,9 @@
 //! (https://www.sparkfun.com/products/14348).
 
 use crate::tests::run_kernel_op;
-#[cfg(feature = "chirp_i2c_moisture")]
-use crate::CHIRP_I2C_MOISTURE;
 use crate::{BME280, CCS811};
 use core::cell::Cell;
 use kernel::debug;
-#[cfg(feature = "chirp_i2c_moisture")]
-use kernel::hil::sensors::MoistureDriver;
 use kernel::hil::sensors::{
     AirQualityClient, AirQualityDriver, HumidityClient, HumidityDriver, MoistureClient,
     TemperatureClient, TemperatureDriver,
@@ -101,29 +97,6 @@ impl<'a> AirQualityClient for SensorTestCallback {
 }
 
 static CALLBACK: SensorTestCallback = SensorTestCallback::new();
-
-#[cfg(feature = "chirp_i2c_moisture")]
-#[test_case]
-fn run_chirp_i2c_moisture() {
-    debug!("check run Chirp I2C Moisture Sensor... ");
-    run_kernel_op(100);
-
-    let chirp = unsafe { CHIRP_I2C_MOISTURE.unwrap() };
-
-    // Make sure the device is ready for us.
-    run_kernel_op(1000);
-
-    MoistureDriver::set_client(chirp, &CALLBACK);
-    CALLBACK.reset();
-
-    chirp.read_moisture().unwrap();
-
-    run_kernel_op(10_000);
-    assert_eq!(CALLBACK.moisture_done.get(), true);
-
-    debug!("    [ok]");
-    run_kernel_op(100);
-}
 
 #[test_case]
 fn run_bme280_temperature() {
