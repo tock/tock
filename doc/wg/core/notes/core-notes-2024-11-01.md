@@ -61,6 +61,8 @@
 ### CHERI Implementation Progress
 
 - Meta pointer PR renamed to capability pointer
+### x86 port progress
+
 - Two parallel efforts for x86 external clemency:
   1. Rewriting (Bobby)
   2. Rendering necessary parts including big flags (Zane)
