@@ -6,7 +6,7 @@ driver number: 0x60009
 
 ## Overview
 
-The distance sensor driver allows a process to read the distance measured by a HC-SR04 distance sensor. Distance is reported in millimeters.
+The distance sensor driver allows a process to read the distance measured by a distance sensor. Distance is reported in millimeters.
 
 ## Command
 
