@@ -54,7 +54,10 @@ impl<'a> TemperatureClient for SensorTestCallback {
         self.temperature_done.set(true);
         self.calibration_temp.set(Some(result.unwrap()));
 
-        debug!("Temperature: {}", result.unwrap());
+        debug!(
+            "Temperature: {} degrees Celsius",
+            result.unwrap() as f32 / 100.0
+        );
     }
 }
 
@@ -63,7 +66,7 @@ impl<'a> HumidityClient for SensorTestCallback {
         self.humidity_done.set(true);
         self.calibration_humidity.set(Some(value as u32));
 
-        debug!("Humidity: {}", value);
+        debug!("Humidity: {}%", value as f32 / 100.0);
     }
 }
 
