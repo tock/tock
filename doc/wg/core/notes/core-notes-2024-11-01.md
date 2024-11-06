@@ -3,7 +3,7 @@
 ## Attendees
 
 - Amit Levy
-- Leon Schuremann
+- Leon Schuermann
 - Benjamin Prevor
 - Brad Campbell
 - Hudson Ayers
