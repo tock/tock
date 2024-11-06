@@ -39,7 +39,6 @@ enum DeviceState {
     Identify,
     CalibrationLow,
     CalibrationHigh,
-    Probe,
     Start,
     Normal,
 }
@@ -238,24 +237,11 @@ impl<'a, I: I2CDevice> I2CClient for Bme280<'a, I> {
                 calib.hum6 = buffer[8] as u16;
                 self.calibration.set(calib);
 
-                buffer[0] = CTRL_MEAS;
-                self.i2c.write_read(buffer, 1, 1).unwrap();
-                self.state.set(DeviceState::Probe);
-            }
-            DeviceState::Probe => {
-                if buffer[0] & 0x11 == 0 {
-                    // We are in sleep mode, setup the device
-                    // Set oversampling to 1
-                    buffer[0] = CTRL_HUM;
-                    buffer[1] = 1;
-                    self.i2c.write_read(buffer, 2, 1).unwrap();
-
-                    self.state.set(DeviceState::Start);
-                } else {
-                    // Everything is already setup, just start
-                    self.state.set(DeviceState::Normal);
-                    self.buffer.replace(buffer);
-                }
+                // Set humidity oversampling to 1
+                buffer[0] = CTRL_HUM;
+                buffer[1] = 1;
+                self.i2c.write(buffer, 2).unwrap();
+                self.state.set(DeviceState::Start);
             }
             DeviceState::Start => {
                 // Set the mode to normal and set oversampling to 1
