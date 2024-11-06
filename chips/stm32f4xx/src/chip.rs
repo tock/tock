@@ -5,7 +5,7 @@
 //! Chip trait setup.
 
 use core::fmt::Write;
-use cortexm4::{CortexM4, CortexMVariant};
+use cortexm4f::{CortexM4F, CortexMVariant};
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
@@ -15,8 +15,8 @@ use crate::nvic;
 use crate::chip_specific::chip_specs::ChipSpecs as ChipSpecsTrait;
 
 pub struct Stm32f4xx<'a, I: InterruptService + 'a> {
-    mpu: cortexm4::mpu::MPU,
-    userspace_kernel_boundary: cortexm4::syscall::SysCall,
+    mpu: cortexm4f::mpu::MPU,
+    userspace_kernel_boundary: cortexm4f::syscall::SysCall,
     interrupt_service: &'a I,
 }
 
@@ -157,26 +157,26 @@ impl<'a, ChipSpecs: ChipSpecsTrait> InterruptService
 impl<'a, I: InterruptService + 'a> Stm32f4xx<'a, I> {
     pub unsafe fn new(interrupt_service: &'a I) -> Self {
         Self {
-            mpu: cortexm4::mpu::MPU::new(),
-            userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
+            mpu: cortexm4f::mpu::MPU::new(),
+            userspace_kernel_boundary: cortexm4f::syscall::SysCall::new(),
             interrupt_service,
         }
     }
 }
 
 impl<'a, I: InterruptService + 'a> Chip for Stm32f4xx<'a, I> {
-    type MPU = cortexm4::mpu::MPU;
-    type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
+    type MPU = cortexm4f::mpu::MPU;
+    type UserspaceKernelBoundary = cortexm4f::syscall::SysCall;
 
     fn service_pending_interrupts(&self) {
         unsafe {
             loop {
-                if let Some(interrupt) = cortexm4::nvic::next_pending() {
+                if let Some(interrupt) = cortexm4f::nvic::next_pending() {
                     if !self.interrupt_service.service_interrupt(interrupt) {
                         panic!("unhandled interrupt {}", interrupt);
                     }
 
-                    let n = cortexm4::nvic::Nvic::new(interrupt);
+                    let n = cortexm4f::nvic::Nvic::new(interrupt);
                     n.clear_pending();
                     n.enable();
                 } else {
@@ -187,21 +187,21 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32f4xx<'a, I> {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { cortexm4::nvic::has_pending() }
+        unsafe { cortexm4f::nvic::has_pending() }
     }
 
-    fn mpu(&self) -> &cortexm4::mpu::MPU {
+    fn mpu(&self) -> &cortexm4f::mpu::MPU {
         &self.mpu
     }
 
-    fn userspace_kernel_boundary(&self) -> &cortexm4::syscall::SysCall {
+    fn userspace_kernel_boundary(&self) -> &cortexm4f::syscall::SysCall {
         &self.userspace_kernel_boundary
     }
 
     fn sleep(&self) {
         unsafe {
-            cortexm4::scb::unset_sleepdeep();
-            cortexm4::support::wfi();
+            cortexm4f::scb::unset_sleepdeep();
+            cortexm4f::support::wfi();
         }
     }
 
@@ -209,10 +209,10 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32f4xx<'a, I> {
     where
         F: FnOnce() -> R,
     {
-        cortexm4::support::atomic(f)
+        cortexm4f::support::atomic(f)
     }
 
     unsafe fn print_state(&self, write: &mut dyn Write) {
-        CortexM4::print_cortexm_state(write);
+        CortexM4F::print_cortexm_state(write);
     }
 }
