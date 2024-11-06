@@ -319,9 +319,10 @@ impl<'a, I: I2CDevice> I2CClient for Bme280<'a, I> {
                         let var2 = var1
                             - (((((var1 >> 15) * (var1 >> 15)) >> 7) * (calib.hum1 as i32)) >> 4);
 
-                        let var6 = if var2 > 419430400 { 419430400 } else { var2 };
+                        let var3 = if var2 < 0 { 0 } else { var2 };
+                        let var6 = if var3 > 419430400 { 419430400 } else { var3 };
 
-                        let hum = ((var6 >> 12) / 1024) as usize;
+                        let hum = (((var6 >> 12) * 100) / 1024) as usize;
 
                         self.humidity_client.map(|client| client.callback(hum));
                     }
