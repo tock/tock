@@ -5,7 +5,7 @@
 //! Universal Serial Bus Device with EasyDMA (USBD)
 
 use core::cell::Cell;
-use cortexm4::support::atomic;
+use cortexm4f::support::atomic;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
 use kernel::utilities::cells::{OptionalCell, VolatileCell};
@@ -1335,7 +1335,7 @@ impl<'a> Usbd<'a> {
         // ms), but then the EPDATA event on the very first IN transfer
         // immediately after the `client.bus_reset()` call below never occurs.
         for _ in 0..800000 {
-            cortexm4::support::nop();
+            cortexm4f::support::nop();
         }
 
         // TODO: reset controller stack

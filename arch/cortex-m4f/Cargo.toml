@@ -3,15 +3,15 @@
 # Copyright Tock Contributors 2022.
 
 [package]
-name = "nrf52832"
+name = "cortexm4f"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-cortexm4f = { path = "../../arch/cortex-m4f" }
 kernel = { path = "../../kernel" }
-nrf52 = { path = "../nrf52" }
+cortexm = { path = "../cortex-m" }
+cortexv7m = { path = "../cortex-v7m" }
 
 [lints]
 workspace = true

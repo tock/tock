@@ -406,7 +406,7 @@ impl<'a> Iom<'_> {
 
         // Wait a few cycles to ensure the reset completes
         for _i in 0..30 {
-            cortexm4::support::nop();
+            cortexm4f::support::nop();
         }
 
         // Exit the reset state
@@ -487,7 +487,7 @@ impl<'a> Iom<'_> {
                 // iteration.
                 // See: https://ambiq.com/wp-content/uploads/2022/01/Apollo3-Blue-Errata-List.pdf
                 for _i in 0..3000 {
-                    cortexm4::support::nop();
+                    cortexm4f::support::nop();
                 }
 
                 if regs.fifoptr.read(FIFOPTR::FIFO1SIZ) < 4 {
@@ -594,7 +594,7 @@ impl<'a> Iom<'_> {
                     // iteration.
                     // See: https://ambiq.com/wp-content/uploads/2022/01/Apollo3-Blue-Errata-List.pdf
                     for _i in 0..3000 {
-                        cortexm4::support::nop();
+                        cortexm4f::support::nop();
                     }
 
                     let d = self.registers.fifopop.get().to_ne_bytes();
@@ -637,7 +637,7 @@ impl<'a> Iom<'_> {
                     // iteration.
                     // See: https://ambiq.com/wp-content/uploads/2022/01/Apollo3-Blue-Errata-List.pdf
                     for _i in 0..3000 {
-                        cortexm4::support::nop();
+                        cortexm4f::support::nop();
                     }
 
                     let _d = self.registers.fifopop.get().to_ne_bytes();
