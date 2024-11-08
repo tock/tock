@@ -48,6 +48,7 @@ pub enum MetaPermissions {
 }
 
 impl From<CapabilityPtr> for usize {
+    /// Provenance note: may not expose provenance
     #[inline]
     fn from(from: CapabilityPtr) -> Self {
         from.ptr as usize
@@ -55,6 +56,7 @@ impl From<CapabilityPtr> for usize {
 }
 
 impl From<usize> for CapabilityPtr {
+    /// Provenance note: may have null provenance
     #[inline]
     fn from(from: usize) -> Self {
         Self {
@@ -89,6 +91,8 @@ impl CapabilityPtr {
         self.ptr as *const T
     }
 
+    /// Provenance note: may derive from a pointer other than the input to provide something with
+    /// valid provenance to justify the other arguments.
     #[inline]
     pub fn new_with_metadata(
         ptr: *const (),
