@@ -570,8 +570,13 @@ impl SyscallReturn {
     /// Encode the system call return value into 4 registers, following the
     /// encoding specified in TRD104. Architectures which do not follow TRD104
     /// are free to define their own encoding.
-    /// TODO: deprecate in favour of the more general one
-    pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
+    pub fn encode_syscall_return_32bit_trd104(
+        &self,
+        a0: &mut u32,
+        a1: &mut u32,
+        a2: &mut u32,
+        a3: &mut u32,
+    ) {
         assert!(
             core::mem::size_of::<CapabilityPtr>() == core::mem::size_of::<u32>()
                 && core::mem::align_of::<u32>() >= align_of::<CapabilityPtr>(),
@@ -581,39 +586,24 @@ impl SyscallReturn {
         // SAFETY: if the two integers are the same size (and alignment permits) references
         // to them can be safely transmuted.
         // Ugly coercion could be avoided by first copying to the stack, then assigning with
-        // "as" in order to satisfy the compiler. But I expect this function will disappear
-        // in favour of just using the usize one.
+        // "as" in order to satisfy the compiler.
         unsafe {
             let a0 = &mut *(core::ptr::from_mut(a0) as *mut CapabilityPtr);
             let a1 = &mut *(core::ptr::from_mut(a1) as *mut CapabilityPtr);
             let a2 = &mut *(core::ptr::from_mut(a2) as *mut CapabilityPtr);
             let a3 = &mut *(core::ptr::from_mut(a3) as *mut CapabilityPtr);
-            self.encode_syscall_return_mptr(a0, a1, a2, a3);
+            self.encode_syscall_return_usize_trd104_compat(a0, a1, a2, a3);
         }
     }
 
-    /// The obvious extension of TRD104 that works for 32-bit and 64-bit platforms.
-    /// This makes no changes to TRD104 on 32-bit platforms.
+    /// An extension of TRD104 that works for 32-bit and 64-bit platforms.
+    /// This implements TRD104 exactly on 32-bit platforms by mapping new codes intended for
+    /// 64-bit platforms to existing ones.
     /// On 64-bit platforms, both 64-bit and usize values are passed as a single register,
-    /// shifting down register number if that means fewer registers are needed needed.
-    /// For usize, this is the obvious choice.
-    /// For explicitly 64-bit arguments, this would require rewriting prototypes for userspace
-    /// functions between 32 and 64 bit platforms.
-    /// However, no driver currently USES any 64-bit values.
-    /// Any new ones on 64-bit platforms would likely prefer just passing the value.
-    /// If they would not, I suspect many really want usize anyway (and that is what is used for
-    /// the syscalls handled directly by the kernel). Maybe they should be written in terms of that,
-    /// and some helpful aliases created for FailureUSIZE etc.
-    /// I think packing two 32-bit values into 64-bits would gain nothing and pollute a whole lot
-    /// of user code.
-    /// I have not considered usize other than 4 and 8 bytes.
-    /// Also handles the CHERI extension as follows:
-    /// the high part of any CapabilityPtr register is zero'd if any non capability-sized arguments are
-    /// passed.
-    /// SuccessPtr is as passed the full CapabilityPtr register.
-    /// Pointers from allow'd buffers have minimal bounds attached that cover their length,
-    /// and the same permissions that were checked at the syscall boundary.
-    pub fn encode_syscall_return_mptr(
+    /// Does not handle usize other than 4 and 8 bytes.
+    /// Pointers from allow'd buffers have permissions and length reattached matching
+    /// those that were checked at the syscall boundary.
+    fn encode_syscall_return_usize_trd104_compat(
         &self,
         a0: &mut CapabilityPtr,
         a1: &mut CapabilityPtr,
