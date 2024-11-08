@@ -25,6 +25,7 @@ These implement a driver to setup and read various physical sensors.
 - **[CCS811](src/ccs811.rs)**: VOC gas sensor.
 - **[Chirp I2C Moisture](src/chirp_i2c_moisture.rs)**: I2C moisture sensor
     from Chirp project.
+- **[DFRobot Rainfall Sensor](src/dfrobot_rainfall_sensor.rs)**: Rainfall sensor.
 - **[FXOS8700CQ](src/fxos8700cq.rs)**: Accelerometer and magnetometer.
 - **[HS3003](src/hs3003.rs)**: Temperature and humidity sensor.
 - **[HTS221](src/hts221.rs)**: Temperature and humidity sensor.
