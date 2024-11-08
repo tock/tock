@@ -40,7 +40,7 @@ impl Default for CapabilityPtr {
 
 #[derive(Copy, Clone, PartialEq)]
 pub enum MetaPermissions {
-    Any,
+    None,
     Read,
     Write,
     ReadWrite,
