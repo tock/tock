@@ -89,15 +89,6 @@ impl CapabilityPtr {
         self.ptr as *const T
     }
 
-    /// Convert to a raw pointer, checking that metadata allows a particular set of permissions over
-    /// a given number of bytes.
-    /// If the metadata does not allow for this, returns null.
-    /// If no such metadata exists, this succeeds.
-    #[inline]
-    pub fn as_ptr_checked<T>(&self, _length: usize, _perms: MetaPermissions) -> *const T {
-        self.ptr as *const T
-    }
-
     #[inline]
     pub fn new_with_metadata(
         ptr: *const (),
