@@ -7,10 +7,10 @@
 use core::fmt::{Formatter, LowerHex, UpperHex};
 use core::ops::AddAssign;
 
-/// A pointer to userspace memory.
+/// A pointer to userspace memory with implied authority.
 ///
 /// A [CapabilityPtr] points to memory a userspace processes may be
-/// permitted to read, write, or execute. It is sized exacly to a
+/// permitted to read, write, or execute. It is sized exactly to a
 /// register that can pass values between userspace and kernel and at
 /// least the size of a word ([usize]) [^note1]. Operations on the
 /// pointer may affect permissions, e.g. offsetting the pointer beyond
@@ -18,10 +18,11 @@ use core::ops::AddAssign;
 /// ()`, a [CapabilityPtr] may also "hide" information by storing a
 /// word of data with no memory access permissions.
 ///
-/// [CapabilityPtr] should be used to store or pass between kernel and
-/// userspace a value that may represent a valid userspace reference.
+/// [CapabilityPtr] should be used to store or pass between the kernel
+/// and userspace a value that may represent a valid userspace reference,
+/// when one party intends the other to access it.
 ///
-/// [^note1]: Depending on the architecutre, this the size of a
+/// [^note1]: Depending on the architecture, the size of a
 /// [CapabilityPtr] may be a word size or larger, e.g., if registers
 /// can store metadata such as access permissions.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
