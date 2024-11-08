@@ -167,8 +167,6 @@ pub enum Syscall {
         driver_number: usize,
         /// The subscribe identifier.
         subdriver_number: usize,
-        // On CHERI platforms we need to maintain metadata for
-        // these two as they are used to access code/data.
         /// Upcall pointer to the upcall function.
         upcall_ptr: CapabilityPtr,
         /// Userspace application data.
