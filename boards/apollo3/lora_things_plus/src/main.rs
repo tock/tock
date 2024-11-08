@@ -68,7 +68,7 @@ use {
     kernel::hil::rng::Rng,
 };
 
-#[cfg(feature = "chirp_i2c_moisture")]
+#[cfg(any(feature = "chirp_i2c_moisture", feature = "dfrobot_i2c_rainfall"))]
 use capsules_core::virtualizers::virtual_i2c::MuxI2C;
 
 /// Support routines for debugging I/O.
@@ -135,6 +135,13 @@ const LORA_GPIO_DRIVER_NUM: usize = capsules_core::driver::NUM::LoRaPhyGPIO as u
 type ChirpI2cMoistureType = components::chirp_i2c_moisture::ChirpI2cMoistureComponentType<
     capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, apollo3::iom::Iom<'static>>,
 >;
+type DFRobotRainFallType = components::dfrobot_rainfall_sensor::DFRobotRainFallSensorComponentType<
+    capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+        'static,
+        apollo3::stimer::STimer<'static>,
+    >,
+    capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, apollo3::iom::Iom<'static>>,
+>;
 type BME280Sensor = components::bme280::Bme280ComponentType<
     capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, apollo3::iom::Iom<'static>>,
 >;
@@ -177,6 +184,7 @@ struct LoRaThingsPlus {
     humidity: &'static HumidityDriver,
     air_quality: &'static capsules_extra::air_quality::AirQualitySensor<'static>,
     moisture: Option<&'static components::moisture::MoistureComponentType<ChirpI2cMoistureType>>,
+    rainfall: Option<&'static components::rainfall::RainFallComponentType<DFRobotRainFallType>>,
     rng: Option<
         &'static capsules_core::rng::RngDriver<
             'static,
@@ -295,6 +303,32 @@ unsafe fn setup_chirp_i2c_moisture(
     moisture
 }
 
+#[cfg(feature = "dfrobot_i2c_rainfall")]
+unsafe fn setup_dfrobot_i2c_rainfall(
+    board_kernel: &'static kernel::Kernel,
+    _memory_allocation_cap: &dyn capabilities::MemoryAllocationCapability,
+    mux_i2c: &'static MuxI2C<'static, apollo3::iom::Iom<'static>>,
+    mux_alarm: &'static MuxAlarm<'static, apollo3::stimer::STimer<'static>>,
+) -> &'static components::rainfall::RainFallComponentType<DFRobotRainFallType> {
+    let dfrobot_rainfall =
+        components::dfrobot_rainfall_sensor::DFRobotRainFallSensorComponent::new(
+            mux_i2c, 0x1D, mux_alarm,
+        )
+        .finalize(components::dfrobot_rainfall_sensor_component_static!(
+            apollo3::stimer::STimer<'static>,
+            apollo3::iom::Iom<'static>
+        ));
+
+    let rainfall = components::rainfall::RainFallComponent::new(
+        board_kernel,
+        capsules_extra::rainfall::DRIVER_NUM,
+        dfrobot_rainfall,
+    )
+    .finalize(components::rainfall_component_static!(DFRobotRainFallType));
+
+    rainfall
+}
+
 /// Mapping of integer syscalls to objects that implement syscalls.
 impl SyscallDriverLookup for LoRaThingsPlus {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
@@ -324,6 +358,13 @@ impl SyscallDriverLookup for LoRaThingsPlus {
             capsules_extra::moisture::DRIVER_NUM => {
                 if let Some(moisture) = self.moisture {
                     f(Some(moisture))
+                } else {
+                    f(None)
+                }
+            }
+            capsules_extra::rainfall::DRIVER_NUM => {
+                if let Some(rainfall) = self.rainfall {
+                    f(Some(rainfall))
                 } else {
                     f(None)
                 }
@@ -539,6 +580,16 @@ unsafe fn setup() -> (
     ));
     #[cfg(not(feature = "chirp_i2c_moisture"))]
     let moisture = None;
+
+    #[cfg(feature = "dfrobot_i2c_rainfall")]
+    let rainfall = Some(setup_dfrobot_i2c_rainfall(
+        board_kernel,
+        &memory_allocation_cap,
+        mux_i2c,
+        mux_alarm,
+    ));
+    #[cfg(not(feature = "dfrobot_i2c_rainfall"))]
+    let rainfall = None;
 
     #[cfg(feature = "atecc508a")]
     let rng = Some(setup_atecc508a(
@@ -772,6 +823,7 @@ unsafe fn setup() -> (
             humidity,
             air_quality,
             moisture,
+            rainfall,
             rng,
             scheduler,
             systick,
