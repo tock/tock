@@ -572,21 +572,23 @@ impl SyscallReturn {
     /// are free to define their own encoding.
     /// TODO: deprecate in favour of the more general one
     pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
-        if core::mem::size_of::<CapabilityPtr>() == core::mem::size_of::<u32>() {
-            // SAFETY: if the two unsized integers are the same size references to them
-            // can be safely transmuted.
-            // Ugly coercion could be avoided by first copying to the stack, then assigning with
-            // "as" in order to satisfy the compiler. But I expect this function will disappear
-            // in favour of just using the usize one.
-            unsafe {
-                let a0 = &mut *(core::ptr::from_mut(a0) as *mut CapabilityPtr);
-                let a1 = &mut *(core::ptr::from_mut(a1) as *mut CapabilityPtr);
-                let a2 = &mut *(core::ptr::from_mut(a2) as *mut CapabilityPtr);
-                let a3 = &mut *(core::ptr::from_mut(a3) as *mut CapabilityPtr);
-                self.encode_syscall_return_mptr(a0, a1, a2, a3);
-            }
-        } else {
-            panic!("encode_syscall_return used on a 64-bit platform or CHERI platform")
+        assert!(
+            core::mem::size_of::<CapabilityPtr>() == core::mem::size_of::<u32>()
+                && core::mem::align_of::<u32>() >= align_of::<CapabilityPtr>(),
+            "encode_syscall_return used on a 64-bit platform or CHERI platform"
+        );
+
+        // SAFETY: if the two integers are the same size (and alignment permits) references
+        // to them can be safely transmuted.
+        // Ugly coercion could be avoided by first copying to the stack, then assigning with
+        // "as" in order to satisfy the compiler. But I expect this function will disappear
+        // in favour of just using the usize one.
+        unsafe {
+            let a0 = &mut *(core::ptr::from_mut(a0) as *mut CapabilityPtr);
+            let a1 = &mut *(core::ptr::from_mut(a1) as *mut CapabilityPtr);
+            let a2 = &mut *(core::ptr::from_mut(a2) as *mut CapabilityPtr);
+            let a3 = &mut *(core::ptr::from_mut(a3) as *mut CapabilityPtr);
+            self.encode_syscall_return_mptr(a0, a1, a2, a3);
         }
     }
 
