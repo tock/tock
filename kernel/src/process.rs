@@ -1080,7 +1080,7 @@ pub struct FunctionCall {
     pub argument1: usize,
     /// The third argument to the function.
     pub argument2: usize,
-    /// The fourth argument to the function.
+    /// The userdata provided by the process via `subscribe`
     pub argument3: CapabilityPtr,
     /// The PC of the function to execute.
     pub pc: CapabilityPtr,
