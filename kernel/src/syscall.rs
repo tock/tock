@@ -68,9 +68,9 @@
 
 use core::fmt::Write;
 
-use crate::capability_ptr::{CapabilityPtr, MetaPermissions};
 use crate::errorcode::ErrorCode;
 use crate::process;
+use crate::utilities::capability_ptr::{CapabilityPtr, MetaPermissions};
 
 pub use crate::syscall_driver::{CommandReturn, SyscallDriver};
 

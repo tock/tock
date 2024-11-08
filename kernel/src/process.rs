@@ -11,7 +11,6 @@ use core::ptr::NonNull;
 use core::str;
 
 use crate::capabilities;
-use crate::capability_ptr::CapabilityPtr;
 use crate::errorcode::ErrorCode;
 use crate::ipc;
 use crate::kernel::Kernel;
@@ -20,6 +19,7 @@ use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::storage_permissions;
 use crate::syscall::{self, Syscall, SyscallReturn};
 use crate::upcall::UpcallId;
+use crate::utilities::capability_ptr::CapabilityPtr;
 use tock_tbf::types::CommandPermissions;
 
 // Export all process related types via `kernel::process::`.

@@ -14,8 +14,6 @@ use core::num::NonZeroU32;
 use core::ptr::NonNull;
 use core::{mem, ptr, slice, str};
 
-use crate::capability_ptr::MetaPermissions::Execute;
-use crate::capability_ptr::{CapabilityPtr, MetaPermissions};
 use crate::collections::queue::Queue;
 use crate::collections::ring_buffer::RingBuffer;
 use crate::config;
@@ -38,6 +36,8 @@ use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::storage_permissions::StoragePermissions;
 use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
 use crate::upcall::UpcallId;
+use crate::utilities::capability_ptr::MetaPermissions::Execute;
+use crate::utilities::capability_ptr::{CapabilityPtr, MetaPermissions};
 use crate::utilities::cells::{MapCell, NumericCellExt, OptionalCell};
 
 use tock_tbf::types::CommandPermissions;

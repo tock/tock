@@ -105,7 +105,6 @@ pub const KERNEL_MAJOR_VERSION: u16 = 2;
 pub const KERNEL_MINOR_VERSION: u16 = 1;
 
 pub mod capabilities;
-pub mod capability_ptr;
 pub mod collections;
 pub mod component;
 pub mod debug;
