@@ -130,6 +130,7 @@ These provide common and better abstractions for userspace.
 - **[Pressure](src/pressure.rs)**: Pressure sensors.
 - **[Proximity](src/proximity.rs)**: Proximity sensors.
 - **[PWM](src/pwm.rs)**: Pulse-width modulation support.
+- **[Rainfall](src/rainfall.rs)**: Query rainfall sensors.
 - **[Read Only State](src/read_only_state.rs)**: Read-only state sharing.
 - **[Screen](src/screen.rs)**: Displays and screens.
 - **[Screen Shared](src/screen_shared.rs)**: App-specific screen windows.
