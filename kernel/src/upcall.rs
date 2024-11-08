@@ -70,7 +70,7 @@ pub enum UpcallError {
 }
 
 // FIXME: When we get CHERI compiler support, these can go back to the proper types
-// b/274586199
+// Google-internal issue: b/274586199
 // https://github.com/tock/tock/issues/4134
 pub(crate) type AppdataType = CapabilityPtr;
 pub(crate) type FnPtrType = CapabilityPtr;
