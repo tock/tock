@@ -71,6 +71,7 @@ pub mod process_console;
 pub mod process_printer;
 pub mod proximity;
 pub mod pwm;
+pub mod rainfall;
 pub mod rf233;
 pub mod rng;
 pub mod sched;
