@@ -4,6 +4,7 @@
 
 //! Utility functions and macros provided by the kernel crate.
 
+pub mod arch_helpers;
 pub mod binary_write;
 pub mod copy_slice;
 pub mod helpers;
