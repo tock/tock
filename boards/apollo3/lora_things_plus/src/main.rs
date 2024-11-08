@@ -116,6 +116,13 @@ static mut BME280: Option<
 static mut CCS811: Option<&'static capsules_extra::ccs811::Ccs811<'static>> = None;
 #[cfg(feature = "atecc508a")]
 static mut ATECC508A: Option<&'static capsules_extra::atecc508a::Atecc508a<'static>> = None;
+#[cfg(feature = "chirp_i2c_moisture")]
+static mut CHIRP_I2C_MOISTURE: Option<
+    &'static capsules_extra::chirp_i2c_moisture::ChirpI2cMoisture<
+        'static,
+        capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, apollo3::iom::Iom<'static>>,
+    >,
+> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -276,6 +283,7 @@ unsafe fn setup_chirp_i2c_moisture(
         components::chirp_i2c_moisture::ChirpI2cMoistureComponent::new(mux_i2c, 0x20).finalize(
             components::chirp_i2c_moisture_component_static!(apollo3::iom::Iom<'static>),
         );
+    CHIRP_I2C_MOISTURE = Some(chirp_moisture);
 
     let moisture = components::moisture::MoistureComponent::new(
         board_kernel,
