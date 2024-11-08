@@ -35,6 +35,7 @@ pub mod cycle_count;
 pub mod dac;
 pub mod date_time;
 pub mod debug_process_restart;
+pub mod dfrobot_rainfall_sensor;
 pub mod distance;
 pub mod eui64;
 pub mod fm25cl;
