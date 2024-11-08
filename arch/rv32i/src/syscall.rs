@@ -206,7 +206,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         state.regs[R_RA] = state.pc;
 
         // Save the PC we expect to execute.
-        state.pc = callback.pc.as_ptr::<()>() as usize as u32;
+        state.pc = usize::from(callback.pc) as u32;
 
         Ok(())
     }
