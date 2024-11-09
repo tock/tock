@@ -123,7 +123,7 @@ struct ProcessBreaks {
 }
 
 /// A type for userspace processes in Tock.
-#[flux_rs::refined_by(mem_start: FluxPtrU8Mut, mem_len: int)]
+#[flux_rs::refined_by(mem_start: FluxPtr, mem_len: int)]
 #[flux_rs::invariant(mem_start + mem_len <= usize::MAX)] // mem doesn't overflow address space
 pub struct ProcessStandard<'a, C: 'static + Chip> {
     /// Identifier of this process and the index of the process in the process
