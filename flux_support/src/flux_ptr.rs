@@ -159,9 +159,8 @@ impl PartialOrd for FluxPtr {
     }
 }
 
-#[flux_rs::alias(type FluxPtrU8[n: int] = FluxPtr[n])]
 pub type FluxPtrU8 = FluxPtr;
-#[flux_rs::alias(type FluxPtrU8Mut[n: int] = FluxPtr[n])]
+
 pub type FluxPtrU8Mut = FluxPtr;
 
 pub trait FluxPtrExt {
