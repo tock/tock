@@ -10,16 +10,14 @@
 //! ```rust
 //! # fn main() {}
 //!
-//! use tock_registers::registers::{ReadOnly, ReadWrite};
-//! use tock_registers::register_bitfields;
+//! use tock_registers::{peripheral, register_bitfields};
 //!
 //! // Register maps are specified like this:
-//! #[repr(C)]
-//! struct Registers {
-//!     // Control register: read-write
-//!     cr: ReadWrite<u32, Control::Register>,
-//!     // Status register: read-only
-//!     s: ReadOnly<u32, Status::Register>,
+//! peripheral! {
+//!     Registers {
+//!         0x0 => cr: Control::Register { Read, Write },
+//!         0x4 => s: Status::Register { Read },
+//!     }
 //! }
 //!
 //! // Register fields and definitions look like this:
@@ -58,13 +56,17 @@
 //! - Shane Leonard <shanel@stanford.edu>
 
 #![no_std]
-// If we don't build any actual register types, we don't need unsafe
-// code in this crate
-#![cfg_attr(not(feature = "register_types"), forbid(unsafe_code))]
 
+mod access;
+mod bus_adapter;
+mod data_type;
+mod fake_register;
 pub mod fields;
 pub mod interfaces;
 pub mod macros;
+mod peripheral;
+pub mod reexport;
+mod register_traits;
 
 #[cfg(feature = "register_types")]
 pub mod registers;
@@ -73,6 +75,12 @@ pub mod debug;
 
 mod local_register;
 pub use local_register::LocalRegisterCopy;
+
+pub use access::{Access, NoAccess, Safe, Unsafe};
+pub use bus_adapter::{BusAdapter, DirectBus};
+pub use data_type::{Aliased, ArrayDataType, DataType, RegisterLongName, ScalarDataType};
+pub use fake_register::FakeRegister;
+pub use register_traits::{Read, Register, UnsafeRead, UnsafeWrite, Write};
 
 use core::fmt::Debug;
 use core::ops::{BitAnd, BitOr, BitOrAssign, Not, Shl, Shr};
@@ -128,9 +136,6 @@ UIntLike_impl_for!(u64);
 UIntLike_impl_for!(u128);
 UIntLike_impl_for!(usize);
 
-/// Descriptive name for each register.
-pub trait RegisterLongName {}
-
-// Useful implementation for when no RegisterLongName is required
-// (e.g. no fields need to be accessed, just the raw register values)
-impl RegisterLongName for () {}
+/// Error indicating an array index was out of bounds.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct OutOfBounds;

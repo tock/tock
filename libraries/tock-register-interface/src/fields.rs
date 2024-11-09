@@ -601,6 +601,14 @@ macro_rules! register_bitfields {
                 #[derive(Clone, Copy)]
                 pub struct Register;
                 impl $crate::RegisterLongName for Register {}
+                impl $crate::DataType for Register {
+                    type Value = $valtype;
+                    const NUM_VALUES: usize = 1;
+                }
+                impl $crate::ScalarDataType for Register {
+                    type Read = Register;
+                    type Write = Register;
+                }
 
                 use $crate::fields::Field;
 
