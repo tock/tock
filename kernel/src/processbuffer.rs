@@ -169,7 +169,14 @@ unsafe fn raw_processbuf_to_rwprocessslice<'a>(
 /// This trait can be used to gain read-only access to memory regions
 /// wrapped in either a [`ReadOnlyProcessBuffer`] or a
 /// [`ReadWriteProcessBuffer`] type.
-pub trait ReadableProcessBuffer {
+///
+/// # Safety
+///
+/// This is an `unsafe trait` as users of this trait need to trust that the
+/// implementation of [`ReadableProcessBuffer::ptr`] is correct. Implementors of
+/// this trait must ensure that the [`ReadableProcessBuffer::ptr`] method
+/// follows the semantics and invariants described in its documentation.
+pub unsafe trait ReadableProcessBuffer {
     /// Length of the memory region.
     ///
     /// If the process is no longer alive and the memory has been
@@ -180,16 +187,29 @@ pub trait ReadableProcessBuffer {
     /// A default instance of a process buffer must return 0.
     fn len(&self) -> usize;
 
-    /// Pointer to the first byte of the userspace memory region.
+    /// Pointer to the first byte of the userspace-allowed memory region.
+    ///
+    /// If [`ReadableProcessBuffer::len`] returns a non-zero value,
+    /// then this method is guaranteed to return a pointer to the
+    /// start address of a memory region (of length returned by
+    /// `len`), allowable by a userspace process, and allowed to the
+    /// kernel for read operations. The memory region must not be
+    /// written to through this pointer.
     ///
     /// If the length of the initially shared memory region
     /// (irrespective of the return value of
-    /// [`len`](ReadableProcessBuffer::len)) is 0, this function returns
-    /// a pointer to address `0x0`. This is because processes may
-    /// allow buffers with length 0 to share no memory with the
+    /// [`len`](ReadableProcessBuffer::len)) is 0, this function
+    /// returns a pointer to address `0x0`. This is because processes
+    /// may allow zero-length buffer to share no memory with the
     /// kernel. Because these buffers have zero length, they may have
-    /// any pointer value. However, these _dummy addresses_ should not
-    /// be leaked, so this method returns 0 for zero-length slices.
+    /// any arbitrary pointer value. However, these "dummy addresses"
+    /// should not be leaked, so this method returns 0 for zero-length
+    /// slices. Care must be taken to not create a Rust (slice)
+    /// reference over a null-pointer, as that is undefined behavior.
+    ///
+    /// Users of this pointer must not produce any mutable aliasing, such as by
+    /// creating a reference from this pointer concurrently with calling
+    /// [`WriteableProcessBuffer::mut_enter`].
     ///
     /// # Default Process Buffer
     ///
@@ -221,7 +241,58 @@ pub trait ReadableProcessBuffer {
 ///
 /// This is a supertrait of [`ReadableProcessBuffer`], which features
 /// methods allowing mutable access.
-pub trait WriteableProcessBuffer: ReadableProcessBuffer {
+///
+/// # Safety
+///
+/// This is an `unsafe trait` as users of this trait need to trust that the
+/// implementation of [`WriteableProcessBuffer::mut_ptr`] is
+/// correct.
+///
+/// Implementors of this trait must ensure that the
+/// [`WriteableProcessBuffer::mut_ptr`] method follows the semantics and
+/// invariants described in its documentation, and that the length of the
+/// [`WriteableProcessBuffer`] is identical to the value returned by the
+/// [`ReadableProcessBuffer::len`] supertrait method.
+///
+/// Additionally, when using the default implementation of `mut_ptr` provided by
+/// this trait, implementors guarantee that the readable pointer returned by
+/// [`ReadableProcessBuffer::ptr`] points to the same read-write allowed shared
+/// memory region as described by the [`WriteableProcessBuffer`], and that
+/// writes through the pointer returned by [`ReadableProcessBuffer::ptr`] are
+/// sound for [`ReadableProcessBuffer::len`] bytes, notwithstanding any aliasing
+/// requirements.
+pub unsafe trait WriteableProcessBuffer: ReadableProcessBuffer {
+    /// Pointer to the first byte of the userspace-allowed memory region.
+    ///
+    /// If [`ReadableProcessBuffer::len`] returns a non-zero value,
+    /// then this method is guaranteed to return a pointer to the
+    /// start address of a memory region (of length returned by
+    /// `len`), allowable by a userspace process, and allowed to the
+    /// kernel for read or write operations.
+    ///
+    /// If the length of the initially shared memory region
+    /// (irrespective of the return value of
+    /// [`len`](ReadableProcessBuffer::len)) is 0, this function
+    /// returns a pointer to address `0x0`. This is because processes
+    /// may allow zero-length buffer to share no memory with the
+    /// kernel. Because these buffers have zero length, they may have
+    /// any arbitrary pointer value. However, these "dummy addresses"
+    /// should not be leaked, so this method returns 0 for zero-length
+    /// slices. Care must be taken to not create a Rust (slice)
+    /// reference over a null-pointer, as that is undefined behavior.
+    ///
+    /// Users of this pointer must not produce any mutable aliasing, such as by
+    /// creating a reference from this pointer concurrently with calling
+    /// [`WriteableProcessBuffer::mut_enter`].
+    ///
+    /// # Default Process Buffer
+    ///
+    /// A default instance of a process buffer must return a pointer
+    /// to address `0x0`.
+    fn mut_ptr(&self) -> *mut u8 {
+        ReadableProcessBuffer::ptr(self).cast_mut()
+    }
+
     /// Applies a function to the mutable process slice reference
     /// pointed to by the [`ReadWriteProcessBuffer`].
     ///
@@ -329,7 +400,7 @@ impl ReadOnlyProcessBuffer {
     }
 }
 
-impl ReadableProcessBuffer for ReadOnlyProcessBuffer {
+unsafe impl ReadableProcessBuffer for ReadOnlyProcessBuffer {
     /// Return the length of the buffer in bytes.
     fn len(&self) -> usize {
         self.process_id
@@ -536,7 +607,7 @@ impl ReadWriteProcessBuffer {
     }
 }
 
-impl ReadableProcessBuffer for ReadWriteProcessBuffer {
+unsafe impl ReadableProcessBuffer for ReadWriteProcessBuffer {
     /// Return the length of the buffer in bytes.
     fn len(&self) -> usize {
         self.process_id
@@ -589,7 +660,7 @@ impl ReadableProcessBuffer for ReadWriteProcessBuffer {
     }
 }
 
-impl WriteableProcessBuffer for ReadWriteProcessBuffer {
+unsafe impl WriteableProcessBuffer for ReadWriteProcessBuffer {
     fn mut_enter<F, R>(&self, fun: F) -> Result<R, process::Error>
     where
         F: FnOnce(&WriteableProcessSlice) -> R,
