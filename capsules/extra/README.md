@@ -47,6 +47,7 @@ These implement a driver to setup and read various physical sensors.
 - **[STM32 Temperature](src/temperature_stm.rs)**: Analog STM32 temperature
   sensor.
 - **[TSL2561](src/tsl2561.rs)**: Light sensor.
+- **[HC-SR04](src/hc_sr04.rs)**: Ultrasonic distance sensor
 
 These drivers provide support for various ICs.
 
@@ -134,6 +135,7 @@ These provide common and better abstractions for userspace.
 - **[Temperature](src/temperature.rs)**: Query temperature sensors.
 - **[Text Screen](src/text_screen.rs)**: Text-based displays.
 - **[Touch](src/touch.rs)**: User touch panels.
+- **[Distance](src/distance.rs)**: Distance sensor.
 
 
 Virtualized Sensor Capsules for Userspace
