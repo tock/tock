@@ -247,7 +247,7 @@ mod Control {
 }   
 ```
 
-The macro generated a module for each register (e.g., Control, Status, InterruptFlags) that includes:
+The macro generates a module for each register (e.g., Control, Status, InterruptFlags) that includes:
 - A `Register` struct for each register, which acts as a placeholder for the register type.
 - `Field`s within the register are defined as constants, such as `RANGE`, `EN`, and `INT` for the `Control` register.
 - Each field is represented by the `Field` type, which encapsulates the bit offset and width.
