@@ -51,7 +51,7 @@
 //! You need a device that provides the `hil::sensors::Distance` trait.
 //! Here is an example of how to set up a distance sensor with the HC-SR04.
 //!
-//! ```rust
+//! ```rust,ignore
 //! use components::hcsr04::HcSr04Component;
 
 //! let trig_pin = peripherals.pins.get_pin(RPGpio::GPIO4);
