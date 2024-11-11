@@ -70,7 +70,7 @@ use core::fmt::Write;
 
 use crate::errorcode::ErrorCode;
 use crate::process;
-use crate::utilities::capability_ptr::{CapabilityPtr, MetaPermissions};
+use crate::utilities::capability_ptr::{CapabilityPtr, CapabilityPtrPermissions};
 
 pub use crate::syscall_driver::{CommandReturn, SyscallDriver};
 
@@ -678,7 +678,7 @@ impl SyscallReturn {
                     ptr as *const (),
                     ptr as usize,
                     len,
-                    MetaPermissions::ReadWrite,
+                    CapabilityPtrPermissions::ReadWrite,
                 );
                 *a2 = len.into();
             }
@@ -689,7 +689,7 @@ impl SyscallReturn {
                     ptr as *const (),
                     ptr as usize,
                     len,
-                    MetaPermissions::Read,
+                    CapabilityPtrPermissions::Read,
                 );
                 *a2 = len.into();
             }
@@ -701,7 +701,7 @@ impl SyscallReturn {
                     ptr as *const (),
                     ptr as usize,
                     len,
-                    MetaPermissions::ReadWrite,
+                    CapabilityPtrPermissions::ReadWrite,
                 );
                 *a3 = len.into();
             }
@@ -713,7 +713,7 @@ impl SyscallReturn {
                     ptr as *const (),
                     ptr as usize,
                     len,
-                    MetaPermissions::Read,
+                    CapabilityPtrPermissions::Read,
                 );
                 *a3 = len.into();
             }
@@ -724,7 +724,7 @@ impl SyscallReturn {
                     ptr as *const (),
                     ptr as usize,
                     len,
-                    MetaPermissions::Read,
+                    CapabilityPtrPermissions::Read,
                 );
                 *a2 = len.into();
             }
@@ -736,7 +736,7 @@ impl SyscallReturn {
                     ptr as *const (),
                     ptr as usize,
                     len,
-                    MetaPermissions::Read,
+                    CapabilityPtrPermissions::Read,
                 );
                 *a3 = len.into();
             }

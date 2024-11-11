@@ -5,6 +5,7 @@
 //! Utility functions and macros provided by the kernel crate.
 
 pub mod binary_write;
+pub mod capability_ptr;
 pub mod copy_slice;
 pub mod helpers;
 pub mod leasable_buffer;
@@ -12,10 +13,8 @@ pub mod math;
 pub mod mut_imut_buffer;
 pub mod peripheral_management;
 pub mod static_init;
-pub mod storage_volume;
-
-pub mod capability_ptr;
 mod static_ref;
+pub mod storage_volume;
 
 pub use self::static_ref::StaticRef;
 

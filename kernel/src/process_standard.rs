@@ -36,7 +36,7 @@ use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::storage_permissions::StoragePermissions;
 use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
 use crate::upcall::UpcallId;
-use crate::utilities::capability_ptr::{CapabilityPtr, MetaPermissions};
+use crate::utilities::capability_ptr::{CapabilityPtr, CapabilityPtrPermissions};
 use crate::utilities::cells::{MapCell, NumericCellExt, OptionalCell};
 
 use tock_tbf::types::CommandPermissions;
@@ -621,7 +621,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                     old_break as *const (),
                     base,
                     (new_break as usize) - base,
-                    MetaPermissions::ReadWrite,
+                    CapabilityPtrPermissions::ReadWrite,
                 );
 
                 Ok(break_result)
@@ -1761,7 +1761,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             init_addr as *const (),
             fn_base,
             fn_len,
-            MetaPermissions::Execute,
+            CapabilityPtrPermissions::Execute,
         );
 
         process.tasks.map(|tasks| {
@@ -1934,7 +1934,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             init_addr as *const (),
             flash_start as usize,
             (self.flash_end() as usize) - (flash_start as usize),
-            MetaPermissions::Execute,
+            CapabilityPtrPermissions::Execute,
         );
 
         self.enqueue_task(Task::FunctionCall(FunctionCall {
