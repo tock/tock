@@ -1953,10 +1953,11 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     /// to be accessible to the process and to not overlap with the grant
     /// region.
     fn in_app_owned_memory(&self, buf_start_addr: *const u8, size: usize) -> bool {
-        // TODO: On CHERI platforms, it impossible to form syscalls with pointers
-        // that are not in app memory. However, buf_start_addr is not the right
-        // type to make this function always return true. If CapabilityPtr makes it
-        // slightly further, we can skip this check.
+        // TODO: On some platforms, CapabilityPtr has sufficient authority that we
+        // could skip this check.
+        // CapabilityPtr needs to make it slightly further, and we need to add
+        // interfaces that tell us how much assurance it gives on the current
+        // platform.
         let buf_end_addr = buf_start_addr.wrapping_add(size);
 
         buf_end_addr >= buf_start_addr
@@ -1969,10 +1970,11 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     /// this method returns true, the buffer is guaranteed to be readable to the
     /// process.
     fn in_app_flash_memory(&self, buf_start_addr: *const u8, size: usize) -> bool {
-        // TODO: On CHERI platforms, it impossible to form syscalls with pointers
-        // that are not in app memory. However, buf_start_addr is not the right
-        // type to make this function always return true. If CapabilityPtr makes it
-        // slightly further, we can skip this check.
+        // TODO: On some platforms, CapabilityPtr has sufficient authority that we
+        // could skip this check.
+        // CapabilityPtr needs to make it slightly further, and we need to add
+        // interfaces that tell us how much assurance it gives on the current
+        // platform.
         let buf_end_addr = buf_start_addr.wrapping_add(size);
 
         buf_end_addr >= buf_start_addr
