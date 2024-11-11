@@ -278,19 +278,19 @@ impl Syscall {
             Ok(SyscallClass::ReadWriteAllow) => Some(Syscall::ReadWriteAllow {
                 driver_number: r0,
                 subdriver_number: r1.into(),
-                allow_address: r2.as_ptr::<u8>() as *mut u8,
+                allow_address: r2.as_ptr::<u8>().cast_mut(),
                 allow_size: r3.into(),
             }),
             Ok(SyscallClass::UserspaceReadableAllow) => Some(Syscall::UserspaceReadableAllow {
                 driver_number: r0,
                 subdriver_number: r1.into(),
-                allow_address: r2.as_ptr::<u8>() as *mut u8,
+                allow_address: r2.as_ptr::<u8>().cast_mut(),
                 allow_size: r3.into(),
             }),
             Ok(SyscallClass::ReadOnlyAllow) => Some(Syscall::ReadOnlyAllow {
                 driver_number: r0,
                 subdriver_number: r1.into(),
-                allow_address: r2.as_ptr::<u8>() as *mut u8,
+                allow_address: r2.as_ptr::<u8>().cast_mut(),
                 allow_size: r3.into(),
             }),
             Ok(SyscallClass::Memop) => Some(Syscall::Memop {
@@ -417,16 +417,17 @@ impl SyscallReturnVariant {
     pub const fn into_compat_32bit_trd104(self) -> Self {
         // We only need to be backwards compatible on 32-bit systems
         let compat = core::mem::size_of::<usize>() == core::mem::size_of::<u32>();
-        if compat {
-            match self {
-                // Map all usizes and ptrs to u32
-                Self::SuccessUsize | Self::SuccessPtr => Self::SuccessU32,
-                Self::SuccessPtrUsize | Self::SuccessPtrPtr => Self::SuccessU32U32,
-                Self::FailurePtrUsize | Self::FailurePtrPtr => Self::FailureU32U32,
-                x => x,
-            }
-        } else {
-            self
+
+        if !compat {
+            return self;
+        }
+
+        match self {
+            // Map all usizes and ptrs to u32
+            Self::SuccessUsize | Self::SuccessPtr => Self::SuccessU32,
+            Self::SuccessPtrUsize | Self::SuccessPtrPtr => Self::SuccessU32U32,
+            Self::FailurePtrUsize | Self::FailurePtrPtr => Self::FailureU32U32,
+            x => x,
         }
     }
 }
@@ -588,10 +589,10 @@ impl SyscallReturn {
         // Ugly coercion could be avoided by first copying to the stack, then assigning with
         // "as" in order to satisfy the compiler.
         unsafe {
-            let a0 = &mut *(core::ptr::from_mut(a0) as *mut CapabilityPtr);
-            let a1 = &mut *(core::ptr::from_mut(a1) as *mut CapabilityPtr);
-            let a2 = &mut *(core::ptr::from_mut(a2) as *mut CapabilityPtr);
-            let a3 = &mut *(core::ptr::from_mut(a3) as *mut CapabilityPtr);
+            let a0 = &mut *(core::ptr::from_mut(a0).cast::<CapabilityPtr>());
+            let a1 = &mut *(core::ptr::from_mut(a1).cast::<CapabilityPtr>());
+            let a2 = &mut *(core::ptr::from_mut(a2).cast::<CapabilityPtr>());
+            let a3 = &mut *(core::ptr::from_mut(a3).cast::<CapabilityPtr>());
             self.encode_syscall_return_usize_trd104_compat(a0, a1, a2, a3);
         }
     }
