@@ -1753,6 +1753,10 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             flash_start.wrapping_add(process.header.get_init_function_offset() as usize) as usize;
         let fn_base = flash_start as usize;
         let fn_len = process.flash.len();
+
+        // We need to construct a capability with sufficient authority to cover all of a user's
+        // code, with permissions to execute it. The entirety of flash is sufficient.
+
         let init_fn = CapabilityPtr::new_with_metadata(
             init_addr as *const (),
             fn_base,
@@ -1922,6 +1926,9 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             flash_start.wrapping_add(self.header.get_app_start_offset() as usize) as usize;
         let init_addr =
             flash_start.wrapping_add(self.header.get_init_function_offset() as usize) as usize;
+
+        // We need to construct a capability with sufficient authority to cover all of a user's
+        // code, with permissions to execute it. The entirety of flash is sufficient.
 
         let init_fn = CapabilityPtr::new_with_metadata(
             init_addr as *const (),
