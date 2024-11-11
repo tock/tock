@@ -36,7 +36,6 @@ use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::storage_permissions::StoragePermissions;
 use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
 use crate::upcall::UpcallId;
-use crate::utilities::capability_ptr::MetaPermissions::Execute;
 use crate::utilities::capability_ptr::{CapabilityPtr, MetaPermissions};
 use crate::utilities::cells::{MapCell, NumericCellExt, OptionalCell};
 
@@ -1754,8 +1753,12 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             flash_start.wrapping_add(process.header.get_init_function_offset() as usize) as usize;
         let fn_base = flash_start as usize;
         let fn_len = process.flash.len();
-        let init_fn =
-            CapabilityPtr::new_with_metadata(init_addr as *const (), fn_base, fn_len, Execute);
+        let init_fn = CapabilityPtr::new_with_metadata(
+            init_addr as *const (),
+            fn_base,
+            fn_len,
+            MetaPermissions::Execute,
+        );
 
         process.tasks.map(|tasks| {
             tasks.enqueue(Task::FunctionCall(FunctionCall {
@@ -1924,7 +1927,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             init_addr as *const (),
             flash_start as usize,
             (self.flash_end() as usize) - (flash_start as usize),
-            Execute,
+            MetaPermissions::Execute,
         );
 
         self.enqueue_task(Task::FunctionCall(FunctionCall {
