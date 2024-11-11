@@ -414,7 +414,7 @@ impl SyscallReturnVariant {
     /// to old ones (u32) for backwards compatibility.
     /// This should not be used for any newly designed interfaces,
     /// and will eventually be deprecated once all interfaces are updated.
-    pub const fn into_compat(self) -> Self {
+    pub const fn into_compat_32bit_trd104(self) -> Self {
         // We only need to be backwards compatible on 32-bit systems
         let compat = core::mem::size_of::<usize>() == core::mem::size_of::<u32>();
         if compat {
@@ -672,7 +672,8 @@ impl SyscallReturn {
                 write_64(a2, a3, data1);
             }
             SyscallReturn::AllowReadWriteSuccess(ptr, len) => {
-                *a0 = (SyscallReturnVariant::SuccessPtrUsize.into_compat() as usize).into();
+                *a0 = (SyscallReturnVariant::SuccessPtrUsize.into_compat_32bit_trd104() as usize)
+                    .into();
                 *a1 = CapabilityPtr::new_with_metadata(
                     ptr as *const (),
                     ptr as usize,
@@ -682,7 +683,8 @@ impl SyscallReturn {
                 *a2 = len.into();
             }
             SyscallReturn::UserspaceReadableAllowSuccess(ptr, len) => {
-                *a0 = (SyscallReturnVariant::SuccessPtrUsize.into_compat() as usize).into();
+                *a0 = (SyscallReturnVariant::SuccessPtrUsize.into_compat_32bit_trd104() as usize)
+                    .into();
                 *a1 = CapabilityPtr::new_with_metadata(
                     ptr as *const (),
                     ptr as usize,
@@ -692,7 +694,8 @@ impl SyscallReturn {
                 *a2 = len.into();
             }
             SyscallReturn::AllowReadWriteFailure(err, ptr, len) => {
-                *a0 = (SyscallReturnVariant::FailurePtrUsize.into_compat() as usize).into();
+                *a0 = (SyscallReturnVariant::FailurePtrUsize.into_compat_32bit_trd104() as usize)
+                    .into();
                 *a1 = (usize::from(err)).into();
                 *a2 = CapabilityPtr::new_with_metadata(
                     ptr as *const (),
@@ -703,7 +706,8 @@ impl SyscallReturn {
                 *a3 = len.into();
             }
             SyscallReturn::UserspaceReadableAllowFailure(err, ptr, len) => {
-                *a0 = (SyscallReturnVariant::FailurePtrUsize.into_compat() as usize).into();
+                *a0 = (SyscallReturnVariant::FailurePtrUsize.into_compat_32bit_trd104() as usize)
+                    .into();
                 *a1 = (usize::from(err)).into();
                 *a2 = CapabilityPtr::new_with_metadata(
                     ptr as *const (),
@@ -714,7 +718,8 @@ impl SyscallReturn {
                 *a3 = len.into();
             }
             SyscallReturn::AllowReadOnlySuccess(ptr, len) => {
-                *a0 = (SyscallReturnVariant::SuccessPtrUsize.into_compat() as usize).into();
+                *a0 = (SyscallReturnVariant::SuccessPtrUsize.into_compat_32bit_trd104() as usize)
+                    .into();
                 *a1 = CapabilityPtr::new_with_metadata(
                     ptr as *const (),
                     ptr as usize,
@@ -724,7 +729,8 @@ impl SyscallReturn {
                 *a2 = len.into();
             }
             SyscallReturn::AllowReadOnlyFailure(err, ptr, len) => {
-                *a0 = (SyscallReturnVariant::FailurePtrUsize.into_compat() as usize).into();
+                *a0 = (SyscallReturnVariant::FailurePtrUsize.into_compat_32bit_trd104() as usize)
+                    .into();
                 *a1 = (usize::from(err)).into();
                 *a2 = CapabilityPtr::new_with_metadata(
                     ptr as *const (),
@@ -735,18 +741,20 @@ impl SyscallReturn {
                 *a3 = len.into();
             }
             SyscallReturn::SubscribeSuccess(ptr, data) => {
-                *a0 = (SyscallReturnVariant::SuccessPtrPtr.into_compat() as usize).into();
+                *a0 = (SyscallReturnVariant::SuccessPtrPtr.into_compat_32bit_trd104() as usize)
+                    .into();
                 *a1 = (ptr as usize).into();
                 *a2 = data.into();
             }
             SyscallReturn::SubscribeFailure(err, ptr, data) => {
-                *a0 = (SyscallReturnVariant::FailurePtrPtr.into_compat() as usize).into();
+                *a0 = (SyscallReturnVariant::FailurePtrPtr.into_compat_32bit_trd104() as usize)
+                    .into();
                 *a1 = (usize::from(err)).into();
                 *a2 = (ptr as usize).into();
                 *a3 = data.into();
             }
             SyscallReturn::SuccessPtr(ptr) => {
-                *a0 = (SyscallReturnVariant::SuccessPtr.into_compat() as usize).into();
+                *a0 = (SyscallReturnVariant::SuccessPtr.into_compat_32bit_trd104() as usize).into();
                 *a1 = ptr;
             }
             SyscallReturn::YieldWaitFor(data0, data1, data2) => {
@@ -755,7 +763,8 @@ impl SyscallReturn {
                 *a2 = data2.into();
             }
             SyscallReturn::SuccessUsize(data) => {
-                *a0 = (SyscallReturnVariant::SuccessUsize.into_compat() as usize).into();
+                *a0 =
+                    (SyscallReturnVariant::SuccessUsize.into_compat_32bit_trd104() as usize).into();
                 *a1 = data.into();
             }
         }
