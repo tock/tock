@@ -23,6 +23,8 @@ These implement a driver to setup and read various physical sensors.
 - **[BMM150](src/bmm150.rs)**: Geomagnetic sensor.
 - **[BMP280](src/bmp280.rs)**: Temperature (and air pressure) sensor.
 - **[CCS811](src/ccs811.rs)**: VOC gas sensor.
+- **[Chirp I2C Moisture](src/chirp_i2c_moisture.rs)**: I2C moisture sensor
+    from Chirp project.
 - **[FXOS8700CQ](src/fxos8700cq.rs)**: Accelerometer and magnetometer.
 - **[HS3003](src/hs3003.rs)**: Temperature and humidity sensor.
 - **[HTS221](src/hts221.rs)**: Temperature and humidity sensor.
@@ -124,6 +126,7 @@ These provide common and better abstractions for userspace.
 - **[Humidity](src/humidity.rs)**: Query humidity sensors.
 - **[Key-Value Store](src/kv_driver.rs)**: Store key-value data.
 - **[LED Matrix](src/led_matrix.rs)**: Control a 2D array of LEDs.
+- **[Moisture](src/moisture.rs)**: Query moisture sensors.
 - **[Pressure](src/pressure.rs)**: Pressure sensors.
 - **[Proximity](src/proximity.rs)**: Proximity sensors.
 - **[PWM](src/pwm.rs)**: Pulse-width modulation support.

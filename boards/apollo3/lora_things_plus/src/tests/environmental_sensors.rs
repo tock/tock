@@ -13,8 +13,8 @@ use crate::{BME280, CCS811};
 use core::cell::Cell;
 use kernel::debug;
 use kernel::hil::sensors::{
-    AirQualityClient, AirQualityDriver, HumidityClient, HumidityDriver, TemperatureClient,
-    TemperatureDriver,
+    AirQualityClient, AirQualityDriver, HumidityClient, HumidityDriver, MoistureClient,
+    TemperatureClient, TemperatureDriver,
 };
 use kernel::ErrorCode;
 
@@ -23,6 +23,7 @@ struct SensorTestCallback {
     humidity_done: Cell<bool>,
     co2_done: Cell<bool>,
     tvoc_done: Cell<bool>,
+    moisture_done: Cell<bool>,
     calibration_temp: Cell<Option<i32>>,
     calibration_humidity: Cell<Option<u32>>,
 }
@@ -36,6 +37,7 @@ impl<'a> SensorTestCallback {
             humidity_done: Cell::new(false),
             co2_done: Cell::new(false),
             tvoc_done: Cell::new(false),
+            moisture_done: Cell::new(false),
             calibration_temp: Cell::new(None),
             calibration_humidity: Cell::new(None),
         }
@@ -46,6 +48,7 @@ impl<'a> SensorTestCallback {
         self.humidity_done.set(false);
         self.co2_done.set(false);
         self.tvoc_done.set(false);
+        self.moisture_done.set(false);
     }
 }
 
@@ -64,6 +67,14 @@ impl<'a> HumidityClient for SensorTestCallback {
         self.calibration_humidity.set(Some(value as u32));
 
         debug!("Humidity: {}", value);
+    }
+}
+
+impl<'a> MoistureClient for SensorTestCallback {
+    fn callback(&self, value: Result<usize, ErrorCode>) {
+        self.moisture_done.set(true);
+
+        debug!("Moisture: {}%", value.unwrap() as f32 / 100.0);
     }
 }
 

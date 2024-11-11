@@ -68,6 +68,9 @@ use {
     kernel::hil::rng::Rng,
 };
 
+#[cfg(feature = "chirp_i2c_moisture")]
+use capsules_core::virtualizers::virtual_i2c::MuxI2C;
+
 /// Support routines for debugging I/O.
 pub mod io;
 
@@ -122,9 +125,13 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 const LORA_SPI_DRIVER_NUM: usize = capsules_core::driver::NUM::LoRaPhySPI as usize;
 const LORA_GPIO_DRIVER_NUM: usize = capsules_core::driver::NUM::LoRaPhyGPIO as usize;
 
+type ChirpI2cMoistureType = components::chirp_i2c_moisture::ChirpI2cMoistureComponentType<
+    capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, apollo3::iom::Iom<'static>>,
+>;
 type BME280Sensor = components::bme280::Bme280ComponentType<
     capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, apollo3::iom::Iom<'static>>,
 >;
+
 type TemperatureDriver = components::temperature::TemperatureComponentType<BME280Sensor>;
 type HumidityDriver = components::humidity::HumidityComponentType<BME280Sensor>;
 
@@ -167,6 +174,7 @@ struct LoRaThingsPlus {
     temperature: &'static TemperatureDriver,
     humidity: &'static HumidityDriver,
     air_quality: &'static capsules_extra::air_quality::AirQualitySensor<'static>,
+    moisture: Option<&'static components::moisture::MoistureComponentType<ChirpI2cMoistureType>>,
     rng: Option<
         &'static capsules_core::rng::RngDriver<
             'static,
@@ -263,6 +271,27 @@ unsafe fn setup_atecc508a(
     rng_local
 }
 
+#[cfg(feature = "chirp_i2c_moisture")]
+unsafe fn setup_chirp_i2c_moisture(
+    board_kernel: &'static kernel::Kernel,
+    _memory_allocation_cap: &dyn capabilities::MemoryAllocationCapability,
+    mux_i2c: &'static MuxI2C<'static, apollo3::iom::Iom<'static>>,
+) -> &'static components::moisture::MoistureComponentType<ChirpI2cMoistureType> {
+    let chirp_moisture =
+        components::chirp_i2c_moisture::ChirpI2cMoistureComponent::new(mux_i2c, 0x20).finalize(
+            components::chirp_i2c_moisture_component_static!(apollo3::iom::Iom<'static>),
+        );
+
+    let moisture = components::moisture::MoistureComponent::new(
+        board_kernel,
+        capsules_extra::moisture::DRIVER_NUM,
+        chirp_moisture,
+    )
+    .finalize(components::moisture_component_static!(ChirpI2cMoistureType));
+
+    moisture
+}
+
 /// Mapping of integer syscalls to objects that implement syscalls.
 impl SyscallDriverLookup for LoRaThingsPlus {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
@@ -286,6 +315,13 @@ impl SyscallDriverLookup for LoRaThingsPlus {
             capsules_core::rng::DRIVER_NUM => {
                 if let Some(rng) = self.rng {
                     f(Some(rng))
+                } else {
+                    f(None)
+                }
+            }
+            capsules_extra::moisture::DRIVER_NUM => {
+                if let Some(moisture) = self.moisture {
+                    f(Some(moisture))
                 } else {
                     f(None)
                 }
@@ -493,6 +529,15 @@ unsafe fn setup() -> (
     )
     .finalize(components::air_quality_component_static!());
     CCS811 = Some(ccs811);
+
+    #[cfg(feature = "chirp_i2c_moisture")]
+    let moisture = Some(setup_chirp_i2c_moisture(
+        board_kernel,
+        &memory_allocation_cap,
+        mux_i2c,
+    ));
+    #[cfg(not(feature = "chirp_i2c_moisture"))]
+    let moisture = None;
 
     #[cfg(feature = "atecc508a")]
     let rng = Some(setup_atecc508a(
@@ -743,6 +788,7 @@ unsafe fn setup() -> (
             temperature,
             humidity,
             air_quality,
+            moisture,
             rng,
             scheduler,
             systick,
