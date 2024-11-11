@@ -39,6 +39,8 @@ impl Default for CapabilityPtr {
     }
 }
 
+/// Permission sets a [CapabilityPtr] may grant.
+/// These may not be enforced or exist on a given platform.
 #[derive(Copy, Clone, PartialEq)]
 pub enum MetaPermissions {
     None,
@@ -49,7 +51,8 @@ pub enum MetaPermissions {
 }
 
 impl From<CapabilityPtr> for usize {
-    /// Provenance note: may not expose provenance
+    /// Returns the address of the [CapabilityPtr].
+    /// Provenance note: may not expose provenance.
     #[inline]
     fn from(from: CapabilityPtr) -> Self {
         from.ptr as usize
@@ -57,7 +60,8 @@ impl From<CapabilityPtr> for usize {
 }
 
 impl From<usize> for CapabilityPtr {
-    /// Provenance note: may have null provenance
+    /// Constructs a [CapabilityPtr] with a given address.
+    /// Provenance note: may have null provenance.
     #[inline]
     fn from(from: usize) -> Self {
         Self {
@@ -81,6 +85,7 @@ impl LowerHex for CapabilityPtr {
 }
 
 impl AddAssign<usize> for CapabilityPtr {
+    /// Increments the address of a [CapabilityPtr]
     #[inline]
     fn add_assign(&mut self, rhs: usize) {
         self.ptr = (self.ptr as *const u8).wrapping_add(rhs) as *const ();
@@ -88,10 +93,13 @@ impl AddAssign<usize> for CapabilityPtr {
 }
 
 impl CapabilityPtr {
+    /// Returns the pointer component of a [CapabilityPtr] but without any of the authority.
     pub fn as_ptr<T>(&self) -> *const T {
         self.ptr as *const T
     }
 
+    /// Construct a [CapabilityPtr] from a raw pointer, with the authority requested by other
+    /// arguments.
     /// Provenance note: may derive from a pointer other than the input to provide something with
     /// valid provenance to justify the other arguments.
     #[inline]
@@ -104,6 +112,7 @@ impl CapabilityPtr {
         Self { ptr }
     }
 
+    /// If the [CapabilityPtr] is null returns `default`, otherwise applies `f` to `self`.
     #[inline]
     pub fn map_or<U, F>(&self, default: U, f: F) -> U
     where
@@ -116,6 +125,8 @@ impl CapabilityPtr {
         }
     }
 
+    /// If the [CapabilityPtr] is null returns `default`, otherwise applies `f` to `self`.
+    /// default is only evaluated if `self` is not null.
     #[inline]
     pub fn map_or_else<U, D, F>(&self, default: D, f: F) -> U
     where
