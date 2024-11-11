@@ -528,7 +528,8 @@ pub trait Process {
     ///
     /// ## Returns
     ///
-    /// On success, return the previous break address.
+    /// On success, return the previous break address with authority that
+    /// has RW permissions from the start of process RAM to the new break.
     ///
     /// On error, return:
     /// - [`Error::InactiveApp`] if the process is not running and adjusting the
@@ -548,7 +549,8 @@ pub trait Process {
     ///
     /// ## Returns
     ///
-    /// On success, return the previous break address.
+    /// On success, return the previous break address with authority that
+    /// has RW permissions from the start of process RAM to the new break.
     ///
     /// On error, return:
     /// - [`Error::InactiveApp`] if the process is not running and adjusting the
