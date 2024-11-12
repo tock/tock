@@ -9,20 +9,12 @@
 //! (https://www.sparkfun.com/products/14348).
 
 use crate::tests::run_kernel_op;
-#[cfg(feature = "chirp_i2c_moisture")]
-use crate::CHIRP_I2C_MOISTURE;
-#[cfg(feature = "dfrobot_i2c_rainfall")]
-use crate::DFROBOT_I2C_RAINFALL;
 use crate::{BME280, CCS811};
 use core::cell::Cell;
 use kernel::debug;
-#[cfg(feature = "chirp_i2c_moisture")]
-use kernel::hil::sensors::MoistureDriver;
-#[cfg(feature = "dfrobot_i2c_rainfall")]
-use kernel::hil::sensors::RainFallDriver;
 use kernel::hil::sensors::{
     AirQualityClient, AirQualityDriver, HumidityClient, HumidityDriver, MoistureClient,
-    RainFallClient, TemperatureClient, TemperatureDriver,
+    TemperatureClient, TemperatureDriver,
 };
 use kernel::ErrorCode;
 
@@ -32,7 +24,6 @@ struct SensorTestCallback {
     co2_done: Cell<bool>,
     tvoc_done: Cell<bool>,
     moisture_done: Cell<bool>,
-    rainfall_done: Cell<bool>,
     calibration_temp: Cell<Option<i32>>,
     calibration_humidity: Cell<Option<u32>>,
 }
@@ -47,7 +38,6 @@ impl<'a> SensorTestCallback {
             co2_done: Cell::new(false),
             tvoc_done: Cell::new(false),
             moisture_done: Cell::new(false),
-            rainfall_done: Cell::new(false),
             calibration_temp: Cell::new(None),
             calibration_humidity: Cell::new(None),
         }
@@ -91,14 +81,6 @@ impl<'a> MoistureClient for SensorTestCallback {
     }
 }
 
-impl<'a> RainFallClient for SensorTestCallback {
-    fn callback(&self, value: Result<usize, ErrorCode>) {
-        self.rainfall_done.set(true);
-
-        debug!("Rainfall in the last hour: {}mm", value.unwrap());
-    }
-}
-
 impl<'a> AirQualityClient for SensorTestCallback {
     fn environment_specified(&self, result: Result<(), ErrorCode>) {
         result.unwrap();
@@ -118,52 +100,6 @@ impl<'a> AirQualityClient for SensorTestCallback {
 }
 
 static CALLBACK: SensorTestCallback = SensorTestCallback::new();
-
-#[cfg(feature = "dfrobot_i2c_rainfall")]
-#[test_case]
-fn run_chirp_i2c_moisture() {
-    debug!("check run DFRobot Rainfall I2C Sensor... ");
-    run_kernel_op(100);
-
-    let dfrobot = unsafe { DFROBOT_I2C_RAINFALL.unwrap() };
-
-    // Make sure the device is ready for us.
-    run_kernel_op(1000);
-
-    RainFallDriver::set_client(dfrobot, &CALLBACK);
-    CALLBACK.reset();
-
-    dfrobot.read_rainfall(1).unwrap();
-
-    run_kernel_op(10_000);
-    assert_eq!(CALLBACK.rainfall_done.get(), true);
-
-    debug!("    [ok]");
-    run_kernel_op(100);
-}
-
-#[cfg(feature = "chirp_i2c_moisture")]
-#[test_case]
-fn run_chirp_i2c_moisture() {
-    debug!("check run Chirp I2C Moisture Sensor... ");
-    run_kernel_op(100);
-
-    let chirp = unsafe { CHIRP_I2C_MOISTURE.unwrap() };
-
-    // Make sure the device is ready for us.
-    run_kernel_op(1000);
-
-    MoistureDriver::set_client(chirp, &CALLBACK);
-    CALLBACK.reset();
-
-    chirp.read_moisture().unwrap();
-
-    run_kernel_op(10_000);
-    assert_eq!(CALLBACK.moisture_done.get(), true);
-
-    debug!("    [ok]");
-    run_kernel_op(100);
-}
 
 #[test_case]
 fn run_bme280_a_temperature() {
