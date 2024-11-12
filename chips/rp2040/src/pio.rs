@@ -561,7 +561,7 @@ pub enum ProgramError {
     /// Insufficient consecutive free instruction space to load program.
     InsufficientSpace,
     /// Loading a program would overwrite the existing one
-    AddrInUse(u8),
+    AddrInUse(usize),
 }
 
 /// There are a total of 4 State Machines per PIO.
@@ -1401,11 +1401,15 @@ impl Pio {
     }
 
     /// Adds a program to PIO.
-    /// Call this with add_program(include_bytes!("path_to_file")).
+    /// Call this with `add_program(Some(0), include_bytes!("path_to_file"))`.
     /// => origin: the address in the PIO instruction memory to start the program at or None to find an empty space
     /// => program: the program to load into the PIO
     /// Returns the address in the PIO instruction memory where the program was loaded.
-    pub fn add_program(&self, origin: Option<u8>, program: &[u8]) -> Result<u8, ProgramError> {
+    pub fn add_program(
+        &self,
+        origin: Option<usize>,
+        program: &[u8],
+    ) -> Result<usize, ProgramError> {
         let mut program_u16: [u16; NUMBER_INSTR_MEMORY_LOCATIONS / 2] =
             [0; NUMBER_INSTR_MEMORY_LOCATIONS / 2];
         for (i, chunk) in program.chunks(2).enumerate() {
@@ -1420,17 +1424,21 @@ impl Pio {
     /// => origin: the address in the PIO instruction memory to start the program at or None to find an empty space
     /// => program: the program to load into the PIO
     /// Returns the address in the PIO instruction memory where the program was loaded.
-    pub fn add_program16(&self, origin: Option<u8>, program: &[u16]) -> Result<u8, ProgramError> {
+    pub fn add_program16(
+        &self,
+        origin: Option<usize>,
+        program: &[u16],
+    ) -> Result<usize, ProgramError> {
         // if origin is not set, try naively to find an empty space
         match origin {
             Some(origin) => self
-                .try_load_program_at(origin as usize, program)
+                .try_load_program_at(origin, program)
                 .map(|()| origin)
                 .map_err(|_| ProgramError::AddrInUse(origin)),
             None => {
                 for origin in 0..NUMBER_INSTR_MEMORY_LOCATIONS {
                     if self.try_load_program_at(origin, program).is_ok() {
-                        return Ok(origin as u8);
+                        return Ok(origin);
                     }
                 }
                 Err(ProgramError::InsufficientSpace)
@@ -1439,6 +1447,10 @@ impl Pio {
     }
 
     /// Try to load program at a specific origin, relocate operations if necessary.
+    /// Only for internals, use `add_program` or `add_program16` instead.
+    /// => origin: the address in the PIO instruction memory to start the program at
+    /// => program: the program to load into the PIO
+    /// Returns Ok(()) if the program was loaded successfully, otherwise an error.
     fn try_load_program_at(&self, origin: usize, program: &[u16]) -> Result<(), ProgramError> {
         // Relocate program
         let program = RelocatedProgram::new(program.iter(), origin as u8);
@@ -1448,13 +1460,14 @@ impl Pio {
             let addr = (i + origin) % 32;
             let mask = 1 << addr;
             if (self.instructions_used.get() | used_mask) & mask != 0 {
-                return Err(ProgramError::AddrInUse(addr as u8));
+                return Err(ProgramError::AddrInUse(addr));
             }
             self.registers.instr_mem[addr]
                 .instr_mem
                 .modify(INSTR_MEMx::INSTR_MEM.val(instr as u32));
             used_mask |= mask;
         }
+        // update the mask of used instructions slots
         self.instructions_used
             .set(self.instructions_used.get() | used_mask);
         Ok(())
