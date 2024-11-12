@@ -244,7 +244,7 @@ pub fn encode_syscall_return_32bit_trd104(
 }
 
 /// Enumeration of all system call return type variant identifiers, as a
-/// superset of those defined in [`TRD104`]. This is not yet standardized.
+/// superset of those defined in TRD 104. This is not yet standardized.
 ///
 /// Each variant is associated with the respective variant identifier that would
 /// be passed along with the return value to userspace.

@@ -375,8 +375,10 @@ impl Syscall {
 ///
 /// This struct operates over primitive types such as integers of fixed length
 /// and pointers. It is constructed by the scheduler and passed down to the
-/// architecture to be encoded into registers, using the provided
-/// [`encode_syscall_return`](SyscallReturn::encode_syscall_return) method.
+/// architecture to be encoded into registers. Architectures may use the various
+/// helper functions defined in
+/// [`utilities::arch_helpers`](crate::utilities::arch_helpers), but are free to
+/// define their own ABI and encoding.
 ///
 /// Capsules do not use this struct. Capsules use higher level Rust types (e.g.
 /// [`ReadWriteProcessBuffer`](crate::processbuffer::ReadWriteProcessBuffer) and
