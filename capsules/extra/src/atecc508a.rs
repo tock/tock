@@ -1016,7 +1016,7 @@ impl<'a> I2CClient for Atecc508a<'a> {
             Operation::ShaEnd(run) => {
                 if status == Err(i2c::Error::DataNak) || status == Err(i2c::Error::AddressNak) {
                     // The device isn't ready yet, try again
-                    if run == 50 {
+                    if run == 500 {
                         self.op.set(Operation::Ready);
                         return;
                     }
