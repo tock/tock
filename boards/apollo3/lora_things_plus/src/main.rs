@@ -123,6 +123,17 @@ static mut CHIRP_I2C_MOISTURE: Option<
         capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, apollo3::iom::Iom<'static>>,
     >,
 > = None;
+#[cfg(feature = "dfrobot_i2c_rainfall")]
+static mut DFROBOT_I2C_RAINFALL: Option<
+    &'static capsules_extra::dfrobot_rainfall_sensor::DFRobotRainFall<
+        'static,
+        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+            'static,
+            apollo3::stimer::STimer<'static>,
+        >,
+        capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, apollo3::iom::Iom<'static>>,
+    >,
+> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -318,6 +329,7 @@ unsafe fn setup_dfrobot_i2c_rainfall(
             apollo3::stimer::STimer<'static>,
             apollo3::iom::Iom<'static>
         ));
+    DFROBOT_I2C_RAINFALL = Some(dfrobot_rainfall);
 
     let rainfall = components::rainfall::RainFallComponent::new(
         board_kernel,
