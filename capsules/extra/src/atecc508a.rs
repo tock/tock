@@ -1296,6 +1296,11 @@ impl<'a> digest::DigestData<'a, 32> for Atecc508a<'a> {
         Ok(())
     }
 
+    /// This will reset the device to clear the data
+    ///
+    /// This is an async operation though, as it requires the I2C operation
+    /// to complete and the I2C callback to occur, but the `clear_data()`
+    /// definition is syncronous, so this can race.
     fn clear_data(&self) {
         (self.wakeup_device)();
 
