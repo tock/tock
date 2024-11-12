@@ -382,7 +382,6 @@ unsafe fn setup() -> (
     clkgen.set_clock_frequency(apollo3::clkgen::ClockFrequency::Freq48MHz);
 
     // initialize capabilities
-    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
@@ -802,25 +801,94 @@ unsafe fn setup() -> (
     );
     CHIP = Some(chip);
 
-    kernel::process::load_processes(
+    let checking_policy;
+    #[cfg(feature = "atecc508a")]
+    {
+        // Create the software-based SHA engine.
+        // We could use the ATECC508a for SHA, but writing the entire
+        // application to the device to compute a digtest ends up being
+        // pretty slow and the ATECC508a doesn't support the DigestVerify trait
+        let sha = components::sha::ShaSoftware256Component::new()
+            .finalize(components::sha_software_256_component_static!());
+
+        // These are the generated test keys used below, please do not use them
+        // for anything important!!!!
+        //
+        // These keys are not leaked, they are only used for this test case.
+        //
+        // -----BEGIN PRIVATE KEY-----
+        // MIGHAgEBMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgWClhguWHtAK85Kqc
+        // /BucDBQMGQw6R2PEQkyISHkn5xWhRANCAAQUFMTFoNL9oFpGmg6Cp351hQMq9hol
+        // KpEdQfjP1nYF1jxqz52YjPpFHvudkK/fFsik5Rd0AevNkQqjBdWEqmpW
+        // -----END PRIVATE KEY-----
+        //
+        // -----BEGIN PUBLIC KEY-----
+        // MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEFBTExaDS/aBaRpoOgqd+dYUDKvYa
+        // JSqRHUH4z9Z2BdY8as+dmIz6RR77nZCv3xbIpOUXdAHrzZEKowXVhKpqVg==
+        // -----END PUBLIC KEY-----
+        let public_key = static_init!(
+            [u8; 64],
+            [
+                0x14, 0x14, 0xc4, 0xc5, 0xa0, 0xd2, 0xfd, 0xa0, 0x5a, 0x46, 0x9a, 0x0e, 0x82, 0xa7,
+                0x7e, 0x75, 0x85, 0x03, 0x2a, 0xf6, 0x1a, 0x25, 0x2a, 0x91, 0x1d, 0x41, 0xf8, 0xcf,
+                0xd6, 0x76, 0x05, 0xd6, 0x3c, 0x6a, 0xcf, 0x9d, 0x98, 0x8c, 0xfa, 0x45, 0x1e, 0xfb,
+                0x9d, 0x90, 0xaf, 0xdf, 0x16, 0xc8, 0xa4, 0xe5, 0x17, 0x74, 0x01, 0xeb, 0xcd, 0x91,
+                0x0a, 0xa3, 0x05, 0xd5, 0x84, 0xaa, 0x6a, 0x56
+            ]
+        );
+
+        ATECC508A.unwrap().set_public_key(Some(public_key));
+
+        checking_policy = components::appid::checker_signature::AppCheckerSignatureComponent::new(
+            sha,
+            ATECC508A.unwrap(),
+            tock_tbf::types::TbfFooterV2CredentialsType::EcdsaNistP256,
+        )
+        .finalize(components::app_checker_signature_component_static!(
+            capsules_extra::atecc508a::Atecc508a<'static>,
+            capsules_extra::sha256::Sha256Software<'static>,
+            32,
+            64,
+        ));
+    };
+    #[cfg(not(feature = "atecc508a"))]
+    {
+        checking_policy = components::appid::checker_null::AppCheckerNullComponent::new()
+            .finalize(components::app_checker_null_component_static!());
+    }
+
+    // Create the AppID assigner.
+    let assigner = components::appid::assigner_name::AppIdAssignerNamesComponent::new()
+        .finalize(components::appid_assigner_names_component_static!());
+
+    // Create the process checking machine.
+    let checker = components::appid::checker::ProcessCheckerMachineComponent::new(checking_policy)
+        .finalize(components::process_checker_machine_component_static!());
+
+    let storage_permissions_policy =
+        components::storage_permissions::tbf_header::StoragePermissionsTbfHeaderComponent::new()
+            .finalize(
+                components::storage_permissions_tbf_header_component_static!(
+                    apollo3::chip::Apollo3<Apollo3DefaultPeripherals>,
+                    kernel::process::ProcessStandardDebugFull,
+                ),
+            );
+
+    // Create and start the asynchronous process loader.
+    let _loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
+        checker,
+        &mut *addr_of_mut!(PROCESSES),
         board_kernel,
         chip,
-        core::slice::from_raw_parts(
-            core::ptr::addr_of!(_sapps),
-            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-        ),
-        core::slice::from_raw_parts_mut(
-            core::ptr::addr_of_mut!(_sappmem),
-            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
-        ),
-        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
-        &process_mgmt_cap,
+        assigner,
+        storage_permissions_policy,
     )
-    .unwrap_or_else(|err| {
-        debug!("Error loading processes!");
-        debug!("{:?}", err);
-    });
+    .finalize(components::process_loader_sequential_component_static!(
+        apollo3::chip::Apollo3<Apollo3DefaultPeripherals>,
+        kernel::process::ProcessStandardDebugFull,
+        NUM_PROCS,
+    ));
 
     (board_kernel, artemis_nano, chip)
 }

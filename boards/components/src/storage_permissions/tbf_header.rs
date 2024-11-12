@@ -12,10 +12,11 @@ use kernel::process::ProcessStandardDebug;
 
 #[macro_export]
 macro_rules! storage_permissions_tbf_header_component_static {
-    ($C:ty $(,)?) => {{
+    ($C:ty, $D:ty $(,)?) => {{
         kernel::static_buf!(
             capsules_system::storage_permissions::tbf_header::TbfHeaderStoragePermissions<
                 $C,
+                $D,
                 components::storage_permissions::tbf_header::AppStoreCapability
             >
         )
