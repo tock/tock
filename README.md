@@ -3,6 +3,7 @@
 [![tock-ci](https://github.com/tock/tock/workflows/tock-ci/badge.svg)][tock-ci]
 [![slack](https://img.shields.io/badge/slack-tockos-informational)][slack]
 [![book](https://img.shields.io/badge/book-Tock_Book-green)][tock-book]
+[![Gurubase](https://img.shields.io/badge/Gurubase-Ask%20Tock%20Guru-006BFF)](https://gurubase.io/g/tock)
 
 Tock is an embedded operating system designed for running multiple concurrent,
 mutually distrustful applications on Cortex-M and RISC-V based embedded
