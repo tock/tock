@@ -876,12 +876,26 @@ impl Kernel {
                             subscribe_num: subdriver_number,
                         };
 
-                        // TODO: when the compiler supports capability types bring this back
-                        // as a NonNull type. https://github.com/tock/tock/issues/4134.
-                        // First check if `upcall_ptr` is null. A null
-                        // `upcall_ptr` will result in `None` here and
-                        // represents the special "unsubscribe" operation.
-                        // let ptr = NonNull::new(upcall_ptr);
+                        // TODO: when the compiler supports capability types
+                        // bring this back as a NonNull
+                        // type. https://github.com/tock/tock/issues/4134.
+                        //
+                        // Previously, we had a NonNull type (that had a niche)
+                        // here, and could wrap that in Option to fill the niche
+                        // and handle the Null case. CapabilityPtr is filling
+                        // the gap left by * const(), which does not have the
+                        // niche and allows NULL internally. Having a CHERI
+                        // capability type with a niche is (maybe?) predicated
+                        // on having better compiler support.
+                        // Option<NonNull<()>> is preferable here, and it should
+                        // go back to it just as soon as we can express "non
+                        // null capability". For now, checking for the null case
+                        // is handled internally in each `map_or` call.
+                        //
+                        //First check if `upcall_ptr` is null. A null
+                        //`upcall_ptr` will result in `None` here and
+                        //represents the special "unsubscribe" operation.
+                        //let ptr = NonNull::new(upcall_ptr);
 
                         // For convenience create an `Upcall` type now. This is
                         // just a data structure and doesn't do any checking or
