@@ -39,7 +39,6 @@ enum DeviceState {
     Identify,
     CalibrationLow,
     CalibrationHigh,
-    Probe,
     Start,
     Normal,
 }
@@ -238,24 +237,11 @@ impl<'a, I: I2CDevice> I2CClient for Bme280<'a, I> {
                 calib.hum6 = buffer[8] as u16;
                 self.calibration.set(calib);
 
-                buffer[0] = CTRL_MEAS;
-                self.i2c.write_read(buffer, 1, 1).unwrap();
-                self.state.set(DeviceState::Probe);
-            }
-            DeviceState::Probe => {
-                if buffer[0] & 0x11 == 0 {
-                    // We are in sleep mode, setup the device
-                    // Set oversampling to 1
-                    buffer[0] = CTRL_HUM;
-                    buffer[1] = 1;
-                    self.i2c.write_read(buffer, 2, 1).unwrap();
-
-                    self.state.set(DeviceState::Start);
-                } else {
-                    // Everything is already setup, just start
-                    self.state.set(DeviceState::Normal);
-                    self.buffer.replace(buffer);
-                }
+                // Set humidity oversampling to 1
+                buffer[0] = CTRL_HUM;
+                buffer[1] = 1;
+                self.i2c.write(buffer, 2).unwrap();
+                self.state.set(DeviceState::Start);
             }
             DeviceState::Start => {
                 // Set the mode to normal and set oversampling to 1
@@ -271,12 +257,10 @@ impl<'a, I: I2CDevice> I2CClient for Bme280<'a, I> {
                     Operation::Temp => {
                         let calib = self.calibration.get();
 
-                        // note: per datasheet, measurement is 20-bit two's complement
-                        let adc_temperature: i32 = ((((buffer[0] as usize) << 12
+                        let adc_temperature: i32 = ((buffer[0] as usize) << 12
                             | (buffer[1] as usize) << 4
                             | (((buffer[2] as usize) >> 4) & 0x0F))
-                            << 12) as i32)
-                            >> 12; // ensure sign extension
+                            as i32;
 
                         if adc_temperature == 0 {
                             // We got a misread, try again
@@ -335,9 +319,10 @@ impl<'a, I: I2CDevice> I2CClient for Bme280<'a, I> {
                         let var2 = var1
                             - (((((var1 >> 15) * (var1 >> 15)) >> 7) * (calib.hum1 as i32)) >> 4);
 
-                        let var6 = if var2 > 419430400 { 419430400 } else { var2 };
+                        let var3 = if var2 < 0 { 0 } else { var2 };
+                        let var6 = if var3 > 419430400 { 419430400 } else { var3 };
 
-                        let hum = ((var6 >> 12) / 1024) as usize;
+                        let hum = (((var6 >> 12) * 100) / 1024) as usize;
 
                         self.humidity_client.map(|client| client.callback(hum));
                     }
