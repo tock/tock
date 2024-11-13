@@ -20,6 +20,9 @@ capsules-core = { path = "../../../capsules/core" }
 capsules-extra = { path = "../../../capsules/extra" }
 capsules-system = { path = "../../../capsules/system" }
 
+[build-dependencies]
+tock_build_scripts = { path = "../../build_scripts" }
+
 [lints]
 workspace = true
 
@@ -34,3 +37,11 @@ default = []
 # NOTE: That the first time this is used it will lock the device, which
 # can not be undone.
 atecc508a = []
+
+# This feature enables support for the Chirp I2C Soil Moisture Sensor.
+# This is the sensor avaliable from
+# https://www.tindie.com/products/miceuz/i2c-soil-moisture-sensor/
+#
+# If the sensor is attached via the I2C Qwiic connecter you should
+# enable this feature.
+chirp_i2c_moisture = []

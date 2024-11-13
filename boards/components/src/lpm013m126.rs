@@ -40,57 +40,9 @@ use capsules_core::virtualizers::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDev
 use capsules_extra::lpm013m126::Lpm013m126;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
-use kernel::hil::gpio;
 use kernel::hil::spi::{SpiMaster, SpiMasterDevice};
 use kernel::hil::time::Alarm;
-
-/// CS is active high
-pub struct Inverted<'a, P: gpio::Pin>(pub &'a P);
-
-impl<'a, P: gpio::Pin> gpio::Configure for Inverted<'a, P> {
-    fn configuration(&self) -> gpio::Configuration {
-        self.0.configuration()
-    }
-    fn make_output(&self) -> gpio::Configuration {
-        self.0.make_output()
-    }
-    fn disable_output(&self) -> gpio::Configuration {
-        self.0.disable_output()
-    }
-    fn make_input(&self) -> gpio::Configuration {
-        self.0.make_input()
-    }
-    fn disable_input(&self) -> gpio::Configuration {
-        self.0.disable_input()
-    }
-    fn deactivate_to_low_power(&self) {
-        self.0.deactivate_to_low_power()
-    }
-    fn set_floating_state(&self, _: gpio::FloatingState) {
-        unimplemented!() // not sure what it looks like with inversion
-    }
-    fn floating_state(&self) -> gpio::FloatingState {
-        unimplemented!() // not sure what it looks like with inversion
-    }
-}
-
-impl<'a, P: gpio::Pin> gpio::Output for Inverted<'a, P> {
-    fn set(&self) {
-        self.0.clear()
-    }
-    fn clear(&self) {
-        self.0.set()
-    }
-    fn toggle(&self) -> bool {
-        self.0.toggle()
-    }
-}
-
-impl<'a, P: gpio::Pin> gpio::Input for Inverted<'a, P> {
-    fn read(&self) -> bool {
-        !self.0.read()
-    }
-}
+use kernel::hil::{self, gpio};
 
 /// Setup static space for the driver and its requirements.
 #[macro_export]
@@ -135,17 +87,17 @@ where
     P: 'static + gpio::Pin,
     S: 'static + SpiMaster<'static>,
 {
-    pub fn new(
+    pub fn new<I: kernel::hil::spi::cs::IntoChipSelect<S::ChipSelect, hil::spi::cs::ActiveHigh>>(
         spi: &'static MuxSpiMaster<'static, S>,
 
-        chip_select: S::ChipSelect,
+        chip_select: I,
         disp: &'static P,
         extcomin: &'static P,
         alarm_mux: &'static MuxAlarm<'static, A>,
     ) -> Self {
         Self {
             spi,
-            chip_select,
+            chip_select: chip_select.into_cs(),
             disp,
             extcomin,
             alarm_mux,

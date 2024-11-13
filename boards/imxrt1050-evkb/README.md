@@ -49,8 +49,11 @@ with your app(s) included.
 
 ```bash
 $ arm-none-eabi-objcopy  \
-    --update-section .apps=../../../libtock-c/examples/c_hello/build/cortex-m7/cortex-m7.tbf \
+    --set-section-flags .apps=LOAD,ALLOC \
     target/thumbv7em-none-eabi/debug/imxrt1050-evkb.elf \
+    target/thumbv7em-none-eabi/debug/imxrt1050-evkb-app.axf
+arm-none-eabi-objcopy  \
+    --update-section .apps=../../../libtock-c/examples/c_hello/build/cortex-m7/cortex-m7.tbf \
     target/thumbv7em-none-eabi/debug/imxrt1050-evkb-app.axf
 ```
 
@@ -88,6 +91,3 @@ Next step, modify the LinkServer Debug, like this:
 ![image info](./pictures/config-link-server.png)
 
 Finally, press debug to run the code on the board and enjoy!
-
-
-

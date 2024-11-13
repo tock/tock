@@ -1,0 +1,67 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2024.
+
+# This workflow contains all Treadmill-based hardware CI jobs.
+#
+# Treadmill is a distributed hardware testbed developed within the Tock OS
+# project. For more information on Treadmill, have a look at its documentation
+# [1] or repository [2].
+#
+# This workflow is based on the Treadmill GitHub Actions integration guide [3].
+# In addition, it features the ability to run multiple Treadmill jobs and
+# test-execute stages through GitHub Action's job matrices, and uses a GitHub
+# environment to allow deployments with access to secrets for select PRs.
+#
+# [1]: https://book.treadmill.ci/
+# [2]: https://github.com/treadmill-tb/treadmill
+# [3]: https://book.treadmill.ci/user-guide/github-actions-integration.html
+
+name: treadmill-ci
+
+env:
+  TERM: xterm # Makes tput work in actions output
+
+# Controls when the action will run. Triggers the workflow on pull request and
+# merge group checks:
+#
+# KEEP IN SYNC WITH `environment:` ATTRIBUTE BELOW:
+on:
+  push:
+    branches:
+      - master
+  # Pull requests from forks will not have access to the required GitHub API
+  # secrets below, even if they are using an appropriate deployment environment
+  # and the workflow runs have been approved according to this environment's
+  # rules. We don't know whether this is a bug on GitHub's end or deliberate.
+  # Either way, for now we disable this workflow to run on PRs until we have
+  # an API proxy that securely performs these GitHub API calls (adding runners
+  # and starting Treadmill jobs with those runner registration tokens), which
+  # allows this workflow to run without access to repository secrets.
+  #pull_request:
+  merge_group: # Run CI for the GitHub merge queue
+
+permissions:
+  contents: read
+
+jobs:
+  treadmill-ci:
+    uses: tock/tock-hardware-ci/.github/workflows/treadmill-ci.yml@main
+    with:
+      # Only run on a specific repository, as others will not have the right
+      # environments set up and secrets configured. Forks may want to change
+      # this parameter.
+      repository-filter: 'tock/tock'
+
+      # Provide access to the required Treadmill secrets by running in the
+      # appropriate environment (depending on the on: triggers above)
+      job-environment: ${{ github.event_name == 'pull_request' && 'treadmill-ci' || 'treadmill-ci-merged' }}
+
+      # Use the latest upstream Tock hardware CI tests and userspace components:
+      libtock-c-ref: 'master'
+      tock-hardware-ci-ref: 'main'
+
+      # Test the tock kernel revision that triggered this workflow
+      tock-kernel-ref: ${{ github.sha }}
+
+    secrets: inherit

@@ -24,6 +24,7 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 use stm32f446re::chip_specs::Stm32f446Specs;
+use stm32f446re::clocks::hsi::HSI_FREQUENCY_MHZ;
 use stm32f446re::gpio::{AlternateFunction, Mode, PinId, PortId};
 use stm32f446re::interrupt_service::Stm32f446reDefaultPeripherals;
 
@@ -507,7 +508,9 @@ unsafe fn start() -> (
         gpio,
 
         scheduler,
-        systick: cortexm4::systick::SysTick::new(),
+        systick: cortexm4::systick::SysTick::new_with_calibration(
+            (HSI_FREQUENCY_MHZ * 1_000_000) as u32,
+        ),
     };
 
     // // Optional kernel tests

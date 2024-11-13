@@ -6,7 +6,7 @@
 name = "earlgrey-cw310"
 version.workspace = true
 authors.workspace = true
-build = "../../build.rs"
+build = "build.rs"
 edition.workspace = true
 
 [dependencies]
@@ -21,6 +21,9 @@ capsules-core = { path = "../../../capsules/core" }
 capsules-extra = { path = "../../../capsules/extra" }
 capsules-aes-gcm = { path = "../../../capsules/aes_gcm" }
 capsules-system = { path = "../../../capsules/system" }
+
+[build-dependencies]
+tock_build_scripts = { path = "../../build_scripts" }
 
 
 [features]

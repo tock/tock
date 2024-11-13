@@ -19,12 +19,12 @@ use components::gpio::GpioComponent;
 use components::led::LedsComponent;
 use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
-use kernel::debug;
 use kernel::hil::led::LedHigh;
 use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{capabilities, create_capability, static_init, Kernel};
+use kernel::{debug, hil};
 
 use rp2040::adc::{Adc, Channel};
 use rp2040::chip::{Rp2040, Rp2040DefaultPeripherals};
@@ -34,6 +34,8 @@ use rp2040::clocks::{
     SystemAuxiliaryClockSource, SystemClockSource, UsbAuxiliaryClockSource,
 };
 use rp2040::gpio::{GpioFunction, RPGpio, RPGpioPin};
+use rp2040::pio::Pio;
+use rp2040::pio_pwm::PioPwm;
 use rp2040::resets::Peripheral;
 use rp2040::spi::Spi;
 use rp2040::sysinfo;
@@ -376,11 +378,8 @@ pub unsafe fn start() -> (
         .finalize(components::uart_mux_component_static!());
 
     // Uncomment this to use UART as an output
-    // let uart_mux = components::console::UartMuxComponent::new(
-    //     &peripherals.uart0,
-    //     115200,
-    // )
-    // .finalize(components::uart_mux_component_static!());
+    // let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
+    //     .finalize(components::uart_mux_component_static!());
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
@@ -465,7 +464,9 @@ pub unsafe fn start() -> (
 
     let bus = components::bus::SpiMasterBusComponent::new(
         mux_spi,
-        peripherals.pins.get_pin(RPGpio::GPIO17),
+        hil::spi::cs::IntoChipSelect::<_, hil::spi::cs::ActiveLow>::into_cs(
+            peripherals.pins.get_pin(RPGpio::GPIO17),
+        ),
         20_000_000,
         kernel::hil::spi::ClockPhase::SampleLeading,
         kernel::hil::spi::ClockPolarity::IdleLow,
@@ -691,6 +692,22 @@ pub unsafe fn start() -> (
         debug!("Error loading processes!");
         debug!("{:?}", err);
     });
+
+    //--------------------------------------------------------------------------
+    // PIO
+    //--------------------------------------------------------------------------
+
+    let mut pio: Pio = Pio::new_pio0();
+
+    let _pio_pwm = PioPwm::new(&mut pio, &peripherals.clocks);
+    // This will start a PWM with PIO with the set frequency and duty cycle on the specified pin.
+    // pio_pwm
+    //     .start(
+    //         &RPGpio::GPIO7,
+    //         pio_pwm.get_maximum_frequency_hz() / 125000, /*1_000*/
+    //         pio_pwm.get_maximum_duty_cycle() / 2,
+    //     )
+    //     .unwrap();
 
     (board_kernel, pico_explorer_base, chip)
 }

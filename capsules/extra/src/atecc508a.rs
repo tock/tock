@@ -25,18 +25,16 @@
 
 use core::cell::Cell;
 use kernel::debug;
-use kernel::hil::entropy;
-use kernel::hil::entropy::Entropy32;
 use kernel::hil::i2c::{self, I2CClient, I2CDevice};
-use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::cells::TakeCell;
+use kernel::hil::public_key_crypto::signature::{ClientVerify, SignatureVerify};
+use kernel::hil::{digest, entropy, entropy::Entropy32};
+use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
+use kernel::utilities::leasable_buffer::{SubSlice, SubSliceMut, SubSliceMutImmut};
 use kernel::ErrorCode;
 
 /* Protocol + Cryptographic defines */
 const RESPONSE_COUNT_SIZE: usize = 1;
-#[allow(dead_code)]
 const RESPONSE_SIGNAL_SIZE: usize = 1;
-#[allow(dead_code)]
 const RESPONSE_SHA_SIZE: usize = 32;
 #[allow(dead_code)]
 const RESPONSE_INFO_SIZE: usize = 4;
@@ -90,13 +88,11 @@ const CONFIG_ZONE_KEY_CONFIG: usize = 96;
 // COMMANDS (aka "opcodes" in the datasheet)
 #[allow(dead_code)]
 const COMMAND_OPCODE_INFO: u8 = 0x30; // Return device state information.
-#[allow(dead_code)]
 const COMMAND_OPCODE_LOCK: u8 = 0x17; // Lock configuration and/or Data and OTP zones
 const COMMAND_OPCODE_RANDOM: u8 = 0x1B; // Create and return a random number (32 bytes of data)
 const COMMAND_OPCODE_READ: u8 = 0x02; // Return data at a specific zone and address.
 #[allow(dead_code)]
 const COMMAND_OPCODE_WRITE: u8 = 0x12; // Return data at a specific zone and address.
-#[allow(dead_code)]
 const COMMAND_OPCODE_SHA: u8 = 0x47; // Computes a SHA-256 or HMAC/SHA digest for general purpose use by the system.
 #[allow(dead_code)]
 const COMMAND_OPCODE_GENKEY: u8 = 0x40; // Creates a key (public and/or private) and stores it in a memory key slot
@@ -107,12 +103,24 @@ const COMMAND_OPCODE_SIGN: u8 = 0x41; // Create an ECC signature with contents o
 #[allow(dead_code)]
 const COMMAND_OPCODE_VERIFY: u8 = 0x45; // takes an ECDSA <R,S> signature and verifies that it is correctly generated from a given message and public key
 
+const VERIFY_MODE_EXTERNAL: u8 = 0x02; // Use an external public key for verification, pass to command as data post param2, ds pg 89
+#[allow(dead_code)]
+const VERIFY_MODE_STORED: u8 = 0b00000000; // Use an internally stored public key for verification, param2 = keyID, ds pg 89
+const VERIFY_PARAM2_KEYTYPE_ECC: u8 = 0x0004; // When verify mode external, param2 should be KeyType, ds pg 89
+#[allow(dead_code)]
+const VERIFY_PARAM2_KEYTYPE_NONECC: u8 = 0x0007; // When verify mode external, param2 should be KeyType, ds pg 89
+const NONCE_MODE_PASSTHROUGH: u8 = 0b00000011; // Operate in pass-through mode and Write TempKey with NumIn. datasheet pg 79
+
 const LOCK_MODE_ZONE_CONFIG: u8 = 0b10000000;
 const LOCK_MODE_ZONE_DATA_AND_OTP: u8 = 0b10000001;
 const LOCK_MODE_SLOT0: u8 = 0b10000010;
 
 #[allow(dead_code)]
 const RANDOM_BYTES_BLOCK_SIZE: usize = 32;
+
+const SHA_START: u8 = 0;
+const SHA_UPDATE: u8 = 1;
+const SHA_END: u8 = 2;
 
 #[allow(dead_code)]
 const SHA256_SIZE: usize = 32;
@@ -123,8 +131,12 @@ const SIGNATURE_SIZE: usize = 64;
 const BUFFER_SIZE: usize = 128;
 
 const RESPONSE_SIGNAL_INDEX: usize = RESPONSE_COUNT_SIZE;
+const ATRCC508A_SUCCESSFUL_TEMPKEY: u8 = 0x00;
+const ATRCC508A_SUCCESSFUL_VERIFY: u8 = 0x00;
 const ATRCC508A_SUCCESSFUL_LOCK: u8 = 0x00;
 
+const WORD_ADDRESS_VALUE_RESET: u8 = 0x00;
+const WORD_ADDRESS_VALUE_IDLE: u8 = 0x02;
 const WORD_ADDRESS_VALUE_COMMAND: u8 = 0x03;
 
 const ATRCC508A_PROTOCOL_OVERHEAD: usize = ATRCC508A_PROTOCOL_FIELD_SIZE_COMMAND
@@ -140,6 +152,7 @@ const GENKEY_MODE_NEW_PRIVATE: u8 = 0b00000100;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Operation {
+    Reset,
     Ready,
     ReadConfigZeroCommand,
     ReadConfigZeroResult(usize),
@@ -155,6 +168,16 @@ enum Operation {
     ReadKeyPair(usize),
     LockDataOtp(usize),
     LockSlot0(usize),
+    StartSha(usize),
+    ShaLoad(usize),
+    ShaLoadResponse(usize),
+    ReadySha,
+    ShaRun(usize),
+    ShaEnd(usize),
+    LoadTempKeyNonce(usize),
+    LoadTempKeyCheckNonce(usize),
+    VerifySubmitData(usize),
+    CompleteVerify(usize),
 }
 
 pub struct Atecc508a<'a> {
@@ -166,6 +189,18 @@ pub struct Atecc508a<'a> {
     entropy_buffer: TakeCell<'static, [u8; 32]>,
     entropy_offset: Cell<usize>,
     entropy_client: OptionalCell<&'a dyn entropy::Client32>,
+
+    digest_client: OptionalCell<&'a dyn digest::ClientDataHash<32>>,
+    digest_buffer: TakeCell<'static, [u8; 64]>,
+    write_len: Cell<usize>,
+    remain_len: Cell<usize>,
+    hash_data: MapCell<SubSliceMutImmut<'static, u8>>,
+    digest_data: TakeCell<'static, [u8; 32]>,
+
+    secure_client: OptionalCell<&'a dyn ClientVerify<32, 64>>,
+    message_data: TakeCell<'static, [u8; 32]>,
+    signature_data: TakeCell<'static, [u8; 64]>,
+    ext_public_key: TakeCell<'static, [u8; 64]>,
 
     wakeup_device: fn(),
 
@@ -179,6 +214,7 @@ impl<'a> Atecc508a<'a> {
         i2c: &'a dyn I2CDevice,
         buffer: &'static mut [u8],
         entropy_buffer: &'static mut [u8; 32],
+        digest_buffer: &'static mut [u8; 64],
         wakeup_device: fn(),
     ) -> Self {
         Atecc508a {
@@ -189,6 +225,16 @@ impl<'a> Atecc508a<'a> {
             entropy_buffer: TakeCell::new(entropy_buffer),
             entropy_offset: Cell::new(0),
             entropy_client: OptionalCell::empty(),
+            digest_client: OptionalCell::empty(),
+            digest_buffer: TakeCell::new(digest_buffer),
+            write_len: Cell::new(0),
+            remain_len: Cell::new(0),
+            hash_data: MapCell::empty(),
+            digest_data: TakeCell::empty(),
+            secure_client: OptionalCell::empty(),
+            message_data: TakeCell::empty(),
+            signature_data: TakeCell::empty(),
+            ext_public_key: TakeCell::empty(),
             wakeup_device,
             config_lock: Cell::new(false),
             data_lock: Cell::new(false),
@@ -231,7 +277,7 @@ impl<'a> Atecc508a<'a> {
 
         self.op_len.set(length);
 
-        self.send_command(COMMAND_OPCODE_READ, zone_calc, address, 0)?;
+        self.send_command(COMMAND_OPCODE_READ, zone_calc, address, 0);
 
         Ok(())
     }
@@ -247,18 +293,30 @@ impl<'a> Atecc508a<'a> {
 
         self.op_len.set(length);
 
-        self.send_command(COMMAND_OPCODE_WRITE, zone_calc, address, length)?;
+        self.send_command(COMMAND_OPCODE_WRITE, zone_calc, address, length);
 
         Ok(())
     }
 
-    fn send_command(
-        &self,
-        command_opcode: u8,
-        param1: u8,
-        param2: u16,
-        length: usize,
-    ) -> Result<(), ErrorCode> {
+    fn idle(&self) {
+        self.buffer.take().map(|buffer| {
+            buffer[ATRCC508A_PROTOCOL_FIELD_COMMAND] = WORD_ADDRESS_VALUE_IDLE;
+
+            let _ = self.i2c.write(buffer, 1);
+        });
+    }
+
+    fn reset(&self) {
+        self.buffer.take().map(|buffer| {
+            self.op.set(Operation::Reset);
+
+            buffer[ATRCC508A_PROTOCOL_FIELD_COMMAND] = WORD_ADDRESS_VALUE_RESET;
+
+            let _ = self.i2c.write(buffer, 1);
+        });
+    }
+
+    fn send_command(&self, command_opcode: u8, param1: u8, param2: u16, length: usize) {
         let i2c_length = length + ATRCC508A_PROTOCOL_OVERHEAD;
 
         self.buffer.take().map(|buffer| {
@@ -280,10 +338,8 @@ impl<'a> Atecc508a<'a> {
             buffer[i2c_length - ATRCC508A_PROTOCOL_FIELD_SIZE_CRC] = (crc & 0xFF) as u8;
             buffer[i2c_length - ATRCC508A_PROTOCOL_FIELD_SIZE_CRC + 1] = ((crc >> 8) & 0xFF) as u8;
 
-            self.i2c.write(buffer, i2c_length).unwrap();
+            let _ = self.i2c.write(buffer, i2c_length);
         });
-
-        Ok(())
     }
 
     /// Read information from the configuration zone and print it
@@ -359,7 +415,7 @@ impl<'a> Atecc508a<'a> {
     pub fn lock_zone_config(&self) -> Result<(), ErrorCode> {
         self.op.set(Operation::LockZoneConfig(0));
 
-        self.send_command(COMMAND_OPCODE_LOCK, LOCK_MODE_ZONE_CONFIG, 0x0000, 0)?;
+        self.send_command(COMMAND_OPCODE_LOCK, LOCK_MODE_ZONE_CONFIG, 0x0000, 0);
 
         Ok(())
     }
@@ -370,7 +426,7 @@ impl<'a> Atecc508a<'a> {
 
         (self.wakeup_device)();
 
-        self.send_command(COMMAND_OPCODE_GENKEY, GENKEY_MODE_NEW_PRIVATE, slot, 0)?;
+        self.send_command(COMMAND_OPCODE_GENKEY, GENKEY_MODE_NEW_PRIVATE, slot, 0);
 
         Ok(())
     }
@@ -389,13 +445,31 @@ impl<'a> Atecc508a<'a> {
         Ok(&self.public_key)
     }
 
+    /// Set the public key to use for the `verify` command, if using an
+    /// external key.
+    ///
+    /// This will return the previous key if one was stored. Pass in
+    /// `None` to retrieve the key without providing a new one.
+    pub fn set_public_key(
+        &'a self,
+        public_key: Option<&'static mut [u8; 64]>,
+    ) -> Option<&'static mut [u8; 64]> {
+        let ret = self.ext_public_key.take();
+
+        if let Some(key) = public_key {
+            self.ext_public_key.replace(key);
+        }
+
+        ret
+    }
+
     /// Lock the data and OTP
     pub fn lock_data_and_otp(&self) -> Result<(), ErrorCode> {
         self.op.set(Operation::LockDataOtp(0));
 
         (self.wakeup_device)();
 
-        self.send_command(COMMAND_OPCODE_LOCK, LOCK_MODE_ZONE_DATA_AND_OTP, 0x0000, 0)?;
+        self.send_command(COMMAND_OPCODE_LOCK, LOCK_MODE_ZONE_DATA_AND_OTP, 0x0000, 0);
 
         Ok(())
     }
@@ -406,7 +480,7 @@ impl<'a> Atecc508a<'a> {
 
         (self.wakeup_device)();
 
-        self.send_command(COMMAND_OPCODE_LOCK, LOCK_MODE_SLOT0, 0x0000, 0)?;
+        self.send_command(COMMAND_OPCODE_LOCK, LOCK_MODE_SLOT0, 0x0000, 0);
 
         Ok(())
     }
@@ -415,18 +489,97 @@ impl<'a> Atecc508a<'a> {
     pub fn device_locked(&self) -> bool {
         self.config_lock.get() && self.data_lock.get()
     }
+
+    fn sha_update(&self) -> bool {
+        let op_len = (self.hash_data.map_or(0, |buf| match buf {
+            SubSliceMutImmut::Mutable(b) => {
+                let len = b.len();
+                self.remain_len.get() + len
+            }
+            SubSliceMutImmut::Immutable(b) => {
+                let len = b.len();
+                self.remain_len.get() + len
+            }
+        }))
+        .min(64);
+
+        // The SHA Update step only supports 64-bytes, so if we have less
+        // we store the data and write it when we have more data or on the
+        // End command
+        if op_len < 64 {
+            self.op.set(Operation::ReadySha);
+
+            self.hash_data.map(|buf| {
+                if op_len > 0 {
+                    self.digest_buffer.map(|digest_buffer| {
+                        digest_buffer[self.remain_len.get()..(self.remain_len.get() + op_len)]
+                            .copy_from_slice(&buf[0..op_len]);
+
+                        self.remain_len.set(self.remain_len.get() + op_len);
+
+                        buf.slice(op_len..);
+                    });
+                }
+
+                self.idle();
+            });
+
+            return false;
+        }
+
+        // At this point we have at least 64 bytes to write
+        self.buffer.take().map(|buffer| {
+            let remain_len = self.remain_len.get();
+
+            if remain_len > 0 {
+                self.digest_buffer.map(|digest_buffer| {
+                    buffer[ATRCC508A_PROTOCOL_FIELD_DATA
+                        ..(ATRCC508A_PROTOCOL_FIELD_DATA + remain_len)]
+                        .copy_from_slice(&digest_buffer[0..remain_len]);
+                });
+            }
+
+            self.hash_data.map(|hash_data| {
+                buffer[ATRCC508A_PROTOCOL_FIELD_DATA + remain_len
+                    ..(ATRCC508A_PROTOCOL_FIELD_DATA + op_len)]
+                    .copy_from_slice(&hash_data[0..(op_len - remain_len)]);
+
+                hash_data.slice((op_len - remain_len)..);
+            });
+
+            self.remain_len.set(0);
+            self.buffer.replace(buffer);
+        });
+
+        self.op.set(Operation::ShaLoadResponse(0));
+
+        true
+    }
 }
 
 impl<'a> I2CClient for Atecc508a<'a> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         match self.op.get() {
             Operation::Ready => unreachable!(),
+            Operation::ReadySha => {
+                self.buffer.replace(buffer);
+
+                self.hash_data.take().map(|buf| {
+                    self.digest_client.map(|client| match buf {
+                        SubSliceMutImmut::Mutable(b) => client.add_mut_data_done(Ok(()), b),
+                        SubSliceMutImmut::Immutable(b) => client.add_data_done(Ok(()), b),
+                    })
+                });
+            }
+            Operation::Reset => {
+                self.buffer.replace(buffer);
+            }
             Operation::ReadConfigZeroCommand => {
                 self.op.set(Operation::ReadConfigZeroResult(0));
 
-                self.i2c
-                    .read(buffer, self.op_len.get() + RESPONSE_COUNT_SIZE + CRC_SIZE)
-                    .unwrap();
+                let _ = self
+                    .i2c
+                    .read(buffer, self.op_len.get() + RESPONSE_COUNT_SIZE + CRC_SIZE);
             }
             Operation::ReadConfigZeroResult(run) => {
                 if status == Err(i2c::Error::DataNak) || status == Err(i2c::Error::AddressNak) {
@@ -437,9 +590,9 @@ impl<'a> I2CClient for Atecc508a<'a> {
 
                     self.op.set(Operation::ReadConfigZeroResult(run + 1));
 
-                    self.i2c
-                        .read(buffer, self.op_len.get() + RESPONSE_COUNT_SIZE + CRC_SIZE)
-                        .unwrap();
+                    let _ = self
+                        .i2c
+                        .read(buffer, self.op_len.get() + RESPONSE_COUNT_SIZE + CRC_SIZE);
 
                     return;
                 }
@@ -457,19 +610,18 @@ impl<'a> I2CClient for Atecc508a<'a> {
 
                 self.buffer.replace(buffer);
 
-                self.read(
+                let _ = self.read(
                     ZONE_CONFIG,
                     ADDRESS_CONFIG_READ_BLOCK_2,
                     CONFIG_ZONE_READ_SIZE,
-                )
-                .unwrap();
+                );
             }
             Operation::ReadConfigTwoCommand => {
                 self.op.set(Operation::ReadConfigTwoResult(0));
 
-                self.i2c
-                    .read(buffer, self.op_len.get() + RESPONSE_COUNT_SIZE + CRC_SIZE)
-                    .unwrap();
+                let _ = self
+                    .i2c
+                    .read(buffer, self.op_len.get() + RESPONSE_COUNT_SIZE + CRC_SIZE);
             }
             Operation::ReadConfigTwoResult(run) => {
                 if status == Err(i2c::Error::DataNak) || status == Err(i2c::Error::AddressNak) {
@@ -480,9 +632,9 @@ impl<'a> I2CClient for Atecc508a<'a> {
 
                     self.op.set(Operation::ReadConfigTwoResult(run + 1));
 
-                    self.i2c
-                        .read(buffer, self.op_len.get() + RESPONSE_COUNT_SIZE + CRC_SIZE)
-                        .unwrap();
+                    let _ = self
+                        .i2c
+                        .read(buffer, self.op_len.get() + RESPONSE_COUNT_SIZE + CRC_SIZE);
 
                     return;
                 }
@@ -536,20 +688,17 @@ impl<'a> I2CClient for Atecc508a<'a> {
                     }
 
                     self.op.set(Operation::GenerateEntropyCommand(run + 1));
-                    self.send_command(COMMAND_OPCODE_RANDOM, 0x00, 0x0000, 0)
-                        .unwrap();
+                    self.send_command(COMMAND_OPCODE_RANDOM, 0x00, 0x0000, 0);
 
                     return;
                 }
 
                 self.op.set(Operation::GenerateEntropyResult(0));
 
-                self.i2c
-                    .read(
-                        buffer,
-                        RESPONSE_COUNT_SIZE + RESPONSE_RANDOM_SIZE + CRC_SIZE,
-                    )
-                    .unwrap();
+                let _ = self.i2c.read(
+                    buffer,
+                    RESPONSE_COUNT_SIZE + RESPONSE_RANDOM_SIZE + CRC_SIZE,
+                );
             }
             Operation::GenerateEntropyResult(run) => {
                 if status == Err(i2c::Error::DataNak) || status == Err(i2c::Error::AddressNak) {
@@ -568,12 +717,10 @@ impl<'a> I2CClient for Atecc508a<'a> {
 
                     self.op.set(Operation::GenerateEntropyResult(run + 1));
 
-                    self.i2c
-                        .read(
-                            buffer,
-                            RESPONSE_COUNT_SIZE + RESPONSE_RANDOM_SIZE + CRC_SIZE,
-                        )
-                        .unwrap();
+                    let _ = self.i2c.read(
+                        buffer,
+                        RESPONSE_COUNT_SIZE + RESPONSE_RANDOM_SIZE + CRC_SIZE,
+                    );
 
                     return;
                 }
@@ -615,7 +762,7 @@ impl<'a> I2CClient for Atecc508a<'a> {
                     self.buffer.replace(buffer);
                 });
 
-                self.write(ZONE_CONFIG, 20 / 4, 4).unwrap();
+                let _ = self.write(ZONE_CONFIG, 20 / 4, 4);
             }
             Operation::SetupConfigTwo(run) => {
                 self.buffer.replace(buffer);
@@ -628,7 +775,7 @@ impl<'a> I2CClient for Atecc508a<'a> {
                     }
 
                     self.op.set(Operation::SetupConfigTwo(run + 1));
-                    self.write(ZONE_CONFIG, 20 / 4, 4).unwrap();
+                    let _ = self.write(ZONE_CONFIG, 20 / 4, 4);
                     return;
                 }
 
@@ -645,19 +792,16 @@ impl<'a> I2CClient for Atecc508a<'a> {
                     }
 
                     self.op.set(Operation::LockZoneConfig(run + 1));
-                    self.send_command(COMMAND_OPCODE_LOCK, LOCK_MODE_ZONE_CONFIG, 0x0000, 0)
-                        .unwrap();
+                    self.send_command(COMMAND_OPCODE_LOCK, LOCK_MODE_ZONE_CONFIG, 0x0000, 0);
                     return;
                 }
 
                 self.op.set(Operation::LockResponse(0));
 
-                self.i2c
-                    .read(
-                        buffer,
-                        RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE,
-                    )
-                    .unwrap();
+                let _ = self.i2c.read(
+                    buffer,
+                    RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE,
+                );
             }
             Operation::LockResponse(run) => {
                 if status == Err(i2c::Error::DataNak) || status == Err(i2c::Error::AddressNak) {
@@ -669,12 +813,10 @@ impl<'a> I2CClient for Atecc508a<'a> {
                     }
 
                     self.op.set(Operation::LockResponse(run + 1));
-                    self.i2c
-                        .read(
-                            buffer,
-                            RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE,
-                        )
-                        .unwrap();
+                    let _ = self.i2c.read(
+                        buffer,
+                        RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE,
+                    );
                     return;
                 }
 
@@ -699,16 +841,15 @@ impl<'a> I2CClient for Atecc508a<'a> {
                     }
 
                     self.op.set(Operation::CreateKeyPair(run + 1, slot));
-                    self.send_command(COMMAND_OPCODE_GENKEY, GENKEY_MODE_NEW_PRIVATE, slot, 0)
-                        .unwrap();
+                    self.send_command(COMMAND_OPCODE_GENKEY, GENKEY_MODE_NEW_PRIVATE, slot, 0);
                     return;
                 }
 
                 self.op.set(Operation::ReadKeyPair(0));
 
-                self.i2c
-                    .read(buffer, RESPONSE_COUNT_SIZE + PUBLIC_KEY_SIZE + CRC_SIZE)
-                    .unwrap();
+                let _ = self
+                    .i2c
+                    .read(buffer, RESPONSE_COUNT_SIZE + PUBLIC_KEY_SIZE + CRC_SIZE);
             }
             Operation::ReadKeyPair(run) => {
                 if status == Err(i2c::Error::DataNak) || status == Err(i2c::Error::AddressNak) {
@@ -721,9 +862,9 @@ impl<'a> I2CClient for Atecc508a<'a> {
                     }
 
                     self.op.set(Operation::ReadKeyPair(run + 1));
-                    self.i2c
-                        .read(buffer, RESPONSE_COUNT_SIZE + PUBLIC_KEY_SIZE + CRC_SIZE)
-                        .unwrap();
+                    let _ = self
+                        .i2c
+                        .read(buffer, RESPONSE_COUNT_SIZE + PUBLIC_KEY_SIZE + CRC_SIZE);
                     return;
                 }
 
@@ -748,19 +889,16 @@ impl<'a> I2CClient for Atecc508a<'a> {
                     }
 
                     self.op.set(Operation::LockDataOtp(run + 1));
-                    self.send_command(COMMAND_OPCODE_LOCK, LOCK_MODE_ZONE_DATA_AND_OTP, 0x0000, 0)
-                        .unwrap();
+                    self.send_command(COMMAND_OPCODE_LOCK, LOCK_MODE_ZONE_DATA_AND_OTP, 0x0000, 0);
                     return;
                 }
 
                 self.op.set(Operation::LockResponse(0));
 
-                self.i2c
-                    .read(
-                        buffer,
-                        RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE,
-                    )
-                    .unwrap();
+                let _ = self.i2c.read(
+                    buffer,
+                    RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE,
+                );
             }
             Operation::LockSlot0(run) => {
                 if status == Err(i2c::Error::DataNak) || status == Err(i2c::Error::AddressNak) {
@@ -773,21 +911,281 @@ impl<'a> I2CClient for Atecc508a<'a> {
                     }
 
                     self.op.set(Operation::LockSlot0(run + 1));
-                    self.send_command(COMMAND_OPCODE_LOCK, LOCK_MODE_SLOT0, 0x0000, 0)
-                        .unwrap();
+                    self.send_command(COMMAND_OPCODE_LOCK, LOCK_MODE_SLOT0, 0x0000, 0);
                     return;
                 }
 
                 self.op.set(Operation::LockResponse(0));
 
-                self.i2c
-                    .read(
+                let _ = self.i2c.read(
+                    buffer,
+                    RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE,
+                );
+            }
+            Operation::StartSha(run) => {
+                if status == Err(i2c::Error::DataNak) || status == Err(i2c::Error::AddressNak) {
+                    self.buffer.replace(buffer);
+
+                    // The device isn't ready yet, try again
+                    if run == 10 {
+                        self.op.set(Operation::Ready);
+                        return;
+                    }
+
+                    self.op.set(Operation::StartSha(run + 1));
+                    self.send_command(COMMAND_OPCODE_SHA, SHA_START, 0x0000, 0);
+                    return;
+                }
+
+                self.op.set(Operation::ShaLoad(0));
+
+                let _ = self.i2c.read(
+                    buffer,
+                    RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE,
+                );
+            }
+            Operation::ShaLoad(run) => {
+                if status == Err(i2c::Error::DataNak) || status == Err(i2c::Error::AddressNak) {
+                    // The device isn't ready yet, try again
+                    if run == 50 {
+                        self.op.set(Operation::Ready);
+                        return;
+                    }
+
+                    self.op.set(Operation::ShaLoad(run + 1));
+                    let _ = self.i2c.read(
                         buffer,
                         RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE,
-                    )
-                    .unwrap();
+                    );
+                    return;
+                }
+
+                self.buffer.replace(buffer);
+
+                if self.sha_update() {
+                    self.send_command(COMMAND_OPCODE_SHA, SHA_UPDATE, 64, 64);
+                }
             }
-        };
+            Operation::ShaLoadResponse(run) => {
+                if status == Err(i2c::Error::DataNak) || status == Err(i2c::Error::AddressNak) {
+                    // The device isn't ready yet, try again
+                    if run == 10 {
+                        self.op.set(Operation::Ready);
+                        return;
+                    }
+
+                    self.op.set(Operation::ShaLoadResponse(run + 1));
+                    self.send_command(COMMAND_OPCODE_SHA, SHA_UPDATE, 64, 64);
+
+                    return;
+                }
+
+                self.op.set(Operation::ShaLoad(0));
+                let _ = self.i2c.read(
+                    buffer,
+                    RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE,
+                );
+            }
+            Operation::ShaRun(run) => {
+                if status == Err(i2c::Error::DataNak) || status == Err(i2c::Error::AddressNak) {
+                    self.buffer.replace(buffer);
+
+                    // The device isn't ready yet, try again
+                    if run == 10 {
+                        self.op.set(Operation::Ready);
+                        return;
+                    }
+
+                    self.op.set(Operation::ShaRun(run + 1));
+                    self.send_command(
+                        COMMAND_OPCODE_SHA,
+                        SHA_END,
+                        self.remain_len.get() as u16,
+                        self.remain_len.get(),
+                    );
+                    return;
+                }
+
+                self.op.set(Operation::ShaEnd(0));
+                self.remain_len.set(0);
+
+                let _ = self
+                    .i2c
+                    .read(buffer, RESPONSE_COUNT_SIZE + RESPONSE_SHA_SIZE + CRC_SIZE);
+            }
+            Operation::ShaEnd(run) => {
+                if status == Err(i2c::Error::DataNak) || status == Err(i2c::Error::AddressNak) {
+                    // The device isn't ready yet, try again
+                    if run == 50 {
+                        self.op.set(Operation::Ready);
+                        return;
+                    }
+
+                    self.op.set(Operation::ShaEnd(run + 1));
+                    let _ = self
+                        .i2c
+                        .read(buffer, RESPONSE_COUNT_SIZE + RESPONSE_SHA_SIZE + CRC_SIZE);
+                    return;
+                }
+
+                self.digest_data.take().map(|digest_data| {
+                    digest_data[0..32]
+                        .copy_from_slice(&buffer[RESPONSE_COUNT_SIZE..(RESPONSE_COUNT_SIZE + 32)]);
+
+                    self.buffer.replace(buffer);
+
+                    self.op.set(Operation::Ready);
+
+                    self.digest_client.map(|client| {
+                        client.hash_done(Ok(()), digest_data);
+                    })
+                });
+            }
+            Operation::LoadTempKeyNonce(run) => {
+                if status == Err(i2c::Error::DataNak) || status == Err(i2c::Error::AddressNak) {
+                    self.buffer.replace(buffer);
+
+                    // The device isn't ready yet, try again
+                    if run == 10 {
+                        self.op.set(Operation::Ready);
+                        return;
+                    }
+
+                    self.op.set(Operation::LoadTempKeyNonce(run + 1));
+                    self.send_command(COMMAND_OPCODE_NONCE, NONCE_MODE_PASSTHROUGH, 0x0000, 32);
+                    return;
+                }
+
+                self.op.set(Operation::LoadTempKeyCheckNonce(0));
+
+                let _ = self.i2c.read(
+                    buffer,
+                    RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE,
+                );
+            }
+            Operation::LoadTempKeyCheckNonce(run) => {
+                if status == Err(i2c::Error::DataNak) || status == Err(i2c::Error::AddressNak) {
+                    // The device isn't ready yet, try again
+                    if run == 10 {
+                        self.op.set(Operation::Ready);
+                        return;
+                    }
+
+                    self.op.set(Operation::LoadTempKeyCheckNonce(run + 1));
+                    let _ = self.i2c.read(
+                        buffer,
+                        RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE,
+                    );
+                    return;
+                }
+
+                if buffer[RESPONSE_SIGNAL_INDEX] != ATRCC508A_SUCCESSFUL_TEMPKEY {
+                    self.buffer.replace(buffer);
+
+                    self.secure_client.map(|client| {
+                        client.verification_done(
+                            Err(ErrorCode::FAIL),
+                            self.message_data.take().unwrap(),
+                            self.signature_data.take().unwrap(),
+                        );
+                    });
+
+                    return;
+                }
+
+                // Append Signature
+                self.signature_data.map(|signature_data| {
+                    buffer[ATRCC508A_PROTOCOL_FIELD_DATA..(ATRCC508A_PROTOCOL_FIELD_DATA + 64)]
+                        .copy_from_slice(signature_data);
+                });
+
+                // Append Public Key
+                self.ext_public_key.map(|ext_public_key| {
+                    buffer[(ATRCC508A_PROTOCOL_FIELD_DATA + 64)
+                        ..(ATRCC508A_PROTOCOL_FIELD_DATA + 128)]
+                        .copy_from_slice(ext_public_key);
+                });
+
+                self.buffer.replace(buffer);
+                self.op.set(Operation::VerifySubmitData(0));
+
+                self.send_command(
+                    COMMAND_OPCODE_VERIFY,
+                    VERIFY_MODE_EXTERNAL,
+                    VERIFY_PARAM2_KEYTYPE_ECC as u16,
+                    128,
+                );
+            }
+            Operation::VerifySubmitData(run) => {
+                if status == Err(i2c::Error::DataNak) || status == Err(i2c::Error::AddressNak) {
+                    self.buffer.replace(buffer);
+
+                    // The device isn't ready yet, try again
+                    if run == 10 {
+                        self.op.set(Operation::Ready);
+                        return;
+                    }
+
+                    self.op.set(Operation::VerifySubmitData(run + 1));
+                    self.send_command(
+                        COMMAND_OPCODE_VERIFY,
+                        VERIFY_MODE_EXTERNAL,
+                        VERIFY_PARAM2_KEYTYPE_ECC as u16,
+                        128,
+                    );
+                    return;
+                }
+
+                self.op.set(Operation::CompleteVerify(0));
+                let _ = self.i2c.read(
+                    buffer,
+                    RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE,
+                );
+            }
+            Operation::CompleteVerify(run) => {
+                if status == Err(i2c::Error::DataNak) || status == Err(i2c::Error::AddressNak) {
+                    // The device isn't ready yet, try again
+                    if run == 100 {
+                        self.op.set(Operation::Ready);
+                        return;
+                    }
+
+                    self.op.set(Operation::CompleteVerify(run + 1));
+                    let _ = self.i2c.read(
+                        buffer,
+                        RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE,
+                    );
+                    return;
+                }
+
+                let ret = buffer[RESPONSE_SIGNAL_INDEX];
+
+                self.op.set(Operation::Ready);
+                self.buffer.replace(buffer);
+
+                self.secure_client.map(|client| {
+                    if ret == ATRCC508A_SUCCESSFUL_VERIFY {
+                        client.verification_done(
+                            Ok(true),
+                            self.message_data.take().unwrap(),
+                            self.signature_data.take().unwrap(),
+                        );
+                    } else if ret == 1 {
+                        client.verification_done(
+                            Ok(false),
+                            self.message_data.take().unwrap(),
+                            self.signature_data.take().unwrap(),
+                        );
+                    } else {
+                        client.verification_done(
+                            Err(ErrorCode::FAIL),
+                            self.message_data.take().unwrap(),
+                            self.signature_data.take().unwrap(),
+                        );
+                    }
+                });
+            }
+        }
     }
 }
 
@@ -825,12 +1223,168 @@ impl<'a> entropy::Entropy32<'a> for Atecc508a<'a> {
 
         (self.wakeup_device)();
 
-        self.send_command(COMMAND_OPCODE_RANDOM, 0x00, 0x0000, 0)?;
+        self.send_command(COMMAND_OPCODE_RANDOM, 0x00, 0x0000, 0);
 
         Ok(())
     }
 
     fn cancel(&self) -> Result<(), ErrorCode> {
+        Ok(())
+    }
+}
+
+impl<'a> digest::DigestData<'a, 32> for Atecc508a<'a> {
+    fn set_data_client(&'a self, _client: &'a dyn digest::ClientData<32>) {
+        unimplemented!()
+    }
+
+    fn add_data(
+        &self,
+        data: SubSlice<'static, u8>,
+    ) -> Result<(), (ErrorCode, SubSlice<'static, u8>)> {
+        if !(self.op.get() == Operation::Ready || self.op.get() == Operation::ReadySha) {
+            return Err((ErrorCode::BUSY, data));
+        }
+
+        (self.wakeup_device)();
+
+        self.write_len.set(data.len());
+        self.hash_data.replace(SubSliceMutImmut::Immutable(data));
+
+        if self.op.get() == Operation::Ready {
+            self.op.set(Operation::StartSha(0));
+
+            self.send_command(COMMAND_OPCODE_SHA, SHA_START, 0x0000, 0);
+        } else {
+            self.op.set(Operation::ShaLoad(0));
+
+            if self.sha_update() {
+                self.send_command(COMMAND_OPCODE_SHA, SHA_UPDATE, 64, 64);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn add_mut_data(
+        &self,
+        data: SubSliceMut<'static, u8>,
+    ) -> Result<(), (ErrorCode, SubSliceMut<'static, u8>)> {
+        if !(self.op.get() == Operation::Ready || self.op.get() == Operation::ReadySha) {
+            return Err((ErrorCode::BUSY, data));
+        }
+
+        self.write_len.set(data.len());
+        self.hash_data.replace(SubSliceMutImmut::Mutable(data));
+
+        if self.op.get() == Operation::Ready {
+            self.op.set(Operation::StartSha(0));
+
+            (self.wakeup_device)();
+
+            self.send_command(COMMAND_OPCODE_SHA, SHA_START, 0x0000, 0);
+        } else {
+            self.op.set(Operation::ShaLoad(0));
+
+            if self.sha_update() {
+                (self.wakeup_device)();
+
+                self.send_command(COMMAND_OPCODE_SHA, SHA_UPDATE, 64, 64);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn clear_data(&self) {
+        (self.wakeup_device)();
+
+        self.reset();
+    }
+}
+
+impl<'a> digest::DigestHash<'a, 32> for Atecc508a<'a> {
+    fn set_hash_client(&'a self, _client: &'a dyn digest::ClientHash<32>) {
+        unimplemented!()
+    }
+
+    fn run(
+        &'a self,
+        digest: &'static mut [u8; 32],
+    ) -> Result<(), (ErrorCode, &'static mut [u8; 32])> {
+        let remain_len = self.remain_len.get();
+
+        if self.op.get() != Operation::ReadySha {
+            return Err((ErrorCode::BUSY, digest));
+        }
+
+        (self.wakeup_device)();
+
+        self.op.set(Operation::ShaRun(0));
+        self.digest_data.replace(digest);
+
+        if remain_len > 0 {
+            self.buffer.take().map(|buffer| {
+                self.digest_buffer.map(|digest_buffer| {
+                    buffer[ATRCC508A_PROTOCOL_FIELD_DATA
+                        ..(ATRCC508A_PROTOCOL_FIELD_DATA + remain_len)]
+                        .copy_from_slice(&digest_buffer[0..remain_len]);
+                });
+
+                self.buffer.replace(buffer);
+            });
+        }
+
+        self.send_command(
+            COMMAND_OPCODE_SHA,
+            SHA_END,
+            self.remain_len.get() as u16,
+            remain_len,
+        );
+
+        Ok(())
+    }
+}
+
+impl<'a> digest::DigestDataHash<'a, 32> for Atecc508a<'a> {
+    fn set_client(&'a self, client: &'a dyn digest::ClientDataHash<32>) {
+        self.digest_client.set(client);
+    }
+}
+
+impl<'a> SignatureVerify<'a, 32, 64> for Atecc508a<'a> {
+    fn set_verify_client(&self, client: &'a dyn ClientVerify<32, 64>) {
+        self.secure_client.set(client);
+    }
+
+    /// Check the signature against the external public key loaded via
+    /// `set_public_key()`.
+    ///
+    /// Verifying that a message was signed by the device is not support
+    /// yet.
+    fn verify(
+        &self,
+        hash: &'static mut [u8; 32],
+        signature: &'static mut [u8; 64],
+    ) -> Result<(), (ErrorCode, &'static mut [u8; 32], &'static mut [u8; 64])> {
+        if self.ext_public_key.is_none() {
+            return Err((ErrorCode::OFF, hash, signature));
+        }
+
+        (self.wakeup_device)();
+
+        self.op.set(Operation::LoadTempKeyNonce(0));
+
+        self.buffer.map(|buffer| {
+            buffer[ATRCC508A_PROTOCOL_FIELD_DATA..(ATRCC508A_PROTOCOL_FIELD_DATA + 32)]
+                .copy_from_slice(hash);
+        });
+
+        self.message_data.replace(hash);
+        self.signature_data.replace(signature);
+
+        self.send_command(COMMAND_OPCODE_NONCE, NONCE_MODE_PASSTHROUGH, 0x0000, 32);
+
         Ok(())
     }
 }

@@ -19,13 +19,16 @@ permissions:
 
 jobs:
   ci-build:
+    # Do not run job on forks
+    if: github.repository == 'tock/tock'
+
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: ci-job-syntax
         run: make ci-job-syntax
@@ -43,6 +46,9 @@ jobs:
           path: tools/ci-artifacts
 
   ci-tests:
+    # Do not run job on forks
+    if: github.repository == 'tock/tock'
+
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
@@ -61,7 +67,7 @@ jobs:
         run: |
           brew install zeromq
         if: matrix.os == 'macos-latest'
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: ci-job-libraries
         run: make ci-job-libraries
       - name: ci-job-archs

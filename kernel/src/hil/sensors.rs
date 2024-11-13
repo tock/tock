@@ -35,6 +35,34 @@ pub trait HumidityClient {
     fn callback(&self, value: usize);
 }
 
+/// A basic interface for a moisture sensor
+pub trait MoistureDriver<'a> {
+    fn set_client(&self, client: &'a dyn MoistureClient);
+
+    /// Read the moisture value from a sensor. The value is returned
+    /// via the `MoistureClient` callback.
+    ///
+    /// This function might return the following errors:
+    /// - `BUSY`: Indicates that the hardware is busy with an existing
+    ///           operation or initialisation/calibration.
+    /// - `NOSUPPORT`: Indicates that this data type isn't supported.
+    fn read_moisture(&self) -> Result<(), ErrorCode>;
+}
+
+/// Client for receiving moisture readings.
+pub trait MoistureClient {
+    /// Called when a moisture reading has completed.
+    ///
+    /// - `value`: the most recently read moisture in hundredths of
+    /// percent, or Err on failure.
+    ///
+    /// This function might return the following errors:
+    /// - `BUSY`: Indicates that the hardware is busy with an existing
+    ///           operation or initialisation/calibration.
+    /// - `NOSUPPORT`: Indicates that this data type isn't supported.
+    fn callback(&self, value: Result<usize, ErrorCode>);
+}
+
 /// A basic interface for a Air Quality sensor
 pub trait AirQualityDriver<'a> {
     /// Set the client to be notified when the capsule has data ready.
@@ -232,4 +260,32 @@ pub trait PressureClient {
     ///
     /// Returns the value in hPa.
     fn callback(&self, pressure: Result<u32, ErrorCode>);
+}
+
+/// A basic interface for distance sensor.
+pub trait Distance<'a> {
+    /// Set the client
+    fn set_client(&self, client: &'a dyn DistanceClient);
+
+    /// Initiates a distance reading from the sensor.
+    ///
+    /// This function might return the following errors:
+    /// - `BUSY`: Indicates that the hardware is currently busy.
+    /// - `FAIL`: Indicates that there was a failure in communication.
+    fn read_distance(&self) -> Result<(), ErrorCode>;
+
+    /// Get the maximum distance the sensor can measure in mm
+    fn get_maximum_distance(&self) -> u32;
+
+    /// Get the minimum distance the sensor can measure in mm
+    fn get_minimum_distance(&self) -> u32;
+}
+
+/// Client for receiving distance readings.
+pub trait DistanceClient {
+    /// Called when a distance measurement has completed.
+    ///
+    /// - `distance`: the most recently measured distance in millimeters.
+    ///                If there was an error, this will be `Err(ErrorCode)`.
+    fn callback(&self, distance: Result<u32, ErrorCode>);
 }

@@ -113,6 +113,7 @@ _Note:_ GPIO is slated for re-numbering in Tock 2.0.
 |   | 0x60005       | Proximity                                     | Proximity Sensor                           |
 |   | 0x60006       | SoundPressure                                 | Sound Pressure Sensor                      |
 |   | 0x90002       | [Touch](90002_touch.md)                       | Multi Touch Panel                          |
+|   | 0x60009       | [Distance](60009_distance.md)                 | Distance Sensor                            |
 
 ### Sensor ICs
 
@@ -146,3 +147,5 @@ _Note:_ GPIO is slated for re-numbering in Tock 2.0.
 |2.0| Driver Number | Driver                                  | Description                                |
 |---|---------------|-----------------------------------------|--------------------------------------------|
 |   | 0x90000       | Buzzer                                  | Buzzer                                     |
+|   | 0x90009       | [Servo](90009_servo.md)                |                  |
+Servo

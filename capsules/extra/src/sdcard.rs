@@ -83,6 +83,7 @@ use kernel::hil::time::ConvertTicks;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::{ErrorCode, ProcessId};
 
 /// Syscall driver number.
@@ -374,11 +375,19 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
             *byte = 0xFF;
         }
 
-        // start SPI transaction
         // Length is command bytes (8) plus recv_len
-        let _ = self
-            .spi
-            .read_write_bytes(write_buffer, Some(read_buffer), 8 + recv_len);
+        let len = cmp::min(
+            cmp::min(8 + recv_len, write_buffer.len()),
+            read_buffer.len(),
+        );
+
+        let mut wb: SubSliceMut<'static, u8> = write_buffer.into();
+        wb.slice(0..len);
+        let mut rb: SubSliceMut<'static, u8> = read_buffer.into();
+        rb.slice(0..len);
+
+        // start SPI transaction
+        let _ = self.spi.read_write_bytes(wb, Some(rb));
     }
 
     /// wrapper for easy reading of bytes over SPI
@@ -399,9 +408,12 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
             *byte = 0xFF;
         }
 
-        let _ = self
-            .spi
-            .read_write_bytes(write_buffer, Some(read_buffer), recv_len);
+        let mut wb: SubSliceMut<'static, u8> = write_buffer.into();
+        wb.slice(0..recv_len);
+        let mut rb: SubSliceMut<'static, u8> = read_buffer.into();
+        rb.slice(0..recv_len);
+
+        let _ = self.spi.read_write_bytes(wb, Some(rb));
     }
 
     /// wrapper for easy writing of bytes over SPI
@@ -414,10 +426,12 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
         // TODO verify SPI return value
         let _ = self.set_spi_fast_mode();
 
-        // TODO verify SPI return value
-        let _ = self
-            .spi
-            .read_write_bytes(write_buffer, Some(read_buffer), recv_len);
+        let mut wb: SubSliceMut<'static, u8> = write_buffer.into();
+        wb.slice(0..recv_len);
+        let mut rb: SubSliceMut<'static, u8> = read_buffer.into();
+        rb.slice(0..recv_len);
+
+        let _ = self.spi.read_write_bytes(wb, Some(rb));
     }
 
     /// parse response bytes from SPI read buffer
@@ -1405,14 +1419,13 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
 impl<'a, A: hil::time::Alarm<'a>> hil::spi::SpiMasterClient for SDCard<'a, A> {
     fn read_write_done(
         &self,
-        write_buffer: &'static mut [u8],
-        read_buffer: Option<&'static mut [u8]>,
-        len: usize,
-        _status: Result<(), ErrorCode>,
+        write_buffer: SubSliceMut<'static, u8>,
+        read_buffer: Option<SubSliceMut<'static, u8>>,
+        status: Result<usize, ErrorCode>,
     ) {
-        // unrwap so we don't have to deal with options everywhere
+        // unwrap so we don't have to deal with options everywhere
         read_buffer.map(move |read_buffer| {
-            self.process_spi_states(write_buffer, read_buffer, len);
+            self.process_spi_states(write_buffer.take(), read_buffer.take(), status.unwrap_or(0));
         });
     }
 }

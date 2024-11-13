@@ -16,10 +16,17 @@ pub mod peripheral_management;
 pub mod static_init;
 mod static_ref;
 pub mod storage_volume;
+pub mod streaming_process_slice;
 
 pub use self::static_ref::StaticRef;
 
-/// Re-export the tock-register-interface library.
+/// The Tock Register Interface.
+///
+/// This is a re-export of the `tock-register-interface` crate provided for
+/// convenience.
+///
+/// The Tock Register Interface provides a mechanism for accessing hardware
+/// registers and MMIO interfaces.
 pub mod registers {
     pub use tock_registers::fields::{Field, FieldValue};
     pub use tock_registers::interfaces;
@@ -29,7 +36,9 @@ pub mod registers {
     pub use tock_registers::{LocalRegisterCopy, RegisterLongName};
 }
 
-/// Create a "fake" module inside of `common` for all of the Tock `Cell` types.
+/// The Tock `Cell` types.
+///
+/// This is a re-export of the `tock-cells` crate provided for convenience.
 ///
 /// To use `TakeCell`, for example, users should use:
 ///

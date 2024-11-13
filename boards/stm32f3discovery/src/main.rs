@@ -806,7 +806,8 @@ unsafe fn start() -> (
         nonvolatile_storage,
 
         scheduler,
-        systick: cortexm4::systick::SysTick::new(),
+        // Systick uses the HSI, which runs at 8MHz
+        systick: cortexm4::systick::SysTick::new_with_calibration(8_000_000),
         watchdog: &peripherals.watchdog,
     };
 
