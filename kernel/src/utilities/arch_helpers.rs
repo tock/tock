@@ -128,7 +128,7 @@ impl TRD104SyscallReturn {
 /// Encode the system call return value into 4 registers, following the encoding
 /// specified in TRD104. Architectures which do not follow TRD104 are free to
 /// define their own encoding.
-pub fn encode_syscall_return_32bit_trd104(
+pub fn encode_syscall_return_trd104(
     syscall_return: &TRD104SyscallReturn,
     a0: &mut u32,
     a1: &mut u32,

@@ -172,7 +172,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         let (a1slice, r) = r.split_at_mut(R_A2 - R_A1);
         let (a2slice, a3slice) = r.split_at_mut(R_A3 - R_A2);
 
-        kernel::utilities::arch_helpers::encode_syscall_return_32bit_trd104(
+        kernel::utilities::arch_helpers::encode_syscall_return_trd104(
             &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(
                 return_value,
             ),
