@@ -862,12 +862,14 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                 self.chip.mpu().configure_mpu(config);
 
                 let base = self.mem_start() as usize;
-                let break_result = CapabilityPtr::new_with_metadata(
-                    old_break as *const (),
-                    base,
-                    (new_break as usize) - base,
-                    CapabilityPtrPermissions::ReadWrite,
-                );
+                let break_result = unsafe {
+                    CapabilityPtr::new_with_metadata(
+                        old_break as *const (),
+                        base,
+                        (new_break as usize) - base,
+                        CapabilityPtrPermissions::ReadWrite,
+                    )
+                };
 
                 Ok(break_result)
             }
@@ -2147,12 +2149,14 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // We need to construct a capability with sufficient authority to cover all of a user's
         // code, with permissions to execute it. The entirety of flash is sufficient.
 
-        let init_fn = CapabilityPtr::new_with_metadata(
-            init_addr as *const (),
-            flash_start as usize,
-            (self.flash_end() as usize) - (flash_start as usize),
-            CapabilityPtrPermissions::Execute,
-        );
+        let init_fn = unsafe {
+            CapabilityPtr::new_with_metadata(
+                init_addr as *const (),
+                flash_start as usize,
+                (self.flash_end() as usize) - (flash_start as usize),
+                CapabilityPtrPermissions::Execute,
+            )
+        };
 
         self.enqueue_task(Task::FunctionCall(FunctionCall {
             source: FunctionCallSource::Kernel,

@@ -348,65 +348,77 @@ pub fn encode_syscall_return_usize(
         }
         SyscallReturn::AllowReadWriteSuccess(ptr, len) => {
             *a0 = (SyscallReturnVariant::SuccessPtrUsize as usize).into();
-            *a1 = CapabilityPtr::new_with_metadata(
-                ptr as *const (),
-                ptr as usize,
-                len,
-                CapabilityPtrPermissions::ReadWrite,
-            );
+            *a1 = unsafe {
+                CapabilityPtr::new_with_metadata(
+                    ptr as *const (),
+                    ptr as usize,
+                    len,
+                    CapabilityPtrPermissions::ReadWrite,
+                )
+            };
             *a2 = len.into();
         }
         SyscallReturn::UserspaceReadableAllowSuccess(ptr, len) => {
             *a0 = (SyscallReturnVariant::SuccessPtrUsize as usize).into();
-            *a1 = CapabilityPtr::new_with_metadata(
-                ptr as *const (),
-                ptr as usize,
-                len,
-                CapabilityPtrPermissions::Read,
-            );
+            *a1 = unsafe {
+                CapabilityPtr::new_with_metadata(
+                    ptr as *const (),
+                    ptr as usize,
+                    len,
+                    CapabilityPtrPermissions::Read,
+                )
+            };
             *a2 = len.into();
         }
         SyscallReturn::AllowReadWriteFailure(err, ptr, len) => {
             *a0 = (SyscallReturnVariant::FailurePtrUsize as usize).into();
             *a1 = (usize::from(err)).into();
-            *a2 = CapabilityPtr::new_with_metadata(
-                ptr as *const (),
-                ptr as usize,
-                len,
-                CapabilityPtrPermissions::ReadWrite,
-            );
+            *a2 = unsafe {
+                CapabilityPtr::new_with_metadata(
+                    ptr as *const (),
+                    ptr as usize,
+                    len,
+                    CapabilityPtrPermissions::ReadWrite,
+                )
+            };
             *a3 = len.into();
         }
         SyscallReturn::UserspaceReadableAllowFailure(err, ptr, len) => {
             *a0 = (SyscallReturnVariant::FailurePtrUsize as usize).into();
             *a1 = (usize::from(err)).into();
-            *a2 = CapabilityPtr::new_with_metadata(
-                ptr as *const (),
-                ptr as usize,
-                len,
-                CapabilityPtrPermissions::Read,
-            );
+            *a2 = unsafe {
+                CapabilityPtr::new_with_metadata(
+                    ptr as *const (),
+                    ptr as usize,
+                    len,
+                    CapabilityPtrPermissions::Read,
+                )
+            };
             *a3 = len.into();
         }
         SyscallReturn::AllowReadOnlySuccess(ptr, len) => {
             *a0 = (SyscallReturnVariant::SuccessPtrUsize as usize).into();
-            *a1 = CapabilityPtr::new_with_metadata(
-                ptr as *const (),
-                ptr as usize,
-                len,
-                CapabilityPtrPermissions::Read,
-            );
+            *a1 = unsafe {
+                CapabilityPtr::new_with_metadata(
+                    ptr as *const (),
+                    ptr as usize,
+                    len,
+                    CapabilityPtrPermissions::Read,
+                )
+            };
             *a2 = len.into();
         }
         SyscallReturn::AllowReadOnlyFailure(err, ptr, len) => {
             *a0 = (SyscallReturnVariant::FailurePtrUsize as usize).into();
             *a1 = (usize::from(err)).into();
-            *a2 = CapabilityPtr::new_with_metadata(
-                ptr as *const (),
-                ptr as usize,
-                len,
-                CapabilityPtrPermissions::Read,
-            );
+            *a2 = unsafe {
+                CapabilityPtr::new_with_metadata(
+                    ptr as *const (),
+                    ptr as usize,
+                    len,
+                    CapabilityPtrPermissions::Read,
+                )
+            };
             *a3 = len.into();
         }
         SyscallReturn::SubscribeSuccess(ptr, data) => {

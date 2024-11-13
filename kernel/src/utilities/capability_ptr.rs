@@ -105,10 +105,23 @@ impl CapabilityPtr {
 
     /// Construct a [`CapabilityPtr`] from a raw pointer, with authority ranging over
     /// [`base`, `base + length`) and permissions `perms`.
+    ///
     /// Provenance note: may derive from a pointer other than the input to provide something with
     /// valid provenance to justify the other arguments.
+    ///
+    /// ## Safety
+    ///
+    /// Constructing a [`CapabilityPtr`] with metadata may convey authority to
+    /// dereference this pointer, such as on userspace. When these pointers
+    /// serve as the only memory isolation primitive in the system, this method
+    /// can thus break Tock's isolation model. As semi-trusted kernel code can
+    /// name this type and method, it is thus marked as `unsafe`.
+    ///
+    /// TODO: Once Tock supports hardware that uses the [`CapabilityPtr`]'s
+    /// metdata to convey authority, this comment should incorporate the exact
+    /// safety conditions of this function.
     #[inline]
-    pub fn new_with_metadata(
+    pub unsafe fn new_with_metadata(
         ptr: *const (),
         _base: usize,
         _length: usize,
