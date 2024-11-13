@@ -136,10 +136,11 @@ impl<'a, S: SpiMasterDevice<'a>> Spi<'a, S> {
 
         // TODO verify SPI return value
         let _ = if rlen == 0 {
-            let kwbuf = self
+            let mut kwbuf = self
                 .kernel_write
                 .take()
                 .unwrap_or((&mut [] as &'static mut [u8]).into());
+            kwbuf.slice(0..write_len);
             self.spi_master.read_write_bytes(kwbuf, None)
         } else if write_len == 0 {
             let read_len = self
@@ -176,10 +177,11 @@ impl<'a, S: SpiMasterDevice<'a>> Spi<'a, S> {
             self.spi_master
                 .read_write_bytes(kwbuf, self.kernel_read.take())
         } else {
-            let kwbuf = self
+            let mut kwbuf = self
                 .kernel_write
                 .take()
                 .unwrap_or((&mut [] as &'static mut [u8]).into());
+            kwbuf.slice(0..write_len);
             self.spi_master
                 .read_write_bytes(kwbuf, self.kernel_read.take())
         };
@@ -410,7 +412,7 @@ impl<'a, S: SpiMasterDevice<'a>> SyscallDriver for Spi<'a, S> {
 impl<'a, S: SpiMasterDevice<'a>> SpiMasterClient for Spi<'a, S> {
     fn read_write_done(
         &self,
-        writebuf: SubSliceMut<'static, u8>,
+        mut writebuf: SubSliceMut<'static, u8>,
         readbuf: Option<SubSliceMut<'static, u8>>,
         status: Result<usize, ErrorCode>,
     ) {
@@ -453,6 +455,7 @@ impl<'a, S: SpiMasterDevice<'a>> SpiMasterClient for Spi<'a, S> {
                     self.kernel_read.put(rb);
                 }
 
+                writebuf.reset();
                 self.kernel_write.replace(writebuf);
 
                 if app.index == app.len {
