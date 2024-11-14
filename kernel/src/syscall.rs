@@ -73,18 +73,6 @@ use crate::process;
 
 pub use crate::syscall_driver::{CommandReturn, SyscallDriver};
 
-/// Helper function to split a [`u64`] into a higher and lower [`u32`].
-///
-/// Used in encoding 64-bit wide system call return values on 32-bit platforms.
-#[inline]
-fn u64_to_be_u32s(src: u64) -> (u32, u32) {
-    let src_bytes = src.to_be_bytes();
-    let src_msb = u32::from_be_bytes([src_bytes[0], src_bytes[1], src_bytes[2], src_bytes[3]]);
-    let src_lsb = u32::from_be_bytes([src_bytes[4], src_bytes[5], src_bytes[6], src_bytes[7]]);
-
-    (src_msb, src_lsb)
-}
-
 // ---------- SYSTEMCALL ARGUMENT DECODING ----------
 
 /// Enumeration of the system call classes based on the identifiers specified in
@@ -380,29 +368,9 @@ impl Syscall {
     }
 }
 
-// ---------- SYSCALL RETURN VALUE ENCODING ----------
+// ---------- SYSCALL RETURN VALUES ----------
 
-/// Enumeration of the system call return type variant identifiers described
-/// in TRD104.
-///
-/// Each variant is associated with the respective variant identifier that would
-/// be passed along with the return value to userspace.
-#[repr(u32)]
-#[derive(Copy, Clone, Debug)]
-pub enum SyscallReturnVariant {
-    Failure = 0,
-    FailureU32 = 1,
-    FailureU32U32 = 2,
-    FailureU64 = 3,
-    Success = 128,
-    SuccessU32 = 129,
-    SuccessU32U32 = 130,
-    SuccessU64 = 131,
-    SuccessU32U32U32 = 132,
-    SuccessU32U64 = 133,
-}
-
-/// Enumeration of the possible system call return variants specified in TRD104.
+/// Enumeration of the possible system call return variants.
 ///
 /// This struct operates over primitive types such as integers of fixed length
 /// and pointers. It is constructed by the scheduler and passed down to the
@@ -516,118 +484,6 @@ impl SyscallReturn {
             SyscallReturn::AllowReadOnlyFailure(_, _, _) => false,
             SyscallReturn::SubscribeFailure(_, _, _) => false,
             SyscallReturn::YieldWaitFor(_, _, _) => true,
-        }
-    }
-
-    /// Encode the system call return value into 4 registers, following the
-    /// encoding specified in TRD104. Architectures which do not follow TRD104
-    /// are free to define their own encoding.
-    pub fn encode_syscall_return(&self, a0: &mut u32, a1: &mut u32, a2: &mut u32, a3: &mut u32) {
-        match *self {
-            SyscallReturn::Failure(e) => {
-                *a0 = SyscallReturnVariant::Failure as u32;
-                *a1 = usize::from(e) as u32;
-            }
-            SyscallReturn::FailureU32(e, data0) => {
-                *a0 = SyscallReturnVariant::FailureU32 as u32;
-                *a1 = usize::from(e) as u32;
-                *a2 = data0;
-            }
-            SyscallReturn::FailureU32U32(e, data0, data1) => {
-                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
-                *a1 = usize::from(e) as u32;
-                *a2 = data0;
-                *a3 = data1;
-            }
-            SyscallReturn::FailureU64(e, data0) => {
-                let (data0_msb, data0_lsb) = u64_to_be_u32s(data0);
-                *a0 = SyscallReturnVariant::FailureU64 as u32;
-                *a1 = usize::from(e) as u32;
-                *a2 = data0_lsb;
-                *a3 = data0_msb;
-            }
-            SyscallReturn::Success => {
-                *a0 = SyscallReturnVariant::Success as u32;
-            }
-            SyscallReturn::SuccessU32(data0) => {
-                *a0 = SyscallReturnVariant::SuccessU32 as u32;
-                *a1 = data0;
-            }
-            SyscallReturn::SuccessU32U32(data0, data1) => {
-                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
-                *a1 = data0;
-                *a2 = data1;
-            }
-            SyscallReturn::SuccessU32U32U32(data0, data1, data2) => {
-                *a0 = SyscallReturnVariant::SuccessU32U32U32 as u32;
-                *a1 = data0;
-                *a2 = data1;
-                *a3 = data2;
-            }
-            SyscallReturn::SuccessU64(data0) => {
-                let (data0_msb, data0_lsb) = u64_to_be_u32s(data0);
-
-                *a0 = SyscallReturnVariant::SuccessU64 as u32;
-                *a1 = data0_lsb;
-                *a2 = data0_msb;
-            }
-            SyscallReturn::SuccessU32U64(data0, data1) => {
-                let (data1_msb, data1_lsb) = u64_to_be_u32s(data1);
-
-                *a0 = SyscallReturnVariant::SuccessU32U64 as u32;
-                *a1 = data0;
-                *a2 = data1_lsb;
-                *a3 = data1_msb;
-            }
-            SyscallReturn::AllowReadWriteSuccess(ptr, len) => {
-                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
-                *a1 = ptr as u32;
-                *a2 = len as u32;
-            }
-            SyscallReturn::UserspaceReadableAllowSuccess(ptr, len) => {
-                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
-                *a1 = ptr as u32;
-                *a2 = len as u32;
-            }
-            SyscallReturn::AllowReadWriteFailure(err, ptr, len) => {
-                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
-                *a1 = usize::from(err) as u32;
-                *a2 = ptr as u32;
-                *a3 = len as u32;
-            }
-            SyscallReturn::UserspaceReadableAllowFailure(err, ptr, len) => {
-                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
-                *a1 = usize::from(err) as u32;
-                *a2 = ptr as u32;
-                *a3 = len as u32;
-            }
-            SyscallReturn::AllowReadOnlySuccess(ptr, len) => {
-                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
-                *a1 = ptr as u32;
-                *a2 = len as u32;
-            }
-            SyscallReturn::AllowReadOnlyFailure(err, ptr, len) => {
-                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
-                *a1 = usize::from(err) as u32;
-                *a2 = ptr as u32;
-                *a3 = len as u32;
-            }
-            SyscallReturn::SubscribeSuccess(ptr, data) => {
-                *a0 = SyscallReturnVariant::SuccessU32U32 as u32;
-                *a1 = ptr as u32;
-                *a2 = data as u32;
-            }
-            SyscallReturn::SubscribeFailure(err, ptr, data) => {
-                *a0 = SyscallReturnVariant::FailureU32U32 as u32;
-                *a1 = usize::from(err) as u32;
-                *a2 = ptr as u32;
-                *a3 = data as u32;
-            }
-            SyscallReturn::YieldWaitFor(data0, data1, data2) => {
-                *a0 = data0 as u32;
-                *a1 = data1 as u32;
-                *a2 = data2 as u32;
-            }
         }
     }
 }
