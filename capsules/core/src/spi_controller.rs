@@ -174,8 +174,12 @@ impl<'a, S: SpiMasterDevice<'a>> Spi<'a, S> {
                 .kernel_write
                 .take()
                 .unwrap_or((&mut [] as &'static mut [u8]).into());
-            self.spi_master
-                .read_write_bytes(kwbuf, self.kernel_read.take())
+            if let Some(mut krbuf) = self.kernel_read.take() {
+                krbuf.slice(0..read_len);
+                self.spi_master.read_write_bytes(kwbuf, Some(krbuf))
+            } else {
+                self.spi_master.read_write_bytes(kwbuf, None)
+            }
         } else {
             let mut kwbuf = self
                 .kernel_write
@@ -451,7 +455,8 @@ impl<'a, S: SpiMasterDevice<'a>> SpiMasterClient for Spi<'a, S> {
                         });
                 });
 
-                if let Some(rb) = rbuf {
+                if let Some(mut rb) = rbuf {
+                    rb.reset();
                     self.kernel_read.put(rb);
                 }
 
