@@ -87,9 +87,9 @@ pub(crate) struct Upcall {
     /// A pointer to the first instruction of the function in the app that
     /// corresponds to this upcall.
     ///
-    /// If this value is `None`, this is a null upcall, which cannot actually be
-    /// scheduled. An `Upcall` can be null when it is first created, or after an
-    /// app unsubscribes from an upcall.
+    /// If this value is `null`, it should not actually be
+    /// scheduled. An `Upcall` can be null when it is first created,
+    /// or after an app unsubscribes from an upcall.
     pub(crate) fn_ptr: CapabilityPtr,
 }
 
