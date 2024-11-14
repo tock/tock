@@ -112,7 +112,7 @@ impl CapabilityPtr {
     /// ## Safety
     ///
     /// Constructing a [`CapabilityPtr`] with metadata may convey authority to
-    /// dereference this pointer, such as on userspace. When these pointers
+    /// dereference this pointer, such as in userspace. When these pointers
     /// serve as the only memory isolation primitive in the system, this method
     /// can thus break Tock's isolation model. As semi-trusted kernel code can
     /// name this type and method, it is thus marked as `unsafe`.
