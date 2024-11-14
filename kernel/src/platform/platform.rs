@@ -229,6 +229,50 @@ impl SyscallFilter for TbfHeaderFilterDefaultAllow {
     }
 }
 
+/// Trait for implementing device pass through filter that the kernel uses to
+/// decide whether to allow a `allocate_app_device_region()` call.
+pub trait DevicePassthroughFilter {
+    /// Check the platform-provided filter to determine if the
+    /// MMIO region specified between `memory_start` and `memory_size` is
+    /// allowed to be exposed directly to `process`.
+    ///
+    /// If the pass through is allowed for the provided process then
+    /// return `Ok((memory_start, memory_size))`. Where the returned addresses
+    /// are the addresses to be allocated to the process.
+    ///
+    /// The returned base address must be lower or equal to the original
+    /// `memory_start` while the returned `memory_size` must be greater
+    /// or equal to. The returned addresses are used in the MPU allocation,
+    /// so they must be MPU alligned as required.
+    ///
+    /// The ability for the board to over allocate the region allows the board
+    /// to fixup MPU allignment constraints.
+    ///
+    /// Otherwise, return `Err()` with an `ErrorCode` that will
+    /// be returned to the calling application. The default implementation
+    /// blocks all requests.
+    ///
+    /// This check does not need to ensure that no other applications are
+    /// using the region.
+    ///
+    /// This is used to pass a MMIO region directly to an application.
+    /// After this is successfully called the kernel must be very careful
+    /// about using the memory. As userspace and the kernel can both access
+    /// the device the kernel should avoid accessing the memory.
+    ///
+    /// As Tock is single threaded and already expecting the values to change
+    /// it isn't unsound. Although Tock should avoid accessing the region.
+    /// There are situations where the kernel needs to access the region.
+    /// Such as handling interrupts, checking for malicious or incorrect
+    /// configurations or recovering from errors.
+    fn filter_passthrough(
+        &self,
+        process: &dyn process::Process,
+        memory_start: usize,
+        memory_size: usize,
+    ) -> Result<(usize, usize), errorcode::ErrorCode>;
+}
+
 /// Trait for implementing process fault handlers to run when a process faults.
 pub trait ProcessFault {
     /// This function is called when an app faults.
