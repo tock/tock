@@ -14,10 +14,10 @@ pub mod math;
 pub mod mut_imut_buffer;
 pub mod peripheral_management;
 pub mod static_init;
-mod static_ref;
 pub mod storage_volume;
 pub mod streaming_process_slice;
 
+mod static_ref;
 pub use self::static_ref::StaticRef;
 
 /// The Tock Register Interface.
