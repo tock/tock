@@ -61,7 +61,8 @@ impl From<CapabilityPtr> for usize {
 }
 
 impl From<usize> for CapabilityPtr {
-    /// Constructs a [`CapabilityPtr`] with a given address.
+    /// Constructs a [`CapabilityPtr`] with a given address and no authority
+    ///
     /// Provenance note: may have null provenance.
     #[inline]
     fn from(from: usize) -> Self {

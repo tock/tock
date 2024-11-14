@@ -116,7 +116,6 @@ impl TRD104SyscallReturn {
             SyscallReturn::YieldWaitFor(a, b, c) => TRD104SyscallReturn::YieldWaitFor(a, b, c),
 
             // Compatibility mapping:
-            SyscallReturn::SuccessUsize(a) => TRD104SyscallReturn::SuccessU32(a as u32),
             SyscallReturn::SuccessPtr(a) => {
                 TRD104SyscallReturn::SuccessU32(a.as_ptr::<()>() as u32)
             }
