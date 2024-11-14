@@ -138,6 +138,7 @@ use crate::process::{Error, Process, ProcessCustomGrantIdentifier, ProcessId};
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::processbuffer::{ReadOnlyProcessBufferRef, ReadWriteProcessBufferRef};
 use crate::upcall::{Upcall, UpcallError, UpcallId};
+use crate::utilities::capability_ptr::CapabilityPtr;
 use crate::ErrorCode;
 
 /// Tracks how many upcalls a grant instance supports automatically.
@@ -707,8 +708,8 @@ impl<'a> GrantKernelData<'a> {
 #[repr(C)]
 #[derive(Default)]
 struct SavedUpcall {
-    appdata: crate::upcall::AppdataType,
-    fn_ptr: crate::upcall::FnPtrType,
+    appdata: CapabilityPtr,
+    fn_ptr: CapabilityPtr,
 }
 
 /// A minimal representation of a read-only allow from app, used for storing a

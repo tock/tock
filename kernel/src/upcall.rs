@@ -69,12 +69,6 @@ pub enum UpcallError {
     KernelError,
 }
 
-// FIXME: When we get CHERI compiler support, these can go back to the proper types
-// Google-internal issue: b/274586199
-// https://github.com/tock/tock/issues/4134
-pub(crate) type AppdataType = CapabilityPtr;
-pub(crate) type FnPtrType = CapabilityPtr;
-
 /// Type for calling an upcall in a process.
 ///
 /// This is essentially a wrapper around a function pointer with associated
@@ -88,7 +82,7 @@ pub(crate) struct Upcall {
     pub(crate) upcall_id: UpcallId,
 
     /// The application data passed by the app when `subscribe()` was called.
-    pub(crate) appdata: AppdataType,
+    pub(crate) appdata: CapabilityPtr,
 
     /// A pointer to the first instruction of the function in the app that
     /// corresponds to this upcall.
@@ -96,15 +90,15 @@ pub(crate) struct Upcall {
     /// If this value is `None`, this is a null upcall, which cannot actually be
     /// scheduled. An `Upcall` can be null when it is first created, or after an
     /// app unsubscribes from an upcall.
-    pub(crate) fn_ptr: FnPtrType,
+    pub(crate) fn_ptr: CapabilityPtr,
 }
 
 impl Upcall {
     pub(crate) fn new(
         process_id: ProcessId,
         upcall_id: UpcallId,
-        appdata: AppdataType,
-        fn_ptr: FnPtrType,
+        appdata: CapabilityPtr,
+        fn_ptr: CapabilityPtr,
     ) -> Upcall {
         Upcall {
             process_id,
