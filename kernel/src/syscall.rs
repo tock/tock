@@ -407,9 +407,13 @@ pub enum SyscallReturn {
     /// Generic success case, with an additional 32-bit and 64-bit data field
     SuccessU32U64(u32, u64),
 
+    /// Generic success case with an additional address-sized value
+    /// that does not impute access permissions to the process.
+    SuccessAddr(usize),
+
     /// Generic success case, with an additional pointer.
-    /// This pointer may or may imply access permission to the
-    /// process.
+    /// This pointer is provenance bearing and implies access
+    /// permission to the process.
     SuccessPtr(CapabilityPtr),
 
     // These following types are used by the scheduler so that it can return
@@ -487,6 +491,7 @@ impl SyscallReturn {
             SyscallReturn::SuccessU32U32U32(_, _, _) => true,
             SyscallReturn::SuccessU64(_) => true,
             SyscallReturn::SuccessU32U64(_, _) => true,
+            SyscallReturn::SuccessAddr(_) => true,
             SyscallReturn::SuccessPtr(_) => true,
             SyscallReturn::AllowReadWriteSuccess(_, _) => true,
             SyscallReturn::UserspaceReadableAllowSuccess(_, _) => true,

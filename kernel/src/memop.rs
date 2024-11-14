@@ -6,6 +6,7 @@
 
 use crate::process::Process;
 use crate::syscall::SyscallReturn;
+use crate::utilities::capability_ptr::{CapabilityPtr, CapabilityPtrPermissions};
 use crate::ErrorCode;
 
 /// Handle the `memop` syscall.
@@ -56,19 +57,51 @@ pub(crate) fn memop(process: &dyn Process, op_type: usize, r1: usize) -> Syscall
             .unwrap_or(SyscallReturn::Failure(ErrorCode::NOMEM)),
 
         // Op Type 2: Process memory start
-        2 => SyscallReturn::SuccessPtr(process.get_addresses().sram_start.into()),
+        2 => SyscallReturn::SuccessPtr(unsafe {
+            let addresses = process.get_addresses();
+            CapabilityPtr::new_with_authority(
+                addresses.sram_start as *const _,
+                addresses.sram_start,
+                addresses.sram_app_brk - addresses.sram_start,
+                CapabilityPtrPermissions::ReadWrite,
+            )
+        }),
 
         // Op Type 3: Process memory end
-        3 => SyscallReturn::SuccessPtr(process.get_addresses().sram_end.into()),
+        3 => SyscallReturn::SuccessPtr(unsafe {
+            let addresses = process.get_addresses();
+            CapabilityPtr::new_with_authority(
+                addresses.sram_end as *const _,
+                addresses.sram_start,
+                addresses.sram_end - addresses.sram_start,
+                CapabilityPtrPermissions::ReadWrite,
+            )
+        }),
 
         // Op Type 4: Process flash start
-        4 => SyscallReturn::SuccessPtr(process.get_addresses().flash_start.into()),
+        4 => SyscallReturn::SuccessPtr(unsafe {
+            let addresses = process.get_addresses();
+            CapabilityPtr::new_with_authority(
+                addresses.flash_start as *const _,
+                addresses.flash_start,
+                addresses.flash_end - addresses.flash_start,
+                CapabilityPtrPermissions::Execute,
+            )
+        }),
 
         // Op Type 5: Process flash end
-        5 => SyscallReturn::SuccessPtr(process.get_addresses().flash_end.into()),
+        5 => SyscallReturn::SuccessPtr(unsafe {
+            let addresses = process.get_addresses();
+            CapabilityPtr::new_with_authority(
+                addresses.flash_end as *const _,
+                addresses.flash_start,
+                addresses.flash_end - addresses.flash_start,
+                CapabilityPtrPermissions::Execute,
+            )
+        }),
 
         // Op Type 6: Grant region begin
-        6 => SyscallReturn::SuccessPtr(process.get_addresses().sram_grant_start.into()),
+        6 => SyscallReturn::SuccessAddr(process.get_addresses().sram_grant_start),
 
         // Op Type 7: Number of defined writeable regions in the TBF header.
         7 => SyscallReturn::SuccessU32(process.number_writeable_flash_regions() as u32),
@@ -80,7 +113,14 @@ pub(crate) fn memop(process: &dyn Process, op_type: usize, r1: usize) -> Syscall
             if size == 0 {
                 SyscallReturn::Failure(ErrorCode::FAIL)
             } else {
-                SyscallReturn::SuccessPtr((flash_start + offset).into())
+                SyscallReturn::SuccessPtr(unsafe {
+                    CapabilityPtr::new_with_authority(
+                        (flash_start + offset) as *const _,
+                        flash_start + offset,
+                        size,
+                        CapabilityPtrPermissions::ReadWrite,
+                    )
+                })
             }
         }
 
@@ -93,7 +133,14 @@ pub(crate) fn memop(process: &dyn Process, op_type: usize, r1: usize) -> Syscall
             if size == 0 {
                 SyscallReturn::Failure(ErrorCode::FAIL)
             } else {
-                SyscallReturn::SuccessPtr((flash_start + offset + size).into())
+                SyscallReturn::SuccessPtr(unsafe {
+                    CapabilityPtr::new_with_authority(
+                        (flash_start + offset + size) as *const _,
+                        flash_start + offset,
+                        size,
+                        CapabilityPtrPermissions::ReadWrite,
+                    )
+                })
             }
         }
 
