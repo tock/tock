@@ -863,7 +863,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
 
                 let base = self.mem_start() as usize;
                 let break_result = unsafe {
-                    CapabilityPtr::new_with_metadata(
+                    CapabilityPtr::new_with_authority(
                         old_break as *const (),
                         base,
                         (new_break as usize) - base,
@@ -1978,7 +1978,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // We need to construct a capability with sufficient authority to cover all of a user's
         // code, with permissions to execute it. The entirety of flash is sufficient.
 
-        let init_fn = CapabilityPtr::new_with_metadata(
+        let init_fn = CapabilityPtr::new_with_authority(
             init_addr as *const (),
             fn_base,
             fn_len,
@@ -2150,7 +2150,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // code, with permissions to execute it. The entirety of flash is sufficient.
 
         let init_fn = unsafe {
-            CapabilityPtr::new_with_metadata(
+            CapabilityPtr::new_with_authority(
                 init_addr as *const (),
                 flash_start as usize,
                 (self.flash_end() as usize) - (flash_start as usize),
