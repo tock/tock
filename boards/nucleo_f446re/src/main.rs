@@ -322,7 +322,7 @@ unsafe fn start() -> (
 
     // `finalize()` configures the underlying USART, so we need to
     // tell `send_byte()` not to configure the USART again.
-    (&mut *addr_of_mut!(io::WRITER)).set_initialized();
+    (*addr_of_mut!(io::WRITER)).set_initialized();
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.

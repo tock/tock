@@ -326,7 +326,7 @@ pub unsafe fn ieee802154_udp(
     // 802.15.4
     //--------------------------------------------------------------------------
 
-    let device_id = (&*addr_of!(nrf52840::ficr::FICR_INSTANCE)).id();
+    let device_id = (*addr_of!(nrf52840::ficr::FICR_INSTANCE)).id();
     let device_id_bottom_16: u16 = u16::from_le_bytes([device_id[0], device_id[1]]);
 
     let eui64_driver = components::eui64::Eui64Component::new(u64::from_le_bytes(device_id))

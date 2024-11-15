@@ -462,7 +462,7 @@ unsafe fn start() -> (
     let uart_mux = components::console::UartMuxComponent::new(&base_peripherals.usart2, 115200)
         .finalize(components::uart_mux_component_static!());
 
-    (&mut *addr_of_mut!(io::WRITER)).set_initialized();
+    (*addr_of_mut!(io::WRITER)).set_initialized();
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.

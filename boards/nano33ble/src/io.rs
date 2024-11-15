@@ -109,13 +109,13 @@ impl IoWrite for Writer {
                         n.clear_pending();
                         n.enable();
                     }
-                    if (&*addr_of!(DUMMY)).fired.get() {
+                    if (*addr_of!(DUMMY)).fired.get() {
                         // buffer finished transmitting, return so we can output additional
                         // messages when requested by the panic handler.
                         break;
                     }
                 }
-                (&*addr_of!(DUMMY)).fired.set(false);
+                (*addr_of!(DUMMY)).fired.set(false);
             });
         }
         buf.len()

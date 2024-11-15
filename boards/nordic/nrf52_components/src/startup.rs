@@ -37,7 +37,7 @@ impl<'a> NrfStartupComponent<'a> {
     }
 }
 
-impl<'a> Component for NrfStartupComponent<'a> {
+impl Component for NrfStartupComponent<'_> {
     type StaticInput = ();
     type Output = ();
     fn finalize(self, _s: Self::StaticInput) -> Self::Output {
@@ -138,7 +138,7 @@ impl<'a> NrfClockComponent<'a> {
     }
 }
 
-impl<'a> Component for NrfClockComponent<'a> {
+impl Component for NrfClockComponent<'_> {
     type StaticInput = ();
     type Output = ();
     fn finalize(self, _s: Self::StaticInput) -> Self::Output {
