@@ -54,8 +54,8 @@ pub struct EarlGreyDefaultPeripherals<'a, CFG: EarlGreyConfig, PINMUX: EarlGreyP
     _pinmux: PhantomData<PINMUX>,
 }
 
-impl<'a, CFG: EarlGreyConfig, PINMUX: EarlGreyPinmuxConfig>
-    EarlGreyDefaultPeripherals<'a, CFG, PINMUX>
+impl<CFG: EarlGreyConfig, PINMUX: EarlGreyPinmuxConfig>
+    EarlGreyDefaultPeripherals<'_, CFG, PINMUX>
 {
     pub fn new() -> Self {
         Self {
@@ -95,8 +95,8 @@ impl<'a, CFG: EarlGreyConfig, PINMUX: EarlGreyPinmuxConfig>
     }
 }
 
-impl<'a, CFG: EarlGreyConfig, PINMUX: EarlGreyPinmuxConfig> InterruptService
-    for EarlGreyDefaultPeripherals<'a, CFG, PINMUX>
+impl<CFG: EarlGreyConfig, PINMUX: EarlGreyPinmuxConfig> InterruptService
+    for EarlGreyDefaultPeripherals<'_, CFG, PINMUX>
 {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
@@ -374,12 +374,12 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             // Once claimed this interrupt won't fire until it's completed
             // NOTE: The interrupt is no longer pending in the PLIC
             loop {
-                let interrupt = (&*addr_of!(PLIC)).next_pending();
+                let interrupt = (*addr_of!(PLIC)).next_pending();
 
                 match interrupt {
                     Some(irq) => {
                         // Safe as interrupts are disabled
-                        (&*addr_of!(PLIC)).save_interrupt(irq);
+                        (*addr_of!(PLIC)).save_interrupt(irq);
                     }
                     None => {
                         // Enable generic interrupts
@@ -413,6 +413,7 @@ pub unsafe extern "C" fn start_trap_rust() {
 }
 
 /// Function that gets called if an interrupt occurs while an app was running.
+///
 /// mcause is passed in, and this function should correctly handle disabling the
 /// interrupt that fired so that it does not trigger again.
 #[export_name = "_disable_interrupt_trap_rust_from_app"]

@@ -707,7 +707,7 @@ impl<'a> PeripheralClock<'a> {
     }
 }
 
-impl<'a> ClockInterface for PeripheralClock<'a> {
+impl ClockInterface for PeripheralClock<'_> {
     fn is_enabled(&self) -> bool {
         match self.clock {
             PeripheralClockType::AHB(ref v) => match v {

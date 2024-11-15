@@ -622,7 +622,10 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Stm32f4Clocks for Clocks<'a, ChipSpecs> {
 /// If there are any errors, open an issue ticket at <https://github.com/tock/tock>. Please provide the
 /// output of the test execution.
 pub mod tests {
-    use super::*;
+    use super::{
+        debug, AHBPrescaler, APBPrescaler, ChipSpecsTrait, Clocks, ErrorCode, MCO1Divider,
+        MCO1Source, PllSource, SysClockSource, HSI_FREQUENCY_MHZ,
+    };
 
     const LOW_FREQUENCY: usize = 25;
     #[cfg(not(any(

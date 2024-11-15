@@ -1923,7 +1923,7 @@ impl<'a> Usbd<'a> {
     }
 }
 
-impl<'a> power::PowerClient for Usbd<'a> {
+impl power::PowerClient for Usbd<'_> {
     fn handle_power_event(&self, event: power::PowerEvent) {
         match event {
             power::PowerEvent::UsbPluggedIn => self.enable(),

@@ -164,7 +164,7 @@ pub struct FlashCtrl<'a> {
     op: Cell<Operation>,
 }
 
-impl<'a> FlashCtrl<'a> {
+impl FlashCtrl<'_> {
     pub fn new() -> Self {
         FlashCtrl {
             flash_client: OptionalCell::empty(),

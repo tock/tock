@@ -161,7 +161,7 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             //
             // If no interrupt was saved, reenable interrupts
             // immediately
-            if !(&*addr_of!(INTERRUPT_CONTROLLER)).save_pending() {
+            if !(*addr_of!(INTERRUPT_CONTROLLER)).save_pending() {
                 CSR.mie.modify(mie::mext::SET);
             }
         }
@@ -189,6 +189,7 @@ pub unsafe extern "C" fn start_trap_rust() {
 }
 
 /// Function that gets called if an interrupt occurs while an app was running.
+///
 /// mcause is passed in, and this function should correctly handle disabling the
 /// interrupt that fired so that it does not trigger again.
 #[export_name = "_disable_interrupt_trap_rust_from_app"]

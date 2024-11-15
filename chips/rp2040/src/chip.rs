@@ -54,7 +54,7 @@ impl<'a, I: InterruptService> Rp2040<'a, I> {
     }
 }
 
-impl<'a, I: InterruptService> Chip for Rp2040<'a, I> {
+impl<I: InterruptService> Chip for Rp2040<'_, I> {
     type MPU = cortexm0p::mpu::MPU;
     type UserspaceKernelBoundary = cortexm0p::syscall::SysCall;
 
@@ -140,7 +140,7 @@ pub struct Rp2040DefaultPeripherals<'a> {
     pub rtc: rtc::Rtc<'a>,
 }
 
-impl<'a> Rp2040DefaultPeripherals<'a> {
+impl Rp2040DefaultPeripherals<'_> {
     pub fn new() -> Self {
         Self {
             adc: adc::Adc::new(),

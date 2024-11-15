@@ -707,7 +707,7 @@ pub struct Radio<'a> {
     deferred_call_operation: OptionalCell<DeferredOperation>,
 }
 
-impl<'a> AlarmClient for Radio<'a> {
+impl AlarmClient for Radio<'_> {
     fn alarm(&self) {
         // This alarm function is the callback for when the CCA backoff alarm completes
         // Attempt a new CCA period by issuing CCASTART task

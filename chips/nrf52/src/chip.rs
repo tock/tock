@@ -48,7 +48,7 @@ pub struct Nrf52DefaultPeripherals<'a> {
     pub pwm0: crate::pwm::Pwm,
 }
 
-impl<'a> Nrf52DefaultPeripherals<'a> {
+impl Nrf52DefaultPeripherals<'_> {
     pub fn new() -> Self {
         Self {
             acomp: crate::acomp::Comparator::new(),
@@ -77,7 +77,7 @@ impl<'a> Nrf52DefaultPeripherals<'a> {
         kernel::deferred_call::DeferredCallClient::register(&self.nvmc);
     }
 }
-impl<'a> kernel::platform::chip::InterruptService for Nrf52DefaultPeripherals<'a> {
+impl kernel::platform::chip::InterruptService for Nrf52DefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             crate::peripheral_interrupts::COMP => self.acomp.handle_interrupt(),

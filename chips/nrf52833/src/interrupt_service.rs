@@ -6,6 +6,7 @@ use kernel::hil::time::Alarm;
 use nrf52::chip::Nrf52DefaultPeripherals;
 
 /// This struct, when initialized, instantiates all peripheral drivers for the nrf52840.
+///
 /// If a board wishes to use only a subset of these peripherals, this
 /// should not be used or imported, and a modified version should be
 /// constructed manually in main.rs.
@@ -14,7 +15,7 @@ pub struct Nrf52833DefaultPeripherals<'a> {
     pub ieee802154_radio: crate::ieee802154_radio::Radio<'a>,
     pub gpio_port: crate::gpio::Port<'a, { crate::gpio::NUM_PINS }>,
 }
-impl<'a> Nrf52833DefaultPeripherals<'a> {
+impl Nrf52833DefaultPeripherals<'_> {
     pub unsafe fn new(
         ieee802154_radio_ack_buf: &'static mut [u8; crate::ieee802154_radio::ACK_BUF_SIZE],
     ) -> Self {
@@ -32,7 +33,7 @@ impl<'a> Nrf52833DefaultPeripherals<'a> {
         self.nrf52.init();
     }
 }
-impl<'a> kernel::platform::chip::InterruptService for Nrf52833DefaultPeripherals<'a> {
+impl kernel::platform::chip::InterruptService for Nrf52833DefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             nrf52::peripheral_interrupts::GPIOTE => self.gpio_port.handle_interrupt(),

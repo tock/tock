@@ -61,7 +61,7 @@ impl<'a> Stm32f3xxDefaultPeripherals<'a> {
     }
 }
 
-impl<'a> InterruptService for Stm32f3xxDefaultPeripherals<'a> {
+impl InterruptService for Stm32f3xxDefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             nvic::USART1 => self.usart1.handle_interrupt(),

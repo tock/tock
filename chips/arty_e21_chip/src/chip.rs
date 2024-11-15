@@ -32,7 +32,7 @@ pub struct ArtyExxDefaultPeripherals<'a> {
     pub uart0: sifive::uart::Uart<'a>,
 }
 
-impl<'a> ArtyExxDefaultPeripherals<'a> {
+impl ArtyExxDefaultPeripherals<'_> {
     pub fn new() -> Self {
         Self {
             machinetimer: ArtyExxClint::new(&clint::CLINT_BASE),
@@ -47,7 +47,7 @@ impl<'a> ArtyExxDefaultPeripherals<'a> {
     }
 }
 
-impl<'a> InterruptService for ArtyExxDefaultPeripherals<'a> {
+impl InterruptService for ArtyExxDefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::MTIP => self.machinetimer.handle_interrupt(),
@@ -222,6 +222,7 @@ pub extern "C" fn start_trap_rust() {
 }
 
 /// Function that gets called if an interrupt occurs while an app was running.
+///
 /// mcause is passed in, and this function should correctly handle disabling the
 /// interrupt that fired so that it does not trigger again.
 #[export_name = "_disable_interrupt_trap_rust_from_app"]

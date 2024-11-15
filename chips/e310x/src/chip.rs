@@ -40,7 +40,7 @@ pub struct E310xDefaultPeripherals<'a> {
     pub watchdog: sifive::watchdog::Watchdog,
 }
 
-impl<'a> E310xDefaultPeripherals<'a> {
+impl E310xDefaultPeripherals<'_> {
     pub fn new(clock_frequency: u32) -> Self {
         Self {
             uart0: sifive::uart::Uart::new(crate::uart::UART0_BASE, clock_frequency),
@@ -62,7 +62,7 @@ impl<'a> E310xDefaultPeripherals<'a> {
     }
 }
 
-impl<'a> InterruptService for E310xDefaultPeripherals<'a> {
+impl InterruptService for E310xDefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, _interrupt: u32) -> bool {
         false
     }
@@ -228,12 +228,12 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             // Once claimed this interrupt won't fire until it's completed
             // NOTE: The interrupt is no longer pending in the PLIC
             loop {
-                let interrupt = (&*addr_of!(PLIC)).next_pending();
+                let interrupt = (*addr_of!(PLIC)).next_pending();
 
                 match interrupt {
                     Some(irq) => {
                         // Safe as interrupts are disabled
-                        (&*addr_of!(PLIC)).save_interrupt(irq);
+                        (*addr_of!(PLIC)).save_interrupt(irq);
                     }
                     None => {
                         // Enable generic interrupts
@@ -268,6 +268,7 @@ pub unsafe extern "C" fn start_trap_rust() {
 }
 
 /// Function that gets called if an interrupt occurs while an app was running.
+///
 /// mcause is passed in, and this function should correctly handle disabling the
 /// interrupt that fired so that it does not trigger again.
 #[export_name = "_disable_interrupt_trap_rust_from_app"]

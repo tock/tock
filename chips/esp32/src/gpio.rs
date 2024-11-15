@@ -328,7 +328,7 @@ pub struct Port<'a> {
     pins: [GpioPin<'a>; 17],
 }
 
-impl<'a> Port<'a> {
+impl Port<'_> {
     pub const fn new() -> Self {
         Self {
             pins: [

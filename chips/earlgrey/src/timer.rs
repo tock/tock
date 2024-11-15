@@ -62,7 +62,7 @@ pub struct RvTimer<'a, CFG: EarlGreyConfig> {
     _cfg: PhantomData<CFG>,
 }
 
-impl<'a, CFG: EarlGreyConfig> RvTimer<'a, CFG> {
+impl<CFG: EarlGreyConfig> RvTimer<'_, CFG> {
     pub fn new() -> Self {
         Self {
             registers: TIMER_BASE,

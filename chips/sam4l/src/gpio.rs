@@ -156,7 +156,7 @@ impl<'a> IndexMut<usize> for Port<'a> {
     }
 }
 
-impl<'a> Port<'a> {
+impl Port<'_> {
     pub const fn new_port_a() -> Self {
         Self {
             port: unsafe { StaticRef::new(BASE_ADDRESS as *const GpioRegisters) },
@@ -471,7 +471,7 @@ impl<'a> GPIOPin<'a> {
     }
 }
 
-impl<'a> hil::Controller for GPIOPin<'a> {
+impl hil::Controller for GPIOPin<'_> {
     type Config = Option<PeripheralFunction>;
 
     fn configure(&self, config: Self::Config) {
@@ -482,7 +482,7 @@ impl<'a> hil::Controller for GPIOPin<'a> {
     }
 }
 
-impl<'a> gpio::Configure for GPIOPin<'a> {
+impl gpio::Configure for GPIOPin<'_> {
     fn set_floating_state(&self, mode: gpio::FloatingState) {
         match mode {
             gpio::FloatingState::PullUp => {
@@ -567,13 +567,13 @@ impl<'a> gpio::Configure for GPIOPin<'a> {
     }
 }
 
-impl<'a> gpio::Input for GPIOPin<'a> {
+impl gpio::Input for GPIOPin<'_> {
     fn read(&self) -> bool {
         GPIOPin::read(self)
     }
 }
 
-impl<'a> gpio::Output for GPIOPin<'a> {
+impl gpio::Output for GPIOPin<'_> {
     fn toggle(&self) -> bool {
         GPIOPin::toggle(self)
     }

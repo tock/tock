@@ -41,9 +41,11 @@ pub enum SynchronizationMode {
 }
 
 /// The sam4l chip supports 9 external interrupt lines: Ext1 - Ext8 and an additional
-/// Non-Maskable Interrupt (NMI) pin. NMI has the same properties as the other external
-/// interrupts, but is connected to the NMI request of the CPU, enabling it to interrupt
-/// any other interrupt mode.
+/// Non-Maskable Interrupt (NMI) pin.
+///
+/// NMI has the same properties as the other external interrupts, but
+/// is connected to the NMI request of the CPU, enabling it to
+/// interrupt any other interrupt mode.
 #[derive(Copy, Clone, Debug)]
 #[repr(u32)]
 pub enum Line {

@@ -322,7 +322,7 @@ const BASE_ADDRESS: StaticRef<AdcRegisters> =
     unsafe { StaticRef::new(0x40038000 as *const AdcRegisters) };
 
 /// Functions for initializing the ADC.
-impl<'a> Adc<'a> {
+impl Adc<'_> {
     /// Create a new ADC driver.
     ///
     /// - `rx_dma_peripheral`: type used for DMA transactions
@@ -504,7 +504,7 @@ impl<'a> Adc<'a> {
                 // and we solve for N
                 // becomes: N <= ceil(log_2(f(CLK_CPU)/1500000)) - 2
                 let cpu_frequency = self.pm.get_system_frequency();
-                let divisor = (cpu_frequency + (1500000 - 1)) / 1500000; // ceiling of division
+                let divisor = cpu_frequency.div_ceil(1500000); // ceiling of division
                 let divisor_pow2 = math::closest_power_of_two(divisor);
                 let clock_divisor = cmp::min(math::log_base_two(divisor_pow2).saturating_sub(2), 7);
                 self.adc_clk_freq
@@ -973,7 +973,7 @@ impl<'a> hil::adc::AdcHighSpeed<'a> for Adc<'a> {
 }
 
 /// Implements a client of a DMA.
-impl<'a> dma::DMAClient for Adc<'a> {
+impl dma::DMAClient for Adc<'_> {
     /// Handler for DMA transfer completion.
     ///
     /// - `pid`: the DMA peripheral that is complete

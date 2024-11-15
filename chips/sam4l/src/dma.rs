@@ -100,7 +100,9 @@ const DMA_CHANNEL_SIZE: usize = 0x40;
 /// active.
 static NUM_ENABLED: atomic::AtomicUsize = atomic::AtomicUsize::new(0);
 
-/// The DMA channel number. Each channel transfers data between memory and a
+/// The DMA channel number.
+///
+/// Each channel transfers data between memory and a
 /// particular peripheral function (e.g., SPI read or SPI write, but not both
 /// simultaneously). There are 16 available channels (Section 16.7).
 #[derive(Copy, Clone)]

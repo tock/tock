@@ -27,13 +27,13 @@ impl<'a> SemihostUart<'a> {
     }
 }
 
-impl<'a> Default for SemihostUart<'a> {
+impl Default for SemihostUart<'_> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<'a> hil::uart::Configure for SemihostUart<'a> {
+impl hil::uart::Configure for SemihostUart<'_> {
     fn configure(&self, _params: hil::uart::Parameters) -> Result<(), ErrorCode> {
         Ok(())
     }
@@ -94,7 +94,7 @@ impl<'a> hil::uart::Receive<'a> for SemihostUart<'a> {
     }
 }
 
-impl<'a> DeferredCallClient for SemihostUart<'a> {
+impl DeferredCallClient for SemihostUart<'_> {
     fn register(&'static self) {
         self.deferred_call.register(self);
     }

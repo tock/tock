@@ -259,7 +259,7 @@ pub struct I2c<'a, 'c> {
     abort_reason: OptionalCell<LocalRegisterCopy<u32, IC_TX_ABRT_SOURCE::Register>>,
 }
 
-impl<'a, 'c> I2c<'a, 'c> {
+impl<'a> I2c<'a, '_> {
     fn new(instance_num: u8) -> Self {
         Self {
             instance_num,
@@ -688,7 +688,7 @@ impl<'a, 'c> I2c<'a, 'c> {
     }
 }
 
-impl<'a, 'c> hil::i2c::I2CMaster<'c> for I2c<'a, 'c> {
+impl<'c> hil::i2c::I2CMaster<'c> for I2c<'_, 'c> {
     fn set_master_client(&self, client: &'c dyn hil::i2c::I2CHwMasterClient) {
         self.client.set(client);
     }

@@ -273,7 +273,7 @@ pub struct Ble<'a> {
     read_index: Cell<usize>,
 }
 
-impl<'a> Ble<'a> {
+impl Ble<'_> {
     pub fn new() -> Self {
         Self {
             registers: BLE_BASE,
@@ -337,9 +337,7 @@ impl<'a> Ble<'a> {
         //self.registers.fifothr.write(FIFOTHR::FIFORTHR::CLEAR + FIFOTHR::FIFOWTHR::CLEAR);
 
         // Setup the DMA
-        unsafe {
-            self.registers.dmatargaddr.set(addr_of!(PAYLOAD) as u32);
-        }
+        self.registers.dmatargaddr.set(addr_of!(PAYLOAD) as u32);
         self.registers.dmatocount.set(self.write_len.get() as u32);
         self.registers.dmatrigen.write(DMATRIGEN::DTHREN::SET);
         self.registers

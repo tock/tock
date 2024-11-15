@@ -29,7 +29,7 @@ impl<'a> IndexMut<usize> for Port<'a> {
     }
 }
 
-impl<'a> Port<'a> {
+impl Port<'_> {
     pub fn new() -> Self {
         Self {
             pins: [

@@ -348,7 +348,7 @@ pub struct Adc<'a> {
     next_length: Cell<usize>,
 }
 
-impl<'a> Adc<'a> {
+impl Adc<'_> {
     pub const fn new(voltage_reference_in_mv: usize) -> Self {
         Self {
             registers: SAADC_BASE,

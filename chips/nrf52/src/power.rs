@@ -237,6 +237,7 @@ register_bitfields! [u32,
 
 /// The USB state machine needs to be notified of power events (USB detected, USB
 /// removed, USB power ready) in order to be initialized and shut down properly.
+///
 /// These events come from the power management registers of this module; that's
 /// this has a USB client to notify.
 pub struct Power<'a> {

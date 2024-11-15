@@ -908,7 +908,10 @@ impl hil::pwm::PwmPin for PwmPin<'_> {
 /// ```
 
 pub mod unit_tests {
-    use super::*;
+    use super::{
+        debug, hil, ChannelNumber, ChannelPin, DivMode, Pwm, RPGpio, Readable, CC, CH, CSR, CTR,
+        DIV, TOP,
+    };
 
     fn test_channel_number() {
         debug!("Testing ChannelNumber enum...");
