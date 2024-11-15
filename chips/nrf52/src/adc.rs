@@ -6,6 +6,7 @@
 
 use core::cell::Cell;
 use core::cmp;
+use core::ptr::addr_of;
 use kernel::hil;
 use kernel::utilities::cells::{OptionalCell, TakeCell, VolatileCell};
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
@@ -398,9 +399,7 @@ impl<'a> Adc<'a> {
                     self.setup_sample_count(1);
 
                     // Where to put the reading.
-                    unsafe {
-                        self.registers.result_ptr.set(SAMPLE.as_ptr());
-                    }
+                    self.registers.result_ptr.set(addr_of!(SAMPLE) as *const _);
 
                     // No automatic sampling, will trigger manually.
                     self.registers.samplerate.write(SAMPLERATE::MODE::Task);
@@ -587,9 +586,7 @@ impl<'a> hil::adc::Adc<'a> for Adc<'a> {
             .result_maxcnt
             .write(RESULT_MAXCNT::MAXCNT.val(1));
         // Where to put the reading.
-        unsafe {
-            self.registers.result_ptr.set(SAMPLE.as_ptr());
-        }
+        self.registers.result_ptr.set(addr_of!(SAMPLE) as *const _);
 
         // No automatic sampling, will trigger manually.
         self.registers.samplerate.write(SAMPLERATE::MODE::Task);

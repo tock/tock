@@ -400,16 +400,16 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
             SUCCESS_COUNT.fetch_add(1, Ordering::SeqCst);
         }
         if test_id == self.num_tests() - 1 {
-	    let success_count = SUCCESS_COUNT.load(Ordering::SeqCst);
-	    if success_count == self.num_tests() {
-		debug!("All Tests completed successfully!");
-	    } else {
-		debug!(
-		    "Successfully completed {:?}/{:?} tests",
-		    success_count,
-		    self.num_tests()
-		);
-	    }
+            let success_count = SUCCESS_COUNT.load(Ordering::SeqCst);
+            if success_count == self.num_tests() {
+                debug!("All Tests completed successfully!");
+            } else {
+                debug!(
+                    "Successfully completed {:?}/{:?} tests",
+                    success_count,
+                    self.num_tests()
+                );
+            }
         }
     }
     fn ipv6_send_packet_test(&self, tf: TF, hop_limit: u8, sac: SAC, dac: DAC) {

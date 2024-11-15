@@ -161,7 +161,7 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             //
             // If no interrupt was saved, reenable interrupts
             // immediately
-            if !INTERRUPT_CONTROLLER.save_pending() {
+            if !(&*addr_of!(INTERRUPT_CONTROLLER)).save_pending() {
                 CSR.mie.modify(mie::mext::SET);
             }
         }

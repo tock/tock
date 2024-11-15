@@ -230,13 +230,13 @@ unsafe fn handle_interrupt(_intr: mcause::Interrupt) {
     // Once claimed this interrupt won't fire until it's completed
     // NOTE: The interrupt is no longer pending in the PLIC
     loop {
-        let interrupt = INTC.next_pending();
+        let interrupt = (&*addr_of!(INTC)).next_pending();
 
         match interrupt {
             Some(irq) => {
                 // Safe as interrupts are disabled
-                INTC.save_interrupt(irq);
-                INTC.disable(irq);
+                (&*addr_of!(INTC)).save_interrupt(irq);
+                (&*addr_of!(INTC)).disable(irq);
             }
             None => {
                 // Enable generic interrupts

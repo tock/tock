@@ -199,12 +199,12 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             // Once claimed this interrupt won't fire until it's completed
             // NOTE: The interrupt is no longer pending in the PIC
             loop {
-                let interrupt = PIC.next_pending();
+                let interrupt = (&*addr_of!(PIC)).next_pending();
 
                 match interrupt {
                     Some(irq) => {
                         // Safe as interrupts are disabled
-                        PIC.save_interrupt(irq);
+                        (&*addr_of!(PIC)).save_interrupt(irq);
                     }
                     None => {
                         // Enable generic interrupts

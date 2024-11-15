@@ -5,6 +5,7 @@
 //! BLE driver.
 
 use core::cell::Cell;
+use core::ptr::addr_of;
 use core::ptr::addr_of_mut;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
@@ -337,7 +338,7 @@ impl<'a> Ble<'a> {
 
         // Setup the DMA
         unsafe {
-            self.registers.dmatargaddr.set(PAYLOAD.as_ptr() as u32);
+            self.registers.dmatargaddr.set(addr_of!(PAYLOAD) as u32);
         }
         self.registers.dmatocount.set(self.write_len.get() as u32);
         self.registers.dmatrigen.write(DMATRIGEN::DTHREN::SET);

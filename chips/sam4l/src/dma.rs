@@ -219,7 +219,7 @@ impl DMAChannel {
         pm::enable_clock(pm::Clock::PBB(pm::PBBClock::PDCA));
 
         if !self.enabled.get() {
-	    NUM_ENABLED.fetch_add(1, atomic::Ordering::Relaxed);
+            NUM_ENABLED.fetch_add(1, atomic::Ordering::Relaxed);
 
             // Disable all interrupts
             self.registers
@@ -232,11 +232,11 @@ impl DMAChannel {
 
     pub fn disable(&self) {
         if self.enabled.get() {
-	    let num_enabled = NUM_ENABLED.fetch_sub(1, atomic::Ordering::Relaxed);
-	    if num_enabled == 1 {
-		pm::disable_clock(pm::Clock::HSB(pm::HSBClock::PDCA));
-		pm::disable_clock(pm::Clock::PBB(pm::PBBClock::PDCA));
-	    }
+            let num_enabled = NUM_ENABLED.fetch_sub(1, atomic::Ordering::Relaxed);
+            if num_enabled == 1 {
+                pm::disable_clock(pm::Clock::HSB(pm::HSBClock::PDCA));
+                pm::disable_clock(pm::Clock::PBB(pm::PBBClock::PDCA));
+            }
             self.registers.cr.write(Control::TDIS::SET);
             self.enabled.set(false);
         }

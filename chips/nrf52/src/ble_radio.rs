@@ -38,6 +38,7 @@
 //! * CRC - 3 bytes
 
 use core::cell::Cell;
+use core::ptr::addr_of;
 use core::ptr::addr_of_mut;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
@@ -594,9 +595,7 @@ impl<'a> Radio<'a> {
     }
 
     fn set_dma_ptr(&self) {
-        unsafe {
-            self.registers.packetptr.set(PAYLOAD.as_ptr() as u32);
-        }
+        self.registers.packetptr.set(addr_of!(PAYLOAD) as u32);
     }
 
     #[inline(never)]
