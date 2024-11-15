@@ -12,18 +12,16 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use core::ptr::{addr_of, addr_of_mut};
-
-use capsules_core::i2c_master::I2CMasterDriver;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::date_time_component_static;
 use components::gpio::GpioComponent;
+use components::i2c::I2CMasterDriverComponent;
 use components::led::LedsComponent;
+use core::ptr::{addr_of, addr_of_mut};
 use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
 use kernel::debug;
 use kernel::hil::gpio::{Configure, FloatingState};
-use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -90,7 +88,10 @@ pub struct RaspberryPiPico {
     led: &'static capsules_core::led::LedDriver<'static, LedHigh<'static, RPGpioPin<'static>>, 1>,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
     temperature: &'static TemperatureDriver,
-    i2c: &'static capsules_core::i2c_master::I2CMasterDriver<'static, I2c<'static, 'static>>,
+    i2c: &'static capsules_core::i2c_master::I2CMasterDriver<
+        'static,
+        capsules_core::virtualizers::virtual_i2c::I2CMultiDevice<'static, I2c<'static, 'static>>,
+    >,
 
     date_time:
         &'static capsules_extra::date_time::DateTimeCapsule<'static, rp2040::rtc::Rtc<'static>>,
@@ -517,24 +518,16 @@ pub unsafe fn start() -> (
     sda_pin.set_floating_state(FloatingState::PullUp);
     scl_pin.set_floating_state(FloatingState::PullUp);
 
-    let i2c_master_buffer = static_init!(
-        [u8; capsules_core::i2c_master::BUFFER_LENGTH],
-        [0; capsules_core::i2c_master::BUFFER_LENGTH]
-    );
-    let i2c0 = &peripherals.i2c0;
-    let i2c = static_init!(
-        I2CMasterDriver<I2c<'static, 'static>>,
-        I2CMasterDriver::new(
-            i2c0,
-            i2c_master_buffer,
-            board_kernel.create_grant(
-                capsules_core::i2c_master::DRIVER_NUM,
-                &memory_allocation_capability
-            ),
-        )
-    );
-    i2c0.init(10 * 1000);
-    i2c0.set_master_client(i2c);
+    let mux_i2c = components::i2c::I2CMuxComponent::new(&peripherals.i2c0, None)
+        .finalize(components::i2c_mux_component_static!(I2c<'static, 'static>));
+
+    let i2c =
+        I2CMasterDriverComponent::new(mux_i2c, board_kernel, capsules_core::i2c_master::DRIVER_NUM)
+            .finalize(components::i2c_master_component_static!(
+                I2c<'static, 'static>
+            ));
+
+    peripherals.i2c0.init(10 * 1000);
 
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
         .finalize(components::round_robin_component_static!(NUM_PROCS));

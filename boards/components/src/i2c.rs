@@ -21,7 +21,7 @@
 
 // Author: Alexandru Radovici <msg4alex@gmail.com>
 
-use capsules_core::virtualizers::virtual_i2c::{I2CDevice, MuxI2C};
+use capsules_core::virtualizers::virtual_i2c::{I2CDevice, I2CMultiDevice, MuxI2C};
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -63,6 +63,25 @@ macro_rules! i2c_master_slave_component_static {
             i2c_slave_buffer1,
             i2c_slave_buffer2,
         )
+    };};
+}
+
+#[macro_export]
+macro_rules! i2c_master_component_static {
+    ($I:ty $(,)?) => {{
+        let i2c_master_buffer = kernel::static_buf!([u8; capsules_core::i2c_master::BUFFER_LENGTH]);
+        let i2c_device = kernel::static_buf!(
+            capsules_core::virtualizers::virtual_i2c::I2CMultiDevice<'static, $I>
+        );
+
+        let driver = kernel::static_buf!(
+            capsules_core::i2c_master::I2CMasterDriver<
+                'static,
+                capsules_core::virtualizers::virtual_i2c::I2CMultiDevice<'static, $I>,
+            >
+        );
+
+        (i2c_device, i2c_master_buffer, driver)
     };};
 }
 
@@ -117,7 +136,7 @@ impl<I: 'static + i2c::I2CMaster<'static>> Component for I2CComponent<I> {
     type Output = &'static I2CDevice<'static, I>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
-        let i2c_device = static_buffer.write(I2CDevice::new(self.i2c_mux, self.address));
+        let i2c_device = static_buffer.write(I2CDevice::<I>::new(self.i2c_mux, self.address));
 
         i2c_device
     }
@@ -171,5 +190,61 @@ impl<I: 'static + i2c::I2CMasterSlave<'static>> Component for I2CMasterSlaveDriv
         self.i2c.set_slave_client(i2c_master_slave_driver);
 
         i2c_master_slave_driver
+    }
+}
+
+pub type I2CMasterDriverComponentType<I> =
+    capsules_core::i2c_master::I2CMasterDriver<'static, I2CDevice<'static, I>>;
+
+pub struct I2CMasterDriverComponent<I: 'static + i2c::I2CMaster<'static>> {
+    i2c_mux: &'static MuxI2C<'static, I>,
+    board_kernel: &'static kernel::Kernel,
+    driver_num: usize,
+}
+
+impl<I: 'static + i2c::I2CMaster<'static>> I2CMasterDriverComponent<I> {
+    pub fn new(
+        i2c: &'static MuxI2C<'static, I>,
+        board_kernel: &'static kernel::Kernel,
+        driver_num: usize,
+    ) -> Self {
+        I2CMasterDriverComponent {
+            i2c_mux: i2c,
+            board_kernel,
+            driver_num,
+        }
+    }
+}
+
+impl<I: 'static + i2c::I2CMaster<'static>> Component for I2CMasterDriverComponent<I> {
+    type StaticInput = (
+        &'static mut MaybeUninit<I2CMultiDevice<'static, I>>,
+        &'static mut MaybeUninit<[u8; capsules_core::i2c_master::BUFFER_LENGTH]>,
+        &'static mut MaybeUninit<
+            capsules_core::i2c_master::I2CMasterDriver<'static, I2CMultiDevice<'static, I>>,
+        >,
+    );
+    type Output =
+        &'static capsules_core::i2c_master::I2CMasterDriver<'static, I2CMultiDevice<'static, I>>;
+
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+
+        let userspace_device = static_buffer.0.write(I2CMultiDevice::new(self.i2c_mux));
+        let i2c_master_buffer = static_buffer
+            .1
+            .write([0; capsules_core::i2c_master::BUFFER_LENGTH]);
+
+        let i2c_master = static_buffer
+            .2
+            .write(capsules_core::i2c_master::I2CMasterDriver::new(
+                userspace_device,
+                i2c_master_buffer,
+                self.board_kernel.create_grant(self.driver_num, &grant_cap),
+            ));
+
+        userspace_device.set_client(i2c_master);
+
+        i2c_master
     }
 }

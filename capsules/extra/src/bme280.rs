@@ -102,6 +102,8 @@ impl<'a, I: I2CDevice> Bme280<'a, I> {
     }
 
     pub fn startup(&self) {
+        self.i2c.enable();
+
         self.buffer.take().map(|buffer| {
             if self.state.get() == DeviceState::Identify {
                 // Read the ID buffer

@@ -23,9 +23,9 @@ use capsules_core::virtualizers::virtual_alarm::MuxAlarm;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::bme280::Bme280Component;
 use components::ccs811::Ccs811Component;
+use components::i2c::I2CMasterDriverComponent;
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -102,8 +102,13 @@ struct RedboardArtemisNano {
     >,
     gpio: &'static capsules_core::gpio::GPIO<'static, apollo3::gpio::GpioPin<'static>>,
     console: &'static capsules_core::console::Console<'static>,
-    i2c_master:
-        &'static capsules_core::i2c_master::I2CMasterDriver<'static, apollo3::iom::Iom<'static>>,
+    i2c_master: &'static capsules_core::i2c_master::I2CMasterDriver<
+        'static,
+        capsules_core::virtualizers::virtual_i2c::I2CMultiDevice<
+            'static,
+            apollo3::iom::Iom<'static>,
+        >,
+    >,
     spi_controller: &'static capsules_core::spi_controller::Spi<
         'static,
         capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
@@ -197,7 +202,6 @@ unsafe fn setup() -> (
 
     // initialize capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
-    let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
 
@@ -292,27 +296,15 @@ unsafe fn setup() -> (
     PROCESS_PRINTER = Some(process_printer);
 
     // Init the I2C device attached via Qwiic
-    let i2c_master_buffer = static_init!(
-        [u8; capsules_core::i2c_master::BUFFER_LENGTH],
-        [0; capsules_core::i2c_master::BUFFER_LENGTH]
-    );
-    let i2c_master = static_init!(
-        capsules_core::i2c_master::I2CMasterDriver<'static, apollo3::iom::Iom<'static>>,
-        capsules_core::i2c_master::I2CMasterDriver::new(
-            &peripherals.iom2,
-            i2c_master_buffer,
-            board_kernel.create_grant(
-                capsules_core::i2c_master::DRIVER_NUM,
-                &memory_allocation_cap
-            )
-        )
+    let mux_i2c = components::i2c::I2CMuxComponent::new(&peripherals.iom2, None).finalize(
+        components::i2c_mux_component_static!(apollo3::iom::Iom<'static>),
     );
 
-    peripherals.iom2.set_master_client(i2c_master);
-    peripherals.iom2.enable();
-
-    let mux_i2c = components::i2c::I2CMuxComponent::new(&peripherals.iom2, None)
-        .finalize(components::i2c_mux_component_static!(apollo3::iom::Iom));
+    let i2c_master =
+        I2CMasterDriverComponent::new(mux_i2c, board_kernel, capsules_core::i2c_master::DRIVER_NUM)
+            .finalize(components::i2c_master_component_static!(
+                apollo3::iom::Iom<'static>
+            ));
 
     let bme280 = Bme280Component::new(mux_i2c, 0x77)
         .finalize(components::bme280_component_static!(apollo3::iom::Iom));
