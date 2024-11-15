@@ -20,6 +20,8 @@ capsules-core = { path = "../../../capsules/core" }
 capsules-extra = { path = "../../../capsules/extra" }
 capsules-system = { path = "../../../capsules/system" }
 
+tock-tbf = { path = "../../../libraries/tock-tbf" }
+
 [build-dependencies]
 tock_build_scripts = { path = "../../build_scripts" }
 

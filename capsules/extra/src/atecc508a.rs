@@ -1016,7 +1016,7 @@ impl<'a> I2CClient for Atecc508a<'a> {
             Operation::ShaEnd(run) => {
                 if status == Err(i2c::Error::DataNak) || status == Err(i2c::Error::AddressNak) {
                     // The device isn't ready yet, try again
-                    if run == 50 {
+                    if run == 500 {
                         self.op.set(Operation::Ready);
                         return;
                     }
@@ -1296,6 +1296,11 @@ impl<'a> digest::DigestData<'a, 32> for Atecc508a<'a> {
         Ok(())
     }
 
+    /// This will reset the device to clear the data
+    ///
+    /// This is an async operation though, as it requires the I2C operation
+    /// to complete and the I2C callback to occur, but the `clear_data()`
+    /// definition is syncronous, so this can race.
     fn clear_data(&self) {
         (self.wakeup_device)();
 
