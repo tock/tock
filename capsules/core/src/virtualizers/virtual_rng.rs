@@ -70,7 +70,7 @@ impl<'a> MuxRngMaster<'a> {
     }
 }
 
-impl<'a> Client for MuxRngMaster<'a> {
+impl Client for MuxRngMaster<'_> {
     fn randomness_available(
         &self,
         _randomness: &mut dyn Iterator<Item = u32>,
@@ -162,7 +162,7 @@ impl<'a> Rng<'a> for VirtualRngMasterDevice<'a> {
     }
 }
 
-impl<'a> Client for VirtualRngMasterDevice<'a> {
+impl Client for VirtualRngMasterDevice<'_> {
     fn randomness_available(
         &self,
         randomness: &mut dyn Iterator<Item = u32>,
