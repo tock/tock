@@ -158,7 +158,7 @@ pub enum State {
     GotMeasurement,
 }
 
-impl<'a, I: I2CDevice> I2CClient for Lps22hb<'a, I> {
+impl<I: I2CDevice> I2CClient for Lps22hb<'_, I> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         if let Err(i2c_err) = status {
             self.state.set(State::Idle);

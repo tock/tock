@@ -367,7 +367,7 @@ impl<'a, I: hil::i2c::I2CDevice> hil::screen::Screen<'a> for Sh1106<'a, I> {
     }
 }
 
-impl<'a, I: hil::i2c::I2CDevice> hil::i2c::I2CClient for Sh1106<'a, I> {
+impl<I: hil::i2c::I2CDevice> hil::i2c::I2CClient for Sh1106<'_, I> {
     fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), hil::i2c::Error>) {
         self.buffer.replace(buffer);
         self.i2c.disable();

@@ -61,7 +61,7 @@ impl<'a, const NUM_PINS: usize> Pwm<'a, NUM_PINS> {
 }
 
 /// Provide an interface for userland.
-impl<'a, const NUM_PINS: usize> SyscallDriver for Pwm<'a, NUM_PINS> {
+impl<const NUM_PINS: usize> SyscallDriver for Pwm<'_, NUM_PINS> {
     /// Command interface.
     ///
     /// ### `command_num`

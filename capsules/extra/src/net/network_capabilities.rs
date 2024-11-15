@@ -83,13 +83,12 @@ impl PortRange {
     }
 }
 
-/// The UdpVisibilityCapability and IpVisibilityCapability has an empty private
-/// field to make it so the only way to create these structs is via a call to
-/// `new` which requires a NetworkCapabilityCreationCapability.
+/// UDP visiblity capability.
 pub struct UdpVisibilityCapability {
     _priv: (), // an empty private field
 }
 
+/// IP visiblity capability.
 pub struct IpVisibilityCapability {
     _priv: (), // an empty private field
 }
@@ -110,8 +109,10 @@ impl IpVisibilityCapability {
     }
 }
 
-/// The NetworkCapability specifies access to network resourcess across the UDP
-/// and IP layers. Access to layer-specific information is mediated by the
+/// Specifies access to network resourcess across the UDP and IP
+/// layers.
+///
+/// Access to layer-specific information is mediated by the
 /// UdpVsibilityCapability and the IpVisibilityCapability.
 pub struct NetworkCapability {
     // can potentially add more

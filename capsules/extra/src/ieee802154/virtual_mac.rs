@@ -190,13 +190,16 @@ enum Op {
     Transmit(framer::Frame),
 }
 
-/// Keep state for each Mac user. All users of the virtualized MAC interface
-/// need to create one of these and register it with the MAC device muxer
-/// `MuxMac` by calling `MuxMac#add_user`. Then, each `MacUser` behaves exactly
-/// like an independent MAC device, except MAC device state is shared between
-/// all MacUsers because there is only one MAC device. For example, the MAC
-/// device address is shared, so calling `set_address` on one `MacUser` sets the
-/// MAC address for all `MacUser`s.
+/// Keep state for each Mac user.
+///
+/// All users of the virtualized MAC interface need to create one of
+/// these and register it with the MAC device muxer `MuxMac` by
+/// calling `MuxMac#add_user`. Then, each `MacUser` behaves exactly
+/// like an independent MAC device, except MAC device state is shared
+/// between all MacUsers because there is only one MAC device. For
+/// example, the MAC device address is shared, so calling
+/// `set_address` on one `MacUser` sets the MAC address for all
+/// `MacUser`s.
 pub struct MacUser<'a, M: device::MacDevice<'a>> {
     mux: &'a MuxMac<'a, M>,
     operation: MapCell<Op>,

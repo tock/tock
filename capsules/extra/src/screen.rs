@@ -423,7 +423,7 @@ impl<'a> Screen<'a> {
     }
 }
 
-impl<'a> hil::screen::ScreenClient for Screen<'a> {
+impl hil::screen::ScreenClient for Screen<'_> {
     fn command_complete(&self, r: Result<(), ErrorCode>) {
         self.run_next_command(kernel::errorcode::into_statuscode(r), 0, 0);
     }
@@ -447,13 +447,13 @@ impl<'a> hil::screen::ScreenClient for Screen<'a> {
     }
 }
 
-impl<'a> hil::screen::ScreenSetupClient for Screen<'a> {
+impl hil::screen::ScreenSetupClient for Screen<'_> {
     fn command_complete(&self, r: Result<(), ErrorCode>) {
         self.run_next_command(kernel::errorcode::into_statuscode(r), 0, 0);
     }
 }
 
-impl<'a> SyscallDriver for Screen<'a> {
+impl SyscallDriver for Screen<'_> {
     fn command(
         &self,
         command_num: usize,

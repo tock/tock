@@ -200,7 +200,7 @@ impl<'a, Can: can::Can> CanCapsule<'a, Can> {
     }
 }
 
-impl<'a, Can: can::Can> SyscallDriver for CanCapsule<'a, Can> {
+impl<Can: can::Can> SyscallDriver for CanCapsule<'_, Can> {
     fn command(
         &self,
         command_num: usize,
@@ -346,7 +346,7 @@ impl<'a, Can: can::Can> SyscallDriver for CanCapsule<'a, Can> {
     }
 }
 
-impl<'a, Can: can::Can> can::ControllerClient for CanCapsule<'a, Can> {
+impl<Can: can::Can> can::ControllerClient for CanCapsule<'_, Can> {
     // This callback must be called after an `enable` or `disable` command was sent.
     // It stores the new state of the peripheral.
     fn state_changed(&self, state: can::State) {
@@ -411,9 +411,7 @@ impl<'a, Can: can::Can> can::ControllerClient for CanCapsule<'a, Can> {
     }
 }
 
-impl<'a, Can: can::Can> can::TransmitClient<{ can::STANDARD_CAN_PACKET_SIZE }>
-    for CanCapsule<'a, Can>
-{
+impl<Can: can::Can> can::TransmitClient<{ can::STANDARD_CAN_PACKET_SIZE }> for CanCapsule<'_, Can> {
     // This callback is called when the hardware acknowledges that a message
     // was sent. This callback also makes an upcall to the userspace.
     fn transmit_complete(
@@ -434,9 +432,7 @@ impl<'a, Can: can::Can> can::TransmitClient<{ can::STANDARD_CAN_PACKET_SIZE }>
     }
 }
 
-impl<'a, Can: can::Can> can::ReceiveClient<{ can::STANDARD_CAN_PACKET_SIZE }>
-    for CanCapsule<'a, Can>
-{
+impl<Can: can::Can> can::ReceiveClient<{ can::STANDARD_CAN_PACKET_SIZE }> for CanCapsule<'_, Can> {
     // This callback is called when a new message is received on any receiving
     // fifo.
     fn message_received(

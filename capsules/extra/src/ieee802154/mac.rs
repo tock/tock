@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! Specifies the interface for IEEE 802.15.4 MAC protocol layers. MAC protocols
-//! expose similar configuration (address, PAN, transmission power) options
-//! as ieee802154::device::MacDevice layers above it, but retain control over
-//! radio power management and channel selection. All frame processing should
-//! be completed above this layer such that Mac implementations receive fully
+//! Specifies the interface for IEEE 802.15.4 MAC protocol layers.
+//!
+//! MAC protocols expose similar configuration (address, PAN,
+//! transmission power) options as ieee802154::device::MacDevice
+//! layers above it, but retain control over radio power management
+//! and channel selection. All frame processing should be completed
+//! above this layer such that Mac implementations receive fully
 //! formatted 802.15.4 MAC frames for transmission.
 //!
 //! AwakeMac provides a default implementation of such a layer, maintaining

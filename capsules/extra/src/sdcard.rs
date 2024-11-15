@@ -1466,7 +1466,8 @@ impl<'a, A: hil::time::Alarm<'a>> hil::gpio::Client for SDCard<'a, A> {
     }
 }
 
-/// Application driver for SD Card capsule, layers on top of SD Card capsule
+/// Application driver for SD Card capsule.
+///
 /// This is used if the SDCard is going to be attached directly to userspace
 /// syscalls. SDCardDriver can be ignored if another capsule is going to build
 /// off of the SDCard instead

@@ -14,6 +14,7 @@ use crate::net::stream::SResult;
 // Note: All UDP Header fields are stored in network byte order
 
 /// The `UDPHeader` struct follows the layout for the UDP packet header.
+///
 /// Note that the implementation of this struct provides getters and setters
 /// for the various fields of the header, to avoid confusion with endian-ness.
 #[derive(Copy, Clone, Debug)]

@@ -2,13 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2023.
 
-//! This file contains the structs and methods associated with the Thread
-//! networking layer. This represents a first attempt in Tock
-//! to support Thread networking. The current implementation successfully
-//! joins a Tock device as a child node to a Thread parent (tested using
-//! OpenThread). This Thread capsule is a client to the UDP Mux.
-//! The associated ThreadNetwork struct must be created in the `thread_network.rs`
-//! component.
+//! Structs and methods associated with the Thread networking layer.
+//!
+//! This represents a first attempt in Tock to support Thread
+//! networking. The current implementation successfully joins a Tock
+//! device as a child node to a Thread parent (tested using
+//! OpenThread). This Thread capsule is a client to the UDP Mux.  The
+//! associated ThreadNetwork struct must be created in the
+//! `thread_network.rs` component.
 //!
 //! The Userland interface is incredibly simple at this juncture. An application
 //! can begin the Thread child/parent joining by issuing a syscall command

@@ -121,8 +121,10 @@ macro_rules! stream_from_option {
 }
 
 /// Extracts the result of encoding/decoding (the new offset and the output) only
-/// if no errors were encountered in encoding. This macro makes it possible to
-/// handle offsets easily for the following use cases:
+/// if no errors were encountered in encoding.
+///
+/// This macro makes it possible to handle offsets easily for the
+/// following use cases:
 ///
 /// `enc_try!(result, offset)`: Unwrap an already-provided result that
 /// represents starting from `offset` in the buffer.
@@ -189,8 +191,9 @@ macro_rules! enc_try {
         => { enc_try!($buf, 0; $($tts)+) };
 }
 
-/// This is the aforementioned version of the unwrapping macro that only returns
-/// the offset. With this, it can be simpler to programmatically chain multiple
+/// Unwrapping macro that only returns the offset.
+///
+/// With this, it can be simpler to programmatically chain multiple
 /// headers together when the outputs do not have to be collated.
 #[macro_export]
 macro_rules! enc_consume {

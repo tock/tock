@@ -86,7 +86,7 @@ impl<'a, P: gpio::Pin> SoundPressure<'a> for AdcMicrophone<'a, P> {
     }
 }
 
-impl<'a, P: gpio::Pin> adc::Client for AdcMicrophone<'a, P> {
+impl<P: gpio::Pin> adc::Client for AdcMicrophone<'_, P> {
     fn sample_ready(&self, sample: u16) {
         if self.state.get() == State::ReadingSPL {
             if self.spl_buffer.map_or(false, |buffer| {

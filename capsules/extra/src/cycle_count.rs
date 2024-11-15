@@ -44,7 +44,7 @@ impl<'a, P: hil::hw_debug::CycleCounter> CycleCount<'a, P> {
     }
 }
 
-impl<'a, P: hil::hw_debug::CycleCounter> SyscallDriver for CycleCount<'a, P> {
+impl<P: hil::hw_debug::CycleCounter> SyscallDriver for CycleCount<'_, P> {
     /// Control the CycleCount system.
     ///
     /// ### `command_num`

@@ -392,7 +392,6 @@ impl<
 }
 
 impl<
-        'a,
         A: AES128<'static>
             + AES128Ctr
             + AES128CBC
@@ -401,7 +400,7 @@ impl<
             + AES128GCM<'static>,
     > Client<'static> for AesDriver<'static, A>
 {
-    fn crypt_done(&'a self, source: Option<&'static mut [u8]>, destination: &'static mut [u8]) {
+    fn crypt_done(&self, source: Option<&'static mut [u8]>, destination: &'static mut [u8]) {
         if let Some(source_buf) = source {
             self.source_buffer.replace(source_buf);
         }

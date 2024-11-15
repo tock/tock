@@ -781,7 +781,7 @@ impl<'a, F: Flash + 'static> LogWrite<'a> for Log<'a, F> {
     }
 }
 
-impl<'a, F: Flash + 'static> flash::Client<F> for Log<'a, F> {
+impl<F: Flash + 'static> flash::Client<F> for Log<'_, F> {
     fn read_complete(&self, _read_buffer: &'static mut F::Page, _result: Result<(), flash::Error>) {
         // Reads are made directly from the storage volume, not through the flash interface.
         unreachable!();
@@ -885,7 +885,7 @@ impl<'a, F: Flash + 'static> flash::Client<F> for Log<'a, F> {
     }
 }
 
-impl<'a, F: Flash + 'static> DeferredCallClient for Log<'a, F> {
+impl<F: Flash + 'static> DeferredCallClient for Log<'_, F> {
     fn handle_deferred_call(&self) {
         self.client_callback();
     }

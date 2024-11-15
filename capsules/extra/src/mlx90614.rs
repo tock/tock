@@ -119,7 +119,7 @@ impl<'a, S: i2c::SMBusDevice> Mlx90614SMBus<'a, S> {
     }
 }
 
-impl<'a, S: i2c::SMBusDevice> i2c::I2CClient for Mlx90614SMBus<'a, S> {
+impl<S: i2c::SMBusDevice> i2c::I2CClient for Mlx90614SMBus<'_, S> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         match self.state.get() {
             State::Idle => {
@@ -170,7 +170,7 @@ impl<'a, S: i2c::SMBusDevice> i2c::I2CClient for Mlx90614SMBus<'a, S> {
     }
 }
 
-impl<'a, S: i2c::SMBusDevice> SyscallDriver for Mlx90614SMBus<'a, S> {
+impl<S: i2c::SMBusDevice> SyscallDriver for Mlx90614SMBus<'_, S> {
     fn command(
         &self,
         command_num: usize,
