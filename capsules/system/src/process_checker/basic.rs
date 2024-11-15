@@ -87,9 +87,11 @@ pub trait Sha256Verifier<'a>: DigestDataVerify<'a, 32_usize> + Sha256 {}
 impl<'a, T: DigestDataVerify<'a, 32_usize> + Sha256> Sha256Verifier<'a> for T {}
 
 /// A Credentials Checking Policy that only runs Userspace Binaries
-/// which have a unique SHA256 credential. A Userspace Binary without
-/// a SHA256 credential fails checking, and only one Userspace Binary
-/// with a particular SHA256 hash runs at any time.
+/// which have a unique SHA256 credential.
+///
+/// A Userspace Binary without a SHA256 credential fails checking, and
+/// only one Userspace Binary with a particular SHA256 hash runs at
+/// any time.
 pub struct AppCheckerSha256 {
     hasher: &'static dyn Sha256Verifier<'static>,
     client: OptionalCell<&'static dyn AppCredentialsPolicyClient<'static>>,
@@ -222,7 +224,7 @@ impl<'a, F: Fn(&'static str) -> u32> AppIdAssignerNames<'a, F> {
     }
 }
 
-impl<'a, F: Fn(&'static str) -> u32> AppUniqueness for AppIdAssignerNames<'a, F> {
+impl<F: Fn(&'static str) -> u32> AppUniqueness for AppIdAssignerNames<'_, F> {
     fn different_identifier(&self, process_a: &ProcessBinary, process_b: &ProcessBinary) -> bool {
         self.to_short_id(process_a) != self.to_short_id(process_b)
     }
@@ -244,7 +246,7 @@ impl<'a, F: Fn(&'static str) -> u32> AppUniqueness for AppIdAssignerNames<'a, F>
     }
 }
 
-impl<'a, F: Fn(&'static str) -> u32> Compress for AppIdAssignerNames<'a, F> {
+impl<F: Fn(&'static str) -> u32> Compress for AppIdAssignerNames<'_, F> {
     fn to_short_id(&self, process: &ProcessBinary) -> ShortId {
         let name = process.header.get_package_name().unwrap_or("");
         let sum = (self.hasher)(name);
@@ -253,13 +255,14 @@ impl<'a, F: Fn(&'static str) -> u32> Compress for AppIdAssignerNames<'a, F> {
 }
 
 /// A sample Credentials Checking Policy that loads and runs Userspace
-/// Binaries that have RSA3072 or RSA4096 credentials. It uses the
-/// public key stored in the credentials as the Application
-/// Identifier, and the bottom 31 bits of the public key as the
-/// ShortId. WARNING: this policy does not actually check the RSA
-/// signature: it always blindly assumes it is correct. This checker
-/// exists to test that the Tock boot sequence correctly handles
-/// ID collisions and version numbers.
+/// Binaries that have RSA3072 or RSA4096 credentials.
+///
+/// It uses the public key stored in the credentials as the
+/// Application Identifier, and the bottom 31 bits of the public key
+/// as the ShortId. WARNING: this policy does not actually check the
+/// RSA signature: it always blindly assumes it is correct. This
+/// checker exists to test that the Tock boot sequence correctly
+/// handles ID collisions and version numbers.
 pub struct AppCheckerRsaSimulated<'a> {
     deferred_call: DeferredCall,
     client: OptionalCell<&'a dyn AppCredentialsPolicyClient<'a>>,
@@ -278,7 +281,7 @@ impl<'a> AppCheckerRsaSimulated<'a> {
     }
 }
 
-impl<'a> DeferredCallClient for AppCheckerRsaSimulated<'a> {
+impl DeferredCallClient for AppCheckerRsaSimulated<'_> {
     fn handle_deferred_call(&self) {
         // This checker does not actually verify the RSA signature; it
         // assumes the signature is valid and so accepts any RSA
