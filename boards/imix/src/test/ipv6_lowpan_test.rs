@@ -44,6 +44,7 @@ use capsules_extra::net::sixlowpan::sixlowpan_state::{
 use capsules_extra::net::udp::UDPHeader;
 use core::cell::Cell;
 use core::ptr::addr_of_mut;
+use core::sync::atomic::{AtomicUsize, Ordering};
 use kernel::debug;
 use kernel::hil::radio;
 use kernel::hil::time::{self, Alarm, ConvertTicks};
@@ -110,7 +111,7 @@ enum DAC {
 
 pub const TEST_DELAY_MS: u32 = 10000;
 pub const TEST_LOOP: bool = false;
-static mut SUCCESS_COUNT: usize = 0;
+static SUCCESS_COUNT: AtomicUsize = AtomicUsize::new(0);
 // Below was IP6_DGRAM before change to typed buffers
 //static mut IP6_DGRAM: [u8; IP6_HDR_SIZE + PAYLOAD_LEN] = [0; IP6_HDR_SIZE + PAYLOAD_LEN];
 static mut UDP_DGRAM: [u8; PAYLOAD_LEN - UDP_HDR_SIZE] = [0; PAYLOAD_LEN - UDP_HDR_SIZE]; //Becomes payload of UDP
@@ -396,22 +397,19 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
             }
         };
         if success {
-            unsafe {
-                SUCCESS_COUNT += 1;
-            }
+            SUCCESS_COUNT.fetch_add(1, Ordering::SeqCst);
         }
         if test_id == self.num_tests() - 1 {
-            unsafe {
-                if SUCCESS_COUNT == self.num_tests() {
-                    debug!("All Tests completed successfully!");
-                } else {
-                    debug!(
-                        "Successfully completed {:?}/{:?} tests",
-                        SUCCESS_COUNT,
-                        self.num_tests()
-                    );
-                }
-            }
+	    let success_count = SUCCESS_COUNT.load(Ordering::SeqCst);
+	    if success_count == self.num_tests() {
+		debug!("All Tests completed successfully!");
+	    } else {
+		debug!(
+		    "Successfully completed {:?}/{:?} tests",
+		    success_count,
+		    self.num_tests()
+		);
+	    }
         }
     }
     fn ipv6_send_packet_test(&self, tf: TF, hop_limit: u8, sac: SAC, dac: DAC) {

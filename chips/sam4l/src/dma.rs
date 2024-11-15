@@ -98,7 +98,7 @@ const DMA_CHANNEL_SIZE: usize = 0x40;
 
 /// Shared counter that Keeps track of how many DMA channels are currently
 /// active.
-static mut NUM_ENABLED: atomic::AtomicUsize = atomic::AtomicUsize::new(0);
+static NUM_ENABLED: atomic::AtomicUsize = atomic::AtomicUsize::new(0);
 
 /// The DMA channel number. Each channel transfers data between memory and a
 /// particular peripheral function (e.g., SPI read or SPI write, but not both
@@ -219,9 +219,7 @@ impl DMAChannel {
         pm::enable_clock(pm::Clock::PBB(pm::PBBClock::PDCA));
 
         if !self.enabled.get() {
-            unsafe {
-                NUM_ENABLED.fetch_add(1, atomic::Ordering::Relaxed);
-            }
+	    NUM_ENABLED.fetch_add(1, atomic::Ordering::Relaxed);
 
             // Disable all interrupts
             self.registers
@@ -234,13 +232,11 @@ impl DMAChannel {
 
     pub fn disable(&self) {
         if self.enabled.get() {
-            unsafe {
-                let num_enabled = NUM_ENABLED.fetch_sub(1, atomic::Ordering::Relaxed);
-                if num_enabled == 1 {
-                    pm::disable_clock(pm::Clock::HSB(pm::HSBClock::PDCA));
-                    pm::disable_clock(pm::Clock::PBB(pm::PBBClock::PDCA));
-                }
-            }
+	    let num_enabled = NUM_ENABLED.fetch_sub(1, atomic::Ordering::Relaxed);
+	    if num_enabled == 1 {
+		pm::disable_clock(pm::Clock::HSB(pm::HSBClock::PDCA));
+		pm::disable_clock(pm::Clock::PBB(pm::PBBClock::PDCA));
+	    }
             self.registers.cr.write(Control::TDIS::SET);
             self.enabled.set(false);
         }

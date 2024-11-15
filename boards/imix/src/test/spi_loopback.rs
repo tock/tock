@@ -96,9 +96,10 @@ pub unsafe fn spi_loopback_test(
     spi.set_rate(speed)
         .expect("Failed to set SPI speed in SPI loopback test.");
 
-    let len = WBUF.len();
+    let wbuf = &mut *addr_of_mut!(WBUF);
+    let len = wbuf.len();
     if let Err((e, _, _)) = spi.read_write_bytes(
-        (&mut *addr_of_mut!(WBUF) as &mut [u8]).into(),
+        (wbuf as &mut [u8]).into(),
         Some((&mut *addr_of_mut!(RBUF) as &mut [u8]).into()),
     ) {
         panic!(
@@ -127,9 +128,10 @@ pub unsafe fn spi_two_loopback_test(mux: &'static MuxSpiMaster<'static, sam4l::s
     spi_fast.set_client(spicb_fast);
     spi_slow.set_client(spicb_slow);
 
-    let len = WBUF.len();
+    let wbuf = &mut *addr_of_mut!(WBUF);
+    let len = wbuf.len();
     if let Err((e, _, _)) = spi_fast.read_write_bytes(
-        (&mut *addr_of_mut!(WBUF) as &mut [u8]).into(),
+        (wbuf as &mut [u8]).into(),
         Some((&mut *addr_of_mut!(RBUF) as &mut [u8]).into()),
     ) {
         panic!(
@@ -138,9 +140,10 @@ pub unsafe fn spi_two_loopback_test(mux: &'static MuxSpiMaster<'static, sam4l::s
         );
     }
 
-    let len = WBUF2.len();
+    let wbuf = &mut *addr_of_mut!(WBUF);
+    let len = wbuf.len();
     if let Err((e, _, _)) = spi_slow.read_write_bytes(
-        (&mut *addr_of_mut!(WBUF2) as &mut [u8]).into(),
+        (wbuf as &mut [u8]).into(),
         Some((&mut *addr_of_mut!(RBUF2) as &mut [u8]).into()),
     ) {
         panic!(
