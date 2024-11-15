@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2024.
 
-//! HC-SR04 Ultrasonic Distance Sensor
+//! HC-SR04 Ultrasonic Distance Sensor.
+//!
 //! Product Link: [HC-SR04 Product Page](https://www.sparkfun.com/products/15569)
 //! Datasheet: [HC-SR04 Datasheet](https://www.handsontec.com/dataspecs/HC-SR04-Ultrasonic.pdf)
 //!

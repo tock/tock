@@ -45,8 +45,10 @@ use kernel::ErrorCode;
 // We store addresses using primitive data types like `u8`, `u16`, `u32`, and `u64`.
 
 /// The `DataWidth` enum and associated `BusAddr` structs define the width
-/// of the data transmitted over a bus. The `BusAddr::bytes`` function transforms
-/// the address into the specified endianness and returns an iterator.
+/// of the data transmitted over a bus.
+///
+/// The `BusAddr::bytes`` function transforms the address into the
+/// specified endianness and returns an iterator.
 pub enum DataWidth {
     Bits8,
     Bits16LE,
