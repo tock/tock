@@ -96,10 +96,13 @@ impl From<process::Error> for CommandReturn {
 }
 
 /// Trait for capsules implementing peripheral driver system calls specified in
-/// TRD104. The kernel translates the values passed from userspace into Rust
-/// types and includes which process is making the call. All of these system
-/// calls perform very little synchronous work; long running computations or I/O
-/// should be split-phase, with an upcall indicating their completion.
+/// TRD104.
+///
+/// The kernel translates the values passed from userspace into Rust
+/// types and includes which process is making the call. All of these
+/// system calls perform very little synchronous work; long running
+/// computations or I/O should be split-phase, with an upcall
+/// indicating their completion.
 ///
 /// The exact instances of each of these methods (which identifiers are valid
 /// and what they represents) are specific to the peripheral system call driver.

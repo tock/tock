@@ -55,7 +55,7 @@ impl<'a> CooperativeSched<'a> {
     }
 }
 
-impl<'a, C: Chip> Scheduler<C> for CooperativeSched<'a> {
+impl<C: Chip> Scheduler<C> for CooperativeSched<'_> {
     fn next(&self) -> SchedulingDecision {
         let mut first_head = None;
 

@@ -281,14 +281,14 @@ pub trait AlarmClient {
 }
 
 /// Interface for receiving notification when a particular time
-/// (`Counter` value) is reached. Clients use the
-/// [`AlarmClient`](trait.AlarmClient.html) trait to signal when the
-/// counter has reached a pre-specified value set in
+/// (`Counter` value) is reached.
+///
+/// Clients use the [`AlarmClient`](trait.AlarmClient.html) trait to
+/// signal when the counter has reached a pre-specified value set in
 /// [`set_alarm`](#tymethod.set_alarm). Alarms are intended for
 /// low-level time needs that require precision (i.e., firing on a
-/// precise clock tick). Software that needs more functionality
-/// but can tolerate some jitter should use the `Timer` trait
-/// instead.
+/// precise clock tick). Software that needs more functionality but
+/// can tolerate some jitter should use the `Timer` trait instead.
 pub trait Alarm<'a>: Time {
     /// Specify the callback for when the counter reaches the alarm
     /// value. If there was a previously installed callback this call
@@ -336,6 +336,7 @@ pub trait TimerClient {
 }
 
 /// Interface for controlling callbacks when an interval has passed.
+///
 /// This interface is intended for software that requires repeated
 /// and/or one-shot timers and is willing to experience some jitter or
 /// imprecision in return for a simpler API that doesn't require

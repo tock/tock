@@ -93,7 +93,7 @@ impl<'a> WriteToBinaryOffsetWrapper<'a> {
     }
 }
 
-impl<'a> core::fmt::Write for WriteToBinaryOffsetWrapper<'a> {
+impl core::fmt::Write for WriteToBinaryOffsetWrapper<'_> {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         let string_len = s.len();
         if self.index + string_len < self.offset {
@@ -158,7 +158,7 @@ impl<'a> BinaryToWriteWrapper<'a> {
     }
 }
 
-impl<'a> BinaryWrite for BinaryToWriteWrapper<'a> {
+impl BinaryWrite for BinaryToWriteWrapper<'_> {
     fn write_buffer(&mut self, buffer: &[u8]) -> Result<usize, ()> {
         // Convert the binary string to UTF-8 so we can print it as a string. If
         // this is not actually a UTF-8 string, then return Err(()).

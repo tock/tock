@@ -117,6 +117,8 @@ impl fmt::Debug for ProcessLoadError {
 // SYNCHRONOUS PROCESS LOADING
 ////////////////////////////////////////////////////////////////////////////////
 
+/// Load processes into runnable process structures.
+///
 /// Load processes (stored as TBF objects in flash) into runnable process
 /// structures stored in the `procs` array and mark all successfully loaded
 /// processes as runnable. This method does not check the cryptographic
@@ -496,7 +498,7 @@ pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static, D: ProcessStand
     state: OptionalCell<SequentialProcessLoaderMachineState>,
 }
 
-impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C, D> {
+impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> {
     /// This function is made `pub` so that board files can use it, but loading
     /// processes from slices of flash an memory is fundamentally unsafe.
     /// Therefore, we require the `ProcessManagementCapability` to call this
@@ -888,8 +890,8 @@ impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
     }
 }
 
-impl<'a, C: Chip, D: ProcessStandardDebug> DeferredCallClient
-    for SequentialProcessLoaderMachine<'a, C, D>
+impl<C: Chip, D: ProcessStandardDebug> DeferredCallClient
+    for SequentialProcessLoaderMachine<'_, C, D>
 {
     fn handle_deferred_call(&self) {
         // We use deferred calls to start the operation in the async loop.
@@ -919,8 +921,8 @@ impl<'a, C: Chip, D: ProcessStandardDebug> DeferredCallClient
     }
 }
 
-impl<'a, C: Chip, D: ProcessStandardDebug> crate::process_checker::ProcessCheckerMachineClient
-    for SequentialProcessLoaderMachine<'a, C, D>
+impl<C: Chip, D: ProcessStandardDebug> crate::process_checker::ProcessCheckerMachineClient
+    for SequentialProcessLoaderMachine<'_, C, D>
 {
     fn done(
         &self,

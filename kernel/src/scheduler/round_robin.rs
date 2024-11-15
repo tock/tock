@@ -73,7 +73,7 @@ impl<'a> RoundRobinSched<'a> {
     }
 }
 
-impl<'a, C: Chip> Scheduler<C> for RoundRobinSched<'a> {
+impl<C: Chip> Scheduler<C> for RoundRobinSched<'_> {
     fn next(&self) -> SchedulingDecision {
         let mut first_head = None;
         let mut next = None;
