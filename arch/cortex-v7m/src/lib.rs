@@ -346,7 +346,7 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
          \tr12 0x{:x}\r\n\
          \tlr  0x{:x}\r\n\
          \tpc  0x{:x}\r\n\
-         \tprs 0x{:x} [ N {} Z {} C {} V {} Q {} GE {}{}{}{} ; ICI.IT {} T {} ; Exc {}-{} ]\r\n\
+         \tpsr 0x{:x} [ N {} Z {} C {} V {} Q {} GE {}{}{}{} ; ICI.IT {} T {} ; Exc {}-{} ]\r\n\
          \tsp  0x{:x}\r\n\
          \ttop of stack     0x{:x}\r\n\
          \tbottom of stack  0x{:x}\r\n\
