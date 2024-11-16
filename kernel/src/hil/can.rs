@@ -228,7 +228,6 @@ pub trait StandardBitTiming {
 /// is inspired by the Zephyr CAN driver available at
 /// `<https://github.com/zephyrproject-rtos/zephyr/tree/main/drivers/can>`
 impl<T: Configure> StandardBitTiming for T {
-    #[flux_rs::trusted] // VTOCK: error jumping to join point
     fn bit_timing_for_bitrate(clock_rate: u32, bitrate: u32) -> Result<BitTiming, ErrorCode> {
         fn calc_sample_point_err(
             sp: u32,

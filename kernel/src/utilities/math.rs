@@ -24,8 +24,7 @@ pub fn closest_power_of_two(mut num: u32) -> u32 {
     num
 }
 
-#[flux_rs::trusted]
-// bitwise arithmetic
+#[flux_rs::trusted] // bitwise arithmetic
 // 2147483648 is half of u32::MAX. Anything higher than that deviates from closest_power_of_two
 // I added this function to avoid unnecessary downcasts, which can be dangerous.
 #[flux_rs::sig(fn(num: usize) -> usize{r: (num < 2147483648 => r > num)})]

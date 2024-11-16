@@ -29,7 +29,6 @@ pub trait Queue<T> {
 
     /// Remove and return one (the first) element that matches the predicate.
     #[flux_rs::trusted_impl]
-    // #[flux_rs::sig(fn(self: &strg Self, _) -> Option<_> ensures self: Self)]
     fn remove_first_matching<F>(&mut self, f: F) -> Option<T>
     where
         F: Fn(&T) -> bool;

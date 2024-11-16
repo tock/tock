@@ -187,7 +187,7 @@ impl Kernel {
     }
 
     /// Returns an iterator over all processes loaded by the kernel.
-    #[flux_rs::trusted] // Unsupported Cast: `PointerCoercion(ReifyFnPointer)`
+    #[flux_rs::trusted] // cannot infer substitution (filter map)
     pub(crate) fn get_process_iter(
         &self,
     ) -> core::iter::FilterMap<

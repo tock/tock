@@ -796,7 +796,7 @@ impl ReadableProcessSlice {
     }
 
     /// Iterate the slice in chunks.
-    #[flux_rs::trusted] // Unsupported Terminator
+    #[flux_rs::trusted] // Unexpected escaping region
     pub fn chunks(
         &self,
         chunk_size: usize,
@@ -1037,7 +1037,7 @@ impl WriteableProcessSlice {
     }
 
     /// Iterate over the slice in chunks.
-    #[flux_rs::trusted] // Unsupported Terminator
+    #[flux_rs::trusted] // Unexpected escaping region
     pub fn chunks(
         &self,
         chunk_size: usize,

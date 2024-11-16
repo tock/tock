@@ -38,7 +38,7 @@ impl PrioritySched {
 }
 
 impl<C: Chip> Scheduler<C> for PrioritySched {
-    #[flux_rs::trusted] // ICE: `to_sort_list` called on bound variable list with non-refinements
+    #[flux_rs::trusted] // ICE: cannot infer subtitution (filter_map)
     fn next(&self) -> SchedulingDecision {
         // Iterates in-order through the process array, always running the
         // first process it finds that is ready to run. This enforces the
