@@ -347,7 +347,6 @@ pub fn debug_enqueue_fmt(args: Arguments) {
     });
 }
 
-#[flux_rs::trusted] // incompatible types
 pub fn debug_flush_queue_() {
     let writer = unsafe { get_debug_writer() };
 
