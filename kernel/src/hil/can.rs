@@ -228,9 +228,8 @@ pub trait StandardBitTiming {
 /// is inspired by the Zephyr CAN driver available at
 /// `<https://github.com/zephyrproject-rtos/zephyr/tree/main/drivers/can>`
 impl<T: Configure> StandardBitTiming for T {
-    #[flux_rs::trusted] // VTOCK: error jumping to join point
+    // #[flux_rs::trusted] // VTOCK: error jumping to join point
     fn bit_timing_for_bitrate(clock_rate: u32, bitrate: u32) -> Result<BitTiming, ErrorCode> {
-        #[flux_rs::trusted] // VTOCK: error jumping to join point
         fn calc_sample_point_err(
             sp: u32,
             ts: u32,
@@ -245,6 +244,9 @@ impl<T: Configure> StandardBitTiming for T {
                 let mut ts2;
                 let mut res: i32 = 0;
 
+                let ts_tmp = (ts * sp) / 1000;
+                flux_support::assume(ts > ts_tmp);
+
                 ts2 = ts - (ts * sp) / 1000;
                 ts2 = if ts2 < max_bit_timings.segment2 as u32 {
                     max_bit_timings.segment2 as u32
@@ -253,6 +255,8 @@ impl<T: Configure> StandardBitTiming for T {
                 } else {
                     ts2
                 };
+                flux_support::assume(ts >= sync_seg as u32 + ts2);
+
                 ts1 = ts - sync_seg as u32 - ts2;
 
                 if ts1 > ts1_max as u32 {
@@ -263,6 +267,7 @@ impl<T: Configure> StandardBitTiming for T {
                     }
                 } else if ts1 < ts1_min as u32 {
                     ts1 = ts1_min as u32;
+                    assume(ts > ts1);
                     ts2 = ts - ts1;
                     if ts2 < max_bit_timings.segment2 as u32 {
                         res = -1;
@@ -278,7 +283,10 @@ impl<T: Configure> StandardBitTiming for T {
                         (ts1 / 2) as u8
                     };
 
-                    res_timing.segment1 = ts1 as u8 - res_timing.propagation;
+                    let prop = res_timing.propagation;
+                    let ts1_2 = ts1 as u8;
+                    assume(ts1_2 >= prop);
+                    res_timing.segment1 = ts1_2 - prop;
                     res_timing.segment2 = ts2 as u8;
 
                     res = ((sync_seg as u32 + ts1) * 1000 / ts) as i32;
@@ -292,6 +300,7 @@ impl<T: Configure> StandardBitTiming for T {
                 }
             }
         }
+        assume(bitrate > 0);
 
         if bitrate > 8_000_000 {
             return Err(ErrorCode::INVAL);
@@ -311,6 +320,8 @@ impl<T: Configure> StandardBitTiming for T {
             + Self::MAX_BIT_TIMINGS.segment1
             + Self::MAX_BIT_TIMINGS.segment2
             + Self::SYNC_SEG) as u32;
+        
+        flux_support::assume(ts > 0);
 
         for prescaler in
             max_u32(clock_rate / (ts * bitrate), 1)..Self::MAX_BIT_TIMINGS.baud_rate_prescaler
