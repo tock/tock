@@ -791,7 +791,7 @@ impl TbfHeader {
     }
 
     /// Get the offset and size of a given flash region.
-    pub fn get_writeable_flash_region(&self, index: usize) -> (u32, u32) {
+    pub fn get_writeable_flash_region(&self, index: usize) -> (usize, usize) {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => hd.writeable_regions.map_or((0, 0), |wr_slice| {
                 fn get_region(
@@ -810,8 +810,8 @@ impl TbfHeader {
 
                 match get_region(wr_slice, index) {
                     Ok(wr) => (
-                        wr.writeable_flash_region_offset,
-                        wr.writeable_flash_region_size,
+                        wr.writeable_flash_region_offset as usize,
+                        wr.writeable_flash_region_size as usize,
                     ),
                     Err(()) => (0, 0),
                 }
