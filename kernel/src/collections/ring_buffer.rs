@@ -176,7 +176,7 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
     ///
     /// If an element was removed, this function returns it as `Some(elem)`.
     #[flux_rs::sig(
-        fn(self: &strg RingBuffer<T>, _) -> Option<T> ensures self: RingBuffer<T>
+        fn(self: &strg Self, _) -> Option<_> ensures self: Self
     )]
     fn remove_first_matching<F>(&mut self, f: F) -> Option<T>
     where
