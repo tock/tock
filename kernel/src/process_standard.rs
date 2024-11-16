@@ -318,7 +318,6 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
             || self.state.get() == State::Running
     }
 
-    #[flux_rs::trusted] // incompatible types
     fn remove_pending_upcalls(&self, upcall_id: UpcallId) {
         self.tasks.map(|tasks| {
             let count_before = tasks.len();
@@ -454,7 +453,6 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         // want to reclaim the process resources.
     }
 
-    #[flux_rs::trusted] // incompatible types
     fn terminate(&self, completion_code: Option<u32>) {
         // A process can be terminated if it is running or in the `Faulted`
         // state. Otherwise, you cannot terminate it and this method return
@@ -1359,7 +1357,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     const PROCESS_STRUCT_OFFSET: usize = mem::size_of::<ProcessStandard<C>>();
 
     /// Create a `ProcessStandard` object based on the found `ProcessBinary`.
-    #[flux_rs::trusted] // ICE: Cannot move out of non-strong reference
+    #[flux_rs::trusted] // ICE: UnsolvedEvar
     pub(crate) unsafe fn create<'a>(
         kernel: &'static Kernel,
         chip: &'static C,

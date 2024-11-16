@@ -762,7 +762,8 @@ impl ReadableProcessSlice {
     ///
     /// The length of `self` must be the same as `dest`. Subslicing
     /// can be used to obtain a slice of matching length.
-    #[flux_rs::trusted] // ICE" expected array or slice type
+    #[flux_rs::trusted] // Need spec for enumerate
+    #[flux_rs::sig(fn (self: &Self, dest: &strg [u8]) -> Result<(), ErrorCode> ensures dest: [u8] )]
     pub fn copy_to_slice_or_err(&self, dest: &mut [u8]) -> Result<(), ErrorCode> {
         // Method implemetation adopted from the
         // core::slice::copy_from_slice method implementation:

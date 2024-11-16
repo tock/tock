@@ -589,7 +589,6 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
     ///
     /// Returns the process binary object or an error if a valid process
     /// binary could not be extracted.
-    #[flux_rs::trusted] // error jumping to join point
     fn discover_process_binary(&self) -> Result<ProcessBinary, ProcessBinaryError> {
         let flash = self.flash.get();
         assume(flash.len() > 0); // Need to guarantee &[u8] inside Cell is not 0
