@@ -139,8 +139,6 @@ impl<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>> Component
 
         // Get addresses of where the kernel is placed to enable additional
         // debugging in process console.
-        // SAFETY: These statics are defined by the linker script, and we are merely creating
-        // pointers to them.
         let kernel_addresses = process_console::KernelAddresses {
             stack_start: core::ptr::addr_of!(_sstack),
             stack_end: core::ptr::addr_of!(_estack),
