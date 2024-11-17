@@ -110,7 +110,7 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
         for (idx, queue) in self.processes.iter().enumerate() {
             let next = queue
                 .iter()
-                .find(|node_ref| node_ref.proc.map_or(false, |proc| proc.ready()));
+                .find(|node_ref| node_ref.proc.is_some_and(|proc| proc.ready()));
             if next.is_some() {
                 // pop procs to back until we get to match
                 loop {

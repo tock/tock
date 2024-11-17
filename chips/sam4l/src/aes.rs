@@ -240,7 +240,7 @@ impl<'a> Aes<'a> {
     }
 
     fn try_set_indices(&self, start_index: usize, stop_index: usize) -> bool {
-        stop_index.checked_sub(start_index).map_or(false, |sublen| {
+        stop_index.checked_sub(start_index).is_some_and(|sublen| {
             sublen % AES128_BLOCK_SIZE == 0 && {
                 self.source.map_or_else(
                     || {

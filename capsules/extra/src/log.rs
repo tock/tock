@@ -205,7 +205,7 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
         self.oldest_entry_id.set(PAGE_HEADER_SIZE);
         self.read_entry_id.set(PAGE_HEADER_SIZE);
         self.append_entry_id.set(PAGE_HEADER_SIZE);
-        self.pagebuffer.take().map_or(false, move |pagebuffer| {
+        self.pagebuffer.take().is_some_and(move |pagebuffer| {
             for e in pagebuffer.as_mut().iter_mut() {
                 *e = 0;
             }

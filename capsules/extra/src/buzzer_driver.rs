@@ -158,7 +158,7 @@ impl<'a, B: hil::buzzer::Buzzer<'a>> Buzzer<'a, B> {
             let processid = appiter.processid();
             let started_command = appiter.enter(|app, _| {
                 // If this app has a pending command let's use it.
-                app.pending_command.take().map_or(false, |command| {
+                app.pending_command.take().is_some_and(|command| {
                     // Mark this driver as being in use.
                     self.active_app.set(processid);
                     // Actually make the buzz happen.

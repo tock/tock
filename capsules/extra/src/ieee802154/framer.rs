@@ -208,7 +208,7 @@ impl FrameInfo {
         // IEEE 802.15.4-2015: Table 9-3. a data and m data
         let encryption_needed = self
             .security_params
-            .map_or(false, |(level, _, _)| level.encryption_needed());
+            .is_some_and(|(level, _, _)| level.encryption_needed());
         if !encryption_needed {
             // If only integrity is need, a data is the whole frame
             (self.unsecured_length(), 0)

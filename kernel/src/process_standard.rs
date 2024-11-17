@@ -808,10 +808,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
     fn remove_mpu_region(&self, region: mpu::Region) -> Result<(), ErrorCode> {
         self.mpu_config.map_or(Err(ErrorCode::INVAL), |config| {
             // Find the existing mpu region that we are removing; it needs to match exactly.
-            if let Some(internal_region) = self
-                .mpu_regions
-                .iter()
-                .find(|r| r.get().map_or(false, |r| r == region))
+            if let Some(internal_region) = self.mpu_regions.iter().find(|r| r.get() == Some(region))
             {
                 self.chip
                     .mpu()

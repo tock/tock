@@ -231,7 +231,7 @@ impl<
                 }
 
                 // If this app has a pending command let's use it.
-                app.pending_run_app.take().map_or(false, |processid| {
+                app.pending_run_app.take().is_some_and(|processid| {
                     // Mark this driver as being in use.
                     self.processid.set(processid);
                     // Actually make the buzz happen.

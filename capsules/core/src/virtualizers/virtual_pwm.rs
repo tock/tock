@@ -50,7 +50,7 @@ impl<'a, P: hil::pwm::Pwm> MuxPwm<'a, P> {
         if self.inflight.is_none() {
             let mnode = self.devices.iter().find(|node| node.operation.is_some());
             mnode.map(|node| {
-                let started = node.operation.take().map_or(false, |operation| {
+                let started = node.operation.take().is_some_and(|operation| {
                     match operation {
                         Operation::Simple {
                             frequency_hz,

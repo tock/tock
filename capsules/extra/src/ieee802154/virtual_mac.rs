@@ -95,7 +95,7 @@ impl<'a, M: device::MacDevice<'a>> MuxMac<'a, M> {
         }
 
         let mnode = self.users.iter().find(|node| {
-            node.operation.take().map_or(false, |op| {
+            node.operation.take().is_some_and(|op| {
                 let pending = op != Op::Idle;
                 node.operation.replace(op);
                 pending

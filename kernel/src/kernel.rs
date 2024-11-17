@@ -249,9 +249,9 @@ impl Kernel {
     /// This is needed for `ProcessId` itself to implement the `.index()`
     /// command to verify that the referenced app is still at the correct index.
     pub(crate) fn processid_is_valid(&self, processid: &ProcessId) -> bool {
-        self.processes.get(processid.index).map_or(false, |p| {
-            p.map_or(false, |process| process.processid().id() == processid.id())
-        })
+        self.processes
+            .get(processid.index)
+            .is_some_and(|p| p.is_some_and(|process| process.processid().id() == processid.id()))
     }
 
     /// Create a new grant. This is used in board initialization to setup grants
