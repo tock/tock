@@ -65,7 +65,7 @@ impl RegsWrapper {
         }
     }
 
-    fn enable(&self) -> &[ReadWrite<u32>] {
+    fn get_enable_regs(&self) -> &[ReadWrite<u32>] {
         // One bit per interrupt, total number of registers is
         // the number of interrupts divided by 32 rounded up
         &self.registers.enable[0..self.total_ints.div_ceil(32)]
@@ -73,22 +73,22 @@ impl RegsWrapper {
 
     // Unused by the current code
     #[allow(dead_code)]
-    fn pending(&self) -> &[ReadOnly<u32>] {
+    fn get_pending_regs(&self) -> &[ReadOnly<u32>] {
         // One bit per interrupt, total number of registers is
         // the number of interrupts divided by 32 rounded up
         &self.registers.pending[0..self.total_ints.div_ceil(32)]
     }
 
-    fn priority(&self) -> &[ReadWrite<u32, priority::Register>] {
+    fn get_priority_regs(&self) -> &[ReadWrite<u32, priority::Register>] {
         // One 32-bit register per interrupt source
         &self.registers.priority[0..self.total_ints]
     }
 
-    fn threshold(&self) -> &ReadWrite<u32, priority::Register> {
+    fn get_threshold_reg(&self) -> &ReadWrite<u32, priority::Register> {
         &self.registers.threshold
     }
 
-    fn claim(&self) -> &ReadWrite<u32> {
+    fn get_claim_reg(&self) -> &ReadWrite<u32> {
         &self.registers.claim
     }
 }
@@ -123,18 +123,19 @@ impl<const TOTAL_INTS: usize> Plic<TOTAL_INTS> {
     /// Note that this function will only clear the enabled interrupt sources, as only those can be claimed.
     /// [`PLIC specification`]: https://github.com/riscv/riscv-plic-spec/blob/master/riscv-plic.adoc
     pub fn clear_all_pending(&self) {
+        let claim = self.registers.get_claim_reg();
         loop {
-            let id = self.registers.claim().get();
+            let id = claim.get();
             if id == 0 {
                 break;
             }
-            self.registers.claim().set(id);
+            claim.set(id);
         }
     }
 
     /// Enable a list of interrupt IDs. The IDs must be in the range 1..TOTAL_INTS.
     pub fn enable_specific_interrupts(&self, interrupts: &[u32]) {
-        let enable_regs = self.registers.enable();
+        let enable_regs = self.registers.get_enable_regs();
         for interrupt in interrupts {
             let offset = interrupt / 32;
             let irq = interrupt % 32;
@@ -145,14 +146,17 @@ impl<const TOTAL_INTS: usize> Plic<TOTAL_INTS> {
             // at this point.
             // The priority registers indexed 0 for interrupt 1, 1 for interrupt 2, etc.
             // so we subtract 1 from the interrupt number to get the correct index.
-            self.registers.priority()[*interrupt as usize - 1].write(priority::Priority.val(4));
+            self.registers.get_priority_regs()[*interrupt as usize - 1]
+                .write(priority::Priority.val(4));
         }
         // Accept all interrupts.
-        self.registers.threshold().write(priority::Priority.val(0));
+        self.registers
+            .get_threshold_reg()
+            .write(priority::Priority.val(0));
     }
 
     pub fn disable_specific_interrupts(&self, interrupts: &[u32]) {
-        let enable_regs = self.registers.enable();
+        let enable_regs = self.registers.get_enable_regs();
         for interrupt in interrupts {
             let offset = interrupt / 32;
             let irq = interrupt % 32;
@@ -163,8 +167,8 @@ impl<const TOTAL_INTS: usize> Plic<TOTAL_INTS> {
 
     /// Enable all interrupts.
     pub fn enable_all(&self) {
-        let enable_regs = self.registers.enable();
-        let priority_regs = &self.registers.priority();
+        let enable_regs = self.registers.get_enable_regs();
+        let priority_regs = &self.registers.get_priority_regs();
 
         for enable in enable_regs.iter() {
             enable.set(0xFFFF_FFFF);
@@ -177,12 +181,14 @@ impl<const TOTAL_INTS: usize> Plic<TOTAL_INTS> {
         }
 
         // Accept all interrupts.
-        self.registers.threshold().write(priority::Priority.val(0));
+        self.registers
+            .get_threshold_reg()
+            .write(priority::Priority.val(0));
     }
 
     /// Disable all interrupts.
     pub fn disable_all(&self) {
-        let enable_regs = self.registers.enable();
+        let enable_regs = self.registers.get_enable_regs();
 
         for enable in enable_regs.iter() {
             enable.set(0);
@@ -193,7 +199,7 @@ impl<const TOTAL_INTS: usize> Plic<TOTAL_INTS> {
     /// none is pending. RISC-V PLIC has a "claim" register which makes it easy
     /// to grab the highest priority pending interrupt.
     pub fn next_pending(&self) -> Option<u32> {
-        let claim = self.registers.claim().get();
+        let claim = self.registers.get_claim_reg().get();
         if claim == 0 {
             None
         } else {
@@ -235,7 +241,7 @@ impl<const TOTAL_INTS: usize> Plic<TOTAL_INTS> {
     /// called from the normal main loop (not the interrupt handler).
     /// Interrupts must be disabled before this is called.
     pub unsafe fn complete(&self, index: u32) {
-        self.registers.claim().set(index);
+        self.registers.get_claim_reg().set(index);
 
         let offset = usize::from(index >= 32);
         let irq = index % 32;
@@ -251,6 +257,8 @@ impl<const TOTAL_INTS: usize> Plic<TOTAL_INTS> {
     /// some platforms have added more bits to the `mtvec` register.
     pub fn suppress_all(&self) {
         // Accept all interrupts.
-        self.registers.threshold().write(priority::Priority.val(0));
+        self.registers
+            .get_threshold_reg()
+            .write(priority::Priority.val(0));
     }
 }
