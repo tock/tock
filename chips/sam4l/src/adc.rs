@@ -504,7 +504,7 @@ impl Adc<'_> {
                 // and we solve for N
                 // becomes: N <= ceil(log_2(f(CLK_CPU)/1500000)) - 2
                 let cpu_frequency = self.pm.get_system_frequency();
-                let divisor = cpu_frequency.div_ceil(1500000); // ceiling of division
+                let divisor = cpu_frequency.div_ceil(1500000);
                 let divisor_pow2 = math::closest_power_of_two(divisor);
                 let clock_divisor = cmp::min(math::log_base_two(divisor_pow2).saturating_sub(2), 7);
                 self.adc_clk_freq

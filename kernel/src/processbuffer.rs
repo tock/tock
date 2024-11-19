@@ -648,12 +648,13 @@ impl Deref for ReadWriteProcessBufferRef<'_> {
 // type so we alias it as `ReadWriteProcessBuffer`.
 pub type UserspaceReadableProcessBuffer = ReadWriteProcessBuffer;
 
-/// Equivalent of the Rust core library's.
+/// Equivalent of the Rust core library's
+/// [`SliceIndex`](core::slice::SliceIndex) type for process slices.
 ///
-/// [`SliceIndex`](core::slice::SliceIndex) type for process slices. This helper
-/// trait is used to abstract over indexing operators into process slices, and
-/// is used to "overload" the `.get()` methods such that it can be called with
-/// multiple different indexing operators.
+/// This helper trait is used to abstract over indexing operators into
+/// process slices, and is used to "overload" the `.get()` methods
+/// such that it can be called with multiple different indexing
+/// operators.
 ///
 /// While we can use the core library's `SliceIndex` trait, parameterized over
 /// our own `ProcessSlice` types, this trait includes mandatory methods that are
