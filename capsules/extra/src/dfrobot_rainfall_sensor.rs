@@ -171,7 +171,7 @@ impl<'a, A: Alarm<'a>, I: I2CDevice> I2CClient for DFRobotRainFall<'a, A, I> {
                         | (buffer[1] as u32) << 8
                         | (buffer[2] as u32) << 16
                         | (buffer[3] as u32) << 24)
-                        / 10000;
+                        / 10;
 
                     self.state.set(DeviceState::Normal);
                     self.buffer.replace(buffer);

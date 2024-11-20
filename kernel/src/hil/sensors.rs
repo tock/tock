@@ -311,7 +311,7 @@ pub trait RainFallDriver<'a> {
 pub trait RainFallClient {
     /// Called when a moisture reading has completed.
     ///
-    /// - `value`: the number of mm of rain in the time period specified,
+    /// - `value`: the number of um of rain in the time period specified,
     /// or Err on failure.
     ///
     /// This function might return the following errors:
