@@ -18,6 +18,8 @@ use kernel::utilities::StaticRef;
 ///    https://github.com/riscv/riscv-plic-spec/blob/master/riscv-plic.adoc
 ///    is defining maximum of 1023 interrupt sources
 
+// TODO: replace with const generic for `priority` and `_reserved1` field
+// in the [PlicRegisters] when const generic expressions are stable
 const MAX_INTERRUPTS: usize = 1023;
 /// maximum number of bit-coded registers, 1 bit per interrupt
 const MAX_BIT_REGS: usize = MAX_INTERRUPTS.div_ceil(32);
