@@ -19,6 +19,7 @@ use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::storage_permissions;
 use crate::syscall::{self, Syscall, SyscallReturn};
 use crate::upcall::UpcallId;
+use crate::utilities::capability_ptr::CapabilityPtr;
 use tock_tbf::types::CommandPermissions;
 
 // Export all process related types via `kernel::process::`.
@@ -528,7 +529,8 @@ pub trait Process {
     ///
     /// ## Returns
     ///
-    /// On success, return the previous break address.
+    /// On success, return the previous break address with authority that
+    /// has RW permissions from the start of process RAM to the new break.
     ///
     /// On error, return:
     /// - [`Error::InactiveApp`] if the process is not running and adjusting the
@@ -540,7 +542,7 @@ pub trait Process {
     ///   process's memory region.
     /// - [`Error::KernelError`] if there was an internal kernel error. This is
     ///   a bug.
-    fn brk(&self, new_break: *const u8) -> Result<*const u8, Error>;
+    fn brk(&self, new_break: *const u8) -> Result<CapabilityPtr, Error>;
 
     /// Change the location of the program break by `increment` bytes,
     /// reallocate the MPU region covering program memory, and return the
@@ -548,7 +550,8 @@ pub trait Process {
     ///
     /// ## Returns
     ///
-    /// On success, return the previous break address.
+    /// On success, return the previous break address with authority that
+    /// has RW permissions from the start of process RAM to the new break.
     ///
     /// On error, return:
     /// - [`Error::InactiveApp`] if the process is not running and adjusting the
@@ -560,7 +563,7 @@ pub trait Process {
     ///   process's memory region.
     /// - [`Error::KernelError`] if there was an internal kernel error. This is
     ///   a bug.
-    fn sbrk(&self, increment: isize) -> Result<*const u8, Error>;
+    fn sbrk(&self, increment: isize) -> Result<CapabilityPtr, Error>;
 
     /// How many writeable flash regions defined in the TBF header for this
     /// process.
@@ -575,10 +578,10 @@ pub trait Process {
     ///
     /// ## Returns
     ///
-    /// A tuple containing the a `u32` of the offset from the beginning of the
-    /// process's flash region where the writeable region starts and a `u32` of
+    /// A tuple containing the a `usize` of the offset from the beginning of the
+    /// process's flash region where the writeable region starts and a `usize` of
     /// the size of the region in bytes.
-    fn get_writeable_flash_region(&self, region_index: usize) -> (u32, u32);
+    fn get_writeable_flash_region(&self, region_index: usize) -> (usize, usize);
 
     /// Debug function to update the kernel on where the stack starts for this
     /// process. Processes are not required to call this through the memop
@@ -791,7 +794,9 @@ pub trait Process {
     ///
     /// Returns `true` if the upcall function pointer is valid for this process,
     /// and `false` otherwise.
-    fn is_valid_upcall_function_pointer(&self, upcall_fn: NonNull<()>) -> bool;
+    // `upcall_fn` can eventually be a better type:
+    // <https://github.com/tock/tock/issues/4134>
+    fn is_valid_upcall_function_pointer(&self, upcall_fn: *const ()) -> bool;
 
     // functions for processes that are architecture specific
 
@@ -1078,10 +1083,10 @@ pub struct FunctionCall {
     pub argument1: usize,
     /// The third argument to the function.
     pub argument2: usize,
-    /// The fourth argument to the function.
-    pub argument3: usize,
+    /// The userdata provided by the process via `subscribe`
+    pub argument3: CapabilityPtr,
     /// The PC of the function to execute.
-    pub pc: usize,
+    pub pc: CapabilityPtr,
 }
 
 /// This is similar to `FunctionCall` but for the special case of the Null

@@ -6,6 +6,7 @@
 
 pub mod arch_helpers;
 pub mod binary_write;
+pub mod capability_ptr;
 pub mod copy_slice;
 pub mod helpers;
 pub mod leasable_buffer;
@@ -17,7 +18,6 @@ pub mod storage_volume;
 pub mod streaming_process_slice;
 
 mod static_ref;
-
 pub use self::static_ref::StaticRef;
 
 /// The Tock Register Interface.

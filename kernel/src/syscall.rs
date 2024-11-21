@@ -70,6 +70,7 @@ use core::fmt::Write;
 
 use crate::errorcode::ErrorCode;
 use crate::process;
+use crate::utilities::capability_ptr::CapabilityPtr;
 
 pub use crate::syscall_driver::{CommandReturn, SyscallDriver};
 
@@ -155,9 +156,9 @@ pub enum Syscall {
         /// The subscribe identifier.
         subdriver_number: usize,
         /// Upcall pointer to the upcall function.
-        upcall_ptr: *mut (),
+        upcall_ptr: CapabilityPtr,
         /// Userspace application data.
-        appdata: usize,
+        appdata: CapabilityPtr,
     },
 
     /// Structure representing an invocation of the Command system call class.
@@ -240,53 +241,53 @@ impl Syscall {
     pub fn from_register_arguments(
         syscall_number: u8,
         r0: usize,
-        r1: usize,
-        r2: usize,
-        r3: usize,
+        r1: CapabilityPtr,
+        r2: CapabilityPtr,
+        r3: CapabilityPtr,
     ) -> Option<Syscall> {
         match SyscallClass::try_from(syscall_number) {
             Ok(SyscallClass::Yield) => Some(Syscall::Yield {
                 which: r0,
-                param_a: r1,
-                param_b: r2,
+                param_a: r1.into(),
+                param_b: r2.into(),
             }),
             Ok(SyscallClass::Subscribe) => Some(Syscall::Subscribe {
                 driver_number: r0,
-                subdriver_number: r1,
-                upcall_ptr: r2 as *mut (),
+                subdriver_number: r1.into(),
+                upcall_ptr: r2,
                 appdata: r3,
             }),
             Ok(SyscallClass::Command) => Some(Syscall::Command {
                 driver_number: r0,
-                subdriver_number: r1,
-                arg0: r2,
-                arg1: r3,
+                subdriver_number: r1.into(),
+                arg0: r2.into(),
+                arg1: r3.into(),
             }),
             Ok(SyscallClass::ReadWriteAllow) => Some(Syscall::ReadWriteAllow {
                 driver_number: r0,
-                subdriver_number: r1,
-                allow_address: r2 as *mut u8,
-                allow_size: r3,
+                subdriver_number: r1.into(),
+                allow_address: r2.as_ptr::<u8>().cast_mut(),
+                allow_size: r3.into(),
             }),
             Ok(SyscallClass::UserspaceReadableAllow) => Some(Syscall::UserspaceReadableAllow {
                 driver_number: r0,
-                subdriver_number: r1,
-                allow_address: r2 as *mut u8,
-                allow_size: r3,
+                subdriver_number: r1.into(),
+                allow_address: r2.as_ptr::<u8>().cast_mut(),
+                allow_size: r3.into(),
             }),
             Ok(SyscallClass::ReadOnlyAllow) => Some(Syscall::ReadOnlyAllow {
                 driver_number: r0,
-                subdriver_number: r1,
-                allow_address: r2 as *const u8,
-                allow_size: r3,
+                subdriver_number: r1.into(),
+                allow_address: r2.as_ptr::<u8>().cast_mut(),
+                allow_size: r3.into(),
             }),
             Ok(SyscallClass::Memop) => Some(Syscall::Memop {
                 operand: r0,
-                arg0: r1,
+                arg0: r1.into(),
             }),
             Ok(SyscallClass::Exit) => Some(Syscall::Exit {
                 which: r0,
-                completion_code: r1,
+                completion_code: r1.into(),
             }),
             Err(_) => None,
         }
@@ -374,8 +375,9 @@ impl Syscall {
 ///
 /// This struct operates over primitive types such as integers of fixed length
 /// and pointers. It is constructed by the scheduler and passed down to the
-/// architecture to be encoded into registers, using the provided
-/// [`encode_syscall_return`](SyscallReturn::encode_syscall_return) method.
+/// architecture to be encoded into registers. Architectures may use the various
+/// helper functions defined in
+/// [`utilities::arch_helpers`](crate::utilities::arch_helpers).
 ///
 /// Capsules do not use this struct. Capsules use higher level Rust types (e.g.
 /// [`ReadWriteProcessBuffer`](crate::processbuffer::ReadWriteProcessBuffer) and
@@ -405,6 +407,15 @@ pub enum SyscallReturn {
     /// Generic success case, with an additional 32-bit and 64-bit data field
     SuccessU32U64(u32, u64),
 
+    /// Generic success case with an additional address-sized value
+    /// that does not impute access permissions to the process.
+    SuccessAddr(usize),
+
+    /// Generic success case, with an additional pointer.
+    /// This pointer is provenance bearing and implies access
+    /// permission to the process.
+    SuccessPtr(CapabilityPtr),
+
     // These following types are used by the scheduler so that it can return
     // values to userspace in an architecture (pointer-width) independent way.
     // The kernel passes these types (rather than ProcessBuffer or Upcall) for
@@ -414,6 +425,15 @@ pub enum SyscallReturn {
     // (pointers out of valid memory), the kernel cannot construct an
     // ProcessBuffer or Upcall type but needs to be able to return a failure.
     // -pal 11/24/20
+
+    // FIXME: We need to think about what these look like on CHERI
+    // Really, things that were capabilities should come back as capabilities.
+    // However, we discarded all capability information at the syscall boundary.
+    // We could always use our own DDC, with just the permissions and length implied by the
+    // specific syscall. This would certainly got give userspace _extra_ authority,
+    // but might rob them of some bounds / permissions. This is what is implemented currently.
+    // Preferable behavior is not to discard the capability so early (it should make it as far
+    // as grant is stored in grant allow slots)
     /// Read/Write allow success case, returns the previous allowed buffer and
     /// size to the process.
     AllowReadWriteSuccess(*mut u8, usize),
@@ -471,6 +491,8 @@ impl SyscallReturn {
             SyscallReturn::SuccessU32U32U32(_, _, _) => true,
             SyscallReturn::SuccessU64(_) => true,
             SyscallReturn::SuccessU32U64(_, _) => true,
+            SyscallReturn::SuccessAddr(_) => true,
+            SyscallReturn::SuccessPtr(_) => true,
             SyscallReturn::AllowReadWriteSuccess(_, _) => true,
             SyscallReturn::UserspaceReadableAllowSuccess(_, _) => true,
             SyscallReturn::AllowReadOnlySuccess(_, _) => true,
