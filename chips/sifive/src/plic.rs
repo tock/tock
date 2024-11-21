@@ -23,7 +23,9 @@ use kernel::utilities::StaticRef;
 const MAX_INTERRUPTS: usize = 1023;
 /// maximum number of bit-coded registers, 1 bit per interrupt
 const MAX_BIT_REGS: usize = MAX_INTERRUPTS.div_ceil(32);
+
 /// PLIC registers for *machine mode* context only at this time.
+///
 /// The spec defines extra sets of registers for additional contexts,
 /// that is supervisor, user and other modes, but these aren't supported
 /// by the current code.
@@ -101,9 +103,11 @@ register_bitfields![u32,
     ]
 ];
 
-/// A PLIC instance should take a generic parameter indicating the total of interrupt sources
-/// implemented on the specific chip. 51 is a default for backwards compatibility with the SiFive
-/// based platforms implemented without the generic parameter.
+/// The PLIC instance generic parameter indicates the total number of
+/// interrupt sources implemented on the specific chip.
+///
+/// 51 is a default for backwards compatibility with the SiFive based
+/// platforms implemented without the generic parameter.
 pub struct Plic<const TOTAL_INTS: usize = 51> {
     registers: RegsWrapper,
     saved: [VolatileCell<LocalRegisterCopy<u32>>; 2],
