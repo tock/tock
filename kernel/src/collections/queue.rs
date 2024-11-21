@@ -16,30 +16,33 @@ pub trait Queue<T> {
 
     /// If the queue isn't full, add a new element to the back of the queue.
     /// Returns whether the element was added.
-    #[flux_rs::trusted_impl]
+    #[flux_rs::trusted_impl] // Unexpected Evar
+    // #[flux_rs::sig(fn(self: &strg Self, _) -> bool ensures self: Self)]
     fn enqueue(&mut self, val: T) -> bool;
 
     /// Add a new element to the back of the queue, poping one from the front if necessary.
-    #[flux_rs::trusted_impl]
+    #[flux_rs::trusted_impl] // Unexpected Evar
+    // #[flux_rs::sig(fn(self: &strg Self, _) -> Option<T> ensures self: Self)]
     fn push(&mut self, val: T) -> Option<T>;
 
     /// Remove the element from the front of the queue.
-    #[flux_rs::trusted_impl]
+    #[flux_rs::trusted_impl] // Unexpected Evar
+    // #[flux_rs::sig(fn(self: &strg Self) -> Option<T> ensures self: Self)]
     fn dequeue(&mut self) -> Option<T>;
 
     /// Remove and return one (the first) element that matches the predicate.
-    #[flux_rs::trusted_impl]
+    #[flux_rs::trusted_impl] // Unexpected evar
+    // #[flux_rs::sig(fn(self: &strg Self, _) -> Option<T> ensures self: Self)]
     fn remove_first_matching<F>(&mut self, f: F) -> Option<T>
     where
         F: Fn(&T) -> bool;
 
     /// Remove all elements from the ring buffer.
-    #[flux_rs::trusted_impl]
-    // #[flux_rs::sig(fn(self: &strg Self) ensures self: Self)]
+    #[flux_rs::sig(fn(self: &strg Self) ensures self: Self)]
     fn empty(&mut self);
 
     /// Retains only the elements that satisfy the predicate.
-    #[flux_rs::trusted_impl]
+    #[flux_rs::sig(fn(self: &strg Self, _) ensures self: Self)]
     fn retain<F>(&mut self, f: F)
     where
         F: FnMut(&T) -> bool;

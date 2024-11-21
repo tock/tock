@@ -324,7 +324,7 @@ pub unsafe fn set_debug_queue(buffer: &'static mut DebugQueueWrapper) {
     DEBUG_QUEUE = Some(buffer);
 }
 
-#[flux_rs::trusted] // incompatible types
+#[flux_rs::trusted] // unexpected Evar
 impl Write for DebugQueueWrapper {
     fn write_str(&mut self, s: &str) -> Result {
         self.dw.map(|dw| {
@@ -455,7 +455,7 @@ impl DebugWriter {
 
     /// Write as many of the bytes from the internal_buffer to the output
     /// mechanism as possible, returning the number written.
-    #[flux_rs::trusted] // incompatible types
+    #[flux_rs::trusted] // unexpected Evar
     fn publish_bytes(&self) -> usize {
         // Can only publish if we have the output_buffer. If we don't that is
         // fine, we will do it when the transmit done callback happens.

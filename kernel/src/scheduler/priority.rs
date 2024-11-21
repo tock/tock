@@ -38,7 +38,6 @@ impl PrioritySched {
 }
 
 impl<C: Chip> Scheduler<C> for PrioritySched {
-    #[flux_rs::trusted] // ICE: cannot infer subtitution (filter_map)
     fn next(&self) -> SchedulingDecision {
         // Iterates in-order through the process array, always running the
         // first process it finds that is ready to run. This enforces the
@@ -55,7 +54,6 @@ impl<C: Chip> Scheduler<C> for PrioritySched {
         })
     }
 
-    #[flux_rs::trusted] // ICE: `to_sort_list` called on bound variable list with non-refinements
     unsafe fn continue_process(&self, _: ProcessId, chip: &C) -> bool {
         // In addition to checking for interrupts, also checks if any higher
         // priority processes have become ready. This check is necessary because

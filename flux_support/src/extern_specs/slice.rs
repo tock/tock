@@ -1,5 +1,5 @@
 #![allow(unused)]
-use core::slice::{Iter, SliceIndex}; // TODO: not allowed to use std
+use core::slice::{Iter, SliceIndex};
 
 // #[flux_rs::extern_spec]
 // #[generics(Self as base, T as base)]
