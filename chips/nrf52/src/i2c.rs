@@ -44,7 +44,7 @@ pub enum Speed {
     K400 = 0x06400000,
 }
 
-impl<'a> TWI<'a> {
+impl TWI<'_> {
     const fn new(registers: StaticRef<TwiRegisters>) -> Self {
         Self {
             registers,

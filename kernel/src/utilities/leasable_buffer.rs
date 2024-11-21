@@ -271,7 +271,7 @@ impl<'a, T> SubSliceMutImmut<'a, T> {
     }
 }
 
-impl<'a, T, I> Index<I> for SubSliceMutImmut<'a, T>
+impl<T, I> Index<I> for SubSliceMutImmut<'_, T>
 where
     I: SliceIndex<[T]>,
 {
@@ -391,7 +391,7 @@ impl<'a, T> SubSliceMut<'a, T> {
     }
 }
 
-impl<'a, T, I> Index<I> for SubSliceMut<'a, T>
+impl<T, I> Index<I> for SubSliceMut<'_, T>
 where
     I: SliceIndex<[T]>,
 {
@@ -402,7 +402,7 @@ where
     }
 }
 
-impl<'a, T, I> IndexMut<I> for SubSliceMut<'a, T>
+impl<T, I> IndexMut<I> for SubSliceMut<'_, T>
 where
     I: SliceIndex<[T]>,
 {
@@ -511,7 +511,7 @@ impl<'a, T> SubSlice<'a, T> {
     }
 }
 
-impl<'a, T, I> Index<I> for SubSlice<'a, T>
+impl<T, I> Index<I> for SubSlice<'_, T>
 where
     I: SliceIndex<[T]>,
 {

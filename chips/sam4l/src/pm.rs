@@ -457,11 +457,13 @@ pub enum PBDClock {
     PICOUART,
 }
 
-/// Frequency of the external oscillator. For the SAM4L, different
-/// configurations are needed for different ranges of oscillator frequency, so
-/// based on the input frequency, various configurations may need to change.
-/// When additional oscillator frequencies are needed, they should be added
-/// here and the `setup_system_clock` function should be modified to support
+/// Frequency of the external oscillator.
+///
+/// For the SAM4L, different configurations are needed for different
+/// ranges of oscillator frequency, so based on the input frequency,
+/// various configurations may need to change.  When additional
+/// oscillator frequencies are needed, they should be added here and
+/// the `setup_system_clock` function should be modified to support
 /// it.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum OscillatorFrequency {
@@ -476,11 +478,13 @@ pub enum RcfastFrequency {
     Frequency12MHz,
 }
 
-/// Configuration for the startup time of the external oscillator. In practice
-/// we have found that some boards work with a short startup time, while others
-/// need a slow start in order to properly wake from sleep. In general, we find
-/// that for systems that do not work, at fast speed, they will hang or panic
-/// after several entries into WAIT mode.
+/// Configuration for the startup time of the external oscillator.
+///
+/// In practice we have found that some boards work with a short
+/// startup time, while others need a slow start in order to properly
+/// wake from sleep. In general, we find that for systems that do not
+/// work, at fast speed, they will hang or panic after several entries
+/// into WAIT mode.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum OscillatorStartup {
     /// Use a fast startup. ~0.5 ms in practice.
@@ -490,10 +494,12 @@ pub enum OscillatorStartup {
     SlowStart,
 }
 
-/// Which source the system clock should be generated from. These are specified
-/// as system clock source appended with the clock that it is sourced from
-/// appended with the final frequency of the system. So for example, one option
-/// is to use the DFLL sourced from the RC32K with a final frequency of 48 MHz.
+/// Which source the system clock should be generated from.
+///
+/// These are specified as system clock source appended with the clock
+/// that it is sourced from appended with the final frequency of the
+/// system. So for example, one option is to use the DFLL sourced from
+/// the RC32K with a final frequency of 48 MHz.
 ///
 /// When new options (either sources or final frequencies) are needed, they
 /// should be added to this list, and then the `setup_system_clock` function

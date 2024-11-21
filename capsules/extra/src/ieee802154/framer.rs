@@ -3,6 +3,7 @@
 // Copyright Tock Contributors 2022.
 
 //! Implements IEEE 802.15.4 MAC device abstraction over a 802.15.4 MAC interface.
+//!
 //! Allows its users to prepare and send frames in plaintext, handling 802.15.4
 //! encoding and security procedures (in the future) transparently.
 //!
@@ -92,9 +93,10 @@ use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
 
-/// A `Frame` wraps a static mutable byte slice and keeps just enough
-/// information about its header contents to expose a restricted interface for
-/// modifying its payload. This enables the user to abdicate any concerns about
+/// Wraps a static mutable byte slice along with header information
+/// for a payload.
+///
+/// This enables the user to abdicate any concerns about
 /// where the payload should be placed in the buffer.
 #[derive(Eq, PartialEq, Debug)]
 pub struct Frame {
@@ -206,7 +208,7 @@ impl FrameInfo {
         // IEEE 802.15.4-2015: Table 9-3. a data and m data
         let encryption_needed = self
             .security_params
-            .map_or(false, |(level, _, _)| level.encryption_needed());
+            .is_some_and(|(level, _, _)| level.encryption_needed());
         if !encryption_needed {
             // If only integrity is need, a data is the whole frame
             (self.unsecured_length(), 0)
@@ -250,6 +252,7 @@ pub fn get_ccm_nonce(device_addr: &[u8; 8], frame_counter: u32, level: SecurityL
 pub const CRYPT_BUF_SIZE: usize = radio::MAX_MTU + 3 * 16;
 
 /// IEEE 802.15.4-2015, 9.2.2, KeyDescriptor lookup procedure.
+///
 /// Trait to be implemented by an upper layer that manages the list of 802.15.4
 /// key descriptors. This trait interface enables the lookup procedure to be
 /// implemented either explicitly (managing a list of KeyDescriptors) or
@@ -261,6 +264,7 @@ pub trait KeyProcedure {
 }
 
 /// IEEE 802.15.4-2015, 9.2.5, DeviceDescriptor lookup procedure.
+///
 /// Trait to be implemented by an upper layer that manages the list of 802.15.4
 /// device descriptors. This trait interface enables the lookup procedure to be
 /// implemented either explicitly (managing a list of DeviceDescriptors) or
@@ -313,11 +317,12 @@ enum RxState {
     ReadyToYield(FrameInfo, &'static mut [u8], u8),
 }
 
-/// This struct wraps an IEEE 802.15.4 radio device `kernel::hil::radio::Radio`
-/// and exposes IEEE 802.15.4 MAC device functionality as the trait
-/// `capsules::mac::Mac`. It hides header preparation, transmission and
-/// processing logic from the user by essentially maintaining multiple state
-/// machines corresponding to the transmission, reception and
+/// Wraps an IEEE 802.15.4 [kernel::hil::radio::Radio]
+/// and exposes [capsules::mac::Mac] functionality.
+///
+/// It hides header preparation, transmission and processing logic
+/// from the user by essentially maintaining multiple state machines
+/// corresponding to the transmission, reception and
 /// encryption/decryption pipelines. See the documentation in
 /// `capsules/src/mac.rs` for more details.
 pub struct Framer<'a, M: Mac<'a>, A: AES128CCM<'a>> {

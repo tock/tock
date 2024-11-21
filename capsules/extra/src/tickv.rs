@@ -235,8 +235,8 @@ impl<'a, F: Flash> TickFSFlashCtrl<'a, F> {
     }
 }
 
-impl<'a, F: Flash, const PAGE_SIZE: usize> tickv::flash_controller::FlashController<PAGE_SIZE>
-    for TickFSFlashCtrl<'a, F>
+impl<F: Flash, const PAGE_SIZE: usize> tickv::flash_controller::FlashController<PAGE_SIZE>
+    for TickFSFlashCtrl<'_, F>
 {
     fn read_region(
         &self,

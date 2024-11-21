@@ -54,8 +54,10 @@ impl Region {
 }
 
 /// Null type for the default type of the `MpuConfig` type in an implementation
-/// of the `MPU` trait. This custom type allows us to implement `Display` with
-/// an empty implementation to meet the constraint on `type MpuConfig`.
+/// of the `MPU` trait.
+///
+/// This custom type allows us to implement `Display` with an empty
+/// implementation to meet the constraint on `type MpuConfig`.
 pub struct MpuConfigDefault;
 
 impl Display for MpuConfigDefault {

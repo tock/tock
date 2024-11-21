@@ -2,12 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! Test entropy and random number generators. Usually, to test the
-//! full library, these generators should be through two layers of
-//! translation for entropy then converted to randomness. For example,
-//! if your platform provides an Entropy32, then test Entropy32 ->
-//! Entropy32to8 -> Entropy8to32 -> Entropy32ToRandom. Then simply ask
-//! for ELEMENTS random numbers and print them in hex to console.
+//! Test entropy and random number generators.
+//!
+//! Usually, to test the full library, these generators should be
+//! through two layers of translation for entropy then converted to
+//! randomness. For example, if your platform provides an Entropy32,
+//! then test Entropy32 -> Entropy32to8 -> Entropy8to32 ->
+//! Entropy32ToRandom. Then simply ask for ELEMENTS random numbers and
+//! print them in hex to console.
 
 use core::cell::Cell;
 
@@ -60,7 +62,7 @@ impl<'a> TestRng<'a> {
     }
 }
 
-impl<'a> rng::Client for TestRng<'a> {
+impl rng::Client for TestRng<'_> {
     fn randomness_available(
         &self,
         randomness: &mut dyn Iterator<Item = u32>,
@@ -123,7 +125,7 @@ impl<'a> TestEntropy32<'a> {
     }
 }
 
-impl<'a> entropy::Client32 for TestEntropy32<'a> {
+impl entropy::Client32 for TestEntropy32<'_> {
     fn entropy_available(
         &self,
         entropy: &mut dyn Iterator<Item = u32>,
@@ -186,7 +188,7 @@ impl<'a> TestEntropy8<'a> {
     }
 }
 
-impl<'a> entropy::Client8 for TestEntropy8<'a> {
+impl entropy::Client8 for TestEntropy8<'_> {
     fn entropy_available(
         &self,
         entropy: &mut dyn Iterator<Item = u8>,

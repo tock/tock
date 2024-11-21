@@ -117,7 +117,7 @@ impl<'a> Uart<'a> {
     }
 }
 
-impl<'a> dma::DmaClient for Uart<'a> {
+impl dma::DmaClient for Uart<'_> {
     fn transfer_done(
         &self,
         tx_buf: Option<&'static mut [u8]>,
@@ -139,7 +139,7 @@ impl<'a> dma::DmaClient for Uart<'a> {
     }
 }
 
-impl<'a> hil::uart::Configure for Uart<'a> {
+impl hil::uart::Configure for Uart<'_> {
     fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
         // Disable module
         let regs = self.registers;

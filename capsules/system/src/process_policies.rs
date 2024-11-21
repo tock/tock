@@ -68,9 +68,10 @@ impl ProcessFaultPolicy for RestartWithDebugFaultPolicy {
 }
 
 /// Implementation of `ProcessFaultPolicy` that uses a threshold to decide
-/// whether to restart a process when it faults. If the process has been
-/// restarted more times than the threshold then the process will be stopped
-/// and no longer scheduled.
+/// whether to restart a process when it faults.
+///
+/// If the process has been restarted more times than the threshold
+/// then the process will be stopped and no longer scheduled.
 pub struct ThresholdRestartFaultPolicy {
     threshold: usize,
 }
@@ -92,8 +93,10 @@ impl ProcessFaultPolicy for ThresholdRestartFaultPolicy {
 }
 
 /// Implementation of `ProcessFaultPolicy` that uses a threshold to decide
-/// whether to restart a process when it faults. If the process has been
-/// restarted more times than the threshold then the board will panic.
+/// whether to restart a process when it faults.
+///
+/// If the process has been restarted more times than the threshold
+/// then the board will panic.
 pub struct ThresholdRestartThenPanicFaultPolicy {
     threshold: usize,
 }

@@ -100,7 +100,7 @@ pub struct STimer<'a> {
     client: OptionalCell<&'a dyn AlarmClient>,
 }
 
-impl<'a> STimer<'_> {
+impl<'a> STimer<'a> {
     // Unsafe bc of use of STIMER_BASE internally
     pub const fn new() -> STimer<'a> {
         STimer {

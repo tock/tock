@@ -264,9 +264,8 @@ pub struct CortexMRegion {
 
 impl PartialEq<mpu::Region> for CortexMRegion {
     fn eq(&self, other: &mpu::Region) -> bool {
-        self.location.map_or(false, |(addr, size)| {
-            addr == other.start_address() && size == other.size()
-        })
+        self.location
+            .is_some_and(|(addr, size)| addr == other.start_address() && size == other.size())
     }
 }
 
@@ -738,7 +737,7 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
 
         // Determine the number of subregions to enable.
         // Want `round_up(app_memory_size / subregion_size)`.
-        let num_enabled_subregions = (app_memory_size + subregion_size - 1) / subregion_size;
+        let num_enabled_subregions = app_memory_size.div_ceil(subregion_size);
 
         let subregions_enabled_end = region_start + subregion_size * num_enabled_subregions;
 

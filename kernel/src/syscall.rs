@@ -527,9 +527,11 @@ pub enum ContextSwitchReason {
     Interrupted,
 }
 
-/// The [`UserspaceKernelBoundary`] trait is implemented by the architectural
-/// component of the chip implementation of Tock. This trait allows the kernel
-/// to switch to and from processes in an architecture-independent manner.
+/// The [`UserspaceKernelBoundary`] trait is implemented by the
+/// architectural component of the chip implementation of Tock.
+///
+/// This trait allows the kernel to switch to and from processes in an
+/// architecture-independent manner.
 ///
 /// Exactly how upcalls and return values are passed between kernelspace and
 /// userspace is architecture specific. The architecture may use process memory

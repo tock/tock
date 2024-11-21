@@ -39,7 +39,7 @@ struct InputBuffer<'a, const PIXEL_BITS: usize> {
     frame: &'a WriteFrame,
 }
 
-impl<'a, const PIXEL_BITS: usize> InputBuffer<'a, PIXEL_BITS> {
+impl<const PIXEL_BITS: usize> InputBuffer<'_, PIXEL_BITS> {
     fn rows(&self) -> impl Iterator<Item = Row> {
         let chunk_width = if PIXEL_BITS < 8 {
             self.frame.width as usize / (8 / PIXEL_BITS)
@@ -55,7 +55,7 @@ struct Pixel<'a> {
     top: bool,
 }
 
-impl<'a> Pixel<'a> {
+impl Pixel<'_> {
     fn get(&self) -> u8 {
         if self.top {
             (*self.data >> 4) & 0xf
@@ -70,7 +70,7 @@ struct PixelMut<'a> {
     top: bool,
 }
 
-impl<'a> PixelMut<'a> {
+impl PixelMut<'_> {
     fn transform<F>(&self, f: F)
     where
         F: FnOnce(&mut u8),
@@ -107,7 +107,7 @@ struct RowMut<'a> {
     data: &'a [Cell<u8>],
 }
 
-impl<'a> RowMut<'a> {
+impl RowMut<'_> {
     fn iter_mut(&self) -> impl Iterator<Item = PixelMut> {
         self.data
             .iter()

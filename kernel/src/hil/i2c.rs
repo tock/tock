@@ -325,7 +325,7 @@ impl<'a> I2CMaster<'a> for NoSMBus {
     }
 }
 
-impl<'a> SMBusMaster<'a> for NoSMBus {
+impl SMBusMaster<'_> for NoSMBus {
     fn smbus_write_read(
         &self,
         _addr: u8,

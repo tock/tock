@@ -330,7 +330,7 @@ impl<'a> UDPDriver<'a> {
     }
 }
 
-impl<'a> SyscallDriver for UDPDriver<'a> {
+impl SyscallDriver for UDPDriver<'_> {
     /// UDP control
     ///
     /// ### `command_num`
@@ -553,7 +553,7 @@ impl<'a> SyscallDriver for UDPDriver<'a> {
     }
 }
 
-impl<'a> UDPSendClient for UDPDriver<'a> {
+impl UDPSendClient for UDPDriver<'_> {
     fn send_done(&self, result: Result<(), ErrorCode>, mut dgram: SubSliceMut<'static, u8>) {
         // Replace the returned kernel buffer. Now we can send the next msg.
         dgram.reset();
@@ -573,7 +573,7 @@ impl<'a> UDPSendClient for UDPDriver<'a> {
     }
 }
 
-impl<'a> UDPRecvClient for UDPDriver<'a> {
+impl UDPRecvClient for UDPDriver<'_> {
     fn receive(
         &self,
         src_addr: IPAddr,
@@ -636,7 +636,7 @@ impl<'a> UDPRecvClient for UDPDriver<'a> {
     }
 }
 
-impl<'a> PortQuery for UDPDriver<'a> {
+impl PortQuery for UDPDriver<'_> {
     // Returns true if |port| is bound (on any iface), false otherwise.
     fn is_bound(&self, port: u16) -> bool {
         let mut port_bound = false;

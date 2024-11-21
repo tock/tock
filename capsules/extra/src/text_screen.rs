@@ -244,7 +244,7 @@ impl<'a> TextScreen<'a> {
     }
 }
 
-impl<'a> SyscallDriver for TextScreen<'a> {
+impl SyscallDriver for TextScreen<'_> {
     fn command(
         &self,
         command_num: usize,
@@ -287,7 +287,7 @@ impl<'a> SyscallDriver for TextScreen<'a> {
     }
 }
 
-impl<'a> hil::text_screen::TextScreenClient for TextScreen<'a> {
+impl hil::text_screen::TextScreenClient for TextScreen<'_> {
     fn command_complete(&self, r: Result<(), ErrorCode>) {
         self.schedule_callback(kernel::errorcode::into_statuscode(r), 0, 0);
         self.run_next_command();

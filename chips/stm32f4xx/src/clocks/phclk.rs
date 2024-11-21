@@ -120,7 +120,7 @@ impl<'a> PeripheralClock<'a> {
     }
 }
 
-impl<'a> ClockInterface for PeripheralClock<'a> {
+impl ClockInterface for PeripheralClock<'_> {
     fn is_enabled(&self) -> bool {
         let rcc = self.clocks.get_rcc();
         match self.clock {

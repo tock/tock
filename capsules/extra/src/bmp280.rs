@@ -143,7 +143,7 @@ struct I2cWrapper<'a, I: i2c::I2CDevice> {
     i2c: &'a I,
 }
 
-impl<'a, I: i2c::I2CDevice> I2cWrapper<'a, I> {
+impl<I: i2c::I2CDevice> I2cWrapper<'_, I> {
     fn write<const COUNT: usize>(
         &self,
         buffer: &'static mut [u8],

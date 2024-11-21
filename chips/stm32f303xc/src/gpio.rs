@@ -689,7 +689,7 @@ pub struct Port<'a> {
     clock: PortClock<'a>,
 }
 
-impl<'a> Port<'a> {
+impl Port<'_> {
     pub fn is_enabled_clock(&self) -> bool {
         self.clock.is_enabled()
     }

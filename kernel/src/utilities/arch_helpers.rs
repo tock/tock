@@ -45,10 +45,11 @@ pub enum TRD104SyscallReturnVariant {
     SuccessU32U64 = 133,
 }
 
-/// System call return variants defined as defined in TRD104. These are a strict
-/// subset of the variants defined in the core kernel's [`SyscallReturn`]
-/// enum. For documentation on the individual variants, refer to this type
-/// instead.
+/// System call return variants defined as defined in TRD104.
+///
+/// These are a strict subset of the variants defined in the core
+/// kernel's [`SyscallReturn`] enum. For documentation on the
+/// individual variants, refer to this type instead.
 #[derive(Copy, Clone, Debug)]
 pub enum TRD104SyscallReturn {
     Failure(ErrorCode),

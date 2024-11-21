@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! SyscallDriver for the AMS CCS811 an ultra-low power digital gas sensor
-//! solution which integrates a metal oxide (MOX) gas sensor to detect a wide
+//! SyscallDriver for the AMS CCS811.
+//!
+//! The AMS CCS811 is an ultra-low power digital gas sensor solution
+//! which integrates a metal oxide (MOX) gas sensor to detect a wide
 //! range of Volatile Organic Compounds (VOCs) for indoor air quality
 //! monitoring using the I2C bus.
 //!
@@ -181,7 +183,7 @@ impl<'a> AirQualityDriver<'a> for Ccs811<'a> {
     }
 }
 
-impl<'a> I2CClient for Ccs811<'a> {
+impl I2CClient for Ccs811<'_> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         if status.is_err() {
             match self.op.get() {
@@ -295,7 +297,7 @@ impl<'a> I2CClient for Ccs811<'a> {
     }
 }
 
-impl<'a> DeferredCallClient for Ccs811<'a> {
+impl DeferredCallClient for Ccs811<'_> {
     fn handle_deferred_call(&self) {
         if self.deferred_count.get() > 1000 {
             match self.state.get() {

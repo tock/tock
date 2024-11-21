@@ -31,9 +31,11 @@ pub static mut SYSCALL_FIRED: usize = 0;
 #[used]
 pub static mut APP_HARD_FAULT: usize = 0;
 
-/// This is used in the hardfault handler. When an app faults, the hardfault
-/// handler stores the value of the SCB registers in this static array. This
-/// makes them available to be displayed in a diagnostic fault message.
+/// This is used in the hardfault handler.
+///
+/// When an app faults, the hardfault handler stores the value of the
+/// SCB registers in this static array. This makes them available to
+/// be displayed in a diagnostic fault message.
 #[no_mangle]
 #[used]
 pub static mut SCB_REGISTERS: [u32; 5] = [0; 5];

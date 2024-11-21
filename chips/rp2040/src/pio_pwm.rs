@@ -26,7 +26,7 @@ impl<'a> PioPwm<'a> {
     }
 }
 
-impl<'a> hil::pwm::Pwm for PioPwm<'a> {
+impl hil::pwm::Pwm for PioPwm<'_> {
     type Pin = RPGpio;
 
     fn start(

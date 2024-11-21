@@ -99,10 +99,12 @@ impl<T: ClientData<L> + ClientHash<L>, const L: usize> ClientDataHash<L> for T {
 pub trait ClientDataVerify<const L: usize>: ClientData<L> + ClientVerify<L> {}
 impl<T: ClientData<L> + ClientVerify<L>, const L: usize> ClientDataVerify<L> for T {}
 
-/// Adding data (mutable or immutable) to a digest. There are two
-/// separate methods, `add_data` for immutable data (e.g., flash) and
-/// `add_mut_data` for mutable data (e.g., RAM). Each has its own
-/// callback, but only one operation may be in flight at any time.
+/// Adding data (mutable or immutable) to a digest.
+///
+/// There are two separate methods, `add_data` for immutable data
+/// (e.g., flash) and `add_mut_data` for mutable data (e.g.,
+/// RAM). Each has its own callback, but only one operation may be in
+/// flight at any time.
 ///
 /// 'L' is the length of the 'u8' array to store the digest output.
 pub trait DigestData<'a, const L: usize> {

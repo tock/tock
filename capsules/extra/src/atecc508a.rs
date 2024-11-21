@@ -557,7 +557,7 @@ impl<'a> Atecc508a<'a> {
     }
 }
 
-impl<'a> I2CClient for Atecc508a<'a> {
+impl I2CClient for Atecc508a<'_> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         match self.op.get() {
             Operation::Ready => unreachable!(),

@@ -520,7 +520,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> uart::Receive<'a> for LiteXUart<'a, R
     }
 }
 
-impl<'a, R: LiteXSoCRegisterConfiguration> DeferredCallClient for LiteXUart<'a, R> {
+impl<R: LiteXSoCRegisterConfiguration> DeferredCallClient for LiteXUart<'_, R> {
     fn register(&'static self) {
         self.deferred_call.register(self)
     }

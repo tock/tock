@@ -289,6 +289,7 @@ pub const FLASH_PROG_WINDOW_MASK: u32 = 0xFFFFFFF0;
 pub struct LowRiscPage(pub [u8; PAGE_SIZE]);
 
 /// Defines region permissions for flash memory protection.
+///
 /// To be used when requesting the flash controller to set
 /// specific permissions for a regions, or when reading
 /// the existing permission associated with a region.
@@ -365,7 +366,7 @@ pub struct FlashCtrl<'a> {
     region_num: FlashRegion,
 }
 
-impl<'a> FlashCtrl<'a> {
+impl FlashCtrl<'_> {
     pub fn new(base: StaticRef<FlashCtrlRegisters>, region_num: FlashRegion) -> Self {
         FlashCtrl {
             registers: base,

@@ -564,7 +564,7 @@ mod test {
         _frequency: PhantomData<F>,
     }
 
-    impl<'a, T: Ticks, F: Frequency> Time for MockAlarm<'a, T, F> {
+    impl<T: Ticks, F: Frequency> Time for MockAlarm<'_, T, F> {
         type Frequency = F;
         type Ticks = T;
 

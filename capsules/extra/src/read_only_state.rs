@@ -60,7 +60,7 @@ impl<'a, T: Time> ReadOnlyStateDriver<'a, T> {
     }
 }
 
-impl<'a, T: Time> ContextSwitchCallback for ReadOnlyStateDriver<'a, T> {
+impl<T: Time> ContextSwitchCallback for ReadOnlyStateDriver<'_, T> {
     fn context_switch_hook(&self, process: &dyn process::Process) {
         let processid = process.processid();
         let pending_tasks = process.pending_tasks();
@@ -88,7 +88,7 @@ impl<'a, T: Time> ContextSwitchCallback for ReadOnlyStateDriver<'a, T> {
     }
 }
 
-impl<'a, T: Time> SyscallDriver for ReadOnlyStateDriver<'a, T> {
+impl<T: Time> SyscallDriver for ReadOnlyStateDriver<'_, T> {
     /// Specify memory regions to be used.
     ///
     /// ### `allow_num`

@@ -58,6 +58,7 @@
 use core::cell::Cell;
 use core::fmt::{write, Arguments, Result, Write};
 use core::panic::PanicInfo;
+use core::ptr::addr_of_mut;
 use core::str;
 
 use crate::collections::queue::Queue;
@@ -349,7 +350,7 @@ impl Write for DebugQueueWrapper {
 
 /// Add a format string to the debug queue.
 pub fn debug_enqueue_fmt(args: Arguments) {
-    unsafe { DEBUG_QUEUE.as_deref_mut() }.map(|buffer| {
+    unsafe { (*addr_of_mut!(DEBUG_QUEUE)).as_deref_mut() }.map(|buffer| {
         let _ = write(buffer, args);
         let _ = buffer.write_str("\r\n");
     });
@@ -359,7 +360,7 @@ pub fn debug_enqueue_fmt(args: Arguments) {
 pub fn debug_flush_queue_() {
     let writer = unsafe { get_debug_writer() };
 
-    if let Some(buffer) = unsafe { DEBUG_QUEUE.as_deref_mut() } {
+    if let Some(buffer) = unsafe { (*addr_of_mut!(DEBUG_QUEUE)).as_deref_mut() } {
         buffer.dw.map(|dw| {
             dw.ring_buffer.map(|ring_buffer| {
                 writer.write_ring_buffer(ring_buffer);
@@ -423,7 +424,7 @@ pub struct DebugWriter {
 static mut DEBUG_WRITER: Option<&'static mut DebugWriterWrapper> = None;
 
 unsafe fn try_get_debug_writer() -> Option<&'static mut DebugWriterWrapper> {
-    DEBUG_WRITER.as_deref_mut()
+    (*addr_of_mut!(DEBUG_WRITER)).as_deref_mut()
 }
 
 unsafe fn get_debug_writer() -> &'static mut DebugWriterWrapper {
@@ -749,7 +750,7 @@ pub unsafe fn flush<W: Write + IoWrite>(writer: &mut W) {
             }
         }
 
-        match DEBUG_QUEUE.as_deref_mut() {
+        match (*addr_of_mut!(DEBUG_QUEUE)).as_deref_mut() {
             None => {
                 let _ = writer.write_str(
                     "\r\n---| No debug queue found. You can set it with the DebugQueue component.\r\n",

@@ -154,7 +154,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteXLed<'a, R> {
     }
 }
 
-impl<'a, R: LiteXSoCRegisterConfiguration> hil::led::Led for LiteXLed<'a, R> {
+impl<R: LiteXSoCRegisterConfiguration> hil::led::Led for LiteXLed<'_, R> {
     fn init(&self) {
         self.controller.set_led(self.index, false);
     }
@@ -177,7 +177,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> hil::led::Led for LiteXLed<'a, R> {
     }
 }
 
-impl<'a, R: LiteXSoCRegisterConfiguration> Drop for LiteXLed<'a, R> {
+impl<R: LiteXSoCRegisterConfiguration> Drop for LiteXLed<'_, R> {
     /// Deregister the LED with the controller
     fn drop(&mut self) {
         self.controller.destroy_led(self.index);

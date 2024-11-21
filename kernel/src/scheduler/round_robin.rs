@@ -43,7 +43,7 @@ impl<'a> RoundRobinProcessNode<'a> {
 }
 
 impl<'a> ListNode<'a, RoundRobinProcessNode<'a>> for RoundRobinProcessNode<'a> {
-    fn next(&'a self) -> &'a ListLink<'a, RoundRobinProcessNode> {
+    fn next(&'a self) -> &'a ListLink<'a, RoundRobinProcessNode<'a>> {
         &self.next
     }
 }
@@ -73,7 +73,7 @@ impl<'a> RoundRobinSched<'a> {
     }
 }
 
-impl<'a, C: Chip> Scheduler<C> for RoundRobinSched<'a> {
+impl<C: Chip> Scheduler<C> for RoundRobinSched<'_> {
     fn next(&self) -> SchedulingDecision {
         let mut first_head = None;
         let mut next = None;

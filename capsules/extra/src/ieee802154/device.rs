@@ -96,8 +96,10 @@ pub trait TxClient {
 }
 
 /// Trait to be implemented by users of the IEEE 802.15.4 device that wish to
-/// receive frames. The callback is triggered whenever a valid frame is
-/// received, verified and unsecured (via the IEEE 802.15.4 security procedure)
+/// receive frames.
+///
+/// The callback is triggered whenever a valid frame is received,
+/// verified and unsecured (via the IEEE 802.15.4 security procedure)
 /// successfully.
 pub trait RxClient {
     /// When a frame is received, this callback is triggered. The client only

@@ -96,9 +96,7 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Stm32f4xxDefaultPeripherals<'a, ChipSpecs> {
     }
 }
 
-impl<'a, ChipSpecs: ChipSpecsTrait> InterruptService
-    for Stm32f4xxDefaultPeripherals<'a, ChipSpecs>
-{
+impl<ChipSpecs: ChipSpecsTrait> InterruptService for Stm32f4xxDefaultPeripherals<'_, ChipSpecs> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             nvic::DMA1_Stream1 => self.dma1_streams

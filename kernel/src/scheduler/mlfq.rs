@@ -110,7 +110,7 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
         for (idx, queue) in self.processes.iter().enumerate() {
             let next = queue
                 .iter()
-                .find(|node_ref| node_ref.proc.map_or(false, |proc| proc.ready()));
+                .find(|node_ref| node_ref.proc.is_some_and(|proc| proc.ready()));
             if next.is_some() {
                 // pop procs to back until we get to match
                 loop {
@@ -131,7 +131,7 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
     }
 }
 
-impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<'a, A> {
+impl<A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<'_, A> {
     fn next(&self) -> SchedulingDecision {
         let now = self.alarm.now();
         let next_reset = self.next_reset.get();

@@ -415,8 +415,8 @@ impl ConsoleWriter {
 }
 impl fmt::Write for ConsoleWriter {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        let curr = (s).as_bytes().len();
-        self.buf[self.size..self.size + curr].copy_from_slice((s).as_bytes());
+        let curr = s.len();
+        self.buf[self.size..self.size + curr].copy_from_slice(s.as_bytes());
         self.size += curr;
         Ok(())
     }

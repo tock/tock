@@ -3,9 +3,10 @@
 // Copyright Tock Contributors 2022.
 
 //! Provides userspace with access to a serial interface whose output
-//! is in-order with respect to kernel debug!() operations. Prints to
-//! the console are atomic up to particular constant length, which
-//! can be set at capsule instantiation.
+//! is in-order with respect to kernel debug!() operations.
+//!
+//! Prints to the console are atomic up to particular constant length,
+//! which can be set at capsule instantiation.
 //!
 //! Note that this capsule does *not* buffer writes in an additional
 //! buffer; this is critical to ensure ordering. Instead, it pushes

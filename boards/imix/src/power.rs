@@ -50,7 +50,7 @@ struct Submodule<'a> {
     detachable_pins: &'a [DetachablePin],
 }
 
-impl<'a> Submodule<'a> {
+impl Submodule<'_> {
     fn power(&self, state: bool) {
         self.gate_pin.enable_output();
         match state {

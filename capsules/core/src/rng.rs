@@ -2,9 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! Library of randomness structures, including a system call driver for
-//! userspace applications to request randomness, entropy conversion, entropy
-//! to randomness conversion, and synchronous random number generation.
+//! Library of randomness structures.
+//!
+//! A library for randomness structures including a system call driver
+//! for userspace applications to request randomness, entropy
+//! conversion, entropy to randomness conversion, and synchronous
+//! random number generation.
 //!
 //!
 //! The RNG accepts a user-defined callback and buffer to hold received

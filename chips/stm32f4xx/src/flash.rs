@@ -269,7 +269,7 @@ impl<FlashChipSpecific: FlashChipSpecificTrait> Flash<FlashChipSpecific> {
 /// In case of any errors, open an issue ticket at <https://github.com/tock/tock>. Please provide
 /// the output of the test execution.
 pub mod tests {
-    use super::*;
+    use super::{debug, Flash, FlashChipSpecificTrait, FlashLatency16};
     use crate::clocks::hsi::HSI_FREQUENCY_MHZ;
 
     const AHB_ETHERNET_MINIMUM_FREQUENCY_MHZ: usize = 25;

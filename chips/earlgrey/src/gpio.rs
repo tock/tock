@@ -90,7 +90,7 @@ pub fn gpio_pad_config<Layout: EarlGreyPinmuxConfig>(pin: PinmuxPeripheralIn) ->
 }
 
 // Configuring first all GPIO based on board layout
-impl<'a> Port<'a> {
+impl Port<'_> {
     pub fn new<Layout: EarlGreyPinmuxConfig>() -> Self {
         Self {
             // Intentionally prevent splitting GpioPin to multiple line

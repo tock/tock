@@ -467,8 +467,10 @@ const EXTI_BASE: StaticRef<ExtiRegisters> =
 // ///
 
 /// The EXTI_PR (pending) register when set, generates a level-triggered
-/// interrupt on the NVIC. This means, that its the responsibility of the IRQ
-/// handler to clear the interrupt source (pending bit), in order to prevent
+/// interrupt on the NVIC.
+///
+/// This means, that its the responsibility of the IRQ handler to
+/// clear the interrupt source (pending bit), in order to prevent
 /// multiple interrupts from occurring.
 ///
 /// `EXTI_EVENTS` is modeled to capture information from `EXTI_PR` register. In

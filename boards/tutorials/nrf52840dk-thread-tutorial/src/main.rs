@@ -10,7 +10,7 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use core::ptr::addr_of_mut;
+use core::ptr::{addr_of, addr_of_mut};
 
 use kernel::component::Component;
 use kernel::debug;
@@ -103,7 +103,7 @@ pub unsafe fn main() {
     // RAW 802.15.4
     //--------------------------------------------------------------------------
 
-    let device_id = nrf52840::ficr::FICR_INSTANCE.id();
+    let device_id = (*addr_of!(nrf52840::ficr::FICR_INSTANCE)).id();
 
     let eui64 = components::eui64::Eui64Component::new(u64::from_le_bytes(device_id))
         .finalize(components::eui64_component_static!());

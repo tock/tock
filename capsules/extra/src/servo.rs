@@ -54,7 +54,7 @@ impl<'a, const SERVO_COUNT: usize> Servo<'a, SERVO_COUNT> {
     }
 }
 /// Provide an interface for userland.
-impl<'a, const SERVO_COUNT: usize> SyscallDriver for Servo<'a, SERVO_COUNT> {
+impl<const SERVO_COUNT: usize> SyscallDriver for Servo<'_, SERVO_COUNT> {
     /// Command interface.
     ///
     /// ### `command_num`

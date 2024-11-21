@@ -462,7 +462,10 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
 /// If there are any errors, open an issue ticket at <https://github.com/tock/tock>. Please provide the
 /// output of the test execution.
 pub mod tests {
-    use super::*;
+    use super::{
+        clock_constants, debug, ErrorCode, Pll, PllSource, DEFAULT_PLLM_VALUE, HSI_FREQUENCY_MHZ,
+        PLLM, PLLP, PLLQ,
+    };
 
     // Depending on the default PLLM value, the computed PLLN value changes.
     const MULTIPLIER: usize = match DEFAULT_PLLM_VALUE {

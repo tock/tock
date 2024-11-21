@@ -135,7 +135,7 @@ enum State {
     Read,
 }
 
-impl<'a, I: I2CDevice> I2CClient for Hs3003<'a, I> {
+impl<I: I2CDevice> I2CClient for Hs3003<'_, I> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         if let Err(i2c_err) = status {
             self.state.set(State::Sleep);
