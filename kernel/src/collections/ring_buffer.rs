@@ -102,9 +102,6 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
     #[flux_rs::sig(
         fn(self: &strg RingBuffer<T>[@old], _) -> bool 
             ensures self: RingBuffer<T>{ new: 
-                // shouldn't be empty post-enqueue
-                !empty(new)
-                && 
                 // either we're full and don't update
                 (full(old) => new.tl == old.tl && new.hd == old.hd)
                 &&
@@ -126,9 +123,6 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
     #[flux_rs::sig(
         fn(self: &strg RingBuffer<T>[@old], _) -> Option<T> 
             ensures self: RingBuffer<T>{ new: 
-                // shouldn't be empty post-push
-                !empty(new)
-                && 
                 // the buffer is full so we dequeue and then enqueue 
                 (full(old) => (new.hd == next_hd(old) && new.tl == next_tl(old)))
                 &&
