@@ -20,6 +20,7 @@ use crate::storage_permissions;
 use crate::syscall::{self, Syscall, SyscallReturn};
 use crate::upcall::UpcallId;
 use crate::utilities::capability_ptr::CapabilityPtr;
+use crate::utilities::machine_register::MachineRegister;
 use tock_tbf::types::CommandPermissions;
 
 // Export all process related types via `kernel::process::`.
@@ -1086,7 +1087,7 @@ pub struct FunctionCall {
     /// The third argument to the function.
     pub argument2: usize,
     /// The userdata provided by the process via `subscribe`
-    pub argument3: CapabilityPtr,
+    pub argument3: MachineRegister,
     /// The PC of the function to execute.
     pub pc: CapabilityPtr,
 }
