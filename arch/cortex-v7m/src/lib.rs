@@ -45,9 +45,10 @@ core::arch::global_asm!(
     // (ISB). https://developer.arm.com/documentation/dai0321/latest
     isb                               // synchronization barrier
 
-    // Set the link register to the special EXC_RETURN value of 0xFFFFFFF9 which
-    // instructs the CPU to run in thread mode with the main (kernel) stack.
-    ldr lr, =0xFFFFFFF9               // LR = 0xFFFFFFF9
+    // The link register is set to the `EXC_RETURN` value on exception entry. To
+    // ensure we continue executing in the kernel we ensure the SPSEL bit is set
+    // to 0 to use the main (kernel) stack.
+    bfc lr, #2, #1                    // LR = LR & !(0x1<<2)
 
     // This will resume in the switch_to_user function where application state
     // is saved and the scheduler can choose what to do next.
@@ -72,10 +73,12 @@ core::arch::global_asm!(
     .thumb_func
   svc_handler_arm_v7m:
     // First check to see which direction we are going in. If the link register
-    // is something other than 0xFFFFFFF9, then we are coming from an app which
-    // has called a syscall.
-    cmp lr, #0xFFFFFFF9               // LR ≟ 0xFFFFFFF9
-    bne 100f // to_kernel             // if LR != 0xFFFFFFF9, jump to to_kernel
+    // (containing EXC_RETURN) has a 1 in the SPSEL bit (meaning the
+    // alternative/process stack was in use) then we are coming from an app
+    // which has called a syscall.
+    ubfx r0, lr, #2, #1               // r0 = (LR & (0x1<<2)) >> 2
+    cmp r0, #0                        // LR ≟ 0
+    bne 100f // to_kernel             // if LR != 1, jump to to_kernel
 
     // If we get here, then this is a context switch from the kernel to the
     // application. Use the CONTROL register to set the thread mode to
@@ -93,9 +96,11 @@ core::arch::global_asm!(
     // (ISB). https://developer.arm.com/documentation/dai0321/latest
     isb
 
-    // Set the link register to the special EXC_RETURN value of 0xFFFFFFFD which
-    // instructs the CPU to run in thread mode with the process stack.
-    ldr lr, =0xFFFFFFFD               // LR = 0xFFFFFFFD
+    // The link register is set to the `EXC_RETURN` value on exception entry. To
+    // ensure we execute using the application stack we set the SPSEL bit to 1
+    // to use the alternate (process) stack.
+    mov r0, #1                        // r0 = 1
+    bfi lr, r0, #2, #1                // LR = LR | (0x1<<2)
 
     // Switch to the app.
     bx lr
@@ -124,9 +129,10 @@ core::arch::global_asm!(
     // (ISB). https://developer.arm.com/documentation/dai0321/latest
     isb
 
-    // Set the link register to the special EXC_RETURN value of 0xFFFFFFF9 which
-    // instructs the CPU to run in thread mode with the main (kernel) stack.
-    ldr lr, =0xFFFFFFF9               // LR = 0xFFFFFFF9
+    // The link register is set to the `EXC_RETURN` value on exception entry. To
+    // ensure we continue executing in the kernel we ensure the SPSEL bit is set
+    // to 0 to use the main (kernel) stack.
+    bfc lr, #2, #1                    // LR = LR & !(0x1<<2)
 
     // Return to the kernel.
     bx lr
@@ -162,10 +168,6 @@ core::arch::global_asm!(
     // CONTROL writes must be followed by an Instruction Synchronization Barrier
     // (ISB). https://developer.arm.com/documentation/dai0321/latest
     isb
-
-    // Set the link register to the special EXC_RETURN value of 0xFFFFFFF9 which
-    // instructs the CPU to run in thread mode with the main (kernel) stack.
-    ldr lr, =0xFFFFFFF9               // LR = 0xFFFFFFF9
 
     // Now need to disable the interrupt that fired in the NVIC to ensure it
     // does not trigger again before the scheduler has a chance to handle it. We
@@ -205,6 +207,11 @@ core::arch::global_asm!(
     // `service_pending_interrupts()`.
     ldr r3, =0xe000e200               // r3 = &NVIC.ISPR
     str r0, [r3, r2, lsl #2]          // *(r3 + r2 * 4) = r0
+
+    // The link register is set to the `EXC_RETURN` value on exception entry. To
+    // ensure we continue executing in the kernel we ensure the SPSEL bit is set
+    // to 0 to use the main (kernel) stack.
+    bfc lr, #2, #1                    // LR = LR & !(0x1<<2)
 
     // Now we can return from the interrupt context and resume what we were
     // doing. If an app was executing we will switch to the kernel so it can
@@ -516,9 +523,11 @@ core::arch::global_asm!(
         // http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html
         isb
 
-        // Switch to the kernel (MSP) stack:
-        movw lr, #0xFFF9
-        movt lr, #0xFFFF
+        // The link register is set to the `EXC_RETURN` value on exception
+        // entry. To ensure we continue executing in the kernel we ensure the
+        // SPSEL bit is set to 0 to use the main (kernel) stack.
+        bfc lr, #2, #1                    // LR = LR & !(0x1<<2)
+
         bx lr",
     estack = sym _estack,
     kernel_hard_fault_handler = sym hard_fault_handler_arm_v7m_kernel,
