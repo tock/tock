@@ -452,21 +452,21 @@ struct CortexMLocation {
     pub size: usize,
 }
 
-#[flux_rs::alias(type BaseAddr[mask: bitvec<32>, value: bitvec<32>] = FieldValueU32<RegionBaseAddress::Register>[mask, value])]
-type BaseAddr = FieldValueU32<RegionBaseAddress::Register>;
+// #[flux_rs::alias(type BaseAddr[mask: bitvec<32>, value: bitvec<32>] = FieldValueU32<RegionBaseAddress::Register>[mask, value])]
+// type BaseAddr = FieldValueU32<RegionBaseAddress::Register>;
 
-#[flux_rs::alias(type Attrs[mask: bitvec<32>, value: bitvec<32>] = FieldValueU32<RegionAttributes::Register>[mask, value])]
-type Attrs = FieldValueU32<RegionAttributes::Register>;
+// #[flux_rs::alias(type Attrs[mask: bitvec<32>, value: bitvec<32>] = FieldValueU32<RegionAttributes::Register>[mask, value])]
+// type Attrs = FieldValueU32<RegionAttributes::Register>;
 
 // VTOCK_TODO: maybe cleaner implementation using aliases and refine by the field values?
 /// Struct storing configuration for a Cortex-M MPU region.
 #[derive(Copy, Clone)]
-#[flux_rs::refined_by(rbar: BaseAddr, rasr: Attrs)]
+#[flux_rs::refined_by(rbar: FieldValueU32, rasr: FieldValueU32)]
 pub struct CortexMRegion {
     location: Option<CortexMLocation>,
-    #[field(BaseAddr[rbar])]
+    #[field(FieldValueU32<RegionBaseAddress::Register>[rbar])]
     base_address: FieldValueU32<RegionBaseAddress::Register>,
-    #[field(Attrs[rasr])]
+    #[field(FieldValueU32<RegionAttributes::Register>[rasr])]
     attributes: FieldValueU32<RegionAttributes::Register>,
 }
 
@@ -564,12 +564,12 @@ impl CortexMRegion {
         Some((loc.addr, loc.size))
     }
 
-    #[flux_rs::sig(fn(&CortexMRegion[@addr, @attrs]) -> BaseAddr[addr])]
+    #[flux_rs::sig(fn(&CortexMRegion[@addr, @attrs]) -> FieldValueU32<RegionBaseAddress::Register>[addr])]
     fn base_address(&self) -> FieldValueU32<RegionBaseAddress::Register> {
         self.base_address
     }
 
-    #[flux_rs::sig(fn(&CortexMRegion[@addr, @attrs]) -> Attrs[attrs])]
+    #[flux_rs::sig(fn(&CortexMRegion[@addr, @attrs]) -> FieldValueU32<RegionAttributes::Register>[attrs])]
     fn attributes(&self) -> FieldValueU32<RegionAttributes::Register> {
         self.attributes
     }
