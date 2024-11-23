@@ -141,7 +141,7 @@ use core::cell::Cell;
 use core::cmp;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
-use kernel::hil;
+use kernel::{debug, hil};
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -515,7 +515,7 @@ impl<'a, const APP_REGION_SIZE: usize> NonvolatileStorage<'a, APP_REGION_SIZE> {
         let header_slice = region_header.to_bytes();
 
         self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
-            buffer
+            let _ = buffer
                 .get_mut(0..REGION_HEADER_LEN)
                 .ok_or(ErrorCode::NOMEM)?
                 .copy_from_slice_or_err(
@@ -537,16 +537,17 @@ impl<'a, const APP_REGION_SIZE: usize> NonvolatileStorage<'a, APP_REGION_SIZE> {
     fn erase_region_content(
         &self,
         processid: ProcessId,
-        region: AppRegion,
+        offset: usize,
+        length: usize,
     ) -> Result<(), ErrorCode> {
-        self.check_header_access(region.offset, region.length)?;
+        self.check_header_access(offset, length)?;
 
         if self.current_user.is_some() {
             return Err(ErrorCode::BUSY);
         }
 
         self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
-            let active_len = cmp::min(region.length, buffer.len());
+            let active_len = cmp::min(length, buffer.len());
 
             // Clear the erase buffer in case there was any data
             // remaining from a previous operation.
@@ -555,8 +556,8 @@ impl<'a, const APP_REGION_SIZE: usize> NonvolatileStorage<'a, APP_REGION_SIZE> {
             }
 
             // how many more bytes to erase after this operation
-            let remaining_len = if region.length > buffer.len() {
-                region.length - buffer.len()
+            let remaining_len = if length > buffer.len() {
+                length - buffer.len()
             } else {
                 0
             };
@@ -566,11 +567,11 @@ impl<'a, const APP_REGION_SIZE: usize> NonvolatileStorage<'a, APP_REGION_SIZE> {
                 // how long it should be.
                 RegionState::EraseRegion {
                     processid,
-                    next_erase_start: region.offset + active_len,
+                    next_erase_start: offset + active_len,
                     remaining_bytes: remaining_len,
                 },
             ));
-            self.driver.write(buffer, region.offset, active_len)
+            self.driver.write(buffer, offset, active_len)
         })
     }
 
@@ -718,42 +719,45 @@ impl<'a, const APP_REGION_SIZE: usize> NonvolatileStorage<'a, APP_REGION_SIZE> {
         self.check_userspace_access(command.offset(), command.length(), processid)?;
         self.check_userspace_perms(processid, command)?;
 
-        self.apps
-            .enter(processid, |app, kernel_data| {
-                // Get the length of the correct allowed buffer.
-                let allow_buf_len = match command {
-                    NonvolatileCommand::Read { offset, length } => kernel_data
-                        .get_readwrite_processbuffer(rw_allow::READ)
-                        .map_or(0, |read| read.len()),
-                    NonvolatileCommand::Write { offset, length } => kernel_data
-                        .get_readonly_processbuffer(ro_allow::WRITE)
-                        .map_or(0, |read| read.len()),
-                    _ => 0,
-                };
+        processid.map_or(Err(ErrorCode::FAIL), |processid| {
+            self.apps
+                .enter(processid, |app, kernel_data| {
+                    // Get the length of the correct allowed buffer.
+                    let allow_buf_len = match command {
+                        NonvolatileCommand::Read { offset: _, length: _ } => kernel_data
+                            .get_readwrite_processbuffer(rw_allow::READ)
+                            .map_or(0, |read| read.len()),
+                        NonvolatileCommand::Write { offset: _, length: _ } => kernel_data
+                            .get_readonly_processbuffer(ro_allow::WRITE)
+                            .map_or(0, |read| read.len()),
+                        _ => 0,
+                    };
 
-                // Check that the matching allowed buffer exists.
-                if allow_buf_len == 0 {
-                    return Err(ErrorCode::RESERVE);
-                }
+                    // Check that the matching allowed buffer exists.
+                    if allow_buf_len == 0 {
+                        return Err(ErrorCode::RESERVE);
+                    }
 
-                // Fail if the app doesn't have a region assigned to it.
-                let Some(app_region) = &app.region else {
-                    return Err(ErrorCode::FAIL);
-                };
+                    // Fail if the app doesn't have a region assigned to it.
+                    let Some(app_region) = &app.region else {
+                        return Err(ErrorCode::FAIL);
+                    };
 
-                // Shorten the length if the application gave us nowhere to
-                // put it.
-                let active_len = cmp::min(length, allow_buf_len);
+                    let (command_offset, command_len) = match command {
+                        NonvolatileCommand::Read { offset, length } => (offset, length),
+                        NonvolatileCommand::Write { offset, length } => (offset, length),
+                    };
 
-                // First need to determine if we can execute this or must
-                // queue it.
-                if self.current_user.is_none() {
+                    // Shorten the length if the application gave us nowhere to
+                    // put it.
+                    let active_len = cmp::min(command_len, allow_buf_len);
+
                     // No app is currently using the underlying storage.
                     // Mark this app as active, and then execute the command.
                     self.current_user.set(NonvolatileUser::App { processid });
 
                     // Need to copy bytes if this is a write!
-                    if command == NonvolatileCommand::UserspaceWrite {
+                    if let NonvolatileCommand::Write { offset: _ , length: _ } = command {
                         let _ = kernel_data
                             .get_readonly_processbuffer(ro_allow::WRITE)
                             .and_then(|write| {
@@ -777,24 +781,10 @@ impl<'a, const APP_REGION_SIZE: usize> NonvolatileStorage<'a, APP_REGION_SIZE> {
                     // Note that the given offset for this command is with respect to
                     // the app's region address space. This means that userspace accesses
                     // start at 0 which is the start of the app's region.
-                    self.userspace_call_driver(command, app_region.offset + offset, active_len)
-                } else {
-                    // Some app is using the storage, we must wait.
-                    if app.pending_command {
-                        // No more room in the queue, nowhere to store this
-                        // request.
-                        Err(ErrorCode::NOMEM)
-                    } else {
-                        // We can store this, so lets do it.
-                        app.pending_command = true;
-                        app.command = command;
-                        app.offset = offset;
-                        app.length = active_len;
-                        Ok(())
-                    }
-                }
-            })
-            .unwrap_or_else(|err| Err(err.into()))
+                    self.userspace_call_driver(command, app_region.offset + command_offset, active_len)
+                })
+                .unwrap_or_else(|err| Err(err.into()))
+        })
     }
 
     fn userspace_call_driver(
@@ -815,18 +805,14 @@ impl<'a, const APP_REGION_SIZE: usize> NonvolatileStorage<'a, APP_REGION_SIZE> {
                 let active_len = cmp::min(length, buffer.len());
 
                 match command {
-                    NonvolatileCommand::UserspaceRead => {
+                    NonvolatileCommand::Read { offset, length } => {
                         self.driver.read(buffer, physical_address, active_len)
                     }
-                    NonvolatileCommand::UserspaceWrite => {
+                    NonvolatileCommand::Write { offset, length } => {
                         self.driver.write(buffer, physical_address, active_len)
                     }
                     _ => Err(ErrorCode::FAIL),
                 }
-                .map_or(|| {
-                    self.current_user.set(NonvolatileUser::App { processid });
-                    Ok(())
-                })
             })
     }
 
@@ -837,16 +823,7 @@ impl<'a, const APP_REGION_SIZE: usize> NonvolatileStorage<'a, APP_REGION_SIZE> {
             let started = app.enter(|app, _| {
                 if app.has_requested_region && app.region.is_none() {
                     // This app needs its region allocated.
-
                     self.allocate_app_region(processid).is_ok()
-                } else if app.pending_command {
-                    // This app has a pending command
-                    app.pending_command = false;
-
-                    self.userspace_call_driver(app.command, app.offset, app.length)
-                        .is_ok()
-
-                    // TODO need to upcall app if this fails
                 } else {
                     false
                 }
@@ -866,13 +843,8 @@ impl<const APP_REGION_SIZE: usize> hil::nonvolatile_storage::NonvolatileStorageC
         // Switch on which user of this capsule generated this callback.
         self.current_user.take().map(|user| {
             match user {
-                NonvolatileUser::Kernel => {
-                    self.kernel_client.map(move |client| {
-                        client.read_done(buffer, length);
-                    });
-                }
                 NonvolatileUser::RegionManager(state) => {
-                    self.header_buffer.replace(buffer);
+                    self.buffer.replace(buffer);
                     let _ = match state {
                         RegionState::ReadHeader(action) => self.header_read_done(action),
                         _ => Err(ErrorCode::FAIL),
@@ -920,7 +892,7 @@ impl<const APP_REGION_SIZE: usize> hil::nonvolatile_storage::NonvolatileStorageC
                     match state {
                         RegionState::WriteHeader(processid, region) => {
                             // Now that we have written the header for the app we can store its region in its grant.
-                            self.apps.enter(processid, |app, _kernel_data| {
+                            let _ = self.apps.enter(processid, |app, _kernel_data| {
                                 // set region data in app's grant
                                 app.region.replace(region);
                             });
@@ -932,7 +904,7 @@ impl<const APP_REGION_SIZE: usize> hil::nonvolatile_storage::NonvolatileStorageC
 
                             // Erase the userspace accessible content of the region
                             // before handing it off to an app.
-                            self.erase_region_content(processid, region);
+                            let _ = self.erase_region_content(processid, region.offset, region.length);
                         }
                         RegionState::EraseRegion {
                             processid,
@@ -941,15 +913,11 @@ impl<const APP_REGION_SIZE: usize> hil::nonvolatile_storage::NonvolatileStorageC
                         } => {
                             if remaining_bytes > 0 {
                                 // we still have more to erase, so kick off another one
-                                self.enqueue_command(
-                                    NonvolatileCommand::RegionErase(processid),
-                                    next_erase_start,
-                                    remaining_bytes,
-                                    None,
-                                )
+                                // where we left off
+                                let _ = self.erase_region_content(processid, next_erase_start, remaining_bytes);
                             } else {
                                 // done erasing entire region
-                                self.apps.enter(processid, |_app, kernel_data| {
+                                let _ = self.apps.enter(processid, |_app, kernel_data| {
                                     // region is erased and we're ready to let the app
                                     // know that it's region is ready
                                     kernel_data
@@ -973,35 +941,6 @@ impl<const APP_REGION_SIZE: usize> hil::nonvolatile_storage::NonvolatileStorageC
         });
 
         self.check_queue();
-    }
-}
-
-/// Provide an interface for the kernel.
-impl<'a, const APP_REGION_SIZE: usize> hil::nonvolatile_storage::NonvolatileStorage<'a>
-    for NonvolatileStorage<'a, APP_REGION_SIZE>
-{
-    fn set_client(&self, client: &'a dyn hil::nonvolatile_storage::NonvolatileStorageClient) {
-        self.kernel_client.set(client);
-    }
-
-    fn read(
-        &self,
-        buffer: &'static mut [u8],
-        address: usize,
-        length: usize,
-    ) -> Result<(), ErrorCode> {
-        self.kernel_buffer.replace(buffer);
-        self.enqueue_command(NonvolatileCommand::KernelRead, address, length, None)
-    }
-
-    fn write(
-        &self,
-        buffer: &'static mut [u8],
-        address: usize,
-        length: usize,
-    ) -> Result<(), ErrorCode> {
-        self.kernel_buffer.replace(buffer);
-        self.enqueue_command(NonvolatileCommand::KernelWrite, address, length, None)
     }
 }
 
@@ -1044,9 +983,7 @@ impl<const APP_REGION_SIZE: usize> SyscallDriver for NonvolatileStorage<'_, APP_
             2 => {
                 // Issue a read command
                 let res = self.enqueue_userspace_command(
-                    NonvolatileCommand::UserspaceRead,
-                    offset,
-                    length,
+                    NonvolatileCommand::Read { offset, length },
                     Some(processid),
                 );
 
@@ -1059,9 +996,7 @@ impl<const APP_REGION_SIZE: usize> SyscallDriver for NonvolatileStorage<'_, APP_
             3 => {
                 // Issue a write command
                 let res = self.enqueue_userspace_command(
-                    NonvolatileCommand::UserspaceWrite,
-                    offset,
-                    length,
+                    NonvolatileCommand::Write { offset, length },
                     Some(processid),
                 );
 

@@ -49,15 +49,7 @@ macro_rules! nonvolatile_storage_component_static {
         );
         let buffer = kernel::static_buf!([u8; capsules_extra::nonvolatile_storage_driver::BUF_LEN]);
 
-        let header_buffer = kernel::static_buf!(
-            [u8; capsules_extra::nonvolatile_storage_driver::REGION_HEADER_LEN]
-        );
-
-        let region_erase_buffer = kernel::static_buf!(
-            [u8; capsules_extra::nonvolatile_storage_driver::REGION_ERASE_BUF_LEN]
-        );
-
-        (page, ntp, ns, buffer, header_buffer, region_erase_buffer)
+        (page, ntp, ns, buffer)
     };};
 }
 
@@ -73,8 +65,6 @@ pub struct NonvolatileStorageComponent<
     flash: &'static F,
     userspace_start: usize,
     userspace_length: usize,
-    kernel_start: usize,
-    kernel_length: usize,
 }
 
 impl<
@@ -90,8 +80,6 @@ impl<
         flash: &'static F,
         userspace_start: usize,
         userspace_length: usize,
-        kernel_start: usize,
-        kernel_length: usize,
     ) -> Self {
         Self {
             board_kernel,
@@ -99,8 +87,6 @@ impl<
             flash,
             userspace_start,
             userspace_length,
-            kernel_start,
-            kernel_length,
         }
     }
 }
@@ -117,12 +103,6 @@ impl<
         &'static mut MaybeUninit<NonvolatileToPages<'static, F>>,
         &'static mut MaybeUninit<NonvolatileStorage<'static, APP_REGION_SIZE>>,
         &'static mut MaybeUninit<[u8; capsules_extra::nonvolatile_storage_driver::BUF_LEN]>,
-        &'static mut MaybeUninit<
-            [u8; capsules_extra::nonvolatile_storage_driver::REGION_HEADER_LEN],
-        >,
-        &'static mut MaybeUninit<
-            [u8; capsules_extra::nonvolatile_storage_driver::REGION_ERASE_BUF_LEN],
-        >,
     );
     type Output = &'static NonvolatileStorage<'static, APP_REGION_SIZE>;
 
@@ -132,14 +112,6 @@ impl<
         let buffer = static_buffer
             .3
             .write([0; capsules_extra::nonvolatile_storage_driver::BUF_LEN]);
-
-        let header_buffer = static_buffer
-            .4
-            .write([0; capsules_extra::nonvolatile_storage_driver::REGION_HEADER_LEN]);
-
-        let region_erase_buffer = static_buffer
-            .5
-            .write([0; capsules_extra::nonvolatile_storage_driver::REGION_ERASE_BUF_LEN]);
 
         let flash_pagebuffer = static_buffer
             .0
@@ -155,11 +127,7 @@ impl<
             self.board_kernel.create_grant(self.driver_num, &grant_cap),
             self.userspace_start, // Start address for userspace accessible region
             self.userspace_length, // Length of userspace accessible region
-            self.kernel_start,    // Start address of kernel region
-            self.kernel_length,   // Length of kernel region
             buffer,
-            header_buffer,
-            region_erase_buffer,
         ));
         hil::nonvolatile_storage::NonvolatileStorage::set_client(nv_to_page, nonvolatile_storage);
         nonvolatile_storage

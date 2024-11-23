@@ -173,9 +173,6 @@ pub unsafe fn main() {
         &nrf52840_peripherals.nrf52.nvmc,
         core::ptr::addr_of!(APP_STORAGE) as usize,
         APP_STORAGE.len(),
-        // No kernel-writeable flash:
-        core::ptr::null::<()>() as usize,
-        0,
     )
     .finalize(components::nonvolatile_storage_component_static!(
         nrf52840::nvmc::Nvmc,
