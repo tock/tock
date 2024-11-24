@@ -434,8 +434,12 @@ impl<'a, const APP_REGION_SIZE: usize> NonvolatileStorage<'a, APP_REGION_SIZE> {
         // Start traversing the storage regions to find where the requesting
         // app's storage region is located. If it doesn't exist, a new one will
         // be allocated.
-        self.check_queue();
-        Ok(())
+        self.start_region_traversal()
+    }
+
+    // Start reading app region headers.
+    fn start_region_traversal(&self) -> Result<(), ErrorCode> {
+        self.read_region_header(self.userspace_start_address)
     }
 
     fn allocate_app_region(&self, processid: ProcessId) -> Result<(), ErrorCode> {
@@ -578,7 +582,13 @@ impl<'a, const APP_REGION_SIZE: usize> NonvolatileStorage<'a, APP_REGION_SIZE> {
     fn header_read_done(&self, region_header_address: usize) -> Result<(), ErrorCode> {
         // reconstruct header from bytes we just read
         let header = self.buffer.map_or(Err(ErrorCode::NOMEM), |buffer| {
-            let header_buffer = buffer.try_into().or(Err(ErrorCode::FAIL))?;
+            // Need to copy over bytes since we need to convert a &[u8]
+            // into a [u8; REGION_HEADER_LEN]. The &[u8] refers to a
+            // slice of size BUF_LEN (which could be different than REGION_HEADER_LEN).
+            // Using buffer.try_into() will fail at runtime since the underlying buffer
+            // is not the same length as what we're trying to convert into.
+            let mut header_buffer = [0; REGION_HEADER_LEN];
+            header_buffer.copy_from_slice_or_err(&buffer[..REGION_HEADER_LEN]).or(Err(ErrorCode::FAIL))?;
             AppRegionHeader::from_bytes(header_buffer).ok_or(ErrorCode::FAIL)
         })?;
 
