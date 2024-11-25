@@ -77,8 +77,8 @@ core::arch::global_asm!(
     // alternative/process stack was in use) then we are coming from an app
     // which has called a syscall.
     ubfx r0, lr, #2, #1               // r0 = (LR & (0x1<<2)) >> 2
-    cmp r0, #0                        // LR ≟ 0
-    bne 100f // to_kernel             // if LR != 1, jump to to_kernel
+    cmp r0, #0                        // r0 (SPSEL bit) ≟ 0
+    bne 100f // to_kernel             // if SPSEL == 1, jump to to_kernel
 
     // If we get here, then this is a context switch from the kernel to the
     // application. Use the CONTROL register to set the thread mode to
