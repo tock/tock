@@ -280,7 +280,6 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.credential
     }
 
-    #[flux_rs::trusted] // Unexpected Evar
     fn enqueue_task(&self, task: Task) -> Result<(), ErrorCode> {
         // If this app is in a `Fault` state then we shouldn't schedule
         // any work for it.
@@ -489,12 +488,10 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         self.tasks.map_or(false, |tasks| tasks.has_elements())
     }
 
-    #[flux_rs::trusted] // Unexpected evar
     fn dequeue_task(&self) -> Option<Task> {
         self.tasks.map_or(None, |tasks| tasks.dequeue())
     }
 
-    #[flux_rs::trusted] // unexpected evar
     fn remove_upcall(&self, upcall_id: UpcallId) -> Option<Task> {
         self.tasks.map_or(None, |tasks| {
             tasks.remove_first_matching(|task| match task {
