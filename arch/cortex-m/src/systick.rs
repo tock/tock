@@ -8,6 +8,8 @@ use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
+use core::num::NonZeroU32;
+
 #[repr(C)]
 struct SystickRegisters {
     syst_csr: ReadWrite<u32, ControlAndStatus::Register>,
@@ -121,13 +123,13 @@ impl SysTick {
 }
 
 impl kernel::platform::scheduler_timer::SchedulerTimer for SysTick {
-    fn start(&self, us: u32) {
+    fn start(&self, us: NonZeroU32) {
         let reload = {
             // We need to convert from microseconds to native tics, which could overflow in 32-bit
             // arithmetic. So we convert to 64-bit. 64-bit division is an expensive subroutine, but
             // if `us` is a power of 10 the compiler will simplify it with the 1_000_000 divisor
             // instead.
-            let us = us as u64;
+            let us = us.get() as u64;
             let hertz = self.hertz() as u64;
 
             hertz * us / 1_000_000
@@ -198,14 +200,14 @@ impl kernel::platform::scheduler_timer::SchedulerTimer for SysTick {
             .write(ControlAndStatus::TICKINT::CLEAR + ControlAndStatus::ENABLE::SET + clock_source);
     }
 
-    fn get_remaining_us(&self) -> Option<u32> {
+    fn get_remaining_us(&self) -> Option<NonZeroU32> {
         // use u64 in case of overflow when multiplying by 1,000,000
         let tics = SYSTICK_BASE.syst_cvr.read(CurrentValue::CURRENT) as u64;
         if SYSTICK_BASE.syst_csr.is_set(ControlAndStatus::COUNTFLAG) {
             None
         } else {
             let hertz = self.hertz() as u64;
-            Some(((tics * 1_000_000) / hertz) as u32)
+            NonZeroU32::new(((tics * 1_000_000) / hertz) as u32)
         }
     }
 }

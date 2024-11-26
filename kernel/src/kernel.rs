@@ -9,6 +9,7 @@
 //! etc.) is defined in the `scheduler` subcrate and selected by a board.
 
 use core::cell::Cell;
+use core::num::NonZeroU32;
 
 use crate::capabilities;
 use crate::config;
@@ -476,7 +477,7 @@ impl Kernel {
         chip: &C,
         process: &dyn process::Process,
         ipc: Option<&crate::ipc::IPC<NUM_PROCS>>,
-        timeslice_us: Option<u32>,
+        timeslice_us: Option<NonZeroU32>,
     ) -> (process::StoppedExecutingReason, Option<u32>) {
         // We must use a dummy scheduler timer if the process should be executed
         // without any timeslice restrictions. Note, a chip may not provide a
@@ -508,7 +509,7 @@ impl Kernel {
         // timeslice.
         loop {
             let stop_running = match scheduler_timer.get_remaining_us() {
-                Some(us) => us <= MIN_QUANTA_THRESHOLD_US,
+                Some(us) => us.get() <= MIN_QUANTA_THRESHOLD_US,
                 None => true,
             };
             if stop_running {
@@ -709,11 +710,11 @@ impl Kernel {
             // first.
             if return_reason == process::StoppedExecutingReason::TimesliceExpired {
                 // used the whole timeslice
-                timeslice
+                timeslice.get()
             } else {
                 match scheduler_timer.get_remaining_us() {
-                    Some(remaining) => timeslice - remaining,
-                    None => timeslice, // used whole timeslice
+                    Some(remaining) => timeslice.get() - remaining.get(),
+                    None => timeslice.get(), // used whole timeslice
                 }
             }
         });
