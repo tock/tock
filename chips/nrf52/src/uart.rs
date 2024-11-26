@@ -12,6 +12,7 @@
 
 use core::cell::Cell;
 use core::cmp::min;
+use core::num::NonZeroU32;
 use kernel::hil::uart;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
@@ -239,7 +240,8 @@ impl<'a> Uarte<'a> {
         self.enable_uart();
     }
 
-    fn set_baud_rate(&self, baud_rate: u32) {
+    fn set_baud_rate(&self, baud_rate: NonZeroU32) {
+        let baud_rate = baud_rate.get();
         match baud_rate {
             1200 => self.registers.baudrate.set(0x0004F000),
             2400 => self.registers.baudrate.set(0x0009D000),

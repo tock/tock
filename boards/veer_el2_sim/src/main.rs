@@ -15,6 +15,7 @@ use core::ptr::{addr_of, addr_of_mut};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
+use kernel::hil::uart::BAUD115200;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::cooperative::CooperativeSched;
@@ -131,7 +132,7 @@ unsafe fn start() -> (&'static kernel::Kernel, VeeR, &'static VeeRChip) {
     kernel::debug::assign_gpios(None, None, None);
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(&peripherals.sim_uart, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(&peripherals.sim_uart, BAUD115200)
         .finalize(components::uart_mux_component_static!());
 
     let mtimer = static_init!(Clint, Clint::new(&CLINT_BASE));

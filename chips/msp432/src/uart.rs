@@ -180,8 +180,10 @@ impl hil::uart::Configure for Uart<'_> {
         }
 
         // Setup baudrate, all the calculation from the datasheet p. 915
-        let n = (self.clock_frequency / params.baud_rate) as u16;
-        let n_float = (self.clock_frequency as f32) / (params.baud_rate as f32);
+        // DIVISION: no division by 0 can occur because of the `baud_rate` type.
+        let n = (self.clock_frequency / params.baud_rate.get()) as u16;
+        // DIVISION: no division by 0 can occur because of the `baud_rate` type.
+        let n_float = (self.clock_frequency as f32) / (params.baud_rate.get() as f32);
         let frac_part = n_float - (n as f32);
         if n > 16 {
             // Oversampling is enabled

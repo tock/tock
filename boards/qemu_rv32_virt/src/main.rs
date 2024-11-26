@@ -16,6 +16,7 @@ use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
+use kernel::hil::uart::BAUD115200;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::KernelResources;
 use kernel::platform::SyscallDriverLookup;
@@ -241,7 +242,7 @@ unsafe fn start() -> (
     // Create a shared UART channel for the console and for kernel
     // debug over the provided memory-mapped 16550-compatible
     // UART.
-    let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, BAUD115200)
         .finalize(components::uart_mux_component_static!());
 
     // Use the RISC-V machine timer timesource

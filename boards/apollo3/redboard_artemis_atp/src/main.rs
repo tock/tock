@@ -28,6 +28,7 @@ use kernel::hil::i2c::I2CMaster;
 use kernel::hil::i2c::I2CSlave;
 use kernel::hil::led::LedHigh;
 use kernel::hil::time::Counter;
+use kernel::hil::uart::BAUD115200;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
@@ -222,7 +223,7 @@ unsafe fn setup() -> (
     );
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, BAUD115200)
         .finalize(components::uart_mux_component_static!());
 
     // Setup the console.

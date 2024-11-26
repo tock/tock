@@ -6,7 +6,7 @@ use crate::BOARD;
 use crate::CHIP;
 use crate::MAIN_CAP;
 use crate::PLATFORM;
-use kernel::debug;
+use kernel::{debug, non_zero};
 
 fn run_kernel_op(loops: usize) {
     unsafe {

@@ -7,7 +7,7 @@ use core::panic::PanicInfo;
 
 use kernel::debug::{self, IoWrite};
 use kernel::hil::led::LedHigh;
-use kernel::hil::uart::{Configure, Parameters, Parity, StopBits, Width};
+use kernel::hil::uart::{Configure, Parameters, Parity, StopBits, Width, BAUD115200};
 use kernel::utilities::cells::OptionalCell;
 
 use rp2040::gpio::{GpioFunction, RPGpio, RPGpioPin};
@@ -55,7 +55,7 @@ impl IoWrite for Writer {
 
                 if !uart0.is_configured() {
                     let parameters = Parameters {
-                        baud_rate: 115200,
+                        baud_rate: BAUD115200,
                         width: Width::Eight,
                         parity: Parity::None,
                         stop_bits: StopBits::One,

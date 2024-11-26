@@ -4,7 +4,10 @@
 
 //! Interface for UART communication.
 
+use crate::non_zero;
 use crate::ErrorCode;
+
+use core::num::NonZero;
 
 /// Number of stop bits to send after each word.
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -37,11 +40,14 @@ pub enum Width {
     Eight = 8,
 }
 
+pub const BAUD9600: NonZero<u32> = non_zero!(9600);
+pub const BAUD115200: NonZero<u32> = non_zero!(115_200);
+
 /// UART parameters for configuring the bus.
 #[derive(Copy, Clone, Debug)]
 pub struct Parameters {
     /// Baud rate in bit/s.
-    pub baud_rate: u32,
+    pub baud_rate: NonZero<u32>,
     /// Number of bits per word.
     pub width: Width,
     /// Parity bit configuration.

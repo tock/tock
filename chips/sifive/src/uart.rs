@@ -5,6 +5,7 @@
 //! UART driver.
 
 use core::cell::Cell;
+use core::num::NonZeroU32;
 use kernel::utilities::registers::FieldValue;
 use kernel::ErrorCode;
 
@@ -136,13 +137,15 @@ impl<'a> Uart<'a> {
         rx.iof0();
     }
 
-    fn set_baud_rate(&self, baud_rate: u32) {
+    fn set_baud_rate(&self, baud_rate: NonZeroU32) {
         let regs = self.registers;
 
         //            f_clk
         // f_baud = ---------
         //           div + 1
-        let divisor = (self.clock_frequency / baud_rate) - 1;
+        //
+        // DIVISION: the type of `baud_rate` guarantees that divide by 0 cannot be produced.
+        let divisor = (self.clock_frequency / baud_rate.get()) - 1;
 
         regs.div.write(div::div.val(divisor));
     }

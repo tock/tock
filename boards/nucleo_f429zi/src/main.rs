@@ -19,6 +19,7 @@ use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil::led::LedHigh;
+use kernel::hil::uart::BAUD115200;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
@@ -372,7 +373,7 @@ unsafe fn start() -> (
 
     // Create a shared UART channel for kernel debug.
     base_peripherals.usart3.enable_clock();
-    let uart_mux = components::console::UartMuxComponent::new(&base_peripherals.usart3, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(&base_peripherals.usart3, BAUD115200)
         .finalize(components::uart_mux_component_static!());
 
     (*addr_of_mut!(io::WRITER)).set_initialized();

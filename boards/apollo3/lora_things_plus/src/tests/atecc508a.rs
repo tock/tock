@@ -6,7 +6,7 @@
 
 use crate::tests::run_kernel_op;
 use crate::ATECC508A;
-use kernel::debug;
+use kernel::{debug, non_zero};
 
 #[test_case]
 fn read_config() {

@@ -5,6 +5,7 @@
 //! UART driver.
 
 use core::cell::Cell;
+use core::num::NonZeroU32;
 use kernel::ErrorCode;
 
 use kernel::hil;
@@ -217,7 +218,8 @@ impl Uart<'_> {
         }
     }
 
-    fn set_baud_rate(&self, baud_rate: u32) {
+    fn set_baud_rate(&self, baud_rate: NonZeroU32) {
+        let baud_rate = baud_rate.get();
         let regs = self.registers;
 
         let baud_clk = 16 * baud_rate;

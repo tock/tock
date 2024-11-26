@@ -5,12 +5,12 @@
 use crate::tests::run_kernel_op;
 use crate::PERIPHERALS;
 use core::cell::Cell;
-use kernel::debug;
 use kernel::hil::i2c::I2CHwSlaveClient;
 use kernel::hil::i2c::I2CSlave;
 use kernel::hil::i2c::SlaveTransmissionType;
 use kernel::static_init;
 use kernel::utilities::cells::TakeCell;
+use kernel::{debug, non_zero};
 
 struct I2CSlaveCallback {
     master_write_done: Cell<bool>,

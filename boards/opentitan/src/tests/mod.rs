@@ -6,7 +6,7 @@ use crate::BOARD;
 use crate::CHIP;
 use crate::MAIN_CAP;
 use crate::PLATFORM;
-use kernel::debug;
+use kernel::{debug, non_zero};
 
 pub fn semihost_command_exit_success() -> ! {
     run_kernel_op(10000);

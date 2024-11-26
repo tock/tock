@@ -3,6 +3,8 @@
 // Copyright Tock Contributors 2022.
 
 use core::cell::Cell;
+use core::num::NonZeroU32;
+
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::platform::chip::ClockInterface;
@@ -506,7 +508,8 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
         }
     }
 
-    fn set_baud_rate(&self, baud_rate: u32) -> Result<(), ErrorCode> {
+    fn set_baud_rate(&self, baud_rate: NonZeroU32) -> Result<(), ErrorCode> {
+        let baud_rate = baud_rate.get();
         // USARTDIV calculation based on stm32-rs stm32f4xx-hal:
         // https://github.com/stm32-rs/stm32f4xx-hal/blob/v0.20.0/src/serial/uart_impls.rs#L145
         //

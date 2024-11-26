@@ -11,10 +11,10 @@ mod key_value {
     use capsules_extra::test::kv_system::KVSystemTest;
     use capsules_extra::tickv::KVSystem;
     use capsules_extra::tickv::{TicKVKeyType, TicKVSystem};
-    use kernel::debug;
     use kernel::hil::hasher::Hasher;
     use kernel::static_init;
     use kernel::utilities::leasable_buffer::SubSliceMut;
+    use kernel::{debug, non_zero};
 
     #[test_case]
     fn tickv_append_key() {
@@ -68,11 +68,11 @@ mod protections_and_controller {
     use crate::tests::run_kernel_op;
     use crate::PERIPHERALS;
     use core::cell::Cell;
-    use kernel::debug;
     use kernel::hil;
     use kernel::hil::flash::HasClient;
     use kernel::static_init;
     use kernel::utilities::cells::TakeCell;
+    use kernel::{debug, non_zero};
 
     struct FlashCtlCallBack {
         read_pending: Cell<bool>,

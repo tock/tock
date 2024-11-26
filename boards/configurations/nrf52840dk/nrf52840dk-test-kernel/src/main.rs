@@ -15,6 +15,7 @@ use core::cell::Cell;
 use core::ptr::addr_of;
 use kernel::component::Component;
 use kernel::hil::time::Counter;
+use kernel::hil::uart::BAUD115200;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::utilities::cells::NumericCellExt;
@@ -228,7 +229,7 @@ pub unsafe fn main() {
     ));
 
     // Virtualize the UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(uart_channel, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(uart_channel, BAUD115200)
         .finalize(components::uart_mux_component_static!());
 
     // Create the debugger object that handles calls to `debug!()`.

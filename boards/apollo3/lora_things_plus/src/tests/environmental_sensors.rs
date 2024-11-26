@@ -11,12 +11,12 @@
 use crate::tests::run_kernel_op;
 use crate::{BME280, CCS811};
 use core::cell::Cell;
-use kernel::debug;
 use kernel::hil::sensors::{
     AirQualityClient, AirQualityDriver, HumidityClient, HumidityDriver, MoistureClient,
     TemperatureClient, TemperatureDriver,
 };
 use kernel::ErrorCode;
+use kernel::{debug, non_zero};
 
 struct SensorTestCallback {
     temperature_done: Cell<bool>,

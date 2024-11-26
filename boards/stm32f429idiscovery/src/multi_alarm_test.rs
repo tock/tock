@@ -17,7 +17,7 @@
 
 use capsules_core::test::random_alarm::TestRandomAlarm;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use kernel::debug;
+use kernel::{debug, non_zero};
 use kernel::hil::time::Alarm;
 use kernel::static_init;
 use stm32f429zi::tim2::Tim2;

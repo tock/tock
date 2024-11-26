@@ -17,6 +17,7 @@ use core::ptr::{addr_of, addr_of_mut};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil::time::Counter;
+use kernel::hil::uart::BAUD115200;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 
@@ -440,7 +441,7 @@ unsafe fn start() -> (
     );
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(&base_peripherals.uarte0, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(&base_peripherals.uarte0, BAUD115200)
         .finalize(components::uart_mux_component_static!());
 
     // Setup the console.

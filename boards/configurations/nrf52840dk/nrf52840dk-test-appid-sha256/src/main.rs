@@ -15,6 +15,7 @@ use core::ptr::{addr_of, addr_of_mut};
 use kernel::component::Component;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
+use kernel::hil::uart::BAUD115200;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{capabilities, create_capability, static_init};
@@ -234,7 +235,7 @@ pub unsafe fn main() {
     ));
 
     // Virtualize the UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(uart_channel, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(uart_channel, BAUD115200)
         .finalize(components::uart_mux_component_static!());
 
     // Setup the serial console for userspace.

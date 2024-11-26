@@ -803,7 +803,7 @@ impl<'a> hil::uart::Transmit<'a> for Lpuart<'a> {
 
 impl hil::uart::Configure for Lpuart<'_> {
     fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
-        if params.baud_rate != 115200
+        if params.baud_rate.get() != 115200
             || params.stop_bits != hil::uart::StopBits::One
             || params.parity != hil::uart::Parity::None
             || params.hw_flow_control

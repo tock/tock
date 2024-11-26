@@ -17,6 +17,7 @@ use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
+use kernel::hil::uart::BAUD115200;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::priority::PrioritySched;
 use kernel::{create_capability, debug, static_init};
@@ -157,7 +158,7 @@ unsafe fn start() -> (
     PROCESS_PRINTER = Some(process_printer);
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, BAUD115200)
         .finalize(components::uart_mux_component_static!());
 
     let console = components::console::ConsoleComponent::new(

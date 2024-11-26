@@ -16,6 +16,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil::led::LedHigh;
 use kernel::hil::time::{Alarm, Timer};
+use kernel::hil::uart::BAUD115200;
 use kernel::platform::chip::InterruptService;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -443,7 +444,7 @@ unsafe fn start() -> (
     //
     // The baudrate is ingnored, as no UART phy is present in the
     // verilated simulation.
-    let uart_mux = components::console::UartMuxComponent::new(uart0, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(uart0, BAUD115200)
         .finalize(components::uart_mux_component_static!());
 
     // ---------- ETHERNET ----------

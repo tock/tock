@@ -41,6 +41,7 @@ use capsules_core::console_ordered::ConsoleOrdered;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules_core::virtualizers::virtual_uart::{MuxUart, UartDevice};
 use core::mem::MaybeUninit;
+use core::num::NonZero;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
@@ -70,13 +71,13 @@ macro_rules! uart_mux_component_static {
 
 pub struct UartMuxComponent<const RX_BUF_LEN: usize> {
     uart: &'static dyn uart::Uart<'static>,
-    baud_rate: u32,
+    baud_rate: NonZero<u32>,
 }
 
 impl<const RX_BUF_LEN: usize> UartMuxComponent<RX_BUF_LEN> {
     pub fn new(
         uart: &'static dyn uart::Uart<'static>,
-        baud_rate: u32,
+        baud_rate: NonZero<u32>,
     ) -> UartMuxComponent<RX_BUF_LEN> {
         UartMuxComponent { uart, baud_rate }
     }

@@ -47,6 +47,7 @@
 
 use core::cell::Cell;
 use core::cmp;
+use core::num::NonZeroU32;
 
 use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
@@ -58,7 +59,7 @@ pub const RX_BUF_LEN: usize = 64;
 
 pub struct MuxUart<'a> {
     uart: &'a dyn uart::Uart<'a>,
-    speed: u32,
+    baud_rate: NonZeroU32,
     devices: List<'a, UartDevice<'a>>,
     inflight: OptionalCell<&'a UartDevice<'a>>,
     buffer: TakeCell<'static, [u8]>,
@@ -211,10 +212,14 @@ impl uart::ReceiveClient for MuxUart<'_> {
 }
 
 impl<'a> MuxUart<'a> {
-    pub fn new(uart: &'a dyn uart::Uart<'a>, buffer: &'static mut [u8], speed: u32) -> MuxUart<'a> {
+    pub fn new(
+        uart: &'a dyn uart::Uart<'a>,
+        buffer: &'static mut [u8],
+        baud_rate: NonZeroU32,
+    ) -> MuxUart<'a> {
         MuxUart {
             uart,
-            speed,
+            baud_rate,
             devices: List::new(),
             inflight: OptionalCell::empty(),
             buffer: TakeCell::new(buffer),
@@ -225,7 +230,7 @@ impl<'a> MuxUart<'a> {
 
     pub fn initialize(&self) {
         let _ = self.uart.configure(uart::Parameters {
-            baud_rate: self.speed,
+            baud_rate: self.baud_rate,
             width: uart::Width::Eight,
             stop_bits: uart::StopBits::One,
             parity: uart::Parity::None,

@@ -77,6 +77,7 @@ use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use kernel::component::Component;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
+use kernel::hil::uart::BAUD115200;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
@@ -374,7 +375,7 @@ pub unsafe fn start() -> (
     PROCESS_PRINTER = Some(process_printer);
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(channel, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(channel, BAUD115200)
         .finalize(components::uart_mux_component_static!());
 
     let pconsole = components::process_console::ProcessConsoleComponent::new(
