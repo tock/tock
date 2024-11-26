@@ -17,7 +17,8 @@ use kernel::debug;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::{capabilities, create_capability};
 use nrf52840::gpio::Pin;
-use nrf52840dk_lib::{self, PROCESSES};
+use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
+use nrf52840dk_lib::{self, NUM_PROCS, PROCESSES};
 
 type ScreenDriver = components::screen::ScreenComponentType;
 
@@ -35,7 +36,12 @@ struct Platform {
     eui64: &'static nrf52840dk_lib::Eui64Driver,
     screen: &'static ScreenDriver,
     nonvolatile_storage:
-        &'static capsules_extra::nonvolatile_storage_driver::NonvolatileStorage<'static>,
+        &'static capsules_extra::isolated_nonvolatile_storage_driver::IsolatedNonvolatileStorage<
+            'static,
+            {
+                components::isolated_nonvolatile_storage::ISOLATED_NONVOLATILE_STORAGE_APP_REGION_SIZE_DEFAULT
+            },
+        >,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -47,7 +53,7 @@ impl SyscallDriverLookup for Platform {
             capsules_extra::eui64::DRIVER_NUM => f(Some(self.eui64)),
             capsules_extra::ieee802154::DRIVER_NUM => f(Some(self.ieee802154)),
             capsules_extra::screen::DRIVER_NUM => f(Some(self.screen)),
-            capsules_extra::nonvolatile_storage_driver::DRIVER_NUM => {
+            capsules_extra::isolated_nonvolatile_storage_driver::DRIVER_NUM => {
                 f(Some(self.nonvolatile_storage))
             }
             _ => self.base.with_driver(driver_num, f),
@@ -165,18 +171,16 @@ pub unsafe fn main() {
     // 32kB of userspace-accessible storage, page aligned:
     kernel::storage_volume!(APP_STORAGE, 32);
 
-    let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
+    let nonvolatile_storage = components::isolated_nonvolatile_storage::IsolatedNonvolatileStorageComponent::new(
         board_kernel,
-        capsules_extra::nonvolatile_storage_driver::DRIVER_NUM,
+        capsules_extra::isolated_nonvolatile_storage_driver::DRIVER_NUM,
         &nrf52840_peripherals.nrf52.nvmc,
         core::ptr::addr_of!(APP_STORAGE) as usize,
-        APP_STORAGE.len(),
-        // No kernel-writeable flash:
-        core::ptr::null::<()>() as usize,
-        0,
+        APP_STORAGE.len()
     )
-    .finalize(components::nonvolatile_storage_component_static!(
-        nrf52840::nvmc::Nvmc
+    .finalize(components::isolated_nonvolatile_storage_component_static!(
+        nrf52840::nvmc::Nvmc,
+        { components::isolated_nonvolatile_storage::ISOLATED_NONVOLATILE_STORAGE_APP_REGION_SIZE_DEFAULT }
     ));
 
     //--------------------------------------------------------------------------
@@ -203,28 +207,53 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
+    //--------------------------------------------------------------------------
+    // CREDENTIAL CHECKING
+    //--------------------------------------------------------------------------
 
-    kernel::process::load_processes(
+    // Create the credential checker.
+    let checking_policy = components::appid::checker_null::AppCheckerNullComponent::new()
+        .finalize(components::app_checker_null_component_static!());
+
+    // Create the AppID assigner.
+    let assigner = components::appid::assigner_name::AppIdAssignerNamesComponent::new()
+        .finalize(components::appid_assigner_names_component_static!());
+
+    // Create the process checking machine.
+    let checker = components::appid::checker::ProcessCheckerMachineComponent::new(checking_policy)
+        .finalize(components::process_checker_machine_component_static!());
+
+    //--------------------------------------------------------------------------
+    // STORAGE PERMISSIONS
+    //--------------------------------------------------------------------------
+
+    let storage_permissions_policy =
+        components::storage_permissions::individual::StoragePermissionsIndividualComponent::new()
+            .finalize(
+                components::storage_permissions_individual_component_static!(
+                    nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+                    kernel::process::ProcessStandardDebugFull,
+                ),
+            );
+
+    //--------------------------------------------------------------------------
+    // PROCESS LOADING
+    //--------------------------------------------------------------------------
+    // Create and start the asynchronous process loader.
+    let _loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
+        checker,
+        &mut *addr_of_mut!(PROCESSES),
         board_kernel,
         chip,
-        core::slice::from_raw_parts(
-            core::ptr::addr_of!(_sapps),
-            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-        ),
-        core::slice::from_raw_parts_mut(
-            core::ptr::addr_of_mut!(_sappmem),
-            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
-        ),
-        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
-        &process_management_capability,
+        assigner,
+        storage_permissions_policy,
     )
-    .unwrap_or_else(|err| {
-        debug!("Error loading processes!");
-        debug!("{:?}", err);
-    });
+    .finalize(components::process_loader_sequential_component_static!(
+        nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+        kernel::process::ProcessStandardDebugFull,
+        NUM_PROCS
+    ));
 
     board_kernel.kernel_loop(
         &platform,

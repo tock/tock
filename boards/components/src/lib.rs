@@ -45,6 +45,7 @@ pub mod humidity;
 pub mod i2c;
 pub mod ieee802154;
 pub mod isl29035;
+pub mod isolated_nonvolatile_storage;
 pub mod keyboard_hid;
 pub mod kv;
 pub mod l3gd20;
