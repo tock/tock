@@ -12,6 +12,7 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use core::num::NonZeroU32;
 use core::ptr::addr_of;
 use core::ptr::addr_of_mut;
 
@@ -506,8 +507,10 @@ unsafe fn start() -> (
     CDC_REF_FOR_PANIC = Some(cdc); //for use by panic handler
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(cdc, 115200)
-        .finalize(components::uart_mux_component_static!());
+    // PANIC: 115200 != 0
+    let uart_mux =
+        components::console::UartMuxComponent::new(cdc, NonZeroU32::new(115200).unwrap())
+            .finalize(components::uart_mux_component_static!());
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(

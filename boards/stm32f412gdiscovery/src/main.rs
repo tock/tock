@@ -11,6 +11,7 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
+use core::num::NonZeroU32;
 use core::ptr::{addr_of, addr_of_mut};
 
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
@@ -459,8 +460,12 @@ unsafe fn start() -> (
 
     // Create a shared UART channel for kernel debug.
     base_peripherals.usart2.enable_clock();
-    let uart_mux = components::console::UartMuxComponent::new(&base_peripherals.usart2, 115200)
-        .finalize(components::uart_mux_component_static!());
+    // PANIC: 115200 != 0
+    let uart_mux = components::console::UartMuxComponent::new(
+        &base_peripherals.usart2,
+        NonZeroU32::new(115200).unwrap(),
+    )
+    .finalize(components::uart_mux_component_static!());
 
     (*addr_of_mut!(io::WRITER)).set_initialized();
 

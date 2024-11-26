@@ -11,6 +11,7 @@
 #![cfg_attr(not(doc), no_main)]
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core::num::NonZeroU32;
 use core::ptr::{addr_of, addr_of_mut};
 use kernel::capabilities;
 use kernel::component::Component;
@@ -131,8 +132,12 @@ unsafe fn start() -> (&'static kernel::Kernel, VeeR, &'static VeeRChip) {
     kernel::debug::assign_gpios(None, None, None);
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(&peripherals.sim_uart, 115200)
-        .finalize(components::uart_mux_component_static!());
+    // PANIC: 115200 != 0
+    let uart_mux = components::console::UartMuxComponent::new(
+        &peripherals.sim_uart,
+        NonZeroU32::new(115200).unwrap(),
+    )
+    .finalize(components::uart_mux_component_static!());
 
     let mtimer = static_init!(Clint, Clint::new(&CLINT_BASE));
 

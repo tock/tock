@@ -13,6 +13,7 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use core::num::NonZeroU32;
 use core::ptr::addr_of;
 use core::ptr::addr_of_mut;
 
@@ -386,8 +387,10 @@ pub unsafe fn start_particle_boron() -> (
     PROCESS_PRINTER = Some(process_printer);
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(uart_channel, 115200)
-        .finalize(components::uart_mux_component_static!(132));
+    // PANIC: 115200 != 0
+    let uart_mux =
+        components::console::UartMuxComponent::new(uart_channel, NonZeroU32::new(115200).unwrap())
+            .finalize(components::uart_mux_component_static!(132));
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(

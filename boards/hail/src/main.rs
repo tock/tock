@@ -13,6 +13,7 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use core::num::NonZeroU32;
 use core::ptr::{addr_of, addr_of_mut};
 
 use kernel::capabilities;
@@ -280,8 +281,12 @@ unsafe fn start() -> (
     peripherals.usart0.set_mode(sam4l::usart::UsartMode::Uart);
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(&peripherals.usart0, 115200)
-        .finalize(components::uart_mux_component_static!());
+    // PANIC: 115200 != 0
+    let uart_mux = components::console::UartMuxComponent::new(
+        &peripherals.usart0,
+        NonZeroU32::new(115200).unwrap(),
+    )
+    .finalize(components::uart_mux_component_static!());
     uart_mux.initialize();
 
     hil::uart::Transmit::set_transmit_client(&peripherals.usart0, uart_mux);
