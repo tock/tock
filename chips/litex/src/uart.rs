@@ -308,13 +308,13 @@ impl<R: LiteXSoCRegisterConfiguration> uart::Configure for LiteXUart<'_, R> {
                 || params.hw_flow_control
             {
                 Err(ErrorCode::NOSUPPORT)
-            } else if params.baud_rate == 0 || params.baud_rate > system_clock {
+            } else if params.baud_rate.get() > system_clock {
                 Err(ErrorCode::INVAL)
             } else {
-                let tuning_word = if params.baud_rate == system_clock {
+                let tuning_word = if params.baud_rate.get() == system_clock {
                     u32::MAX
                 } else {
-                    (((params.baud_rate as u64) * (1 << 32)) / (system_clock as u64)) as u32
+                    (((params.baud_rate.get() as u64) * (1 << 32)) / (system_clock as u64)) as u32
                 };
                 phy_regs.tuning_word.set(tuning_word);
 

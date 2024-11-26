@@ -16,6 +16,7 @@
 mod fcb;
 mod io;
 
+use core::num::NonZeroU32;
 use core::ptr::{addr_of, addr_of_mut};
 
 use imxrt1060::gpio::PinId;
@@ -257,8 +258,11 @@ unsafe fn start() -> (&'static kernel::Kernel, Teensy40, &'static Chip) {
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
     // TODO how many of these should there be...?
 
-    let uart_mux = components::console::UartMuxComponent::new(&peripherals.lpuart2, 115_200)
-        .finalize(components::uart_mux_component_static!());
+    let uart_mux = components::console::UartMuxComponent::new(
+        &peripherals.lpuart2,
+        NonZeroU32::new(115_200).unwrap(),
+    )
+    .finalize(components::uart_mux_component_static!());
     // Create the debugger object that handles calls to `debug!()`
     components::debug_writer::DebugWriterComponent::new(uart_mux)
         .finalize(components::debug_writer_component_static!());

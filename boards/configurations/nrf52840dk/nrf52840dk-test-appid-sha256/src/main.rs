@@ -10,6 +10,7 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use core::num::NonZeroU32;
 use core::ptr::{addr_of, addr_of_mut};
 
 use kernel::component::Component;
@@ -234,8 +235,10 @@ pub unsafe fn main() {
     ));
 
     // Virtualize the UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(uart_channel, 115200)
-        .finalize(components::uart_mux_component_static!());
+    let uart_mux =
+        // PANIC: 115200 != 0
+        components::console::UartMuxComponent::new(uart_channel, NonZeroU32::new(115200).unwrap())
+            .finalize(components::uart_mux_component_static!());
 
     // Setup the serial console for userspace.
     let console = components::console::ConsoleComponent::new(

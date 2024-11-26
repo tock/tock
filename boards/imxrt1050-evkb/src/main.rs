@@ -10,6 +10,7 @@
 #![no_main]
 #![deny(missing_docs)]
 
+use core::num::NonZeroU32;
 use core::ptr::{addr_of, addr_of_mut};
 
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
@@ -302,8 +303,12 @@ unsafe fn start() -> (
     // Enable clock
     peripherals.lpuart1.enable_clock();
 
-    let lpuart_mux = components::console::UartMuxComponent::new(&peripherals.lpuart1, 115200)
-        .finalize(components::uart_mux_component_static!());
+    let lpuart_mux = components::console::UartMuxComponent::new(
+        &peripherals.lpuart1,
+        // PANIC: 115200 != 0
+        NonZeroU32::new(115200).unwrap(),
+    )
+    .finalize(components::uart_mux_component_static!());
     (*addr_of_mut!(io::WRITER)).set_initialized();
 
     // Create capabilities that the board needs to call certain protected kernel

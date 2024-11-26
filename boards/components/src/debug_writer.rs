@@ -24,6 +24,7 @@
 
 use capsules_core::virtualizers::virtual_uart::{MuxUart, UartDevice};
 use core::mem::MaybeUninit;
+use core::num::NonZeroU32;
 use kernel::capabilities;
 use kernel::collections::ring_buffer::RingBuffer;
 use kernel::component::Component;
@@ -182,7 +183,8 @@ impl<U: uart::Uart<'static> + uart::Transmit<'static> + 'static, const BUF_SIZE_
         }
 
         let _ = self.uart.configure(uart::Parameters {
-            baud_rate: 115200,
+            // PANIC: 115200 != 0
+            baud_rate: NonZeroU32::new(115200).unwrap(),
             width: uart::Width::Eight,
             stop_bits: uart::StopBits::One,
             parity: uart::Parity::None,
