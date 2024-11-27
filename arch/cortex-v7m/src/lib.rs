@@ -74,10 +74,10 @@ core::arch::global_asm!(
   svc_handler_arm_v7m:
     // First check to see which direction we are going in. If the link register
     // (containing EXC_RETURN) has a 1 in the SPSEL bit (meaning the
-    // alternative/process stack was in use) then we are coming from an app
+    // alternative/process stack was in use) then we are coming from a process
     // which has called a syscall.
     ubfx r0, lr, #2, #1               // r0 = (LR & (0x1<<2)) >> 2
-    cmp r0, #0                        // r0 (SPSEL bit) ≟ 0
+    cmp r0, #0                        // r0 (SPSEL bit) =≟ 0
     bne 100f // to_kernel             // if SPSEL == 1, jump to to_kernel
 
     // If we get here, then this is a context switch from the kernel to the
@@ -97,7 +97,7 @@ core::arch::global_asm!(
     isb
 
     // The link register is set to the `EXC_RETURN` value on exception entry. To
-    // ensure we execute using the application stack we set the SPSEL bit to 1
+    // ensure we execute using the process stack we set the SPSEL bit to 1
     // to use the alternate (process) stack.
     mov r0, #1                        // r0 = 1
     bfi lr, r0, #2, #1                // LR = LR | (0x1<<2)
