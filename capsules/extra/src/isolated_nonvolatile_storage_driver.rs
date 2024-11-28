@@ -13,48 +13,35 @@
 //! should consider giving each app more freedom over configuring the amount
 //! of nonvolatile memory they will use.
 //!
-//! Here is the sequence of events that happen when this initialization syscall is invoked:
-//!  1. The capsule starts traversing a "linked-list" of app regions to find
-//!     any existing regions that might already exist in storage for the app
-//!     making the syscall. This traversal is possible due to headers that exist
-//!     right before the start of each app's region. These headers describe the
-//!     app that owns the region and size of the region. During traversal of these
-//!     regions, the capsule uses the length to determine where the next region
-//!     header starts.
-//!  2. The capsule reads the header and performs a check to see if the region header
-//!     is valid. If it is valid, we move to step 3. If not, we move to step 4.
-//!  3. If the capsule finds a valid region header, it tries to save the informaton of the region
-//!     to the grant of the app that has the same ShortID of the header it just read. It's
-//!     possible that the app previously owned a region but currently isn't running on the
-//!     board. If the app is running, it saves the location and length of the region to the
-//!     app's grant memory where it can be retrieved later during reads/writes. Then it
-//!     continues to traverse the "list" of regions by using length of the previous region
-//!     to determine the start of the next one.
-//!  4. If the capsule finds an invalid region header, it knows that it has
-//!     reached the area of storage where regions have not been initialized.
-//!     Therefore, it will begin to allocate regions at the end of the "list"
-//!     for any apps that made initialization requests and don't already have a region.
-//!  4. Once an app is known to have a valid region (either by discovering it during
-//!     traversal or allocating a new one), initialization completes and the app
-//!     receives an upcall. Now it can go ahead and start reading/writing only
-//!     within its isolated region.
-//!
-//! However, the kernel accessible memory does not have to be the same range
-//! as the userspace accessible address space. The kernel memory can overlap
-//! if desired, or can be a completely separate range.
+//! In case, the app previously had data in persistent storage, we need
+//! to find where that is. Therefore, there's an initialization sequence
+//! that happens on every app's first syscall. 
+//! 
+//! Here is a general high-level overview of what happens when an
+//! app makes their first syscall:
+//!  1. App engages with the capsule by making any syscall.
+//!  2. Capsule searches through storage to see if that app
+//!     has an existing region.
+//!  3. a. If the capsule finds a matching region:
+//!         - Cache the app's region information in its grant.
+//!     b. If the capsule DOESN'T find a matching region:
+//!         - Allocate a new region for that app.
+//!         - Erase the region's usable area.
+//!   4. Handle the syscall that the app originally made. 
+//!   5. When the syscall finishes, notify the app via upcall.
 //!
 //! Here is a diagram of the expected stack with this capsule:
 //! Boxes are components and between the boxes are the traits that are the
-//! interfaces between components. This capsule provides both a kernel and
+//! interfaces between components. This capsule only provides a 
 //! userspace interface.
 //!
 //! ```text
-//! +--------------------------------------------+     +--------------+
-//! |                                            |     |              |
-//! |                  kernel                    |     |  userspace   |
-//! |                                            |     |              |
-//! +--------------------------------------------+     +--------------+
-//!  hil::nonvolatile_storage::NonvolatileStorage       kernel::Driver
+//! +-----------------------------------------------------------------+
+//! |                                                                 |
+//! |                             userspace                           |
+//! |                                                                 |
+//! +-----------------------------------------------------------------+
+//!                             kernel::Driver
 //! +-----------------------------------------------------------------+
 //! |                                                                 |
 //! | capsules::nonvolatile_storage_driver::NonvolatileStorage (this) |
@@ -71,10 +58,6 @@
 //! Example nonvolatile storage layout:
 //!
 //! ```text
-//!     ╒════════ ← Start of kernel region
-//!     │
-//!     ╘════════ ← End of kernel region
-//!
 //!     ╒════════ ← Start of userspace region
 //!     ├──────── ← Start of App 1's region header
 //!     │ Region version number (8 bits) | Region length (24 bits) (Note that | inidcates bitwise concatenation)
@@ -128,6 +111,7 @@
 
 use core::cmp;
 
+use kernel::errorcode::into_statuscode;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
@@ -143,12 +127,12 @@ pub const DRIVER_NUM: usize = driver::NUM::IsolatedNvmStorage as usize;
 
 /// IDs for subscribed upcalls.
 mod upcall {
+    /// Get storage size done callback.
+    pub const GET_SIZE_DONE: usize = 0;
     /// Read done callback.
-    pub const READ_DONE: usize = 0;
+    pub const READ_DONE: usize = 1;
     /// Write done callback.
-    pub const WRITE_DONE: usize = 1;
-    /// Initialization done callback.
-    pub const INIT_DONE: usize = 2;
+    pub const WRITE_DONE: usize = 2;
     /// Number of upcalls.
     pub const COUNT: u8 = 3;
 }
@@ -191,7 +175,7 @@ const CURRENT_HEADER_VERSION: HeaderVersion = HeaderVersion::V1;
 pub struct AppRegion {
     version: HeaderVersion,
     /// Absolute address to describe where an app's nonvolatile region
-    /// starts. Note that this is the address following the region's header.
+    /// starts. Note that this is the address FOLLOWING the region's header.
     offset: usize,
     /// How many bytes allocated to a certain app. Note that this describes
     /// the length of the usable storage region and does not include the
@@ -342,6 +326,23 @@ pub enum User {
     RegionManager(RegionState),
 }
 
+#[derive(Clone, Copy)]
+pub enum Syscall {
+    GetSize,
+    Read { offset: usize, length: usize},
+    Write { offset: usize, length: usize},
+}
+
+impl Syscall {
+    fn to_upcall(&self) -> usize {
+        match self {
+            Self::GetSize => upcall::GET_SIZE_DONE,
+            Self::Write { offset: _, length: _ } => upcall::WRITE_DONE,
+            Self::Read { offset: _, length: _ } => upcall::READ_DONE,
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct App {
     /// The operation the app has requested, if any.
@@ -352,6 +353,8 @@ pub struct App {
     /// Describe the location and size of an app's region (if it has been
     /// initialized).
     region: Option<AppRegion>,
+    /// Syscall that will be handled once init sequence is complete  
+    pending_syscall: Option<Syscall>,
 }
 
 pub struct IsolatedNonvolatileStorage<'a, const APP_REGION_SIZE: usize> {
@@ -408,13 +411,26 @@ impl<'a, const APP_REGION_SIZE: usize> IsolatedNonvolatileStorage<'a, APP_REGION
 
     // App-level initialization that allocates a region for an app or fetches
     // an app's existing region from nonvolatile storage
-    fn init_app(&self, processid: ProcessId) -> Result<(), ErrorCode> {
-        // Mark that this app requested a storage region. If it isn't
-        // allocated immediately, it will be handled after previous requests
-        // are handled.
-        self.apps.enter(processid, |app, _kernel_data| {
+    fn init_app(&self, syscall: Syscall, processid: ProcessId) -> Result<(), ErrorCode> {
+        let res = self.apps.enter(processid, |app, _kernel_data| {
+            // Mark that this app requested a storage region. If it isn't
+            // allocated immediately, it will be handled after previous requests
+            // are handled.
             app.has_requested_region = true;
+
+            // can't buffer more than one syscall per app
+            if app.pending_syscall.is_some() {
+                return Err(ErrorCode::BUSY);
+            }
+
+            // Save syscall information to handle after init finishes
+            app.pending_syscall = Some(syscall);
+            Ok(())
         })?;
+
+        if res.is_err() {
+            return res;
+        }
 
         // Start traversing the storage regions to find where the requesting
         // app's storage region is located. If it doesn't exist, a new one will
@@ -452,7 +468,7 @@ impl<'a, const APP_REGION_SIZE: usize> IsolatedNonvolatileStorage<'a, APP_REGION
             length: APP_REGION_SIZE,
         };
 
-        // fail if new region is outside userpace area
+        // fail if new region is outside userspace area
         if region.offset > self.userspace_start_address + self.userspace_length
             || region.offset + region.length > self.userspace_start_address + self.userspace_length
         {
@@ -482,17 +498,18 @@ impl<'a, const APP_REGION_SIZE: usize> IsolatedNonvolatileStorage<'a, APP_REGION
                 Err(ErrorCode::NOMEM)
             },
             |buffer| {
-                let active_len = cmp::min(APP_REGION_SIZE, buffer.len());
-
                 self.current_user
                     .set(User::RegionManager(RegionState::ReadHeader(
                         region_header_address,
                     )));
-                self.driver.read(buffer, region_header_address, active_len)
+                self.driver.read(buffer, region_header_address, REGION_HEADER_LEN)
             },
         )
     }
 
+    // Write the header of an app's storage region. The region_header_address
+    // argument describes the start of the **header** and not the usable region
+    // itself.
     fn write_region_header(
         &self,
         processid: ProcessId,
@@ -518,13 +535,11 @@ impl<'a, const APP_REGION_SIZE: usize> IsolatedNonvolatileStorage<'a, APP_REGION
                         .ok_or(ErrorCode::NOMEM)?,
                 );
 
-            let active_len = cmp::min(region.length, buffer.len());
-
             self.current_user
                 .set(User::RegionManager(RegionState::WriteHeader(
                     processid, *region,
                 )));
-            self.driver.write(buffer, region_header_address, active_len)
+            self.driver.write(buffer, region_header_address, REGION_HEADER_LEN)
         })
     }
 
@@ -570,7 +585,18 @@ impl<'a, const APP_REGION_SIZE: usize> IsolatedNonvolatileStorage<'a, APP_REGION
     }
 
     fn header_read_done(&self, region_header_address: usize) -> Result<(), ErrorCode> {
-        // reconstruct header from bytes we just read
+        // Cases when a header read completes:
+        // 1. Read a valid header 
+        //     - The valid header belongs to a Tock app (might not be currently running)
+        //     - Search for the owner of the region within the apps that have previously 
+        //       requested to use nonvolatile storage
+        //     - Find the owner of the region that has a matching shortid (from the header) 
+        //     - Then, startup another read operation to read the header of the next
+        //       storage region.
+        // 2. Read an invalid header
+        //     - We've reached the end of all previously allocated regions 
+        //     - Allocate new app region here
+
         let header = self.buffer.map_or(Err(ErrorCode::NOMEM), |buffer| {
             // Need to copy over bytes since we need to convert a &[u8]
             // into a [u8; REGION_HEADER_LEN]. The &[u8] refers to a
@@ -581,16 +607,17 @@ impl<'a, const APP_REGION_SIZE: usize> IsolatedNonvolatileStorage<'a, APP_REGION
             header_buffer
                 .copy_from_slice_or_err(&buffer[..REGION_HEADER_LEN])
                 .or(Err(ErrorCode::FAIL))?;
+
+            // reconstruct header from bytes we just read
             AppRegionHeader::from_bytes(header_buffer).ok_or(ErrorCode::FAIL)
         })?;
 
-        // If a header is invalid, we've reached the end
-        // of all previously allocated regions.
         if header.is_valid() {
             // Find the app with the corresponding shortid.
             for app in self.apps.iter() {
+                let processid = app.processid();
                 // skip an app if it doesn't have the proper storage permissions
-                let write_id = match app.processid().get_storage_permissions() {
+                let write_id = match processid.get_storage_permissions() {
                     Some(perms) => match perms.get_write_id() {
                         Some(write_id) => write_id,
                         None => continue,
@@ -598,28 +625,26 @@ impl<'a, const APP_REGION_SIZE: usize> IsolatedNonvolatileStorage<'a, APP_REGION
                     None => continue,
                 };
                 if write_id == header.shortid {
-                    app.enter(|app, kernel_data| {
+                    app.enter(|app, _kernel_data| {
                         // only populate region and signal app that explicitly
                         // requested to initialize storage
                         if app.has_requested_region && app.region.is_none() {
                             let version = header.version().ok_or(ErrorCode::FAIL)?;
-                            app.region.replace(AppRegion {
+                            let region = AppRegion {
                                 version,
                                 // the app's actual region starts after the
                                 // region header
                                 offset: region_header_address + REGION_HEADER_LEN,
                                 length: header.length() as usize,
-                            });
-
-                            kernel_data
-                                .schedule_upcall(
-                                    upcall::INIT_DONE,
-                                    (kernel::errorcode::into_statuscode(Ok(())), 0, 0),
-                                )
-                                .ok();
+                            };
+                            app.region.replace(region);
                         }
                         Ok::<(), ErrorCode>(())
                     })?;
+
+                    // Now that we have found the region, app's storage is
+                    // initialized and we can handle its original syscall
+                    self.check_pending_syscalls();
 
                     break;
                 }
@@ -627,14 +652,22 @@ impl<'a, const APP_REGION_SIZE: usize> IsolatedNonvolatileStorage<'a, APP_REGION
 
             let next_header_address =
                 region_header_address + REGION_HEADER_LEN + header.length() as usize;
+
+            // kick off another read for the next region
             self.read_region_header(next_header_address)
         } else {
+            // This is the end of the region traversal. 
+            // If a header is invalid, we've reached the end
+            // of all previously allocated regions.
+            
             // save this region header address so that we can allocate new regions
             // here later
             self.next_unallocated_region_header_address
                 .set(region_header_address);
 
-            self.check_queue();
+            // Check any pending requests and allocate new regions
+            // after any existing regions.
+            self.check_unallocated_regions();
             Ok(())
         }
     }
@@ -832,8 +865,35 @@ impl<'a, const APP_REGION_SIZE: usize> IsolatedNonvolatileStorage<'a, APP_REGION
             })
     }
 
-    fn check_queue(&self) {
-        // Check if there are any pending events.
+    // Find apps that made syscalls and have a region assigned to them already
+    fn find_app_to_handle_syscall(&self) -> Option<(ProcessId, Syscall)> {
+        for app in self.apps.iter() {
+            let processid = app.processid();
+            let pending_syscall = app.enter(|app, _| {
+                // hasn't finished init yet, so don't handle syscall
+                if app.region.is_none() {
+                    None
+                } else {
+                    app.pending_syscall
+                }
+            });
+
+            if let Some(syscall) = pending_syscall {
+                return Some((processid, syscall));
+            }
+        };
+        None
+    }
+
+    // Check for pending events such as unallocated regions or unhandled syscalls
+    fn check_unallocated_regions(&self) -> bool {
+        // If this is none, we haven't traversed the existing regions yet
+        if self.next_unallocated_region_header_address.is_none() {
+            return self.start_region_traversal().is_ok();
+        }
+
+        // Allocate regions for any apps that we didn't find 
+        // while traversing existing regions
         for app in self.apps.iter() {
             let processid = app.processid();
             let started = app.enter(|app, _| {
@@ -845,9 +905,83 @@ impl<'a, const APP_REGION_SIZE: usize> IsolatedNonvolatileStorage<'a, APP_REGION
                 }
             });
             if started {
-                break;
+                return true;
             }
         }
+        false
+    }
+
+    fn check_pending_syscalls(&self) -> bool {
+        // Handle any pending syscalls 
+        if let Some((processid, syscall)) = self.find_app_to_handle_syscall() {
+            let res = self.handle_syscall(syscall, processid);
+
+            // Only notify apps if an error occurred.
+            // Later on, when the syscall successfully finishes, 
+            // they will get an upcall.
+            if res.is_err() {
+                let _ = self.apps.enter(processid, |_app, kernel_data| {
+                    kernel_data.schedule_upcall(syscall.to_upcall(), (into_statuscode(res), 0, 0)).ok();
+                });
+                return false;
+            }
+
+            // no error ocurred when starting up syscall
+            return true;
+        }
+        false
+    }
+
+    fn check_queue(&self) {
+        let started_allocating = self.check_unallocated_regions();
+        // if we didn't need to allocate any new regions, take care of
+        // pending syscalls
+        if !started_allocating {
+            self.check_pending_syscalls();
+        }
+    }
+
+    fn handle_syscall(&self, syscall: Syscall, processid: ProcessId) -> Result<(), ErrorCode> {
+        match syscall {
+            Syscall::GetSize => self.handle_get_size_syscall(processid),
+            Syscall::Read { offset, length } => self.handle_read_syscall(processid, offset, length),
+            Syscall::Write { offset, length } => self.handle_write_syscall(processid, offset, length),
+        }
+    }
+
+
+    fn handle_get_size_syscall(&self, processid: ProcessId) -> Result<(), ErrorCode> {
+        // How many bytes are accessible to each app
+        let res = self.apps.enter(processid, |app, kernel_data| 
+            match app.region {
+                Some(region) => {
+                    // clear pending syscall
+                    app.pending_syscall = None;
+                    // signal app with the result
+                    kernel_data
+                        .schedule_upcall(upcall::GET_SIZE_DONE, (into_statuscode(Ok(())), region.length, 0))
+                        .ok();
+                    Ok(())
+                },
+                None => Err(ErrorCode::FAIL)
+            }
+        )?;
+        if res.is_ok() {
+            self.check_queue();
+        }
+        res
+    }
+
+    fn handle_read_syscall(&self, processid: ProcessId, offset: usize, length: usize) -> Result<(), ErrorCode> {
+        // Issue a read command
+        self
+            .enqueue_userspace_command(Command::Read { offset, length }, Some(processid))
+    }
+
+    fn handle_write_syscall(&self, processid: ProcessId, offset: usize, length: usize) -> Result<(), ErrorCode> {
+        // Issue a write command
+        self
+            .enqueue_userspace_command(Command::Write { offset, length }, Some(processid))
     }
 }
 
@@ -867,9 +1001,9 @@ impl<const APP_REGION_SIZE: usize> hil::nonvolatile_storage::NonvolatileStorageC
                     };
                 }
                 User::App { processid } => {
-                    let _ = self.apps.enter(processid, move |_, kernel_data| {
+                    let res = self.apps.enter(processid, move |app, kernel_data| {
                         // Need to copy in the contents of the buffer
-                        let _ = kernel_data
+                        let read_len = kernel_data
                             .get_readwrite_processbuffer(rw_allow::READ)
                             .and_then(|read| {
                                 read.mut_enter(|app_buffer| {
@@ -879,22 +1013,31 @@ impl<const APP_REGION_SIZE: usize> hil::nonvolatile_storage::NonvolatileStorageC
                                     for (i, c) in buffer[0..read_len].iter().enumerate() {
                                         d[i].set(*c);
                                     }
+                                    return read_len;
                                 })
-                            });
+                            })?;
 
                         // Replace the buffer we used to do this read.
                         self.buffer.replace(buffer);
 
+                        // clear pending syscall
+                        app.pending_syscall = None;
                         // And then signal the app.
                         kernel_data
-                            .schedule_upcall(upcall::READ_DONE, (length, 0, 0))
+                            .schedule_upcall(upcall::READ_DONE, (into_statuscode(Ok(())), read_len, 0))
                             .ok();
+                        Ok::<(), kernel::process::Error>(())
                     });
+
+                    if let Ok(closure_res) = res {
+                        if closure_res.is_ok() {
+                            self.check_queue();
+                        }
+                    }
                 }
             }
         });
 
-        self.check_queue();
     }
 
     fn write_done(&self, buffer: &'static mut [u8], length: usize) {
@@ -937,31 +1080,29 @@ impl<const APP_REGION_SIZE: usize> hil::nonvolatile_storage::NonvolatileStorageC
                                     remaining_bytes,
                                 );
                             } else {
-                                // done erasing entire region
-                                let _ = self.apps.enter(processid, |_app, kernel_data| {
-                                    // region is erased and we're ready to let the app
-                                    // know that it's region is ready
-                                    kernel_data
-                                        .schedule_upcall(upcall::INIT_DONE, (0, 0, 0))
-                                        .ok();
-                                });
+                                // done erasing entire region. 
+                                self.check_pending_syscalls();
                             }
                         }
                         _ => {}
                     };
                 }
                 User::App { processid } => {
-                    let _ = self.apps.enter(processid, move |_app, kernel_data| {
+                    let res = self.apps.enter(processid, move |app, kernel_data| {
+                        // clear pending syscall
+                        app.pending_syscall = None;
                         // Notify app that its write has completed.
                         kernel_data
-                            .schedule_upcall(upcall::WRITE_DONE, (length, 0, 0))
+                            .schedule_upcall(upcall::WRITE_DONE, (into_statuscode(Ok(())), length, 0))
                             .ok();
                     });
+
+                    if res.is_ok() {
+                        self.check_queue();
+                    }
                 }
             }
         });
-
-        self.check_queue();
     }
 }
 
@@ -979,7 +1120,6 @@ impl<const APP_REGION_SIZE: usize> SyscallDriver
     /// - `1`: Return the number of bytes available to each app.
     /// - `2`: Start a read from the nonvolatile storage.
     /// - `3`: Start a write to the nonvolatile_storage.
-    /// - `4`: Initialize an app's nonvolatile_storage.
     fn command(
         &self,
         command_num: usize,
@@ -990,50 +1130,39 @@ impl<const APP_REGION_SIZE: usize> SyscallDriver
         match command_num {
             0 => CommandReturn::success(),
 
-            1 => {
-                // How many bytes are accessible to each app
-                let res = self.apps.enter(processid, |app, _kernel_data| app.region);
+            // For the get_bytes, read, and write syscalls we need to first
+            // initialize the app's isolated nonvolatile storage.
+            // This involves searching the storage area for an existing
+            // region that belongs to this app. If we don't find an existing region
+            // we allocate a new one.
+            // Only once the initialization is complete, can we service
+            // the original syscall. So, we can store the syscall data
+            // in the app's grant and handle it when initialization finishes.
+            1 | 2 | 3 => {
+                let syscall = match command_num {
+                    1 => Syscall::GetSize,
+                    2 => Syscall::Read{offset, length},
+                    3 => Syscall::Write{offset, length},
+                    _ => return CommandReturn::failure(ErrorCode::NOSUPPORT) 
+                };
 
-                // handle case where we fail to enter grant
-                res.map_or(CommandReturn::failure(ErrorCode::NOMEM), |region| {
-                    // handle case where app's region is not assigned
-                    region.map_or(CommandReturn::failure(ErrorCode::FAIL), |region| {
-                        CommandReturn::success_u32(region.length as u32)
-                    })
-                })
-            }
-
-            2 => {
-                // Issue a read command
-                let res = self
-                    .enqueue_userspace_command(Command::Read { offset, length }, Some(processid));
-
-                match res {
-                    Ok(()) => CommandReturn::success(),
-                    Err(e) => CommandReturn::failure(e),
-                }
-            }
-
-            3 => {
-                // Issue a write command
-                let res = self
-                    .enqueue_userspace_command(Command::Write { offset, length }, Some(processid));
-
-                match res {
-                    Ok(()) => CommandReturn::success(),
-                    Err(e) => CommandReturn::failure(e),
-                }
-            }
-            4 => {
-                // Initialize an app's storage region
-                let res = self.init_app(processid);
+                let res = if let Ok(has_region) = self.apps.enter(processid, |app, _kernel_data| app.region.is_some()) {
+                    if has_region {
+                        // already initialized this app's region, can directly handle syscall
+                        self.handle_syscall(syscall, processid)
+                    } else {
+                        // need to initialize app region before handling syscall
+                        self.init_app(syscall, processid)
+                    }
+                } else {
+                    Err(ErrorCode::NOMEM)
+                };
 
                 match res {
-                    Ok(()) => CommandReturn::success(),
-                    Err(e) => CommandReturn::failure(e),
+                    Ok(_) => CommandReturn::success(),
+                    Err(e) => CommandReturn::failure(e)
                 }
             }
-
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
