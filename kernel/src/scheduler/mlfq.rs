@@ -22,6 +22,7 @@
 //!           topmost queue.
 
 use core::cell::Cell;
+use core::num::NonZeroU32;
 
 use crate::collections::list::{List, ListLink, ListNode};
 use crate::hil::time::{self, ConvertTicks, Ticks};
@@ -156,7 +157,7 @@ impl<A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<'_, 
         self.last_queue_idx.set(queue_idx);
         self.last_timeslice.set(timeslice);
 
-        SchedulingDecision::RunProcess((next, Some(timeslice)))
+        SchedulingDecision::RunProcess((next, NonZeroU32::new(timeslice)))
     }
 
     fn result(&self, result: StoppedExecutingReason, execution_time_us: Option<u32>) {

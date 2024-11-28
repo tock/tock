@@ -5,6 +5,7 @@
 //! Create a timer using the Machine Timer registers.
 
 use core::marker::PhantomData;
+use core::num::NonZeroU32;
 
 use kernel::hil::time::{self, Alarm, ConvertTicks, Frequency, Ticks, Ticks64, Time};
 use kernel::utilities::cells::OptionalCell;
@@ -103,13 +104,13 @@ impl<'a, F: Frequency> time::Alarm<'a> for Clint<'a, F> {
 /// hardware timer can be used to provide alarms to capsules and userspace. This
 /// implementation will not work alongside other uses of the machine timer.
 impl<F: Frequency> kernel::platform::scheduler_timer::SchedulerTimer for Clint<'_, F> {
-    fn start(&self, us: u32) {
+    fn start(&self, us: NonZeroU32) {
         let now = self.now();
-        let tics = self.ticks_from_us(us);
+        let tics = self.ticks_from_us(us.get());
         self.set_alarm(now, tics);
     }
 
-    fn get_remaining_us(&self) -> Option<u32> {
+    fn get_remaining_us(&self) -> Option<NonZeroU32> {
         // We need to convert from native tics to us, multiplication could overflow in 32-bit
         // arithmetic. So we convert to 64-bit.
         let diff = self.get_alarm().wrapping_sub(self.now()).into_u64();
@@ -122,11 +123,11 @@ impl<F: Frequency> kernel::platform::scheduler_timer::SchedulerTimer for Clint<'
         // However, if the alarm frequency is slow enough relative to the cpu frequency, it is
         // possible this will be evaluated while now() == get_alarm(), so we special case that
         // result where the alarm has fired but the subtraction has not overflowed
-        if diff >= <Self as Time>::Frequency::frequency() as u64 || diff == 0 {
+        if diff >= <Self as Time>::Frequency::frequency() as u64 {
             None
         } else {
             let hertz = <Self as Time>::Frequency::frequency() as u64;
-            Some(((diff * 1_000_000) / hertz) as u32)
+            NonZeroU32::new(((diff * 1_000_000) / hertz) as u32)
         }
     }
 

@@ -19,6 +19,7 @@
 //! interrupted.
 
 use core::cell::Cell;
+use core::num::NonZeroU32;
 
 use crate::collections::list::{List, ListLink, ListNode};
 use crate::platform::chip::Chip;
@@ -120,9 +121,10 @@ impl<C: Chip> Scheduler<C> for RoundRobinSched<'_> {
             self.time_remaining.set(self.timeslice_length);
             self.timeslice_length
         };
-        assert!(timeslice != 0);
+        // Why should this panic?
+        let non_zero_timeslice = NonZeroU32::new(timeslice).unwrap();
 
-        SchedulingDecision::RunProcess((next, Some(timeslice)))
+        SchedulingDecision::RunProcess((next, Some(non_zero_timeslice)))
     }
 
     fn result(&self, result: StoppedExecutingReason, execution_time_us: Option<u32>) {
