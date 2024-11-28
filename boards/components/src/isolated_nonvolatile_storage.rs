@@ -33,9 +33,9 @@ use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
 
-// How much storage space to allocate per-app. Currently, regions are not 
+// How much storage space to allocate per-app. Currently, regions are not
 // growable, so this will be all the space the app gets.
-// Only affects newly allocated regions. Old regions can remain the same size. 
+// Only affects newly allocated regions. Old regions can remain the same size.
 pub const ISOLATED_NONVOLATILE_STORAGE_APP_REGION_SIZE_DEFAULT: usize = 2048;
 
 // Setup static space for the objects.
@@ -52,7 +52,8 @@ macro_rules! isolated_nonvolatile_storage_component_static {
                 $APP_REGION_SIZE,
             >
         );
-        let buffer = kernel::static_buf!([u8; capsules_extra::isolated_nonvolatile_storage_driver::BUF_LEN]);
+        let buffer =
+            kernel::static_buf!([u8; capsules_extra::isolated_nonvolatile_storage_driver::BUF_LEN]);
 
         (page, ntp, ns, buffer)
     };};
@@ -107,7 +108,9 @@ impl<
         &'static mut MaybeUninit<<F as hil::flash::Flash>::Page>,
         &'static mut MaybeUninit<NonvolatileToPages<'static, F>>,
         &'static mut MaybeUninit<IsolatedNonvolatileStorage<'static, APP_REGION_SIZE>>,
-        &'static mut MaybeUninit<[u8; capsules_extra::isolated_nonvolatile_storage_driver::BUF_LEN]>,
+        &'static mut MaybeUninit<
+            [u8; capsules_extra::isolated_nonvolatile_storage_driver::BUF_LEN],
+        >,
     );
     type Output = &'static IsolatedNonvolatileStorage<'static, APP_REGION_SIZE>;
 

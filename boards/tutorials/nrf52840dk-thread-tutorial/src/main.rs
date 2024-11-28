@@ -13,7 +13,6 @@
 use core::ptr::{addr_of, addr_of_mut};
 
 use kernel::component::Component;
-use kernel::debug;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::{capabilities, create_capability};
 use nrf52840::gpio::Pin;
