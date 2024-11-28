@@ -85,7 +85,7 @@ pub struct App {
 
 /// Manages the list of GPIO pins that are connected to buttons and which apps
 /// are listening for interrupts from which buttons.
-pub struct Button<'a, P: gpio::InterruptPin<'a>> {
+pub struct Button<'a, P: gpio::InterruptPin<'a> + ?Sized> {
     pins: &'a [(
         &'a gpio::InterruptValueWrapper<'a, P>,
         gpio::ActivationMode,
@@ -94,7 +94,7 @@ pub struct Button<'a, P: gpio::InterruptPin<'a>> {
     apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
 }
 
-impl<'a, P: gpio::InterruptPin<'a>> Button<'a, P> {
+impl<'a, P: gpio::InterruptPin<'a> + ?Sized> Button<'a, P> {
     pub fn new(
         pins: &'a [(
             &'a gpio::InterruptValueWrapper<'a, P>,
@@ -127,7 +127,7 @@ impl<'a, P: gpio::InterruptPin<'a>> Button<'a, P> {
 ///   button.
 const UPCALL_NUM: usize = 0;
 
-impl<'a, P: gpio::InterruptPin<'a>> SyscallDriver for Button<'a, P> {
+impl<'a, P: gpio::InterruptPin<'a> + ?Sized> SyscallDriver for Button<'a, P> {
     /// Configure interrupts and read state for buttons.
     ///
     /// `data` is the index of the button in the button array as passed to
@@ -226,7 +226,7 @@ impl<'a, P: gpio::InterruptPin<'a>> SyscallDriver for Button<'a, P> {
     }
 }
 
-impl<'a, P: gpio::InterruptPin<'a>> gpio::ClientWithValue for Button<'a, P> {
+impl<'a, P: gpio::InterruptPin<'a> + ?Sized> gpio::ClientWithValue for Button<'a, P> {
     fn fired(&self, pin_num: u32) {
         // Read the value of the pin and get the button state.
         let button_state = self.get_button_state(pin_num);

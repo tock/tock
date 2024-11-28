@@ -64,11 +64,11 @@ pub const DRIVER_NUM: usize = driver::NUM::Led as usize;
 
 /// Holds the array of LEDs and implements a `Driver` interface to
 /// control them.
-pub struct LedDriver<'a, L: led::Led, const NUM_LEDS: usize> {
+pub struct LedDriver<'a, L: led::Led + ?Sized, const NUM_LEDS: usize> {
     leds: &'a [&'a L; NUM_LEDS],
 }
 
-impl<'a, L: led::Led, const NUM_LEDS: usize> LedDriver<'a, L, NUM_LEDS> {
+impl<'a, L: led::Led + ?Sized, const NUM_LEDS: usize> LedDriver<'a, L, NUM_LEDS> {
     pub fn new(leds: &'a [&'a L; NUM_LEDS]) -> Self {
         // Initialize all LEDs and turn them off
         for led in leds.iter() {
@@ -80,7 +80,7 @@ impl<'a, L: led::Led, const NUM_LEDS: usize> LedDriver<'a, L, NUM_LEDS> {
     }
 }
 
-impl<L: led::Led, const NUM_LEDS: usize> SyscallDriver for LedDriver<'_, L, NUM_LEDS> {
+impl<L: led::Led + ?Sized, const NUM_LEDS: usize> SyscallDriver for LedDriver<'_, L, NUM_LEDS> {
     /// Control the LEDs.
     ///
     /// ### `command_num`

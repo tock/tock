@@ -144,6 +144,24 @@ macro_rules! led_matrix_leds {
     };};
 }
 
+#[macro_export]
+macro_rules! led_matrix_leds_dynamic {
+    ($Pin:ty, $A: ty, $led_matrix: expr, $(($col: expr, $row: expr)),+) => {{
+        use capsules_extra::led_matrix::LedMatrixLed;
+        use kernel::count_expressions;
+        use kernel::hil::led::Led;
+
+        const NUM_LEDS: usize = count_expressions!($(($col, $row)),+);
+        let leds = static_init!(
+            [&dyn Led; NUM_LEDS],
+            [$(
+                $crate::led_matrix_led! ($Pin, $A, $led_matrix, $col, $row)
+            ),+]
+        );
+        leds
+    };};
+}
+
 pub struct LedMatrixComponent<
     L: 'static + Pin,
     A: 'static + Alarm<'static>,

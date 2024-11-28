@@ -16,6 +16,7 @@ use core::ptr::{addr_of, addr_of_mut};
 
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::hil::led::Led;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
@@ -105,18 +106,7 @@ pub struct MicroBit {
     ieee802154: &'static Ieee802154RawDriver,
     console: &'static capsules_core::console::Console<'static>,
     gpio: &'static capsules_core::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
-    led: &'static capsules_core::led::LedDriver<
-        'static,
-        capsules_extra::led_matrix::LedMatrixLed<
-            'static,
-            nrf52::gpio::GPIOPin<'static>,
-            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-                'static,
-                nrf52::rtc::Rtc<'static>,
-            >,
-        >,
-        25,
-    >,
+    led: &'static capsules_core::led::LedDriver<'static, dyn Led, 25>,
     button: &'static capsules_core::button::Button<'static, nrf52::gpio::GPIOPin<'static>>,
     rng: &'static RngDriver,
     ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
@@ -657,19 +647,8 @@ unsafe fn start() -> (
     ));
 
     let led = static_init!(
-        capsules_core::led::LedDriver<
-            'static,
-            capsules_extra::led_matrix::LedMatrixLed<
-                'static,
-                nrf52::gpio::GPIOPin<'static>,
-                capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-                    'static,
-                    nrf52::rtc::Rtc<'static>,
-                >,
-            >,
-            25,
-        >,
-        capsules_core::led::LedDriver::new(components::led_matrix_leds!(
+        capsules_core::led::LedDriver<'static, dyn Led, 25>,
+        capsules_core::led::LedDriver::new(components::led_matrix_leds_dynamic!(
             nrf52::gpio::GPIOPin<'static>,
             capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
                 'static,
