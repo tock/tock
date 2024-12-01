@@ -694,6 +694,37 @@ impl StateMachine {
         self.rx_client.set(client);
     }
 
+    /// Is state machine enabled.
+    pub fn is_enabled(&self) -> bool {
+        let field = match self.sm_number {
+            SMNumber::SM0 => CTRL::SM0_ENABLE,
+            SMNumber::SM1 => CTRL::SM1_ENABLE,
+            SMNumber::SM2 => CTRL::SM2_ENABLE,
+            SMNumber::SM3 => CTRL::SM3_ENABLE,
+        };
+        self.registers.ctrl.read(field) != 0
+    }
+
+    /// Runs function with the state machine paused.
+    /// Keeps pinctrl and execctrl of the SM the same during execution
+    fn with_paused(&self, f: impl FnOnce()) {
+        let enabled = self.is_enabled();
+        self.set_enabled(false);
+
+        let pio_sm = &self.registers.sm[self.sm_number as usize];
+
+        let pinctrl = pio_sm.pinctrl.get();
+        let execctrl = pio_sm.execctrl.get();
+        // Hold pins value set by latest OUT/SET op
+        pio_sm.execctrl.modify(SMx_EXECCTRL::OUT_STICKY::CLEAR);
+
+        f();
+
+        pio_sm.pinctrl.set(pinctrl);
+        pio_sm.execctrl.set(execctrl);
+        self.set_enabled(enabled);
+    }
+
     /// Set every config for the IN pins.
     ///
     /// in_base => the starting location for the input pins
@@ -858,13 +889,8 @@ impl StateMachine {
     /// => true to set the pin as OUT
     /// => false to set the pin as IN
     pub fn set_pins_out(&self, mut pin: u32, mut count: u32, is_out: bool) {
-        // "set pindirs, 0" command created by pioasm
-        let set_pindirs_0: u32 = 0b1110000010000000;
-        let pinctrl = self.registers.sm[self.sm_number as usize].pinctrl.get();
-        let execctrl = self.registers.sm[self.sm_number as usize].execctrl.get();
-        self.registers.sm[self.sm_number as usize]
-            .execctrl
-            .modify(SMx_EXECCTRL::OUT_STICKY.val(0));
+        let set_pindirs_0: u16 = 0b1110000010000000;
+        self.with_paused(|| {
         let mut pindir_val: u8 = 0x00;
         if is_out {
             pindir_val = 0x1f;
@@ -876,7 +902,7 @@ impl StateMachine {
             self.registers.sm[self.sm_number as usize]
                 .pinctrl
                 .modify(SMx_PINCTRL::SET_BASE.val(pin));
-            self.exec((set_pindirs_0) | (pindir_val as u32));
+                self.exec((set_pindirs_0) | (pindir_val as u16));
             count -= 5;
             pin = (pin + 5) & 0x1f;
         }
@@ -886,13 +912,8 @@ impl StateMachine {
         self.registers.sm[self.sm_number as usize]
             .pinctrl
             .modify(SMx_PINCTRL::SET_BASE.val(pin));
-        self.exec((set_pindirs_0) | (pindir_val as u32));
-        self.registers.sm[self.sm_number as usize]
-            .execctrl
-            .set(execctrl);
-        self.registers.sm[self.sm_number as usize]
-            .pinctrl
-            .set(pinctrl);
+            self.exec((set_pindirs_0) | (pindir_val as u16));
+        });
     }
 
     /// Restart a state machine.
@@ -961,10 +982,17 @@ impl StateMachine {
     }
 
     /// Immediately execute an instruction on a state machine.
-    pub fn exec(&self, instr: u32) {
+    ///
+    /// => instr: the instruction to execute
+    /// Implicitly restricted size of instr to u16, cause it's the size pio asm instr
+    pub fn exec(&self, instr: u16) {
         self.registers.sm[self.sm_number as usize]
             .instr
-            .modify(SMx_INSTR::INSTR.val(instr));
+            .modify(SMx_INSTR::INSTR.val(instr as u32));
+    }
+
+    pub fn exec_program(&self, pc: u8) {
+        self.exec((pc as u16) & 0x1fu16)
     }
 
     /// Set source for 'mov status' in a state machine.
