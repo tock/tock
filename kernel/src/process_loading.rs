@@ -451,6 +451,10 @@ pub trait ProcessLoadingAsync<'a> {
 
     /// Start the process loading operation.
     fn start(&self);
+
+    /// Load applications from a new flash region. This automatically
+    /// starts the loading operation.
+    fn load_new_applications(&self, flash: &'static [u8]);
 }
 
 /// Operating mode of the loader.
@@ -887,6 +891,11 @@ impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
             .set(SequentialProcessLoaderMachineState::DiscoverProcessBinaries);
         // Start an asynchronous flow so we can issue a callback on error.
         self.deferred_call.set();
+    }
+
+    fn load_new_applications(&self, flash: &'static [u8]) {
+        self.flash.set(flash);
+        self.start();
     }
 }
 
