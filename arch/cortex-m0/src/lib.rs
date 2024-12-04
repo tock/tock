@@ -92,6 +92,13 @@ core::arch::global_asm!(
     cmp lr, r0
     bne 100f
 
+    /* We need to make sure the kernel cotinues the execution after this ISR */
+    movs r0, #0
+    msr CONTROL, r0
+    /* CONTROL writes must be followed by ISB */
+    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    isb
+
     /* We need the most recent kernel's version of r1, which points */
     /* to the Process struct's stored registers field. The kernel's r1 */
     /* lives in the second word of the hardware stacked registers on MSP */
@@ -114,6 +121,7 @@ core::arch::global_asm!(
     pop {{r4-r7}}
 
     ldr r0, 200f // MEXC_RETURN_MSP
+    mov lr, r0
 100: // _ggeneric_isr_no_stacking
     /* Find the ISR number by looking at the low byte of the IPSR registers */
     mrs r0, IPSR
@@ -227,10 +235,20 @@ svc_handler:
   ldr r0, 200f // EXC_RETURN_MSP
   cmp lr, r0
   bne 100f
+  movs r0, #1
+  msr CONTROL, r0
+  /* CONTROL writes must be followed by ISB */
+  /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+  isb
   ldr r1, 300f // EXC_RETURN_PSP
   bx r1
 
 100: // to_kernel
+  movs r0, #0
+  msr CONTROL, r0
+  /* CONTROL writes must be followed by ISB */
+  /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+  isb
   ldr r0, =SYSCALL_FIRED
   movs r1, #1
   str r1, [r0, #0]
