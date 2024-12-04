@@ -83,7 +83,7 @@ impl Component for NrfStartupComponent<'_> {
         // Configure reset pins
         if uicr
             .get_psel0_reset_pin()
-            .is_some_and(|pin| pin != self.button_rst_pin)
+            .is_none_or(|pin| pin != self.button_rst_pin)
         {
             uicr.set_psel0_reset_pin(self.button_rst_pin);
             while !self.nvmc.is_ready() {}
@@ -91,7 +91,7 @@ impl Component for NrfStartupComponent<'_> {
         }
         if uicr
             .get_psel1_reset_pin()
-            .is_some_and(|pin| pin != self.button_rst_pin)
+            .is_none_or(|pin| pin != self.button_rst_pin)
         {
             uicr.set_psel1_reset_pin(self.button_rst_pin);
             while !self.nvmc.is_ready() {}
