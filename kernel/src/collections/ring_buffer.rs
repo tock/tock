@@ -19,11 +19,11 @@ pub struct RingBuffer<'a, T: 'a> {
 }
 
 flux_rs::defs! {
-    fn rb_next(x:int, ring_len: int) -> int { (x + 1) % ring_len }
+    fn next_index(x:int, ring_len: int) -> int { (x + 1) % ring_len }
     fn empty(rb: RingBuffer) -> bool { rb.hd == rb.tl }
-    fn full(rb: RingBuffer) -> bool { rb.hd == rb_next(rb.tl, rb.ring_len) }
-    fn next_hd(rb: RingBuffer) -> int { rb_next(rb.hd, rb.ring_len) }
-    fn next_tl(rb: RingBuffer) -> int { rb_next(rb.tl, rb.ring_len) }
+    fn full(rb: RingBuffer) -> bool { rb.hd == next_index(rb.tl, rb.ring_len) }
+    fn next_hd(rb: RingBuffer) -> int { next_index(rb.hd, rb.ring_len) }
+    fn next_tl(rb: RingBuffer) -> int { next_index(rb.tl, rb.ring_len) }
 }
 
 impl<'a, T: Copy> RingBuffer<'a, T> {
@@ -36,16 +36,11 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
         }
     }
 
-    #[flux_rs::sig(fn(&RingBuffer<T>[@rb]) -> usize[rb.ring_len]) ]
-    fn ring_len(&self) -> usize {
-        self.ring.len()
-    }
-
     /// Returns the number of elements that can be enqueued until the ring buffer is full.
     pub fn available_len(&self) -> usize {
-        // The maximum capacity of the queue is ring_len - 1, because head == tail for the empty
+        // The maximum capacity of the queue is ring.len - 1, because head == tail for the empty
         // queue.
-        self.ring_len().saturating_sub(1 + queue::Queue::len(self))
+        self.ring.len().saturating_sub(1 + queue::Queue::len(self))
     }
 
     /// Returns up to 2 slices that together form the contents of the ring buffer.
@@ -84,7 +79,7 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
 
     #[flux_rs::sig(fn(&RingBuffer<T>[@rb]) -> bool[full(rb)]) ]
     fn is_full(&self) -> bool {
-        self.head == ((self.tail + 1) % self.ring_len())
+        self.head == ((self.tail + 1) % self.ring.len())
     }
 
     #[flux_rs::sig(fn(&RingBuffer<T>[@rb]) -> usize{r: r < rb.ring_len}) ]
@@ -92,7 +87,7 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
         if self.tail > self.head {
             self.tail - self.head
         } else if self.tail < self.head {
-            (self.ring_len() - self.head) + self.tail
+            (self.ring.len() - self.head) + self.tail
         } else {
             // head equals tail, length is zero
             0
@@ -115,14 +110,14 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
             false
         } else {
             self.ring[self.tail] = val;
-            self.tail = (self.tail + 1) % self.ring_len();
+            self.tail = (self.tail + 1) % self.ring.len();
             true
         }
     }
 
     #[flux_rs::sig(
-        fn(self: &strg RingBuffer<T>[@old], _) -> Option<T> 
-            ensures self: RingBuffer<T>{ new: 
+        fn(self: &strg Self[@old], _) -> Option<T> 
+            ensures self: Self{ new: 
                 // the buffer is full so we dequeue and then enqueue 
                 (full(old) => (new.hd == next_hd(old) && new.tl == next_tl(old)))
                 &&
@@ -133,14 +128,14 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
     fn push(&mut self, val: T) -> Option<T> {
         let result = if self.is_full() {
             let val = self.ring[self.head];
-            self.head = (self.head + 1) % self.ring_len();
+            self.head = (self.head + 1) % self.ring.len();
             Some(val)
         } else {
             None
         };
 
         self.ring[self.tail] = val;
-        self.tail = (self.tail + 1) % self.ring_len();
+        self.tail = (self.tail + 1) % self.ring.len();
         result
     }
 
@@ -155,7 +150,7 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
     fn dequeue(&mut self) -> Option<T> {
         if self.has_elements() {
             let val = self.ring[self.head];
-            self.head = (self.head + 1) % self.ring_len();
+            self.head = (self.head + 1) % self.ring.len();
             Some(val)
         } else {
             None
@@ -213,7 +208,7 @@ impl<T: Copy> queue::Queue<T> for RingBuffer<'_, T> {
     where
         F: FnMut(&T) -> bool,
     {
-        let len = self.ring_len();
+        let len = self.ring.len();
         // Index over the elements before the retain operation.
         let mut src = self.head;
         // Index over the retained elements.
