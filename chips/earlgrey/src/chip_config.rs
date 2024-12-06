@@ -12,6 +12,8 @@
 //! the UART baud rate to enable better debugging on platforms that can support
 //! it.
 
+use core::num::NonZeroU32;
+
 /// Earlgrey configuration based on the target device.
 pub trait EarlGreyConfig {
     /// Identifier for the platform. This is useful for debugging to confirm the
@@ -29,5 +31,5 @@ pub trait EarlGreyConfig {
 
     /// The baud rate for UART. This allows for a version of the chip that can
     /// support a faster baud rate to use it to help with debugging.
-    const UART_BAUDRATE: u32;
+    const UART_BAUDRATE: NonZeroU32;
 }

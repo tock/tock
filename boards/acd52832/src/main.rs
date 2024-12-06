@@ -10,6 +10,7 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use core::num::NonZeroU32;
 use core::ptr::{addr_of, addr_of_mut};
 
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
@@ -337,8 +338,10 @@ unsafe fn start() -> (
     //
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(rtt, 115200)
-        .finalize(components::uart_mux_component_static!());
+    // PANIC: 115200 != 0
+    let uart_mux =
+        components::console::UartMuxComponent::new(rtt, NonZeroU32::new(115200).unwrap())
+            .finalize(components::uart_mux_component_static!());
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(

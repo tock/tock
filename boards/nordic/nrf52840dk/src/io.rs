@@ -3,6 +3,7 @@
 // Copyright Tock Contributors 2022.
 
 use core::fmt::Write;
+use core::num::NonZeroU32;
 use kernel::debug::IoWrite;
 use kernel::hil::uart;
 use kernel::hil::uart::Configure;
@@ -39,7 +40,8 @@ impl IoWrite for Writer {
                 if !*initialized {
                     *initialized = true;
                     let _ = uart.configure(uart::Parameters {
-                        baud_rate: 115200,
+                        // PANIC: 115200 != 0
+                        baud_rate: NonZeroU32::new(115200).unwrap(),
                         stop_bits: uart::StopBits::One,
                         parity: uart::Parity::None,
                         hw_flow_control: false,
