@@ -18,9 +18,11 @@
 # [3]: https://book.treadmill.ci/user-guide/github-actions-integration.html
 
 name: treadmill-ci
+
 env:
   TERM: xterm # Makes tput work in actions output
   TOCK_HARDWARE_CI_REF: 'main' # Reference for tock-hardware-ci repo, change if you want a specific test suite
+
 # Controls when the action will run. Triggers the workflow on pull request and
 # merge group checks:
 #
@@ -41,13 +43,16 @@ on:
   # allows this workflow to run without access to repository secrets.
   #pull_request:
   merge_group: # Run CI for the GitHub merge queue
+
 permissions:
   contents: read
 jobs:
   determine-tests:
     runs-on: ubuntu-latest
+
     outputs:
       hwci-tests-json: ${{ steps.determine-tests.outputs.hwci-tests-json }}
+
     steps:
       - name: Checkout the tock/tock repository
         uses: actions/checkout@v4
@@ -56,12 +61,14 @@ jobs:
           repository: tock/tock
           ref: ${{ github.sha }}
           path: tock-tock
+
       - name: Checkout the tock-hardware-ci repository
         uses: actions/checkout@v4
         with:
           repository: tock/tock-hardware-ci
           ref: ${{ env.TOCK_HARDWARE_CI_REF }}
           path: tock-hardware-ci
+
       - name: Analyze changes to determine relevant tests
         id: analyze-changes
         run: |
@@ -80,8 +87,10 @@ jobs:
           # Output the tests JSON
           hwci_tests_json=$(cat selected_tests.json | jq -c '.')
           echo "hwci-tests-json=${hwci_tests_json}" >> "$GITHUB_OUTPUT"
+
   treadmill-ci:
     needs: [determine-tests]
+
     # This checks whether there is at least one test to run, see
     # https://github.com/orgs/community/discussions/27125#discussioncomment-3254720
     if: fromJSON(needs.determine-tests.outputs.hwci-tests-json)[0] != null
@@ -94,11 +103,15 @@ jobs:
       # Provide access to the required Treadmill secrets by running in the
       # appropriate environment (depending on the on: triggers above)
       job-environment: ${{ github.event_name == 'pull_request' && 'treadmill-ci' || 'treadmill-ci-merged' }}
+
       # Use the latest upstream Tock hardware CI tests and userspace components:
       libtock-c-ref: 'master'
       tock-hardware-ci-ref: ${{ env.TOCK_HARDWARE_CI_REF }}
+
       # Test the tock kernel revision that triggered this workflow
       tock-kernel-ref: ${{ github.sha }}
+
       # Pass the selected tests
       tests-json: ${{ needs.determine-tests.outputs.hwci-tests-json }}
+
     secrets: inherit
