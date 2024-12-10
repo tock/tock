@@ -619,6 +619,15 @@ impl<'a> GrantKernelData<'a> {
         )
     }
 
+    /// Remove all scheduled upcalls with the given `subscribe_num` from the
+    /// task queue.
+    pub fn remove_pending_upcalls(&self, subscribe_num: usize) {
+        self.process.remove_pending_upcalls(UpcallId {
+            subscribe_num,
+            driver_num: self.driver_num,
+        });
+    }
+
     /// Returns a lifetime limited reference to the requested
     /// [`ReadOnlyProcessBuffer`].
     ///
