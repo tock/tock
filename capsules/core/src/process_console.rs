@@ -12,6 +12,7 @@ use core::fmt;
 use core::fmt::write;
 use core::str;
 use kernel::capabilities::ProcessManagementCapability;
+use kernel::capabilities::ProcessStartCapability;
 use kernel::hil::time::ConvertTicks;
 use kernel::utilities::cells::MapCell;
 use kernel::utilities::cells::TakeCell;
@@ -225,7 +226,7 @@ pub struct ProcessConsole<
     'a,
     const COMMAND_HISTORY_LEN: usize,
     A: Alarm<'a>,
-    C: ProcessManagementCapability,
+    C: ProcessManagementCapability + ProcessStartCapability,
 > {
     uart: &'a dyn uart::UartData<'a>,
     alarm: &'a A,
@@ -433,8 +434,12 @@ impl BinaryWrite for ConsoleWriter {
     }
 }
 
-impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCapability>
-    ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
+impl<
+        'a,
+        const COMMAND_HISTORY_LEN: usize,
+        A: Alarm<'a>,
+        C: ProcessManagementCapability + ProcessStartCapability,
+    > ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
 {
     pub fn new(
         uart: &'a dyn uart::UartData<'a>,
@@ -879,7 +884,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                         if proc_name == name
                                             && proc.get_state() == State::Terminated
                                         {
-                                            proc.try_restart(None);
+                                            proc.start(&self.capability);
                                         }
                                     });
                             });
@@ -1122,8 +1127,12 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
     }
 }
 
-impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCapability> AlarmClient
-    for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
+impl<
+        'a,
+        const COMMAND_HISTORY_LEN: usize,
+        A: Alarm<'a>,
+        C: ProcessManagementCapability + ProcessStartCapability,
+    > AlarmClient for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
 {
     fn alarm(&self) {
         self.prompt();
@@ -1133,8 +1142,12 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
     }
 }
 
-impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCapability>
-    uart::TransmitClient for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
+impl<
+        'a,
+        const COMMAND_HISTORY_LEN: usize,
+        A: Alarm<'a>,
+        C: ProcessManagementCapability + ProcessStartCapability,
+    > uart::TransmitClient for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
 {
     fn transmitted_buffer(
         &self,
@@ -1169,8 +1182,12 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
     }
 }
 
-impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCapability>
-    uart::ReceiveClient for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
+impl<
+        'a,
+        const COMMAND_HISTORY_LEN: usize,
+        A: Alarm<'a>,
+        C: ProcessManagementCapability + ProcessStartCapability,
+    > uart::ReceiveClient for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
 {
     fn received_buffer(
         &self,
