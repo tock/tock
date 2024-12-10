@@ -36,7 +36,7 @@ pub const QUEUE_BUF_LEN: usize = 300;
 pub const READ_BUF_LEN: usize = 4;
 /// Commands can be up to 32 bytes long: since commands themselves are 4-5
 /// characters, limiting arguments to 25 bytes or so seems fine for now.
-pub const COMMAND_BUF_LEN: usize = 32;
+pub const COMMAND_BUF_LEN: usize = 64;
 /// Default size for the history command.
 pub const DEFAULT_COMMAND_HISTORY_LEN: usize = 10;
 
