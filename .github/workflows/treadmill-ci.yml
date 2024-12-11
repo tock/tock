@@ -30,6 +30,8 @@ on:
   push:
     branches:
       - master
+      # Add any additional branches you want to include
+      # - dev/test_ci_branch
   # Pull requests from forks will not have access to the required GitHub API
   # secrets below, even if they are using an appropriate deployment environment
   # and the workflow runs have been approved according to this environment's
@@ -43,10 +45,62 @@ on:
 
 permissions:
   contents: read
-
 jobs:
+  determine-tests:
+    runs-on: ubuntu-latest
+
+    outputs:
+      hwci-tests-json: ${{ steps.determine-tests.outputs.hwci-tests-json }}
+
+    steps:
+      - name: Checkout the tock/tock repository
+        uses: actions/checkout@v4
+        with:
+          # Checkout the repository at the commit that triggered the workflow
+          repository: tock/tock
+          ref: ${{ github.sha }}
+          path: tock-tock
+
+      - name: Checkout the tock-hardware-ci repository
+        uses: actions/checkout@v4
+        with:
+          repository: tock/tock-hardware-ci
+          # Change this in accordance with the two other `tock-hardware-ci` refs
+          # referenced below in the reusable workflow's parameters:
+          ref: 'main'
+          path: tock-hardware-ci
+
+      - name: Analyze changes to determine relevant tests
+        id: determine-tests
+        run: |
+          # Ensure Python dependencies are installed
+          python3 -m pip install --user --upgrade pip
+
+          # Run the select_tests.py script
+          python3 tock-hardware-ci/hwci/select_tests.py \
+            --repo-path tock-tock \
+            --hwci-path tock-hardware-ci/hwci \
+            --output selected_tests.json
+
+          echo "Selected HWCI tests:"
+          cat selected_tests.json
+
+          # Output the tests JSON
+          hwci_tests_json=$(cat selected_tests.json | jq -c '.')
+          echo "hwci-tests-json=${hwci_tests_json}" >> "$GITHUB_OUTPUT"
+
   treadmill-ci:
+    needs: [determine-tests]
+
+    # This checks whether there is at least one test to run, see
+    # https://github.com/orgs/community/discussions/27125#discussioncomment-3254720
+    if: fromJSON(needs.determine-tests.outputs.hwci-tests-json)[0] != null
+
+    # The main tock-hardware-ci workflow is imported from another repository. It
+    # can be reused across multiple Tock repositories such as the kernel,
+    # libtock-c, and libtock-rs.
     uses: tock/tock-hardware-ci/.github/workflows/treadmill-ci.yml@main
+
     with:
       # Only run on a specific repository, as others will not have the right
       # environments set up and secrets configured. Forks may want to change
@@ -59,9 +113,16 @@ jobs:
 
       # Use the latest upstream Tock hardware CI tests and userspace components:
       libtock-c-ref: 'master'
+
+      # Reference for tock-hardware-ci repo, change if you want a specific test
+      # suite.  In this case, you should also update the branch reference in the
+      # "uses" line above.
       tock-hardware-ci-ref: 'main'
 
       # Test the tock kernel revision that triggered this workflow
       tock-kernel-ref: ${{ github.sha }}
+
+      # Pass the selected tests
+      tests-json: ${{ needs.determine-tests.outputs.hwci-tests-json }}
 
     secrets: inherit
