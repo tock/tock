@@ -87,8 +87,8 @@ impl SysTick {
     ///   * `clock_speed` - the frequency of SysTick tics in Hertz. For example,
     ///   if the SysTick is driven by the CPU clock, it is simply the CPU speed.
     pub unsafe fn new_with_calibration(clock_speed: u32) -> SysTick {
-        let mut res = SysTick::new();
-        res.hertz = Cell::new(clock_speed);
+        let res = SysTick::new();
+        res.hertz.set(clock_speed);
         res
     }
 
@@ -102,7 +102,7 @@ impl SysTick {
     ///   if the SysTick is driven by the CPU clock, it is simply the CPU speed.
     pub unsafe fn new_with_calibration_and_external_clock(clock_speed: u32) -> SysTick {
         let mut res = SysTick::new();
-        res.hertz = Cell::new(clock_speed);
+        res.hertz.set(clock_speed);
         res.external_clock = true;
         res
     }
@@ -121,6 +121,19 @@ impl SysTick {
             let tenms = SYSTICK_BASE.syst_calib.read(CalibrationValue::TENMS);
             tenms * 100
         }
+    }
+
+    /// Modifies the locally stored frequncy
+    ///
+    /// # Important
+    ///
+    /// This function does not change the actual systick frequency.
+    /// This function must be called only while the clock is not armed.
+    /// When changing the hardware systick frequency, the reload value register
+    /// should be updated and the current value register should be reset, in
+    /// order for the tick count to match the current frequency.
+    pub unsafe fn set_hertz(&self, clock_speed: u32) {
+        self.hertz.set(clock_speed);
     }
 }
 
