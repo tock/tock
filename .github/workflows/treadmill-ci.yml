@@ -69,7 +69,7 @@ jobs:
           path: tock-hardware-ci
 
       - name: Analyze changes to determine relevant tests
-        id: analyze-changes
+        id: determine-tests
         run: |
           # Ensure Python dependencies are installed
           python3 -m pip install --user --upgrade pip
