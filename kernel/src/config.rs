@@ -72,7 +72,7 @@ pub(crate) struct Config {
     // option.
     pub(crate) debug_panics: bool,
 
-    /// Whether the kernbel should output debug information when it is checking
+    /// Whether the kernel should output debug information when it is checking
     /// the cryptographic credentials of a userspace process. If enabled, the
     /// kernel will show which footers were found and why processes were started
     /// or not.
