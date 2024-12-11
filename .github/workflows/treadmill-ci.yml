@@ -65,7 +65,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: tock/tock-hardware-ci
-          ref: ${{ env.TOCK_HARDWARE_CI_REF }}
+          # Change this in accordance with the two other `tock-hardware-ci` refs
+          # referenced below in the reusable workflow's parameters:
+          ref: 'main'
           path: tock-hardware-ci
 
       - name: Analyze changes to determine relevant tests
@@ -104,6 +106,7 @@ jobs:
       # environments set up and secrets configured. Forks may want to change
       # this parameter.
       repository-filter: 'tock/tock'
+
       # Provide access to the required Treadmill secrets by running in the
       # appropriate environment (depending on the on: triggers above)
       job-environment: ${{ github.event_name == 'pull_request' && 'treadmill-ci' || 'treadmill-ci-merged' }}
