@@ -21,7 +21,6 @@ name: treadmill-ci
 
 env:
   TERM: xterm # Makes tput work in actions output
-  TOCK_HARDWARE_CI_REF: 'main' # Reference for tock-hardware-ci repo, change if you want a specific test suite
 
 # Controls when the action will run. Triggers the workflow on pull request and
 # merge group checks:
@@ -94,7 +93,12 @@ jobs:
     # This checks whether there is at least one test to run, see
     # https://github.com/orgs/community/discussions/27125#discussioncomment-3254720
     if: fromJSON(needs.determine-tests.outputs.hwci-tests-json)[0] != null
+
+    # The main tock-hardware-ci workflow is imported from another repository. It
+    # can be reused across multiple Tock repositories such as the kernel,
+    # libtock-c, and libtock-rs.
     uses: tock/tock-hardware-ci/.github/workflows/treadmill-ci.yml@main
+
     with:
       # Only run on a specific repository, as others will not have the right
       # environments set up and secrets configured. Forks may want to change
@@ -106,7 +110,11 @@ jobs:
 
       # Use the latest upstream Tock hardware CI tests and userspace components:
       libtock-c-ref: 'master'
-      tock-hardware-ci-ref: ${{ env.TOCK_HARDWARE_CI_REF }}
+
+      # Reference for tock-hardware-ci repo, change if you want a specific test
+      # suite.  In this case, you should also update the branch reference in the
+      # "uses" line above.
+      tock-hardware-ci-ref: 'main'
 
       # Test the tock kernel revision that triggered this workflow
       tock-kernel-ref: ${{ github.sha }}
