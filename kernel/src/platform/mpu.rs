@@ -4,7 +4,6 @@
 
 //! Interface for configuring the Memory Protection Unit.
 
-use core::cmp;
 use core::fmt::{self, Display};
 #[allow(clippy::wildcard_imports)]
 use flux_support::*;
@@ -29,15 +28,18 @@ pub enum Permissions {
 ///
 /// This is one contiguous address space protected by the MPU.
 #[derive(Copy, Clone, PartialEq, Eq)]
+#[flux_rs::refined_by(ptr: int, sz: int)]
 pub struct Region {
     /// The memory address where the region starts.
     ///
     /// For maximum compatibility, we use a u8 pointer, however, note that many
     /// memory protection units have very strict alignment requirements for the
     /// memory regions protected by the MPU.
+    #[flux_rs::field(FluxPtrU8Mut[ptr])]
     start_address: FluxPtrU8Mut,
 
     /// The number of bytes of memory in the MPU region.
+    #[flux_rs::field(usize[sz])]
     size: usize,
 }
 
@@ -86,13 +88,10 @@ impl Display for MpuConfigDefault {
 /// kernel when deciding where to place certain application memory regions so
 /// that the MPU can appropriately provide protection for those memory regions.
 
-// VTOCK_TODO: can we hide `enabled`?
 // VTOCK-TODO: remove default associated refinements
-// #[flux_rs::generics(Self as base)]
 #[flux_rs::assoc(fn enabled(self: Self) -> bool {false} )]
-// VTOCK-TODO: add argument to `configured_for` for Self::MPUConfig once thats possible
-#[flux_rs::assoc(fn configured_for(self: Self) -> bool {false} )]
-#[flux_rs::assoc(fn can_access(self: Self, addr: int, sz: int, perms: Permissions) -> bool {false} )]
+#[flux_rs::assoc(fn configured_for(self: Self, config: Self::MpuConfig) -> bool {false} )]
+// #[flux_rs::assoc(fn can_access(self: Self, addr: int, sz: int, perms: Permissions) -> bool {false} )]
 pub trait MPU {
     /// MPU-specific state that defines a particular configuration for the MPU.
     /// That is, this should contain all of the required state such that the
@@ -123,6 +122,7 @@ pub trait MPU {
     /// platforms the MPU rules apply to privileged code as well, and therefore
     /// some of the MPU configuration must be disabled for the kernel to effectively
     /// manage processes.
+    // #[flux_rs::sig(fn(self: &strg Self) ensures self: Self{r: !<Self as MPU>::enabled(r)})]
     fn disable_app_mpu(&mut self);
 
     /// Returns the maximum number of regions supported by the MPU.
@@ -275,84 +275,85 @@ pub trait MPU {
     /// # Arguments
     ///
     /// - `config`: MPU region configuration
+    // #[flux_rs::sig(fn(self: &strg Self, &Self::MpuConfig[@config]) ensures self: Self{r: <Self as MPU>::configured_for(r, config)})]
     fn configure_mpu(&mut self, config: &Self::MpuConfig);
 }
 
-/// Implement default MPU trait for unit.
-impl MPU for () {
-    type MpuConfig = MpuConfigDefault;
+// /// Implement default MPU trait for unit.
+// impl MPU for () {
+//     type MpuConfig = MpuConfigDefault;
 
-    fn enable_app_mpu(&mut self) {}
+//     fn enable_app_mpu(&mut self) {}
 
-    fn disable_app_mpu(&mut self) {}
+//     fn disable_app_mpu(&mut self) {}
 
-    fn number_total_regions(&self) -> usize {
-        0
-    }
+//     fn number_total_regions(&self) -> usize {
+//         0
+//     }
 
-    fn new_config(&self) -> Option<MpuConfigDefault> {
-        Some(MpuConfigDefault)
-    }
+//     fn new_config(&self) -> Option<MpuConfigDefault> {
+//         Some(MpuConfigDefault)
+//     }
 
-    fn reset_config(&self, _config: &mut Self::MpuConfig) {}
+//     fn reset_config(&self, _config: &mut Self::MpuConfig) {}
 
-    fn allocate_region(
-        &self,
-        unallocated_memory_start: FluxPtrU8Mut,
-        unallocated_memory_size: usize,
-        min_region_size: usize,
-        _permissions: Permissions,
-        _config: &mut Self::MpuConfig,
-    ) -> Option<Region> {
-        if min_region_size > unallocated_memory_size {
-            None
-        } else {
-            Some(Region::new(unallocated_memory_start, min_region_size))
-        }
-    }
+//     fn allocate_region(
+//         &self,
+//         unallocated_memory_start: FluxPtrU8Mut,
+//         unallocated_memory_size: usize,
+//         min_region_size: usize,
+//         _permissions: Permissions,
+//         _config: &mut Self::MpuConfig,
+//     ) -> Option<Region> {
+//         if min_region_size > unallocated_memory_size {
+//             None
+//         } else {
+//             Some(Region::new(unallocated_memory_start, min_region_size))
+//         }
+//     }
 
-    fn remove_memory_region(
-        &self,
-        _region: Region,
-        _config: &mut Self::MpuConfig,
-    ) -> Result<(), ()> {
-        Ok(())
-    }
+//     fn remove_memory_region(
+//         &self,
+//         _region: Region,
+//         _config: &mut Self::MpuConfig,
+//     ) -> Result<(), ()> {
+//         Ok(())
+//     }
 
-    fn allocate_app_memory_region(
-        &self,
-        unallocated_memory_start: FluxPtrU8Mut,
-        unallocated_memory_size: usize,
-        min_memory_size: usize,
-        initial_app_memory_size: usize,
-        initial_kernel_memory_size: usize,
-        _permissions: Permissions,
-        _config: &mut Self::MpuConfig,
-    ) -> Option<(FluxPtrU8Mut, usize)> {
-        let memory_size = cmp::max(
-            min_memory_size,
-            initial_app_memory_size + initial_kernel_memory_size,
-        );
-        if memory_size > unallocated_memory_size {
-            None
-        } else {
-            Some((unallocated_memory_start, memory_size))
-        }
-    }
+//     fn allocate_app_memory_region(
+//         &self,
+//         unallocated_memory_start: FluxPtrU8Mut,
+//         unallocated_memory_size: usize,
+//         min_memory_size: usize,
+//         initial_app_memory_size: usize,
+//         initial_kernel_memory_size: usize,
+//         _permissions: Permissions,
+//         _config: &mut Self::MpuConfig,
+//     ) -> Option<(FluxPtrU8Mut, usize)> {
+//         let memory_size = cmp::max(
+//             min_memory_size,
+//             initial_app_memory_size + initial_kernel_memory_size,
+//         );
+//         if memory_size > unallocated_memory_size {
+//             None
+//         } else {
+//             Some((unallocated_memory_start, memory_size))
+//         }
+//     }
 
-    fn update_app_memory_region(
-        &self,
-        app_memory_break: FluxPtrU8Mut,
-        kernel_memory_break: FluxPtrU8Mut,
-        _permissions: Permissions,
-        _config: &mut Self::MpuConfig,
-    ) -> Result<(), ()> {
-        if (app_memory_break.as_usize()) > (kernel_memory_break.as_usize()) {
-            Err(())
-        } else {
-            Ok(())
-        }
-    }
+//     fn update_app_memory_region(
+//         &self,
+//         app_memory_break: FluxPtrU8Mut,
+//         kernel_memory_break: FluxPtrU8Mut,
+//         _permissions: Permissions,
+//         _config: &mut Self::MpuConfig,
+//     ) -> Result<(), ()> {
+//         if (app_memory_break.as_usize()) > (kernel_memory_break.as_usize()) {
+//             Err(())
+//         } else {
+//             Ok(())
+//         }
+//     }
 
-    fn configure_mpu(&mut self, _config: &Self::MpuConfig) {}
-}
+//     fn configure_mpu(&mut self, _config: &Self::MpuConfig) {}
+// }
