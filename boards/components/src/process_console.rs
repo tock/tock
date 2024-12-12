@@ -109,6 +109,7 @@ extern "C" {
 
 pub struct Capability;
 unsafe impl capabilities::ProcessManagementCapability for Capability {}
+unsafe impl capabilities::ProcessStartCapability for Capability {}
 
 impl<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>> Component
     for ProcessConsoleComponent<COMMAND_HISTORY_LEN, A>
