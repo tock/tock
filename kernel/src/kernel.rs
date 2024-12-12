@@ -1017,7 +1017,7 @@ impl Kernel {
                             // that there are no pending upcalls with the same
                             // identifier but with the old function pointer, we
                             // clear them now.
-                            process.remove_pending_upcalls(upcall_id);
+                            let _ =process.remove_pending_upcalls(upcall_id);
                         }
 
                         if config::CONFIG.trace_syscalls {
