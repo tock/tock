@@ -96,7 +96,7 @@ core::arch::global_asm!(
     movs r0, #0
     msr CONTROL, r0
     /* CONTROL writes must be followed by ISB */
-    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    /* https://developer.arm.com/documentation/dui0662/b/The-Cortex-M0--Processor/Programmers-model/Core-registers */
     isb
 
     /* We need the most recent kernel's version of r1, which points */
