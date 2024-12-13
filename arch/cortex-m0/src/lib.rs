@@ -238,7 +238,7 @@ svc_handler:
   movs r0, #1
   msr CONTROL, r0
   /* CONTROL writes must be followed by ISB */
-  /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    /* https://developer.arm.com/documentation/dui0662/b/The-Cortex-M0--Processor/Programmers-model/Core-registers */
   isb
   ldr r1, 300f // EXC_RETURN_PSP
   bx r1
