@@ -139,6 +139,7 @@ use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::processbuffer::{ReadOnlyProcessBufferRef, ReadWriteProcessBufferRef};
 use crate::upcall::{Upcall, UpcallError, UpcallId};
 use crate::utilities::capability_ptr::CapabilityPtr;
+use crate::utilities::machine_register::MachineRegister;
 use crate::ErrorCode;
 
 /// Tracks how many upcalls a grant instance supports automatically.
@@ -708,7 +709,7 @@ impl<'a> GrantKernelData<'a> {
 #[repr(C)]
 #[derive(Default)]
 struct SavedUpcall {
-    appdata: CapabilityPtr,
+    appdata: MachineRegister,
     fn_ptr: CapabilityPtr,
 }
 
