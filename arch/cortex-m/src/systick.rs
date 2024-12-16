@@ -5,6 +5,7 @@
 //! ARM Cortex-M SysTick peripheral.
 
 use core::cell::Cell;
+use kernel::capabilities::SysTickFrequencyCapability;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
@@ -132,7 +133,7 @@ impl SysTick {
     /// When changing the hardware systick frequency, the reload value register
     /// should be updated and the current value register should be reset, in
     /// order for the tick count to match the current frequency.
-    pub unsafe fn set_hertz(&self, clock_speed: u32) {
+    pub fn set_hertz(&self, clock_speed: u32, _capability: &dyn SysTickFrequencyCapability) {
         self.hertz.set(clock_speed);
     }
 }

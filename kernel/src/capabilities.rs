@@ -117,3 +117,7 @@ pub unsafe trait CreatePortTableCapability {}
 /// A capsule would never hold this capability although it may hold
 /// capabilities created via this capability.
 pub unsafe trait NetworkCapabilityCreationCapability {}
+
+/// The `SysTickFrequencyCapability` allows the holder to change the Cortex M
+/// SysTick `hertz` field.
+pub unsafe trait SysTickFrequencyCapability {}
