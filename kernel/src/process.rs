@@ -391,7 +391,9 @@ pub trait Process {
 
     /// Remove all scheduled upcalls with the given `upcall_id` from the task
     /// queue.
-    fn remove_pending_upcalls(&self, upcall_id: UpcallId);
+    ///
+    /// Returns the number of removed upcalls.
+    fn remove_pending_upcalls(&self, upcall_id: UpcallId) -> usize;
 
     /// Returns the current state the process is in.
     fn get_state(&self) -> State;

@@ -552,8 +552,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             || self.state.get() == State::Running
     }
 
-    fn remove_pending_upcalls(&self, upcall_id: UpcallId) {
-        self.tasks.map(|tasks| {
+    fn remove_pending_upcalls(&self, upcall_id: UpcallId) -> usize {
+        self.tasks.map_or(0, |tasks| {
             let count_before = tasks.len();
             tasks.retain(|task| match task {
                 // Remove only tasks that are function calls with an id equal
@@ -564,8 +564,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                 },
                 _ => true,
             });
+            let count_after = tasks.len();
             if config::CONFIG.trace_syscalls {
-                let count_after = tasks.len();
                 debug!(
                     "[{:?}] remove_pending_upcalls[{:#x}:{}] = {} upcall(s) removed",
                     self.processid(),
@@ -574,7 +574,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                     count_before - count_after,
                 );
             }
-        });
+            count_after - count_before
+        })
     }
 
     fn is_running(&self) -> bool {
