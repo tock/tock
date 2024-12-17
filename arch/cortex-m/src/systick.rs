@@ -5,12 +5,15 @@
 //! ARM Cortex-M SysTick peripheral.
 
 use core::cell::Cell;
-use kernel::capabilities::SysTickFrequencyCapability;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
 use core::num::NonZeroU32;
+
+/// The `SysTickFrequencyCapability` allows the holder to change the Cortex M
+/// SysTick `hertz` field.
+pub unsafe trait SysTickFrequencyCapability {}
 
 #[repr(C)]
 struct SystickRegisters {
