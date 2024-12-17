@@ -72,7 +72,7 @@ use crate::ErrorCode;
 ///    buffer.
 ///
 /// As the kernel cannot track if an `allow`ed buffer for a particular
-/// [`SyscallDriver`] implementation is intended to be a
+/// [`SyscallDriver`](crate::syscall_driver::SyscallDriver) implementation is intended to be a
 /// [`StreamingProcessSlice`], the kernel must use the header in the buffer as
 /// provided by the process. The implementation of [`StreamingProcessSlice`]
 /// ensures that an incorrect header will not cause a panic, but incoming
