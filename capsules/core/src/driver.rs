@@ -69,6 +69,7 @@ pub enum NUM {
     Pressure              = 0x60008,
     Distance              = 0x60009,
     Moisture              = 0x6000A,
+    RainFall              = 0x6000B,
 
     // Sensor ICs
     Tsl2561               = 0x70000,
