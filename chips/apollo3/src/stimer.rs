@@ -153,7 +153,8 @@ impl<'a> Counter<'a> for STimer<'a> {
     }
 
     fn reset(&self) -> Result<(), ErrorCode> {
-        Err(ErrorCode::FAIL)
+        self.registers.stcfg.write(STCFG::CLEAR::SET);
+        Ok(())
     }
 
     fn is_running(&self) -> bool {
