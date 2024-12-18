@@ -166,11 +166,6 @@ struct LoRaThingsPlus {
         >,
     >,
     sx1262_gpio: &'static capsules_core::gpio::GPIO<'static, apollo3::gpio::GpioPin<'static>>,
-    ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
-        'static,
-        apollo3::ble::Ble<'static>,
-        VirtualMuxAlarm<'static, apollo3::stimer::STimer<'static>>,
-    >,
     temperature: &'static TemperatureDriver,
     humidity: &'static HumidityDriver,
     air_quality: &'static capsules_extra::air_quality::AirQualitySensor<'static>,
@@ -307,7 +302,6 @@ impl SyscallDriverLookup for LoRaThingsPlus {
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.external_spi_controller)),
             LORA_SPI_DRIVER_NUM => f(Some(self.sx1262_spi_controller)),
             LORA_GPIO_DRIVER_NUM => f(Some(self.sx1262_gpio)),
-            capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules_extra::humidity::DRIVER_NUM => f(Some(self.humidity)),
             capsules_extra::air_quality::DRIVER_NUM => f(Some(self.air_quality)),
@@ -605,24 +599,7 @@ unsafe fn setup() -> (
     .finalize(components::gpio_component_static!(apollo3::gpio::GpioPin));
 
     // Setup BLE
-    mcu_ctrl.enable_ble();
-    clkgen.enable_ble();
-    pwr_ctrl.enable_ble();
-    peripherals.ble.setup_clocks();
-    mcu_ctrl.reset_ble();
-    peripherals.ble.power_up();
-    peripherals.ble.ble_initialise();
-
-    let ble_radio = components::ble::BLEComponent::new(
-        board_kernel,
-        capsules_extra::ble_advertising_driver::DRIVER_NUM,
-        &peripherals.ble,
-        mux_alarm,
-    )
-    .finalize(components::ble_component_static!(
-        apollo3::stimer::STimer,
-        apollo3::ble::Ble,
-    ));
+    mcu_ctrl.disable_ble();
 
     // Flash
     let flash_ctrl_read_buf = static_init!(
@@ -783,7 +760,6 @@ unsafe fn setup() -> (
             external_spi_controller,
             sx1262_spi_controller,
             sx1262_gpio,
-            ble_radio,
             temperature,
             humidity,
             air_quality,
