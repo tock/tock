@@ -70,6 +70,7 @@
 #![no_std]
 #![deny(missing_docs)]
 
+use core::num::NonZeroU32;
 use core::ptr::addr_of;
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
@@ -594,8 +595,10 @@ pub unsafe fn start() -> (
     PROCESS_PRINTER = Some(process_printer);
 
     // Virtualize the UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(uart_channel, 115200)
-        .finalize(components::uart_mux_component_static!());
+    // PANIC: 115200 != 0
+    let uart_mux =
+        components::console::UartMuxComponent::new(uart_channel, NonZeroU32::new(115200).unwrap())
+            .finalize(components::uart_mux_component_static!());
 
     // Create the process console, an interactive terminal for managing
     // processes.

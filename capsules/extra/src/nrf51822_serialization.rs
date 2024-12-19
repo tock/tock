@@ -25,6 +25,7 @@
 //! ```
 
 use core::cmp;
+use core::num::NonZeroU32;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
@@ -118,7 +119,7 @@ impl<'a> Nrf51822Serialization<'a> {
 
     pub fn initialize(&self) {
         let _ = self.uart.configure(uart::Parameters {
-            baud_rate: 250000,
+            baud_rate: NonZeroU32::new(250000).unwrap(),
             width: uart::Width::Eight,
             stop_bits: uart::StopBits::One,
             parity: uart::Parity::Even,

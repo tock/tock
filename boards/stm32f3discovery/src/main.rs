@@ -12,6 +12,7 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use core::num::NonZeroU32;
 use core::ptr::addr_of;
 use core::ptr::addr_of_mut;
 
@@ -417,8 +418,12 @@ unsafe fn start() -> (
     peripherals.usart1.enable_clock();
     peripherals.usart2.enable_clock();
 
-    let uart_mux = components::console::UartMuxComponent::new(&peripherals.usart1, 115200)
-        .finalize(components::uart_mux_component_static!());
+    let uart_mux = components::console::UartMuxComponent::new(
+        &peripherals.usart1,
+        // PANIC: 115200 != 0
+        NonZeroU32::new(115200).unwrap(),
+    )
+    .finalize(components::uart_mux_component_static!());
 
     // `finalize()` configures the underlying USART, so we need to
     // tell `send_byte()` not to configure the USART again.
