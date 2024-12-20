@@ -10,6 +10,7 @@ use crate::process;
 use crate::process::ProcessId;
 use crate::syscall::SyscallReturn;
 use crate::utilities::capability_ptr::CapabilityPtr;
+use crate::utilities::machine_register::MachineRegister;
 use crate::ErrorCode;
 
 /// Type to uniquely identify an upcall subscription across all drivers.
@@ -82,7 +83,7 @@ pub(crate) struct Upcall {
     pub(crate) upcall_id: UpcallId,
 
     /// The application data passed by the app when `subscribe()` was called.
-    pub(crate) appdata: CapabilityPtr,
+    pub(crate) appdata: MachineRegister,
 
     /// A pointer to the first instruction of the function in the app that
     /// corresponds to this upcall.
@@ -97,7 +98,7 @@ impl Upcall {
     pub(crate) fn new(
         process_id: ProcessId,
         upcall_id: UpcallId,
-        appdata: CapabilityPtr,
+        appdata: MachineRegister,
         fn_ptr: CapabilityPtr,
     ) -> Upcall {
         Upcall {
