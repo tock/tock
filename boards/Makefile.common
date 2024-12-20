@@ -128,7 +128,8 @@ endif
 ifneq ($(shell $(RUSTUP) target list | grep "$(TARGET) (installed)"),$(TARGET) (installed))
   $(warning Request to compile for a missing TARGET, make will install in 5s)
   $(warning Consider updating 'targets' in 'rust-toolchain.toml')
-  $(shell sleep 5s && $(RUSTUP) target add $(TARGET))
+  $(shell sleep 5)
+  $(shell $(RUSTUP) target add $(TARGET))
 endif
 endif # $(NO_RUSTUP)
 
