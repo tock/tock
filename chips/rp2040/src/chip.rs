@@ -182,10 +182,7 @@ impl InterruptService for Rp2040DefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::PIO0_IRQ_0 => {
-                // As the current PIO interface does not provide support for interrupts, they are
-                // simply ignored.
-                //
-                // Note that PIO interrupts are raised only during unit tests.
+                self.pio0.handle_interrupt();
                 true
             }
             interrupts::TIMER_IRQ_0 => {
