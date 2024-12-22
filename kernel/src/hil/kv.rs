@@ -145,6 +145,16 @@ pub trait KVClient {
     ///     completed.
     /// - `key`: The key buffer.
     fn delete_complete(&self, result: Result<(), ErrorCode>, key: SubSliceMut<'static, u8>);
+
+    /// This callback is called when the garbage collection operation completes.
+    ///
+    /// ### Return Values
+    ///
+    /// - `result`: `Ok(())` on success, `Err(ErrorCode)` on error. Valid
+    ///   `ErrorCode`s:
+    ///   - `FAIL`: An internal error occurred and the operation cannot be
+    ///     completed.
+    fn garbage_collection_complete(&self, result: Result<(), ErrorCode>);
 }
 
 /// Key-Value interface with permissions.
@@ -319,6 +329,20 @@ pub trait KVPermissions<'a> {
         permissions: StoragePermissions,
     ) -> Result<(), (SubSliceMut<'static, u8>, ErrorCode)>;
 
+    /// Run garbage collection on the underlying Key/Value store.
+    ///
+    /// This is generally used to reclaim keys that have been removed with
+    /// the `delete()` call.
+    ///
+    /// ### Return
+    ///
+    /// - On success returns `Ok(())`. A callback will be issued.
+    /// - On error, returns the buffers and:
+    ///   - `BUSY`: An operation is already in progress.
+    ///   - `FAIL`: An internal error occurred and the operation cannot be
+    ///     completed.
+    fn garbage_collect(&self) -> Result<(), ErrorCode>;
+
     /// Returns the length of the key-value store's header in bytes.
     ///
     /// Room for this header must be accommodated in a `set`, `add`, or `update`
@@ -478,4 +502,18 @@ pub trait KV<'a> {
         &self,
         key: SubSliceMut<'static, u8>,
     ) -> Result<(), (SubSliceMut<'static, u8>, ErrorCode)>;
+
+    /// Run garbage collection on the underlying Key/Value store.
+    ///
+    /// This is generally used to reclaim keys that have been removed with
+    /// the `delete()` call.
+    ///
+    /// ### Return
+    ///
+    /// - On success returns `Ok(())`. A callback will be issued.
+    /// - On error, returns the buffers and:
+    ///   - `BUSY`: An operation is already in progress.
+    ///   - `FAIL`: An internal error occurred and the operation cannot be
+    ///     completed.
+    fn garbage_collect(&self) -> Result<(), ErrorCode>;
 }
