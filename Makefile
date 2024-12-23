@@ -307,6 +307,7 @@ ci-runner-github-clippy:\
 ci-runner-github-build:\
 	ci-job-syntax\
 	ci-job-compilation\
+	ci-job-msrv\
 	ci-job-debug-support-targets\
 	ci-job-collect-artifacts
 	$(call banner,CI-Runner: GitHub build runner DONE)
@@ -350,6 +351,14 @@ ci-runner-netlify:\
 ## The order of rules within a runner try to optimize for performance if
 ## executed in linear order.
 
+
+
+### ci-runner-github-setup jobs:
+.PHONY: ci-job-cargo-hack
+ci-job-cargo-hack:
+	$(call banner,CI-Job: Install cargo-hack)
+	cargo install cargo-hack
+	$(call banner,CI-Job: Install cargo-hack DONE)
 
 
 ### ci-runner-github-format jobs:
@@ -414,6 +423,11 @@ ci-job-syntax:
 ci-job-compilation:
 	$(call banner,CI-Job: Compilation)
 	@NOWARNINGS=true $(MAKE) allboards
+
+.PHONY: ci-job-msrv
+ci-job-msrv: ci-job-cargo-hack
+	$(call banner,CI-Job: MSRV Check)
+	@cd boards/hail && cargo hack check --rust-version --target thumbv7em-none-eabihf
 
 .PHONY: ci-job-debug-support-targets
 ci-job-debug-support-targets:
