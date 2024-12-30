@@ -7,8 +7,8 @@ System Calls
 **Status:** Draft <br/>
 **Author:** Hudson Ayers, Guillaume Endignoux, Jon Flatley, Philip Levis, Amit Levy, Pat Pannuto, Leon Schuermann, Johnathan Van Why, dcz <br/>
 **Draft-Created:** August 31, 2020<br/>
-**Draft-Modified:** June 14, 2024<br/>
-**Draft-Version:** 9<br/>
+**Draft-Modified:** November 8, 2024<br/>
+**Draft-Version:** 10<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
@@ -337,12 +337,12 @@ There are three Yield system call variants:
 The register arguments for Yield system calls are as follows. The registers
 r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
 
-| Argument               | Register |
-|------------------------|----------|
-| Yield number           | r0       |
-| yield-param-A          | r1       |
-| yield-param-B          | r2       |
-| yield-param-C          | r3       |
+| Argument               | Register | Type     |
+|------------------------|----------|----------|
+| Yield number           | r0       | `u32`    |
+| yield-param-A          | r1       | _varies_ |
+| yield-param-B          | r2       | _varies_ |
+| yield-param-C          | r3       | _varies_ |
 
 The Yield number (in r0) specifies which call is invoked:
 
@@ -360,6 +360,11 @@ The meaning of `yield-param-X` is specific to the yield type.
 
 
 ### 4.1.1 Yield-NoWait
+
+| Argument               | Register | Type           | Value                                            |
+|------------------------|----------|----------------|--------------------------------------------------|
+| Yield number           | r0       | `u32`          | `0`                                              |
+| yield-param-A          | r1       | `*mut [u8; 1]` | Pointer to one byte of userspace memory or `0x0` |
 
 Yield number 0, Yield-NoWait, executes a single upcall if any is
 pending.  If no upcalls are pending it returns immediately.
@@ -388,6 +393,10 @@ empty.
 
 ### 4.1.2 Yield-Wait
 
+| Argument               | Register | Type           | Value |
+|------------------------|----------|----------------|-------|
+| Yield number           | r0       | `u32`          | `1`   |
+
 Yield number 1, Yield-Wait, blocks until an upcall executes. It is
 commonly used when applications have no other work to do and are waiting
 for an event (upcall) to occur to do more work.
@@ -411,6 +420,12 @@ return value of the upcall.
 
 
 ### 4.1.3 Yield-WaitFor
+
+| Argument               | Register | Type  | Value            |
+|------------------------|----------|-------|------------------|
+| Yield number           | r0       | `u32` | `2`              |
+| yield-param-A          | r1       | `u32` | Driver number    |
+| yield-param-B          | r2       | `u32` | Subscribe number |
 
 The third call, Yield-WaitFor, blocks until one
 specific upcall is ready to execute. If
@@ -446,12 +461,12 @@ kernel.
 The register arguments for Subscribe system calls are as follows. The
 registers r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
 
-| Argument            | Register |
-|---------------------|----------|
-| Driver number       | r0       |
-| Subscribe number    | r1       |
-| Upcall pointer      | r2       |
-| Application data    | r3       |
+| Argument            | Register | Type                                                             |
+|---------------------|----------|------------------------------------------------------------------|
+| Driver number       | r0       | `u32`                                                            |
+| Subscribe number    | r1       | `u32`                                                            |
+| Upcall pointer      | r2       | Opaque, userspace-specific, register-sized function pointer type |
+| Application data    | r3       | Opaque, register-sized value                                     |
 
 
 The `upcall pointer` is the address of the first instruction of
@@ -554,12 +569,12 @@ platform and what drivers were compiled into the kernel.
 The register arguments for Command system calls are as follows. The registers
 r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
 
-| Argument          | Register |
-|-------------------|----------|
-| Driver number     | r0       |
-| Command number    | r1       |
-| Argument 0        | r2       |
-| Argument 1        | r3       |
+| Argument          | Register | Type  |
+|-------------------|----------|-------|
+| Driver number     | r0       | `u32` |
+| Command number    | r1       | `u32` |
+| Argument 0        | r2       | `u32` |
+| Argument 1        | r3       | `u32` |
 
 Argument 0 and argument 1 are unsigned 32-bit integers. Command calls should
 never pass pointers: those are passed with Allow calls, as they can adjust
@@ -596,12 +611,12 @@ The register arguments for Read-Write Allow system calls are as
 follows. The registers r0-r3 correspond to r0-r3 on CortexM and a0-a3
 on RISC-V.
 
-| Argument         | Register |
-|------------------|----------|
-| Driver number    | r0       |
-| Allow number     | r1       |
-| Address          | r2       |
-| Size             | r3       |
+| Argument         | Register | Type              | Value                                                                     |
+|------------------|----------|-------------------|---------------------------------------------------------------------------|
+| Driver number    | r0       | `u32`             |                                                                           |
+| Allow number     | r1       | `u32`             |                                                                           |
+| Address          | r2       | `*mut [u8; {r3}]` | Pointer to array of writable userspace memory of length `{r3}` **or** `0` |
+| Size             | r3       | `u32`             |                                                                           |
 
 The *allow number* argument is an ordinal number (index) of the buffer.
 When Read-Write Allow is called, the provided buffer
@@ -733,6 +748,13 @@ the buffer).
 4.5 Read-Only Allow (Class ID: 4)
 ---------------------------------
 
+| Argument         | Register | Type          | Value                                                                     |
+|------------------|----------|---------------|---------------------------------------------------------------------------|
+| Driver number    | r0       | `u32`         |                                                                           |
+| Allow number     | r1       | `u32`         |                                                                           |
+| Address          | r2       | `*[u8; {r3}]` | Pointer to array of readable userspace memory of length `{r3}` **or** `0` |
+| Size             | r3       | `u32`         |                                                                           |
+
 The Read-Only Allow class is very similar to the Read-Write Allow
 class. It differs in some ways:
 
@@ -794,12 +816,12 @@ information about its address space.  The register arguments for
 Memop system calls are as follows. The registers r0-r3 correspond
 to r0-r3 on CortexM and a0-a3 on RISC-V.
 
-| Argument               | Register |
-|------------------------|----------|
-| Operation              | r0       |
-| Operation argument     | r1       |
-| unused                 | r2       |
-| unused                 | r3       |
+| Argument               | Register | Type     |
+|------------------------|----------|----------|
+| Operation              | r0       | `u32`    |
+| Operation argument     | r1       | _varies_ |
+| unused                 | r2       |          |
+| unused                 | r3       |          |
 
 The operation argument specifies which memory operation to perform. There
 are 12:
@@ -847,10 +869,10 @@ allocate new ones.
 The register arguments for Exit system calls are as follows. The registers
 r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
 
-| Argument         | Register |
-|------------------|----------|
-| Exit number      | r0       |
-| Completion code  | r1       |
+| Argument         | Register | Type  |
+|------------------|----------|-------|
+| Exit number      | r0       | `u32` |
+| Completion code  | r1       | `u32` |
 
 The exit number specifies which call is invoked.
 
