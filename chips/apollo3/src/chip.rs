@@ -128,7 +128,7 @@ impl<I: InterruptService + 'static> Chip for Apollo3<I> {
 
     fn sleep(&self) {
         unsafe {
-            cortexm4f::scb::unset_sleepdeep();
+            cortexm4f::scb::set_sleepdeep();
             cortexm4f::support::wfi();
         }
     }
