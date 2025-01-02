@@ -48,6 +48,17 @@ pub trait MacDevice<'a> {
     /// Returns if the MAC device is currently on.
     fn is_on(&self) -> bool;
 
+    /// Start the radio.
+    ///
+    /// This serves as a passthrough to the underlying radio's `start` method.
+    ///
+    /// ## Return
+    ///
+    /// `Ok(())` on success. On `Err()`, valid errors are:
+    ///
+    /// - `ErrorCode::FAIL`: Internal error occurred.
+    fn start(&self) -> Result<(), ErrorCode>;
+
     /// Prepares a mutable buffer slice as an 802.15.4 frame by writing the appropriate
     /// header bytes into the buffer. This needs to be done before adding the
     /// payload because the length of the header is not fixed.
