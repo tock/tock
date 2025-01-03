@@ -866,7 +866,10 @@ impl<
                                             let mut console_writer = ConsoleWriter::new();
                                             let _ = write(
                                                 &mut console_writer,
-                                                format_args!("Process {} terminated\n", proc_name),
+                                                format_args!(
+                                                    "Process {} terminated\r\n",
+                                                    proc_name
+                                                ),
                                             );
 
                                             let _ = self.write_bytes(
