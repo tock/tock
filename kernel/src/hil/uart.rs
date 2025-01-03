@@ -6,6 +6,8 @@
 
 use crate::ErrorCode;
 
+use core::num::NonZeroU32;
+
 /// Number of stop bits to send after each word.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum StopBits {
@@ -41,7 +43,7 @@ pub enum Width {
 #[derive(Copy, Clone, Debug)]
 pub struct Parameters {
     /// Baud rate in bit/s.
-    pub baud_rate: u32,
+    pub baud_rate: NonZeroU32,
     /// Number of bits per word.
     pub width: Width,
     /// Parity bit configuration.

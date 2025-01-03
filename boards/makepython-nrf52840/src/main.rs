@@ -12,6 +12,7 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use core::num::NonZeroU32;
 use core::ptr::{addr_of, addr_of_mut};
 
 use kernel::capabilities;
@@ -388,8 +389,10 @@ pub unsafe fn start() -> (
     PROCESS_PRINTER = Some(process_printer);
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(cdc, 115200)
-        .finalize(components::uart_mux_component_static!());
+    let uart_mux =
+        // PANIC: 115200 != 0
+        components::console::UartMuxComponent::new(cdc, NonZeroU32::new(115200).unwrap())
+            .finalize(components::uart_mux_component_static!());
 
     let pconsole = components::process_console::ProcessConsoleComponent::new(
         board_kernel,

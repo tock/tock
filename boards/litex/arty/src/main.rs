@@ -10,6 +10,7 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 
+use core::num::NonZeroU32;
 use core::ptr::{addr_of, addr_of_mut};
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
@@ -464,8 +465,12 @@ unsafe fn start() -> (
     PANIC_REFERENCES.uart = Some(uart0);
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(uart0, socc::UART_BAUDRATE)
-        .finalize(components::uart_mux_component_static!());
+    let uart_mux = components::console::UartMuxComponent::new(
+        uart0,
+        // PANIC: socc::UART_BAUDRATE != 0
+        NonZeroU32::new(socc::UART_BAUDRATE).unwrap(),
+    )
+    .finalize(components::uart_mux_component_static!());
 
     // ---------- ETHERNET ----------
 
