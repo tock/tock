@@ -190,7 +190,7 @@ fn run() -> Result<(), Error> {
     // should return that.
     //
     // Tests parts of the UART stack and the LiteX UART driver.
-    libtock_c_examples_test(&["tests/console_timeout"], |p, _| {
+    libtock_c_examples_test(&["tests/console/console_timeout"], |p, _| {
         p.send_line("Tock is awesome!")?;
         p.exp_string("Userspace call to read console returned: Tock is awesome!")?;
         Ok(())
@@ -212,7 +212,7 @@ fn run() -> Result<(), Error> {
     // "press" the overrun button. Once we receive the message that the
     // application will walk a region, it's already too late for that. Thus the
     // button is pressed immediately after the start of the prior run.
-    libtock_c_examples_test(&["tests/mpu_walk_region"], |p, gpio| {
+    libtock_c_examples_test(&["tests/mpu/mpu_walk_region"], |p, gpio| {
         p.exp_string("[TEST] MPU Walk Regions")?;
 
         // Start walking the entire flash region, should not panic
@@ -255,7 +255,7 @@ fn run() -> Result<(), Error> {
     //
     // Tests whether an overrun of the RAM region will trigger a process fault
     // by the MPU because of a load page fault.
-    libtock_c_examples_test(&["tests/mpu_walk_region"], |p, gpio| {
+    libtock_c_examples_test(&["tests/mpu/mpu_walk_region"], |p, gpio| {
         p.exp_string("[TEST] MPU Walk Regions")?;
 
         // Start walking the entire flash region.
