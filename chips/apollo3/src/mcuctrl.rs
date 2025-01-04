@@ -133,6 +133,12 @@ impl McuCtrl {
         }
     }
 
+    pub fn disable_ble(&self) {
+        self.registers
+            .featureenable
+            .modify(FEATUREENABLE::BLEREQ::CLEAR);
+    }
+
     pub fn enable_ble(&self) {
         let regs = self.registers;
 
