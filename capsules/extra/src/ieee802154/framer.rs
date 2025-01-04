@@ -774,6 +774,10 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
         self.mac.is_on()
     }
 
+    fn start(&self) -> Result<(), ErrorCode> {
+        self.mac.start()
+    }
+
     fn prepare_data_frame(
         &self,
         buf: &'static mut [u8],
