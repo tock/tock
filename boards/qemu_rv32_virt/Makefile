@@ -41,7 +41,7 @@ else
 endif
 
 ifeq ($(NETDEV),NONE)
-  QEMU_NETDEV_CMDLINE = ""
+  QEMU_NETDEV_CMDLINE =
 else ifeq ($(NETDEV),SLIRP)
   QEMU_NETDEV_CMDLINE = \
     -netdev user,id=n0,net=192.168.1.0/24,dhcpstart=192.168.1.255$(NETDEV_SLIRP_ARGS_INT) \
@@ -74,7 +74,7 @@ QEMU_BASE_CMDLINE := \
 .PHONY: run
 run: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	@echo
-	@echo -e "Running $$(qemu-system-riscv32 --version | head -n1)"\
+	@echo -e "Running $$($(QEMU_CMD) --version | head -n1)"\
 	  "(tested: $(WORKING_QEMU_VERSION)) with\n"\
           " - kernel $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf"
 	@echo "To exit type C-a x"
@@ -87,7 +87,7 @@ run: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 .PHONY: run-app
 run-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	@echo
-	@echo -e "Running $$(qemu-system-riscv32 --version | head -n1)"\
+	@echo -e "Running $$($(QEMU_CMD) --version | head -n1)"\
 	  "(tested: $(WORKING_QEMU_VERSION)) with\n"\
           " - kernel $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf\n"\
 	  " - app $(APP)"
