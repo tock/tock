@@ -668,6 +668,7 @@ impl<'a, M: device::MacDevice<'a>> SyscallDriver for RadioDriver<'a, M> {
     ///        parameters to encrypt, form headers, and transmit the frame.
     /// - `28`: Set long address.
     /// - `29`: Get the long MAC address.
+    /// - `30`: Turn the radio on.
     fn command(
         &self,
         command_number: usize,
@@ -967,6 +968,7 @@ impl<'a, M: device::MacDevice<'a>> SyscallDriver for RadioDriver<'a, M> {
                 let addr = u64::from_be_bytes(self.mac.get_address_long());
                 CommandReturn::success_u64(addr)
             }
+            30 => self.mac.start().into(),
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
