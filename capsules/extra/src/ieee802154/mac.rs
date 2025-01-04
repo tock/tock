@@ -57,6 +57,17 @@ pub trait Mac<'a> {
     /// Indicates whether or not the MAC protocol is active and can send frames
     fn is_on(&self) -> bool;
 
+    /// Start the radio.
+    ///
+    /// This serves as a passthrough to the underlying radio's `start` method.
+    ///
+    /// ## Return
+    ///
+    /// `Ok(())` on success. On `Err()`, valid errors are:
+    ///
+    /// - `ErrorCode::FAIL`: Internal error occurred.
+    fn start(&self) -> Result<(), ErrorCode>;
+
     /// Transmits complete MAC frames, which must be prepared by an ieee802154::device::MacDevice
     /// before being passed to the Mac layer. Returns the frame buffer in case of an error.
     fn transmit(
@@ -96,6 +107,10 @@ impl<'a, R: radio::Radio<'a>> Mac<'a> for AwakeMac<'a, R> {
 
     fn is_on(&self) -> bool {
         self.radio.is_on()
+    }
+
+    fn start(&self) -> Result<(), ErrorCode> {
+        self.radio.start()
     }
 
     fn set_config_client(&self, client: &'a dyn radio::ConfigClient) {

@@ -288,6 +288,10 @@ impl<'a, M: device::MacDevice<'a>> device::MacDevice<'a> for MacUser<'a, M> {
         self.mux.mac.is_on()
     }
 
+    fn start(&self) -> Result<(), ErrorCode> {
+        self.mux.mac.start()
+    }
+
     fn prepare_data_frame(
         &self,
         buf: &'static mut [u8],
