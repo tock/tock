@@ -55,7 +55,7 @@ Enter BOOTSEL mode.
 
 Apps are built out-of-tree. Once an app is built, you can add the path to it in the Makefile (APP variable), then run:
 ```bash
-$ APP="<path to app's tbf file>" make flash-app
+$ APP="<path to app's tbf file>" make program
 ```
 
 ## Debugging
