@@ -155,6 +155,13 @@ new platforms, new drivers, and major refactors.
   userspace implementation, thanks to a major refactor and redesign of Tock's
   IEEE 802.15.4 and 6LoWPAN stack.
 
+  **Known issue**: UDP transmit functionality is currently broken with a bug /
+  inconsistency between the kernel and libtock-c implementation. When executing
+  the transmit syscall, the libtock-c application fails to provide the src
+  address and fails the error check that occurs for the transmit syscall. For
+  more information, see the Tock 2.2 release testing issue:
+  https://github.com/tock/tock/issues/4272#issuecomment-2569993915
+
 In addition to the above, this release includes a plethora of other fixes,
 improvements and refactors. You can see the full list of changes at
 https://github.com/tock/tock/compare/release-2.1...release-2.2
