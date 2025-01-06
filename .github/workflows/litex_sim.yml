@@ -28,7 +28,7 @@ jobs:
   litex-sim-ci:
     strategy:
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-22.04]
 
     # The type of runner that the job will run on
     runs-on: ${{ matrix.os }}
