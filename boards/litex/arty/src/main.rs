@@ -627,8 +627,8 @@ unsafe fn start() -> (
         ),
     };
 
-    let _ = litex_arty.pconsole.start();
     debug!("LiteX+VexRiscv on ArtyA7: initialization complete, entering main loop.");
+    let _ = litex_arty.pconsole.start();
 
     kernel::process::load_processes(
         board_kernel,
