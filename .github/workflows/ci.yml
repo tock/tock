@@ -120,7 +120,7 @@ jobs:
       - name: Install dependencies
         continue-on-error: true
         run: |
-          sudo apt install meson
+          sudo apt install meson libglib2.0-dev
       - uses: actions/checkout@v4
       - name:      ci-job-qemu
         run:  make ci-job-qemu
