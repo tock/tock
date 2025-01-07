@@ -16,6 +16,7 @@ pub mod appid;
 pub mod atecc508a;
 pub mod ble;
 pub mod bme280;
+pub mod bmi270;
 pub mod bmm150;
 pub mod bmp280;
 pub mod bus;
