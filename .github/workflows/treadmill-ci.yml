@@ -65,14 +65,14 @@ on:
         required: true
         default: 'master'
       tests-json:
-        description: 'tests-json value passed to HWCI workflow (if empty, output from determine-tests step is used)'
+        description: 'tests-json value passed to HWCI workflow (if empty, output from hwci-determine-tests step is used)'
         required: false
 
 permissions:
   contents: read
 
 jobs:
-  determine-tests:
+  hwci-determine-tests:
     runs-on: ubuntu-latest
 
     # Don't run on a pull request, as explained above.
@@ -118,14 +118,14 @@ jobs:
           hwci_tests_json=$(cat selected_tests.json | jq -c '.')
           echo "hwci-tests-json=${hwci_tests_json}" >> "$GITHUB_OUTPUT"
 
-  treadmill-ci:
-    needs: [determine-tests]
+  hwci-treadmill-dispatch:
+    needs: [hwci-determine-tests]
 
     # This checks whether there is at least one test to run, see
     # https://github.com/orgs/community/discussions/27125#discussioncomment-3254720
     #
     # Don't run on a pull request, as explained above.
-    if: github.event_name != 'pull_request' && (fromJSON(needs.determine-tests.outputs.hwci-tests-json)[0] != null || github.event_name == 'workflow_dispatch')
+    if: github.event_name != 'pull_request' && (fromJSON(needs.hwci-determine-tests.outputs.hwci-tests-json)[0] != null || github.event_name == 'workflow_dispatch')
 
     # The main tock-hardware-ci workflow is imported from another repository. It
     # can be reused across multiple Tock repositories such as the kernel,
@@ -154,25 +154,25 @@ jobs:
       libtock-c-ref: ${{ github.event_name == 'workflow_dispatch' && inputs.libtock-c-ref || 'master' }}
 
       # Pass the selected tests:
-      tests-json: ${{ (github.event_name == 'workflow_dispatch' && inputs.tests-json != '') && inputs.tests-json || needs.determine-tests.outputs.hwci-tests-json }}
+      tests-json: ${{ (github.event_name == 'workflow_dispatch' && inputs.tests-json != '') && inputs.tests-json || needs.hwci-determine-tests.outputs.hwci-tests-json }}
 
     secrets: inherit
 
-  # We cannot depend on *all* test-execute jobs of treadmill-ci as required
-  # checks for pull requests and merge queues. Thus, we run another single dummy
-  # step here that waits for all the treadmill-ci jobs to complete and report
-  # success.
+  # We cannot depend on *all* test-execute jobs of hwci-treadmill-dispatch as
+  # required checks for pull requests and merge queues. Thus, we run another
+  # single dummy step here that waits for all the hwci-treadmill-dispatch jobs
+  # to complete and report success.
   #
   # We also use this to report a "dummy" success value for the "pull_request"
   # trigger, as explained in the comment of the "on:" parameters above.
-  report-success:
-    needs: [determine-tests, treadmill-ci]
+  hwci-report-success:
+    needs: [hwci-determine-tests, hwci-treadmill-dispatch]
 
     if: always()
 
     runs-on: ubuntu-latest
 
     steps:
-      - name: Fail if any of the 'treadmill-ci' jobs failed
+      - name: Fail if any of the 'hwci-treadmill-dispatch' jobs failed
         if: github.event_name != 'pull_request' && contains(needs.*.result, 'failure')
         run: exit 1
