@@ -255,7 +255,7 @@ impl Syscall {
             Ok(SyscallClass::Subscribe) => Some(Syscall::Subscribe {
                 driver_number: r0,
                 subdriver_number: r1.into(),
-                upcall_ptr: r2,
+                upcall_ptr: r2.into(),
                 appdata: r3,
             }),
             Ok(SyscallClass::Command) => Some(Syscall::Command {
@@ -267,19 +267,19 @@ impl Syscall {
             Ok(SyscallClass::ReadWriteAllow) => Some(Syscall::ReadWriteAllow {
                 driver_number: r0,
                 subdriver_number: r1.into(),
-                allow_address: r2.as_ptr::<u8>().cast_mut(),
+                allow_address: usize::from(r2) as *mut u8,
                 allow_size: r3.into(),
             }),
             Ok(SyscallClass::UserspaceReadableAllow) => Some(Syscall::UserspaceReadableAllow {
                 driver_number: r0,
                 subdriver_number: r1.into(),
-                allow_address: r2.as_ptr::<u8>().cast_mut(),
+                allow_address: usize::from(r2) as *mut u8,
                 allow_size: r3.into(),
             }),
             Ok(SyscallClass::ReadOnlyAllow) => Some(Syscall::ReadOnlyAllow {
                 driver_number: r0,
                 subdriver_number: r1.into(),
-                allow_address: r2.as_ptr::<u8>().cast_mut(),
+                allow_address: usize::from(r2) as *mut u8,
                 allow_size: r3.into(),
             }),
             Ok(SyscallClass::Memop) => Some(Syscall::Memop {
