@@ -67,12 +67,12 @@ use kernel::{ErrorCode, ProcessId};
 ///        The callback signature is `fn(pin_num: usize, pin_state: bool)`
 const UPCALL_NUM: usize = 0;
 
-pub struct GPIO<'a, IP: gpio::InterruptPin<'a>> {
+pub struct GPIO<'a, IP: gpio::InterruptPin<'a> + ?Sized> {
     pins: &'a [Option<&'a gpio::InterruptValueWrapper<'a, IP>>],
     apps: Grant<(), UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
 }
 
-impl<'a, IP: gpio::InterruptPin<'a>> GPIO<'a, IP> {
+impl<'a, IP: gpio::InterruptPin<'a> + ?Sized> GPIO<'a, IP> {
     pub fn new(
         pins: &'a [Option<&'a gpio::InterruptValueWrapper<'a, IP>>],
         grant: Grant<(), UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
@@ -137,7 +137,7 @@ impl<'a, IP: gpio::InterruptPin<'a>> GPIO<'a, IP> {
     }
 }
 
-impl<'a, IP: gpio::InterruptPin<'a>> gpio::ClientWithValue for GPIO<'a, IP> {
+impl<'a, IP: gpio::InterruptPin<'a> + ?Sized> gpio::ClientWithValue for GPIO<'a, IP> {
     fn fired(&self, pin_num: u32) {
         // read the value of the pin
         let pins = self.pins;
@@ -154,7 +154,7 @@ impl<'a, IP: gpio::InterruptPin<'a>> gpio::ClientWithValue for GPIO<'a, IP> {
     }
 }
 
-impl<'a, IP: gpio::InterruptPin<'a>> SyscallDriver for GPIO<'a, IP> {
+impl<'a, IP: gpio::InterruptPin<'a> + ?Sized> SyscallDriver for GPIO<'a, IP> {
     /// Query and control pin values and states.
     ///
     /// Each byte of the `data` argument is treated as its own field.
