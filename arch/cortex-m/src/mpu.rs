@@ -6,7 +6,6 @@
 //! Implementation of the memory protection unit for the Cortex-M0+, Cortex-M3,
 //! Cortex-M4, and Cortex-M7
 
-// TODO: verify configure_mpu with configure_for
 
 use core::cell::Cell;
 use core::cmp;
@@ -55,7 +54,7 @@ flux_rs::defs! {
 
     // fn enabled(mpu: MPU) -> bool { enable(mpu.ctrl)}
     // VTOCK_TODO: simplify
-    fn configured_for(mpu: MPU, config: CortexMConfig) -> bool {
+    fn mpu_configured_for(mpu: MPU, config: CortexMConfig) -> bool {
         map_get(mpu.regions, 0) == map_get(config.regions, 0) &&
         map_get(mpu.attrs, 0) == map_get(config.attrs, 0) &&
         map_get(mpu.regions, 1) == map_get(config.regions, 1) &&
@@ -95,7 +94,7 @@ flux_rs::defs! {
     }
 
     // https://developer.arm.com/documentation/dui0552/a/cortex-m3-peripherals/optional-memory-protection-unit/mpu-access-permission-attributes?lang=en
-    fn can_read(rasr: bitvec<32>) -> bool {
+    fn user_can_read(rasr: bitvec<32>) -> bool {
         ap(rasr) == 2 ||
         ap(rasr) == 3 ||
         ap(rasr) == 6 ||
@@ -103,33 +102,75 @@ flux_rs::defs! {
     }
 
     // https://developer.arm.com/documentation/dui0552/a/cortex-m3-peripherals/optional-memory-protection-unit/mpu-access-permission-attributes?lang=en
-    fn can_write(rasr: bitvec<32>) -> bool {
+    fn user_can_write(rasr: bitvec<32>) -> bool {
         ap(rasr) == 3
     }
 
-    fn access_succeeds(rbar: bitvec<32>, rasr: bitvec<32>, perms: mpu::Permissions) -> bool {
+    fn user_access_succeeds(rbar: bitvec<32>, rasr: bitvec<32>, perms: mpu::Permissions) -> bool {
         xn(rasr) => !perms.x &&
-        can_read(rasr) => perms.r &&
-        can_write(rasr) => perms.w
+        user_can_read(rasr) => perms.r &&
+        user_can_write(rasr) => perms.w
+    }
+
+    /* 
+
+    // Need to verify non-overlapping? or implement last?
+    // desugar into 28 line predicate?
+    // TODO: verify whole thing, not little toy one
+    // Idea: safely overapproximate -- every region that can service an address must satisfy the rules
+    // -- is this actually sound?
+
+    forall region in self.regions. last(|r| 
+        r.can_service(addr, size))) ==>
+        user_access_succeeds(region.rbar, region.rasr, perms) // Done
+        addr.aligned_to(arch.alignment) &&
+        addr.aligned_to(size)) 
+    */
+
+    fn region_can_access(mpu: MPU, addr: int, sz: int, perms: mpu::Permissions, idx: int) -> bool {
+        can_service(map_get(mpu.regions, 0), map_get(mpu.attrs, 0), addr, sz) => 
+        user_access_succeeds(map_get(mpu.regions, 0), map_get(mpu.attrs, 0), perms) 
+    }
+
+    fn config_region_can_access(config: CortexMConfig, addr: int, sz: int, perms: mpu::Permissions, idx: int) -> bool {
+        can_service(map_get(config.regions, 0), map_get(config.attrs, 0), addr, sz) => 
+        user_access_succeeds(map_get(config.regions, 0), map_get(config.attrs, 0), perms) 
     }
 
     fn can_access(mpu: MPU, addr: int, sz: int, perms: mpu::Permissions) -> bool {
-        true // TODO:
+        region_can_access(mpu, addr, sz, perms, 0) && 
+        region_can_access(mpu, addr, sz, perms, 1) && 
+        region_can_access(mpu, addr, sz, perms, 2) && 
+        region_can_access(mpu, addr, sz, perms, 3) && 
+        region_can_access(mpu, addr, sz, perms, 4) && 
+        region_can_access(mpu, addr, sz, perms, 5) && 
+        region_can_access(mpu, addr, sz, perms, 6) && 
+        region_can_access(mpu, addr, sz, perms, 7) 
+
+
+        // can_service(map_get(mpu.regions, 0), map_get(mpu.attrs, 0), addr, sz) => user_access_succeeds(map_get(mpu.regions, 0), map_get(mpu.attrs, 0), perms) 
+        // true 
     }
 
     fn config_can_access(config: CortexMConfig, addr: int, sz: int, perms: mpu::Permissions) -> bool {
-        true // TODO:
+        config_region_can_access(config, addr, sz, perms, 0) //&& 
+        // config_region_can_access(config, addr, sz, perms, 1) && 
+        // config_region_can_access(config, addr, sz, perms, 2) && 
+        // config_region_can_access(config, addr, sz, perms, 3) && 
+        // config_region_can_access(config, addr, sz, perms, 4) && 
+        // config_region_can_access(config, addr, sz, perms, 5) && 
+        // config_region_can_access(config, addr, sz, perms, 6) && 
+        // config_region_can_access(config, addr, sz, perms, 7) 
+        // true // TODO:
     }
 
     fn config_cant_access(config: CortexMConfig, addr: int, sz: int) -> bool {
-        true // TODO:
+        true 
     }
 }
 
 // VTOCK_TODO: better solution for hardware register spooky-action-at-a-distance
 /* VTOCK TODOS
-    1. enabled
-    2. Implement configured_for
     3. Implement can_service
 */
 
@@ -469,13 +510,7 @@ struct CortexMLocation {
     pub size: usize,
 }
 
-// #[flux_rs::alias(type BaseAddr[mask: bitvec<32>, value: bitvec<32>] = FieldValueU32<RegionBaseAddress::Register>[mask, value])]
-// type BaseAddr = FieldValueU32<RegionBaseAddress::Register>;
 
-// #[flux_rs::alias(type Attrs[mask: bitvec<32>, value: bitvec<32>] = FieldValueU32<RegionAttributes::Register>[mask, value])]
-// type Attrs = FieldValueU32<RegionAttributes::Register>;
-
-// VTOCK_TODO: maybe cleaner implementation using aliases and refine by the field values?
 /// Struct storing configuration for a Cortex-M MPU region.
 #[derive(Copy, Clone)]
 #[flux_rs::refined_by(rbar: FieldValueU32, rasr: FieldValueU32)]
@@ -609,7 +644,7 @@ impl CortexMRegion {
 }
 
 #[flux_rs::assoc(fn enabled(self: Self) -> bool {enable(self.ctrl)} )]
-// #[flux_rs::assoc(fn configured_for(self: Self, config: Self::MpuConfig) -> bool {false} )]
+#[flux_rs::assoc(fn configured_for(self: Self, config: CortexMConfig) -> bool {mpu_configured_for(self, config)} )]
 // #[flux_rs::assoc(fn can_access(self: Self, addr: int, sz: int, perms: Permissions) -> bool {false} )]
 impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
     type MpuConfig = CortexMConfig;
@@ -811,12 +846,12 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
         Some(mpu::Region::new(start.as_fluxptr(), size))
     }
 
-    // #[flux_rs::sig(fn(
-    //     _,
-    //     region: mpu::Region[@memstart, @memsz],
-    //     config: &strg CortexMConfig[@c],
-    // ) -> Result<(), ()>{ r: r => !config_cant_access(c, memstart, memsz)}
-    // ensures config: CortexMConfig)]
+    #[flux_rs::sig(fn(
+        _,
+        region: mpu::Region[@memstart, @memsz],
+        config: &strg CortexMConfig[@c],
+    ) -> Result<(), ()>{ r: r => config_cant_access(c, memstart, memsz)}
+    ensures config: CortexMConfig)]
     fn remove_memory_region(
         &self,
         region: mpu::Region,
@@ -1058,7 +1093,7 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
 
     // TODO: reimplement dirty tracking
     // TODO: add for loop back in
-    #[flux_rs::sig(fn(self: &strg Self, &CortexMConfig[@config]) ensures self: Self{mpu: configured_for(mpu, config)})]
+    #[flux_rs::sig(fn(self: &strg Self, &CortexMConfig[@config]) ensures self: Self{mpu: mpu_configured_for(mpu, config)})]
     fn configure_mpu(&mut self, config: &CortexMConfig) {
         // If the hardware is already configured for this app and the app's MPU
         // configuration has not changed, then skip the hardware update.
