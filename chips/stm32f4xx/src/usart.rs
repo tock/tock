@@ -562,6 +562,11 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
         self.registers.brr.modify(BRR::DIV_Fraction.val(fraction));
         Ok(())
     }
+
+    // disable the USART
+    pub fn disable(&self) {
+        self.registers.cr1.modify(CR1::UE::CLEAR);
+    }
 }
 
 impl<'a, DMA: dma::StreamServer<'a>> DeferredCallClient for Usart<'a, DMA> {
