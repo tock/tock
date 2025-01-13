@@ -793,12 +793,9 @@ impl Configure for Scb<'_> {
             Err(ErrorCode::NOSUPPORT)
         } else {
             // Modification of the SCB parameters require it to be disabled.
-            let enable = if self.registers.ctrl.is_set(CTRL::ENABLED) {
-                self.disable_scb();
-                true
-            } else {
-                false
-            };
+            if self.registers.ctrl.is_set(CTRL::ENABLED) {
+                return Err(ErrorCode::BUSY);
+            }
             match params.stop_bits {
                 uart::StopBits::One => {
                     self.registers
@@ -853,9 +850,6 @@ impl Configure for Scb<'_> {
                 uart::Width::Eight => {
                     self.registers.tx_ctrl.modify(TX_CTRL::DATA_WIDTH.val(7));
                 }
-            }
-            if enable {
-                self.enable_scb();
             }
             Ok(())
         }

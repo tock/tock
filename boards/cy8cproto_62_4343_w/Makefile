@@ -4,17 +4,18 @@
 
 include ../Makefile.common
 
-install: flash
-.PHONY: install
-
-flash: release
-	gdb-multiarch -q --command=openocd.flash ../../target/thumbv6m-none-eabi/release/cy8cproto_62_4243_w.elf
-.PHONY: flash
-
+OPENOCD_OPTIONS= -s ${OPENOCD_ROOT}/scripts -f openocd.cfg
 # Define the path to the TBF file to flash an application
 APP=
 KERNEL=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/release/$(PLATFORM).elf
 KERNEL_WITH_APP=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/release/$(PLATFORM)-app.elf
+
+install: flash
+.PHONY: install
+
+flash: release
+	${OPENOCD_ROOT}/bin/openocd $(OPENOCD_OPTIONS) -c "program $(KERNEL); verify_image $(KERNEL); reset; shutdown"
+.PHONY: flash
 
 .PHONY: program
 program: release
@@ -23,4 +24,4 @@ ifeq ($(APP),)
 endif
 	arm-none-eabi-objcopy --set-section-flags .apps=LOAD,ALLOC $(KERNEL) $(KERNEL_WITH_APP)
 	arm-none-eabi-objcopy --update-section .apps=$(APP) $(KERNEL_WITH_APP)
-	gdb-multiarch -q --command=openocd.flash $(KERNEL_WITH_APP)
+	${OPENOCD_ROOT}/bin/openocd $(OPENOCD_OPTIONS) -c "program $(KERNEL_WITH_APP); verify_image $(KERNEL_WITH_APP); reset; shutdown"

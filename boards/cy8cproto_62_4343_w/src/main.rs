@@ -141,6 +141,8 @@ pub unsafe fn main() {
     // UART & CONSOLE & DEBUG
     //--------------------------------------------------------------------------
 
+    peripherals.scb.set_standard_uart_mode();
+    peripherals.scb.enable_scb();
     peripherals.hsiom.enable_uart();
     let uart_tx_pin = peripherals.gpio.get_pin(psoc62xa::gpio::PsocPin::P5_1);
     uart_tx_pin.configure_drive_mode(psoc62xa::gpio::DriveMode::Strong);
@@ -148,9 +150,6 @@ pub unsafe fn main() {
     let uart_rx_pin = peripherals.gpio.get_pin(psoc62xa::gpio::PsocPin::P5_0);
     uart_rx_pin.configure_drive_mode(psoc62xa::gpio::DriveMode::HighZ);
     uart_rx_pin.configure_input(true);
-    peripherals.scb.set_standard_uart_mode();
-    peripherals.scb.enable_scb();
-    peripherals.tcpwm.init_timer();
     let chip = static_init!(
         Psoc62xa<PsoC62xaDefaultPeripherals>,
         Psoc62xa::new(peripherals)
@@ -174,6 +173,7 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
     // ALARM & TIMER
     //--------------------------------------------------------------------------
+    peripherals.tcpwm.init_timer();
 
     let mux_alarm = components::alarm::AlarmMuxComponent::new(&peripherals.tcpwm)
         .finalize(components::alarm_mux_component_static!(Tcpwm0));
