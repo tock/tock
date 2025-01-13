@@ -18,7 +18,7 @@
 - Leon: Tock 2.2 is released. 2 years between Tock 2.1 and Tock 2.2. Please let me know if there are any issues people find with this release.
 
 ### Treadmill:
-- Leon: Treadmill is now generating reports for PRs. We now have a 3rd github action that reports success and does nothing else. This 3rd github action is used for testing. This is a bit hacky, but is mostly working.
+- Leon: Treadmill is now a required check for merging PRs. We now have a 3rd github action that reports success and does nothing else for pushes to a PR, and performs actual tests when merging. This is a bit hacky, but is mostly working.
 - Branden: Now Treadmill doesn't run until someone clicks merge?
 - Leon: It never ran before merge, we cannot have it run automatically. We have a planned change to test PRs when they are opened.
 - Branden: Is there a way for developers to manually run tests on branches?
@@ -28,7 +28,7 @@
 
 ### PSOC Board Support (https://github.com/tock/tock/pull/4300):
 - Alex: We added an infineon board. This is the PSOC. 
-- Leon: I saw this has a cortex-m0+ and a cortex-m4. Is there any reason you targeted this?
+- Leon: I saw this has a cortex-m0+ and a cortex-m4. Is there any reason you targeted the M0+?
 - Alex: I will get back to you on this. I think it has something to do with how the code is uploaded.
 - Branden: I remember PSCOC having some hardware state machine similar to the RP2040. Are you going to try to support this?
 - Alex: No, not at this time. We selected this because we wanted to support an infineon chip and this was the chip infineon recommended us to work with. 
@@ -65,7 +65,7 @@
 - Leon: We can add this using github actions to have a python script that uses some plan / config to match tests to available board resources.
 - Branden: Having this would help with the testing bottle neck and also improve the stability of the system.
 - Tyler: Would Treadmill's design cause headaches when deploying across universities (such as with campus IT security concerns).
-- Leon: All outgoing traffic goes through a VPN. One way we can mitigate concerns from campus IT security is by only allowing Tock CI testing jobs to run. This would mean we are not giving users access to execute arbitrary code 
+- Leon: All outgoing traffic goes through a VPN. One way we can mitigate concerns from campus IT security is by only allowing Tock CI testing jobs to run. This would mean we are not giving users direct access to execute arbitrary code 
 - Ben: Here is the link for the cli tool: https://github.com/treadmill-tb/treadmill/tree/main/cli.
 - Brad: For the tests requiring kernel changes, this should use the configuration boards options. 
 - Amit: This seems to be like the correct approach.
