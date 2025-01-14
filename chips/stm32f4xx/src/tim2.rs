@@ -355,7 +355,11 @@ impl<'a> Tim2<'a> {
         // enabled.
 
         self.registers.arr.set(0xFFFF_FFFF - 1);
+        self.calibrate();
+    }
 
+    // set up the prescaler for the target frequency (16KHz)
+    pub fn calibrate(&self) {
         let clk_freq = self.clock.0.get_frequency();
 
         // TIM2 uses PCLK1. Set the prescaler to the current PCLK1 frequency divided by the wanted
@@ -370,6 +374,16 @@ impl<'a> Tim2<'a> {
         // We need set EGR.UG in order for the prescale value to become active.
         self.registers.egr.write(EGR::UG::SET);
         self.registers.cr1.modify(CR1::CEN::SET);
+    }
+
+    // get the value of the cnt register
+    pub fn get_timer_cnt(&self) -> u32 {
+        self.registers.cnt.get()
+    }
+
+    // set the value of the cnt register
+    pub fn set_timer_cnt(&self, value: u32) {
+        self.registers.cnt.set(value);
     }
 }
 
