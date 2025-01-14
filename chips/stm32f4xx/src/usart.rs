@@ -563,9 +563,17 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
         Ok(())
     }
 
-    // disable the USART
-    pub fn disable(&self) {
-        self.registers.cr1.modify(CR1::UE::CLEAR);
+    // try to disable the USART and return BUSY if a transfer is taking place
+    pub fn disable(&self) -> Result<(), ErrorCode> {
+        if self.usart_tx_state.get() == USARTStateTX::DMA_Transmitting
+            || self.usart_tx_state.get() == USARTStateTX::Transfer_Completing
+            || self.usart_rx_state.get() == USARTStateRX::DMA_Receiving
+        {
+            Err(ErrorCode::BUSY)
+        } else {
+            self.registers.cr1.modify(CR1::UE::CLEAR);
+            Ok(())
+        }
     }
 }
 
