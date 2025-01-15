@@ -14,8 +14,8 @@ Tock on Constrained Platforms Without Execute-in-Place (XIP) Flash
 Abstract
 -------------------------------
 
-This document provides information relating to running Tock on a subset of platforms without
-execute-in-place flash storage.
+This document provides information relating to running Tock on a subset of
+platforms without execute-in-place flash storage.
 
 **This is an initial, draft document and is not intended as authoritative.
 Feedback from downstream users on XIP use cases, needs, experiences, etc
@@ -58,9 +58,9 @@ would otherwise not consider.
 1.0 Background
 ===============================
 
-A con-non-XIP platform has no persistent flash storage where compiled binaries can
-be stored and executed. All static program code and data must be stored in some
-nonvolatile storage and then be loaded into RAM to execute.
+A con-non-XIP platform has no persistent flash storage where compiled binaries
+can be stored and executed. All static program code and data must be stored in
+some nonvolatile storage and then be loaded into RAM to execute.
 
 This system architecture shrinks the amount of the hardware that must be trusted
 when securely executing programs. By not including execute-in-place flash, the
@@ -76,9 +76,10 @@ allowed to execute.
 
 Non-XIP platforms introduce a new design point for embedded devices with a
 different set of tradeoffs compared to traditional platforms. To help motivate
-potential Tock designs for con-non-XIP platforms, we discuss both the limitations
-compared to traditional platforms, and the properties that may be important on
-traditional platforms but are likely not a priority on con-non-XIP platforms.
+potential Tock designs for con-non-XIP platforms, we discuss both the
+limitations compared to traditional platforms, and the properties that may be
+important on traditional platforms but are likely not a priority on con-non-XIP
+platforms.
 
 Limitations:
 
@@ -87,8 +88,8 @@ Limitations:
   executable code and the conventional memory items (e.g., the stack and heap).
   This results in significantly less room for program code than on traditional
   platforms.
-- As flash storage may not be trustworthy, code retrieved from flash storage may need to be
-  verified before it is used.
+- As flash storage may not be trustworthy, code retrieved from flash storage may
+  need to be verified before it is used.
 
 Non-limitations:
 
@@ -100,7 +101,9 @@ Non-limitations:
   dynamically load program code into RAM is acceptable.
    - This observation does not prohibit "pinning" timing-critical apps or other
      techniques to ameliorate this concern when necessary.
-- Loading code into RAM allows more predictable layout of code and data and/or rewriting some instructions during load time, potentially enabling simpler relocation and shared libraries.
+- Loading code into RAM allows more predictable layout of code and data and/or
+  rewriting some instructions during load time, potentially enabling simpler
+  relocation and shared libraries.
 
 
 
