@@ -92,8 +92,8 @@ Limitations:
 
 Non-limitations:
 
-- Energy is not a bottleneck, and additional power draw from having to load
-  program code into RAM is acceptable.
+- Energy is not as significant of bottleneck as in other settings, and
+  additional power draw from having to load program code into RAM is acceptable.
 - Execution time has relaxed deadlines, and additional execution time from
   having to load program code into RAM is acceptable.
 - Loading code into RAM allows more predictable layout of code and data and/or rewriting some instructions during load time, potentially enabling simpler relocation and shared libraries.
