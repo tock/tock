@@ -353,13 +353,6 @@ ci-runner-netlify:\
 
 
 
-### ci-runner-github-setup jobs:
-.PHONY: ci-job-cargo-hack
-ci-job-cargo-hack:
-	$(call banner,CI-Job: Install cargo-hack)
-	cargo install cargo-hack
-	$(call banner,CI-Job: Install cargo-hack DONE)
-
 
 ### ci-runner-github-format jobs:
 .PHONY: ci-job-format
@@ -424,10 +417,28 @@ ci-job-compilation:
 	$(call banner,CI-Job: Compilation)
 	@NOWARNINGS=true $(MAKE) allboards
 
-.PHONY: ci-job-msrv
-ci-job-msrv: ci-job-cargo-hack
+
+define ci_setup_msrv
+	$(call banner,CI-Setup: Install cargo-hack)
+	cargo install cargo-hack
+endef
+
+.PHONY: ci-setup-msrv
+ci-setup-msrv:
+	$(call ci_setup_helper,\
+		cargo hack -V &> /dev/null && echo yes,\
+		Install 'cargo-hack' using cargo,\
+		ci_setup_msrv,\
+		CI_JOB_MSRV)
+
+define ci_job_msrv
 	$(call banner,CI-Job: MSRV Check)
 	@cd boards/hail && cargo hack check --rust-version --target thumbv7em-none-eabihf
+endef
+
+.PHONY: ci-job-msrv
+ci-job-msrv: ci-setup-msrv
+	$(if $(CI_JOB_MSRV),$(call ci_job_msrv))
 
 .PHONY: ci-job-debug-support-targets
 ci-job-debug-support-targets:
