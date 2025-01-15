@@ -17,6 +17,10 @@ Abstract
 This document provides information relating to running Tock on a subset of platforms without
 execute-in-place flash storage.
 
+**This is an initial, draft document and is not intended as authoritative.
+Feedback from downstream users on XIP use cases, needs, experiences, etc
+is greatly appreciated.**
+
 Introduction
 ===============================
 
