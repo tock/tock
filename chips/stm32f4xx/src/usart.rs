@@ -562,6 +562,19 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
         self.registers.brr.modify(BRR::DIV_Fraction.val(fraction));
         Ok(())
     }
+
+    // try to disable the USART and return BUSY if a transfer is taking place
+    pub fn disable(&self) -> Result<(), ErrorCode> {
+        if self.usart_tx_state.get() == USARTStateTX::DMA_Transmitting
+            || self.usart_tx_state.get() == USARTStateTX::Transfer_Completing
+            || self.usart_rx_state.get() == USARTStateRX::DMA_Receiving
+        {
+            Err(ErrorCode::BUSY)
+        } else {
+            self.registers.cr1.modify(CR1::UE::CLEAR);
+            Ok(())
+        }
+    }
 }
 
 impl<'a, DMA: dma::StreamServer<'a>> DeferredCallClient for Usart<'a, DMA> {
