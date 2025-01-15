@@ -26,10 +26,19 @@ Introduction
 
 Traditional embedded systems use execute-in-place (XIP) flash to both store
 program code and to enable executing that program code. However, some hardware
-designs, particularly those integrated into a system-on-chip alongside an application processor, do not include 
-executable persistent storage. These platforms, subsequently referred to as "non-xip", can only
-execute instructions stored in volatile RAM. All executable code must be stored
-in external nonvolatile storage, loaded into RAM, and then executed.
+designs, particularly those integrated into a system-on-chip alongside an
+application processor, do not include executable persistent storage. These
+platforms, subsequently referred to as "non-XIP", can only execute instructions
+stored in volatile RAM. All executable code must be loaded from some external
+source, stored into RAM, and then executed.
+
+The external source that provides the executable code may be transient. For
+example, one common use-case during development is the ability to stream code
+directly into RAM via JTAG and then execute from RAM, without having to store
+that code in flash at any intermediate point. While some platforms may have
+runtime access to the external source for executable code, in general non-XIP
+design assumes it does not have access to external source after the initial
+load.
 
 There exists a wide design space of non-xip platforms. This document is focused
 on "constrained" non-xip platforms, subsequently referred to as "con-non-xip".
