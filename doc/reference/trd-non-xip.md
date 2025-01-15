@@ -7,7 +7,7 @@ Tock on Constrained Platforms Without Execute-in-Place (XIP) Flash
 **Status:** Draft <br/>
 **Author:** Brad Campbell<br/>
 **Draft-Created:** 2024/07/05<br/>
-**Draft-Modified:** 2024/07/17<br/>
+**Draft-Modified:** 2025/01/15<br/>
 **Draft-Version:** 1<br/>
 **Draft-Discuss:** devel@lists.tockos.org<br/>
 
