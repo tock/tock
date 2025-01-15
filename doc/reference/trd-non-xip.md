@@ -94,8 +94,12 @@ Non-limitations:
 
 - Energy is not as significant of bottleneck as in other settings, and
   additional power draw from having to load program code into RAM is acceptable.
-- Execution time has relaxed deadlines, and additional execution time from
-  having to load program code into RAM is acceptable.
+- For platforms with persistent access to an external code source and more
+  applications than available SRAM, the execution time for most applications
+  have relaxed deadlines, and the additional execution time from having to
+  dynamically load program code into RAM is acceptable.
+   - This observation does not prohibit "pinning" timing-critical apps or other
+     techniques to ameliorate this concern when necessary.
 - Loading code into RAM allows more predictable layout of code and data and/or rewriting some instructions during load time, potentially enabling simpler relocation and shared libraries.
 
 
