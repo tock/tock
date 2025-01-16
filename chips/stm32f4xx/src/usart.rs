@@ -411,6 +411,10 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
     }
 
     fn abort_tx(&self, rcode: Result<(), ErrorCode>) {
+        if matches!(self.usart_tx_state.get(), USARTStateTX::Aborted(_)) {
+            return;
+        }
+
         self.disable_tx();
 
         // get buffer
@@ -438,6 +442,10 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
     }
 
     fn abort_rx(&self, rcode: Result<(), ErrorCode>, error: hil::uart::Error) {
+        if matches!(self.usart_rx_state.get(), USARTStateRX::Aborted(_, _)) {
+            return;
+        }
+
         self.disable_rx();
         self.disable_error_interrupt();
 
@@ -727,8 +735,12 @@ impl<'a, DMA: dma::StreamServer<'a>> hil::uart::Receive<'a> for Usart<'a, DMA> {
     }
 
     fn receive_abort(&self) -> Result<(), ErrorCode> {
-        self.abort_rx(Err(ErrorCode::CANCEL), hil::uart::Error::Aborted);
-        Err(ErrorCode::BUSY)
+        if self.usart_rx_state.get() != USARTStateRX::Idle {
+            self.abort_rx(Err(ErrorCode::CANCEL), hil::uart::Error::Aborted);
+            Err(ErrorCode::BUSY)
+        } else {
+            Ok(())
+        }
     }
 }
 
