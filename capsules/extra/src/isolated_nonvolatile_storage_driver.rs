@@ -834,7 +834,7 @@ impl<'a, const APP_REGION_SIZE: usize> IsolatedNonvolatileStorage<'a, APP_REGION
 
                 // Fail if the app doesn't have a region assigned to it.
                 let Some(app_region) = &app.region else {
-                    return Err(ErrorCode::FAIL);
+                    return Err(ErrorCode::NOMEM);
                 };
 
                 let command_offset = command.offset();
@@ -892,11 +892,17 @@ impl<'a, const APP_REGION_SIZE: usize> IsolatedNonvolatileStorage<'a, APP_REGION
                             NvmCommand::Read {
                                 offset: _,
                                 length: _,
-                            } => self.driver.read(buffer, physical_address, active_len_buf),
+                            } => self
+                                .driver
+                                .read(buffer, physical_address, active_len_buf)
+                                .or(Err(ErrorCode::FAIL)),
                             NvmCommand::Write {
                                 offset: _,
                                 length: _,
-                            } => self.driver.write(buffer, physical_address, active_len_buf),
+                            } => self
+                                .driver
+                                .write(buffer, physical_address, active_len_buf)
+                                .or(Err(ErrorCode::FAIL)),
                             NvmCommand::GetSize => Err(ErrorCode::FAIL),
                         }
                     });
