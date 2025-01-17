@@ -65,13 +65,16 @@ applications will need storage permissions to use this interface.
 
   The read is specified by the offset (in bytes) from the beginning of the app's
   allocated nonvolatile storage region and the length (in bytes) of the read.
-  The driver will copy up to the number of bytes specified by length. The copy
-  length is the smallest of the length requested, the size of the specified read
-  range that is withing the app's allocated nonvolatile region, and the size of
-  the allowed buffer.
+  The driver will read up to the number of bytes specified by length. The copy
+  length is the smaller of the length requested and the size of the allowed
+  buffer.
 
   Calling this command will allocate a storage region if one was not previously
   allocated to the application.
+
+  The application must have permissions to access nonvolatile storage for the
+  read to succeed. The permission check may be asynchronous, and a permissions
+  error may be returned via the upcall.
 
   #### Arguments
 
@@ -94,86 +97,152 @@ applications will need storage permissions to use this interface.
   - `BUSY`: A prior request is pending.
 
 
+- ### Command number: `3`
+
+  **Write**. Write a buffer to a region of the app's nonvolatile storage.
+
+  The write is asynchronous as the write may require an erase first or the
+  nonvolatile storage may not be attached to main memory bus or mapped to the
+  main address space. The data to be written will be copied from the buffer
+  shared with the kernel via read-only allow 0.
+
+  The write is specified by the offset (in bytes) from the beginning of the
+  app's allocated nonvolatile storage region and the length (in bytes) of the
+  write. The driver will write up to the number of bytes specified by length.
+  The write length is the smaller of the length requested and the size of the
+  allowed buffer.
+
+  Calling this command will allocate a storage region if one was not previously
+  allocated to the application.
+
+  The application must have permissions to access nonvolatile storage for the
+  write to succeed. The permission check may be asynchronous, and a permissions
+  error may be returned via the upcall.
+
+  #### Arguments
+
+  - **1**: write offset, in bytes
+  - **2**: write length, in bytes
+
+  #### Returns
+
+  ##### Success
+
+  The write command was accepted and a response will be issued via the upcall.
+
+  ##### Failure
+
+  If the command does not succeed then no upcall will be issued and the command
+  returns type `SyscallReturn::Failure` with one of these error codes:
+
+  - `NOSUPPORT`: The application does not have permissions to access the
+    nonvolatile storage.
+  - `BUSY`: A prior request is pending.
+
+
 
 ## Subscribe
 
 - ### Subscribe number: `0`
 
-  Subscribe to operation completion upcalls. All K-V operations will trigger
-  this upcall when complete.
+  Subscribe to get size upcalls. This upcall provides the size of the app's
+  nonvolatile storage region in bytes.
 
   #### Upcall Signature
 
   The upcall signature looks like:
 
   ```rust
-  fn upcall(s: Statuscode, value_length: usize, unused: usize);
+  fn upcall(s: Statuscode, length: usize);
   ```
 
-  If the requested operation was set/add/update/delete, the other fields are
-  always 0.
+  Upcall arguments:
+  - 0: A `Statuscode` returning the success or failure of the operation.
+  - 1: The size of the region in bytes.
+  - 2: unused
 
-  If the requested operation was a GET, `value_length` will be set to the length
-  of the value in bytes. If the value was longer than what fit in the RW allowed
-  buffer, `s` will be a `SIZE` error. If a different error occurred
-  `value_length` will be set to 0.
-
-  The third argument `unused` is always 0.
+  The `length` argument is only valid if the status code is `SUCCESS`.
 
   ##### `Statuscode` Values
 
-  If the operation succeeded `s` will be `SUCCESS`.
+  - `SUCCESS`: The get size command succeeded and `length` is set to the number
+    of bytes in the app's nonvolatile storage region.
+  - `NOSUPPORT`: The application does not have permissions to access the
+    nonvolatile storage.
+  - `NOMEM`: There is no space remaining.
 
-  On failure, the following errors will be returned:
+- ### Subscribe number: `1`
 
-  - For GET:
-    - `SIZE`: The value is longer than the provided buffer.
-    - `NOSUPPORT`: The key could not be found or the app does not have
-      permission to read this key.
-    - `FAIL`: An internal error occurred.
-  - For SET:
-    - `NOSUPPORT`: The app does not have permission to store this key.
-  - For ADD:
-    - `NOSUPPORT`: The key already exists and cannot be added or the app does
-      not have permission to add this key.
-  - For UPDATE:
-    - `NOSUPPORT`: The key does not already exist and cannot be modified or the
-      app does not have permission to modify this key.
-  - For SET/ADD/UPDATE:
-    - `NOMEM`: The key could not be updated because the KV store is full.
-    - `SIZE`: The key or value is too many bytes.
-    - `FAIL`: An internal error occurred.
-  - For DELETE:
-    - `NOSUPPORT`: The key does not exist or the app does not have permission to
-      delete this key.
-    - `FAIL`: An internal error occurred.
+  Subscribe to get read done upcalls. This upcall fires after a read command
+  completes or encounters an error.
+
+  #### Upcall Signature
+
+  The upcall signature looks like:
+
+  ```rust
+  fn upcall(s: Statuscode, length: usize);
+  ```
+
+  Upcall arguments:
+  - 0: A `Statuscode` returning the success or failure of the operation.
+  - 1: The number of bytes read into the allowed buffer.
+  - 2: unused
+
+  The `length` argument is only valid if the status code is `SUCCESS`.
+
+  ##### `Statuscode` Values
+
+  - `SUCCESS`: The read command succeeded and `length` is set to the number
+    of bytes read into the allowed buffer.
+  - `RESERVE`: No buffer was allowed for read-write allow 0.
+  - `NOMEM`: The app has no nonvolatile storage region.
+  - `NOSUPPORT`: The application does not have permissions to access the
+    nonvolatile storage.
+  - `INVAL`: The read was not within the app's storage region.
+  - `FAIL`: There was an error accessing the underlying storage.
+
+- ### Subscribe number: `2`
+
+  Subscribe to get write done upcalls. This upcall fires after a write command
+  completes or encounters an error.
+
+  #### Upcall Signature
+
+  The upcall signature looks like:
+
+  ```rust
+  fn upcall(s: Statuscode, length: usize);
+  ```
+
+  Upcall arguments:
+  - 0: A `Statuscode` returning the success or failure of the operation.
+  - 1: The number of bytes written to the storage region.
+  - 2: unused
+
+  The `length` argument is only valid if the status code is `SUCCESS`.
+
+  ##### `Statuscode` Values
+
+  - `SUCCESS`: The read command succeeded and `length` is set to the number
+    of bytes written from the allowed buffer.
+  - `RESERVE`: No buffer was allowed for read-only allow 0.
+  - `NOMEM`: The app has no nonvolatile storage region.
+  - `NOSUPPORT`: The application does not have permissions to access the
+    nonvolatile storage.
+  - `INVAL`: The write was not within the app's storage region.
+  - `FAIL`: There was an error accessing the underlying storage.
+
+
 
 ## Read-Only Allow
 
 - ### RO Allow number: `0`
 
-  The key to use for the intended operation. The length of the allowed buffer
-  must match the length of the key.
-
-
-- ### RO Allow number: `1`
-
-  The value to use for the intended write operation. The length of the allowed
-  buffer must match the length of the value.
-
-  This is only used for set/add/update operations.
+  This buffer to use for writes to the nonvolatile storage.
 
 ## Read-Write Allow
 
 - ### RW Allow number: `0`
 
-  Storage for the value after a GET operation. The kernel will write the value
-  read from the database here.
-
-  If the read value is longer than the size of the allowed buffer the driver
-  will provide the portion of the value that does fit. The `value_length` in the
-  callback will still be set to the full size of the original value.
-
-  As the kernel must be able to write the buffer to provide userspace the value
-  this must be a read-write allow, and separate from the RO allow for setting
-  the value.
+  This buffer to use for reads from the nonvolatile storage.
