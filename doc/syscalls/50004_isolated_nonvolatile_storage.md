@@ -55,6 +55,46 @@ applications will need storage permissions to use this interface.
   - `BUSY`: A prior request is pending.
 
 
+- ### Command number: `2`
+
+  **Read**. Read a region of the app's nonvolatile storage.
+
+  The read is asynchronous as the nonvolatile storage may not be attached to
+  main memory bus or mapped to the main address space. The data will be copied
+  into the buffer shared with the kernel via read-write allow 0.
+
+  The read is specified by the offset (in bytes) from the beginning of the app's
+  allocated nonvolatile storage region and the length (in bytes) of the read.
+  The driver will copy up to the number of bytes specified by length. The copy
+  length is the smallest of the length requested, the size of the specified read
+  range that is withing the app's allocated nonvolatile region, and the size of
+  the allowed buffer.
+
+  Calling this command will allocate a storage region if one was not previously
+  allocated to the application.
+
+  #### Arguments
+
+  - **1**: read offset, in bytes
+  - **2**: read length, in bytes
+
+  #### Returns
+
+  ##### Success
+
+  The read command was accepted and a response will be issued via the upcall.
+
+  ##### Failure
+
+  If the command does not succeed then no upcall will be issued and the command
+  returns type `SyscallReturn::Failure` with one of these error codes:
+
+  - `NOSUPPORT`: The application does not have permissions to access the
+    nonvolatile storage.
+  - `BUSY`: A prior request is pending.
+
+
+
 ## Subscribe
 
 - ### Subscribe number: `0`
