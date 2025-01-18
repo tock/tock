@@ -99,8 +99,7 @@ core::arch::global_asm!(
     // The link register is set to the `EXC_RETURN` value on exception entry. To
     // ensure we execute using the process stack we set the SPSEL bit to 1
     // to use the alternate (process) stack.
-    mov r0, #1                        // r0 = 1
-    bfi lr, r0, #2, #1                // LR = LR | (0x1<<2)
+    orr lr, lr, #4                    // LR = LR | 0b100
 
     // Switch to the app.
     bx lr
