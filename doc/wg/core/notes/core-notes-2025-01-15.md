@@ -25,8 +25,9 @@
 ## Syscall Drivers Testability
  * https://github.com/tock/tock/issues/4303
  * Alex: We need a testing framework for capsules and need to see what the capsule returns.
- * Alex: We need unit tests for sure. A problem with them is we can simulate things but we can't extract the CommandReturn. The proper function for transforming it is within the kernel crate. So we can't use it without the kernel
- * Leon: I can speak to why it's like that. For 2.0 we wanted CommandReturn to be entirely separate from SyscallReturn. Command returns come from commands regardless of system. And Syscall returns are how we send things to userspace. The two were supposed to stay separate, but with a way to transform one into the other.
+ * Alex: We need unit tests for sure. A problem with them is we can simulate things but we can't extract the CommandReturn's contents. The proper function for transforming it is within the kernel crate. So we can't use it outside the kernel crate
+ * Leon: I can speak to why it's like that. For 2.0 we wanted CommandReturn to be separate from SyscallReturn. Command returns come from commands regardless of system.
+ * Johnathan: Command can only output a subset of the syscall return variants (e.g., it shouldn't return pointers). CommandReturn intentionally hides that it wraps a SyscallReturn so it can guarantee that it only contains variants that Command can return.
  * Leon: You might need a functionality for testing that allows you to recover the internal enum
  * Alex: How would we do this? cfg(test) doesn't work because the capsule is in a different crate from the kernel.
  * Johnathan: I don't see any reason CommandReturn can't have public functions that introspect it. It seems to me it could support the same API as the libtock-rs CommandReturn.
@@ -44,7 +45,7 @@
  * Johnathan: I don't think there's an easy way to make sure we don't implement something that maps two to one. But I don't think it's so important. It's not a safety issue, just an understanding one.
  * Leon: So we'd add corresponding public is_success or is_failure methods. That doesn't fix getting the associated values
  * Johnathan: My proposal is to use the libtock-rs solution: https://github.com/tock/libtock-rs/blob/60c256168b965eb55d1ba4eeaa47f67c67bdb319/platform/src/command_return.rs#L73
- * Johnathan: We don't need the 2 result, but the is_success_u32 and get_success_u32 seem basic. And it would be nice to have the same API in the kernel and libtock-rs
+ * Johnathan: We don't need the to_result, but the is_success_u32 and get_success_u32 seem basic. And it would be nice to have the same API in the kernel and libtock-rs
  * Alex: That's good for us
  * Branden: Alex, you probably don't have a full view yet, but this this issue is really that the kernel crate and capsules crates are separate, so you're considering which things are exposed from the kernel crate. Do you expect to run into more issues beyond this one example?
  * Alex: For sure. We'll have various PRs about this. Not entirely sure how many things we'll run into yet. We'll put a hook to see system calls coming in, but there's no hook upon system call return. And we'll need that as well in the process debug trait. There will be all sorts of things here
@@ -93,7 +94,7 @@
  * Johnathan: So if there's a pointer in MachineRegister, we should maintain provenance. Something that only stores pointers always has provenance. And something that never stores pointers never has it. But something like this that can hold both gets really messy. Something that could convert either way sets off an alert in my mind about handling provenance in the casts. In my opinion, the correct answer is if you convert a pointer to a MachineRegister it should have provenance
  * Johnathan: I'll make some time to do a draft of that in text
  * Brad: It seems like what you just said is in line with what I'm thinking and feels logical. The question is how to implement that in Rust
- * Johnathan: The most important thing is documentation. There is a Rust way to do this...from last week. Some of the functions got recently renamed during stabilization. We want to avoid some things that won't compile on CHERI which is on a different Rust version. If there's a function we really want to use, there's a backup with an as-cast with a comment about our limitations
+ * Johnathan: The most important thing is documentation. There is a Rust way to do this...stabilized last week. Some of the functions got recently renamed during stabilization. We want to avoid some things that won't compile on CHERI which is on a different Rust version. If there's a function we really want to use, there's a backup with an as-cast with a comment about our limitations
  * Brad: That sounds like a great path forward to me
 ### MSRV Check with Cargo-hack
  * https://github.com/tock/tock/pull/4278
