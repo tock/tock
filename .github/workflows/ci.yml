@@ -66,6 +66,8 @@ jobs:
         run:  make ci-job-syntax
       - name:      ci-job-compilation
         run:  make ci-job-compilation
+      - name:      ci-job-msrv
+        run:  make ci-job-msrv
       - name:      ci-job-debug-support-targets
         run:  make ci-job-debug-support-targets
       - name:      ci-job-collect-artifacts
