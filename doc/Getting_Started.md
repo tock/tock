@@ -18,6 +18,7 @@ developing Tock.
   * [Programming Adapter](#programming-adapter)
     + [Installing `JLinkExe`](#installing-jlinkexe)
     + [Installing `openocd`](#installing-openocd)
+    + [Installing `probe-rs`](#installing-probe-rs)
   * [Loading the Kernel onto a Board](#loading-the-kernel-onto-a-board)
 - [Installing Applications](#installing-applications)
   * [Compiling Your Own Applications](#compiling-your-own-applications)
@@ -163,7 +164,10 @@ generally four options:
    the instructions below.
 3. `openocd`: This is a free programming adapter which you will need to install
    if you do not already have it. See the instructions below.
-4. `custom`: The board uses some other programming adapter, likely a
+4. `probe-rs`: This is a programming and debuggin tool written in Rust. You will
+   need to install this if you do not already have it. See the instructions
+   below.
+5. `custom`: The board uses some other programming adapter, likely a
    microcontroller-specific tool. See the board's README for how to get started.
 
 #### Installing `JLinkExe`
@@ -187,6 +191,17 @@ with:
 
 We require at least version `0.10.0`.
 
+#### Installing `probe-rs`
+
+`probe-rs` works with various programming and debugging adapters. It can be
+installed with:
+
+```bash
+(Ubuntu): curl --proto '=https' --tlsv1.2 -LsSf https://github.com/probe-rs/probe-rs/releases/latest/download/probe-rs-tools-installer.sh | sh
+(MacOS): brew tap probe-rs/probe-rs && brew install probe-rs
+(Windows) irm https://github.com/probe-rs/probe-rs/releases/latest/download/probe-rs-tools-installer.ps1 | iex
+```
+
 ### Loading the Kernel onto a Board
 
 The process to load the kernel onto the board depends on the board. You should
@@ -196,6 +211,10 @@ be able to program the kernel by changing to the correct board directory in
 ```
 $ make install
 ```
+
+Each board has a default programming adapter tool for flashing code. Some boards
+only support a single tool, while others support multiple. You can inspect the
+`Makefile` within the board folder to see which flashing options exist.
 
 ## Installing Applications
 
