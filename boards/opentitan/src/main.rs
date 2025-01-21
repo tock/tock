@@ -20,6 +20,7 @@ use crate::pinmux_layout::BoardPinmuxLayout;
 use capsules_aes_gcm::aes_gcm;
 use capsules_core::virtualizers::virtual_aes_ccm;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core::num::NonZeroU32;
 use core::ptr::{addr_of, addr_of_mut};
 use earlgrey::chip::EarlGreyDefaultPeripherals;
 use earlgrey::chip_config::EarlGreyConfig;
@@ -65,7 +66,8 @@ impl EarlGreyConfig for ChipConfig {
     const CPU_FREQ: u32 = 24_000_000;
     const PERIPHERAL_FREQ: u32 = 6_000_000;
     const AON_TIMER_FREQ: u32 = 250_000;
-    const UART_BAUDRATE: u32 = 115200;
+    // PANIC: 115200 != 0
+    const UART_BAUDRATE: NonZeroU32 = NonZeroU32::new(115200).unwrap();
 }
 
 #[cfg(feature = "sim_verilator")]

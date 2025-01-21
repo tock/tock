@@ -9,6 +9,7 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 
+use core::num::NonZeroU32;
 use core::ptr::addr_of;
 use core::ptr::addr_of_mut;
 
@@ -241,8 +242,12 @@ unsafe fn start() -> (
     // Create a shared UART channel for the console and for kernel
     // debug over the provided memory-mapped 16550-compatible
     // UART.
-    let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
-        .finalize(components::uart_mux_component_static!());
+    let uart_mux = components::console::UartMuxComponent::new(
+        &peripherals.uart0,
+        // PANIC: 115200 != 0
+        NonZeroU32::new(115200).unwrap(),
+    )
+    .finalize(components::uart_mux_component_static!());
 
     // Use the RISC-V machine timer timesource
     let hardware_timer = static_init!(

@@ -3,6 +3,7 @@
 // Copyright Tock Contributors 2022.
 
 use core::fmt::Write;
+use core::num::NonZeroU32;
 use core::panic::PanicInfo;
 use core::ptr::addr_of;
 use core::ptr::addr_of_mut;
@@ -51,7 +52,8 @@ impl IoWrite for Writer {
             self.initialized = true;
 
             let _ = uart.configure(uart::Parameters {
-                baud_rate: 115200,
+                // PANIC: 115200 != 0
+                baud_rate: NonZeroU32::new(115200).unwrap(),
                 stop_bits: uart::StopBits::One,
                 parity: uart::Parity::None,
                 hw_flow_control: false,
