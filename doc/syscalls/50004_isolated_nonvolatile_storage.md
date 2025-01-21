@@ -12,6 +12,9 @@ applications will need storage permissions to use this interface.
 
 ## Command
 
+Non-zero commands are asynchronous as the nonvolatile storage may not be
+attached to main memory bus or mapped to the main address space.
+
 - ### Command number: `0`
 
   Does the driver exist?
@@ -57,20 +60,23 @@ applications will need storage permissions to use this interface.
 
 - ### Command number: `2`
 
-  **Read**. Read a region of the app's nonvolatile storage.
-
-  The read is asynchronous as the nonvolatile storage may not be attached to
-  main memory bus or mapped to the main address space. The data will be copied
-  into the buffer shared with the kernel via read-write allow 0.
+  **Read**. Start asynchronous read from the app's nonvolatile storage region.
 
   The read is specified by the offset (in bytes) from the beginning of the app's
   allocated nonvolatile storage region and the length (in bytes) of the read.
-  The driver will read up to the number of bytes specified by length. The copy
-  length is the smaller of the length requested and the size of the allowed
-  buffer.
+
+  The data will be copied into the buffer shared with the kernel via read-write
+  allow 0.
+
+  The driver will read up to the number of bytes specified by length.
+
+  The copy length is the smaller of the length requested and the size of the
+  allowed buffer.
 
   Calling this command will allocate a storage region if one was not previously
-  allocated to the application.
+  allocated to the application. Implementations SHOULD NOT allocate a region
+  until all other checks (e.g. permissions, presence of allowed destination
+  buffer) have passed.
 
   The application must have permissions to access nonvolatile storage for the
   read to succeed. The permission check may be asynchronous, and a permissions
@@ -94,26 +100,35 @@ applications will need storage permissions to use this interface.
 
   - `NOSUPPORT`: The application does not have permissions to access the
     nonvolatile storage.
+  - `NOMEM`: The application has not allowed a buffer to copy data into.
   - `BUSY`: A prior request is pending.
 
 
 - ### Command number: `3`
 
-  **Write**. Write a buffer to a region of the app's nonvolatile storage.
+  **Write**. Start asynchronous write to the app's nonvolatile storage region.
 
-  The write is asynchronous as the write may require an erase first or the
-  nonvolatile storage may not be attached to main memory bus or mapped to the
-  main address space. The data to be written will be copied from the buffer
-  shared with the kernel via read-only allow 0.
+  Depending on the underlying storage technology, a write may first issue an
+  erase and then write the data. This is a low-level API and **does not**
+  guarantee fault-tolerance, e.g., in the face of arbitrary power failures
+  during a write operation.
 
   The write is specified by the offset (in bytes) from the beginning of the
   app's allocated nonvolatile storage region and the length (in bytes) of the
-  write. The driver will write up to the number of bytes specified by length.
+  write.
+
+  The data to be written will be copied from the buffer shared with the kernel
+  via read-only allow 0.
+
+  The driver will write up to the number of bytes specified by length.
+
   The write length is the smaller of the length requested and the size of the
   allowed buffer.
 
   Calling this command will allocate a storage region if one was not previously
-  allocated to the application.
+  allocated to the application. Implementations SHOULD NOT allocate a region
+  until all other checks (e.g. permissions, presence of allowed destination
+  buffer) have passed.
 
   The application must have permissions to access nonvolatile storage for the
   write to succeed. The permission check may be asynchronous, and a permissions
@@ -137,6 +152,7 @@ applications will need storage permissions to use this interface.
 
   - `NOSUPPORT`: The application does not have permissions to access the
     nonvolatile storage.
+  - `NOMEM`: The application has not allowed a buffer to copy data from.
   - `BUSY`: A prior request is pending.
 
 
