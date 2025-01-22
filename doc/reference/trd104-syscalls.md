@@ -150,23 +150,46 @@ register. In contrast, other syscall argument slots may have more generic
 purposes, where the type and underlying storage are likely to move in sync on
 future platforms. This document defines the following conceptual types:
 
- - `OPAQUE_NUMERIC`: This describes an argument akin to C's `(unsigned) int`,
-   i.e., a whole number which is capable of being expressed in a native machine
-   word type.
- - `[OPAQUE_]SIZE`: This describes an argument akin to C's `size_t`, i.e.,
-   an unsigned, numeric type with a range capable of expressing in bytes the
-   size of any valid _contiguous_ object.
- - `[OPAQUE_]POINTER_OR_ZERO`: This describes an argument similar to C's
-   `uintptr_t`, i.e., a type capable of holding a pointer to a valid memory
-   location OR the value `0`, which is defined as the NULL sentinel.
- - `C_FUNCTION_POINTER_OR_ZERO`: This describes an argument which holds a
-   pointer to an executable function, where the function adheres to the
-   standard C ABI for the platform (akin to `extern C` in C++ or `extern "C"
-   fn` in Rust) OR the value `0`, which is defined as the NULL sentinel.
- - `OPAQUE_GENERIC`: This describes an argument with no restrictions on type.
+<table>
+  <tr>
+    <th>Type</th>
+    <th>C Analog</th>
+    <th>Description</th>
+  </tr>
+  <tr>
+     <td><tt>OPAQUE_NUMERIC</tt></td>
+     <td><tt>(unsigned) int</tt></td>
+     <td>A whole number which is capable of being expressed in a native machine word type.</td>
+  </tr>
+  <tr>
+    <td><tt>SIZE</tt><br/><tt>OPAQUE_SIZE</tt></td>
+    <td><tt>size_t</tt></td>
+    <td>An unsigned, numeric type with a range capable of expressing in bytes the
+   size of any valid <em>contiguous</em> object.</td>
+  </tr>
+  <tr>
+    <td><tt>POINTER_OR_ZERO</tt><br/><tt>OPAQUE_POINTER_OR_ZERO</tt></td>
+    <td><tt>uintptr_t</tt></td>
+    <td>A type capable of holding a pointer to a valid memory location OR the
+    value `0`, which is defined as the NULL sentinel.</td>
+  </tr>
+  <tr>
+    <td><tt>C_FUNCTION_POINTER_OR_ZERO</tt></td>
+    <td></td>
+    <td>This describes an argument which holds a pointer to an executable
+    function, where the function adheres to the standard C ABI for the platform
+    (akin to <tt>extern C</tt> in C++ or <tt>extern "C" fn</tt> in Rust) OR the
+    value <tt>0</tt>, which is defined as the NULL sentinel.</td>
+  </tr>
+  <tr>
+    <td><tt>OPAQUE_GENERIC</tt></td>
+    <td></td>
+    <td>This describes an argument with no restrictions on type.</td>
+  </tr>
+</table>
 
-Types marked as `OPAQUE` are those where the kernel SHOULD NOT attempt to read
-the value. `OPAQUE` types are generally for pass-through use cases, where
+Types prefixed with `OPAQUE` are those where the kernel SHOULD NOT attempt to
+read the value. `OPAQUE` types are generally for pass-through use cases, where
 userspace passes a value back to itself through the kernel.  `OPAQUE` types,
 including `OPAQUE_GENERIC`, MAY have additional metadata associated with them
 (e.g. pointer provenance or tags) which the kernel MUST preserve.
