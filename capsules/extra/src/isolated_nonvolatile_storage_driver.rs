@@ -755,6 +755,7 @@ impl<'a, const APP_REGION_SIZE: usize> IsolatedNonvolatileStorage<'a, APP_REGION
                             match res {
                                 Ok(started_operation) => started_operation,
                                 Err(e) => {
+                                    app.pending_operation = None;
                                     kernel_data
                                         .schedule_upcall(
                                             nvm_command.upcall(),
