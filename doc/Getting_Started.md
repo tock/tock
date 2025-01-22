@@ -164,7 +164,7 @@ generally four options:
    the instructions below.
 3. `openocd`: This is a free programming adapter which you will need to install
    if you do not already have it. See the instructions below.
-4. `probe-rs`: This is a programming and debuggin tool written in Rust. You will
+4. `probe-rs`: This is a programming and debugging tool written in Rust. You will
    need to install this if you do not already have it. See the instructions
    below.
 5. `custom`: The board uses some other programming adapter, likely a
@@ -193,7 +193,7 @@ We require at least version `0.10.0`.
 
 #### Installing `probe-rs`
 
-`probe-rs` works with various programming and debugging adapters. It can be
+[`probe-rs`](https://probe.rs/) works with various programming and debugging adapters. It can be
 installed with:
 
 ```bash
@@ -201,6 +201,8 @@ installed with:
 (MacOS): brew tap probe-rs/probe-rs && brew install probe-rs
 (Windows) irm https://github.com/probe-rs/probe-rs/releases/latest/download/probe-rs-tools-installer.ps1 | iex
 ```
+
+Or generally, follow the [`probe-rs` installation instructions in their own documentation](https://probe.rs/docs/getting-started/installation/).
 
 ### Loading the Kernel onto a Board
 
