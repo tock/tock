@@ -138,7 +138,7 @@ Body of commit message is a few lines of text, explaining things
 in more detail, possibly giving some background about the issue
 being fixed, etc.
 
-If you quote a discussion or some code it should be intended:
+If you quote a discussion or some code it should be indented:
 
     Should we have an example of indentation? Yes I think so.
 
