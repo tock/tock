@@ -173,7 +173,7 @@ applications will need storage permissions to use this interface.
 
 - ### Subscribe number: `1`
 
-  Subscribe to get read done upcalls. This upcall fires after a read command
+  Subscribe to read done upcalls. This upcall fires after a read command
   completes or encounters an error.
 
   #### Upcall Signature
@@ -195,7 +195,8 @@ applications will need storage permissions to use this interface.
 
   - `SUCCESS`: The read command succeeded and `length` is set to the number
     of bytes read into the allowed buffer.
-  - `RESERVE`: No buffer was allowed for read-write allow 0.
+  - `RESERVE`: No buffer was allowed for read-write allow 0 or the allowed
+    buffer has a length of 0.
   - `NOMEM`: The app has no nonvolatile storage region.
   - `NOSUPPORT`: The application does not have permissions to access the
     nonvolatile storage.
@@ -204,7 +205,7 @@ applications will need storage permissions to use this interface.
 
 - ### Subscribe number: `2`
 
-  Subscribe to get write done upcalls. This upcall fires after a write command
+  Subscribe to write done upcalls. This upcall fires after a write command
   completes or encounters an error.
 
   #### Upcall Signature
@@ -226,7 +227,8 @@ applications will need storage permissions to use this interface.
 
   - `SUCCESS`: The read command succeeded and `length` is set to the number
     of bytes written from the allowed buffer.
-  - `RESERVE`: No buffer was allowed for read-only allow 0.
+  - `RESERVE`: No buffer was allowed for read-only allow 0 or the allowed
+    buffer has a length of 0.
   - `NOMEM`: The app has no nonvolatile storage region.
   - `NOSUPPORT`: The application does not have permissions to access the
     nonvolatile storage.
