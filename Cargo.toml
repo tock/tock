@@ -154,7 +154,6 @@ option_map_unit_fn = "allow"
 nonminimal_bool = "allow"
 identity-op = "allow"
 while-let-loop = "allow"
-only_used_in_recursion = "allow"
 manual-range-patterns = "allow"
 manual-flatten = "allow"
 
