@@ -85,7 +85,7 @@ out your copy locally.
 ```text
 $ git clone git@github.com:username/tock.git
 $ cd tock
-$ git remote add upstream git://github.com/tock/tock.git
+$ git remote add upstream https://github.com/tock/tock.git
 ```
 
 ### Step 2: Branch
