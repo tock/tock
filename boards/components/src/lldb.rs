@@ -58,9 +58,9 @@ impl LowLevelDebugComponent {
         uart_mux: &'static MuxUart,
     ) -> LowLevelDebugComponent {
         LowLevelDebugComponent {
-            board_kernel: board_kernel,
-            driver_num: driver_num,
-            uart_mux: uart_mux,
+            board_kernel,
+            driver_num,
+            uart_mux,
         }
     }
 }

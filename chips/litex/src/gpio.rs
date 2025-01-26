@@ -272,9 +272,7 @@ impl<'controller, 'client, R: LiteXSoCRegisterConfiguration> LiteXGPIOPin<'contr
     }
 }
 
-impl<'controller, 'client, R: LiteXSoCRegisterConfiguration> hil::gpio::Configure
-    for LiteXGPIOPin<'controller, 'client, R>
-{
+impl<R: LiteXSoCRegisterConfiguration> hil::gpio::Configure for LiteXGPIOPin<'_, '_, R> {
     fn configuration(&self) -> hil::gpio::Configuration {
         let (output_enable, _, _) = self.controller.read_gpio(self.index);
         if output_enable {
@@ -324,9 +322,7 @@ impl<'controller, 'client, R: LiteXSoCRegisterConfiguration> hil::gpio::Configur
     }
 }
 
-impl<'controller, 'client, R: LiteXSoCRegisterConfiguration> hil::gpio::Output
-    for LiteXGPIOPin<'controller, 'client, R>
-{
+impl<R: LiteXSoCRegisterConfiguration> hil::gpio::Output for LiteXGPIOPin<'_, '_, R> {
     fn set(&self) {
         self.controller.set_gpio_output(self.index, true);
     }
@@ -342,9 +338,7 @@ impl<'controller, 'client, R: LiteXSoCRegisterConfiguration> hil::gpio::Output
     }
 }
 
-impl<'controller, 'client, R: LiteXSoCRegisterConfiguration> hil::gpio::Input
-    for LiteXGPIOPin<'controller, 'client, R>
-{
+impl<R: LiteXSoCRegisterConfiguration> hil::gpio::Input for LiteXGPIOPin<'_, '_, R> {
     fn read(&self) -> bool {
         // For a proper tristate, we could probably just read it and
         // if the pin is an output, retrieve the current output value
@@ -360,8 +354,8 @@ impl<'controller, 'client, R: LiteXSoCRegisterConfiguration> hil::gpio::Input
     }
 }
 
-impl<'controller, 'client, R: LiteXSoCRegisterConfiguration> hil::gpio::Interrupt<'client>
-    for LiteXGPIOPin<'controller, 'client, R>
+impl<'client, R: LiteXSoCRegisterConfiguration> hil::gpio::Interrupt<'client>
+    for LiteXGPIOPin<'_, 'client, R>
 {
     fn set_client(&self, client: &'client dyn hil::gpio::Client) {
         self.controller.set_gpio_client(self.index, client);
@@ -381,9 +375,7 @@ impl<'controller, 'client, R: LiteXSoCRegisterConfiguration> hil::gpio::Interrup
     }
 }
 
-impl<'controller, 'client, R: LiteXSoCRegisterConfiguration> Drop
-    for LiteXGPIOPin<'controller, 'client, R>
-{
+impl<R: LiteXSoCRegisterConfiguration> Drop for LiteXGPIOPin<'_, '_, R> {
     /// Deregister the GPIO with the controller
     fn drop(&mut self) {
         self.controller.destroy_gpio_pin(self.index);

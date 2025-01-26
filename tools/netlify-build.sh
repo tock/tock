@@ -17,7 +17,7 @@ set -u
 set -x
 
 # Install rust stuff that we need
-curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain nightly-2023-07-30
+curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain nightly-2024-11-16
 
 # And fixup path for the newly installed rust stuff
 export PATH="$PATH:$HOME/.cargo/bin"

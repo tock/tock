@@ -2,6 +2,7 @@
 
 [![tock-ci](https://github.com/tock/tock/workflows/tock-ci/badge.svg)][tock-ci]
 [![slack](https://img.shields.io/badge/slack-tockos-informational)][slack]
+[![book](https://img.shields.io/badge/book-Tock_Book-green)][tock-book]
 
 Tock is an embedded operating system designed for running multiple concurrent,
 mutually distrustful applications on Cortex-M and RISC-V based embedded
@@ -20,74 +21,36 @@ kernel.
 Tock 2.x!
 ---------
 
-Tock is now on its second major release! Tock 2.x includes significant changes
-from Tock 1.x, including:
-
-- Revamped system call interface.
-- Support for 11 new hardware platforms.
-- Updated kernel types.
-- Many new and improved HILs.
-
-For a summary of the latest new features and improvements, check out the
-[changelog](CHANGELOG.md).
+Tock is now on its second major release! For a summary of the latest new
+features and improvements, check out the [changelog](CHANGELOG.md).
 
 
-Learn More
-----------
+Getting Started
+---------------
 
-How would you like to get started?
+There are a variety of resources for learning about Tock, contributing to the
+project, and getting help.
 
-### Learn How Tock Works
-
-Tock is documented in the [doc](doc) folder. Read through the guides there to
-learn about the overview and design of Tock, its implementation, and much more.
-
-
-### Use Tock
-
-Follow our [getting started guide](doc/Getting_Started.md) to set up your system
-to compile Tock.
-
-Head to the [hardware page](https://www.tockos.org/hardware/) to learn about the
-hardware platforms Tock supports. Also check out the [Tock
-Book](https://book.tockos.org) for a step-by-step introduction to getting Tock
-up and running.
-
-A book on how to use Tock with the [micro:bit v2](boards/microbit_v2) and
-[Raspberry Pi Pico](boards/raspberry_pi_pico) boards is [Getting Started with
-Secure Embedded
-Systems](https://link.springer.com/book/10.1007/978-1-4842-7789-8).
-
-Find example applications that run on top of the Tock kernel written in both
-[Rust](https://github.com/tock/libtock-rs) and
-[C](https://github.com/tock/libtock-c).
-
-
-### Develop Tock
-
-Read our [getting started guide](doc/Getting_Started.md) to get the correct
-version of the Rust compiler, then look through the `/kernel`, `/capsules`,
-`/chips`, and `/boards` directories. There are also generated [source code
-docs](https://docs.tockos.org).
-
-We encourage contributions back to Tock and are happy to accept pull requests
-for anything from small documentation fixes to whole new platforms. For details,
-check out our [Contributing Guide](.github/CONTRIBUTING.md). To get started,
-please do not hesitate to submit a PR. We'll happily guide you through any
-needed changes.
-
-
-### Keep Up To Date
-
-Check out the [blog](https://www.tockos.org/blog/) where the **Talking Tock**
-post series highlights what's new in Tock. Also, follow
-[@talkingtock](https://twitter.com/talkingtock) on Twitter.
-
-You can also browse our [email
-group](https://groups.google.com/forum/#!forum/tock-dev) and our [Slack][slack]
-to see discussions on Tock development.
+- About Tock
+  - [The Tock Book][tock-book]: online tutorials and documentation
+  - [Getting Started with Secure Embedded Systems][book-systems]: Tock textbook
+- Developing Tock
+  - [Tock API Docs][tockapidoc]
+  - [Contributing Guide](.github/CONTRIBUTING.md)
+  - [Code Review Guidelines](doc/CodeReview.md)
+- Getting Help
+  - [Slack Channel][slack]
+  - [Email List](https://lists.tockos.org)
+  - [Tock Blog](https://www.tockos.org/blog/)
+  - [@talkingtock](https://twitter.com/talkingtock)
 
 [slack]: https://join.slack.com/t/tockos/shared_invite/enQtNDE5ODQyNDU4NTE1LWVjNTgzMTMwYzA1NDI1MjExZjljMjFmOTMxMGIwOGJlMjk0ZTI4YzY0NTYzNWM0ZmJmZGFjYmY5MTJiMDBlOTk
+
+[tock-book]: https://book.tockos.org
+
+[book-systems]: https://link.springer.com/book/10.1007/978-1-4842-7789-8
+
+[tockapidoc]: https://docs.tockos.org
 
 
 Code of Conduct

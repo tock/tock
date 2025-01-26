@@ -59,7 +59,7 @@ impl<I: 'static + i2c::I2CMaster<'static>, S: 'static + i2c::SMBusMaster<'static
     ) -> Self {
         Mlx90614SMBusComponent {
             i2c_mux: i2c,
-            i2c_address: i2c_address,
+            i2c_address,
             board_kernel,
             driver_num,
         }
@@ -72,9 +72,9 @@ impl<I: 'static + i2c::I2CMaster<'static>, S: 'static + i2c::SMBusMaster<'static
     type StaticInput = (
         &'static mut MaybeUninit<SMBusDevice<'static, I, S>>,
         &'static mut MaybeUninit<[u8; 14]>,
-        &'static mut MaybeUninit<Mlx90614SMBus<'static>>,
+        &'static mut MaybeUninit<Mlx90614SMBus<'static, SMBusDevice<'static, I, S>>>,
     );
-    type Output = &'static Mlx90614SMBus<'static>;
+    type Output = &'static Mlx90614SMBus<'static, SMBusDevice<'static, I, S>>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let mlx90614_smbus = static_buffer

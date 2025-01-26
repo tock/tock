@@ -12,6 +12,9 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use core::ptr::addr_of;
+use core::ptr::addr_of_mut;
+
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil::gpio::Configure;
@@ -20,7 +23,6 @@ use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
 use kernel::hil::usb::Client;
 use kernel::platform::chip::Chip;
-use kernel::platform::mpu::MPU;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
@@ -80,8 +82,8 @@ pub mod io;
 // to stop the app and print a notice, but not immediately panic. This allows
 // users to debug their apps, but avoids issues with using the USB/CDC stack
 // synchronously for panic! too early after the board boots.
-const FAULT_RESPONSE: kernel::process::StopWithDebugFaultPolicy =
-    kernel::process::StopWithDebugFaultPolicy {};
+const FAULT_RESPONSE: capsules_system::process_policies::StopWithDebugFaultPolicy =
+    capsules_system::process_policies::StopWithDebugFaultPolicy {};
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 8;
@@ -91,7 +93,8 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
     [None; NUM_PROCS];
 
 static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>> = None;
-static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
+static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
+    None;
 static mut CDC_REF_FOR_PANIC: Option<
     &'static capsules_extra::usb::cdc::CdcAcm<
         'static,
@@ -115,6 +118,21 @@ fn baud_rate_reset_bootloader_enter() {
     }
 }
 
+type HTS221Sensor = components::hts221::Hts221ComponentType<
+    capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52840::i2c::TWI<'static>>,
+>;
+type TemperatureDriver = components::temperature::TemperatureComponentType<HTS221Sensor>;
+type HumidityDriver = components::humidity::HumidityComponentType<HTS221Sensor>;
+type Ieee802154MacDevice = components::ieee802154::Ieee802154ComponentMacDeviceType<
+    nrf52840::ieee802154_radio::Radio<'static>,
+    nrf52840::aes::AesECB<'static>,
+>;
+type Ieee802154Driver = components::ieee802154::Ieee802154ComponentType<
+    nrf52840::ieee802154_radio::Radio<'static>,
+    nrf52840::aes::AesECB<'static>,
+>;
+type RngDriver = components::rng::RngComponentType<nrf52840::trng::Trng<'static>>;
+
 /// Supported drivers by the platform
 pub struct Platform {
     ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
@@ -125,7 +143,7 @@ pub struct Platform {
             nrf52::rtc::Rtc<'static>,
         >,
     >,
-    ieee802154_radio: &'static capsules_extra::ieee802154::RadioDriver<'static>,
+    ieee802154_radio: &'static Ieee802154Driver,
     console: &'static capsules_core::console::Console<'static>,
     pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
@@ -137,8 +155,8 @@ pub struct Platform {
         components::process_console::Capability,
     >,
     proximity: &'static capsules_extra::proximity::ProximitySensor<'static>,
-    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
-    humidity: &'static capsules_extra::humidity::HumiditySensor<'static>,
+    temperature: &'static TemperatureDriver,
+    humidity: &'static HumidityDriver,
     gpio: &'static capsules_core::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
     led: &'static capsules_core::led::LedDriver<
         'static,
@@ -146,7 +164,7 @@ pub struct Platform {
         3,
     >,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
-    rng: &'static capsules_core::rng::RngDriver<'static>,
+    rng: &'static RngDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
@@ -190,7 +208,6 @@ impl KernelResources<nrf52::chip::NRF52<'static, Nrf52840DefaultPeripherals<'sta
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type CredentialsCheckingPolicy = ();
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
@@ -203,9 +220,6 @@ impl KernelResources<nrf52::chip::NRF52<'static, Nrf52840DefaultPeripherals<'sta
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
-        &()
-    }
-    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -252,7 +266,7 @@ pub unsafe fn start() -> (
     // bootloader.
     NRF52_POWER = Some(&base_peripherals.pwr_clk);
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
 
     //--------------------------------------------------------------------------
     // CAPABILITIES
@@ -337,7 +351,7 @@ pub unsafe fn start() -> (
     // DEVICEADDR register on the nRF52 to set the serial number.
     let serial_number_buf = static_init!([u8; 17], [0; 17]);
     let serial_number_string: &'static str =
-        nrf52::ficr::FICR_INSTANCE.address_str(serial_number_buf);
+        (*addr_of!(nrf52::ficr::FICR_INSTANCE)).address_str(serial_number_buf);
     let strings = static_init!(
         [&str; 3],
         [
@@ -402,7 +416,7 @@ pub unsafe fn start() -> (
         capsules_core::rng::DRIVER_NUM,
         &base_peripherals.trng,
     )
-    .finalize(components::rng_component_static!());
+    .finalize(components::rng_component_static!(nrf52840::trng::Trng));
 
     //--------------------------------------------------------------------------
     // ADC
@@ -469,15 +483,15 @@ pub unsafe fn start() -> (
     // SENSORS
     //--------------------------------------------------------------------------
 
-    let sensors_i2c_bus = components::i2c::I2CMuxComponent::new(&base_peripherals.twi0, None)
+    let sensors_i2c_bus = components::i2c::I2CMuxComponent::new(&base_peripherals.twi1, None)
         .finalize(components::i2c_mux_component_static!(nrf52840::i2c::TWI));
-    base_peripherals.twi0.configure(
+    base_peripherals.twi1.configure(
         nrf52840::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
         nrf52840::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
     );
 
-    let _ = &nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].make_output();
-    let _ = &nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].set();
+    nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].make_output();
+    nrf52840_peripherals.gpio_port[I2C_PULLUP_PIN].set();
 
     let apds9960 = components::apds9960::Apds9960Component::new(
         sensors_i2c_bus,
@@ -499,13 +513,13 @@ pub unsafe fn start() -> (
         capsules_extra::temperature::DRIVER_NUM,
         hts221,
     )
-    .finalize(components::temperature_component_static!());
+    .finalize(components::temperature_component_static!(HTS221Sensor));
     let humidity = components::humidity::HumidityComponent::new(
         board_kernel,
         capsules_extra::humidity::DRIVER_NUM,
         hts221,
     )
-    .finalize(components::humidity_component_static!());
+    .finalize(components::humidity_component_static!(HTS221Sensor));
 
     //--------------------------------------------------------------------------
     // WIRELESS
@@ -529,7 +543,7 @@ pub unsafe fn start() -> (
             nrf52840::aes::AesECB
         ));
 
-    let device_id = nrf52840::ficr::FICR_INSTANCE.id();
+    let device_id = (*addr_of!(nrf52840::ficr::FICR_INSTANCE)).id();
     let device_id_bottom_16 = u16::from_le_bytes([device_id[0], device_id[1]]);
     let (ieee802154_radio, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
@@ -572,7 +586,10 @@ pub unsafe fn start() -> (
         local_ip_ifaces,
         mux_alarm,
     )
-    .finalize(components::udp_mux_component_static!(nrf52840::rtc::Rtc));
+    .finalize(components::udp_mux_component_static!(
+        nrf52840::rtc::Rtc,
+        Ieee802154MacDevice
+    ));
 
     // UDP driver initialization happens here
     let udp_driver = components::udp_driver::UDPDriverComponent::new(
@@ -593,7 +610,7 @@ pub unsafe fn start() -> (
     // approach than this.
     nrf52_components::NrfClockComponent::new(&base_peripherals.clock).finalize(());
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let platform = Platform {
@@ -667,14 +684,14 @@ pub unsafe fn start() -> (
         board_kernel,
         chip,
         core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
         ),
         core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+            core::ptr::addr_of_mut!(_sappmem),
+            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut PROCESSES,
+        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_management_capability,
     )

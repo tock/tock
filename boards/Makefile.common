@@ -18,7 +18,7 @@ MAKEFILE_COMMON_PATH := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 TOCK_ROOT_DIRECTORY := $(dir $(abspath $(MAKEFILE_COMMON_PATH)))
 
 # The path to the root of the rust installation used for this build.
-# Useful for remapping paths and for finding already-installed llvm tools.
+# Useful for finding already-installed llvm tools.
 RUSTC_SYSROOT := "$(shell rustc --print sysroot)"
 
 # Common defaults that specific boards can override, but likely do not need to.
@@ -39,95 +39,30 @@ else
   RUSTUP ?= true
 endif
 
-# Default location of target directory (relative to board makefile) passed to
-# cargo `--target_dir`.
+# Default location of target directory (relative to board makefile).
 TARGET_DIRECTORY ?= $(TOCK_ROOT_DIRECTORY)target/
-
-# RUSTC_FLAGS allows boards to define board-specific options.
-# This will hopefully move into Cargo.toml (or Cargo.toml.local) eventually.
-#
-# - `-Tlayout.ld`: Use the linker script `layout.ld` all boards must provide.
-# - `linker=rust-lld`: Tell rustc to use the LLVM linker. This avoids needing
-#   GCC as a dependency to build the kernel.
-# - `linker-flavor=ld.lld`: Use the LLVM lld executable with the `-flavor gnu`
-#   flag.
-# - `relocation-model=static`: See https://github.com/tock/tock/pull/2853
-# - `-nmagic`: lld by default uses a default page size to align program
-#   sections. Tock expects that program sections are set back-to-back. `-nmagic`
-#   instructs the linker to not page-align sections.
-# - `-icf=all`: Identical Code Folding (ICF) set to all. This tells the linker
-#   to be more aggressive about removing duplicate code. The default is `safe`,
-#   and the downside to `all` is that different functions in the code can end up
-#   with the same address in the binary. However, it can save a fair bit of code
-#   size.
-# - `-C symbol-mangling-version=v0`: Opt-in to Rust v0 symbol mangling scheme.
-#   See https://github.com/rust-lang/rust/issues/60705 and
-#   https://github.com/tock/tock/issues/3529.
-RUSTC_FLAGS ?= \
-  -C link-arg=-Tlayout.ld \
-  -C linker=rust-lld \
-  -C linker-flavor=ld.lld \
-  -C relocation-model=static \
-  -C link-arg=-nmagic \
-  -C link-arg=-icf=all \
-  -C symbol-mangling-version=v0 \
-
-# RISC-V-specific flags.
-ifneq ($(findstring riscv32i, $(TARGET)),)
-  # NOTE: This flag causes kernel panics on some ARM cores. Since the size
-  # benefit is almost exclusively for RISC-V, we only apply it for those
-  # targets.
-  RUSTC_FLAGS += -C force-frame-pointers=no
-  # Ensure relocations generated is eligible for linker relaxation.
-  # This provide huge space savings.
-  RUSTC_FLAGS += -C target-feature=+relax
-endif
-
-# RUSTC_FLAGS_TOCK by default extends RUSTC_FLAGS with options that are global
-# to all Tock boards.
-#
-# We use `remap-path-prefix` to remove user-specific filepath strings for error
-# reporting from appearing in the generated binary. The first line is used for
-# remapping the tock directory, and the second line is for remapping paths to
-# the source code of the core library, which end up in the binary as a result of
-# our use of `-Zbuild-std=core`.
-RUSTC_FLAGS_TOCK ?= \
-  $(RUSTC_FLAGS) \
-  --remap-path-prefix=$(TOCK_ROOT_DIRECTORY)= \
-  --remap-path-prefix=$(RUSTC_SYSROOT)/lib/rustlib/src/rust/library/core=/core/
-
-# Disallow warnings only for continuous integration builds. Disallowing them
-# here using the `RUSTC_FLAGS_TOCK` variable ensures that warnings during
-# testing won't prevent compilation from succeeding.
-ifeq ($(NOWARNINGS),true)
-  RUSTC_FLAGS_TOCK += -D warnings
-endif
-
-# The following flags should only be passed to the board's binary crate, but
-# not to any of its dependencies (the kernel, capsules, chips, etc.). The
-# dependencies wouldn't use it, but because the link path is different for each
-# board, Cargo wouldn't be able to cache builds of the dependencies.
-#
-# Indeed, as far as Cargo is concerned, building the kernel with
-# `-C link-arg=-L/tock/boards/imix` is different than building the kernel with
-# `-C link-arg=-L/tock/boards/hail`, so Cargo would have to rebuild the kernel
-# for each board instead of caching it per board (even if in reality the same
-# kernel is built because the link-arg isn't used by the kernel).
-#
-# Ultimately, this should move to the Cargo.toml, for example when
-# https://github.com/rust-lang/cargo/pull/7811 is merged into Cargo.
-#
-# The difference between `RUSTC_FLAGS_TOCK` and `RUSTC_FLAGS_FOR_BIN` is that
-# the former is forwarded to all the dependencies (being passed to cargo via
-# the `RUSTFLAGS` environment variable), whereas the latter is only applied to
-# the final binary crate (being passed as parameter to `cargo rustc`).
-RUSTC_FLAGS_FOR_BIN ?= \
-  -C link-arg=-L$(abspath .) \
 
 # http://stackoverflow.com/questions/10858261/abort-makefile-if-variable-not-set
 # Check that given variables are set and all have non-empty values, print an
 # error otherwise.
 check_defined = $(strip $(foreach 1,$1,$(if $(value $1),,$(error Undefined variable "$1"))))
+
+
+# Get the name of the package by hacking the `cargo tree` command. This prints
+# the local package name first so we can use that to get the package name. Ex:
+#
+# wm1110dev v0.1.0 (/Users/bradjc/git/tock/boards/wm1110dev)
+# ├── capsules-core v0.1.0 (/Users/bradjc/git/tock/capsules/core)
+# │   ├── enum_primitive v0.1.0 (/Users/bradjc/git/tock/libraries/enum_primitive)
+PLATFORM := $(firstword $(shell $(CARGO) tree))
+# Set `TARGET` if not already defined. Note: this only works on nightly.
+ifeq ($(TARGET),)
+  # Get the specified target using the unstable `cargo config get` command.
+  TARGET_QUOTES := $(shell $(CARGO) config get --format json-value build.target)
+  # Remove the quotes from around the target name.
+  TARGET := $(patsubst "%",%,$(TARGET_QUOTES))
+endif
+
 
 # Check that we know the basics of what we are compiling for.
 # - `PLATFORM`: The name of the board that the kernel is being compiled for.
@@ -160,7 +95,7 @@ endif
 # Ask git what version of the Tock kernel we are compiling, so we can include
 # this within the binary. If Tock is not within a git repo then we fallback to
 # a set string which should be updated with every release.
-export TOCK_KERNEL_VERSION := $(shell git describe --tags --always 2> /dev/null || echo "2.1+")
+export TOCK_KERNEL_VERSION := $(shell git describe --tags --always 2> /dev/null || echo "2.2+")
 
 # Allow users to opt out of using rustup.
 ifeq ($(NO_RUSTUP),)
@@ -177,11 +112,14 @@ endif
 # Validate that rustup is new enough.
 MINIMUM_RUSTUP_VERSION := 1.23.0
 RUSTUP_VERSION := $(strip $(word 2, $(shell $(RUSTUP) --version 2> /dev/null)))
+# Check that the semver script exists.
+ifneq (,$(wildcard $(TOCK_ROOT_DIRECTORY)tools/semver.sh))
 ifeq ($(shell $(TOCK_ROOT_DIRECTORY)tools/semver.sh $(RUSTUP_VERSION) \< $(MINIMUM_RUSTUP_VERSION)), true)
   $(warning Required tool `$(RUSTUP)` is out-of-date.)
   $(warning Running `$(RUSTUP) update` in 3 seconds (ctrl-c to cancel))
-  $(shell sleep 3s)
+  $(shell sleep 3)
   DUMMY := $(shell $(RUSTUP) update)
+endif
 endif
 
 # Verify that various required Rust components are installed. All of these steps
@@ -190,7 +128,22 @@ endif
 ifneq ($(shell $(RUSTUP) target list | grep "$(TARGET) (installed)"),$(TARGET) (installed))
   $(warning Request to compile for a missing TARGET, make will install in 5s)
   $(warning Consider updating 'targets' in 'rust-toolchain.toml')
-  $(shell sleep 5s && $(RUSTUP) target add $(TARGET))
+  $(shell sleep 5)
+  $(shell $(RUSTUP) target add $(TARGET))
+endif
+
+# If the board the user is compiling is using the stable toolchain, verify that
+# the user's stable rustc toolchain is new enough to compile the board. If the
+# toolchain is too old, wait 5 seconds and then install for the user.
+ifneq ($(shell $(RUSTUP) show active-toolchain | grep "stable"),)
+  # If the error from running --version shows a version mismatch we know the
+  # installed toolchain is too old.
+  ifneq ($(shell $(CARGO) rustc -- --version 2>&1 | grep "is not supported by the following packages"),)
+    $(warning Your stable rustc is older than the MSRV of this board)
+    $(warning make will update your stable rustc in 5s)
+    $(shell sleep 5)
+    DUMMY := $(shell $(RUSTUP) update)
+  endif
 endif
 endif # $(NO_RUSTUP)
 
@@ -219,27 +172,6 @@ OBJDUMP ?= $(TOOLCHAIN)-objdump
 #   removing it, we prevent the kernel binary from overwriting applications.
 OBJCOPY_FLAGS ?= --strip-sections --strip-all --remove-section .apps
 
-# This make variable allows board-specific Makefiles to pass down options to
-# the Cargo build command. For example, in boards/<custom_board>/Makefile:
-# `CARGO_FLAGS += --features=foo` would pass feature `foo` to the top level
-# Cargo.toml.
-CARGO_FLAGS ?=
-
-# Add default flags to cargo. Boards can add additional options in
-# `CARGO_FLAGS`.
-#
-# - `-Z build-std=core,compiler_builtins`: Build the std library from source
-#   using our optimization settings. This leads to significantly smaller binary
-#   sizes, and makes debugging easier since debug information for the core
-#   library is included in the resulting .elf file. See
-#   https://github.com/tock/tock/pull/2847 for more details.
-CARGO_FLAGS_TOCK ?= \
-  $(VERBOSE_FLAGS) \
-  -Z build-std=core,compiler_builtins \
-  --target=$(TARGET) \
-  --package $(PLATFORM) \
-  --target-dir=$(TARGET_DIRECTORY) $(CARGO_FLAGS)
-
 # Set the default flags we need for objdump to get a .lst file.
 OBJDUMP_FLAGS ?= --disassemble-all --source --section-headers --demangle
 
@@ -251,18 +183,9 @@ ifneq (,$(findstring thumb,$(TARGET)))
   OBJDUMP_FLAGS += --arch-name=thumb
 endif
 
-# Additional flags that can be passed to cargo bloat via an environment
-# variable. Allows users to pass arbitrary flags supported by cargo bloat to
-# customize the output. By default, pass an empty string.
-CARGO_BLOAT_FLAGS ?=
-
 # Additional flags that can be passed to print_tock_memory_usage.py via an
 # environment variable. By default, pass an empty string.
 PTMU_ARGS ?=
-
-# `cargo bloat` does not support `-Z build-std`, so we must remove it from cargo
-# flags. See https://github.com/RazrFalcon/cargo-bloat/issues/62.
-CARGO_FLAGS_TOCK_NO_BUILD_STD := $(filter-out -Z build-std=core,$(CARGO_FLAGS_TOCK))
 
 # Check whether the system already has a sha256sum or shasum application
 # present. If not, use the custom shipped one.
@@ -279,18 +202,9 @@ else
   SHA256SUM := sha256sum
 endif
 
-# virtual-function-elimination reduces the size of binaries, but is still
-# experimental and has some possible miscompilation issues. This is only enabled
-# for some boards by default, but is exposed via the `VFUNC_ELIM=1` option.
-#
-# For details on virtual-function-elimination see: https://github.com/rust-lang/rust/pull/96285
-# See https://github.com/rust-lang/rust/issues/68262 for general tracking
-ifneq ($(VFUNC_ELIM),)
-	RUSTC_FLAGS += -C lto -Z virtual-function-elimination
-endif
-
 # Dump configuration for verbose builds
 ifeq ($(VERBOSE_MODE),1)
+RUST_FLAGS = $(shell $(CARGO) -Zunstable-options config get build.rustflags --format json-value 2> /dev/null || echo "Listing Rust flags only accessible on nightly cargo")
   $(info )
   $(info *******************************************************)
   $(info TOCK KERNEL BUILD SYSTEM -- VERBOSE BUILD CONFIGURATION)
@@ -302,16 +216,11 @@ ifeq ($(VERBOSE_MODE),1)
   $(info PLATFORM                      = $(PLATFORM))
   $(info TARGET                        = $(TARGET))
   $(info TOCK_KERNEL_VERSION           = $(TOCK_KERNEL_VERSION))
-  $(info RUSTC_FLAGS                   = $(RUSTC_FLAGS))
-  $(info RUSTC_FLAGS_TOCK              = $(RUSTC_FLAGS_TOCK))
+  $(info RUSTFLAGS                     = $(RUST_FLAGS))
   $(info MAKEFLAGS                     = $(MAKEFLAGS))
   $(info OBJDUMP_FLAGS                 = $(OBJDUMP_FLAGS))
   $(info OBJCOPY_FLAGS                 = $(OBJCOPY_FLAGS))
-  $(info CARGO_FLAGS                   = $(CARGO_FLAGS))
-  $(info CARGO_FLAGS_TOCK              = $(CARGO_FLAGS_TOCK))
-  $(info CARGO_FLAGS_TOCK_NO_BUILD_STD = $(CARGO_FLAGS_TOCK_NO_BUILD_STD))
   $(info SIZE_FLAGS                    = $(SIZE_FLAGS))
-  $(info CARGO_BLOAT_FLAGS             = $(CARGO_BLOAT_FLAGS))
   $(info )
   $(info TOOLCHAIN                     = $(TOOLCHAIN))
   $(info SIZE                          = $(SIZE))
@@ -339,12 +248,12 @@ all: release
 # binary. This makes checking for Rust errors much faster.
 .PHONY: check
 check:
-	$(Q)$(CARGO) check $(VERBOSE_FLAGS) $(CARGO_FLAGS_TOCK)
+	$(Q)$(CARGO) check $(VERBOSE_FLAGS)
 
 
 .PHONY: clean
 clean::
-	$(Q)$(CARGO) clean $(VERBOSE_FLAGS) --target-dir=$(TARGET_DIRECTORY)
+	$(Q)$(CARGO) clean $(VERBOSE_FLAGS)
 
 .PHONY: release
 release:  $(TARGET_PATH)/release/$(PLATFORM).bin
@@ -356,10 +265,8 @@ debug:  $(TARGET_PATH)/debug/$(PLATFORM).bin
 debug-lst:  $(TARGET_PATH)/debug/$(PLATFORM).lst
 
 .PHONY: doc
-doc: | target
-	@# This mess is all to work around rustdoc giving no way to return an
-	@# error if there are warnings. This effectively simulates that.
-	$(Q)RUSTDOCFLAGS='-Z unstable-options --document-hidden-items -D warnings' $(CARGO) --color=always doc $(VERBOSE_FLAGS) --release --package $(PLATFORM) --target-dir=$(TARGET_DIRECTORY) 2>&1 | grep -C 9999 warning && (echo "Warnings detected during doc build" && if [[ $$NOWARNINGS == "true" ]]; then echo "Erroring due to CI context" && exit 33; fi) || if [ $$? -eq 33 ]; then exit 1; fi
+doc:
+	$(Q)$(CARGO) --color=always doc $(VERBOSE_FLAGS) --release --package $(PLATFORM)
 
 
 .PHONY: lst
@@ -371,33 +278,10 @@ lst: $(TARGET_PATH)/release/$(PLATFORM).lst
 show-target:
 	$(info $(TARGET))
 
-# This rule is a copy of the rule used to build the release target, but `cargo
-# rustc` has been replaced with `cargo bloat`. `cargo bloat` replicates the
-# interface of `cargo build`, rather than `cargo rustc`, so we need to move
-# `RUSTC_FLAGS_FOR_BIN` into the `RUSTFLAGS` environment variable. This only
-# means that cargo cannot reuse built dependencies built using `cargo bloat`.
-# See the discussion on `RUSTC_FLAGS_FOR_BIN` above for additional details. To
-# pass additional flags to `cargo bloat`, populate the CARGO_BLOAT_FLAGS
-# environment variable, e.g. run `CARGO_BLOAT_FLAGS=--crates make cargobloat`
-.PHONY: cargobloat
-cargobloat:
-	$(Q)$(CARGO) install cargo-bloat > /dev/null 2>&1 ||  echo 'Error: Failed to install cargo-bloat'
-	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK) $(RUSTC_FLAGS_FOR_BIN)" CARGO_FLAGS="-Z build-std=core" $(CARGO) bloat $(CARGO_FLAGS_TOCK_NO_BUILD_STD) --bin $(PLATFORM) --release $(CARGO_BLOAT_FLAGS)
-
-# To pass additional flags to `cargo cargobloatnoinline`, populate the
-# CARGO_BLOAT_FLAGS environment variable, e.g. run `CARGO_BLOAT_FLAGS=--crates
-# make cargobloatnoinline`
-.PHONY: cargobloatnoinline
-cargobloatnoinline:
-	$(Q)$(CARGO) install cargo-bloat > \dev\null 2>&1 ||  echo 'Error: Failed to install cargo-bloat'
-	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK) -C inline-threshold=0 $(RUSTC_FLAGS_FOR_BIN)" $(CARGO) bloat $(CARGO_FLAGS_TOCK) --bin $(PLATFORM) --release $(CARGO_BLOAT_FLAGS)
-
 .PHONY: stack-analysis
-#stack_analysis: RUSTC_FLAGS_TOCK += -Z emit-stack-sizes
-stack-analysis:
+stack-analysis: $(TARGET_PATH)/release/$(PLATFORM)
 	@$ echo $(PLATFORM)
 	@$ echo ----------------------
-	$(Q)$(MAKE) release RUSTC_FLAGS="$(RUSTC_FLAGS) -Z emit-stack-sizes" $(DEVNULL) 2>&1
 	$(Q)$(TOCK_ROOT_DIRECTORY)/tools/stack_analysis.sh $(TARGET_PATH)/release/$(PLATFORM).elf
 
 # Run the `print_tock_memory_usage.py` script for this board.
@@ -406,9 +290,6 @@ memory: $(TARGET_PATH)/release/$(PLATFORM).elf
 	$(TOCK_ROOT_DIRECTORY)tools/print_tock_memory_usage.py --objdump $(OBJDUMP) -w $(PTMU_ARGS) $<
 
 # Support rules
-
-target:
-	@mkdir -p $(TARGET_PATH)
 
 # Cargo outputs an elf file (just without a file extension)
 %.elf: %
@@ -433,10 +314,10 @@ $(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum:
 
 .PHONY: $(TARGET_PATH)/release/$(PLATFORM)
 $(TARGET_PATH)/release/$(PLATFORM):
-	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" $(CARGO) rustc  $(CARGO_FLAGS_TOCK) --bin $(PLATFORM) --release -- $(RUSTC_FLAGS_FOR_BIN)
+	$(Q)$(CARGO) rustc $(VERBOSE_FLAGS) --bin $(PLATFORM) --release
 	$(Q)$(SIZE) $(SIZE_FLAGS) $@
 
 .PHONY: $(TARGET_PATH)/debug/$(PLATFORM)
 $(TARGET_PATH)/debug/$(PLATFORM):
-	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" $(CARGO) rustc  $(CARGO_FLAGS_TOCK) --bin $(PLATFORM) -- $(RUSTC_FLAGS_FOR_BIN)
+	$(Q)$(CARGO) build $(VERBOSE_FLAGS) --bin $(PLATFORM)
 	$(Q)$(SIZE) $(SIZE_FLAGS) $@

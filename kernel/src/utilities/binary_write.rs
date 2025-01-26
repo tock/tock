@@ -49,7 +49,7 @@ pub trait BinaryWrite {
 ///     // Nothing left to print, we're done!
 /// }
 /// ```
-pub(crate) struct WriteToBinaryOffsetWrapper<'a> {
+pub struct WriteToBinaryOffsetWrapper<'a> {
     /// Binary writer implementation that is asynchronous and has a fixed sized
     /// buffer.
     binary_writer: &'a mut dyn BinaryWrite,
@@ -65,8 +65,8 @@ pub(crate) struct WriteToBinaryOffsetWrapper<'a> {
 }
 
 impl<'a> WriteToBinaryOffsetWrapper<'a> {
-    pub(crate) fn new(binary_writer: &'a mut dyn BinaryWrite) -> WriteToBinaryOffsetWrapper {
-        WriteToBinaryOffsetWrapper {
+    pub fn new(binary_writer: &'a mut dyn BinaryWrite) -> Self {
+        Self {
             binary_writer,
             index: 0,
             offset: 0,
@@ -76,24 +76,24 @@ impl<'a> WriteToBinaryOffsetWrapper<'a> {
 
     /// Set the byte to start printing from on this iteration. Call this before
     /// calling `Write`.
-    pub(crate) fn set_offset(&mut self, offset: usize) {
+    pub fn set_offset(&mut self, offset: usize) {
         self.offset = offset;
     }
 
     /// After printing, get the index we left off on to use as the offset for
     /// the next iteration.
-    pub(crate) fn get_index(&self) -> usize {
+    pub fn get_index(&self) -> usize {
         self.index
     }
 
     /// After printing, check if there is more to print that the binary_writer
     /// did not print.
-    pub(crate) fn bytes_remaining(&self) -> bool {
+    pub fn bytes_remaining(&self) -> bool {
         self.bytes_remaining
     }
 }
 
-impl<'a> core::fmt::Write for WriteToBinaryOffsetWrapper<'a> {
+impl core::fmt::Write for WriteToBinaryOffsetWrapper<'_> {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         let string_len = s.len();
         if self.index + string_len < self.offset {
@@ -153,12 +153,12 @@ pub(crate) struct BinaryToWriteWrapper<'a> {
 }
 
 impl<'a> BinaryToWriteWrapper<'a> {
-    pub(crate) fn new(writer: &'a mut dyn core::fmt::Write) -> BinaryToWriteWrapper {
-        BinaryToWriteWrapper { writer }
+    pub(crate) fn new(writer: &'a mut dyn core::fmt::Write) -> Self {
+        Self { writer }
     }
 }
 
-impl<'a> BinaryWrite for BinaryToWriteWrapper<'a> {
+impl BinaryWrite for BinaryToWriteWrapper<'_> {
     fn write_buffer(&mut self, buffer: &[u8]) -> Result<usize, ()> {
         // Convert the binary string to UTF-8 so we can print it as a string. If
         // this is not actually a UTF-8 string, then return Err(()).

@@ -55,7 +55,7 @@ the index of the last AC module.
 
     **Returns**: `Ok(())` if starting interrupts was succesful.
 
-* ### Command number: `4`
+* ### Command number: `3`
 
     **Description**: Stop interrupts on an analog comparator. 
 
@@ -65,3 +65,13 @@ the index of the last AC module.
     **Argument 2**: unused
 
     **Returns**: `Ok(())` if stopping interrupts was succesful.
+
+  * ### Command number: `4`
+
+    **Description**: Get number of channels
+
+    **Argument 1**: unused
+
+    **Argument 2**: unused
+
+    **Returns**: Number of channels

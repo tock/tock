@@ -8,7 +8,7 @@ on flash. It was written to be generic though, so other Rust applications can
 use it if they want.
 
 TicKV is based on similar concepts as
-[Yaffs1](https://yaffs.net/documents/how-yaffs-works).
+[Yaffs1](https://yaffs.net/sites/yaffs.net/files/HowYaffsWorks.pdf).
 
 ## Goals of TicKV
 
@@ -94,9 +94,9 @@ committed. This is the durability guarantee as part of the ACID semantics.
 The only data that can be lost in the event of a power loss is
 the data which hasn't been write to flash yet.
 
-If a power loss occurs after calling `append_key()` or `invalidate_key()`
-before it has completed then the operation probably did not complete and
-that data is lost.
+If a power loss occurs after calling `append_key()`, `invalidate_key()` or
+`zeroize_key()` before it has completed then the operation probably did not
+complete and that data is lost.
 
 ### Security
 

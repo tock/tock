@@ -7,7 +7,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! let hmac = &earlgrey::hmac::HMAC;
 //!
 //! let mux_hmac = static_init!(MuxHmac<'static, lowrisc::hmac::Hmac>, MuxHmac::new(hmac));
@@ -106,7 +106,7 @@ impl<
         >,
     ) -> HmacDriver<'a, H, L> {
         HmacDriver {
-            hmac: hmac,
+            hmac,
             active: Cell::new(false),
             apps: grant,
             processid: OptionalCell::empty(),
@@ -231,7 +231,7 @@ impl<
                 }
 
                 // If this app has a pending command let's use it.
-                app.pending_run_app.take().map_or(false, |processid| {
+                app.pending_run_app.take().is_some_and(|processid| {
                     // Mark this driver as being in use.
                     self.processid.set(processid);
                     // Actually make the buzz happen.
@@ -411,7 +411,7 @@ impl<
                         });
 
                     match result {
-                        Ok(_) => kernel_data.schedule_upcall(0, (0, pointer as usize, 0)),
+                        Ok(()) => kernel_data.schedule_upcall(0, (0, pointer as usize, 0)),
                         Err(e) => kernel_data
                             .schedule_upcall(0, (into_statuscode(e.into()), pointer as usize, 0)),
                     }

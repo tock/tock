@@ -33,24 +33,24 @@ enum Register {
     DIG_T3 = 0x8c,
     ID = 0xd0,
     RESET = 0xe0,
-    /// measuring: [3]
-    /// im_update: [0]
+    // measuring: [3]
+    // im_update: [0]
     STATUS = 0xf3,
-    /// osrs_t: [7:5]
-    /// osrs_p: [4:2]
-    /// mode: [1:0]
+    // osrs_t: [7:5]
+    // osrs_p: [4:2]
+    // mode: [1:0]
     CTRL_MEAS = 0xf4,
-    /// t_sb: [7:5]
-    /// filter: [4:2]
-    /// spi3w_en: [0]
+    // t_sb: [7:5]
+    // filter: [4:2]
+    // spi3w_en: [0]
     CONFIG = 0xf5,
     PRESS_MSB = 0xf7,
     PRESS_LSB = 0xf8,
-    /// xlsb: [7:4]
+    // xlsb: [7:4]
     PRESS_XLSB = 0xf9,
     TEMP_MSB = 0xfa,
     TEMP_LSB = 0xfb,
-    /// xlsb: [7:4]
+    // xlsb: [7:4]
     TEMP_XLSB = 0xfc,
 }
 
@@ -77,8 +77,7 @@ impl CalibrationData {
         }
     }
 
-    fn temp_from_raw(&self, raw_temp: u32) -> i32 {
-        let temp = raw_temp as i32; // guaranteed to succeed because raw temp has only 20 significant bits maximum.
+    fn temp_from_raw(&self, temp: i32) -> i32 {
         let dig_t1 = self.dig_t1 as i32; // same, 16-bits
         let dig_t2 = self.dig_t2 as i32; // same, 16-bits
         let dig_t3 = self.dig_t3 as i32; // same, 16-bits
@@ -144,7 +143,7 @@ struct I2cWrapper<'a, I: i2c::I2CDevice> {
     i2c: &'a I,
 }
 
-impl<'a, I: i2c::I2CDevice> I2cWrapper<'a, I> {
+impl<I: i2c::I2CDevice> I2cWrapper<'_, I> {
     fn write<const COUNT: usize>(
         &self,
         buffer: &'static mut [u8],
@@ -202,7 +201,7 @@ impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> Bmp280<'a, A, I> {
             temperature_client: OptionalCell::empty(),
             state: Cell::new(State::Uninitialized),
             buffer: TakeCell::new(buffer),
-            alarm: alarm,
+            alarm,
         }
     }
 
@@ -398,7 +397,8 @@ impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> i2c::I2CClient for Bmp280<'a, A, I> {
                     let msb = readout[0] as u32;
                     let lsb = readout[1] as u32;
                     let xlsb = readout[2] as u32;
-                    let raw_temp = (msb << 12) + (lsb << 4) + (xlsb >> 4);
+                    let raw_temp: i32 =
+                        ((((msb << 12) + (lsb << 4) + (xlsb >> 4)) << 12) as i32) >> 12; // ensure sign extention
                     temp_readout = Some(Ok(calibration.temp_from_raw(raw_temp)));
                     State::Idle(calibration)
                 }

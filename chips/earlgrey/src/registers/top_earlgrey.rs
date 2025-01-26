@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright lowRISC contributors 2023.
 
-// Built for Earlgrey-M2.5.1-RC1-389-g21ce4e9761
-// https://github.com/lowRISC/opentitan/tree/21ce4e9761abdf5c919b46e5ae64a5a8e24992f7
+// Built for Earlgrey-M2.5.1-RC1-493-gedf5e35f5d
+// https://github.com/lowRISC/opentitan/tree/edf5e35f5d50a5377641c90a315109a351de7635
 // Tree status: clean
-// Build date: 2023-07-20T09:36:12.725946
+// Build date: 2023-10-18T10:18:57.529279
 
 // This file was generated automatically.
 // Please do not modify content of this file directly.
@@ -24,674 +24,724 @@
 //! - Pinmux Pin/Select Names
 //! - Power Manager Wakeups
 
-use core::convert::TryFrom;
-
 /// Peripheral base address for uart0 in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_UART0_BASE_ADDR: usize = 0x40000000;
+pub const UART0_BASE_ADDR: usize = 0x40000000;
 
 /// Peripheral size for uart0 in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_UART0_BASE_ADDR and
-/// `TOP_EARLGREY_UART0_BASE_ADDR + TOP_EARLGREY_UART0_SIZE_BYTES`.
-pub const TOP_EARLGREY_UART0_SIZE_BYTES: usize = 0x40;
+/// address between #UART0_BASE_ADDR and
+/// `UART0_BASE_ADDR + UART0_SIZE_BYTES`.
+pub const UART0_SIZE_BYTES: usize = 0x40;
+
 /// Peripheral base address for uart1 in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_UART1_BASE_ADDR: usize = 0x40010000;
+pub const UART1_BASE_ADDR: usize = 0x40010000;
 
 /// Peripheral size for uart1 in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_UART1_BASE_ADDR and
-/// `TOP_EARLGREY_UART1_BASE_ADDR + TOP_EARLGREY_UART1_SIZE_BYTES`.
-pub const TOP_EARLGREY_UART1_SIZE_BYTES: usize = 0x40;
+/// address between #UART1_BASE_ADDR and
+/// `UART1_BASE_ADDR + UART1_SIZE_BYTES`.
+pub const UART1_SIZE_BYTES: usize = 0x40;
+
 /// Peripheral base address for uart2 in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_UART2_BASE_ADDR: usize = 0x40020000;
+pub const UART2_BASE_ADDR: usize = 0x40020000;
 
 /// Peripheral size for uart2 in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_UART2_BASE_ADDR and
-/// `TOP_EARLGREY_UART2_BASE_ADDR + TOP_EARLGREY_UART2_SIZE_BYTES`.
-pub const TOP_EARLGREY_UART2_SIZE_BYTES: usize = 0x40;
+/// address between #UART2_BASE_ADDR and
+/// `UART2_BASE_ADDR + UART2_SIZE_BYTES`.
+pub const UART2_SIZE_BYTES: usize = 0x40;
+
 /// Peripheral base address for uart3 in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_UART3_BASE_ADDR: usize = 0x40030000;
+pub const UART3_BASE_ADDR: usize = 0x40030000;
 
 /// Peripheral size for uart3 in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_UART3_BASE_ADDR and
-/// `TOP_EARLGREY_UART3_BASE_ADDR + TOP_EARLGREY_UART3_SIZE_BYTES`.
-pub const TOP_EARLGREY_UART3_SIZE_BYTES: usize = 0x40;
+/// address between #UART3_BASE_ADDR and
+/// `UART3_BASE_ADDR + UART3_SIZE_BYTES`.
+pub const UART3_SIZE_BYTES: usize = 0x40;
+
 /// Peripheral base address for gpio in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_GPIO_BASE_ADDR: usize = 0x40040000;
+pub const GPIO_BASE_ADDR: usize = 0x40040000;
 
 /// Peripheral size for gpio in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_GPIO_BASE_ADDR and
-/// `TOP_EARLGREY_GPIO_BASE_ADDR + TOP_EARLGREY_GPIO_SIZE_BYTES`.
-pub const TOP_EARLGREY_GPIO_SIZE_BYTES: usize = 0x40;
+/// address between #GPIO_BASE_ADDR and
+/// `GPIO_BASE_ADDR + GPIO_SIZE_BYTES`.
+pub const GPIO_SIZE_BYTES: usize = 0x40;
+
 /// Peripheral base address for spi_device in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_SPI_DEVICE_BASE_ADDR: usize = 0x40050000;
+pub const SPI_DEVICE_BASE_ADDR: usize = 0x40050000;
 
 /// Peripheral size for spi_device in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_SPI_DEVICE_BASE_ADDR and
-/// `TOP_EARLGREY_SPI_DEVICE_BASE_ADDR + TOP_EARLGREY_SPI_DEVICE_SIZE_BYTES`.
-pub const TOP_EARLGREY_SPI_DEVICE_SIZE_BYTES: usize = 0x2000;
+/// address between #SPI_DEVICE_BASE_ADDR and
+/// `SPI_DEVICE_BASE_ADDR + SPI_DEVICE_SIZE_BYTES`.
+pub const SPI_DEVICE_SIZE_BYTES: usize = 0x2000;
+
 /// Peripheral base address for i2c0 in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_I2C0_BASE_ADDR: usize = 0x40080000;
+pub const I2C0_BASE_ADDR: usize = 0x40080000;
 
 /// Peripheral size for i2c0 in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_I2C0_BASE_ADDR and
-/// `TOP_EARLGREY_I2C0_BASE_ADDR + TOP_EARLGREY_I2C0_SIZE_BYTES`.
-pub const TOP_EARLGREY_I2C0_SIZE_BYTES: usize = 0x80;
+/// address between #I2C0_BASE_ADDR and
+/// `I2C0_BASE_ADDR + I2C0_SIZE_BYTES`.
+pub const I2C0_SIZE_BYTES: usize = 0x80;
+
 /// Peripheral base address for i2c1 in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_I2C1_BASE_ADDR: usize = 0x40090000;
+pub const I2C1_BASE_ADDR: usize = 0x40090000;
 
 /// Peripheral size for i2c1 in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_I2C1_BASE_ADDR and
-/// `TOP_EARLGREY_I2C1_BASE_ADDR + TOP_EARLGREY_I2C1_SIZE_BYTES`.
-pub const TOP_EARLGREY_I2C1_SIZE_BYTES: usize = 0x80;
+/// address between #I2C1_BASE_ADDR and
+/// `I2C1_BASE_ADDR + I2C1_SIZE_BYTES`.
+pub const I2C1_SIZE_BYTES: usize = 0x80;
+
 /// Peripheral base address for i2c2 in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_I2C2_BASE_ADDR: usize = 0x400A0000;
+pub const I2C2_BASE_ADDR: usize = 0x400A0000;
 
 /// Peripheral size for i2c2 in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_I2C2_BASE_ADDR and
-/// `TOP_EARLGREY_I2C2_BASE_ADDR + TOP_EARLGREY_I2C2_SIZE_BYTES`.
-pub const TOP_EARLGREY_I2C2_SIZE_BYTES: usize = 0x80;
+/// address between #I2C2_BASE_ADDR and
+/// `I2C2_BASE_ADDR + I2C2_SIZE_BYTES`.
+pub const I2C2_SIZE_BYTES: usize = 0x80;
+
 /// Peripheral base address for pattgen in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_PATTGEN_BASE_ADDR: usize = 0x400E0000;
+pub const PATTGEN_BASE_ADDR: usize = 0x400E0000;
 
 /// Peripheral size for pattgen in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_PATTGEN_BASE_ADDR and
-/// `TOP_EARLGREY_PATTGEN_BASE_ADDR + TOP_EARLGREY_PATTGEN_SIZE_BYTES`.
-pub const TOP_EARLGREY_PATTGEN_SIZE_BYTES: usize = 0x40;
+/// address between #PATTGEN_BASE_ADDR and
+/// `PATTGEN_BASE_ADDR + PATTGEN_SIZE_BYTES`.
+pub const PATTGEN_SIZE_BYTES: usize = 0x40;
+
 /// Peripheral base address for rv_timer in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_RV_TIMER_BASE_ADDR: usize = 0x40100000;
+pub const RV_TIMER_BASE_ADDR: usize = 0x40100000;
 
 /// Peripheral size for rv_timer in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_RV_TIMER_BASE_ADDR and
-/// `TOP_EARLGREY_RV_TIMER_BASE_ADDR + TOP_EARLGREY_RV_TIMER_SIZE_BYTES`.
-pub const TOP_EARLGREY_RV_TIMER_SIZE_BYTES: usize = 0x200;
+/// address between #RV_TIMER_BASE_ADDR and
+/// `RV_TIMER_BASE_ADDR + RV_TIMER_SIZE_BYTES`.
+pub const RV_TIMER_SIZE_BYTES: usize = 0x200;
+
 /// Peripheral base address for core device on otp_ctrl in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_OTP_CTRL_CORE_BASE_ADDR: usize = 0x40130000;
+pub const OTP_CTRL_CORE_BASE_ADDR: usize = 0x40130000;
 
 /// Peripheral size for core device on otp_ctrl in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_OTP_CTRL_CORE_BASE_ADDR and
-/// `TOP_EARLGREY_OTP_CTRL_CORE_BASE_ADDR + TOP_EARLGREY_OTP_CTRL_CORE_SIZE_BYTES`.
-pub const TOP_EARLGREY_OTP_CTRL_CORE_SIZE_BYTES: usize = 0x2000;
+/// address between #OTP_CTRL_CORE_BASE_ADDR and
+/// `OTP_CTRL_CORE_BASE_ADDR + OTP_CTRL_CORE_SIZE_BYTES`.
+pub const OTP_CTRL_CORE_SIZE_BYTES: usize = 0x2000;
+
 /// Peripheral base address for prim device on otp_ctrl in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_OTP_CTRL_PRIM_BASE_ADDR: usize = 0x40132000;
+pub const OTP_CTRL_PRIM_BASE_ADDR: usize = 0x40132000;
 
 /// Peripheral size for prim device on otp_ctrl in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_OTP_CTRL_PRIM_BASE_ADDR and
-/// `TOP_EARLGREY_OTP_CTRL_PRIM_BASE_ADDR + TOP_EARLGREY_OTP_CTRL_PRIM_SIZE_BYTES`.
-pub const TOP_EARLGREY_OTP_CTRL_PRIM_SIZE_BYTES: usize = 0x20;
+/// address between #OTP_CTRL_PRIM_BASE_ADDR and
+/// `OTP_CTRL_PRIM_BASE_ADDR + OTP_CTRL_PRIM_SIZE_BYTES`.
+pub const OTP_CTRL_PRIM_SIZE_BYTES: usize = 0x20;
+
 /// Peripheral base address for lc_ctrl in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_LC_CTRL_BASE_ADDR: usize = 0x40140000;
+pub const LC_CTRL_BASE_ADDR: usize = 0x40140000;
 
 /// Peripheral size for lc_ctrl in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_LC_CTRL_BASE_ADDR and
-/// `TOP_EARLGREY_LC_CTRL_BASE_ADDR + TOP_EARLGREY_LC_CTRL_SIZE_BYTES`.
-pub const TOP_EARLGREY_LC_CTRL_SIZE_BYTES: usize = 0x100;
+/// address between #LC_CTRL_BASE_ADDR and
+/// `LC_CTRL_BASE_ADDR + LC_CTRL_SIZE_BYTES`.
+pub const LC_CTRL_SIZE_BYTES: usize = 0x100;
+
 /// Peripheral base address for alert_handler in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_ALERT_HANDLER_BASE_ADDR: usize = 0x40150000;
+pub const ALERT_HANDLER_BASE_ADDR: usize = 0x40150000;
 
 /// Peripheral size for alert_handler in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_ALERT_HANDLER_BASE_ADDR and
-/// `TOP_EARLGREY_ALERT_HANDLER_BASE_ADDR + TOP_EARLGREY_ALERT_HANDLER_SIZE_BYTES`.
-pub const TOP_EARLGREY_ALERT_HANDLER_SIZE_BYTES: usize = 0x800;
+/// address between #ALERT_HANDLER_BASE_ADDR and
+/// `ALERT_HANDLER_BASE_ADDR + ALERT_HANDLER_SIZE_BYTES`.
+pub const ALERT_HANDLER_SIZE_BYTES: usize = 0x800;
+
 /// Peripheral base address for spi_host0 in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_SPI_HOST0_BASE_ADDR: usize = 0x40300000;
+pub const SPI_HOST0_BASE_ADDR: usize = 0x40300000;
 
 /// Peripheral size for spi_host0 in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_SPI_HOST0_BASE_ADDR and
-/// `TOP_EARLGREY_SPI_HOST0_BASE_ADDR + TOP_EARLGREY_SPI_HOST0_SIZE_BYTES`.
-pub const TOP_EARLGREY_SPI_HOST0_SIZE_BYTES: usize = 0x40;
+/// address between #SPI_HOST0_BASE_ADDR and
+/// `SPI_HOST0_BASE_ADDR + SPI_HOST0_SIZE_BYTES`.
+pub const SPI_HOST0_SIZE_BYTES: usize = 0x40;
+
 /// Peripheral base address for spi_host1 in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_SPI_HOST1_BASE_ADDR: usize = 0x40310000;
+pub const SPI_HOST1_BASE_ADDR: usize = 0x40310000;
 
 /// Peripheral size for spi_host1 in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_SPI_HOST1_BASE_ADDR and
-/// `TOP_EARLGREY_SPI_HOST1_BASE_ADDR + TOP_EARLGREY_SPI_HOST1_SIZE_BYTES`.
-pub const TOP_EARLGREY_SPI_HOST1_SIZE_BYTES: usize = 0x40;
+/// address between #SPI_HOST1_BASE_ADDR and
+/// `SPI_HOST1_BASE_ADDR + SPI_HOST1_SIZE_BYTES`.
+pub const SPI_HOST1_SIZE_BYTES: usize = 0x40;
+
 /// Peripheral base address for usbdev in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_USBDEV_BASE_ADDR: usize = 0x40320000;
+pub const USBDEV_BASE_ADDR: usize = 0x40320000;
 
 /// Peripheral size for usbdev in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_USBDEV_BASE_ADDR and
-/// `TOP_EARLGREY_USBDEV_BASE_ADDR + TOP_EARLGREY_USBDEV_SIZE_BYTES`.
-pub const TOP_EARLGREY_USBDEV_SIZE_BYTES: usize = 0x1000;
+/// address between #USBDEV_BASE_ADDR and
+/// `USBDEV_BASE_ADDR + USBDEV_SIZE_BYTES`.
+pub const USBDEV_SIZE_BYTES: usize = 0x1000;
+
 /// Peripheral base address for pwrmgr_aon in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_PWRMGR_AON_BASE_ADDR: usize = 0x40400000;
+pub const PWRMGR_AON_BASE_ADDR: usize = 0x40400000;
 
 /// Peripheral size for pwrmgr_aon in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_PWRMGR_AON_BASE_ADDR and
-/// `TOP_EARLGREY_PWRMGR_AON_BASE_ADDR + TOP_EARLGREY_PWRMGR_AON_SIZE_BYTES`.
-pub const TOP_EARLGREY_PWRMGR_AON_SIZE_BYTES: usize = 0x80;
+/// address between #PWRMGR_AON_BASE_ADDR and
+/// `PWRMGR_AON_BASE_ADDR + PWRMGR_AON_SIZE_BYTES`.
+pub const PWRMGR_AON_SIZE_BYTES: usize = 0x80;
+
 /// Peripheral base address for rstmgr_aon in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_RSTMGR_AON_BASE_ADDR: usize = 0x40410000;
+pub const RSTMGR_AON_BASE_ADDR: usize = 0x40410000;
 
 /// Peripheral size for rstmgr_aon in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_RSTMGR_AON_BASE_ADDR and
-/// `TOP_EARLGREY_RSTMGR_AON_BASE_ADDR + TOP_EARLGREY_RSTMGR_AON_SIZE_BYTES`.
-pub const TOP_EARLGREY_RSTMGR_AON_SIZE_BYTES: usize = 0x80;
+/// address between #RSTMGR_AON_BASE_ADDR and
+/// `RSTMGR_AON_BASE_ADDR + RSTMGR_AON_SIZE_BYTES`.
+pub const RSTMGR_AON_SIZE_BYTES: usize = 0x80;
+
 /// Peripheral base address for clkmgr_aon in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_CLKMGR_AON_BASE_ADDR: usize = 0x40420000;
+pub const CLKMGR_AON_BASE_ADDR: usize = 0x40420000;
 
 /// Peripheral size for clkmgr_aon in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_CLKMGR_AON_BASE_ADDR and
-/// `TOP_EARLGREY_CLKMGR_AON_BASE_ADDR + TOP_EARLGREY_CLKMGR_AON_SIZE_BYTES`.
-pub const TOP_EARLGREY_CLKMGR_AON_SIZE_BYTES: usize = 0x80;
+/// address between #CLKMGR_AON_BASE_ADDR and
+/// `CLKMGR_AON_BASE_ADDR + CLKMGR_AON_SIZE_BYTES`.
+pub const CLKMGR_AON_SIZE_BYTES: usize = 0x80;
+
 /// Peripheral base address for sysrst_ctrl_aon in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_SYSRST_CTRL_AON_BASE_ADDR: usize = 0x40430000;
+pub const SYSRST_CTRL_AON_BASE_ADDR: usize = 0x40430000;
 
 /// Peripheral size for sysrst_ctrl_aon in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_SYSRST_CTRL_AON_BASE_ADDR and
-/// `TOP_EARLGREY_SYSRST_CTRL_AON_BASE_ADDR + TOP_EARLGREY_SYSRST_CTRL_AON_SIZE_BYTES`.
-pub const TOP_EARLGREY_SYSRST_CTRL_AON_SIZE_BYTES: usize = 0x100;
+/// address between #SYSRST_CTRL_AON_BASE_ADDR and
+/// `SYSRST_CTRL_AON_BASE_ADDR + SYSRST_CTRL_AON_SIZE_BYTES`.
+pub const SYSRST_CTRL_AON_SIZE_BYTES: usize = 0x100;
+
 /// Peripheral base address for adc_ctrl_aon in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_ADC_CTRL_AON_BASE_ADDR: usize = 0x40440000;
+pub const ADC_CTRL_AON_BASE_ADDR: usize = 0x40440000;
 
 /// Peripheral size for adc_ctrl_aon in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_ADC_CTRL_AON_BASE_ADDR and
-/// `TOP_EARLGREY_ADC_CTRL_AON_BASE_ADDR + TOP_EARLGREY_ADC_CTRL_AON_SIZE_BYTES`.
-pub const TOP_EARLGREY_ADC_CTRL_AON_SIZE_BYTES: usize = 0x80;
+/// address between #ADC_CTRL_AON_BASE_ADDR and
+/// `ADC_CTRL_AON_BASE_ADDR + ADC_CTRL_AON_SIZE_BYTES`.
+pub const ADC_CTRL_AON_SIZE_BYTES: usize = 0x80;
+
 /// Peripheral base address for pwm_aon in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_PWM_AON_BASE_ADDR: usize = 0x40450000;
+pub const PWM_AON_BASE_ADDR: usize = 0x40450000;
 
 /// Peripheral size for pwm_aon in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_PWM_AON_BASE_ADDR and
-/// `TOP_EARLGREY_PWM_AON_BASE_ADDR + TOP_EARLGREY_PWM_AON_SIZE_BYTES`.
-pub const TOP_EARLGREY_PWM_AON_SIZE_BYTES: usize = 0x80;
+/// address between #PWM_AON_BASE_ADDR and
+/// `PWM_AON_BASE_ADDR + PWM_AON_SIZE_BYTES`.
+pub const PWM_AON_SIZE_BYTES: usize = 0x80;
+
 /// Peripheral base address for pinmux_aon in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_PINMUX_AON_BASE_ADDR: usize = 0x40460000;
+pub const PINMUX_AON_BASE_ADDR: usize = 0x40460000;
 
 /// Peripheral size for pinmux_aon in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_PINMUX_AON_BASE_ADDR and
-/// `TOP_EARLGREY_PINMUX_AON_BASE_ADDR + TOP_EARLGREY_PINMUX_AON_SIZE_BYTES`.
-pub const TOP_EARLGREY_PINMUX_AON_SIZE_BYTES: usize = 0x1000;
+/// address between #PINMUX_AON_BASE_ADDR and
+/// `PINMUX_AON_BASE_ADDR + PINMUX_AON_SIZE_BYTES`.
+pub const PINMUX_AON_SIZE_BYTES: usize = 0x1000;
+
 /// Peripheral base address for aon_timer_aon in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_AON_TIMER_AON_BASE_ADDR: usize = 0x40470000;
+pub const AON_TIMER_AON_BASE_ADDR: usize = 0x40470000;
 
 /// Peripheral size for aon_timer_aon in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_AON_TIMER_AON_BASE_ADDR and
-/// `TOP_EARLGREY_AON_TIMER_AON_BASE_ADDR + TOP_EARLGREY_AON_TIMER_AON_SIZE_BYTES`.
-pub const TOP_EARLGREY_AON_TIMER_AON_SIZE_BYTES: usize = 0x40;
+/// address between #AON_TIMER_AON_BASE_ADDR and
+/// `AON_TIMER_AON_BASE_ADDR + AON_TIMER_AON_SIZE_BYTES`.
+pub const AON_TIMER_AON_SIZE_BYTES: usize = 0x40;
+
 /// Peripheral base address for ast in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_AST_BASE_ADDR: usize = 0x40480000;
+pub const AST_BASE_ADDR: usize = 0x40480000;
 
 /// Peripheral size for ast in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_AST_BASE_ADDR and
-/// `TOP_EARLGREY_AST_BASE_ADDR + TOP_EARLGREY_AST_SIZE_BYTES`.
-pub const TOP_EARLGREY_AST_SIZE_BYTES: usize = 0x400;
+/// address between #AST_BASE_ADDR and
+/// `AST_BASE_ADDR + AST_SIZE_BYTES`.
+pub const AST_SIZE_BYTES: usize = 0x400;
+
 /// Peripheral base address for sensor_ctrl in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_SENSOR_CTRL_BASE_ADDR: usize = 0x40490000;
+pub const SENSOR_CTRL_BASE_ADDR: usize = 0x40490000;
 
 /// Peripheral size for sensor_ctrl in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_SENSOR_CTRL_BASE_ADDR and
-/// `TOP_EARLGREY_SENSOR_CTRL_BASE_ADDR + TOP_EARLGREY_SENSOR_CTRL_SIZE_BYTES`.
-pub const TOP_EARLGREY_SENSOR_CTRL_SIZE_BYTES: usize = 0x40;
+/// address between #SENSOR_CTRL_BASE_ADDR and
+/// `SENSOR_CTRL_BASE_ADDR + SENSOR_CTRL_SIZE_BYTES`.
+pub const SENSOR_CTRL_SIZE_BYTES: usize = 0x40;
+
 /// Peripheral base address for regs device on sram_ctrl_ret_aon in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_SRAM_CTRL_RET_AON_REGS_BASE_ADDR: usize = 0x40500000;
+pub const SRAM_CTRL_RET_AON_REGS_BASE_ADDR: usize = 0x40500000;
 
 /// Peripheral size for regs device on sram_ctrl_ret_aon in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_SRAM_CTRL_RET_AON_REGS_BASE_ADDR and
-/// `TOP_EARLGREY_SRAM_CTRL_RET_AON_REGS_BASE_ADDR + TOP_EARLGREY_SRAM_CTRL_RET_AON_REGS_SIZE_BYTES`.
-pub const TOP_EARLGREY_SRAM_CTRL_RET_AON_REGS_SIZE_BYTES: usize = 0x20;
+/// address between #SRAM_CTRL_RET_AON_REGS_BASE_ADDR and
+/// `SRAM_CTRL_RET_AON_REGS_BASE_ADDR + SRAM_CTRL_RET_AON_REGS_SIZE_BYTES`.
+pub const SRAM_CTRL_RET_AON_REGS_SIZE_BYTES: usize = 0x20;
+
 /// Peripheral base address for ram device on sram_ctrl_ret_aon in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_SRAM_CTRL_RET_AON_RAM_BASE_ADDR: usize = 0x40600000;
+pub const SRAM_CTRL_RET_AON_RAM_BASE_ADDR: usize = 0x40600000;
 
 /// Peripheral size for ram device on sram_ctrl_ret_aon in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_SRAM_CTRL_RET_AON_RAM_BASE_ADDR and
-/// `TOP_EARLGREY_SRAM_CTRL_RET_AON_RAM_BASE_ADDR + TOP_EARLGREY_SRAM_CTRL_RET_AON_RAM_SIZE_BYTES`.
-pub const TOP_EARLGREY_SRAM_CTRL_RET_AON_RAM_SIZE_BYTES: usize = 0x1000;
+/// address between #SRAM_CTRL_RET_AON_RAM_BASE_ADDR and
+/// `SRAM_CTRL_RET_AON_RAM_BASE_ADDR + SRAM_CTRL_RET_AON_RAM_SIZE_BYTES`.
+pub const SRAM_CTRL_RET_AON_RAM_SIZE_BYTES: usize = 0x1000;
+
 /// Peripheral base address for core device on flash_ctrl in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_FLASH_CTRL_CORE_BASE_ADDR: usize = 0x41000000;
+pub const FLASH_CTRL_CORE_BASE_ADDR: usize = 0x41000000;
 
 /// Peripheral size for core device on flash_ctrl in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_FLASH_CTRL_CORE_BASE_ADDR and
-/// `TOP_EARLGREY_FLASH_CTRL_CORE_BASE_ADDR + TOP_EARLGREY_FLASH_CTRL_CORE_SIZE_BYTES`.
-pub const TOP_EARLGREY_FLASH_CTRL_CORE_SIZE_BYTES: usize = 0x200;
+/// address between #FLASH_CTRL_CORE_BASE_ADDR and
+/// `FLASH_CTRL_CORE_BASE_ADDR + FLASH_CTRL_CORE_SIZE_BYTES`.
+pub const FLASH_CTRL_CORE_SIZE_BYTES: usize = 0x200;
+
 /// Peripheral base address for prim device on flash_ctrl in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_FLASH_CTRL_PRIM_BASE_ADDR: usize = 0x41008000;
+pub const FLASH_CTRL_PRIM_BASE_ADDR: usize = 0x41008000;
 
 /// Peripheral size for prim device on flash_ctrl in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_FLASH_CTRL_PRIM_BASE_ADDR and
-/// `TOP_EARLGREY_FLASH_CTRL_PRIM_BASE_ADDR + TOP_EARLGREY_FLASH_CTRL_PRIM_SIZE_BYTES`.
-pub const TOP_EARLGREY_FLASH_CTRL_PRIM_SIZE_BYTES: usize = 0x80;
+/// address between #FLASH_CTRL_PRIM_BASE_ADDR and
+/// `FLASH_CTRL_PRIM_BASE_ADDR + FLASH_CTRL_PRIM_SIZE_BYTES`.
+pub const FLASH_CTRL_PRIM_SIZE_BYTES: usize = 0x80;
+
 /// Peripheral base address for mem device on flash_ctrl in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_FLASH_CTRL_MEM_BASE_ADDR: usize = 0x20000000;
+pub const FLASH_CTRL_MEM_BASE_ADDR: usize = 0x20000000;
 
 /// Peripheral size for mem device on flash_ctrl in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_FLASH_CTRL_MEM_BASE_ADDR and
-/// `TOP_EARLGREY_FLASH_CTRL_MEM_BASE_ADDR + TOP_EARLGREY_FLASH_CTRL_MEM_SIZE_BYTES`.
-pub const TOP_EARLGREY_FLASH_CTRL_MEM_SIZE_BYTES: usize = 0x100000;
+/// address between #FLASH_CTRL_MEM_BASE_ADDR and
+/// `FLASH_CTRL_MEM_BASE_ADDR + FLASH_CTRL_MEM_SIZE_BYTES`.
+pub const FLASH_CTRL_MEM_SIZE_BYTES: usize = 0x100000;
+
 /// Peripheral base address for regs device on rv_dm in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_RV_DM_REGS_BASE_ADDR: usize = 0x41200000;
+pub const RV_DM_REGS_BASE_ADDR: usize = 0x41200000;
 
 /// Peripheral size for regs device on rv_dm in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_RV_DM_REGS_BASE_ADDR and
-/// `TOP_EARLGREY_RV_DM_REGS_BASE_ADDR + TOP_EARLGREY_RV_DM_REGS_SIZE_BYTES`.
-pub const TOP_EARLGREY_RV_DM_REGS_SIZE_BYTES: usize = 0x4;
+/// address between #RV_DM_REGS_BASE_ADDR and
+/// `RV_DM_REGS_BASE_ADDR + RV_DM_REGS_SIZE_BYTES`.
+pub const RV_DM_REGS_SIZE_BYTES: usize = 0x4;
+
 /// Peripheral base address for mem device on rv_dm in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_RV_DM_MEM_BASE_ADDR: usize = 0x10000;
+pub const RV_DM_MEM_BASE_ADDR: usize = 0x10000;
 
 /// Peripheral size for mem device on rv_dm in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_RV_DM_MEM_BASE_ADDR and
-/// `TOP_EARLGREY_RV_DM_MEM_BASE_ADDR + TOP_EARLGREY_RV_DM_MEM_SIZE_BYTES`.
-pub const TOP_EARLGREY_RV_DM_MEM_SIZE_BYTES: usize = 0x1000;
+/// address between #RV_DM_MEM_BASE_ADDR and
+/// `RV_DM_MEM_BASE_ADDR + RV_DM_MEM_SIZE_BYTES`.
+pub const RV_DM_MEM_SIZE_BYTES: usize = 0x1000;
+
 /// Peripheral base address for rv_plic in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_RV_PLIC_BASE_ADDR: usize = 0x48000000;
+pub const RV_PLIC_BASE_ADDR: usize = 0x48000000;
 
 /// Peripheral size for rv_plic in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_RV_PLIC_BASE_ADDR and
-/// `TOP_EARLGREY_RV_PLIC_BASE_ADDR + TOP_EARLGREY_RV_PLIC_SIZE_BYTES`.
-pub const TOP_EARLGREY_RV_PLIC_SIZE_BYTES: usize = 0x8000000;
+/// address between #RV_PLIC_BASE_ADDR and
+/// `RV_PLIC_BASE_ADDR + RV_PLIC_SIZE_BYTES`.
+pub const RV_PLIC_SIZE_BYTES: usize = 0x8000000;
+
 /// Peripheral base address for aes in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_AES_BASE_ADDR: usize = 0x41100000;
+pub const AES_BASE_ADDR: usize = 0x41100000;
 
 /// Peripheral size for aes in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_AES_BASE_ADDR and
-/// `TOP_EARLGREY_AES_BASE_ADDR + TOP_EARLGREY_AES_SIZE_BYTES`.
-pub const TOP_EARLGREY_AES_SIZE_BYTES: usize = 0x100;
+/// address between #AES_BASE_ADDR and
+/// `AES_BASE_ADDR + AES_SIZE_BYTES`.
+pub const AES_SIZE_BYTES: usize = 0x100;
+
 /// Peripheral base address for hmac in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_HMAC_BASE_ADDR: usize = 0x41110000;
+pub const HMAC_BASE_ADDR: usize = 0x41110000;
 
 /// Peripheral size for hmac in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_HMAC_BASE_ADDR and
-/// `TOP_EARLGREY_HMAC_BASE_ADDR + TOP_EARLGREY_HMAC_SIZE_BYTES`.
-pub const TOP_EARLGREY_HMAC_SIZE_BYTES: usize = 0x1000;
+/// address between #HMAC_BASE_ADDR and
+/// `HMAC_BASE_ADDR + HMAC_SIZE_BYTES`.
+pub const HMAC_SIZE_BYTES: usize = 0x1000;
+
 /// Peripheral base address for kmac in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_KMAC_BASE_ADDR: usize = 0x41120000;
+pub const KMAC_BASE_ADDR: usize = 0x41120000;
 
 /// Peripheral size for kmac in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_KMAC_BASE_ADDR and
-/// `TOP_EARLGREY_KMAC_BASE_ADDR + TOP_EARLGREY_KMAC_SIZE_BYTES`.
-pub const TOP_EARLGREY_KMAC_SIZE_BYTES: usize = 0x1000;
+/// address between #KMAC_BASE_ADDR and
+/// `KMAC_BASE_ADDR + KMAC_SIZE_BYTES`.
+pub const KMAC_SIZE_BYTES: usize = 0x1000;
+
 /// Peripheral base address for otbn in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_OTBN_BASE_ADDR: usize = 0x41130000;
+pub const OTBN_BASE_ADDR: usize = 0x41130000;
 
 /// Peripheral size for otbn in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_OTBN_BASE_ADDR and
-/// `TOP_EARLGREY_OTBN_BASE_ADDR + TOP_EARLGREY_OTBN_SIZE_BYTES`.
-pub const TOP_EARLGREY_OTBN_SIZE_BYTES: usize = 0x10000;
+/// address between #OTBN_BASE_ADDR and
+/// `OTBN_BASE_ADDR + OTBN_SIZE_BYTES`.
+pub const OTBN_SIZE_BYTES: usize = 0x10000;
+
 /// Peripheral base address for keymgr in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_KEYMGR_BASE_ADDR: usize = 0x41140000;
+pub const KEYMGR_BASE_ADDR: usize = 0x41140000;
 
 /// Peripheral size for keymgr in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_KEYMGR_BASE_ADDR and
-/// `TOP_EARLGREY_KEYMGR_BASE_ADDR + TOP_EARLGREY_KEYMGR_SIZE_BYTES`.
-pub const TOP_EARLGREY_KEYMGR_SIZE_BYTES: usize = 0x100;
+/// address between #KEYMGR_BASE_ADDR and
+/// `KEYMGR_BASE_ADDR + KEYMGR_SIZE_BYTES`.
+pub const KEYMGR_SIZE_BYTES: usize = 0x100;
+
 /// Peripheral base address for csrng in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_CSRNG_BASE_ADDR: usize = 0x41150000;
+pub const CSRNG_BASE_ADDR: usize = 0x41150000;
 
 /// Peripheral size for csrng in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_CSRNG_BASE_ADDR and
-/// `TOP_EARLGREY_CSRNG_BASE_ADDR + TOP_EARLGREY_CSRNG_SIZE_BYTES`.
-pub const TOP_EARLGREY_CSRNG_SIZE_BYTES: usize = 0x80;
+/// address between #CSRNG_BASE_ADDR and
+/// `CSRNG_BASE_ADDR + CSRNG_SIZE_BYTES`.
+pub const CSRNG_SIZE_BYTES: usize = 0x80;
+
 /// Peripheral base address for entropy_src in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_ENTROPY_SRC_BASE_ADDR: usize = 0x41160000;
+pub const ENTROPY_SRC_BASE_ADDR: usize = 0x41160000;
 
 /// Peripheral size for entropy_src in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_ENTROPY_SRC_BASE_ADDR and
-/// `TOP_EARLGREY_ENTROPY_SRC_BASE_ADDR + TOP_EARLGREY_ENTROPY_SRC_SIZE_BYTES`.
-pub const TOP_EARLGREY_ENTROPY_SRC_SIZE_BYTES: usize = 0x100;
+/// address between #ENTROPY_SRC_BASE_ADDR and
+/// `ENTROPY_SRC_BASE_ADDR + ENTROPY_SRC_SIZE_BYTES`.
+pub const ENTROPY_SRC_SIZE_BYTES: usize = 0x100;
+
 /// Peripheral base address for edn0 in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_EDN0_BASE_ADDR: usize = 0x41170000;
+pub const EDN0_BASE_ADDR: usize = 0x41170000;
 
 /// Peripheral size for edn0 in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_EDN0_BASE_ADDR and
-/// `TOP_EARLGREY_EDN0_BASE_ADDR + TOP_EARLGREY_EDN0_SIZE_BYTES`.
-pub const TOP_EARLGREY_EDN0_SIZE_BYTES: usize = 0x80;
+/// address between #EDN0_BASE_ADDR and
+/// `EDN0_BASE_ADDR + EDN0_SIZE_BYTES`.
+pub const EDN0_SIZE_BYTES: usize = 0x80;
+
 /// Peripheral base address for edn1 in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_EDN1_BASE_ADDR: usize = 0x41180000;
+pub const EDN1_BASE_ADDR: usize = 0x41180000;
 
 /// Peripheral size for edn1 in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_EDN1_BASE_ADDR and
-/// `TOP_EARLGREY_EDN1_BASE_ADDR + TOP_EARLGREY_EDN1_SIZE_BYTES`.
-pub const TOP_EARLGREY_EDN1_SIZE_BYTES: usize = 0x80;
+/// address between #EDN1_BASE_ADDR and
+/// `EDN1_BASE_ADDR + EDN1_SIZE_BYTES`.
+pub const EDN1_SIZE_BYTES: usize = 0x80;
+
 /// Peripheral base address for regs device on sram_ctrl_main in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_SRAM_CTRL_MAIN_REGS_BASE_ADDR: usize = 0x411C0000;
+pub const SRAM_CTRL_MAIN_REGS_BASE_ADDR: usize = 0x411C0000;
 
 /// Peripheral size for regs device on sram_ctrl_main in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_SRAM_CTRL_MAIN_REGS_BASE_ADDR and
-/// `TOP_EARLGREY_SRAM_CTRL_MAIN_REGS_BASE_ADDR + TOP_EARLGREY_SRAM_CTRL_MAIN_REGS_SIZE_BYTES`.
-pub const TOP_EARLGREY_SRAM_CTRL_MAIN_REGS_SIZE_BYTES: usize = 0x20;
+/// address between #SRAM_CTRL_MAIN_REGS_BASE_ADDR and
+/// `SRAM_CTRL_MAIN_REGS_BASE_ADDR + SRAM_CTRL_MAIN_REGS_SIZE_BYTES`.
+pub const SRAM_CTRL_MAIN_REGS_SIZE_BYTES: usize = 0x20;
+
 /// Peripheral base address for ram device on sram_ctrl_main in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_SRAM_CTRL_MAIN_RAM_BASE_ADDR: usize = 0x10000000;
+pub const SRAM_CTRL_MAIN_RAM_BASE_ADDR: usize = 0x10000000;
 
 /// Peripheral size for ram device on sram_ctrl_main in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_SRAM_CTRL_MAIN_RAM_BASE_ADDR and
-/// `TOP_EARLGREY_SRAM_CTRL_MAIN_RAM_BASE_ADDR + TOP_EARLGREY_SRAM_CTRL_MAIN_RAM_SIZE_BYTES`.
-pub const TOP_EARLGREY_SRAM_CTRL_MAIN_RAM_SIZE_BYTES: usize = 0x20000;
+/// address between #SRAM_CTRL_MAIN_RAM_BASE_ADDR and
+/// `SRAM_CTRL_MAIN_RAM_BASE_ADDR + SRAM_CTRL_MAIN_RAM_SIZE_BYTES`.
+pub const SRAM_CTRL_MAIN_RAM_SIZE_BYTES: usize = 0x20000;
+
 /// Peripheral base address for regs device on rom_ctrl in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_ROM_CTRL_REGS_BASE_ADDR: usize = 0x411E0000;
+pub const ROM_CTRL_REGS_BASE_ADDR: usize = 0x411E0000;
 
 /// Peripheral size for regs device on rom_ctrl in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_ROM_CTRL_REGS_BASE_ADDR and
-/// `TOP_EARLGREY_ROM_CTRL_REGS_BASE_ADDR + TOP_EARLGREY_ROM_CTRL_REGS_SIZE_BYTES`.
-pub const TOP_EARLGREY_ROM_CTRL_REGS_SIZE_BYTES: usize = 0x80;
+/// address between #ROM_CTRL_REGS_BASE_ADDR and
+/// `ROM_CTRL_REGS_BASE_ADDR + ROM_CTRL_REGS_SIZE_BYTES`.
+pub const ROM_CTRL_REGS_SIZE_BYTES: usize = 0x80;
+
 /// Peripheral base address for rom device on rom_ctrl in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_ROM_CTRL_ROM_BASE_ADDR: usize = 0x8000;
+pub const ROM_CTRL_ROM_BASE_ADDR: usize = 0x8000;
 
 /// Peripheral size for rom device on rom_ctrl in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_ROM_CTRL_ROM_BASE_ADDR and
-/// `TOP_EARLGREY_ROM_CTRL_ROM_BASE_ADDR + TOP_EARLGREY_ROM_CTRL_ROM_SIZE_BYTES`.
-pub const TOP_EARLGREY_ROM_CTRL_ROM_SIZE_BYTES: usize = 0x8000;
+/// address between #ROM_CTRL_ROM_BASE_ADDR and
+/// `ROM_CTRL_ROM_BASE_ADDR + ROM_CTRL_ROM_SIZE_BYTES`.
+pub const ROM_CTRL_ROM_SIZE_BYTES: usize = 0x8000;
+
 /// Peripheral base address for cfg device on rv_core_ibex in top earlgrey.
 ///
 /// This should be used with #mmio_region_from_addr to access the memory-mapped
 /// registers associated with the peripheral (usually via a DIF).
-pub const TOP_EARLGREY_RV_CORE_IBEX_CFG_BASE_ADDR: usize = 0x411F0000;
+pub const RV_CORE_IBEX_CFG_BASE_ADDR: usize = 0x411F0000;
 
 /// Peripheral size for cfg device on rv_core_ibex in top earlgrey.
 ///
 /// This is the size (in bytes) of the peripheral's reserved memory area. All
 /// memory-mapped registers associated with this peripheral should have an
-/// address between #TOP_EARLGREY_RV_CORE_IBEX_CFG_BASE_ADDR and
-/// `TOP_EARLGREY_RV_CORE_IBEX_CFG_BASE_ADDR + TOP_EARLGREY_RV_CORE_IBEX_CFG_SIZE_BYTES`.
-pub const TOP_EARLGREY_RV_CORE_IBEX_CFG_SIZE_BYTES: usize = 0x100;
+/// address between #RV_CORE_IBEX_CFG_BASE_ADDR and
+/// `RV_CORE_IBEX_CFG_BASE_ADDR + RV_CORE_IBEX_CFG_SIZE_BYTES`.
+pub const RV_CORE_IBEX_CFG_SIZE_BYTES: usize = 0x100;
 
 /// Memory base address for ram_ret_aon in top earlgrey.
 pub const RAM_RET_AON_BASE_ADDR: usize = 0x40600000;
 
 /// Memory size for ram_ret_aon in top earlgrey.
 pub const RAM_RET_AON_SIZE_BYTES: usize = 0x1000;
+
 /// Memory base address for eflash in top earlgrey.
 pub const EFLASH_BASE_ADDR: usize = 0x20000000;
 
 /// Memory size for eflash in top earlgrey.
 pub const EFLASH_SIZE_BYTES: usize = 0x100000;
+
 /// Memory base address for ram_main in top earlgrey.
 pub const RAM_MAIN_BASE_ADDR: usize = 0x10000000;
 
 /// Memory size for ram_main in top earlgrey.
 pub const RAM_MAIN_SIZE_BYTES: usize = 0x20000;
+
 /// Memory base address for rom in top earlgrey.
 pub const ROM_BASE_ADDR: usize = 0x8000;
 
@@ -702,8 +752,9 @@ pub const ROM_SIZE_BYTES: usize = 0x8000;
 ///
 /// Enumeration used to determine which peripheral asserted the corresponding
 /// interrupt.
+#[derive(Copy, Clone, PartialEq, Eq)]
 #[repr(u32)]
-pub enum TopEarlgreyPlicPeripheral {
+pub enum PlicPeripheral {
     /// Unknown Peripheral
     Unknown = 0,
     /// uart0
@@ -768,7 +819,7 @@ pub enum TopEarlgreyPlicPeripheral {
     Edn1 = 30,
 }
 
-impl TryFrom<u32> for TopEarlgreyPlicPeripheral {
+impl TryFrom<u32> for PlicPeripheral {
     type Error = u32;
     fn try_from(val: u32) -> Result<Self, Self::Error> {
         match val {
@@ -812,8 +863,9 @@ impl TryFrom<u32> for TopEarlgreyPlicPeripheral {
 ///
 /// Enumeration of all PLIC interrupt sources. The interrupt sources belonging to
 /// the same peripheral are guaranteed to be consecutive.
+#[derive(Copy, Clone, PartialEq, Eq)]
 #[repr(u32)]
-pub enum TopEarlgreyPlicIrqId {
+pub enum PlicIrqId {
     /// No Interrupt
     None = 0,
     /// uart0_tx_watermark
@@ -1186,7 +1238,7 @@ pub enum TopEarlgreyPlicIrqId {
     Edn1EdnFatalErr = 184,
 }
 
-impl TryFrom<u32> for TopEarlgreyPlicIrqId {
+impl TryFrom<u32> for PlicIrqId {
     type Error = u32;
     fn try_from(val: u32) -> Result<Self, Self::Error> {
         match val {
@@ -1384,8 +1436,9 @@ impl TryFrom<u32> for TopEarlgreyPlicIrqId {
 ///
 /// Enumeration used to determine which set of IE, CC, threshold registers to
 /// access for a given interrupt target.
+#[derive(Copy, Clone, PartialEq, Eq)]
 #[repr(u32)]
-pub enum TopEarlgreyPlicTarget {
+pub enum PlicTarget {
     /// Ibex Core 0
     Ibex0 = 0,
 }
@@ -1394,8 +1447,9 @@ pub enum TopEarlgreyPlicTarget {
 ///
 /// Enumeration used to determine which peripheral asserted the corresponding
 /// alert.
+#[derive(Copy, Clone, PartialEq, Eq)]
 #[repr(u32)]
-pub enum TopEarlgreyAlertPeripheral {
+pub enum AlertPeripheral {
     /// uart0
     Uart0 = 0,
     /// uart1
@@ -1484,8 +1538,9 @@ pub enum TopEarlgreyAlertPeripheral {
 ///
 /// Enumeration of all Alert Handler Alert Sources. The alert sources belonging to
 /// the same peripheral are guaranteed to be consecutive.
+#[derive(Copy, Clone, PartialEq, Eq)]
 #[repr(u32)]
-pub enum TopEarlgreyAlertId {
+pub enum AlertId {
     /// uart0_fatal_fault
     Uart0FatalFault = 0,
     /// uart1_fatal_fault
@@ -1618,7 +1673,7 @@ pub enum TopEarlgreyAlertId {
     RvCoreIbexRecovHwErr = 64,
 }
 
-impl TryFrom<u32> for TopEarlgreyAlertId {
+impl TryFrom<u32> for AlertId {
     type Error = u32;
     fn try_from(val: u32) -> Result<Self, Self::Error> {
         match val {
@@ -1694,516 +1749,516 @@ impl TryFrom<u32> for TopEarlgreyAlertId {
 
 /// PLIC Interrupt Source to Peripheral Map
 ///
-/// This array is a mapping from `TopEarlgreyPlicIrqId` to
-/// `TopEarlgreyPlicPeripheral`.
-pub const TOP_EARLGREY_PLIC_INTERRUPT_FOR_PERIPHERAL: [TopEarlgreyPlicPeripheral; 185] = [
-    // None -> TopEarlgreyPlicPeripheral::Unknown
-    TopEarlgreyPlicPeripheral::Unknown,
-    // Uart0TxWatermark -> TopEarlgreyPlicPeripheral::Uart0
-    TopEarlgreyPlicPeripheral::Uart0,
-    // Uart0RxWatermark -> TopEarlgreyPlicPeripheral::Uart0
-    TopEarlgreyPlicPeripheral::Uart0,
-    // Uart0TxEmpty -> TopEarlgreyPlicPeripheral::Uart0
-    TopEarlgreyPlicPeripheral::Uart0,
-    // Uart0RxOverflow -> TopEarlgreyPlicPeripheral::Uart0
-    TopEarlgreyPlicPeripheral::Uart0,
-    // Uart0RxFrameErr -> TopEarlgreyPlicPeripheral::Uart0
-    TopEarlgreyPlicPeripheral::Uart0,
-    // Uart0RxBreakErr -> TopEarlgreyPlicPeripheral::Uart0
-    TopEarlgreyPlicPeripheral::Uart0,
-    // Uart0RxTimeout -> TopEarlgreyPlicPeripheral::Uart0
-    TopEarlgreyPlicPeripheral::Uart0,
-    // Uart0RxParityErr -> TopEarlgreyPlicPeripheral::Uart0
-    TopEarlgreyPlicPeripheral::Uart0,
-    // Uart1TxWatermark -> TopEarlgreyPlicPeripheral::Uart1
-    TopEarlgreyPlicPeripheral::Uart1,
-    // Uart1RxWatermark -> TopEarlgreyPlicPeripheral::Uart1
-    TopEarlgreyPlicPeripheral::Uart1,
-    // Uart1TxEmpty -> TopEarlgreyPlicPeripheral::Uart1
-    TopEarlgreyPlicPeripheral::Uart1,
-    // Uart1RxOverflow -> TopEarlgreyPlicPeripheral::Uart1
-    TopEarlgreyPlicPeripheral::Uart1,
-    // Uart1RxFrameErr -> TopEarlgreyPlicPeripheral::Uart1
-    TopEarlgreyPlicPeripheral::Uart1,
-    // Uart1RxBreakErr -> TopEarlgreyPlicPeripheral::Uart1
-    TopEarlgreyPlicPeripheral::Uart1,
-    // Uart1RxTimeout -> TopEarlgreyPlicPeripheral::Uart1
-    TopEarlgreyPlicPeripheral::Uart1,
-    // Uart1RxParityErr -> TopEarlgreyPlicPeripheral::Uart1
-    TopEarlgreyPlicPeripheral::Uart1,
-    // Uart2TxWatermark -> TopEarlgreyPlicPeripheral::Uart2
-    TopEarlgreyPlicPeripheral::Uart2,
-    // Uart2RxWatermark -> TopEarlgreyPlicPeripheral::Uart2
-    TopEarlgreyPlicPeripheral::Uart2,
-    // Uart2TxEmpty -> TopEarlgreyPlicPeripheral::Uart2
-    TopEarlgreyPlicPeripheral::Uart2,
-    // Uart2RxOverflow -> TopEarlgreyPlicPeripheral::Uart2
-    TopEarlgreyPlicPeripheral::Uart2,
-    // Uart2RxFrameErr -> TopEarlgreyPlicPeripheral::Uart2
-    TopEarlgreyPlicPeripheral::Uart2,
-    // Uart2RxBreakErr -> TopEarlgreyPlicPeripheral::Uart2
-    TopEarlgreyPlicPeripheral::Uart2,
-    // Uart2RxTimeout -> TopEarlgreyPlicPeripheral::Uart2
-    TopEarlgreyPlicPeripheral::Uart2,
-    // Uart2RxParityErr -> TopEarlgreyPlicPeripheral::Uart2
-    TopEarlgreyPlicPeripheral::Uart2,
-    // Uart3TxWatermark -> TopEarlgreyPlicPeripheral::Uart3
-    TopEarlgreyPlicPeripheral::Uart3,
-    // Uart3RxWatermark -> TopEarlgreyPlicPeripheral::Uart3
-    TopEarlgreyPlicPeripheral::Uart3,
-    // Uart3TxEmpty -> TopEarlgreyPlicPeripheral::Uart3
-    TopEarlgreyPlicPeripheral::Uart3,
-    // Uart3RxOverflow -> TopEarlgreyPlicPeripheral::Uart3
-    TopEarlgreyPlicPeripheral::Uart3,
-    // Uart3RxFrameErr -> TopEarlgreyPlicPeripheral::Uart3
-    TopEarlgreyPlicPeripheral::Uart3,
-    // Uart3RxBreakErr -> TopEarlgreyPlicPeripheral::Uart3
-    TopEarlgreyPlicPeripheral::Uart3,
-    // Uart3RxTimeout -> TopEarlgreyPlicPeripheral::Uart3
-    TopEarlgreyPlicPeripheral::Uart3,
-    // Uart3RxParityErr -> TopEarlgreyPlicPeripheral::Uart3
-    TopEarlgreyPlicPeripheral::Uart3,
-    // GpioGpio0 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio1 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio2 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio3 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio4 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio5 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio6 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio7 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio8 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio9 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio10 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio11 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio12 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio13 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio14 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio15 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio16 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio17 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio18 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio19 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio20 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio21 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio22 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio23 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio24 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio25 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio26 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio27 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio28 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio29 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio30 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // GpioGpio31 -> TopEarlgreyPlicPeripheral::Gpio
-    TopEarlgreyPlicPeripheral::Gpio,
-    // SpiDeviceGenericRxFull -> TopEarlgreyPlicPeripheral::SpiDevice
-    TopEarlgreyPlicPeripheral::SpiDevice,
-    // SpiDeviceGenericRxWatermark -> TopEarlgreyPlicPeripheral::SpiDevice
-    TopEarlgreyPlicPeripheral::SpiDevice,
-    // SpiDeviceGenericTxWatermark -> TopEarlgreyPlicPeripheral::SpiDevice
-    TopEarlgreyPlicPeripheral::SpiDevice,
-    // SpiDeviceGenericRxError -> TopEarlgreyPlicPeripheral::SpiDevice
-    TopEarlgreyPlicPeripheral::SpiDevice,
-    // SpiDeviceGenericRxOverflow -> TopEarlgreyPlicPeripheral::SpiDevice
-    TopEarlgreyPlicPeripheral::SpiDevice,
-    // SpiDeviceGenericTxUnderflow -> TopEarlgreyPlicPeripheral::SpiDevice
-    TopEarlgreyPlicPeripheral::SpiDevice,
-    // SpiDeviceUploadCmdfifoNotEmpty -> TopEarlgreyPlicPeripheral::SpiDevice
-    TopEarlgreyPlicPeripheral::SpiDevice,
-    // SpiDeviceUploadPayloadNotEmpty -> TopEarlgreyPlicPeripheral::SpiDevice
-    TopEarlgreyPlicPeripheral::SpiDevice,
-    // SpiDeviceUploadPayloadOverflow -> TopEarlgreyPlicPeripheral::SpiDevice
-    TopEarlgreyPlicPeripheral::SpiDevice,
-    // SpiDeviceReadbufWatermark -> TopEarlgreyPlicPeripheral::SpiDevice
-    TopEarlgreyPlicPeripheral::SpiDevice,
-    // SpiDeviceReadbufFlip -> TopEarlgreyPlicPeripheral::SpiDevice
-    TopEarlgreyPlicPeripheral::SpiDevice,
-    // SpiDeviceTpmHeaderNotEmpty -> TopEarlgreyPlicPeripheral::SpiDevice
-    TopEarlgreyPlicPeripheral::SpiDevice,
-    // I2c0FmtThreshold -> TopEarlgreyPlicPeripheral::I2c0
-    TopEarlgreyPlicPeripheral::I2c0,
-    // I2c0RxThreshold -> TopEarlgreyPlicPeripheral::I2c0
-    TopEarlgreyPlicPeripheral::I2c0,
-    // I2c0FmtOverflow -> TopEarlgreyPlicPeripheral::I2c0
-    TopEarlgreyPlicPeripheral::I2c0,
-    // I2c0RxOverflow -> TopEarlgreyPlicPeripheral::I2c0
-    TopEarlgreyPlicPeripheral::I2c0,
-    // I2c0Nak -> TopEarlgreyPlicPeripheral::I2c0
-    TopEarlgreyPlicPeripheral::I2c0,
-    // I2c0SclInterference -> TopEarlgreyPlicPeripheral::I2c0
-    TopEarlgreyPlicPeripheral::I2c0,
-    // I2c0SdaInterference -> TopEarlgreyPlicPeripheral::I2c0
-    TopEarlgreyPlicPeripheral::I2c0,
-    // I2c0StretchTimeout -> TopEarlgreyPlicPeripheral::I2c0
-    TopEarlgreyPlicPeripheral::I2c0,
-    // I2c0SdaUnstable -> TopEarlgreyPlicPeripheral::I2c0
-    TopEarlgreyPlicPeripheral::I2c0,
-    // I2c0CmdComplete -> TopEarlgreyPlicPeripheral::I2c0
-    TopEarlgreyPlicPeripheral::I2c0,
-    // I2c0TxStretch -> TopEarlgreyPlicPeripheral::I2c0
-    TopEarlgreyPlicPeripheral::I2c0,
-    // I2c0TxOverflow -> TopEarlgreyPlicPeripheral::I2c0
-    TopEarlgreyPlicPeripheral::I2c0,
-    // I2c0AcqFull -> TopEarlgreyPlicPeripheral::I2c0
-    TopEarlgreyPlicPeripheral::I2c0,
-    // I2c0UnexpStop -> TopEarlgreyPlicPeripheral::I2c0
-    TopEarlgreyPlicPeripheral::I2c0,
-    // I2c0HostTimeout -> TopEarlgreyPlicPeripheral::I2c0
-    TopEarlgreyPlicPeripheral::I2c0,
-    // I2c1FmtThreshold -> TopEarlgreyPlicPeripheral::I2c1
-    TopEarlgreyPlicPeripheral::I2c1,
-    // I2c1RxThreshold -> TopEarlgreyPlicPeripheral::I2c1
-    TopEarlgreyPlicPeripheral::I2c1,
-    // I2c1FmtOverflow -> TopEarlgreyPlicPeripheral::I2c1
-    TopEarlgreyPlicPeripheral::I2c1,
-    // I2c1RxOverflow -> TopEarlgreyPlicPeripheral::I2c1
-    TopEarlgreyPlicPeripheral::I2c1,
-    // I2c1Nak -> TopEarlgreyPlicPeripheral::I2c1
-    TopEarlgreyPlicPeripheral::I2c1,
-    // I2c1SclInterference -> TopEarlgreyPlicPeripheral::I2c1
-    TopEarlgreyPlicPeripheral::I2c1,
-    // I2c1SdaInterference -> TopEarlgreyPlicPeripheral::I2c1
-    TopEarlgreyPlicPeripheral::I2c1,
-    // I2c1StretchTimeout -> TopEarlgreyPlicPeripheral::I2c1
-    TopEarlgreyPlicPeripheral::I2c1,
-    // I2c1SdaUnstable -> TopEarlgreyPlicPeripheral::I2c1
-    TopEarlgreyPlicPeripheral::I2c1,
-    // I2c1CmdComplete -> TopEarlgreyPlicPeripheral::I2c1
-    TopEarlgreyPlicPeripheral::I2c1,
-    // I2c1TxStretch -> TopEarlgreyPlicPeripheral::I2c1
-    TopEarlgreyPlicPeripheral::I2c1,
-    // I2c1TxOverflow -> TopEarlgreyPlicPeripheral::I2c1
-    TopEarlgreyPlicPeripheral::I2c1,
-    // I2c1AcqFull -> TopEarlgreyPlicPeripheral::I2c1
-    TopEarlgreyPlicPeripheral::I2c1,
-    // I2c1UnexpStop -> TopEarlgreyPlicPeripheral::I2c1
-    TopEarlgreyPlicPeripheral::I2c1,
-    // I2c1HostTimeout -> TopEarlgreyPlicPeripheral::I2c1
-    TopEarlgreyPlicPeripheral::I2c1,
-    // I2c2FmtThreshold -> TopEarlgreyPlicPeripheral::I2c2
-    TopEarlgreyPlicPeripheral::I2c2,
-    // I2c2RxThreshold -> TopEarlgreyPlicPeripheral::I2c2
-    TopEarlgreyPlicPeripheral::I2c2,
-    // I2c2FmtOverflow -> TopEarlgreyPlicPeripheral::I2c2
-    TopEarlgreyPlicPeripheral::I2c2,
-    // I2c2RxOverflow -> TopEarlgreyPlicPeripheral::I2c2
-    TopEarlgreyPlicPeripheral::I2c2,
-    // I2c2Nak -> TopEarlgreyPlicPeripheral::I2c2
-    TopEarlgreyPlicPeripheral::I2c2,
-    // I2c2SclInterference -> TopEarlgreyPlicPeripheral::I2c2
-    TopEarlgreyPlicPeripheral::I2c2,
-    // I2c2SdaInterference -> TopEarlgreyPlicPeripheral::I2c2
-    TopEarlgreyPlicPeripheral::I2c2,
-    // I2c2StretchTimeout -> TopEarlgreyPlicPeripheral::I2c2
-    TopEarlgreyPlicPeripheral::I2c2,
-    // I2c2SdaUnstable -> TopEarlgreyPlicPeripheral::I2c2
-    TopEarlgreyPlicPeripheral::I2c2,
-    // I2c2CmdComplete -> TopEarlgreyPlicPeripheral::I2c2
-    TopEarlgreyPlicPeripheral::I2c2,
-    // I2c2TxStretch -> TopEarlgreyPlicPeripheral::I2c2
-    TopEarlgreyPlicPeripheral::I2c2,
-    // I2c2TxOverflow -> TopEarlgreyPlicPeripheral::I2c2
-    TopEarlgreyPlicPeripheral::I2c2,
-    // I2c2AcqFull -> TopEarlgreyPlicPeripheral::I2c2
-    TopEarlgreyPlicPeripheral::I2c2,
-    // I2c2UnexpStop -> TopEarlgreyPlicPeripheral::I2c2
-    TopEarlgreyPlicPeripheral::I2c2,
-    // I2c2HostTimeout -> TopEarlgreyPlicPeripheral::I2c2
-    TopEarlgreyPlicPeripheral::I2c2,
-    // PattgenDoneCh0 -> TopEarlgreyPlicPeripheral::Pattgen
-    TopEarlgreyPlicPeripheral::Pattgen,
-    // PattgenDoneCh1 -> TopEarlgreyPlicPeripheral::Pattgen
-    TopEarlgreyPlicPeripheral::Pattgen,
-    // RvTimerTimerExpiredHart0Timer0 -> TopEarlgreyPlicPeripheral::RvTimer
-    TopEarlgreyPlicPeripheral::RvTimer,
-    // OtpCtrlOtpOperationDone -> TopEarlgreyPlicPeripheral::OtpCtrl
-    TopEarlgreyPlicPeripheral::OtpCtrl,
-    // OtpCtrlOtpError -> TopEarlgreyPlicPeripheral::OtpCtrl
-    TopEarlgreyPlicPeripheral::OtpCtrl,
-    // AlertHandlerClassa -> TopEarlgreyPlicPeripheral::AlertHandler
-    TopEarlgreyPlicPeripheral::AlertHandler,
-    // AlertHandlerClassb -> TopEarlgreyPlicPeripheral::AlertHandler
-    TopEarlgreyPlicPeripheral::AlertHandler,
-    // AlertHandlerClassc -> TopEarlgreyPlicPeripheral::AlertHandler
-    TopEarlgreyPlicPeripheral::AlertHandler,
-    // AlertHandlerClassd -> TopEarlgreyPlicPeripheral::AlertHandler
-    TopEarlgreyPlicPeripheral::AlertHandler,
-    // SpiHost0Error -> TopEarlgreyPlicPeripheral::SpiHost0
-    TopEarlgreyPlicPeripheral::SpiHost0,
-    // SpiHost0SpiEvent -> TopEarlgreyPlicPeripheral::SpiHost0
-    TopEarlgreyPlicPeripheral::SpiHost0,
-    // SpiHost1Error -> TopEarlgreyPlicPeripheral::SpiHost1
-    TopEarlgreyPlicPeripheral::SpiHost1,
-    // SpiHost1SpiEvent -> TopEarlgreyPlicPeripheral::SpiHost1
-    TopEarlgreyPlicPeripheral::SpiHost1,
-    // UsbdevPktReceived -> TopEarlgreyPlicPeripheral::Usbdev
-    TopEarlgreyPlicPeripheral::Usbdev,
-    // UsbdevPktSent -> TopEarlgreyPlicPeripheral::Usbdev
-    TopEarlgreyPlicPeripheral::Usbdev,
-    // UsbdevDisconnected -> TopEarlgreyPlicPeripheral::Usbdev
-    TopEarlgreyPlicPeripheral::Usbdev,
-    // UsbdevHostLost -> TopEarlgreyPlicPeripheral::Usbdev
-    TopEarlgreyPlicPeripheral::Usbdev,
-    // UsbdevLinkReset -> TopEarlgreyPlicPeripheral::Usbdev
-    TopEarlgreyPlicPeripheral::Usbdev,
-    // UsbdevLinkSuspend -> TopEarlgreyPlicPeripheral::Usbdev
-    TopEarlgreyPlicPeripheral::Usbdev,
-    // UsbdevLinkResume -> TopEarlgreyPlicPeripheral::Usbdev
-    TopEarlgreyPlicPeripheral::Usbdev,
-    // UsbdevAvEmpty -> TopEarlgreyPlicPeripheral::Usbdev
-    TopEarlgreyPlicPeripheral::Usbdev,
-    // UsbdevRxFull -> TopEarlgreyPlicPeripheral::Usbdev
-    TopEarlgreyPlicPeripheral::Usbdev,
-    // UsbdevAvOverflow -> TopEarlgreyPlicPeripheral::Usbdev
-    TopEarlgreyPlicPeripheral::Usbdev,
-    // UsbdevLinkInErr -> TopEarlgreyPlicPeripheral::Usbdev
-    TopEarlgreyPlicPeripheral::Usbdev,
-    // UsbdevRxCrcErr -> TopEarlgreyPlicPeripheral::Usbdev
-    TopEarlgreyPlicPeripheral::Usbdev,
-    // UsbdevRxPidErr -> TopEarlgreyPlicPeripheral::Usbdev
-    TopEarlgreyPlicPeripheral::Usbdev,
-    // UsbdevRxBitstuffErr -> TopEarlgreyPlicPeripheral::Usbdev
-    TopEarlgreyPlicPeripheral::Usbdev,
-    // UsbdevFrame -> TopEarlgreyPlicPeripheral::Usbdev
-    TopEarlgreyPlicPeripheral::Usbdev,
-    // UsbdevPowered -> TopEarlgreyPlicPeripheral::Usbdev
-    TopEarlgreyPlicPeripheral::Usbdev,
-    // UsbdevLinkOutErr -> TopEarlgreyPlicPeripheral::Usbdev
-    TopEarlgreyPlicPeripheral::Usbdev,
-    // PwrmgrAonWakeup -> TopEarlgreyPlicPeripheral::PwrmgrAon
-    TopEarlgreyPlicPeripheral::PwrmgrAon,
-    // SysrstCtrlAonEventDetected -> TopEarlgreyPlicPeripheral::SysrstCtrlAon
-    TopEarlgreyPlicPeripheral::SysrstCtrlAon,
-    // AdcCtrlAonMatchDone -> TopEarlgreyPlicPeripheral::AdcCtrlAon
-    TopEarlgreyPlicPeripheral::AdcCtrlAon,
-    // AonTimerAonWkupTimerExpired -> TopEarlgreyPlicPeripheral::AonTimerAon
-    TopEarlgreyPlicPeripheral::AonTimerAon,
-    // AonTimerAonWdogTimerBark -> TopEarlgreyPlicPeripheral::AonTimerAon
-    TopEarlgreyPlicPeripheral::AonTimerAon,
-    // SensorCtrlIoStatusChange -> TopEarlgreyPlicPeripheral::SensorCtrl
-    TopEarlgreyPlicPeripheral::SensorCtrl,
-    // SensorCtrlInitStatusChange -> TopEarlgreyPlicPeripheral::SensorCtrl
-    TopEarlgreyPlicPeripheral::SensorCtrl,
-    // FlashCtrlProgEmpty -> TopEarlgreyPlicPeripheral::FlashCtrl
-    TopEarlgreyPlicPeripheral::FlashCtrl,
-    // FlashCtrlProgLvl -> TopEarlgreyPlicPeripheral::FlashCtrl
-    TopEarlgreyPlicPeripheral::FlashCtrl,
-    // FlashCtrlRdFull -> TopEarlgreyPlicPeripheral::FlashCtrl
-    TopEarlgreyPlicPeripheral::FlashCtrl,
-    // FlashCtrlRdLvl -> TopEarlgreyPlicPeripheral::FlashCtrl
-    TopEarlgreyPlicPeripheral::FlashCtrl,
-    // FlashCtrlOpDone -> TopEarlgreyPlicPeripheral::FlashCtrl
-    TopEarlgreyPlicPeripheral::FlashCtrl,
-    // FlashCtrlCorrErr -> TopEarlgreyPlicPeripheral::FlashCtrl
-    TopEarlgreyPlicPeripheral::FlashCtrl,
-    // HmacHmacDone -> TopEarlgreyPlicPeripheral::Hmac
-    TopEarlgreyPlicPeripheral::Hmac,
-    // HmacFifoEmpty -> TopEarlgreyPlicPeripheral::Hmac
-    TopEarlgreyPlicPeripheral::Hmac,
-    // HmacHmacErr -> TopEarlgreyPlicPeripheral::Hmac
-    TopEarlgreyPlicPeripheral::Hmac,
-    // KmacKmacDone -> TopEarlgreyPlicPeripheral::Kmac
-    TopEarlgreyPlicPeripheral::Kmac,
-    // KmacFifoEmpty -> TopEarlgreyPlicPeripheral::Kmac
-    TopEarlgreyPlicPeripheral::Kmac,
-    // KmacKmacErr -> TopEarlgreyPlicPeripheral::Kmac
-    TopEarlgreyPlicPeripheral::Kmac,
-    // OtbnDone -> TopEarlgreyPlicPeripheral::Otbn
-    TopEarlgreyPlicPeripheral::Otbn,
-    // KeymgrOpDone -> TopEarlgreyPlicPeripheral::Keymgr
-    TopEarlgreyPlicPeripheral::Keymgr,
-    // CsrngCsCmdReqDone -> TopEarlgreyPlicPeripheral::Csrng
-    TopEarlgreyPlicPeripheral::Csrng,
-    // CsrngCsEntropyReq -> TopEarlgreyPlicPeripheral::Csrng
-    TopEarlgreyPlicPeripheral::Csrng,
-    // CsrngCsHwInstExc -> TopEarlgreyPlicPeripheral::Csrng
-    TopEarlgreyPlicPeripheral::Csrng,
-    // CsrngCsFatalErr -> TopEarlgreyPlicPeripheral::Csrng
-    TopEarlgreyPlicPeripheral::Csrng,
-    // EntropySrcEsEntropyValid -> TopEarlgreyPlicPeripheral::EntropySrc
-    TopEarlgreyPlicPeripheral::EntropySrc,
-    // EntropySrcEsHealthTestFailed -> TopEarlgreyPlicPeripheral::EntropySrc
-    TopEarlgreyPlicPeripheral::EntropySrc,
-    // EntropySrcEsObserveFifoReady -> TopEarlgreyPlicPeripheral::EntropySrc
-    TopEarlgreyPlicPeripheral::EntropySrc,
-    // EntropySrcEsFatalErr -> TopEarlgreyPlicPeripheral::EntropySrc
-    TopEarlgreyPlicPeripheral::EntropySrc,
-    // Edn0EdnCmdReqDone -> TopEarlgreyPlicPeripheral::Edn0
-    TopEarlgreyPlicPeripheral::Edn0,
-    // Edn0EdnFatalErr -> TopEarlgreyPlicPeripheral::Edn0
-    TopEarlgreyPlicPeripheral::Edn0,
-    // Edn1EdnCmdReqDone -> TopEarlgreyPlicPeripheral::Edn1
-    TopEarlgreyPlicPeripheral::Edn1,
-    // Edn1EdnFatalErr -> TopEarlgreyPlicPeripheral::Edn1
-    TopEarlgreyPlicPeripheral::Edn1,
+/// This array is a mapping from `PlicIrqId` to
+/// `PlicPeripheral`.
+pub const PLIC_INTERRUPT_FOR_PERIPHERAL: [PlicPeripheral; 185] = [
+    // None -> PlicPeripheral::Unknown
+    PlicPeripheral::Unknown,
+    // Uart0TxWatermark -> PlicPeripheral::Uart0
+    PlicPeripheral::Uart0,
+    // Uart0RxWatermark -> PlicPeripheral::Uart0
+    PlicPeripheral::Uart0,
+    // Uart0TxEmpty -> PlicPeripheral::Uart0
+    PlicPeripheral::Uart0,
+    // Uart0RxOverflow -> PlicPeripheral::Uart0
+    PlicPeripheral::Uart0,
+    // Uart0RxFrameErr -> PlicPeripheral::Uart0
+    PlicPeripheral::Uart0,
+    // Uart0RxBreakErr -> PlicPeripheral::Uart0
+    PlicPeripheral::Uart0,
+    // Uart0RxTimeout -> PlicPeripheral::Uart0
+    PlicPeripheral::Uart0,
+    // Uart0RxParityErr -> PlicPeripheral::Uart0
+    PlicPeripheral::Uart0,
+    // Uart1TxWatermark -> PlicPeripheral::Uart1
+    PlicPeripheral::Uart1,
+    // Uart1RxWatermark -> PlicPeripheral::Uart1
+    PlicPeripheral::Uart1,
+    // Uart1TxEmpty -> PlicPeripheral::Uart1
+    PlicPeripheral::Uart1,
+    // Uart1RxOverflow -> PlicPeripheral::Uart1
+    PlicPeripheral::Uart1,
+    // Uart1RxFrameErr -> PlicPeripheral::Uart1
+    PlicPeripheral::Uart1,
+    // Uart1RxBreakErr -> PlicPeripheral::Uart1
+    PlicPeripheral::Uart1,
+    // Uart1RxTimeout -> PlicPeripheral::Uart1
+    PlicPeripheral::Uart1,
+    // Uart1RxParityErr -> PlicPeripheral::Uart1
+    PlicPeripheral::Uart1,
+    // Uart2TxWatermark -> PlicPeripheral::Uart2
+    PlicPeripheral::Uart2,
+    // Uart2RxWatermark -> PlicPeripheral::Uart2
+    PlicPeripheral::Uart2,
+    // Uart2TxEmpty -> PlicPeripheral::Uart2
+    PlicPeripheral::Uart2,
+    // Uart2RxOverflow -> PlicPeripheral::Uart2
+    PlicPeripheral::Uart2,
+    // Uart2RxFrameErr -> PlicPeripheral::Uart2
+    PlicPeripheral::Uart2,
+    // Uart2RxBreakErr -> PlicPeripheral::Uart2
+    PlicPeripheral::Uart2,
+    // Uart2RxTimeout -> PlicPeripheral::Uart2
+    PlicPeripheral::Uart2,
+    // Uart2RxParityErr -> PlicPeripheral::Uart2
+    PlicPeripheral::Uart2,
+    // Uart3TxWatermark -> PlicPeripheral::Uart3
+    PlicPeripheral::Uart3,
+    // Uart3RxWatermark -> PlicPeripheral::Uart3
+    PlicPeripheral::Uart3,
+    // Uart3TxEmpty -> PlicPeripheral::Uart3
+    PlicPeripheral::Uart3,
+    // Uart3RxOverflow -> PlicPeripheral::Uart3
+    PlicPeripheral::Uart3,
+    // Uart3RxFrameErr -> PlicPeripheral::Uart3
+    PlicPeripheral::Uart3,
+    // Uart3RxBreakErr -> PlicPeripheral::Uart3
+    PlicPeripheral::Uart3,
+    // Uart3RxTimeout -> PlicPeripheral::Uart3
+    PlicPeripheral::Uart3,
+    // Uart3RxParityErr -> PlicPeripheral::Uart3
+    PlicPeripheral::Uart3,
+    // GpioGpio0 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio1 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio2 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio3 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio4 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio5 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio6 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio7 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio8 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio9 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio10 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio11 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio12 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio13 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio14 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio15 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio16 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio17 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio18 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio19 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio20 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio21 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio22 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio23 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio24 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio25 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio26 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio27 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio28 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio29 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio30 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // GpioGpio31 -> PlicPeripheral::Gpio
+    PlicPeripheral::Gpio,
+    // SpiDeviceGenericRxFull -> PlicPeripheral::SpiDevice
+    PlicPeripheral::SpiDevice,
+    // SpiDeviceGenericRxWatermark -> PlicPeripheral::SpiDevice
+    PlicPeripheral::SpiDevice,
+    // SpiDeviceGenericTxWatermark -> PlicPeripheral::SpiDevice
+    PlicPeripheral::SpiDevice,
+    // SpiDeviceGenericRxError -> PlicPeripheral::SpiDevice
+    PlicPeripheral::SpiDevice,
+    // SpiDeviceGenericRxOverflow -> PlicPeripheral::SpiDevice
+    PlicPeripheral::SpiDevice,
+    // SpiDeviceGenericTxUnderflow -> PlicPeripheral::SpiDevice
+    PlicPeripheral::SpiDevice,
+    // SpiDeviceUploadCmdfifoNotEmpty -> PlicPeripheral::SpiDevice
+    PlicPeripheral::SpiDevice,
+    // SpiDeviceUploadPayloadNotEmpty -> PlicPeripheral::SpiDevice
+    PlicPeripheral::SpiDevice,
+    // SpiDeviceUploadPayloadOverflow -> PlicPeripheral::SpiDevice
+    PlicPeripheral::SpiDevice,
+    // SpiDeviceReadbufWatermark -> PlicPeripheral::SpiDevice
+    PlicPeripheral::SpiDevice,
+    // SpiDeviceReadbufFlip -> PlicPeripheral::SpiDevice
+    PlicPeripheral::SpiDevice,
+    // SpiDeviceTpmHeaderNotEmpty -> PlicPeripheral::SpiDevice
+    PlicPeripheral::SpiDevice,
+    // I2c0FmtThreshold -> PlicPeripheral::I2c0
+    PlicPeripheral::I2c0,
+    // I2c0RxThreshold -> PlicPeripheral::I2c0
+    PlicPeripheral::I2c0,
+    // I2c0FmtOverflow -> PlicPeripheral::I2c0
+    PlicPeripheral::I2c0,
+    // I2c0RxOverflow -> PlicPeripheral::I2c0
+    PlicPeripheral::I2c0,
+    // I2c0Nak -> PlicPeripheral::I2c0
+    PlicPeripheral::I2c0,
+    // I2c0SclInterference -> PlicPeripheral::I2c0
+    PlicPeripheral::I2c0,
+    // I2c0SdaInterference -> PlicPeripheral::I2c0
+    PlicPeripheral::I2c0,
+    // I2c0StretchTimeout -> PlicPeripheral::I2c0
+    PlicPeripheral::I2c0,
+    // I2c0SdaUnstable -> PlicPeripheral::I2c0
+    PlicPeripheral::I2c0,
+    // I2c0CmdComplete -> PlicPeripheral::I2c0
+    PlicPeripheral::I2c0,
+    // I2c0TxStretch -> PlicPeripheral::I2c0
+    PlicPeripheral::I2c0,
+    // I2c0TxOverflow -> PlicPeripheral::I2c0
+    PlicPeripheral::I2c0,
+    // I2c0AcqFull -> PlicPeripheral::I2c0
+    PlicPeripheral::I2c0,
+    // I2c0UnexpStop -> PlicPeripheral::I2c0
+    PlicPeripheral::I2c0,
+    // I2c0HostTimeout -> PlicPeripheral::I2c0
+    PlicPeripheral::I2c0,
+    // I2c1FmtThreshold -> PlicPeripheral::I2c1
+    PlicPeripheral::I2c1,
+    // I2c1RxThreshold -> PlicPeripheral::I2c1
+    PlicPeripheral::I2c1,
+    // I2c1FmtOverflow -> PlicPeripheral::I2c1
+    PlicPeripheral::I2c1,
+    // I2c1RxOverflow -> PlicPeripheral::I2c1
+    PlicPeripheral::I2c1,
+    // I2c1Nak -> PlicPeripheral::I2c1
+    PlicPeripheral::I2c1,
+    // I2c1SclInterference -> PlicPeripheral::I2c1
+    PlicPeripheral::I2c1,
+    // I2c1SdaInterference -> PlicPeripheral::I2c1
+    PlicPeripheral::I2c1,
+    // I2c1StretchTimeout -> PlicPeripheral::I2c1
+    PlicPeripheral::I2c1,
+    // I2c1SdaUnstable -> PlicPeripheral::I2c1
+    PlicPeripheral::I2c1,
+    // I2c1CmdComplete -> PlicPeripheral::I2c1
+    PlicPeripheral::I2c1,
+    // I2c1TxStretch -> PlicPeripheral::I2c1
+    PlicPeripheral::I2c1,
+    // I2c1TxOverflow -> PlicPeripheral::I2c1
+    PlicPeripheral::I2c1,
+    // I2c1AcqFull -> PlicPeripheral::I2c1
+    PlicPeripheral::I2c1,
+    // I2c1UnexpStop -> PlicPeripheral::I2c1
+    PlicPeripheral::I2c1,
+    // I2c1HostTimeout -> PlicPeripheral::I2c1
+    PlicPeripheral::I2c1,
+    // I2c2FmtThreshold -> PlicPeripheral::I2c2
+    PlicPeripheral::I2c2,
+    // I2c2RxThreshold -> PlicPeripheral::I2c2
+    PlicPeripheral::I2c2,
+    // I2c2FmtOverflow -> PlicPeripheral::I2c2
+    PlicPeripheral::I2c2,
+    // I2c2RxOverflow -> PlicPeripheral::I2c2
+    PlicPeripheral::I2c2,
+    // I2c2Nak -> PlicPeripheral::I2c2
+    PlicPeripheral::I2c2,
+    // I2c2SclInterference -> PlicPeripheral::I2c2
+    PlicPeripheral::I2c2,
+    // I2c2SdaInterference -> PlicPeripheral::I2c2
+    PlicPeripheral::I2c2,
+    // I2c2StretchTimeout -> PlicPeripheral::I2c2
+    PlicPeripheral::I2c2,
+    // I2c2SdaUnstable -> PlicPeripheral::I2c2
+    PlicPeripheral::I2c2,
+    // I2c2CmdComplete -> PlicPeripheral::I2c2
+    PlicPeripheral::I2c2,
+    // I2c2TxStretch -> PlicPeripheral::I2c2
+    PlicPeripheral::I2c2,
+    // I2c2TxOverflow -> PlicPeripheral::I2c2
+    PlicPeripheral::I2c2,
+    // I2c2AcqFull -> PlicPeripheral::I2c2
+    PlicPeripheral::I2c2,
+    // I2c2UnexpStop -> PlicPeripheral::I2c2
+    PlicPeripheral::I2c2,
+    // I2c2HostTimeout -> PlicPeripheral::I2c2
+    PlicPeripheral::I2c2,
+    // PattgenDoneCh0 -> PlicPeripheral::Pattgen
+    PlicPeripheral::Pattgen,
+    // PattgenDoneCh1 -> PlicPeripheral::Pattgen
+    PlicPeripheral::Pattgen,
+    // RvTimerTimerExpiredHart0Timer0 -> PlicPeripheral::RvTimer
+    PlicPeripheral::RvTimer,
+    // OtpCtrlOtpOperationDone -> PlicPeripheral::OtpCtrl
+    PlicPeripheral::OtpCtrl,
+    // OtpCtrlOtpError -> PlicPeripheral::OtpCtrl
+    PlicPeripheral::OtpCtrl,
+    // AlertHandlerClassa -> PlicPeripheral::AlertHandler
+    PlicPeripheral::AlertHandler,
+    // AlertHandlerClassb -> PlicPeripheral::AlertHandler
+    PlicPeripheral::AlertHandler,
+    // AlertHandlerClassc -> PlicPeripheral::AlertHandler
+    PlicPeripheral::AlertHandler,
+    // AlertHandlerClassd -> PlicPeripheral::AlertHandler
+    PlicPeripheral::AlertHandler,
+    // SpiHost0Error -> PlicPeripheral::SpiHost0
+    PlicPeripheral::SpiHost0,
+    // SpiHost0SpiEvent -> PlicPeripheral::SpiHost0
+    PlicPeripheral::SpiHost0,
+    // SpiHost1Error -> PlicPeripheral::SpiHost1
+    PlicPeripheral::SpiHost1,
+    // SpiHost1SpiEvent -> PlicPeripheral::SpiHost1
+    PlicPeripheral::SpiHost1,
+    // UsbdevPktReceived -> PlicPeripheral::Usbdev
+    PlicPeripheral::Usbdev,
+    // UsbdevPktSent -> PlicPeripheral::Usbdev
+    PlicPeripheral::Usbdev,
+    // UsbdevDisconnected -> PlicPeripheral::Usbdev
+    PlicPeripheral::Usbdev,
+    // UsbdevHostLost -> PlicPeripheral::Usbdev
+    PlicPeripheral::Usbdev,
+    // UsbdevLinkReset -> PlicPeripheral::Usbdev
+    PlicPeripheral::Usbdev,
+    // UsbdevLinkSuspend -> PlicPeripheral::Usbdev
+    PlicPeripheral::Usbdev,
+    // UsbdevLinkResume -> PlicPeripheral::Usbdev
+    PlicPeripheral::Usbdev,
+    // UsbdevAvEmpty -> PlicPeripheral::Usbdev
+    PlicPeripheral::Usbdev,
+    // UsbdevRxFull -> PlicPeripheral::Usbdev
+    PlicPeripheral::Usbdev,
+    // UsbdevAvOverflow -> PlicPeripheral::Usbdev
+    PlicPeripheral::Usbdev,
+    // UsbdevLinkInErr -> PlicPeripheral::Usbdev
+    PlicPeripheral::Usbdev,
+    // UsbdevRxCrcErr -> PlicPeripheral::Usbdev
+    PlicPeripheral::Usbdev,
+    // UsbdevRxPidErr -> PlicPeripheral::Usbdev
+    PlicPeripheral::Usbdev,
+    // UsbdevRxBitstuffErr -> PlicPeripheral::Usbdev
+    PlicPeripheral::Usbdev,
+    // UsbdevFrame -> PlicPeripheral::Usbdev
+    PlicPeripheral::Usbdev,
+    // UsbdevPowered -> PlicPeripheral::Usbdev
+    PlicPeripheral::Usbdev,
+    // UsbdevLinkOutErr -> PlicPeripheral::Usbdev
+    PlicPeripheral::Usbdev,
+    // PwrmgrAonWakeup -> PlicPeripheral::PwrmgrAon
+    PlicPeripheral::PwrmgrAon,
+    // SysrstCtrlAonEventDetected -> PlicPeripheral::SysrstCtrlAon
+    PlicPeripheral::SysrstCtrlAon,
+    // AdcCtrlAonMatchDone -> PlicPeripheral::AdcCtrlAon
+    PlicPeripheral::AdcCtrlAon,
+    // AonTimerAonWkupTimerExpired -> PlicPeripheral::AonTimerAon
+    PlicPeripheral::AonTimerAon,
+    // AonTimerAonWdogTimerBark -> PlicPeripheral::AonTimerAon
+    PlicPeripheral::AonTimerAon,
+    // SensorCtrlIoStatusChange -> PlicPeripheral::SensorCtrl
+    PlicPeripheral::SensorCtrl,
+    // SensorCtrlInitStatusChange -> PlicPeripheral::SensorCtrl
+    PlicPeripheral::SensorCtrl,
+    // FlashCtrlProgEmpty -> PlicPeripheral::FlashCtrl
+    PlicPeripheral::FlashCtrl,
+    // FlashCtrlProgLvl -> PlicPeripheral::FlashCtrl
+    PlicPeripheral::FlashCtrl,
+    // FlashCtrlRdFull -> PlicPeripheral::FlashCtrl
+    PlicPeripheral::FlashCtrl,
+    // FlashCtrlRdLvl -> PlicPeripheral::FlashCtrl
+    PlicPeripheral::FlashCtrl,
+    // FlashCtrlOpDone -> PlicPeripheral::FlashCtrl
+    PlicPeripheral::FlashCtrl,
+    // FlashCtrlCorrErr -> PlicPeripheral::FlashCtrl
+    PlicPeripheral::FlashCtrl,
+    // HmacHmacDone -> PlicPeripheral::Hmac
+    PlicPeripheral::Hmac,
+    // HmacFifoEmpty -> PlicPeripheral::Hmac
+    PlicPeripheral::Hmac,
+    // HmacHmacErr -> PlicPeripheral::Hmac
+    PlicPeripheral::Hmac,
+    // KmacKmacDone -> PlicPeripheral::Kmac
+    PlicPeripheral::Kmac,
+    // KmacFifoEmpty -> PlicPeripheral::Kmac
+    PlicPeripheral::Kmac,
+    // KmacKmacErr -> PlicPeripheral::Kmac
+    PlicPeripheral::Kmac,
+    // OtbnDone -> PlicPeripheral::Otbn
+    PlicPeripheral::Otbn,
+    // KeymgrOpDone -> PlicPeripheral::Keymgr
+    PlicPeripheral::Keymgr,
+    // CsrngCsCmdReqDone -> PlicPeripheral::Csrng
+    PlicPeripheral::Csrng,
+    // CsrngCsEntropyReq -> PlicPeripheral::Csrng
+    PlicPeripheral::Csrng,
+    // CsrngCsHwInstExc -> PlicPeripheral::Csrng
+    PlicPeripheral::Csrng,
+    // CsrngCsFatalErr -> PlicPeripheral::Csrng
+    PlicPeripheral::Csrng,
+    // EntropySrcEsEntropyValid -> PlicPeripheral::EntropySrc
+    PlicPeripheral::EntropySrc,
+    // EntropySrcEsHealthTestFailed -> PlicPeripheral::EntropySrc
+    PlicPeripheral::EntropySrc,
+    // EntropySrcEsObserveFifoReady -> PlicPeripheral::EntropySrc
+    PlicPeripheral::EntropySrc,
+    // EntropySrcEsFatalErr -> PlicPeripheral::EntropySrc
+    PlicPeripheral::EntropySrc,
+    // Edn0EdnCmdReqDone -> PlicPeripheral::Edn0
+    PlicPeripheral::Edn0,
+    // Edn0EdnFatalErr -> PlicPeripheral::Edn0
+    PlicPeripheral::Edn0,
+    // Edn1EdnCmdReqDone -> PlicPeripheral::Edn1
+    PlicPeripheral::Edn1,
+    // Edn1EdnFatalErr -> PlicPeripheral::Edn1
+    PlicPeripheral::Edn1,
 ];
 
 /// Alert Handler Alert Source to Peripheral Map
 ///
-/// This array is a mapping from `TopEarlgreyAlertId` to
-/// `TopEarlgreyAlertPeripheral`.
-pub const TOP_EARLGREY_ALERT_FOR_PERIPHERAL: [TopEarlgreyAlertPeripheral; 65] = [
-    // Uart0FatalFault -> TopEarlgreyAlertPeripheral::Uart0
-    TopEarlgreyAlertPeripheral::Uart0,
-    // Uart1FatalFault -> TopEarlgreyAlertPeripheral::Uart1
-    TopEarlgreyAlertPeripheral::Uart1,
-    // Uart2FatalFault -> TopEarlgreyAlertPeripheral::Uart2
-    TopEarlgreyAlertPeripheral::Uart2,
-    // Uart3FatalFault -> TopEarlgreyAlertPeripheral::Uart3
-    TopEarlgreyAlertPeripheral::Uart3,
-    // GpioFatalFault -> TopEarlgreyAlertPeripheral::Gpio
-    TopEarlgreyAlertPeripheral::Gpio,
-    // SpiDeviceFatalFault -> TopEarlgreyAlertPeripheral::SpiDevice
-    TopEarlgreyAlertPeripheral::SpiDevice,
-    // I2c0FatalFault -> TopEarlgreyAlertPeripheral::I2c0
-    TopEarlgreyAlertPeripheral::I2c0,
-    // I2c1FatalFault -> TopEarlgreyAlertPeripheral::I2c1
-    TopEarlgreyAlertPeripheral::I2c1,
-    // I2c2FatalFault -> TopEarlgreyAlertPeripheral::I2c2
-    TopEarlgreyAlertPeripheral::I2c2,
-    // PattgenFatalFault -> TopEarlgreyAlertPeripheral::Pattgen
-    TopEarlgreyAlertPeripheral::Pattgen,
-    // RvTimerFatalFault -> TopEarlgreyAlertPeripheral::RvTimer
-    TopEarlgreyAlertPeripheral::RvTimer,
-    // OtpCtrlFatalMacroError -> TopEarlgreyAlertPeripheral::OtpCtrl
-    TopEarlgreyAlertPeripheral::OtpCtrl,
-    // OtpCtrlFatalCheckError -> TopEarlgreyAlertPeripheral::OtpCtrl
-    TopEarlgreyAlertPeripheral::OtpCtrl,
-    // OtpCtrlFatalBusIntegError -> TopEarlgreyAlertPeripheral::OtpCtrl
-    TopEarlgreyAlertPeripheral::OtpCtrl,
-    // OtpCtrlFatalPrimOtpAlert -> TopEarlgreyAlertPeripheral::OtpCtrl
-    TopEarlgreyAlertPeripheral::OtpCtrl,
-    // OtpCtrlRecovPrimOtpAlert -> TopEarlgreyAlertPeripheral::OtpCtrl
-    TopEarlgreyAlertPeripheral::OtpCtrl,
-    // LcCtrlFatalProgError -> TopEarlgreyAlertPeripheral::LcCtrl
-    TopEarlgreyAlertPeripheral::LcCtrl,
-    // LcCtrlFatalStateError -> TopEarlgreyAlertPeripheral::LcCtrl
-    TopEarlgreyAlertPeripheral::LcCtrl,
-    // LcCtrlFatalBusIntegError -> TopEarlgreyAlertPeripheral::LcCtrl
-    TopEarlgreyAlertPeripheral::LcCtrl,
-    // SpiHost0FatalFault -> TopEarlgreyAlertPeripheral::SpiHost0
-    TopEarlgreyAlertPeripheral::SpiHost0,
-    // SpiHost1FatalFault -> TopEarlgreyAlertPeripheral::SpiHost1
-    TopEarlgreyAlertPeripheral::SpiHost1,
-    // UsbdevFatalFault -> TopEarlgreyAlertPeripheral::Usbdev
-    TopEarlgreyAlertPeripheral::Usbdev,
-    // PwrmgrAonFatalFault -> TopEarlgreyAlertPeripheral::PwrmgrAon
-    TopEarlgreyAlertPeripheral::PwrmgrAon,
-    // RstmgrAonFatalFault -> TopEarlgreyAlertPeripheral::RstmgrAon
-    TopEarlgreyAlertPeripheral::RstmgrAon,
-    // RstmgrAonFatalCnstyFault -> TopEarlgreyAlertPeripheral::RstmgrAon
-    TopEarlgreyAlertPeripheral::RstmgrAon,
-    // ClkmgrAonRecovFault -> TopEarlgreyAlertPeripheral::ClkmgrAon
-    TopEarlgreyAlertPeripheral::ClkmgrAon,
-    // ClkmgrAonFatalFault -> TopEarlgreyAlertPeripheral::ClkmgrAon
-    TopEarlgreyAlertPeripheral::ClkmgrAon,
-    // SysrstCtrlAonFatalFault -> TopEarlgreyAlertPeripheral::SysrstCtrlAon
-    TopEarlgreyAlertPeripheral::SysrstCtrlAon,
-    // AdcCtrlAonFatalFault -> TopEarlgreyAlertPeripheral::AdcCtrlAon
-    TopEarlgreyAlertPeripheral::AdcCtrlAon,
-    // PwmAonFatalFault -> TopEarlgreyAlertPeripheral::PwmAon
-    TopEarlgreyAlertPeripheral::PwmAon,
-    // PinmuxAonFatalFault -> TopEarlgreyAlertPeripheral::PinmuxAon
-    TopEarlgreyAlertPeripheral::PinmuxAon,
-    // AonTimerAonFatalFault -> TopEarlgreyAlertPeripheral::AonTimerAon
-    TopEarlgreyAlertPeripheral::AonTimerAon,
-    // SensorCtrlRecovAlert -> TopEarlgreyAlertPeripheral::SensorCtrl
-    TopEarlgreyAlertPeripheral::SensorCtrl,
-    // SensorCtrlFatalAlert -> TopEarlgreyAlertPeripheral::SensorCtrl
-    TopEarlgreyAlertPeripheral::SensorCtrl,
-    // SramCtrlRetAonFatalError -> TopEarlgreyAlertPeripheral::SramCtrlRetAon
-    TopEarlgreyAlertPeripheral::SramCtrlRetAon,
-    // FlashCtrlRecovErr -> TopEarlgreyAlertPeripheral::FlashCtrl
-    TopEarlgreyAlertPeripheral::FlashCtrl,
-    // FlashCtrlFatalStdErr -> TopEarlgreyAlertPeripheral::FlashCtrl
-    TopEarlgreyAlertPeripheral::FlashCtrl,
-    // FlashCtrlFatalErr -> TopEarlgreyAlertPeripheral::FlashCtrl
-    TopEarlgreyAlertPeripheral::FlashCtrl,
-    // FlashCtrlFatalPrimFlashAlert -> TopEarlgreyAlertPeripheral::FlashCtrl
-    TopEarlgreyAlertPeripheral::FlashCtrl,
-    // FlashCtrlRecovPrimFlashAlert -> TopEarlgreyAlertPeripheral::FlashCtrl
-    TopEarlgreyAlertPeripheral::FlashCtrl,
-    // RvDmFatalFault -> TopEarlgreyAlertPeripheral::RvDm
-    TopEarlgreyAlertPeripheral::RvDm,
-    // RvPlicFatalFault -> TopEarlgreyAlertPeripheral::RvPlic
-    TopEarlgreyAlertPeripheral::RvPlic,
-    // AesRecovCtrlUpdateErr -> TopEarlgreyAlertPeripheral::Aes
-    TopEarlgreyAlertPeripheral::Aes,
-    // AesFatalFault -> TopEarlgreyAlertPeripheral::Aes
-    TopEarlgreyAlertPeripheral::Aes,
-    // HmacFatalFault -> TopEarlgreyAlertPeripheral::Hmac
-    TopEarlgreyAlertPeripheral::Hmac,
-    // KmacRecovOperationErr -> TopEarlgreyAlertPeripheral::Kmac
-    TopEarlgreyAlertPeripheral::Kmac,
-    // KmacFatalFaultErr -> TopEarlgreyAlertPeripheral::Kmac
-    TopEarlgreyAlertPeripheral::Kmac,
-    // OtbnFatal -> TopEarlgreyAlertPeripheral::Otbn
-    TopEarlgreyAlertPeripheral::Otbn,
-    // OtbnRecov -> TopEarlgreyAlertPeripheral::Otbn
-    TopEarlgreyAlertPeripheral::Otbn,
-    // KeymgrRecovOperationErr -> TopEarlgreyAlertPeripheral::Keymgr
-    TopEarlgreyAlertPeripheral::Keymgr,
-    // KeymgrFatalFaultErr -> TopEarlgreyAlertPeripheral::Keymgr
-    TopEarlgreyAlertPeripheral::Keymgr,
-    // CsrngRecovAlert -> TopEarlgreyAlertPeripheral::Csrng
-    TopEarlgreyAlertPeripheral::Csrng,
-    // CsrngFatalAlert -> TopEarlgreyAlertPeripheral::Csrng
-    TopEarlgreyAlertPeripheral::Csrng,
-    // EntropySrcRecovAlert -> TopEarlgreyAlertPeripheral::EntropySrc
-    TopEarlgreyAlertPeripheral::EntropySrc,
-    // EntropySrcFatalAlert -> TopEarlgreyAlertPeripheral::EntropySrc
-    TopEarlgreyAlertPeripheral::EntropySrc,
-    // Edn0RecovAlert -> TopEarlgreyAlertPeripheral::Edn0
-    TopEarlgreyAlertPeripheral::Edn0,
-    // Edn0FatalAlert -> TopEarlgreyAlertPeripheral::Edn0
-    TopEarlgreyAlertPeripheral::Edn0,
-    // Edn1RecovAlert -> TopEarlgreyAlertPeripheral::Edn1
-    TopEarlgreyAlertPeripheral::Edn1,
-    // Edn1FatalAlert -> TopEarlgreyAlertPeripheral::Edn1
-    TopEarlgreyAlertPeripheral::Edn1,
-    // SramCtrlMainFatalError -> TopEarlgreyAlertPeripheral::SramCtrlMain
-    TopEarlgreyAlertPeripheral::SramCtrlMain,
-    // RomCtrlFatal -> TopEarlgreyAlertPeripheral::RomCtrl
-    TopEarlgreyAlertPeripheral::RomCtrl,
-    // RvCoreIbexFatalSwErr -> TopEarlgreyAlertPeripheral::RvCoreIbex
-    TopEarlgreyAlertPeripheral::RvCoreIbex,
-    // RvCoreIbexRecovSwErr -> TopEarlgreyAlertPeripheral::RvCoreIbex
-    TopEarlgreyAlertPeripheral::RvCoreIbex,
-    // RvCoreIbexFatalHwErr -> TopEarlgreyAlertPeripheral::RvCoreIbex
-    TopEarlgreyAlertPeripheral::RvCoreIbex,
-    // RvCoreIbexRecovHwErr -> TopEarlgreyAlertPeripheral::RvCoreIbex
-    TopEarlgreyAlertPeripheral::RvCoreIbex,
+/// This array is a mapping from `AlertId` to
+/// `AlertPeripheral`.
+pub const ALERT_FOR_PERIPHERAL: [AlertPeripheral; 65] = [
+    // Uart0FatalFault -> AlertPeripheral::Uart0
+    AlertPeripheral::Uart0,
+    // Uart1FatalFault -> AlertPeripheral::Uart1
+    AlertPeripheral::Uart1,
+    // Uart2FatalFault -> AlertPeripheral::Uart2
+    AlertPeripheral::Uart2,
+    // Uart3FatalFault -> AlertPeripheral::Uart3
+    AlertPeripheral::Uart3,
+    // GpioFatalFault -> AlertPeripheral::Gpio
+    AlertPeripheral::Gpio,
+    // SpiDeviceFatalFault -> AlertPeripheral::SpiDevice
+    AlertPeripheral::SpiDevice,
+    // I2c0FatalFault -> AlertPeripheral::I2c0
+    AlertPeripheral::I2c0,
+    // I2c1FatalFault -> AlertPeripheral::I2c1
+    AlertPeripheral::I2c1,
+    // I2c2FatalFault -> AlertPeripheral::I2c2
+    AlertPeripheral::I2c2,
+    // PattgenFatalFault -> AlertPeripheral::Pattgen
+    AlertPeripheral::Pattgen,
+    // RvTimerFatalFault -> AlertPeripheral::RvTimer
+    AlertPeripheral::RvTimer,
+    // OtpCtrlFatalMacroError -> AlertPeripheral::OtpCtrl
+    AlertPeripheral::OtpCtrl,
+    // OtpCtrlFatalCheckError -> AlertPeripheral::OtpCtrl
+    AlertPeripheral::OtpCtrl,
+    // OtpCtrlFatalBusIntegError -> AlertPeripheral::OtpCtrl
+    AlertPeripheral::OtpCtrl,
+    // OtpCtrlFatalPrimOtpAlert -> AlertPeripheral::OtpCtrl
+    AlertPeripheral::OtpCtrl,
+    // OtpCtrlRecovPrimOtpAlert -> AlertPeripheral::OtpCtrl
+    AlertPeripheral::OtpCtrl,
+    // LcCtrlFatalProgError -> AlertPeripheral::LcCtrl
+    AlertPeripheral::LcCtrl,
+    // LcCtrlFatalStateError -> AlertPeripheral::LcCtrl
+    AlertPeripheral::LcCtrl,
+    // LcCtrlFatalBusIntegError -> AlertPeripheral::LcCtrl
+    AlertPeripheral::LcCtrl,
+    // SpiHost0FatalFault -> AlertPeripheral::SpiHost0
+    AlertPeripheral::SpiHost0,
+    // SpiHost1FatalFault -> AlertPeripheral::SpiHost1
+    AlertPeripheral::SpiHost1,
+    // UsbdevFatalFault -> AlertPeripheral::Usbdev
+    AlertPeripheral::Usbdev,
+    // PwrmgrAonFatalFault -> AlertPeripheral::PwrmgrAon
+    AlertPeripheral::PwrmgrAon,
+    // RstmgrAonFatalFault -> AlertPeripheral::RstmgrAon
+    AlertPeripheral::RstmgrAon,
+    // RstmgrAonFatalCnstyFault -> AlertPeripheral::RstmgrAon
+    AlertPeripheral::RstmgrAon,
+    // ClkmgrAonRecovFault -> AlertPeripheral::ClkmgrAon
+    AlertPeripheral::ClkmgrAon,
+    // ClkmgrAonFatalFault -> AlertPeripheral::ClkmgrAon
+    AlertPeripheral::ClkmgrAon,
+    // SysrstCtrlAonFatalFault -> AlertPeripheral::SysrstCtrlAon
+    AlertPeripheral::SysrstCtrlAon,
+    // AdcCtrlAonFatalFault -> AlertPeripheral::AdcCtrlAon
+    AlertPeripheral::AdcCtrlAon,
+    // PwmAonFatalFault -> AlertPeripheral::PwmAon
+    AlertPeripheral::PwmAon,
+    // PinmuxAonFatalFault -> AlertPeripheral::PinmuxAon
+    AlertPeripheral::PinmuxAon,
+    // AonTimerAonFatalFault -> AlertPeripheral::AonTimerAon
+    AlertPeripheral::AonTimerAon,
+    // SensorCtrlRecovAlert -> AlertPeripheral::SensorCtrl
+    AlertPeripheral::SensorCtrl,
+    // SensorCtrlFatalAlert -> AlertPeripheral::SensorCtrl
+    AlertPeripheral::SensorCtrl,
+    // SramCtrlRetAonFatalError -> AlertPeripheral::SramCtrlRetAon
+    AlertPeripheral::SramCtrlRetAon,
+    // FlashCtrlRecovErr -> AlertPeripheral::FlashCtrl
+    AlertPeripheral::FlashCtrl,
+    // FlashCtrlFatalStdErr -> AlertPeripheral::FlashCtrl
+    AlertPeripheral::FlashCtrl,
+    // FlashCtrlFatalErr -> AlertPeripheral::FlashCtrl
+    AlertPeripheral::FlashCtrl,
+    // FlashCtrlFatalPrimFlashAlert -> AlertPeripheral::FlashCtrl
+    AlertPeripheral::FlashCtrl,
+    // FlashCtrlRecovPrimFlashAlert -> AlertPeripheral::FlashCtrl
+    AlertPeripheral::FlashCtrl,
+    // RvDmFatalFault -> AlertPeripheral::RvDm
+    AlertPeripheral::RvDm,
+    // RvPlicFatalFault -> AlertPeripheral::RvPlic
+    AlertPeripheral::RvPlic,
+    // AesRecovCtrlUpdateErr -> AlertPeripheral::Aes
+    AlertPeripheral::Aes,
+    // AesFatalFault -> AlertPeripheral::Aes
+    AlertPeripheral::Aes,
+    // HmacFatalFault -> AlertPeripheral::Hmac
+    AlertPeripheral::Hmac,
+    // KmacRecovOperationErr -> AlertPeripheral::Kmac
+    AlertPeripheral::Kmac,
+    // KmacFatalFaultErr -> AlertPeripheral::Kmac
+    AlertPeripheral::Kmac,
+    // OtbnFatal -> AlertPeripheral::Otbn
+    AlertPeripheral::Otbn,
+    // OtbnRecov -> AlertPeripheral::Otbn
+    AlertPeripheral::Otbn,
+    // KeymgrRecovOperationErr -> AlertPeripheral::Keymgr
+    AlertPeripheral::Keymgr,
+    // KeymgrFatalFaultErr -> AlertPeripheral::Keymgr
+    AlertPeripheral::Keymgr,
+    // CsrngRecovAlert -> AlertPeripheral::Csrng
+    AlertPeripheral::Csrng,
+    // CsrngFatalAlert -> AlertPeripheral::Csrng
+    AlertPeripheral::Csrng,
+    // EntropySrcRecovAlert -> AlertPeripheral::EntropySrc
+    AlertPeripheral::EntropySrc,
+    // EntropySrcFatalAlert -> AlertPeripheral::EntropySrc
+    AlertPeripheral::EntropySrc,
+    // Edn0RecovAlert -> AlertPeripheral::Edn0
+    AlertPeripheral::Edn0,
+    // Edn0FatalAlert -> AlertPeripheral::Edn0
+    AlertPeripheral::Edn0,
+    // Edn1RecovAlert -> AlertPeripheral::Edn1
+    AlertPeripheral::Edn1,
+    // Edn1FatalAlert -> AlertPeripheral::Edn1
+    AlertPeripheral::Edn1,
+    // SramCtrlMainFatalError -> AlertPeripheral::SramCtrlMain
+    AlertPeripheral::SramCtrlMain,
+    // RomCtrlFatal -> AlertPeripheral::RomCtrl
+    AlertPeripheral::RomCtrl,
+    // RvCoreIbexFatalSwErr -> AlertPeripheral::RvCoreIbex
+    AlertPeripheral::RvCoreIbex,
+    // RvCoreIbexRecovSwErr -> AlertPeripheral::RvCoreIbex
+    AlertPeripheral::RvCoreIbex,
+    // RvCoreIbexFatalHwErr -> AlertPeripheral::RvCoreIbex
+    AlertPeripheral::RvCoreIbex,
+    // RvCoreIbexRecovHwErr -> AlertPeripheral::RvCoreIbex
+    AlertPeripheral::RvCoreIbex,
 ];
 
 // PERIPH_INSEL ranges from 0 to NUM_MIO_PADS + 2 -1}
@@ -2215,8 +2270,9 @@ pub const PINMUX_MIO_PERIPH_INSEL_IDX_OFFSET: usize = 2;
 pub const PINMUX_PERIPH_OUTSEL_IDX_OFFSET: usize = 3;
 
 /// Pinmux Peripheral Input.
+#[derive(Copy, Clone, PartialEq, Eq)]
 #[repr(u32)]
-pub enum TopEarlgreyPinmuxPeripheralIn {
+pub enum PinmuxPeripheralIn {
     /// Peripheral Input 0
     GpioGpio0 = 0,
     /// Peripheral Input 1
@@ -2333,7 +2389,7 @@ pub enum TopEarlgreyPinmuxPeripheralIn {
     UsbdevSense = 56,
 }
 
-impl TryFrom<u32> for TopEarlgreyPinmuxPeripheralIn {
+impl TryFrom<u32> for PinmuxPeripheralIn {
     type Error = u32;
     fn try_from(val: u32) -> Result<Self, Self::Error> {
         match val {
@@ -2400,8 +2456,9 @@ impl TryFrom<u32> for TopEarlgreyPinmuxPeripheralIn {
 }
 
 /// Pinmux MIO Input Selector.
+#[derive(Copy, Clone, PartialEq, Eq)]
 #[repr(u32)]
-pub enum TopEarlgreyPinmuxInsel {
+pub enum PinmuxInsel {
     /// Tie constantly to zero
     ConstantZero = 0,
     /// Tie constantly to one
@@ -2502,7 +2559,7 @@ pub enum TopEarlgreyPinmuxInsel {
     Ior13 = 48,
 }
 
-impl TryFrom<u32> for TopEarlgreyPinmuxInsel {
+impl TryFrom<u32> for PinmuxInsel {
     type Error = u32;
     fn try_from(val: u32) -> Result<Self, Self::Error> {
         match val {
@@ -2561,8 +2618,9 @@ impl TryFrom<u32> for TopEarlgreyPinmuxInsel {
 }
 
 /// Pinmux MIO Output.
+#[derive(Copy, Clone, PartialEq, Eq)]
 #[repr(u32)]
-pub enum TopEarlgreyPinmuxMioOut {
+pub enum PinmuxMioOut {
     /// MIO Pad 0
     Ioa0 = 0,
     /// MIO Pad 1
@@ -2659,7 +2717,7 @@ pub enum TopEarlgreyPinmuxMioOut {
     Ior13 = 46,
 }
 
-impl TryFrom<u32> for TopEarlgreyPinmuxMioOut {
+impl TryFrom<u32> for PinmuxMioOut {
     type Error = u32;
     fn try_from(val: u32) -> Result<Self, Self::Error> {
         match val {
@@ -2716,8 +2774,9 @@ impl TryFrom<u32> for TopEarlgreyPinmuxMioOut {
 }
 
 /// Pinmux Peripheral Output Selector.
+#[derive(Copy, Clone, PartialEq, Eq)]
 #[repr(u32)]
-pub enum TopEarlgreyPinmuxOutsel {
+pub enum PinmuxOutsel {
     /// Tie constantly to zero
     ConstantZero = 0,
     /// Tie constantly to one
@@ -2876,7 +2935,7 @@ pub enum TopEarlgreyPinmuxOutsel {
     SysrstCtrlAonZ3Wakeup = 77,
 }
 
-impl TryFrom<u32> for TopEarlgreyPinmuxOutsel {
+impl TryFrom<u32> for PinmuxOutsel {
     type Error = u32;
     fn try_from(val: u32) -> Result<Self, Self::Error> {
         match val {
@@ -2964,8 +3023,9 @@ impl TryFrom<u32> for TopEarlgreyPinmuxOutsel {
 }
 
 /// Dedicated Pad Selects
+#[derive(Copy, Clone, PartialEq, Eq)]
 #[repr(u32)]
-pub enum TopEarlgreyDirectPads {
+pub enum DirectPads {
     UsbdevUsbDp = 0,
     UsbdevUsbDn = 1,
     SpiHost0Sd0 = 2,
@@ -2984,7 +3044,7 @@ pub enum TopEarlgreyDirectPads {
     SpiHost0Csb = 15,
 }
 
-impl TryFrom<u32> for TopEarlgreyDirectPads {
+impl TryFrom<u32> for DirectPads {
     type Error = u32;
     fn try_from(val: u32) -> Result<Self, Self::Error> {
         match val {
@@ -3010,8 +3070,9 @@ impl TryFrom<u32> for TopEarlgreyDirectPads {
 }
 
 /// Muxed Pad Selects
+#[derive(Copy, Clone, PartialEq, Eq)]
 #[repr(u32)]
-pub enum TopEarlgreyMuxedPads {
+pub enum MuxedPads {
     Ioa0 = 0,
     Ioa1 = 1,
     Ioa2 = 2,
@@ -3061,7 +3122,7 @@ pub enum TopEarlgreyMuxedPads {
     Ior13 = 46,
 }
 
-impl TryFrom<u32> for TopEarlgreyMuxedPads {
+impl TryFrom<u32> for MuxedPads {
     type Error = u32;
     fn try_from(val: u32) -> Result<Self, Self::Error> {
         match val {
@@ -3118,8 +3179,9 @@ impl TryFrom<u32> for TopEarlgreyMuxedPads {
 }
 
 /// Power Manager Wakeup Signals
+#[derive(Copy, Clone, PartialEq, Eq)]
 #[repr(u32)]
-pub enum TopEarlgreyPowerManagerWakeUps {
+pub enum PowerManagerWakeUps {
     SysrstCtrlAonWkupReq = 0,
     AdcCtrlAonWkupReq = 1,
     PinmuxAonPinWkupReq = 2,
@@ -3129,8 +3191,9 @@ pub enum TopEarlgreyPowerManagerWakeUps {
 }
 
 /// Reset Manager Software Controlled Resets
+#[derive(Copy, Clone, PartialEq, Eq)]
 #[repr(u32)]
-pub enum TopEarlgreyResetManagerSwResets {
+pub enum ResetManagerSwResets {
     SpiDevice = 0,
     SpiHost0 = 1,
     SpiHost1 = 2,
@@ -3142,8 +3205,9 @@ pub enum TopEarlgreyResetManagerSwResets {
 }
 
 /// Power Manager Reset Request Signals
+#[derive(Copy, Clone, PartialEq, Eq)]
 #[repr(u32)]
-pub enum TopEarlgreyPowerManagerResetRequests {
+pub enum PowerManagerResetRequests {
     SysrstCtrlAonRstReq = 0,
     AonTimerAonAonTimerRstReq = 1,
 }
@@ -3151,8 +3215,9 @@ pub enum TopEarlgreyPowerManagerResetRequests {
 /// Clock Manager Software-Controlled ("Gated") Clocks.
 ///
 /// The Software has full control over these clocks.
+#[derive(Copy, Clone, PartialEq, Eq)]
 #[repr(u32)]
-pub enum TopEarlgreyGateableClocks {
+pub enum GateableClocks {
     /// Clock clk_io_div4_peri in group peri
     IoDiv4Peri = 0,
     /// Clock clk_io_div2_peri in group peri
@@ -3167,8 +3232,9 @@ pub enum TopEarlgreyGateableClocks {
 ///
 /// The Software has partial control over these clocks. It can ask them to stop,
 /// but the clock manager is in control of whether the clock actually is stopped.
+#[derive(Copy, Clone, PartialEq, Eq)]
 #[repr(u32)]
-pub enum TopEarlgreyHintableClocks {
+pub enum HintableClocks {
     /// Clock clk_main_aes in group trans
     MainAes = 0,
     /// Clock clk_main_hmac in group trans
@@ -3184,5 +3250,5 @@ pub enum TopEarlgreyHintableClocks {
 /// MMIO region excludes any memory that is separate from the module
 /// configuration space, i.e. ROM, main SRAM, and flash are excluded but
 /// retention SRAM, spi_device memory, or usbdev memory are included.
-pub const TOP_EARLGREY_MMIO_BASE_ADDR: usize = 0x40000000;
-pub const TOP_EARLGREY_MMIO_SIZE_BYTES: usize = 0x10000000;
+pub const MMIO_BASE_ADDR: usize = 0x40000000;
+pub const MMIO_SIZE_BYTES: usize = 0x10000000;

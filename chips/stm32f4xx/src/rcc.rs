@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use kernel::platform::chip::ClockInterface;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 use kernel::utilities::registers::{register_bitfields, ReadWrite};
 use kernel::utilities::StaticRef;
@@ -743,6 +742,12 @@ pub struct Rcc {
     registers: StaticRef<RccRegisters>,
 }
 
+pub enum RtcClockSource {
+    LSI,
+    LSE,
+    HSERTC,
+}
+
 impl Rcc {
     pub fn new() -> Self {
         let rcc = Self {
@@ -780,7 +785,7 @@ impl Rcc {
     pub(crate) fn get_sys_clock_source(&self) -> SysClockSource {
         match self.registers.cfgr.read(CFGR::SWS) {
             0b00 => SysClockSource::HSI,
-            //0b01 => SysClockSource::HSE, Uncomment this when HSE support is added
+            0b01 => SysClockSource::HSE,
             _ => SysClockSource::PLL,
             // Uncomment this when PPLLR support is added. Also change the above match arm to
             // 0b10 => SysClockSource::PLL,
@@ -802,6 +807,13 @@ impl Rcc {
                 && self.registers.pllcfgr.read(PLLCFGR::PLLSRC) == PllSource::HSI as u32
     }
 
+    pub(crate) fn is_hse_clock_system_clock(&self) -> bool {
+        let system_clock_source = self.get_sys_clock_source();
+        system_clock_source == SysClockSource::HSE
+            || system_clock_source == SysClockSource::PLL
+                && self.registers.pllcfgr.read(PLLCFGR::PLLSRC) == PllSource::HSE as u32
+    }
+
     /* HSI clock */
     // The HSI clock must not be configured as the system clock, either directly or indirectly.
     pub(crate) fn disable_hsi_clock(&self) {
@@ -819,6 +831,29 @@ impl Rcc {
     // Indicates whether the HSI oscillator is stable
     pub(crate) fn is_ready_hsi_clock(&self) -> bool {
         self.registers.cr.is_set(CR::HSIRDY)
+    }
+
+    /* HSE clock */
+    pub(crate) fn disable_hse_clock(&self) {
+        self.registers.cr.modify(CR::HSEON::CLEAR);
+        self.registers.cr.modify(CR::HSEBYP::CLEAR);
+    }
+
+    pub(crate) fn enable_hse_clock_bypass(&self) {
+        self.registers.cr.modify(CR::HSEBYP::SET);
+    }
+
+    pub(crate) fn enable_hse_clock(&self) {
+        self.registers.cr.modify(CR::HSEON::SET);
+    }
+
+    pub(crate) fn is_enabled_hse_clock(&self) -> bool {
+        self.registers.cr.is_set(CR::HSEON)
+    }
+
+    // Indicates whether the HSE oscillator is stable
+    pub(crate) fn is_ready_hse_clock(&self) -> bool {
+        self.registers.cr.is_set(CR::HSERDY)
     }
 
     /* Main PLL clock*/
@@ -841,6 +876,13 @@ impl Rcc {
         self.registers.cr.is_set(CR::PLLRDY)
     }
 
+    pub(crate) fn get_pll_clocks_source(&self) -> PllSource {
+        match self.registers.pllcfgr.read(PLLCFGR::PLLSRC) {
+            0b0 => PllSource::HSI,
+            _ => PllSource::HSE,
+        }
+    }
+
     // This method must be called only when all PLL clocks are disabled
     pub(crate) fn set_pll_clocks_source(&self, source: PllSource) {
         self.registers
@@ -848,9 +890,21 @@ impl Rcc {
             .modify(PLLCFGR::PLLSRC.val(source as u32));
     }
 
+    pub(crate) fn get_pll_clocks_m_divider(&self) -> PLLM {
+        match self.registers.pllcfgr.read(PLLCFGR::PLLM) {
+            8 => PLLM::DivideBy8,
+            16 => PLLM::DivideBy16,
+            _ => panic!("Unexpected PLLM divider"),
+        }
+    }
+
     // This method must be called only when all PLL clocks are disabled
     pub(crate) fn set_pll_clocks_m_divider(&self, m: PLLM) {
         self.registers.pllcfgr.modify(PLLCFGR::PLLM.val(m as u32));
+    }
+
+    pub(crate) fn get_pll_clock_n_multiplier(&self) -> usize {
+        self.registers.pllcfgr.read(PLLCFGR::PLLN) as usize
     }
 
     // This method must be called only if the main PLL clock is disabled
@@ -858,9 +912,31 @@ impl Rcc {
         self.registers.pllcfgr.modify(PLLCFGR::PLLN.val(n as u32));
     }
 
+    pub(crate) fn get_pll_clock_p_divider(&self) -> PLLP {
+        match self.registers.pllcfgr.read(PLLCFGR::PLLP) {
+            0b00 => PLLP::DivideBy2,
+            0b01 => PLLP::DivideBy4,
+            0b10 => PLLP::DivideBy6,
+            _ => PLLP::DivideBy8,
+        }
+    }
+
     // This method must be called only if the main PLL clock is disabled
     pub(crate) fn set_pll_clock_p_divider(&self, p: PLLP) {
         self.registers.pllcfgr.modify(PLLCFGR::PLLP.val(p as u32));
+    }
+
+    pub(crate) fn _get_pll_clock_q_divider(&self) -> PLLQ {
+        match self.registers.pllcfgr.read(PLLCFGR::PLLQ) {
+            3 => PLLQ::DivideBy3,
+            4 => PLLQ::DivideBy4,
+            5 => PLLQ::DivideBy5,
+            6 => PLLQ::DivideBy6,
+            7 => PLLQ::DivideBy7,
+            8 => PLLQ::DivideBy8,
+            9 => PLLQ::DivideBy9,
+            _ => panic!("Unexpected PLLQ divider"),
+        }
     }
 
     // This method must be called only if the main PLL clock is disabled
@@ -935,7 +1011,7 @@ impl Rcc {
             0b00 => MCO1Source::HSI,
             // When LSE or HSE are added, uncomment the following lines
             //0b01 => MCO1Source::LSE,
-            //0b10 => MCO1Source::HSE,
+            0b10 => MCO1Source::HSE,
             // 0b11 corresponds to MCO1Source::PLL
             _ => MCO1Source::PLL,
         }
@@ -957,382 +1033,447 @@ impl Rcc {
         }
     }
 
-    fn configure_rng_clock(&self) {
+    pub(crate) fn configure_rng_clock(&self) {
         self.registers.pllcfgr.modify(PLLCFGR::PLLQ.val(2));
         self.registers.cr.modify(CR::PLLON::SET);
     }
 
     // I2C1 clock
 
-    fn is_enabled_i2c1_clock(&self) -> bool {
+    pub(crate) fn is_enabled_i2c1_clock(&self) -> bool {
         self.registers.apb1enr.is_set(APB1ENR::I2C1EN)
     }
 
-    fn enable_i2c1_clock(&self) {
+    pub(crate) fn enable_i2c1_clock(&self) {
         self.registers.apb1enr.modify(APB1ENR::I2C1EN::SET);
         self.registers.apb1rstr.modify(APB1RSTR::I2C1RST::SET);
         self.registers.apb1rstr.modify(APB1RSTR::I2C1RST::CLEAR);
     }
 
-    fn disable_i2c1_clock(&self) {
+    pub(crate) fn disable_i2c1_clock(&self) {
         self.registers.apb1enr.modify(APB1ENR::I2C1EN::CLEAR)
     }
 
     // SPI3 clock
 
-    fn is_enabled_spi3_clock(&self) -> bool {
+    pub(crate) fn is_enabled_spi3_clock(&self) -> bool {
         self.registers.apb1enr.is_set(APB1ENR::SPI3EN)
     }
 
-    fn enable_spi3_clock(&self) {
+    pub(crate) fn enable_spi3_clock(&self) {
         self.registers.apb1enr.modify(APB1ENR::SPI3EN::SET)
     }
 
-    fn disable_spi3_clock(&self) {
+    pub(crate) fn disable_spi3_clock(&self) {
         self.registers.apb1enr.modify(APB1ENR::SPI3EN::CLEAR)
     }
 
     // TIM2 clock
+    pub(crate) fn is_enabled_tim_pre(&self) -> bool {
+        self.registers.dckcfgr.is_set(DCKCFGR::TIMPRE)
+    }
 
-    fn is_enabled_tim2_clock(&self) -> bool {
+    pub(crate) fn is_enabled_tim2_clock(&self) -> bool {
         self.registers.apb1enr.is_set(APB1ENR::TIM2EN)
     }
 
-    fn enable_tim2_clock(&self) {
+    pub(crate) fn enable_tim2_clock(&self) {
         self.registers.apb1enr.modify(APB1ENR::TIM2EN::SET)
     }
 
-    fn disable_tim2_clock(&self) {
+    pub(crate) fn disable_tim2_clock(&self) {
         self.registers.apb1enr.modify(APB1ENR::TIM2EN::CLEAR)
     }
 
     // SYSCFG clock
 
-    fn is_enabled_syscfg_clock(&self) -> bool {
+    pub(crate) fn is_enabled_syscfg_clock(&self) -> bool {
         self.registers.apb2enr.is_set(APB2ENR::SYSCFGEN)
     }
 
-    fn enable_syscfg_clock(&self) {
+    pub(crate) fn enable_syscfg_clock(&self) {
         self.registers.apb2enr.modify(APB2ENR::SYSCFGEN::SET)
     }
 
-    fn disable_syscfg_clock(&self) {
+    pub(crate) fn disable_syscfg_clock(&self) {
         self.registers.apb2enr.modify(APB2ENR::SYSCFGEN::CLEAR)
     }
 
     // Ethernet MAC PTP clock
 
-    fn is_enabled_ethernet_macptp_clock(&self) -> bool {
+    pub(crate) fn is_enabled_ethernet_macptp_clock(&self) -> bool {
         self.registers.ahb1enr.is_set(AHB1ENR::ETHMACPTPEN)
     }
 
-    fn enable_ethernet_macptp_clock(&self) {
+    pub(crate) fn enable_ethernet_macptp_clock(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::ETHMACPTPEN::SET);
     }
 
-    fn disable_ethernet_macptp_clock(&self) {
+    pub(crate) fn disable_ethernet_macptp_clock(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::ETHMACPTPEN::CLEAR);
     }
 
     // Ethernet MAC RX clock
 
-    fn is_enabled_ethernet_macrx_clock(&self) -> bool {
+    pub(crate) fn is_enabled_ethernet_macrx_clock(&self) -> bool {
         self.registers.ahb1enr.is_set(AHB1ENR::ETHMACRXEN)
     }
 
-    fn enable_ethernet_macrx_clock(&self) {
+    pub(crate) fn enable_ethernet_macrx_clock(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::ETHMACRXEN::SET);
     }
 
-    fn disable_ethernet_macrx_clock(&self) {
+    pub(crate) fn disable_ethernet_macrx_clock(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::ETHMACRXEN::CLEAR);
     }
 
     // Ethernet MAC TX clock
 
-    fn is_enabled_ethernet_mactx_clock(&self) -> bool {
+    pub(crate) fn is_enabled_ethernet_mactx_clock(&self) -> bool {
         self.registers.ahb1enr.is_set(AHB1ENR::ETHMACTXEN)
     }
 
-    fn enable_ethernet_mactx_clock(&self) {
+    pub(crate) fn enable_ethernet_mactx_clock(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::ETHMACTXEN::SET);
     }
 
-    fn disable_ethernet_mactx_clock(&self) {
+    pub(crate) fn disable_ethernet_mactx_clock(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::ETHMACTXEN::CLEAR);
     }
 
     // Ethernet MAC clock
 
-    fn is_enabled_ethernet_mac_clock(&self) -> bool {
+    pub(crate) fn is_enabled_ethernet_mac_clock(&self) -> bool {
         self.registers.ahb1enr.is_set(AHB1ENR::ETHMACEN)
     }
 
-    fn enable_ethernet_mac_clock(&self) {
+    pub(crate) fn enable_ethernet_mac_clock(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::ETHMACEN::SET);
     }
 
-    fn disable_ethernet_mac_clock(&self) {
+    pub(crate) fn disable_ethernet_mac_clock(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::ETHMACEN::CLEAR);
     }
 
     // DMA1 clock
 
-    fn is_enabled_dma1_clock(&self) -> bool {
+    pub(crate) fn is_enabled_dma1_clock(&self) -> bool {
         self.registers.ahb1enr.is_set(AHB1ENR::DMA1EN)
     }
 
-    fn enable_dma1_clock(&self) {
+    pub(crate) fn enable_dma1_clock(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::DMA1EN::SET)
     }
 
-    fn disable_dma1_clock(&self) {
+    pub(crate) fn disable_dma1_clock(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::DMA1EN::CLEAR)
     }
 
     // DMA2 clock
-    fn is_enabled_dma2_clock(&self) -> bool {
+    pub(crate) fn is_enabled_dma2_clock(&self) -> bool {
         self.registers.ahb1enr.is_set(AHB1ENR::DMA2EN)
     }
 
-    fn enable_dma2_clock(&self) {
+    pub(crate) fn enable_dma2_clock(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::DMA2EN::SET)
     }
 
-    fn disable_dma2_clock(&self) {
+    pub(crate) fn disable_dma2_clock(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::DMA2EN::CLEAR)
     }
 
     // GPIOH clock
 
-    fn is_enabled_gpioh_clock(&self) -> bool {
+    pub(crate) fn is_enabled_gpioh_clock(&self) -> bool {
         self.registers.ahb1enr.is_set(AHB1ENR::GPIOHEN)
     }
 
-    fn enable_gpioh_clock(&self) {
+    pub(crate) fn enable_gpioh_clock(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::GPIOHEN::SET)
     }
 
-    fn disable_gpioh_clock(&self) {
+    pub(crate) fn disable_gpioh_clock(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::GPIOHEN::CLEAR)
     }
 
     // GPIOG clock
 
-    fn is_enabled_gpiog_clock(&self) -> bool {
+    pub(crate) fn is_enabled_gpiog_clock(&self) -> bool {
         self.registers.ahb1enr.is_set(AHB1ENR::GPIOGEN)
     }
 
-    fn enable_gpiog_clock(&self) {
+    pub(crate) fn enable_gpiog_clock(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::GPIOGEN::SET)
     }
 
-    fn disable_gpiog_clock(&self) {
+    pub(crate) fn disable_gpiog_clock(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::GPIOGEN::CLEAR)
     }
 
     // GPIOF clock
 
-    fn is_enabled_gpiof_clock(&self) -> bool {
+    pub(crate) fn is_enabled_gpiof_clock(&self) -> bool {
         self.registers.ahb1enr.is_set(AHB1ENR::GPIOFEN)
     }
 
-    fn enable_gpiof_clock(&self) {
+    pub(crate) fn enable_gpiof_clock(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::GPIOFEN::SET)
     }
 
-    fn disable_gpiof_clock(&self) {
+    pub(crate) fn disable_gpiof_clock(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::GPIOFEN::CLEAR)
     }
 
     // GPIOE clock
 
-    fn is_enabled_gpioe_clock(&self) -> bool {
+    pub(crate) fn is_enabled_gpioe_clock(&self) -> bool {
         self.registers.ahb1enr.is_set(AHB1ENR::GPIOEEN)
     }
 
-    fn enable_gpioe_clock(&self) {
+    pub(crate) fn enable_gpioe_clock(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::GPIOEEN::SET)
     }
 
-    fn disable_gpioe_clock(&self) {
+    pub(crate) fn disable_gpioe_clock(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::GPIOEEN::CLEAR)
     }
 
     // GPIOD clock
 
-    fn is_enabled_gpiod_clock(&self) -> bool {
+    pub(crate) fn is_enabled_gpiod_clock(&self) -> bool {
         self.registers.ahb1enr.is_set(AHB1ENR::GPIODEN)
     }
 
-    fn enable_gpiod_clock(&self) {
+    pub(crate) fn enable_gpiod_clock(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::GPIODEN::SET)
     }
 
-    fn disable_gpiod_clock(&self) {
+    pub(crate) fn disable_gpiod_clock(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::GPIODEN::CLEAR)
     }
 
     // GPIOC clock
 
-    fn is_enabled_gpioc_clock(&self) -> bool {
+    pub(crate) fn is_enabled_gpioc_clock(&self) -> bool {
         self.registers.ahb1enr.is_set(AHB1ENR::GPIOCEN)
     }
 
-    fn enable_gpioc_clock(&self) {
+    pub(crate) fn enable_gpioc_clock(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::GPIOCEN::SET)
     }
 
-    fn disable_gpioc_clock(&self) {
+    pub(crate) fn disable_gpioc_clock(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::GPIOCEN::CLEAR)
     }
 
     // GPIOB clock
 
-    fn is_enabled_gpiob_clock(&self) -> bool {
+    pub(crate) fn is_enabled_gpiob_clock(&self) -> bool {
         self.registers.ahb1enr.is_set(AHB1ENR::GPIOBEN)
     }
 
-    fn enable_gpiob_clock(&self) {
+    pub(crate) fn enable_gpiob_clock(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::GPIOBEN::SET)
     }
 
-    fn disable_gpiob_clock(&self) {
+    pub(crate) fn disable_gpiob_clock(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::GPIOBEN::CLEAR)
     }
 
     // GPIOA clock
 
-    fn is_enabled_gpioa_clock(&self) -> bool {
+    pub(crate) fn is_enabled_gpioa_clock(&self) -> bool {
         self.registers.ahb1enr.is_set(AHB1ENR::GPIOAEN)
     }
 
-    fn enable_gpioa_clock(&self) {
+    pub(crate) fn enable_gpioa_clock(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::GPIOAEN::SET)
     }
 
-    fn disable_gpioa_clock(&self) {
+    pub(crate) fn disable_gpioa_clock(&self) {
         self.registers.ahb1enr.modify(AHB1ENR::GPIOAEN::CLEAR)
     }
 
     // FMC
 
-    fn is_enabled_fmc_clock(&self) -> bool {
+    pub(crate) fn is_enabled_fmc_clock(&self) -> bool {
         self.registers.ahb3enr.is_set(AHB3ENR::FMCEN)
     }
 
-    fn enable_fmc_clock(&self) {
+    pub(crate) fn enable_fmc_clock(&self) {
         self.registers.ahb3enr.modify(AHB3ENR::FMCEN::SET)
     }
 
-    fn disable_fmc_clock(&self) {
+    pub(crate) fn disable_fmc_clock(&self) {
         self.registers.ahb3enr.modify(AHB3ENR::FMCEN::CLEAR)
     }
 
     // USART1 clock
-    fn is_enabled_usart1_clock(&self) -> bool {
+    pub(crate) fn is_enabled_usart1_clock(&self) -> bool {
         self.registers.apb2enr.is_set(APB2ENR::USART1EN)
     }
 
-    fn enable_usart1_clock(&self) {
+    pub(crate) fn enable_usart1_clock(&self) {
         self.registers.apb2enr.modify(APB2ENR::USART1EN::SET)
     }
 
-    fn disable_usart1_clock(&self) {
+    pub(crate) fn disable_usart1_clock(&self) {
         self.registers.apb2enr.modify(APB2ENR::USART1EN::CLEAR)
     }
 
     // USART2 clock
 
-    fn is_enabled_usart2_clock(&self) -> bool {
+    pub(crate) fn is_enabled_usart2_clock(&self) -> bool {
         self.registers.apb1enr.is_set(APB1ENR::USART2EN)
     }
 
-    fn enable_usart2_clock(&self) {
+    pub(crate) fn enable_usart2_clock(&self) {
         self.registers.apb1enr.modify(APB1ENR::USART2EN::SET)
     }
 
-    fn disable_usart2_clock(&self) {
+    pub(crate) fn disable_usart2_clock(&self) {
         self.registers.apb1enr.modify(APB1ENR::USART2EN::CLEAR)
     }
 
     // USART3 clock
 
-    fn is_enabled_usart3_clock(&self) -> bool {
+    pub(crate) fn is_enabled_usart3_clock(&self) -> bool {
         self.registers.apb1enr.is_set(APB1ENR::USART3EN)
     }
 
-    fn enable_usart3_clock(&self) {
+    pub(crate) fn enable_usart3_clock(&self) {
         self.registers.apb1enr.modify(APB1ENR::USART3EN::SET)
     }
 
-    fn disable_usart3_clock(&self) {
+    pub(crate) fn disable_usart3_clock(&self) {
         self.registers.apb1enr.modify(APB1ENR::USART3EN::CLEAR)
     }
 
     // ADC1 clock
 
-    fn is_enabled_adc1_clock(&self) -> bool {
+    pub(crate) fn is_enabled_adc1_clock(&self) -> bool {
         self.registers.apb2enr.is_set(APB2ENR::ADC1EN)
     }
 
-    fn enable_adc1_clock(&self) {
+    pub(crate) fn enable_adc1_clock(&self) {
         self.registers.apb2enr.modify(APB2ENR::ADC1EN::SET)
     }
 
-    fn disable_adc1_clock(&self) {
+    pub(crate) fn disable_adc1_clock(&self) {
         self.registers.apb2enr.modify(APB2ENR::ADC1EN::CLEAR)
+    }
+
+    // DAC clock
+
+    pub(crate) fn is_enabled_dac_clock(&self) -> bool {
+        self.registers.apb1enr.is_set(APB1ENR::DACEN)
+    }
+
+    pub(crate) fn enable_dac_clock(&self) {
+        self.registers.apb1enr.modify(APB1ENR::DACEN::SET)
+    }
+
+    pub(crate) fn disable_dac_clock(&self) {
+        self.registers.apb1enr.modify(APB1ENR::DACEN::CLEAR)
     }
 
     // RNG clock
 
-    fn is_enabled_rng_clock(&self) -> bool {
+    pub(crate) fn is_enabled_rng_clock(&self) -> bool {
         self.registers.ahb2enr.is_set(AHB2ENR::RNGEN)
     }
 
-    fn enable_rng_clock(&self) {
+    pub(crate) fn enable_rng_clock(&self) {
         self.registers.ahb2enr.modify(AHB2ENR::RNGEN::SET);
     }
 
-    fn disable_rng_clock(&self) {
+    pub(crate) fn disable_rng_clock(&self) {
         self.registers.ahb2enr.modify(AHB2ENR::RNGEN::CLEAR);
     }
 
     // OTGFS clock
 
-    fn is_enabled_otgfs_clock(&self) -> bool {
+    pub(crate) fn is_enabled_otgfs_clock(&self) -> bool {
         self.registers.ahb2enr.is_set(AHB2ENR::OTGFSEN)
     }
 
-    fn enable_otgfs_clock(&self) {
+    pub(crate) fn enable_otgfs_clock(&self) {
         self.registers.ahb2enr.modify(AHB2ENR::OTGFSEN::SET);
     }
 
-    fn disable_otgfs_clock(&self) {
+    pub(crate) fn disable_otgfs_clock(&self) {
         self.registers.ahb2enr.modify(AHB2ENR::OTGFSEN::CLEAR);
     }
 
     // CAN1 clock
 
-    fn is_enabled_can1_clock(&self) -> bool {
+    pub(crate) fn is_enabled_can1_clock(&self) -> bool {
         self.registers.apb1enr.is_set(APB1ENR::CAN1EN)
     }
 
-    fn enable_can1_clock(&self) {
+    pub(crate) fn enable_can1_clock(&self) {
         self.registers.apb1rstr.modify(APB1RSTR::CAN1RST::SET);
         self.registers.apb1rstr.modify(APB1RSTR::CAN1RST::CLEAR);
         self.registers.apb1enr.modify(APB1ENR::CAN1EN::SET);
     }
 
-    fn disable_can1_clock(&self) {
+    pub(crate) fn disable_can1_clock(&self) {
         self.registers.apb1enr.modify(APB1ENR::CAN1EN::CLEAR);
     }
-}
 
-// NOTE: HSE is not yet supported as source clock.
-pub(crate) enum PllSource {
-    HSI = 0b0,
-    //HSE = 0b1,
+    // RTC clock
+    pub(crate) fn source_into_u32(source: RtcClockSource) -> u32 {
+        match source {
+            RtcClockSource::LSE => 1,
+            RtcClockSource::LSI => 2,
+            RtcClockSource::HSERTC => 3,
+        }
+    }
+
+    pub(crate) fn enable_lsi_clock(&self) {
+        self.registers.csr.modify(CSR::LSION::SET);
+    }
+
+    pub(crate) fn is_enabled_pwr_clock(&self) -> bool {
+        self.registers.apb1enr.is_set(APB1ENR::PWREN)
+    }
+
+    pub(crate) fn enable_pwr_clock(&self) {
+        // Enable the power interface clock
+        self.registers.apb1enr.modify(APB1ENR::PWREN::SET);
+    }
+
+    pub(crate) fn disable_pwr_clock(&self) {
+        self.registers.apb1enr.modify(APB1ENR::PWREN::CLEAR);
+    }
+
+    pub(crate) fn is_enabled_rtc_clock(&self) -> bool {
+        self.registers.bdcr.is_set(BDCR::RTCEN)
+    }
+
+    pub(crate) fn enable_rtc_clock(&self, source: RtcClockSource) {
+        // Enable LSI
+        self.enable_lsi_clock();
+        let mut counter = 1_000;
+        while counter > 0 && !self.registers.csr.is_set(CSR::LSION) {
+            counter -= 1;
+        }
+        if counter == 0 {
+            panic!("Unable to activate lsi clock");
+        }
+
+        // Select RTC clock source
+        let source_num = Rcc::source_into_u32(source);
+        self.registers.bdcr.modify(BDCR::RTCSEL.val(source_num));
+
+        // Enable RTC clock
+        self.registers.bdcr.modify(BDCR::RTCEN::SET);
+    }
+
+    pub(crate) fn disable_rtc_clock(&self) {
+        self.registers.bdcr.modify(BDCR::RTCEN.val(1));
+        self.registers.bdcr.modify(BDCR::RTCSEL.val(0));
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -1374,16 +1515,21 @@ pub(crate) enum PLLQ {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum SysClockSource {
     HSI = 0b00,
-    //HSE = 0b01, Uncomment this when support for HSE is added
+    HSE = 0b01,
     PLL = 0b10,
     // NOTE: not all STM32F4xx boards support this source.
     //PPLLR = 0b11, Uncomment this when support for PPLLR is added
 }
 
+pub enum PllSource {
+    HSI = 0b0,
+    HSE = 0b1,
+}
+
 pub enum MCO1Source {
     HSI = 0b00,
     //LSE = 0b01, // When support for LSE is added, uncomment this
-    //HSE = 0b10, // When support for HSE is added, uncomment this
+    HSE = 0b10,
     PLL = 0b11,
 }
 
@@ -1393,6 +1539,13 @@ pub enum MCO1Divider {
     DivideBy3 = 0b101,
     DivideBy4 = 0b110,
     DivideBy5 = 0b111,
+}
+
+/// HSE Mode
+#[derive(PartialEq)]
+pub enum HseMode {
+    BYPASS,
+    CRYSTAL,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -1441,285 +1594,6 @@ impl From<APBPrescaler> for usize {
             APBPrescaler::DivideBy4 => 4,
             APBPrescaler::DivideBy8 => 8,
             APBPrescaler::DivideBy16 => 16,
-        }
-    }
-}
-
-pub struct PeripheralClock<'a> {
-    pub clock: PeripheralClockType,
-    rcc: &'a Rcc,
-}
-
-/// Bus + Clock name for the peripherals
-pub enum PeripheralClockType {
-    AHB1(HCLK1),
-    AHB2(HCLK2),
-    AHB3(HCLK3),
-    APB1(PCLK1),
-    APB2(PCLK2),
-}
-
-/// Peripherals clocked by HCLK1
-pub enum HCLK1 {
-    ETHMACPTPEN,
-    ETHMACRXEN,
-    ETHMACTXEN,
-    ETHMACEN,
-    DMA1,
-    DMA2,
-    GPIOH,
-    GPIOG,
-    GPIOF,
-    GPIOE,
-    GPIOD,
-    GPIOC,
-    GPIOB,
-    GPIOA,
-}
-
-/// Peripherals clocked by HCLK3
-pub enum HCLK3 {
-    FMC,
-}
-
-/// Peripherals clocked by HCLK2
-pub enum HCLK2 {
-    RNG,
-    OTGFS,
-}
-
-/// Peripherals clocked by PCLK1
-pub enum PCLK1 {
-    TIM2,
-    USART2,
-    USART3,
-    SPI3,
-    I2C1,
-    CAN1,
-}
-
-/// Peripherals clocked by PCLK2
-pub enum PCLK2 {
-    USART1,
-    ADC1,
-    SYSCFG,
-}
-
-impl<'a> PeripheralClock<'a> {
-    pub const fn new(clock: PeripheralClockType, rcc: &'a Rcc) -> Self {
-        Self { clock, rcc }
-    }
-
-    pub fn configure_rng_clock(&self) {
-        self.rcc.configure_rng_clock();
-    }
-}
-
-impl<'a> ClockInterface for PeripheralClock<'a> {
-    fn is_enabled(&self) -> bool {
-        match self.clock {
-            PeripheralClockType::AHB1(ref v) => match v {
-                HCLK1::ETHMACPTPEN => self.rcc.is_enabled_ethernet_macptp_clock(),
-                HCLK1::ETHMACRXEN => self.rcc.is_enabled_ethernet_macrx_clock(),
-                HCLK1::ETHMACTXEN => self.rcc.is_enabled_ethernet_mactx_clock(),
-                HCLK1::ETHMACEN => self.rcc.is_enabled_ethernet_mac_clock(),
-                HCLK1::DMA1 => self.rcc.is_enabled_dma1_clock(),
-                HCLK1::DMA2 => self.rcc.is_enabled_dma2_clock(),
-                HCLK1::GPIOH => self.rcc.is_enabled_gpioh_clock(),
-                HCLK1::GPIOG => self.rcc.is_enabled_gpiog_clock(),
-                HCLK1::GPIOF => self.rcc.is_enabled_gpiof_clock(),
-                HCLK1::GPIOE => self.rcc.is_enabled_gpioe_clock(),
-                HCLK1::GPIOD => self.rcc.is_enabled_gpiod_clock(),
-                HCLK1::GPIOC => self.rcc.is_enabled_gpioc_clock(),
-                HCLK1::GPIOB => self.rcc.is_enabled_gpiob_clock(),
-                HCLK1::GPIOA => self.rcc.is_enabled_gpioa_clock(),
-            },
-            PeripheralClockType::AHB2(ref v) => match v {
-                HCLK2::RNG => self.rcc.is_enabled_rng_clock(),
-                HCLK2::OTGFS => self.rcc.is_enabled_otgfs_clock(),
-            },
-            PeripheralClockType::AHB3(ref v) => match v {
-                HCLK3::FMC => self.rcc.is_enabled_fmc_clock(),
-            },
-            PeripheralClockType::APB1(ref v) => match v {
-                PCLK1::TIM2 => self.rcc.is_enabled_tim2_clock(),
-                PCLK1::USART2 => self.rcc.is_enabled_usart2_clock(),
-                PCLK1::USART3 => self.rcc.is_enabled_usart3_clock(),
-                PCLK1::I2C1 => self.rcc.is_enabled_i2c1_clock(),
-                PCLK1::SPI3 => self.rcc.is_enabled_spi3_clock(),
-                PCLK1::CAN1 => self.rcc.is_enabled_can1_clock(),
-            },
-            PeripheralClockType::APB2(ref v) => match v {
-                PCLK2::USART1 => self.rcc.is_enabled_usart1_clock(),
-                PCLK2::ADC1 => self.rcc.is_enabled_adc1_clock(),
-                PCLK2::SYSCFG => self.rcc.is_enabled_syscfg_clock(),
-            },
-        }
-    }
-
-    fn enable(&self) {
-        match self.clock {
-            PeripheralClockType::AHB1(ref v) => match v {
-                HCLK1::ETHMACPTPEN => self.rcc.enable_ethernet_macptp_clock(),
-                HCLK1::ETHMACRXEN => self.rcc.enable_ethernet_macrx_clock(),
-                HCLK1::ETHMACTXEN => self.rcc.enable_ethernet_mactx_clock(),
-                HCLK1::ETHMACEN => self.rcc.enable_ethernet_mac_clock(),
-                HCLK1::DMA1 => {
-                    self.rcc.enable_dma1_clock();
-                }
-                HCLK1::DMA2 => {
-                    self.rcc.enable_dma2_clock();
-                }
-                HCLK1::GPIOH => {
-                    self.rcc.enable_gpioh_clock();
-                }
-                HCLK1::GPIOG => {
-                    self.rcc.enable_gpiog_clock();
-                }
-                HCLK1::GPIOF => {
-                    self.rcc.enable_gpiof_clock();
-                }
-                HCLK1::GPIOE => {
-                    self.rcc.enable_gpioe_clock();
-                }
-                HCLK1::GPIOD => {
-                    self.rcc.enable_gpiod_clock();
-                }
-                HCLK1::GPIOC => {
-                    self.rcc.enable_gpioc_clock();
-                }
-                HCLK1::GPIOB => {
-                    self.rcc.enable_gpiob_clock();
-                }
-                HCLK1::GPIOA => {
-                    self.rcc.enable_gpioa_clock();
-                }
-            },
-            PeripheralClockType::AHB2(ref v) => match v {
-                HCLK2::RNG => {
-                    self.rcc.enable_rng_clock();
-                }
-                HCLK2::OTGFS => {
-                    self.rcc.enable_otgfs_clock();
-                }
-            },
-            PeripheralClockType::AHB3(ref v) => match v {
-                HCLK3::FMC => self.rcc.enable_fmc_clock(),
-            },
-            PeripheralClockType::APB1(ref v) => match v {
-                PCLK1::TIM2 => {
-                    self.rcc.enable_tim2_clock();
-                }
-                PCLK1::USART2 => {
-                    self.rcc.enable_usart2_clock();
-                }
-                PCLK1::USART3 => {
-                    self.rcc.enable_usart3_clock();
-                }
-                PCLK1::I2C1 => {
-                    self.rcc.enable_i2c1_clock();
-                }
-                PCLK1::SPI3 => {
-                    self.rcc.enable_spi3_clock();
-                }
-                PCLK1::CAN1 => {
-                    self.rcc.enable_can1_clock();
-                }
-            },
-            PeripheralClockType::APB2(ref v) => match v {
-                PCLK2::USART1 => {
-                    self.rcc.enable_usart1_clock();
-                }
-                PCLK2::ADC1 => {
-                    self.rcc.enable_adc1_clock();
-                }
-                PCLK2::SYSCFG => {
-                    self.rcc.enable_syscfg_clock();
-                }
-            },
-        }
-    }
-
-    fn disable(&self) {
-        match self.clock {
-            PeripheralClockType::AHB1(ref v) => match v {
-                HCLK1::ETHMACPTPEN => self.rcc.disable_ethernet_macptp_clock(),
-                HCLK1::ETHMACRXEN => self.rcc.disable_ethernet_macrx_clock(),
-                HCLK1::ETHMACTXEN => self.rcc.disable_ethernet_mactx_clock(),
-                HCLK1::ETHMACEN => self.rcc.disable_ethernet_mac_clock(),
-                HCLK1::DMA1 => {
-                    self.rcc.disable_dma1_clock();
-                }
-                HCLK1::DMA2 => {
-                    self.rcc.disable_dma2_clock();
-                }
-                HCLK1::GPIOH => {
-                    self.rcc.disable_gpioh_clock();
-                }
-                HCLK1::GPIOG => {
-                    self.rcc.disable_gpiog_clock();
-                }
-                HCLK1::GPIOF => {
-                    self.rcc.disable_gpiof_clock();
-                }
-                HCLK1::GPIOE => {
-                    self.rcc.disable_gpioe_clock();
-                }
-                HCLK1::GPIOD => {
-                    self.rcc.disable_gpiod_clock();
-                }
-                HCLK1::GPIOC => {
-                    self.rcc.disable_gpioc_clock();
-                }
-                HCLK1::GPIOB => {
-                    self.rcc.disable_gpiob_clock();
-                }
-                HCLK1::GPIOA => {
-                    self.rcc.disable_gpioa_clock();
-                }
-            },
-            PeripheralClockType::AHB2(ref v) => match v {
-                HCLK2::RNG => {
-                    self.rcc.disable_rng_clock();
-                }
-                HCLK2::OTGFS => {
-                    self.rcc.disable_otgfs_clock();
-                }
-            },
-            PeripheralClockType::AHB3(ref v) => match v {
-                HCLK3::FMC => self.rcc.disable_fmc_clock(),
-            },
-            PeripheralClockType::APB1(ref v) => match v {
-                PCLK1::TIM2 => {
-                    self.rcc.disable_tim2_clock();
-                }
-                PCLK1::USART2 => {
-                    self.rcc.disable_usart2_clock();
-                }
-                PCLK1::USART3 => {
-                    self.rcc.disable_usart3_clock();
-                }
-                PCLK1::I2C1 => {
-                    self.rcc.disable_i2c1_clock();
-                }
-                PCLK1::SPI3 => {
-                    self.rcc.disable_spi3_clock();
-                }
-                PCLK1::CAN1 => {
-                    self.rcc.disable_can1_clock();
-                }
-            },
-            PeripheralClockType::APB2(ref v) => match v {
-                PCLK2::USART1 => {
-                    self.rcc.disable_usart1_clock();
-                }
-                PCLK2::ADC1 => {
-                    self.rcc.disable_adc1_clock();
-                }
-                PCLK2::SYSCFG => {
-                    self.rcc.disable_syscfg_clock();
-                }
-            },
         }
     }
 }

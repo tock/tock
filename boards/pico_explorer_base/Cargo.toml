@@ -6,7 +6,7 @@
 name = "pico_explorer_base"
 version.workspace = true
 authors.workspace = true
-build = "build.rs"
+build = "../build.rs"
 edition.workspace = true
 
 [dependencies]
@@ -18,3 +18,10 @@ enum_primitive = { path = "../../libraries/enum_primitive" }
 
 capsules-core = { path = "../../capsules/core" }
 capsules-extra = { path = "../../capsules/extra" }
+capsules-system = { path = "../../capsules/system" }
+
+[build-dependencies]
+tock_build_scripts = { path = "../build_scripts" }
+
+[lints]
+workspace = true

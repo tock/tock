@@ -5,9 +5,8 @@
 //! Core low-level operations.
 
 use crate::csr::{mstatus::mstatus, CSR};
-use core::ops::FnOnce;
 
-#[cfg(all(target_arch = "riscv32", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
 #[inline(always)]
 /// NOP instruction
 pub fn nop() {
@@ -17,7 +16,7 @@ pub fn nop() {
     }
 }
 
-#[cfg(all(target_arch = "riscv32", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
 #[inline(always)]
 /// WFI instruction
 pub unsafe fn wfi() {
@@ -51,13 +50,13 @@ where
 }
 
 // Mock implementations for tests on Travis-CI.
-#[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+#[cfg(not(any(doc, all(target_arch = "riscv32", target_os = "none"))))]
 /// NOP instruction (mock)
 pub fn nop() {
     unimplemented!()
 }
 
-#[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+#[cfg(not(any(doc, all(target_arch = "riscv32", target_os = "none"))))]
 /// WFI instruction (mock)
 pub unsafe fn wfi() {
     unimplemented!()

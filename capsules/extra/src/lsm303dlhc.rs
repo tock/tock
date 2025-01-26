@@ -15,7 +15,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! let mux_i2c = components::i2c::I2CMuxComponent::new(&stm32f3xx::i2c::I2C1)
 //!     .finalize(components::i2c_mux_component_helper!());
 //!
@@ -35,7 +35,7 @@
 //!
 //! NideDof Example
 //!
-//! ```rust
+//! ```rust,ignore
 //! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 //! let grant_ninedof = board_kernel.create_grant(&grant_cap);
 //!
@@ -58,7 +58,7 @@
 //!
 //! Temperature Example
 //!
-//! ```rust
+//! ```rust,ignore
 //! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 //! let grant_temp = board_kernel.create_grant(&grant_cap);
 //!
@@ -170,8 +170,8 @@ impl<'a, I: i2c::I2CDevice> Lsm303dlhcI2C<'a, I> {
         // setup and return struct
         Lsm303dlhcI2C {
             config_in_progress: Cell::new(false),
-            i2c_accelerometer: i2c_accelerometer,
-            i2c_magnetometer: i2c_magnetometer,
+            i2c_accelerometer,
+            i2c_magnetometer,
             state: Cell::new(State::Idle),
             accel_scale: Cell::new(Lsm303Scale::Scale2G),
             mag_range: Cell::new(Lsm303Range::Range1G),

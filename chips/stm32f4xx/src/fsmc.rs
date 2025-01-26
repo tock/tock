@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use crate::rcc;
+use crate::clocks::{phclk, Stm32f4Clocks};
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
-use kernel::hil::bus8080::{Bus8080, BusWidth, Client};
+use kernel::hil::bus8080::{Bus8080, BusAddr8080, BusWidth, Client};
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
@@ -172,13 +172,13 @@ pub struct Fsmc<'a> {
 }
 
 impl<'a> Fsmc<'a> {
-    pub fn new(bank_addr: [Option<StaticRef<FsmcBank>>; 4], rcc: &'a rcc::Rcc) -> Self {
+    pub fn new(bank_addr: [Option<StaticRef<FsmcBank>>; 4], clocks: &'a dyn Stm32f4Clocks) -> Self {
         Self {
             registers: FSMC_BASE,
             bank: bank_addr,
-            clock: FsmcClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::AHB3(rcc::HCLK3::FMC),
-                rcc,
+            clock: FsmcClock(phclk::PeripheralClock::new(
+                phclk::PeripheralClockType::AHB3(phclk::HCLK3::FMC),
+                clocks,
             )),
             client: OptionalCell::empty(),
 
@@ -244,7 +244,7 @@ impl<'a> Fsmc<'a> {
         self.bank[bank as usize].map_or(None, |bank| Some(bank.ram.get()))
     }
 
-    #[cfg(all(target_arch = "arm", target_os = "none"))]
+    #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
     #[inline]
     fn write_reg(&self, bank: FsmcBanks, addr: u16) {
         use kernel::utilities::registers::interfaces::Writeable;
@@ -255,7 +255,7 @@ impl<'a> Fsmc<'a> {
         }
     }
 
-    #[cfg(all(target_arch = "arm", target_os = "none"))]
+    #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
     #[inline]
     fn write_data(&self, bank: FsmcBanks, data: u16) {
         use kernel::utilities::registers::interfaces::Writeable;
@@ -266,12 +266,12 @@ impl<'a> Fsmc<'a> {
         }
     }
 
-    #[cfg(not(any(target_arch = "arm", target_os = "none")))]
+    #[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
     fn write_reg(&self, _bank: FsmcBanks, _addr: u16) {
         unimplemented!()
     }
 
-    #[cfg(not(any(target_arch = "arm", target_os = "none")))]
+    #[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
     fn write_data(&self, _bank: FsmcBanks, _data: u16) {
         unimplemented!()
     }
@@ -298,7 +298,7 @@ impl DeferredCallClient for Fsmc<'_> {
     }
 }
 
-struct FsmcClock<'a>(rcc::PeripheralClock<'a>);
+struct FsmcClock<'a>(phclk::PeripheralClock<'a>);
 
 impl ClockInterface for FsmcClock<'_> {
     fn is_enabled(&self) -> bool {
@@ -315,9 +315,9 @@ impl ClockInterface for FsmcClock<'_> {
 }
 
 impl Bus8080<'static> for Fsmc<'_> {
-    fn set_addr(&self, addr_width: BusWidth, addr: usize) -> Result<(), ErrorCode> {
-        match addr_width {
-            BusWidth::Bits8 => {
+    fn set_addr(&self, addr: BusAddr8080) -> Result<(), ErrorCode> {
+        match addr {
+            BusAddr8080::BusAddr8(addr) => {
                 self.write_reg(FsmcBanks::Bank1, addr as u16);
                 self.deferred_call.set();
                 Ok(())

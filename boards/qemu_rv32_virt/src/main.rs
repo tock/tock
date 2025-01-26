@@ -9,6 +9,9 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 
+use core::ptr::addr_of;
+use core::ptr::addr_of_mut;
+
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
 use kernel::component::Component;
@@ -35,10 +38,12 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 static mut CHIP: Option<&'static QemuRv32VirtChip<QemuRv32VirtDefaultPeripherals>> = None;
 
 // Reference to the process printer for panic dumps.
-static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
+static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
+    None;
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
+const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
+    capsules_system::process_policies::PanicFaultPolicy {};
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -71,7 +76,12 @@ struct QemuRv32VirtPlatform {
     scheduler_timer: &'static VirtualSchedulerTimer<
         VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
     >,
-    virtio_rng: Option<&'static capsules_core::rng::RngDriver<'static>>,
+    virtio_rng: Option<
+        &'static capsules_core::rng::RngDriver<
+            'static,
+            qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng<'static, 'static>,
+        >,
+    >,
     virtio_net_tap: Option<
         &'static capsules_extra::ethernet_app_tap::TapDriver<
             'static,
@@ -113,7 +123,6 @@ impl
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type CredentialsCheckingPolicy = ();
     type Scheduler = CooperativeSched<'static>;
     type SchedulerTimer = VirtualSchedulerTimer<
         VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
@@ -130,9 +139,6 @@ impl
     fn process_fault(&self) -> &Self::ProcessFault {
         &()
     }
-    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
-        &()
-    }
     fn scheduler(&self) -> &Self::Scheduler {
         self.scheduler
     }
@@ -147,24 +153,88 @@ impl
     }
 }
 
-/// Main function.
-///
-/// This function is called from the arch crate after some very basic
-/// RISC-V setup and RAM initialization.
-#[no_mangle]
-pub unsafe fn main() {
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+unsafe fn start() -> (
+    &'static kernel::Kernel,
+    QemuRv32VirtPlatform,
+    &'static qemu_rv32_virt_chip::chip::QemuRv32VirtChip<
+        'static,
+        QemuRv32VirtDefaultPeripherals<'static>,
+    >,
+) {
+    // These symbols are defined in the linker script.
+    extern "C" {
+        /// Beginning of the ROM region containing app images.
+        static _sapps: u8;
+        /// End of the ROM region containing app images.
+        static _eapps: u8;
+        /// Beginning of the RAM region for app memory.
+        static mut _sappmem: u8;
+        /// End of the RAM region for app memory.
+        static _eappmem: u8;
+        /// The start of the kernel text (Included only for kernel PMP)
+        static _stext: u8;
+        /// The end of the kernel text (Included only for kernel PMP)
+        static _etext: u8;
+        /// The start of the kernel / app / storage flash (Included only for kernel PMP)
+        static _sflash: u8;
+        /// The end of the kernel / app / storage flash (Included only for kernel PMP)
+        static _eflash: u8;
+        /// The start of the kernel / app RAM (Included only for kernel PMP)
+        static _ssram: u8;
+        /// The end of the kernel / app RAM (Included only for kernel PMP)
+        static _esram: u8;
+    }
+
     // ---------- BASIC INITIALIZATION -----------
 
     // Basic setup of the RISC-V IMAC platform
-    rv32i::configure_trap_handler(rv32i::PermissionMode::Machine);
+    rv32i::configure_trap_handler();
+
+    // Set up memory protection immediately after setting the trap handler, to
+    // ensure that much of the board initialization routine runs with ePMP
+    // protection.
+    let epmp = rv32i::pmp::kernel_protection_mml_epmp::KernelProtectionMMLEPMP::new(
+        rv32i::pmp::kernel_protection_mml_epmp::FlashRegion(
+            rv32i::pmp::NAPOTRegionSpec::new(
+                core::ptr::addr_of!(_sflash),
+                core::ptr::addr_of!(_eflash) as usize - core::ptr::addr_of!(_sflash) as usize,
+            )
+            .unwrap(),
+        ),
+        rv32i::pmp::kernel_protection_mml_epmp::RAMRegion(
+            rv32i::pmp::NAPOTRegionSpec::new(
+                core::ptr::addr_of!(_ssram),
+                core::ptr::addr_of!(_esram) as usize - core::ptr::addr_of!(_ssram) as usize,
+            )
+            .unwrap(),
+        ),
+        rv32i::pmp::kernel_protection_mml_epmp::MMIORegion(
+            rv32i::pmp::NAPOTRegionSpec::new(
+                core::ptr::null::<u8>(), // start
+                0x20000000,              // size
+            )
+            .unwrap(),
+        ),
+        rv32i::pmp::kernel_protection_mml_epmp::KernelTextRegion(
+            rv32i::pmp::TORRegionSpec::new(
+                core::ptr::addr_of!(_stext),
+                core::ptr::addr_of!(_etext),
+            )
+            .unwrap(),
+        ),
+    )
+    .unwrap();
 
     // Acquire required capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
     // Create a board kernel instance
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
 
     // ---------- QEMU-SYSTEM-RISCV32 "virt" MACHINE PERIPHERALS ----------
 
@@ -242,61 +312,63 @@ pub unsafe fn main() {
 
     // If there is a VirtIO EntropySource present, use the appropriate VirtIORng
     // driver and expose it to userspace though the RngDriver
-    let virtio_rng_driver: Option<&'static capsules_core::rng::RngDriver<'static>> =
-        if let Some(rng_idx) = virtio_rng_idx {
-            use kernel::hil::rng::Rng;
-            use qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng;
-            use qemu_rv32_virt_chip::virtio::queues::split_queue::{
-                SplitVirtqueue, VirtqueueAvailableRing, VirtqueueDescriptors, VirtqueueUsedRing,
-            };
-            use qemu_rv32_virt_chip::virtio::queues::Virtqueue;
-            use qemu_rv32_virt_chip::virtio::transports::VirtIOTransport;
-
-            // EntropySource requires a single Virtqueue for retrieved entropy
-            let descriptors =
-                static_init!(VirtqueueDescriptors<1>, VirtqueueDescriptors::default(),);
-            let available_ring =
-                static_init!(VirtqueueAvailableRing<1>, VirtqueueAvailableRing::default(),);
-            let used_ring = static_init!(VirtqueueUsedRing<1>, VirtqueueUsedRing::default(),);
-            let queue = static_init!(
-                SplitVirtqueue<1>,
-                SplitVirtqueue::new(descriptors, available_ring, used_ring),
-            );
-            queue.set_transport(&peripherals.virtio_mmio[rng_idx]);
-
-            // VirtIO EntropySource device driver instantiation
-            let rng = static_init!(VirtIORng, VirtIORng::new(queue));
-            kernel::deferred_call::DeferredCallClient::register(rng);
-            queue.set_client(rng);
-
-            // Register the queues and driver with the transport, so interrupts
-            // are routed properly
-            let mmio_queues = static_init!([&'static dyn Virtqueue; 1], [queue; 1]);
-            peripherals.virtio_mmio[rng_idx]
-                .initialize(rng, mmio_queues)
-                .unwrap();
-
-            // Provide an internal randomness buffer
-            let rng_buffer = static_init!([u8; 64], [0; 64]);
-            rng.provide_buffer(rng_buffer)
-                .expect("rng: providing initial buffer failed");
-
-            // Userspace RNG driver over the VirtIO EntropySource
-            let rng_driver: &'static mut capsules_core::rng::RngDriver = static_init!(
-                capsules_core::rng::RngDriver,
-                capsules_core::rng::RngDriver::new(
-                    rng,
-                    board_kernel
-                        .create_grant(capsules_core::rng::DRIVER_NUM, &memory_allocation_cap),
-                ),
-            );
-            rng.set_client(rng_driver);
-
-            Some(rng_driver as &'static capsules_core::rng::RngDriver)
-        } else {
-            // No VirtIO EntropySource discovered
-            None
+    let virtio_rng_driver: Option<
+        &'static capsules_core::rng::RngDriver<
+            'static,
+            qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng<'static, 'static>,
+        >,
+    > = if let Some(rng_idx) = virtio_rng_idx {
+        use kernel::hil::rng::Rng;
+        use qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng;
+        use qemu_rv32_virt_chip::virtio::queues::split_queue::{
+            SplitVirtqueue, VirtqueueAvailableRing, VirtqueueDescriptors, VirtqueueUsedRing,
         };
+        use qemu_rv32_virt_chip::virtio::queues::Virtqueue;
+        use qemu_rv32_virt_chip::virtio::transports::VirtIOTransport;
+
+        // EntropySource requires a single Virtqueue for retrieved entropy
+        let descriptors = static_init!(VirtqueueDescriptors<1>, VirtqueueDescriptors::default(),);
+        let available_ring =
+            static_init!(VirtqueueAvailableRing<1>, VirtqueueAvailableRing::default(),);
+        let used_ring = static_init!(VirtqueueUsedRing<1>, VirtqueueUsedRing::default(),);
+        let queue = static_init!(
+            SplitVirtqueue<1>,
+            SplitVirtqueue::new(descriptors, available_ring, used_ring),
+        );
+        queue.set_transport(&peripherals.virtio_mmio[rng_idx]);
+
+        // VirtIO EntropySource device driver instantiation
+        let rng = static_init!(VirtIORng, VirtIORng::new(queue));
+        kernel::deferred_call::DeferredCallClient::register(rng);
+        queue.set_client(rng);
+
+        // Register the queues and driver with the transport, so interrupts
+        // are routed properly
+        let mmio_queues = static_init!([&'static dyn Virtqueue; 1], [queue; 1]);
+        peripherals.virtio_mmio[rng_idx]
+            .initialize(rng, mmio_queues)
+            .unwrap();
+
+        // Provide an internal randomness buffer
+        let rng_buffer = static_init!([u8; 64], [0; 64]);
+        rng.provide_buffer(rng_buffer)
+            .expect("rng: providing initial buffer failed");
+
+        // Userspace RNG driver over the VirtIO EntropySource
+        let rng_driver = static_init!(
+            capsules_core::rng::RngDriver<VirtIORng>,
+            capsules_core::rng::RngDriver::new(
+                rng,
+                board_kernel.create_grant(capsules_core::rng::DRIVER_NUM, &memory_allocation_cap),
+            ),
+        );
+        rng.set_client(rng_driver);
+
+        Some(rng_driver as &'static capsules_core::rng::RngDriver<VirtIORng>)
+    } else {
+        // No VirtIO EntropySource discovered
+        None
+    };
 
     // If there is a VirtIO NetworkCard present, use the appropriate VirtIONet
     // driver. Currently this is not used, as work on the userspace network
@@ -420,7 +492,7 @@ pub unsafe fn main() {
 
     let chip = static_init!(
         QemuRv32VirtChip<QemuRv32VirtDefaultPeripherals>,
-        QemuRv32VirtChip::new(peripherals, hardware_timer),
+        QemuRv32VirtChip::new(peripherals, hardware_timer, epmp),
     );
     CHIP = Some(chip);
 
@@ -470,8 +542,9 @@ pub unsafe fn main() {
     )
     .finalize(components::low_level_debug_component_static!());
 
-    let scheduler = components::sched::cooperative::CooperativeComponent::new(&PROCESSES)
-        .finalize(components::cooperative_component_static!(NUM_PROCS));
+    let scheduler =
+        components::sched::cooperative::CooperativeComponent::new(&*addr_of!(PROCESSES))
+            .finalize(components::cooperative_component_static!(NUM_PROCS));
 
     let scheduler_timer = static_init!(
         VirtualSchedulerTimer<
@@ -502,32 +575,20 @@ pub unsafe fn main() {
     debug!("QEMU RISC-V 32-bit \"virt\" machine, initialization complete.");
     debug!("Entering main loop.");
 
-    // These symbols are defined in the linker script.
-    extern "C" {
-        /// Beginning of the ROM region containing app images.
-        static _sapps: u8;
-        /// End of the ROM region containing app images.
-        static _eapps: u8;
-        /// Beginning of the RAM region for app memory.
-        static mut _sappmem: u8;
-        /// End of the RAM region for app memory.
-        static _eappmem: u8;
-    }
-
     // ---------- PROCESS LOADING, SCHEDULER LOOP ----------
 
     kernel::process::load_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
         ),
         core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+            core::ptr::addr_of_mut!(_sappmem),
+            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut PROCESSES,
+        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_mgmt_cap,
     )
@@ -536,5 +597,14 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap);
+    (board_kernel, platform, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, platform, chip) = start();
+    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }

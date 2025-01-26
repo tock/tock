@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! Specifies the interface for IEEE 802.15.4 MAC protocol layers. MAC protocols
-//! expose similar configuration (address, PAN, transmission power) options
-//! as ieee802154::device::MacDevice layers above it, but retain control over
-//! radio power management and channel selection. All frame processing should
-//! be completed above this layer such that Mac implementations receive fully
+//! Specifies the interface for IEEE 802.15.4 MAC protocol layers.
+//!
+//! MAC protocols expose similar configuration (address, PAN,
+//! transmission power) options as ieee802154::device::MacDevice
+//! layers above it, but retain control over radio power management
+//! and channel selection. All frame processing should be completed
+//! above this layer such that Mac implementations receive fully
 //! formatted 802.15.4 MAC frames for transmission.
 //!
 //! AwakeMac provides a default implementation of such a layer, maintaining
@@ -14,15 +16,13 @@
 //! through each frame for transmission.
 
 use crate::net::ieee802154::{Header, MacAddress};
-use kernel::debug;
-use kernel::hil::radio;
+use kernel::hil::radio::{self, MAX_FRAME_SIZE, PSDU_OFFSET};
 use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 
 pub trait Mac<'a> {
-    /// Initializes the layer; may require a buffer to temporarily retaining frames to be
-    /// transmitted
-    fn initialize(&self, mac_buf: &'static mut [u8]) -> Result<(), ErrorCode>;
+    /// Initializes the layer.
+    fn initialize(&self) -> Result<(), ErrorCode>;
 
     /// Sets the notified client for configuration changes
     fn set_config_client(&self, client: &'a dyn radio::ConfigClient);
@@ -57,6 +57,17 @@ pub trait Mac<'a> {
     /// Indicates whether or not the MAC protocol is active and can send frames
     fn is_on(&self) -> bool;
 
+    /// Start the radio.
+    ///
+    /// This serves as a passthrough to the underlying radio's `start` method.
+    ///
+    /// ## Return
+    ///
+    /// `Ok(())` on success. On `Err()`, valid errors are:
+    ///
+    /// - `ErrorCode::FAIL`: Internal error occurred.
+    fn start(&self) -> Result<(), ErrorCode>;
+
     /// Transmits complete MAC frames, which must be prepared by an ieee802154::device::MacDevice
     /// before being passed to the Mac layer. Returns the frame buffer in case of an error.
     fn transmit(
@@ -81,7 +92,7 @@ pub struct AwakeMac<'a, R: radio::Radio<'a>> {
 impl<'a, R: radio::Radio<'a>> AwakeMac<'a, R> {
     pub fn new(radio: &'a R) -> AwakeMac<'a, R> {
         AwakeMac {
-            radio: radio,
+            radio,
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
         }
@@ -89,13 +100,17 @@ impl<'a, R: radio::Radio<'a>> AwakeMac<'a, R> {
 }
 
 impl<'a, R: radio::Radio<'a>> Mac<'a> for AwakeMac<'a, R> {
-    fn initialize(&self, _mac_buf: &'static mut [u8]) -> Result<(), ErrorCode> {
+    fn initialize(&self) -> Result<(), ErrorCode> {
         // do nothing, extra buffer unnecessary
         Ok(())
     }
 
     fn is_on(&self) -> bool {
         self.radio.is_on()
+    }
+
+    fn start(&self) -> Result<(), ErrorCode> {
+        self.radio.start()
     }
 
     fn set_config_client(&self, client: &'a dyn radio::ConfigClient) {
@@ -147,6 +162,19 @@ impl<'a, R: radio::Radio<'a>> Mac<'a> for AwakeMac<'a, R> {
         full_mac_frame: &'static mut [u8],
         frame_len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        // We must add the PSDU_OFFSET required for the radio
+        // hardware. We first error check the provided arguments
+        // and then shift the 15.4 frame by the `PSDU_OFFSET`.
+
+        if full_mac_frame.len() < frame_len + PSDU_OFFSET {
+            return Err((ErrorCode::NOMEM, full_mac_frame));
+        }
+
+        if frame_len > MAX_FRAME_SIZE {
+            return Err((ErrorCode::INVAL, full_mac_frame));
+        }
+
+        full_mac_frame.copy_within(0..frame_len, PSDU_OFFSET);
         self.radio.transmit(full_mac_frame, frame_len)
     }
 }
@@ -164,6 +192,7 @@ impl<'a, R: radio::Radio<'a>> radio::RxClient for AwakeMac<'a, R> {
         &self,
         buf: &'static mut [u8],
         frame_len: usize,
+        lqi: u8,
         crc_valid: bool,
         result: Result<(), ErrorCode>,
     ) {
@@ -172,20 +201,21 @@ impl<'a, R: radio::Radio<'a>> radio::RxClient for AwakeMac<'a, R> {
         if let Some((_, (header, _))) = Header::decode(&buf[radio::PSDU_OFFSET..], false).done() {
             if let Some(dst_addr) = header.dst_addr {
                 addr_match = match dst_addr {
-                    MacAddress::Short(addr) => addr == self.radio.get_address(),
+                    MacAddress::Short(addr) => {
+                        // Check if address matches radio or is set to multicast short addr 0xFFFF
+                        (addr == self.radio.get_address()) || (addr == 0xFFFF)
+                    }
                     MacAddress::Long(long_addr) => long_addr == self.radio.get_address_long(),
                 };
             }
         }
-
         if addr_match {
-            //debug!("[AwakeMAC] Rcvd a 15.4 frame addressed to this device");
+            // debug!("[AwakeMAC] Rcvd a 15.4 frame addressed to this device");
             self.rx_client.map(move |c| {
-                c.receive(buf, frame_len, crc_valid, result);
+                c.receive(buf, frame_len, lqi, crc_valid, result);
             });
         } else {
-            debug!("[AwakeMAC] Received a packet, but not addressed to us");
-            debug!("radio addr is: {:?}", self.radio.get_address());
+            // debug!("[AwakeMAC] Received a packet, but not addressed to us");
             self.radio.set_receive_buffer(buf);
         }
     }

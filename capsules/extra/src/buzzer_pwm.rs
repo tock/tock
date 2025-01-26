@@ -9,7 +9,7 @@
 //! Instantiate the capsule for use as a service capsule, using a virtual pwm buzzer
 //! and a virtual alarm. For example:
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! let mux_pwm = static_init!(
@@ -75,10 +75,10 @@ pub struct PwmBuzzer<'a, A: hil::time::Alarm<'a>, P: hil::pwm::PwmPin> {
 impl<'a, A: hil::time::Alarm<'a>, P: hil::pwm::PwmPin> PwmBuzzer<'a, A, P> {
     pub fn new(pwm_pin: &'a P, alarm: &'a A, max_duration_ms: usize) -> PwmBuzzer<'a, A, P> {
         PwmBuzzer {
-            pwm_pin: pwm_pin,
-            alarm: alarm,
+            pwm_pin,
+            alarm,
             client: OptionalCell::empty(),
-            max_duration_ms: max_duration_ms,
+            max_duration_ms,
         }
     }
 }

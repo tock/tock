@@ -289,6 +289,7 @@ pub const FLASH_PROG_WINDOW_MASK: u32 = 0xFFFFFFF0;
 pub struct LowRiscPage(pub [u8; PAGE_SIZE]);
 
 /// Defines region permissions for flash memory protection.
+///
 /// To be used when requesting the flash controller to set
 /// specific permissions for a regions, or when reading
 /// the existing permission associated with a region.
@@ -365,7 +366,7 @@ pub struct FlashCtrl<'a> {
     region_num: FlashRegion,
 }
 
-impl<'a> FlashCtrl<'a> {
+impl FlashCtrl<'_> {
     pub fn new(base: StaticRef<FlashCtrlRegisters>, region_num: FlashRegion) -> Self {
         FlashCtrl {
             registers: base,
@@ -524,7 +525,7 @@ impl<'a> FlashCtrl<'a> {
             if let Some(buf) = read_buf {
                 // We were doing a read
                 self.flash_client.map(move |client| {
-                    client.read_complete(buf, error);
+                    client.read_complete(buf, Err(error));
                 });
             }
 
@@ -532,14 +533,14 @@ impl<'a> FlashCtrl<'a> {
             if let Some(buf) = write_buf {
                 // We were doing a write
                 self.flash_client.map(move |client| {
-                    client.write_complete(buf, error);
+                    client.write_complete(buf, Err(error));
                 });
             }
 
             if self.registers.control.matches_all(CONTROL::OP::ERASE) {
                 // We were doing an erase
                 self.flash_client.map(move |client| {
-                    client.erase_complete(error);
+                    client.erase_complete(Err(error));
                 });
             }
         }
@@ -622,7 +623,7 @@ impl<'a> FlashCtrl<'a> {
                         self.registers.op_status.set(0);
                         // We have all of the data, call the client
                         self.flash_client.map(move |client| {
-                            client.read_complete(buf, hil::flash::Error::CommandComplete);
+                            client.read_complete(buf, Ok(()));
                         });
                     } else {
                         // Still waiting on data, keep waiting
@@ -638,7 +639,7 @@ impl<'a> FlashCtrl<'a> {
                         self.registers.op_status.set(0);
                         // We sent all of the data, call the client
                         self.flash_client.map(move |client| {
-                            client.write_complete(buf, hil::flash::Error::CommandComplete);
+                            client.write_complete(buf, Ok(()));
                         });
                     } else {
                         // Still writing data, keep trying
@@ -648,7 +649,7 @@ impl<'a> FlashCtrl<'a> {
                 }
             } else if self.registers.control.matches_all(CONTROL::OP::ERASE) {
                 self.flash_client.map(move |client| {
-                    client.erase_complete(hil::flash::Error::CommandComplete);
+                    client.erase_complete(Ok(()));
                 });
             }
         }

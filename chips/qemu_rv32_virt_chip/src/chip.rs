@@ -5,17 +5,15 @@
 //! High-level setup and interrupt mapping for the chip.
 
 use core::fmt::Write;
+use core::ptr::addr_of;
 
-use kernel;
 use kernel::debug;
 use kernel::hil::time::Freq10MHz;
 use kernel::platform::chip::{Chip, InterruptService};
 
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 
-use rv32i;
 use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
-use rv32i::pmp::PMP;
 
 use crate::plic::PLIC;
 use sifive::plic::Plic;
@@ -24,7 +22,10 @@ use crate::interrupts;
 
 use virtio::transports::mmio::VirtIOMMIODevice;
 
-type QemuRv32VirtPMP = PMP<8>;
+type QemuRv32VirtPMP = rv32i::pmp::PMPUserMPU<
+    5,
+    rv32i::pmp::kernel_protection_mml_epmp::KernelProtectionMMLEPMP<16, 5>,
+>;
 
 pub type QemuRv32VirtClint<'a> = sifive::clint::Clint<'a, Freq10MHz>;
 
@@ -41,7 +42,7 @@ pub struct QemuRv32VirtDefaultPeripherals<'a> {
     pub virtio_mmio: [VirtIOMMIODevice; 8],
 }
 
-impl<'a> QemuRv32VirtDefaultPeripherals<'a> {
+impl QemuRv32VirtDefaultPeripherals<'_> {
     pub fn new() -> Self {
         Self {
             uart0: crate::uart::Uart16550::new(crate::uart::UART0_BASE),
@@ -59,7 +60,7 @@ impl<'a> QemuRv32VirtDefaultPeripherals<'a> {
     }
 }
 
-impl<'a> InterruptService for QemuRv32VirtDefaultPeripherals<'a> {
+impl InterruptService for QemuRv32VirtDefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::UART0 => self.uart0.handle_interrupt(),
@@ -78,11 +79,15 @@ impl<'a> InterruptService for QemuRv32VirtDefaultPeripherals<'a> {
 }
 
 impl<'a, I: InterruptService + 'a> QemuRv32VirtChip<'a, I> {
-    pub unsafe fn new(plic_interrupt_service: &'a I, timer: &'a QemuRv32VirtClint<'a>) -> Self {
+    pub unsafe fn new(
+        plic_interrupt_service: &'a I,
+        timer: &'a QemuRv32VirtClint<'a>,
+        pmp: rv32i::pmp::kernel_protection_mml_epmp::KernelProtectionMMLEPMP<16, 5>,
+    ) -> Self {
         Self {
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
-            pmp: PMP::new(),
-            plic: &PLIC,
+            pmp: rv32i::pmp::PMPUserMPU::new(pmp),
+            plic: &*addr_of!(PLIC),
             timer,
             plic_interrupt_service,
         }
@@ -170,6 +175,7 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
 
     unsafe fn print_state(&self, writer: &mut dyn Write) {
         rv32i::print_riscv_state(writer);
+        let _ = writer.write_fmt(format_args!("{}", self.pmp.pmp));
     }
 }
 
@@ -222,12 +228,12 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             // Once claimed this interrupt won't fire until it's completed
             // NOTE: The interrupt is no longer pending in the PLIC
             loop {
-                let interrupt = PLIC.next_pending();
+                let interrupt = (*addr_of!(PLIC)).next_pending();
 
                 match interrupt {
                     Some(irq) => {
                         // Safe as interrupts are disabled
-                        PLIC.save_interrupt(irq);
+                        (*addr_of!(PLIC)).save_interrupt(irq);
                     }
                     None => {
                         // Enable generic interrupts
@@ -262,6 +268,7 @@ pub unsafe extern "C" fn start_trap_rust() {
 }
 
 /// Function that gets called if an interrupt occurs while an app was running.
+///
 /// mcause is passed in, and this function should correctly handle disabling the
 /// interrupt that fired so that it does not trigger again.
 #[export_name = "_disable_interrupt_trap_rust_from_app"]

@@ -10,7 +10,7 @@
 //! This capsule interfaces with flash and exposes the Tock `tickv::kv_system`
 //! interface to others.
 //!
-//! ```
+//! ```text
 //! +-----------------------+
 //! |  Capsule using K-V    |
 //! +-----------------------+
@@ -39,7 +39,7 @@ use kernel::hil::hasher::{self, Hasher};
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::{SubSlice, SubSliceMut};
 use kernel::ErrorCode;
-use tickv::{self, AsyncTicKV};
+use tickv::AsyncTicKV;
 
 /// The type of keys, this should define the output size of the digest
 /// operations.
@@ -235,13 +235,12 @@ impl<'a, F: Flash> TickFSFlashCtrl<'a, F> {
     }
 }
 
-impl<'a, F: Flash, const PAGE_SIZE: usize> tickv::flash_controller::FlashController<PAGE_SIZE>
-    for TickFSFlashCtrl<'a, F>
+impl<F: Flash, const PAGE_SIZE: usize> tickv::flash_controller::FlashController<PAGE_SIZE>
+    for TickFSFlashCtrl<'_, F>
 {
     fn read_region(
         &self,
         region_number: usize,
-        _offset: usize,
         _buf: &mut [u8; PAGE_SIZE],
     ) -> Result<(), tickv::error_codes::ErrorCode> {
         if self
@@ -414,7 +413,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> hasher::Client<8>
 impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
     for TicKVSystem<'a, F, H, PAGE_SIZE>
 {
-    fn read_complete(&self, pagebuffer: &'static mut F::Page, _error: flash::Error) {
+    fn read_complete(&self, pagebuffer: &'static mut F::Page, _result: Result<(), flash::Error>) {
         self.tickv.set_read_buffer(pagebuffer.as_mut());
         self.tickv
             .tickv
@@ -504,6 +503,11 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
                         self.operation.set(Operation::None);
                     }
                     Ok(tickv::success_codes::SuccessCode::Queued) => {}
+                    Err(tickv::error_codes::ErrorCode::ReadNotReady(_))
+                    | Err(tickv::error_codes::ErrorCode::WriteNotReady(_))
+                    | Err(tickv::error_codes::ErrorCode::EraseNotReady(_)) => {
+                        // Need to do another flash operation.
+                    }
                     Err(e) => {
                         self.operation.set(Operation::None);
 
@@ -530,6 +534,11 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
                     self.operation.set(Operation::None);
                 }
                 Ok(tickv::success_codes::SuccessCode::Queued) => {}
+                Err(tickv::error_codes::ErrorCode::ReadNotReady(_))
+                | Err(tickv::error_codes::ErrorCode::WriteNotReady(_))
+                | Err(tickv::error_codes::ErrorCode::EraseNotReady(_)) => {
+                    // Need to do another flash operation.
+                }
                 Err(e) => {
                     self.operation.set(Operation::None);
 
@@ -559,7 +568,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
         }
     }
 
-    fn write_complete(&self, pagebuffer: &'static mut F::Page, _error: flash::Error) {
+    fn write_complete(&self, pagebuffer: &'static mut F::Page, _result: Result<(), flash::Error>) {
         self.tickv
             .tickv
             .controller
@@ -590,7 +599,7 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> flash::Client<F>
         }
     }
 
-    fn erase_complete(&self, _error: flash::Error) {
+    fn erase_complete(&self, _result: Result<(), flash::Error>) {
         let (ret, tickv_buf, tickv_buf_len) = self.tickv.continue_operation();
 
         // If we got the buffer back from TicKV then store it.

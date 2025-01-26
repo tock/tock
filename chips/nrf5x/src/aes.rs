@@ -36,6 +36,7 @@
 //! * Date: April 21, 2017
 
 use core::cell::Cell;
+use core::ptr::addr_of;
 use kernel::hil::symmetric_encryption;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::cells::TakeCell;
@@ -144,7 +145,7 @@ pub struct AesECB<'a> {
 }
 
 impl<'a> AesECB<'a> {
-    pub fn new() -> AesECB<'a> {
+    pub const fn new() -> AesECB<'a> {
         AesECB {
             registers: AESECB_BASE,
             mode: Cell::new(AESMode::CTR),
@@ -158,15 +159,13 @@ impl<'a> AesECB<'a> {
     }
 
     fn set_dma(&self) {
-        unsafe {
-            self.registers.ecbdataptr.set(ECB_DATA.as_ptr() as u32);
-        }
+        self.registers.ecbdataptr.set(addr_of!(ECB_DATA) as u32);
     }
 
     /// Verify that the provided start and stop indices work with the given
     /// buffers.
     fn try_set_indices(&self, start_index: usize, stop_index: usize) -> bool {
-        stop_index.checked_sub(start_index).map_or(false, |sublen| {
+        stop_index.checked_sub(start_index).is_some_and(|sublen| {
             sublen % symmetric_encryption::AES128_BLOCK_SIZE == 0 && {
                 self.input.map_or_else(
                     || {

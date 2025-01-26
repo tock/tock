@@ -5,6 +5,7 @@
 [workspace]
 members = [
     "arch/cortex-m",
+    "arch/cortex-v7m",
     "arch/cortex-m0",
     "arch/cortex-m0p",
     "arch/cortex-m3",
@@ -18,6 +19,7 @@ members = [
     "boards/opentitan/earlgrey-cw310",
     "boards/esp32-c3-devkitM-1",
     "boards/clue_nrf52840",
+    "boards/veer_el2_sim",
     "boards/hail",
     "boards/hifive_inventor",
     "boards/hifive1",
@@ -27,6 +29,8 @@ members = [
     "boards/litex/sim",
     "boards/msp_exp432p401r",
     "boards/microbit_v2",
+    "boards/wm1110dev",
+    "boards/makepython-nrf52840",
     "boards/nordic/nrf52840dk",
     "boards/nordic/nrf52840_dongle",
     "boards/nordic/nrf52dk",
@@ -36,6 +40,7 @@ members = [
     "boards/particle_boron",
     "boards/pico_explorer_base",
     "boards/raspberry_pi_pico",
+    "boards/apollo3/redboard_artemis_atp",
     "boards/apollo3/redboard_artemis_nano",
     "boards/apollo3/lora_things_plus",
     "boards/redboard_redv",
@@ -44,12 +49,18 @@ members = [
     "boards/stm32f429idiscovery",
     "boards/teensy40",
     "boards/nano33ble",
+    "boards/nano33ble_rev2",
     "boards/qemu_rv32_virt",
-    "boards/swervolf",
     "boards/weact_f401ccu6/",
+    "boards/configurations/nrf52840dk/nrf52840dk-test-appid-sha256",
+    "boards/configurations/nrf52840dk/nrf52840dk-test-appid-tbf",
+    "boards/configurations/nrf52840dk/nrf52840dk-test-kernel",
+    "boards/tutorials/nrf52840dk-hotp-tutorial",
+    "boards/tutorials/nrf52840dk-thread-tutorial",
     "capsules/aes_gcm",
     "capsules/core",
     "capsules/extra",
+    "capsules/system",
     "chips/apollo3",
     "chips/arty_e21_chip",
     "chips/e310_g002",
@@ -71,6 +82,7 @@ members = [
     "chips/qemu_rv32_virt_chip",
     "chips/rp2040",
     "chips/sam4l",
+    "chips/segger",
     "chips/sifive",
     "chips/stm32f303xc",
     "chips/stm32f401cc",
@@ -78,8 +90,7 @@ members = [
     "chips/stm32f446re",
     "chips/stm32f412g",
     "chips/stm32f4xx",
-    "chips/swerv",
-    "chips/swervolf-eh1",
+    "chips/veer_el2",
     "chips/virtio",
     "kernel",
     "libraries/enum_primitive",
@@ -92,13 +103,13 @@ exclude = ["tools/"]
 resolver = "2"
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.3-dev"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 edition = "2021"
 
 [profile.dev]
 panic = "abort"
-lto = false
+lto = true
 opt-level = "z"
 debug = true
 
@@ -108,3 +119,175 @@ lto = true
 opt-level = "z"
 debug = true
 codegen-units = 1
+
+# CLIPPY CONFIGURATION
+#
+# We first disallow all lints in a particular group, then re-allow each one
+# Tock does not comply with or we do not want to use.
+#
+# For each group there are three sections:
+# 1. The first section are lints we almost certainly don't want.
+# 2. The second section are lints we may not want, we probably have to see the
+#    resulting diff.
+# 3. The third section are lints that we do want we just need to fixup the code
+#    to pass the lint checks.
+#
+# There are some lints we specifically do not want:
+#
+# - `clippy::if_same_then_else`: There are often good reasons to enumerate
+#   different states that have the same effect.
+# - `clippy::manual_unwrap_or_default`: As of Apr 2024, this lint has many false
+#   positives.
+[workspace.lints.clippy]
+restriction = "allow"
+
+if_same_then_else = "allow"
+manual_unwrap_or_default = "allow"
+
+
+# COMPLEXITY LINTS
+complexity = { level = "deny", priority = -1 }
+
+too_many_arguments = "allow"
+type_complexity = "allow"
+option_map_unit_fn = "allow"
+nonminimal_bool = "allow"
+identity-op = "allow"
+while-let-loop = "allow"
+manual-range-patterns = "allow"
+manual-flatten = "allow"
+
+zero_prefixed_literal = "allow"
+
+# STYLE
+style = { level = "deny", priority = -1 }
+
+blocks_in_conditions = "allow"
+collapsible_else_if = "allow"
+collapsible_if = "allow"
+collapsible_match = "allow"
+comparison_chain = "allow"
+enum-variant-names = "allow"
+field-reassign-with-default = "allow"
+get_first = "allow"
+len_without_is_empty = "allow"
+len_zero = "allow"
+manual-map = "allow"
+manual_range_contains = "allow"
+match_like_matches_macro = "allow"
+module_inception = "allow"
+new-ret-no-self = "allow"
+new_without_default = "allow"
+redundant_closure = "allow"
+result_unit_err = "allow"
+single_match = "allow"
+upper_case_acronyms = "allow"
+
+
+declare-interior-mutable-const = "allow"
+let_and_return = "allow"
+missing_safety_doc = "allow"
+needless-range-loop = "allow"
+option_map_or_none = "allow"
+redundant_pattern_matching = "allow"
+unusual-byte-groupings = "allow"
+doc_lazy_continuation = "allow"
+
+
+# PERF
+perf = { level = "deny", priority = -1 }
+
+large-enum-variant = "allow"
+
+
+# CARGO
+cargo = { level = "deny", priority = -1 }
+
+cargo_common_metadata = "allow"
+negative-feature-names = "allow"
+
+
+# NURSERY
+nursery = { level = "deny", priority = -1 }
+
+use_self = "allow"
+option_if_let_else = "allow"
+cognitive_complexity = "allow"
+or_fun_call = "allow"
+collection_is_never_read = "allow"
+
+
+manual_clamp = "allow"
+unused_peekable = "allow"
+branches_sharing_code = "allow"
+
+
+missing_const_for_fn = "allow"
+redundant_pub_crate = "allow"
+equatable_if_let = "allow"
+derive_partial_eq_without_eq = "allow"
+empty_line_after_doc_comments = "allow"
+trait_duplication_in_bounds = "allow"
+useless_let_if_seq = "allow"
+as_ptr_cast_mut = "allow"
+
+
+# PEDANTIC
+pedantic = { level = "deny", priority = -1 }
+
+doc_markdown = "allow"
+missing_errors_doc = "allow"
+if_not_else = "allow"
+cast_sign_loss = "allow"
+too_many_lines = "allow"
+must_use_candidate = "allow"
+manual_let_else = "allow"
+single_match_else = "allow"
+inline_always = "allow"
+module_name_repetitions = "allow"
+unnested-or-patterns = "allow"
+redundant_else = "allow"
+return_self_not_must_use = "allow"
+match_same_arms = "allow"
+explicit_iter_loop = "allow"
+similar_names = "allow"
+unnecessary_wraps = "allow"
+manual_assert = "allow"
+transmute_ptr_to_ptr = "allow"
+struct_excessive_bools = "allow"
+fn_params_excessive_bools = "allow"
+trivially_copy_pass_by_ref = "allow"
+borrow_as_ptr = "allow"
+tuple_array_conversions = "allow"
+verbose_bit_mask = "allow"
+large_types_passed_by_value = "allow"
+no_mangle_with_rust_abi = "allow"
+struct_field_names = "allow"
+
+
+cast_lossless = "allow"
+cast_possible_truncation = "allow"
+cast_precision_loss = "allow"
+range_plus_one = "allow"
+missing_panics_doc = "allow"
+match_wildcard_for_single_variants = "allow"
+unused_self = "allow"
+cast-possible-wrap = "allow"
+uninlined_format_args = "allow"
+unreadable_literal = "allow"
+needless_pass_by_value = "allow"
+items_after_statements = "allow"
+ref_option_ref = "allow"
+match_bool = "allow"
+redundant_closure_for_method_calls = "allow"
+no_effect_underscore_binding = "allow"
+iter_without_into_iter = "allow"
+
+
+semicolon_if_nothing_returned = "allow"
+ptr_as_ptr = "allow"
+ptr_cast_constness = "allow"
+mut_mut = "allow"
+cast_ptr_alignment = "allow"
+used_underscore_binding = "allow"
+checked_conversions = "allow"

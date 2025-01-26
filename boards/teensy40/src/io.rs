@@ -3,6 +3,7 @@
 // Copyright Tock Contributors 2022.
 
 use core::fmt::{self, Write};
+use core::ptr::addr_of;
 
 use kernel::debug::{self, IoWrite};
 use kernel::hil::{
@@ -62,8 +63,8 @@ unsafe fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
         &mut writer,
         panic_info,
         &cortexm7::support::nop,
-        &crate::PROCESSES,
-        &crate::CHIP,
-        &crate::PROCESS_PRINTER,
+        &*addr_of!(crate::PROCESSES),
+        &*addr_of!(crate::CHIP),
+        &*addr_of!(crate::PROCESS_PRINTER),
     )
 }

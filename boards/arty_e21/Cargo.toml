@@ -6,7 +6,7 @@
 name = "arty_e21"
 version.workspace = true
 authors.workspace = true
-build = "build.rs"
+build = "../build.rs"
 edition.workspace = true
 
 [dependencies]
@@ -18,3 +18,10 @@ sifive = { path = "../../chips/sifive" }
 
 capsules-core = { path = "../../capsules/core" }
 capsules-extra = { path = "../../capsules/extra" }
+capsules-system = { path = "../../capsules/system" }
+
+[build-dependencies]
+tock_build_scripts = { path = "../build_scripts" }
+
+[lints]
+workspace = true

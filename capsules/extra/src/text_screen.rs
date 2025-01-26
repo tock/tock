@@ -10,13 +10,12 @@
 //! You need a screen that provides the `hil::text_screen::TextScreen`
 //! trait.
 //!
-//! ```rust
+//! ```rust,ignore
 //! let text_screen = components::text_screen::TextScreenComponent::new(board_kernel, lcd)
 //!         .finalize(components::screen_buffer_size!(64));
 //! ```
 
 use core::cmp;
-use core::convert::From;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
@@ -86,7 +85,7 @@ impl<'a> TextScreen<'a> {
         grant: Grant<App, UpcallCount<1>, AllowRoCount<{ ro_allow::COUNT }>, AllowRwCount<0>>,
     ) -> TextScreen<'a> {
         TextScreen {
-            text_screen: text_screen,
+            text_screen,
             apps: grant,
             current_app: OptionalCell::empty(),
             buffer: TakeCell::new(buffer),
@@ -245,7 +244,7 @@ impl<'a> TextScreen<'a> {
     }
 }
 
-impl<'a> SyscallDriver for TextScreen<'a> {
+impl SyscallDriver for TextScreen<'_> {
     fn command(
         &self,
         command_num: usize,
@@ -288,7 +287,7 @@ impl<'a> SyscallDriver for TextScreen<'a> {
     }
 }
 
-impl<'a> hil::text_screen::TextScreenClient for TextScreen<'a> {
+impl hil::text_screen::TextScreenClient for TextScreen<'_> {
     fn command_complete(&self, r: Result<(), ErrorCode>) {
         self.schedule_callback(kernel::errorcode::into_statuscode(r), 0, 0);
         self.run_next_command();

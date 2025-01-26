@@ -27,6 +27,11 @@ pub trait Queue<T> {
     /// Get a reference to the element at the front of the queue.
     fn head<'a>(&'a self) -> Option<&'a T>;
 
+    /// Remove and return one (the first) element that matches the predicate.
+    fn remove_first_matching<F>(&mut self, f: F) -> Option<T>
+    where
+        F: Fn(&T) -> bool;
+
     /// Remove all elements from the ring buffer.
     fn empty(&mut self);
 

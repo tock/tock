@@ -21,7 +21,7 @@ pub struct TestAlarmEdgeCases<'a, A: 'a> {
 impl<'a, A: Alarm<'a>> TestAlarmEdgeCases<'a, A> {
     pub fn new(alarm: &'a A) -> TestAlarmEdgeCases<'a, A> {
         TestAlarmEdgeCases {
-            alarm: alarm,
+            alarm,
             counter: Cell::new(0),
             alarms: [
                 100, 200, 25, 25, 25, 25, 500, 0, 448, 15, 19, 1, 0, 33, 5, 1000, 27, 1, 0, 1,

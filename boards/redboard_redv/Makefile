@@ -4,8 +4,6 @@
 
 # Makefile for building the tock kernel for the RedV platform
 
-TARGET=riscv32imac-unknown-none-elf
-PLATFORM=redboard_redv
 QEMU ?= qemu-system-riscv32
 
 include ../Makefile.common

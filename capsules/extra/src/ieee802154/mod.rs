@@ -11,6 +11,7 @@ pub mod virtual_mac;
 pub mod xmac;
 
 mod driver;
+pub mod phy_driver;
 
 pub use self::driver::RadioDriver;
 pub use self::driver::DRIVER_NUM;

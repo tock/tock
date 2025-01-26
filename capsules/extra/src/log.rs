@@ -42,7 +42,7 @@
 //! Usage
 //! -----
 //!
-//! ```
+//! ```rust,ignore
 //!     storage_volume!(VOLUME, 2);
 //!     static mut PAGEBUFFER: sam4l::flashcalw::Sam4lPage = sam4l::flashcalw::Sam4lPage::new();
 //!
@@ -63,7 +63,6 @@
 //! ```
 
 use core::cell::Cell;
-use core::convert::TryFrom;
 use core::mem::size_of;
 use core::unreachable;
 
@@ -206,7 +205,7 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
         self.oldest_entry_id.set(PAGE_HEADER_SIZE);
         self.read_entry_id.set(PAGE_HEADER_SIZE);
         self.append_entry_id.set(PAGE_HEADER_SIZE);
-        self.pagebuffer.take().map_or(false, move |pagebuffer| {
+        self.pagebuffer.take().is_some_and(move |pagebuffer| {
             for e in pagebuffer.as_mut().iter_mut() {
                 *e = 0;
             }
@@ -218,7 +217,7 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
     /// Reconstructs a log from flash.
     fn reconstruct(&self) {
         // Read page headers, get IDs of oldest and newest pages.
-        let mut oldest_page_id: EntryID = core::usize::MAX;
+        let mut oldest_page_id: EntryID = usize::MAX;
         let mut newest_page_id: EntryID = 0;
         for header_pos in (0..self.volume.len()).step_by(self.page_size) {
             let page_id = {
@@ -241,7 +240,7 @@ impl<'a, F: Flash + 'static> Log<'a, F> {
 
         // Reconstruct log if at least one valid page was found (meaning oldest page ID was set to
         // something not usize::MAX).
-        if oldest_page_id != core::usize::MAX {
+        if oldest_page_id != usize::MAX {
             // Walk entries in last (newest) page to calculate last page length.
             let mut last_page_len = PAGE_HEADER_SIZE;
             loop {
@@ -782,17 +781,17 @@ impl<'a, F: Flash + 'static> LogWrite<'a> for Log<'a, F> {
     }
 }
 
-impl<'a, F: Flash + 'static> flash::Client<F> for Log<'a, F> {
-    fn read_complete(&self, _read_buffer: &'static mut F::Page, _error: flash::Error) {
+impl<F: Flash + 'static> flash::Client<F> for Log<'_, F> {
+    fn read_complete(&self, _read_buffer: &'static mut F::Page, _result: Result<(), flash::Error>) {
         // Reads are made directly from the storage volume, not through the flash interface.
         unreachable!();
     }
 
     /// If in the middle of a write operation, reset pagebuffer and finish write. If syncing, make
     /// successful client callback.
-    fn write_complete(&self, pagebuffer: &'static mut F::Page, error: flash::Error) {
-        match error {
-            flash::Error::CommandComplete => {
+    fn write_complete(&self, pagebuffer: &'static mut F::Page, result: Result<(), flash::Error>) {
+        match result.is_ok() {
+            true => {
                 match self.state.get() {
                     State::Append => {
                         // Reset pagebuffer and finish writing on the new page.
@@ -824,21 +823,25 @@ impl<'a, F: Flash + 'static> flash::Client<F> for Log<'a, F> {
                     _ => unreachable!(),
                 }
             }
-            flash::Error::FlashError | flash::Error::FlashMemoryProtectionError => {
-                // Make client callback with FAIL return code.
-                self.pagebuffer.replace(pagebuffer);
-                match self.state.get() {
-                    State::Append => {
-                        self.length.set(0);
-                        self.records_lost.set(false);
-                        self.error.set(Err(ErrorCode::FAIL));
-                        self.client_callback();
+            false => {
+                match result.unwrap_err() {
+                    flash::Error::FlashError | flash::Error::FlashMemoryProtectionError => {
+                        // Make client callback with FAIL return code.
+                        self.pagebuffer.replace(pagebuffer);
+                        match self.state.get() {
+                            State::Append => {
+                                self.length.set(0);
+                                self.records_lost.set(false);
+                                self.error.set(Err(ErrorCode::FAIL));
+                                self.client_callback();
+                            }
+                            State::Sync => {
+                                self.error.set(Err(ErrorCode::FAIL));
+                                self.client_callback();
+                            }
+                            _ => unreachable!(),
+                        }
                     }
-                    State::Sync => {
-                        self.error.set(Err(ErrorCode::FAIL));
-                        self.client_callback();
-                    }
-                    _ => unreachable!(),
                 }
             }
         }
@@ -846,9 +849,9 @@ impl<'a, F: Flash + 'static> flash::Client<F> for Log<'a, F> {
 
     /// Erase next page if log erase complete, else make client callback. Fails with BUSY if flash
     /// is busy and erase cannot be completed.
-    fn erase_complete(&self, error: flash::Error) {
-        match error {
-            flash::Error::CommandComplete => {
+    fn erase_complete(&self, result: Result<(), flash::Error>) {
+        match result.is_ok() {
+            true => {
                 let oldest_entry_id = self.oldest_entry_id.get();
                 if oldest_entry_id >= self.append_entry_id.get() - self.page_size {
                     // Erased all pages. Reset state and callback client.
@@ -872,15 +875,17 @@ impl<'a, F: Flash + 'static> flash::Client<F> for Log<'a, F> {
                     }
                 }
             }
-            flash::Error::FlashError | flash::Error::FlashMemoryProtectionError => {
-                self.error.set(Err(ErrorCode::FAIL));
-                self.client_callback();
-            }
+            false => match result.unwrap_err() {
+                flash::Error::FlashError | flash::Error::FlashMemoryProtectionError => {
+                    self.error.set(Err(ErrorCode::FAIL));
+                    self.client_callback();
+                }
+            },
         }
     }
 }
 
-impl<'a, F: Flash + 'static> DeferredCallClient for Log<'a, F> {
+impl<F: Flash + 'static> DeferredCallClient for Log<'_, F> {
     fn handle_deferred_call(&self) {
         self.client_callback();
     }

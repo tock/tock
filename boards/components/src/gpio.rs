@@ -119,6 +119,8 @@ macro_rules! gpio_component_static {
     };};
 }
 
+pub type GpioComponentType<IP> = GPIO<'static, IP>;
+
 pub struct GpioComponent<IP: 'static + gpio::InterruptPin<'static>> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
@@ -132,7 +134,7 @@ impl<IP: 'static + gpio::InterruptPin<'static>> GpioComponent<IP> {
         gpio_pins: &'static [Option<&'static gpio::InterruptValueWrapper<'static, IP>>],
     ) -> Self {
         Self {
-            board_kernel: board_kernel,
+            board_kernel,
             driver_num,
             gpio_pins,
         }

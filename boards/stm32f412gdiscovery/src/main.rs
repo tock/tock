@@ -11,6 +11,8 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
+use core::ptr::{addr_of, addr_of_mut};
+
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use components::rng::RngComponent;
@@ -22,7 +24,10 @@ use kernel::hil::screen::ScreenRotation;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
+use stm32f412g::chip_specs::Stm32f412Specs;
+use stm32f412g::clocks::hsi::HSI_FREQUENCY_MHZ;
 use stm32f412g::interrupt_service::Stm32f412gDefaultPeripherals;
+use stm32f412g::rcc::PllSource;
 
 /// Support routines for debugging I/O.
 pub mod io;
@@ -35,15 +40,23 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
     [None, None, None, None];
 
 static mut CHIP: Option<&'static stm32f412g::chip::Stm32f4xx<Stm32f412gDefaultPeripherals>> = None;
-static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
+static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
+    None;
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
+const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
+    capsules_system::process_policies::PanicFaultPolicy {};
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
+
+type TemperatureSTMSensor = components::temperature_stm::TemperatureSTMComponentType<
+    capsules_core::virtualizers::virtual_adc::AdcDevice<'static, stm32f412g::adc::Adc<'static>>,
+>;
+type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureSTMSensor>;
+type RngDriver = components::rng::RngComponentType<stm32f412g::trng::Trng<'static>>;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -64,8 +77,8 @@ struct STM32F412GDiscovery {
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
     touch: &'static capsules_extra::touch::Touch<'static>,
     screen: &'static capsules_extra::screen::Screen<'static>,
-    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
-    rng: &'static capsules_core::rng::RngDriver<'static>,
+    temperature: &'static TemperatureDriver,
+    rng: &'static RngDriver,
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
@@ -105,7 +118,6 @@ impl
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type CredentialsCheckingPolicy = ();
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
@@ -118,9 +130,6 @@ impl
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
-        &()
-    }
-    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -171,6 +180,7 @@ unsafe fn set_pin_primary_functions(
     syscfg: &stm32f412g::syscfg::Syscfg,
     i2c1: &stm32f412g::i2c::I2C,
     gpio_ports: &'static stm32f412g::gpio::GpioPorts<'static>,
+    peripheral_clock_frequency: usize,
 ) {
     use kernel::hil::gpio::Configure;
     use stm32f412g::gpio::{AlternateFunction, Mode, PinId, PortId};
@@ -261,7 +271,10 @@ unsafe fn set_pin_primary_functions(
     });
 
     i2c1.enable_clock();
-    i2c1.set_speed(stm32f412g::i2c::I2CSpeed::Speed100k, 16);
+    i2c1.set_speed(
+        stm32f412g::i2c::I2CSpeed::Speed400k,
+        peripheral_clock_frequency,
+    );
 
     // FT6206 interrupt
     gpio_ports.get_pin(PinId::PG05).map(|pin| {
@@ -371,44 +384,49 @@ unsafe fn setup_peripherals(
     trng.enable_clock();
 }
 
-/// Statically initialize the core peripherals for the chip.
+/// Main function.
 ///
 /// This is in a separate, inline(never) function so that its stack frame is
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn create_peripherals() -> (
-    &'static mut Stm32f412gDefaultPeripherals<'static>,
-    &'static stm32f412g::syscfg::Syscfg<'static>,
-    &'static stm32f412g::dma::Dma1<'static>,
+unsafe fn start() -> (
+    &'static kernel::Kernel,
+    STM32F412GDiscovery,
+    &'static stm32f412g::chip::Stm32f4xx<'static, Stm32f412gDefaultPeripherals<'static>>,
 ) {
+    stm32f412g::init();
+
     let rcc = static_init!(stm32f412g::rcc::Rcc, stm32f412g::rcc::Rcc::new());
+    let clocks = static_init!(
+        stm32f412g::clocks::Clocks<Stm32f412Specs>,
+        stm32f412g::clocks::Clocks::new(rcc)
+    );
+
     let syscfg = static_init!(
         stm32f412g::syscfg::Syscfg,
-        stm32f412g::syscfg::Syscfg::new(rcc)
+        stm32f412g::syscfg::Syscfg::new(clocks)
     );
 
     let exti = static_init!(stm32f412g::exti::Exti, stm32f412g::exti::Exti::new(syscfg));
 
-    let dma1 = static_init!(stm32f412g::dma::Dma1, stm32f412g::dma::Dma1::new(rcc));
-    let dma2 = static_init!(stm32f412g::dma::Dma2, stm32f412g::dma::Dma2::new(rcc));
+    let dma1 = static_init!(stm32f412g::dma::Dma1, stm32f412g::dma::Dma1::new(clocks));
+    let dma2 = static_init!(stm32f412g::dma::Dma2, stm32f412g::dma::Dma2::new(clocks));
 
     let peripherals = static_init!(
         Stm32f412gDefaultPeripherals,
-        Stm32f412gDefaultPeripherals::new(rcc, exti, dma1, dma2)
+        Stm32f412gDefaultPeripherals::new(clocks, exti, dma1, dma2)
     );
-    (peripherals, syscfg, dma1)
-}
 
-/// Main function.
-///
-/// This is called after RAM initialization is complete.
-#[no_mangle]
-pub unsafe fn main() {
-    stm32f412g::init();
-
-    let (peripherals, syscfg, dma1) = create_peripherals();
     peripherals.init();
+
+    let _ = clocks.set_ahb_prescaler(stm32f412g::rcc::AHBPrescaler::DivideBy1);
+    let _ = clocks.set_apb1_prescaler(stm32f412g::rcc::APBPrescaler::DivideBy4);
+    let _ = clocks.set_apb2_prescaler(stm32f412g::rcc::APBPrescaler::DivideBy2);
+    let _ = clocks.set_pll_frequency_mhz(PllSource::HSI, 100);
+    let _ = clocks.pll.enable();
+    let _ = clocks.set_sys_clock_source(stm32f412g::rcc::SysClockSource::PLL);
+
     let base_peripherals = &peripherals.stm32f4;
     setup_peripherals(
         &base_peripherals.tim2,
@@ -416,8 +434,12 @@ pub unsafe fn main() {
         &peripherals.trng,
     );
 
-    // We use the default HSI 16Mhz clock
-    set_pin_primary_functions(syscfg, &base_peripherals.i2c1, &base_peripherals.gpio_ports);
+    set_pin_primary_functions(
+        syscfg,
+        &base_peripherals.i2c1,
+        &base_peripherals.gpio_ports,
+        clocks.get_apb1_frequency_mhz(),
+    );
 
     setup_dma(
         dma1,
@@ -425,7 +447,7 @@ pub unsafe fn main() {
         &base_peripherals.usart2,
     );
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
 
     let chip = static_init!(
         stm32f412g::chip::Stm32f4xx<Stm32f412gDefaultPeripherals>,
@@ -440,12 +462,11 @@ pub unsafe fn main() {
     let uart_mux = components::console::UartMuxComponent::new(&base_peripherals.usart2, 115200)
         .finalize(components::uart_mux_component_static!());
 
-    io::WRITER.set_initialized();
+    (*addr_of_mut!(io::WRITER)).set_initialized();
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
 
@@ -602,7 +623,7 @@ pub unsafe fn main() {
         capsules_core::rng::DRIVER_NUM,
         &peripherals.trng,
     )
-    .finalize(components::rng_component_static!());
+    .finalize(components::rng_component_static!(stm32f412g::trng::Trng));
 
     // FT6206
 
@@ -649,7 +670,7 @@ pub unsafe fn main() {
         tft,
         Some(tft),
     )
-    .finalize(components::screen_component_static!(57600));
+    .finalize(components::screen_component_static!(1024));
 
     let touch = components::touch::MultiTouchComponent::new(
         board_kernel,
@@ -680,15 +701,15 @@ pub unsafe fn main() {
     .finalize(components::temperature_stm_adc_component_static!(
         stm32f412g::adc::Adc
     ));
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let grant_temperature =
-        board_kernel.create_grant(capsules_extra::temperature::DRIVER_NUM, &grant_cap);
 
-    let temp = static_init!(
-        capsules_extra::temperature::TemperatureSensor<'static>,
-        capsules_extra::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
-    );
-    kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
+    let temp = components::temperature::TemperatureComponent::new(
+        board_kernel,
+        capsules_extra::temperature::DRIVER_NUM,
+        temp_sensor,
+    )
+    .finalize(components::temperature_component_static!(
+        TemperatureSTMSensor
+    ));
 
     let adc_channel_0 =
         components::adc::AdcComponent::new(adc_mux, stm32f412g::adc::Channel::Channel1)
@@ -742,7 +763,7 @@ pub unsafe fn main() {
     ));
     let _ = process_console.start();
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let stm32f412g = STM32F412GDiscovery {
@@ -763,7 +784,9 @@ pub unsafe fn main() {
         rng,
 
         scheduler,
-        systick: cortexm4::systick::SysTick::new(),
+        systick: cortexm4::systick::SysTick::new_with_calibration(
+            (HSI_FREQUENCY_MHZ * 1_000_000) as u32,
+        ),
     };
 
     // // Optional kernel tests
@@ -801,14 +824,14 @@ pub unsafe fn main() {
         board_kernel,
         chip,
         core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
         ),
         core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+            core::ptr::addr_of_mut!(_sappmem),
+            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut PROCESSES,
+        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_management_capability,
     )
@@ -822,10 +845,14 @@ pub unsafe fn main() {
     .finalize(components::multi_alarm_test_component_buf!(stm32f412g::tim2::Tim2))
     .run();*/
 
-    board_kernel.kernel_loop(
-        &stm32f412g,
-        chip,
-        Some(&stm32f412g.ipc),
-        &main_loop_capability,
-    );
+    (board_kernel, stm32f412g, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, platform, chip) = start();
+    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }

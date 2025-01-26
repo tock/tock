@@ -6,16 +6,30 @@
 name = "nrf52840dk"
 version.workspace = true
 authors.workspace = true
-build = "build.rs"
+build = "../../build.rs"
 edition.workspace = true
+
+[lib]
+name = "nrf52840dk_lib"
+
+[[bin]]
+name = "nrf52840dk"
+path = "src/main.rs"
 
 [dependencies]
 components = { path = "../../components" }
 cortexm4 = { path = "../../../arch/cortex-m4" }
 kernel = { path = "../../../kernel" }
 nrf52840 = { path = "../../../chips/nrf52840" }
+segger = { path = "../../../chips/segger" }
 nrf52_components = { path = "../nrf52_components" }
-zerocopy = "*"
 
 capsules-core = { path = "../../../capsules/core" }
 capsules-extra = { path = "../../../capsules/extra" }
+capsules-system = { path = "../../../capsules/system" }
+
+[build-dependencies]
+tock_build_scripts = { path = "../../build_scripts" }
+
+[lints]
+workspace = true

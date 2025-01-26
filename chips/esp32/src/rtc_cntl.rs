@@ -17,7 +17,7 @@ register_structs! {
         (0x000 => options0: ReadWrite<u32>),
         (0x004 => slp_timer0: ReadWrite<u32>),
         (0x008 => slp_timer1: ReadWrite<u32>),
-        (0x00C => time_updaet: ReadWrite<u32>),
+        (0x00C => time_update: ReadWrite<u32>),
         (0x010 => time_low0: ReadWrite<u32>),
         (0x014 => time_high0: ReadWrite<u32>),
         (0x018 => state0: ReadWrite<u32>),
@@ -42,7 +42,7 @@ register_structs! {
         (0x064 => ext_wakeup_conf: ReadWrite<u32>),
         (0x068 => slp_reject_conf: ReadWrite<u32>),
         (0x06C => cpu_period_conf: ReadWrite<u32>),
-        (0x070 => clk_conf: ReadWrite<u32>),
+        (0x070 => clk_conf: ReadWrite<u32, CLK_CONF::Register>),
         (0x074 => slow_clk_conf: ReadWrite<u32>),
         (0x078 => sdio_conf: ReadWrite<u32>),
         (0x07C => bias_conf: ReadWrite<u32>),
@@ -67,7 +67,6 @@ register_structs! {
         (0x0C8 => low_power_st: ReadWrite<u32>),
         (0x0CC => daig0: ReadWrite<u32>),
         (0x0D0 => pad_hold: ReadWrite<u32>),
-
         (0x0D4 => _reserved0),
         (0x10C => fib_sel: ReadWrite<u32, FIB_SEL::Register>),
         (0x110 => @END),
@@ -75,6 +74,9 @@ register_structs! {
 }
 
 register_bitfields![u32,
+    CLK_CONF [
+        DIG_FOSC_EN OFFSET(10) NUMBITS(1) [],
+    ],
     WDTCONFIG0 [
         CHIP_RESET_EN OFFSET(8) NUMBITS(1) [],
         PAUSE_INSLEEP OFFSET(9) NUMBITS(1) [],
@@ -153,6 +155,10 @@ impl RtcCntl {
         self.enable_sw_wdt_access();
         self.registers.swd_conf.modify(SWD_CONF::AUTO_FEED::SET);
         self.disable_sw_wdt_access();
+    }
+
+    pub fn enable_fosc(&self) {
+        self.registers.clk_conf.modify(CLK_CONF::DIG_FOSC_EN::SET);
     }
 }
 

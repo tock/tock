@@ -3,9 +3,10 @@
 // Copyright Tock Contributors 2022.
 
 //! Provides userspace with access to a serial interface whose output
-//! is in-order with respect to kernel debug!() operations. Prints to
-//! the console are atomic up to particular constant length, which
-//! can be set at capsule instantiation.
+//! is in-order with respect to kernel debug!() operations.
+//!
+//! Prints to the console are atomic up to particular constant length,
+//! which can be set at capsule instantiation.
 //!
 //! Note that this capsule does *not* buffer writes in an additional
 //! buffer; this is critical to ensure ordering. Instead, it pushes
@@ -40,7 +41,7 @@
 //! reasonable. ATOMIC_SIZE should be at least 80 (row width
 //! of a standard console).
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //! # use capsules_core::console_ordered::ConsoleOrdered;
 //! let console = static_init!(
@@ -162,11 +163,11 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
         write_timer: u32,
     ) -> ConsoleOrdered<'a, A> {
         ConsoleOrdered {
-            uart: uart,
+            uart,
             apps: grant,
             tx_in_progress: Cell::new(false),
             tx_counter: Cell::new(0),
-            alarm: alarm,
+            alarm,
 
             rx_counter: Cell::new(0),
             rx_in_progress: OptionalCell::empty(),
@@ -411,7 +412,7 @@ impl<'a, A: Alarm<'a>> SyscallDriver for ConsoleOrdered<'a, A> {
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Driver check.
+    /// - `0`: Driver existence check.
     /// - `1`: Transmits a buffer passed via `allow`, up to the length
     ///        passed in `arg1`
     fn command(&self, cmd_num: usize, arg1: usize, _: usize, appid: ProcessId) -> CommandReturn {

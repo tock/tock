@@ -5,6 +5,8 @@
 //! BLE driver.
 
 use core::cell::Cell;
+use core::ptr::addr_of;
+use core::ptr::addr_of_mut;
 use kernel::hil::ble_advertising;
 use kernel::hil::ble_advertising::RadioChannel;
 use kernel::utilities::cells::OptionalCell;
@@ -271,7 +273,7 @@ pub struct Ble<'a> {
     read_index: Cell<usize>,
 }
 
-impl<'a> Ble<'a> {
+impl Ble<'_> {
     pub fn new() -> Self {
         Self {
             registers: BLE_BASE,
@@ -335,9 +337,7 @@ impl<'a> Ble<'a> {
         //self.registers.fifothr.write(FIFOTHR::FIFORTHR::CLEAR + FIFOTHR::FIFOWTHR::CLEAR);
 
         // Setup the DMA
-        unsafe {
-            self.registers.dmatargaddr.set(PAYLOAD.as_ptr() as u32);
-        }
+        self.registers.dmatargaddr.set(addr_of!(PAYLOAD) as u32);
         self.registers.dmatocount.set(self.write_len.get() as u32);
         self.registers.dmatrigen.write(DMATRIGEN::DTHREN::SET);
         self.registers
@@ -420,7 +420,7 @@ impl<'a> Ble<'a> {
                         i += 4;
                     }
 
-                    client.receive_event(&mut PAYLOAD, 10, Ok(()));
+                    client.receive_event(&mut *addr_of_mut!(PAYLOAD), 10, Ok(()));
                 }
             });
         }

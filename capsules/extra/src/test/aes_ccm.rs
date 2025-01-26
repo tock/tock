@@ -31,7 +31,7 @@ pub struct Test<'a, A: AES128CCM<'a>> {
 impl<'a, A: AES128CCM<'a>> Test<'a, A> {
     pub fn new(aes_ccm: &'a A, buf: &'static mut [u8]) -> Test<'a, A> {
         Test {
-            aes_ccm: aes_ccm,
+            aes_ccm,
             buf: TakeCell::new(buf),
             current_test: Cell::new(0),
             encrypting: Cell::new(true),

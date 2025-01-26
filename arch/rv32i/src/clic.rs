@@ -286,7 +286,7 @@ impl Clic {
 /// This is outside of the `Clic` struct because it has to be called from the
 /// trap handler which does not have a reference to the CLIC object.
 pub unsafe fn disable_interrupt(index: u32) {
-    let regs: &ClicRegisters = &*CLIC_BASE;
+    let regs: &ClicRegisters = &CLIC_BASE;
 
     match index {
         3 => regs.clicintie.msip.write(inten::IntEn::CLEAR),

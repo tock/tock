@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
+//! 6loWPAN compression and reception.
+//!
 //! 6loWPAN (IPv6 over Low-Power Wireless Networks) is standard for compressing
 //! and fragmenting IPv6 packets over low power wireless networks, particularly
 //! ones with MTUs (Minimum Transmission Units) smaller than 1280 octets, like
@@ -250,6 +252,8 @@ use kernel::ErrorCode;
 // Reassembly timeout in seconds
 const FRAG_TIMEOUT: u32 = 60;
 
+/// Client trait for receiving 6lowpan frames.
+///
 /// Objects that implement this trait can set themselves to be the client
 /// for the [Sixlowpan](struct.Sixlowpan.html) struct, and will then receive
 /// a callback once an IPv6 packet has been fully reassembled.
@@ -355,7 +359,7 @@ impl<'a> TxState<'a> {
             dgram_offset: Cell::new(0),
 
             busy: Cell::new(false),
-            sixlowpan: sixlowpan,
+            sixlowpan,
         }
     }
 
@@ -487,7 +491,7 @@ impl<'a> TxState<'a> {
                 self.dst_mac_addr.get(),
                 &mut lowpan_packet,
             ) {
-                Err(_) => return Err((Err(ErrorCode::FAIL), frame.into_buf())),
+                Err(()) => return Err((Err(ErrorCode::FAIL), frame.into_buf())),
                 Ok(result) => result,
             }
         };
@@ -646,7 +650,7 @@ pub struct RxState<'a> {
 }
 
 impl<'a> ListNode<'a, RxState<'a>> for RxState<'a> {
-    fn next(&'a self) -> &'a ListLink<RxState<'a>> {
+    fn next(&'a self) -> &'a ListLink<'a, RxState<'a>> {
         &self.next
     }
 }
@@ -735,7 +739,7 @@ impl<'a> RxState<'a> {
                 dgram_size,
                 true,
             )
-            .map_err(|_| Err(ErrorCode::FAIL))?;
+            .map_err(|()| Err(ErrorCode::FAIL))?;
             let remaining = payload_len - consumed;
             packet[written..written + remaining]
                 .copy_from_slice(&payload[consumed..consumed + remaining]);
@@ -805,7 +809,14 @@ pub struct Sixlowpan<'a, A: time::Alarm<'a>, C: ContextStore> {
 
 // This function is called after receiving a frame
 impl<'a, A: time::Alarm<'a>, C: ContextStore> RxClient for Sixlowpan<'a, A, C> {
-    fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
+    fn receive<'b>(
+        &self,
+        buf: &'b [u8],
+        header: Header<'b>,
+        _lqi: u8,
+        data_offset: usize,
+        data_len: usize,
+    ) {
         // We return if retcode is not valid, as it does not make sense to issue
         // a callback for an invalid frame reception
         // TODO: Handle the case where the addresses are None/elided - they
@@ -872,8 +883,8 @@ impl<'a, A: time::Alarm<'a>, C: ContextStore> Sixlowpan<'a, A, C> {
     /// have an accuracy of at least 60 seconds.
     pub fn new(ctx_store: C, clock: &'a A) -> Sixlowpan<'a, A, C> {
         Sixlowpan {
-            ctx_store: ctx_store,
-            clock: clock,
+            ctx_store,
+            clock,
             tx_dgram_tag: Cell::new(0),
             rx_client: Cell::new(None),
 
@@ -955,7 +966,7 @@ impl<'a, A: time::Alarm<'a>, C: ContextStore> Sixlowpan<'a, A, C> {
                     // Want dgram_size to contain decompressed size of packet
                     state.dgram_size.set((written + remaining) as u16);
                 }
-                Err(_) => {
+                Err(()) => {
                     return (None, Err(ErrorCode::FAIL));
                 }
             }

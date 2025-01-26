@@ -5,14 +5,12 @@
 use core::fmt::Write;
 use core::panic::PanicInfo;
 
-use cortexm4;
 use kernel::debug;
 use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart;
-use nrf52833::gpio::{self, Pin};
-
-use kernel::hil::gpio::{Configure, Input, Output};
+use nrf52833::gpio::Pin;
+use nrf52833::uart::{Uarte, UARTE0_BASE};
 
 use crate::CHIP;
 use crate::PROCESSES;
@@ -42,7 +40,7 @@ impl Write for Writer {
 
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) -> usize {
-        let uart = nrf52833::uart::Uarte::new();
+        let uart = Uarte::new(UARTE0_BASE);
 
         use kernel::hil::uart::Configure;
 
@@ -67,53 +65,29 @@ impl IoWrite for Writer {
     }
 }
 
-struct MatrixLed(
-    &'static gpio::GPIOPin<'static>,
-    &'static gpio::GPIOPin<'static>,
-);
-
-impl led::Led for MatrixLed {
-    fn init(&self) {
-        self.0.make_output();
-        self.1.make_output();
-        self.1.clear();
-    }
-    fn on(&self) {
-        self.1.set();
-    }
-    fn off(&self) {
-        self.1.clear();
-    }
-    fn toggle(&self) {
-        self.1.toggle();
-    }
-    fn read(&self) -> bool {
-        self.1.read()
-    }
-}
-
 /// Default panic handler for the microbit board.
 ///
 /// We just use the standard default provided by the debug module in the kernel.
 #[cfg(not(test))]
 #[no_mangle]
 #[panic_handler]
-pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
+pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     // MicroBit v2 has an LED matrix, use the upper left LED
     // let mut led = Led (&gpio::PORT[Pin::P0_28], );
 
     // MicroBit v2 has a microphone LED, use it for panic
+
+    use core::ptr::{addr_of, addr_of_mut};
     let led_kernel_pin = &nrf52833::gpio::GPIOPin::new(Pin::P0_20);
     let led = &mut led::LedLow::new(led_kernel_pin);
-    // MatrixLed(&gpio::PORT[Pin::P0_28], &gpio::PORT[Pin::P0_21]);
-    let writer = &mut WRITER;
+    let writer = &mut *addr_of_mut!(WRITER);
     debug::panic(
         &mut [led],
         writer,
         pi,
         &cortexm4::support::nop,
-        &PROCESSES,
-        &CHIP,
-        &PROCESS_PRINTER,
+        &*addr_of!(PROCESSES),
+        &*addr_of!(CHIP),
+        &*addr_of!(PROCESS_PRINTER),
     )
 }

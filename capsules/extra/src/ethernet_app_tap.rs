@@ -520,9 +520,8 @@ impl<'a, E: EthernetAdapter<'a>> TapDriver<'a, E> {
                         .schedule_upcall(
                             upcall::RX_PACKET,
                             (
-                                0
-                             | 1 << 31  // RX error
-                             | 1 << 16, // error: receive buffer too small
+                                (1 << 31/* RX error */)
+                                    | (1 << 16/* error: receive buffer too small */),
                                 0,
                                 0,
                             ),
@@ -717,18 +716,21 @@ impl<'a, E: EthernetAdapter<'a>> SyscallDriver for TapDriver<'a, E> {
         process_id: ProcessId,
     ) -> CommandReturn {
         match command_num {
-            0 /* Check if driver is installed */ => CommandReturn::success(),
+            // Check if driver is installed
+            0 => CommandReturn::success(),
 
-            1 /* Acquire lock of the driver */ => {
+            // Acquire lock of the driver
+            1 => {
                 if !self.lock_process_alive() {
                     self.current_app.set(Some(process_id));
                     CommandReturn::success()
                 } else {
                     CommandReturn::failure(ErrorCode::BUSY)
                 }
-            },
+            }
 
-            2 /* Release the driver */ => {
+            // Release the driver
+            2 => {
                 if self.lock_acquired(process_id) {
                     self.current_app.set(None);
                     self.rx_packets.map(|rb| rb.empty());
@@ -737,34 +739,37 @@ impl<'a, E: EthernetAdapter<'a>> SyscallDriver for TapDriver<'a, E> {
                 } else {
                     CommandReturn::failure(ErrorCode::INVAL)
                 }
-            },
+            }
 
-            3 /* Query generic interface status */ => {
+            // Query generic interface status
+            3 => {
                 // TODO: determine if interface is "up"
                 let ifup = true;
                 CommandReturn::success_u32_u32(ifup as u32, MAX_MTU as u32)
-            },
+            }
 
-            4 /* Query process-specific RX stats */ => {
-                self.apps.enter(process_id, |grant, _kernel_data| {
+            // Query process-specific RX stats
+            4 => self
+                .apps
+                .enter(process_id, |grant, _kernel_data| {
                     CommandReturn::success_u32_u32_u32(
                         grant.rx_packets,
                         grant.rx_bytes,
                         grant.rx_packets_missed,
                     )
-                }).unwrap_or(CommandReturn::failure(ErrorCode::FAIL))
-            },
+                })
+                .unwrap_or(CommandReturn::failure(ErrorCode::FAIL)),
 
-            5 /* Query process-specific TX stats */ => {
-                self.apps.enter(process_id, |grant, _kernel_data| {
-                    CommandReturn::success_u32_u32(
-                        grant.tx_packets,
-                        grant.tx_bytes,
-                    )
-                }).unwrap_or(CommandReturn::failure(ErrorCode::FAIL))
-            },
+            // Query process-specific TX stats
+            5 => self
+                .apps
+                .enter(process_id, |grant, _kernel_data| {
+                    CommandReturn::success_u32_u32(grant.tx_packets, grant.tx_bytes)
+                })
+                .unwrap_or(CommandReturn::failure(ErrorCode::FAIL)),
 
-            6 /* Transmit packet of the packet_transmit_buffer */ => {
+            // Transmit packet of the packet_transmit_buffer
+            6 => {
                 if self.lock_acquired(process_id) {
                     match self.transmit_packet(process_id, arg1 as u16, arg2 as usize) {
                         Ok(()) => CommandReturn::success(),
@@ -773,9 +778,10 @@ impl<'a, E: EthernetAdapter<'a>> SyscallDriver for TapDriver<'a, E> {
                 } else {
                     CommandReturn::failure(ErrorCode::RESERVE)
                 }
-            },
+            }
 
-            7 /* Acknowledge packet in packet_receive_buffer */ => {
+            // Acknowledge packet in packet_receive_buffer
+            7 => {
                 if self.lock_acquired(process_id) {
                     match self.acknowledge_rx_packet(process_id) {
                         Ok(()) => CommandReturn::success(),
@@ -784,9 +790,10 @@ impl<'a, E: EthernetAdapter<'a>> SyscallDriver for TapDriver<'a, E> {
                 } else {
                     CommandReturn::failure(ErrorCode::RESERVE)
                 }
-            },
+            }
 
-            8 /* Acknowledge reception of the tx_info blob */ => {
+            // Acknowledge reception of the tx_info blob
+            8 => {
                 if self.lock_acquired(process_id) {
                     match self.acknowledge_tx_info(process_id) {
                         Ok(()) => CommandReturn::success(),
@@ -795,44 +802,43 @@ impl<'a, E: EthernetAdapter<'a>> SyscallDriver for TapDriver<'a, E> {
                 } else {
                     CommandReturn::failure(ErrorCode::RESERVE)
                 }
-            },
+            }
 
-            9 /* Check whether the packet_receive buffer currently
-               * contains a non-acknowledged packet. If it does not,
-               * try to write one. */ => {
-                   if self.lock_acquired(process_id) {
-                       let rx_packet_pending = self.apps
-                           .enter(process_id, |grant, _| Ok(grant.rx_packet_pending))
-                           .unwrap_or(Err(ErrorCode::FAIL));
+            // Check whether the packet_receive buffer currently contains a non-acknowledged packet. If it does not, try to write one.
+            9 => {
+                if self.lock_acquired(process_id) {
+                    let rx_packet_pending = self
+                        .apps
+                        .enter(process_id, |grant, _| Ok(grant.rx_packet_pending))
+                        .unwrap_or(Err(ErrorCode::FAIL));
 
-                       match rx_packet_pending {
-                           Err(e) => CommandReturn::failure(e),
-                           Ok(Some(len)) => {
-                               CommandReturn::success_u32((1 << 31) | (len as u32))
-                           },
-                           Ok(None) => {
-                               // Check if other packets are remaining in the RingBuffer and
-                               // write them to the processbuffer, scheduling a callback.
-                               CommandReturn::success_u32(
-                                   self.try_write_buffered_packet(process_id)
-                                       .map_or(0, |len| (1 << 31) | (len as u32))
-                               )
-                           }
-                       }
-                   } else {
-                       CommandReturn::failure(ErrorCode::RESERVE)
-                   }
-             }
+                    match rx_packet_pending {
+                        Err(e) => CommandReturn::failure(e),
+                        Ok(Some(len)) => CommandReturn::success_u32((1 << 31) | (len as u32)),
+                        Ok(None) => {
+                            // Check if other packets are remaining in the RingBuffer and
+                            // write them to the processbuffer, scheduling a callback.
+                            CommandReturn::success_u32(
+                                self.try_write_buffered_packet(process_id)
+                                    .map_or(0, |len| (1 << 31) | (len as u32)),
+                            )
+                        }
+                    }
+                } else {
+                    CommandReturn::failure(ErrorCode::RESERVE)
+                }
+            }
 
-            10 => {
-                self.rx_packets.map(|ring_buffer| {
+            10 => self
+                .rx_packets
+                .map(|ring_buffer| {
                     if ring_buffer.has_elements() {
                         CommandReturn::success()
                     } else {
                         CommandReturn::failure(ErrorCode::FAIL)
                     }
-                }).unwrap()
-            }
+                })
+                .unwrap(),
 
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }

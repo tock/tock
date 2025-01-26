@@ -13,6 +13,8 @@
 #![test_runner(test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
+use core::ptr::{addr_of, addr_of_mut};
+
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use esp32_c3::chip::Esp32C3DefaultPeripherals;
 use kernel::capabilities;
@@ -39,10 +41,12 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 // Reference to the chip for panic dumps.
 static mut CHIP: Option<&'static esp32_c3::chip::Esp32C3<Esp32C3DefaultPeripherals>> = None;
 // Static reference to process printer for panic dumps.
-static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
+static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
+    None;
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
+const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
+    capsules_system::process_policies::PanicFaultPolicy {};
 
 // Test access to the peripherals
 #[cfg(test)]
@@ -67,6 +71,8 @@ static mut ALARM: Option<&'static MuxAlarm<'static, esp32_c3::timg::TimG<'static
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x900] = [0; 0x900];
 
+type RngDriver = components::rng::RngComponentType<esp32_c3::rng::Rng<'static>>;
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
 struct Esp32C3Board {
@@ -78,6 +84,7 @@ struct Esp32C3Board {
     >,
     scheduler: &'static PrioritySched,
     scheduler_timer: &'static VirtualSchedulerTimer<esp32_c3::timg::TimG<'static>>,
+    rng: &'static RngDriver,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -90,6 +97,7 @@ impl SyscallDriverLookup for Esp32C3Board {
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
+            capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
             _ => f(None),
         }
     }
@@ -101,7 +109,6 @@ impl KernelResources<esp32_c3::chip::Esp32C3<'static, Esp32C3DefaultPeripherals<
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type CredentialsCheckingPolicy = ();
     type ContextSwitchCallback = ();
     type Scheduler = PrioritySched;
     type SchedulerTimer = VirtualSchedulerTimer<esp32_c3::timg::TimG<'static>>;
@@ -114,9 +121,6 @@ impl KernelResources<esp32_c3::chip::Esp32C3<'static, Esp32C3DefaultPeripherals<
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
-        &()
-    }
-    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -142,13 +146,14 @@ unsafe fn setup() -> (
     use esp32_c3::sysreg::{CpuFrequency, PllFrequency};
 
     // only machine mode
-    rv32i::configure_trap_handler(rv32i::PermissionMode::Machine);
+    rv32i::configure_trap_handler();
 
     let peripherals = static_init!(Esp32C3DefaultPeripherals, Esp32C3DefaultPeripherals::new());
 
     peripherals.timg0.disable_wdt();
     peripherals.rtc_cntl.disable_wdt();
     peripherals.rtc_cntl.disable_super_wdt();
+    peripherals.rtc_cntl.enable_fosc();
     peripherals.sysreg.disable_timg0();
     peripherals.sysreg.enable_timg0();
 
@@ -160,7 +165,7 @@ unsafe fn setup() -> (
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
 
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(None, None, None);
@@ -267,10 +272,6 @@ unsafe fn setup() -> (
     let scheduler = components::sched::priority::PriorityComponent::new(board_kernel)
         .finalize(components::priority_component_static!());
 
-    let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
-        .finalize(components::process_printer_text_component_static!());
-    PROCESS_PRINTER = Some(process_printer);
-
     // PROCESS CONSOLE
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
@@ -284,6 +285,13 @@ unsafe fn setup() -> (
     ));
     let _ = process_console.start();
 
+    let rng = components::rng::RngComponent::new(
+        board_kernel,
+        capsules_core::rng::DRIVER_NUM,
+        &peripherals.rng,
+    )
+    .finalize(components::rng_component_static!(esp32_c3::rng::Rng));
+
     let esp32_c3_board = static_init!(
         Esp32C3Board,
         Esp32C3Board {
@@ -292,6 +300,7 @@ unsafe fn setup() -> (
             alarm,
             scheduler,
             scheduler_timer,
+            rng,
         }
     );
 
@@ -299,14 +308,14 @@ unsafe fn setup() -> (
         board_kernel,
         chip,
         core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
         ),
         core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+            core::ptr::addr_of_mut!(_sappmem),
+            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut PROCESSES,
+        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_mgmt_cap,
     )
@@ -314,6 +323,8 @@ unsafe fn setup() -> (
         debug!("Error loading processes!");
         debug!("{:?}", err);
     });
+
+    peripherals.init();
 
     (board_kernel, esp32_c3_board, chip, peripherals)
 }
@@ -353,8 +364,10 @@ fn test_runner(tests: &[&dyn Fn()]) {
         BOARD = Some(board_kernel);
         PLATFORM = Some(&esp32_c3_board);
         PERIPHERALS = Some(peripherals);
-        SCHEDULER =
-            Some(components::sched::priority::PriorityComponent::new(board_kernel).finalize(()));
+        SCHEDULER = Some(
+            components::sched::priority::PriorityComponent::new(board_kernel)
+                .finalize(components::priority_component_static!()),
+        );
         MAIN_CAP = Some(&create_capability!(capabilities::MainLoopCapability));
 
         PLATFORM.map(|p| {

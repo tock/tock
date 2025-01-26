@@ -12,20 +12,22 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use core::ptr::{addr_of, addr_of_mut};
+
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::component::Component;
-use kernel::hil::ethernet::EthernetAdapter;
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 
 use stm32f429zi::chip_specs::Stm32f429Specs;
+use stm32f429zi::clocks::hsi::HSI_FREQUENCY_MHZ;
 use stm32f429zi::gpio::{AlternateFunction, Mode, PinId, PortId};
 use stm32f429zi::interrupt_service::Stm32f429ziDefaultPeripherals;
-use stm32f429zi::rcc::{APBPrescaler, SysClockSource};
+use stm32f429zi::rcc::{APBPrescaler, PllSource, SysClockSource};
 use stm32f429zi::syscfg::EthernetInterface;
 
 /// Support routines for debugging I/O.
@@ -40,15 +42,30 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 
 static mut CHIP: Option<&'static stm32f429zi::chip::Stm32f4xx<Stm32f429ziDefaultPeripherals>> =
     None;
-static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
+static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
+    None;
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
+const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
+    capsules_system::process_policies::PanicFaultPolicy {};
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x4000] = [0; 0x4000];
+pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
+
+//------------------------------------------------------------------------------
+// SYSCALL DRIVER TYPE DEFINITIONS
+//------------------------------------------------------------------------------
+
+type TemperatureSTMSensor = components::temperature_stm::TemperatureSTMComponentType<
+    capsules_core::virtualizers::virtual_adc::AdcDevice<'static, stm32f429zi::adc::Adc<'static>>,
+>;
+type TemperatureDriver = components::temperature::TemperatureComponentType<TemperatureSTMSensor>;
+type RngDriver = components::rng::RngComponentType<stm32f429zi::trng::Trng<'static>>;
+
+/// Nucleo F429ZI HSE frequency in MHz
+pub const NUCLEO_F429ZI_HSE_FREQUENCY_MHZ: usize = 8;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -62,17 +79,22 @@ struct NucleoF429ZI {
     >,
     button: &'static capsules_core::button::Button<'static, stm32f429zi::gpio::Pin<'static>>,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
+    dac: &'static capsules_extra::dac::Dac<'static>,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, stm32f429zi::tim2::Tim2<'static>>,
     >,
-    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temperature: &'static TemperatureDriver,
     gpio: &'static capsules_core::gpio::GPIO<'static, stm32f429zi::gpio::Pin<'static>>,
-    rng: &'static capsules_core::rng::RngDriver<'static>,
+    rng: &'static RngDriver,
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
     can: &'static capsules_extra::can::CanCapsule<'static, stm32f429zi::can::Can<'static>>,
+    date_time: &'static capsules_extra::date_time::DateTimeCapsule<
+        'static,
+        stm32f429zi::rtc::Rtc<'static>,
+    >,
     tap_ethernet: &'static capsules_extra::ethernet_app_tap::TapDriver<
         'static,
         stm32f429zi::ethernet::Ethernet<'static>,
@@ -96,6 +118,8 @@ impl SyscallDriverLookup for NucleoF429ZI {
             capsules_core::gpio::DRIVER_NUM => f(Some(self.gpio)),
             capsules_core::rng::DRIVER_NUM => f(Some(self.rng)),
             capsules_extra::can::DRIVER_NUM => f(Some(self.can)),
+            capsules_extra::dac::DRIVER_NUM => f(Some(self.dac)),
+            capsules_extra::date_time::DRIVER_NUM => f(Some(self.date_time)),
             capsules_extra::ethernet_app_tap::DRIVER_NUM => f(Some(self.tap_ethernet)),
             _ => f(None),
         }
@@ -113,7 +137,6 @@ impl
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type CredentialsCheckingPolicy = ();
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
@@ -126,9 +149,6 @@ impl
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
-        &()
-    }
-    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -264,6 +284,11 @@ unsafe fn set_pin_primary_functions(
         // AF9 is CAN_TX
         pin.set_alternate_function(AlternateFunction::AF9);
     });
+
+    // DAC Channel 1
+    gpio_ports.get_pin(PinId::PA04).map(|pin| {
+        pin.set_mode(stm32f429zi::gpio::Mode::AnalogMode);
+    });
 }
 
 /// Helper function for miscellaneous peripheral functions
@@ -271,6 +296,7 @@ unsafe fn setup_peripherals(
     tim2: &stm32f429zi::tim2::Tim2,
     trng: &stm32f429zi::trng::Trng,
     can1: &'static stm32f429zi::can::Can,
+    rtc: &'static stm32f429zi::rtc::Rtc,
 ) {
     // USART3 IRQn is 39
     cortexm4::nvic::Nvic::new(stm32f429zi::nvic::USART3).enable();
@@ -285,6 +311,9 @@ unsafe fn setup_peripherals(
 
     // CAN
     can1.enable_clock();
+
+    // RTC
+    rtc.enable_clock();
 }
 
 // Helper function to setup Ethernet pins
@@ -333,7 +362,7 @@ fn setup_ethernet_gpios(gpio_ports: &stm32f429zi::gpio::GpioPorts) {
 }
 
 fn setup_clocks_for_ethernet(clocks: &stm32f429zi::clocks::Clocks<Stm32f429Specs>) {
-    assert_eq!(Ok(()), clocks.pll.set_frequency(50)); // 50MHz
+    assert_eq!(Ok(()), clocks.set_pll_frequency_mhz(PllSource::HSI, 50)); // 50MHz
     assert_eq!(Ok(()), clocks.pll.enable());
     assert_eq!(Ok(()), clocks.set_apb1_prescaler(APBPrescaler::DivideBy2));
     assert_eq!(Ok(()), clocks.set_sys_clock_source(SysClockSource::PLL));
@@ -351,62 +380,50 @@ fn setup_ethernet(peripherals: &Stm32f429ziDefaultPeripherals) {
     assert_eq!(Ok(()), peripherals.ethernet.receive_packet());
 }
 
-/// Statically initialize the core peripherals for the chip.
-///
 /// This is in a separate, inline(never) function so that its stack frame is
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn create_peripherals() -> (
-    &'static mut Stm32f429ziDefaultPeripherals<'static>,
-    &'static stm32f429zi::syscfg::Syscfg<'static>,
-    &'static stm32f429zi::dma::Dma1<'static>,
+unsafe fn start() -> (
+    &'static kernel::Kernel,
+    NucleoF429ZI,
+    &'static stm32f429zi::chip::Stm32f4xx<'static, Stm32f429ziDefaultPeripherals<'static>>,
 ) {
+    stm32f429zi::init();
+
     // We use the default HSI 16Mhz clock
     let rcc = static_init!(stm32f429zi::rcc::Rcc, stm32f429zi::rcc::Rcc::new());
+    let clocks = static_init!(
+        stm32f429zi::clocks::Clocks<Stm32f429Specs>,
+        stm32f429zi::clocks::Clocks::new(rcc)
+    );
 
     let syscfg = static_init!(
         stm32f429zi::syscfg::Syscfg,
-        stm32f429zi::syscfg::Syscfg::new(rcc)
+        stm32f429zi::syscfg::Syscfg::new(clocks)
     );
-    syscfg.enable_clock();
     syscfg.configure_ethernet_interface_mode(EthernetInterface::RMII);
+
     let exti = static_init!(
         stm32f429zi::exti::Exti,
         stm32f429zi::exti::Exti::new(syscfg)
     );
-    let dma1 = static_init!(stm32f429zi::dma::Dma1, stm32f429zi::dma::Dma1::new(rcc));
-    let dma2 = static_init!(stm32f429zi::dma::Dma2, stm32f429zi::dma::Dma2::new(rcc));
-
-    let receive_buffer = static_init!(
-        [u8; capsules_extra::ethernet_app_tap::MAX_MTU],
-        [0; capsules_extra::ethernet_app_tap::MAX_MTU]
-    );
+    let dma1 = static_init!(stm32f429zi::dma::Dma1, stm32f429zi::dma::Dma1::new(clocks));
+    let dma2 = static_init!(stm32f429zi::dma::Dma2, stm32f429zi::dma::Dma2::new(clocks));
 
     let peripherals = static_init!(
         Stm32f429ziDefaultPeripherals,
-        Stm32f429ziDefaultPeripherals::new(rcc, exti, dma1, dma2)
+        Stm32f429ziDefaultPeripherals::new(clocks, exti, dma1, dma2)
     );
-
-    peripherals
-        .ethernet
-        .set_received_packet_buffer(receive_buffer);
-
-    (peripherals, syscfg, dma1)
-}
-
-/// Main function.
-///
-/// This is called after RAM initialization is complete.
-#[no_mangle]
-pub unsafe fn main() {
-    stm32f429zi::init();
-
-    let (peripherals, syscfg, dma1) = create_peripherals();
     peripherals.init();
     let base_peripherals = &peripherals.stm32f4;
 
-    setup_peripherals(&base_peripherals.tim2, &peripherals.trng, &peripherals.can1);
+    setup_peripherals(
+        &base_peripherals.tim2,
+        &peripherals.trng,
+        &peripherals.can1,
+        &peripherals.rtc,
+    );
 
     set_pin_primary_functions(syscfg, &base_peripherals.gpio_ports);
 
@@ -416,7 +433,7 @@ pub unsafe fn main() {
         &base_peripherals.usart3,
     );
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
 
     let chip = static_init!(
         stm32f429zi::chip::Stm32f4xx<Stm32f429ziDefaultPeripherals>,
@@ -431,12 +448,11 @@ pub unsafe fn main() {
     let uart_mux = components::console::UartMuxComponent::new(&base_peripherals.usart3, 115200)
         .finalize(components::uart_mux_component_static!());
 
-    io::WRITER.set_initialized();
+    (*addr_of_mut!(io::WRITER)).set_initialized();
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
 
@@ -607,15 +623,15 @@ pub unsafe fn main() {
     .finalize(components::temperature_stm_adc_component_static!(
         stm32f429zi::adc::Adc
     ));
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let grant_temperature =
-        board_kernel.create_grant(capsules_extra::temperature::DRIVER_NUM, &grant_cap);
 
-    let temp = static_init!(
-        capsules_extra::temperature::TemperatureSensor<'static>,
-        capsules_extra::temperature::TemperatureSensor::new(temp_sensor, grant_temperature)
-    );
-    kernel::hil::sensors::TemperatureDriver::set_client(temp_sensor, temp);
+    let temp = components::temperature::TemperatureComponent::new(
+        board_kernel,
+        capsules_extra::temperature::DRIVER_NUM,
+        temp_sensor,
+    )
+    .finalize(components::temperature_component_static!(
+        TemperatureSTMSensor
+    ));
 
     let adc_channel_0 =
         components::adc::AdcComponent::new(adc_mux, stm32f429zi::adc::Channel::Channel3)
@@ -651,13 +667,17 @@ pub unsafe fn main() {
         .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
+    // DAC
+    let dac = components::dac::DacComponent::new(&base_peripherals.dac)
+        .finalize(components::dac_component_static!());
+
     // RNG
     let rng = components::rng::RngComponent::new(
         board_kernel,
         capsules_core::rng::DRIVER_NUM,
         &peripherals.trng,
     )
-    .finalize(components::rng_component_static!());
+    .finalize(components::rng_component_static!(stm32f429zi::trng::Trng));
 
     // CAN
     let can = components::can::CanComponent::new(
@@ -668,6 +688,32 @@ pub unsafe fn main() {
     .finalize(components::can_component_static!(
         stm32f429zi::can::Can<'static>
     ));
+
+    // RTC DATE TIME
+    match peripherals.rtc.rtc_init() {
+        Err(e) => debug!("{:?}", e),
+        _ => (),
+    };
+
+    let date_time = components::date_time::DateTimeComponent::new(
+        board_kernel,
+        capsules_extra::date_time::DRIVER_NUM,
+        &peripherals.rtc,
+    )
+    .finalize(components::date_time_component_static!(
+        stm32f429zi::rtc::Rtc<'static>
+    ));
+
+    // ETHERNET
+    // Set up hardware receive buffers:
+    let receive_buffer = static_init!(
+        [u8; capsules_extra::ethernet_app_tap::MAX_MTU],
+        [0; capsules_extra::ethernet_app_tap::MAX_MTU]
+    );
+
+    peripherals
+        .ethernet
+        .set_received_packet_buffer(receive_buffer);
 
     // Create transmit buffer for tap Ethernet
     let tap_transmit_buffer = static_init!(
@@ -708,9 +754,6 @@ pub unsafe fn main() {
         )
     );
 
-    // Set client for the Ethernet firmware
-    peripherals.ethernet.set_client(tap_ethernet);
-
     // PROCESS CONSOLE
     let process_console = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
@@ -724,27 +767,31 @@ pub unsafe fn main() {
     ));
     let _ = process_console.start();
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let nucleo_f429zi = NucleoF429ZI {
-        console: console,
+        console,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
         adc: adc_syscall,
-        led: led,
+        dac,
+        led,
         temperature: temp,
-        button: button,
-        alarm: alarm,
-        gpio: gpio,
-        rng: rng,
+        button,
+        alarm,
+        gpio,
+        rng,
 
         scheduler,
-        systick: cortexm4::systick::SysTick::new(),
-        can: can,
+        systick: cortexm4::systick::SysTick::new_with_calibration(
+            (HSI_FREQUENCY_MHZ * 1_000_000) as u32,
+        ),
+        can,
+        date_time,
         tap_ethernet,
     };
 
@@ -776,14 +823,14 @@ pub unsafe fn main() {
         board_kernel,
         chip,
         core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
         ),
         core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+            core::ptr::addr_of_mut!(_sappmem),
+            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut PROCESSES,
+        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_management_capability,
     )
@@ -797,10 +844,14 @@ pub unsafe fn main() {
     .finalize(components::multi_alarm_test_component_buf!(stm32f429zi::tim2::Tim2))
     .run();*/
 
-    board_kernel.kernel_loop(
-        &nucleo_f429zi,
-        chip,
-        Some(&nucleo_f429zi.ipc),
-        &main_loop_capability,
-    );
+    (board_kernel, nucleo_f429zi, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, platform, chip) = start();
+    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }

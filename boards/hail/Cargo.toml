@@ -6,8 +6,9 @@
 name = "hail"
 version.workspace = true
 authors.workspace = true
-build = "build.rs"
+build = "../build.rs"
 edition.workspace = true
+rust-version = "1.83"
 
 [dependencies]
 components = { path = "../components" }
@@ -17,3 +18,10 @@ sam4l = { path = "../../chips/sam4l" }
 
 capsules-core = { path = "../../capsules/core" }
 capsules-extra = { path = "../../capsules/extra" }
+capsules-system = { path = "../../capsules/system" }
+
+[build-dependencies]
+tock_build_scripts = { path = "../build_scripts" }
+
+[lints]
+workspace = true

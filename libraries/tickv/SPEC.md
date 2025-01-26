@@ -10,9 +10,9 @@ to add such features.
 TicKV allows writing new key/value pairs (by appending them) and removing
 old key/value pairs.
 
-Similar to (Yaffs1)[https://yaffs.net/documents/how-yaffs-works] TicKV uses a
-log structure and circles over the flash data. This means that the file
-system is inherently wear leveling as we don't regularly write to the same
+Similar to [Yaffs1](https://yaffs.net/sites/yaffs.net/files/HowYaffsWorks.pdf)
+TicKV uses a log structure and circles over the flash data. This means that the
+file system is inherently wear leveling as we don't regularly write to the same
 flash region.
 
 ## Storage Format
@@ -174,6 +174,23 @@ any more.
 If all the objects in a region are no longer valid then that region will be
 erased when `garbage_collect()` is called. Note that even if the flash is
 full `garbage_collect()` will not be called automatically.
+
+### Zeroising keys
+
+This is similar to the `invalidate_key()` function, but instead will
+change all `1`s in the value and checksum to `0`s. This does not remove
+the header, as that is required for garbage collection later on, so the
+length and hashed key will still be preserved.
+
+The values will be changed by a single write operation to the flash.
+The values are not securley overwritten to make restoring data
+difficult.
+
+Users will need to check with the hardware specifications to determine
+if this is cryptographically secure for their use case.
+
+As this data is marked as invalid, `garbage_collect()` will function as normal
+removing both zeroised keys as well as invalid keys.
 
 ### Initialisation
 
@@ -399,6 +416,42 @@ flash will be the `valid` flag. The object header for ONE will now look like:
 
 No changes will happen in flash until key TWO has also been invalidated.
 At which point `garbage_collect()` can erase the region.
+
+### Zeroising a key
+
+When the key ONE is zeroised with `zeroise_key()`, the only change in
+the header will be the `valid` flag. The rest of the object will become
+zeros. The object ONE will now look like:
+
+```
+0x400                                                                                              0x42C
+--------------------------------------------------------------------------------------------------------
+||||| version|len/flag|   len  |                              hashed_key                               |
+|||||        |        |        |        |        |        |        |        |        |        |        |
+|||||    0x00|00000000|    0x34|    0xed|    0xa1|    0x00|    0x78|    0x88|    0x61|    0x93|    0xbb|
+-------------------------------------------------------------------------------------------------------|
+```
+
+```
+0x42C                                                                                              0x52C
+--------------------------------------------------------------------------------------------------------
+|||||                                               value                                              |
+|||||                                                                                                  |
+|||||00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000|
+-------------------------------------------------------------------------------------------------------|
+```
+
+```
+0x52C                                   0x53C
+-----------------------------------------
+|||||              checksum             |
+|||||        |        |        |        |
+|||||    0x00|    0x00|    0x00|    0x00|
+----------------------------------------|
+```
+
+No changes will happen in flash until key TWO has also been invalidated.
+At which point `garbage_collect()` can erase the region once it is run.
 
 ## Limitations of TicKV
 

@@ -46,15 +46,19 @@ use kernel::hil::led;
 #[cfg(not(test))]
 #[no_mangle]
 #[panic_handler]
-pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
+pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
+    use core::ptr::{addr_of, addr_of_mut};
     let first_led_pin = &mut earlgrey::gpio::GpioPin::new(
-        earlgrey::gpio::GPIO0_BASE,
-        earlgrey::gpio::PADCTRL_BASE,
+        earlgrey::gpio::GPIO_BASE,
+        earlgrey::pinmux::PadConfig::Output(
+            earlgrey::registers::top_earlgrey::MuxedPads::Ioa6,
+            earlgrey::registers::top_earlgrey::PinmuxOutsel::GpioGpio7,
+        ),
         earlgrey::gpio::pins::pin7,
     );
     first_led_pin.make_output();
     let first_led = &mut led::LedLow::new(first_led_pin);
-    let writer = &mut WRITER;
+    let writer = &mut *addr_of_mut!(WRITER);
 
     #[cfg(feature = "sim_verilator")]
     debug::panic(
@@ -62,9 +66,9 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
         writer,
         pi,
         &|| {},
-        &PROCESSES,
-        &CHIP,
-        &PROCESS_PRINTER,
+        &*addr_of!(PROCESSES),
+        &*addr_of!(CHIP),
+        &*addr_of!(PROCESS_PRINTER),
     );
 
     #[cfg(not(feature = "sim_verilator"))]
@@ -73,16 +77,16 @@ pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
         writer,
         pi,
         &rv32i::support::nop,
-        &PROCESSES,
-        &CHIP,
-        &PROCESS_PRINTER,
+        &*addr_of!(PROCESSES),
+        &*addr_of!(CHIP),
+        &*addr_of!(PROCESS_PRINTER),
     );
 }
 
 #[cfg(test)]
 #[no_mangle]
 #[panic_handler]
-pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
+pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let writer = &mut WRITER;
 
     #[cfg(feature = "sim_verilator")]

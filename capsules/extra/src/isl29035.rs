@@ -16,7 +16,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //! # use capsules::virtual_alarm::VirtualMuxAlarm;
 //!
@@ -64,8 +64,8 @@ pub struct Isl29035<'a, A: time::Alarm<'a>> {
 impl<'a, A: time::Alarm<'a>> Isl29035<'a, A> {
     pub fn new(i2c: &'a dyn I2CDevice, alarm: &'a A, buffer: &'static mut [u8]) -> Isl29035<'a, A> {
         Isl29035 {
-            i2c: i2c,
-            alarm: alarm,
+            i2c,
+            alarm,
             state: Cell::new(State::Disabled),
             buffer: TakeCell::new(buffer),
             client: OptionalCell::empty(),

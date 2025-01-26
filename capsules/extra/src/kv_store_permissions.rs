@@ -6,7 +6,7 @@
 //!
 //! This capsule provides a KV interface with permissions and access control.
 //!
-//! ```
+//! ```rust,ignore
 //! +-----------------------+
 //! |  Capsule using K-V    |
 //! +-----------------------+
@@ -40,6 +40,7 @@ enum Operation {
     Add,
     Update,
     Delete,
+    GarbageCollect,
 }
 
 /// Current version of the Tock K-V header.
@@ -288,6 +289,16 @@ impl<'a, K: kv::KV<'a>> kv::KVPermissions<'a> for KVStorePermissions<'a, K> {
         }
     }
 
+    fn garbage_collect(&self) -> Result<(), ErrorCode> {
+        if self.operation.is_some() {
+            return Err(ErrorCode::BUSY);
+        }
+
+        self.operation.set(Operation::GarbageCollect);
+
+        self.kv.garbage_collect()
+    }
+
     fn header_size(&self) -> usize {
         HEADER_LENGTH
     }
@@ -311,7 +322,7 @@ impl<'a, K: kv::KV<'a>> kv::KVClient for KVStorePermissions<'a, K> {
 
                         if header.version == HEADER_VERSION {
                             self.valid_ids.map(|perms| {
-                                access_allowed = perms.check_write_permission(header.write_id);
+                                access_allowed = perms.check_modify_permission(header.write_id);
                             });
                         }
                     } else if result.err() == Some(ErrorCode::NOSUPPORT) {
@@ -352,7 +363,7 @@ impl<'a, K: kv::KV<'a>> kv::KVClient for KVStorePermissions<'a, K> {
 
                         if header.version == HEADER_VERSION {
                             self.valid_ids.map(|perms| {
-                                access_allowed = perms.check_write_permission(header.write_id);
+                                access_allowed = perms.check_modify_permission(header.write_id);
                             });
                         }
                     }
@@ -394,7 +405,7 @@ impl<'a, K: kv::KV<'a>> kv::KVClient for KVStorePermissions<'a, K> {
 
                         if header.version == HEADER_VERSION {
                             self.valid_ids.map(|perms| {
-                                access_allowed = perms.check_write_permission(header.write_id);
+                                access_allowed = perms.check_modify_permission(header.write_id);
                             });
                         }
                     }
@@ -501,6 +512,13 @@ impl<'a, K: kv::KV<'a>> kv::KVClient for KVStorePermissions<'a, K> {
         self.operation.clear();
         self.client.map(move |cb| {
             cb.delete_complete(result, key);
+        });
+    }
+
+    fn garbage_collection_complete(&self, result: Result<(), ErrorCode>) {
+        self.operation.clear();
+        self.client.map(move |cb| {
+            cb.garbage_collection_complete(result);
         });
     }
 }

@@ -350,7 +350,7 @@ impl Flash {
 
                         self.client.map(|client| {
                             self.buffer.take().map(|buffer| {
-                                client.write_complete(buffer, hil::flash::Error::CommandComplete);
+                                client.write_complete(buffer, Ok(()));
                             });
                         });
                     } else {
@@ -368,7 +368,7 @@ impl Flash {
 
                     self.state.set(FlashState::Ready);
                     self.client.map(|client| {
-                        client.erase_complete(hil::flash::Error::CommandComplete);
+                        client.erase_complete(Ok(()));
                     });
                 }
                 FlashState::WriteOption => {
@@ -377,7 +377,7 @@ impl Flash {
 
                     self.client.map(|client| {
                         self.buffer.take().map(|buffer| {
-                            client.write_complete(buffer, hil::flash::Error::CommandComplete);
+                            client.write_complete(buffer, Ok(()));
                         });
                     });
                 }
@@ -386,7 +386,7 @@ impl Flash {
                     self.state.set(FlashState::Ready);
 
                     self.client.map(|client| {
-                        client.erase_complete(hil::flash::Error::CommandComplete);
+                        client.erase_complete(Ok(()));
                     });
                 }
                 _ => {}
@@ -397,7 +397,7 @@ impl Flash {
             self.state.set(FlashState::Ready);
             self.client.map(|client| {
                 self.buffer.take().map(|buffer| {
-                    client.read_complete(buffer, hil::flash::Error::CommandComplete);
+                    client.read_complete(buffer, Ok(()));
                 });
             });
         }
@@ -411,13 +411,13 @@ impl Flash {
                     self.registers.cr.modify(Control::PG::CLEAR);
                     self.client.map(|client| {
                         self.buffer.take().map(|buffer| {
-                            client.write_complete(buffer, hil::flash::Error::FlashError);
+                            client.write_complete(buffer, Err(hil::flash::Error::FlashError));
                         });
                     });
                 }
                 FlashState::Erase => {
                     self.client.map(|client| {
-                        client.erase_complete(hil::flash::Error::FlashError);
+                        client.erase_complete(Err(hil::flash::Error::FlashError));
                     });
                 }
                 _ => {}
@@ -435,7 +435,7 @@ impl Flash {
                     self.registers.cr.modify(Control::PG::CLEAR);
                     self.client.map(|client| {
                         self.buffer.take().map(|buffer| {
-                            client.write_complete(buffer, hil::flash::Error::FlashError);
+                            client.write_complete(buffer, Err(hil::flash::Error::FlashError));
                         });
                     });
                 }
@@ -443,13 +443,13 @@ impl Flash {
                     self.registers.cr.modify(Control::OPTPG::CLEAR);
                     self.client.map(|client| {
                         self.buffer.take().map(|buffer| {
-                            client.write_complete(buffer, hil::flash::Error::FlashError);
+                            client.write_complete(buffer, Err(hil::flash::Error::FlashError));
                         });
                     });
                 }
                 FlashState::Erase => {
                     self.client.map(|client| {
-                        client.erase_complete(hil::flash::Error::FlashError);
+                        client.erase_complete(Err(hil::flash::Error::FlashError));
                     });
                 }
                 _ => {}

@@ -17,7 +17,7 @@
 //! Microbit Pins: <https://tech.microbit.org/hardware/schematic/>
 //! 4 digit 7 segment display pinout: <https://www.dotnetlovers.com/images/4digit7segmentdisplay85202024001AM.jpg>
 //!
-//! ```rust
+//! ```rust,ignore
 //! const NUM_DIGITS: usize = 4;
 //! const DIGITS: [Pin; 4] = [Pin::P1_02, Pin::P0_12, Pin::P0_30, Pin::P0_09]; // [D1, D2, D3, D4]
 //! const SEGMENTS: [Pin; 7] = [
@@ -126,7 +126,7 @@
 //!
 //! #### `command_num`
 //!
-//! - `0`: Return the number of digits on the display being used.
+//! - `0`: Driver Check.
 //!   - `data1`: Unused.
 //!   - `data2`: Unused.
 //!   - Return: Number of digits.
@@ -144,6 +144,9 @@
 //!   - `data1`: The position of the digit. Starts at 1.
 //!   - `data2`: The custom pattern to be represented.
 //!   - Return: `Ok(())` if the index was valid, `INVAL` otherwise.
+//! - `5`: Return the number of digits on the display being used.
+//!   - `data1`: Unused.
+//!   - `data2`: Unused.
 
 use core::cell::Cell;
 
@@ -221,8 +224,8 @@ impl<'a, P: Pin, A: Alarm<'a>, const NUM_DIGITS: usize> SevenSegmentDriver<'a, P
             digits,
             buffer: TakeCell::new(buffer),
             alarm,
-            segment_activation: segment_activation,
-            digit_activation: digit_activation,
+            segment_activation,
+            digit_activation,
             current_digit: Cell::new(0),
             timing: (1000 / (refresh_rate * digits.len())) as u8,
         }
@@ -358,8 +361,7 @@ impl<'a, P: Pin, A: Alarm<'a>, const NUM_DIGITS: usize> SyscallDriver
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Returns the number of digits on the display. This will always be 0 or
-    ///        greater, and therefore also allows for checking for this driver.
+    /// - `0`: Driver existence check.
     /// - `1`: Prints one digit at the requested position. Returns `INVAL` if the
     ///        position is not valid.
     /// - `2`: Clears all digits currently being displayed.
@@ -367,6 +369,8 @@ impl<'a, P: Pin, A: Alarm<'a>, const NUM_DIGITS: usize> SyscallDriver
     ///        `INVAL` if the position is not valid.
     /// - `4`: Print a custom pattern for a certain digit. Returns
     ///        `INVAL` if the position is not valid.
+    /// - `5`: Returns the number of digits on the display. This will always be 0 or
+    ///        greater, and therefore also allows for checking for this driver.
     fn command(
         &self,
         command_num: usize,
@@ -375,8 +379,8 @@ impl<'a, P: Pin, A: Alarm<'a>, const NUM_DIGITS: usize> SyscallDriver
         _: ProcessId,
     ) -> CommandReturn {
         match command_num {
-            // Return number of digits
-            0 => CommandReturn::success_u32(self.digits.len() as u32),
+            // Check existence
+            0 => CommandReturn::success(),
 
             // Print one digit
             1 => CommandReturn::from(self.print_digit(data1, data2)),
@@ -389,6 +393,9 @@ impl<'a, P: Pin, A: Alarm<'a>, const NUM_DIGITS: usize> SyscallDriver
 
             // Print a custom pattern
             4 => CommandReturn::from(self.print(data1, data2 as u8)),
+
+            // Return number of digits
+            5 => CommandReturn::success_u32(self.digits.len() as u32),
 
             // default
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),

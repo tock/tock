@@ -1,0 +1,21 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2022.
+
+include = [
+  "../../../cargo/tock_flags.toml",
+  "../../../cargo/unstable_flags.toml",
+  "../../../cargo/riscv_flags.toml",
+  "../../../cargo/riscv_bitmanip.toml",
+  "../../../cargo/virtual_function_elimination.toml",
+  "../../../cargo/panic_abort_tests.toml",
+]
+
+[build]
+target = "riscv32imc-unknown-none-elf"
+
+[target.'cfg(target_arch = "riscv32")']
+runner = "./run.sh"
+
+[unstable]
+config-include = true

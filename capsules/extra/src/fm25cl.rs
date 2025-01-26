@@ -18,7 +18,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! // Create a SPI device for this chip.
@@ -47,7 +47,8 @@
 use core::cell::Cell;
 use core::cmp;
 use kernel::hil;
-use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
 
 pub const BUF_LEN: usize = 512;
@@ -92,8 +93,8 @@ pub trait FM25CLClient {
 pub struct FM25CL<'a, S: hil::spi::SpiMasterDevice<'a>> {
     spi: &'a S,
     state: Cell<State>,
-    txbuffer: TakeCell<'static, [u8]>,
-    rxbuffer: TakeCell<'static, [u8]>,
+    txbuffer: MapCell<SubSliceMut<'static, u8>>,
+    rxbuffer: MapCell<SubSliceMut<'static, u8>>,
     client: OptionalCell<&'a dyn hil::nonvolatile_storage::NonvolatileStorageClient>,
     client_custom: OptionalCell<&'a dyn FM25CLClient>,
     client_buffer: TakeCell<'static, [u8]>, // Store buffer and state for passing back to client
@@ -109,10 +110,10 @@ impl<'a, S: hil::spi::SpiMasterDevice<'a>> FM25CL<'a, S> {
     ) -> FM25CL<'a, S> {
         // setup and return struct
         FM25CL {
-            spi: spi,
+            spi,
             state: Cell::new(State::Idle),
-            txbuffer: TakeCell::new(txbuffer),
-            rxbuffer: TakeCell::new(rxbuffer),
+            txbuffer: MapCell::new(txbuffer.into()),
+            rxbuffer: MapCell::new(rxbuffer.into()),
             client: OptionalCell::empty(),
             client_custom: OptionalCell::empty(),
             client_buffer: TakeCell::empty(),
@@ -144,9 +145,7 @@ impl<'a, S: hil::spi::SpiMasterDevice<'a>> FM25CL<'a, S> {
 
         self.txbuffer
             .take()
-            .map_or(Err(ErrorCode::RESERVE), move |txbuffer| {
-                txbuffer[0] = Opcodes::WriteEnable as u8;
-
+            .map_or(Err(ErrorCode::RESERVE), move |mut txbuffer| {
                 let write_len = cmp::min(txbuffer.len(), len as usize);
 
                 // Need to save the buffer passed to us so we can give it back.
@@ -156,7 +155,10 @@ impl<'a, S: hil::spi::SpiMasterDevice<'a>> FM25CL<'a, S> {
                 self.client_write_len.set(write_len as u16);
 
                 self.state.set(State::WriteEnable);
-                let res = self.spi.read_write_bytes(txbuffer, None, 1);
+                txbuffer[0] = Opcodes::WriteEnable as u8;
+                txbuffer.slice(..1);
+                let res = self.spi.read_write_bytes(txbuffer, None);
+
                 match res {
                     Ok(()) => Ok(()),
                     Err((err, txbuffer, _)) => {
@@ -172,10 +174,10 @@ impl<'a, S: hil::spi::SpiMasterDevice<'a>> FM25CL<'a, S> {
 
         self.txbuffer
             .take()
-            .map_or(Err(ErrorCode::RESERVE), |txbuffer| {
+            .map_or(Err(ErrorCode::RESERVE), |mut txbuffer| {
                 self.rxbuffer
                     .take()
-                    .map_or(Err(ErrorCode::RESERVE), move |rxbuffer| {
+                    .map_or(Err(ErrorCode::RESERVE), move |mut rxbuffer| {
                         txbuffer[0] = Opcodes::ReadMemory as u8;
                         txbuffer[1] = ((address >> 8) & 0xFF) as u8;
                         txbuffer[2] = (address & 0xFF) as u8;
@@ -183,12 +185,12 @@ impl<'a, S: hil::spi::SpiMasterDevice<'a>> FM25CL<'a, S> {
                         // Save the user buffer for later
                         self.client_buffer.replace(buffer);
 
-                        let read_len = cmp::min(rxbuffer.len() - 3, len as usize);
+                        rxbuffer.reset();
+                        let read_len = cmp::min(rxbuffer.len(), 3 + len as usize);
+                        rxbuffer.slice(..read_len);
 
                         self.state.set(State::ReadMemory);
-                        let res = self
-                            .spi
-                            .read_write_bytes(txbuffer, Some(rxbuffer), read_len + 3);
+                        let res = self.spi.read_write_bytes(txbuffer, Some(rxbuffer));
                         match res {
                             Ok(()) => Ok(()),
                             Err((err, txbuffer, rxbuffer)) => {
@@ -205,11 +207,11 @@ impl<'a, S: hil::spi::SpiMasterDevice<'a>> FM25CL<'a, S> {
 impl<'a, S: hil::spi::SpiMasterDevice<'a>> hil::spi::SpiMasterClient for FM25CL<'a, S> {
     fn read_write_done(
         &self,
-        write_buffer: &'static mut [u8],
-        read_buffer: Option<&'static mut [u8]>,
-        len: usize,
-        _status: Result<(), ErrorCode>,
+        mut write_buffer: SubSliceMut<'static, u8>,
+        read_buffer: Option<SubSliceMut<'static, u8>>,
+        _status: Result<usize, ErrorCode>,
     ) {
+        write_buffer.reset();
         match self.state.get() {
             State::ReadStatus => {
                 self.state.set(State::Idle);
@@ -238,10 +240,9 @@ impl<'a, S: hil::spi::SpiMasterDevice<'a>> hil::spi::SpiMasterClient for FM25CL<
                         cmp::min(write_buffer.len(), self.client_write_len.get() as usize);
 
                     write_buffer[3..(write_len + 3)].copy_from_slice(&buffer[..write_len]);
+                    write_buffer.slice(..write_len + 3);
 
-                    let _ = self
-                        .spi
-                        .read_write_bytes(write_buffer, read_buffer, write_len + 3);
+                    let _ = self.spi.read_write_bytes(write_buffer, read_buffer);
                 });
             }
             State::WriteMemory => {
@@ -269,7 +270,7 @@ impl<'a, S: hil::spi::SpiMasterDevice<'a>> hil::spi::SpiMasterClient for FM25CL<
 
                 read_buffer.map(|read_buffer| {
                     self.client_buffer.take().map(move |buffer| {
-                        let read_len = cmp::min(buffer.len(), len);
+                        let read_len = buffer.len();
 
                         buffer[..(read_len - 3)]
                             .copy_from_slice(&read_buffer[3..((read_len - 3) + 3)]);
@@ -293,16 +294,18 @@ impl<'a, S: hil::spi::SpiMasterDevice<'a>> FM25CLCustom for FM25CL<'a, S> {
 
         self.txbuffer
             .take()
-            .map_or(Err(ErrorCode::RESERVE), |txbuffer| {
+            .map_or(Err(ErrorCode::RESERVE), |mut txbuffer| {
                 self.rxbuffer
                     .take()
-                    .map_or(Err(ErrorCode::RESERVE), move |rxbuffer| {
+                    .map_or(Err(ErrorCode::RESERVE), move |mut rxbuffer| {
                         txbuffer[0] = Opcodes::ReadStatusRegister as u8;
 
                         // Use 4 bytes instead of the required 2 because that works better
                         // with DMA for some reason.
                         // TODO verify SPI return value
-                        let _ = self.spi.read_write_bytes(txbuffer, Some(rxbuffer), 4);
+                        rxbuffer.reset();
+                        rxbuffer.slice(..4);
+                        let _ = self.spi.read_write_bytes(txbuffer, Some(rxbuffer));
                         self.state.set(State::ReadStatus);
                         Ok(())
                     })

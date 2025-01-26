@@ -5,7 +5,7 @@
 # Makefile for building the tock kernel for the Hail platform
 
 TARGET=thumbv7em-none-eabi
-PLATFORM=hail
+USE_STABLE_RUST=1
 
 include ../Makefile.common
 

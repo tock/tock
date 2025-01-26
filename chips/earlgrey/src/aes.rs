@@ -6,7 +6,7 @@
 //!
 //! <https://docs.opentitan.org/hw/ip/aes/doc/>
 
-use crate::registers::top_earlgrey::TOP_EARLGREY_AES_BASE_ADDR;
+use crate::registers::top_earlgrey::AES_BASE_ADDR;
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
@@ -115,7 +115,7 @@ enum Mode {
 
 // https://docs.opentitan.org/hw/top_earlgrey/doc/
 const AES_BASE: StaticRef<AesRegisters> =
-    unsafe { StaticRef::new(TOP_EARLGREY_AES_BASE_ADDR as *const AesRegisters) };
+    unsafe { StaticRef::new(AES_BASE_ADDR as *const AesRegisters) };
 
 pub struct Aes<'a> {
     registers: StaticRef<AesRegisters>,
@@ -152,7 +152,7 @@ impl<'a> Aes<'a> {
     ///
     /// NOTE: This is needed for Verilator, and is suggested by documentation
     ///       in general.
-    /// Refer: https://docs.opentitan.org/hw/ip/aes/doc/#programmers-guide
+    /// Refer: <https://docs.opentitan.org/hw/ip/aes/doc/#programmers-guide>
     fn wait_on_idle_ready(&self) -> Result<(), ErrorCode> {
         for _i in 0..10000 {
             if self.idle() {

@@ -31,8 +31,8 @@ impl<'a, A: AES128<'a> + AES128Ctr> EncryptionOracleDriver<'a, A> {
         process_grants: Grant<ProcessState, UpcallCount<0>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> Self {
         EncryptionOracleDriver {
-            process_grants: process_grants,
-            aes: aes,
+            aes,
+            process_grants,
         }
     }
 }

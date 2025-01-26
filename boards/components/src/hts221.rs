@@ -37,6 +37,8 @@ macro_rules! hts221_component_static {
     };};
 }
 
+pub type Hts221ComponentType<I> = capsules_extra::hts221::Hts221<'static, I>;
+
 pub struct Hts221Component<I: 'static + i2c::I2CMaster<'static>> {
     i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,
@@ -46,7 +48,7 @@ impl<I: 'static + i2c::I2CMaster<'static>> Hts221Component<I> {
     pub fn new(i2c: &'static MuxI2C<'static, I>, i2c_address: u8) -> Self {
         Hts221Component {
             i2c_mux: i2c,
-            i2c_address: i2c_address,
+            i2c_address,
         }
     }
 }

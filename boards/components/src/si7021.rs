@@ -48,6 +48,8 @@ macro_rules! si7021_component_static {
     };};
 }
 
+pub type SI7021ComponentType<A, I> = capsules_extra::si7021::SI7021<'static, A, I>;
+
 pub struct SI7021Component<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster<'static>>
 {
     i2c_mux: &'static MuxI2C<'static, I>,
@@ -66,7 +68,7 @@ impl<A: 'static + time::Alarm<'static>, I: 'static + i2c::I2CMaster<'static>>
         SI7021Component {
             i2c_mux: i2c,
             alarm_mux: alarm,
-            i2c_address: i2c_address,
+            i2c_address,
         }
     }
 }

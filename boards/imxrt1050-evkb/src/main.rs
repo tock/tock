@@ -10,6 +10,8 @@
 #![no_main]
 #![deny(missing_docs)]
 
+use core::ptr::{addr_of, addr_of_mut};
+
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use kernel::capabilities;
@@ -52,10 +54,12 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 
 type Chip = imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaultPeripherals>;
 static mut CHIP: Option<&'static Chip> = None;
-static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
+static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
+    None;
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
+const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
+    capsules_system::process_policies::PanicFaultPolicy {};
 
 // Manually setting the boot header section that contains the FCB header
 #[used]
@@ -116,7 +120,6 @@ impl KernelResources<imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaul
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type CredentialsCheckingPolicy = ();
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm7::systick::SysTick;
     type WatchDog = ();
@@ -129,9 +132,6 @@ impl KernelResources<imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaul
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
-        &()
-    }
-    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -226,24 +226,18 @@ unsafe fn setup_peripherals(peripherals: &imxrt1050::chip::Imxrt10xxDefaultPerip
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn create_peripherals() -> &'static mut imxrt1050::chip::Imxrt10xxDefaultPeripherals {
+unsafe fn start() -> (
+    &'static kernel::Kernel,
+    Imxrt1050EVKB,
+    &'static imxrt1050::chip::Imxrt10xx<imxrt1050::chip::Imxrt10xxDefaultPeripherals>,
+) {
+    imxrt1050::init();
+
     let ccm = static_init!(imxrt1050::ccm::Ccm, imxrt1050::ccm::Ccm::new());
     let peripherals = static_init!(
         imxrt1050::chip::Imxrt10xxDefaultPeripherals,
         imxrt1050::chip::Imxrt10xxDefaultPeripherals::new(ccm)
     );
-
-    peripherals
-}
-
-/// Main function.
-///
-/// This is called after RAM initialization is complete.
-#[no_mangle]
-pub unsafe fn main() {
-    imxrt1050::init();
-
-    let peripherals = create_peripherals();
     peripherals.ccm.set_low_power_mode();
     peripherals.lpuart1.disable_clock();
     peripherals.lpuart2.disable_clock();
@@ -257,7 +251,7 @@ pub unsafe fn main() {
 
     setup_peripherals(peripherals);
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
 
     let chip = static_init!(Chip, Chip::new(peripherals));
     CHIP = Some(chip);
@@ -310,12 +304,11 @@ pub unsafe fn main() {
 
     let lpuart_mux = components::console::UartMuxComponent::new(&peripherals.lpuart1, 115200)
         .finalize(components::uart_mux_component_static!());
-    io::WRITER.set_initialized();
+    (*addr_of_mut!(io::WRITER)).set_initialized();
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
 
@@ -456,21 +449,21 @@ pub unsafe fn main() {
     )
     .finalize(components::ninedof_component_static!(fxos8700));
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let imxrt1050 = Imxrt1050EVKB {
-        console: console,
+        console,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
-        led: led,
-        button: button,
-        ninedof: ninedof,
-        alarm: alarm,
-        gpio: gpio,
+        led,
+        button,
+        ninedof,
+        alarm,
+        gpio,
 
         scheduler,
         systick: cortexm7::systick::SysTick::new_with_calibration(792_000_000),
@@ -521,14 +514,14 @@ pub unsafe fn main() {
         board_kernel,
         chip,
         core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
         ),
         core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+            core::ptr::addr_of_mut!(_sappmem),
+            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut PROCESSES,
+        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_management_capability,
     )
@@ -537,10 +530,14 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(
-        &imxrt1050,
-        chip,
-        Some(&imxrt1050.ipc),
-        &main_loop_capability,
-    );
+    (board_kernel, imxrt1050, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, board, chip) = start();
+    board_kernel.kernel_loop(&board, chip, Some(&board.ipc), &main_loop_capability);
 }

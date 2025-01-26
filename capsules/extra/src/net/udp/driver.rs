@@ -21,8 +21,6 @@ use crate::net::udp::udp_send::{UDPSendClient, UDPSender};
 use crate::net::util::host_slice_to_u16;
 
 use core::cell::Cell;
-use core::convert::TryFrom;
-use core::convert::TryInto;
 use core::mem::size_of;
 use core::{cmp, mem};
 
@@ -167,15 +165,15 @@ impl<'a> UDPDriver<'a> {
         net_cap: &'static NetworkCapability,
     ) -> UDPDriver<'a> {
         UDPDriver {
-            sender: sender,
+            sender,
             apps: grant,
             current_app: Cell::new(None),
-            interface_list: interface_list,
-            max_tx_pyld_len: max_tx_pyld_len,
-            port_table: port_table,
+            interface_list,
+            max_tx_pyld_len,
+            port_table,
             kernel_buffer: MapCell::new(kernel_buffer),
-            driver_send_cap: driver_send_cap,
-            net_cap: net_cap,
+            driver_send_cap,
+            net_cap,
         }
     }
 
@@ -259,7 +257,7 @@ impl<'a> UDPDriver<'a> {
                                     self.driver_send_cap,
                                     self.net_cap,
                                 ) {
-                                    Ok(_) => Ok(()),
+                                    Ok(()) => Ok(()),
                                     Err(mut buf) => {
                                         buf.reset();
                                         self.kernel_buffer.replace(buf);
@@ -324,7 +322,7 @@ impl<'a> UDPDriver<'a> {
             addr.0.copy_from_slice(a);
 
             let pair = UDPEndpoint {
-                addr: addr,
+                addr,
                 port: host_slice_to_u16(p),
             };
             Some(pair)
@@ -332,12 +330,12 @@ impl<'a> UDPDriver<'a> {
     }
 }
 
-impl<'a> SyscallDriver for UDPDriver<'a> {
+impl SyscallDriver for UDPDriver<'_> {
     /// UDP control
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Driver check.
+    /// - `0`: Driver existence check.
     /// - `1`: Get the interface list
     ///        app_cfg (out): 16 * `n` bytes: the list of interface IPv6 addresses, length
     ///                       limited by `app_cfg` length.
@@ -469,7 +467,7 @@ impl<'a> SyscallDriver for UDPDriver<'a> {
                     })
                     .unwrap_or_else(|err| Err(err.into()));
                 match res {
-                    Ok(_) => self.do_next_tx_immediate(processid).map_or_else(
+                    Ok(()) => self.do_next_tx_immediate(processid).map_or_else(
                         |err| CommandReturn::failure(err),
                         |v| CommandReturn::success_u32(v),
                     ),
@@ -493,13 +491,7 @@ impl<'a> SyscallDriver for UDPDriver<'a> {
                                         cfg[mem::size_of::<UDPEndpoint>()..]
                                             .copy_to_slice(&mut tmp_endpoint);
 
-                                        if let Some(local_iface) =
-                                            self.parse_ip_port_pair(&tmp_endpoint)
-                                        {
-                                            Some(local_iface)
-                                        } else {
-                                            None
-                                        }
+                                        self.parse_ip_port_pair(&tmp_endpoint)
                                     }
                                 })
                             })
@@ -544,7 +536,7 @@ impl<'a> SyscallDriver for UDPDriver<'a> {
                                             })
                                     }
                                 }
-                                Err(_) => CommandReturn::failure(ErrorCode::FAIL), //error in port table
+                                Err(()) => CommandReturn::failure(ErrorCode::FAIL), //error in port table
                             }
                         })
                     }
@@ -561,7 +553,7 @@ impl<'a> SyscallDriver for UDPDriver<'a> {
     }
 }
 
-impl<'a> UDPSendClient for UDPDriver<'a> {
+impl UDPSendClient for UDPDriver<'_> {
     fn send_done(&self, result: Result<(), ErrorCode>, mut dgram: SubSliceMut<'static, u8>) {
         // Replace the returned kernel buffer. Now we can send the next msg.
         dgram.reset();
@@ -581,7 +573,7 @@ impl<'a> UDPSendClient for UDPDriver<'a> {
     }
 }
 
-impl<'a> UDPRecvClient for UDPDriver<'a> {
+impl UDPRecvClient for UDPDriver<'_> {
     fn receive(
         &self,
         src_addr: IPAddr,
@@ -644,7 +636,7 @@ impl<'a> UDPRecvClient for UDPDriver<'a> {
     }
 }
 
-impl<'a> PortQuery for UDPDriver<'a> {
+impl PortQuery for UDPDriver<'_> {
     // Returns true if |port| is bound (on any iface), false otherwise.
     fn is_bound(&self, port: u16) -> bool {
         let mut port_bound = false;

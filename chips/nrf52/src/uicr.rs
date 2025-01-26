@@ -108,6 +108,7 @@ pub struct Uicr {
 
 #[derive(Copy, Clone, PartialEq)]
 /// Output voltage from REG0 regulator stage.
+///
 /// The value is board dependent (e.g. the nRF52840dk board uses 1.8V
 /// whereas the nRF52840-Dongle requires 3.0V to light its LEDs).
 /// When a chip is out of the factory or fully erased, the default value (7)

@@ -7,7 +7,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! let led_matrix = components::led_matrix_component_helper!(
 //!     nrf52833::gpio::GPIOPin,
 //!     nrf52::rtc::Rtc<'static>,
@@ -116,8 +116,8 @@ impl<'a, L: Pin, A: Alarm<'a>> LedMatrixDriver<'a, L, A> {
             rows,
             buffer: TakeCell::new(buffer),
             alarm,
-            col_activation: col_activation,
-            row_activation: row_activation,
+            col_activation,
+            row_activation,
             current_row: Cell::new(0),
             timing: (1000 / (refresh_rate * rows.len())) as u8,
         }

@@ -10,13 +10,16 @@ use core::cmp;
 use core::fmt;
 use core::num::NonZeroUsize;
 
-use kernel;
 use kernel::platform::mpu;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::math;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
+
+/// Smallest allowable MPU region across all CortexM cores
+/// Individual cores may have bigger min sizes, but never lower than 32
+const CORTEXM_MIN_REGION_SIZE: usize = 32;
 
 /// MPU Registers for the Cortex-M3, Cortex-M4 and Cortex-M7 families
 /// Described in section 4.5 of
@@ -153,6 +156,12 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> MPU<NUM_REGIONS, MI
             hardware_is_configured_for: OptionalCell::empty(),
         }
     }
+
+    // Function useful for boards where the bootloader sets up some
+    // MPU configuration that conflicts with Tock's configuration:
+    pub unsafe fn clear_mpu(&self) {
+        self.registers.ctrl.write(Control::ENABLE::CLEAR);
+    }
 }
 
 /// Per-process struct storing MPU configuration for cortex-m MPUs.
@@ -255,9 +264,8 @@ pub struct CortexMRegion {
 
 impl PartialEq<mpu::Region> for CortexMRegion {
     fn eq(&self, other: &mpu::Region) -> bool {
-        self.location.map_or(false, |(addr, size)| {
-            addr == other.start_address() && size == other.size()
-        })
+        self.location
+            .is_some_and(|(addr, size)| addr == other.start_address() && size == other.size())
     }
 }
 
@@ -270,7 +278,13 @@ impl CortexMRegion {
         region_num: usize,
         subregions: Option<(usize, usize)>,
         permissions: mpu::Permissions,
-    ) -> CortexMRegion {
+    ) -> Option<CortexMRegion> {
+        // Logical size must be above minimum size for cortexM MPU regions and
+        // and less than the size of the underlying physical region
+        if logical_size < CORTEXM_MIN_REGION_SIZE || region_size < logical_size {
+            return None;
+        }
+
         // Determine access and execute permissions
         let (access, execute) = match permissions {
             mpu::Permissions::ReadWriteExecute => (
@@ -313,18 +327,18 @@ impl CortexMRegion {
         // To compute the mask, we start with all subregions disabled and enable
         // the ones in the inclusive range [min_subregion, max_subregion].
         if let Some((min_subregion, max_subregion)) = subregions {
-            let mask = (min_subregion..=max_subregion).fold(u8::max_value(), |res, i| {
+            let mask = (min_subregion..=max_subregion).fold(u8::MAX, |res, i| {
                 // Enable subregions bit by bit (1 ^ 1 == 0)
                 res ^ (1 << i)
             });
             attributes += RegionAttributes::SRD.val(mask as u32);
         }
 
-        CortexMRegion {
+        Some(CortexMRegion {
             location: Some((logical_start, logical_size)),
-            base_address: base_address,
-            attributes: attributes,
-        }
+            base_address,
+            attributes,
+        })
     }
 
     fn empty(region_num: usize) -> CortexMRegion {
@@ -369,10 +383,6 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
     for MPU<NUM_REGIONS, MIN_REGION_SIZE>
 {
     type MpuConfig = CortexMConfig<NUM_REGIONS>;
-
-    fn clear_mpu(&self) {
-        self.registers.ctrl.write(Control::ENABLE::CLEAR);
-    }
 
     fn enable_app_mpu(&self) {
         // Enable the MPU, disable it during HardFault/NMI handlers, and allow
@@ -536,7 +546,7 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
             region_num,
             subregions,
             permissions,
-        );
+        )?;
 
         config.regions[region_num] = region;
         config.is_dirty.set(true);
@@ -675,7 +685,7 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
             0,
             Some((0, num_enabled_subregions0 - 1)),
             permissions,
-        );
+        )?;
 
         // We cannot have a completely unused MPU region
         let region1 = if num_enabled_subregions1 == 0 {
@@ -689,7 +699,7 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
                 1,
                 Some((0, num_enabled_subregions1 - 1)),
                 permissions,
-            )
+            )?
         };
 
         config.regions[0] = region0;
@@ -727,7 +737,7 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
 
         // Determine the number of subregions to enable.
         // Want `round_up(app_memory_size / subregion_size)`.
-        let num_enabled_subregions = (app_memory_size + subregion_size - 1) / subregion_size;
+        let num_enabled_subregions = app_memory_size.div_ceil(subregion_size);
 
         let subregions_enabled_end = region_start + subregion_size * num_enabled_subregions;
 
@@ -749,7 +759,8 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
             0,
             Some((0, num_enabled_subregions0 - 1)),
             permissions,
-        );
+        )
+        .ok_or(())?;
 
         let region1 = if num_enabled_subregions1 == 0 {
             CortexMRegion::empty(1)
@@ -763,6 +774,7 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
                 Some((0, num_enabled_subregions1 - 1)),
                 permissions,
             )
+            .ok_or(())?
         };
 
         config.regions[0] = region0;

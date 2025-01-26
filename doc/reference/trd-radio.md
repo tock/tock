@@ -160,8 +160,8 @@ A caller can configure the 16-bit short address, 64-bit full address,
 PAN (personal area network) identifier, transmit power, and
 channel. The PAN address and node address are both 16-bit values.
 Channel is an integer in the range 11-26 (the 802.15.4 channel
-numbers). `config_set_channel` MUST return INVAL if passed a channel
-not in the range 11-26 and Ok(()) otherwise.
+numbers). The channel is encoded in the `radio::RadioChannel`
+enum, ensuring the channel value resides in the valid range. 
 
     fn config_address(&self) -> u16;
     fn config_address_long(&self) -> [u8;8];
@@ -172,7 +172,7 @@ not in the range 11-26 and Ok(()) otherwise.
     fn config_set_address_long(&self, addr: [u8;8]);
     fn config_set_pan(&self, addr: u16);
     fn config_set_tx_power(&self, power: i8) -> Result<(), ErrorCode>;
-    fn config_set_channel(&self, chan: u8) -> Result<(), ErrorCode>;
+    fn config_set_channel(&self, chan: radio::RadioChannel);
 
 `config_set_tx_power` takes an signed integer, whose units are dBm.
 If the specified value is greater than the maximum supported transmit

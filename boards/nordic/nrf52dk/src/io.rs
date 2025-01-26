@@ -4,12 +4,12 @@
 
 use core::fmt::Write;
 use core::panic::PanicInfo;
-use cortexm4;
 use kernel::debug;
 use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart::{self, Configure};
 use nrf52832::gpio::Pin;
+use nrf52832::uart::{Uarte, UARTE0_BASE};
 
 use crate::CHIP;
 use crate::PROCESSES;
@@ -33,7 +33,7 @@ impl IoWrite for Writer {
         // Here, we create a second instance of the Uarte struct.
         // This is okay because we only call this during a panic, and
         // we will never actually process the interrupts
-        let uart = nrf52832::uart::Uarte::new();
+        let uart = Uarte::new(UARTE0_BASE);
         if !self.initialized {
             self.initialized = true;
             let _ = uart.configure(uart::Parameters {
@@ -58,18 +58,20 @@ impl IoWrite for Writer {
 #[no_mangle]
 #[panic_handler]
 /// Panic handler
-pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
+pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     // The nRF52 DK LEDs (see back of board)
+
+    use core::ptr::{addr_of, addr_of_mut};
     let led_kernel_pin = &nrf52832::gpio::GPIOPin::new(Pin::P0_17);
     let led = &mut led::LedLow::new(led_kernel_pin);
-    let writer = &mut WRITER;
+    let writer = &mut *addr_of_mut!(WRITER);
     debug::panic(
         &mut [led],
         writer,
         pi,
         &cortexm4::support::nop,
-        &PROCESSES,
-        &CHIP,
-        &PROCESS_PRINTER,
+        &*addr_of!(PROCESSES),
+        &*addr_of!(CHIP),
+        &*addr_of!(PROCESS_PRINTER),
     )
 }

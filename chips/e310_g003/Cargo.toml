@@ -13,3 +13,6 @@ sifive = { path = "../sifive" }
 rv32i = { path = "../../arch/rv32i" }
 kernel = { path = "../../kernel" }
 e310x = { path = "../e310x" }
+
+[lints]
+workspace = true

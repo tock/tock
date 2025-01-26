@@ -30,8 +30,11 @@ apps included.
 
 ```bash
 $ arm-none-eabi-objcopy  \
-    --update-section .apps=../../../libtock-c/examples/c_hello/build/cortex-m4/cortex-m4.tbf \
+    --set-section-flags .apps=LOAD,ALLOC \
     target/thumbv7em-none-eabi/debug/nucleo_f429zi.elf \
+    target/thumbv7em-none-eabi/debug/nucleo_f429zi-app.elf
+$ arm-none-eabi-objcopy  \
+    --update-section .apps=../../../libtock-c/examples/c_hello/build/cortex-m4/cortex-m4.tbf \
     target/thumbv7em-none-eabi/debug/nucleo_f429zi-app.elf
 ```
 
@@ -44,7 +47,8 @@ KERNEL_WITH_APP=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/debug/$(PLATFORM)-app.el
 
 .PHONY: program
 program: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/debug/$(PLATFORM).elf
-	arm-none-eabi-objcopy --update-section .apps=$(APP) $(KERNEL) $(KERNEL_WITH_APP)
+	arm-none-eabi-objcopy --set-section-flags .apps=LOAD,ALLOC $(KERNEL) $(KERNEL_WITH_APP)
+	arm-none-eabi-objcopy --update-section .apps=$(APP) $(KERNEL_WITH_APP)
 	$(OPENOCD) $(OPENOCD_OPTIONS) -c "init; reset halt; flash write_image erase $(KERNEL_WITH_APP); verify_image $(KERNEL_WITH_APP); reset; shutdown"
 ```
 
@@ -56,3 +60,19 @@ $ make program
 ```
 
 to flash the image.
+
+### (Linux): Adding a `udev` rule
+
+You may want to add a `udev` rule in `/etc/udev/rules.d` that allows you to
+interact with the board as a user instead of as root. You can install this as
+`/etc/udev/rules.d/99-stlinkv2-1.rules`:
+
+```
+# stm32 nucleo boards, with onboard st/linkv2-1
+# ie, STM32F0, STM32F4.
+# STM32VL has st/linkv1, which is quite different
+
+SUBSYSTEMS=="usb", ATTRS{idVendor}=="0483", ATTRS{idProduct}=="374b", \
+    MODE:="0660", GROUP="dialout", \
+    SYMLINK+="stlinkv2-1_%n"
+```

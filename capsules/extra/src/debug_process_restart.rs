@@ -10,7 +10,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::{capabilities, static_init};
 //!
 //! struct ProcessMgmtCap;
@@ -55,7 +55,7 @@ impl<'a, C: ProcessManagementCapability> DebugProcessRestart<'a, C> {
         pin.enable_interrupts(gpio::InterruptEdge::EitherEdge);
 
         DebugProcessRestart {
-            kernel: kernel,
+            kernel,
             capability: cap,
             pin,
             mode,

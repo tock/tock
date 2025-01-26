@@ -27,7 +27,6 @@
 //! option.
 
 use core::cell::Cell;
-use core::convert::TryInto;
 use core::{cmp, mem};
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::hasher::{Client, Hasher, SipHash};
@@ -72,7 +71,7 @@ struct State {
     v3: u64,
 }
 
-impl<'a> SipHasher24<'a> {
+impl SipHasher24<'_> {
     pub fn new() -> Self {
         let hasher = SipHasher {
             k0: 0,
@@ -340,7 +339,7 @@ impl<'a> Hasher<'a, 8> for SipHasher24<'a> {
     }
 }
 
-impl<'a> SipHash for SipHasher24<'a> {
+impl SipHash for SipHasher24<'_> {
     fn set_keys(&self, k0: u64, k1: u64) -> Result<(), ErrorCode> {
         let mut hasher = self.hasher.get();
 
@@ -354,7 +353,7 @@ impl<'a> SipHash for SipHasher24<'a> {
     }
 }
 
-impl<'a> DeferredCallClient for SipHasher24<'a> {
+impl DeferredCallClient for SipHasher24<'_> {
     fn handle_deferred_call(&self) {
         if self.add_data_deferred_call.get() {
             self.add_data_deferred_call.set(false);

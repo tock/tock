@@ -16,7 +16,7 @@
 //! Usage
 //! -----
 //!
-//! ```
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! let app_flash_buffer = static_init!([u8; 512], [0; 512]);
@@ -85,7 +85,7 @@ impl<'a> AppFlash<'a> {
         buffer: &'static mut [u8],
     ) -> AppFlash<'a> {
         AppFlash {
-            driver: driver,
+            driver,
             apps: grant,
             current_app: OptionalCell::empty(),
             buffer: TakeCell::new(buffer),
@@ -174,7 +174,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient for AppFlash<'_> {
                         .get_readonly_processbuffer(ro_allow::BUFFER)
                         .and_then(|buffer| {
                             buffer.enter(|app_buffer| {
-                                self.buffer.take().map_or(false, |buffer| {
+                                self.buffer.take().is_some_and(|buffer| {
                                     if app_buffer.len() != 512 {
                                         false
                                     } else {
@@ -213,7 +213,7 @@ impl SyscallDriver for AppFlash<'_> {
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Driver check.
+    /// - `0`: Driver existence check.
     /// - `1`: Write the memory from the `allow` buffer to the address in flash.
     fn command(
         &self,

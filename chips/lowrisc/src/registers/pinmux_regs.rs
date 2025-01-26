@@ -3,10 +3,10 @@
 // Copyright lowRISC contributors 2023.
 
 // Generated register constants for pinmux.
-// Built for Earlgrey-M2.5.1-RC1-438-gacc67de99
-// https://github.com/lowRISC/opentitan/tree/acc67de992ee8de5f2481b1b9580679850d8b5f5
+// Built for Earlgrey-M2.5.1-RC1-493-gedf5e35f5d
+// https://github.com/lowRISC/opentitan/tree/edf5e35f5d50a5377641c90a315109a351de7635
 // Tree status: clean
-// Build date: 2023-08-08T00:15:38
+// Build date: 2023-10-18T10:11:37
 
 // Original reference file: hw/ip/pinmux/data/pinmux.hjson
 use kernel::utilities::registers::ReadWrite;

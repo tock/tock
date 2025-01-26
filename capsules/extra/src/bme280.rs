@@ -39,7 +39,6 @@ enum DeviceState {
     Identify,
     CalibrationLow,
     CalibrationHigh,
-    Probe,
     Start,
     Normal,
 }
@@ -77,19 +76,19 @@ struct CalibrationData {
     hum6: u16,
 }
 
-pub struct Bme280<'a> {
+pub struct Bme280<'a, I: I2CDevice> {
     buffer: TakeCell<'static, [u8]>,
-    i2c: &'a dyn I2CDevice,
+    i2c: &'a I,
     calibration: Cell<CalibrationData>,
     temperature_client: OptionalCell<&'a dyn TemperatureClient>,
     humidity_client: OptionalCell<&'a dyn HumidityClient>,
     state: Cell<DeviceState>,
     op: Cell<Operation>,
-    t_fine: Cell<usize>,
+    t_fine: Cell<i32>,
 }
 
-impl<'a> Bme280<'a> {
-    pub fn new(i2c: &'a dyn I2CDevice, buffer: &'static mut [u8]) -> Self {
+impl<'a, I: I2CDevice> Bme280<'a, I> {
+    pub fn new(i2c: &'a I, buffer: &'static mut [u8]) -> Self {
         Bme280 {
             buffer: TakeCell::new(buffer),
             i2c,
@@ -113,7 +112,7 @@ impl<'a> Bme280<'a> {
     }
 }
 
-impl<'a> TemperatureDriver<'a> for Bme280<'a> {
+impl<'a, I: I2CDevice> TemperatureDriver<'a> for Bme280<'a, I> {
     fn set_client(&self, client: &'a dyn TemperatureClient) {
         self.temperature_client.set(client);
     }
@@ -138,7 +137,7 @@ impl<'a> TemperatureDriver<'a> for Bme280<'a> {
     }
 }
 
-impl<'a> HumidityDriver<'a> for Bme280<'a> {
+impl<'a, I: I2CDevice> HumidityDriver<'a> for Bme280<'a, I> {
     fn set_client(&self, client: &'a dyn HumidityClient) {
         self.humidity_client.set(client);
     }
@@ -163,7 +162,7 @@ impl<'a> HumidityDriver<'a> for Bme280<'a> {
     }
 }
 
-impl<'a> I2CClient for Bme280<'a> {
+impl<I: I2CDevice> I2CClient for Bme280<'_, I> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         if let Err(i2c_err) = status {
             // We have no way to report an error, so just return a bogus value
@@ -238,24 +237,11 @@ impl<'a> I2CClient for Bme280<'a> {
                 calib.hum6 = buffer[8] as u16;
                 self.calibration.set(calib);
 
-                buffer[0] = CTRL_MEAS;
-                self.i2c.write_read(buffer, 1, 1).unwrap();
-                self.state.set(DeviceState::Probe);
-            }
-            DeviceState::Probe => {
-                if buffer[0] & 0x11 == 0 {
-                    // We are in sleep mode, setup the device
-                    // Set oversampling to 1
-                    buffer[0] = CTRL_HUM;
-                    buffer[1] = 1;
-                    self.i2c.write_read(buffer, 2, 1).unwrap();
-
-                    self.state.set(DeviceState::Start);
-                } else {
-                    // Everything is already setup, just start
-                    self.state.set(DeviceState::Normal);
-                    self.buffer.replace(buffer);
-                }
+                // Set humidity oversampling to 1
+                buffer[0] = CTRL_HUM;
+                buffer[1] = 1;
+                self.i2c.write(buffer, 2).unwrap();
+                self.state.set(DeviceState::Start);
             }
             DeviceState::Start => {
                 // Set the mode to normal and set oversampling to 1
@@ -270,9 +256,11 @@ impl<'a> I2CClient for Bme280<'a> {
                     Operation::None => (),
                     Operation::Temp => {
                         let calib = self.calibration.get();
-                        let adc_temperature = (buffer[0] as usize) << 12
+
+                        let adc_temperature: i32 = ((buffer[0] as usize) << 12
                             | (buffer[1] as usize) << 4
-                            | (((buffer[2] as usize) >> 4) & 0x0F);
+                            | (((buffer[2] as usize) >> 4) & 0x0F))
+                            as i32;
 
                         if adc_temperature == 0 {
                             // We got a misread, try again
@@ -282,28 +270,28 @@ impl<'a> I2CClient for Bme280<'a> {
                             return;
                         }
 
-                        let var1 = (((adc_temperature >> 3) - ((calib.temp1 as usize) << 1))
-                            * (calib.temp2 as usize))
+                        let var1 = (((adc_temperature >> 3) - ((calib.temp1 as i32) << 1))
+                            * (calib.temp2 as i32))
                             >> 11;
-                        let var2 = (((((adc_temperature >> 4) - (calib.temp1 as usize))
-                            * ((adc_temperature >> 4) - (calib.temp1 as usize)))
+                        let var2 = (((((adc_temperature >> 4) - (calib.temp1 as i32))
+                            * ((adc_temperature >> 4) - (calib.temp1 as i32)))
                             >> 12)
-                            * (calib.temp3 as usize))
+                            * (calib.temp3 as i32))
                             >> 14;
 
                         self.t_fine.set(var1 + var2);
 
-                        let temperature = ((self.t_fine.get() * 5 + 128) >> 8) / 100;
+                        let temperature = (self.t_fine.get() * 5 + 128) >> 8;
 
                         self.temperature_client
-                            .map(|client| client.callback(Ok(temperature as i32)));
+                            .map(|client| client.callback(Ok(temperature)));
                     }
                     Operation::Pressure => {
                         unimplemented!();
                     }
                     Operation::Humidity => {
                         let calib = self.calibration.get();
-                        let adc_hum = (buffer[0] as usize) << 8 | buffer[1] as usize;
+                        let adc_hum = (((buffer[0] as u32) << 8) | (buffer[1] as u32)) as i32;
 
                         if adc_hum == 0 {
                             // We got a misread, try again
@@ -317,23 +305,24 @@ impl<'a> I2CClient for Bme280<'a> {
 
                         // This is straight from the datasheet
                         let var1 = ((((adc_hum << 14)
-                            - ((calib.hum4 as usize) << 20)
-                            - ((calib.hum5 as usize) * t_fine_offset))
+                            - ((calib.hum4 as i32) << 20)
+                            - ((calib.hum5 as i32) * t_fine_offset))
                             + 16384)
                             >> 15)
-                            * (((((((t_fine_offset * (calib.hum6 as usize)) >> 10)
-                                * (((t_fine_offset * (calib.hum3 as usize)) >> 11) + 32768))
+                            * (((((((t_fine_offset * (calib.hum6 as i32)) >> 10)
+                                * (((t_fine_offset * (calib.hum3 as i32)) >> 11) + 32768))
                                 >> 10)
                                 + 2097152)
-                                * (calib.hum2 as usize)
+                                * (calib.hum2 as i32)
                                 + 8192)
                                 >> 14);
                         let var2 = var1
-                            - (((((var1 >> 15) * (var1 >> 15)) >> 7) * (calib.hum1 as usize)) >> 4);
+                            - (((((var1 >> 15) * (var1 >> 15)) >> 7) * (calib.hum1 as i32)) >> 4);
 
-                        let var6 = if var2 > 419430400 { 419430400 } else { var2 };
+                        let var3 = if var2 < 0 { 0 } else { var2 };
+                        let var6 = if var3 > 419430400 { 419430400 } else { var3 };
 
-                        let hum = (var6 >> 12) / 1024;
+                        let hum = (((var6 >> 12) * 100) / 1024) as usize;
 
                         self.humidity_client.map(|client| client.callback(hum));
                     }

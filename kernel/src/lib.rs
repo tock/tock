@@ -92,8 +92,16 @@
 #![warn(unreachable_pub)]
 #![no_std]
 
-// Define the kernel major and minor versions.
+/// Kernel major version.
+///
+/// This is compiled with the crate to enable for checking of compatibility with
+/// loaded apps. Both major and minor version constants are updated during a
+/// release.
 pub const KERNEL_MAJOR_VERSION: u16 = 2;
+/// Kernel minor version.
+///
+/// This is compiled with the crate to enable for checking of compatibility with
+/// loaded apps.
 pub const KERNEL_MINOR_VERSION: u16 = 1;
 
 pub mod capabilities;
@@ -119,6 +127,7 @@ pub mod utilities;
 mod config;
 mod kernel;
 mod memop;
+mod process_binary;
 mod process_loading;
 mod process_policies;
 mod process_printer;

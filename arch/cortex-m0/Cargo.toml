@@ -11,3 +11,6 @@ edition.workspace = true
 [dependencies]
 kernel = { path = "../../kernel" }
 cortexm = { path = "../cortex-m" }
+
+[lints]
+workspace = true

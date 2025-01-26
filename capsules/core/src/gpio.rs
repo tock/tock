@@ -15,7 +15,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! let gpio_pins = static_init!(
@@ -25,8 +25,8 @@
 //!      Option<&sam4l::gpio::PB[11]>,
 //!      Option<&sam4l::gpio::PB[12]>]);
 //! let gpio = static_init!(
-//!     capsules::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
-//!     capsules::gpio::GPIO::new(gpio_pins));
+//!     capsules_core::gpio::GPIO<'static, sam4l::gpio::GPIOPin>,
+//!     capsules_core::gpio::GPIO::new(gpio_pins));
 //! for maybe_pin in gpio_pins.iter() {
 //!     if let Some(pin) = maybe_pin {
 //!         pin.set_client(gpio);
@@ -82,10 +82,7 @@ impl<'a, IP: gpio::InterruptPin<'a>> GPIO<'a, IP> {
                 pin.set_value(i as u32);
             }
         }
-        Self {
-            pins: pins,
-            apps: grant,
-        }
+        Self { pins, apps: grant }
     }
 
     fn configure_input_pin(&self, pin_num: u32, config: usize) -> CommandReturn {
@@ -178,7 +175,7 @@ impl<'a, IP: gpio::InterruptPin<'a>> SyscallDriver for GPIO<'a, IP> {
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Number of pins.
+    /// - `0`: Driver existence check.
     /// - `1`: Enable output on `pin`.
     /// - `2`: Set `pin`.
     /// - `3`: Clear `pin`.
@@ -188,6 +185,7 @@ impl<'a, IP: gpio::InterruptPin<'a>> SyscallDriver for GPIO<'a, IP> {
     /// - `7`: Configure interrupt on `pin` with `irq_config` in 0x00XX00000
     /// - `8`: Disable interrupt on `pin`.
     /// - `9`: Disable `pin`.
+    /// - `10`: Get number of GPIO ports supported.
     fn command(
         &self,
         command_num: usize,
@@ -198,8 +196,8 @@ impl<'a, IP: gpio::InterruptPin<'a>> SyscallDriver for GPIO<'a, IP> {
         let pins = self.pins;
         let pin_index = data1;
         match command_num {
-            // number of pins
-            0 => CommandReturn::success_u32(pins.len() as u32),
+            // Check existence.
+            0 => CommandReturn::success(),
 
             // enable output
             1 => {
@@ -330,6 +328,9 @@ impl<'a, IP: gpio::InterruptPin<'a>> SyscallDriver for GPIO<'a, IP> {
                     }
                 }
             }
+
+            // number of pins
+            10 => CommandReturn::success_u32(pins.len() as u32),
 
             // default
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),

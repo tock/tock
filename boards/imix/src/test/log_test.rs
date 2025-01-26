@@ -32,6 +32,7 @@
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules_extra::log;
 use core::cell::Cell;
+use core::ptr::addr_of_mut;
 use kernel::debug;
 use kernel::hil::flash;
 use kernel::hil::gpio::{self, Interrupt};
@@ -72,7 +73,7 @@ pub unsafe fn run(
     // Create and run test for log storage.
     let test = static_init!(
         LogTest<VirtualMuxAlarm<'static, Ast>>,
-        LogTest::new(log, &mut BUFFER, alarm, &TEST_OPS)
+        LogTest::new(log, &mut *addr_of_mut!(BUFFER), alarm, &TEST_OPS)
     );
     log.set_read_client(test);
     log.set_append_client(test);
@@ -114,7 +115,7 @@ static TEST_OPS: [TestOp; 24] = [
     // Try bad seeks, should fail and not change read entry ID.
     TestOp::Write,
     TestOp::BadSeek(0),
-    TestOp::BadSeek(core::usize::MAX),
+    TestOp::BadSeek(usize::MAX),
     TestOp::Read,
     // Try bad write, nothing should change.
     TestOp::BadWrite,
@@ -300,7 +301,7 @@ impl<A: 'static + Alarm<'static>> LogTest<A> {
             .take()
             .map(
                 move |buffer| match self.log.read(buffer, buffer.len() + 1) {
-                    Ok(_) => panic!("Read with too-large max read length succeeded unexpectedly!"),
+                    Ok(()) => panic!("Read with too-large max read length succeeded unexpectedly!"),
                     Err((error, original_buffer)) => {
                         self.buffer.replace(original_buffer);
                         assert_eq!(error, ErrorCode::INVAL);
@@ -313,7 +314,7 @@ impl<A: 'static + Alarm<'static>> LogTest<A> {
         self.buffer
             .take()
             .map(move |buffer| match self.log.read(buffer, BUFFER_LEN - 1) {
-                Ok(_) => panic!("Read with too-small buffer succeeded unexpectedly!"),
+                Ok(()) => panic!("Read with too-small buffer succeeded unexpectedly!"),
                 Err((error, original_buffer)) => {
                     self.buffer.replace(original_buffer);
                     if self.read_val.get() == self.write_val.get() {
@@ -355,7 +356,7 @@ impl<A: 'static + Alarm<'static>> LogTest<A> {
         self.buffer
             .take()
             .map(move |buffer| match self.log.append(buffer, 0) {
-                Ok(_) => panic!("Appending entry of size 0 succeeded unexpectedly!"),
+                Ok(()) => panic!("Appending entry of size 0 succeeded unexpectedly!"),
                 Err((error, original_buffer)) => {
                     self.buffer.replace(original_buffer);
                     assert_eq!(error, ErrorCode::INVAL);
@@ -368,7 +369,7 @@ impl<A: 'static + Alarm<'static>> LogTest<A> {
             .take()
             .map(
                 move |buffer| match self.log.append(buffer, buffer.len() + 1) {
-                    Ok(_) => panic!("Appending with too-small buffer succeeded unexpectedly!"),
+                    Ok(()) => panic!("Appending with too-small buffer succeeded unexpectedly!"),
                     Err((error, original_buffer)) => {
                         self.buffer.replace(original_buffer);
                         assert_eq!(error, ErrorCode::INVAL);
@@ -379,8 +380,10 @@ impl<A: 'static + Alarm<'static>> LogTest<A> {
 
         // Ensure failure if entry is too large to fit within a single flash page.
         unsafe {
-            match self.log.append(&mut DUMMY_BUFFER, DUMMY_BUFFER.len()) {
-                Ok(_) => panic!("Appending with too-small buffer succeeded unexpectedly!"),
+            let dummy_buffer = &mut *addr_of_mut!(DUMMY_BUFFER);
+            let len = dummy_buffer.len();
+            match self.log.append(dummy_buffer, len) {
+                Ok(()) => panic!("Appending with too-small buffer succeeded unexpectedly!"),
                 Err((ecode, _original_buffer)) => assert_eq!(ecode, ErrorCode::SIZE),
             }
         }

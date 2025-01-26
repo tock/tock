@@ -128,7 +128,7 @@ impl<'a> Hsi<'a> {
     ///
     /// + [Some]\(frequency_mhz\): if the HSI clock is enabled.
     /// + [None]: if the HSI clock is disabled.
-    pub fn get_frequency(&self) -> Option<usize> {
+    pub fn get_frequency_mhz(&self) -> Option<usize> {
         if self.is_enabled() {
             Some(HSI_FREQUENCY_MHZ)
         } else {
@@ -147,13 +147,13 @@ impl<'a> Hsi<'a> {
 /// First, import the [crate::clocks::hsi] module in the desired board main file:
 ///
 /// ```rust,ignore
-/// use stm32f429zi::hsi;
+/// use stm32f429zi::clocks::hsi;
 /// ```
 ///
 /// Then, to run the tests, put the following line before [kernel::process::load_processes]:
 ///
 /// ```rust,ignore
-/// hsi::tests::run_all(&peripherals.stm32f4.clocks.hsi);
+/// hsi::tests::run(&peripherals.stm32f4.clocks.hsi);
 /// ```
 ///
 /// If everything works as expected, the following message should be printed on the kernel console:
@@ -167,7 +167,7 @@ impl<'a> Hsi<'a> {
 ///
 /// **NOTE:** All these tests assume default boot configuration.
 pub mod tests {
-    use super::*;
+    use super::{debug, ErrorCode, Hsi, HSI_FREQUENCY_MHZ};
 
     /// Run the entire test suite.
     pub fn run(hsi: &Hsi) {
@@ -179,7 +179,7 @@ pub mod tests {
         assert!(hsi.is_enabled());
 
         // HSI frequency is 16MHz
-        assert_eq!(Some(HSI_FREQUENCY_MHZ), hsi.get_frequency());
+        assert_eq!(Some(HSI_FREQUENCY_MHZ), hsi.get_frequency_mhz());
 
         // Nothing should happen if the HSI clock is being enabled when already running
         assert_eq!(Ok(()), hsi.enable());

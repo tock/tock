@@ -4,6 +4,8 @@
 
 use core::fmt::Write;
 use core::panic::PanicInfo;
+use core::ptr::addr_of;
+use core::ptr::addr_of_mut;
 
 use kernel::debug;
 use kernel::debug::IoWrite;
@@ -11,7 +13,6 @@ use kernel::hil::led;
 use kernel::hil::uart;
 use kernel::hil::uart::Configure;
 
-use stm32f303xc;
 use stm32f303xc::gpio::PinId;
 
 use crate::CHIP;
@@ -68,7 +69,7 @@ impl IoWrite for Writer {
 /// Panic handler.
 #[no_mangle]
 #[panic_handler]
-pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
+pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
     // User LD3 is connected to PE09
     // Have to reinitialize several peripherals because otherwise can't access them here.
     let rcc = stm32f303xc::rcc::Rcc::new();
@@ -78,15 +79,15 @@ pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
     let gpio_ports = stm32f303xc::gpio::GpioPorts::new(&rcc, &exti);
     pin.set_ports_ref(&gpio_ports);
     let led = &mut led::LedHigh::new(&pin);
-    let writer = &mut WRITER;
+    let writer = &mut *addr_of_mut!(WRITER);
 
     debug::panic(
         &mut [led],
         writer,
         info,
         &cortexm4::support::nop,
-        &PROCESSES,
-        &CHIP,
-        &PROCESS_PRINTER,
+        &*addr_of!(PROCESSES),
+        &*addr_of!(CHIP),
+        &*addr_of!(PROCESS_PRINTER),
     )
 }

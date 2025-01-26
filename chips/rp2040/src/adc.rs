@@ -148,7 +148,7 @@ pub struct Adc<'a> {
     client: OptionalCell<&'a dyn hil::adc::Client>,
 }
 
-impl<'a> Adc<'a> {
+impl Adc<'_> {
     pub const fn new() -> Self {
         Self {
             registers: ADC_BASE,

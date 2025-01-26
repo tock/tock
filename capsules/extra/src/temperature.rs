@@ -41,7 +41,7 @@
 //!
 //! You need a device that provides the `hil::sensors::TemperatureDriver` trait.
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -71,19 +71,19 @@ pub struct App {
     subscribed: bool,
 }
 
-pub struct TemperatureSensor<'a> {
-    driver: &'a dyn hil::sensors::TemperatureDriver<'a>,
+pub struct TemperatureSensor<'a, T: hil::sensors::TemperatureDriver<'a>> {
+    driver: &'a T,
     apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     busy: Cell<bool>,
 }
 
-impl<'a> TemperatureSensor<'a> {
+impl<'a, T: hil::sensors::TemperatureDriver<'a>> TemperatureSensor<'a, T> {
     pub fn new(
-        driver: &'a dyn hil::sensors::TemperatureDriver<'a>,
+        driver: &'a T,
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> TemperatureSensor<'a> {
+    ) -> TemperatureSensor<'a, T> {
         TemperatureSensor {
-            driver: driver,
+            driver,
             apps: grant,
             busy: Cell::new(false),
         }
@@ -113,7 +113,9 @@ impl<'a> TemperatureSensor<'a> {
     }
 }
 
-impl hil::sensors::TemperatureClient for TemperatureSensor<'_> {
+impl<'a, T: hil::sensors::TemperatureDriver<'a>> hil::sensors::TemperatureClient
+    for TemperatureSensor<'a, T>
+{
     fn callback(&self, temp_val: Result<i32, ErrorCode>) {
         // We completed the operation so we clear the busy flag in case we get
         // another measurement request.
@@ -134,7 +136,7 @@ impl hil::sensors::TemperatureClient for TemperatureSensor<'_> {
     }
 }
 
-impl SyscallDriver for TemperatureSensor<'_> {
+impl<'a, T: hil::sensors::TemperatureDriver<'a>> SyscallDriver for TemperatureSensor<'a, T> {
     fn command(
         &self,
         command_num: usize,
@@ -143,7 +145,7 @@ impl SyscallDriver for TemperatureSensor<'_> {
         processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
-            // check whether the driver exists!!
+            // driver existence check
             0 => CommandReturn::success(),
 
             // read temperature

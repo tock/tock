@@ -12,8 +12,12 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use core::ptr::addr_of;
+use core::ptr::addr_of_mut;
+
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use capsules_extra::lsm303xx;
+use capsules_system::process_printer::ProcessPrinterText;
 use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -44,15 +48,24 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 // Static reference to chip for panic dumps.
 static mut CHIP: Option<&'static stm32f303xc::chip::Stm32f3xx<Stm32f3xxDefaultPeripherals>> = None;
 // Static reference to process printer for panic dumps.
-static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
+static mut PROCESS_PRINTER: Option<&'static ProcessPrinterText> = None;
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
+const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
+    capsules_system::process_policies::PanicFaultPolicy {};
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x1700] = [0; 0x1700];
+
+type L3GD20Sensor = components::l3gd20::L3gd20ComponentType<
+    capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
+        'static,
+        stm32f303xc::spi::Spi<'static>,
+    >,
+>;
+type TemperatureDriver = components::temperature::TemperatureComponentType<L3GD20Sensor>;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -67,7 +80,7 @@ struct STM32F3Discovery {
     >,
     button: &'static capsules_core::button::Button<'static, stm32f303xc::gpio::Pin<'static>>,
     ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
-    l3gd20: &'static capsules_extra::l3gd20::L3gd20Spi<'static>,
+    l3gd20: &'static L3GD20Sensor,
     lsm303dlhc: &'static capsules_extra::lsm303dlhc::Lsm303dlhcI2C<
         'static,
         capsules_core::virtualizers::virtual_i2c::I2CDevice<
@@ -75,7 +88,7 @@ struct STM32F3Discovery {
             stm32f303xc::i2c::I2C<'static>,
         >,
     >,
-    temp: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temp: &'static TemperatureDriver,
     alarm: &'static capsules_core::alarm::AlarmDriver<
         'static,
         VirtualMuxAlarm<'static, stm32f303xc::tim2::Tim2<'static>>,
@@ -126,7 +139,6 @@ impl
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type CredentialsCheckingPolicy = ();
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = wdt::WindoWdg<'static>;
@@ -139,9 +151,6 @@ impl
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
-        &()
-    }
-    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -354,19 +363,20 @@ unsafe fn setup_peripherals(tim2: &stm32f303xc::tim2::Tim2) {
     cortexm4::nvic::Nvic::new(stm32f303xc::nvic::TIM2).enable();
 }
 
-/// Statically initialize the core peripherals for the chip.
+/// Main function.
 ///
 /// This is in a separate, inline(never) function so that its stack frame is
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn create_peripherals() -> (
-    &'static mut Stm32f3xxDefaultPeripherals<'static>,
-    &'static stm32f303xc::syscfg::Syscfg<'static>,
-    &'static stm32f303xc::rcc::Rcc,
+unsafe fn start() -> (
+    &'static kernel::Kernel,
+    STM32F3Discovery,
+    &'static stm32f303xc::chip::Stm32f3xx<'static, Stm32f3xxDefaultPeripherals<'static>>,
 ) {
-    // We use the default HSI 8Mhz clock
+    stm32f303xc::init();
 
+    // We use the default HSI 8Mhz clock
     let rcc = static_init!(stm32f303xc::rcc::Rcc, stm32f303xc::rcc::Rcc::new());
     let syscfg = static_init!(
         stm32f303xc::syscfg::Syscfg,
@@ -382,17 +392,6 @@ unsafe fn create_peripherals() -> (
         Stm32f3xxDefaultPeripherals::new(rcc, exti)
     );
 
-    (peripherals, syscfg, rcc)
-}
-
-/// Main function.
-///
-/// This is called after RAM initialization is complete.
-#[no_mangle]
-pub unsafe fn main() {
-    stm32f303xc::init();
-
-    let (peripherals, syscfg, _rcc) = create_peripherals();
     peripherals.setup_circular_deps();
 
     set_pin_primary_functions(
@@ -404,7 +403,7 @@ pub unsafe fn main() {
 
     setup_peripherals(&peripherals.tim2);
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
 
     let chip = static_init!(
         stm32f303xc::chip::Stm32f3xx<Stm32f3xxDefaultPeripherals>,
@@ -423,12 +422,11 @@ pub unsafe fn main() {
 
     // `finalize()` configures the underlying USART, so we need to
     // tell `send_byte()` not to configure the USART again.
-    io::WRITER.set_initialized();
+    (*addr_of_mut!(io::WRITER)).set_initialized();
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
 
@@ -654,16 +652,13 @@ pub unsafe fn main() {
 
     l3gd20.power_on();
 
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let grant_temperature =
-        board_kernel.create_grant(capsules_extra::temperature::DRIVER_NUM, &grant_cap);
-
     // Comment this if you want to use the ADC MCU temp sensor
-    let temp = static_init!(
-        capsules_extra::temperature::TemperatureSensor<'static>,
-        capsules_extra::temperature::TemperatureSensor::new(l3gd20, grant_temperature)
-    );
-    kernel::hil::sensors::TemperatureDriver::set_client(l3gd20, temp);
+    let temp = components::temperature::TemperatureComponent::new(
+        board_kernel,
+        capsules_extra::temperature::DRIVER_NUM,
+        l3gd20,
+    )
+    .finalize(components::temperature_component_static!(L3GD20Sensor));
 
     // LSM303DLHC
 
@@ -765,8 +760,8 @@ pub unsafe fn main() {
         &peripherals.flash,
         0x08038000, // Start address for userspace accesible region
         0x8000,     // Length of userspace accesible region (16 pages)
-        &_sstorage as *const u8 as usize,
-        &_estorage as *const u8 as usize - &_sstorage as *const u8 as usize,
+        core::ptr::addr_of!(_sstorage) as usize,
+        core::ptr::addr_of!(_estorage) as usize - core::ptr::addr_of!(_sstorage) as usize,
     )
     .finalize(components::nonvolatile_storage_component_static!(
         stm32f303xc::flash::Flash
@@ -789,29 +784,30 @@ pub unsafe fn main() {
     ));
     let _ = process_console.start();
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let stm32f3discovery = STM32F3Discovery {
-        console: console,
+        console,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
-        gpio: gpio,
-        led: led,
-        button: button,
-        alarm: alarm,
-        l3gd20: l3gd20,
-        lsm303dlhc: lsm303dlhc,
-        ninedof: ninedof,
-        temp: temp,
+        gpio,
+        led,
+        button,
+        alarm,
+        l3gd20,
+        lsm303dlhc,
+        ninedof,
+        temp,
         adc: adc_syscall,
-        nonvolatile_storage: nonvolatile_storage,
+        nonvolatile_storage,
 
         scheduler,
-        systick: cortexm4::systick::SysTick::new(),
+        // Systick uses the HSI, which runs at 8MHz
+        systick: cortexm4::systick::SysTick::new_with_calibration(8_000_000),
         watchdog: &peripherals.watchdog,
     };
 
@@ -838,14 +834,14 @@ pub unsafe fn main() {
         board_kernel,
         chip,
         core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
         ),
         core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+            core::ptr::addr_of_mut!(_sappmem),
+            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut PROCESSES,
+        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_management_capability,
     )
@@ -861,10 +857,15 @@ pub unsafe fn main() {
     /*components::test::multi_alarm_test::MultiAlarmTestComponent::new(mux_alarm)
     .finalize(components::multi_alarm_test_component_buf!(stm32f303xc::tim2::Tim2))
     .run();*/
-    board_kernel.kernel_loop(
-        &stm32f3discovery,
-        chip,
-        Some(&stm32f3discovery.ipc),
-        &main_loop_capability,
-    );
+
+    (board_kernel, stm32f3discovery, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, platform, chip) = start();
+    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }

@@ -6,7 +6,7 @@
 name = "esp32-c3-board"
 version.workspace = true
 authors.workspace = true
-build = "build.rs"
+build = "../build.rs"
 edition.workspace = true
 
 [dependencies]
@@ -18,3 +18,10 @@ esp32-c3 = { path = "../../chips/esp32-c3" }
 
 capsules-core = { path = "../../capsules/core" }
 capsules-extra = { path = "../../capsules/extra" }
+capsules-system = { path = "../../capsules/system" }
+
+[build-dependencies]
+tock_build_scripts = { path = "../build_scripts" }
+
+[lints]
+workspace = true

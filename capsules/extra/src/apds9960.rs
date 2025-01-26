@@ -17,7 +17,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! let apds9960_i2c = static_init!(
 //!    capsules::virtual_i2c::I2CDevice,
 //!    capsules::virtual_i2c::I2CDevice::new(sensors_i2c_bus, 0x39)
@@ -126,8 +126,8 @@ impl<'a, I: i2c::I2CDevice> APDS9960<'a, I> {
     ) -> APDS9960<'a, I> {
         // setup and return struct
         APDS9960 {
-            i2c: i2c,
-            interrupt_pin: interrupt_pin,
+            i2c,
+            interrupt_pin,
             prox_callback: OptionalCell::empty(),
             state: Cell::new(State::Idle),
             buffer: TakeCell::new(buffer),

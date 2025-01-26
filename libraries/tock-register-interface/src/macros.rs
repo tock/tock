@@ -220,7 +220,7 @@ macro_rules! test_fields {
                     "Invalid size for struct ",
                     stringify!($struct),
                     " (expected ",
-                    $size,
+                    stringify!($size),
                     ", actual struct size differs)",
                 ),
             );
@@ -261,7 +261,7 @@ macro_rules! test_fields {
                         "Invalid start offset for field ",
                         stringify!($field),
                         " (expected ",
-                        $offset_start,
+                        stringify!($offset_start),
                         " but actual value differs)",
                     ),
                 );
@@ -296,7 +296,7 @@ macro_rules! test_fields {
                         "Invalid end offset for field ",
                         stringify!($field),
                         " (expected ",
-                        $offset_end,
+                        stringify!($offset_end),
                         " but actual value differs)",
                     ),
                 );
@@ -345,7 +345,7 @@ macro_rules! test_fields {
                         "Invalid start offset for padding ",
                         stringify!($padding),
                         " (expected ",
-                        $offset_start,
+                        stringify!($offset_start),
                         " but actual value differs)",
                     ),
                 );
@@ -358,6 +358,35 @@ macro_rules! test_fields {
     };
 }
 
+/// Define a peripheral memory map containing registers.
+///
+/// Implementations of memory-mapped registers can use this macro to define the
+/// individual registers in the peripheral and their relative address offset
+/// from the start of the peripheral's mapped address. An example use for a
+/// hypothetical UART driver might look like:
+///
+/// ```rust,ignore
+/// register_structs! {
+///     pub UartRegisters {
+///         (0x00 => control: ReadWrite<u32, CONTROL::Register>),
+///         (0x04 => write_byte: ReadWrite<u32, BYTE::Register>),
+///         (0x08 => _reserved1),
+///         (0x20 => interrupt_enable: ReadWrite<u32, INTERRUPT::Register>),
+///         (0x24 => interrupt_status: ReadWrite<u32, INTERRUPT::Register>),
+///         (0x28 => @END),
+///     }
+/// }
+/// ```
+///
+/// By convention, gaps in the register memory map are named `_reserved`. The
+/// macro will automatically compute the size of the reserved field so that the
+/// next register is at the correct address.
+///
+/// The size of the register is denoted by the first parameter in the
+/// [`ReadWrite`](crate::registers::ReadWrite) type. The second parameter in the
+/// [`ReadWrite`](crate::registers::ReadWrite) type is a register definition
+/// which is specified with the
+/// [`register_bitfields!()`](crate::register_bitfields) macro.
 #[macro_export]
 macro_rules! register_structs {
     {

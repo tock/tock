@@ -4,13 +4,14 @@
 
 use core::cell::Cell;
 use core::cmp;
+use kernel::utilities::cells::MapCell;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
 
 use kernel::hil;
-use kernel::hil::gpio::Output;
 use kernel::hil::spi::{self, ClockPhase, ClockPolarity, SpiMasterClient};
 use kernel::platform::chip::ClockInterface;
-use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
@@ -192,12 +193,12 @@ pub struct Spi<'a> {
     // SPI slave support not yet implemented
     master_client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
 
-    active_slave: OptionalCell<&'a crate::gpio::Pin<'a>>,
+    active_slave: OptionalCell<spi::cs::ChipSelectPolar<'a, crate::gpio::Pin<'a>>>,
 
-    tx_buffer: TakeCell<'static, [u8]>,
+    tx_buffer: MapCell<SubSliceMut<'static, u8>>,
     tx_position: Cell<usize>,
 
-    rx_buffer: TakeCell<'static, [u8]>,
+    rx_buffer: MapCell<SubSliceMut<'static, u8>>,
     rx_position: Cell<usize>,
     len: Cell<usize>,
 
@@ -215,10 +216,10 @@ impl<'a> Spi<'a> {
             master_client: OptionalCell::empty(),
             active_slave: OptionalCell::empty(),
 
-            tx_buffer: TakeCell::empty(),
+            tx_buffer: MapCell::empty(),
             tx_position: Cell::new(0),
 
-            rx_buffer: TakeCell::empty(),
+            rx_buffer: MapCell::empty(),
             rx_position: Cell::new(0),
 
             len: Cell::new(0),
@@ -289,21 +290,17 @@ impl<'a> Spi<'a> {
             // initiate another SPI transfer right away
             if !self.active_after.get() {
                 self.active_slave.map(|p| {
-                    p.set();
+                    p.deactivate();
                 });
             }
             self.transfers.set(SPI_IDLE);
             self.master_client.map(|client| {
                 self.tx_buffer.take().map(|buf| {
-                    client.read_write_done(buf, self.rx_buffer.take(), self.len.get(), Ok(()))
+                    client.read_write_done(buf, self.rx_buffer.take(), Ok(self.len.get()))
                 })
             });
             self.transfers.set(SPI_IDLE);
         }
-    }
-
-    fn set_active_slave(&self, slave_pin: &'a crate::gpio::Pin<'a>) {
-        self.active_slave.set(slave_pin);
     }
 
     fn set_cr<F>(&self, f: F)
@@ -351,41 +348,31 @@ impl<'a> Spi<'a> {
 
     fn read_write_bytes(
         &self,
-        write_buffer: Option<&'static mut [u8]>,
-        read_buffer: Option<&'static mut [u8]>,
-        len: usize,
+        write_buffer: SubSliceMut<'static, u8>,
+        read_buffer: Option<SubSliceMut<'static, u8>>,
     ) -> Result<
         (),
         (
             ErrorCode,
-            Option<&'static mut [u8]>,
-            Option<&'static mut [u8]>,
+            SubSliceMut<'static, u8>,
+            Option<SubSliceMut<'static, u8>>,
         ),
     > {
-        if write_buffer.is_none() && read_buffer.is_none() {
-            return Err((ErrorCode::INVAL, write_buffer, read_buffer));
-        }
-
         if self.transfers.get() == 0 {
             self.registers.cr2.modify(CR2::RXNEIE::CLEAR);
             self.active_slave.map(|p| {
-                p.clear();
+                p.activate();
             });
 
             self.transfers.set(self.transfers.get() | SPI_IN_PROGRESS);
 
-            let mut count: usize = len;
-            write_buffer
-                .as_ref()
-                .map(|buf| count = cmp::min(count, buf.len()));
+            let mut count: usize = write_buffer.len();
             read_buffer
                 .as_ref()
                 .map(|buf| count = cmp::min(count, buf.len()));
 
-            if write_buffer.is_some() {
-                self.transfers
-                    .set(self.transfers.get() | SPI_WRITE_IN_PROGRESS);
-            }
+            self.transfers
+                .set(self.transfers.get() | SPI_WRITE_IN_PROGRESS);
 
             if read_buffer.is_some() {
                 self.transfers
@@ -401,12 +388,10 @@ impl<'a> Spi<'a> {
 
             self.registers.cr2.modify(CR2::RXNEIE::SET);
 
-            write_buffer.map(|buf| {
-                self.tx_buffer.replace(buf);
-                self.len.set(count);
-                self.tx_position.set(0);
-                self.registers.cr2.modify(CR2::TXEIE::SET);
-            });
+            self.tx_buffer.replace(write_buffer);
+            self.len.set(count);
+            self.tx_position.set(0);
+            self.registers.cr2.modify(CR2::TXEIE::SET);
 
             Ok(())
         } else {
@@ -416,7 +401,7 @@ impl<'a> Spi<'a> {
 }
 
 impl<'a> spi::SpiMaster<'a> for Spi<'a> {
-    type ChipSelect = &'a crate::gpio::Pin<'a>;
+    type ChipSelect = spi::cs::ChipSelectPolar<'a, crate::gpio::Pin<'a>>;
 
     fn set_client(&self, client: &'a dyn SpiMasterClient) {
         self.master_client.set(client);
@@ -468,19 +453,25 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
 
     fn read_write_bytes(
         &self,
-        write_buffer: &'static mut [u8],
-        read_buffer: Option<&'static mut [u8]>,
-        len: usize,
-    ) -> Result<(), (ErrorCode, &'static mut [u8], Option<&'static mut [u8]>)> {
+        write_buffer: SubSliceMut<'static, u8>,
+        read_buffer: Option<SubSliceMut<'static, u8>>,
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            SubSliceMut<'static, u8>,
+            Option<SubSliceMut<'static, u8>>,
+        ),
+    > {
         // If busy, don't start
         if self.is_busy() {
             return Err((ErrorCode::BUSY, write_buffer, read_buffer));
         }
 
         if let Err((err, write_buffer, read_buffer)) =
-            self.read_write_bytes(Some(write_buffer), read_buffer, len)
+            self.read_write_bytes(write_buffer, read_buffer)
         {
-            Err((err, write_buffer.unwrap(), read_buffer))
+            Err((err, write_buffer, read_buffer))
         } else {
             Ok(())
         }
@@ -539,7 +530,7 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
     }
 
     fn specify_chip_select(&self, cs: Self::ChipSelect) -> Result<(), ErrorCode> {
-        self.set_active_slave(cs);
+        self.active_slave.set(cs);
         Ok(())
     }
 }

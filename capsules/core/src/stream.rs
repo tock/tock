@@ -121,7 +121,9 @@ macro_rules! stream_from_option {
 }
 
 /// Extracts the result of encoding/decoding (the new offset and the output) only
-/// if no errors were encountered in encoding. This macro makes it possible to
+/// if no errors were encountered in encoding.
+///
+/// This macro makes it possible to
 /// handle offsets easily for the following use cases:
 ///
 /// `enc_try!(result, offset)`: Unwrap an already-provided result that
@@ -135,9 +137,9 @@ macro_rules! stream_from_option {
 /// would result in it defaulting to 0. Idiomatically, the way to combine
 /// encoders is to define another encoder as follows:
 ///
-/// ```rust
-/// # use capsules::{enc_try, stream_done};
-/// # use capsules::net::stream::SResult;
+/// ```rust,ignore
+/// # use capsules_core::{enc_try, stream_done};
+/// # use capsules_core::stream::{SResult};
 ///
 /// // call a simple encoder
 /// let (bytes, out1) = enc_try!(buf; encoder1);
@@ -157,8 +159,8 @@ macro_rules! stream_from_option {
 ///
 /// Then, using an encoder can be done simply by:
 ///
-/// ```
-/// # use capsules::net::stream::SResult;
+/// ```rust,ignore
+/// # use capsules_core::stream::SResult;
 ///
 /// match encoder(&mut buf) {
 ///     SResult::Done(off, out) => { /* celebrate */ }
@@ -190,7 +192,9 @@ macro_rules! enc_try {
 }
 
 /// This is the aforementioned version of the unwrapping macro that only returns
-/// the offset. With this, it can be simpler to programmatically chain multiple
+/// the offset.
+///
+/// With this, it can be simpler to programmatically chain multiple
 /// headers together when the outputs do not have to be collated.
 #[macro_export]
 macro_rules! enc_consume {

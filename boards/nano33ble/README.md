@@ -1,7 +1,7 @@
 Arduino Nano 33 BLE
 ===================
 
-<img src="https://store-cdn.arduino.cc/usa/catalog/product/cache/1/image/1040x660/604a3538c15e081937dbfbd20aa60aad/a/b/abx00031_featured.jpg" width="35%">
+<img src="https://store-usa.arduino.cc/cdn/shop/products/ABX00030_01.iso_1000x750.jpg?v=1626445244" width="35%">
 
 The [Arduino Nano 33 BLE](https://store.arduino.cc/usa/nano-33-ble) and [Arduino
 Nano 33 BLE Sense](https://store.arduino.cc/usa/nano-33-ble-sense) are compact

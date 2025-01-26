@@ -21,7 +21,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //! # use capsules::virtual_alarm::VirtualMuxAlarm;
 //!
@@ -111,8 +111,8 @@ impl<'a, A: time::Alarm<'a>, I: i2c::I2CDevice> SI7021<'a, A, I> {
     pub fn new(i2c: &'a I, alarm: &'a A, buffer: &'static mut [u8]) -> SI7021<'a, A, I> {
         // setup and return struct
         SI7021 {
-            i2c: i2c,
-            alarm: alarm,
+            i2c,
+            alarm,
             temp_callback: OptionalCell::empty(),
             humidity_callback: OptionalCell::empty(),
             state: Cell::new(State::Idle),

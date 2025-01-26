@@ -31,12 +31,21 @@ pub unsafe fn run_entropy32(trng: &'static Trng) {
 }
 
 unsafe fn static_init_test_entropy32(trng: &'static Trng) -> &'static TestRng<'static> {
-    let e1 = static_init!(rng::Entropy32To8<'static>, rng::Entropy32To8::new(trng));
+    let e1 = static_init!(
+        rng::Entropy32To8<'static, Trng>,
+        rng::Entropy32To8::new(trng)
+    );
     trng.set_client(e1);
-    let e2 = static_init!(rng::Entropy8To32<'static>, rng::Entropy8To32::new(e1));
+    let e2 = static_init!(
+        rng::Entropy8To32<'static, rng::Entropy32To8<'static, Trng>>,
+        rng::Entropy8To32::new(e1)
+    );
     e1.set_client(e2);
     let er = static_init!(
-        rng::Entropy32ToRandom<'static>,
+        rng::Entropy32ToRandom<
+            'static,
+            rng::Entropy8To32<'static, rng::Entropy32To8<'static, Trng>>,
+        >,
         rng::Entropy32ToRandom::new(e2)
     );
     e2.set_client(er);

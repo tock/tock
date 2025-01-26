@@ -122,10 +122,10 @@
 //! }
 //!
 //! impl FlashController<1024> for FlashCtrl {
-//!     fn read_region(&self, region_number: usize, offset: usize, buf: &mut [u8; 1024]) -> Result<(), ErrorCode> {
+//!     fn read_region(&self, region_number: usize, buf: &mut [u8; 1024]) -> Result<(), ErrorCode> {
 //!         // TODO: Read the specified flash region
 //!         for (i, b) in buf.iter_mut().enumerate() {
-//!             *b = self.buf.borrow()[region_number][offset + i]
+//!             *b = self.buf.borrow()[region_number][i]
 //!         }
 //!         Ok(())
 //!     }

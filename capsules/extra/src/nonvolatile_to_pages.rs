@@ -24,7 +24,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::{hil, static_init};
 
 //! sam4l::flashcalw::FLASH_CONTROLLER.configure();
@@ -81,7 +81,7 @@ pub struct NonvolatileToPages<'a, F: hil::flash::Flash + 'static> {
 impl<'a, F: hil::flash::Flash> NonvolatileToPages<'a, F> {
     pub fn new(driver: &'a F, buffer: &'static mut F::Page) -> NonvolatileToPages<'a, F> {
         NonvolatileToPages {
-            driver: driver,
+            driver,
             client: OptionalCell::empty(),
             pagebuffer: TakeCell::new(buffer),
             state: Cell::new(State::Idle),
@@ -192,7 +192,11 @@ impl<'a, F: hil::flash::Flash> hil::nonvolatile_storage::NonvolatileStorage<'a>
 }
 
 impl<F: hil::flash::Flash> hil::flash::Client<F> for NonvolatileToPages<'_, F> {
-    fn read_complete(&self, pagebuffer: &'static mut F::Page, _error: hil::flash::Error) {
+    fn read_complete(
+        &self,
+        pagebuffer: &'static mut F::Page,
+        _result: Result<(), hil::flash::Error>,
+    ) {
         match self.state.get() {
             State::Read => {
                 // OK we got a page from flash. Copy what we actually want from it
@@ -267,7 +271,11 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for NonvolatileToPages<'_, F> {
         }
     }
 
-    fn write_complete(&self, pagebuffer: &'static mut F::Page, _error: hil::flash::Error) {
+    fn write_complete(
+        &self,
+        pagebuffer: &'static mut F::Page,
+        _result: Result<(), hil::flash::Error>,
+    ) {
         // After a write we could be done, need to do another write, or need to
         // do a read.
         self.buffer.take().map(move |buffer| {
@@ -308,5 +316,5 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for NonvolatileToPages<'_, F> {
         });
     }
 
-    fn erase_complete(&self, _error: hil::flash::Error) {}
+    fn erase_complete(&self, _result: Result<(), hil::flash::Error>) {}
 }

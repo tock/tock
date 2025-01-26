@@ -7,7 +7,7 @@ name = "qemu_rv32_virt"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-build = "build.rs"
+build = "../build.rs"
 
 [dependencies]
 components = { path = "../components" }
@@ -18,3 +18,10 @@ qemu_rv32_virt_chip = { path = "../../chips/qemu_rv32_virt_chip" }
 
 capsules-core = { path = "../../capsules/core" }
 capsules-extra = { path = "../../capsules/extra" }
+capsules-system = { path = "../../capsules/system" }
+
+[build-dependencies]
+tock_build_scripts = { path = "../build_scripts" }
+
+[lints]
+workspace = true

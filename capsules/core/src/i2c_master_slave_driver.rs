@@ -106,7 +106,7 @@ impl<'a, I: hil::i2c::I2CMasterSlave<'a>> hil::i2c::I2CHwMasterClient
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), hil::i2c::Error>) {
         // Map I2C error to a number we can pass back to the application
         let status = kernel::errorcode::into_statuscode(match status {
-            Ok(_) => Ok(()),
+            Ok(()) => Ok(()),
             Err(e) => Err(e.into()),
         });
 
@@ -284,8 +284,7 @@ impl<'a, I: hil::i2c::I2CMasterSlave<'a>> SyscallDriver for I2CMasterSlaveDriver
         process_id: ProcessId,
     ) -> CommandReturn {
         if command_num == 0 {
-            // Handle this first as it should be returned
-            // unconditionally
+            // Handle unconditional driver existence check.
             return CommandReturn::success();
         }
         // Check if this non-virtualized driver is already in use by

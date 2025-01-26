@@ -48,6 +48,17 @@ pub trait MacDevice<'a> {
     /// Returns if the MAC device is currently on.
     fn is_on(&self) -> bool;
 
+    /// Start the radio.
+    ///
+    /// This serves as a passthrough to the underlying radio's `start` method.
+    ///
+    /// ## Return
+    ///
+    /// `Ok(())` on success. On `Err()`, valid errors are:
+    ///
+    /// - `ErrorCode::FAIL`: Internal error occurred.
+    fn start(&self) -> Result<(), ErrorCode>;
+
     /// Prepares a mutable buffer slice as an 802.15.4 frame by writing the appropriate
     /// header bytes into the buffer. This needs to be done before adding the
     /// payload because the length of the header is not fixed.
@@ -96,8 +107,10 @@ pub trait TxClient {
 }
 
 /// Trait to be implemented by users of the IEEE 802.15.4 device that wish to
-/// receive frames. The callback is triggered whenever a valid frame is
-/// received, verified and unsecured (via the IEEE 802.15.4 security procedure)
+/// receive frames.
+///
+/// The callback is triggered whenever a valid frame is received,
+/// verified and unsecured (via the IEEE 802.15.4 security procedure)
 /// successfully.
 pub trait RxClient {
     /// When a frame is received, this callback is triggered. The client only
@@ -110,9 +123,17 @@ pub trait RxClient {
     /// - `header`: A fully-parsed representation of the MAC header, with the
     /// caveat that the auxiliary security header is still included if the frame
     /// was previously secured.
+    /// - `lqi`: The link quality indicator of the received frame.
     /// - `data_offset`: Offset of the data payload relative to
     /// `buf`, so that the payload of the frame is contained in
     /// `buf[data_offset..data_offset + data_len]`.
     /// - `data_len`: Length of the data payload
-    fn receive<'a>(&self, buf: &'a [u8], header: Header<'a>, data_offset: usize, data_len: usize);
+    fn receive<'a>(
+        &self,
+        buf: &'a [u8],
+        header: Header<'a>,
+        lqi: u8,
+        data_offset: usize,
+        data_len: usize,
+    );
 }

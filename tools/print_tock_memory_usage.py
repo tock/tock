@@ -122,7 +122,7 @@ def process_section_line(line):
     """Parses a line from the Sections: header of an ELF objdump,
     inserting it into a data structure keeping track of the sections."""
     # pylint: disable=anomalous-backslash-in-string,line-too-long
-    match = re.search("^\S+\s+\.(text|relocate|sram|stack|app_memory)\s+(\S+).+", line)
+    match = re.search(r"^\S+\s+\.(text|relocate|sram|stack|app_memory)\s+(\S+).+", line)
     if match != None:
         sections[match.group(1)] = int(match.group(2), 16)
 
@@ -244,7 +244,7 @@ def process_symbol_line(line):
     global kernel_initialized
     global kernel_uninitialized
     match = re.search(
-        "^(\S+)\s+(\w*)\s+(\w*)\s+\.(text|relocate|sram|stack|app_memory)\s+(\S+)\s+(.+)",
+        r"^(\S+)\s+(\w*)\s+(\w*)\s+\.(text|relocate|sram|stack|app_memory)\s+(\S+)\s+(.+)",
         line,
     )
     if match != None:
@@ -278,7 +278,7 @@ def process_symbol_line(line):
 
         # Code and embedded data.
         elif segment == "text":
-            match = re.search("\$(((\w+\.\.)+)(\w+))\$", name)
+            match = re.search(r"\$(((\w+\.\.)+)(\w+))\$", name)
             # It's a function
             if is_private_symbol(name):
                 # Skip this symbol
@@ -659,7 +659,7 @@ if __name__ == "__main__":
 
     for hline in header_lines:
         # pylint: disable=anomalous-backslash-in-string
-        hmatch = re.search("file format (\S+)", hline)
+        hmatch = re.search(r"file format (\S+)", hline)
         if hmatch != None:
             arch = hmatch.group(1)
 

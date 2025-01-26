@@ -2,10 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use cortexm4;
-use cortexm4::support::atomic;
+use cortexm4f::support::atomic;
 use kernel::hil::time::{
-    Alarm, AlarmClient, Counter, Freq16KHz, OverflowClient, Ticks, Ticks32, Time,
+    Alarm, AlarmClient, Counter, Freq16KHz, Frequency, OverflowClient, Ticks, Ticks32, Time,
 };
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::OptionalCell;
@@ -14,8 +13,8 @@ use kernel::utilities::registers::{register_bitfields, ReadWrite, WriteOnly};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
+use crate::clocks::{phclk, Stm32f4Clocks};
 use crate::nvic;
-use crate::rcc;
 
 /// General purpose timers
 #[repr(C)]
@@ -320,12 +319,12 @@ pub struct Tim2<'a> {
 }
 
 impl<'a> Tim2<'a> {
-    pub const fn new(rcc: &'a rcc::Rcc) -> Self {
+    pub const fn new(clocks: &'a dyn Stm32f4Clocks) -> Self {
         Self {
             registers: TIM2_BASE,
-            clock: Tim2Clock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB1(rcc::PCLK1::TIM2),
-                rcc,
+            clock: Tim2Clock(phclk::PeripheralClock::new(
+                phclk::PeripheralClockType::APB1(phclk::PCLK1::TIM2),
+                clocks,
             )),
             client: OptionalCell::empty(),
             irqn: nvic::TIM2,
@@ -352,16 +351,39 @@ impl<'a> Tim2<'a> {
 
     // starts the timer
     pub fn start(&self) {
-        // TIM2 uses PCLK1. By default PCLK1 uses HSI running at 16Mhz.
         // Before calling set_alarm, we assume clock to TIM2 has been
         // enabled.
 
         self.registers.arr.set(0xFFFF_FFFF - 1);
-        // Prescale 16Mhz to 16Khz, by dividing it by 1000. We need set EGR.UG
-        // in order for the prescale value to become active.
-        self.registers.psc.set((999 - 1) as u32);
+        self.calibrate();
+    }
+
+    // set up the prescaler for the target frequency (16KHz)
+    pub fn calibrate(&self) {
+        let clk_freq = self.clock.0.get_frequency();
+
+        // TIM2 uses PCLK1. Set the prescaler to the current PCLK1 frequency divided by the wanted
+        // frequency (16KHz).
+        // WARNING: When PCLK1 is not a multiple of 16KHz (e.g. PCLK1 == 25MHz), the prescaler is
+        // the truncated division result, which would cause loss of timer precision
+        // TODO: We could use a 1KHz or 1MHz frequency instead of 16KHz to cover most clock frequencies
+        // or use a parametric frequency (generic/argument)
+        let psc = clk_freq / Freq16KHz::frequency();
+        self.registers.psc.set(psc - 1);
+
+        // We need set EGR.UG in order for the prescale value to become active.
         self.registers.egr.write(EGR::UG::SET);
         self.registers.cr1.modify(CR1::CEN::SET);
+    }
+
+    // get the value of the cnt register
+    pub fn get_timer_cnt(&self) -> u32 {
+        self.registers.cnt.get()
+    }
+
+    // set the value of the cnt register
+    pub fn set_timer_cnt(&self, value: u32) {
+        self.registers.cnt.set(value);
     }
 }
 
@@ -429,7 +451,7 @@ impl<'a> Alarm<'a> for Tim2<'a> {
             atomic(|| {
                 // Disable counter
                 self.registers.dier.modify(DIER::CC1IE::CLEAR);
-                cortexm4::nvic::Nvic::new(self.irqn).clear_pending();
+                cortexm4f::nvic::Nvic::new(self.irqn).clear_pending();
             });
         }
         Ok(())
@@ -445,7 +467,7 @@ impl<'a> Alarm<'a> for Tim2<'a> {
     }
 }
 
-struct Tim2Clock<'a>(rcc::PeripheralClock<'a>);
+struct Tim2Clock<'a>(phclk::PeripheralClock<'a>);
 
 impl ClockInterface for Tim2Clock<'_> {
     fn is_enabled(&self) -> bool {

@@ -89,7 +89,7 @@ impl Gloc {
 
     /// Gets the memory-mapped registers associated with a LUT.
     fn lut_registers(&self, lut: Lut) -> &GlocRegisters {
-        &*self.lut_regs[lut as usize]
+        &self.lut_regs[lut as usize]
     }
 
     /// Set the truth table values.

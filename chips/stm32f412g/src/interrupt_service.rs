@@ -15,14 +15,14 @@ pub struct Stm32f412gDefaultPeripherals<'a> {
 
 impl<'a> Stm32f412gDefaultPeripherals<'a> {
     pub unsafe fn new(
-        rcc: &'a crate::rcc::Rcc,
+        clocks: &'a crate::clocks::Clocks<'a, Stm32f412Specs>,
         exti: &'a crate::exti::Exti<'a>,
         dma1: &'a crate::dma::Dma1<'a>,
         dma2: &'a crate::dma::Dma2<'a>,
     ) -> Self {
         Self {
-            stm32f4: Stm32f4xxDefaultPeripherals::new(rcc, exti, dma1, dma2),
-            trng: stm32f4xx::trng::Trng::new(trng_registers::RNG_BASE, rcc),
+            stm32f4: Stm32f4xxDefaultPeripherals::new(clocks, exti, dma1, dma2),
+            trng: stm32f4xx::trng::Trng::new(trng_registers::RNG_BASE, clocks),
         }
     }
     // Necessary for setting up circular dependencies & registering deferred calls
@@ -30,7 +30,7 @@ impl<'a> Stm32f412gDefaultPeripherals<'a> {
         self.stm32f4.setup_circular_deps();
     }
 }
-impl<'a> kernel::platform::chip::InterruptService for Stm32f412gDefaultPeripherals<'a> {
+impl kernel::platform::chip::InterruptService for Stm32f412gDefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             // put Stm32f412g specific interrupts here

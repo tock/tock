@@ -24,11 +24,13 @@ macro_rules! kv_driver_component_static {
     ($V:ty $(,)?) => {{
         let kv = kernel::static_buf!(capsules_extra::kv_driver::KVStoreDriver<'static, $V>);
         let key_buffer = kernel::static_buf!([u8; 64]);
-        let value_buffer = kernel::static_buf!([u8; 256]);
+        let value_buffer = kernel::static_buf!([u8; 512]);
 
         (kv, key_buffer, value_buffer)
     };};
 }
+
+pub type KVDriverComponentType<V> = capsules_extra::kv_driver::KVStoreDriver<'static, V>;
 
 pub struct KVDriverComponent<V: hil::kv::KVPermissions<'static> + 'static> {
     kv: &'static V,
@@ -50,7 +52,7 @@ impl<V: hil::kv::KVPermissions<'static>> Component for KVDriverComponent<V> {
     type StaticInput = (
         &'static mut MaybeUninit<KVStoreDriver<'static, V>>,
         &'static mut MaybeUninit<[u8; 64]>,
-        &'static mut MaybeUninit<[u8; 256]>,
+        &'static mut MaybeUninit<[u8; 512]>,
     );
     type Output = &'static KVStoreDriver<'static, V>;
 
@@ -58,7 +60,7 @@ impl<V: hil::kv::KVPermissions<'static>> Component for KVDriverComponent<V> {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
         let key_buffer = static_buffer.1.write([0; 64]);
-        let value_buffer = static_buffer.2.write([0; 256]);
+        let value_buffer = static_buffer.2.write([0; 512]);
 
         let driver = static_buffer.0.write(KVStoreDriver::new(
             self.kv,
@@ -83,6 +85,9 @@ macro_rules! kv_permissions_mux_component_static {
         mux
     };};
 }
+
+pub type KVPermissionsMuxComponentType<V> =
+    capsules_extra::kv_store_permissions::KVStorePermissions<'static, V>;
 
 pub struct KVPermissionsMuxComponent<V: hil::kv::KVPermissions<'static> + 'static> {
     kv: &'static V,
@@ -118,6 +123,9 @@ macro_rules! virtual_kv_permissions_component_static {
         virtual_kv
     };};
 }
+
+pub type VirtualKVPermissionsComponentType<V> =
+    capsules_extra::virtual_kv::VirtualKVPermissions<'static, V>;
 
 pub struct VirtualKVPermissionsComponent<V: hil::kv::KVPermissions<'static> + 'static> {
     mux_kv: &'static MuxKVPermissions<'static, V>,
@@ -155,6 +163,9 @@ macro_rules! kv_store_permissions_component_static {
         (kv_store, buffer)
     };};
 }
+
+pub type KVStorePermissionsComponentType<V> =
+    capsules_extra::kv_store_permissions::KVStorePermissions<'static, V>;
 
 pub struct KVStorePermissionsComponent<V: hil::kv::KV<'static> + 'static> {
     kv: &'static V,
@@ -202,6 +213,9 @@ macro_rules! tickv_kv_store_component_static {
         (kv_store, key)
     };};
 }
+
+pub type TicKVKVStoreComponentType<K, T> =
+    capsules_extra::tickv_kv_store::TicKVKVStore<'static, K, T>;
 
 pub struct TicKVKVStoreComponent<K: 'static + KVSystem<'static, K = T>, T: 'static + KeyType> {
     kv_system: &'static K,

@@ -570,11 +570,11 @@ pub struct I2CHw<'a> {
     pm: &'static pm::PowerManager,
 }
 
-impl<'a> PeripheralManagement<TWIMClock> for I2CHw<'a> {
+impl PeripheralManagement<TWIMClock> for I2CHw<'_> {
     type RegisterType = TWIMRegisters;
 
     fn get_registers(&self) -> &TWIMRegisters {
-        &*self.master_mmio_address
+        &self.master_mmio_address
     }
 
     fn get_clock(&self) -> &TWIMClock {
@@ -597,11 +597,11 @@ impl<'a> PeripheralManagement<TWIMClock> for I2CHw<'a> {
 }
 type TWIMRegisterManager<'a, 'm> = PeripheralManager<'m, I2CHw<'a>, TWIMClock>;
 
-impl<'a> PeripheralManagement<TWISClock> for I2CHw<'a> {
+impl PeripheralManagement<TWISClock> for I2CHw<'_> {
     type RegisterType = TWISRegisters;
 
     fn get_registers(&self) -> &TWISRegisters {
-        &*self.slave_mmio_address.as_ref().unwrap() // Unwrap fail = Access of non-existent slave
+        self.slave_mmio_address.as_ref().unwrap() // Unwrap fail = Access of non-existent slave
     }
 
     fn get_clock(&self) -> &TWISClock {
@@ -1346,7 +1346,7 @@ impl<'a> I2CHw<'a> {
     }
 }
 
-impl<'a> DMAClient for I2CHw<'a> {
+impl DMAClient for I2CHw<'_> {
     fn transfer_done(&self, _pid: DMAPeripheral) {}
 }
 

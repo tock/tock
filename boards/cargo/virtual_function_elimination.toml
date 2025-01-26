@@ -1,0 +1,14 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2024.
+
+[build]
+rustflags = [
+  # `virtual-function-elimination` reduces the size of binaries, but is still
+  # experimental and has some possible miscompilation issues.
+  #
+  # For details on virtual-function-elimination see:
+  # https://github.com/rust-lang/rust/pull/96285 and
+  # https://github.com/rust-lang/rust/issues/68262 for general tracking
+  "-Z", "virtual-function-elimination",
+]

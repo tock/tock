@@ -23,7 +23,7 @@
 //! The `command` system call support one argument `cmd` which is used to specify the specific
 //! operation, currently the following cmd's are supported:
 //!
-//! * `0`: check whether the driver exist
+//! * `0`: driver existence check
 //! * `1`: read proximity
 //! * `2`: read proximity on interrupt
 //!
@@ -40,7 +40,7 @@
 //! You need a device that provides the `hil::sensors::ProximityDriver` trait.
 //! Here is an example of how to set up a proximity sensor with the apds9960 IC
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //!let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -97,7 +97,7 @@ impl<'a> ProximitySensor<'a> {
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> ProximitySensor<'a> {
         ProximitySensor {
-            driver: driver,
+            driver,
             apps: grant,
             command_running: Cell::new(ProximityCommand::NoCommand),
         }
@@ -296,7 +296,7 @@ impl SyscallDriver for ProximitySensor<'_> {
         processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
-            // check whether the driver exist!!
+            // Driver existence check
             0 => CommandReturn::success(),
 
             // Instantaneous proximity measurement

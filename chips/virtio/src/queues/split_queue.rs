@@ -88,7 +88,6 @@ fn init_constgeneric_default_array<const N: usize, T: Default>() -> [T; N] {
     // the original `[MaybeUnit<T>; N]` array, as described here:
     // https://github.com/rust-lang/rust/issues/62875#issuecomment-513834029
     let uninit_arr_ptr: *mut [core::mem::MaybeUninit<T>; N] = &mut uninit_arr as *mut _;
-    core::mem::forget(uninit_arr);
     let transmuted: [T; N] = unsafe { core::ptr::read(uninit_arr_ptr.cast::<[T; N]>()) };
 
     // With the original value forgotten and new value recreated from its
@@ -473,9 +472,9 @@ impl<'a, 'b, const MAX_QUEUE_SIZE: usize> SplitVirtqueue<'a, 'b, MAX_QUEUE_SIZE>
         available_ring: &'a mut VirtqueueAvailableRing<MAX_QUEUE_SIZE>,
         used_ring: &'a mut VirtqueueUsedRing<MAX_QUEUE_SIZE>,
     ) -> Self {
-        assert!(descriptors as *const _ as usize % DESCRIPTOR_ALIGNMENT == 0);
-        assert!(available_ring as *const _ as usize % AVAILABLE_RING_ALIGNMENT == 0);
-        assert!(used_ring as *const _ as usize % USED_RING_ALIGNMENT == 0);
+        assert!(core::ptr::from_ref(descriptors) as usize % DESCRIPTOR_ALIGNMENT == 0);
+        assert!(core::ptr::from_ref(available_ring) as usize % AVAILABLE_RING_ALIGNMENT == 0);
+        assert!(core::ptr::from_ref(used_ring) as usize % USED_RING_ALIGNMENT == 0);
 
         SplitVirtqueue {
             descriptors,
@@ -858,7 +857,7 @@ impl<'a, 'b, const MAX_QUEUE_SIZE: usize> SplitVirtqueue<'a, 'b, MAX_QUEUE_SIZE>
     }
 }
 
-impl<'a, 'b, const MAX_QUEUE_SIZE: usize> Virtqueue for SplitVirtqueue<'a, 'b, MAX_QUEUE_SIZE> {
+impl<const MAX_QUEUE_SIZE: usize> Virtqueue for SplitVirtqueue<'_, '_, MAX_QUEUE_SIZE> {
     fn used_interrupt(&self) {
         assert!(self.initialized.get());
         // A buffer MAY have been put into the used in by the device
@@ -879,9 +878,9 @@ impl<'a, 'b, const MAX_QUEUE_SIZE: usize> Virtqueue for SplitVirtqueue<'a, 'b, M
 
     fn physical_addresses(&self) -> VirtqueueAddresses {
         VirtqueueAddresses {
-            descriptor_area: self.descriptors as *const _ as u64,
-            driver_area: self.available_ring as *const _ as u64,
-            device_area: self.used_ring as *const _ as u64,
+            descriptor_area: core::ptr::from_ref(self.descriptors) as u64,
+            driver_area: core::ptr::from_ref(self.available_ring) as u64,
+            device_area: core::ptr::from_ref(self.used_ring) as u64,
         }
     }
 

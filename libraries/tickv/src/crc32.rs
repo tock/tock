@@ -322,6 +322,7 @@ const fn crc32(poly: u32, mut byte: u8) -> u32 {
 ///
 /// We keep this seperate to clearly show the CRC implementation
 /// details (such as initial state and xorout).
+#[derive(Default)]
 struct Crc {}
 
 impl Crc {
@@ -382,7 +383,7 @@ impl Crc32 {
     }
 
     /// Update the CRC based on the data in `bytes`
-    pub fn update(&mut self, bytes: &[u8]) {
+    pub fn update(&self, bytes: &[u8]) {
         self.value.set(self.crc.update(self.value.get(), bytes));
     }
 

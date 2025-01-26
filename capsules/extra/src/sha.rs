@@ -7,7 +7,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! let sha = &earlgrey::sha::HMAC;
 //!
 //! let mux_sha = static_init!(MuxSha<'static, lowrisc::sha::Sha>, MuxSha::new(sha));
@@ -101,7 +101,7 @@ impl<
         >,
     ) -> ShaDriver<'a, H, L> {
         ShaDriver {
-            sha: sha,
+            sha,
             active: Cell::new(false),
             apps: grant,
             processid: OptionalCell::empty(),
@@ -169,7 +169,7 @@ impl<
                 }
 
                 // If this app has a pending command let's use it.
-                app.pending_run_app.take().map_or(false, |processid| {
+                app.pending_run_app.take().is_some_and(|processid| {
                     // Mark this driver as being in use.
                     self.processid.set(processid);
                     // Actually make the buzz happen.
@@ -386,7 +386,7 @@ impl<
                         });
 
                     match result {
-                        Ok(_) => kernel_data
+                        Ok(()) => kernel_data
                             .schedule_upcall(0, (0, pointer as usize, 0))
                             .ok(),
                         Err(e) => kernel_data

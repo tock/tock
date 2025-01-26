@@ -1,0 +1,94 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2024.
+
+name: tock-nightly-ci
+
+on:
+  schedule:
+  - cron: "0 0 * * *"
+
+env:
+  TERM: xterm # Makes tput work in actions output
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+# If you add additional jobs, remember to add them to bors.toml
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  ci-build:
+    # Do not run job on forks
+    if: github.repository == 'tock/tock'
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ci-job-syntax
+        run: make ci-job-syntax
+      - name: ci-job-compilation
+        run: make ci-job-compilation
+      - name: ci-job-debug-support-targets
+        run: make ci-job-debug-support-targets
+
+      - name: ci-job-collect-artifacts
+        run: make ci-job-collect-artifacts
+      - name: upload-build-artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: tools/ci-artifacts
+
+  ci-tests:
+    # Do not run job on forks
+    if: github.repository == 'tock/tock'
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Update package repositories
+        run: |
+          sudo apt update
+        if: matrix.os == 'ubuntu-latest'
+      - name: Install dependencies for ubuntu-latest
+        run: |
+          sudo apt install libudev-dev libzmq3-dev
+        if: matrix.os == 'ubuntu-latest'
+      - name: Install dependencies for macos-latest
+        run: |
+          brew install zeromq
+        if: matrix.os == 'macos-latest'
+      - uses: actions/checkout@v4
+      - name: ci-job-libraries
+        run: make ci-job-libraries
+      - name: ci-job-archs
+        run: make ci-job-archs
+      - name: ci-job-kernel
+        run: make ci-job-kernel
+      - name: ci-job-chips
+        run: make ci-job-chips
+      - name: ci-job-tools
+        run: make ci-job-tools
+      - name: Create Issue on Failed workflow
+        if: failure()
+        uses: dacbd/create-issue-action@main
+        with:
+          token: ${{ github.token }}
+          title: Nightly CI failed
+          body: |
+            ### Context
+            [Failed Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            [Codebase](https://github.com/${{ github.repository }}/tree/${{ github.sha }})
+            Workflow name - `${{ github.workflow }}`
+            Job -           `${{ github.job }}`
+            status -        `${{ job.status }}`
+          assignees: tock/core-wg

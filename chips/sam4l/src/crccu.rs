@@ -511,7 +511,7 @@ impl<'a> Crc<'a> for Crccu<'a> {
         // Set the descriptor memory address accordingly
         self.registers
             .dscr
-            .set(&self.descriptor as *const Descriptor as u32);
+            .set(core::ptr::addr_of!(self.descriptor) as u32);
 
         // Configure the unit to compute a checksum
         self.registers.mr.write(

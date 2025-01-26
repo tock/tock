@@ -12,6 +12,7 @@ use core::fmt;
 use core::fmt::write;
 use core::str;
 use kernel::capabilities::ProcessManagementCapability;
+use kernel::capabilities::ProcessStartCapability;
 use kernel::hil::time::ConvertTicks;
 use kernel::utilities::cells::MapCell;
 use kernel::utilities::cells::TakeCell;
@@ -36,7 +37,7 @@ pub const QUEUE_BUF_LEN: usize = 300;
 pub const READ_BUF_LEN: usize = 4;
 /// Commands can be up to 32 bytes long: since commands themselves are 4-5
 /// characters, limiting arguments to 25 bytes or so seems fine for now.
-pub const COMMAND_BUF_LEN: usize = 32;
+pub const COMMAND_BUF_LEN: usize = 64;
 /// Default size for the history command.
 pub const DEFAULT_COMMAND_HISTORY_LEN: usize = 10;
 
@@ -225,7 +226,7 @@ pub struct ProcessConsole<
     'a,
     const COMMAND_HISTORY_LEN: usize,
     A: Alarm<'a>,
-    C: ProcessManagementCapability,
+    C: ProcessManagementCapability + ProcessStartCapability,
 > {
     uart: &'a dyn uart::UartData<'a>,
     alarm: &'a A,
@@ -344,7 +345,6 @@ struct CommandHistory<'a, const COMMAND_HISTORY_LEN: usize> {
     cmds: &'a mut [Command; COMMAND_HISTORY_LEN],
     cmd_idx: usize,
     cmd_is_modified: bool,
-    modified_byte: u8,
 }
 
 impl<'a, const COMMAND_HISTORY_LEN: usize> CommandHistory<'a, COMMAND_HISTORY_LEN> {
@@ -353,7 +353,6 @@ impl<'a, const COMMAND_HISTORY_LEN: usize> CommandHistory<'a, COMMAND_HISTORY_LE
             cmds: cmds_buffer,
             cmd_idx: 0,
             cmd_is_modified: false,
-            modified_byte: EOL,
         }
     }
 
@@ -366,22 +365,6 @@ impl<'a, const COMMAND_HISTORY_LEN: usize> CommandHistory<'a, COMMAND_HISTORY_LE
             self.cmds.rotate_right(1);
             self.cmds[0].clear();
             self.cmds[1].write(&cmd_arr);
-        }
-    }
-
-    /// Checks if the command line was modified
-    /// before pressing Up or Down keys
-    /// and saves the current modified command
-    /// into the history
-    fn change_cmd_from(&mut self, cmd: &[u8]) {
-        match self.modified_byte {
-            BS | DEL => {
-                self.cmds[0].clear();
-                self.write_to_first(cmd);
-            }
-            _ => {
-                self.modified_byte = EOL;
-            }
         }
     }
 
@@ -433,8 +416,8 @@ impl ConsoleWriter {
 }
 impl fmt::Write for ConsoleWriter {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        let curr = (s).as_bytes().len();
-        self.buf[self.size..self.size + curr].copy_from_slice((s).as_bytes());
+        let curr = s.len();
+        self.buf[self.size..self.size + curr].copy_from_slice(s.as_bytes());
         self.size += curr;
         Ok(())
     }
@@ -451,8 +434,12 @@ impl BinaryWrite for ConsoleWriter {
     }
 }
 
-impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCapability>
-    ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
+impl<
+        'a,
+        const COMMAND_HISTORY_LEN: usize,
+        A: Alarm<'a>,
+        C: ProcessManagementCapability + ProcessStartCapability,
+    > ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
 {
     pub fn new(
         uart: &'a dyn uart::UartData<'a>,
@@ -469,8 +456,8 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
         capability: C,
     ) -> ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C> {
         ProcessConsole {
-            uart: uart,
-            alarm: alarm,
+            uart,
+            alarm,
             process_printer,
             tx_in_progress: Cell::new(false),
             tx_buffer: TakeCell::new(tx_buffer),
@@ -486,10 +473,10 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
             cursor: Cell::new(0),
             previous_byte: Cell::new(EOL),
             execute: Cell::new(false),
-            kernel: kernel,
-            kernel_addresses: kernel_addresses,
-            reset_function: reset_function,
-            capability: capability,
+            kernel,
+            kernel_addresses,
+            reset_function,
+            capability,
         }
     }
 
@@ -696,7 +683,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
 
                             if new_context.is_some() {
                                 self.writer_state.replace(WriterState::ProcessPrint {
-                                    process_id: process_id,
+                                    process_id,
                                     context: new_context,
                                 });
                             } else {
@@ -729,13 +716,13 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                             let _ = write(&mut console_writer, format_args!(" {:<7?}", process_id));
                             // Display short id.
                             match short_id {
-                                kernel::process::ShortID::LocallyUnique => {
+                                kernel::process::ShortId::LocallyUnique => {
                                     let _ = write(
                                         &mut console_writer,
                                         format_args!("{}", "Unique     ",),
                                     );
                                 }
-                                kernel::process::ShortID::Fixed(id) => {
+                                kernel::process::ShortId::Fixed(id) => {
                                     let _ =
                                         write(&mut console_writer, format_args!("0x{:<8x} ", id));
                                 }
@@ -769,14 +756,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
     // Process the command in the command buffer and clear the buffer.
     fn read_command(&self) {
         self.command_buffer.map(|command| {
-            let mut terminator = 0;
-            let len = command.len();
-            for i in 0..len {
-                if command[i] == 0 {
-                    terminator = i;
-                    break;
-                }
-            }
+            let terminator = command.iter().position(|&x| x == 0).unwrap_or(0);
 
             // A command is valid only if it starts inside the buffer,
             // ends before the beginning of the buffer, and ends after
@@ -886,7 +866,10 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                             let mut console_writer = ConsoleWriter::new();
                                             let _ = write(
                                                 &mut console_writer,
-                                                format_args!("Process {} terminated\n", proc_name),
+                                                format_args!(
+                                                    "Process {} terminated\r\n",
+                                                    proc_name
+                                                ),
                                             );
 
                                             let _ = self.write_bytes(
@@ -904,7 +887,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                         if proc_name == name
                                             && proc.get_state() == State::Terminated
                                         {
-                                            proc.try_restart(None);
+                                            proc.start(&self.capability);
                                         }
                                     });
                             });
@@ -984,7 +967,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                                 self.writer_state.replace(
                                                     WriterState::ProcessPrint {
                                                         process_id: proc.processid(),
-                                                        context: context,
+                                                        context,
                                                     },
                                                 );
                                             }
@@ -1147,8 +1130,12 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
     }
 }
 
-impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCapability> AlarmClient
-    for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
+impl<
+        'a,
+        const COMMAND_HISTORY_LEN: usize,
+        A: Alarm<'a>,
+        C: ProcessManagementCapability + ProcessStartCapability,
+    > AlarmClient for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
 {
     fn alarm(&self) {
         self.prompt();
@@ -1158,8 +1145,12 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
     }
 }
 
-impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCapability>
-    uart::TransmitClient for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
+impl<
+        'a,
+        const COMMAND_HISTORY_LEN: usize,
+        A: Alarm<'a>,
+        C: ProcessManagementCapability + ProcessStartCapability,
+    > uart::TransmitClient for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
 {
     fn transmitted_buffer(
         &self,
@@ -1194,8 +1185,12 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
     }
 }
 
-impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCapability>
-    uart::ReceiveClient for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
+impl<
+        'a,
+        const COMMAND_HISTORY_LEN: usize,
+        A: Alarm<'a>,
+        C: ProcessManagementCapability + ProcessStartCapability,
+    > uart::ReceiveClient for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
 {
     fn received_buffer(
         &self,
@@ -1227,8 +1222,6 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                         } else {
                                             ht.prev_cmd_idx()
                                         } {
-                                            ht.change_cmd_from(command);
-
                                             let next_command_len = ht.cmds[next_index].len;
 
                                             for _ in cursor..index {
@@ -1304,7 +1297,15 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                     // not to permit accumulation of the text
                                     if COMMAND_HISTORY_LEN > 1 {
                                         self.command_history.map(|ht| {
-                                            ht.cmds[0].delete_byte(cursor - 1);
+                                            if ht.cmd_is_modified {
+                                                // Copy the last command into the unfinished command
+
+                                                ht.cmds[0].clear();
+                                                ht.write_to_first(command);
+                                                ht.cmd_is_modified = false;
+                                            } else {
+                                                ht.cmds[0].delete_byte(cursor);
+                                            }
                                         });
                                     }
                                 }
@@ -1366,15 +1367,21 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                 // not to permit accumulation of the text
                                 if COMMAND_HISTORY_LEN > 1 {
                                     self.command_history.map(|ht| {
-                                        ht.cmds[0].delete_byte(cursor - 1);
+                                        if ht.cmd_is_modified {
+                                            // Copy the last command into the unfinished command
+
+                                            ht.cmds[0].clear();
+                                            ht.write_to_first(command);
+                                            ht.cmd_is_modified = false;
+                                        } else {
+                                            ht.cmds[0].delete_byte(cursor - 1);
+                                        }
                                     });
                                 }
                             }
-                        } else if (COMMAND_HISTORY_LEN > 1) && (esc_state.has_started()) {
-                            self.command_history
-                                .map(|ht| ht.modified_byte = previous_byte);
                         } else if index < (command.len() - 1)
                             && read_buf[0] < ASCII_LIMIT
+                            && !esc_state.has_started()
                             && !esc_state.in_progress()
                         {
                             // For some reason, sometimes reads return > 127 but no error,

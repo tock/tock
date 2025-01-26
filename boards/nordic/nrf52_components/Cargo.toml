@@ -13,6 +13,11 @@ components = { path = "../../components" }
 cortexm4 = { path = "../../../arch/cortex-m4" }
 kernel = { path = "../../../kernel" }
 nrf52 = { path = "../../../chips/nrf52" }
+segger = { path = "../../../chips/segger" }
 
 capsules-core = { path = "../../../capsules/core" }
 capsules-extra = { path = "../../../capsules/extra" }
+capsules-system = { path = "../../../capsules/system" }
+
+[lints]
+workspace = true

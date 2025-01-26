@@ -41,7 +41,7 @@
 //!
 //! You need a device that provides the `hil::sensors::HumidityDriver` trait.
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! let humidity = static_init!(
@@ -73,19 +73,19 @@ pub struct App {
     subscribed: bool,
 }
 
-pub struct HumiditySensor<'a> {
-    driver: &'a dyn hil::sensors::HumidityDriver<'a>,
+pub struct HumiditySensor<'a, H: hil::sensors::HumidityDriver<'a>> {
+    driver: &'a H,
     apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     busy: Cell<bool>,
 }
 
-impl<'a> HumiditySensor<'a> {
+impl<'a, H: hil::sensors::HumidityDriver<'a>> HumiditySensor<'a, H> {
     pub fn new(
-        driver: &'a dyn hil::sensors::HumidityDriver<'a>,
+        driver: &'a H,
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> HumiditySensor<'a> {
+    ) -> HumiditySensor<'a, H> {
         HumiditySensor {
-            driver: driver,
+            driver,
             apps: grant,
             busy: Cell::new(false),
         }
@@ -119,7 +119,9 @@ impl<'a> HumiditySensor<'a> {
     }
 }
 
-impl hil::sensors::HumidityClient for HumiditySensor<'_> {
+impl<'a, H: hil::sensors::HumidityDriver<'a>> hil::sensors::HumidityClient
+    for HumiditySensor<'a, H>
+{
     fn callback(&self, humidity_val: usize) {
         self.busy.set(false);
 
@@ -134,7 +136,7 @@ impl hil::sensors::HumidityClient for HumiditySensor<'_> {
     }
 }
 
-impl SyscallDriver for HumiditySensor<'_> {
+impl<'a, H: hil::sensors::HumidityDriver<'a>> SyscallDriver for HumiditySensor<'a, H> {
     fn command(
         &self,
         command_num: usize,
@@ -143,7 +145,7 @@ impl SyscallDriver for HumiditySensor<'_> {
         processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
-            // check whether the driver exist!!
+            // driver existence check
             0 => CommandReturn::success(),
 
             // single humidity measurement

@@ -11,7 +11,7 @@
 //! > The AT24C32/64 provides 32,768/65,536 bits of serial electrically erasable and programmable
 //! > read only memory (EEPROM) organized as 4096/8192 words of 8 bits each. The device’s cascadable
 //! > feature allows up to 8 devices to share a common 2- wire bus. The device is optimized for use
-//! > in many industrial and commercial applica- tions where low power and low voltage operation are
+//! > in many industrial and commercial applications where low power and low voltage operation are
 //! > essential. The AT24C32/64 is available in space saving 8-pin JEDEC PDIP, 8-pin JEDEC SOIC,
 //! > 8-pin EIAJ SOIC, and 8-pin TSSOP (AT24C64) packages and is accessed via a 2-wire serial
 //! > interface.
@@ -19,7 +19,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! let i2cmux = I2CMuxComponent::new(i2c0, None).finalize(components::i2c_mux_component_static!());
 //!
 //! let at24c_buffer = static_init!([u8; 34], [0; 34]);
@@ -186,9 +186,9 @@ impl I2CClient for AT24C<'static> {
                     self.buffer.replace(buffer);
                     self.flash_client.map(|client| {
                         if status.is_err() {
-                            client.read_complete(client_page, hil::flash::Error::FlashError);
+                            client.read_complete(client_page, Err(hil::flash::Error::FlashError));
                         } else {
-                            client.read_complete(client_page, hil::flash::Error::CommandComplete);
+                            client.read_complete(client_page, Ok(()));
                         }
                     });
                 }
@@ -200,9 +200,9 @@ impl I2CClient for AT24C<'static> {
                 self.flash_client.map(|client| {
                     if let Some(client_page) = self.client_page.take() {
                         if status.is_err() {
-                            client.write_complete(client_page, hil::flash::Error::FlashError);
+                            client.write_complete(client_page, Err(hil::flash::Error::FlashError));
                         } else {
-                            client.write_complete(client_page, hil::flash::Error::CommandComplete);
+                            client.write_complete(client_page, Ok(()));
                         }
                     }
                 });
@@ -213,9 +213,9 @@ impl I2CClient for AT24C<'static> {
                 self.i2c.disable();
                 self.flash_client.map(move |client| {
                     if status.is_err() {
-                        client.erase_complete(hil::flash::Error::FlashError);
+                        client.erase_complete(Err(hil::flash::Error::FlashError));
                     } else {
-                        client.erase_complete(hil::flash::Error::CommandComplete);
+                        client.erase_complete(Ok(()));
                     }
                 });
             }
@@ -224,7 +224,7 @@ impl I2CClient for AT24C<'static> {
     }
 }
 
-impl<'a> hil::flash::Flash for AT24C<'a> {
+impl hil::flash::Flash for AT24C<'_> {
     type Page = EEPROMPage;
 
     fn read_page(

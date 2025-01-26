@@ -208,40 +208,6 @@ register_bitfields![u64,
     ]
 ];
 
-enum SetupRequest {
-    GetStatus = 0,
-    ClearFeature = 1,
-    SetFeature = 3,
-    SetAddress = 5,
-    GetDescriptor = 6,
-    SetDescriptor = 7,
-    GetConfiguration = 8,
-    SetConfiguration = 9,
-    GetInterface = 10,
-    SetInterface = 11,
-    SynchFrame = 12,
-    Unsupported = 100,
-}
-
-impl From<u32> for SetupRequest {
-    fn from(num: u32) -> Self {
-        match num {
-            0 => SetupRequest::GetStatus,
-            1 => SetupRequest::ClearFeature,
-            3 => SetupRequest::SetFeature,
-            5 => SetupRequest::SetAddress,
-            6 => SetupRequest::GetDescriptor,
-            7 => SetupRequest::SetDescriptor,
-            8 => SetupRequest::GetConfiguration,
-            9 => SetupRequest::SetConfiguration,
-            10 => SetupRequest::GetInterface,
-            11 => SetupRequest::SetInterface,
-            12 => SetupRequest::SynchFrame,
-            _ => SetupRequest::Unsupported,
-        }
-    }
-}
-
 /// State of the control endpoint (endpoint 0).
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub enum CtrlState {
@@ -884,7 +850,7 @@ impl<'a> Usb<'a> {
         }
 
         if irqs.is_set(INTR::PKT_RECEIVED) {
-            while !self.registers.usbstat.is_set(USBSTAT::RX_EMPTY) {
+            if !self.registers.usbstat.is_set(USBSTAT::RX_EMPTY) {
                 let rxinfo = self.registers.rxfifo.extract();
                 let buf = rxinfo.read(RXFIFO::BUFFER);
                 let size = rxinfo.read(RXFIFO::SIZE);
@@ -896,7 +862,6 @@ impl<'a> Usb<'a> {
                     0 => {
                         self.control_ep_receive(ep as usize, buf as usize, size, setup);
                         self.free_buffer(buf as usize);
-                        break;
                     }
                     1..=7 => {
                         let receive_size = match self.descriptors[ep as usize].state.get() {
@@ -908,7 +873,6 @@ impl<'a> Usb<'a> {
                         };
                         self.ep_receive(ep as usize, buf as usize, receive_size, setup);
                         self.free_buffer(buf as usize);
-                        break;
                     }
                     8 => unimplemented!("isochronous endpoint"),
                     _ => unimplemented!(),
@@ -952,8 +916,8 @@ impl<'a> Usb<'a> {
                         EndpointState::Disabled => unreachable!(),
                         EndpointState::Ctrl(_state) => unreachable!(),
                         EndpointState::Bulk(_in_state, _out_state) => {
-                            if buf_id.is_some() {
-                                self.copy_slice_out_to_hw(ep, buf_id.unwrap(), size)
+                            if let Some(buf) = buf_id {
+                                self.copy_slice_out_to_hw(ep, buf, size)
                             } else {
                                 panic!("No free bufs");
                             };
@@ -1037,7 +1001,7 @@ impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
                 );
 
                 self.set_state(State::Idle(Mode::Device {
-                    speed: speed,
+                    speed,
                     config: DeviceConfig::default(),
                 }))
             }

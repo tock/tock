@@ -9,6 +9,8 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 
+use core::ptr::{addr_of, addr_of_mut};
+
 use arty_e21_chip::chip::ArtyExxDefaultPeripherals;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
@@ -30,7 +32,8 @@ pub mod io;
 const NUM_PROCS: usize = 4;
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
+const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
+    capsules_system::process_policies::PanicFaultPolicy {};
 
 // Actual memory for holding the active process structures.
 static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
@@ -38,7 +41,8 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 
 // Reference to the chip for panic dumps.
 static mut CHIP: Option<&'static arty_e21_chip::chip::ArtyExx<ArtyExxDefaultPeripherals>> = None;
-static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
+static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
+    None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -90,7 +94,6 @@ impl KernelResources<arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeriphe
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type CredentialsCheckingPolicy = ();
     type Scheduler = PrioritySched;
     type SchedulerTimer = ();
     type WatchDog = ();
@@ -103,9 +106,6 @@ impl KernelResources<arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeriphe
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
-        &()
-    }
-    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -122,12 +122,15 @@ impl KernelResources<arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeriphe
     }
 }
 
-/// Main function.
-///
-/// This function is called from the arch crate after some very basic RISC-V
-/// and RAM setup.
-#[no_mangle]
-pub unsafe fn main() {
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+unsafe fn start() -> (
+    &'static kernel::Kernel,
+    ArtyE21,
+    &'static arty_e21_chip::chip::ArtyExx<'static, ArtyExxDefaultPeripherals<'static>>,
+) {
     let peripherals = static_init!(ArtyExxDefaultPeripherals, ArtyExxDefaultPeripherals::new());
     peripherals.init();
 
@@ -139,9 +142,8 @@ pub unsafe fn main() {
     chip.initialize();
 
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
-    let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
 
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
@@ -241,11 +243,11 @@ pub unsafe fn main() {
         .finalize(components::priority_component_static!());
 
     let artye21 = ArtyE21 {
-        console: console,
-        gpio: gpio,
-        alarm: alarm,
-        led: led,
-        button: button,
+        console,
+        gpio,
+        alarm,
+        led,
+        button,
         // ipc: kernel::ipc::IPC::new(board_kernel),
         scheduler,
     };
@@ -280,14 +282,14 @@ pub unsafe fn main() {
         board_kernel,
         chip,
         core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
         ),
         core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+            core::ptr::addr_of_mut!(_sappmem),
+            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut PROCESSES,
+        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_mgmt_cap,
     )
@@ -296,5 +298,19 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&artye21, chip, None::<&kernel::ipc::IPC<0>>, &main_loop_cap);
+    (board_kernel, artye21, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, board, chip) = start();
+    board_kernel.kernel_loop(
+        &board,
+        chip,
+        None::<&kernel::ipc::IPC<0>>,
+        &main_loop_capability,
+    );
 }

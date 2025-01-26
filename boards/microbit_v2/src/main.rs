@@ -12,6 +12,8 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use core::ptr::{addr_of, addr_of_mut};
+
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil::time::Counter;
@@ -63,7 +65,8 @@ pub mod io;
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
+const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
+    capsules_system::process_policies::PanicFaultPolicy {};
 
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
@@ -72,7 +75,8 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
     [None; NUM_PROCS];
 
 static mut CHIP: Option<&'static nrf52833::chip::NRF52<Nrf52833DefaultPeripherals>> = None;
-static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
+static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
+    None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -80,6 +84,12 @@ static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText>
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 // debug mode requires more stack space
 // pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
+
+type TemperatureDriver =
+    components::temperature::TemperatureComponentType<nrf52::temperature::Temp<'static>>;
+type RngDriver = components::rng::RngComponentType<nrf52833::trng::Trng<'static>>;
+type Ieee802154RawDriver =
+    components::ieee802154::Ieee802154RawComponentType<nrf52833::ieee802154_radio::Radio<'static>>;
 
 /// Supported drivers by the platform
 pub struct MicroBit {
@@ -91,6 +101,8 @@ pub struct MicroBit {
             nrf52::rtc::Rtc<'static>,
         >,
     >,
+    eui64: &'static capsules_extra::eui64::Eui64,
+    ieee802154: &'static Ieee802154RawDriver,
     console: &'static capsules_core::console::Console<'static>,
     gpio: &'static capsules_core::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
     led: &'static capsules_core::led::LedDriver<
@@ -106,13 +118,13 @@ pub struct MicroBit {
         25,
     >,
     button: &'static capsules_core::button::Button<'static, nrf52::gpio::GPIOPin<'static>>,
-    rng: &'static capsules_core::rng::RngDriver<'static>,
+    rng: &'static RngDriver,
     ninedof: &'static capsules_extra::ninedof::NineDof<'static>,
     lsm303agr: &'static capsules_extra::lsm303agr::Lsm303agrI2C<
         'static,
         capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, nrf52833::i2c::TWI<'static>>,
     >,
-    temperature: &'static capsules_extra::temperature::TemperatureSensor<'static>,
+    temperature: &'static TemperatureDriver,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     adc: &'static capsules_core::adc::AdcVirtualized<'static>,
     alarm: &'static capsules_core::alarm::AlarmDriver<
@@ -162,6 +174,8 @@ impl SyscallDriverLookup for MicroBit {
             capsules_extra::pwm::DRIVER_NUM => f(Some(self.pwm)),
             capsules_extra::app_flash_driver::DRIVER_NUM => f(Some(self.app_flash)),
             capsules_extra::sound_pressure::DRIVER_NUM => f(Some(self.sound_pressure)),
+            capsules_extra::eui64::DRIVER_NUM => f(Some(self.eui64)),
+            capsules_extra::ieee802154::DRIVER_NUM => f(Some(self.ieee802154)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -174,7 +188,6 @@ impl KernelResources<nrf52833::chip::NRF52<'static, Nrf52833DefaultPeripherals<'
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type CredentialsCheckingPolicy = ();
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = ();
@@ -187,9 +200,6 @@ impl KernelResources<nrf52833::chip::NRF52<'static, Nrf52833DefaultPeripherals<'
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
-        &()
-    }
-    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -217,9 +227,14 @@ unsafe fn start() -> (
 ) {
     nrf52833::init();
 
+    let ieee802154_ack_buf = static_init!(
+        [u8; nrf52833::ieee802154_radio::ACK_BUF_SIZE],
+        [0; nrf52833::ieee802154_radio::ACK_BUF_SIZE]
+    );
+    // Initialize chip peripheral drivers
     let nrf52833_peripherals = static_init!(
         Nrf52833DefaultPeripherals,
-        Nrf52833DefaultPeripherals::new()
+        Nrf52833DefaultPeripherals::new(ieee802154_ack_buf)
     );
 
     // set up circular peripheral dependencies
@@ -227,8 +242,25 @@ unsafe fn start() -> (
 
     let base_peripherals = &nrf52833_peripherals.nrf52;
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
 
+    //--------------------------------------------------------------------------
+    // RAW 802.15.4
+    //--------------------------------------------------------------------------
+
+    let device_id = (*addr_of!(nrf52833::ficr::FICR_INSTANCE)).id();
+
+    let eui64 = components::eui64::Eui64Component::new(u64::from_le_bytes(device_id))
+        .finalize(components::eui64_component_static!());
+
+    let ieee802154 = components::ieee802154::Ieee802154RawComponent::new(
+        board_kernel,
+        capsules_extra::ieee802154::DRIVER_NUM,
+        &nrf52833_peripherals.ieee802154_radio,
+    )
+    .finalize(components::ieee802154_raw_component_static!(
+        nrf52833::ieee802154_radio::Radio,
+    ));
     //--------------------------------------------------------------------------
     // CAPABILITIES
     //--------------------------------------------------------------------------
@@ -431,18 +463,18 @@ unsafe fn start() -> (
         capsules_core::rng::DRIVER_NUM,
         &base_peripherals.trng,
     )
-    .finalize(components::rng_component_static!());
+    .finalize(components::rng_component_static!(nrf52833::trng::Trng));
 
     //--------------------------------------------------------------------------
     // SENSORS
     //--------------------------------------------------------------------------
 
-    base_peripherals.twi0.configure(
+    base_peripherals.twi1.configure(
         nrf52833::pinmux::Pinmux::new(I2C_SCL_PIN as u32),
         nrf52833::pinmux::Pinmux::new(I2C_SDA_PIN as u32),
     );
 
-    let sensors_i2c_bus = components::i2c::I2CMuxComponent::new(&base_peripherals.twi0, None)
+    let sensors_i2c_bus = components::i2c::I2CMuxComponent::new(&base_peripherals.twi1, None)
         .finalize(components::i2c_mux_component_static!(
             nrf52833::i2c::TWI<'static>
         ));
@@ -485,7 +517,9 @@ unsafe fn start() -> (
         capsules_extra::temperature::DRIVER_NUM,
         &base_peripherals.temp,
     )
-    .finalize(components::temperature_component_static!());
+    .finalize(components::temperature_component_static!(
+        nrf52833::temperature::Temp
+    ));
 
     //--------------------------------------------------------------------------
     // ADC
@@ -541,7 +575,7 @@ unsafe fn start() -> (
         nrf52833::gpio::GPIOPin
     ));
 
-    let _ = &nrf52833_peripherals.gpio_port[LED_MICROPHONE_PIN].set_high_drive(true);
+    nrf52833_peripherals.gpio_port[LED_MICROPHONE_PIN].set_high_drive(true);
 
     let sound_pressure = components::sound_pressure::SoundPressureComponent::new(
         board_kernel,
@@ -701,11 +735,13 @@ unsafe fn start() -> (
     while !base_peripherals.clock.low_started() {}
     while !base_peripherals.clock.high_started() {}
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let microbit = MicroBit {
         ble_radio,
+        ieee802154,
+        eui64,
         console,
         gpio,
         button,
@@ -758,14 +794,14 @@ unsafe fn start() -> (
         board_kernel,
         chip,
         core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
         ),
         core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+            core::ptr::addr_of_mut!(_sappmem),
+            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut PROCESSES,
+        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_management_capability,
     )

@@ -9,6 +9,8 @@
 
 use crate::hil::time::{self, Frequency, Ticks};
 
+use core::num::NonZeroU32;
+
 /// Interface for the system scheduler timer.
 ///
 /// A system scheduler timer provides a countdown timer to enforce process
@@ -71,7 +73,7 @@ pub trait SchedulerTimer {
     /// peripheral, increments of 10ms are most accurate thanks to additional
     /// hardware support for this value. ARM SysTick supports intervals up to
     /// 400ms.
-    fn start(&self, us: u32);
+    fn start(&self, us: NonZeroU32);
 
     /// Reset the SchedulerTimer.
     ///
@@ -122,7 +124,7 @@ pub trait SchedulerTimer {
     /// called again after returning `None` without an intervening call to
     /// `start()`, the return value is unspecified and implementations may
     /// return whatever they like.
-    fn get_remaining_us(&self) -> Option<u32>;
+    fn get_remaining_us(&self) -> Option<NonZeroU32>;
 }
 
 /// A dummy `SchedulerTimer` implementation in which the timer never expires.
@@ -132,14 +134,14 @@ pub trait SchedulerTimer {
 impl SchedulerTimer for () {
     fn reset(&self) {}
 
-    fn start(&self, _: u32) {}
+    fn start(&self, _: NonZeroU32) {}
 
     fn disarm(&self) {}
 
     fn arm(&self) {}
 
-    fn get_remaining_us(&self) -> Option<u32> {
-        Some(10000) // chose arbitrary large value
+    fn get_remaining_us(&self) -> Option<NonZeroU32> {
+        NonZeroU32::new(10000) // choose arbitrary large value
     }
 }
 
@@ -169,13 +171,13 @@ impl<A: 'static + time::Alarm<'static>> SchedulerTimer for VirtualSchedulerTimer
         let _ = self.alarm.disarm();
     }
 
-    fn start(&self, us: u32) {
+    fn start(&self, us: NonZeroU32) {
         let tics = {
             // We need to convert from microseconds to native tics, which could overflow in 32-bit
             // arithmetic. So we convert to 64-bit. 64-bit division is an expensive subroutine, but
             // if `us` is a power of 10 the compiler will simplify it with the 1_000_000 divisor
             // instead.
-            let us = us as u64;
+            let us = us.get() as u64;
             let hertz = A::Frequency::frequency() as u64;
 
             (hertz * us / 1_000_000) as u32
@@ -193,7 +195,7 @@ impl<A: 'static + time::Alarm<'static>> SchedulerTimer for VirtualSchedulerTimer
         //self.alarm.disarm();
     }
 
-    fn get_remaining_us(&self) -> Option<u32> {
+    fn get_remaining_us(&self) -> Option<NonZeroU32> {
         // We need to convert from native tics to us, multiplication could overflow in 32-bit
         // arithmetic. So we convert to 64-bit.
 
@@ -211,11 +213,11 @@ impl<A: 'static + time::Alarm<'static>> SchedulerTimer for VirtualSchedulerTimer
         // However, if the alarm frequency is slow enough relative to the cpu frequency, it is
         // possible this will be evaluated while now() == get_alarm(), so we special case that
         // result where the alarm has fired but the subtraction has not overflowed
-        if diff >= A::Frequency::frequency() as u64 || diff == 0 {
+        if diff >= A::Frequency::frequency() as u64 {
             None
         } else {
             let hertz = A::Frequency::frequency() as u64;
-            Some(((diff * 1_000_000) / hertz) as u32)
+            NonZeroU32::new(((diff * 1_000_000) / hertz) as u32)
         }
     }
 }

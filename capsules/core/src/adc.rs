@@ -25,7 +25,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! let adc_channels = static_init!(
@@ -40,13 +40,13 @@
 //!     ]
 //! );
 //! let adc = static_init!(
-//!     capsules::adc::AdcDedicated<'static, sam4l::adc::Adc>,
-//!     capsules::adc::AdcDedicated::new(
+//!     capsules_core::adc::AdcDedicated<'static, sam4l::adc::Adc>,
+//!     capsules_core::adc::AdcDedicated::new(
 //!         &mut sam4l::adc::ADC0,
 //!         adc_channels,
-//!         &mut capsules::adc::ADC_BUFFER1,
-//!         &mut capsules::adc::ADC_BUFFER2,
-//!         &mut capsules::adc::ADC_BUFFER3
+//!         &mut capsules_core::adc::ADC_BUFFER1,
+//!         &mut capsules_core::adc::ADC_BUFFER2,
+//!         &mut capsules_core::adc::ADC_BUFFER3
 //!     )
 //! );
 //! sam4l::adc::ADC0.set_client(adc);
@@ -54,7 +54,6 @@
 
 use core::cell::Cell;
 use core::cmp;
-use core::convert::TryFrom;
 
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
@@ -69,6 +68,7 @@ use crate::virtualizers::virtual_adc::Operation;
 pub const DRIVER_NUM: usize = driver::NUM::Adc as usize;
 
 /// Multiplexed ADC syscall driver, used by applications and capsules.
+///
 /// Virtualized, and can be use by multiple applications at the same time;
 /// requests are queued. Does not support continuous or high-speed sampling.
 pub struct AdcVirtualized<'a> {
@@ -78,6 +78,7 @@ pub struct AdcVirtualized<'a> {
 }
 
 /// ADC syscall driver, used by applications to interact with ADC.
+///
 /// Not currently virtualized: does not share the ADC with other capsules
 /// and only one application can use it at a time. Supports continuous and
 /// high speed sampling.
@@ -149,7 +150,8 @@ impl Default for AppSys {
         }
     }
 }
-/// Buffers to use for DMA transfers
+/// Buffers to use for DMA transfers.
+///
 /// The size is chosen somewhat arbitrarily, but has been tested. At 175000 Hz,
 /// buffers need to be swapped every 70 us and copied over before the next
 /// swap. In testing, it seems to keep up fine.
@@ -172,8 +174,8 @@ impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> AdcDedicated<'a, A> 
     ) -> AdcDedicated<'a, A> {
         AdcDedicated {
             // ADC driver
-            adc: adc,
-            channels: channels,
+            adc,
+            channels,
 
             // ADC state
             active: Cell::new(false),
@@ -643,7 +645,7 @@ impl<'a> AdcVirtualized<'a> {
         grant: Grant<AppSys, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> AdcVirtualized<'a> {
         AdcVirtualized {
-            drivers: drivers,
+            drivers,
             apps: grant,
             current_process: OptionalCell::empty(),
         }
@@ -1186,10 +1188,10 @@ impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> SyscallDriver for Ad
             return CommandReturn::failure(ErrorCode::NOMEM);
         }
         match command_num {
-            // check if present
+            // Driver existence check
             // TODO(Tock 3.0): TRD104 specifies that Command 0 should return Success, not SuccessU32,
             // but this driver is unchanged since it has been stabilized. It will be brought into
-            // compliance as part of the next major release of Tock.
+            // compliance as part of the next major release of Tock. See #3375.
             0 => CommandReturn::success_u32(self.channels.len() as u32),
 
             // Single sample on channel
@@ -1326,7 +1328,7 @@ impl SyscallDriver for AdcVirtualized<'_> {
     }
 }
 
-impl<'a> hil::adc::Client for AdcVirtualized<'a> {
+impl hil::adc::Client for AdcVirtualized<'_> {
     fn sample_ready(&self, sample: u16) {
         self.current_process.take().map(|processid| {
             let _ = self.apps.enter(processid, |app, upcalls| {

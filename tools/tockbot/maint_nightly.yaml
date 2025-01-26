@@ -1,0 +1,56 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2024.
+
+_anchors:
+  core_wg_users: &core_wg_users
+    - hudson-ayers
+    - bradjc
+    - brghena
+    - phil-levis
+    - alevy
+    - ppannuto
+    - lschuermann
+    - jrvanwhy
+
+  active_reviewers: &active_reviewers
+    - alexandruradovici
+    - hudson-ayers
+    - bradjc
+    - brghena
+    - alevy
+    - lschuermann
+    - jrvanwhy
+
+repo:
+  owner: tock
+  name: tock
+
+# Ignore all PRs and issues that have the tockbot-ignore label:
+ignored_labels:
+  - tockbot-ignore
+
+tasks:
+  - type: stale_pr_assign
+    label: Assign Active Reviewers to Stale PRs
+
+    # For how long the PR must have not received any comments:
+    # *** Removed entirely so PRs are assigned immediately
+    #staleness_time: 259200 # 60 * 60 * 24 * 3 days
+
+    # Any such PRs must not already have a review by a core team
+    # member (i.e., have been triaged)
+    # *** Removed entirely so PRs are assigned even if a review exists
+    #no_reviews_by: *core_wg_users
+
+    # Assign one active reviewer at random:
+    assignee_cnt: 1
+    assignee_candidates: *active_reviewers
+
+    # Ignore PRs that are marked as "blocked" or "blocked-upstream". Those
+    # should not necessarily be assigned a reviewer, but be staged for
+    # "check-in" in a core-WG call after being stale for some time (e.g., a
+    # month).
+    ignored_labels:
+      - blocked
+      - blocked-upstream

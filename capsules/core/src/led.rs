@@ -16,7 +16,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! let led_pins = static_init!(
@@ -25,8 +25,8 @@
 //!      (&sam4l::gpio::PA[15], kernel::hil::gpio::ActivationMode::ActiveLow),   // Green
 //!      (&sam4l::gpio::PA[14], kernel::hil::gpio::ActivationMode::ActiveLow)]); // Blue
 //! let led = static_init!(
-//!     capsules::led::LED<'static, sam4l::gpio::GPIOPin>,
-//!     capsules::led::LED::new(led_pins));
+//!     capsules_core::led::LED<'static, sam4l::gpio::GPIOPin>,
+//!     capsules_core::led::LED::new(led_pins));
 //! ```
 //!
 //! Syscall Interface
@@ -76,7 +76,7 @@ impl<'a, L: led::Led, const NUM_LEDS: usize> LedDriver<'a, L, NUM_LEDS> {
             led.off();
         }
 
-        Self { leds: leds }
+        Self { leds }
     }
 }
 
@@ -98,7 +98,7 @@ impl<L: led::Led, const NUM_LEDS: usize> SyscallDriver for LedDriver<'_, L, NUM_
             // get number of LEDs
             // TODO(Tock 3.0): TRD104 specifies that Command 0 should return Success, not SuccessU32,
             // but this driver is unchanged since it has been stabilized. It will be brought into
-            // compliance as part of the next major release of Tock.
+            // compliance as part of the next major release of Tock. See #3375.
             0 => CommandReturn::success_u32(NUM_LEDS as u32),
 
             // on

@@ -7,7 +7,7 @@ name = "stm32f429idiscovery"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
-build = "build.rs"
+build = "../build.rs"
 
 [dependencies]
 components = { path = "../components" }
@@ -17,3 +17,10 @@ stm32f429zi = { path = "../../chips/stm32f429zi" }
 
 capsules-core = { path = "../../capsules/core" }
 capsules-extra = { path = "../../capsules/extra" }
+capsules-system = { path = "../../capsules/system" }
+
+[build-dependencies]
+tock_build_scripts = { path = "../build_scripts" }
+
+[lints]
+workspace = true

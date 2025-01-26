@@ -13,7 +13,7 @@
 //! the USBC), as well as a `Grant` for managing application requests.  For
 //! example:
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! // Configure the USB controller
@@ -59,8 +59,8 @@ where
         apps: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> Self {
         UsbSyscallDriver {
-            usbc_client: usbc_client,
-            apps: apps,
+            usbc_client,
+            apps,
             serving_app: OptionalCell::empty(),
         }
     }

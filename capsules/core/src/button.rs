@@ -11,15 +11,15 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! let button_pins = static_init!(
 //!     [&'static sam4l::gpio::GPIOPin; 1],
 //!     [&sam4l::gpio::PA[16]]);
 //! let button = static_init!(
-//!     capsules::button::Button<'static>,
-//!     capsules::button::Button::new(button_pins, board_kernel.create_grant(&grant_cap)));
+//!     capsules_core::button::Button<'static>,
+//!     capsules_core::button::Button::new(button_pins, board_kernel.create_grant(&grant_cap)));
 //! for btn in button_pins.iter() {
 //!     btn.set_client(button);
 //! }
@@ -36,7 +36,7 @@
 //!
 //! #### `command_num`
 //!
-//! - `0`: Driver check and get number of buttons on the board.
+//! - `0`: Driver existence check and get number of buttons on the board.
 //! - `1`: Enable interrupts for a given button. This will enable both press
 //!   and depress events.
 //! - `2`: Disable interrupts for a button. No affect or reliance on
@@ -67,14 +67,17 @@ use kernel::{ErrorCode, ProcessId};
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Button as usize;
 
-/// This capsule keeps track for each app of which buttons it has a registered
-/// interrupt for. `SubscribeMap` is a bit array where bits are set to one if
+/// Keeps track which buttons each app has a registered interrupt for.
+///
+/// `SubscribeMap` is a bit array where bits are set to one if
 /// that app has an interrupt registered for that button.
 pub type SubscribeMap = u32;
 
-/// This capsule keeps track for each app of which buttons it has a registered
-/// interrupt for. `SubscribeMap` is a bit array where bits are set to one if
-/// that app has an interrupt registered for that button.
+/// Keeps track for each app of which buttons it has a registered
+/// interrupt for.
+///
+/// `SubscribeMap` is a bit array where bits are set to one if that
+/// app has an interrupt registered for that button.
 #[derive(Default)]
 pub struct App {
     subscribe_map: u32,
@@ -106,10 +109,7 @@ impl<'a, P: gpio::InterruptPin<'a>> Button<'a, P> {
             pin.set_floating_state(floating_state);
         }
 
-        Self {
-            pins: pins,
-            apps: grant,
-        }
+        Self { pins, apps: grant }
     }
 
     fn get_button_state(&self, pin_num: u32) -> gpio::ActivationState {
@@ -138,7 +138,7 @@ impl<'a, P: gpio::InterruptPin<'a>> SyscallDriver for Button<'a, P> {
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Driver check and get number of buttons on the board.
+    /// - `0`: Driver existence check and get number of buttons on the board.
     /// - `1`: Enable interrupts for a given button. This will enable both press
     ///   and depress events.
     /// - `2`: Disable interrupts for a button. No affect or reliance on
@@ -156,7 +156,7 @@ impl<'a, P: gpio::InterruptPin<'a>> SyscallDriver for Button<'a, P> {
             // return button count
             // TODO(Tock 3.0): TRD104 specifies that Command 0 should return Success, not SuccessU32,
             // but this driver is unchanged since it has been stabilized. It will be brought into
-            // compliance as part of the next major release of Tock.
+            // compliance as part of the next major release of Tock. See #3375.
             0 => CommandReturn::success_u32(pins.len() as u32),
 
             // enable interrupts for a button

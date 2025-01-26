@@ -9,7 +9,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! let mux_i2c = components::i2c::I2CMuxComponent::new(&earlgrey::i2c::I2C)
 //!     .finalize(components::i2c_mux_component_helper!());
 //!
@@ -68,8 +68,8 @@ enum_from_primitive! {
 #[derive(Default)]
 pub struct App {}
 
-pub struct Mlx90614SMBus<'a> {
-    smbus_temp: &'a dyn i2c::SMBusDevice,
+pub struct Mlx90614SMBus<'a, S: i2c::SMBusDevice> {
+    smbus_temp: &'a S,
     temperature_client: OptionalCell<&'a dyn sensors::TemperatureClient>,
     buffer: TakeCell<'static, [u8]>,
     state: Cell<State>,
@@ -77,12 +77,12 @@ pub struct Mlx90614SMBus<'a> {
     owning_process: OptionalCell<ProcessId>,
 }
 
-impl<'a> Mlx90614SMBus<'_> {
+impl<'a, S: i2c::SMBusDevice> Mlx90614SMBus<'a, S> {
     pub fn new(
-        smbus_temp: &'a dyn i2c::SMBusDevice,
+        smbus_temp: &'a S,
         buffer: &'static mut [u8],
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
-    ) -> Mlx90614SMBus<'a> {
+    ) -> Mlx90614SMBus<'a, S> {
         Mlx90614SMBus {
             smbus_temp,
             temperature_client: OptionalCell::empty(),
@@ -119,7 +119,7 @@ impl<'a> Mlx90614SMBus<'_> {
     }
 }
 
-impl<'a> i2c::I2CClient for Mlx90614SMBus<'a> {
+impl<S: i2c::SMBusDevice> i2c::I2CClient for Mlx90614SMBus<'_, S> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         match self.state.get() {
             State::Idle => {
@@ -170,7 +170,7 @@ impl<'a> i2c::I2CClient for Mlx90614SMBus<'a> {
     }
 }
 
-impl<'a> SyscallDriver for Mlx90614SMBus<'a> {
+impl<S: i2c::SMBusDevice> SyscallDriver for Mlx90614SMBus<'_, S> {
     fn command(
         &self,
         command_num: usize,
@@ -235,7 +235,7 @@ impl<'a> SyscallDriver for Mlx90614SMBus<'a> {
     }
 }
 
-impl<'a> sensors::TemperatureDriver<'a> for Mlx90614SMBus<'a> {
+impl<'a, S: i2c::SMBusDevice> sensors::TemperatureDriver<'a> for Mlx90614SMBus<'a, S> {
     fn set_client(&self, temperature_client: &'a dyn sensors::TemperatureClient) {
         self.temperature_client.replace(temperature_client);
     }

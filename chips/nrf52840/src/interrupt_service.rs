@@ -6,6 +6,7 @@ use kernel::hil::time::Alarm;
 use nrf52::chip::Nrf52DefaultPeripherals;
 
 /// This struct, when initialized, instantiates all peripheral drivers for the nrf52840.
+///
 /// If a board wishes to use only a subset of these peripherals, this
 /// should not be used or imported, and a modified version should be
 /// constructed manually in main.rs.
@@ -17,7 +18,7 @@ pub struct Nrf52840DefaultPeripherals<'a> {
     pub gpio_port: crate::gpio::Port<'a, { crate::gpio::NUM_PINS }>,
 }
 
-impl<'a> Nrf52840DefaultPeripherals<'a> {
+impl Nrf52840DefaultPeripherals<'_> {
     pub unsafe fn new(
         ieee802154_radio_ack_buf: &'static mut [u8; crate::ieee802154_radio::ACK_BUF_SIZE],
     ) -> Self {
@@ -34,10 +35,11 @@ impl<'a> Nrf52840DefaultPeripherals<'a> {
         self.nrf52.timer0.set_alarm_client(&self.ieee802154_radio);
         self.nrf52.pwr_clk.set_usb_client(&self.usbd);
         self.usbd.set_power_ref(&self.nrf52.pwr_clk);
+        kernel::deferred_call::DeferredCallClient::register(&self.ieee802154_radio);
         self.nrf52.init();
     }
 }
-impl<'a> kernel::platform::chip::InterruptService for Nrf52840DefaultPeripherals<'a> {
+impl kernel::platform::chip::InterruptService for Nrf52840DefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             crate::peripheral_interrupts::USBD => self.usbd.handle_interrupt(),

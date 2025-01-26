@@ -4,8 +4,8 @@
 
 use core::fmt::Write;
 use core::panic::PanicInfo;
-
-use cortexm4;
+use core::ptr::addr_of;
+use core::ptr::addr_of_mut;
 
 use kernel::debug;
 use kernel::debug::IoWrite;
@@ -13,7 +13,7 @@ use kernel::hil::led;
 use kernel::hil::uart;
 use kernel::hil::uart::Configure;
 
-use stm32f401cc;
+use stm32f401cc::chip_specs::Stm32f401Specs;
 use stm32f401cc::gpio::PinId;
 
 use crate::CHIP;
@@ -46,7 +46,9 @@ impl Write for Writer {
 impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) -> usize {
         let rcc = stm32f401cc::rcc::Rcc::new();
-        let uart = stm32f401cc::usart::Usart::new_usart2(&rcc);
+        let clocks: stm32f401cc::clocks::Clocks<Stm32f401Specs> =
+            stm32f401cc::clocks::Clocks::new(&rcc);
+        let uart = stm32f401cc::usart::Usart::new_usart2(&clocks);
 
         if !self.initialized {
             self.initialized = true;
@@ -70,26 +72,28 @@ impl IoWrite for Writer {
 /// Panic handler.
 #[no_mangle]
 #[panic_handler]
-pub unsafe extern "C" fn panic_fmt(info: &PanicInfo) -> ! {
+pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
     // On-board LED C13 is connected to PC13
     // Have to reinitialize several peripherals because otherwise can't access them here.
     let rcc = stm32f401cc::rcc::Rcc::new();
-    let syscfg = stm32f401cc::syscfg::Syscfg::new(&rcc);
+    let clocks: stm32f401cc::clocks::Clocks<Stm32f401Specs> =
+        stm32f401cc::clocks::Clocks::new(&rcc);
+    let syscfg = stm32f401cc::syscfg::Syscfg::new(&clocks);
     let exti = stm32f401cc::exti::Exti::new(&syscfg);
     let pin = stm32f401cc::gpio::Pin::new(PinId::PC13, &exti);
-    let gpio_ports = stm32f401cc::gpio::GpioPorts::new(&rcc, &exti);
+    let gpio_ports = stm32f401cc::gpio::GpioPorts::new(&clocks, &exti);
     pin.set_ports_ref(&gpio_ports);
     let led = &mut led::LedLow::new(&pin);
 
-    let writer = &mut WRITER;
+    let writer = &mut *addr_of_mut!(WRITER);
 
     debug::panic(
         &mut [led],
         writer,
         info,
         &cortexm4::support::nop,
-        &PROCESSES,
-        &CHIP,
-        &PROCESS_PRINTER,
+        &*addr_of!(PROCESSES),
+        &*addr_of!(CHIP),
+        &*addr_of!(PROCESS_PRINTER),
     )
 }

@@ -5,18 +5,19 @@
 //! High-level setup and interrupt mapping for the chip.
 
 use core::fmt::Write;
+use core::ptr::addr_of;
 
-use kernel;
 use kernel::platform::chip::{Chip, InterruptService};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::StaticRef;
 
 use rv32i::csr::{self, mcause, mtvec::mtvec, CSR};
-use rv32i::pmp::PMP;
+use rv32i::pmp::{simple::SimplePMP, PMPUserMPU};
 use rv32i::syscall::SysCall;
 
 use crate::intc::{Intc, IntcRegisters};
 use crate::interrupts;
+use crate::rng;
 use crate::sysreg;
 use crate::timg;
 
@@ -27,7 +28,7 @@ pub static mut INTC: Intc = Intc::new(INTC_BASE);
 
 pub struct Esp32C3<'a, I: InterruptService + 'a> {
     userspace_kernel_boundary: SysCall,
-    pub pmp: PMP<8>,
+    pub pmp: PMPUserMPU<8, SimplePMP<16>>,
     intc: &'a Intc,
     pic_interrupt_service: &'a I,
 }
@@ -39,9 +40,10 @@ pub struct Esp32C3DefaultPeripherals<'a> {
     pub gpio: esp32::gpio::Port<'a>,
     pub rtc_cntl: esp32::rtc_cntl::RtcCntl,
     pub sysreg: sysreg::SysReg,
+    pub rng: rng::Rng<'a>,
 }
 
-impl<'a> Esp32C3DefaultPeripherals<'a> {
+impl Esp32C3DefaultPeripherals<'_> {
     pub fn new() -> Self {
         Self {
             uart0: esp32::uart::Uart::new(esp32::uart::UART0_BASE),
@@ -50,25 +52,25 @@ impl<'a> Esp32C3DefaultPeripherals<'a> {
             gpio: esp32::gpio::Port::new(),
             rtc_cntl: esp32::rtc_cntl::RtcCntl::new(esp32::rtc_cntl::RTC_CNTL_BASE),
             sysreg: sysreg::SysReg::new(),
+            rng: rng::Rng::new(),
         }
+    }
+
+    pub fn init(&'static self) {
+        kernel::deferred_call::DeferredCallClient::register(&self.rng);
     }
 }
 
-impl<'a> InterruptService for Esp32C3DefaultPeripherals<'a> {
+impl InterruptService for Esp32C3DefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
-            interrupts::IRQ_UART0 => {
-                self.uart0.handle_interrupt();
-            }
-            interrupts::IRQ_TIMER1 => {
-                self.timg0.handle_interrupt();
-            }
-            interrupts::IRQ_TIMER2 => {
-                self.timg1.handle_interrupt();
-            }
-            interrupts::IRQ_GPIO | interrupts::IRQ_GPIO_NMI => {
-                self.gpio.handle_interrupt();
-            }
+            interrupts::IRQ_UART0 => self.uart0.handle_interrupt(),
+
+            interrupts::IRQ_TIMER1 => self.timg0.handle_interrupt(),
+            interrupts::IRQ_TIMER2 => self.timg1.handle_interrupt(),
+
+            interrupts::IRQ_GPIO | interrupts::IRQ_GPIO_NMI => self.gpio.handle_interrupt(),
+
             _ => return false,
         }
         true
@@ -79,8 +81,8 @@ impl<'a, I: InterruptService + 'a> Esp32C3<'a, I> {
     pub unsafe fn new(pic_interrupt_service: &'a I) -> Self {
         Self {
             userspace_kernel_boundary: SysCall::new(),
-            pmp: PMP::new(),
-            intc: &INTC,
+            pmp: PMPUserMPU::new(SimplePMP::new().unwrap()),
+            intc: &*addr_of!(INTC),
             pic_interrupt_service,
         }
     }
@@ -107,7 +109,7 @@ impl<'a, I: InterruptService + 'a> Esp32C3<'a, I> {
 }
 
 impl<'a, I: InterruptService + 'a> Chip for Esp32C3<'a, I> {
-    type MPU = PMP<8>;
+    type MPU = PMPUserMPU<8, SimplePMP<16>>;
     type UserspaceKernelBoundary = SysCall;
 
     fn service_pending_interrupts(&self) {
@@ -228,13 +230,13 @@ unsafe fn handle_interrupt(_intr: mcause::Interrupt) {
     // Once claimed this interrupt won't fire until it's completed
     // NOTE: The interrupt is no longer pending in the PLIC
     loop {
-        let interrupt = INTC.next_pending();
+        let interrupt = (*addr_of!(INTC)).next_pending();
 
         match interrupt {
             Some(irq) => {
                 // Safe as interrupts are disabled
-                INTC.save_interrupt(irq);
-                INTC.disable(irq);
+                (*addr_of!(INTC)).save_interrupt(irq);
+                (*addr_of!(INTC)).disable(irq);
             }
             None => {
                 // Enable generic interrupts
@@ -262,6 +264,7 @@ pub unsafe extern "C" fn start_trap_rust() {
 }
 
 /// Function that gets called if an interrupt occurs while an app was running.
+///
 /// mcause is passed in, and this function should correctly handle disabling the
 /// interrupt that fired so that it does not trigger again.
 #[export_name = "_disable_interrupt_trap_rust_from_app"]
@@ -286,7 +289,7 @@ pub unsafe fn configure_trap_handler() {
 // Mock implementation for crate tests that does not include the section
 // specifier, as the test will not use our linker script, and the host
 // compilation environment may not allow the section name.
-#[cfg(not(any(target_arch = "riscv32", target_os = "none")))]
+#[cfg(not(any(doc, all(target_arch = "riscv32", target_os = "none"))))]
 pub extern "C" fn _start_trap_vectored() {
     use core::hint::unreachable_unchecked;
     unsafe {
@@ -294,50 +297,49 @@ pub extern "C" fn _start_trap_vectored() {
     }
 }
 
-#[cfg(all(target_arch = "riscv32", target_os = "none"))]
-#[link_section = ".riscv.trap_vectored"]
-#[export_name = "_start_trap_vectored"]
-#[naked]
-pub extern "C" fn _start_trap_vectored() -> ! {
-    use core::arch::asm;
-    unsafe {
-        // Below are 32 (non-compressed) jumps to cover the entire possible
-        // range of vectored traps.
-        asm!(
-            "
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-            j _start_trap
-        ",
-            options(noreturn)
-        );
-    }
+#[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
+extern "C" {
+    pub fn _start_trap_vectored();
 }
+
+#[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
+// Below are 32 (non-compressed) jumps to cover the entire possible
+// range of vectored traps.
+core::arch::global_asm!(
+    "
+            .section .riscv.trap_vectored, \"ax\"
+            .globl _start_trap_vectored
+          _start_trap_vectored:
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+            j _start_trap
+        "
+);

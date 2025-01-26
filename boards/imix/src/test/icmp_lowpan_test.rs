@@ -30,6 +30,7 @@ use kernel::ErrorCode;
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use core::cell::Cell;
+use core::ptr::addr_of_mut;
 use kernel::capabilities::NetworkCapabilityCreationCapability;
 use kernel::create_capability;
 use kernel::debug;
@@ -67,8 +68,18 @@ pub struct LowpanICMPTest<'a, A: time::Alarm<'a>> {
     net_cap: &'static NetworkCapability,
 }
 
+type Rf233 = capsules_extra::rf233::RF233<
+    'static,
+    capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice<
+        'static,
+        sam4l::spi::SpiHw<'static>,
+    >,
+>;
+type Ieee802154MacDevice =
+    components::ieee802154::Ieee802154ComponentMacDeviceType<Rf233, sam4l::aes::Aes<'static>>;
+
 pub unsafe fn run(
-    mux_mac: &'static capsules_extra::ieee802154::virtual_mac::MuxMac<'static>,
+    mux_mac: &'static capsules_extra::ieee802154::virtual_mac::MuxMac<'static, Ieee802154MacDevice>,
     mux_alarm: &'static MuxAlarm<'static, sam4l::ast::Ast>,
 ) {
     let create_cap = create_capability!(NetworkCapabilityCreationCapability);
@@ -81,7 +92,7 @@ pub unsafe fn run(
         IpVisibilityCapability::new(&create_cap)
     );
     let radio_mac = static_init!(
-        capsules_extra::ieee802154::virtual_mac::MacUser<'static>,
+        capsules_extra::ieee802154::virtual_mac::MacUser<'static, Ieee802154MacDevice>,
         capsules_extra::ieee802154::virtual_mac::MacUser::new(mux_mac)
     );
     mux_mac.add_user(radio_mac);
@@ -115,7 +126,7 @@ pub unsafe fn run(
 
     let ip_pyld: IPPayload = IPPayload {
         header: TransportHeader::ICMP(icmp_hdr),
-        payload: &mut ICMP_PAYLOAD,
+        payload: &mut *addr_of_mut!(ICMP_PAYLOAD),
     };
 
     let ip6_dg = static_init!(IP6Packet<'static>, IP6Packet::new(ip_pyld));
@@ -125,7 +136,7 @@ pub unsafe fn run(
         IP6SendStruct::new(
             ip6_dg,
             ipsender_virtual_alarm,
-            &mut RF233_BUF,
+            &mut *addr_of_mut!(RF233_BUF),
             sixlowpan_tx,
             radio_mac,
             DST_MAC_ADDR,
@@ -191,10 +202,10 @@ impl<'a, A: time::Alarm<'a>> LowpanICMPTest<'a, A> {
         net_cap: &'static NetworkCapability,
     ) -> LowpanICMPTest<'a, A> {
         LowpanICMPTest {
-            alarm: alarm,
+            alarm,
             test_counter: Cell::new(0),
-            icmp_sender: icmp_sender,
-            net_cap: net_cap,
+            icmp_sender,
+            net_cap,
         }
     }
 
@@ -243,8 +254,12 @@ impl<'a, A: time::Alarm<'a>> LowpanICMPTest<'a, A> {
     fn send_next(&self) {
         let icmp_hdr = ICMP6Header::new(ICMP6Type::Type128); // Echo Request
         let _ = unsafe {
-            self.icmp_sender
-                .send(DST_ADDR, icmp_hdr, &mut ICMP_PAYLOAD, self.net_cap)
+            self.icmp_sender.send(
+                DST_ADDR,
+                icmp_hdr,
+                &mut *addr_of_mut!(ICMP_PAYLOAD),
+                self.net_cap,
+            )
         };
     }
 }

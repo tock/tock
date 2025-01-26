@@ -63,7 +63,7 @@ pub struct AdcMuxComponent<A: 'static + adc::Adc<'static>> {
 
 impl<A: 'static + adc::Adc<'static>> AdcMuxComponent<A> {
     pub fn new(adc: &'static A) -> Self {
-        AdcMuxComponent { adc: adc }
+        AdcMuxComponent { adc }
     }
 }
 
@@ -89,7 +89,7 @@ impl<A: 'static + adc::Adc<'static>> AdcComponent<A> {
     pub fn new(mux: &'static MuxAdc<'static, A>, channel: A::Channel) -> Self {
         AdcComponent {
             adc_mux: mux,
-            channel: channel,
+            channel,
         }
     }
 }
@@ -115,8 +115,8 @@ pub struct AdcVirtualComponent {
 impl AdcVirtualComponent {
     pub fn new(board_kernel: &'static kernel::Kernel, driver_num: usize) -> AdcVirtualComponent {
         AdcVirtualComponent {
-            board_kernel: board_kernel,
-            driver_num: driver_num,
+            board_kernel,
+            driver_num,
         }
     }
 }
@@ -146,6 +146,8 @@ impl Component for AdcVirtualComponent {
         adc
     }
 }
+
+pub type AdcDedicatedComponentType<A> = capsules_core::adc::AdcDedicated<'static, A>;
 
 pub struct AdcDedicatedComponent<
     A: kernel::hil::adc::Adc<'static> + kernel::hil::adc::AdcHighSpeed<'static> + 'static,

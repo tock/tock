@@ -60,7 +60,7 @@ impl<'a, T: Time> ReadOnlyStateDriver<'a, T> {
     }
 }
 
-impl<'a, T: Time> ContextSwitchCallback for ReadOnlyStateDriver<'a, T> {
+impl<T: Time> ContextSwitchCallback for ReadOnlyStateDriver<'_, T> {
     fn context_switch_hook(&self, process: &dyn process::Process) {
         let processid = process.processid();
         let pending_tasks = process.pending_tasks();
@@ -88,7 +88,7 @@ impl<'a, T: Time> ContextSwitchCallback for ReadOnlyStateDriver<'a, T> {
     }
 }
 
-impl<'a, T: Time> SyscallDriver for ReadOnlyStateDriver<'a, T> {
+impl<T: Time> SyscallDriver for ReadOnlyStateDriver<'_, T> {
     /// Specify memory regions to be used.
     ///
     /// ### `allow_num`
@@ -106,7 +106,7 @@ impl<'a, T: Time> SyscallDriver for ReadOnlyStateDriver<'a, T> {
                 core::mem::swap(&mut data.mem_region, &mut slice);
             });
             match res {
-                Ok(_) => Ok(slice),
+                Ok(()) => Ok(slice),
                 Err(e) => Err((slice, e.into())),
             }
         } else {
@@ -118,7 +118,8 @@ impl<'a, T: Time> SyscallDriver for ReadOnlyStateDriver<'a, T> {
     ///
     /// ### `command_num`
     ///
-    /// - `0`: get version
+    /// - `0`: Driver existence check.
+    /// - `1`: Get version.
     fn command(
         &self,
         command_number: usize,
@@ -127,8 +128,11 @@ impl<'a, T: Time> SyscallDriver for ReadOnlyStateDriver<'a, T> {
         _processid: ProcessId,
     ) -> CommandReturn {
         match command_number {
-            // get version
-            0 => CommandReturn::success_u32(VERSION),
+            // Check existence
+            0 => CommandReturn::success(),
+
+            // Get version
+            1 => CommandReturn::success_u32(VERSION),
 
             // default
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),

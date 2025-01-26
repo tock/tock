@@ -36,10 +36,10 @@ pub struct I2c<'a> {
     master_client: OptionalCell<&'a dyn i2c::I2CHwMasterClient>,
 }
 
-impl<'a> I2c<'a> {
+impl I2c<'_> {
     pub fn new(registers: StaticRef<UsciBRegisters>) -> Self {
         Self {
-            registers: registers,
+            registers,
             mode: Cell::new(OperatingMode::Unconfigured),
             read_len: Cell::new(0),
             write_len: Cell::new(0),

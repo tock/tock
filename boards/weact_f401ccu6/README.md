@@ -34,8 +34,11 @@ ELF image with the apps included.
 
 ```bash
 $ arm-none-eabi-objcopy  \
-    --update-section .apps=../../../libtock-c/examples/blink/build/cortex-m4/cortex-m4.tbf \
+    --set-section-flags .apps=LOAD,ALLOC \
     ../../target/thumbv7em-none-eabihf/release/weact-f401ccu6.elf \
+    ../../target/thumbv7em-none-eabihf/release/weact-f401ccu6-app.elf
+$ arm-none-eabi-objcopy  \
+    --update-section .apps=../../../libtock-c/examples/blink/build/cortex-m4/cortex-m4.tbf \
     ../../target/thumbv7em-none-eabihf/release/weact-f401ccu6-app.elf
 ```
 

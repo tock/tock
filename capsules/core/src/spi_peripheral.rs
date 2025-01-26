@@ -74,7 +74,7 @@ impl<'a, S: SpiSlaveDevice<'a>> SpiPeripheral<'a, S> {
         >,
     ) -> SpiPeripheral<'a, S> {
         SpiPeripheral {
-            spi_slave: spi_slave,
+            spi_slave,
             busy: Cell::new(false),
             kernel_len: Cell::new(0),
             kernel_read: TakeCell::empty(),
@@ -84,7 +84,7 @@ impl<'a, S: SpiSlaveDevice<'a>> SpiPeripheral<'a, S> {
         }
     }
 
-    pub fn config_buffers(&mut self, read: &'static mut [u8], write: &'static mut [u8]) {
+    pub fn config_buffers(&self, read: &'static mut [u8], write: &'static mut [u8]) {
         let len = cmp::min(read.len(), write.len());
         self.kernel_len.set(len);
         self.kernel_read.replace(read);
@@ -132,7 +132,7 @@ impl<'a, S: SpiSlaveDevice<'a>> SyscallDriver for SpiPeripheral<'a, S> {
     ///
     /// - allow_num 0: Provides a buffer to transmit
 
-    /// - 0: check if present
+    /// - 0: driver existence check
     /// - 1: read/write buffers
     ///   - read and write buffers optional
     ///   - fails if arg1 (bytes to write) >
@@ -170,7 +170,7 @@ impl<'a, S: SpiSlaveDevice<'a>> SyscallDriver for SpiPeripheral<'a, S> {
         process_id: ProcessId,
     ) -> CommandReturn {
         if command_num == 0 {
-            // Handle this first as it should be returned unconditionally.
+            // Handle unconditional driver existence check.
             return CommandReturn::success();
         }
 
@@ -273,7 +273,7 @@ impl<'a, S: SpiSlaveDevice<'a>> SpiSlaveClient for SpiPeripheral<'a, S> {
     ) {
         self.current_process.map(|process_id| {
             let _ = self.grants.enter(process_id, move |app, kernel_data| {
-                let rbuf = readbuf.map(|src| {
+                let rbuf = readbuf.inspect(|src| {
                     let index = app.index;
                     let _ = kernel_data
                         .get_readwrite_processbuffer(rw_allow::READ)
@@ -303,7 +303,6 @@ impl<'a, S: SpiSlaveDevice<'a>> SpiSlaveClient for SpiPeripheral<'a, S> {
                                 }
                             })
                         });
-                    src
                 });
 
                 self.kernel_read.put(rbuf);

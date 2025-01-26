@@ -7,16 +7,61 @@
 //! Implements a userspace interface for sending and receiving IEEE 802.15.4
 //! frames. Also provides a minimal list-based interface for managing keys and
 //! known link neighbors, which is needed for 802.15.4 security.
+//!
+//! The driver functionality can be divided into three aspects: sending
+//! packets, receiving packets, and managing the 15.4 state (i.e. keys, neighbors,
+//! buffers, addressing, etc). The general design and procedure for sending and
+//! receiving is discussed below.
+//!
+//! Sending - The driver supports two modes of sending: Raw and Parse. In Raw mode,
+//! the userprocess fully forms the 15.4 frame and passes it to the driver. In Parse
+//! mode, the userprocess provides the payload and relevant metadata. From this
+//! the driver forms the 15.4 header and secures the payload. To send a packet,
+//! the userprocess issues the respective send command syscall (corresponding to
+//! raw or parse mode of sending). The 15.4 capsule will then schedule an upcall,
+//! upon completion of the transmission, to notify the process.
+//!
+//! Receiving - The driver receives 15.4 frames and passes them to the userprocess.
+//! To accomplish this, the userprocess must first `allow` a read/write ring buffer
+//! to the kernel. The kernel will then fill this buffer with received frames and
+//! schedule an upcall upon receipt of the first packet. When handling the upcall
+//! the userprocess must first `unallow` the buffer as described in section 4.4 of
+//! TRD104-syscalls. After unallowing the buffer, the userprocess must then immediately
+//! clear all pending/scheduled receive upcalls. This is done by either unsubscribing
+//! the receive upcall or subscribing a new receive upcall. Because the userprocess
+//! provides the buffer, it is responsible for adhering to this procedure. Failure
+//! to comply may result in dropped or malformed packets.
+//!
+//! The ring buffer provided by the userprocess must be of the form:
+//!
+//! ```text
+//! | read index | write index | user_frame 0 | user_frame 1 | ... | user_frame n |
+//! ```
+//!
+//! `user_frame` denotes the 15.4 frame in addition to the relevant 3 bytes of
+//! metadata (offset to data payload, length of data payload, and the MIC len). The
+//! capsule assumes that this is the form of the buffer. Errors or deviation in
+//! the form of the provided buffer will likely result in incomplete or dropped packets.
+//!
+//! Because the scheduled receive upcall must be handled by the userprocess, there is
+//! no guarantee as to when this will occur and if additional packets will be received
+//! prior to the upcall being handled. Without a ring buffer (or some equivalent data
+//! structure), the original packet will be lost. The ring buffer allows for the upcall
+//! to be scheduled and for all received packets to be passed to the process. The ring
+//! buffer is designed to overwrite old packets if the buffer becomes full. If the
+//! userprocess notices a high number of "dropped" packets, this may be the cause. The
+//! userproceess can mitigate this issue by increasing the size of the ring buffer
+//! provided to the capsule.
 
 use crate::ieee802154::{device, framer};
-use crate::net::ieee802154::{AddressMode, Header, KeyId, MacAddress, PanID, SecurityLevel};
+use crate::net::ieee802154::{Header, KeyId, MacAddress, SecurityLevel};
 use crate::net::stream::{decode_bytes, decode_u8, encode_bytes, encode_u8, SResult};
 
 use core::cell::Cell;
-use core::cmp::min;
 
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
+use kernel::hil::radio;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
@@ -24,6 +69,9 @@ use kernel::{ErrorCode, ProcessId};
 
 const MAX_NEIGHBORS: usize = 4;
 const MAX_KEYS: usize = 4;
+
+const USER_FRAME_METADATA_SIZE: usize = 3; // 3B metadata (offset, len, mic_len)
+const USER_FRAME_MAX_SIZE: usize = USER_FRAME_METADATA_SIZE + radio::MAX_FRAME_SIZE; // 3B metadata + 127B max payload
 
 /// IDs for subscribed upcalls.
 mod upcall {
@@ -166,14 +214,7 @@ impl KeyDescriptor {
         let (_, key_id) = dec_try!(buf, 1; decode_key_id);
         let mut key = [0u8; 16];
         let off = dec_consume!(buf, 11; decode_bytes, &mut key);
-        stream_done!(
-            off,
-            KeyDescriptor {
-                level: level,
-                key_id: key_id,
-                key: key,
-            }
-        );
+        stream_done!(off, KeyDescriptor { level, key_id, key });
     }
 }
 
@@ -182,9 +223,9 @@ pub struct App {
     pending_tx: Option<(u16, Option<(SecurityLevel, KeyId)>)>,
 }
 
-pub struct RadioDriver<'a> {
+pub struct RadioDriver<'a, M: device::MacDevice<'a>> {
     /// Underlying MAC device, possibly multiplexed
-    mac: &'a dyn device::MacDevice<'a>,
+    mac: &'a M,
 
     /// List of (short address, long address) pairs representing IEEE 802.15.4
     /// neighbors.
@@ -219,11 +260,17 @@ pub struct RadioDriver<'a> {
 
     /// Used to save result for passing a callback from a deferred call.
     saved_result: OptionalCell<Result<(), ErrorCode>>,
+
+    /// Used to allow Thread to specify a key procedure for 15.4 to use for link layer encryption
+    backup_key_procedure: OptionalCell<&'a dyn framer::KeyProcedure>,
+
+    /// Used to allow Thread to specify the 15.4 device procedure as used in nonce generation
+    backup_device_procedure: OptionalCell<&'a dyn framer::DeviceProcedure>,
 }
 
-impl<'a> RadioDriver<'a> {
+impl<'a, M: device::MacDevice<'a>> RadioDriver<'a, M> {
     pub fn new(
-        mac: &'a dyn device::MacDevice<'a>,
+        mac: &'a M,
         grant: Grant<
             App,
             UpcallCount<{ upcall::COUNT }>,
@@ -244,7 +291,17 @@ impl<'a> RadioDriver<'a> {
             deferred_call: DeferredCall::new(),
             saved_processid: OptionalCell::empty(),
             saved_result: OptionalCell::empty(),
+            backup_key_procedure: OptionalCell::empty(),
+            backup_device_procedure: OptionalCell::empty(),
         }
+    }
+
+    pub fn set_key_procedure(&self, key_procedure: &'a dyn framer::KeyProcedure) {
+        self.backup_key_procedure.set(key_procedure);
+    }
+
+    pub fn set_device_procedure(&self, device_procedure: &'a dyn framer::DeviceProcedure) {
+        self.backup_device_procedure.set(device_procedure);
     }
 
     // Neighbor management functions
@@ -475,7 +532,7 @@ impl<'a> RadioDriver<'a> {
     }
 }
 
-impl DeferredCallClient for RadioDriver<'static> {
+impl<'a, M: device::MacDevice<'a>> DeferredCallClient for RadioDriver<'a, M> {
     fn handle_deferred_call(&self) {
         let _ = self
             .apps
@@ -501,37 +558,63 @@ impl DeferredCallClient for RadioDriver<'static> {
     }
 }
 
-impl framer::DeviceProcedure for RadioDriver<'_> {
+impl<'a, M: device::MacDevice<'a>> framer::DeviceProcedure for RadioDriver<'a, M> {
     /// Gets the long address corresponding to the neighbor that matches the given
     /// MAC address. If no such neighbor exists, returns `None`.
     fn lookup_addr_long(&self, addr: MacAddress) -> Option<[u8; 8]> {
-        self.neighbors.and_then(|neighbors| {
-            neighbors[..self.num_neighbors.get()]
-                .iter()
-                .find(|neighbor| match addr {
-                    MacAddress::Short(addr) => addr == neighbor.short_addr,
-                    MacAddress::Long(addr) => addr == neighbor.long_addr,
-                })
-                .map(|neighbor| neighbor.long_addr)
-        })
+        self.neighbors
+            .and_then(|neighbors| {
+                neighbors[..self.num_neighbors.get()]
+                    .iter()
+                    .find(|neighbor| match addr {
+                        MacAddress::Short(addr) => addr == neighbor.short_addr,
+                        MacAddress::Long(addr) => addr == neighbor.long_addr,
+                    })
+                    .map(|neighbor| neighbor.long_addr)
+            })
+            .map_or_else(
+                // This serves the same purpose as the KeyProcedure lookup (see comment).
+                // This is kept as a remnant of 15.4, but should potentially be removed moving forward
+                // as Thread does not have a use to add a Device procedure.
+                || {
+                    self.backup_device_procedure
+                        .and_then(|procedure| procedure.lookup_addr_long(addr))
+                },
+                |res| Some(res),
+            )
     }
 }
 
-impl framer::KeyProcedure for RadioDriver<'_> {
+impl<'a, M: device::MacDevice<'a>> framer::KeyProcedure for RadioDriver<'a, M> {
     /// Gets the key corresponding to the key that matches the given security
     /// level `level` and key ID `key_id`. If no such key matches, returns
     /// `None`.
     fn lookup_key(&self, level: SecurityLevel, key_id: KeyId) -> Option<[u8; 16]> {
-        self.keys.and_then(|keys| {
-            keys[..self.num_keys.get()]
-                .iter()
-                .find(|key| key.level == level && key.key_id == key_id)
-                .map(|key| key.key)
-        })
+        self.keys
+            .and_then(|keys| {
+                keys[..self.num_keys.get()]
+                    .iter()
+                    .find(|key| key.level == level && key.key_id == key_id)
+                    .map(|key| key.key)
+            })
+            .map_or_else(
+                // Thread needs to add a MAC key to the 15.4 network keys so that the 15.4 framer
+                // can decrypt incoming Thread 15.4 frames. The backup_device_procedure was added
+                // so that if the lookup procedure failed to find a key here, it would check a
+                // "backup" procedure (Thread in this case). This is somewhat clunky and removing
+                // the network keys being stored in the 15.4 driver is a longer term TODO.
+                || {
+                    self.backup_key_procedure.and_then(|procedure| {
+                        // TODO: security_level / keyID are hardcoded for now
+                        procedure.lookup_key(SecurityLevel::EncMic32, KeyId::Index(2))
+                    })
+                },
+                |res| Some(res),
+            )
     }
 }
 
-impl SyscallDriver for RadioDriver<'_> {
+impl<'a, M: device::MacDevice<'a>> SyscallDriver for RadioDriver<'a, M> {
     /// IEEE 802.15.4 MAC device control.
     ///
     /// For some of the below commands, one 32-bit argument is not enough to
@@ -544,7 +627,7 @@ impl SyscallDriver for RadioDriver<'_> {
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Driver check.
+    /// - `0`: Driver existence check.
     /// - `1`: Return radio status. Ok(())/OFF = on/off.
     /// - `2`: Set short MAC address.
     /// - `3`: Set long MAC address.
@@ -581,11 +664,16 @@ impl SyscallDriver for RadioDriver<'_> {
     ///                      9 bytes: the key ID (might not use all bytes) +
     ///                      16 bytes: the key.
     /// - `25`: Remove the key at an index.
+    /// - `26`: Transmit a frame (parse required). Take the provided payload and
+    ///        parameters to encrypt, form headers, and transmit the frame.
+    /// - `28`: Set long address.
+    /// - `29`: Get the long MAC address.
+    /// - `30`: Turn the radio on.
     fn command(
         &self,
         command_number: usize,
         arg1: usize,
-        _: usize,
+        arg2: usize,
         processid: ProcessId,
     ) -> CommandReturn {
         match command_number {
@@ -723,7 +811,7 @@ impl SyscallDriver for RadioDriver<'_> {
                 .unwrap_or_else(|err| CommandReturn::failure(err.into())),
 
             18 => match self.remove_neighbor(arg1) {
-                Ok(_) => CommandReturn::success(),
+                Ok(()) => CommandReturn::success(),
                 Err(e) => CommandReturn::failure(e),
             },
             19 => {
@@ -864,11 +952,23 @@ impl SyscallDriver for RadioDriver<'_> {
                     .map_or_else(
                         |err| CommandReturn::failure(err.into()),
                         |setup_tx| match setup_tx {
-                            Ok(_) => self.do_next_tx_sync(processid).into(),
+                            Ok(()) => self.do_next_tx_sync(processid).into(),
                             Err(e) => CommandReturn::failure(e),
                         },
                     )
             }
+            28 => {
+                let addr_upper: u64 = arg2 as u64;
+                let addr_lower: u64 = arg1 as u64;
+                let addr = addr_upper << 32 | addr_lower;
+                self.mac.set_address_long(addr.to_be_bytes());
+                CommandReturn::success()
+            }
+            29 => {
+                let addr = u64::from_be_bytes(self.mac.get_address_long());
+                CommandReturn::success_u64(addr)
+            }
+            30 => self.mac.start().into(),
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }
@@ -878,7 +978,7 @@ impl SyscallDriver for RadioDriver<'_> {
     }
 }
 
-impl device::TxClient for RadioDriver<'_> {
+impl<'a, M: device::MacDevice<'a>> device::TxClient for RadioDriver<'a, M> {
     fn send_done(&self, spi_buf: &'static mut [u8], acked: bool, result: Result<(), ErrorCode>) {
         self.kernel_tx.replace(spi_buf);
         self.current_app.take().map(|processid| {
@@ -899,46 +999,97 @@ impl device::TxClient for RadioDriver<'_> {
     }
 }
 
-/// Encode two PAN IDs into a single usize.
-#[inline]
-fn encode_pans(dst_pan: &Option<PanID>, src_pan: &Option<PanID>) -> usize {
-    ((dst_pan.unwrap_or(0) as usize) << 16) | (src_pan.unwrap_or(0) as usize)
-}
-
-/// Encodes as much as possible about an address into a single usize.
-#[inline]
-fn encode_address(addr: &Option<MacAddress>) -> usize {
-    let short_addr_only = match *addr {
-        Some(MacAddress::Short(addr)) => addr as usize,
-        _ => 0,
-    };
-    ((AddressMode::from(addr) as usize) << 16) | short_addr_only
-}
-
-impl device::RxClient for RadioDriver<'_> {
-    fn receive<'b>(&self, buf: &'b [u8], header: Header<'b>, data_offset: usize, data_len: usize) {
+impl<'a, M: device::MacDevice<'a>> device::RxClient for RadioDriver<'a, M> {
+    fn receive<'b>(
+        &self,
+        buf: &'b [u8],
+        header: Header<'b>,
+        lqi: u8,
+        data_offset: usize,
+        data_len: usize,
+    ) {
         self.apps.each(|_, _, kernel_data| {
             let read_present = kernel_data
                 .get_readwrite_processbuffer(rw_allow::READ)
                 .and_then(|read| {
                     read.mut_enter(|rbuf| {
-                        let len = min(rbuf.len(), data_offset + data_len);
-                        // Copy the entire frame over to userland, preceded by two
-                        // bytes: the data offset and the data length.
-                        rbuf[..len].copy_from_slice(&buf[..len]);
-                        rbuf[0].set(data_offset as u8);
-                        rbuf[1].set(data_len as u8);
+                        ///////////////////////////////////////////////////////////////////////////////////////////
+                        // NOTE: context for the ring buffer and assumptions regarding the ring buffer
+                        // format and usage can be found in the detailed comment at the top of this file.
+                        //      Ring buffer format:
+                        //          | read index | write index | user_frame 0 | user_frame 1 | ... | user_frame n |
+                        //      user_frame format:
+                        //          | header_len | payload_len | mic_len | 15.4 frame |
+                        ///////////////////////////////////////////////////////////////////////////////////////////
+
+                        // 2 bytes for the readwrite buffer metadata (read / write index)
+                        const RING_BUF_METADATA_SIZE: usize = 2;
+
+                        // Confirm the availability of the buffer. A buffer of len 0 is indicative
+                        // of the userprocess not allocating a readwrite buffer. We must also
+                        // confirm that the userprocess correctly formatted the buffer to be of length
+                        // 2 + n * USER_FRAME_MAX_SIZE, where n is the number of user frames that the
+                        // buffer can store. We combine checking the buffer's non-zero length and the
+                        // case of the buffer being shorter than the `RING_BUF_METADATA_SIZE` as an
+                        // invalid buffer (e.g. of length 1) may otherwise errantly pass the second
+                        // conditional check (due to unsigned integer arithmetic).
+                        if rbuf.len() <= RING_BUF_METADATA_SIZE
+                            || (rbuf.len() - RING_BUF_METADATA_SIZE) % USER_FRAME_MAX_SIZE != 0
+                        {
+                            // kernel::debug!("[15.4 Driver] Error - improperly formatted readwrite buffer provided");
+                            return false;
+                        }
+
+                        let mic_len = header.security.map_or(0, |sec| sec.level.mic_len());
+                        let frame_len = data_offset + data_len + mic_len;
+
+                        let mut read_index = rbuf[0].get() as usize;
+                        let mut write_index = rbuf[1].get() as usize;
+
+                        let max_pending_rx =
+                            (rbuf.len() - RING_BUF_METADATA_SIZE) / USER_FRAME_MAX_SIZE;
+
+                        // confirm user modifiable metadata is valid (i.e. within bounds of the provided buffer)
+                        if read_index >= max_pending_rx || write_index >= max_pending_rx {
+                            // kernel::debug!("[15.4 driver] Invalid read or write index");
+                            return false;
+                        }
+
+                        let offset = RING_BUF_METADATA_SIZE + (write_index * USER_FRAME_MAX_SIZE);
+
+                        // Copy the entire frame over to userland, preceded by three metadata bytes:
+                        // the header length, the data length, and the MIC length.
+                        rbuf[(offset + USER_FRAME_METADATA_SIZE)
+                            ..(offset + frame_len + USER_FRAME_METADATA_SIZE)]
+                            .copy_from_slice(&buf[..frame_len]);
+
+                        rbuf[offset].set(data_offset as u8);
+                        rbuf[offset + 1].set(data_len as u8);
+                        rbuf[offset + 2].set(mic_len as u8);
+
+                        // Prepare the ring buffer for the next write. The current design favors newness;
+                        // newly received packets will begin to overwrite the oldest data in the event
+                        // of the buffer becoming full. The read index must always point to the "oldest"
+                        // data. If we have overwritten the oldest data, the next oldest data is now at
+                        // the read index + 1. We must update the read index to reflect this.
+                        write_index = (write_index + 1) % max_pending_rx;
+                        if write_index == read_index {
+                            read_index = (read_index + 1) % max_pending_rx;
+                            rbuf[0].set(read_index as u8);
+                            // kernel::debug!("[15.4 driver] Provided RX buffer is full");
+                        }
+
+                        // update write index metadata (we do not modify the read index
+                        // in the recv functionality so we do not need to update this metadata)
+                        rbuf[1].set(write_index as u8);
                         true
                     })
                 })
                 .unwrap_or(false);
             if read_present {
-                // Encode useful parts of the header in 3 usizes
-                let pans = encode_pans(&header.dst_pan, &header.src_pan);
-                let dst_addr = encode_address(&header.dst_addr);
-                let src_addr = encode_address(&header.src_addr);
+                // Place lqi as argument to be included in upcall.
                 kernel_data
-                    .schedule_upcall(upcall::FRAME_RECEIVED, (pans, dst_addr, src_addr))
+                    .schedule_upcall(upcall::FRAME_RECEIVED, (lqi as usize, 0, 0))
                     .ok();
             }
         });

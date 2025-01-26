@@ -3,7 +3,7 @@
 // Copyright Tock Contributors 2022.
 
 use core::fmt::Write;
-use cortexm4::{self, CortexM4, CortexMVariant};
+use cortexm4::{CortexM4, CortexMVariant};
 use kernel::platform::chip::Chip;
 
 use crate::nvic;
@@ -68,7 +68,7 @@ impl<'a> Msp432DefaultPeripherals<'a> {
     }
 }
 
-impl<'a> kernel::platform::chip::InterruptService for Msp432DefaultPeripherals<'a> {
+impl kernel::platform::chip::InterruptService for Msp432DefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             nvic::ADC => self.adc.handle_interrupt(),

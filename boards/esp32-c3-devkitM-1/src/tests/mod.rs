@@ -5,7 +5,6 @@
 use crate::BOARD;
 use crate::CHIP;
 use crate::MAIN_CAP;
-use crate::NUM_PROCS;
 use crate::PLATFORM;
 use kernel::debug;
 

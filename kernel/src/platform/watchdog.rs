@@ -5,6 +5,7 @@
 //! Interface for configuring a watchdog
 
 /// A trait for implementing a watchdog in the kernel.
+///
 /// This trait is called from the `kernel_loop()` code to setup
 /// and maintain the watchdog timer.
 /// It is up to the specific `Chip` how it will handle watchdog interrupts.

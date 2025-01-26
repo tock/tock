@@ -111,15 +111,15 @@ pub enum Error {
     SetBySoftware,
 }
 
-impl Into<ErrorCode> for Error {
-    fn into(self) -> ErrorCode {
-        match self {
-            Self::ArbitrationLost => ErrorCode::RESERVE,
-            Self::BusOff => ErrorCode::OFF,
-            Self::Form => ErrorCode::INVAL,
-            Self::BitRecessive | Self::BitDominant => ErrorCode::BUSY,
-            Self::Ack | Self::Transmission => ErrorCode::NOACK,
-            Self::Crc | Self::SetBySoftware | Self::Warning | Self::Passive | Self::Stuff => {
+impl From<Error> for ErrorCode {
+    fn from(val: Error) -> Self {
+        match val {
+            Error::ArbitrationLost => ErrorCode::RESERVE,
+            Error::BusOff => ErrorCode::OFF,
+            Error::Form => ErrorCode::INVAL,
+            Error::BitRecessive | Error::BitDominant => ErrorCode::BUSY,
+            Error::Ack | Error::Transmission => ErrorCode::NOACK,
+            Error::Crc | Error::SetBySoftware | Error::Warning | Error::Passive | Error::Stuff => {
                 ErrorCode::FAIL
             }
         }
@@ -241,7 +241,7 @@ impl<T: Configure> StandardBitTiming for T {
             875
         };
         let mut sample_point_err;
-        let mut sample_point_err_min = core::u16::MAX;
+        let mut sample_point_err_min = u16::MAX;
         let mut ts: u32 = (Self::MAX_BIT_TIMINGS.propagation
             + Self::MAX_BIT_TIMINGS.segment1
             + Self::MAX_BIT_TIMINGS.segment2
@@ -341,8 +341,10 @@ impl<T: Configure> StandardBitTiming for T {
 }
 
 /// The `Configure` trait is used to configure the CAN peripheral and to prepare it for
-/// transmission and reception of data. The peripheral cannot transmit or receive frames if
-/// it is not previously configured and enabled.
+/// transmission and reception of data.
+///
+/// The peripheral cannot transmit or receive frames if it is not
+/// previously configured and enabled.
 ///
 /// In order to configure the peripheral, the following steps are required:
 ///
@@ -490,9 +492,12 @@ pub trait Configure {
     fn receive_fifo_count(&self) -> usize;
 }
 
-/// The `ConfigureFd` trait is used to configure the CAN peripheral for CanFD and to prepare it for
-/// transmission and reception of data. The peripheral cannot transmit or receive frames if
-/// it is not previously configured and enabled.
+/// The `ConfigureFd` trait is used to configure the CAN peripheral
+/// for CanFD and to prepare it for transmission and reception of
+/// data.
+///
+/// The peripheral cannot transmit or receive frames if it is not
+/// previously configured and enabled.
 ///
 /// In order to configure the peripheral, the following steps are required:
 ///

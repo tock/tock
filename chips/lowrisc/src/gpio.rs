@@ -4,7 +4,6 @@
 
 //! General Purpose Input/Output driver.
 
-use crate::padctrl;
 use kernel::hil::gpio;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -76,23 +75,25 @@ register_bitfields![u32,
     ]
 ];
 
-pub struct GpioPin<'a> {
+pub type GpioBitfield = Field<u32, pins::Register>;
+
+pub struct GpioPin<'a, PAD> {
     gpio_registers: StaticRef<GpioRegisters>,
-    padctrl_registers: StaticRef<padctrl::PadCtrlRegisters>,
+    padctl: PAD,
     pin: Field<u32, pins::Register>,
     client: OptionalCell<&'a dyn gpio::Client>,
 }
 
-impl<'a> GpioPin<'a> {
+impl<'a, PAD> GpioPin<'a, PAD> {
     pub const fn new(
         gpio_base: StaticRef<GpioRegisters>,
-        padctrl_base: StaticRef<padctrl::PadCtrlRegisters>,
+        padctl: PAD,
         pin: Field<u32, pins::Register>,
-    ) -> GpioPin<'a> {
+    ) -> GpioPin<'a, PAD> {
         GpioPin {
             gpio_registers: gpio_base,
-            padctrl_registers: padctrl_base,
-            pin: pin,
+            padctl,
+            pin,
             client: OptionalCell::empty(),
         }
     }
@@ -128,89 +129,65 @@ impl<'a> GpioPin<'a> {
     }
 }
 
-impl gpio::Configure for GpioPin<'_> {
+impl<PAD: gpio::Configure> gpio::Configure for GpioPin<'_, PAD> {
     fn configuration(&self) -> gpio::Configuration {
-        match self.gpio_registers.direct_oe.is_set(self.pin) {
-            true => gpio::Configuration::InputOutput,
-            false => gpio::Configuration::Input,
+        match (
+            self.padctl.configuration(),
+            self.gpio_registers.direct_oe.is_set(self.pin),
+        ) {
+            (gpio::Configuration::InputOutput, true) => gpio::Configuration::InputOutput,
+            (gpio::Configuration::InputOutput, false) => gpio::Configuration::Input,
+            (gpio::Configuration::Input, false) => gpio::Configuration::Input,
+            // This is configuration error we can't enable ouput
+            // for GPIO pin connect to input only pad.
+            (gpio::Configuration::Input, true) => gpio::Configuration::Function,
+            // We curently dont support output only GPIO
+            // OT register have only output_enable flag.
+            (gpio::Configuration::Output, _) => gpio::Configuration::Function,
+            (conf, _) => conf,
         }
     }
 
     fn set_floating_state(&self, mode: gpio::FloatingState) {
-        // There is unfortunately no documentation about how these
-        // registers map to the actual GPIOs, so just write all of them.
-        match mode {
-            gpio::FloatingState::PullUp => {
-                self.padctrl_registers.dio_pads.write(
-                    padctrl::DIO_PADS::ATTR0_PULL_UP::SET
-                        + padctrl::DIO_PADS::ATTR1_PULL_UP::SET
-                        + padctrl::DIO_PADS::ATTR2_PULL_UP::SET
-                        + padctrl::DIO_PADS::ATTR3_PULL_UP::SET,
-                );
-            }
-            gpio::FloatingState::PullDown => {
-                self.padctrl_registers.dio_pads.write(
-                    padctrl::DIO_PADS::ATTR0_PULL_DOWN::SET
-                        + padctrl::DIO_PADS::ATTR1_PULL_DOWN::SET
-                        + padctrl::DIO_PADS::ATTR2_PULL_DOWN::SET
-                        + padctrl::DIO_PADS::ATTR3_PULL_DOWN::SET,
-                );
-            }
-            gpio::FloatingState::PullNone => {
-                self.padctrl_registers.dio_pads.write(
-                    padctrl::DIO_PADS::ATTR0_OPEN_DRAIN::SET
-                        + padctrl::DIO_PADS::ATTR1_OPEN_DRAIN::SET
-                        + padctrl::DIO_PADS::ATTR2_OPEN_DRAIN::SET
-                        + padctrl::DIO_PADS::ATTR3_OPEN_DRAIN::SET,
-                );
-            }
-        }
+        self.padctl.set_floating_state(mode);
     }
 
     fn floating_state(&self) -> gpio::FloatingState {
-        if self
-            .padctrl_registers
-            .dio_pads
-            .is_set(padctrl::DIO_PADS::ATTR0_PULL_UP)
-        {
-            gpio::FloatingState::PullUp
-        } else if self
-            .padctrl_registers
-            .dio_pads
-            .is_set(padctrl::DIO_PADS::ATTR0_PULL_DOWN)
-        {
-            gpio::FloatingState::PullDown
-        } else {
-            gpio::FloatingState::PullNone
-        }
+        self.padctl.floating_state()
     }
 
     fn deactivate_to_low_power(&self) {
         self.disable_input();
         self.disable_output();
+        self.padctl.deactivate_to_low_power();
     }
 
     fn make_output(&self) -> gpio::Configuration {
-        GpioPin::half_set(
-            true,
-            self.pin,
-            &self.gpio_registers.masked_oe_lower,
-            &self.gpio_registers.masked_oe_upper,
-        );
-        gpio::Configuration::InputOutput
+        // Re-connect in case we make output after switching from LowPower state.
+        if let gpio::Configuration::InputOutput = self.padctl.make_output() {
+            Self::half_set(
+                true,
+                self.pin,
+                &self.gpio_registers.masked_oe_lower,
+                &self.gpio_registers.masked_oe_upper,
+            );
+        }
+        self.configuration()
     }
 
     fn disable_output(&self) -> gpio::Configuration {
-        GpioPin::half_set(
+        Self::half_set(
             false,
             self.pin,
             &self.gpio_registers.masked_oe_lower,
             &self.gpio_registers.masked_oe_upper,
         );
-        gpio::Configuration::Input
+        self.configuration()
     }
 
     fn make_input(&self) -> gpio::Configuration {
+        // Re-connect in case we make input after switching from LowPower state.
+        self.padctl.make_input();
         self.configuration()
     }
 
@@ -219,18 +196,18 @@ impl gpio::Configure for GpioPin<'_> {
     }
 }
 
-impl gpio::Input for GpioPin<'_> {
+impl<PAD> gpio::Input for GpioPin<'_, PAD> {
     fn read(&self) -> bool {
         self.gpio_registers.data_in.is_set(self.pin)
     }
 }
 
-impl gpio::Output for GpioPin<'_> {
+impl<PAD> gpio::Output for GpioPin<'_, PAD> {
     fn toggle(&self) -> bool {
         let pin = self.pin;
         let new_state = !self.gpio_registers.direct_out.is_set(pin);
 
-        GpioPin::half_set(
+        Self::half_set(
             new_state,
             self.pin,
             &self.gpio_registers.masked_out_lower,
@@ -240,7 +217,7 @@ impl gpio::Output for GpioPin<'_> {
     }
 
     fn set(&self) {
-        GpioPin::half_set(
+        Self::half_set(
             true,
             self.pin,
             &self.gpio_registers.masked_out_lower,
@@ -249,7 +226,7 @@ impl gpio::Output for GpioPin<'_> {
     }
 
     fn clear(&self) {
-        GpioPin::half_set(
+        Self::half_set(
             false,
             self.pin,
             &self.gpio_registers.masked_out_lower,
@@ -258,7 +235,7 @@ impl gpio::Output for GpioPin<'_> {
     }
 }
 
-impl<'a> gpio::Interrupt<'a> for GpioPin<'a> {
+impl<'a, PAD> gpio::Interrupt<'a> for GpioPin<'a, PAD> {
     fn set_client(&self, client: &'a dyn gpio::Client) {
         self.client.set(client);
     }

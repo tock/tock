@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-#![allow(dead_code)]
-
 use kernel::debug;
 use kernel::hil::time::{self, Alarm, Ticks};
 
@@ -13,7 +11,7 @@ pub struct TimerTest<'a, A: Alarm<'a>> {
 
 impl<'a, A: Alarm<'a>> TimerTest<'a, A> {
     pub const fn new(alarm: &'a A) -> TimerTest<'a, A> {
-        TimerTest { alarm: alarm }
+        TimerTest { alarm }
     }
 
     pub fn start(&self) {

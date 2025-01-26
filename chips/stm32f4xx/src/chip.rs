@@ -5,7 +5,7 @@
 //! Chip trait setup.
 
 use core::fmt::Write;
-use cortexm4::{self, CortexM4, CortexMVariant};
+use cortexm4f::{CortexM4F, CortexMVariant};
 use kernel::platform::chip::Chip;
 use kernel::platform::chip::InterruptService;
 
@@ -15,13 +15,14 @@ use crate::nvic;
 use crate::chip_specific::chip_specs::ChipSpecs as ChipSpecsTrait;
 
 pub struct Stm32f4xx<'a, I: InterruptService + 'a> {
-    mpu: cortexm4::mpu::MPU,
-    userspace_kernel_boundary: cortexm4::syscall::SysCall,
+    mpu: cortexm4f::mpu::MPU,
+    userspace_kernel_boundary: cortexm4f::syscall::SysCall,
     interrupt_service: &'a I,
 }
 
 pub struct Stm32f4xxDefaultPeripherals<'a, ChipSpecs> {
     pub adc1: crate::adc::Adc<'a>,
+    pub dac: crate::dac::Dac<'a>,
     pub dma1_streams: [crate::dma::Stream<'a, dma::Dma1<'a>>; 8],
     pub dma2_streams: [crate::dma::Stream<'a, dma::Dma2<'a>>; 8],
     pub exti: &'a crate::exti::Exti<'a>,
@@ -29,7 +30,7 @@ pub struct Stm32f4xxDefaultPeripherals<'a, ChipSpecs> {
     pub fsmc: crate::fsmc::Fsmc<'a>,
     pub gpio_ports: crate::gpio::GpioPorts<'a>,
     pub i2c1: crate::i2c::I2C<'a>,
-    pub clocks: crate::clocks::Clocks<'a, ChipSpecs>,
+    pub clocks: &'a crate::clocks::Clocks<'a, ChipSpecs>,
     pub spi3: crate::spi::Spi<'a>,
     pub tim2: crate::tim2::Tim2<'a>,
     pub usart1: crate::usart::Usart<'a, dma::Dma2<'a>>,
@@ -39,14 +40,15 @@ pub struct Stm32f4xxDefaultPeripherals<'a, ChipSpecs> {
 
 impl<'a, ChipSpecs: ChipSpecsTrait> Stm32f4xxDefaultPeripherals<'a, ChipSpecs> {
     pub fn new(
-        rcc: &'a crate::rcc::Rcc,
+        clocks: &'a crate::clocks::Clocks<'a, ChipSpecs>,
         exti: &'a crate::exti::Exti<'a>,
         dma1: &'a dma::Dma1<'a>,
         dma2: &'a dma::Dma2<'a>,
     ) -> Self {
         Self {
-            adc1: crate::adc::Adc::new(rcc),
-            clocks: crate::clocks::Clocks::new(rcc),
+            adc1: crate::adc::Adc::new(clocks),
+            clocks,
+            dac: crate::dac::Dac::new(clocks),
             dma1_streams: dma::new_dma1_stream(dma1),
             dma2_streams: dma::new_dma2_stream(dma2),
             exti,
@@ -58,23 +60,25 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Stm32f4xxDefaultPeripherals<'a, ChipSpecs> {
                     Some(crate::fsmc::FSMC_BANK3),
                     None,
                 ],
-                rcc,
+                clocks,
             ),
-            gpio_ports: crate::gpio::GpioPorts::new(rcc, exti),
-            i2c1: crate::i2c::I2C::new(rcc),
+            gpio_ports: crate::gpio::GpioPorts::new(clocks, exti),
+            i2c1: crate::i2c::I2C::new(clocks),
             spi3: crate::spi::Spi::new(
                 crate::spi::SPI3_BASE,
-                crate::spi::SpiClock(crate::rcc::PeripheralClock::new(
-                    crate::rcc::PeripheralClockType::APB1(crate::rcc::PCLK1::SPI3),
-                    rcc,
+                crate::spi::SpiClock(crate::clocks::phclk::PeripheralClock::new(
+                    crate::clocks::phclk::PeripheralClockType::APB1(
+                        crate::clocks::phclk::PCLK1::SPI3,
+                    ),
+                    clocks,
                 )),
                 dma::Dma1Peripheral::SPI3_TX,
                 dma::Dma1Peripheral::SPI3_RX,
             ),
-            tim2: crate::tim2::Tim2::new(rcc),
-            usart1: crate::usart::Usart::new_usart1(rcc),
-            usart2: crate::usart::Usart::new_usart2(rcc),
-            usart3: crate::usart::Usart::new_usart3(rcc),
+            tim2: crate::tim2::Tim2::new(clocks),
+            usart1: crate::usart::Usart::new_usart1(clocks),
+            usart2: crate::usart::Usart::new_usart2(clocks),
+            usart3: crate::usart::Usart::new_usart3(clocks),
         }
     }
 
@@ -92,9 +96,7 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Stm32f4xxDefaultPeripherals<'a, ChipSpecs> {
     }
 }
 
-impl<'a, ChipSpecs: ChipSpecsTrait> InterruptService
-    for Stm32f4xxDefaultPeripherals<'a, ChipSpecs>
-{
+impl<ChipSpecs: ChipSpecsTrait> InterruptService for Stm32f4xxDefaultPeripherals<'_, ChipSpecs> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             nvic::DMA1_Stream1 => self.dma1_streams
@@ -153,26 +155,26 @@ impl<'a, ChipSpecs: ChipSpecsTrait> InterruptService
 impl<'a, I: InterruptService + 'a> Stm32f4xx<'a, I> {
     pub unsafe fn new(interrupt_service: &'a I) -> Self {
         Self {
-            mpu: cortexm4::mpu::MPU::new(),
-            userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
+            mpu: cortexm4f::mpu::MPU::new(),
+            userspace_kernel_boundary: cortexm4f::syscall::SysCall::new(),
             interrupt_service,
         }
     }
 }
 
 impl<'a, I: InterruptService + 'a> Chip for Stm32f4xx<'a, I> {
-    type MPU = cortexm4::mpu::MPU;
-    type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
+    type MPU = cortexm4f::mpu::MPU;
+    type UserspaceKernelBoundary = cortexm4f::syscall::SysCall;
 
     fn service_pending_interrupts(&self) {
         unsafe {
             loop {
-                if let Some(interrupt) = cortexm4::nvic::next_pending() {
+                if let Some(interrupt) = cortexm4f::nvic::next_pending() {
                     if !self.interrupt_service.service_interrupt(interrupt) {
                         panic!("unhandled interrupt {}", interrupt);
                     }
 
-                    let n = cortexm4::nvic::Nvic::new(interrupt);
+                    let n = cortexm4f::nvic::Nvic::new(interrupt);
                     n.clear_pending();
                     n.enable();
                 } else {
@@ -183,21 +185,21 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32f4xx<'a, I> {
     }
 
     fn has_pending_interrupts(&self) -> bool {
-        unsafe { cortexm4::nvic::has_pending() }
+        unsafe { cortexm4f::nvic::has_pending() }
     }
 
-    fn mpu(&self) -> &cortexm4::mpu::MPU {
+    fn mpu(&self) -> &cortexm4f::mpu::MPU {
         &self.mpu
     }
 
-    fn userspace_kernel_boundary(&self) -> &cortexm4::syscall::SysCall {
+    fn userspace_kernel_boundary(&self) -> &cortexm4f::syscall::SysCall {
         &self.userspace_kernel_boundary
     }
 
     fn sleep(&self) {
         unsafe {
-            cortexm4::scb::unset_sleepdeep();
-            cortexm4::support::wfi();
+            cortexm4f::scb::unset_sleepdeep();
+            cortexm4f::support::wfi();
         }
     }
 
@@ -205,10 +207,10 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32f4xx<'a, I> {
     where
         F: FnOnce() -> R,
     {
-        cortexm4::support::atomic(f)
+        cortexm4f::support::atomic(f)
     }
 
     unsafe fn print_state(&self, write: &mut dyn Write) {
-        CortexM4::print_cortexm_state(write);
+        CortexM4F::print_cortexm_state(write);
     }
 }

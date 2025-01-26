@@ -34,20 +34,22 @@ impl IoWrite for Writer {
 #[cfg(not(test))]
 #[no_mangle]
 #[panic_handler]
-pub unsafe extern "C" fn panic_fmt(pi: &PanicInfo) -> ! {
+pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
+    use core::ptr::{addr_of, addr_of_mut};
+
     let panic_led = PANIC_REFERENCES
         .led_controller
         .and_then(|ctrl| ctrl.panic_led(0));
 
-    let writer = &mut WRITER;
+    let writer = &mut *addr_of_mut!(WRITER);
 
     debug::panic(
         &mut [&mut panic_led.unwrap()],
         writer,
         pi,
         &rv32i::support::nop,
-        &PROCESSES,
-        &PANIC_REFERENCES.chip,
-        &PANIC_REFERENCES.process_printer,
+        &*addr_of!(PROCESSES),
+        &*addr_of!(PANIC_REFERENCES.chip),
+        &*addr_of!(PANIC_REFERENCES.process_printer),
     )
 }

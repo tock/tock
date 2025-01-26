@@ -55,7 +55,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! let hts221_i2c = static_init!(
@@ -192,7 +192,7 @@ enum State {
     Idle(CalibrationData, i32, usize),
 }
 
-impl<'a, I: I2CDevice> I2CClient for Hts221<'a, I> {
+impl<I: I2CDevice> I2CClient for Hts221<'_, I> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         if let Err(i2c_err) = status {
             self.state.set(State::Idle(

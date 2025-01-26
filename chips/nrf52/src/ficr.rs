@@ -367,7 +367,7 @@ impl Ficr {
     /// This changed occurred towards the end of 2021 with chips becoming widely
     /// available/used in 2023.
     ///
-    /// See https://devzone.nordicsemi.com/nordic/nordic-blog/b/blog/posts/working-with-the-nrf52-series-improved-approtect
+    /// See <https://devzone.nordicsemi.com/nordic/nordic-blog/b/blog/posts/working-with-the-nrf52-series-improved-approtect>.
     /// for more information.
     pub(crate) fn has_updated_approtect_logic(&self) -> bool {
         // We assume that an unspecified version means that it is new and this
@@ -479,7 +479,7 @@ impl Ficr {
         buf[16] = h[((lo >> 0) & 0xf) as usize];
 
         // Safe because we use only ascii characters in this buffer.
-        unsafe { &*(buf as *const [u8] as *const str) }
+        unsafe { &*(core::ptr::from_ref::<[u8]>(buf) as *const str) }
     }
 }
 

@@ -25,7 +25,7 @@ MEMORY
 
 SECTIONS
 {
-  .boot : 
+  .boot :
   {
     /* FlexSPI Configuration Block (defined in source) */
     KEEP(*(.fcb));
@@ -71,4 +71,4 @@ SECTIONS
   } > rom
 }
 
-INCLUDE ../kernel_layout.ld
+INCLUDE tock_kernel_layout.ld

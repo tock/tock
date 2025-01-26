@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use cortexm4::support::atomic;
+use cortexm4f::support::atomic;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::platform::chip::ClockInterface;
@@ -467,8 +467,10 @@ const EXTI_BASE: StaticRef<ExtiRegisters> =
 // ///
 
 /// The EXTI_PR (pending) register when set, generates a level-triggered
-/// interrupt on the NVIC. This means, that its the responsibility of the IRQ
-/// handler to clear the interrupt source (pending bit), in order to prevent
+/// interrupt on the NVIC.
+///
+/// This means, that its the responsibility of the IRQ handler to
+/// clear the interrupt source (pending bit), in order to prevent
 /// multiple interrupts from occurring.
 ///
 /// `EXTI_EVENTS` is modeled to capture information from `EXTI_PR` register. In

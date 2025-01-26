@@ -17,7 +17,7 @@ use core::cell::Cell;
 use crate::ethernet::utils::EthernetSpeed;
 use crate::ethernet::utils::MacAddress;
 use crate::ethernet::utils::OperationMode;
-use cortexm4::support::nop;
+use cortexm4f::support::nop;
 use kernel::hil::ethernet::EthernetAdapter;
 use kernel::hil::ethernet::EthernetAdapterClient;
 use kernel::platform::chip::ClockInterface;
@@ -27,9 +27,8 @@ use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnl
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
-use crate::rcc;
-use crate::rcc::PeripheralClock;
-use crate::rcc::PeripheralClockType;
+use crate::clocks::phclk::{self, PeripheralClock, PeripheralClockType};
+use crate::clocks::Stm32f4Clocks;
 
 use crate::ethernet::receive_descriptor::ReceiveDescriptor;
 use crate::ethernet::transmit_descriptor::TransmitDescriptor;
@@ -716,12 +715,21 @@ struct EthernetClocks<'a> {
 }
 
 impl<'a> EthernetClocks<'a> {
-    fn new(rcc: &'a rcc::Rcc) -> Self {
+    fn new(clocks: &'a dyn Stm32f4Clocks) -> Self {
         Self {
-            mac: PeripheralClock::new(PeripheralClockType::AHB1(rcc::HCLK1::ETHMACEN), rcc),
-            mac_tx: PeripheralClock::new(PeripheralClockType::AHB1(rcc::HCLK1::ETHMACTXEN), rcc),
-            mac_rx: PeripheralClock::new(PeripheralClockType::AHB1(rcc::HCLK1::ETHMACRXEN), rcc),
-            mac_ptp: PeripheralClock::new(PeripheralClockType::AHB1(rcc::HCLK1::ETHMACPTPEN), rcc),
+            mac: PeripheralClock::new(PeripheralClockType::AHB1(phclk::HCLK1::ETHMACEN), clocks),
+            mac_tx: PeripheralClock::new(
+                PeripheralClockType::AHB1(phclk::HCLK1::ETHMACTXEN),
+                clocks,
+            ),
+            mac_rx: PeripheralClock::new(
+                PeripheralClockType::AHB1(phclk::HCLK1::ETHMACRXEN),
+                clocks,
+            ),
+            mac_ptp: PeripheralClock::new(
+                PeripheralClockType::AHB1(phclk::HCLK1::ETHMACPTPEN),
+                clocks,
+            ),
         }
     }
 
@@ -754,7 +762,7 @@ const DEFAULT_MAC_ADDRESS: MacAddress = MacAddress::new([0xD4, 0x5D, 0x64, 0x62,
 
 impl<'a> Ethernet<'a> {
     /// Ethernet constructor
-    pub fn new(rcc: &'a rcc::Rcc) -> Self {
+    pub fn new(clocks: &'a dyn Stm32f4Clocks) -> Self {
         Self {
             mac_registers: ETHERNET_MAC_BASE,
             _mmc_registers: ETHERNET_MMC_BASE,
@@ -767,7 +775,7 @@ impl<'a> Ethernet<'a> {
             received_packet: TakeCell::empty(),
             number_packets_missed: Cell::new(0),
             client: OptionalCell::empty(),
-            clocks: EthernetClocks::new(rcc),
+            clocks: EthernetClocks::new(clocks),
             mac_address0: Cell::new(DEFAULT_MAC_ADDRESS),
         }
     }

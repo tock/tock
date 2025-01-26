@@ -5,6 +5,7 @@
 use nrf52::chip::Nrf52DefaultPeripherals;
 
 /// This struct, when initialized, instantiates all peripheral drivers for the nrf52840.
+///
 /// If a board wishes to use only a subset of these peripherals, this
 /// should not be used or imported, and a modified version should be
 /// constructed manually in main.rs.
@@ -12,7 +13,7 @@ pub struct Nrf52832DefaultPeripherals<'a> {
     pub nrf52: Nrf52DefaultPeripherals<'a>,
     pub gpio_port: crate::gpio::Port<'a, { crate::gpio::NUM_PINS }>,
 }
-impl<'a> Nrf52832DefaultPeripherals<'a> {
+impl Nrf52832DefaultPeripherals<'_> {
     pub unsafe fn new() -> Self {
         Self {
             nrf52: Nrf52DefaultPeripherals::new(),
@@ -24,7 +25,7 @@ impl<'a> Nrf52832DefaultPeripherals<'a> {
         self.nrf52.init();
     }
 }
-impl<'a> kernel::platform::chip::InterruptService for Nrf52832DefaultPeripherals<'a> {
+impl kernel::platform::chip::InterruptService for Nrf52832DefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             nrf52::peripheral_interrupts::GPIOTE => self.gpio_port.handle_interrupt(),

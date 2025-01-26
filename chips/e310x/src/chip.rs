@@ -5,14 +5,13 @@
 //! High-level setup and interrupt mapping for the chip.
 
 use core::fmt::Write;
-use kernel;
+use core::ptr::addr_of;
 use kernel::debug;
 use kernel::platform::chip::Chip;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
-use rv32i;
 use rv32i::csr;
 use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
-use rv32i::pmp::PMP;
+use rv32i::pmp::{simple::SimplePMP, PMPUserMPU};
 
 use crate::plic::PLIC;
 use kernel::hil::time::Freq32KHz;
@@ -23,7 +22,7 @@ pub type E310xClint<'a> = sifive::clint::Clint<'a, Freq32KHz>;
 
 pub struct E310x<'a, I: InterruptService + 'a> {
     userspace_kernel_boundary: rv32i::syscall::SysCall,
-    pmp: PMP<4>,
+    pmp: PMPUserMPU<4, SimplePMP<8>>,
     plic: &'a Plic,
     timer: &'a E310xClint<'a>,
     plic_interrupt_service: &'a I,
@@ -41,7 +40,7 @@ pub struct E310xDefaultPeripherals<'a> {
     pub watchdog: sifive::watchdog::Watchdog,
 }
 
-impl<'a> E310xDefaultPeripherals<'a> {
+impl E310xDefaultPeripherals<'_> {
     pub fn new(clock_frequency: u32) -> Self {
         Self {
             uart0: sifive::uart::Uart::new(crate::uart::UART0_BASE, clock_frequency),
@@ -63,7 +62,7 @@ impl<'a> E310xDefaultPeripherals<'a> {
     }
 }
 
-impl<'a> InterruptService for E310xDefaultPeripherals<'a> {
+impl InterruptService for E310xDefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, _interrupt: u32) -> bool {
         false
     }
@@ -73,8 +72,8 @@ impl<'a, I: InterruptService + 'a> E310x<'a, I> {
     pub unsafe fn new(plic_interrupt_service: &'a I, timer: &'a E310xClint<'a>) -> Self {
         Self {
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
-            pmp: PMP::new(),
-            plic: &PLIC,
+            pmp: PMPUserMPU::new(SimplePMP::new().unwrap()),
+            plic: &*addr_of!(PLIC),
             timer,
             plic_interrupt_service,
         }
@@ -114,7 +113,7 @@ impl<'a, I: InterruptService + 'a> E310x<'a, I> {
 }
 
 impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for E310x<'a, I> {
-    type MPU = PMP<4>;
+    type MPU = PMPUserMPU<4, SimplePMP<8>>;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
 
     fn mpu(&self) -> &Self::MPU {
@@ -229,12 +228,12 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             // Once claimed this interrupt won't fire until it's completed
             // NOTE: The interrupt is no longer pending in the PLIC
             loop {
-                let interrupt = PLIC.next_pending();
+                let interrupt = (*addr_of!(PLIC)).next_pending();
 
                 match interrupt {
                     Some(irq) => {
                         // Safe as interrupts are disabled
-                        PLIC.save_interrupt(irq);
+                        (*addr_of!(PLIC)).save_interrupt(irq);
                     }
                     None => {
                         // Enable generic interrupts
@@ -269,6 +268,7 @@ pub unsafe extern "C" fn start_trap_rust() {
 }
 
 /// Function that gets called if an interrupt occurs while an app was running.
+///
 /// mcause is passed in, and this function should correctly handle disabling the
 /// interrupt that fired so that it does not trigger again.
 #[export_name = "_disable_interrupt_trap_rust_from_app"]

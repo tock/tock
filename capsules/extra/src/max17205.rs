@@ -16,7 +16,7 @@
 //! Usage
 //! -----
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! // Two i2c addresses are necessary.
@@ -124,8 +124,8 @@ pub struct MAX17205<'a, I: i2c::I2CDevice> {
 impl<'a, I: i2c::I2CDevice> MAX17205<'a, I> {
     pub fn new(i2c_lower: &'a I, i2c_upper: &'a I, buffer: &'static mut [u8]) -> MAX17205<'a, I> {
         MAX17205 {
-            i2c_lower: i2c_lower,
-            i2c_upper: i2c_upper,
+            i2c_lower,
+            i2c_upper,
             state: Cell::new(State::Idle),
             soc: Cell::new(0),
             soc_mah: Cell::new(0),
@@ -230,7 +230,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for MAX17205<'_, I> {
                     client.status(
                         status,
                         match error {
-                            Ok(_) => Ok(()),
+                            Ok(()) => Ok(()),
                             Err(e) => Err(e.into()),
                         },
                     )
@@ -281,7 +281,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for MAX17205<'_, I> {
                         self.soc_mah.get(),
                         full_mah,
                         match error {
-                            Ok(_) => Ok(()),
+                            Ok(()) => Ok(()),
                             Err(e) => Err(e.into()),
                         },
                     );
@@ -305,7 +305,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for MAX17205<'_, I> {
                     client.coulomb(
                         coulomb,
                         match error {
-                            Ok(_) => Ok(()),
+                            Ok(()) => Ok(()),
                             Err(e) => Err(e.into()),
                         },
                     );
@@ -352,7 +352,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for MAX17205<'_, I> {
                         self.voltage.get(),
                         current,
                         match error {
-                            Ok(_) => Ok(()),
+                            Ok(()) => Ok(()),
                             Err(e) => Err(e.into()),
                         },
                     )
@@ -380,7 +380,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for MAX17205<'_, I> {
                     client.romid(
                         rid,
                         match error {
-                            Ok(_) => Ok(()),
+                            Ok(()) => Ok(()),
                             Err(e) => Err(e.into()),
                         },
                     )
@@ -522,7 +522,7 @@ impl<I: i2c::I2CDevice> SyscallDriver for MAX17205Driver<'_, I> {
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Driver check.
+    /// - `0`: Driver existence check.
     /// - `1`: Read the current status of the MAX17205.
     /// - `2`: Read the current state of charge percent.
     /// - `3`: Read the current voltage and current draw.

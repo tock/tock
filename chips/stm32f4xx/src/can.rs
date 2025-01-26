@@ -8,7 +8,7 @@
 //! Low-level CAN driver for STM32F4XX chips
 //!
 
-use crate::rcc;
+use crate::clocks::{phclk, Stm32f4Clocks};
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::can::{self, StandardBitTiming};
@@ -472,12 +472,12 @@ pub struct Can<'a> {
 }
 
 impl<'a> Can<'a> {
-    pub fn new(rcc: &'a rcc::Rcc, registers: StaticRef<Registers>) -> Can<'a> {
+    pub fn new(clocks: &'a dyn Stm32f4Clocks, registers: StaticRef<Registers>) -> Can<'a> {
         Can {
-            registers: registers,
-            clock: CanClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::APB1(rcc::PCLK1::CAN1),
-                rcc,
+            registers,
+            clock: CanClock(phclk::PeripheralClock::new(
+                phclk::PeripheralClockType::APB1(phclk::PCLK1::CAN1),
+                clocks,
             )),
             can_state: Cell::new(CanState::Sleep),
             error_interrupt_counter: Cell::new(0),
@@ -758,7 +758,7 @@ impl<'a> Can<'a> {
                         .can_tir
                         .modify(CAN_TIxR::TXRQ::SET);
                 }) {
-                    Some(_) => Ok(()),
+                    Some(()) => Ok(()),
                     None => Err(kernel::ErrorCode::FAIL),
                 }
             } else {
@@ -1113,7 +1113,7 @@ impl DeferredCallClient for Can<'_> {
     }
 }
 
-struct CanClock<'a>(rcc::PeripheralClock<'a>);
+struct CanClock<'a>(phclk::PeripheralClock<'a>);
 
 impl ClockInterface for CanClock<'_> {
     fn is_enabled(&self) -> bool {
@@ -1252,7 +1252,7 @@ impl can::Controller for Can<'_> {
                     } else {
                         // set an Enable or an EnableError deferred action
                         match r {
-                            Ok(_) => {
+                            Ok(()) => {
                                 self.deferred_action.set(AsyncAction::Enable);
                             }
                             Err(err) => {
@@ -1322,7 +1322,7 @@ impl can::Transmit<{ can::STANDARD_CAN_PACKET_SIZE }> for Can<'_> {
                 self.enable_irq(CanInterruptMode::TransmitInterrupt);
                 self.can_state.set(CanState::Normal);
                 match self.send_8byte_message(id, len, 0) {
-                    Ok(_) => Ok(()),
+                    Ok(()) => Ok(()),
                     Err(err) => Err((err, self.tx_buffer.take().unwrap())),
                 }
             }

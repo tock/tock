@@ -12,6 +12,8 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use core::ptr::{addr_of, addr_of_mut};
+
 use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -34,10 +36,12 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
 static mut CHIP: Option<&'static msp432::chip::Msp432<msp432::chip::Msp432DefaultPeripherals>> =
     None;
 // Static reference to process printer for panic dumps.
-static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
+static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
+    None;
 
 /// How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
+const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
+    capsules_system::process_policies::PanicFaultPolicy {};
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -75,7 +79,6 @@ impl KernelResources<msp432::chip::Msp432<'static, msp432::chip::Msp432DefaultPe
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type CredentialsCheckingPolicy = ();
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm4::systick::SysTick;
     type WatchDog = msp432::wdt::Wdt;
@@ -88,9 +91,6 @@ impl KernelResources<msp432::chip::Msp432<'static, msp432::chip::Msp432DefaultPe
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
-        &()
-    }
-    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -192,21 +192,17 @@ unsafe fn setup_adc_pins(gpio: &msp432::gpio::GpioManager) {
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn create_peripherals() -> &'static mut msp432::chip::Msp432DefaultPeripherals<'static> {
-    static_init!(
-        msp432::chip::Msp432DefaultPeripherals,
-        msp432::chip::Msp432DefaultPeripherals::new()
-    )
-}
-
-/// Main function.
-///
-/// This is called after RAM initialization is complete.
-#[no_mangle]
-pub unsafe fn main() {
+unsafe fn start() -> (
+    &'static kernel::Kernel,
+    MspExp432P401R,
+    &'static msp432::chip::Msp432<'static, msp432::chip::Msp432DefaultPeripherals<'static>>,
+) {
     startup_intilialisation();
 
-    let peripherals = create_peripherals();
+    let peripherals = static_init!(
+        msp432::chip::Msp432DefaultPeripherals,
+        msp432::chip::Msp432DefaultPeripherals::new()
+    );
     peripherals.init();
 
     // Setup the GPIO pins to use the HFXT (high frequency external) oscillator (48MHz)
@@ -237,7 +233,7 @@ pub unsafe fn main() {
     peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P01_2 as usize].enable_primary_function();
     peripherals.gpio.int_pins[msp432::gpio::IntPinNr::P01_3 as usize].enable_primary_function();
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
     let chip = static_init!(
         msp432::chip::Msp432<msp432::chip::Msp432DefaultPeripherals>,
         msp432::chip::Msp432::new(peripherals)
@@ -330,7 +326,6 @@ pub unsafe fn main() {
     ));
 
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
 
@@ -410,7 +405,7 @@ pub unsafe fn main() {
     // Enable the internal temperature sensor on ADC Channel 22
     peripherals.adc_ref.enable_temp_sensor(true);
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
@@ -419,16 +414,16 @@ pub unsafe fn main() {
 
     let msp_exp432p4014 = MspExp432P401R {
         led: leds,
-        console: console,
-        button: button,
-        gpio: gpio,
-        alarm: alarm,
+        console,
+        button,
+        gpio,
+        alarm,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
-        adc: adc,
+        adc,
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(48_000_000),
         wdt: &peripherals.wdt,
@@ -452,14 +447,14 @@ pub unsafe fn main() {
         board_kernel,
         chip,
         core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
         ),
         core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+            core::ptr::addr_of_mut!(_sappmem),
+            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut PROCESSES,
+        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_management_capability,
     )
@@ -470,10 +465,14 @@ pub unsafe fn main() {
     .finalize(components::multi_alarm_test_component_buf!(msp432::timer::TimerA))
     .run();*/
 
-    board_kernel.kernel_loop(
-        &msp_exp432p4014,
-        chip,
-        Some(&msp_exp432p4014.ipc),
-        &main_loop_capability,
-    );
+    (board_kernel, msp_exp432p4014, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, board, chip) = start();
+    board_kernel.kernel_loop(&board, chip, Some(&board.ipc), &main_loop_capability);
 }

@@ -4,8 +4,11 @@
 
 //! A dummy SPI client to test the SPI implementation
 
+use core::ptr::addr_of_mut;
+
 use kernel::hil::gpio::Configure;
 use kernel::hil::spi::{self, SpiMaster};
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
 
 #[allow(unused_variables, dead_code)]
@@ -29,15 +32,16 @@ impl spi::SpiMasterClient for DummyCB {
     #[allow(unused_variables, dead_code)]
     fn read_write_done(
         &self,
-        write: &'static mut [u8],
-        read: Option<&'static mut [u8]>,
-        len: usize,
-        _status: Result<(), ErrorCode>,
+        write: SubSliceMut<'static, u8>,
+        read: Option<SubSliceMut<'static, u8>>,
+        status: Result<usize, ErrorCode>,
     ) {
         unsafe {
             // do actual stuff
             // TODO verify SPI return value
-            let _ = self.spi.read_write_bytes(&mut A5, None, A5.len());
+            let _ = self
+                .spi
+                .read_write_bytes((&mut *addr_of_mut!(A5) as &mut [u8]).into(), None);
 
             // FLOP = !FLOP;
             // let len: usize = BUF1.len();
@@ -76,14 +80,20 @@ pub unsafe fn spi_dummy_test(spi: &'static sam4l::spi::SpiHw<'static>) {
     pin2.set();
 
     let spicb = kernel::static_init!(DummyCB, DummyCB::new(spi));
-    spi.set_active_peripheral(sam4l::spi::Peripheral::Peripheral0);
+    spi.specify_chip_select(sam4l::spi::Peripheral::Peripheral0)
+        .unwrap();
     spi.set_client(spicb);
 
     spi.init().unwrap();
     spi.set_baud_rate(200000);
 
-    let len = BUF2.len();
-    if spi.read_write_bytes(&mut BUF2, Some(&mut BUF1), len) != Ok(()) {
+    let buf2 = &mut *addr_of_mut!(BUF2);
+    let len = buf2.len();
+    if spi.read_write_bytes(
+        (buf2 as &mut [u8]).into(),
+        Some((&mut *addr_of_mut!(BUF1) as &mut [u8]).into()),
+    ) != Ok(())
+    {
         loop {
             spi.write_byte(0xA5).unwrap();
         }

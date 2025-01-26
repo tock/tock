@@ -10,16 +10,16 @@
 //! Usage
 //! -----
 //!
-//! ```
+//! ```rust,ignore
 //! # use kernel::static_init;
 //!
 //! let mux_pwm = static_init!(
-//!     capsules::virtual_pwm::MuxPwm<'static, nrf52::pwm::Pwm>,
-//!     capsules::virtual_pwm::MuxPwm::new(&base_peripherals.pwm0)
+//!     capsules_core::virtual_pwm::MuxPwm<'static, nrf52::pwm::Pwm>,
+//!     capsules_core::virtual_pwm::MuxPwm::new(&base_peripherals.pwm0)
 //! );
 //! let virtual_pwm_buzzer = static_init!(
-//!     capsules::virtual_pwm::PwmPinUser<'static, nrf52::pwm::Pwm>,
-//!     capsules::virtual_pwm::PwmPinUser::new(mux_pwm, nrf5x::pinmux::Pinmux::new(31))
+//!     capsules_core::virtual_pwm::PwmPinUser<'static, nrf52::pwm::Pwm>,
+//!     capsules_core::virtual_pwm::PwmPinUser::new(mux_pwm, nrf5x::pinmux::Pinmux::new(31))
 //! );
 //! virtual_pwm_buzzer.add_to_mux();
 //! ```
@@ -38,7 +38,7 @@ pub struct MuxPwm<'a, P: hil::pwm::Pwm> {
 impl<'a, P: hil::pwm::Pwm> MuxPwm<'a, P> {
     pub const fn new(pwm: &'a P) -> MuxPwm<'a, P> {
         MuxPwm {
-            pwm: pwm,
+            pwm,
             devices: List::new(),
             inflight: OptionalCell::empty(),
         }
@@ -50,7 +50,7 @@ impl<'a, P: hil::pwm::Pwm> MuxPwm<'a, P> {
         if self.inflight.is_none() {
             let mnode = self.devices.iter().find(|node| node.operation.is_some());
             mnode.map(|node| {
-                let started = node.operation.take().map_or(false, |operation| {
+                let started = node.operation.take().is_some_and(|operation| {
                     match operation {
                         Operation::Simple {
                             frequency_hz,
@@ -118,8 +118,8 @@ pub struct PwmPinUser<'a, P: hil::pwm::Pwm> {
 impl<'a, P: hil::pwm::Pwm> PwmPinUser<'a, P> {
     pub const fn new(mux: &'a MuxPwm<'a, P>, pin: P::Pin) -> PwmPinUser<'a, P> {
         PwmPinUser {
-            mux: mux,
-            pin: pin,
+            mux,
+            pin,
             operation: OptionalCell::empty(),
             next: ListLink::empty(),
         }

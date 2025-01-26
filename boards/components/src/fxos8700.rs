@@ -57,7 +57,7 @@ impl<I: 'static + i2c::I2CMaster<'static>> Fxos8700Component<I> {
         Fxos8700Component {
             i2c_mux: i2c,
             i2c_address,
-            gpio: gpio,
+            gpio,
         }
     }
 }

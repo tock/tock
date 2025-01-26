@@ -33,9 +33,9 @@ impl<'a, A: hil::adc::Adc<'a>> AnalogLightSensor<'a, A> {
         sensor_type: AnalogLightSensorType,
     ) -> AnalogLightSensor<'a, A> {
         AnalogLightSensor {
-            adc: adc,
-            channel: channel,
-            sensor_type: sensor_type,
+            adc,
+            channel,
+            sensor_type,
             client: OptionalCell::empty(),
         }
     }
@@ -85,9 +85,9 @@ impl<'a, A: hil::adc::Adc<'a>> AnalogTemperatureSensor<'a, A> {
         sensor_type: AnalogLightSensorType,
     ) -> AnalogLightSensor<'a, A> {
         AnalogLightSensor {
-            adc: adc,
-            channel: channel,
-            sensor_type: sensor_type,
+            adc,
+            channel,
+            sensor_type,
             client: OptionalCell::empty(),
         }
     }

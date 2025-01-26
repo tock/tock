@@ -2,12 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! This file contains the definition and implementation for the UDP reception
-//! interface. It follows the same virtualization model as that described in `udp_send.rs`,
-//! except that no queueing is needed because received packets are immediately dispatched to the
-//! appropriate capsule / app. Once again, port binding for userspace apps is managed separately
-//! by the UDP userspace driver, which must correctly check bindings of kernel apps to ensure
-//! correctness when dispatching received packets to the appropriate client.
+//! Definition and implementation for the UDP reception interface.
+//!
+//! It follows the same virtualization model as that described in
+//! `udp_send.rs`, except that no queueing is needed because received
+//! packets are immediately dispatched to the appropriate capsule /
+//! app. Once again, port binding for userspace apps is managed
+//! separately by the UDP userspace driver, which must correctly check
+//! bindings of kernel apps to ensure correctness when dispatching
+//! received packets to the appropriate client.
 
 use crate::net::ipv6::ip_utils::IPAddr;
 use crate::net::ipv6::ipv6_recv::IP6RecvClient;
@@ -42,7 +45,7 @@ impl<'a> MuxUdpReceiver<'a> {
     }
 }
 
-impl<'a> IP6RecvClient for MuxUdpReceiver<'a> {
+impl IP6RecvClient for MuxUdpReceiver<'_> {
     fn receive(&self, ip_header: IP6Header, payload: &[u8]) {
         match UDPHeader::decode(payload).done() {
             Some((offset, udp_header)) => {
@@ -96,11 +99,12 @@ impl<'a> IP6RecvClient for MuxUdpReceiver<'a> {
     }
 }
 
-/// The UDP driver implements this client interface trait to receive
-/// packets passed up the network stack to the UDPReceiver, and then
-/// distributes them to userland applications from there.
-/// Kernel apps can also instantiate structs that implement this trait
-/// in order to receive UDP packets
+/// Client interface trait to receive UDP packets.
+///
+/// Intended to received packets passed up the network stack to the
+/// UDPReceiver, and then distributes them to userland applications
+/// from there.  Kernel apps can also instantiate structs that
+/// implement this trait in order to receive UDP packets
 pub trait UDPRecvClient {
     fn receive(
         &self,

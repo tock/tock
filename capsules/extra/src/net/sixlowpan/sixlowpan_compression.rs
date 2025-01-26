@@ -11,7 +11,6 @@ use crate::net::util::{network_slice_to_u16, u16_to_network_slice};
 /// Implements the 6LoWPAN specification for sending IPv6 datagrams over
 /// 802.15.4 packets efficiently, as detailed in RFC 6282.
 use core::mem;
-use core::result::Result;
 
 /// Contains bit masks and constants related to the two-byte header of the
 /// LoWPAN_IPHC encoding format.
@@ -95,6 +94,8 @@ pub struct Context {
     pub compress: bool,
 }
 
+/// LoWPan ContextStore
+///
 /// LoWPAN encoding requires being able to look up the existence of contexts,
 /// which are essentially IPv6 address prefixes. Any implementation must ensure
 /// that context 0 is always available and contains the mesh-local prefix.
@@ -226,7 +227,7 @@ pub fn compress<'a>(
     dst_ctx = dst_ctx.and_then(|ctx| if ctx.compress { Some(ctx) } else { None });
 
     // Context Identifier Extension
-    compress_cie(&src_ctx, &dst_ctx, buf, &mut written);
+    compress_cie(src_ctx.as_ref(), dst_ctx.as_ref(), buf, &mut written);
 
     // Traffic Class & Flow Label
     compress_tf(&ip6_header, buf, &mut written);
@@ -244,19 +245,19 @@ pub fn compress<'a>(
     compress_src(
         &ip6_header.src_addr,
         &src_mac_addr,
-        &src_ctx,
+        src_ctx.as_ref(),
         buf,
         &mut written,
     );
 
     // Destination Address
     if ip6_header.dst_addr.is_multicast() {
-        compress_multicast(&ip6_header.dst_addr, &dst_ctx, buf, &mut written);
+        compress_multicast(&ip6_header.dst_addr, dst_ctx.as_ref(), buf, &mut written);
     } else {
         compress_dst(
             &ip6_header.dst_addr,
             &dst_mac_addr,
-            &dst_ctx,
+            dst_ctx.as_ref(),
             buf,
             &mut written,
         );
@@ -292,8 +293,8 @@ pub fn compress<'a>(
 }
 
 fn compress_cie(
-    src_ctx: &Option<Context>,
-    dst_ctx: &Option<Context>,
+    src_ctx: Option<&Context>,
+    dst_ctx: Option<&Context>,
     buf: &mut [u8],
     written: &mut usize,
 ) {
@@ -379,7 +380,7 @@ fn compress_hl(ip6_header: &IP6Header, buf: &mut [u8], written: &mut usize) {
 fn compress_src(
     src_ip_addr: &IPAddr,
     src_mac_addr: &MacAddress,
-    src_ctx: &Option<Context>,
+    src_ctx: Option<&Context>,
     buf: &mut [u8],
     written: &mut usize,
 ) {
@@ -446,7 +447,7 @@ fn compress_iid(
 fn compress_dst(
     dst_ip_addr: &IPAddr,
     dst_mac_addr: &MacAddress,
-    dst_ctx: &Option<Context>,
+    dst_ctx: Option<&Context>,
     buf: &mut [u8],
     written: &mut usize,
 ) {
@@ -471,7 +472,7 @@ fn compress_dst(
 // Compresses multicast destination addresses
 fn compress_multicast(
     dst_ip_addr: &IPAddr,
-    dst_ctx: &Option<Context>,
+    dst_ctx: Option<&Context>,
     buf: &mut [u8],
     written: &mut usize,
 ) {

@@ -67,7 +67,7 @@
 //! You need a device that provides the `kernel::BleAdvertisementDriver` trait along with a virtual
 //! timer to perform events and not block the entire kernel
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
 //! # use capsules::virtual_alarm::VirtualMuxAlarm;
 //!
@@ -269,7 +269,7 @@ impl App {
                             let adv_data_len =
                                 cmp::min(kernel_tx.len() - PACKET_ADDR_LEN - 2, adv_data.len());
                             let adv_data_corrected =
-                                adv_data.get_to(..adv_data_len).ok_or(ErrorCode::SIZE)?;
+                                adv_data.get(..adv_data_len).ok_or(ErrorCode::SIZE)?;
                             let payload_len = adv_data_corrected.len() + PACKET_ADDR_LEN;
                             {
                                 let (header, payload) = kernel_tx.split_at_mut(2);
@@ -358,11 +358,11 @@ where
         alarm: &'a A,
     ) -> BLE<'a, B, A> {
         BLE {
-            radio: radio,
+            radio,
             busy: Cell::new(false),
             app: container,
             kernel_tx: kernel::utilities::cells::TakeCell::new(tx_buf),
-            alarm: alarm,
+            alarm,
             sending_app: OptionalCell::empty(),
             receiving_app: OptionalCell::empty(),
         }
@@ -377,9 +377,9 @@ where
     // likely be chosen.
     fn reset_active_alarm(&self) {
         let now = self.alarm.now();
-        let mut next_ref = u32::max_value();
-        let mut next_dt = u32::max_value();
-        let mut next_dist = u32::max_value();
+        let mut next_ref = u32::MAX;
+        let mut next_dt = u32::MAX;
+        let mut next_dist = u32::MAX;
         for app in self.app.iter() {
             app.enter(|app, _| match app.alarm_data.expiration {
                 Expiration::Enabled(reference, dt) => {
@@ -394,7 +394,7 @@ where
                 Expiration::Disabled => {}
             });
         }
-        if next_ref != u32::max_value() {
+        if next_ref != u32::MAX {
             self.alarm
                 .set_alarm(A::Ticks::from(next_ref), A::Ticks::from(next_dt));
         }
@@ -637,7 +637,7 @@ where
                     .map_or_else(
                         |err| CommandReturn::failure(err.into()),
                         |res| match res {
-                            Ok(_) => {
+                            Ok(()) => {
                                 // must be called outside closure passed to grant region!
                                 self.reset_active_alarm();
                                 CommandReturn::success()
@@ -705,7 +705,7 @@ where
                     .map_or_else(
                         |err| err.into(),
                         |res| match res {
-                            Ok(_) => {
+                            Ok(()) => {
                                 // must be called outside closure passed to grant region!
                                 self.reset_active_alarm();
                                 CommandReturn::success()

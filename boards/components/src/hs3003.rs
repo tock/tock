@@ -37,6 +37,8 @@ macro_rules! hs3003_component_static {
     };};
 }
 
+pub type Hs3003ComponentType<I> = Hs3003<'static, I>;
+
 pub struct Hs3003Component<I: 'static + i2c::I2CMaster<'static>> {
     i2c_mux: &'static MuxI2C<'static, I>,
     i2c_address: u8,
@@ -46,7 +48,7 @@ impl<I: 'static + i2c::I2CMaster<'static>> Hs3003Component<I> {
     pub fn new(i2c: &'static MuxI2C<'static, I>, i2c_address: u8) -> Self {
         Hs3003Component {
             i2c_mux: i2c,
-            i2c_address: i2c_address,
+            i2c_address,
         }
     }
 }

@@ -3,6 +3,7 @@
 // Copyright Tock Contributors 2022.
 
 //! Implements IEEE 802.15.4 MAC device abstraction over a 802.15.4 MAC interface.
+//!
 //! Allows its users to prepare and send frames in plaintext, handling 802.15.4
 //! encoding and security procedures (in the future) transparently.
 //!
@@ -16,14 +17,14 @@
 //! -----
 //!
 //! To use this capsule, we need an implementation of a hardware
-//! `capsules::ieee802154::mac::Mac`. Suppose we have such an implementation of type
+//! `capsules_extra::ieee802154::mac::Mac`. Suppose we have such an implementation of type
 //! `XMacDevice`.
 //!
-//! ```rust
+//! ```rust,ignore
 //! let xmac: &XMacDevice = /* ... */;
 //! let mac_device = static_init!(
-//!     capsules::ieee802154::mac::Framer<'static, XMacDevice>,
-//!     capsules::ieee802154::mac::Framer::new(xmac));
+//!     capsules_extra::ieee802154::mac::Framer<'static, XMacDevice>,
+//!     capsules_extra::ieee802154::mac::Framer::new(xmac));
 //! xmac.set_transmit_client(mac_device);
 //! xmac.set_receive_client(mac_device, &mut MAC_RX_BUF);
 //! xmac.set_config_client(mac_device);
@@ -32,7 +33,7 @@
 //! The `mac_device` device is now set up. Users of the MAC device can now
 //! configure the underlying radio, prepare and send frames:
 //!
-//! ```rust
+//! ```rust,ignore
 //! mac_device.set_pan(0xABCD);
 //! mac_device.set_address(0x1008);
 //! mac_device.config_commit();
@@ -57,12 +58,12 @@
 //! You should also be able to set up the userspace driver for receiving/sending
 //! 802.15.4 frames:
 //!
-//! ```rust
-//! # use kernel::static_init;
+//! ```rust,ignore
+//! use kernel::static_init;
 //!
 //! let radio_capsule = static_init!(
-//!     capsules::ieee802154::RadioDriver<'static>,
-//!     capsules::ieee802154::RadioDriver::new(mac_device, board_kernel.create_grant(&grant_cap), &mut RADIO_BUF));
+//!     capsules_extra::ieee802154::RadioDriver<'static>,
+//!     capsules_extra::ieee802154::RadioDriver::new(mac_device, board_kernel.create_grant(&grant_cap), &mut RADIO_BUF));
 //! mac_device.set_key_procedure(radio_capsule);
 //! mac_device.set_device_procedure(radio_capsule);
 //! mac_device.set_transmit_client(radio_capsule);
@@ -85,16 +86,17 @@ use crate::net::stream::{encode_bytes, encode_u32, encode_u8};
 
 use core::cell::Cell;
 
-use kernel::hil::radio;
+use kernel::hil::radio::{self, LQI_SIZE};
 use kernel::hil::symmetric_encryption::{CCMClient, AES128CCM};
 use kernel::processbuffer::ReadableProcessSlice;
 use kernel::utilities::cells::{MapCell, OptionalCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
 
-/// A `Frame` wraps a static mutable byte slice and keeps just enough
-/// information about its header contents to expose a restricted interface for
-/// modifying its payload. This enables the user to abdicate any concerns about
+/// Wraps a static mutable byte slice along with header information
+/// for a payload.
+///
+/// This enables the user to abdicate any concerns about
 /// where the payload should be placed in the buffer.
 #[derive(Eq, PartialEq, Debug)]
 pub struct Frame {
@@ -134,7 +136,7 @@ impl Frame {
 
     /// Calculates how much more data this frame can hold
     pub fn remaining_data_capacity(&self) -> usize {
-        self.buf.len() - radio::PSDU_OFFSET - radio::MFR_SIZE - self.info.secured_length()
+        self.buf.len() - self.info.secured_length()
     }
 
     /// Appends payload bytes into the frame if possible
@@ -142,7 +144,7 @@ impl Frame {
         if payload.len() > self.remaining_data_capacity() {
             return Err(ErrorCode::NOMEM);
         }
-        let begin = radio::PSDU_OFFSET + self.info.unsecured_length();
+        let begin = self.info.unsecured_length();
         self.buf[begin..begin + payload.len()].copy_from_slice(payload);
         self.info.data_len += payload.len();
 
@@ -158,7 +160,7 @@ impl Frame {
         if payload_buf.len() > self.remaining_data_capacity() {
             return Err(ErrorCode::NOMEM);
         }
-        let begin = radio::PSDU_OFFSET + self.info.unsecured_length();
+        let begin = self.info.unsecured_length();
         payload_buf.copy_to_slice(&mut self.buf[begin..begin + payload_buf.len()]);
         self.info.data_len += payload_buf.len();
 
@@ -206,7 +208,7 @@ impl FrameInfo {
         // IEEE 802.15.4-2015: Table 9-3. a data and m data
         let encryption_needed = self
             .security_params
-            .map_or(false, |(level, _, _)| level.encryption_needed());
+            .is_some_and(|(level, _, _)| level.encryption_needed());
         if !encryption_needed {
             // If only integrity is need, a data is the whole frame
             (self.unsecured_length(), 0)
@@ -223,7 +225,8 @@ impl FrameInfo {
     }
 }
 
-fn get_ccm_nonce(device_addr: &[u8; 8], frame_counter: u32, level: SecurityLevel) -> [u8; 13] {
+/// Generate a 15.4 CCM nonce from the device address, frame counter, and SecurityLevel
+pub fn get_ccm_nonce(device_addr: &[u8; 8], frame_counter: u32, level: SecurityLevel) -> [u8; 13] {
     let mut nonce = [0u8; 13];
     let encode_ccm_nonce = |buf: &mut [u8]| {
         let off = enc_consume!(buf; encode_bytes, device_addr.as_ref());
@@ -249,6 +252,7 @@ fn get_ccm_nonce(device_addr: &[u8; 8], frame_counter: u32, level: SecurityLevel
 pub const CRYPT_BUF_SIZE: usize = radio::MAX_MTU + 3 * 16;
 
 /// IEEE 802.15.4-2015, 9.2.2, KeyDescriptor lookup procedure.
+///
 /// Trait to be implemented by an upper layer that manages the list of 802.15.4
 /// key descriptors. This trait interface enables the lookup procedure to be
 /// implemented either explicitly (managing a list of KeyDescriptors) or
@@ -260,6 +264,7 @@ pub trait KeyProcedure {
 }
 
 /// IEEE 802.15.4-2015, 9.2.5, DeviceDescriptor lookup procedure.
+///
 /// Trait to be implemented by an upper layer that manages the list of 802.15.4
 /// device descriptors. This trait interface enables the lookup procedure to be
 /// implemented either explicitly (managing a list of DeviceDescriptors) or
@@ -300,23 +305,26 @@ enum RxState {
     /// There is no frame that has been received.
     Idle,
     /// There is a secured frame that needs to be decrypted.
-    ReadyToDecrypt(FrameInfo, &'static mut [u8]),
+    /// ReadyToDecrypt(FrameInfo, buf, lqi)
+    ReadyToDecrypt(FrameInfo, &'static mut [u8], u8),
     /// A secured frame is currently being decrypted by the decryption facility.
+    /// Decrypting(FrameInfo, lqi)
     #[allow(dead_code)]
-    Decrypting(FrameInfo),
+    Decrypting(FrameInfo, u8),
     /// There is an unsecured frame that needs to be re-parsed and exposed to
-    /// the client.
+    /// the client. ReadyToYield(FrameInfo, buf, lqi)
     #[allow(dead_code)]
-    ReadyToYield(FrameInfo, &'static mut [u8]),
+    ReadyToYield(FrameInfo, &'static mut [u8], u8),
 }
 
-/// This struct wraps an IEEE 802.15.4 radio device `kernel::hil::radio::Radio`
-/// and exposes IEEE 802.15.4 MAC device functionality as the trait
-/// `capsules::mac::Mac`. It hides header preparation, transmission and
-/// processing logic from the user by essentially maintaining multiple state
-/// machines corresponding to the transmission, reception and
+/// Wraps an IEEE 802.15.4 [kernel::hil::radio::Radio]
+/// and exposes [`capsules_extra::ieee802154::mac::Mac`](crate::ieee802154::mac::Mac) functionality.
+///
+/// It hides header preparation, transmission and processing logic
+/// from the user by essentially maintaining multiple state machines
+/// corresponding to the transmission, reception and
 /// encryption/decryption pipelines. See the documentation in
-/// `capsules/src/mac.rs` for more details.
+/// `capsules/extra/src/ieee802154/mac.rs` for more details.
 pub struct Framer<'a, M: Mac<'a>, A: AES128CCM<'a>> {
     mac: &'a M,
     aes_ccm: &'a A,
@@ -348,8 +356,8 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
         crypt_buf: SubSliceMut<'static, u8>,
     ) -> Framer<'a, M, A> {
         Framer {
-            mac: mac,
-            aes_ccm: aes_ccm,
+            mac,
+            aes_ccm,
             data_sequence: Cell::new(0),
             key_procedure: OptionalCell::empty(),
             device_procedure: OptionalCell::empty(),
@@ -378,15 +386,6 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
             .and_then(|key_procedure| key_procedure.lookup_key(level, key_id))
     }
 
-    /// Look up the extended address of a device using the IEEE 802.15.4
-    /// DeviceDescriptor lookup prodecure implemented elsewhere.
-    fn lookup_addr_long(&self, src_addr: Option<MacAddress>) -> Option<[u8; 8]> {
-        src_addr.and_then(|addr| {
-            self.device_procedure
-                .and_then(|device_procedure| device_procedure.lookup_addr_long(addr))
-        })
-    }
-
     /// IEEE 802.15.4-2015, 9.2.1, outgoing frame security procedure
     /// Performs the first checks in the security procedure. The rest of the
     /// steps are performed as part of the transmission pipeline.
@@ -410,13 +409,23 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
     }
 
     /// IEEE 802.15.4-2015, 9.2.3, incoming frame security procedure
-    fn incoming_frame_security(&self, buf: &'static mut [u8], frame_len: usize) -> RxState {
+    fn incoming_frame_security(
+        &self,
+        buf: &'static mut [u8],
+        frame_len: usize,
+        lqi: u8,
+    ) -> RxState {
         // Try to decode the MAC header. Three possible results can occur:
         // 1) The frame should be dropped and the buffer returned to the radio
         // 2) The frame is unsecured. We immediately expose the frame to the
         //    user and queue the buffer for returning to the radio.
         // 3) The frame needs to be unsecured.
-        let result = Header::decode(&buf[radio::PSDU_OFFSET..], false)
+
+        // The buffer containing the 15.4 packet also contains the PSDU bytes and an LQI
+        // byte. We only pass the 15.4 packet up the stack and slice buf accordingly.
+        let frame_buffer = &buf[radio::PSDU_OFFSET..(buf.len() - LQI_SIZE)];
+
+        let result = Header::decode(frame_buffer, false)
             .done()
             .and_then(|(data_offset, (header, mac_payload_offset))| {
                 // Note: there is a complication here regarding the offsets.
@@ -450,11 +459,18 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                         // specifies `KeyIdMode::Source4Index`, the source
                         // address used for the nonce is actually a constant
                         // defined in their spec
-                        let device_addr = match self.lookup_addr_long(header.src_addr) {
-                            Some(addr) => addr,
+                        let device_addr = match header.src_addr {
+                            Some(mac) => match mac {
+                                MacAddress::Long(val) => val,
+                                MacAddress::Short(_) => {
+                                    kernel::debug!("[15.4] DROPPED PACKET - error only short address provided on encrypted packet.");
+                                    return None
+                                },
+                            },
                             None => {
-                                return None;
-                            }
+                                kernel::debug!("[15.4] DROPPED PACKET - Malformed, no src address provided.");
+                                return None
+                            },
                         };
 
                         // Step g, h: Check frame counter
@@ -478,17 +494,21 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
 
                         Some(FrameInfo {
                             frame_type: header.frame_type,
-                            mac_payload_offset: mac_payload_offset,
-                            data_offset: data_offset,
-                            data_len: data_len,
-                            mic_len: mic_len,
+                            mac_payload_offset,
+                            data_offset,
+                            data_len,
+                            mic_len,
                             security_params: Some((security.level, key, nonce)),
                         })
                     }
                 } else {
                     // No security needed, can yield the frame immediately
+
+                    // The buffer containing the 15.4 packet also contains the PSDU bytes and an LQI
+                    // byte. We only pass the 15.4 packet up the stack and slice buf accordingly.
+                    let frame_buffer = &buf[radio::PSDU_OFFSET..(buf.len() - LQI_SIZE)];
                     self.rx_client.map(|client| {
-                        client.receive(buf, header, radio::PSDU_OFFSET + data_offset, data_len);
+                        client.receive(frame_buffer, header, lqi, data_offset, data_len);
                     });
                     None
                 }
@@ -501,7 +521,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                 self.mac.set_receive_buffer(buf);
                 RxState::Idle
             }
-            Some(frame_info) => RxState::ReadyToDecrypt(frame_info, buf),
+            Some(frame_info) => RxState::ReadyToDecrypt(frame_info, buf, lqi),
         }
     }
 
@@ -582,7 +602,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
         self.rx_state.take().map(|state| {
             let next_state = match state {
                 RxState::Idle => RxState::Idle,
-                RxState::ReadyToDecrypt(info, buf) => {
+                RxState::ReadyToDecrypt(info, buf, lqi) => {
                     match info.security_params {
                         None => {
                             // `ReadyToDecrypt` should only be entered when
@@ -642,11 +662,11 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                                     // Scenario 1
                                     Some(Ok(())) => {
                                         self.mac.set_receive_buffer(buf);
-                                        RxState::Decrypting(info)
+                                        RxState::Decrypting(info, lqi)
                                     }
                                     // Scenario 2
                                     Some(Err((ErrorCode::BUSY, buf))) => {
-                                        RxState::ReadyToDecrypt(info, buf)
+                                        RxState::ReadyToDecrypt(info, buf, lqi)
                                     }
                                     // Scenario 3
                                     Some(Err((_, fail_crypt_buf))) => {
@@ -664,20 +684,23 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                         }
                     }
                 }
-                RxState::Decrypting(info) => {
+                RxState::Decrypting(info, lqi) => {
                     // This state should be advanced only by the hardware
                     // encryption callback.
-                    RxState::Decrypting(info)
+                    RxState::Decrypting(info, lqi)
                 }
-                RxState::ReadyToYield(info, buf) => {
+                RxState::ReadyToYield(info, buf, lqi) => {
                     // Between the secured and unsecured frames, the
                     // unsecured frame length remains constant but the data
                     // offsets may change due to the presence of PayloadIEs.
                     // Hence, we can only use the unsecured length from the
                     // frame info, but not the offsets.
                     let frame_len = info.unsecured_length();
-                    if let Some((data_offset, (header, _))) =
-                        Header::decode(&buf[radio::PSDU_OFFSET..], true).done()
+                    if let Some((data_offset, (header, _))) = Header::decode(
+                        &buf[radio::PSDU_OFFSET..(radio::PSDU_OFFSET + radio::MAX_FRAME_SIZE)],
+                        true,
+                    )
+                    .done()
                     {
                         // IEEE 802.15.4-2015 specifies that unsecured
                         // frames do not have auxiliary security headers,
@@ -686,11 +709,17 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> Framer<'a, M, A> {
                         // This is so that it is possible to tell if the
                         // frame was secured or unsecured, while still
                         // always receiving the frame payload in plaintext.
+                        //
+                        // The buffer containing the 15.4 packet also contains
+                        // the PSDU bytes and an LQI byte. We only pass the
+                        // 15.4 packet up the stack and slice buf accordingly.
+                        let frame_buffer = &buf[radio::PSDU_OFFSET..(buf.len() - LQI_SIZE)];
                         self.rx_client.map(|client| {
                             client.receive(
-                                buf,
+                                frame_buffer,
                                 header,
-                                radio::PSDU_OFFSET + data_offset,
+                                lqi,
+                                data_offset,
                                 frame_len - data_offset,
                             );
                         });
@@ -745,13 +774,17 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
         self.mac.is_on()
     }
 
+    fn start(&self) -> Result<(), ErrorCode> {
+        self.mac.start()
+    }
+
     fn prepare_data_frame(
         &self,
         buf: &'static mut [u8],
         dst_pan: PanID,
         dst_addr: MacAddress,
         src_pan: PanID,
-        mut src_addr: MacAddress,
+        src_addr: MacAddress,
         security_needed: Option<(SecurityLevel, KeyId)>,
     ) -> Result<Frame, &'static mut [u8]> {
         // IEEE 802.15.4-2015: 9.2.1, outgoing frame security
@@ -761,21 +794,25 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
         // address should instead be some constant defined in their
         // specification.
 
-        let src_addr_long = self.get_address_long();
         let security_desc = security_needed.and_then(|(level, key_id)| {
+            // To decrypt the packet, we need the long addr.
+            // Without the long addr, we are unable to proceed
+            // and return None
+            let src_addr_long = match src_addr {
+                MacAddress::Long(addr) => addr,
+                MacAddress::Short(_) => return None,
+            };
+
             self.lookup_key(level, key_id).map(|key| {
                 // TODO: lookup frame counter for device
                 let frame_counter = 0;
                 let nonce = get_ccm_nonce(&src_addr_long, frame_counter, level);
-                if level != SecurityLevel::None {
-                    src_addr = MacAddress::Long(src_addr_long);
-                }
                 (
                     Security {
-                        level: level,
+                        level,
                         asn_in_nonce: false,
                         frame_counter: Some(frame_counter),
-                        key_id: key_id,
+                        key_id,
                     },
                     key,
                     nonce,
@@ -803,22 +840,22 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> MacDevice<'a> for Framer<'a, M, A> {
             dst_addr: Some(dst_addr),
             src_pan: Some(src_pan),
             src_addr: Some(src_addr),
-            security: security,
+            security,
             header_ies: Default::default(),
             header_ies_len: 0,
             payload_ies: Default::default(),
             payload_ies_len: 0,
         };
 
-        match header.encode(&mut buf[radio::PSDU_OFFSET..], true).done() {
+        match header.encode(buf, true).done() {
             Some((data_offset, mac_payload_offset)) => Ok(Frame {
-                buf: buf,
+                buf,
                 info: FrameInfo {
                     frame_type: FrameType::Data,
-                    mac_payload_offset: mac_payload_offset,
-                    data_offset: data_offset,
+                    mac_payload_offset,
+                    data_offset,
                     data_len: 0,
-                    mic_len: mic_len,
+                    mic_len,
                     security_params: security_desc.map(|(sec, key, nonce)| (sec.level, key, nonce)),
                 },
             }),
@@ -862,6 +899,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> radio::RxClient for Framer<'a, M, A> {
         &self,
         buf: &'static mut [u8],
         frame_len: usize,
+        lqi: u8,
         crc_valid: bool,
         _: Result<(), ErrorCode>,
     ) {
@@ -876,7 +914,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> radio::RxClient for Framer<'a, M, A> {
                 RxState::Idle => {
                     // We can start processing a new received frame only if
                     // the reception pipeline is free
-                    self.incoming_frame_security(buf, frame_len)
+                    self.incoming_frame_security(buf, frame_len, lqi)
                 }
                 other_state => {
                     // This should never occur unless something other than
@@ -952,9 +990,9 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> CCMClient for Framer<'a, M, A> {
         if let Some(buf) = opt_buf {
             self.rx_state.take().map(|state| {
                 match state {
-                    RxState::Decrypting(info) => {
+                    RxState::Decrypting(info, lqi) => {
                         let next_state = if tag_is_valid {
-                            RxState::ReadyToYield(info, buf)
+                            RxState::ReadyToYield(info, buf, lqi)
                         } else {
                             // The CRC tag is invalid, meaning the packet was corrupted. Drop this packet
                             // and reset reception pipeline
@@ -966,7 +1004,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> CCMClient for Framer<'a, M, A> {
                     }
                     other_state => {
                         rx_waiting = match other_state {
-                            RxState::ReadyToDecrypt(_, _) => true,
+                            RxState::ReadyToDecrypt(_, _, _) => true,
                             _ => false,
                         };
                         self.rx_state.replace(other_state);

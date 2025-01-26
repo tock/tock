@@ -335,7 +335,7 @@ impl<'a> TimerA<'a> {
     }
 }
 
-impl<'a> Time for TimerA<'a> {
+impl Time for TimerA<'_> {
     type Frequency = TimerAFrequency;
     type Ticks = Ticks16;
 
@@ -415,7 +415,7 @@ impl<'a> Alarm<'a> for TimerA<'a> {
     }
 }
 
-impl<'a> InternalTimer for TimerA<'a> {
+impl InternalTimer for TimerA<'_> {
     fn start(&self, frequency_hz: u32, trigger: InternalTrigger) -> Result<(), ErrorCode> {
         if self.mode.get() != TimerMode::Disabled && self.mode.get() != TimerMode::InternalTimer {
             return Err(ErrorCode::BUSY);

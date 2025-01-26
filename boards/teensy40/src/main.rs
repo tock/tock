@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
+//! Teensy 4.0 Development Board
+//!
 //! System configuration
 //!
 //! - LED on pin 13
@@ -13,6 +15,8 @@
 
 mod fcb;
 mod io;
+
+use core::ptr::{addr_of, addr_of_mut};
 
 use imxrt1060::gpio::PinId;
 use imxrt1060::iomuxc::{MuxMode, PadId, Sion};
@@ -33,7 +37,8 @@ static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS]
     [None; NUM_PROCS];
 
 /// What should we do if a process faults?
-const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
+const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
+    capsules_system::process_policies::PanicFaultPolicy {};
 
 /// Teensy 4 platform
 struct Teensy40 {
@@ -77,7 +82,6 @@ impl KernelResources<imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaul
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type CredentialsCheckingPolicy = ();
     type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = cortexm7::systick::SysTick;
     type WatchDog = ();
@@ -90,9 +94,6 @@ impl KernelResources<imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaul
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
-        &()
-    }
-    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -135,23 +136,10 @@ mod dma_config {
     }
 }
 
-/// This is in a separate, inline(never) function so that its stack frame is
-/// removed when this function returns. Otherwise, the stack space used for
-/// these static_inits is wasted.
-#[inline(never)]
-unsafe fn create_peripherals() -> &'static mut imxrt1060::chip::Imxrt10xxDefaultPeripherals {
-    let ccm = static_init!(imxrt1060::ccm::Ccm, imxrt1060::ccm::Ccm::new());
-    let peripherals = static_init!(
-        imxrt1060::chip::Imxrt10xxDefaultPeripherals,
-        imxrt1060::chip::Imxrt10xxDefaultPeripherals::new(ccm)
-    );
-
-    peripherals
-}
-
 type Chip = imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaultPeripherals>;
 static mut CHIP: Option<&'static Chip> = None;
-static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
+static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
+    None;
 
 /// Set the ARM clock frequency to 600MHz
 ///
@@ -187,11 +175,19 @@ fn set_arm_clock(ccm: &imxrt1060::ccm::Ccm, ccm_analog: &imxrt1060::ccm_analog::
     ccm.set_peripheral_clock_selection(PeripheralClockSelection::PrePeripheralClock);
 }
 
-#[no_mangle]
-pub unsafe fn main() {
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+unsafe fn start() -> (&'static kernel::Kernel, Teensy40, &'static Chip) {
     imxrt1060::init();
 
-    let peripherals = create_peripherals();
+    let ccm = static_init!(imxrt1060::ccm::Ccm, imxrt1060::ccm::Ccm::new());
+    let peripherals = static_init!(
+        imxrt1060::chip::Imxrt10xxDefaultPeripherals,
+        imxrt1060::chip::Imxrt10xxDefaultPeripherals::new(ccm)
+    );
+
     peripherals.ccm.set_low_power_mode();
 
     peripherals.dcdc.clock().enable();
@@ -258,7 +254,7 @@ pub unsafe fn main() {
     CHIP = Some(chip);
 
     // Start loading the kernel
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&PROCESSES));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
     // TODO how many of these should there be...?
 
     let uart_mux = components::console::UartMuxComponent::new(&peripherals.lpuart2, 115_200)
@@ -296,7 +292,6 @@ pub unsafe fn main() {
     // Capabilities
     //
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
 
@@ -310,7 +305,7 @@ pub unsafe fn main() {
         .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&PROCESSES)
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     //
@@ -348,20 +343,29 @@ pub unsafe fn main() {
         board_kernel,
         chip,
         core::slice::from_raw_parts(
-            &_sapps as *const u8,
-            &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
+            core::ptr::addr_of!(_sapps),
+            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
         ),
         core::slice::from_raw_parts_mut(
-            &mut _sappmem as *mut u8,
-            &_eappmem as *const u8 as usize - &_sappmem as *const u8 as usize,
+            core::ptr::addr_of_mut!(_sappmem),
+            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut PROCESSES,
+        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_management_capability,
     )
     .unwrap();
 
-    board_kernel.kernel_loop(&teensy40, chip, Some(&teensy40.ipc), &main_loop_capability);
+    (board_kernel, teensy40, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, platform, chip) = start();
+    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }
 
 /// Space for the stack buffer

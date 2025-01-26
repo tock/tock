@@ -422,16 +422,6 @@ pub struct FLASHCALW {
 // Few constants relating to module configuration.
 const PAGE_SIZE: u32 = 512;
 
-#[cfg(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE)]
-const FREQ_PS1_FWS_1_FWU_MAX_FREQ: u32 = 12000000;
-#[cfg(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE)]
-const FREQ_PS0_FWS_0_MAX_FREQ: u32 = 18000000;
-#[cfg(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE)]
-const FREQ_PS0_FWS_1_MAX_FREQ: u32 = 36000000;
-#[cfg(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE)]
-const FREQ_PS1_FWS_0_MAX_FREQ: u32 = 8000000;
-
-#[cfg(not(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE))]
 const FREQ_PS2_FWS_0_MAX_FREQ: u32 = 24000000;
 
 impl FLASHCALW {
@@ -497,18 +487,18 @@ impl FLASHCALW {
             self.client.map(|client| match attempted_operation {
                 FlashState::Read => {
                     self.buffer.take().map(|buffer| {
-                        client.read_complete(buffer, hil::flash::Error::FlashError);
+                        client.read_complete(buffer, Err(hil::flash::Error::FlashError));
                     });
                 }
                 FlashState::WriteUnlocking { .. }
                 | FlashState::WriteErasing { .. }
                 | FlashState::WriteWriting => {
                     self.buffer.take().map(|buffer| {
-                        client.write_complete(buffer, hil::flash::Error::FlashError);
+                        client.write_complete(buffer, Err(hil::flash::Error::FlashError));
                     });
                 }
                 FlashState::EraseUnlocking { .. } | FlashState::EraseErasing => {
-                    client.erase_complete(hil::flash::Error::FlashError);
+                    client.erase_complete(Err(hil::flash::Error::FlashError));
                 }
                 _ => {}
             });
@@ -521,13 +511,12 @@ impl FLASHCALW {
 
                 self.client.map(|client| {
                     self.buffer.take().map(|buffer| {
-                        client.read_complete(buffer, hil::flash::Error::CommandComplete);
+                        client.read_complete(buffer, Ok(()));
                     });
                 });
             }
             FlashState::WriteUnlocking { page } => {
-                self.current_state
-                    .set(FlashState::WriteErasing { page: page });
+                self.current_state.set(FlashState::WriteErasing { page });
                 self.flashcalw_erase_page(page);
             }
             FlashState::WriteErasing { page } => {
@@ -549,7 +538,7 @@ impl FLASHCALW {
 
                 self.client.map(|client| {
                     self.buffer.take().map(|buffer| {
-                        client.write_complete(buffer, hil::flash::Error::CommandComplete);
+                        client.write_complete(buffer, Ok(()));
                     });
                 });
             }
@@ -564,7 +553,7 @@ impl FLASHCALW {
                 self.current_state.set(FlashState::Ready);
 
                 self.client.map(|client| {
-                    client.erase_complete(hil::flash::Error::CommandComplete);
+                    client.erase_complete(Ok(()));
                 });
             }
             _ => {
@@ -597,7 +586,6 @@ impl FLASHCALW {
 
     //  By default, we are going with High Speed Enable (based on our device running
     //  in PS2).
-    #[cfg(not(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE))]
     fn set_flash_waitstate_and_readmode(&self, cpu_freq: u32, _ps_val: u32, _is_fwu_enabled: bool) {
         // ps_val and is_fwu_enabled not used in this implementation.
         if cpu_freq > FREQ_PS2_FWS_0_MAX_FREQ {
@@ -607,41 +595,6 @@ impl FLASHCALW {
         }
 
         self.issue_command(FlashCMD::HSEN, -1);
-    }
-
-    #[cfg(CONFIG_FLASH_READ_MODE_HIGH_SPEED_DISABLE)]
-    fn set_flash_waitstate_and_readmode(
-        &mut self,
-        cpu_freq: u32,
-        ps_val: u32,
-        is_fwu_enabled: bool,
-    ) {
-        if ps_val == 0 {
-            if cpu_freq > FREQ_PS0_FWS_0_MAX_FREQ {
-                self.set_wait_state(1);
-                if cpu_freq <= FREQ_PS0_FWS_1_MAX_FREQ {
-                    self.issue_command(FlashCMD::HSDIS, -1);
-                } else {
-                    self.issue_command(FlashCMD::HSEN, -1);
-                }
-            } else {
-                if is_fwu_enabled && cpu_freq <= FREQ_PS1_FWS_1_FWU_MAX_FREQ {
-                    self.set_wait_state(1);
-                    self.issue_command(FlashCMD::HSDIS, -1);
-                } else {
-                    self.set_wait_state(0);
-                    self.issue_command(FlashCMD::HSDIS, -1);
-                }
-            }
-        } else {
-            // ps_val == 1
-            if cpu_freq > FREQ_PS1_FWS_0_MAX_FREQ {
-                self.set_wait_state(1);
-            } else {
-                self.set_wait_state(0);
-            }
-            self.issue_command(FlashCMD::HSDIS, -1);
-        }
     }
 
     /// Configure high-speed flash mode. This is taken from the ASF code
@@ -830,12 +783,10 @@ impl FLASHCALW {
         pm::enable_clock(self.ahb_clock);
 
         // Check that address makes sense and buffer has room.
-        if address > (self.get_flash_size() as usize)
-            || address + size > (self.get_flash_size() as usize)
-            || address + size < size
-            || buffer.len() < size
-        {
-            // invalid flash address
+        let Some(end_address) = address.checked_add(size) else {
+            return Err((ErrorCode::INVAL, buffer));
+        };
+        if end_address > (self.get_flash_size() as usize) || buffer.len() < size {
             return Err((ErrorCode::INVAL, buffer));
         }
 

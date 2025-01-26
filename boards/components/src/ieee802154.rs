@@ -54,6 +54,8 @@ macro_rules! mux_aes128ccm_component_static {
     };};
 }
 
+pub type MuxAes128ccmComponentType<A> = MuxAES128CCM<'static, A>;
+
 pub struct MuxAes128ccmComponent<A: 'static + AES128<'static> + AES128Ctr + AES128CBC + AES128ECB> {
     aes: &'static A,
 }
@@ -95,10 +97,39 @@ macro_rules! ieee802154_component_static {
             >
         );
 
-        let mux_mac = kernel::static_buf!(capsules_extra::ieee802154::virtual_mac::MuxMac<'static>);
-        let mac_user =
-            kernel::static_buf!(capsules_extra::ieee802154::virtual_mac::MacUser<'static>);
-        let radio_driver = kernel::static_buf!(capsules_extra::ieee802154::RadioDriver<'static>);
+        let mux_mac = kernel::static_buf!(
+            capsules_extra::ieee802154::virtual_mac::MuxMac<
+                'static,
+                capsules_extra::ieee802154::framer::Framer<
+                    'static,
+                    capsules_extra::ieee802154::mac::AwakeMac<'static, $R>,
+                    capsules_core::virtualizers::virtual_aes_ccm::VirtualAES128CCM<'static, $A>,
+                >,
+            >
+        );
+        let mac_user = kernel::static_buf!(
+            capsules_extra::ieee802154::virtual_mac::MacUser<
+                'static,
+                capsules_extra::ieee802154::framer::Framer<
+                    'static,
+                    capsules_extra::ieee802154::mac::AwakeMac<'static, $R>,
+                    capsules_core::virtualizers::virtual_aes_ccm::VirtualAES128CCM<'static, $A>,
+                >,
+            >
+        );
+        let radio_driver = kernel::static_buf!(
+            capsules_extra::ieee802154::RadioDriver<
+                'static,
+                capsules_extra::ieee802154::virtual_mac::MacUser<
+                    'static,
+                    capsules_extra::ieee802154::framer::Framer<
+                        'static,
+                        capsules_extra::ieee802154::mac::AwakeMac<'static, $R>,
+                        capsules_core::virtualizers::virtual_aes_ccm::VirtualAES128CCM<'static, $A>,
+                    >,
+                >,
+            >
+        );
 
         let radio_buf = kernel::static_buf!([u8; kernel::hil::radio::MAX_BUF_SIZE]);
         let radio_rx_buf = kernel::static_buf!([u8; kernel::hil::radio::MAX_BUF_SIZE]);
@@ -119,6 +150,24 @@ macro_rules! ieee802154_component_static {
         )
     };};
 }
+
+pub type Ieee802154ComponentType<R, A> = capsules_extra::ieee802154::RadioDriver<
+    'static,
+    capsules_extra::ieee802154::virtual_mac::MacUser<
+        'static,
+        capsules_extra::ieee802154::framer::Framer<
+            'static,
+            capsules_extra::ieee802154::mac::AwakeMac<'static, R>,
+            capsules_core::virtualizers::virtual_aes_ccm::VirtualAES128CCM<'static, A>,
+        >,
+    >,
+>;
+
+pub type Ieee802154ComponentMacDeviceType<R, A> = capsules_extra::ieee802154::framer::Framer<
+    'static,
+    capsules_extra::ieee802154::mac::AwakeMac<'static, R>,
+    capsules_core::virtualizers::virtual_aes_ccm::VirtualAES128CCM<'static, A>,
+>;
 
 pub struct Ieee802154Component<
     R: 'static + kernel::hil::radio::Radio<'static>,
@@ -176,17 +225,64 @@ impl<
                 capsules_core::virtualizers::virtual_aes_ccm::VirtualAES128CCM<'static, A>,
             >,
         >,
-        &'static mut MaybeUninit<capsules_extra::ieee802154::virtual_mac::MuxMac<'static>>,
-        &'static mut MaybeUninit<capsules_extra::ieee802154::virtual_mac::MacUser<'static>>,
-        &'static mut MaybeUninit<capsules_extra::ieee802154::RadioDriver<'static>>,
+        &'static mut MaybeUninit<
+            capsules_extra::ieee802154::virtual_mac::MuxMac<
+                'static,
+                capsules_extra::ieee802154::framer::Framer<
+                    'static,
+                    AwakeMac<'static, R>,
+                    capsules_core::virtualizers::virtual_aes_ccm::VirtualAES128CCM<'static, A>,
+                >,
+            >,
+        >,
+        &'static mut MaybeUninit<
+            capsules_extra::ieee802154::virtual_mac::MacUser<
+                'static,
+                capsules_extra::ieee802154::framer::Framer<
+                    'static,
+                    AwakeMac<'static, R>,
+                    capsules_core::virtualizers::virtual_aes_ccm::VirtualAES128CCM<'static, A>,
+                >,
+            >,
+        >,
+        &'static mut MaybeUninit<
+            capsules_extra::ieee802154::RadioDriver<
+                'static,
+                capsules_extra::ieee802154::virtual_mac::MacUser<
+                    'static,
+                    capsules_extra::ieee802154::framer::Framer<
+                        'static,
+                        AwakeMac<'static, R>,
+                        capsules_core::virtualizers::virtual_aes_ccm::VirtualAES128CCM<'static, A>,
+                    >,
+                >,
+            >,
+        >,
         &'static mut MaybeUninit<[u8; radio::MAX_BUF_SIZE]>,
         &'static mut MaybeUninit<[u8; radio::MAX_BUF_SIZE]>,
         &'static mut MaybeUninit<[u8; CRYPT_SIZE]>,
         &'static mut MaybeUninit<[u8; radio::MAX_BUF_SIZE]>,
     );
     type Output = (
-        &'static capsules_extra::ieee802154::RadioDriver<'static>,
-        &'static capsules_extra::ieee802154::virtual_mac::MuxMac<'static>,
+        &'static capsules_extra::ieee802154::RadioDriver<
+            'static,
+            capsules_extra::ieee802154::virtual_mac::MacUser<
+                'static,
+                capsules_extra::ieee802154::framer::Framer<
+                    'static,
+                    AwakeMac<'static, R>,
+                    capsules_core::virtualizers::virtual_aes_ccm::VirtualAES128CCM<'static, A>,
+                >,
+            >,
+        >,
+        &'static capsules_extra::ieee802154::virtual_mac::MuxMac<
+            'static,
+            capsules_extra::ieee802154::framer::Framer<
+                'static,
+                AwakeMac<'static, R>,
+                capsules_core::virtualizers::virtual_aes_ccm::VirtualAES128CCM<'static, A>,
+            >,
+        >,
     );
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
@@ -205,7 +301,8 @@ impl<
         let radio_rx_buf = static_buffer.7.write([0; radio::MAX_BUF_SIZE]);
         let awake_mac = static_buffer.1.write(AwakeMac::new(self.radio));
         self.radio.set_transmit_client(awake_mac);
-        self.radio.set_receive_client(awake_mac, radio_rx_buf);
+        self.radio.set_receive_client(awake_mac);
+        self.radio.set_receive_buffer(radio_rx_buf);
 
         let radio_rx_crypt_buf = static_buffer.9.write([0; MAX_BUF_SIZE]);
 
@@ -256,5 +353,74 @@ impl<
         userspace_mac.set_address_long(self.long_addr);
 
         (radio_driver, mux_mac)
+    }
+}
+
+// IEEE 802.15.4 RAW DRIVER
+
+// Setup static space for the objects.
+#[macro_export]
+macro_rules! ieee802154_raw_component_static {
+    ($R:ty $(,)?) => {{
+        let radio_driver =
+            kernel::static_buf!(capsules_extra::ieee802154::phy_driver::RadioDriver<$R>);
+        let tx_buffer = kernel::static_buf!([u8; kernel::hil::radio::MAX_BUF_SIZE]);
+        let rx_buffer = kernel::static_buf!([u8; kernel::hil::radio::MAX_BUF_SIZE]);
+
+        (radio_driver, tx_buffer, rx_buffer)
+    };};
+}
+
+pub type Ieee802154RawComponentType<R> =
+    capsules_extra::ieee802154::phy_driver::RadioDriver<'static, R>;
+
+pub struct Ieee802154RawComponent<R: 'static + kernel::hil::radio::Radio<'static>> {
+    board_kernel: &'static kernel::Kernel,
+    driver_num: usize,
+    radio: &'static R,
+}
+
+impl<R: 'static + kernel::hil::radio::Radio<'static>> Ieee802154RawComponent<R> {
+    pub fn new(
+        board_kernel: &'static kernel::Kernel,
+        driver_num: usize,
+        radio: &'static R,
+    ) -> Self {
+        Self {
+            board_kernel,
+            driver_num,
+            radio,
+        }
+    }
+}
+
+impl<R: 'static + kernel::hil::radio::Radio<'static>> Component for Ieee802154RawComponent<R> {
+    type StaticInput = (
+        &'static mut MaybeUninit<capsules_extra::ieee802154::phy_driver::RadioDriver<'static, R>>,
+        &'static mut MaybeUninit<[u8; radio::MAX_BUF_SIZE]>,
+        &'static mut MaybeUninit<[u8; radio::MAX_BUF_SIZE]>,
+    );
+    type Output = &'static capsules_extra::ieee802154::phy_driver::RadioDriver<'static, R>;
+
+    fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
+        let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+
+        let tx_buffer = static_buffer.1.write([0; MAX_BUF_SIZE]);
+        let radio_rx_buf = static_buffer.2.write([0; radio::MAX_BUF_SIZE]);
+
+        let radio_driver =
+            static_buffer
+                .0
+                .write(capsules_extra::ieee802154::phy_driver::RadioDriver::new(
+                    self.radio,
+                    self.board_kernel.create_grant(self.driver_num, &grant_cap),
+                    tx_buffer,
+                ));
+
+        self.radio.set_transmit_client(radio_driver);
+        self.radio.set_receive_client(radio_driver);
+        self.radio.set_receive_buffer(radio_rx_buf);
+
+        radio_driver
     }
 }

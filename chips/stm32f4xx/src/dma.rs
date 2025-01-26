@@ -5,13 +5,14 @@
 use core::fmt::Debug;
 
 use kernel::platform::chip::ClockInterface;
-use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::cells::{MapCell, OptionalCell};
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
 
+use crate::clocks::{phclk, Stm32f4Clocks};
 use crate::nvic;
-use crate::rcc;
 use crate::spi;
 use crate::usart;
 
@@ -725,10 +726,12 @@ pub enum StreamId {
     Stream7 = 7,
 }
 
-/// Each stream can be selected among up to eight channel requests. This is
-/// basically STM32F446RE's way of selecting the peripheral for the stream.
-/// Nevertheless, the use of the term channel here is confusing. Table 28
-/// describes the mapping between stream, channel, and peripherals.
+/// Each stream can be selected among up to eight channel requests.
+///
+/// This is basically STM32F446RE's way of selecting the peripheral
+/// for the stream.  Nevertheless, the use of the term channel here is
+/// confusing. Table 28 describes the mapping between stream, channel,
+/// and peripherals.
 #[repr(u32)]
 pub enum ChannelId {
     Channel0 = 0b000,
@@ -782,7 +785,7 @@ pub enum TransferMode {
 pub struct Stream<'a, DMA: StreamServer<'a>> {
     streamid: StreamId,
     client: OptionalCell<&'a dyn StreamClient<'a, DMA>>,
-    buffer: TakeCell<'static, [u8]>,
+    buffer: MapCell<SubSliceMut<'static, u8>>,
     peripheral: OptionalCell<DMA::Peripheral>,
     dma: &'a DMA,
 }
@@ -790,8 +793,8 @@ pub struct Stream<'a, DMA: StreamServer<'a>> {
 impl<'a, DMA: StreamServer<'a>> Stream<'a, DMA> {
     fn new(streamid: StreamId, dma: &'a DMA) -> Self {
         Self {
-            streamid: streamid,
-            buffer: TakeCell::empty(),
+            streamid,
+            buffer: MapCell::empty(),
             client: OptionalCell::empty(),
             peripheral: OptionalCell::empty(),
             dma,
@@ -841,7 +844,7 @@ impl<'a, DMA: StreamServer<'a>> Stream<'a, DMA> {
         self.set_data_width_for_peripheral();
     }
 
-    pub fn do_transfer(&self, buf: &'static mut [u8], len: usize) {
+    pub fn do_transfer(&self, mut buf: SubSliceMut<'static, u8>) {
         self.disable_interrupt();
 
         // The numbers below are from Section 1.2 of AN4031
@@ -854,9 +857,9 @@ impl<'a, DMA: StreamServer<'a>> Stream<'a, DMA> {
         // 2
         self.set_peripheral_address();
         // 3
-        self.set_memory_address(&buf[0] as *const u8 as u32);
+        self.set_memory_address(buf.as_mut_ptr() as u32);
         // 4
-        self.set_data_items(len as u32);
+        self.set_data_items(buf.len() as u32);
         // 5
         self.set_channel();
         // 9
@@ -871,7 +874,7 @@ impl<'a, DMA: StreamServer<'a>> Stream<'a, DMA> {
         self.buffer.replace(buf);
     }
 
-    pub fn abort_transfer(&self) -> (Option<&'static mut [u8]>, u32) {
+    pub fn abort_transfer(&self) -> (Option<SubSliceMut<'static, u8>>, u32) {
         self.disable_interrupt();
 
         self.disable();
@@ -879,7 +882,7 @@ impl<'a, DMA: StreamServer<'a>> Stream<'a, DMA> {
         (self.buffer.take(), self.get_data_items())
     }
 
-    pub fn return_buffer(&self) -> Option<&'static mut [u8]> {
+    pub fn return_buffer(&self) -> Option<SubSliceMut<'static, u8>> {
         self.buffer.take()
     }
 
@@ -1373,7 +1376,7 @@ pub trait StreamClient<'a, DMA: StreamServer<'a>> {
     fn transfer_done(&self, pid: DMA::Peripheral);
 }
 
-struct DmaClock<'a>(rcc::PeripheralClock<'a>);
+struct DmaClock<'a>(phclk::PeripheralClock<'a>);
 
 impl ClockInterface for DmaClock<'_> {
     fn is_enabled(&self) -> bool {
@@ -1542,12 +1545,12 @@ pub struct Dma1<'a> {
 }
 
 impl<'a> Dma1<'a> {
-    pub const fn new(rcc: &'a rcc::Rcc) -> Dma1 {
-        Dma1 {
+    pub const fn new(clocks: &'a dyn Stm32f4Clocks) -> Self {
+        Self {
             registers: DMA1_BASE,
-            clock: DmaClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::AHB1(rcc::HCLK1::DMA1),
-                rcc,
+            clock: DmaClock(phclk::PeripheralClock::new(
+                phclk::PeripheralClockType::AHB1(phclk::HCLK1::DMA1),
+                clocks,
             )),
         }
     }
@@ -1569,7 +1572,7 @@ impl<'a> StreamServer<'a> for Dma1<'a> {
     type Peripheral = Dma1Peripheral;
 
     fn registers(&self) -> &DmaRegisters {
-        &*self.registers
+        &self.registers
     }
 }
 
@@ -1663,12 +1666,12 @@ pub struct Dma2<'a> {
 }
 
 impl<'a> Dma2<'a> {
-    pub const fn new(rcc: &'a rcc::Rcc) -> Dma2 {
-        Dma2 {
+    pub const fn new(clocks: &'a dyn Stm32f4Clocks) -> Self {
+        Self {
             registers: DMA2_BASE,
-            clock: DmaClock(rcc::PeripheralClock::new(
-                rcc::PeripheralClockType::AHB1(rcc::HCLK1::DMA2),
-                rcc,
+            clock: DmaClock(phclk::PeripheralClock::new(
+                phclk::PeripheralClockType::AHB1(phclk::HCLK1::DMA2),
+                clocks,
             )),
         }
     }
@@ -1690,6 +1693,6 @@ impl<'a> StreamServer<'a> for Dma2<'a> {
     type Peripheral = Dma2Peripheral;
 
     fn registers(&self) -> &DmaRegisters {
-        &*self.registers
+        &self.registers
     }
 }

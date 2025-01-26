@@ -11,14 +11,14 @@
 //!
 //! Each trait has two associated type parameters, namely:
 //!
-//! - `T`: [`UIntLike`](crate::UIntLike), indicating the underlying
+//! - `T`: [`UIntLike`], indicating the underlying
 //!   integer type used to represent the register's raw contents.
 //!
-//! - `R`: [`RegisterLongName`](crate::RegisterLongName), functioning
+//! - `R`: [`RegisterLongName`], functioning
 //!   as a type to identify this register's descriptive name and
 //!   semantic meaning. It is further used to impose type constraints
 //!   on values passed through the API, such as
-//!   [`FieldValue`](crate::fields::FieldValue).
+//!   [`FieldValue`].
 //!
 //! Registers can have different access levels, which are mapped to
 //! different traits respectively:
@@ -39,7 +39,7 @@
 //!   writing and receive when reading.
 //!
 //!   If a type implements both [`Readable`] and [`Writeable`], and
-//!   the associated [`RegisterLongName`](crate::RegisterLongName)
+//!   the associated [`RegisterLongName`]
 //!   type parameters are identical, it will automatically implement
 //!   [`ReadWriteable`]. In particular, for
 //!   [`Aliased`](crate::registers::Aliased) this is -- in general --
@@ -54,8 +54,9 @@
 //!           DUMMY OFFSET(0) NUMBITS(1) [],
 //!       ],
 //!   ];
+//!   let mut register_memory: u8 = 0;
 //!   let read_write_reg: &ReadWrite<u8, A::Register> = unsafe {
-//!       core::mem::transmute(Box::leak(Box::new(0_u8)))
+//!       core::mem::transmute(&mut register_memory)
 //!   };
 //!   ReadWriteable::modify(read_write_reg, A::DUMMY::SET);
 //!   ```
@@ -79,6 +80,15 @@
 //!   };
 //!   ReadWriteable::modify(aliased_reg, A::DUMMY::SET);
 //!   ```
+//!
+//! - [`Debuggable`]: indicates that the register supports producing
+//!   human-readable debug output using the `RegisterDebugValue` type.
+//!   This type can be produced with the
+//!   [`debug`](crate::interfaces::Debuggable::debug) method.  This
+//!   will return a value that implements [`Debug`](core::fmt::Debug).
+//!   It is automticaly implemented for any register implementing
+//!   [`Readable`].
+//!
 //!
 //! ## Example: implementing a custom register type
 //!
@@ -259,6 +269,34 @@ pub trait Readable {
             .any(|field| self.get() & field.mask() == field.value)
     }
 }
+
+/// [`Debuggable`] is a trait for registers that support human-readable debug
+/// output with [`core::fmt::Debug`].  It extends the [`Readable`] trait and
+/// doesn't require manual implementation.
+///
+/// This is implemented for the register when using the [`register_bitfields`] macro.
+///
+/// The `debug` method returns a value that implements [`core::fmt::Debug`].
+///
+/// [`register_bitfields`]: crate::register_bitfields
+pub trait Debuggable: Readable {
+    /// Returns a [`RegisterDebugValue`](crate::debug::RegisterDebugValue) that
+    /// implements [`core::fmt::Debug`], the debug information is extracted from
+    /// `<Register>::DebugInfo`.
+    #[inline]
+    fn debug(&self) -> crate::debug::RegisterDebugValue<Self::T, Self::R>
+    where
+        Self::R: crate::debug::RegisterDebugInfo<Self::T>,
+    {
+        crate::debug::RegisterDebugValue {
+            data: self.get(),
+            _reg: core::marker::PhantomData,
+        }
+    }
+}
+
+// pass Readable implementation to Debuggable
+impl<T: Readable> Debuggable for T {}
 
 /// Writeable register
 ///

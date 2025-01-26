@@ -105,7 +105,7 @@ impl Default for IP6Header {
             version_class_flow: [version, 0, 0, 0],
             payload_len: 0,
             next_header: ip6_nh::NO_NEXT,
-            hop_limit: hop_limit,
+            hop_limit,
             src_addr: IPAddr::new(),
             dst_addr: IPAddr::new(),
         }
@@ -306,12 +306,14 @@ impl IP6Header {
     }
 }
 
-/// This defines the currently supported `TransportHeader` types. The contents
-/// of each header is encapsulated by the enum type. Note that this definition
-/// of `TransportHeader`s means that recursive headers are not supported.
-/// As of now, there is no support for sending raw IP packets without a transport header.
-/// Currently we accept the overhead of copying these structs in/out of an OptionalCell
-/// in `udp_send.rs`.
+/// This defines the currently supported `TransportHeader` types.
+///
+/// The contents of each header is encapsulated by the enum type. Note
+/// that this definition of `TransportHeader`s means that recursive
+/// headers are not supported.  As of now, there is no support for
+/// sending raw IP packets without a transport header.  Currently we
+/// accept the overhead of copying these structs in/out of an
+/// OptionalCell in `udp_send.rs`.
 #[derive(Copy, Clone)]
 pub enum TransportHeader {
     UDP(UDPHeader),
@@ -334,10 +336,7 @@ impl<'a> IPPayload<'a> {
     /// `header` - A `TransportHeader` for the `IPPayload`
     /// `payload` - A reference to a mutable buffer for the raw payload
     pub fn new(header: TransportHeader, payload: &'a mut [u8]) -> IPPayload<'a> {
-        IPPayload {
-            header: header,
-            payload: payload,
-        }
+        IPPayload { header, payload }
     }
 
     /// This function sets the payload for the `IPPayload`, and sets both the
@@ -439,7 +438,7 @@ impl<'a> IP6Packet<'a> {
     pub fn new(payload: IPPayload<'a>) -> IP6Packet<'a> {
         IP6Packet {
             header: IP6Header::default(),
-            payload: payload,
+            payload,
         }
     }
 

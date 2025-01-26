@@ -33,16 +33,6 @@ type LiteEthRXEV<'a, R> = LiteXEventManager<
 type LiteEthTXEV<'a, R> = LiteEthRXEV<'a, R>;
 
 #[repr(C)]
-pub struct LiteEthPhyRegisters<R: LiteXSoCRegisterConfiguration> {
-    /// ETHPHY_CRG_RESET
-    reset: R::WriteOnly8,
-    /// ETHPHY_MDIO_W
-    mdio_w: R::ReadWrite8, //<EthPhyMDIOW>,
-    /// ETHPHY_MDIO_R
-    mdio_r: R::ReadOnly8, //<EthPhyMDIOR>,
-}
-
-#[repr(C)]
 pub struct LiteEthMacRegisters<R: LiteXSoCRegisterConfiguration> {
     /// ETHMAC_SRAM_WRITER_SLOT
     rx_slot: R::ReadOnly8,

@@ -22,12 +22,12 @@
 //!           topmost queue.
 
 use core::cell::Cell;
+use core::num::NonZeroU32;
 
 use crate::collections::list::{List, ListLink, ListNode};
 use crate::hil::time::{self, ConvertTicks, Ticks};
 use crate::platform::chip::Chip;
 use crate::process::Process;
-use crate::process::ProcessId;
 use crate::process::StoppedExecutingReason;
 use crate::scheduler::{Scheduler, SchedulingDecision};
 
@@ -110,22 +110,19 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
         for (idx, queue) in self.processes.iter().enumerate() {
             let next = queue
                 .iter()
-                .find(|node_ref| node_ref.proc.map_or(false, |proc| proc.ready()));
+                .find(|node_ref| node_ref.proc.is_some_and(|proc| proc.ready()));
             if next.is_some() {
                 // pop procs to back until we get to match
                 loop {
                     let cur = queue.pop_head();
-                    match cur {
-                        Some(node) => {
-                            if core::ptr::eq(node, next.unwrap()) {
-                                queue.push_head(node);
-                                // match! Put back on front
-                                return (next, idx);
-                            } else {
-                                queue.push_tail(node);
-                            }
+                    if let Some(node) = cur {
+                        if core::ptr::eq(node, next.unwrap()) {
+                            queue.push_head(node);
+                            // match! Put back on front
+                            return (next, idx);
+                        } else {
+                            queue.push_tail(node);
                         }
-                        None => {}
                     }
                 }
             }
@@ -134,7 +131,7 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
     }
 }
 
-impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<'a, A> {
+impl<A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<'_, A> {
     fn next(&self) -> SchedulingDecision {
         let now = self.alarm.now();
         let next_reset = self.next_reset.get();
@@ -159,7 +156,7 @@ impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<
         self.last_queue_idx.set(queue_idx);
         self.last_timeslice.set(timeslice);
 
-        SchedulingDecision::RunProcess((next, Some(timeslice)))
+        SchedulingDecision::RunProcess((next, NonZeroU32::new(timeslice)))
     }
 
     fn result(&self, result: StoppedExecutingReason, execution_time_us: Option<u32>) {
@@ -184,10 +181,5 @@ impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<
         } else {
             self.processes[queue_idx].push_tail(self.processes[queue_idx].pop_head().unwrap());
         }
-    }
-
-    unsafe fn continue_process(&self, _: ProcessId, _: &C) -> bool {
-        // This MLFQ scheduler only preempts processes if there is a timeslice expiration
-        true
     }
 }

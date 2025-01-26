@@ -9,9 +9,9 @@
 //!
 //! You need a device that provides the `hil::uart::UART` trait.
 //!
-//! ```rust
+//! ```rust,ignore
 //! # use kernel::static_init;
-//! # use capsules::console::Console;
+//! # use capsules_core::console::Console;
 //!
 //! let console = static_init!(
 //!     Console<usart::USART>,
@@ -126,7 +126,7 @@ impl<'a> Console<'a> {
         >,
     ) -> Console<'a> {
         Console {
-            uart: uart,
+            uart,
             apps: grant,
             tx_in_progress: OptionalCell::empty(),
             tx_buffer: TakeCell::new(tx_buffer),
@@ -163,7 +163,11 @@ impl<'a> Console<'a> {
     ) -> bool {
         if app.write_remaining > 0 {
             self.send(processid, app, kernel_data);
-            true
+
+            // The send may have errored, meaning nothing is being transmitted.
+            // In that case there is nothing pending and we return false. In the
+            // common case, this will return true.
+            self.tx_in_progress.is_some()
         } else {
             false
         }
@@ -208,7 +212,20 @@ impl<'a> Console<'a> {
                     })
                     .unwrap_or(0);
                 app.write_remaining -= transaction_len;
-                let _ = self.uart.transmit_buffer(buffer, transaction_len);
+                match self.uart.transmit_buffer(buffer, transaction_len) {
+                    Err((_e, tx_buffer)) => {
+                        // The UART didn't start, so we will not get a transmit
+                        // done callback. Need to signal the app now.
+                        self.tx_buffer.replace(tx_buffer);
+                        self.tx_in_progress.clear();
+
+                        // Go ahead and signal the application
+                        let written = app.write_len;
+                        app.write_len = 0;
+                        kernel_data.schedule_upcall(1, (written, 0, 0)).ok();
+                    }
+                    Ok(()) => {}
+                }
             });
         } else {
             app.pending_write = true;
@@ -240,11 +257,16 @@ impl<'a> Console<'a> {
         } else {
             // Note: We have ensured above that rx_buffer is present
             app.read_len = read_len;
-            self.rx_buffer.take().map(|buffer| {
-                self.rx_in_progress.set(processid);
-                let _ = self.uart.receive_buffer(buffer, app.read_len);
-            });
-            Ok(())
+            self.rx_buffer
+                .take()
+                .map_or(Err(ErrorCode::INVAL), |buffer| {
+                    self.rx_in_progress.set(processid);
+                    if let Err((e, buf)) = self.uart.receive_buffer(buffer, app.read_len) {
+                        self.rx_buffer.replace(buf);
+                        return Err(e);
+                    }
+                    Ok(())
+                })
         }
     }
 }
@@ -254,7 +276,7 @@ impl SyscallDriver for Console<'_> {
     ///
     /// ### `command_num`
     ///
-    /// - `0`: Driver check.
+    /// - `0`: Driver existence check.
     /// - `1`: Transmits a buffer passed via `allow`, up to the length
     ///        passed in `arg1`
     /// - `2`: Receives into a buffer passed via `allow`, up to the length
