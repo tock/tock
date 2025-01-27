@@ -37,7 +37,7 @@ A proposal to add consistent and explicit type information to syscall definition
 
 #### Context
 
-https://urldefense.com/v3/__https://github.com/tock/tock/pull/4228__;!!Mih3wA!EfMNGU-RC0Z6dsaajVanLk5ZAXkxxXn8rz995Pa5VNMz7u0c02Cx-R9lCcsRrrVfakmLQMGy_Q40ssU$
+https://github.com/tock/tock/pull/4228
 
 #### Decisions
 
