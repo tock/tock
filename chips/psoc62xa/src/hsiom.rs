@@ -1,0 +1,645 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright OxidOS Automotive 2025 SRL.
+
+use kernel::utilities::registers::{
+    interfaces::ReadWriteable, register_bitfields, register_structs, ReadWrite,
+};
+use kernel::utilities::StaticRef;
+
+register_structs! {
+    HsiomRegisters {
+        (0x000 => _reserved0),
+        (0x050 => prt5_port_sel0: ReadWrite<u32, PRT5_PORT_SEL0::Register>),
+        (0x054 => _reserved3),
+        (0x2000 => amux_split_ctl_0: ReadWrite<u32, AMUX_SPLIT_CTL0::Register>),
+        (0x2004 => amux_split_ctl_1: ReadWrite<u32, AMUX_SPLIT_CTL1::Register>),
+        (0x2008 => amux_split_ctl_2: ReadWrite<u32, AMUX_SPLIT_CTL2::Register>),
+        (0x200C => amux_split_ctl_3: ReadWrite<u32, AMUX_SPLIT_CTL3::Register>),
+        (0x2010 => amux_split_ctl_4: ReadWrite<u32, AMUX_SPLIT_CTL4::Register>),
+        (0x2014 => amux_split_ctl_5: ReadWrite<u32, AMUX_SPLIT_CTL5::Register>),
+        (0x2018 => amux_split_ctl_6: ReadWrite<u32, AMUX_SPLIT_CTL6::Register>),
+        (0x201C => amux_split_ctl_7: ReadWrite<u32, AMUX_SPLIT_CTL7::Register>),
+        (0x2020 => amux_split_ctl_8: ReadWrite<u32, AMUX_SPLIT_CTL8::Register>),
+        (0x2024 => amux_split_ctl_9: ReadWrite<u32, AMUX_SPLIT_CTL9::Register>),
+        (0x2028 => amux_split_ctl_10: ReadWrite<u32, AMUX_SPLIT_CTL10::Register>),
+        (0x202C => amux_split_ctl_11: ReadWrite<u32, AMUX_SPLIT_CTL11::Register>),
+        (0x2030 => amux_split_ctl_12: ReadWrite<u32, AMUX_SPLIT_CTL12::Register>),
+        (0x2034 => amux_split_ctl_13: ReadWrite<u32, AMUX_SPLIT_CTL13::Register>),
+        (0x2038 => amux_split_ctl_14: ReadWrite<u32, AMUX_SPLIT_CTL14::Register>),
+        (0x203C => amux_split_ctl_15: ReadWrite<u32, AMUX_SPLIT_CTL15::Register>),
+        (0x2040 => amux_split_ctl_16: ReadWrite<u32, AMUX_SPLIT_CTL16::Register>),
+        (0x2044 => amux_split_ctl_17: ReadWrite<u32, AMUX_SPLIT_CTL17::Register>),
+        (0x2048 => amux_split_ctl_18: ReadWrite<u32, AMUX_SPLIT_CTL18::Register>),
+        (0x204C => amux_split_ctl_19: ReadWrite<u32, AMUX_SPLIT_CTL19::Register>),
+        (0x2050 => amux_split_ctl_20: ReadWrite<u32, AMUX_SPLIT_CTL20::Register>),
+        (0x2054 => amux_split_ctl_21: ReadWrite<u32, AMUX_SPLIT_CTL21::Register>),
+        (0x2058 => amux_split_ctl_22: ReadWrite<u32, AMUX_SPLIT_CTL22::Register>),
+        (0x205C => amux_split_ctl_23: ReadWrite<u32, AMUX_SPLIT_CTL23::Register>),
+        (0x2060 => amux_split_ctl_24: ReadWrite<u32, AMUX_SPLIT_CTL24::Register>),
+        (0x2064 => amux_split_ctl_25: ReadWrite<u32, AMUX_SPLIT_CTL25::Register>),
+        (0x2068 => amux_split_ctl_26: ReadWrite<u32, AMUX_SPLIT_CTL26::Register>),
+        (0x206C => amux_split_ctl_27: ReadWrite<u32, AMUX_SPLIT_CTL27::Register>),
+        (0x2070 => amux_split_ctl_28: ReadWrite<u32, AMUX_SPLIT_CTL28::Register>),
+        (0x2074 => amux_split_ctl_29: ReadWrite<u32, AMUX_SPLIT_CTL29::Register>),
+        (0x2078 => amux_split_ctl_30: ReadWrite<u32, AMUX_SPLIT_CTL30::Register>),
+        (0x207C => amux_split_ctl_31: ReadWrite<u32, AMUX_SPLIT_CTL31::Register>),
+        (0x2080 => amux_split_ctl_32: ReadWrite<u32, AMUX_SPLIT_CTL32::Register>),
+        (0x2084 => amux_split_ctl_33: ReadWrite<u32, AMUX_SPLIT_CTL33::Register>),
+        (0x2088 => amux_split_ctl_34: ReadWrite<u32, AMUX_SPLIT_CTL34::Register>),
+        (0x208C => amux_split_ctl_35: ReadWrite<u32, AMUX_SPLIT_CTL35::Register>),
+        (0x2090 => amux_split_ctl_36: ReadWrite<u32, AMUX_SPLIT_CTL36::Register>),
+        (0x2094 => amux_split_ctl_37: ReadWrite<u32, AMUX_SPLIT_CTL37::Register>),
+        (0x2098 => amux_split_ctl_38: ReadWrite<u32, AMUX_SPLIT_CTL38::Register>),
+        (0x209C => amux_split_ctl_39: ReadWrite<u32, AMUX_SPLIT_CTL39::Register>),
+        (0x20A0 => amux_split_ctl_40: ReadWrite<u32, AMUX_SPLIT_CTL40::Register>),
+        (0x20A4 => amux_split_ctl_41: ReadWrite<u32, AMUX_SPLIT_CTL41::Register>),
+        (0x20A8 => amux_split_ctl_42: ReadWrite<u32, AMUX_SPLIT_CTL42::Register>),
+        (0x20AC => amux_split_ctl_43: ReadWrite<u32, AMUX_SPLIT_CTL43::Register>),
+        (0x20B0 => amux_split_ctl_44: ReadWrite<u32, AMUX_SPLIT_CTL44::Register>),
+        (0x20B4 => amux_split_ctl_45: ReadWrite<u32, AMUX_SPLIT_CTL45::Register>),
+        (0x20B8 => amux_split_ctl_46: ReadWrite<u32, AMUX_SPLIT_CTL46::Register>),
+        (0x20BC => amux_split_ctl_47: ReadWrite<u32, AMUX_SPLIT_CTL47::Register>),
+        (0x20C0 => amux_split_ctl_48: ReadWrite<u32, AMUX_SPLIT_CTL48::Register>),
+        (0x20C4 => amux_split_ctl_49: ReadWrite<u32, AMUX_SPLIT_CTL49::Register>),
+        (0x20C8 => amux_split_ctl_50: ReadWrite<u32, AMUX_SPLIT_CTL50::Register>),
+        (0x20CC => amux_split_ctl_51: ReadWrite<u32, AMUX_SPLIT_CTL51::Register>),
+        (0x20D0 => amux_split_ctl_52: ReadWrite<u32, AMUX_SPLIT_CTL52::Register>),
+        (0x20D4 => amux_split_ctl_53: ReadWrite<u32, AMUX_SPLIT_CTL53::Register>),
+        (0x20D8 => amux_split_ctl_54: ReadWrite<u32, AMUX_SPLIT_CTL54::Register>),
+        (0x20DC => amux_split_ctl_55: ReadWrite<u32, AMUX_SPLIT_CTL55::Register>),
+        (0x20E0 => amux_split_ctl_56: ReadWrite<u32, AMUX_SPLIT_CTL56::Register>),
+        (0x20E4 => amux_split_ctl_57: ReadWrite<u32, AMUX_SPLIT_CTL57::Register>),
+        (0x20E8 => amux_split_ctl_58: ReadWrite<u32, AMUX_SPLIT_CTL58::Register>),
+        (0x20EC => amux_split_ctl_59: ReadWrite<u32, AMUX_SPLIT_CTL59::Register>),
+        (0x20F0 => amux_split_ctl_60: ReadWrite<u32, AMUX_SPLIT_CTL60::Register>),
+        (0x20F4 => amux_split_ctl_61: ReadWrite<u32, AMUX_SPLIT_CTL61::Register>),
+        (0x20F8 => amux_split_ctl_62: ReadWrite<u32, AMUX_SPLIT_CTL62::Register>),
+        (0x20FC => amux_split_ctl_63: ReadWrite<u32, AMUX_SPLIT_CTL63::Register>),
+        (0x2100 => _reserved1),
+        (0x2200 => monitor_ctl_0: ReadWrite<u32>),
+        (0x2204 => monitor_ctl_1: ReadWrite<u32>),
+        (0x2208 => monitor_ctl_2: ReadWrite<u32>),
+        (0x220C => monitor_ctl_3: ReadWrite<u32>),
+        (0x2210 => _reserved2),
+        (0x2240 => alt_jtag_en: ReadWrite<u32>),
+        (0x2244 => @END),
+    }
+}
+register_bitfields![u32,
+PRT5_PORT_SEL0 [
+    IO0_SEL OFFSET(0) NUMBITS(5) [],
+    IO1_SEL OFFSET(8) NUMBITS(5) [],
+    IO2_SEL OFFSET(16) NUMBITS(5) [],
+],
+MONITOR_CTL_0 [
+    MONITOR_EN OFFSET(0) NUMBITS(32) []
+],
+MONITOR_CTL_1 [
+    MONITOR_EN OFFSET(0) NUMBITS(32) []
+],
+MONITOR_CTL_2 [
+    MONITOR_EN OFFSET(0) NUMBITS(32) []
+],
+MONITOR_CTL_3 [
+    MONITOR_EN OFFSET(0) NUMBITS(32) []
+],
+ALT_JTAG_EN [
+    ENABLE OFFSET(31) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL0 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL1 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL2 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL3 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL4 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL5 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL6 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL7 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL8 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL9 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL10 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL11 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL12 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL13 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL14 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL15 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL16 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL17 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL18 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL19 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL20 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL21 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL22 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL23 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL24 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL25 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL26 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL27 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL28 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL29 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL30 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL31 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL32 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL33 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL34 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL35 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL36 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL37 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL38 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL39 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL40 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL41 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL42 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL43 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL44 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL45 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL46 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL47 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL48 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL49 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL50 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL51 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL52 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL53 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL54 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL55 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL56 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL57 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL58 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL59 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL60 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL61 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL62 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+],
+AMUX_SPLIT_CTL63 [
+    SWITCH_AA_SL OFFSET(0) NUMBITS(1) [],
+    SWITCH_AA_SR OFFSET(1) NUMBITS(1) [],
+    SWITCH_AA_S0 OFFSET(2) NUMBITS(1) [],
+    SWITCH_BB_SL OFFSET(4) NUMBITS(1) [],
+    SWITCH_BB_SR OFFSET(5) NUMBITS(1) [],
+    SWITCH_BB_S0 OFFSET(6) NUMBITS(1) []
+]
+];
+const HSIOM_BASE: StaticRef<HsiomRegisters> =
+    unsafe { StaticRef::new(0x40300000 as *const HsiomRegisters) };
+
+pub struct Hsiom {
+    registers: StaticRef<HsiomRegisters>,
+}
+
+impl Hsiom {
+    pub const fn new() -> Hsiom {
+        Hsiom {
+            registers: HSIOM_BASE,
+        }
+    }
+
+    pub fn enable_uart(&self) {
+        self.registers
+            .prt5_port_sel0
+            .modify(PRT5_PORT_SEL0::IO1_SEL.val(0x12));
+        self.registers
+            .prt5_port_sel0
+            .modify(PRT5_PORT_SEL0::IO0_SEL.val(0x12));
+    }
+}
