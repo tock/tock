@@ -7,6 +7,8 @@
 use core::fmt::{Formatter, LowerHex, UpperHex};
 use core::ops::AddAssign;
 
+use super::machine_register::MachineRegister;
+
 /// A pointer to userspace memory with implied authority.
 ///
 /// A [`CapabilityPtr`] points to memory a userspace process may be
@@ -26,18 +28,10 @@ use core::ops::AddAssign;
 /// [^note1]: Depending on the architecture, the size of a
 /// [`CapabilityPtr`] may be a word size or larger, e.g., if registers
 /// can store metadata such as access permissions.
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default)]
 #[repr(transparent)]
 pub struct CapabilityPtr {
-    ptr: *const (),
-}
-
-impl Default for CapabilityPtr {
-    fn default() -> Self {
-        Self {
-            ptr: core::ptr::null(),
-        }
-    }
+    ptr: MachineRegister,
 }
 
 /// Permission sets a [`CapabilityPtr`] may grant.
@@ -56,7 +50,7 @@ impl From<CapabilityPtr> for usize {
     /// Provenance note: may not expose provenance.
     #[inline]
     fn from(from: CapabilityPtr) -> Self {
-        from.ptr as usize
+        from.ptr.into()
     }
 }
 
@@ -66,27 +60,29 @@ impl From<usize> for CapabilityPtr {
     /// Provenance note: may have null provenance.
     #[inline]
     fn from(from: usize) -> Self {
-        Self {
-            ptr: from as *const (),
-        }
+        Self { ptr: from.into() }
+    }
+}
+
+impl From<MachineRegister> for CapabilityPtr {
+    /// Convert a register to a [`CapabilityPtr`].
+    #[inline]
+    fn from(from: MachineRegister) -> Self {
+        Self { ptr: from }
     }
 }
 
 impl UpperHex for CapabilityPtr {
-    /// Format the capability as an uppercase hex string.
-    /// Will print at least the address, and any platform specific metadata if it exists.
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        UpperHex::fmt(&(self.ptr as usize), f)
+        UpperHex::fmt(&self.ptr, f)
     }
 }
 
 impl LowerHex for CapabilityPtr {
-    /// Format the capability as a lowercase hex string.
-    /// Will print at least the address, and any platform specific metadata if it exists.
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        LowerHex::fmt(&(self.ptr as usize), f)
+        LowerHex::fmt(&self.ptr, f)
     }
 }
 
@@ -94,14 +90,15 @@ impl AddAssign<usize> for CapabilityPtr {
     /// Increments the address of a [`CapabilityPtr`]
     #[inline]
     fn add_assign(&mut self, rhs: usize) {
-        self.ptr = (self.ptr as *const u8).wrapping_add(rhs) as *const ();
+        self.ptr =
+            ((usize::from(self.ptr) as *const u8).wrapping_add(rhs) as *const () as usize).into();
     }
 }
 
 impl CapabilityPtr {
     /// Returns the pointer component of a [`CapabilityPtr`] but without any of the authority.
     pub fn as_ptr<T>(&self) -> *const T {
-        self.ptr as *const T
+        usize::from(self.ptr) as *const T
     }
 
     /// Construct a [`CapabilityPtr`] from a raw pointer, with authority ranging over
@@ -128,7 +125,9 @@ impl CapabilityPtr {
         _length: usize,
         _perms: CapabilityPtrPermissions,
     ) -> Self {
-        Self { ptr }
+        Self {
+            ptr: (ptr as usize).into(),
+        }
     }
 
     /// If the [`CapabilityPtr`] is null returns `default`, otherwise applies `f` to `self`.
@@ -137,7 +136,7 @@ impl CapabilityPtr {
     where
         F: FnOnce(&Self) -> U,
     {
-        if self.ptr.is_null() {
+        if usize::from(self.ptr) == 0 {
             default
         } else {
             f(self)
@@ -152,7 +151,7 @@ impl CapabilityPtr {
         D: FnOnce() -> U,
         F: FnOnce(&Self) -> U,
     {
-        if self.ptr.is_null() {
+        if usize::from(self.ptr) == 0 {
             default()
         } else {
             f(self)

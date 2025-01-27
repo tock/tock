@@ -71,6 +71,7 @@ use core::fmt::Write;
 use crate::errorcode::ErrorCode;
 use crate::process;
 use crate::utilities::capability_ptr::CapabilityPtr;
+use crate::utilities::machine_register::MachineRegister;
 
 pub use crate::syscall_driver::{CommandReturn, SyscallDriver};
 
@@ -158,7 +159,7 @@ pub enum Syscall {
         /// Upcall pointer to the upcall function.
         upcall_ptr: CapabilityPtr,
         /// Userspace application data.
-        appdata: CapabilityPtr,
+        appdata: MachineRegister,
     },
 
     /// Structure representing an invocation of the Command system call class.
@@ -241,9 +242,9 @@ impl Syscall {
     pub fn from_register_arguments(
         syscall_number: u8,
         r0: usize,
-        r1: CapabilityPtr,
-        r2: CapabilityPtr,
-        r3: CapabilityPtr,
+        r1: MachineRegister,
+        r2: MachineRegister,
+        r3: MachineRegister,
     ) -> Option<Syscall> {
         match SyscallClass::try_from(syscall_number) {
             Ok(SyscallClass::Yield) => Some(Syscall::Yield {
@@ -254,7 +255,7 @@ impl Syscall {
             Ok(SyscallClass::Subscribe) => Some(Syscall::Subscribe {
                 driver_number: r0,
                 subdriver_number: r1.into(),
-                upcall_ptr: r2,
+                upcall_ptr: r2.into(),
                 appdata: r3,
             }),
             Ok(SyscallClass::Command) => Some(Syscall::Command {
@@ -266,19 +267,19 @@ impl Syscall {
             Ok(SyscallClass::ReadWriteAllow) => Some(Syscall::ReadWriteAllow {
                 driver_number: r0,
                 subdriver_number: r1.into(),
-                allow_address: r2.as_ptr::<u8>().cast_mut(),
+                allow_address: usize::from(r2) as *mut u8,
                 allow_size: r3.into(),
             }),
             Ok(SyscallClass::UserspaceReadableAllow) => Some(Syscall::UserspaceReadableAllow {
                 driver_number: r0,
                 subdriver_number: r1.into(),
-                allow_address: r2.as_ptr::<u8>().cast_mut(),
+                allow_address: usize::from(r2) as *mut u8,
                 allow_size: r3.into(),
             }),
             Ok(SyscallClass::ReadOnlyAllow) => Some(Syscall::ReadOnlyAllow {
                 driver_number: r0,
                 subdriver_number: r1.into(),
-                allow_address: r2.as_ptr::<u8>().cast_mut(),
+                allow_address: usize::from(r2) as *mut u8,
                 allow_size: r3.into(),
             }),
             Ok(SyscallClass::Memop) => Some(Syscall::Memop {
