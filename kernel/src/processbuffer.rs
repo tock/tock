@@ -148,7 +148,12 @@ unsafe fn raw_processbuf_to_rwprocessslice<'a>(
 /// This trait can be used to gain read-only access to memory regions
 /// wrapped in either a [`ReadOnlyProcessBuffer`] or a
 /// [`ReadWriteProcessBuffer`] type.
-pub trait ReadableProcessBuffer {
+///
+/// This is an `unsafe trait` as users of this trait need to trust that the
+/// implementation of [`ReadableProcessBuffer::ptr`] is correct, see [1].
+///
+/// [1]: https://github.com/tock/tock/issues/3757
+pub unsafe trait ReadableProcessBuffer {
     /// Length of the memory region.
     ///
     /// If the process is no longer alive and the memory has been
@@ -308,7 +313,7 @@ impl ReadOnlyProcessBuffer {
     }
 }
 
-impl ReadableProcessBuffer for ReadOnlyProcessBuffer {
+unsafe impl ReadableProcessBuffer for ReadOnlyProcessBuffer {
     /// Return the length of the buffer in bytes.
     fn len(&self) -> usize {
         self.process_id
@@ -515,7 +520,7 @@ impl ReadWriteProcessBuffer {
     }
 }
 
-impl ReadableProcessBuffer for ReadWriteProcessBuffer {
+unsafe impl ReadableProcessBuffer for ReadWriteProcessBuffer {
     /// Return the length of the buffer in bytes.
     fn len(&self) -> usize {
         self.process_id
