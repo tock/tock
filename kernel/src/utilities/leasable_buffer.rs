@@ -166,6 +166,7 @@
 
 // Author: Amit Levy
 
+use core::cmp::min;
 use core::ops::{Bound, Range, RangeBounds};
 use core::ops::{Index, IndexMut};
 use core::slice::SliceIndex;
@@ -381,8 +382,8 @@ impl<'a, T> SubSliceMut<'a, T> {
             Bound::Unbounded => self.active_range.end - self.active_range.start,
         };
 
-        let new_start = self.active_range.start + start;
-        let new_end = new_start + (end - start);
+        let new_start = min(self.active_range.start + start, self.active_range.end);
+        let new_end = min(new_start + (end - start), self.active_range.end);
 
         self.active_range = Range {
             start: new_start,
@@ -501,8 +502,8 @@ impl<'a, T> SubSlice<'a, T> {
             Bound::Unbounded => self.active_range.end - self.active_range.start,
         };
 
-        let new_start = self.active_range.start + start;
-        let new_end = new_start + (end - start);
+        let new_start = min(self.active_range.start + start, self.active_range.end);
+        let new_end = min(new_start + (end - start), self.active_range.end);
 
         self.active_range = Range {
             start: new_start,
