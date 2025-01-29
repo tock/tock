@@ -75,7 +75,7 @@ pub struct ProcessLoadMetadata {
 pub trait DynamicProcessLoading {
     /// Call to request loading a new process.
     ///
-    /// This informs the kernel we want to load a process and the size of the
+    /// This informs the kernel we want to load a process and the  of the
     /// entire process binary. The kernel will try to find a suitable location
     /// in flash to store said process.
     ///
@@ -496,7 +496,7 @@ impl<'a> DynamicProcessLoader<'a> {
         // Pass the first eight bytes to tbfheader to parse out the length of
         // the tbf header and app. We then use those values to see if we have
         // enough flash remaining to parse the remainder of the header.
-        let (version, header_length, _entry_length) =
+        let (version, header_length, entry_length) =
             match tock_tbf::parse::parse_tbf_header_lengths(
                 test_header_slice
                     .try_into()
@@ -526,7 +526,7 @@ impl<'a> DynamicProcessLoader<'a> {
 
         // If this isn't an app (i.e. it is padding).
         if tbf_header.is_app() {
-            Ok(StoredInFlash::ValidApp(tbf_header.length() as usize))
+            Ok(StoredInFlash::ValidApp(entry_length as usize))
         } else {
             Ok(StoredInFlash::PaddingApp)
         }
