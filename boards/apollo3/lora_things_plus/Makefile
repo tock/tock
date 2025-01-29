@@ -56,3 +56,8 @@ test-atecc508a:
 test-chirp_i2c_moisture:
 	$(Q)OBJCOPY=${OBJCOPY} PORT=$(PORT) $(CARGO) test $(NO_RUN) \
 	    --bin $(PLATFORM) --release --features chirp_i2c_moisture
+
+.PHONY: test-dfrobot_i2c_rainfall
+test-dfrobot_i2c_rainfall:
+	$(Q)OBJCOPY=${OBJCOPY} PORT=$(PORT) $(CARGO) test $(NO_RUN) \
+	    --bin $(PLATFORM) --release --features dfrobot_i2c_rainfall

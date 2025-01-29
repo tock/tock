@@ -410,6 +410,10 @@ impl<'a> RPGpioPin<'a> {
         }
     }
 
+    pub(crate) fn pin(&self) -> usize {
+        self.pin
+    }
+
     fn get_mode(&self) -> hil::gpio::Configuration {
         //TODO - read alternate function
         let pad_output_disable = !self.gpio_pad_registers.gpio_pad[self.pin].is_set(GPIO_PAD::OD);

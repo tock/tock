@@ -289,3 +289,34 @@ pub trait DistanceClient {
     ///                If there was an error, this will be `Err(ErrorCode)`.
     fn callback(&self, distance: Result<u32, ErrorCode>);
 }
+
+/// A basic interface for a rain fall sensor
+pub trait RainFallDriver<'a> {
+    fn set_client(&self, client: &'a dyn RainFallClient);
+
+    /// Read the rain fall value from a sensor. The value is returned
+    /// via the `RainFallClient` callback.
+    ///
+    /// - `hours`: the number of hours of rainfall to report. 1 to 24
+    /// hours are valid values (if supported by the hardware).
+    ///
+    /// This function might return the following errors:
+    /// - `BUSY`: Indicates that the hardware is busy with an existing
+    ///           operation or initialisation/calibration.
+    /// - `NOSUPPORT`: Indicates that the value of `hours` is not supported.
+    fn read_rainfall(&self, hours: usize) -> Result<(), ErrorCode>;
+}
+
+/// Client for receiving moisture readings.
+pub trait RainFallClient {
+    /// Called when a moisture reading has completed.
+    ///
+    /// - `value`: the number of um of rain in the time period specified,
+    /// or Err on failure.
+    ///
+    /// This function might return the following errors:
+    /// - `BUSY`: Indicates that the hardware is busy with an existing
+    ///           operation or initialisation/calibration.
+    /// - `NOSUPPORT`: Indicates that the value of `hours` is not supported.
+    fn callback(&self, value: Result<usize, ErrorCode>);
+}

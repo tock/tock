@@ -412,7 +412,12 @@ impl<
                             self.rxbuffer.replace(read_buffer);
 
                             self.client.map(move |client| {
-                                client.read_complete(sector, Ok(()));
+                                client.read_complete(
+                                    sector,
+                                    read_write_status
+                                        .and(Ok(()))
+                                        .or(Err(hil::flash::Error::FlashError)),
+                                );
                             });
                         } else {
                             let address =
@@ -488,7 +493,11 @@ impl<
                 self.state.set(State::Idle);
                 self.txbuffer.replace(write_buffer);
                 self.client.map(|client| {
-                    client.erase_complete(Ok(()));
+                    client.erase_complete(
+                        read_write_status
+                            .and(Ok(()))
+                            .or(Err(hil::flash::Error::FlashError)),
+                    );
                 });
             }
             State::WriteSectorWriteEnable {
@@ -503,7 +512,12 @@ impl<
                     self.txbuffer.replace(write_buffer);
                     self.client.map(|client| {
                         self.client_sector.take().map(|sector| {
-                            client.write_complete(sector, Ok(()));
+                            client.write_complete(
+                                sector,
+                                read_write_status
+                                    .and(Ok(()))
+                                    .or(Err(hil::flash::Error::FlashError)),
+                            );
                         });
                     });
                 } else {

@@ -103,7 +103,7 @@ exclude = ["tools/"]
 resolver = "2"
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.3-dev"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 edition = "2021"
 
@@ -154,7 +154,6 @@ option_map_unit_fn = "allow"
 nonminimal_bool = "allow"
 identity-op = "allow"
 while-let-loop = "allow"
-only_used_in_recursion = "allow"
 manual-range-patterns = "allow"
 manual-flatten = "allow"
 

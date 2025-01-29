@@ -166,6 +166,7 @@
 
 // Author: Amit Levy
 
+use core::cmp::min;
 use core::ops::{Bound, Range, RangeBounds};
 use core::ops::{Index, IndexMut};
 use core::slice::SliceIndex;
@@ -381,8 +382,8 @@ impl<'a, T> SubSliceMut<'a, T> {
             Bound::Unbounded => self.active_range.end - self.active_range.start,
         };
 
-        let new_start = self.active_range.start + start;
-        let new_end = new_start + (end - start);
+        let new_start = min(self.active_range.start + start, self.active_range.end);
+        let new_end = min(new_start + (end - start), self.active_range.end);
 
         self.active_range = Range {
             start: new_start,
@@ -501,8 +502,8 @@ impl<'a, T> SubSlice<'a, T> {
             Bound::Unbounded => self.active_range.end - self.active_range.start,
         };
 
-        let new_start = self.active_range.start + start;
-        let new_end = new_start + (end - start);
+        let new_start = min(self.active_range.start + start, self.active_range.end);
+        let new_end = min(new_start + (end - start), self.active_range.end);
 
         self.active_range = Range {
             start: new_start,
@@ -519,5 +520,336 @@ where
 
     fn index(&self, idx: I) -> &Self::Output {
         &self.internal[self.active_range.clone()][idx]
+    }
+}
+
+#[cfg(test)]
+mod test {
+
+    use crate::utilities::leasable_buffer::SubSliceMut;
+    use crate::utilities::leasable_buffer::SubSliceMutImmut;
+
+    #[test]
+    fn subslicemut_create() {
+        let mut b: [u8; 100] = [0; 100];
+        let s = SubSliceMut::new(&mut b);
+        assert_eq!(s.len(), 100);
+    }
+
+    #[test]
+    fn subslicemut_edit_middle() {
+        let mut b: [u8; 10] = [0; 10];
+        let mut s = SubSliceMut::new(&mut b);
+        s.slice(5..10);
+        s[0] = 1;
+        s.reset();
+        assert_eq!(s.as_slice(), [0, 0, 0, 0, 0, 1, 0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn subslicemut_double_slice() {
+        let mut b: [u8; 10] = [0; 10];
+        let mut s = SubSliceMut::new(&mut b);
+        s.slice(5..10);
+        s.slice(2..5);
+        s[0] = 2;
+        s.reset();
+        assert_eq!(s.as_slice(), [0, 0, 0, 0, 0, 0, 0, 2, 0, 0]);
+    }
+
+    #[test]
+    fn subslicemut_double_slice_endopen() {
+        let mut b: [u8; 10] = [0; 10];
+        let mut s = SubSliceMut::new(&mut b);
+        s.slice(5..10);
+        s.slice(3..);
+        s[0] = 3;
+        s.reset();
+        assert_eq!(s.as_slice(), [0, 0, 0, 0, 0, 0, 0, 0, 3, 0]);
+    }
+
+    #[test]
+    fn subslicemut_double_slice_beginningopen1() {
+        let mut b: [u8; 10] = [0; 10];
+        let mut s = SubSliceMut::new(&mut b);
+        s.slice(5..10);
+        s.slice(..3);
+        s[0] = 4;
+        s.reset();
+        assert_eq!(s.as_slice(), [0, 0, 0, 0, 0, 4, 0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn subslicemut_double_slice_beginningopen2() {
+        let mut b: [u8; 10] = [0; 10];
+        let mut s = SubSliceMut::new(&mut b);
+        s.slice(..5);
+        s.slice(..3);
+        s[0] = 5;
+        s.reset();
+        assert_eq!(s.as_slice(), [5, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn subslicemut_double_slice_beginningopen3() {
+        let mut b: [u8; 10] = [0; 10];
+        let mut s = SubSliceMut::new(&mut b);
+        s.slice(2..5);
+        s.slice(..3);
+        s[0] = 6;
+        s.reset();
+        assert_eq!(s.as_slice(), [0, 0, 6, 0, 0, 0, 0, 0, 0, 0]);
+    }
+
+    #[test]
+    #[should_panic]
+    fn subslicemut_double_slice_panic1() {
+        let mut b: [u8; 10] = [0; 10];
+        let mut s = SubSliceMut::new(&mut b);
+        s.slice(2..5);
+        s.slice(..3);
+        s[3] = 1;
+    }
+
+    #[test]
+    #[should_panic]
+    fn subslicemut_double_slice_panic2() {
+        let mut b: [u8; 10] = [0; 10];
+        let mut s = SubSliceMut::new(&mut b);
+        s.slice(4..);
+        s.slice(..3);
+        s[3] = 1;
+    }
+
+    #[test]
+    fn subslicemut_slice_nop() {
+        let mut b: [u8; 10] = [0; 10];
+        let mut s = SubSliceMut::new(&mut b);
+        s.slice(0..10);
+        assert!(!s.is_sliced());
+    }
+
+    #[test]
+    fn subslicemut_slice_empty() {
+        let mut b: [u8; 10] = [0; 10];
+        let mut s = SubSliceMut::new(&mut b);
+        s.slice(1..1);
+        assert_eq!(s.len(), 0);
+    }
+
+    #[test]
+    fn subslicemut_slice_down() {
+        let mut b: [u8; 100] = [0; 100];
+        let mut s = SubSliceMut::new(&mut b);
+        s.slice(0..50);
+        assert_eq!(s.len(), 50);
+    }
+
+    #[test]
+    fn subslicemut_slice_up() {
+        let mut b: [u8; 100] = [0; 100];
+        let mut s = SubSliceMut::new(&mut b);
+        s.slice(0..200);
+        assert_eq!(s.len(), 100);
+    }
+
+    #[test]
+    fn subslicemut_slice_up_ptr() {
+        let mut b: [u8; 100] = [0; 100];
+        let mut s = SubSliceMut::new(&mut b);
+        s.slice(0..200);
+        assert_eq!(s.as_slice().len(), 100);
+    }
+
+    #[test]
+    fn subslicemut_slice_outside() {
+        let mut b: [u8; 10] = [0; 10];
+        let mut s = SubSliceMut::new(&mut b);
+        s.slice(20..25);
+        assert_eq!(s.len(), 0);
+    }
+
+    #[test]
+    fn subslicemut_slice_beyond() {
+        let mut b: [u8; 10] = [0; 10];
+        let mut s = SubSliceMut::new(&mut b);
+        s.slice(6..15);
+        assert_eq!(s.len(), 4);
+    }
+
+    fn slice_len1<T>(mut s: SubSliceMutImmut<T>) {
+        s.slice(4..8);
+        s.slice(0..2);
+        assert_eq!(s.len(), 2);
+    }
+
+    fn slice_len2<T>(mut s: SubSliceMutImmut<T>) {
+        s.slice(4..8);
+        s.slice(3..);
+        assert_eq!(s.len(), 1);
+    }
+
+    fn slice_len3<T>(mut s: SubSliceMutImmut<T>) {
+        s.slice(4..8);
+        s.slice(..);
+        assert_eq!(s.len(), 4);
+    }
+
+    fn slice_len4<T>(mut s: SubSliceMutImmut<T>) {
+        s.slice(5..);
+        s.slice(4..);
+        assert_eq!(s.len(), 1);
+    }
+
+    fn slice_len5<T>(mut s: SubSliceMutImmut<T>) {
+        s.slice(5..);
+        s.slice(5..);
+        assert_eq!(s.len(), 0);
+    }
+
+    #[test]
+    fn subslicemut_slice_len1() {
+        let mut b: [u8; 10] = [0; 10];
+        slice_len1(b.as_mut().into())
+    }
+
+    #[test]
+    fn subslicemut_slice_len2() {
+        let mut b: [u8; 10] = [0; 10];
+        slice_len2(b.as_mut().into())
+    }
+
+    #[test]
+    fn subslicemut_slice_len3() {
+        let mut b: [u8; 10] = [0; 10];
+        slice_len3(b.as_mut().into())
+    }
+
+    #[test]
+    fn subslicemut_slice_len4() {
+        let mut b: [u8; 10] = [0; 10];
+        slice_len4(b.as_mut().into())
+    }
+
+    #[test]
+    fn subslicemut_slice_len5() {
+        let mut b: [u8; 10] = [0; 10];
+        slice_len5(b.as_mut().into())
+    }
+
+    #[test]
+    fn subslice_slice_len1() {
+        let b: [u8; 10] = [0; 10];
+        slice_len1(b.as_ref().into())
+    }
+
+    #[test]
+    fn subslice_slice_len2() {
+        let b: [u8; 10] = [0; 10];
+        slice_len2(b.as_ref().into())
+    }
+
+    #[test]
+    fn subslice_slice_len3() {
+        let b: [u8; 10] = [0; 10];
+        slice_len3(b.as_ref().into())
+    }
+
+    #[test]
+    fn subslice_slice_len4() {
+        let b: [u8; 10] = [0; 10];
+        slice_len4(b.as_ref().into())
+    }
+
+    #[test]
+    fn subslice_slice_len5() {
+        let b: [u8; 10] = [0; 10];
+        slice_len5(b.as_ref().into())
+    }
+
+    fn slice_contents1(mut s: SubSliceMutImmut<u8>) {
+        s.slice(4..8);
+        s.slice(0..2);
+        assert_eq!(s[0], 4);
+        assert_eq!(s[1], 5);
+    }
+
+    fn slice_contents2(mut s: SubSliceMutImmut<u8>) {
+        s.slice(2..);
+        s.slice(5..);
+        assert_eq!(s[0], 7);
+        assert_eq!(s[1], 8);
+        assert_eq!(s[2], 9);
+    }
+
+    #[test]
+    fn subslicemut_slice_contents1() {
+        let mut b: [u8; 10] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+        slice_contents1(b.as_mut().into())
+    }
+
+    #[test]
+    fn subslicemut_slice_contents2() {
+        let mut b: [u8; 10] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+        slice_contents2(b.as_mut().into())
+    }
+
+    #[test]
+    fn subslice_slice_contents1() {
+        let b: [u8; 10] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+        slice_contents1(b.as_ref().into())
+    }
+
+    #[test]
+    fn subslice_slice_contents2() {
+        let b: [u8; 10] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+        slice_contents2(b.as_ref().into())
+    }
+
+    fn reset_contents(mut s: SubSliceMutImmut<u8>) {
+        s.slice(4..8);
+        s.slice(0..2);
+        s.reset();
+        assert_eq!(s[0], 0);
+        assert_eq!(s[1], 1);
+        assert_eq!(s[2], 2);
+        assert_eq!(s[3], 3);
+        assert_eq!(s[4], 4);
+        assert_eq!(s[5], 5);
+        assert_eq!(s[6], 6);
+        assert_eq!(s[7], 7);
+        assert_eq!(s[8], 8);
+        assert_eq!(s[9], 9);
+    }
+
+    #[test]
+    fn subslicemut_reset_contents() {
+        let mut b: [u8; 10] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+        reset_contents(b.as_mut().into())
+    }
+
+    #[test]
+    fn subslice_reset_contents() {
+        let b: [u8; 10] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+        reset_contents(b.as_ref().into())
+    }
+
+    fn reset_panic(mut s: SubSliceMutImmut<u8>) -> u8 {
+        s.reset();
+        s[s.len()]
+    }
+
+    #[test]
+    #[should_panic]
+    fn subslicemut_reset_panic() {
+        let mut b: [u8; 10] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+        reset_panic(b.as_mut().into());
+    }
+
+    #[test]
+    #[should_panic]
+    fn subslice_reset_panic() {
+        let b: [u8; 10] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+        reset_panic(b.as_ref().into());
     }
 }

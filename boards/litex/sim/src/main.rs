@@ -19,7 +19,7 @@ use kernel::hil::time::{Alarm, Timer};
 use kernel::platform::chip::InterruptService;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::cooperative::CooperativeSched;
+use kernel::scheduler::mlfq::MLFQSched;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::StaticRef;
 use kernel::{create_capability, debug, static_init};
@@ -150,7 +150,18 @@ struct LiteXSim {
         >,
     >,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    scheduler: &'static CooperativeSched<'static>,
+    scheduler: &'static MLFQSched<
+        'static,
+        VirtualMuxAlarm<
+            'static,
+            litex_vexriscv::timer::LiteXAlarm<
+                'static,
+                'static,
+                socc::SoCRegisterFmt,
+                socc::ClockFrequency,
+            >,
+        >,
+    >,
     scheduler_timer: &'static VirtualSchedulerTimer<
         VirtualMuxAlarm<
             'static,
@@ -189,7 +200,18 @@ impl KernelResources<litex_vexriscv::chip::LiteXVexRiscv<LiteXSimInterruptablePe
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = CooperativeSched<'static>;
+    type Scheduler = MLFQSched<
+        'static,
+        VirtualMuxAlarm<
+            'static,
+            litex_vexriscv::timer::LiteXAlarm<
+                'static,
+                'static,
+                socc::SoCRegisterFmt,
+                socc::ClockFrequency,
+            >,
+        >,
+    >;
     type SchedulerTimer = VirtualSchedulerTimer<
         VirtualMuxAlarm<
             'static,
@@ -652,11 +674,16 @@ unsafe fn start() -> (
     )
     .finalize(components::low_level_debug_component_static!());
 
-    debug!("Verilated LiteX+VexRiscv: initialization complete, entering main loop.");
-
-    let scheduler =
-        components::sched::cooperative::CooperativeComponent::new(&*addr_of!(PROCESSES))
-            .finalize(components::cooperative_component_static!(NUM_PROCS));
+    let scheduler = components::sched::mlfq::MLFQComponent::new(mux_alarm, &*addr_of!(PROCESSES))
+        .finalize(components::mlfq_component_static!(
+            litex_vexriscv::timer::LiteXAlarm<
+                'static,
+                'static,
+                socc::SoCRegisterFmt,
+                socc::ClockFrequency,
+            >,
+            NUM_PROCS
+        ));
 
     let litex_sim = LiteXSim {
         gpio_driver,
@@ -673,6 +700,8 @@ unsafe fn start() -> (
         scheduler,
         scheduler_timer,
     };
+
+    debug!("Verilated LiteX+VexRiscv: initialization complete, entering main loop.");
 
     kernel::process::load_processes(
         board_kernel,

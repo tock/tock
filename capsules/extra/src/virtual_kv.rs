@@ -48,6 +48,7 @@ enum Operation {
     Delete,
     Add,
     Update,
+    GarbageCollect,
 }
 
 pub struct VirtualKVPermissions<'a, V: kv::KVPermissions<'a>> {
@@ -224,6 +225,16 @@ impl<'a, V: kv::KVPermissions<'a>> kv::KVPermissions<'a> for VirtualKVPermission
             .map_err(|e| (self.key.take().unwrap(), e))
     }
 
+    fn garbage_collect(&self) -> Result<(), ErrorCode> {
+        if self.operation.is_some() {
+            return Err(ErrorCode::BUSY);
+        }
+
+        self.operation.set(Operation::GarbageCollect);
+
+        self.mux_kv.do_next_op(false)
+    }
+
     fn header_size(&self) -> usize {
         self.mux_kv.kv.header_size()
     }
@@ -250,6 +261,28 @@ impl<'a, V: kv::KVPermissions<'a>> MuxKVPermissions<'a, V> {
 
         mnode.map_or(Ok(()), |node| {
             node.operation.map_or(Ok(()), |op| {
+                // GarbageCollect doesn't have a key, so we check it above
+                // the match case below
+                if op == Operation::GarbageCollect {
+                    return match self.kv.garbage_collect() {
+                        Ok(()) => {
+                            self.inflight.set(node);
+                            Ok(())
+                        }
+                        Err(e) => {
+                            node.operation.clear();
+                            if async_op {
+                                node.client.map(move |cb| {
+                                    cb.garbage_collection_complete(Err(e));
+                                });
+                                Ok(())
+                            } else {
+                                Err(e)
+                            }
+                        }
+                    };
+                }
+
                 node.key.take().map_or(Ok(()), |key| match op {
                     Operation::Get => node.value.take().map_or(Ok(()), |value| {
                         node.valid_ids.map_or(Ok(()), |perms| {
@@ -364,6 +397,7 @@ impl<'a, V: kv::KVPermissions<'a>> MuxKVPermissions<'a, V> {
                                 }
                             })
                     }
+                    Operation::GarbageCollect => Err(ErrorCode::NOSUPPORT),
                 })
             })
         })
@@ -440,6 +474,17 @@ impl<'a, V: kv::KVPermissions<'a>> kv::KVClient for MuxKVPermissions<'a, V> {
             node.operation.clear();
             node.client.map(move |cb| {
                 cb.delete_complete(result, key);
+            });
+        });
+
+        let _ = self.do_next_op(true);
+    }
+
+    fn garbage_collection_complete(&self, result: Result<(), ErrorCode>) {
+        self.inflight.take().map(|node| {
+            node.operation.clear();
+            node.client.map(move |cb| {
+                cb.garbage_collection_complete(result);
             });
         });
 
