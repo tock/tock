@@ -29,7 +29,6 @@ pub mod crc;
 pub mod ctap;
 pub mod dac;
 pub mod date_time;
-pub mod debug_queue;
 pub mod debug_writer;
 pub mod dfrobot_rainfall_sensor;
 pub mod eui64;
