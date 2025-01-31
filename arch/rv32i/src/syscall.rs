@@ -198,7 +198,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         state.regs[R_A0] = callback.argument0 as u32;
         state.regs[R_A1] = callback.argument1 as u32;
         state.regs[R_A2] = callback.argument2 as u32;
-        state.regs[R_A3] = usize::from(callback.argument3) as u32;
+        state.regs[R_A3] = callback.argument3.as_usize() as u32;
 
         // We also need to set the return address (ra) register so that the new
         // function that the process is running returns to the correct location.
@@ -209,7 +209,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         state.regs[R_RA] = state.pc;
 
         // Save the PC we expect to execute.
-        state.pc = usize::from(callback.pc) as u32;
+        state.pc = callback.pc.addr() as u32;
 
         Ok(())
     }

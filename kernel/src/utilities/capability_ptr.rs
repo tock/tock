@@ -52,15 +52,6 @@ impl Default for CapabilityPtr {
     }
 }
 
-impl From<CapabilityPtr> for usize {
-    /// Returns the address of the [`CapabilityPtr`].
-    /// Provenance note: may not expose provenance.
-    #[inline]
-    fn from(from: CapabilityPtr) -> Self {
-        from.ptr.addr()
-    }
-}
-
 impl From<usize> for CapabilityPtr {
     /// Constructs a [`CapabilityPtr`] with a given address and no authority
     ///
@@ -80,18 +71,6 @@ impl From<usize> for CapabilityPtr {
 // implementation can also store integers. MachineRegister uses that capability
 // to simplify its implementation. No other user of CapabilityPtr should rely on
 // that ability.
-
-impl From<MachineRegister> for usize {
-    /// Returns this `MachineRegister` as a `usize`.
-    ///
-    /// This is intended for use on `MachineRegister`s created from a `usize`,
-    /// in which case the original `usize` will be returned. If this
-    /// `MachineRegister` was created from a pointer, this returns the pointer's
-    /// address (without exposing provenance).
-    fn from(from: MachineRegister) -> Self {
-        CapabilityPtr::from(from).ptr.addr()
-    }
-}
 
 impl From<usize> for MachineRegister {
     fn from(from: usize) -> Self {
@@ -122,6 +101,11 @@ impl AddAssign<usize> for CapabilityPtr {
 }
 
 impl CapabilityPtr {
+    /// Returns the address of this pointer. Does not expose provenance.
+    pub fn addr(self) -> usize {
+        self.ptr.addr()
+    }
+
     /// Returns the pointer component of a [`CapabilityPtr`] but without any of the authority.
     pub fn as_ptr<T>(&self) -> *const T {
         self.ptr.cast()
