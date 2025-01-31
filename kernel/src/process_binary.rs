@@ -111,6 +111,7 @@ impl fmt::Debug for ProcessBinaryError {
 }
 
 /// A process stored in flash.
+#[derive(Debug)]
 pub struct ProcessBinary {
     /// Process flash segment. This is the entire region of nonvolatile flash
     /// that the process occupies.

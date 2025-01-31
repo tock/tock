@@ -28,6 +28,10 @@ use crate::process_policies::ProcessFaultPolicy;
 use crate::process_standard::ProcessStandard;
 use crate::utilities::cells::{MapCell, OptionalCell};
 
+// Fixed max supported process slots to store the start addresses of processes
+// to write padding.
+const MAX_PROCS: usize = 10;
+
 /// Errors that can occur when trying to load and create processes.
 pub enum ProcessLoadError {
     /// Not enough memory to meet the amount requested by a process. Modify the
@@ -109,6 +113,7 @@ impl fmt::Debug for ProcessLoadError {
         }
     }
 }
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // SYNCHRONOUS PROCESS LOADING
@@ -443,6 +448,9 @@ pub trait ProcessLoadingAsync<'a> {
     /// Load applications from a new flash region. This automatically
     /// starts the loading operation.
     fn load_new_applications(&self, flash: &'static [u8]);
+
+    /// Find available flash region for the new application.
+    fn check_flash_for_new_address(&self, new_app_size: usize) -> Result<(usize, PaddingRequirement, usize, usize), ProcessBinaryError>;
 }
 
 /// Operating mode of the loader.
@@ -450,8 +458,26 @@ pub trait ProcessLoadingAsync<'a> {
 enum SequentialProcessLoaderMachineState {
     /// Phase of discovering `ProcessBinary` objects in flash.
     DiscoverProcessBinaries,
-    /// Phase of loading `ProcessBinary`s into `Process`s.
+    /// Phase of loading `ProcessBinary`s into `Process`es.
     LoadProcesses,
+}
+
+/// Metadata struct to hold list of process binary addresses.
+#[derive(Clone, Copy, Debug, Default)]
+struct ProcessBinaryMetadata {
+    index: usize,
+    process_binaries_start_addresses: [usize; MAX_PROCS],
+    process_binaries_end_addresses: [usize; MAX_PROCS],
+}
+
+/// Enum to hold the padding requirements for a new application.
+#[derive(Clone, Copy, PartialEq, Default)]
+pub enum PaddingRequirement {
+    #[default]
+    None,
+    PrePad,
+    PostPad,
+    PreAndPostPad,
 }
 
 /// A machine for loading processes stored sequentially in a region of flash.
@@ -469,6 +495,8 @@ pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static> {
     procs: MapCell<&'static mut [Option<&'static dyn Process>]>,
     /// Array to store `ProcessBinary`s after checking credentials.
     proc_binaries: MapCell<&'static mut [Option<ProcessBinary>]>,
+    /// Total available flash on this board.
+    flash_bank: Cell<&'static [u8]>,
     /// Flash memory region to load processes from.
     flash: Cell<&'static [u8]>,
     /// Memory available to assign to applications.
@@ -485,6 +513,8 @@ pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static> {
     fault_policy: &'static dyn ProcessFaultPolicy,
     /// Current mode of the loading machine.
     state: OptionalCell<SequentialProcessLoaderMachineState>,
+    /// Lookup tables for process binaries addresses and sizes
+    process_binaries_metadata: OptionalCell<ProcessBinaryMetadata>,
 }
 
 impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
@@ -512,11 +542,13 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
             proc_binaries: MapCell::new(proc_binaries),
             kernel,
             chip,
+            flash_bank: Cell::new(flash),
             flash: Cell::new(flash),
             app_memory: Cell::new(app_memory),
             policy: OptionalCell::new(policy),
             fault_policy,
             state: OptionalCell::empty(),
+            process_binaries_metadata: OptionalCell::empty(),
         }
     }
 
@@ -553,7 +585,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
                     self.client.map(|client| {
                         client.process_loaded(Err(ProcessLoadError::CheckError(e)));
                     });
-                }
+                }   
             },
             Err(ProcessBinaryError::NotEnoughFlash)
             | Err(ProcessBinaryError::TbfHeaderNotFound) => {
@@ -614,7 +646,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
                     // If we could not parse the header, then we want to skip over
                     // this app and look for the next one.
                     (0, 0, app_length)
-                }
+                }   
                 Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => {
                     // Since Tock apps use a linked list, it is very possible the
                     // header we started to parse is intentionally invalid to signal
@@ -855,6 +887,331 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
 
         blocks
     }
+
+    ////////////////////////////////////////////////////////////////////////////////
+    // DYNAMIC PROCESS LOADING HELPERS
+    ////////////////////////////////////////////////////////////////////////////////
+    /// TODO:
+    /// 1. Get Max number of processes as constant? If they are fixed per board, 
+    ///     can i get it somewhere?
+    /// 2. Block app from writing if the version is same and if the binary has not 
+    ///     changed? (possible attack vector)
+    ///         - Change version and keep binary image constant otherwise. 
+    ///         - A bunch of these updates could eat away at the flash's real estate
+
+    /// Scan the entire flash to populate lists of existing binaries addresses.
+    fn scan_flash_for_app_binaries(&self, flash: &'static [u8])
+                                    -> Result<(), ProcessBinaryError>{
+        
+        let flash_end = flash.as_ptr() as usize + flash.len() - 1;
+        let mut addresses = flash.as_ptr() as usize;
+
+        while addresses < flash_end{
+            let flash_offset = addresses - flash.as_ptr() as usize;
+            // If this fails, not enough remaining flash to check for an app.
+            let test_header_slice = flash.get(flash_offset..flash_offset+8).ok_or(ProcessBinaryError::NotEnoughFlash)?;
+
+            // Pass the first eight bytes to tbfheader to parse out the length of
+            // the tbf header and app. We then use those values to see if we have
+            // enough flash remaining to parse the remainder of the header.
+            //
+            // Start by converting [u8] to [u8; 8].
+            let header = test_header_slice
+                .try_into()
+                .or(Err(ProcessBinaryError::NotEnoughFlash))?;
+
+            let (version, header_length, app_length) =
+                match tock_tbf::parse::parse_tbf_header_lengths(header) {
+                    Ok((v, hl, el)) => (v, hl, el),
+                    Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(app_length)) => {
+                        // If we could not parse the header, then we want to skip over
+                        // this app and look for the next one.
+                        (0, 0, app_length)
+                    }   
+                    Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => {
+                        // Since Tock apps use a linked list, it is very possible the
+                        // header we started to parse is intentionally invalid to signal
+                        // the end of apps. This is ok and means we can move to the next step.
+                        return Err(ProcessBinaryError::TbfHeaderNotFound);
+                    }
+                };
+
+            // Now we can get a slice which only encompasses the length of flash
+            // described by this tbf header.  We will either parse this as an actual
+            // app, or skip over this region.
+            let app_flash = flash
+                .get(flash_offset..flash_offset+app_length as usize)
+                .ok_or(ProcessBinaryError::NotEnoughFlash)?;
+            
+            // Check if the current slice is an app or padding. We require this to 
+            // populate the process binary metadata arrays with only values of 
+            // valid applications. 
+            let app_header = flash
+                .get(flash_offset..flash_offset+header_length as usize)
+                .ok_or(ProcessBinaryError::NotEnoughFlash)?;
+
+            // Advance the flash slice for process discovery beyond this last entry.
+            // This will be the start of where we look for a new process since Tock
+            // processes are allocated back-to-back in flash.
+            let remaining_flash = flash
+                .get(flash_offset+app_flash.len()..)
+                .ok_or(ProcessBinaryError::NotEnoughFlash)?;
+
+            if let Some(mut metadata) = self.process_binaries_metadata.get() {
+                let tbf_header = tock_tbf::parse::parse_tbf_header(app_header, version)?;
+                if tbf_header.is_app(){
+                    metadata.process_binaries_start_addresses[metadata.index] = app_flash.as_ptr() as usize;
+                    metadata.process_binaries_end_addresses[metadata.index] = app_flash.as_ptr() as usize + app_length as usize;
+                    if config::CONFIG.debug_load_processes {
+                        debug!("Metadata Process binary start address at index {}: {:#010x}, with end_address {:#010x}" ,
+                        metadata.index, 
+                        metadata.process_binaries_start_addresses[metadata.index],
+                        metadata.process_binaries_end_addresses[metadata.index]);
+                    }
+                    metadata.index += 1;
+                    self.process_binaries_metadata.set(metadata);
+                }
+                else{
+                    if config::CONFIG.debug_load_processes {
+                        debug!("Is padding!");
+                    }
+                }
+            }
+            addresses = remaining_flash.as_ptr() as usize;
+        }
+        Ok(())
+    }
+
+    /// Helper function to find the next potential aligned address for the 
+    /// new app with size `app_length`.
+    ///
+    /// This currently assumes Cortex-M alignment rules.
+    fn find_next_aligned_address(&self, address: usize, app_length: usize) -> usize {
+        let remaining = address % app_length;
+        if remaining == 0 {
+            address
+        } else {
+            address + (app_length - remaining)
+        }
+    }
+
+    /// Helper Function to sort the process binary address arrays manually.
+    fn sort_array(&self, arr: &mut [usize; MAX_PROCS], count: usize) {
+        for i in 0..count {
+            for j in 0..count - i - 1 {
+                if arr[j] > arr[j + 1] {
+                    arr.swap(j, j + 1);
+                }
+            }
+        }
+    }
+
+    /// Function to compute the address for a new app with size `app_size`.
+    fn compute_new_app_address(&self, app_size: usize) -> Option<usize> {
+        if let Some(mut metadata) = self.process_binaries_metadata.get(){
+            let mut start_count = 0;
+            let mut end_count = 0;
+
+            // Remove zeros from addresses in place.
+            for i in 0..MAX_PROCS {
+                if metadata.process_binaries_start_addresses[i] != 0 {
+                    metadata.process_binaries_start_addresses[start_count] = metadata.process_binaries_start_addresses[i];
+                    start_count += 1;
+                }
+            }
+
+            for i in 0..MAX_PROCS {
+                if metadata.process_binaries_end_addresses[i] != 0 {
+                    metadata.process_binaries_end_addresses[end_count] = metadata.process_binaries_end_addresses[i];
+                    end_count += 1;
+                }
+            }
+
+            // Sort the filtered addresses.
+            self.sort_array(&mut metadata.process_binaries_start_addresses, start_count);
+            self.sort_array(&mut metadata.process_binaries_end_addresses, end_count);
+
+            if config::CONFIG.debug_load_processes {
+                debug!("sorted start array: {:?}", metadata.process_binaries_start_addresses);
+                debug!("sorted end array: {:?}", metadata.process_binaries_end_addresses);
+            }
+
+            // If there is only one application in flash:
+            if start_count == 1 {
+                let potential_address = self.find_next_aligned_address(metadata.process_binaries_end_addresses[0], app_size);
+                return Some(potential_address);
+            }
+
+            // Otherwise, iterate through the sorted start and end addresses to find gaps for the new app.
+            for i in 0..start_count - 1 {
+                let gap_start = metadata.process_binaries_end_addresses[i];
+                let gap_end = metadata.process_binaries_start_addresses[i + 1];
+
+                 // Ensure gap_end is valid (skip zeros - these indicate there are no process binaries).
+                if gap_end == 0 {
+                    continue;
+                }
+
+                // If there is a valid gap - (gap_end > gap_start), check alignment.
+                if gap_end > gap_start {
+                    let potential_address = self.find_next_aligned_address(gap_start, app_size);
+                    if potential_address + app_size < gap_end {
+                        return Some(potential_address);
+                    }
+                }
+            }
+            // If no gaps found, check after the last app
+            let last_app_end_address =  metadata.process_binaries_end_addresses[end_count - 1];
+            let potential_address = self.find_next_aligned_address(last_app_end_address, app_size);
+            // move flash bounds logic to here?
+            return Some(potential_address)
+
+        }
+        if config::CONFIG.debug_load_processes {
+            debug!("No suitable aligned address found");
+        }
+        None
+    }
+
+    /// This function checks if there is a need to pad either before or after
+    /// the new app to preserve the linked list.
+    ///
+    /// When do we pad?
+    ///
+    /// 1. When there is a process in the processes array which is located in
+    ///    flash after the new app but not immediately after, we need to add
+    ///    padding between the new app and the existing app.
+    /// 2. Due to MPU alignment, the new app may be similarly placed not
+    ///    immediately after an existing process, in that case, we need to add
+    ///    padding between the previous app and the new app.
+    /// 3. If both the above conditions are met, we add both a prepadding and a
+    ///    postpadding.
+    /// 4. If either of these conditions are not met, we don't pad.
+    ///
+    /// Change checks against process binaries instead of processes?
+    fn compute_padding_requirement_and_neighbors(
+        &self,
+        new_app_start_address: usize,
+        app_length: usize
+    ) -> (PaddingRequirement, usize, usize) {
+
+        // The end address of our newly loaded application.
+        let new_app_end_address = new_app_start_address + app_length;
+        // To store the address until which we need to write the padding app.
+        let mut next_app_start_addr = 0;
+        // To store the address from which we need to write the padding app.
+        let mut previous_app_end_addr = 0;
+        let mut padding_requirement: PaddingRequirement = PaddingRequirement::None;
+
+        let mut processes_start_addresses: [usize; MAX_PROCS] = [0; MAX_PROCS];
+        let mut processes_end_addresses: [usize; MAX_PROCS] = [0; MAX_PROCS];
+
+        // Get the start and end addresses in flash of existing processes.
+        self.procs.map(|procs| {
+            for (procs_index, value) in procs.iter().enumerate() {
+                match value {
+                    Some(app) => {
+                        processes_start_addresses[procs_index] = app.get_addresses().flash_start;
+                        processes_end_addresses[procs_index] = app.get_addresses().flash_end;
+                    }
+                    None => {
+                        processes_start_addresses[procs_index] = 0;
+                        processes_end_addresses[procs_index] = 0;
+                    }
+                }
+            }
+        });
+
+        // We compute the closest neighbor to our app such that:
+        //
+        // 1. If the new app is placed in between two existing processes, we
+        //    compute the closest located processes.
+        // 2. Once we compute these values, we determine if we need to write a
+        //    pre pad header, or a post pad header, or both.
+        // 3. If there are no apps after ours in the process array, we don't do
+        //    anything.
+
+        // Postpad requirement.
+        if let Some(next_closest_neighbor) = processes_start_addresses
+            .iter()
+            .filter(|&&x| x > new_app_end_address - 1)
+            .min()
+        {
+            // We found the next closest app in flash.
+            next_app_start_addr = *next_closest_neighbor;
+            if next_app_start_addr != 0 {
+                padding_requirement = PaddingRequirement::PostPad;
+            }
+        } else {
+            if config::CONFIG.debug_load_processes {
+                debug!("No App Found after the new app so not adding post padding.");
+            }
+        }
+
+        // Prepad requirement.
+        if let Some(previous_closest_neighbor) = processes_end_addresses
+            .iter()
+            .filter(|&&x| x < new_app_start_address + 1)
+            .max()
+        {
+            // We found the previous closest app in flash.
+            previous_app_end_addr = *previous_closest_neighbor;
+            if new_app_start_address - previous_app_end_addr != 0 {
+                if padding_requirement == PaddingRequirement::PostPad {
+                    padding_requirement = PaddingRequirement::PreAndPostPad;
+                } else {
+                    padding_requirement = PaddingRequirement::PrePad;
+                }
+            }
+        } else {
+            if config::CONFIG.debug_load_processes {
+                debug!("No Previous App Found, so not padding before the new app.");
+            }
+        }
+        (
+            padding_requirement,
+            previous_app_end_addr,
+            next_app_start_addr,
+        )
+    }
+
+    /// This function scans flash, checks for, and returns an address that follows alignment rules given
+    /// an app size of `new_app_size`.
+    fn check_flash_for_valid_address(&self, new_app_size: usize) -> Result<usize, ProcessBinaryError> {
+        let total_flash = self.flash_bank.get();
+        let total_flash_start = total_flash.as_ptr() as usize;
+        let total_flash_end = total_flash_start + total_flash.len() - 1;
+        let mut new_app_address:usize = total_flash_start;
+        
+        match self.scan_flash_for_app_binaries(total_flash){
+            Ok(()) => {debug!("Successfully scanned flash");}
+            Err(e) => {
+
+                match e{
+                    // This means we are done scanning the flash and have not found any more headers. 
+                    // Usually, this is the only place we should arrive at
+                    ProcessBinaryError::TbfHeaderNotFound => {
+                        match self.compute_new_app_address(new_app_size){
+                            Some(new_address) => {
+                                new_app_address = new_address;
+                                if new_app_address + new_app_size - 1 > total_flash_end{
+                                    return Err(ProcessBinaryError::NotEnoughFlash);
+                                }
+                            }
+                            None => {
+                                return Err(ProcessBinaryError::NotEnoughFlash);
+                            }
+                        }
+                    }
+                    _ =>{
+                        debug!("Error: {:?}", e);
+                        return Err(e);
+                    }
+                }
+            }
+        }
+        Ok(new_app_address)
+    }   
 }
 
 impl<'a, C: Chip> ProcessLoadingAsync<'a> for SequentialProcessLoaderMachine<'a, C> {
@@ -867,6 +1224,13 @@ impl<'a, C: Chip> ProcessLoadingAsync<'a> for SequentialProcessLoaderMachine<'a,
     }
 
     fn start(&self) {
+        if self.process_binaries_metadata.get().is_none(){
+            if config::CONFIG.debug_load_processes {
+                debug!("Setting metadata to default");
+            }
+            self.process_binaries_metadata
+            .set(ProcessBinaryMetadata::default());
+        }
         self.state
             .set(SequentialProcessLoaderMachineState::DiscoverProcessBinaries);
         // Start an asynchronous flow so we can issue a callback on error.
@@ -877,6 +1241,29 @@ impl<'a, C: Chip> ProcessLoadingAsync<'a> for SequentialProcessLoaderMachine<'a,
         self.flash.set(flash);
         self.start();
     }
+
+    fn check_flash_for_new_address(&self, new_app_size: usize) -> Result<(usize, PaddingRequirement, usize, usize), ProcessBinaryError>{
+        match self.check_flash_for_valid_address(new_app_size){
+            Ok(app_address) => {
+                let (padding_requirement, previous_app_end_addr, next_app_start_addr) =
+                match self.compute_padding_requirement_and_neighbors(app_address, new_app_size) {
+                    (pr, prev_app_addr, next_app_addr) => {
+                        (pr, prev_app_addr, next_app_addr)
+                    }
+                };
+                // reset process binaries metadata.
+                self.process_binaries_metadata.take();  
+                return Ok((
+                    app_address,
+                    padding_requirement,
+                    previous_app_end_addr,
+                    next_app_start_addr,
+                ));
+            }
+            Err(e) => Err(e),  
+        }
+    }
+
 }
 
 impl<'a, C: Chip> DeferredCallClient for SequentialProcessLoaderMachine<'a, C> {

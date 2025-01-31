@@ -13,15 +13,12 @@ use crate::config;
 use crate::debug;
 use crate::hil::nonvolatile_storage::{NonvolatileStorage, NonvolatileStorageClient};
 use crate::process::{self, ProcessLoadingAsync, ProcessLoadingAsyncClient};
-use crate::process_binary::ProcessBinaryError;
 use crate::process_loading::ProcessLoadError;
 use crate::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use crate::utilities::leasable_buffer::SubSliceMut;
 use crate::ErrorCode;
-
-// Fixed max supported process slots to store the start addresses of processes
-// to write padding.
-const MAX_PROCS: usize = 10;
+use crate::process_loading::PaddingRequirement;
+use core::ptr::addr_of;
 
 /// Expected buffer length for storing application binaries.
 pub const BUF_LEN: usize = 512;
@@ -37,28 +34,6 @@ pub enum State {
     Load,
     PaddingWrite,
     Fail,
-}
-
-/// Whether a new app needs a padding app inserted before and/or after the newly
-/// stored app.
-#[derive(Clone, Copy, PartialEq, Default)]
-pub enum PaddingRequirement {
-    #[default]
-    None,
-    PrePad,
-    PostPad,
-    PreAndPostPad,
-}
-
-/// What is stored in flash at a particular address.
-#[derive(PartialEq)]
-enum StoredInFlash {
-    /// There is an app of `size` bytes.
-    ValidApp(usize),
-    /// There is a padding app.
-    PaddingApp,
-    /// There is no app.
-    Empty,
 }
 
 /// Addresses of where the new process will be stored.
@@ -175,18 +150,6 @@ impl<'a> DynamicProcessLoader<'a> {
         }
     }
 
-    /// Function to find the next available slot in the processes array.
-    fn find_open_process_slot(&self) -> Option<usize> {
-        self.procs.map_or(None, |procs| {
-            for (i, p) in procs.iter().enumerate() {
-                if p.is_none() {
-                    return Some(i);
-                }
-            }
-            None
-        })
-    }
-
     /// Function to reset variables and states.
     fn reset_process_loading_metadata(&self) {
         self.state.set(State::Idle);
@@ -301,10 +264,19 @@ impl<'a> DynamicProcessLoader<'a> {
             // Pass the first eight bytes of the tbf header to parse out the
             // length of the header and app. We then use those values to see if
             // the app is going to be valid.
-            let test_header_slice = buffer.get(0..8).ok_or(ErrorCode::INVAL)?;
-            let header = test_header_slice.try_into().or(Err(ErrorCode::FAIL))?;
+            static mut test_header_slice: [u8; 8] = [0; 8];
+            unsafe { test_header_slice.copy_from_slice(&buffer[..8]) };
+            let header_info: &[u8] = unsafe { &*addr_of!(test_header_slice) };
+            let header = match header_info.get(0..8) {
+                Some(slice) => slice,
+                None => {
+                    // This means this is probably not a header, so return an error
+                    return Err(ErrorCode::INVAL);
+                }
+            };
+
             let (_version, _header_length, entry_length) =
-                match tock_tbf::parse::parse_tbf_header_lengths(header) {
+                match tock_tbf::parse::parse_tbf_header_lengths(header.try_into().or(Err(ErrorCode::FAIL))?,) {
                     Ok((v, hl, el)) => (v, hl, el),
                     Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(_entry_length)) => {
                         // If we have an invalid header, so we return an error
@@ -378,303 +350,6 @@ impl<'a> DynamicProcessLoader<'a> {
                 Err(ErrorCode::NOMEM)
             }
         })
-    }
-
-    /// This function checks if there is a need to pad either before or after
-    /// the new app to preserve the linked list.
-    ///
-    /// When do we pad?
-    ///
-    /// 1. When there is a process in the processes array which is located in
-    ///    flash after the new app but not immediately after, we need to add
-    ///    padding between the new app and the existing app.
-    /// 2. Due to MPU alignment, the new app may be similarly placed not
-    ///    immediately after an existing process, in that case, we need to add
-    ///    padding between the previous app and the new app.
-    /// 3. If both the above conditions are met, we add both a prepadding and a
-    ///    postpadding.
-    /// 4. If either of these conditions are not met, we don't pad.
-    fn compute_padding_requirement_and_neighbors(
-        &self,
-        new_app_start_address: usize,
-    ) -> (PaddingRequirement, usize, usize) {
-        let mut app_length = 0;
-        if let Some(metadata) = self.process_load_metadata.get() {
-            app_length = metadata.new_app_length;
-        }
-        // The end address of our newly loaded application.
-        let new_app_end_address = new_app_start_address + app_length;
-        // To store the address until which we need to write the padding app.
-        let mut next_app_start_addr = 0;
-        // To store the address from which we need to write the padding app.
-        let mut previous_app_end_addr = 0;
-        let mut padding_requirement: PaddingRequirement = PaddingRequirement::None;
-
-        let mut processes_start_addresses: [usize; MAX_PROCS] = [0; MAX_PROCS];
-        let mut processes_end_addresses: [usize; MAX_PROCS] = [0; MAX_PROCS];
-
-        // Get the start and end addresses in flash of existing processes.
-        self.procs.map(|procs| {
-            for (procs_index, value) in procs.iter().enumerate() {
-                match value {
-                    Some(app) => {
-                        processes_start_addresses[procs_index] = app.get_addresses().flash_start;
-                        processes_end_addresses[procs_index] = app.get_addresses().flash_end;
-                    }
-                    None => {
-                        processes_start_addresses[procs_index] = 0;
-                        processes_end_addresses[procs_index] = 0;
-                    }
-                }
-            }
-        });
-
-        // We compute the closest neighbor to our app such that:
-        //
-        // 1. If the new app is placed in between two existing processes, we
-        //    compute the closest located processes.
-        // 2. Once we compute these values, we determine if we need to write a
-        //    pre pad header, or a post pad header, or both.
-        // 3. If there are no apps after ours in the process array, we don't do
-        //    anything.
-
-        // Postpad requirement.
-        if let Some(next_closest_neighbor) = processes_start_addresses
-            .iter()
-            .filter(|&&x| x > new_app_end_address - 1)
-            .min()
-        {
-            // We found the next closest app in flash.
-            next_app_start_addr = *next_closest_neighbor;
-            if next_app_start_addr != 0 {
-                padding_requirement = PaddingRequirement::PostPad;
-            }
-        } else {
-            if config::CONFIG.debug_load_processes {
-                debug!("No App Found after the new app so not adding post padding.");
-            }
-        }
-
-        // Prepad requirement.
-        if let Some(previous_closest_neighbor) = processes_end_addresses
-            .iter()
-            .filter(|&&x| x < new_app_start_address + 1)
-            .max()
-        {
-            // We found the previous closest app in flash.
-            previous_app_end_addr = *previous_closest_neighbor;
-            if new_app_start_address - previous_app_end_addr != 0 {
-                if padding_requirement == PaddingRequirement::PostPad {
-                    padding_requirement = PaddingRequirement::PreAndPostPad;
-                } else {
-                    padding_requirement = PaddingRequirement::PrePad;
-                }
-            }
-        } else {
-            if config::CONFIG.debug_load_processes {
-                debug!("No Previous App Found, so not padding before the new app.");
-            }
-        }
-        (
-            padding_requirement,
-            previous_app_end_addr,
-            next_app_start_addr,
-        )
-    }
-
-    /// Check if there is a padding app at the address.
-    fn check_for_app(
-        &self,
-        possible_app: &'static [u8],
-    ) -> Result<StoredInFlash, ProcessBinaryError> {
-        // We only need tbf header information to get the size of app which is
-        // already loaded.
-        let test_header_slice = possible_app
-            .get(0..8)
-            .ok_or(ProcessBinaryError::NotEnoughFlash)?;
-
-        // Pass the first eight bytes to tbfheader to parse out the length of
-        // the tbf header and app. We then use those values to see if we have
-        // enough flash remaining to parse the remainder of the header.
-        let (version, header_length, entry_length) =
-            match tock_tbf::parse::parse_tbf_header_lengths(
-                test_header_slice
-                    .try_into()
-                    .or(Err(ProcessBinaryError::TbfHeaderNotFound))?,
-            ) {
-                Ok((v, hl, el)) => (v, hl, el),
-                Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(_entry_length)) => {
-                    // If we could not parse the header, then we want to skip
-                    // over this app and look for the next one.
-                    return Err(ProcessBinaryError::TbfHeaderNotFound);
-                }
-                Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => {
-                    // Since Tock apps use a linked list, it is very possible
-                    // the header we started to parse is intentionally invalid
-                    // to signal the end of apps.
-                    return Ok(StoredInFlash::Empty);
-                }
-            };
-
-        // If a padding app exists at the start address satisfying MPU rules, we
-        // load the new app from here!
-        let header_flash = possible_app
-            .get(0..(header_length as usize))
-            .ok_or(ProcessBinaryError::NotEnoughFlash)?;
-
-        let tbf_header = tock_tbf::parse::parse_tbf_header(header_flash, version)?;
-
-        // If this isn't an app (i.e. it is padding).
-        if tbf_header.is_app() {
-            Ok(StoredInFlash::ValidApp(entry_length as usize))
-        } else {
-            Ok(StoredInFlash::PaddingApp)
-        }
-    }
-
-    /// Check if our new app overlaps with existing apps
-    fn check_overlap_region(
-        &self,
-        new_start_address: usize,
-        app_length: usize,
-    ) -> Result<(), (usize, ProcessLoadError)> {
-        // Find the next open process slot.
-        let new_process_count = self.find_open_process_slot().unwrap_or_default();
-        let new_process_start_address = new_start_address;
-        let new_process_end_address = new_process_start_address + app_length - 1;
-
-        self.procs.map(|procs| {
-            for (proc_index, value) in procs.iter().enumerate() {
-                if proc_index < new_process_count {
-                    let process_start_address = value.unwrap().get_addresses().flash_start;
-                    let process_end_address = value.unwrap().get_addresses().flash_end;
-
-                    if new_process_end_address >= process_start_address
-                        && new_process_end_address <= process_end_address
-                    {
-                        /* Case 1
-                         *              _________________          _______________           _________________
-                         *  ___________|__               |        |              _|_________|__               |
-                         * |           |  |              |        |             | |         |  |              |
-                         * |   new app |  |  app2        |   or   |   app1      | | new app |  |  app2        |
-                         * |___________|__|              |        |             |_|_________|__|              |
-                         *             |_________________|        |_______________|         |_________________|
-                         *
-                         * ^...........^                                           ^........^
-                         * In this case, we discard this region and try to find another start address from the end address + 1 of app2
-                         */
-                        return Err((process_end_address + 1, ProcessLoadError::NotEnoughMemory));
-                    } else if new_process_start_address >= process_start_address
-                        && new_process_start_address <= process_end_address
-                    {
-                        /* Case 2
-                         *              _________________
-                         *  ___________|__               |    _______________
-                         * |           |  |              |   |               |
-                         * |   app2    |  |  new app     |   |     app3      |
-                         * |___________|__|              |   |_______________|
-                         *             |_________________|
-                         *
-                         *                 ^
-                         *                 | In this case, the start address of new app is replaced by 'the end address + 1' of app2,
-                         *                   and we try to find another start address from the end address + 1 of app2 and recheck for
-                         *                   the previous condition
-                         */
-                        return Err((process_end_address + 1, ProcessLoadError::NotEnoughMemory));
-                    }
-                }
-            }
-            Ok(())
-        });
-        Ok(())
-    }
-
-    /// Find where an app of `app_length` can be correctly aligned.
-    ///
-    /// This currently assumes Cortex-M alignment rules.
-    fn next_aligned_address(&self, address: usize, app_length: usize) -> usize {
-        let remaining = address % app_length;
-        if remaining == 0 {
-            address
-        } else {
-            address + (app_length - remaining)
-        }
-    }
-
-    /// This function takes in the available flash slice and the app length
-    /// specified for the new app, and returns a valid address where the new app
-    /// can be flashed such that the linked list and memory alignment rules are
-    /// preserved.
-    fn find_next_available_address(
-        &self,
-        flash: &'static [u8],
-        app_length: usize,
-    ) -> Result<(usize, PaddingRequirement, usize, usize), ErrorCode> {
-        let start_address = flash.as_ptr() as usize;
-        // We store the address of the new application here.
-        let mut new_address = flash.as_ptr() as usize;
-        let flash_end = flash.as_ptr() as usize + flash.len() - 1;
-
-        // Iterate through the flash slice looking for a region to place an app
-        // that is `app_length` bytes long.
-        while new_address < flash_end {
-            // Check what is stored at `new_address`.
-            let app_type = self
-                .check_for_app(
-                    flash
-                        .get(new_address - start_address..)
-                        .ok_or(ErrorCode::NOMEM)?,
-                )
-                .or(Err(ErrorCode::FAIL))?;
-
-            match app_type {
-                StoredInFlash::PaddingApp | StoredInFlash::Empty => {
-                    // There is not an app at this address so this can be a
-                    // candidate to write the new app.
-
-                    let address_validity_check = self.check_overlap_region(new_address, app_length);
-
-                    match address_validity_check {
-                        Ok(()) => {
-                            // Despite doing all these, if the new app's start
-                            // address and size make it such that it will cross
-                            // the bounds of flash, we return a No Memory error.
-                            if new_address + (app_length - 1) > flash_end {
-                                return Err(ErrorCode::NOMEM);
-                            }
-                            // Otherwise, we found the perfect address for our
-                            // new app, let us check what kind of padding we
-                            // have to write, no padding, pre padding, post
-                            // padding or both pre and post padding
-                            let (padding_requirement, previous_app_end_addr, next_app_start_addr) =
-                                match self.compute_padding_requirement_and_neighbors(new_address) {
-                                    (pr, prev_app_addr, next_app_addr) => {
-                                        (pr, prev_app_addr, next_app_addr)
-                                    }
-                                };
-
-                            return Ok((
-                                new_address,
-                                padding_requirement,
-                                previous_app_end_addr,
-                                next_app_start_addr,
-                            ));
-                        }
-                        Err((new_start_addr, _e)) => {
-                            // We try again from the end of the overlapping app
-                            new_address = new_start_addr;
-                        }
-                    }
-                }
-
-                StoredInFlash::ValidApp(size) => {
-                    // There is already an app at this address so we will have
-                    // to skip beyond it.
-                    new_address = self.next_aligned_address(new_address + size, app_length);
-                }
-            }
-        }
-        Err(ErrorCode::NOMEM)
     }
 }
 
@@ -788,7 +463,7 @@ impl<'a> DynamicProcessLoading for DynamicProcessLoader<'a> {
 
         if self.state.get() == State::Idle {
             self.state.set(State::Setup);
-            match self.find_next_available_address(flash, app_length) {
+            match self.loader_driver.check_flash_for_new_address(app_length) {
                 Ok((
                     new_app_start_address,
                     padding_requirement,
@@ -796,9 +471,7 @@ impl<'a> DynamicProcessLoading for DynamicProcessLoader<'a> {
                     next_app_start_addr,
                 )) => {
                     let offset = new_app_start_address - flash_start;
-                    let new_process_flash = self
-                        .flash
-                        .get()
+                    let new_process_flash = flash
                         .get(offset..offset + app_length)
                         .ok_or(ErrorCode::FAIL)?;
 
