@@ -10,11 +10,8 @@
 //!
 //! Tock defines this as a custom type as there is currently (Nov 2024) no
 //! suitable standard type for this purpose that is correct across all hardware
-//! architectures Tock supports. The closest suitable type is `usize`. However,
-//! `usize` only captures the size of data, not necessarily the full size of a
-//! register. On many platforms these are the same, but on platforms with
-//! ISA-level memory protection (e.g., CHERI), a register is larger than
-//! `usize`.
+//! architectures Tock supports. The closest suitable type is `*mut ()`.
+//! However, in hybrid CHERI `*mut ()` is smaller than a full register.
 
 use core::fmt::{Formatter, LowerHex, UpperHex};
 
@@ -23,12 +20,11 @@ use super::capability_ptr::CapabilityPtr;
 /// [`MachineRegister`] is a datatype that can hold exactly the contents of a
 /// register with no additional semantic information.
 ///
-/// [`MachineRegister`] is useful for identifying when data within the Tock
-/// kernel has no semantic meaning other than being the size of a register. In
-/// the future it may be possible, useful, or necessary to change the
-/// implementation of [`MachineRegister`], however, the semantics will remain.
-/// No use of [`MachineRegister`] should assume a particular Rust implementation
-/// or any semantics other this description.
+/// [`MachineRegister`] is useful when you know data is the size of a register,
+/// but not its true data type. In the future it may be possible, useful, or
+/// necessary to change the implementation of [`MachineRegister`], however, the
+/// semantics will remain. No use of [`MachineRegister`] should assume a
+/// particular Rust implementation or any semantics other this description.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default)]
 #[repr(transparent)]
 pub struct MachineRegister {
@@ -39,6 +35,8 @@ pub struct MachineRegister {
 }
 
 impl From<CapabilityPtr> for MachineRegister {
+    /// Creates a [`MachineRegister`] containing this [`CapabilityPtr`],
+    /// including its provenance.
     fn from(from: CapabilityPtr) -> Self {
         Self { value: from }
     }
