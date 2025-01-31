@@ -16,7 +16,7 @@ use super::machine_register::MachineRegister;
 /// read, write, or execute. It is sized exactly to a CPU register that can pass
 /// values between userspace and the kernel [^note1]. Operations on the pointer
 /// may affect permissions, e.g. offsetting the pointer beyond the bounds of the
-/// memory object invalidates it.
+/// memory object may invalidate it.
 ///
 /// [`CapabilityPtr`] should be used to store or pass a value between the
 /// kernel and userspace that may represent a valid userspace reference,
@@ -64,8 +64,8 @@ impl From<usize> for CapabilityPtr {
 }
 
 // In addition to its publicly-documented capabilities, CapabilityPtr's
-// implementation can also store integers. MachineRegister uses that capability
-// to simplify its implementation. No other user of CapabilityPtr should rely on
+// implementation can also store integers. MachineRegister uses that ability to
+// simplify its implementation. No other user of CapabilityPtr should rely on
 // that ability.
 
 impl From<usize> for MachineRegister {
@@ -90,7 +90,7 @@ impl LowerHex for CapabilityPtr {
 
 impl AddAssign<usize> for CapabilityPtr {
     /// Increments the address of a [`CapabilityPtr`]. If the pointer is offset
-    /// past its bounds, its authority is invalidated.
+    /// past its bounds, its authority may be invalidated.
     #[inline]
     fn add_assign(&mut self, rhs: usize) {
         self.ptr = self.ptr.wrapping_byte_add(rhs);
