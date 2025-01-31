@@ -6,6 +6,7 @@
 
 use core::fmt::{Formatter, LowerHex, UpperHex};
 use core::ops::AddAssign;
+use core::ptr::null;
 
 use super::machine_register::MachineRegister;
 
@@ -28,10 +29,10 @@ use super::machine_register::MachineRegister;
 /// [^note1]: Depending on the architecture, the size of a
 /// [`CapabilityPtr`] may be a word size or larger, e.g., if registers
 /// can store metadata such as access permissions.
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 #[repr(transparent)]
 pub struct CapabilityPtr {
-    ptr: MachineRegister,
+    ptr: *const (),
 }
 
 /// Permission sets a [`CapabilityPtr`] may grant.
@@ -45,12 +46,18 @@ pub enum CapabilityPtrPermissions {
     Execute,
 }
 
+impl Default for CapabilityPtr {
+    fn default() -> Self {
+        Self { ptr: null() }
+    }
+}
+
 impl From<CapabilityPtr> for usize {
     /// Returns the address of the [`CapabilityPtr`].
     /// Provenance note: may not expose provenance.
     #[inline]
     fn from(from: CapabilityPtr) -> Self {
-        from.ptr.into()
+        from.ptr.addr()
     }
 }
 
@@ -60,29 +67,49 @@ impl From<usize> for CapabilityPtr {
     /// Provenance note: may have null provenance.
     #[inline]
     fn from(from: usize) -> Self {
-        Self { ptr: from.into() }
+        Self {
+            // Ideally this would be core::ptr::without_provenance(from), but
+            // the CHERI toolchain is too old for without_provenance. This is
+            // equivalent.
+            ptr: null::<()>().with_addr(from),
+        }
     }
 }
 
-impl From<MachineRegister> for CapabilityPtr {
-    /// Convert a register to a [`CapabilityPtr`].
-    #[inline]
+// In addition to its publicly-documented capabilities, CapabilityPtr's
+// implementation can also store integers. MachineRegister uses that capability
+// to simplify its implementation. No other user of CapabilityPtr should rely on
+// that ability.
+
+impl From<MachineRegister> for usize {
+    /// Returns this `MachineRegister` as a `usize`.
+    ///
+    /// This is intended for use on `MachineRegister`s created from a `usize`,
+    /// in which case the original `usize` will be returned. If this
+    /// `MachineRegister` was created from a pointer, this returns the pointer's
+    /// address (without exposing provenance).
     fn from(from: MachineRegister) -> Self {
-        Self { ptr: from }
+        CapabilityPtr::from(from).ptr.addr()
+    }
+}
+
+impl From<usize> for MachineRegister {
+    fn from(from: usize) -> Self {
+        Self::from(CapabilityPtr::from(from))
     }
 }
 
 impl UpperHex for CapabilityPtr {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        UpperHex::fmt(&self.ptr, f)
+        UpperHex::fmt(&self.ptr.addr(), f)
     }
 }
 
 impl LowerHex for CapabilityPtr {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        LowerHex::fmt(&self.ptr, f)
+        LowerHex::fmt(&self.ptr.addr(), f)
     }
 }
 
@@ -90,15 +117,14 @@ impl AddAssign<usize> for CapabilityPtr {
     /// Increments the address of a [`CapabilityPtr`]
     #[inline]
     fn add_assign(&mut self, rhs: usize) {
-        self.ptr =
-            ((usize::from(self.ptr) as *const u8).wrapping_add(rhs) as *const () as usize).into();
+        self.ptr = self.ptr.wrapping_byte_add(rhs);
     }
 }
 
 impl CapabilityPtr {
     /// Returns the pointer component of a [`CapabilityPtr`] but without any of the authority.
     pub fn as_ptr<T>(&self) -> *const T {
-        usize::from(self.ptr) as *const T
+        self.ptr.cast()
     }
 
     /// Construct a [`CapabilityPtr`] from a raw pointer, with authority ranging over
@@ -125,9 +151,7 @@ impl CapabilityPtr {
         _length: usize,
         _perms: CapabilityPtrPermissions,
     ) -> Self {
-        Self {
-            ptr: (ptr as usize).into(),
-        }
+        Self { ptr }
     }
 
     /// If the [`CapabilityPtr`] is null returns `default`, otherwise applies `f` to `self`.
@@ -136,7 +160,7 @@ impl CapabilityPtr {
     where
         F: FnOnce(&Self) -> U,
     {
-        if usize::from(self.ptr) == 0 {
+        if self.ptr.is_null() {
             default
         } else {
             f(self)
@@ -151,7 +175,7 @@ impl CapabilityPtr {
         D: FnOnce() -> U,
         F: FnOnce(&Self) -> U,
     {
-        if usize::from(self.ptr) == 0 {
+        if self.ptr.is_null() {
             default()
         } else {
             f(self)
