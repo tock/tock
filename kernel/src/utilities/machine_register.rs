@@ -38,21 +38,14 @@ pub struct MachineRegister {
     value: CapabilityPtr,
 }
 
-impl From<MachineRegister> for CapabilityPtr {
-    fn from(from: MachineRegister) -> Self {
-        from.value
-    }
-}
-
 impl From<CapabilityPtr> for MachineRegister {
     fn from(from: CapabilityPtr) -> Self {
         Self { value: from }
     }
 }
 
-// Note: the following impls exist in the capability_ptr module:
-//     From<MachineRegister> for usize
-//     From<usize> for MachineRegister
+// Note: `From<usize> for MachineRegister` is implemented in the capability_ptr
+// module.
 
 impl UpperHex for MachineRegister {
     #[inline]
@@ -65,5 +58,26 @@ impl LowerHex for MachineRegister {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         LowerHex::fmt(&self.value, f)
+    }
+}
+
+impl MachineRegister {
+    /// Returns this [`MachineRegister`] as a [`CapabilityPtr`].
+    ///
+    /// If this [`MachineRegister`] contains a pointer with provenance and/or
+    /// authority, the returned [`CapabilityPtr`] will have the same provenance
+    /// and/or authority.
+    pub fn as_capability_ptr(self) -> CapabilityPtr {
+        self.value
+    }
+
+    /// Returns this [`MachineRegister`] as a [`usize`].
+    ///
+    /// This is intended for use on [`MachineRegister`]s created from a
+    /// [`usize`], in which case the original [`usize`] will be returned. If
+    /// this [`MachineRegister`] was created from a pointer, this returns the
+    /// pointer's address (without exposing provenance).
+    pub fn as_usize(self) -> usize {
+        self.value.addr()
     }
 }

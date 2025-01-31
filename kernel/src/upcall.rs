@@ -200,8 +200,8 @@ impl Upcall {
     /// include the function pointer of the upcall.
     pub(crate) fn into_subscribe_success(self) -> SyscallReturn {
         self.fn_ptr.map_or(
-            SyscallReturn::SubscribeSuccess(core::ptr::null::<()>(), self.appdata.into()),
-            |fp| SyscallReturn::SubscribeSuccess(fp.as_ptr(), self.appdata.into()),
+            SyscallReturn::SubscribeSuccess(core::ptr::null::<()>(), self.appdata.as_usize()),
+            |fp| SyscallReturn::SubscribeSuccess(fp.as_ptr(), self.appdata.as_usize()),
         )
     }
 
@@ -216,8 +216,8 @@ impl Upcall {
     /// include the function pointer of the upcall.
     pub(crate) fn into_subscribe_failure(self, err: ErrorCode) -> SyscallReturn {
         self.fn_ptr.map_or(
-            SyscallReturn::SubscribeFailure(err, core::ptr::null::<()>(), self.appdata.into()),
-            |fp| SyscallReturn::SubscribeFailure(err, fp.as_ptr(), self.appdata.into()),
+            SyscallReturn::SubscribeFailure(err, core::ptr::null::<()>(), self.appdata.as_usize()),
+            |fp| SyscallReturn::SubscribeFailure(err, fp.as_ptr(), self.appdata.as_usize()),
         )
     }
 }
