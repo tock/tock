@@ -18,6 +18,8 @@
 
 use core::fmt::{Formatter, LowerHex, UpperHex};
 
+use super::capability_ptr::CapabilityPtr;
+
 /// [`MachineRegister`] is a datatype that can hold exactly the contents of a
 /// register with no additional semantic information.
 ///
@@ -27,54 +29,41 @@ use core::fmt::{Formatter, LowerHex, UpperHex};
 /// implementation of [`MachineRegister`], however, the semantics will remain.
 /// No use of [`MachineRegister`] should assume a particular Rust implementation
 /// or any semantics other this description.
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Default)]
 #[repr(transparent)]
 pub struct MachineRegister {
-    /// We store the actual data as a rust pointer as a convenient way to hold
-    /// an architecture-specific register worth of data.
-    ///
-    /// While represented as a pointer type, `value` has no semantic meaning as
-    /// a pointer. Any uses of a [`MachineRegister`] as a pointer must be based
-    /// other semantic understanding within Tock, and not from this type.
-    value: *const (),
+    // We store the actual data as a CapabilityPtr as a convenient way to hold
+    // an architecture-specific register's worth of data. `value` may or may not
+    // really be a CapabilityPtr: it may instead contain an integer.
+    value: CapabilityPtr,
 }
 
-impl Default for MachineRegister {
-    fn default() -> Self {
-        Self {
-            value: core::ptr::null(),
-        }
-    }
-}
-
-impl From<MachineRegister> for usize {
-    /// Returns the contents of the register.
-    #[inline]
+impl From<MachineRegister> for CapabilityPtr {
     fn from(from: MachineRegister) -> Self {
-        from.value as usize
+        from.value
     }
 }
 
-impl From<usize> for MachineRegister {
-    /// Create a [`MachineRegister`] representation of a `usize`.
-    #[inline]
-    fn from(from: usize) -> Self {
-        Self {
-            value: from as *const (),
-        }
+impl From<CapabilityPtr> for MachineRegister {
+    fn from(from: CapabilityPtr) -> Self {
+        Self { value: from }
     }
 }
+
+// Note: the following impls exist in the capability_ptr module:
+//     From<MachineRegister> for usize
+//     From<usize> for MachineRegister
 
 impl UpperHex for MachineRegister {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        UpperHex::fmt(&(self.value as usize), f)
+        UpperHex::fmt(&self.value, f)
     }
 }
 
 impl LowerHex for MachineRegister {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        LowerHex::fmt(&(self.value as usize), f)
+        LowerHex::fmt(&self.value, f)
     }
 }
