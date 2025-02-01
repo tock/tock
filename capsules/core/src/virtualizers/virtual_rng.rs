@@ -25,7 +25,7 @@ pub struct MuxRngMaster<'a> {
 impl<'a> MuxRngMaster<'a> {
     pub const fn new(rng: &'a dyn Rng<'a>) -> MuxRngMaster<'a> {
         MuxRngMaster {
-            rng: rng,
+            rng,
             devices: List::new(),
             inflight: OptionalCell::empty(),
         }
@@ -70,7 +70,7 @@ impl<'a> MuxRngMaster<'a> {
     }
 }
 
-impl<'a> Client for MuxRngMaster<'a> {
+impl Client for MuxRngMaster<'_> {
     fn randomness_available(
         &self,
         _randomness: &mut dyn Iterator<Item = u32>,
@@ -110,7 +110,7 @@ impl<'a> ListNode<'a, VirtualRngMasterDevice<'a>> for VirtualRngMasterDevice<'a>
 impl<'a> VirtualRngMasterDevice<'a> {
     pub const fn new(mux: &'a MuxRngMaster<'a>) -> VirtualRngMasterDevice<'a> {
         VirtualRngMasterDevice {
-            mux: mux,
+            mux,
             next: ListLink::empty(),
             client: OptionalCell::empty(),
             operation: Cell::new(Op::Idle),
@@ -162,7 +162,7 @@ impl<'a> Rng<'a> for VirtualRngMasterDevice<'a> {
     }
 }
 
-impl<'a> Client for VirtualRngMasterDevice<'a> {
+impl Client for VirtualRngMasterDevice<'_> {
     fn randomness_available(
         &self,
         randomness: &mut dyn Iterator<Item = u32>,

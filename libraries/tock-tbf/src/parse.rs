@@ -24,7 +24,7 @@ use crate::types;
 /// we can skip over it and check for the next app.
 /// - Err(InitialTbfParseError::InvalidHeader(app_length))
 pub fn parse_tbf_header_lengths(
-    app: &'static [u8; 8],
+    app: &[u8; 8],
 ) -> Result<(u16, u16, u32), types::InitialTbfParseError> {
     // Version is the first 16 bits of the app TBF contents. We need this to
     // correctly parse the other lengths.
@@ -295,8 +295,8 @@ pub fn parse_tbf_header(
                     fixed_addresses: fixed_address_pointer,
                     permissions: permissions_pointer,
                     storage_permissions: storage_permissions_pointer,
-                    kernel_version: kernel_version,
-                    short_id: short_id,
+                    kernel_version,
+                    short_id,
                 };
 
                 Ok(types::TbfHeader::TbfHeaderV2(tbf_header))

@@ -156,13 +156,13 @@ impl<'a, I: hil::i2c::I2CDevice> MCP230xx<'a, I> {
         number_of_banks: u8,
     ) -> MCP230xx<'a, I> {
         MCP230xx {
-            i2c: i2c,
+            i2c,
             state: Cell::new(State::Idle),
-            bank_size: bank_size,
-            number_of_banks: number_of_banks,
+            bank_size,
+            number_of_banks,
             buffer: TakeCell::new(buffer),
-            interrupt_pin_a: interrupt_pin_a,
-            interrupt_pin_b: interrupt_pin_b,
+            interrupt_pin_a,
+            interrupt_pin_b,
             interrupts_enabled: Cell::new(0),
             interrupts_mode: Cell::new(0),
             client: OptionalCell::empty(),

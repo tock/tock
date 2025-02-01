@@ -6,7 +6,6 @@
 //!
 //! Based on the spec avaliable at: <https://fidoalliance.org/specs/fido-v2.0-id-20180227/fido-client-to-authenticator-protocol-v2.0-id-20180227.html>
 
-use core::cell::Cell;
 use core::cmp;
 
 use super::descriptors;
@@ -46,7 +45,7 @@ const N_ENDPOINTS: usize = 2;
 /// This is a combination of:
 ///     - the CTAP spec, example 8
 ///     - USB HID spec examples
-/// Plus it matches: https://chromium.googlesource.com/chromiumos/platform2/+/master/u2fd/u2fhid.cc
+/// Plus it matches: <https://chromium.googlesource.com/chromiumos/platform2/+/master/u2fd/u2fhid.cc>
 static REPORT_DESCRIPTOR: &[u8] = &[
     0x06, 0xD0, 0xF1, // HID_UsagePage ( FIDO_USAGE_PAGE ),
     0x09, 0x01, // HID_Usage ( FIDO_USAGE_CTAPHID ),
@@ -97,12 +96,6 @@ pub struct CtapHid<'a, U: 'a> {
     /// A holder for the buffer to receive bytes into. We use this as a flag as
     /// well, if we have a buffer then we are actively doing a receive.
     recv_buffer: TakeCell<'static, [u8; 64]>,
-    /// How many bytes the client wants us to receive.
-    recv_len: Cell<usize>,
-    /// How many bytes we have received so far.
-    recv_offset: Cell<usize>,
-
-    saved_endpoint: OptionalCell<usize>,
 }
 
 impl<'a, U: hil::usb::UsbController<'a>> CtapHid<'a, U> {
@@ -144,8 +137,8 @@ impl<'a, U: hil::usb::UsbController<'a>> CtapHid<'a, U> {
         let (device_descriptor_buffer, other_descriptor_buffer) =
             descriptors::create_descriptor_buffers(
                 descriptors::DeviceDescriptor {
-                    vendor_id: vendor_id,
-                    product_id: product_id,
+                    vendor_id,
+                    product_id,
                     manufacturer_string: 1,
                     product_string: 2,
                     serial_number_string: 3,
@@ -153,9 +146,7 @@ impl<'a, U: hil::usb::UsbController<'a>> CtapHid<'a, U> {
                     max_packet_size_ep0: MAX_CTRL_PACKET_SIZE,
                     ..descriptors::DeviceDescriptor::default()
                 },
-                descriptors::ConfigurationDescriptor {
-                    ..descriptors::ConfigurationDescriptor::default()
-                },
+                descriptors::ConfigurationDescriptor::default(),
                 interfaces,
                 endpoints,
                 Some(&HID_DESCRIPTOR),
@@ -176,9 +167,6 @@ impl<'a, U: hil::usb::UsbController<'a>> CtapHid<'a, U> {
             client: OptionalCell::empty(),
             send_buffer: TakeCell::empty(),
             recv_buffer: TakeCell::empty(),
-            recv_len: Cell::new(0),
-            recv_offset: Cell::new(0),
-            saved_endpoint: OptionalCell::empty(),
         }
     }
 
@@ -189,12 +177,6 @@ impl<'a, U: hil::usb::UsbController<'a>> CtapHid<'a, U> {
 
     pub fn set_client(&'a self, client: &'a dyn hil::usb_hid::Client<'a, [u8; 64]>) {
         self.client.set(client);
-    }
-
-    fn can_receive(&'a self) -> bool {
-        self.client
-            .map(move |client| client.can_receive())
-            .unwrap_or(false)
     }
 }
 
@@ -223,28 +205,11 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb_hid::UsbHid<'a, [u8; 64]> for 
         recv: &'static mut [u8; 64],
     ) -> Result<(), (ErrorCode, &'static mut [u8; 64])> {
         self.recv_buffer.replace(recv);
-
-        if self.saved_endpoint.is_some() {
-            // We have saved data from before, let's pass it.
-            if self.can_receive() {
-                self.recv_buffer.take().map(|buf| {
-                    self.client.map(move |client| {
-                        client.packet_received(Ok(()), buf, self.saved_endpoint.take().unwrap());
-                    });
-                });
-                // Reset the offset
-                self.recv_offset.set(0);
-            }
-        } else {
-            // If we have nothing to process, accept more data
-            self.controller().endpoint_resume_out(ENDPOINT_NUM);
-        }
-
+        self.controller().endpoint_resume_out(ENDPOINT_NUM);
         Ok(())
     }
 
     fn receive_cancel(&'a self) -> Result<&'static mut [u8; 64], ErrorCode> {
-        self.saved_endpoint.take();
         match self.recv_buffer.take() {
             Some(buf) => Ok(buf),
             None => Err(ErrorCode::BUSY),
@@ -347,51 +312,28 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a> for CtapHid<'a, U>
     ) -> hil::usb::OutResult {
         match transfer_type {
             TransferType::Interrupt => {
+                // If we have a receive buffer we can copy the incoming data in.
+                // If we do not have a buffer, then we apply back pressure by
+                // returning `hil::usb::OutResult::Delay` to the USB stack until
+                // we get a receive call.
                 self.recv_buffer
                     .take()
-                    .map_or(hil::usb::OutResult::Error, |buf| {
-                        let recv_offset = self.recv_offset.get();
-
+                    .map_or(hil::usb::OutResult::Delay, |buf| {
                         // How many more bytes can we store in our RX buffer?
-                        let available_bytes = buf.len() - recv_offset;
-                        let copy_length = cmp::min(packet_bytes as usize, available_bytes);
+                        let copy_length = cmp::min(packet_bytes as usize, buf.len());
 
                         // Do the copy into the RX buffer.
                         let packet = &self.buffers[OUT_BUFFER].buf;
                         for i in 0..copy_length {
-                            buf[recv_offset + i] = packet[i].get();
+                            buf[i] = packet[i].get();
                         }
 
-                        // Keep track of how many bytes we have received so far.
-                        let total_received_bytes = recv_offset + copy_length;
+                        // Notify the client
+                        self.client.map(move |client| {
+                            client.packet_received(Ok(()), buf, endpoint);
+                        });
 
-                        // Update how many bytes we have gotten.
-                        self.recv_offset.set(total_received_bytes);
-
-                        // Check if we have received at least as many bytes as the
-                        // client asked for.
-                        if total_received_bytes >= self.recv_len.get() {
-                            if self.can_receive() {
-                                self.client.map(move |client| {
-                                    client.packet_received(Ok(()), buf, endpoint);
-                                });
-                                // Reset the offset
-                                self.recv_offset.set(0);
-                                // Delay the next packet until we have finished
-                                // processing this packet
-                                hil::usb::OutResult::Delay
-                            } else {
-                                // We can't receive data. Record that we have data to send later
-                                // and apply back pressure to USB
-                                self.saved_endpoint.set(endpoint);
-                                self.recv_buffer.replace(buf);
-                                hil::usb::OutResult::Delay
-                            }
-                        } else {
-                            // Make sure to put the RX buffer back.
-                            self.recv_buffer.replace(buf);
-                            hil::usb::OutResult::Ok
-                        }
+                        hil::usb::OutResult::Ok
                     })
             }
             TransferType::Bulk | TransferType::Control | TransferType::Isochronous => {

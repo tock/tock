@@ -6,10 +6,8 @@
 
 /// Standard errors in Tock.
 ///
-/// In contrast to [`Result<(), ErrorCode>`](crate::Result<(), ErrorCode>) this
-/// does not feature any success cases and is therefore more appropriate for the
-/// Tock 2.0 system call interface, where success payloads and errors are not
-/// packed into the same 32-bit wide register.
+/// Each error code is assigned a fixed [`usize`] nonzero number. In effect, 0
+/// is reserved for "no error" / "success".
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(usize)]
 pub enum ErrorCode {
@@ -103,22 +101,22 @@ impl From<ErrorCode> for Result<(), ErrorCode> {
 ///    easily passed across the syscall interface between the kernel and
 ///    userspace.
 ///
-/// 2. It extends ErrorCode, but keeps the same error-to-number mappings as
-///    ErrorCode. For example, in both StatusCode and ErrorCode, the `SIZE`
+/// 2. It extends [`ErrorCode`], but keeps the same error-to-number mappings as
+///    ErrorCode. For example, in both StatusCode and [`ErrorCode`], the `SIZE`
 ///    error is always represented as 7.
 ///
-/// 3. It can encode success values, whereas ErrorCode can only encode errors.
-///    Number 0 in ErrorCode is reserved, and is used for `SUCCESS` in
-///    StatusCode.
+/// 3. It can encode success values, whereas [`ErrorCode`] can only encode
+///    errors. Number 0 in [`ErrorCode`] is reserved, and is used for `SUCCESS`
+///    in StatusCode.
 ///
 /// This helper function converts the Tock and Rust convention for a
 /// success/error type to a StatusCode. StatusCode is represented as a usize
 /// which is sufficient to send to userspace via an upcall.
 ///
 /// The key to this conversion and portability between the kernel and userspace
-/// is that `ErrorCode`, which only expresses errors, is assigned fixed values,
-/// but does not use value 0 by convention. This allows us to use 0 as success
-/// in ReturnCode.
+/// is that [`ErrorCode`], which only expresses errors, is assigned fixed
+/// values, but does not use value 0 by convention. This allows us to use 0 as
+/// success in StatusCode.
 pub fn into_statuscode(r: Result<(), ErrorCode>) -> usize {
     match r {
         Ok(()) => 0,

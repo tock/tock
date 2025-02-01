@@ -120,7 +120,7 @@ impl<'a, 'b> VirtIORng<'a, 'b> {
     }
 }
 
-impl<'a, 'b> Rng<'a> for VirtIORng<'a, 'b> {
+impl<'a> Rng<'a> for VirtIORng<'a, '_> {
     fn get(&self) -> Result<(), ErrorCode> {
         // Minimum buffer capacity must be 4 bytes for a single 32-bit
         // word
@@ -164,7 +164,7 @@ impl<'a, 'b> Rng<'a> for VirtIORng<'a, 'b> {
     }
 }
 
-impl<'a, 'b> SplitVirtqueueClient<'b> for VirtIORng<'a, 'b> {
+impl<'b> SplitVirtqueueClient<'b> for VirtIORng<'_, 'b> {
     fn buffer_chain_ready(
         &self,
         _queue_number: u32,
@@ -175,7 +175,7 @@ impl<'a, 'b> SplitVirtqueueClient<'b> for VirtIORng<'a, 'b> {
     }
 }
 
-impl<'a, 'b> DeferredCallClient for VirtIORng<'a, 'b> {
+impl DeferredCallClient for VirtIORng<'_, '_> {
     fn register(&'static self) {
         self.deferred_call.register(self);
     }
@@ -196,7 +196,7 @@ impl<'a, 'b> DeferredCallClient for VirtIORng<'a, 'b> {
     }
 }
 
-impl<'a, 'b> VirtIODeviceDriver for VirtIORng<'a, 'b> {
+impl VirtIODeviceDriver for VirtIORng<'_, '_> {
     fn negotiate_features(&self, _offered_features: u64) -> Option<u64> {
         // We don't support any special features and do not care about
         // what the device offers.

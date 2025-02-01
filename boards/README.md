@@ -19,9 +19,9 @@ but the approximate definitions:
                shape, but not heavily tested. Some Tier 2 boards may
                have known issues, which are documented in release notes
                during release testing.
- - **Tier 3:** New or highly experimental. These should support the
-               minimum platform requirements laid out in
-               [the Porting documentation](../doc/Porting.md), but
+ - **Tier 3:** New or highly experimental. These should support the minimum
+               platform requirements laid out in [the Porting
+               documentation](https://book.tockos.org/development/porting), but
                make no promises beyond that.
 
  - **Other:** See each board for specific details.
@@ -114,7 +114,7 @@ Virtual hardware platforms that are regularly tested as part of the CI.
 | [QEMU RISC-V 32 bit `virt` platform](qemu_rv32_virt/README.md)    | RISC-V RV32IMAC  | QEMU           | custom     | custom                      | Yes (7.2.0)   |
 | [LiteX on Digilent Arty A-7](litex/arty/README.md)                | RISC-V RV32IMC   | LiteX+VexRiscV | custom     | tockloader (flash-file)[^1] | No            |
 | [Verilated LiteX Simulation](litex/sim/README.md)                 | RISC-V RV32IMC   | LiteX+VexRiscv | custom     | tockloader (flash-file)[^1] | No            |
-| [SweRVolf](swervolf/README.md)                                    | RISC-V RV32IMC   | swervolf-eh1   | custom     | tockloader (flash-file)[^1] | No            |
+| [VeeR EL2 simulation](veer_el2_sim/README.md)                     | RISC-V RV32IMC   | VeeR EL2       | custom     | custom                      | No            |
 
 [^1]: Tockloader is not able to interact with this board directly, but
       can be used to work on a flash-image of the board, which can in

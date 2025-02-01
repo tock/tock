@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
+//! Teensy 4.0 Development Board
+//!
 //! System configuration
 //!
 //! - LED on pin 13
@@ -134,20 +136,6 @@ mod dma_config {
     }
 }
 
-/// This is in a separate, inline(never) function so that its stack frame is
-/// removed when this function returns. Otherwise, the stack space used for
-/// these static_inits is wasted.
-#[inline(never)]
-unsafe fn create_peripherals() -> &'static mut imxrt1060::chip::Imxrt10xxDefaultPeripherals {
-    let ccm = static_init!(imxrt1060::ccm::Ccm, imxrt1060::ccm::Ccm::new());
-    let peripherals = static_init!(
-        imxrt1060::chip::Imxrt10xxDefaultPeripherals,
-        imxrt1060::chip::Imxrt10xxDefaultPeripherals::new(ccm)
-    );
-
-    peripherals
-}
-
 type Chip = imxrt1060::chip::Imxrt10xx<imxrt1060::chip::Imxrt10xxDefaultPeripherals>;
 static mut CHIP: Option<&'static Chip> = None;
 static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
@@ -187,11 +175,19 @@ fn set_arm_clock(ccm: &imxrt1060::ccm::Ccm, ccm_analog: &imxrt1060::ccm_analog::
     ccm.set_peripheral_clock_selection(PeripheralClockSelection::PrePeripheralClock);
 }
 
-#[no_mangle]
-pub unsafe fn main() {
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+unsafe fn start() -> (&'static kernel::Kernel, Teensy40, &'static Chip) {
     imxrt1060::init();
 
-    let peripherals = create_peripherals();
+    let ccm = static_init!(imxrt1060::ccm::Ccm, imxrt1060::ccm::Ccm::new());
+    let peripherals = static_init!(
+        imxrt1060::chip::Imxrt10xxDefaultPeripherals,
+        imxrt1060::chip::Imxrt10xxDefaultPeripherals::new(ccm)
+    );
+
     peripherals.ccm.set_low_power_mode();
 
     peripherals.dcdc.clock().enable();
@@ -296,7 +292,6 @@ pub unsafe fn main() {
     // Capabilities
     //
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
 
@@ -361,7 +356,16 @@ pub unsafe fn main() {
     )
     .unwrap();
 
-    board_kernel.kernel_loop(&teensy40, chip, Some(&teensy40.ipc), &main_loop_capability);
+    (board_kernel, teensy40, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, platform, chip) = start();
+    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }
 
 /// Space for the stack buffer

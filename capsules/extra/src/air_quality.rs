@@ -58,7 +58,7 @@ impl<'a> AirQualitySensor<'a> {
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> AirQualitySensor<'a> {
         AirQualitySensor {
-            driver: driver,
+            driver,
             apps: grant,
             busy: Cell::new(false),
         }

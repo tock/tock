@@ -11,6 +11,8 @@ use core::fmt;
 
 use crate::config;
 use crate::debug;
+use crate::process_checker::AcceptedCredential;
+use crate::utilities::cells::OptionalCell;
 
 /// Errors resulting from trying to load a process binary structure from flash.
 pub enum ProcessBinaryError {
@@ -124,6 +126,11 @@ pub struct ProcessBinary {
 
     /// Collection of pointers to the TBF header in flash.
     pub header: tock_tbf::types::TbfHeader,
+
+    /// Optional credential that was used to approve this application. This is
+    /// set if the process is checked by a credential checker and a specific
+    /// credential was used to approve this process. Otherwise this is `None`.
+    pub credential: OptionalCell<AcceptedCredential>,
 }
 
 impl ProcessBinary {
@@ -239,7 +246,12 @@ impl ProcessBinary {
             header: tbf_header,
             footers: footer_region,
             flash: app_flash,
+            credential: OptionalCell::empty(),
         })
+    }
+
+    pub fn get_credential(&self) -> Option<AcceptedCredential> {
+        self.credential.get()
     }
 
     pub(crate) fn get_integrity_region_slice(&self) -> &'static [u8] {

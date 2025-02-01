@@ -318,7 +318,7 @@ impl<'a> Usart<'a> {
     fn new(base_addr: StaticRef<UsartRegisters>, clock: UsartClock<'a>) -> Self {
         Self {
             registers: base_addr,
-            clock: clock,
+            clock,
 
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),

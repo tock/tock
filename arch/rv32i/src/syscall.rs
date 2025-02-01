@@ -172,7 +172,10 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         let (a1slice, r) = r.split_at_mut(R_A2 - R_A1);
         let (a2slice, a3slice) = r.split_at_mut(R_A3 - R_A2);
 
-        return_value.encode_syscall_return(
+        kernel::utilities::arch_helpers::encode_syscall_return_trd104(
+            &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(
+                return_value,
+            ),
             &mut a0slice[0],
             &mut a1slice[0],
             &mut a2slice[0],
@@ -195,7 +198,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         state.regs[R_A0] = callback.argument0 as u32;
         state.regs[R_A1] = callback.argument1 as u32;
         state.regs[R_A2] = callback.argument2 as u32;
-        state.regs[R_A3] = callback.argument3 as u32;
+        state.regs[R_A3] = callback.argument3.as_ptr::<()>() as usize as u32;
 
         // We also need to set the return address (ra) register so that the new
         // function that the process is running returns to the correct location.
@@ -206,13 +209,13 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         state.regs[R_RA] = state.pc;
 
         // Save the PC we expect to execute.
-        state.pc = callback.pc as u32;
+        state.pc = usize::from(callback.pc) as u32;
 
         Ok(())
     }
 
     // Mock implementation for tests on Travis-CI.
-    #[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
+    #[cfg(not(any(doc, all(target_arch = "riscv32", target_os = "none"))))]
     unsafe fn switch_to_process(
         &self,
         _accessible_memory_start: *const u8,
@@ -225,7 +228,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         unimplemented!()
     }
 
-    #[cfg(all(target_arch = "riscv32", target_os = "none"))]
+    #[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
     unsafe fn switch_to_process(
         &self,
         _accessible_memory_start: *const u8,
@@ -601,7 +604,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
             // We pass the per-process state struct in a register we are allowed
             // to clobber (not s0 or s1), but still fits into 3-bit register
             // arguments of compressed load- & store-instructions.
-            in("x10") state as *mut Riscv32iStoredState,
+            in("x10") core::ptr::from_mut::<Riscv32iStoredState>(state),
 
             // Clobber all registers which can be marked as clobbered, except
             // for `a0` / `x10`. By making it retain the value of `&mut state`,
@@ -631,9 +634,9 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
                         let syscall = kernel::syscall::Syscall::from_register_arguments(
                             state.regs[R_A4] as u8,
                             state.regs[R_A0] as usize,
-                            state.regs[R_A1] as usize,
-                            state.regs[R_A2] as usize,
-                            state.regs[R_A3] as usize,
+                            (state.regs[R_A1] as usize).into(),
+                            (state.regs[R_A2] as usize).into(),
+                            (state.regs[R_A3] as usize).into(),
                         );
 
                         match syscall {

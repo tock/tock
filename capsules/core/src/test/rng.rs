@@ -2,12 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! Test entropy and random number generators. Usually, to test the
-//! full library, these generators should be through two layers of
-//! translation for entropy then converted to randomness. For example,
-//! if your platform provides an Entropy32, then test Entropy32 ->
-//! Entropy32to8 -> Entropy8to32 -> Entropy32ToRandom. Then simply ask
-//! for ELEMENTS random numbers and print them in hex to console.
+//! Test entropy and random number generators.
+//!
+//! Usually, to test the full library, these generators should be
+//! through two layers of translation for entropy then converted to
+//! randomness. For example, if your platform provides an Entropy32,
+//! then test Entropy32 -> Entropy32to8 -> Entropy8to32 ->
+//! Entropy32ToRandom. Then simply ask for ELEMENTS random numbers and
+//! print them in hex to console.
 
 use core::cell::Cell;
 
@@ -24,7 +26,7 @@ pub struct TestRandom<'a> {
 
 impl<'a> TestRandom<'a> {
     pub fn new(random: &'a dyn rng::Random<'a>) -> TestRandom<'a> {
-        TestRandom { random: random }
+        TestRandom { random }
     }
 
     pub fn run(&self) {
@@ -46,7 +48,7 @@ pub struct TestRng<'a> {
 impl<'a> TestRng<'a> {
     pub fn new(rng: &'a dyn rng::Rng<'a>) -> TestRng<'a> {
         TestRng {
-            rng: rng,
+            rng,
             pool: Cell::new([0xeeeeeeee; ELEMENTS]),
             count: Cell::new(0),
         }
@@ -60,7 +62,7 @@ impl<'a> TestRng<'a> {
     }
 }
 
-impl<'a> rng::Client for TestRng<'a> {
+impl rng::Client for TestRng<'_> {
     fn randomness_available(
         &self,
         randomness: &mut dyn Iterator<Item = u32>,
@@ -109,7 +111,7 @@ pub struct TestEntropy32<'a> {
 impl<'a> TestEntropy32<'a> {
     pub fn new(egen: &'a dyn entropy::Entropy32<'a>) -> TestEntropy32<'a> {
         TestEntropy32 {
-            egen: egen,
+            egen,
             pool: Cell::new([0xeeeeeeee; ELEMENTS]),
             count: Cell::new(0),
         }
@@ -123,7 +125,7 @@ impl<'a> TestEntropy32<'a> {
     }
 }
 
-impl<'a> entropy::Client32 for TestEntropy32<'a> {
+impl entropy::Client32 for TestEntropy32<'_> {
     fn entropy_available(
         &self,
         entropy: &mut dyn Iterator<Item = u32>,
@@ -172,7 +174,7 @@ pub struct TestEntropy8<'a> {
 impl<'a> TestEntropy8<'a> {
     pub fn new(egen: &'a dyn entropy::Entropy8<'a>) -> TestEntropy8<'a> {
         TestEntropy8 {
-            egen: egen,
+            egen,
             pool: Cell::new([0xee; ELEMENTS]),
             count: Cell::new(0),
         }
@@ -186,7 +188,7 @@ impl<'a> TestEntropy8<'a> {
     }
 }
 
-impl<'a> entropy::Client8 for TestEntropy8<'a> {
+impl entropy::Client8 for TestEntropy8<'_> {
     fn entropy_available(
         &self,
         entropy: &mut dyn Iterator<Item = u8>,

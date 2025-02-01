@@ -179,6 +179,8 @@ register_bitfields! [
     // In a simple case, offset can just be a number, and the number of bits
     // is set to 1:
     InterruptFlags [
+        // This is equivalent to writing
+        // UNDES OFFSET(10) NUMBITS(1) [],
         UNDES   10,
         TXEMPTY  9,
         NSSR     8,
@@ -189,6 +191,67 @@ register_bitfields! [
     ]
 ]
 ```
+
+This generates the modules `Control`, `Status`, and `InterruptFlags`
+    
+```rust
+
+mod Control {
+    pub struct Register;
+    pub const MODE: Field<u8, Register> = Field::<u8, Register>::new(0b111, 0);
+    pub const ENABLE: Field<u8, Register> = Field::<u8, Register>::new(0b1, 3);
+
+    pub mod MODE {
+        use super::{FieldValue, Register};
+        pub const Mode0: FieldValue<u8, Register> = FieldValue::<u8, Register>::new(0b111, 0, 0);
+        pub const Mode1: FieldValue<u8, Register> = FieldValue::<u8, Register>::new(0b111, 0, 1);
+        pub const Mode2: FieldValue<u8, Register> = FieldValue::<u8, Register>::new(0b111, 0, 2);
+        pub const Mode3: FieldValue<u8, Register> = FieldValue::<u8, Register>::new(0b111, 0, 3);
+        pub const SET: FieldValue<u8, Register> = FieldValue::<u8, Register>::new(0b111, 0, 0b111);
+        pub const CLEAR: FieldValue<u8, Register> = FieldValue::<u8, Register>::new(0b111, 0, 0);
+
+        #[repr(u8)]
+        pub enum Value { Mode0 = 0, Mode1 = 1, Mode2 = 2, Mode3 = 3 }
+        impl TryFromValue<u8> for Value {
+            fn try_from(v: u8) -> Option<Self> {
+                match v {
+                    0 => Some(Value::Mode0),
+                    1 => Some(Value::Mode1),
+                    2 => Some(Value::Mode2),
+                    3 => Some(Value::Mode3),
+                    _ => None,
+                }
+            }
+        }
+    }
+
+    pub mod ENABLE {
+        use super::{FieldValue, Register};
+        pub const Disabled: FieldValue<u8, Register> = FieldValue::<u8, Register>::new(0b1, 3, 0);
+        pub const Enabled: FieldValue<u8, Register> = FieldValue::<u8, Register>::new(0b1, 3, 1);
+        pub const SET: FieldValue<u8, Register> = FieldValue::<u8, Register>::new(0b1, 3, 1);
+        pub const CLEAR: FieldValue<u8, Register> = FieldValue::<u8, Register>::new(0b1, 3, 0);
+
+        #[repr(u8)]
+        pub enum Value { Disabled = 0, Enabled = 1 }
+        impl TryFromValue<u8> for Value {
+            fn try_from(v: u8) -> Option<Self> {
+                match v {
+                    0 => Some(Value::Disabled),
+                    1 => Some(Value::Enabled),
+                    _ => None,
+                }
+            }
+        }
+    }
+}   
+```
+
+The macro generates a module for each register (e.g., Control, Status, InterruptFlags) that includes:
+- A `Register` struct for each register, which acts as a placeholder for the register type.
+- `Field`s within the register are defined as constants, such as `RANGE`, `EN`, and `INT` for the `Control` register.
+- Each field is represented by the `Field` type, which encapsulates the bit offset and width.
+
 
 ## Register Interface Summary
 

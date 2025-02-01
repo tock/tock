@@ -56,6 +56,7 @@ use kernel::hil::can;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::streaming_process_slice::StreamingProcessSlice;
 use kernel::ErrorCode;
 use kernel::ProcessId;
 
@@ -115,7 +116,6 @@ pub struct CanCapsule<'a, Can: can::Can> {
 
 #[derive(Default)]
 pub struct App {
-    receive_index: usize,
     lost_messages: u32,
 }
 
@@ -200,7 +200,7 @@ impl<'a, Can: can::Can> CanCapsule<'a, Can> {
     }
 }
 
-impl<'a, Can: can::Can> SyscallDriver for CanCapsule<'a, Can> {
+impl<Can: can::Can> SyscallDriver for CanCapsule<'_, Can> {
     fn command(
         &self,
         command_num: usize,
@@ -346,7 +346,7 @@ impl<'a, Can: can::Can> SyscallDriver for CanCapsule<'a, Can> {
     }
 }
 
-impl<'a, Can: can::Can> can::ControllerClient for CanCapsule<'a, Can> {
+impl<Can: can::Can> can::ControllerClient for CanCapsule<'_, Can> {
     // This callback must be called after an `enable` or `disable` command was sent.
     // It stores the new state of the peripheral.
     fn state_changed(&self, state: can::State) {
@@ -411,9 +411,7 @@ impl<'a, Can: can::Can> can::ControllerClient for CanCapsule<'a, Can> {
     }
 }
 
-impl<'a, Can: can::Can> can::TransmitClient<{ can::STANDARD_CAN_PACKET_SIZE }>
-    for CanCapsule<'a, Can>
-{
+impl<Can: can::Can> can::TransmitClient<{ can::STANDARD_CAN_PACKET_SIZE }> for CanCapsule<'_, Can> {
     // This callback is called when the hardware acknowledges that a message
     // was sent. This callback also makes an upcall to the userspace.
     fn transmit_complete(
@@ -434,89 +432,58 @@ impl<'a, Can: can::Can> can::TransmitClient<{ can::STANDARD_CAN_PACKET_SIZE }>
     }
 }
 
-impl<'a, Can: can::Can> can::ReceiveClient<{ can::STANDARD_CAN_PACKET_SIZE }>
-    for CanCapsule<'a, Can>
-{
+impl<Can: can::Can> can::ReceiveClient<{ can::STANDARD_CAN_PACKET_SIZE }> for CanCapsule<'_, Can> {
     // This callback is called when a new message is received on any receiving
     // fifo.
     fn message_received(
         &self,
         id: can::Id,
         buffer: &mut [u8; can::STANDARD_CAN_PACKET_SIZE],
-        len: usize,
+        _len: usize,
         status: Result<(), can::Error>,
     ) {
-        let mut new_buffer = false;
-        let mut shared_len = 0;
         match status {
             Ok(()) => {
-                match self.processid.map_or(Err(ErrorCode::NOMEM), |processid| {
-                    self.processes
-                        .enter(processid, |app_data, kernel_data| {
-                            kernel_data
-                                .get_readwrite_processbuffer(rw_allow::RW_ALLOW_BUFFER)
-                                .map_or_else(
-                                    |err| err.into(),
-                                    |buffer_ref| {
-                                        buffer_ref
-                                            .mut_enter(|user_buffer| {
-                                                shared_len = user_buffer.len();
-                                                // For now, the first 4 bytes (the size of u32) represent the number
-                                                // of messages that the user has not read yet, represented as Little Endian.
-                                                // When the userspace reads the buffer, the counter will be set
-                                                // to 0 so that the capsule knows. This will be changed after
-                                                // https://github.com/tock/tock/pull/3252 and
-                                                // https://github.com/tock/tock/pull/3258 are merged.
-                                                let mut tmp_buf: [u8; size_of::<u32>()] =
-                                                    [0; size_of::<u32>()];
-                                                user_buffer[0..size_of::<u32>()]
-                                                    .copy_to_slice(&mut tmp_buf);
-                                                let contor = u32::from_le_bytes(tmp_buf);
-                                                if contor == 0 {
-                                                    new_buffer = true;
-                                                    app_data.receive_index = size_of::<u32>();
-                                                }
-                                                user_buffer[0..size_of::<u32>()]
-                                                    .copy_from_slice(&(contor + 1).to_le_bytes());
-                                                if app_data.receive_index + len > user_buffer.len()
-                                                {
-                                                    app_data.lost_messages += 1;
-                                                    Err(ErrorCode::SIZE)
-                                                } else {
-                                                    let r = user_buffer[app_data.receive_index
-                                                        ..app_data.receive_index + len]
-                                                        .copy_from_slice_or_err(&buffer[0..len]);
-                                                    if r.is_ok() {
-                                                        app_data.receive_index += len;
-                                                    }
-                                                    r
-                                                }
-                                            })
-                                            .unwrap_or_else(|err| err.into())
-                                    },
-                                )
-                        })
-                        .unwrap_or_else(|err| err.into())
-                }) {
+                let res: Result<(bool, u32), ErrorCode> =
+                    self.processid.map_or(Err(ErrorCode::NOMEM), |processid| {
+                        self.processes
+                            .enter(processid, |app_data, kernel_data| {
+                                kernel_data
+                                    .get_readwrite_processbuffer(rw_allow::RW_ALLOW_BUFFER)
+                                    .map_or_else(
+                                        |err| Err(err.into()),
+                                        |buffer_ref| {
+                                            buffer_ref
+                                                .mut_enter(|user_slice| {
+                                                    StreamingProcessSlice::new(user_slice)
+                                                        .append_chunk(buffer)
+                                                        .inspect_err(|_err| {
+                                                            app_data.lost_messages += 1;
+                                                        })
+                                                })
+                                                .unwrap_or_else(|err| Err(err.into()))
+                                        },
+                                    )
+                            })
+                            .unwrap_or_else(|err| Err(err.into()))
+                    });
+
+                match res {
                     Err(err) => self.schedule_callback(
                         up_calls::UPCALL_TRANSMISSION_ERROR,
                         (error_upcalls::ERROR_RX, err as usize, 0),
                     ),
-                    Ok(()) => {
-                        if new_buffer {
-                            self.schedule_callback(
-                                up_calls::UPCALL_MESSAGE_RECEIVED,
-                                (
-                                    0,
-                                    shared_len,
-                                    match id {
-                                        can::Id::Standard(u16) => u16 as usize,
-                                        can::Id::Extended(u32) => u32 as usize,
-                                    },
-                                ),
-                            )
-                        }
-                    }
+                    Ok((_first_chunk, new_offset)) => self.schedule_callback(
+                        up_calls::UPCALL_MESSAGE_RECEIVED,
+                        (
+                            0,
+                            new_offset as usize,
+                            match id {
+                                can::Id::Standard(u16) => u16 as usize,
+                                can::Id::Extended(u32) => u32 as usize,
+                            },
+                        ),
+                    ),
                 }
             }
             Err(err) => {

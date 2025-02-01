@@ -7,8 +7,8 @@ System Calls
 **Status:** Draft <br/>
 **Author:** Hudson Ayers, Guillaume Endignoux, Jon Flatley, Philip Levis, Amit Levy, Pat Pannuto, Leon Schuermann, Johnathan Van Why, dcz <br/>
 **Draft-Created:** August 31, 2020<br/>
-**Draft-Modified:** June 14, 2024<br/>
-**Draft-Version:** 9<br/>
+**Draft-Modified:** January 15, 2025<br/>
+**Draft-Version:** 10<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
@@ -504,12 +504,12 @@ not re-subscribe and instead use some form of userspace dispatch.
 The return variants for Subscribe system calls are `Failure with 2 u32`
 and `Success with 2 u32`. For success, the first `u32` is the upcall
 pointer passed in the previous call to Subscribe (the existing
-upcall) and the second `u32` is the application data pointer passed
+upcall) and the second `u32` is the application data parameter passed
 in the previous call to Subscribe (the existing application data). For
 failure, the first `u32` is the passed upcall pointer and the second
-`u32` is the passed application data pointer. For the first successful
+`u32` is the passed application data parameter. For the first successful
 call to Subscribe for a given upcall, the upcall pointer and
-application data pointer returned MUST be the Null Upcall (described
+application data parameter returned MUST be the Null Upcall (described
 below).
 
 4.2.1 The Null Upcall
@@ -521,7 +521,7 @@ The Null Upcall is used for two reasons. First, a userspace process
 passing the Null Upcall as the upcall pointer for Subscribe
 indicates that there should be no more upcalls. Second, the first
 time a userspace process calls Subscribe for a particular upcall,
-the kernel needs to return upcall and application pointers indicating
+the kernel needs to return an upcall pointer and application data parameter indicating
 the current configuration; in this case, the kernel returns the Null
 Upcall. The Tock kernel MUST NOT invoke the Null Upcall.
 

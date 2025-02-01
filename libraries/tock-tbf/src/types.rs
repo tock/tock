@@ -258,6 +258,7 @@ pub enum TbfFooterV2CredentialsType {
     SHA256 = 3,
     SHA384 = 4,
     SHA512 = 5,
+    EcdsaNistP256 = 6,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -603,6 +604,7 @@ impl core::convert::TryFrom<&'static [u8]> for TbfFooterV2Credentials {
             3 => TbfFooterV2CredentialsType::SHA256,
             4 => TbfFooterV2CredentialsType::SHA384,
             5 => TbfFooterV2CredentialsType::SHA512,
+            6 => TbfFooterV2CredentialsType::EcdsaNistP256,
             _ => {
                 return Err(TbfParseError::BadTlvEntry(
                     TbfHeaderTypes::TbfFooterCredentials as usize,
@@ -616,13 +618,14 @@ impl core::convert::TryFrom<&'static [u8]> for TbfFooterV2Credentials {
             TbfFooterV2CredentialsType::SHA256 => 32,
             TbfFooterV2CredentialsType::SHA384 => 48,
             TbfFooterV2CredentialsType::SHA512 => 64,
+            TbfFooterV2CredentialsType::EcdsaNistP256 => 64,
         };
         let data = &b
             .get(4..(length + 4))
             .ok_or(TbfParseError::NotEnoughFlash)?;
         Ok(TbfFooterV2Credentials {
             format: ftype,
-            data: data,
+            data,
         })
     }
 }
@@ -788,7 +791,7 @@ impl TbfHeader {
     }
 
     /// Get the offset and size of a given flash region.
-    pub fn get_writeable_flash_region(&self, index: usize) -> (u32, u32) {
+    pub fn get_writeable_flash_region(&self, index: usize) -> (usize, usize) {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => hd.writeable_regions.map_or((0, 0), |wr_slice| {
                 fn get_region(
@@ -807,8 +810,8 @@ impl TbfHeader {
 
                 match get_region(wr_slice, index) {
                     Ok(wr) => (
-                        wr.writeable_flash_region_offset,
-                        wr.writeable_flash_region_size,
+                        wr.writeable_flash_region_offset as usize,
+                        wr.writeable_flash_region_size as usize,
                     ),
                     Err(()) => (0, 0),
                 }

@@ -326,13 +326,20 @@ impl Uart<'_> {
         let regs = self.registers;
         let irq = regs.ies.extract();
 
-        if irq.is_set(IES::TXIS) || irq.is_set(IES::TXCMPMIS) {
+        if irq.is_set(IES::TXCMPMIS) {
             // TXRIS Interrupt
             self.disable_tx_interrupt();
 
             if self.tx_index.get() >= self.tx_len.get() {
                 // We sent everything to the UART hardware, now from an
                 // interrupt callback we can issue the callback.
+
+                // Disable the UART
+                if self.rx_buffer.is_none() {
+                    regs.cr.modify(CR::UARTEN::CLEAR);
+                }
+                regs.cr.modify(CR::TXE::CLEAR);
+
                 self.tx_client.map(|client| {
                     self.tx_buffer.take().map(|tx_buf| {
                         client.transmitted_buffer(tx_buf, self.tx_len.get(), Ok(()));
@@ -344,12 +351,18 @@ impl Uart<'_> {
             }
         }
 
-        if irq.is_set(IES::RXIS) || irq.is_set(IES::RTIS) {
+        if irq.is_set(IES::RTIS) {
             self.disable_rx_interrupt();
 
             self.rx_progress();
 
             if self.rx_index.get() >= self.rx_len.get() {
+                // Disable the UART
+                if self.tx_buffer.is_none() {
+                    regs.cr.modify(CR::UARTEN::CLEAR);
+                }
+                regs.cr.modify(CR::RXE::CLEAR);
+
                 self.rx_client.map(|client| {
                     self.rx_buffer.take().map(|rx_buf| {
                         client.received_buffer(
@@ -394,10 +407,6 @@ impl hil::uart::Configure for Uart<'_> {
         // Set 8 data bits, no parity, 1 stop bit and no flow control
         regs.lcrh.modify(LCRH::WLEN.val(3) + LCRH::FEN::SET);
 
-        // Enable the UART
-        regs.cr
-            .modify(CR::UARTEN::SET + CR::RXE::SET + CR::TXE::SET);
-
         // Disable interrupts
         regs.ier.set(0x00);
         regs.iec.set(0xFF);
@@ -425,6 +434,9 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
             self.tx_buffer.replace(tx_data);
             self.tx_len.set(tx_len);
             self.tx_index.set(0);
+
+            // Enable the UART
+            self.registers.cr.modify(CR::UARTEN::SET + CR::TXE::SET);
 
             self.tx_progress();
             Ok(())
@@ -457,6 +469,9 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
             self.rx_buffer.replace(rx_buffer);
             self.rx_len.set(rx_len);
             self.rx_index.set(0);
+
+            // Enable the UART
+            self.registers.cr.modify(CR::UARTEN::SET + CR::RXE::SET);
 
             self.rx_progress();
             Ok(())

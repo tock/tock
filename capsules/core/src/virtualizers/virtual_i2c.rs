@@ -178,8 +178,7 @@ impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> MuxI2C<'a, I, S> {
     /// requiring a callback with an error condition; if the operation
     /// is executed synchronously, the callback may be reentrant (executed
     /// during the downcall). Please see
-    ///
-    /// https://github.com/tock/tock/issues/1496
+    /// <https://github.com/tock/tock/issues/1496>
     fn do_next_op_async(&self) {
         self.deferred_call.set();
     }
@@ -217,8 +216,8 @@ pub struct I2CDevice<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a> = NoSMBu
 impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> I2CDevice<'a, I, S> {
     pub fn new(mux: &'a MuxI2C<'a, I, S>, addr: u8) -> I2CDevice<'a, I, S> {
         I2CDevice {
-            mux: mux,
-            addr: addr,
+            mux,
+            addr,
             enabled: Cell::new(false),
             buffer: TakeCell::empty(),
             operation: Cell::new(Op::Idle),
@@ -324,8 +323,8 @@ impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> SMBusDevice<'a, I, S> {
         }
 
         SMBusDevice {
-            mux: mux,
-            addr: addr,
+            mux,
+            addr,
             enabled: Cell::new(false),
             buffer: TakeCell::empty(),
             operation: Cell::new(Op::Idle),

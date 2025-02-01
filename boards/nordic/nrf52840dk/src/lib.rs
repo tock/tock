@@ -326,7 +326,7 @@ pub unsafe fn ieee802154_udp(
     // 802.15.4
     //--------------------------------------------------------------------------
 
-    let device_id = nrf52840::ficr::FICR_INSTANCE.id();
+    let device_id = (*addr_of!(nrf52840::ficr::FICR_INSTANCE)).id();
     let device_id_bottom_16: u16 = u16::from_le_bytes([device_id[0], device_id[1]]);
 
     let eui64_driver = components::eui64::Eui64Component::new(u64::from_le_bytes(device_id))
@@ -697,7 +697,9 @@ pub unsafe fn start() -> (
     let spi_controller = components::spi::SpiSyscallComponent::new(
         board_kernel,
         mux_spi,
-        &gpio_port[SPI_CS],
+        kernel::hil::spi::cs::IntoChipSelect::<_, kernel::hil::spi::cs::ActiveLow>::into_cs(
+            &gpio_port[SPI_CS],
+        ),
         capsules_core::spi_controller::DRIVER_NUM,
     )
     .finalize(components::spi_syscall_component_static!(
@@ -717,7 +719,7 @@ pub unsafe fn start() -> (
     let mx25r6435f = components::mx25r6435f::Mx25r6435fComponent::new(
         Some(&gpio_port[SPI_MX25R6435F_WRITE_PROTECT_PIN]),
         Some(&gpio_port[SPI_MX25R6435F_HOLD_PIN]),
-        &gpio_port[SPI_MX25R6435F_CHIP_SELECT] as &dyn kernel::hil::gpio::Pin,
+        &gpio_port[SPI_MX25R6435F_CHIP_SELECT],
         mux_alarm,
         mux_spi,
     )

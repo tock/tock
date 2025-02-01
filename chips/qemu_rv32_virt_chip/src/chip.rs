@@ -42,7 +42,7 @@ pub struct QemuRv32VirtDefaultPeripherals<'a> {
     pub virtio_mmio: [VirtIOMMIODevice; 8],
 }
 
-impl<'a> QemuRv32VirtDefaultPeripherals<'a> {
+impl QemuRv32VirtDefaultPeripherals<'_> {
     pub fn new() -> Self {
         Self {
             uart0: crate::uart::Uart16550::new(crate::uart::UART0_BASE),
@@ -60,7 +60,7 @@ impl<'a> QemuRv32VirtDefaultPeripherals<'a> {
     }
 }
 
-impl<'a> InterruptService for QemuRv32VirtDefaultPeripherals<'a> {
+impl InterruptService for QemuRv32VirtDefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::UART0 => self.uart0.handle_interrupt(),
@@ -228,12 +228,12 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             // Once claimed this interrupt won't fire until it's completed
             // NOTE: The interrupt is no longer pending in the PLIC
             loop {
-                let interrupt = PLIC.next_pending();
+                let interrupt = (*addr_of!(PLIC)).next_pending();
 
                 match interrupt {
                     Some(irq) => {
                         // Safe as interrupts are disabled
-                        PLIC.save_interrupt(irq);
+                        (*addr_of!(PLIC)).save_interrupt(irq);
                     }
                     None => {
                         // Enable generic interrupts
@@ -268,6 +268,7 @@ pub unsafe extern "C" fn start_trap_rust() {
 }
 
 /// Function that gets called if an interrupt occurs while an app was running.
+///
 /// mcause is passed in, and this function should correctly handle disabling the
 /// interrupt that fired so that it does not trigger again.
 #[export_name = "_disable_interrupt_trap_rust_from_app"]

@@ -42,7 +42,7 @@ impl TestSha256 {
         correct: bool,
     ) -> Self {
         TestSha256 {
-            sha: sha,
+            sha,
             data: TakeCell::new(data),
             hash: TakeCell::new(hash),
             position: Cell::new(0),

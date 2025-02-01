@@ -92,14 +92,14 @@ impl<'a> Uart<'a> {
 
             tx_client: OptionalCell::empty(),
             tx_dma: OptionalCell::empty(),
-            tx_dma_chan: tx_dma_chan,
-            tx_dma_src: tx_dma_src,
+            tx_dma_chan,
+            tx_dma_src,
             tx_busy: Cell::new(false),
 
             rx_client: OptionalCell::empty(),
             rx_dma: OptionalCell::empty(),
-            rx_dma_chan: rx_dma_chan,
-            rx_dma_src: rx_dma_src,
+            rx_dma_chan,
+            rx_dma_src,
             rx_busy: Cell::new(false),
         }
     }
@@ -117,35 +117,29 @@ impl<'a> Uart<'a> {
     }
 }
 
-impl<'a> dma::DmaClient for Uart<'a> {
+impl dma::DmaClient for Uart<'_> {
     fn transfer_done(
         &self,
         tx_buf: Option<&'static mut [u8]>,
         rx_buf: Option<&'static mut [u8]>,
         transmitted_bytes: usize,
     ) {
-        if rx_buf.is_some() {
+        if let Some(rxbuf) = rx_buf {
             // RX-transfer done
             self.rx_busy.set(false);
             self.rx_client.map(|client| {
-                client.received_buffer(
-                    rx_buf.unwrap(),
-                    transmitted_bytes,
-                    Ok(()),
-                    hil::uart::Error::None,
-                )
+                client.received_buffer(rxbuf, transmitted_bytes, Ok(()), hil::uart::Error::None)
             });
-        } else if tx_buf.is_some() {
+        } else if let Some(txbuf) = tx_buf {
             // TX-transfer done
             self.tx_busy.set(false);
-            self.tx_client.map(|client| {
-                client.transmitted_buffer(tx_buf.unwrap(), transmitted_bytes, Ok(()))
-            });
+            self.tx_client
+                .map(|client| client.transmitted_buffer(txbuf, transmitted_bytes, Ok(())));
         }
     }
 }
 
-impl<'a> hil::uart::Configure for Uart<'a> {
+impl hil::uart::Configure for Uart<'_> {
     fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
         // Disable module
         let regs = self.registers;
@@ -276,8 +270,8 @@ impl<'a> hil::uart::Transmit<'a> for Uart<'a> {
             let (nr_bytes, tx1, _rx1, _tx2, _rx2) = dma.stop();
 
             self.tx_client.map(move |cl| {
-                if tx1.is_some() {
-                    cl.transmitted_buffer(tx1.unwrap(), nr_bytes, Err(ErrorCode::CANCEL));
+                if let Some(tx1_buf) = tx1 {
+                    cl.transmitted_buffer(tx1_buf, nr_bytes, Err(ErrorCode::CANCEL));
                 }
             });
         });
@@ -324,9 +318,9 @@ impl<'a> hil::uart::Receive<'a> for Uart<'a> {
             let (nr_bytes, _tx1, rx1, _tx2, _rx2) = dma.stop();
 
             self.rx_client.map(move |cl| {
-                if rx1.is_some() {
+                if let Some(rx1_buf) = rx1 {
                     cl.received_buffer(
-                        rx1.unwrap(),
+                        rx1_buf,
                         nr_bytes,
                         Err(ErrorCode::CANCEL),
                         hil::uart::Error::Aborted,

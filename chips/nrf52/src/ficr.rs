@@ -367,7 +367,7 @@ impl Ficr {
     /// This changed occurred towards the end of 2021 with chips becoming widely
     /// available/used in 2023.
     ///
-    /// See https://devzone.nordicsemi.com/nordic/nordic-blog/b/blog/posts/working-with-the-nrf52-series-improved-approtect
+    /// See <https://devzone.nordicsemi.com/nordic/nordic-blog/b/blog/posts/working-with-the-nrf52-series-improved-approtect>.
     /// for more information.
     pub(crate) fn has_updated_approtect_logic(&self) -> bool {
         // We assume that an unspecified version means that it is new and this

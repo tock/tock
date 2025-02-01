@@ -3,9 +3,10 @@
 // Copyright Tock Contributors 2022.
 
 //! Provides userspace with access to a serial interface whose output
-//! is in-order with respect to kernel debug!() operations. Prints to
-//! the console are atomic up to particular constant length, which
-//! can be set at capsule instantiation.
+//! is in-order with respect to kernel debug!() operations.
+//!
+//! Prints to the console are atomic up to particular constant length,
+//! which can be set at capsule instantiation.
 //!
 //! Note that this capsule does *not* buffer writes in an additional
 //! buffer; this is critical to ensure ordering. Instead, it pushes
@@ -162,11 +163,11 @@ impl<'a, A: Alarm<'a>> ConsoleOrdered<'a, A> {
         write_timer: u32,
     ) -> ConsoleOrdered<'a, A> {
         ConsoleOrdered {
-            uart: uart,
+            uart,
             apps: grant,
             tx_in_progress: Cell::new(false),
             tx_counter: Cell::new(0),
-            alarm: alarm,
+            alarm,
 
             rx_counter: Cell::new(0),
             rx_in_progress: OptionalCell::empty(),

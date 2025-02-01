@@ -39,7 +39,7 @@
 //! ```
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use capsules_extra::bus;
+use capsules_extra::bus::{self, BusAddr8};
 use capsules_extra::st77xx::{ST77XXScreen, ST77XX};
 use core::mem::MaybeUninit;
 use kernel::component::Component;
@@ -72,7 +72,7 @@ macro_rules! st77xx_component_static {
 
 pub struct ST77XXComponent<
     A: 'static + time::Alarm<'static>,
-    B: 'static + bus::Bus<'static>,
+    B: 'static + bus::Bus<'static, BusAddr8>,
     P: 'static + gpio::Pin,
 > {
     alarm_mux: &'static MuxAlarm<'static, A>,
@@ -82,8 +82,11 @@ pub struct ST77XXComponent<
     screen: &'static ST77XXScreen,
 }
 
-impl<A: 'static + time::Alarm<'static>, B: 'static + bus::Bus<'static>, P: 'static + gpio::Pin>
-    ST77XXComponent<A, B, P>
+impl<
+        A: 'static + time::Alarm<'static>,
+        B: 'static + bus::Bus<'static, BusAddr8>,
+        P: 'static + gpio::Pin,
+    > ST77XXComponent<A, B, P>
 {
     pub fn new(
         alarm_mux: &'static MuxAlarm<'static, A>,
@@ -102,8 +105,11 @@ impl<A: 'static + time::Alarm<'static>, B: 'static + bus::Bus<'static>, P: 'stat
     }
 }
 
-impl<A: 'static + time::Alarm<'static>, B: 'static + bus::Bus<'static>, P: 'static + gpio::Pin>
-    Component for ST77XXComponent<A, B, P>
+impl<
+        A: 'static + time::Alarm<'static>,
+        B: 'static + bus::Bus<'static, BusAddr8>,
+        P: 'static + gpio::Pin,
+    > Component for ST77XXComponent<A, B, P>
 {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,

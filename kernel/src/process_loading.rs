@@ -23,9 +23,12 @@ use crate::kernel::Kernel;
 use crate::platform::chip::Chip;
 use crate::process::{Process, ShortId};
 use crate::process_binary::{ProcessBinary, ProcessBinaryError};
+use crate::process_checker::AcceptedCredential;
 use crate::process_checker::{AppIdPolicy, ProcessCheckError, ProcessCheckerMachine};
 use crate::process_policies::ProcessFaultPolicy;
+use crate::process_policies::ProcessStandardStoragePermissionsPolicy;
 use crate::process_standard::ProcessStandard;
+use crate::process_standard::{ProcessStandardDebug, ProcessStandardDebugFull};
 use crate::utilities::cells::{MapCell, OptionalCell};
 
 // Fixed max supported process slots to store the start addresses of processes
@@ -119,6 +122,8 @@ impl fmt::Debug for ProcessLoadError {
 // SYNCHRONOUS PROCESS LOADING
 ////////////////////////////////////////////////////////////////////////////////
 
+/// Load processes into runnable process structures.
+///
 /// Load processes (stored as TBF objects in flash) into runnable process
 /// structures stored in the `procs` array and mark all successfully loaded
 /// processes as runnable. This method does not check the cryptographic
@@ -145,7 +150,7 @@ pub fn load_processes<C: Chip>(
     fault_policy: &'static dyn ProcessFaultPolicy,
     _capability_management: &dyn ProcessManagementCapability,
 ) -> Result<(), ProcessLoadError> {
-    load_processes_from_flash(
+    load_processes_from_flash::<C, ProcessStandardDebugFull>(
         kernel,
         chip,
         app_flash,
@@ -186,7 +191,7 @@ pub fn load_processes<C: Chip>(
 /// `ProcessLoadError` if something goes wrong during TBF parsing or process
 /// creation.
 #[inline(always)]
-fn load_processes_from_flash<C: Chip>(
+fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
     kernel: &'static Kernel,
     chip: &'static C,
     app_flash: &'static [u8],
@@ -216,7 +221,7 @@ fn load_processes_from_flash<C: Chip>(
             Ok((new_flash, process_binary)) => {
                 remaining_flash = new_flash;
 
-                let load_result = load_process(
+                let load_result = load_process::<C, D>(
                     kernel,
                     chip,
                     process_binary,
@@ -224,6 +229,7 @@ fn load_processes_from_flash<C: Chip>(
                     ShortId::LocallyUnique,
                     index,
                     fault_policy,
+                    &(),
                 );
                 match load_result {
                     Ok((new_mem, proc)) => {
@@ -267,6 +273,10 @@ fn load_processes_from_flash<C: Chip>(
                     | ProcessBinaryError::IncorrectFlashAddress { .. }
                     | ProcessBinaryError::NotEnabledProcess
                     | ProcessBinaryError::Padding => {
+                        if config::CONFIG.debug_load_processes {
+                            debug!("Unable to use process binary: {:?}.", err);
+                        }
+
                         // Skip this binary and move to the next one.
                         continue;
                     }
@@ -288,7 +298,7 @@ fn discover_process_binary(
 ) -> Result<(&'static [u8], ProcessBinary), (&'static [u8], ProcessBinaryError)> {
     if config::CONFIG.debug_load_processes {
         debug!(
-            "Loading process binary from flash={:#010X}-{:#010X}",
+            "Looking for process binary in flash={:#010X}-{:#010X}",
             flash.as_ptr() as usize,
             flash.as_ptr() as usize + flash.len() - 1
         );
@@ -349,7 +359,7 @@ fn discover_process_binary(
 /// pool that its RAM should be allocated from. Returns `Ok` if the process
 /// object was created, `Err` with a relevant error if the process object could
 /// not be created.
-fn load_process<C: Chip>(
+fn load_process<C: Chip, D: ProcessStandardDebug>(
     kernel: &'static Kernel,
     chip: &'static C,
     process_binary: ProcessBinary,
@@ -357,6 +367,7 @@ fn load_process<C: Chip>(
     app_id: ShortId,
     index: usize,
     fault_policy: &'static dyn ProcessFaultPolicy,
+    storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C, D>,
 ) -> Result<(&'static mut [u8], Option<&'static dyn Process>), (&'static mut [u8], ProcessLoadError)>
 {
     if config::CONFIG.debug_load_processes {
@@ -380,12 +391,13 @@ fn load_process<C: Chip>(
     // get a process and we didn't get a loading error (aka we got to
     // this point), then the app is a disabled process or just padding.
     let (process_option, unused_memory) = unsafe {
-        ProcessStandard::create(
+        ProcessStandard::<C, D>::create(
             kernel,
             chip,
             process_binary,
             app_memory,
             fault_policy,
+            storage_policy,
             app_id,
             index,
         )
@@ -486,7 +498,8 @@ pub enum PaddingRequirement {
 /// structures stored in the `procs` array. This machine scans the footers in
 /// the TBF for cryptographic credentials for binary integrity, passing them to
 /// the checker to decide whether the process has sufficient credentials to run.
-pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static> {
+pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static, D: ProcessStandardDebug + 'static>
+{
     /// Client to notify as processes are loaded and process loading finishes.
     client: OptionalCell<&'a dyn ProcessLoadingAsyncClient>,
     /// Machine to use to check process credentials.
@@ -511,13 +524,15 @@ pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static> {
     policy: OptionalCell<&'a dyn AppIdPolicy>,
     /// The fault policy to assign to each created Process.
     fault_policy: &'static dyn ProcessFaultPolicy,
+    /// The storage permissions policy to assign to each created Process.
+    storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C, D>,
     /// Current mode of the loading machine.
     state: OptionalCell<SequentialProcessLoaderMachineState>,
     /// Lookup tables for process binaries addresses and sizes
     process_binaries_metadata: OptionalCell<ProcessBinaryMetadata>,
 }
 
-impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
+impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> {
     /// This function is made `pub` so that board files can use it, but loading
     /// processes from slices of flash an memory is fundamentally unsafe.
     /// Therefore, we require the `ProcessManagementCapability` to call this
@@ -531,6 +546,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
         flash: &'static [u8],
         app_memory: &'static mut [u8],
         fault_policy: &'static dyn ProcessFaultPolicy,
+        storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C, D>,
         policy: &'static dyn AppIdPolicy,
         _capability_management: &dyn ProcessManagementCapability,
     ) -> Self {
@@ -547,6 +563,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
             app_memory: Cell::new(app_memory),
             policy: OptionalCell::new(policy),
             fault_policy,
+            storage_policy,
             state: OptionalCell::empty(),
             process_binaries_metadata: OptionalCell::empty(),
         }
@@ -599,7 +616,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
             }
             Err(e) => {
                 if config::CONFIG.debug_load_processes {
-                    debug!("Loading: unable to create ProcessBinary");
+                    debug!("Loading: unable to create ProcessBinary: {:?}", e);
                 }
 
                 // Other process binary errors indicate the process is not
@@ -621,7 +638,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
 
         if config::CONFIG.debug_load_processes {
             debug!(
-                "Loading process binary from flash={:#010X}-{:#010X}",
+                "Looking for process binary in flash={:#010X}-{:#010X}",
                 flash.as_ptr() as usize,
                 flash.as_ptr() as usize + flash.len() - 1
             );
@@ -694,8 +711,8 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
 
                 // Start by iterating all other process binaries and seeing
                 // if any are in conflict (same AppID with newer version).
-                for j in 0..proc_binaries_len {
-                    match &proc_binaries[j] {
+                for proc_bin in proc_binaries.iter() {
+                    match proc_bin {
                         Some(other_process_binary) => {
                             let blocked = self
                                 .is_blocked_from_loading_by(&process_binary, other_process_binary);
@@ -756,6 +773,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
                             short_app_id,
                             index,
                             self.fault_policy,
+                            self.storage_policy,
                         );
                         match load_result {
                             Ok((new_mem, proc)) => {
@@ -1214,7 +1232,9 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
     }   
 }
 
-impl<'a, C: Chip> ProcessLoadingAsync<'a> for SequentialProcessLoaderMachine<'a, C> {
+impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
+    for SequentialProcessLoaderMachine<'a, C, D>
+{
     fn set_client(&self, client: &'a dyn ProcessLoadingAsyncClient) {
         self.client.set(client);
     }
@@ -1266,7 +1286,9 @@ impl<'a, C: Chip> ProcessLoadingAsync<'a> for SequentialProcessLoaderMachine<'a,
 
 }
 
-impl<'a, C: Chip> DeferredCallClient for SequentialProcessLoaderMachine<'a, C> {
+impl<C: Chip, D: ProcessStandardDebug> DeferredCallClient
+    for SequentialProcessLoaderMachine<'_, C, D>
+{
     fn handle_deferred_call(&self) {
         // We use deferred calls to start the operation in the async loop.
         match self.state.get() {
@@ -1295,17 +1317,17 @@ impl<'a, C: Chip> DeferredCallClient for SequentialProcessLoaderMachine<'a, C> {
     }
 }
 
-impl<'a, C: Chip> crate::process_checker::ProcessCheckerMachineClient
-    for SequentialProcessLoaderMachine<'a, C>
+impl<C: Chip, D: ProcessStandardDebug> crate::process_checker::ProcessCheckerMachineClient
+    for SequentialProcessLoaderMachine<'_, C, D>
 {
     fn done(
         &self,
         process_binary: ProcessBinary,
-        result: Result<(), crate::process_checker::ProcessCheckError>,
+        result: Result<Option<AcceptedCredential>, crate::process_checker::ProcessCheckError>,
     ) {
         // Check if this process was approved by the checker.
         match result {
-            Ok(()) => {
+            Ok(optional_credential) => {
                 if config::CONFIG.debug_load_processes {
                     debug!(
                         "Loading: Check succeeded for process {}",
@@ -1316,6 +1338,7 @@ impl<'a, C: Chip> crate::process_checker::ProcessCheckerMachineClient
                 match self.find_open_process_binary_slot() {
                     Some(index) => {
                         self.proc_binaries.map(|proc_binaries| {
+                            process_binary.credential.insert(optional_credential);
                             proc_binaries[index] = Some(process_binary);
                         });
                     }

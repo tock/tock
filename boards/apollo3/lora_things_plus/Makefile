@@ -4,8 +4,6 @@
 
 # Makefile for building the tock kernel for the SparkFun LoRa Thing Plus - expLoRaBLE
 #
-TARGET=thumbv7em-none-eabi
-PLATFORM=lora_things_plus
 
 include ../../Makefile.common
 
@@ -46,7 +44,20 @@ flash-app:
 
 .PHONY: test
 test:
-	mkdir -p $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
-	$(Q)cp layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
-	$(Q)cp ../../kernel_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/
-	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" OBJCOPY=${OBJCOPY} PORT=$(PORT) $(CARGO) test $(CARGO_FLAGS_TOCK_NO_BUILD_STD) $(NO_RUN) --bin $(PLATFORM) --release
+	$(Q)OBJCOPY=${OBJCOPY} PORT=$(PORT) $(CARGO) test $(NO_RUN) \
+	    --bin $(PLATFORM) --release
+
+.PHONY: test-atecc508a
+test-atecc508a:
+	$(Q)OBJCOPY=${OBJCOPY} PORT=$(PORT) $(CARGO) test $(NO_RUN) \
+	    --bin $(PLATFORM) --release --features atecc508a
+
+.PHONY: test-chirp_i2c_moisture
+test-chirp_i2c_moisture:
+	$(Q)OBJCOPY=${OBJCOPY} PORT=$(PORT) $(CARGO) test $(NO_RUN) \
+	    --bin $(PLATFORM) --release --features chirp_i2c_moisture
+
+.PHONY: test-dfrobot_i2c_rainfall
+test-dfrobot_i2c_rainfall:
+	$(Q)OBJCOPY=${OBJCOPY} PORT=$(PORT) $(CARGO) test $(NO_RUN) \
+	    --bin $(PLATFORM) --release --features dfrobot_i2c_rainfall

@@ -8,26 +8,23 @@
 #![crate_type = "rlib"]
 #![no_std]
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
-use core::arch::global_asm;
-
 // These constants are defined in the linker script.
 extern "C" {
     static _estack: u8;
     static _sstack: u8;
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 extern "C" {
     /// ARMv7-M systick handler function.
     ///
     /// For documentation of this function, please see
-    /// [`CortexMVariant::SYSTICK_HANDLER`].
+    /// `CortexMVariant::SYSTICK_HANDLER`.
     pub fn systick_handler_arm_v7m();
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
-global_asm!(
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+core::arch::global_asm!(
     "
     .section .systick_handler_arm_v7m, \"ax\"
     .global systick_handler_arm_v7m
@@ -48,9 +45,10 @@ global_asm!(
     // (ISB). https://developer.arm.com/documentation/dai0321/latest
     isb                               // synchronization barrier
 
-    // Set the link register to the special EXC_RETURN value of 0xFFFFFFF9 which
-    // instructs the CPU to run in thread mode with the main (kernel) stack.
-    ldr lr, =0xFFFFFFF9               // LR = 0xFFFFFFF9
+    // The link register is set to the `EXC_RETURN` value on exception entry. To
+    // ensure we continue executing in the kernel we ensure the SPSEL bit is set
+    // to 0 to use the main (kernel) stack.
+    bfc lr, #2, #1                    // LR = LR & !(0x1<<2)
 
     // This will resume in the switch_to_user function where application state
     // is saved and the scheduler can choose what to do next.
@@ -58,27 +56,29 @@ global_asm!(
     "
 );
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 extern "C" {
     /// Handler of `svc` instructions on ARMv7-M.
     ///
     /// For documentation of this function, please see
-    /// [`CortexMVariant::SVC_HANDLER`].
+    /// `CortexMVariant::SVC_HANDLER`.
     pub fn svc_handler_arm_v7m();
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
-global_asm!(
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+core::arch::global_asm!(
     "
     .section .svc_handler_arm_v7m, \"ax\"
     .global svc_handler_arm_v7m
     .thumb_func
   svc_handler_arm_v7m:
     // First check to see which direction we are going in. If the link register
-    // is something other than 0xFFFFFFF9, then we are coming from an app which
-    // has called a syscall.
-    cmp lr, #0xFFFFFFF9               // LR ≟ 0xFFFFFFF9
-    bne 100f // to_kernel             // if LR != 0xFFFFFFF9, jump to to_kernel
+    // (containing EXC_RETURN) has a 1 in the SPSEL bit (meaning the
+    // alternative/process stack was in use) then we are coming from a process
+    // which has called a syscall.
+    ubfx r0, lr, #2, #1               // r0 = (LR & (0x1<<2)) >> 2
+    cmp r0, #0                        // r0 (SPSEL bit) =≟ 0
+    bne 100f // to_kernel             // if SPSEL == 1, jump to to_kernel
 
     // If we get here, then this is a context switch from the kernel to the
     // application. Use the CONTROL register to set the thread mode to
@@ -96,9 +96,10 @@ global_asm!(
     // (ISB). https://developer.arm.com/documentation/dai0321/latest
     isb
 
-    // Set the link register to the special EXC_RETURN value of 0xFFFFFFFD which
-    // instructs the CPU to run in thread mode with the process stack.
-    ldr lr, =0xFFFFFFFD               // LR = 0xFFFFFFFD
+    // The link register is set to the `EXC_RETURN` value on exception entry. To
+    // ensure we execute using the process stack we set the SPSEL bit to 1
+    // to use the alternate (process) stack.
+    orr lr, lr, #4                    // LR = LR | 0b100
 
     // Switch to the app.
     bx lr
@@ -127,24 +128,25 @@ global_asm!(
     // (ISB). https://developer.arm.com/documentation/dai0321/latest
     isb
 
-    // Set the link register to the special EXC_RETURN value of 0xFFFFFFF9 which
-    // instructs the CPU to run in thread mode with the main (kernel) stack.
-    ldr lr, =0xFFFFFFF9               // LR = 0xFFFFFFF9
+    // The link register is set to the `EXC_RETURN` value on exception entry. To
+    // ensure we continue executing in the kernel we ensure the SPSEL bit is set
+    // to 0 to use the main (kernel) stack.
+    bfc lr, #2, #1                    // LR = LR & !(0x1<<2)
 
     // Return to the kernel.
     bx lr
     "
 );
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 extern "C" {
     /// Generic interrupt handler for ARMv7-M instruction sets.
     ///
-    /// For documentation of this function, see [`CortexMVariant::GENERIC_ISR`].
+    /// For documentation of this function, see `CortexMVariant::GENERIC_ISR`.
     pub fn generic_isr_arm_v7m();
 }
-#[cfg(all(target_arch = "arm", target_os = "none"))]
-global_asm!(
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+core::arch::global_asm!(
         "
     .section .generic_isr_arm_v7m, \"ax\"
     .global generic_isr_arm_v7m
@@ -165,10 +167,6 @@ global_asm!(
     // CONTROL writes must be followed by an Instruction Synchronization Barrier
     // (ISB). https://developer.arm.com/documentation/dai0321/latest
     isb
-
-    // Set the link register to the special EXC_RETURN value of 0xFFFFFFF9 which
-    // instructs the CPU to run in thread mode with the main (kernel) stack.
-    ldr lr, =0xFFFFFFF9               // LR = 0xFFFFFFF9
 
     // Now need to disable the interrupt that fired in the NVIC to ensure it
     // does not trigger again before the scheduler has a chance to handle it. We
@@ -209,6 +207,11 @@ global_asm!(
     ldr r3, =0xe000e200               // r3 = &NVIC.ISPR
     str r0, [r3, r2, lsl #2]          // *(r3 + r2 * 4) = r0
 
+    // The link register is set to the `EXC_RETURN` value on exception entry. To
+    // ensure we continue executing in the kernel we ensure the SPSEL bit is set
+    // to 0 to use the main (kernel) stack.
+    bfc lr, #2, #1                    // LR = LR & !(0x1<<2)
+
     // Now we can return from the interrupt context and resume what we were
     // doing. If an app was executing we will switch to the kernel so it can
     // choose whether to service the interrupt.
@@ -219,8 +222,8 @@ global_asm!(
 /// state.
 ///
 /// For documentation of this function, please see
-/// [`CortexMVariant::switch_to_user`].
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+/// `CortexMVariant::switch_to_user`.
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 pub unsafe fn switch_to_user_arm_v7m(
     mut user_stack: *const usize,
     process_regs: &mut [usize; 8],
@@ -281,7 +284,7 @@ pub unsafe fn switch_to_user_arm_v7m(
     user_stack
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 /// Continue the hardfault handler for all hard-faults that occurred
 /// during kernel execution. This function must never return.
 unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
@@ -349,7 +352,7 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
          \tr12 0x{:x}\r\n\
          \tlr  0x{:x}\r\n\
          \tpc  0x{:x}\r\n\
-         \tprs 0x{:x} [ N {} Z {} C {} V {} Q {} GE {}{}{}{} ; ICI.IT {} T {} ; Exc {}-{} ]\r\n\
+         \tpsr 0x{:x} [ N {} Z {} C {} V {} Q {} GE {}{}{}{} ; ICI.IT {} T {} ; Exc {}-{} ]\r\n\
          \tsp  0x{:x}\r\n\
          \ttop of stack     0x{:x}\r\n\
          \tbottom of stack  0x{:x}\r\n\
@@ -434,22 +437,22 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
     }
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 extern "C" {
     /// ARMv7-M hardfault handler.
     ///
     /// For documentation of this function, please see
-    /// [`CortexMVariant::HARD_FAULT_HANDLER_HANDLER`].
+    /// `CortexMVariant::HARD_FAULT_HANDLER_HANDLER`.
     pub fn hard_fault_handler_arm_v7m();
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 // First need to determine if this a kernel fault or a userspace fault, and store
 // the unmodified stack pointer. Place these values in registers, then call
 // a non-naked function, to allow for use of rust code alongside inline asm.
 // Because calling a function increases the stack pointer, we have to check for a kernel
 // stack overflow and adjust the stack pointer before we branch
-global_asm!(
+core::arch::global_asm!(
     "
         .section .hard_fault_handler_arm_v7m, \"ax\"
         .global hard_fault_handler_arm_v7m
@@ -519,9 +522,11 @@ global_asm!(
         // http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html
         isb
 
-        // Switch to the kernel (MSP) stack:
-        movw lr, #0xFFF9
-        movt lr, #0xFFFF
+        // The link register is set to the `EXC_RETURN` value on exception
+        // entry. To ensure we continue executing in the kernel we ensure the
+        // SPSEL bit is set to 0 to use the main (kernel) stack.
+        bfc lr, #2, #1                    // LR = LR & !(0x1<<2)
+
         bx lr",
     estack = sym _estack,
     kernel_hard_fault_handler = sym hard_fault_handler_arm_v7m_kernel,
@@ -556,22 +561,22 @@ pub fn ipsr_isr_number_to_str(isr_number: usize) -> &'static str {
 // ARM assembly since it will not compile.
 ///////////////////////////////////////////////////////////////////
 
-#[cfg(not(all(target_arch = "arm", target_os = "none")))]
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
 pub unsafe extern "C" fn systick_handler_arm_v7m() {
     unimplemented!()
 }
 
-#[cfg(not(all(target_arch = "arm", target_os = "none")))]
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
 pub unsafe extern "C" fn svc_handler_arm_v7m() {
     unimplemented!()
 }
 
-#[cfg(not(all(target_arch = "arm", target_os = "none")))]
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
 pub unsafe extern "C" fn generic_isr_arm_v7m() {
     unimplemented!()
 }
 
-#[cfg(not(all(target_arch = "arm", target_os = "none")))]
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
 pub unsafe extern "C" fn switch_to_user_arm_v7m(
     _user_stack: *const u8,
     _process_regs: &mut [usize; 8],
@@ -579,7 +584,7 @@ pub unsafe extern "C" fn switch_to_user_arm_v7m(
     unimplemented!()
 }
 
-#[cfg(not(all(target_arch = "arm", target_os = "none")))]
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
 pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
     unimplemented!()
 }

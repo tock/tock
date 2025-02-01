@@ -25,7 +25,7 @@ pub struct TestRandomAlarm<'a, A: Alarm<'a>> {
 impl<'a, A: Alarm<'a>> TestRandomAlarm<'a, A> {
     pub fn new(alarm: &'a A, value: usize, ch: char, print_output: bool) -> TestRandomAlarm<'a, A> {
         TestRandomAlarm {
-            alarm: alarm,
+            alarm,
             counter: Cell::new(value),
             expected: Cell::new(alarm.ticks_from_seconds(0)),
             _id: ch,

@@ -65,10 +65,10 @@ impl<const SCREEN_BUF_LEN: usize> ScreenComponent<SCREEN_BUF_LEN> {
         screen_setup: Option<&'static dyn kernel::hil::screen::ScreenSetup>,
     ) -> ScreenComponent<SCREEN_BUF_LEN> {
         ScreenComponent {
-            board_kernel: board_kernel,
-            driver_num: driver_num,
-            screen: screen,
-            screen_setup: screen_setup,
+            board_kernel,
+            driver_num,
+            screen,
+            screen_setup,
         }
     }
 }

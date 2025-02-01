@@ -20,7 +20,7 @@ use kernel::hil::time::{Alarm, Timer};
 use kernel::platform::chip::InterruptService;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::scheduler::cooperative::CooperativeSched;
+use kernel::scheduler::mlfq::MLFQSched;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::StaticRef;
 use kernel::{create_capability, debug, static_init};
@@ -153,7 +153,18 @@ struct LiteXArty {
         >,
     >,
     ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
-    scheduler: &'static CooperativeSched<'static>,
+    scheduler: &'static MLFQSched<
+        'static,
+        VirtualMuxAlarm<
+            'static,
+            litex_vexriscv::timer::LiteXAlarm<
+                'static,
+                'static,
+                socc::SoCRegisterFmt,
+                socc::ClockFrequency,
+            >,
+        >,
+    >,
     scheduler_timer: &'static VirtualSchedulerTimer<
         VirtualMuxAlarm<
             'static,
@@ -190,7 +201,18 @@ impl KernelResources<litex_vexriscv::chip::LiteXVexRiscv<LiteXArtyInterruptableP
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type Scheduler = CooperativeSched<'static>;
+    type Scheduler = MLFQSched<
+        'static,
+        VirtualMuxAlarm<
+            'static,
+            litex_vexriscv::timer::LiteXAlarm<
+                'static,
+                'static,
+                socc::SoCRegisterFmt,
+                socc::ClockFrequency,
+            >,
+        >,
+    >;
     type SchedulerTimer = VirtualSchedulerTimer<
         VirtualMuxAlarm<
             'static,
@@ -228,12 +250,15 @@ impl KernelResources<litex_vexriscv::chip::LiteXVexRiscv<LiteXArtyInterruptableP
     }
 }
 
-/// Main function.
-///
-/// This function is called from the arch crate after some very basic RISC-V
-/// and RAM setup.
-#[no_mangle]
-pub unsafe fn main() {
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+unsafe fn start() -> (
+    &'static kernel::Kernel,
+    LiteXArty,
+    &'static litex_vexriscv::chip::LiteXVexRiscv<LiteXArtyInterruptablePeripherals>,
+) {
     // These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -301,7 +326,6 @@ pub unsafe fn main() {
     // initialize capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
 
@@ -577,9 +601,16 @@ pub unsafe fn main() {
     )
     .finalize(components::low_level_debug_component_static!());
 
-    let scheduler =
-        components::sched::cooperative::CooperativeComponent::new(&*addr_of!(PROCESSES))
-            .finalize(components::cooperative_component_static!(NUM_PROCS));
+    let scheduler = components::sched::mlfq::MLFQComponent::new(mux_alarm, &*addr_of!(PROCESSES))
+        .finalize(components::mlfq_component_static!(
+            litex_vexriscv::timer::LiteXAlarm<
+                'static,
+                'static,
+                socc::SoCRegisterFmt,
+                socc::ClockFrequency,
+            >,
+            NUM_PROCS
+        ));
 
     let litex_arty = LiteXArty {
         console,
@@ -596,8 +627,8 @@ pub unsafe fn main() {
         ),
     };
 
-    let _ = litex_arty.pconsole.start();
     debug!("LiteX+VexRiscv on ArtyA7: initialization complete, entering main loop.");
+    let _ = litex_arty.pconsole.start();
 
     kernel::process::load_processes(
         board_kernel,
@@ -619,5 +650,14 @@ pub unsafe fn main() {
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&litex_arty, chip, Some(&litex_arty.ipc), &main_loop_cap);
+    (board_kernel, litex_arty, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, board, chip) = start();
+    board_kernel.kernel_loop(&board, chip, Some(&board.ipc), &main_loop_capability);
 }

@@ -341,8 +341,10 @@ impl<T: Configure> StandardBitTiming for T {
 }
 
 /// The `Configure` trait is used to configure the CAN peripheral and to prepare it for
-/// transmission and reception of data. The peripheral cannot transmit or receive frames if
-/// it is not previously configured and enabled.
+/// transmission and reception of data.
+///
+/// The peripheral cannot transmit or receive frames if it is not
+/// previously configured and enabled.
 ///
 /// In order to configure the peripheral, the following steps are required:
 ///
@@ -490,9 +492,12 @@ pub trait Configure {
     fn receive_fifo_count(&self) -> usize;
 }
 
-/// The `ConfigureFd` trait is used to configure the CAN peripheral for CanFD and to prepare it for
-/// transmission and reception of data. The peripheral cannot transmit or receive frames if
-/// it is not previously configured and enabled.
+/// The `ConfigureFd` trait is used to configure the CAN peripheral
+/// for CanFD and to prepare it for transmission and reception of
+/// data.
+///
+/// The peripheral cannot transmit or receive frames if it is not
+/// previously configured and enabled.
 ///
 /// In order to configure the peripheral, the following steps are required:
 ///

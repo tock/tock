@@ -67,14 +67,17 @@ use kernel::{ErrorCode, ProcessId};
 use crate::driver;
 pub const DRIVER_NUM: usize = driver::NUM::Button as usize;
 
-/// This capsule keeps track for each app of which buttons it has a registered
-/// interrupt for. `SubscribeMap` is a bit array where bits are set to one if
+/// Keeps track which buttons each app has a registered interrupt for.
+///
+/// `SubscribeMap` is a bit array where bits are set to one if
 /// that app has an interrupt registered for that button.
 pub type SubscribeMap = u32;
 
-/// This capsule keeps track for each app of which buttons it has a registered
-/// interrupt for. `SubscribeMap` is a bit array where bits are set to one if
-/// that app has an interrupt registered for that button.
+/// Keeps track for each app of which buttons it has a registered
+/// interrupt for.
+///
+/// `SubscribeMap` is a bit array where bits are set to one if that
+/// app has an interrupt registered for that button.
 #[derive(Default)]
 pub struct App {
     subscribe_map: u32,
@@ -106,10 +109,7 @@ impl<'a, P: gpio::InterruptPin<'a>> Button<'a, P> {
             pin.set_floating_state(floating_state);
         }
 
-        Self {
-            pins: pins,
-            apps: grant,
-        }
+        Self { pins, apps: grant }
     }
 
     fn get_button_state(&self, pin_num: u32) -> gpio::ActivationState {

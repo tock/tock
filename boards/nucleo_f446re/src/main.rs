@@ -24,6 +24,7 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 use stm32f446re::chip_specs::Stm32f446Specs;
+use stm32f446re::clocks::hsi::HSI_FREQUENCY_MHZ;
 use stm32f446re::gpio::{AlternateFunction, Mode, PinId, PortId};
 use stm32f446re::interrupt_service::Stm32f446reDefaultPeripherals;
 
@@ -321,7 +322,7 @@ unsafe fn start() -> (
 
     // `finalize()` configures the underlying USART, so we need to
     // tell `send_byte()` not to configure the USART again.
-    io::WRITER.set_initialized();
+    (*addr_of_mut!(io::WRITER)).set_initialized();
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
@@ -492,22 +493,24 @@ unsafe fn start() -> (
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let nucleo_f446re = NucleoF446RE {
-        console: console,
+        console,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
-        led: led,
-        button: button,
+        led,
+        button,
         adc: adc_syscall,
-        alarm: alarm,
+        alarm,
 
         temperature: temp,
-        gpio: gpio,
+        gpio,
 
         scheduler,
-        systick: cortexm4::systick::SysTick::new(),
+        systick: cortexm4::systick::SysTick::new_with_calibration(
+            (HSI_FREQUENCY_MHZ * 1_000_000) as u32,
+        ),
     };
 
     // // Optional kernel tests

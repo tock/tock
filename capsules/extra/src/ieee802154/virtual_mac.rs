@@ -75,7 +75,7 @@ impl<'a, M: device::MacDevice<'a>> device::RxClient for MuxMac<'a, M> {
 impl<'a, M: device::MacDevice<'a>> MuxMac<'a, M> {
     pub const fn new(mac: &'a M) -> MuxMac<'a, M> {
         MuxMac {
-            mac: mac,
+            mac,
             users: List::new(),
             inflight: OptionalCell::empty(),
         }
@@ -95,7 +95,7 @@ impl<'a, M: device::MacDevice<'a>> MuxMac<'a, M> {
         }
 
         let mnode = self.users.iter().find(|node| {
-            node.operation.take().map_or(false, |op| {
+            node.operation.take().is_some_and(|op| {
                 let pending = op != Op::Idle;
                 node.operation.replace(op);
                 pending
@@ -190,13 +190,16 @@ enum Op {
     Transmit(framer::Frame),
 }
 
-/// Keep state for each Mac user. All users of the virtualized MAC interface
-/// need to create one of these and register it with the MAC device muxer
-/// `MuxMac` by calling `MuxMac#add_user`. Then, each `MacUser` behaves exactly
-/// like an independent MAC device, except MAC device state is shared between
-/// all MacUsers because there is only one MAC device. For example, the MAC
-/// device address is shared, so calling `set_address` on one `MacUser` sets the
-/// MAC address for all `MacUser`s.
+/// Keep state for each Mac user.
+///
+/// All users of the virtualized MAC interface need to create one of
+/// these and register it with the MAC device muxer `MuxMac` by
+/// calling `MuxMac#add_user`. Then, each `MacUser` behaves exactly
+/// like an independent MAC device, except MAC device state is shared
+/// between all MacUsers because there is only one MAC device. For
+/// example, the MAC device address is shared, so calling
+/// `set_address` on one `MacUser` sets the MAC address for all
+/// `MacUser`s.
 pub struct MacUser<'a, M: device::MacDevice<'a>> {
     mux: &'a MuxMac<'a, M>,
     operation: MapCell<Op>,
@@ -208,7 +211,7 @@ pub struct MacUser<'a, M: device::MacDevice<'a>> {
 impl<'a, M: device::MacDevice<'a>> MacUser<'a, M> {
     pub const fn new(mux: &'a MuxMac<'a, M>) -> Self {
         Self {
-            mux: mux,
+            mux,
             operation: MapCell::new(Op::Idle),
             next: ListLink::empty(),
             tx_client: OptionalCell::empty(),
@@ -283,6 +286,10 @@ impl<'a, M: device::MacDevice<'a>> device::MacDevice<'a> for MacUser<'a, M> {
 
     fn is_on(&self) -> bool {
         self.mux.mac.is_on()
+    }
+
+    fn start(&self) -> Result<(), ErrorCode> {
+        self.mux.mac.start()
     }
 
     fn prepare_data_frame(

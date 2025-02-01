@@ -648,6 +648,39 @@ impl Deref for ReadWriteProcessBufferRef<'_> {
 // type so we alias it as `ReadWriteProcessBuffer`.
 pub type UserspaceReadableProcessBuffer = ReadWriteProcessBuffer;
 
+/// Equivalent of the Rust core library's
+/// [`SliceIndex`](core::slice::SliceIndex) type for process slices.
+///
+/// This helper trait is used to abstract over indexing operators into
+/// process slices, and is used to "overload" the `.get()` methods
+/// such that it can be called with multiple different indexing
+/// operators.
+///
+/// While we can use the core library's `SliceIndex` trait, parameterized over
+/// our own `ProcessSlice` types, this trait includes mandatory methods that are
+/// undesirable for the process buffer infrastructure, such as unchecked or
+/// mutable index operations. Furthermore, implementing it requires the
+/// `slice_index_methods` nightly feature. Thus we vendor our own, small variant
+/// of this trait.
+pub trait ProcessSliceIndex<PB: ?Sized>: private_process_slice_index::Sealed {
+    type Output: ?Sized;
+    fn get(self, slice: &PB) -> Option<&Self::Output>;
+    fn index(self, slice: &PB) -> &Self::Output;
+}
+
+// Analog to `private_slice_index` from
+// https://github.com/rust-lang/rust/blob/a1eceec00b2684f947481696ae2322e20d59db60/library/core/src/slice/index.rs#L149
+mod private_process_slice_index {
+    use core::ops::{Range, RangeFrom, RangeTo};
+
+    pub trait Sealed {}
+
+    impl Sealed for usize {}
+    impl Sealed for Range<usize> {}
+    impl Sealed for RangeFrom<usize> {}
+    impl Sealed for RangeTo<usize> {}
+}
+
 /// Read-only wrapper around a [`Cell`]
 ///
 /// This type is used in providing the [`ReadableProcessSlice`]. The
@@ -802,73 +835,81 @@ impl ReadableProcessSlice {
 
     /// Access a portion of the slice with bounds checking. If the access is not
     /// within the slice then `None` is returned.
-    pub fn get(&self, range: Range<usize>) -> Option<&ReadableProcessSlice> {
-        if let Some(slice) = self.slice.get(range) {
-            Some(cast_byte_slice_to_process_slice(slice))
-        } else {
-            None
-        }
+    pub fn get<I: ProcessSliceIndex<Self>>(
+        &self,
+        index: I,
+    ) -> Option<&<I as ProcessSliceIndex<Self>>::Output> {
+        index.get(self)
     }
 
     /// Access a portion of the slice with bounds checking. If the access is not
     /// within the slice then `None` is returned.
+    #[deprecated = "Use ReadableProcessSlice::get instead"]
     pub fn get_from(&self, range: RangeFrom<usize>) -> Option<&ReadableProcessSlice> {
-        if let Some(slice) = self.slice.get(range) {
-            Some(cast_byte_slice_to_process_slice(slice))
-        } else {
-            None
-        }
+        range.get(self)
     }
 
     /// Access a portion of the slice with bounds checking. If the access is not
     /// within the slice then `None` is returned.
+    #[deprecated = "Use ReadableProcessSlice::get instead"]
     pub fn get_to(&self, range: RangeTo<usize>) -> Option<&ReadableProcessSlice> {
-        if let Some(slice) = self.slice.get(range) {
-            Some(cast_byte_slice_to_process_slice(slice))
-        } else {
-            None
-        }
+        range.get(self)
     }
 }
 
-impl Index<Range<usize>> for ReadableProcessSlice {
-    // Subslicing will still yield a ReadableProcessSlice reference
-    type Output = Self;
-
-    fn index(&self, idx: Range<usize>) -> &Self::Output {
-        cast_byte_slice_to_process_slice(&self.slice[idx])
-    }
-}
-
-impl Index<RangeTo<usize>> for ReadableProcessSlice {
-    // Subslicing will still yield a ReadableProcessSlice reference
-    type Output = Self;
-
-    fn index(&self, idx: RangeTo<usize>) -> &Self::Output {
-        &self[0..idx.end]
-    }
-}
-
-impl Index<RangeFrom<usize>> for ReadableProcessSlice {
-    // Subslicing will still yield a ReadableProcessSlice reference
-    type Output = Self;
-
-    fn index(&self, idx: RangeFrom<usize>) -> &Self::Output {
-        &self[idx.start..self.len()]
-    }
-}
-
-impl Index<usize> for ReadableProcessSlice {
-    // Indexing into a ReadableProcessSlice must yield a
-    // ReadableProcessByte, to limit the API surface of the wrapped
-    // Cell to read-only operations
+impl ProcessSliceIndex<ReadableProcessSlice> for usize {
     type Output = ReadableProcessByte;
 
-    fn index(&self, idx: usize) -> &Self::Output {
-        // As ReadableProcessSlice is a transparent wrapper around its
-        // inner type, [ReadableProcessByte], we can use the regular
-        // slicing operator here with its usual semantics.
-        &self.slice[idx]
+    fn get(self, slice: &ReadableProcessSlice) -> Option<&Self::Output> {
+        slice.slice.get(self)
+    }
+
+    fn index(self, slice: &ReadableProcessSlice) -> &Self::Output {
+        &slice.slice[self]
+    }
+}
+
+impl ProcessSliceIndex<ReadableProcessSlice> for Range<usize> {
+    type Output = ReadableProcessSlice;
+
+    fn get(self, slice: &ReadableProcessSlice) -> Option<&Self::Output> {
+        slice.slice.get(self).map(cast_byte_slice_to_process_slice)
+    }
+
+    fn index(self, slice: &ReadableProcessSlice) -> &Self::Output {
+        cast_byte_slice_to_process_slice(&slice.slice[self])
+    }
+}
+
+impl ProcessSliceIndex<ReadableProcessSlice> for RangeFrom<usize> {
+    type Output = ReadableProcessSlice;
+
+    fn get(self, slice: &ReadableProcessSlice) -> Option<&Self::Output> {
+        slice.slice.get(self).map(cast_byte_slice_to_process_slice)
+    }
+
+    fn index(self, slice: &ReadableProcessSlice) -> &Self::Output {
+        cast_byte_slice_to_process_slice(&slice.slice[self])
+    }
+}
+
+impl ProcessSliceIndex<ReadableProcessSlice> for RangeTo<usize> {
+    type Output = ReadableProcessSlice;
+
+    fn get(self, slice: &ReadableProcessSlice) -> Option<&Self::Output> {
+        slice.slice.get(self).map(cast_byte_slice_to_process_slice)
+    }
+
+    fn index(self, slice: &ReadableProcessSlice) -> &Self::Output {
+        cast_byte_slice_to_process_slice(&slice.slice[self])
+    }
+}
+
+impl<I: ProcessSliceIndex<Self>> Index<I> for ReadableProcessSlice {
+    type Output = I::Output;
+
+    fn index(&self, index: I) -> &Self::Output {
+        index.index(self)
     }
 }
 
@@ -1039,71 +1080,80 @@ impl WriteableProcessSlice {
 
     /// Access a portion of the slice with bounds checking. If the access is not
     /// within the slice then `None` is returned.
-    pub fn get(&self, range: Range<usize>) -> Option<&WriteableProcessSlice> {
-        if let Some(slice) = self.slice.get(range) {
-            Some(cast_cell_slice_to_process_slice(slice))
-        } else {
-            None
-        }
+    pub fn get<I: ProcessSliceIndex<Self>>(
+        &self,
+        index: I,
+    ) -> Option<&<I as ProcessSliceIndex<Self>>::Output> {
+        index.get(self)
     }
 
     /// Access a portion of the slice with bounds checking. If the access is not
     /// within the slice then `None` is returned.
+    #[deprecated = "Use WriteableProcessSlice::get instead"]
     pub fn get_from(&self, range: RangeFrom<usize>) -> Option<&WriteableProcessSlice> {
-        if let Some(slice) = self.slice.get(range) {
-            Some(cast_cell_slice_to_process_slice(slice))
-        } else {
-            None
-        }
+        range.get(self)
     }
 
     /// Access a portion of the slice with bounds checking. If the access is not
     /// within the slice then `None` is returned.
+    #[deprecated = "Use WriteableProcessSlice::get instead"]
     pub fn get_to(&self, range: RangeTo<usize>) -> Option<&WriteableProcessSlice> {
-        if let Some(slice) = self.slice.get(range) {
-            Some(cast_cell_slice_to_process_slice(slice))
-        } else {
-            None
-        }
+        range.get(self)
     }
 }
 
-impl Index<Range<usize>> for WriteableProcessSlice {
-    // Subslicing will still yield a WriteableProcessSlice reference.
-    type Output = Self;
-
-    fn index(&self, idx: Range<usize>) -> &Self::Output {
-        cast_cell_slice_to_process_slice(&self.slice[idx])
-    }
-}
-
-impl Index<RangeTo<usize>> for WriteableProcessSlice {
-    // Subslicing will still yield a WriteableProcessSlice reference.
-    type Output = Self;
-
-    fn index(&self, idx: RangeTo<usize>) -> &Self::Output {
-        &self[0..idx.end]
-    }
-}
-
-impl Index<RangeFrom<usize>> for WriteableProcessSlice {
-    // Subslicing will still yield a WriteableProcessSlice reference.
-    type Output = Self;
-
-    fn index(&self, idx: RangeFrom<usize>) -> &Self::Output {
-        &self[idx.start..self.len()]
-    }
-}
-
-impl Index<usize> for WriteableProcessSlice {
-    // Indexing into a WriteableProcessSlice yields a Cell<u8>, as
-    // mutating the memory contents is allowed.
+impl ProcessSliceIndex<WriteableProcessSlice> for usize {
     type Output = Cell<u8>;
 
-    fn index(&self, idx: usize) -> &Self::Output {
-        // As WriteableProcessSlice is a transparent wrapper around
-        // its inner type, [Cell<u8>], we can use the regular slicing
-        // operator here with its usual semantics.
-        &self.slice[idx]
+    fn get(self, slice: &WriteableProcessSlice) -> Option<&Self::Output> {
+        slice.slice.get(self)
+    }
+
+    fn index(self, slice: &WriteableProcessSlice) -> &Self::Output {
+        &slice.slice[self]
+    }
+}
+
+impl ProcessSliceIndex<WriteableProcessSlice> for Range<usize> {
+    type Output = WriteableProcessSlice;
+
+    fn get(self, slice: &WriteableProcessSlice) -> Option<&Self::Output> {
+        slice.slice.get(self).map(cast_cell_slice_to_process_slice)
+    }
+
+    fn index(self, slice: &WriteableProcessSlice) -> &Self::Output {
+        cast_cell_slice_to_process_slice(&slice.slice[self])
+    }
+}
+
+impl ProcessSliceIndex<WriteableProcessSlice> for RangeFrom<usize> {
+    type Output = WriteableProcessSlice;
+
+    fn get(self, slice: &WriteableProcessSlice) -> Option<&Self::Output> {
+        slice.slice.get(self).map(cast_cell_slice_to_process_slice)
+    }
+
+    fn index(self, slice: &WriteableProcessSlice) -> &Self::Output {
+        cast_cell_slice_to_process_slice(&slice.slice[self])
+    }
+}
+
+impl ProcessSliceIndex<WriteableProcessSlice> for RangeTo<usize> {
+    type Output = WriteableProcessSlice;
+
+    fn get(self, slice: &WriteableProcessSlice) -> Option<&Self::Output> {
+        slice.slice.get(self).map(cast_cell_slice_to_process_slice)
+    }
+
+    fn index(self, slice: &WriteableProcessSlice) -> &Self::Output {
+        cast_cell_slice_to_process_slice(&slice.slice[self])
+    }
+}
+
+impl<I: ProcessSliceIndex<Self>> Index<I> for WriteableProcessSlice {
+    type Output = I::Output;
+
+    fn index(&self, index: I) -> &Self::Output {
+        index.index(self)
     }
 }

@@ -18,9 +18,11 @@ use crate::{
 };
 
 /// `FieldValueEnumSeq` is a debug helper trait representing a sequence of
-/// [field enum types](crate::fields::Field::read_as_enum). It provides methods
-/// to recurse through this sequence of types and thus call methods on them,
-/// such as [`try_from_value`](crate::fields::TryFromValue::try_from_value).
+/// [field enum types](crate::fields::Field::read_as_enum).
+///
+/// It provides methods to recurse through this sequence of types and
+/// thus call methods on them, such as
+/// [`try_from_value`](crate::fields::TryFromValue::try_from_value).
 ///
 /// Its primary use lies in the [`RegisterDebugInfo`] trait. This trait provides
 /// facilities useful for providing information on the layout of a register
@@ -170,8 +172,7 @@ where
 impl<T, E> fmt::Debug for RegisterDebugValue<T, E>
 where
     T: UIntLike + 'static,
-    E: RegisterDebugInfo<T>,
-    E: 'static,
+    E: RegisterDebugInfo<T> + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // This is using the core library's formatting facilities to produce an

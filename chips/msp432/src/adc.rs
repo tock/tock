@@ -740,7 +740,7 @@ impl<'a> Adc<'a> {
     }
 }
 
-impl<'a> dma::DmaClient for Adc<'a> {
+impl dma::DmaClient for Adc<'_> {
     fn transfer_done(
         &self,
         _tx_buf: Option<&'static mut [u8]>,

@@ -19,13 +19,16 @@ permissions:
 
 jobs:
   ci-build:
+    # Do not run job on forks
+    if: github.repository == 'tock/tock'
+
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: ci-job-syntax
         run: make ci-job-syntax
@@ -37,12 +40,15 @@ jobs:
       - name: ci-job-collect-artifacts
         run: make ci-job-collect-artifacts
       - name: upload-build-artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
           path: tools/ci-artifacts
 
   ci-tests:
+    # Do not run job on forks
+    if: github.repository == 'tock/tock'
+
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
@@ -61,7 +67,7 @@ jobs:
         run: |
           brew install zeromq
         if: matrix.os == 'macos-latest'
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: ci-job-libraries
         run: make ci-job-libraries
       - name: ci-job-archs
@@ -73,16 +79,16 @@ jobs:
       - name: ci-job-tools
         run: make ci-job-tools
       - name: Create Issue on Failed workflow
-          if: failure()
-          uses: dacbd/create-issue-action@main
-          with:
-            token: ${{ github.token }}
-            title: Nightly CI failed
-            body: |
-              ### Context
-              [Failed Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
-              [Codebase](https://github.com/${{ github.repository }}/tree/${{ github.sha }})
-              Workflow name - `${{ github.workflow }}`
-              Job -           `${{ github.job }}`
-              status -        `${{ job.status }}`
-            assignees: @tock/core-wg
+        if: failure()
+        uses: dacbd/create-issue-action@main
+        with:
+          token: ${{ github.token }}
+          title: Nightly CI failed
+          body: |
+            ### Context
+            [Failed Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            [Codebase](https://github.com/${{ github.repository }}/tree/${{ github.sha }})
+            Workflow name - `${{ github.workflow }}`
+            Job -           `${{ github.job }}`
+            status -        `${{ job.status }}`
+          assignees: tock/core-wg

@@ -2,16 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! Components for Console and ConsoleOrdered. These are two
-//! alternative implementations of the serial console system call
-//! interface. Console allows prints of arbitrary length but does not
-//! have ordering or atomicity guarantees. ConsoleOrdered, in
-//! contrast, has limits on the maximum lengths of prints but provides
-//! a temporal ordering and ensures a print is atomic at least up to
-//! particular length (typically 200 bytes). Console is useful when
-//! userspace is printing large messages. ConsoleOrdered is useful
-//! when you are debugging and there are inter-related messages from
-//! the kernel and userspace, whose ordering is important to maintain.
+//! Components for Console and ConsoleOrdered.
+//!
+//! These are two alternative implementations of the serial console
+//! system call interface. Console allows prints of arbitrary length
+//! but does not have ordering or atomicity
+//! guarantees. ConsoleOrdered, in contrast, has limits on the maximum
+//! lengths of prints but provides a temporal ordering and ensures a
+//! print is atomic at least up to particular length (typically 200
+//! bytes). Console is useful when userspace is printing large
+//! messages. ConsoleOrdered is useful when you are debugging and
+//! there are inter-related messages from the kernel and userspace,
+//! whose ordering is important to maintain.
 //!
 //!
 //! This provides three Components, `ConsoleComponent` and
@@ -135,9 +137,9 @@ impl<const RX_BUF_LEN: usize, const TX_BUF_LEN: usize> ConsoleComponent<RX_BUF_L
         uart_mux: &'static MuxUart,
     ) -> ConsoleComponent<RX_BUF_LEN, TX_BUF_LEN> {
         ConsoleComponent {
-            board_kernel: board_kernel,
-            driver_num: driver_num,
-            uart_mux: uart_mux,
+            board_kernel,
+            driver_num,
+            uart_mux,
         }
     }
 }
@@ -208,13 +210,13 @@ impl<A: 'static + time::Alarm<'static>> ConsoleOrderedComponent<A> {
         write_timer: u32,
     ) -> ConsoleOrderedComponent<A> {
         ConsoleOrderedComponent {
-            board_kernel: board_kernel,
-            driver_num: driver_num,
-            uart_mux: uart_mux,
-            alarm_mux: alarm_mux,
-            atomic_size: atomic_size,
-            retry_timer: retry_timer,
-            write_timer: write_timer,
+            board_kernel,
+            driver_num,
+            uart_mux,
+            alarm_mux,
+            atomic_size,
+            retry_timer,
+            write_timer,
         }
     }
 }

@@ -33,7 +33,7 @@ impl<'a, const NUM_PINS: usize> Pwm<'a, NUM_PINS> {
         assert!(u16::try_from(NUM_PINS).is_ok());
         const EMPTY: OptionalCell<ProcessId> = OptionalCell::empty();
         Pwm {
-            pwm_pins: pwm_pins,
+            pwm_pins,
             apps: grant,
             active_process: [EMPTY; NUM_PINS],
         }
@@ -61,7 +61,7 @@ impl<'a, const NUM_PINS: usize> Pwm<'a, NUM_PINS> {
 }
 
 /// Provide an interface for userland.
-impl<'a, const NUM_PINS: usize> SyscallDriver for Pwm<'a, NUM_PINS> {
+impl<const NUM_PINS: usize> SyscallDriver for Pwm<'_, NUM_PINS> {
     /// Command interface.
     ///
     /// ### `command_num`

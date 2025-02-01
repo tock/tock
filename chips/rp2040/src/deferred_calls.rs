@@ -26,8 +26,8 @@ impl TryFrom<usize> for DeferredCallTask {
     }
 }
 
-impl Into<usize> for DeferredCallTask {
-    fn into(self) -> usize {
-        self as usize
+impl From<DeferredCallTask> for usize {
+    fn from(val: DeferredCallTask) -> Self {
+        val as usize
     }
 }

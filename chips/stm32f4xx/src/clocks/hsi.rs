@@ -167,7 +167,7 @@ impl<'a> Hsi<'a> {
 ///
 /// **NOTE:** All these tests assume default boot configuration.
 pub mod tests {
-    use super::*;
+    use super::{debug, ErrorCode, Hsi, HSI_FREQUENCY_MHZ};
 
     /// Run the entire test suite.
     pub fn run(hsi: &Hsi) {

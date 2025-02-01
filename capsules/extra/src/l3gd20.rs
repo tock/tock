@@ -112,7 +112,8 @@ use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil::sensors;
 use kernel::hil::spi;
 use kernel::syscall::{CommandReturn, SyscallDriver};
-use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::cells::{MapCell, OptionalCell};
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::{ErrorCode, ProcessId};
 
 use capsules_core::driver;
@@ -186,8 +187,8 @@ pub struct App {}
 
 pub struct L3gd20Spi<'a, S: spi::SpiMasterDevice<'a>> {
     spi: &'a S,
-    txbuffer: TakeCell<'static, [u8]>,
-    rxbuffer: TakeCell<'static, [u8]>,
+    txbuffer: MapCell<SubSliceMut<'static, u8>>,
+    rxbuffer: MapCell<SubSliceMut<'static, u8>>,
     status: Cell<L3gd20Status>,
     hpf_enabled: Cell<bool>,
     hpf_mode: Cell<u8>,
@@ -208,16 +209,16 @@ impl<'a, S: spi::SpiMasterDevice<'a>> L3gd20Spi<'a, S> {
     ) -> L3gd20Spi<'a, S> {
         // setup and return struct
         L3gd20Spi {
-            spi: spi,
-            txbuffer: TakeCell::new(txbuffer),
-            rxbuffer: TakeCell::new(rxbuffer),
+            spi,
+            txbuffer: MapCell::new((&mut txbuffer[..]).into()),
+            rxbuffer: MapCell::new((&mut rxbuffer[..]).into()),
             status: Cell::new(L3gd20Status::Idle),
             hpf_enabled: Cell::new(false),
             hpf_mode: Cell::new(0),
             hpf_divider: Cell::new(0),
             scale: Cell::new(0),
             current_process: OptionalCell::empty(),
-            grants: grants,
+            grants,
             nine_dof_client: OptionalCell::empty(),
             temperature_client: OptionalCell::empty(),
         }
@@ -225,33 +226,39 @@ impl<'a, S: spi::SpiMasterDevice<'a>> L3gd20Spi<'a, S> {
 
     pub fn is_present(&self) -> bool {
         self.status.set(L3gd20Status::IsPresent);
-        self.txbuffer.take().map(|buf| {
+        self.txbuffer.take().map(|mut buf| {
+            buf.reset();
             buf[0] = L3GD20_REG_WHO_AM_I | 0x80;
             buf[1] = 0x00;
+            buf.slice(..2);
             // TODO verify SPI return value
-            let _ = self.spi.read_write_bytes(buf, self.rxbuffer.take(), 2);
+            let _ = self.spi.read_write_bytes(buf, self.rxbuffer.take());
         });
         false
     }
 
     pub fn power_on(&self) {
         self.status.set(L3gd20Status::PowerOn);
-        self.txbuffer.take().map(|buf| {
+        self.txbuffer.take().map(|mut buf| {
+            buf.reset();
             buf[0] = L3GD20_REG_CTRL_REG1;
             buf[1] = 0x0F;
+            buf.slice(..2);
             // TODO verify SPI return value
-            let _ = self.spi.read_write_bytes(buf, None, 2);
+            let _ = self.spi.read_write_bytes(buf, None);
         });
     }
 
     fn enable_hpf(&self, enabled: bool) {
         self.status.set(L3gd20Status::EnableHpf);
         self.hpf_enabled.set(enabled);
-        self.txbuffer.take().map(|buf| {
+        self.txbuffer.take().map(|mut buf| {
+            buf.reset();
             buf[0] = L3GD20_REG_CTRL_REG5;
             buf[1] = u8::from(enabled) << 4;
+            buf.slice(..2);
             // TODO verify SPI return value
-            let _ = self.spi.read_write_bytes(buf, None, 2);
+            let _ = self.spi.read_write_bytes(buf, None);
         });
     }
 
@@ -259,28 +266,33 @@ impl<'a, S: spi::SpiMasterDevice<'a>> L3gd20Spi<'a, S> {
         self.status.set(L3gd20Status::SetHpfParameters);
         self.hpf_mode.set(mode);
         self.hpf_divider.set(divider);
-        self.txbuffer.take().map(|buf| {
+        self.txbuffer.take().map(|mut buf| {
+            buf.reset();
             buf[0] = L3GD20_REG_CTRL_REG2;
             buf[1] = (mode & 0x03) << 4 | (divider & 0x0F);
+            buf.slice(..2);
             // TODO verify SPI return value
-            let _ = self.spi.read_write_bytes(buf, None, 2);
+            let _ = self.spi.read_write_bytes(buf, None);
         });
     }
 
     fn set_scale(&self, scale: u8) {
         self.status.set(L3gd20Status::SetScale);
         self.scale.set(scale);
-        self.txbuffer.take().map(|buf| {
+        self.txbuffer.take().map(|mut buf| {
+            buf.reset();
             buf[0] = L3GD20_REG_CTRL_REG4;
             buf[1] = (scale & 0x03) << 4;
+            buf.slice(..2);
             // TODO verify SPI return value
-            let _ = self.spi.read_write_bytes(buf, None, 2);
+            let _ = self.spi.read_write_bytes(buf, None);
         });
     }
 
     fn read_xyz(&self) {
         self.status.set(L3gd20Status::ReadXYZ);
-        self.txbuffer.take().map(|buf| {
+        self.txbuffer.take().map(|mut buf| {
+            buf.reset();
             buf[0] = L3GD20_REG_OUT_X_L | 0x80 | 0x40;
             buf[1] = 0x00;
             buf[2] = 0x00;
@@ -288,18 +300,21 @@ impl<'a, S: spi::SpiMasterDevice<'a>> L3gd20Spi<'a, S> {
             buf[4] = 0x00;
             buf[5] = 0x00;
             buf[6] = 0x00;
+            buf.slice(..7);
             // TODO verify SPI return value
-            let _ = self.spi.read_write_bytes(buf, self.rxbuffer.take(), 7);
+            let _ = self.spi.read_write_bytes(buf, self.rxbuffer.take());
         });
     }
 
     fn read_temperature(&self) {
         self.status.set(L3gd20Status::ReadTemperature);
-        self.txbuffer.take().map(|buf| {
+        self.txbuffer.take().map(|mut buf| {
+            buf.reset();
             buf[0] = L3GD20_REG_OUT_TEMP | 0x80;
             buf[1] = 0x00;
+            buf.slice(..2);
             // TODO verify SPI return value
-            let _ = self.spi.read_write_bytes(buf, self.rxbuffer.take(), 2);
+            let _ = self.spi.read_write_bytes(buf, self.rxbuffer.take());
         });
     }
 
@@ -417,10 +432,9 @@ impl<'a, S: spi::SpiMasterDevice<'a>> SyscallDriver for L3gd20Spi<'a, S> {
 impl<'a, S: spi::SpiMasterDevice<'a>> spi::SpiMasterClient for L3gd20Spi<'a, S> {
     fn read_write_done(
         &self,
-        write_buffer: &'static mut [u8],
-        read_buffer: Option<&'static mut [u8]>,
-        len: usize,
-        _status: Result<(), ErrorCode>,
+        write_buffer: SubSliceMut<'static, u8>,
+        read_buffer: Option<SubSliceMut<'static, u8>>,
+        status: Result<usize, ErrorCode>,
     ) {
         self.current_process.map(|proc_id| {
             let _result = self.grants.enter(proc_id, |_app, upcalls| {
@@ -442,7 +456,7 @@ impl<'a, S: spi::SpiMasterDevice<'a>> spi::SpiMasterClient for L3gd20Spi<'a, S> 
                         let mut y: usize = 0;
                         let mut z: usize = 0;
                         let values = if let Some(ref buf) = read_buffer {
-                            if len >= 7 {
+                            if status.unwrap_or(0) >= 7 {
                                 self.nine_dof_client.map(|client| {
                                     // compute using only integers
                                     let scale = match self.scale.get() {
@@ -490,7 +504,7 @@ impl<'a, S: spi::SpiMasterDevice<'a>> spi::SpiMasterClient for L3gd20Spi<'a, S> 
                     L3gd20Status::ReadTemperature => {
                         let mut temperature = 0;
                         let value = if let Some(ref buf) = read_buffer {
-                            if len >= 2 {
+                            if status.unwrap_or(0) >= 2 {
                                 temperature = buf[1] as i32;
                                 self.temperature_client.map(|client| {
                                     client.callback(Ok(temperature * 100));

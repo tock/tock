@@ -38,8 +38,11 @@ use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
 /// Handle keeping a list of active users of flash hardware and serialize their
-/// requests. After each completed request the list is checked to see if there
-/// is another flash user with an outstanding read, write, or erase request.
+/// requests.
+///
+/// After each completed request the list is checked to see if there
+/// is another flash user with an outstanding read, write, or erase
+/// request.
 pub struct MuxFlash<'a, F: hil::flash::Flash + 'static> {
     flash: &'a F,
     users: List<'a, FlashUser<'a, F>>,
@@ -80,7 +83,7 @@ impl<F: hil::flash::Flash> hil::flash::Client<F> for MuxFlash<'_, F> {
 impl<'a, F: hil::flash::Flash> MuxFlash<'a, F> {
     pub const fn new(flash: &'a F) -> MuxFlash<'a, F> {
         MuxFlash {
-            flash: flash,
+            flash,
             users: List::new(),
             inflight: OptionalCell::empty(),
         }
@@ -139,9 +142,11 @@ enum Op {
     Erase(usize),
 }
 
-/// Keep state for each flash user. All uses of the virtualized flash interface
-/// need to create one of these to be a user of the flash. The `new()` function
-/// handles most of the work, a user only has to pass in a reference to the
+/// Keeps state for each flash user.
+///
+/// All uses of the virtualized flash interface need to create one of
+/// these to be a user of the flash. The `new()` function handles most
+/// of the work, a user only has to pass in a reference to the
 /// MuxFlash object.
 pub struct FlashUser<'a, F: hil::flash::Flash + 'static> {
     mux: &'a MuxFlash<'a, F>,
@@ -154,7 +159,7 @@ pub struct FlashUser<'a, F: hil::flash::Flash + 'static> {
 impl<'a, F: hil::flash::Flash> FlashUser<'a, F> {
     pub fn new(mux: &'a MuxFlash<'a, F>) -> FlashUser<'a, F> {
         FlashUser {
-            mux: mux,
+            mux,
             buffer: TakeCell::empty(),
             operation: Cell::new(Op::Idle),
             next: ListLink::empty(),
@@ -172,7 +177,7 @@ impl<'a, F: hil::flash::Flash, C: hil::flash::Client<Self>> hil::flash::HasClien
     }
 }
 
-impl<'a, F: hil::flash::Flash> hil::flash::Client<F> for FlashUser<'a, F> {
+impl<F: hil::flash::Flash> hil::flash::Client<F> for FlashUser<'_, F> {
     fn read_complete(
         &self,
         pagebuffer: &'static mut F::Page,

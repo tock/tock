@@ -19,6 +19,7 @@ use capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM;
 
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::hil;
 use kernel::hil::buzzer::Buzzer;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
@@ -479,7 +480,7 @@ unsafe fn start() -> (
     // DEVICEADDR register on the nRF52 to set the serial number.
     let serial_number_buf = static_init!([u8; 17], [0; 17]);
     let serial_number_string: &'static str =
-        nrf52::ficr::FICR_INSTANCE.address_str(serial_number_buf);
+        (*addr_of!(nrf52::ficr::FICR_INSTANCE)).address_str(serial_number_buf);
     let strings = static_init!(
         [&str; 3],
         [
@@ -652,7 +653,9 @@ unsafe fn start() -> (
 
     let bus = components::bus::SpiMasterBusComponent::new(
         spi_mux,
-        &nrf52840_peripherals.gpio_port[ST7789H2_CS],
+        hil::spi::cs::IntoChipSelect::<_, hil::spi::cs::ActiveLow>::into_cs(
+            &nrf52840_peripherals.gpio_port[ST7789H2_CS],
+        ),
         20_000_000,
         kernel::hil::spi::ClockPhase::SampleLeading,
         kernel::hil::spi::ClockPolarity::IdleLow,
@@ -713,7 +716,7 @@ unsafe fn start() -> (
     kernel::deferred_call::DeferredCallClient::register(aes_mux);
     base_peripherals.ecb.set_client(aes_mux);
 
-    let device_id = nrf52840::ficr::FICR_INSTANCE.id();
+    let device_id = (*addr_of!(nrf52840::ficr::FICR_INSTANCE)).id();
 
     let device_id_bottom_16 = u16::from_le_bytes([device_id[0], device_id[1]]);
 
@@ -759,25 +762,25 @@ unsafe fn start() -> (
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let platform = Platform {
-        ble_radio: ble_radio,
-        ieee802154_radio: ieee802154_radio,
-        console: console,
-        proximity: proximity,
-        led: led,
-        gpio: gpio,
+        ble_radio,
+        ieee802154_radio,
+        console,
+        proximity,
+        led,
+        gpio,
         adc: adc_syscall,
-        screen: screen,
-        button: button,
-        rng: rng,
-        buzzer: buzzer,
-        alarm: alarm,
+        screen,
+        button,
+        rng,
+        buzzer,
+        alarm,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
-        temperature: temperature,
-        humidity: humidity,
+        temperature,
+        humidity,
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
     };

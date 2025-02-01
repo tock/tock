@@ -357,7 +357,7 @@ pub unsafe fn start() -> (
     // DEVICEADDR register on the nRF52 to set the serial number.
     let serial_number_buf = static_init!([u8; 17], [0; 17]);
     let serial_number_string: &'static str =
-        nrf52::ficr::FICR_INSTANCE.address_str(serial_number_buf);
+        (*addr_of!(nrf52::ficr::FICR_INSTANCE)).address_str(serial_number_buf);
     let strings = static_init!(
         [&str; 3],
         [
@@ -572,7 +572,7 @@ pub unsafe fn start() -> (
             nrf52840::aes::AesECB
         ));
 
-    let device_id = nrf52840::ficr::FICR_INSTANCE.id();
+    let device_id = (*addr_of!(nrf52840::ficr::FICR_INSTANCE)).id();
     let device_id_bottom_16 = u16::from_le_bytes([device_id[0], device_id[1]]);
     let (ieee802154_radio, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,
@@ -651,6 +651,23 @@ pub unsafe fn start() -> (
     let checker = components::appid::checker::ProcessCheckerMachineComponent::new(checking_policy)
         .finalize(components::process_checker_machine_component_static!());
 
+    //--------------------------------------------------------------------------
+    // STORAGE PERMISSIONS
+    //--------------------------------------------------------------------------
+
+    let storage_permissions_policy =
+        components::storage_permissions::individual::StoragePermissionsIndividualComponent::new()
+            .finalize(
+                components::storage_permissions_individual_component_static!(
+                    nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+                    kernel::process::ProcessStandardDebugFull,
+                ),
+            );
+
+    //--------------------------------------------------------------------------
+    // PROCESS LOADING
+    //--------------------------------------------------------------------------
+
     // Create and start the asynchronous process loader.
     let _loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
         checker,
@@ -659,9 +676,11 @@ pub unsafe fn start() -> (
         chip,
         &FAULT_RESPONSE,
         assigner,
+        storage_permissions_policy,
     )
     .finalize(components::process_loader_sequential_component_static!(
         nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+        kernel::process::ProcessStandardDebugFull,
         NUM_PROCS
     ));
 

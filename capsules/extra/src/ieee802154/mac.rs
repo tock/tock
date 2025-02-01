@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! Specifies the interface for IEEE 802.15.4 MAC protocol layers. MAC protocols
-//! expose similar configuration (address, PAN, transmission power) options
-//! as ieee802154::device::MacDevice layers above it, but retain control over
-//! radio power management and channel selection. All frame processing should
-//! be completed above this layer such that Mac implementations receive fully
+//! Specifies the interface for IEEE 802.15.4 MAC protocol layers.
+//!
+//! MAC protocols expose similar configuration (address, PAN,
+//! transmission power) options as ieee802154::device::MacDevice
+//! layers above it, but retain control over radio power management
+//! and channel selection. All frame processing should be completed
+//! above this layer such that Mac implementations receive fully
 //! formatted 802.15.4 MAC frames for transmission.
 //!
 //! AwakeMac provides a default implementation of such a layer, maintaining
@@ -55,6 +57,17 @@ pub trait Mac<'a> {
     /// Indicates whether or not the MAC protocol is active and can send frames
     fn is_on(&self) -> bool;
 
+    /// Start the radio.
+    ///
+    /// This serves as a passthrough to the underlying radio's `start` method.
+    ///
+    /// ## Return
+    ///
+    /// `Ok(())` on success. On `Err()`, valid errors are:
+    ///
+    /// - `ErrorCode::FAIL`: Internal error occurred.
+    fn start(&self) -> Result<(), ErrorCode>;
+
     /// Transmits complete MAC frames, which must be prepared by an ieee802154::device::MacDevice
     /// before being passed to the Mac layer. Returns the frame buffer in case of an error.
     fn transmit(
@@ -79,7 +92,7 @@ pub struct AwakeMac<'a, R: radio::Radio<'a>> {
 impl<'a, R: radio::Radio<'a>> AwakeMac<'a, R> {
     pub fn new(radio: &'a R) -> AwakeMac<'a, R> {
         AwakeMac {
-            radio: radio,
+            radio,
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
         }
@@ -94,6 +107,10 @@ impl<'a, R: radio::Radio<'a>> Mac<'a> for AwakeMac<'a, R> {
 
     fn is_on(&self) -> bool {
         self.radio.is_on()
+    }
+
+    fn start(&self) -> Result<(), ErrorCode> {
+        self.radio.start()
     }
 
     fn set_config_client(&self, client: &'a dyn radio::ConfigClient) {

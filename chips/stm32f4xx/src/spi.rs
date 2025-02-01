@@ -4,6 +4,7 @@
 
 use core::cell::Cell;
 use core::cmp;
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
 
 use kernel::hil;
@@ -187,9 +188,9 @@ impl<'a> Spi<'a> {
             master_client: OptionalCell::empty(),
 
             tx_dma: OptionalCell::empty(),
-            tx_dma_pid: tx_dma_pid,
+            tx_dma_pid,
             rx_dma: OptionalCell::empty(),
-            rx_dma_pid: rx_dma_pid,
+            rx_dma_pid,
 
             dma_len: Cell::new(0),
             transfers_in_progress: Cell::new(0),
@@ -287,29 +288,21 @@ impl<'a> Spi<'a> {
 
     fn read_write_bytes(
         &self,
-        write_buffer: Option<&'static mut [u8]>,
-        read_buffer: Option<&'static mut [u8]>,
-        len: usize,
+        write_buffer: SubSliceMut<'static, u8>,
+        read_buffer: Option<SubSliceMut<'static, u8>>,
     ) -> Result<
         (),
         (
             ErrorCode,
-            Option<&'static mut [u8]>,
-            Option<&'static mut [u8]>,
+            SubSliceMut<'static, u8>,
+            Option<SubSliceMut<'static, u8>>,
         ),
     > {
-        if write_buffer.is_none() && read_buffer.is_none() {
-            return Err((ErrorCode::INVAL, write_buffer, read_buffer));
-        }
-
         self.active_slave.map(|p| {
             p.clear();
         });
 
-        let mut count: usize = len;
-        write_buffer
-            .as_ref()
-            .map(|buf| count = cmp::min(count, buf.len()));
+        let mut count: usize = write_buffer.len();
         read_buffer
             .as_ref()
             .map(|buf| count = cmp::min(count, buf.len()));
@@ -322,19 +315,17 @@ impl<'a> Spi<'a> {
             self.transfers_in_progress
                 .set(self.transfers_in_progress.get() + 1);
             self.rx_dma.map(move |dma| {
-                dma.do_transfer(rx_buffer, count);
+                dma.do_transfer(rx_buffer);
             });
             self.enable_rx();
         });
 
-        write_buffer.map(|tx_buffer| {
-            self.transfers_in_progress
-                .set(self.transfers_in_progress.get() + 1);
-            self.tx_dma.map(move |dma| {
-                dma.do_transfer(tx_buffer, count);
-            });
-            self.enable_tx();
+        self.transfers_in_progress
+            .set(self.transfers_in_progress.get() + 1);
+        self.tx_dma.map(move |dma| {
+            dma.do_transfer(write_buffer);
         });
+        self.enable_tx();
 
         Ok(())
     }
@@ -397,22 +388,22 @@ impl<'a> spi::SpiMaster<'a> for Spi<'a> {
 
     fn read_write_bytes(
         &self,
-        write_buffer: &'static mut [u8],
-        read_buffer: Option<&'static mut [u8]>,
-        len: usize,
-    ) -> Result<(), (ErrorCode, &'static mut [u8], Option<&'static mut [u8]>)> {
+        write_buffer: SubSliceMut<'static, u8>,
+        read_buffer: Option<SubSliceMut<'static, u8>>,
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            SubSliceMut<'static, u8>,
+            Option<SubSliceMut<'static, u8>>,
+        ),
+    > {
         // If busy, don't start
         if self.is_busy() {
             return Err((ErrorCode::BUSY, write_buffer, read_buffer));
         }
 
-        if let Err((e, write_buffer, read_buffer)) =
-            self.read_write_bytes(Some(write_buffer), read_buffer, len)
-        {
-            Err((e, write_buffer.unwrap(), read_buffer))
-        } else {
-            Ok(())
-        }
+        self.read_write_bytes(write_buffer, read_buffer)
     }
 
     /// We *only* support 1Mhz and 4MHz. If `rate` is set to any value other than
@@ -503,7 +494,7 @@ impl<'a> dma::StreamClient<'a, Dma1<'a>> for Spi<'a> {
 
             self.master_client.map(|client| {
                 tx_buffer.map(|t| {
-                    client.read_write_done(t, rx_buffer, length, Ok(()));
+                    client.read_write_done(t, rx_buffer, Ok(length));
                 });
             });
         }

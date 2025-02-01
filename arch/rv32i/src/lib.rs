@@ -10,9 +10,6 @@
 
 use core::fmt::Write;
 
-#[cfg(all(target_arch = "riscv32", target_os = "none"))]
-use core::arch::global_asm;
-
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 
 pub mod clic;
@@ -47,7 +44,7 @@ extern "C" {
     static __global_pointer: usize;
 }
 
-#[cfg(all(target_arch = "riscv32", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
 extern "C" {
     // Entry point of all programs (`_start`).
     ///
@@ -56,14 +53,14 @@ extern "C" {
     /// 1. It initializes the stack pointer, the frame pointer (needed for closures
     ///    to work in start_rust) and the global pointer.
     /// 2. It initializes the .bss and .data RAM segments. This must be done before
-    ///    any Rust code runs. See https://github.com/tock/tock/issues/2222 for more
+    ///    any Rust code runs. See <https://github.com/tock/tock/issues/2222> for more
     ///    information.
     /// 3. Finally it calls `main()`, the main entry point for Tock boards.
     pub fn _start();
 }
 
-#[cfg(all(target_arch = "riscv32", target_os = "none"))]
-global_asm! ("
+#[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
+core::arch::global_asm!("
             .section .riscv.start, \"ax\"
             .globl _start
           _start:
@@ -175,12 +172,12 @@ pub unsafe fn configure_trap_handler() {
 }
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
+#[cfg(not(any(doc, all(target_arch = "riscv32", target_os = "none"))))]
 pub extern "C" fn _start_trap() {
     unimplemented!()
 }
 
-#[cfg(all(target_arch = "riscv32", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
 extern "C" {
     /// This is the trap handler function. This code is called on all traps,
     /// including interrupts, exceptions, and system calls from applications.
@@ -204,7 +201,7 @@ extern "C" {
     /// If it contains any other value, we interpret it to be a memory address
     /// pointing to a particular data structure:
     ///
-    /// ```
+    /// ```text
     /// mscratch           0               1               2               3
     ///  \->|--------------------------------------------------------------|
     ///     | scratch word, overwritten with s1 register contents          |
@@ -271,8 +268,8 @@ extern "C" {
     pub fn _start_trap();
 }
 
-#[cfg(all(target_arch = "riscv32", target_os = "none"))]
-global_asm!(
+#[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
+core::arch::global_asm!(
     "
             .section .riscv.trap, \"ax\"
             .globl _start_trap
@@ -388,16 +385,16 @@ global_asm!(
 
 /// RISC-V semihosting needs three exact instructions in uncompressed form.
 ///
-/// See https://github.com/riscv/riscv-semihosting-spec/blob/main/riscv-semihosting-spec.adoc#11-semihosting-trap-instruction-sequence
-/// for more details on the three insturctions.
+/// See <https://github.com/riscv/riscv-semihosting-spec/blob/main/riscv-semihosting-spec.adoc#11-semihosting-trap-instruction-sequence>
+/// for more details on the three instructions.
 ///
 /// In order to work with semihosting we include the assembly here
 /// where we are able to disable compressed instruction support. This
 /// follows the example used in the Linux kernel:
-/// https://elixir.bootlin.com/linux/v5.12.10/source/arch/riscv/include/asm/jump_label.h#L21
+/// <https://elixir.bootlin.com/linux/v5.12.10/source/arch/riscv/include/asm/jump_label.h#L21>
 /// as suggested by the RISC-V developers:
-/// https://groups.google.com/a/groups.riscv.org/g/isa-dev/c/XKkYacERM04/m/CdpOcqtRAgAJ
-#[cfg(all(target_arch = "riscv32", target_os = "none"))]
+/// <https://groups.google.com/a/groups.riscv.org/g/isa-dev/c/XKkYacERM04/m/CdpOcqtRAgAJ>
+#[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
 pub unsafe fn semihost_command(command: usize, arg0: usize, arg1: usize) -> usize {
     use core::arch::asm;
     let res;
@@ -421,7 +418,7 @@ pub unsafe fn semihost_command(command: usize, arg0: usize, arg1: usize) -> usiz
 }
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
+#[cfg(not(any(doc, all(target_arch = "riscv32", target_os = "none"))))]
 pub unsafe fn semihost_command(_command: usize, _arg0: usize, _arg1: usize) -> usize {
     unimplemented!()
 }

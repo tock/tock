@@ -4,8 +4,6 @@
 
 # Makefile for building the tock kernel for the OpenTitan platform
 
-TARGET=riscv32imc-unknown-none-elf
-PLATFORM=earlgrey-cw310
 FLASHID=--dev-id="0403:6010"
 RISC_PREFIX ?= riscv64-linux-gnu
 QEMU ?= ../../../tools/qemu/build/qemu-system-riscv32
@@ -17,8 +15,6 @@ QEMU_ENTRY_POINT=0x20000400
 # earlgrey_es branch. earlgrey_es is what is being taped out in the first
 # Earlgrey chip.
 OPENTITAN_SUPPORTED_SHA := edf5e35f5d50a5377641c90a315109a351de7635
-# Enable virtual function elimination
-VFUNC_ELIM=1
 
 
 include ../../Makefile.common
@@ -26,12 +22,22 @@ include ../../Makefile.common
 # Pass OpenTitan board configuration option in `BOARD_CONFIGURATION` through
 # Cargo `--features`. Please see `Cargo.toml` for available options.
 ifneq ($(BOARD_CONFIGURATION),)
-	CARGO_FLAGS += --no-default-features --features=$(BOARD_CONFIGURATION)
+	CARGO_FLAGS = --no-default-features --features=$(BOARD_CONFIGURATION)
 endif
 
-# Build test crates with the `panic = "abort"` strategy. Tests use `unwind` by
-# default which causes incompatability with `core` built via `-Zbuild-std`.
-CARGO_FLAGS += -Zpanic-abort-tests
+.PHONY: check
+check:
+	$(Q)$(CARGO) check $(VERBOSE_FLAGS) $(CARGO_FLAGS)
+
+.PHONY: $(TARGET_PATH)/release/$(PLATFORM)
+$(TARGET_PATH)/release/$(PLATFORM):
+	$(Q)$(CARGO) build $(VERBOSE_FLAGS) $(CARGO_FLAGS) --release
+	$(Q)$(SIZE) $(SIZE_FLAGS) $@
+
+.PHONY: $(TARGET_PATH)/debug/$(PLATFORM)
+$(TARGET_PATH)/debug/$(PLATFORM):
+	$(Q)$(CARGO) build $(VERBOSE_FLAGS) $(CARGO_FLAGS)
+	$(Q)$(SIZE) $(SIZE_FLAGS) $@
 
 .PHONY: ot-check
 ifneq ($(OPENTITAN_TREE),)
@@ -75,7 +81,8 @@ flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 	$(OPENTITAN_TREE)/bazel-bin/sw/host/opentitantool/opentitantool.runfiles/lowrisc_opentitan/sw/host/opentitantool/opentitantool --interface=cw310 bootstrap $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
 
 flash-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
-	$(RISC_PREFIX)-objcopy --update-section .apps=$(APP) $^ $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.elf
+	$(RISC_PREFIX)-objcopy --set-section-flags .apps=LOAD,ALLOC $^ $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.elf
+	$(RISC_PREFIX)-objcopy --update-section .apps=$(APP) $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.elf
 	$(RISC_PREFIX)-objcopy --output-target=binary $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.elf $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.bin
 	$(OPENTITAN_TREE)/bazel-bin/sw/host/opentitantool/opentitantool.runfiles/lowrisc_opentitan/sw/host/opentitantool/opentitantool --interface=cw310 bootstrap $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.bin
 
@@ -85,7 +92,8 @@ verilator: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	$(RISC_PREFIX)-objcopy $^ $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)_verilator.elf
 ifneq ($(APP),)
 		$(info [CW-130: Verilator]: Linking App)
-		$(RISC_PREFIX)-objcopy --update-section .apps=$(APP) $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)_verilator.elf $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)_verilator.elf
+		$(RISC_PREFIX)-objcopy --set-section-flags .apps=LOAD,ALLOC $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)_verilator.elf $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)_verilator.elf
+		$(RISC_PREFIX)-objcopy --update-section .apps=$(APP) $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)_verilator.elf
 endif
 	$(info [CW-130: Verilator]: Starting)
 	$(RISC_PREFIX)-objcopy --output-target=binary $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)_verilator.elf $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)_verilator.bin
@@ -102,19 +110,10 @@ test:
 ifneq ($(OPENTITAN_TREE),)
 	$(error "Running on QEMU, use test-hardware to run on hardware")
 endif
-	mkdir -p $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
-	$(Q)cp test_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/layout.ld
-	$(Q)cp ../../kernel_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/
-	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" TOCK_ROOT_DIRECTORY=${TOCK_ROOT_DIRECTORY} QEMU_ENTRY_POINT=${QEMU_ENTRY_POINT} TARGET=${TARGET} $(CARGO) test $(CARGO_FLAGS_TOCK) $(NO_RUN) --bin $(PLATFORM) --release
+	$(Q)TOCK_ROOT_DIRECTORY=${TOCK_ROOT_DIRECTORY} QEMU_ENTRY_POINT=${QEMU_ENTRY_POINT} TARGET=${TARGET} LINKER_SCRIPT_OVERRIDE=test_layout.ld $(CARGO) test $(CARGO_FLAGS) $(NO_RUN) --bin $(PLATFORM) --release
 
 test-hardware: ot-check
-	mkdir -p $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
-	$(Q)cp test_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/layout.ld
-	$(Q)cp ../../kernel_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/
-	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" OBJCOPY=$(RISC_PREFIX)-objcopy TOCK_ROOT_DIRECTORY=${TOCK_ROOT_DIRECTORY} TARGET=${TARGET} $(CARGO) test $(CARGO_FLAGS_TOCK) $(NO_RUN) --bin $(PLATFORM) --release --features=hardware_tests
+	$(Q)OBJCOPY=$(RISC_PREFIX)-objcopy TOCK_ROOT_DIRECTORY=${TOCK_ROOT_DIRECTORY} TARGET=${TARGET} LINKER_SCRIPT_OVERRIDE=test_layout.ld $(CARGO) test $(CARGO_FLAGS) $(NO_RUN) --bin $(PLATFORM) --release --features=hardware_tests
 
 test-verilator: ot-check
-	mkdir -p $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/
-	$(Q)cp test_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/deps/layout.ld
-	$(Q)cp ../../kernel_layout.ld $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/
-	$(Q)RUSTFLAGS="$(RUSTC_FLAGS_TOCK)" VERILATOR="yes" OBJCOPY=$(RISC_PREFIX)-objcopy TOCK_ROOT_DIRECTORY=${TOCK_ROOT_DIRECTORY} TARGET=${TARGET} $(CARGO) test $(CARGO_FLAGS_TOCK) $(NO_RUN) --bin $(PLATFORM) --release --features=hardware_tests,sim_verilator
+	$(Q)VERILATOR="yes" OBJCOPY=$(RISC_PREFIX)-objcopy TOCK_ROOT_DIRECTORY=${TOCK_ROOT_DIRECTORY} TARGET=${TARGET} LINKER_SCRIPT_OVERRIDE=test_layout.ld $(CARGO) test $(CARGO_FLAGS) $(NO_RUN) --bin $(PLATFORM) --release --features=hardware_tests,sim_verilator

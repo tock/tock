@@ -413,12 +413,14 @@ impl DescriptorBuffer {
 }
 
 /// Transform descriptor structs into descriptor buffers that can be
-/// passed into the control endpoint handler. Each endpoint descriptor list
-/// corresponds to the matching index in the interface descriptor list. For
-/// example, if the interface descriptor list contains `[ID1, ID2, ID3]`,
-/// and the endpoint descriptors list is `[[ED1, ED2], [ED3, ED4, ED5],
-/// [ED6]]`, then the third interface descriptor (`ID3`) has one
-/// corresponding endpoint descriptor (`ED6`).
+/// passed into the control endpoint handler.
+///
+/// Each endpoint descriptor list corresponds to the matching index in
+/// the interface descriptor list. For example, if the interface
+/// descriptor list contains `[ID1, ID2, ID3]`, and the endpoint
+/// descriptors list is `[[ED1, ED2], [ED3, ED4, ED5], [ED6]]`, then
+/// the third interface descriptor (`ID3`) has one corresponding
+/// endpoint descriptor (`ED6`).
 pub fn create_descriptor_buffers(
     device_descriptor: DeviceDescriptor,
     mut configuration_descriptor: ConfigurationDescriptor,
@@ -757,7 +759,7 @@ pub struct HIDSubordinateDescriptor {
     pub len: u16,
 }
 
-impl<'a> Descriptor for HIDDescriptor<'a> {
+impl Descriptor for HIDDescriptor<'_> {
     fn size(&self) -> usize {
         6 + (3 * self.sub_descriptors.len())
     }
@@ -781,7 +783,7 @@ pub struct ReportDescriptor<'a> {
     pub desc: &'a [u8],
 }
 
-impl<'a> Descriptor for ReportDescriptor<'a> {
+impl Descriptor for ReportDescriptor<'_> {
     fn size(&self) -> usize {
         self.desc.len()
     }
@@ -892,7 +894,7 @@ pub struct LanguagesDescriptor<'a> {
     pub langs: &'a [u16],
 }
 
-impl<'a> Descriptor for LanguagesDescriptor<'a> {
+impl Descriptor for LanguagesDescriptor<'_> {
     fn size(&self) -> usize {
         2 + (2 * self.langs.len())
     }
@@ -912,7 +914,7 @@ pub struct StringDescriptor<'a> {
     pub string: &'a str,
 }
 
-impl<'a> Descriptor for StringDescriptor<'a> {
+impl Descriptor for StringDescriptor<'_> {
     fn size(&self) -> usize {
         let mut len = 2;
         for ch in self.string.chars() {

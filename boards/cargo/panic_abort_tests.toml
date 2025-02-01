@@ -1,0 +1,9 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2024.
+
+[unstable]
+# Build test crates with the `panic = "abort"` strategy. Tests use `unwind` by
+# default which causes incompatibility with `core` built via `-Zbuild-std`.
+# This should be included on platforms that have tests defined.
+panic-abort-tests = true

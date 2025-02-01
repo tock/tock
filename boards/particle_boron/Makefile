@@ -4,9 +4,6 @@
 
 # Makefile for building the tock kernel for the Particle Boron
 
-TARGET=thumbv7em-none-eabi
-PLATFORM=particle_boron
-
 include ../Makefile.common
 
 TOCKLOADER=tockloader

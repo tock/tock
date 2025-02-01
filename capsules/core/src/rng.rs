@@ -2,9 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! Library of randomness structures, including a system call driver for
-//! userspace applications to request randomness, entropy conversion, entropy
-//! to randomness conversion, and synchronous random number generation.
+//! Library of randomness structures.
+//!
+//! A library for randomness structures including a system call driver
+//! for userspace applications to request randomness, entropy
+//! conversion, entropy to randomness conversion, and synchronous
+//! random number generation.
 //!
 //!
 //! The RNG accepts a user-defined callback and buffer to hold received
@@ -65,7 +68,7 @@ impl<'a, R: Rng<'a>> RngDriver<'a, R> {
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<{ rw_allow::COUNT }>>,
     ) -> Self {
         Self {
-            rng: rng,
+            rng,
             apps: grant,
             getting_randomness: Cell::new(false),
         }
@@ -225,7 +228,7 @@ pub struct Entropy32ToRandom<'a, E: Entropy32<'a>> {
 impl<'a, E: Entropy32<'a>> Entropy32ToRandom<'a, E> {
     pub fn new(egen: &'a E) -> Self {
         Self {
-            egen: egen,
+            egen,
             client: OptionalCell::empty(),
         }
     }
@@ -288,7 +291,7 @@ pub struct Entropy8To32<'a, E: Entropy8<'a>> {
 impl<'a, E: Entropy8<'a>> Entropy8To32<'a, E> {
     pub fn new(egen: &'a E) -> Self {
         Self {
-            egen: egen,
+            egen,
             client: OptionalCell::empty(),
             count: Cell::new(0),
             bytes: Cell::new(0),
@@ -384,7 +387,7 @@ pub struct Entropy32To8<'a, E: Entropy32<'a>> {
 impl<'a, E: Entropy32<'a>> Entropy32To8<'a, E> {
     pub fn new(egen: &'a E) -> Self {
         Self {
-            egen: egen,
+            egen,
             client: OptionalCell::empty(),
             entropy: Cell::new(0),
             bytes_consumed: Cell::new(0),
@@ -469,7 +472,7 @@ pub struct SynchronousRandom<'a, R: Rng<'a>> {
 impl<'a, R: Rng<'a>> SynchronousRandom<'a, R> {
     fn new(rgen: &'a R) -> Self {
         Self {
-            rgen: rgen,
+            rgen,
             seed: Cell::new(0),
         }
     }

@@ -165,7 +165,7 @@ extern "C" {
     fn jump_to_bootloader();
 }
 
-#[cfg(all(target_arch = "arm", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 core::arch::global_asm!(
     "
     .section .jump_to_bootloader, \"ax\"
@@ -294,7 +294,7 @@ pub unsafe fn start() -> (
     peripherals.resets.unreset_all_except(&[], true);
 
     // Set the UART used for panic
-    io::WRITER.set_uart(&peripherals.uart0);
+    (*addr_of_mut!(io::WRITER)).set_uart(&peripherals.uart0);
 
     //set RX and TX pins in UART mode
     let gpio_tx = peripherals.pins.get_pin(RPGpio::GPIO0);

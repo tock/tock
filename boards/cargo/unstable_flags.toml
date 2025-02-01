@@ -1,0 +1,19 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2024.
+
+[unstable]
+unstable-options = true
+# - `-Z build-std=core,compiler_builtins`: Build the std library from source
+#   using our optimization settings. This leads to significantly smaller binary
+#   sizes, and makes debugging easier since debug information for the core
+#   library is included in the resulting .elf file. See
+#   https://github.com/tock/tock/pull/2847 for more details.
+build-std = ["core", "compiler_builtins" ]
+# - `optimize_for_size`: Sets a feature flag in the core library that aims to
+#   produce smaller implementations for certain algorithms. See
+#   https://github.com/rust-lang/rust/pull/125011 for more details.
+build-std-features = ["core/optimize_for_size"]
+# Remove machine-specific paths from the binary. This helps create reproducible
+# builds.
+trim-paths = true

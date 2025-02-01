@@ -231,7 +231,7 @@ const USBC_BASE: StaticRef<UsbcRegisters> =
 
 #[inline]
 fn usbc_regs() -> &'static UsbcRegisters {
-    &*USBC_BASE
+    &USBC_BASE
 }
 
 // Datastructures for tracking USB controller state
@@ -473,7 +473,7 @@ impl<'a> Usbc<'a> {
 
     /// Provide a buffer for transfers in and out of the given endpoint
     /// (The controller need not be enabled before calling this method.)
-    fn _endpoint_bank_set_buffer(
+    fn endpoint_bank_set_buffer(
         &self,
         endpoint: EndpointIndex,
         bank: BankIndex,
@@ -493,7 +493,7 @@ impl<'a> Usbc<'a> {
     }
 
     /// Enable the controller's clocks and interrupt and transition to Idle state
-    fn _enable(&self, mode: Mode) {
+    fn enable(&self, mode: Mode) {
         match self.get_state() {
             State::Reset => {
                 // Are the USBC clocks enabled at reset?
@@ -557,7 +557,7 @@ impl<'a> Usbc<'a> {
     fn _disable(&self) {
         // Detach if necessary
         if let State::Active(_) = self.get_state() {
-            self._detach();
+            self.detach();
         }
 
         // Disable USBC and its clocks
@@ -575,7 +575,7 @@ impl<'a> Usbc<'a> {
     }
 
     /// Attach to the USB bus after enabling USB bus clock
-    fn _attach(&self) {
+    fn attach(&self) {
         match self.get_state() {
             State::Idle(mode) => {
                 if self.pm.get_system_frequency() != 48000000 {
@@ -598,7 +598,7 @@ impl<'a> Usbc<'a> {
     }
 
     /// Detach from the USB bus.  Also disable USB bus clock to save energy.
-    fn _detach(&self) {
+    fn detach(&self) {
         match self.get_state() {
             State::Active(mode) => {
                 usbc_regs().udcon.modify(DeviceControl::DETACH::SET);
@@ -612,9 +612,9 @@ impl<'a> Usbc<'a> {
     }
 
     /// Configure and enable an endpoint
-    fn _endpoint_enable(&self, endpoint: usize, endpoint_config: EndpointConfigValue) {
-        self._endpoint_record_config(endpoint, endpoint_config);
-        self._endpoint_write_config(endpoint, endpoint_config);
+    fn endpoint_enable(&self, endpoint: usize, endpoint_config: EndpointConfigValue) {
+        self.endpoint_record_config(endpoint, endpoint_config);
+        self.endpoint_write_config(endpoint, endpoint_config);
 
         // Enable the endpoint (meaning the controller will respond to requests
         // to this endpoint)
@@ -622,7 +622,7 @@ impl<'a> Usbc<'a> {
             .uerst
             .set(usbc_regs().uerst.get() | (1 << endpoint));
 
-        self._endpoint_init(endpoint, endpoint_config);
+        self.endpoint_init(endpoint, endpoint_config);
 
         // Set EPnINTE, enabling interrupts for this endpoint
         usbc_regs().udinteset.set(1 << (12 + endpoint));
@@ -630,7 +630,7 @@ impl<'a> Usbc<'a> {
         debug1!("Enabled endpoint {}", endpoint);
     }
 
-    fn _endpoint_record_config(&self, endpoint: usize, endpoint_config: EndpointConfigValue) {
+    fn endpoint_record_config(&self, endpoint: usize, endpoint_config: EndpointConfigValue) {
         // Record config in case of later bus reset
         self.map_state(|state| match *state {
             State::Reset => {
@@ -648,7 +648,7 @@ impl<'a> Usbc<'a> {
         });
     }
 
-    fn _endpoint_write_config(&self, endpoint: usize, config: EndpointConfigValue) {
+    fn endpoint_write_config(&self, endpoint: usize, config: EndpointConfigValue) {
         // This must be performed after each bus reset
 
         // Configure the endpoint
@@ -657,19 +657,19 @@ impl<'a> Usbc<'a> {
         debug1!("Configured endpoint {}", endpoint);
     }
 
-    fn _endpoint_init(&self, endpoint: usize, config: EndpointConfigValue) {
+    fn endpoint_init(&self, endpoint: usize, config: EndpointConfigValue) {
         self.map_state(|state| match *state {
             State::Idle(Mode::Device { ref mut state, .. }) => {
-                self._endpoint_init_with_device_state(state, endpoint, config);
+                self.endpoint_init_with_device_state(state, endpoint, config);
             }
             State::Active(Mode::Device { ref mut state, .. }) => {
-                self._endpoint_init_with_device_state(state, endpoint, config);
+                self.endpoint_init_with_device_state(state, endpoint, config);
             }
             _ => internal_err!("Not reached"),
         });
     }
 
-    fn _endpoint_init_with_device_state(
+    fn endpoint_init_with_device_state(
         &self,
         state: &mut DeviceState,
         endpoint: usize,
@@ -698,7 +698,7 @@ impl<'a> Usbc<'a> {
         debug1!("Initialized endpoint {}", endpoint);
     }
 
-    fn _endpoint_resume_in(&self, endpoint: usize) {
+    fn endpoint_resume_in(&self, endpoint: usize) {
         self.map_state(|state| match *state {
             State::Active(Mode::Device { ref mut state, .. }) => {
                 let endpoint_state = &mut state.endpoint_states[endpoint];
@@ -716,7 +716,7 @@ impl<'a> Usbc<'a> {
         });
     }
 
-    fn _endpoint_resume_out(&self, endpoint: usize) {
+    fn endpoint_resume_out(&self, endpoint: usize) {
         self.map_state(|state| match *state {
             State::Active(Mode::Device { ref mut state, .. }) => {
                 let endpoint_state = &mut state.endpoint_states[endpoint];
@@ -739,11 +739,11 @@ impl<'a> Usbc<'a> {
             let mut requests = self.requests[endpoint].get();
 
             if requests.resume_in {
-                self._endpoint_resume_in(endpoint);
+                self.endpoint_resume_in(endpoint);
                 requests.resume_in = false;
             }
             if requests.resume_out {
-                self._endpoint_resume_out(endpoint);
+                self.endpoint_resume_out(endpoint);
                 requests.resume_out = false;
             }
 
@@ -800,8 +800,8 @@ impl<'a> Usbc<'a> {
             // Reconfigure and initialize endpoints
             for i in 0..N_ENDPOINTS {
                 if let Some(endpoint_config) = device_config.endpoint_configs[i] {
-                    self._endpoint_write_config(i, endpoint_config);
-                    self._endpoint_init_with_device_state(device_state, i, endpoint_config);
+                    self.endpoint_write_config(i, endpoint_config);
+                    self.endpoint_init_with_device_state(device_state, i, endpoint_config);
                 }
             }
 
@@ -1451,7 +1451,7 @@ impl<'a> hil::usb::UsbController<'a> for Usbc<'a> {
             client_err!("Bad endpoint buffer size");
         }
 
-        self._endpoint_bank_set_buffer(EndpointIndex::new(0), BankIndex::Bank0, buf);
+        self.endpoint_bank_set_buffer(EndpointIndex::new(0), BankIndex::Bank0, buf);
     }
 
     fn endpoint_set_in_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]) {
@@ -1459,7 +1459,7 @@ impl<'a> hil::usb::UsbController<'a> for Usbc<'a> {
             client_err!("Bad endpoint buffer size");
         }
 
-        self._endpoint_bank_set_buffer(EndpointIndex::new(endpoint), BankIndex::Bank0, buf);
+        self.endpoint_bank_set_buffer(EndpointIndex::new(endpoint), BankIndex::Bank0, buf);
     }
 
     fn endpoint_set_out_buffer(&self, endpoint: usize, buf: &'a [VolatileCell<u8>]) {
@@ -1468,7 +1468,7 @@ impl<'a> hil::usb::UsbController<'a> for Usbc<'a> {
         }
 
         // XXX: when implementing in_out endpoints, this should probably set a different slice than endpoint_set_in_buffer.
-        self._endpoint_bank_set_buffer(EndpointIndex::new(endpoint), BankIndex::Bank0, buf);
+        self.endpoint_bank_set_buffer(EndpointIndex::new(endpoint), BankIndex::Bank0, buf);
     }
 
     fn enable_as_device(&self, speed: hil::usb::DeviceSpeed) {
@@ -1478,8 +1478,8 @@ impl<'a> hil::usb::UsbController<'a> for Usbc<'a> {
         };
 
         match self.get_state() {
-            State::Reset => self._enable(Mode::Device {
-                speed: speed,
+            State::Reset => self.enable(Mode::Device {
+                speed,
                 config: DeviceConfig::default(),
                 state: DeviceState::default(),
             }),
@@ -1491,7 +1491,7 @@ impl<'a> hil::usb::UsbController<'a> for Usbc<'a> {
         match self.get_state() {
             State::Reset => client_warn!("Not enabled"),
             State::Active(_) => client_warn!("Already attached"),
-            State::Idle(_) => self._attach(),
+            State::Idle(_) => self.attach(),
         }
     }
 
@@ -1499,7 +1499,7 @@ impl<'a> hil::usb::UsbController<'a> for Usbc<'a> {
         match self.get_state() {
             State::Reset => client_warn!("Not enabled"),
             State::Idle(_) => client_warn!("Not attached"),
-            State::Active(_) => self._detach(),
+            State::Active(_) => self.detach(),
         }
     }
 
@@ -1534,7 +1534,7 @@ impl<'a> hil::usb::UsbController<'a> for Usbc<'a> {
             TransferType::Interrupt | TransferType::Isochronous => unimplemented!(),
         };
 
-        self._endpoint_enable(endpoint, endpoint_cfg)
+        self.endpoint_enable(endpoint, endpoint_cfg)
     }
 
     fn endpoint_out_enable(&self, transfer_type: TransferType, endpoint: usize) {
@@ -1554,7 +1554,7 @@ impl<'a> hil::usb::UsbController<'a> for Usbc<'a> {
             TransferType::Interrupt | TransferType::Isochronous => unimplemented!(),
         };
 
-        self._endpoint_enable(endpoint, endpoint_cfg)
+        self.endpoint_enable(endpoint, endpoint_cfg)
     }
 
     fn endpoint_in_out_enable(&self, _transfer_type: TransferType, _endpoint: usize) {

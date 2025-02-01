@@ -43,7 +43,7 @@ pub struct Esp32C3DefaultPeripherals<'a> {
     pub rng: rng::Rng<'a>,
 }
 
-impl<'a> Esp32C3DefaultPeripherals<'a> {
+impl Esp32C3DefaultPeripherals<'_> {
     pub fn new() -> Self {
         Self {
             uart0: esp32::uart::Uart::new(esp32::uart::UART0_BASE),
@@ -61,7 +61,7 @@ impl<'a> Esp32C3DefaultPeripherals<'a> {
     }
 }
 
-impl<'a> InterruptService for Esp32C3DefaultPeripherals<'a> {
+impl InterruptService for Esp32C3DefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::IRQ_UART0 => self.uart0.handle_interrupt(),
@@ -230,13 +230,13 @@ unsafe fn handle_interrupt(_intr: mcause::Interrupt) {
     // Once claimed this interrupt won't fire until it's completed
     // NOTE: The interrupt is no longer pending in the PLIC
     loop {
-        let interrupt = INTC.next_pending();
+        let interrupt = (*addr_of!(INTC)).next_pending();
 
         match interrupt {
             Some(irq) => {
                 // Safe as interrupts are disabled
-                INTC.save_interrupt(irq);
-                INTC.disable(irq);
+                (*addr_of!(INTC)).save_interrupt(irq);
+                (*addr_of!(INTC)).disable(irq);
             }
             None => {
                 // Enable generic interrupts
@@ -264,6 +264,7 @@ pub unsafe extern "C" fn start_trap_rust() {
 }
 
 /// Function that gets called if an interrupt occurs while an app was running.
+///
 /// mcause is passed in, and this function should correctly handle disabling the
 /// interrupt that fired so that it does not trigger again.
 #[export_name = "_disable_interrupt_trap_rust_from_app"]
@@ -288,7 +289,7 @@ pub unsafe fn configure_trap_handler() {
 // Mock implementation for crate tests that does not include the section
 // specifier, as the test will not use our linker script, and the host
 // compilation environment may not allow the section name.
-#[cfg(not(all(target_arch = "riscv32", target_os = "none")))]
+#[cfg(not(any(doc, all(target_arch = "riscv32", target_os = "none"))))]
 pub extern "C" fn _start_trap_vectored() {
     use core::hint::unreachable_unchecked;
     unsafe {
@@ -296,12 +297,12 @@ pub extern "C" fn _start_trap_vectored() {
     }
 }
 
-#[cfg(all(target_arch = "riscv32", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
 extern "C" {
     pub fn _start_trap_vectored();
 }
 
-#[cfg(all(target_arch = "riscv32", target_os = "none"))]
+#[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
 // Below are 32 (non-compressed) jumps to cover the entire possible
 // range of vectored traps.
 core::arch::global_asm!(

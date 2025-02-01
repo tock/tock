@@ -19,3 +19,35 @@ apollo3 = { path = "../../../chips/apollo3" }
 capsules-core = { path = "../../../capsules/core" }
 capsules-extra = { path = "../../../capsules/extra" }
 capsules-system = { path = "../../../capsules/system" }
+
+tock-tbf = { path = "../../../libraries/tock-tbf" }
+
+[build-dependencies]
+tock_build_scripts = { path = "../../build_scripts" }
+
+[lints]
+workspace = true
+
+[features]
+default = []
+
+# This feature enables support for the ATECC508A Cryptographic Co-Processor
+# Breakout. If you connect one of these
+# (https://www.sparkfun.com/products/15573) via the I2C Qwiic connector you
+# should enable this feature.
+#
+# NOTE: That the first time this is used it will lock the device, which
+# can not be undone.
+atecc508a = []
+
+# This feature enables support for the Chirp I2C Soil Moisture Sensor.
+# This is the sensor avaliable from
+# https://www.tindie.com/products/miceuz/i2c-soil-moisture-sensor/
+#
+# If the sensor is attached via the I2C Qwiic connecter you should
+# enable this feature.
+chirp_i2c_moisture = []
+
+# This feature enables support for the DFRobot Rainfall Sensor.
+# https://wiki.dfrobot.com/SKU_SEN0575_Gravity_Rainfall_Sensor
+dfrobot_i2c_rainfall = []

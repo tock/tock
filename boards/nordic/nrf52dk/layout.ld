@@ -3,4 +3,4 @@
 /* Copyright Tock Contributors 2023.                                  */
 
 INCLUDE ../nrf52832_chip_layout.ld
-INCLUDE ../../kernel_layout.ld
+INCLUDE tock_kernel_layout.ld

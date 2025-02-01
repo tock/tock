@@ -54,7 +54,10 @@ impl<'a> TemperatureClient for SensorTestCallback {
         self.temperature_done.set(true);
         self.calibration_temp.set(Some(result.unwrap()));
 
-        debug!("Temperature: {}", result.unwrap());
+        debug!(
+            "Temperature: {} degrees Celsius",
+            result.unwrap() as f32 / 100.0
+        );
     }
 }
 
@@ -63,7 +66,7 @@ impl<'a> HumidityClient for SensorTestCallback {
         self.humidity_done.set(true);
         self.calibration_humidity.set(Some(value as u32));
 
-        debug!("Humidity: {}", value);
+        debug!("Humidity: {}%", value as f32 / 100.0);
     }
 }
 
@@ -88,7 +91,7 @@ impl<'a> AirQualityClient for SensorTestCallback {
 static CALLBACK: SensorTestCallback = SensorTestCallback::new();
 
 #[test_case]
-fn run_bme280_temperature() {
+fn run_bme280_a_temperature() {
     debug!("check run BME280 Temperature... ");
     run_kernel_op(100);
 
@@ -96,14 +99,14 @@ fn run_bme280_temperature() {
 
     // Make sure the device is ready for us.
     // The setup can take a little bit of time
-    run_kernel_op(800000);
+    run_kernel_op(7000);
 
     TemperatureDriver::set_client(bme280, &CALLBACK);
     CALLBACK.reset();
 
     bme280.read_temperature().unwrap();
 
-    run_kernel_op(50000);
+    run_kernel_op(1000);
     assert_eq!(CALLBACK.temperature_done.get(), true);
 
     debug!("    [ok]");
@@ -111,22 +114,18 @@ fn run_bme280_temperature() {
 }
 
 #[test_case]
-fn run_bme280_humidity() {
+fn run_bme280_b_humidity() {
     debug!("check run BME280 Humidity... ");
     run_kernel_op(100);
 
     let bme280 = unsafe { BME280.unwrap() };
-
-    // Make sure the debice is ready for us.
-    // The setup can take a little bit of time
-    run_kernel_op(800000);
 
     HumidityDriver::set_client(bme280, &CALLBACK);
     CALLBACK.reset();
 
     bme280.read_humidity().unwrap();
 
-    run_kernel_op(50000);
+    run_kernel_op(1000);
     assert_eq!(CALLBACK.humidity_done.get(), true);
 
     debug!("    [ok]");
@@ -134,7 +133,7 @@ fn run_bme280_humidity() {
 }
 
 #[test_case]
-fn run_ccs811_co2() {
+fn run_ccs811_a_co2() {
     debug!("check run CCS811 CO2... ");
     run_kernel_op(100);
 
@@ -154,11 +153,11 @@ fn run_ccs811_co2() {
         )
         .unwrap();
 
-    run_kernel_op(7000);
+    run_kernel_op(5000);
 
     ccs811.read_co2().unwrap();
 
-    run_kernel_op(7000);
+    run_kernel_op(5000);
     assert_eq!(CALLBACK.co2_done.get(), true);
 
     debug!("    [ok]");
@@ -166,15 +165,11 @@ fn run_ccs811_co2() {
 }
 
 #[test_case]
-fn run_ccs811_tvoc() {
+fn run_ccs811_b_tvoc() {
     debug!("check run CCS811 TVOC... ");
     run_kernel_op(100);
 
     let ccs811 = unsafe { CCS811.unwrap() };
-
-    // Make sure the device is ready for us.
-    // The setup can take a little bit of time
-    run_kernel_op(800000);
 
     AirQualityDriver::set_client(ccs811, &CALLBACK);
     CALLBACK.reset();
@@ -186,11 +181,11 @@ fn run_ccs811_tvoc() {
         )
         .unwrap();
 
-    run_kernel_op(7000);
+    run_kernel_op(5000);
 
     ccs811.read_tvoc().unwrap();
 
-    run_kernel_op(7000);
+    run_kernel_op(5000);
     assert_eq!(CALLBACK.tvoc_done.get(), true);
 
     debug!("    [ok]");

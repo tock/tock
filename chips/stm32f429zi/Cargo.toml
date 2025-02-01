@@ -9,7 +9,10 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-cortexm4 = { path = "../../arch/cortex-m4" }
+cortexm4f = { path = "../../arch/cortex-m4f" }
 kernel = { path = "../../kernel" }
 stm32f4xx = { path = "../stm32f4xx", features = ["stm32f429"] }
 enum_primitive = { path = "../../libraries/enum_primitive" }
+
+[lints]
+workspace = true

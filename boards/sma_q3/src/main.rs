@@ -20,10 +20,12 @@ use core::ptr::{addr_of, addr_of_mut};
 
 use capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
+use capsules_core::virtualizers::virtual_spi::VirtualSpiMasterDevice;
 use kernel::component::Component;
 use kernel::deferred_call::DeferredCallClient;
 use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
+use kernel::hil::screen::Screen;
 use kernel::hil::symmetric_encryption::AES128;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -125,6 +127,7 @@ pub struct Platform {
             nrf52840::rtc::Rtc<'static>,
         >,
     >,
+    screen: &'static capsules_extra::screen::Screen<'static>,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
 }
@@ -145,6 +148,7 @@ impl SyscallDriverLookup for Platform {
             capsules_extra::ieee802154::DRIVER_NUM => f(Some(self.ieee802154_radio)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules_extra::analog_comparator::DRIVER_NUM => f(Some(self.analog_comparator)),
+            capsules_extra::screen::DRIVER_NUM => f(Some(self.screen)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -189,7 +193,13 @@ impl KernelResources<nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn create_peripherals() -> &'static mut Nrf52840DefaultPeripherals<'static> {
+pub unsafe fn start() -> (
+    &'static kernel::Kernel,
+    Platform,
+    &'static nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>,
+) {
+    nrf52840::init();
+
     let ieee802154_ack_buf = static_init!(
         [u8; nrf52840::ieee802154_radio::ACK_BUF_SIZE],
         [0; nrf52840::ieee802154_radio::ACK_BUF_SIZE]
@@ -199,16 +209,6 @@ unsafe fn create_peripherals() -> &'static mut Nrf52840DefaultPeripherals<'stati
         Nrf52840DefaultPeripherals,
         Nrf52840DefaultPeripherals::new(ieee802154_ack_buf)
     );
-
-    nrf52840_peripherals
-}
-
-/// Main function called after RAM initialized.
-#[no_mangle]
-pub unsafe fn main() {
-    nrf52840::init();
-
-    let nrf52840_peripherals = create_peripherals();
 
     // set up circular peripheral dependencies
     nrf52840_peripherals.init();
@@ -269,7 +269,6 @@ pub unsafe fn main() {
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
 
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
 
     let gpio_port = &nrf52840_peripherals.gpio_port;
@@ -438,6 +437,50 @@ pub unsafe fn main() {
     );
     periodic_virtual_alarm.setup();
 
+    let screen = {
+        let mux_spi = components::spi::SpiMuxComponent::new(&base_peripherals.spim2)
+            .finalize(components::spi_mux_component_static!(nrf52840::spi::SPIM));
+
+        use kernel::hil::spi::SpiMaster;
+        base_peripherals
+            .spim2
+            .set_rate(1_000_000)
+            .expect("SPIM2 set rate");
+
+        base_peripherals.spim2.configure(
+            nrf52840::pinmux::Pinmux::new(Pin::P0_27 as u32),
+            nrf52840::pinmux::Pinmux::new(Pin::P0_28 as u32),
+            nrf52840::pinmux::Pinmux::new(Pin::P0_26 as u32),
+        );
+
+        let disp_pin = &nrf52840_peripherals.gpio_port[Pin::P0_07];
+        let cs_pin = &nrf52840_peripherals.gpio_port[Pin::P0_05];
+
+        let display = components::lpm013m126::Lpm013m126Component::new(
+            mux_spi,
+            cs_pin,
+            disp_pin,
+            &nrf52840_peripherals.gpio_port[Pin::P0_06],
+            mux_alarm,
+        )
+        .finalize(components::lpm013m126_component_static!(
+            nrf52840::rtc::Rtc<'static>,
+            nrf52840::gpio::GPIOPin,
+            nrf52840::spi::SPIM
+        ));
+
+        let screen = components::screen::ScreenComponent::new(
+            board_kernel,
+            capsules_extra::screen::DRIVER_NUM,
+            display,
+            None,
+        )
+        .finalize(components::screen_component_static!(4096));
+        // Power on screen if not already powered
+        let _ = display.set_power(true);
+        screen
+    };
+
     let platform = Platform {
         temperature,
         button,
@@ -450,6 +493,7 @@ pub unsafe fn main() {
         rng,
         alarm,
         analog_comparator,
+        screen,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
@@ -515,5 +559,14 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
+    (board_kernel, platform, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, platform, chip) = start();
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }

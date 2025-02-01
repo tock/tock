@@ -3,6 +3,7 @@
 // Copyright Tock Contributors 2022.
 
 //! This file contains the interface definition for sending an IPv6 packet.
+//!
 //! The [IP6Sender](trait.IP6Sender.html) trait provides an interface
 //! for sending IPv6 packets, while the [IP6SendClient](trait.IP6SendClient) trait
 //! must be implemented by upper layers to receive the `send_done` callback
@@ -36,18 +37,19 @@ use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
 
-/// This trait must be implemented by upper layers in order to receive
-/// the `send_done` callback when a transmission has completed. The upper
-/// layer must then call `IP6Sender.set_client` in order to receive this
-/// callback.
+/// Client trait for receiving transmission completiong events.
+///
+/// The upper layer must then call `IP6Sender.set_client` in order to
+/// receive this callback.
 pub trait IP6SendClient {
     fn send_done(&self, result: Result<(), ErrorCode>);
 }
 
-/// This trait provides a basic IPv6 sending interface. It exposes basic
-/// configuration information for the IPv6 layer (setting the source address,
-/// setting the gateway MAC address), as well as a way to send an IPv6
-/// packet.
+/// Provides a basic IPv6 sending interface.
+///
+/// It exposes basic configuration information for the IPv6 layer
+/// (setting the source address, setting the gateway MAC address), as
+/// well as a way to send an IPv6 packet.
 pub trait IP6Sender<'a> {
     /// This method sets the `IP6SendClient` for the `IP6Sender` instance, which
     /// receives the `send_done` callback when transmission has finished.
@@ -184,16 +186,16 @@ impl<'a, A: time::Alarm<'a>> IP6SendStruct<'a, A> {
     ) -> IP6SendStruct<'a, A> {
         IP6SendStruct {
             ip6_packet: TakeCell::new(ip6_packet),
-            alarm: alarm,
+            alarm,
             src_addr: Cell::new(IPAddr::new()),
             gateway: Cell::new(dst_mac_addr),
             tx_buf: TakeCell::new(tx_buf),
-            sixlowpan: sixlowpan,
-            radio: radio,
-            dst_mac_addr: dst_mac_addr,
-            src_mac_addr: src_mac_addr,
+            sixlowpan,
+            radio,
+            dst_mac_addr,
+            src_mac_addr,
             client: OptionalCell::empty(),
-            ip_vis: ip_vis,
+            ip_vis,
         }
     }
 

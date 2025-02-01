@@ -17,6 +17,7 @@ use core::ptr::addr_of_mut;
 
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::hil;
 use kernel::hil::gpio::Configure;
 use kernel::hil::gpio::Output;
 use kernel::hil::led::LedHigh;
@@ -372,7 +373,9 @@ pub unsafe fn start() -> (
     let lr1110_spi = components::spi::SpiSyscallComponent::new(
         board_kernel,
         mux_spi,
-        &nrf52840_peripherals.gpio_port[SPI_CS_PIN],
+        hil::spi::cs::IntoChipSelect::<_, hil::spi::cs::ActiveLow>::into_cs(
+            &nrf52840_peripherals.gpio_port[SPI_CS_PIN],
+        ),
         LORA_SPI_DRIVER_NUM,
     )
     .finalize(components::spi_syscall_component_static!(
@@ -387,7 +390,11 @@ pub unsafe fn start() -> (
 
     base_peripherals
         .spim0
-        .specify_chip_select(&nrf52840_peripherals.gpio_port[SPI_CS_PIN])
+        .specify_chip_select(
+            hil::spi::cs::IntoChipSelect::<_, hil::spi::cs::ActiveLow>::into_cs(
+                &nrf52840_peripherals.gpio_port[SPI_CS_PIN],
+            ),
+        )
         .unwrap();
 
     // Pin mappings from the original WM1110 source code.
@@ -475,8 +482,8 @@ pub unsafe fn start() -> (
         ),
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
-        temperature: temperature,
-        humidity: humidity,
+        temperature,
+        humidity,
         lr1110_spi,
         lr1110_gpio,
     };

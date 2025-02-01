@@ -31,5 +31,5 @@ $ tockloader install --openocd --board sma_q3
 
 ## Debugging
 
-See the [nrf52dk README](../nrf52dk/README.md) for information about debugging
+See the [nrf52dk README](../nordic/nrf52dk/README.md) for information about debugging
 the SMA Q3. Note: may need adjustment due to missing serial interface.

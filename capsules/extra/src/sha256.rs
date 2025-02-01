@@ -64,7 +64,7 @@ pub struct Sha256Software<'a> {
     deferred_call: DeferredCall,
 }
 
-impl<'a> Sha256Software<'a> {
+impl Sha256Software<'_> {
     pub fn new() -> Self {
         let s = Self {
             state: Cell::new(State::Idle),
@@ -391,7 +391,7 @@ impl<'a> Digest<'a, 32> for Sha256Software<'a> {
     }
 }
 
-impl<'a> DeferredCallClient for Sha256Software<'a> {
+impl DeferredCallClient for Sha256Software<'_> {
     fn handle_deferred_call(&self) {
         let prior = self.state.get();
         self.state.set(State::Idle);

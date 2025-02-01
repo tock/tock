@@ -207,6 +207,8 @@ unsafe fn setup() -> (
     pwr_ctrl.enable_iom2();
     pwr_ctrl.enable_ios();
 
+    peripherals.init();
+
     // Enable PinCfg
     peripherals
         .gpio_port
@@ -348,7 +350,9 @@ unsafe fn setup() -> (
     let spi_controller = components::spi::SpiSyscallComponent::new(
         board_kernel,
         mux_spi,
-        &peripherals.gpio_port[35], // A14
+        kernel::hil::spi::cs::IntoChipSelect::<_, kernel::hil::spi::cs::ActiveLow>::into_cs(
+            &peripherals.gpio_port[35], // A14
+        ),
         capsules_core::spi_controller::DRIVER_NUM,
     )
     .finalize(components::spi_syscall_component_static!(

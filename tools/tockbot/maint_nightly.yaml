@@ -35,11 +35,13 @@ tasks:
     label: Assign Active Reviewers to Stale PRs
 
     # For how long the PR must have not received any comments:
-    staleness_time: 0 # assign immediately after PR is opened
+    # *** Removed entirely so PRs are assigned immediately
+    #staleness_time: 259200 # 60 * 60 * 24 * 3 days
 
     # Any such PRs must not already have a review by a core team
     # member (i.e., have been triaged)
-    no_reviews_by: *core_wg_users
+    # *** Removed entirely so PRs are assigned even if a review exists
+    #no_reviews_by: *core_wg_users
 
     # Assign one active reviewer at random:
     assignee_cnt: 1

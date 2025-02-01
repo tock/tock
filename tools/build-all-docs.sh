@@ -25,8 +25,8 @@ else
 fi
 rm -f _COW _COW2
 
-# Make the documentation for all the boards.
-make alldoc
+# Make the documentation for all the boards, for the host's native target.
+cargo doc
 
 # Replace the default rust logo with our own Tock logo and the favicon with our
 # own favicon. Note, it is also possible to set this using a `#[doc]` attribute

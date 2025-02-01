@@ -152,7 +152,7 @@ impl<'a> Aes<'a> {
     ///
     /// NOTE: This is needed for Verilator, and is suggested by documentation
     ///       in general.
-    /// Refer: https://docs.opentitan.org/hw/ip/aes/doc/#programmers-guide
+    /// Refer: <https://docs.opentitan.org/hw/ip/aes/doc/#programmers-guide>
     fn wait_on_idle_ready(&self) -> Result<(), ErrorCode> {
         for _i in 0..10000 {
             if self.idle() {

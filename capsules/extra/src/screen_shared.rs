@@ -134,7 +134,7 @@ impl<'a, S: hil::screen::Screen<'a>> ScreenShared<'a, S> {
         apps_regions: &'a [AppScreenRegion],
     ) -> ScreenShared<'a, S> {
         ScreenShared {
-            screen: screen,
+            screen,
             apps: grant,
             current_process: OptionalCell::empty(),
             buffer: TakeCell::new(buffer),
@@ -222,9 +222,8 @@ impl<'a, S: hil::screen::Screen<'a>> ScreenShared<'a, S> {
                                 absolute_frame.width,
                                 absolute_frame.height,
                             )
-                            .map_err(|e| {
+                            .inspect_err(|_| {
                                 app.command = None;
-                                e
                             })
                     }
                     Some(ScreenCommand::WriteBuffer) => {
@@ -287,7 +286,7 @@ impl<'a, S: hil::screen::Screen<'a>> ScreenShared<'a, S> {
         let ran_cmd = self.current_process.map_or(false, |process_id| {
             let app_region_frame = self.get_app_screen_region_frame(process_id);
 
-            app_region_frame.map_or(false, |frame| {
+            app_region_frame.is_some_and(|frame| {
                 let r = self.call_screen(process_id, frame);
                 if r.is_err() {
                     // We were unable to run the screen operation meaning we

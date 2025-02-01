@@ -468,7 +468,7 @@ impl<'a> uart::Transmit<'a> for Uarte<'a> {
     }
 }
 
-impl<'a> uart::Configure for Uarte<'a> {
+impl uart::Configure for Uarte<'_> {
     fn configure(&self, params: uart::Parameters) -> Result<(), ErrorCode> {
         // These could probably be implemented, but are currently ignored, so
         // throw an error.

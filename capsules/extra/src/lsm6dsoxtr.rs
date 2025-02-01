@@ -194,7 +194,7 @@ impl<'a, I: i2c::I2CDevice> Lsm6dsoxtrI2C<'a, I> {
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> Lsm6dsoxtrI2C<'a, I> {
         Lsm6dsoxtrI2C {
-            i2c: i2c,
+            i2c,
             state: Cell::new(State::Idle),
             config_in_progress: Cell::new(false),
             gyro_data_rate: Cell::new(LSM6DSOXGyroDataRate::LSM6DSOX_GYRO_RATE_12_5_HZ),

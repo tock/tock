@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
+//! 6loWPAN compression and reception.
+//!
 //! 6loWPAN (IPv6 over Low-Power Wireless Networks) is standard for compressing
 //! and fragmenting IPv6 packets over low power wireless networks, particularly
 //! ones with MTUs (Minimum Transmission Units) smaller than 1280 octets, like
@@ -250,6 +252,8 @@ use kernel::ErrorCode;
 // Reassembly timeout in seconds
 const FRAG_TIMEOUT: u32 = 60;
 
+/// Client trait for receiving 6lowpan frames.
+///
 /// Objects that implement this trait can set themselves to be the client
 /// for the [Sixlowpan](struct.Sixlowpan.html) struct, and will then receive
 /// a callback once an IPv6 packet has been fully reassembled.
@@ -355,7 +359,7 @@ impl<'a> TxState<'a> {
             dgram_offset: Cell::new(0),
 
             busy: Cell::new(false),
-            sixlowpan: sixlowpan,
+            sixlowpan,
         }
     }
 
@@ -646,7 +650,7 @@ pub struct RxState<'a> {
 }
 
 impl<'a> ListNode<'a, RxState<'a>> for RxState<'a> {
-    fn next(&'a self) -> &'a ListLink<RxState<'a>> {
+    fn next(&'a self) -> &'a ListLink<'a, RxState<'a>> {
         &self.next
     }
 }
@@ -879,8 +883,8 @@ impl<'a, A: time::Alarm<'a>, C: ContextStore> Sixlowpan<'a, A, C> {
     /// have an accuracy of at least 60 seconds.
     pub fn new(ctx_store: C, clock: &'a A) -> Sixlowpan<'a, A, C> {
         Sixlowpan {
-            ctx_store: ctx_store,
-            clock: clock,
+            ctx_store,
+            clock,
             tx_dgram_tag: Cell::new(0),
             rx_client: Cell::new(None),
 

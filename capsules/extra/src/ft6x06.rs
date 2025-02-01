@@ -71,8 +71,8 @@ impl<'a, I: i2c::I2CDevice> Ft6x06<'a, I> {
         // setup and return struct
         interrupt_pin.enable_interrupts(gpio::InterruptEdge::FallingEdge);
         Ft6x06 {
-            i2c: i2c,
-            interrupt_pin: interrupt_pin,
+            i2c,
+            interrupt_pin,
             touch_client: OptionalCell::empty(),
             gesture_client: OptionalCell::empty(),
             multi_touch_client: OptionalCell::empty(),
@@ -83,7 +83,7 @@ impl<'a, I: i2c::I2CDevice> Ft6x06<'a, I> {
     }
 }
 
-impl<'a, I: i2c::I2CDevice> i2c::I2CClient for Ft6x06<'a, I> {
+impl<I: i2c::I2CDevice> i2c::I2CClient for Ft6x06<'_, I> {
     fn command_complete(&self, buffer: &'static mut [u8], _status: Result<(), i2c::Error>) {
         self.num_touches.set((buffer[1] & 0x0F) as usize);
         self.touch_client.map(|client| {
@@ -168,7 +168,7 @@ impl<'a, I: i2c::I2CDevice> i2c::I2CClient for Ft6x06<'a, I> {
     }
 }
 
-impl<'a, I: i2c::I2CDevice> gpio::Client for Ft6x06<'a, I> {
+impl<I: i2c::I2CDevice> gpio::Client for Ft6x06<'_, I> {
     fn fired(&self) {
         self.buffer.take().map(|buffer| {
             self.interrupt_pin.disable_interrupts();

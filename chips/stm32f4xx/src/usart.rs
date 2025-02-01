@@ -7,6 +7,7 @@ use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil;
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadWrite};
 use kernel::utilities::StaticRef;
@@ -260,15 +261,15 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
     ) -> Usart<'a, DMA> {
         Usart {
             registers: base_addr,
-            clock: clock,
+            clock,
 
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
 
             tx_dma: OptionalCell::empty(),
-            tx_dma_pid: tx_dma_pid,
+            tx_dma_pid,
             rx_dma: OptionalCell::empty(),
-            rx_dma_pid: rx_dma_pid,
+            rx_dma_pid,
 
             tx_len: Cell::new(0),
             rx_len: Cell::new(0),
@@ -324,6 +325,7 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
                 // alert client
                 self.tx_client.map(|client| {
                     buffer.map(|buf| {
+                        let buf = buf.take();
                         client.transmitted_buffer(buf, len, Ok(()));
                     });
                 });
@@ -352,6 +354,7 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
                 // alert client
                 self.rx_client.map(|client| {
                     buffer.map(|buf| {
+                        let buf = buf.take();
                         client.received_buffer(
                             buf,
                             count,
@@ -408,6 +411,10 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
     }
 
     fn abort_tx(&self, rcode: Result<(), ErrorCode>) {
+        if matches!(self.usart_tx_state.get(), USARTStateTX::Aborted(_)) {
+            return;
+        }
+
         self.disable_tx();
 
         // get buffer
@@ -422,6 +429,7 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
         self.tx_len.set(0);
 
         if let Some(buf) = buffer.take() {
+            let buf = buf.take();
             self.partial_tx_buffer.replace(buf);
             self.partial_tx_len.set(count);
 
@@ -434,6 +442,10 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
     }
 
     fn abort_rx(&self, rcode: Result<(), ErrorCode>, error: hil::uart::Error) {
+        if matches!(self.usart_rx_state.get(), USARTStateRX::Aborted(_, _)) {
+            return;
+        }
+
         self.disable_rx();
         self.disable_error_interrupt();
 
@@ -449,6 +461,7 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
         self.rx_len.set(0);
 
         if let Some(buf) = buffer.take() {
+            let buf = buf.take();
             self.partial_rx_buffer.replace(buf);
             self.partial_rx_len.set(count);
 
@@ -493,6 +506,7 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
                 // alert client
                 self.rx_client.map(|client| {
                     buffer.map(|buf| {
+                        let buf = buf.take();
                         client.received_buffer(buf, length, Ok(()), hil::uart::Error::None);
                     });
                 });
@@ -556,6 +570,19 @@ impl<'a, DMA: dma::StreamServer<'a>> Usart<'a, DMA> {
         self.registers.brr.modify(BRR::DIV_Fraction.val(fraction));
         Ok(())
     }
+
+    // try to disable the USART and return BUSY if a transfer is taking place
+    pub fn disable(&self) -> Result<(), ErrorCode> {
+        if self.usart_tx_state.get() == USARTStateTX::DMA_Transmitting
+            || self.usart_tx_state.get() == USARTStateTX::Transfer_Completing
+            || self.usart_rx_state.get() == USARTStateRX::DMA_Receiving
+        {
+            Err(ErrorCode::BUSY)
+        } else {
+            self.registers.cr1.modify(CR1::UE::CLEAR);
+            Ok(())
+        }
+    }
 }
 
 impl<'a, DMA: dma::StreamServer<'a>> DeferredCallClient for Usart<'a, DMA> {
@@ -608,7 +635,9 @@ impl<'a, DMA: dma::StreamServer<'a>> hil::uart::Transmit<'a> for Usart<'a, DMA> 
         // setup and enable dma stream
         self.tx_dma.map(move |dma| {
             self.tx_len.set(tx_len);
-            dma.do_transfer(tx_data, tx_len);
+            let mut tx_data: SubSliceMut<u8> = tx_data.into();
+            tx_data.slice(..tx_len);
+            dma.do_transfer(tx_data);
         });
 
         self.usart_tx_state.set(USARTStateTX::DMA_Transmitting);
@@ -687,7 +716,9 @@ impl<'a, DMA: dma::StreamServer<'a>> hil::uart::Receive<'a> for Usart<'a, DMA> {
         // setup and enable dma stream
         self.rx_dma.map(move |dma| {
             self.rx_len.set(rx_len);
-            dma.do_transfer(rx_buffer, rx_len);
+            let mut rx_buffer: SubSliceMut<u8> = rx_buffer.into();
+            rx_buffer.slice(..rx_len);
+            dma.do_transfer(rx_buffer);
         });
 
         self.usart_rx_state.set(USARTStateRX::DMA_Receiving);
@@ -704,8 +735,12 @@ impl<'a, DMA: dma::StreamServer<'a>> hil::uart::Receive<'a> for Usart<'a, DMA> {
     }
 
     fn receive_abort(&self) -> Result<(), ErrorCode> {
-        self.abort_rx(Err(ErrorCode::CANCEL), hil::uart::Error::Aborted);
-        Err(ErrorCode::BUSY)
+        if self.usart_rx_state.get() != USARTStateRX::Idle {
+            self.abort_rx(Err(ErrorCode::CANCEL), hil::uart::Error::Aborted);
+            Err(ErrorCode::BUSY)
+        } else {
+            Ok(())
+        }
     }
 }
 

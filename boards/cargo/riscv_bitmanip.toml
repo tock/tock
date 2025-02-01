@@ -1,0 +1,11 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2024.
+
+# bitmanip instruction support for RISC-V.
+
+[build]
+rustflags = [
+  # These are the ratified bitmanip extensions supported by LLVM.
+  "-Ctarget-feature=+zba,+zbb,+zbc,+zbs",
+]

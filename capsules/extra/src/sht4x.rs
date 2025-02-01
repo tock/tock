@@ -80,14 +80,14 @@ pub struct SHT4x<'a, A: Alarm<'a>, I: i2c::I2CDevice> {
 impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> SHT4x<'a, A, I> {
     pub fn new(i2c: &'a I, buffer: &'static mut [u8], alarm: &'a A) -> SHT4x<'a, A, I> {
         SHT4x {
-            i2c: i2c,
+            i2c,
             humidity_client: OptionalCell::empty(),
             temperature_client: OptionalCell::empty(),
             state: Cell::new(State::Idle),
             buffer: TakeCell::new(buffer),
             read_temp: Cell::new(false),
             read_hum: Cell::new(false),
-            alarm: alarm,
+            alarm,
         }
     }
 

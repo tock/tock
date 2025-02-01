@@ -49,7 +49,7 @@ fn screen_rotation_from(screen_rotation: usize) -> Option<ScreenRotation> {
 fn screen_pixel_format_from(screen_pixel_format: usize) -> Option<ScreenPixelFormat> {
     match screen_pixel_format {
         0 => Some(ScreenPixelFormat::Mono),
-        1 => Some(ScreenPixelFormat::RGB_233),
+        1 => Some(ScreenPixelFormat::RGB_332),
         2 => Some(ScreenPixelFormat::RGB_565),
         3 => Some(ScreenPixelFormat::RGB_888),
         4 => Some(ScreenPixelFormat::ARGB_8888),
@@ -127,8 +127,8 @@ impl<'a> Screen<'a> {
         grant: Grant<App, UpcallCount<1>, AllowRoCount<{ ro_allow::COUNT }>, AllowRwCount<0>>,
     ) -> Screen<'a> {
         Screen {
-            screen: screen,
-            screen_setup: screen_setup,
+            screen,
+            screen_setup,
             apps: grant,
             current_process: OptionalCell::empty(),
             pixel_format: Cell::new(screen.get_pixel_format()),
@@ -353,17 +353,19 @@ impl<'a> Screen<'a> {
                                     .get_readonly_processbuffer(ro_allow::SHARED)
                                     .and_then(|shared| {
                                         shared.enter(|s| {
+                                            let mut count = 0;
                                             let mut chunks = s.chunks(buffer_size);
                                             if let Some(chunk) = chunks.nth(chunk_number) {
                                                 for (i, byte) in chunk.iter().enumerate() {
                                                     if pos < len {
                                                         buffer[i] = byte.get();
-                                                        pos += 1
+                                                        count += 1;
+                                                        pos += 1;
                                                     } else {
                                                         break;
                                                     }
                                                 }
-                                                app.write_len - initial_pos
+                                                count
                                             } else {
                                                 // stop writing
                                                 0
@@ -421,7 +423,7 @@ impl<'a> Screen<'a> {
     }
 }
 
-impl<'a> hil::screen::ScreenClient for Screen<'a> {
+impl hil::screen::ScreenClient for Screen<'_> {
     fn command_complete(&self, r: Result<(), ErrorCode>) {
         self.run_next_command(kernel::errorcode::into_statuscode(r), 0, 0);
     }
@@ -445,13 +447,13 @@ impl<'a> hil::screen::ScreenClient for Screen<'a> {
     }
 }
 
-impl<'a> hil::screen::ScreenSetupClient for Screen<'a> {
+impl hil::screen::ScreenSetupClient for Screen<'_> {
     fn command_complete(&self, r: Result<(), ErrorCode>) {
         self.run_next_command(kernel::errorcode::into_statuscode(r), 0, 0);
     }
 }
 
-impl<'a> SyscallDriver for Screen<'a> {
+impl SyscallDriver for Screen<'_> {
     fn command(
         &self,
         command_num: usize,

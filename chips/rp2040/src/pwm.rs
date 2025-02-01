@@ -627,7 +627,7 @@ impl<'a> Pwm<'a> {
     /// The returned structure can be used to control the PWM pin.
     ///
     /// See [PwmPin]
-    pub fn gpio_to_pwm_pin(&'a self, gpio: RPGpio) -> PwmPin {
+    pub fn gpio_to_pwm_pin(&'a self, gpio: RPGpio) -> PwmPin<'a> {
         let (channel_number, channel_pin) = self.gpio_to_pwm(gpio);
         self.new_pwm_pin(channel_number, channel_pin)
     }
@@ -908,7 +908,10 @@ impl hil::pwm::PwmPin for PwmPin<'_> {
 /// ```
 
 pub mod unit_tests {
-    use super::*;
+    use super::{
+        debug, hil, ChannelNumber, ChannelPin, DivMode, Pwm, RPGpio, Readable, CC, CH, CSR, CTR,
+        DIV, TOP,
+    };
 
     fn test_channel_number() {
         debug!("Testing ChannelNumber enum...");

@@ -8,11 +8,13 @@ use earlgrey::registers::top_earlgrey::{PinmuxInsel, PinmuxOutsel};
 type In = PinmuxInsel;
 type Out = PinmuxOutsel;
 
-/// Pinmux configuration for hyperdebug with cw310. The primary reference for
-/// this config is:
+/// Pinmux configuration for hyperdebug with cw310.
+///
+/// The primary reference for this config is:
 /// <OPENTITAN_TREE>/hw/top_earlgrey/data/pins_cw310_hyperdebug.xdc
-/// pins_cw310_hyperdebug.xdc sometimes underspecifies the layout (e.g. it
-/// doesn't indicate UART numbering); we resolve the ambiguity by using
+/// pins_cw310_hyperdebug.xdc sometimes underspecifies the layout
+/// (e.g. it doesn't indicate UART numbering); we resolve the
+/// ambiguity by using
 /// <OPENTITAN_TREE>/hw/top_earlgrey/data/pins_cw310.xdc
 pub enum BoardPinmuxLayout {}
 

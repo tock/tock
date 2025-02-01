@@ -8,8 +8,8 @@ use core::cmp;
 use kernel::hil;
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::spi::{ClockPhase, ClockPolarity};
-use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::cells::TakeCell;
+use kernel::utilities::cells::{MapCell, OptionalCell};
+use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{
     register_bitfields, register_structs, ReadOnly, ReadWrite, WriteOnly,
@@ -143,11 +143,10 @@ pub struct SpiHost<'a> {
     registers: StaticRef<SpiHostRegisters>,
     client: OptionalCell<&'a dyn hil::spi::SpiMasterClient>,
     busy: Cell<bool>,
-    chip_select: Cell<u32>,
     cpu_clk: u32,
     tsclk: Cell<u32>,
-    tx_buf: TakeCell<'static, [u8]>,
-    rx_buf: TakeCell<'static, [u8]>,
+    tx_buf: MapCell<SubSliceMut<'static, u8>>,
+    rx_buf: MapCell<SubSliceMut<'static, u8>>,
     tx_len: Cell<usize>,
     rx_len: Cell<usize>,
     tx_offset: Cell<usize>,
@@ -158,17 +157,16 @@ const SPI_HOST_CMD_BIDIRECTIONAL: u32 = 3;
 // SPI Host Command Speed: Standard SPI
 const SPI_HOST_CMD_STANDARD_SPI: u32 = 0;
 
-impl<'a> SpiHost<'a> {
+impl SpiHost<'_> {
     pub fn new(base: StaticRef<SpiHostRegisters>, cpu_clk: u32) -> Self {
         SpiHost {
             registers: base,
             client: OptionalCell::empty(),
             busy: Cell::new(false),
-            chip_select: Cell::new(0),
-            cpu_clk: cpu_clk,
+            cpu_clk,
             tsclk: Cell::new(0),
-            tx_buf: TakeCell::empty(),
-            rx_buf: TakeCell::empty(),
+            tx_buf: MapCell::empty(),
+            rx_buf: MapCell::empty(),
             tx_len: Cell::new(0),
             rx_len: Cell::new(0),
             tx_offset: Cell::new(0),
@@ -190,12 +188,9 @@ impl<'a> SpiHost<'a> {
             //r/w_done() may call r/w_bytes() to re-attempt transfer
             self.client.map(|client| match self.tx_buf.take() {
                 None => (),
-                Some(tx_buf) => client.read_write_done(
-                    tx_buf,
-                    self.rx_buf.take(),
-                    self.tx_offset.get(),
-                    Err(ErrorCode::FAIL),
-                ),
+                Some(tx_buf) => {
+                    client.read_write_done(tx_buf, self.rx_buf.take(), Err(ErrorCode::FAIL))
+                }
             });
             return;
         }
@@ -215,8 +210,7 @@ impl<'a> SpiHost<'a> {
                             Some(tx_buf) => client.read_write_done(
                                 tx_buf,
                                 self.rx_buf.take(),
-                                self.tx_len.get(),
-                                Ok(()),
+                                Ok(self.tx_len.get()),
                             ),
                         });
 
@@ -233,12 +227,9 @@ impl<'a> SpiHost<'a> {
                         self.reset_internal_state();
                         self.client.map(|client| match self.tx_buf.take() {
                             None => (),
-                            Some(tx_buf) => client.read_write_done(
-                                tx_buf,
-                                self.rx_buf.take(),
-                                self.tx_offset.get(),
-                                Err(err),
-                            ),
+                            Some(tx_buf) => {
+                                client.read_write_done(tx_buf, self.rx_buf.take(), Err(err))
+                            }
                         });
                     }
                 }
@@ -254,7 +245,7 @@ impl<'a> SpiHost<'a> {
         let rc = self
             .rx_buf
             .take()
-            .map(|rx_buf| -> Result<SpiHostStatus, ErrorCode> {
+            .map(|mut rx_buf| -> Result<SpiHostStatus, ErrorCode> {
                 let regs = self.registers;
                 let mut val32: u32;
                 let mut val8: u8;
@@ -271,7 +262,7 @@ impl<'a> SpiHost<'a> {
                             break;
                         }
                         val8 = ((val32 & shift_mask) >> (i * 8)) as u8;
-                        if let Some(ptr) = rx_buf.get_mut(self.rx_offset.get()) {
+                        if let Some(ptr) = rx_buf.as_slice().get_mut(self.rx_offset.get()) {
                             *ptr = val8;
                         } else {
                             // We have run out of rx buffer size
@@ -302,7 +293,7 @@ impl<'a> SpiHost<'a> {
         if self
             .tx_buf
             .take()
-            .map(|tx_buf| -> Result<(), ErrorCode> {
+            .map(|mut tx_buf| -> Result<(), ErrorCode> {
                 let regs = self.registers;
                 let mut t_byte: u32;
                 let mut tx_slice: [u8; 4];
@@ -318,7 +309,7 @@ impl<'a> SpiHost<'a> {
                         if self.tx_offset.get() >= self.tx_len.get() {
                             break;
                         }
-                        if let Some(val) = tx_buf.get(self.tx_offset.get()) {
+                        if let Some(val) = tx_buf.as_slice().get(self.tx_offset.get()) {
                             *elem = *val;
                             self.tx_offset.set(self.tx_offset.get() + 1);
                         } else {
@@ -531,7 +522,7 @@ impl<'a> SpiHost<'a> {
     /// Divide a/b and return a value always rounded
     /// up to the nearest integer
     fn div_up(&self, a: usize, b: usize) -> usize {
-        (a + (b - 1)) / b
+        a.div_ceil(b)
     }
 
     /// Calculate the scaler based on a specified tsclk rate
@@ -552,8 +543,17 @@ impl<'a> SpiHost<'a> {
     }
 }
 
+#[derive(Copy, Clone)]
+pub struct CS(pub u32);
+
+impl hil::spi::cs::IntoChipSelect<CS, hil::spi::cs::ActiveLow> for CS {
+    fn into_cs(self) -> CS {
+        self
+    }
+}
+
 impl<'a> hil::spi::SpiMaster<'a> for SpiHost<'a> {
-    type ChipSelect = u32;
+    type ChipSelect = CS;
 
     fn init(&self) -> Result<(), ErrorCode> {
         let regs = self.registers;
@@ -583,10 +583,16 @@ impl<'a> hil::spi::SpiMaster<'a> for SpiHost<'a> {
 
     fn read_write_bytes(
         &self,
-        tx_buf: &'static mut [u8],
-        rx_buf: Option<&'static mut [u8]>,
-        len: usize,
-    ) -> Result<(), (ErrorCode, &'static mut [u8], Option<&'static mut [u8]>)> {
+        tx_buf: SubSliceMut<'static, u8>,
+        rx_buf: Option<SubSliceMut<'static, u8>>,
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            SubSliceMut<'static, u8>,
+            Option<SubSliceMut<'static, u8>>,
+        ),
+    > {
         debug_assert!(!self.busy.get());
         debug_assert!(self.tx_buf.is_none());
         debug_assert!(self.rx_buf.is_none());
@@ -600,7 +606,7 @@ impl<'a> hil::spi::SpiMaster<'a> for SpiHost<'a> {
             return Err((ErrorCode::NOMEM, tx_buf, rx_buf));
         }
 
-        self.tx_len.set(cmp::min(len, tx_buf.len()));
+        self.tx_len.set(tx_buf.len());
 
         let mut t_byte: u32;
         let mut tx_slice: [u8; 4];
@@ -660,8 +666,7 @@ impl<'a> hil::spi::SpiMaster<'a> for SpiHost<'a> {
         let regs = self.registers;
 
         //CSID will index the CONFIGOPTS multi-register
-        regs.csid.write(csid_ctrl::CSID.val(cs));
-        self.chip_select.set(cs);
+        regs.csid.write(csid_ctrl::CSID.val(cs.0));
 
         Ok(())
     }

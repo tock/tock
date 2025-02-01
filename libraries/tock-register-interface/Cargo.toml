@@ -22,3 +22,6 @@ default = [ "register_types" ]
 # the feature makes this an interface-only library and removes all
 # usage of unsafe code
 register_types = []
+
+[lints]
+workspace = true

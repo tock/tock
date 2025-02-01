@@ -24,6 +24,7 @@ use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 
 use stm32f429zi::chip_specs::Stm32f429Specs;
+use stm32f429zi::clocks::hsi::HSI_FREQUENCY_MHZ;
 use stm32f429zi::gpio::{AlternateFunction, Mode, PinId, PortId};
 use stm32f429zi::interrupt_service::Stm32f429ziDefaultPeripherals;
 
@@ -267,17 +268,19 @@ unsafe fn setup_peripherals(tim2: &stm32f429zi::tim2::Tim2) {
     cortexm4::nvic::Nvic::new(stm32f429zi::nvic::TIM2).enable();
 }
 
-/// Statically initialize the core peripherals for the chip.
+/// Main function
 ///
 /// This is in a separate, inline(never) function so that its stack frame is
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn create_peripherals() -> (
-    &'static mut Stm32f429ziDefaultPeripherals<'static>,
-    &'static stm32f429zi::syscfg::Syscfg<'static>,
-    &'static stm32f429zi::dma::Dma2<'static>,
+unsafe fn start() -> (
+    &'static kernel::Kernel,
+    STM32F429IDiscovery,
+    &'static stm32f429zi::chip::Stm32f4xx<'static, Stm32f429ziDefaultPeripherals<'static>>,
 ) {
+    stm32f429zi::init();
+
     // We use the default HSI 16Mhz clock
     let rcc = static_init!(stm32f429zi::rcc::Rcc, stm32f429zi::rcc::Rcc::new());
     let clocks = static_init!(
@@ -298,17 +301,7 @@ unsafe fn create_peripherals() -> (
         Stm32f429ziDefaultPeripherals,
         Stm32f429ziDefaultPeripherals::new(clocks, exti, dma1, dma2)
     );
-    (peripherals, syscfg, dma2)
-}
 
-/// Main function
-///
-/// This is called after RAM initialization is complete.
-#[no_mangle]
-pub unsafe fn main() {
-    stm32f429zi::init();
-
-    let (peripherals, syscfg, dma2) = create_peripherals();
     peripherals.init();
     let base_peripherals = &peripherals.stm32f4;
 
@@ -340,12 +333,11 @@ pub unsafe fn main() {
     let uart_mux = components::console::UartMuxComponent::new(&base_peripherals.usart1, 115200)
         .finalize(components::uart_mux_component_static!());
 
-    io::WRITER.set_initialized();
+    (*addr_of_mut!(io::WRITER)).set_initialized();
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
     let memory_allocation_capability = create_capability!(capabilities::MemoryAllocationCapability);
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
 
@@ -586,21 +578,23 @@ pub unsafe fn main() {
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let stm32f429i_discovery = STM32F429IDiscovery {
-        console: console,
+        console,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
             &memory_allocation_capability,
         ),
         adc: adc_syscall,
-        led: led,
+        led,
         temperature: temp,
-        button: button,
-        alarm: alarm,
-        gpio: gpio,
+        button,
+        alarm,
+        gpio,
 
         scheduler,
-        systick: cortexm4::systick::SysTick::new(),
+        systick: cortexm4::systick::SysTick::new_with_calibration(
+            (HSI_FREQUENCY_MHZ * 1_000_000) as u32,
+        ),
     };
 
     // // Optional kernel tests
@@ -647,10 +641,14 @@ pub unsafe fn main() {
     .finalize(components::multi_alarm_test_component_buf!(stm32f429zi::tim2::Tim2))
     .run();*/
 
-    board_kernel.kernel_loop(
-        &stm32f429i_discovery,
-        chip,
-        Some(&stm32f429i_discovery.ipc),
-        &main_loop_capability,
-    );
+    (board_kernel, stm32f429i_discovery, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, platform, chip) = start();
+    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }

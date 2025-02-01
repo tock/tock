@@ -111,7 +111,7 @@ impl<'a, 'b, U: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, U> {
         strings: &'b [&'b str],
     ) -> Self {
         ClientCtrl {
-            controller: controller,
+            controller,
             state: Default::default(),
             // For the moment, the Default trait is not implemented for arrays
             // of length > 32, and the Cell type is not Copy, so we have to

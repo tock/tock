@@ -68,6 +68,9 @@ pub enum NUM {
     SoundPressure         = 0x60006,
     AirQuality            = 0x60007,
     Pressure              = 0x60008,
+    Distance              = 0x60009,
+    Moisture              = 0x6000A,
+    RainFall              = 0x6000B,
 
     // Sensor ICs
     Tsl2561               = 0x70000,
@@ -94,5 +97,6 @@ pub enum NUM {
     KeyboardHid           = 0x90005,
     DateTime              = 0x90007,
     CycleCount            = 0x90008,
+    Servo                 = 0x90009,
 }
 }

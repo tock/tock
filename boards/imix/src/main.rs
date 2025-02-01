@@ -311,20 +311,14 @@ unsafe fn set_pin_primary_functions(peripherals: &Sam4lDefaultPeripherals) {
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-unsafe fn create_peripherals(
-    pm: &'static sam4l::pm::PowerManager,
-) -> &'static Sam4lDefaultPeripherals {
-    static_init!(Sam4lDefaultPeripherals, Sam4lDefaultPeripherals::new(pm))
-}
-
-/// Main function.
-///
-/// This is called after RAM initialization is complete.
-#[no_mangle]
-pub unsafe fn main() {
+unsafe fn start() -> (
+    &'static kernel::Kernel,
+    Imix,
+    &'static sam4l::chip::Sam4l<Sam4lDefaultPeripherals>,
+) {
     sam4l::init();
     let pm = static_init!(sam4l::pm::PowerManager, sam4l::pm::PowerManager::new());
-    let peripherals = create_peripherals(pm);
+    let peripherals = static_init!(Sam4lDefaultPeripherals, Sam4lDefaultPeripherals::new(pm));
 
     pm.setup_system_clock(
         sam4l::pm::SystemClockSource::PllExternalOscillatorAt48MHz {
@@ -348,7 +342,6 @@ pub unsafe fn main() {
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
-    let main_cap = create_capability!(capabilities::MainLoopCapability);
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
     power::configure_submodules(
@@ -472,15 +465,15 @@ pub unsafe fn main() {
     let spi_syscalls = SpiSyscallComponent::new(
         board_kernel,
         mux_spi,
-        2,
+        sam4l::spi::Peripheral::Peripheral2,
         capsules_core::spi_controller::DRIVER_NUM,
     )
     .finalize(components::spi_syscall_component_static!(
         sam4l::spi::SpiHw<'static>
     ));
-    let rf233_spi = SpiComponent::new(mux_spi, 3).finalize(components::spi_component_static!(
-        sam4l::spi::SpiHw<'static>
-    ));
+    let rf233_spi = SpiComponent::new(mux_spi, sam4l::spi::Peripheral::Peripheral3).finalize(
+        components::spi_component_static!(sam4l::spi::SpiHw<'static>),
+    );
     let rf233 = components::rf233::RF233Component::new(
         rf233_spi,
         &peripherals.pa[09], // reset
@@ -715,6 +708,23 @@ pub unsafe fn main() {
     let checker = components::appid::checker::ProcessCheckerMachineComponent::new(checking_policy)
         .finalize(components::process_checker_machine_component_static!());
 
+    //--------------------------------------------------------------------------
+    // STORAGE PERMISSIONS
+    //--------------------------------------------------------------------------
+
+    let storage_permissions_policy =
+        components::storage_permissions::individual::StoragePermissionsIndividualComponent::new()
+            .finalize(
+                components::storage_permissions_individual_component_static!(
+                    sam4l::chip::Sam4l<Sam4lDefaultPeripherals>,
+                    kernel::process::ProcessStandardDebugFull,
+                ),
+            );
+
+    //--------------------------------------------------------------------------
+    // PROCESS LOADING
+    //--------------------------------------------------------------------------
+
     // Create and start the asynchronous process loader.
     let _loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
         checker,
@@ -723,9 +733,11 @@ pub unsafe fn main() {
         chip,
         &FAULT_RESPONSE,
         assigner,
+        storage_permissions_policy,
     )
     .finalize(components::process_loader_sequential_component_static!(
         sam4l::chip::Sam4l<Sam4lDefaultPeripherals>,
+        kernel::process::ProcessStandardDebugFull,
         NUM_PROCS
     ));
 
@@ -815,5 +827,14 @@ pub unsafe fn main() {
 
     debug!("Initialization complete. Entering main loop");
 
-    board_kernel.kernel_loop(&imix, chip, Some(&imix.ipc), &main_cap);
+    (board_kernel, imix, chip)
+}
+
+/// Main function called after RAM initialized.
+#[no_mangle]
+pub unsafe fn main() {
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    let (board_kernel, platform, chip) = start();
+    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }

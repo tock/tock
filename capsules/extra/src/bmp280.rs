@@ -33,24 +33,24 @@ enum Register {
     DIG_T3 = 0x8c,
     ID = 0xd0,
     RESET = 0xe0,
-    /// measuring: [3]
-    /// im_update: [0]
+    // measuring: [3]
+    // im_update: [0]
     STATUS = 0xf3,
-    /// osrs_t: [7:5]
-    /// osrs_p: [4:2]
-    /// mode: [1:0]
+    // osrs_t: [7:5]
+    // osrs_p: [4:2]
+    // mode: [1:0]
     CTRL_MEAS = 0xf4,
-    /// t_sb: [7:5]
-    /// filter: [4:2]
-    /// spi3w_en: [0]
+    // t_sb: [7:5]
+    // filter: [4:2]
+    // spi3w_en: [0]
     CONFIG = 0xf5,
     PRESS_MSB = 0xf7,
     PRESS_LSB = 0xf8,
-    /// xlsb: [7:4]
+    // xlsb: [7:4]
     PRESS_XLSB = 0xf9,
     TEMP_MSB = 0xfa,
     TEMP_LSB = 0xfb,
-    /// xlsb: [7:4]
+    // xlsb: [7:4]
     TEMP_XLSB = 0xfc,
 }
 
@@ -143,7 +143,7 @@ struct I2cWrapper<'a, I: i2c::I2CDevice> {
     i2c: &'a I,
 }
 
-impl<'a, I: i2c::I2CDevice> I2cWrapper<'a, I> {
+impl<I: i2c::I2CDevice> I2cWrapper<'_, I> {
     fn write<const COUNT: usize>(
         &self,
         buffer: &'static mut [u8],
@@ -201,7 +201,7 @@ impl<'a, A: Alarm<'a>, I: i2c::I2CDevice> Bmp280<'a, A, I> {
             temperature_client: OptionalCell::empty(),
             state: Cell::new(State::Uninitialized),
             buffer: TakeCell::new(buffer),
-            alarm: alarm,
+            alarm,
         }
     }
 

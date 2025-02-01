@@ -18,10 +18,14 @@ These implement a driver to setup and read various physical sensors.
 - **[ADC Microphone](src/adc_microphone.rs)**: Single ADC pin microphone.
 - **[Analog Sensors](src/analog_sensor.rs)**: Single ADC pin sensors.
 - **[APDS9960](src/apds9960.rs)**: Proximity sensor.
+- **[ATECC508A](src/atecc508a.rs)**: Cryptographic Co-Processor Breakout.
 - **[BME280](src/bme280.rs)**: Humidity and air pressure sensor.
 - **[BMM150](src/bmm150.rs)**: Geomagnetic sensor.
 - **[BMP280](src/bmp280.rs)**: Temperature (and air pressure) sensor.
 - **[CCS811](src/ccs811.rs)**: VOC gas sensor.
+- **[Chirp I2C Moisture](src/chirp_i2c_moisture.rs)**: I2C moisture sensor
+    from Chirp project.
+- **[DFRobot Rainfall Sensor](src/dfrobot_rainfall_sensor.rs)**: Rainfall sensor.
 - **[FXOS8700CQ](src/fxos8700cq.rs)**: Accelerometer and magnetometer.
 - **[HS3003](src/hs3003.rs)**: Temperature and humidity sensor.
 - **[HTS221](src/hts221.rs)**: Temperature and humidity sensor.
@@ -46,6 +50,7 @@ These implement a driver to setup and read various physical sensors.
 - **[STM32 Temperature](src/temperature_stm.rs)**: Analog STM32 temperature
   sensor.
 - **[TSL2561](src/tsl2561.rs)**: Light sensor.
+- **[HC-SR04](src/hc_sr04.rs)**: Ultrasonic distance sensor
 
 These drivers provide support for various ICs.
 
@@ -88,8 +93,6 @@ Protocol stacks and other libraries.
 - **[IEEE 802.15.4](src/ieee802154)**: 802.15.4 networking.
 - **[Networking](src/net)**: Networking stack.
 - **[USB](src/usb)**: USB 2.0.
-- **[Segger RTT](src/segger_rtt.rs)**: Segger RTT support. Provides `hil::uart`
-  interface.
 - **[Symmetric Cryptography](src/symmetric_encryption)**: Symmetric
   encryption.
 - **[Public Key Cryptography](src/public_key_crypto)**: Asymmetric
@@ -117,15 +120,18 @@ These provide common and better abstractions for userspace.
 - **[App Flash](src/app_flash_driver.rs)**: Allow applications to write their
   own flash.
 - **[Buzzer](src/buzzer_driver.rs)**: Simple buzzer.
+- **[Servo](src/servo.rs)**: Servo motor.
 - **[Date-Time](src/date_time.rs)**: Real time clock date/time support.
 - **[EUI64](src/eui64.rs)**: Query device's extended unique ID.
 - **[HMAC](src/hmac.rs)**: Hash-based Message Authentication Code support.
 - **[Humidity](src/humidity.rs)**: Query humidity sensors.
 - **[Key-Value Store](src/kv_driver.rs)**: Store key-value data.
 - **[LED Matrix](src/led_matrix.rs)**: Control a 2D array of LEDs.
+- **[Moisture](src/moisture.rs)**: Query moisture sensors.
 - **[Pressure](src/pressure.rs)**: Pressure sensors.
 - **[Proximity](src/proximity.rs)**: Proximity sensors.
 - **[PWM](src/pwm.rs)**: Pulse-width modulation support.
+- **[Rainfall](src/rainfall.rs)**: Query rainfall sensors.
 - **[Read Only State](src/read_only_state.rs)**: Read-only state sharing.
 - **[Screen](src/screen.rs)**: Displays and screens.
 - **[Screen Shared](src/screen_shared.rs)**: App-specific screen windows.
@@ -134,6 +140,7 @@ These provide common and better abstractions for userspace.
 - **[Temperature](src/temperature.rs)**: Query temperature sensors.
 - **[Text Screen](src/text_screen.rs)**: Text-based displays.
 - **[Touch](src/touch.rs)**: User touch panels.
+- **[Distance](src/distance.rs)**: Distance sensor.
 
 
 Virtualized Sensor Capsules for Userspace
@@ -157,6 +164,7 @@ Other capsules that implement reusable logic.
 
 - **[Bus Adapters](src/bus.rs)**: Generic abstraction for SPI/I2C/8080.
 - **[Buzzer PWM](src/buzzer_pwm.rs)**: Buzzer with a PWM pin.
+- **[SG90 PWM](src/sg90.rs)**: SG90 servomotor.
 - **[HMAC-SHA256](src/hmac_sha256.rs)**: HMAC using SHA-256.
 - **[Key-Value Store with Permissions](src/kv_store_permissions.rs)**: Key-value
   interface that requires read/write permissions.

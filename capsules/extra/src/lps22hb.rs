@@ -90,7 +90,7 @@ impl<'a, I: I2CDevice> Lps22hb<'a, I> {
     pub fn new(i2c_bus: &'a I, buffer: &'static mut [u8]) -> Lps22hb<'a, I> {
         Lps22hb {
             buffer: TakeCell::new(buffer),
-            i2c_bus: i2c_bus,
+            i2c_bus,
             pressure_client: OptionalCell::empty(),
             pending_pressure: Cell::new(false),
             state: Cell::new(State::Sleep),
@@ -158,7 +158,7 @@ pub enum State {
     GotMeasurement,
 }
 
-impl<'a, I: I2CDevice> I2CClient for Lps22hb<'a, I> {
+impl<I: I2CDevice> I2CClient for Lps22hb<'_, I> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), i2c::Error>) {
         if let Err(i2c_err) = status {
             self.state.set(State::Idle);

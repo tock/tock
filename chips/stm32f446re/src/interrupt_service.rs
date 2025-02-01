@@ -27,8 +27,9 @@ impl<'a> Stm32f446reDefaultPeripherals<'a> {
         self.stm32f4.setup_circular_deps();
     }
 }
-impl<'a> kernel::platform::chip::InterruptService for Stm32f446reDefaultPeripherals<'a> {
+impl kernel::platform::chip::InterruptService for Stm32f446reDefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
+        #[allow(clippy::match_single_binding)]
         match interrupt {
             // put Stm32f446re specific interrupts here
             _ => self.stm32f4.service_interrupt(interrupt),

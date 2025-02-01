@@ -4,8 +4,6 @@
 
 # Makefile for building the tock kernel for the STM32F3DISCOVERY platform
 #
-TARGET=thumbv7em-none-eabi
-PLATFORM=stm32f3discovery
 
 include ../Makefile.common
 

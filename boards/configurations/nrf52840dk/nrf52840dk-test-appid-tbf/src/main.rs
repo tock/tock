@@ -74,6 +74,7 @@ pub struct Platform {
     alarm: &'static AlarmDriver,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
+    processes: &'static [Option<&'static dyn kernel::process::Process>],
 }
 
 impl SyscallDriverLookup for Platform {
@@ -148,13 +149,11 @@ impl kernel::process::ProcessLoadingAsyncClient for Platform {
     fn process_loading_finished(&self) {
         kernel::debug!("Processes Loaded:");
 
-        unsafe {
-            for (i, proc) in PROCESSES.iter().enumerate() {
-                proc.map(|p| {
-                    kernel::debug!("[{}] {}", i, p.get_process_name());
-                    kernel::debug!("    ShortId: {}", p.short_app_id());
-                });
-            }
+        for (i, proc) in self.processes.iter().enumerate() {
+            proc.map(|p| {
+                kernel::debug!("[{}] {}", i, p.get_process_name());
+                kernel::debug!("    ShortId: {}", p.short_app_id());
+            });
         }
     }
 }
@@ -177,13 +176,15 @@ pub unsafe fn main() {
     nrf52840_peripherals.init();
     let base_peripherals = &nrf52840_peripherals.nrf52;
 
+    let processes = &*addr_of!(PROCESSES);
+
     // Choose the channel for serial output. This board can be configured to use
     // either the Segger RTT channel or via UART with traditional TX/RX GPIO
     // pins.
     let uart_channel = UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD));
 
     // Setup space to store the core kernel data structure.
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes));
 
     // Create (and save for panic debugging) a chip object to setup low-level
     // resources (e.g. MPU, systick).
@@ -306,6 +307,22 @@ pub unsafe fn main() {
     let checker = components::appid::checker::ProcessCheckerMachineComponent::new(checking_policy)
         .finalize(components::process_checker_machine_component_static!());
 
+    //--------------------------------------------------------------------------
+    // STORAGE PERMISSIONS
+    //--------------------------------------------------------------------------
+
+    let storage_permissions_policy =
+        components::storage_permissions::null::StoragePermissionsNullComponent::new().finalize(
+            components::storage_permissions_null_component_static!(
+                nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+                kernel::process::ProcessStandardDebugFull,
+            ),
+        );
+
+    //--------------------------------------------------------------------------
+    // PROCESS LOADING
+    //--------------------------------------------------------------------------
+
     // Create and start the asynchronous process loader.
     let loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
         checker,
@@ -314,9 +331,11 @@ pub unsafe fn main() {
         chip,
         &FAULT_RESPONSE,
         assigner,
+        storage_permissions_policy,
     )
     .finalize(components::process_loader_sequential_component_static!(
         nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+        kernel::process::ProcessStandardDebugFull,
         NUM_PROCS
     ));
 
@@ -324,7 +343,7 @@ pub unsafe fn main() {
     // PLATFORM SETUP, SCHEDULER, AND START KERNEL LOOP
     //--------------------------------------------------------------------------
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let platform = static_init!(
@@ -335,6 +354,7 @@ pub unsafe fn main() {
             alarm,
             scheduler,
             systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
+            processes,
         }
     );
     loader.set_client(platform);

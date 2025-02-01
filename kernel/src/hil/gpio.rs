@@ -25,7 +25,9 @@ pub enum InterruptEdge {
     EitherEdge,
 }
 
-/// Enum for which state the pin is in. Some MCUs can support Input/Output pins,
+/// Enum for which state the pin is in.
+///
+/// Some MCUs can support Input/Output pins,
 /// so this is a valid option. `Function` means the pin has been configured to
 /// a special function. Determining which function it outside the scope of the HIL,
 /// and should instead use a chip-specific API.
@@ -223,10 +225,11 @@ pub trait Client {
 }
 
 /// Interface that wraps an interrupt to pass a value when it
-/// triggers. The standard use case for this trait is when several
-/// interrupts call the same callback function and it needs to
-/// distinguish which one is calling it by giving each one a unique
-/// value.
+/// triggers.
+///
+/// The standard use case for this trait is when several interrupts
+/// call the same callback function and it needs to distinguish which
+/// one is calling it by giving each one a unique value.
 pub trait InterruptWithValue<'a>: Input {
     /// Set the client for interrupt events.
     fn set_client(&self, client: &'a dyn ClientWithValue);

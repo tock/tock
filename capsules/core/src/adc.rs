@@ -68,6 +68,7 @@ use crate::virtualizers::virtual_adc::Operation;
 pub const DRIVER_NUM: usize = driver::NUM::Adc as usize;
 
 /// Multiplexed ADC syscall driver, used by applications and capsules.
+///
 /// Virtualized, and can be use by multiple applications at the same time;
 /// requests are queued. Does not support continuous or high-speed sampling.
 pub struct AdcVirtualized<'a> {
@@ -77,6 +78,7 @@ pub struct AdcVirtualized<'a> {
 }
 
 /// ADC syscall driver, used by applications to interact with ADC.
+///
 /// Not currently virtualized: does not share the ADC with other capsules
 /// and only one application can use it at a time. Supports continuous and
 /// high speed sampling.
@@ -148,7 +150,8 @@ impl Default for AppSys {
         }
     }
 }
-/// Buffers to use for DMA transfers
+/// Buffers to use for DMA transfers.
+///
 /// The size is chosen somewhat arbitrarily, but has been tested. At 175000 Hz,
 /// buffers need to be swapped every 70 us and copied over before the next
 /// swap. In testing, it seems to keep up fine.
@@ -171,8 +174,8 @@ impl<'a, A: hil::adc::Adc<'a> + hil::adc::AdcHighSpeed<'a>> AdcDedicated<'a, A> 
     ) -> AdcDedicated<'a, A> {
         AdcDedicated {
             // ADC driver
-            adc: adc,
-            channels: channels,
+            adc,
+            channels,
 
             // ADC state
             active: Cell::new(false),
@@ -642,7 +645,7 @@ impl<'a> AdcVirtualized<'a> {
         grant: Grant<AppSys, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> AdcVirtualized<'a> {
         AdcVirtualized {
-            drivers: drivers,
+            drivers,
             apps: grant,
             current_process: OptionalCell::empty(),
         }
@@ -1325,7 +1328,7 @@ impl SyscallDriver for AdcVirtualized<'_> {
     }
 }
 
-impl<'a> hil::adc::Client for AdcVirtualized<'a> {
+impl hil::adc::Client for AdcVirtualized<'_> {
     fn sample_ready(&self, sample: u16) {
         self.current_process.take().map(|processid| {
             let _ = self.apps.enter(processid, |app, upcalls| {

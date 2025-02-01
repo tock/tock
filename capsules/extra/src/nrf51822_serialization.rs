@@ -107,8 +107,8 @@ impl<'a> Nrf51822Serialization<'a> {
         rx_buffer: &'static mut [u8],
     ) -> Nrf51822Serialization<'a> {
         Nrf51822Serialization {
-            uart: uart,
-            reset_pin: reset_pin,
+            uart,
+            reset_pin,
             apps: grant,
             active_app: OptionalCell::empty(),
             tx_buffer: TakeCell::new(tx_buffer),

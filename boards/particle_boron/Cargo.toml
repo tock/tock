@@ -18,8 +18,15 @@ cortexm4 = { path = "../../arch/cortex-m4" }
 kernel = { path = "../../kernel" }
 nrf52 = { path = "../../chips/nrf52" }
 nrf52840 = { path = "../../chips/nrf52840" }
+segger = { path = "../../chips/segger" }
 nrf52_components = { path = "../nordic/nrf52_components" }
 
 capsules-core = { path = "../../capsules/core" }
 capsules-extra = { path = "../../capsules/extra" }
 capsules-system = { path = "../../capsules/system" }
+
+[build-dependencies]
+tock_build_scripts = { path = "../build_scripts" }
+
+[lints]
+workspace = true

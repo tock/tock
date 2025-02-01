@@ -1,0 +1,178 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2024.
+
+# This workflow contains all Treadmill-based hardware CI jobs.
+#
+# Treadmill is a distributed hardware testbed developed within the Tock OS
+# project. For more information on Treadmill, have a look at its documentation
+# [1] or repository [2].
+#
+# This workflow is based on the Treadmill GitHub Actions integration guide [3].
+# In addition, it features the ability to run multiple Treadmill jobs and
+# test-execute stages through GitHub Action's job matrices, and uses a GitHub
+# environment to allow deployments with access to secrets for select PRs.
+#
+# [1]: https://book.treadmill.ci/
+# [2]: https://github.com/treadmill-tb/treadmill
+# [3]: https://book.treadmill.ci/user-guide/github-actions-integration.html
+
+name: treadmill-ci
+
+env:
+  TERM: xterm # Makes tput work in actions output
+
+# Controls when the action will run. Triggers the workflow on pull request and
+# merge group checks:
+#
+# KEEP IN SYNC WITH `environment:` ATTRIBUTE BELOW:
+on:
+  push:
+    branches:
+      - master
+      # Add any additional branches you want to include
+      # - dev/test_ci_branch
+
+  # Pull requests from forks will not have access to the required GitHub API
+  # secrets below, even if they are using an appropriate deployment environment
+  # and the workflow runs have been approved according to this environment's
+  # rules. We don't know whether this is a bug on GitHub's end or deliberate.
+  #
+  # Either way, for now we disable this workflow to run on PRs until we have
+  # an API proxy that securely performs these GitHub API calls (adding runners
+  # and starting Treadmill jobs with those runner registration tokens), which
+  # allows this workflow to run without access to repository secrets.
+  #
+  # However, because GitHub's merge queues don't allow to differentiate required
+  # checks for *entering* the merge queue from those that are required to *pass*
+  # it, we also can't disable this trigger entirely. Instead, we use a selector
+  # to avoid running any actual checks on this trigger, while still technically
+  # succeeding for PRs.
+  pull_request:
+
+  merge_group: # Run CI for the GitHub merge queue
+
+  # Manually dispatch for a specific branch (will require approval
+  # through the treadmill-ci-merged environment:
+  workflow_dispatch:
+    inputs:
+      tock-kernel-ref:
+        description: 'Ref (revision/branch/tag) of the upstream Tock repo to test'
+        required: true
+        default: 'master'
+      libtock-c-ref:
+        description: 'Ref (revision/branch/tag) of the upstream libtock-c repo to test'
+        required: true
+        default: 'master'
+      tests-json:
+        description: 'tests-json value passed to HWCI workflow (if empty, output from hwci-determine-tests step is used)'
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  hwci-determine-tests:
+    runs-on: ubuntu-latest
+
+    # Don't run on a pull request, as explained above.
+    if: github.event_name != 'pull_request'
+
+    outputs:
+      hwci-tests-json: ${{ steps.determine-tests.outputs.hwci-tests-json }}
+
+    steps:
+      - name: Checkout the tock/tock repository
+        uses: actions/checkout@v4
+        with:
+          # Checkout the repository at the commit that triggered the workflow
+          repository: tock/tock
+          ref: ${{ github.sha }}
+          path: tock-tock
+
+      - name: Checkout the tock-hardware-ci repository
+        uses: actions/checkout@v4
+        with:
+          repository: tock/tock-hardware-ci
+          # Change this in accordance with the two other `tock-hardware-ci` refs
+          # referenced below in the reusable workflow's parameters:
+          ref: 'main'
+          path: tock-hardware-ci
+
+      - name: Analyze changes to determine relevant tests
+        id: determine-tests
+        run: |
+          # Ensure Python dependencies are installed
+          python3 -m pip install --user --upgrade pip
+
+          # Run the select_tests.py script
+          python3 tock-hardware-ci/hwci/select_tests.py \
+            --repo-path tock-tock \
+            --hwci-path tock-hardware-ci/hwci \
+            --output selected_tests.json
+
+          echo "Selected HWCI tests:"
+          cat selected_tests.json
+
+          # Output the tests JSON
+          hwci_tests_json=$(cat selected_tests.json | jq -c '.')
+          echo "hwci-tests-json=${hwci_tests_json}" >> "$GITHUB_OUTPUT"
+
+  hwci-treadmill-dispatch:
+    needs: [hwci-determine-tests]
+
+    # This checks whether there is at least one test to run, see
+    # https://github.com/orgs/community/discussions/27125#discussioncomment-3254720
+    #
+    # Don't run on a pull request, as explained above.
+    if: github.event_name != 'pull_request' && (fromJSON(needs.hwci-determine-tests.outputs.hwci-tests-json)[0] != null || github.event_name == 'workflow_dispatch')
+
+    # The main tock-hardware-ci workflow is imported from another repository. It
+    # can be reused across multiple Tock repositories such as the kernel,
+    # libtock-c, and libtock-rs.
+    uses: tock/tock-hardware-ci/.github/workflows/treadmill-ci.yml@main
+
+    with:
+      # Only run on a specific repository, as others will not have the right
+      # environments set up and secrets configured. Forks may want to change
+      # this parameter.
+      repository-filter: 'tock/tock'
+
+      # Provide access to the required Treadmill secrets by running in the
+      # appropriate environment (depending on the `on:` triggers above)
+      job-environment: ${{ (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch') && 'treadmill-ci' || 'treadmill-ci-merged' }}
+
+      # Reference for tock-hardware-ci repo, change if you want a specific test
+      # suite. In this case, you should also update the branch reference in the
+      # "uses" line above.
+      tock-hardware-ci-ref: 'main'
+
+      # Test the tock kernel revision that triggered this workflow:
+      tock-kernel-ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tock-kernel-ref || github.sha }}
+
+      # Use the latest upstream libtock-c library:
+      libtock-c-ref: ${{ github.event_name == 'workflow_dispatch' && inputs.libtock-c-ref || 'master' }}
+
+      # Pass the selected tests:
+      tests-json: ${{ (github.event_name == 'workflow_dispatch' && inputs.tests-json != '') && inputs.tests-json || needs.hwci-determine-tests.outputs.hwci-tests-json }}
+
+    secrets: inherit
+
+  # We cannot depend on *all* test-execute jobs of hwci-treadmill-dispatch as
+  # required checks for pull requests and merge queues. Thus, we run another
+  # single dummy step here that waits for all the hwci-treadmill-dispatch jobs
+  # to complete and report success.
+  #
+  # We also use this to report a "dummy" success value for the "pull_request"
+  # trigger, as explained in the comment of the "on:" parameters above.
+  hwci-report-success:
+    needs: [hwci-determine-tests, hwci-treadmill-dispatch]
+
+    if: always()
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Fail if any of the 'hwci-treadmill-dispatch' jobs failed
+        if: github.event_name != 'pull_request' && contains(needs.*.result, 'failure')
+        run: exit 1

@@ -12,6 +12,18 @@ pub enum BusWidth {
     Bits16LE,
     Bits16BE,
 }
+/// The enum represents the address of a bus-attached device.
+///
+/// For addresses larger than a single byte the enum variant
+/// captures the endianess used by the device on the bus.
+/// The address is stored in the host endianess in the u16 and
+/// must be converted to the correct endianess before using the
+/// address on the bus.
+pub enum BusAddr8080 {
+    BusAddr8(u8),
+    BusAddr16BE(u16),
+    BusAddr16LE(u16),
+}
 
 impl BusWidth {
     pub fn width_in_bytes(&self) -> usize {
@@ -24,8 +36,7 @@ impl BusWidth {
 
 pub trait Bus8080<'a> {
     /// Set the address to write to
-    fn set_addr(&self, addr_width: BusWidth, addr: usize) -> Result<(), ErrorCode>;
-
+    fn set_addr(&self, addr: BusAddr8080) -> Result<(), ErrorCode>;
     /// Write data items to the previously set address
     fn write(
         &self,

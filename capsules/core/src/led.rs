@@ -76,7 +76,7 @@ impl<'a, L: led::Led, const NUM_LEDS: usize> LedDriver<'a, L, NUM_LEDS> {
             led.off();
         }
 
-        Self { leds: leds }
+        Self { leds }
     }
 }
 

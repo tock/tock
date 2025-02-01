@@ -170,8 +170,8 @@ impl<'a, I: i2c::I2CDevice> Lsm303dlhcI2C<'a, I> {
         // setup and return struct
         Lsm303dlhcI2C {
             config_in_progress: Cell::new(false),
-            i2c_accelerometer: i2c_accelerometer,
-            i2c_magnetometer: i2c_magnetometer,
+            i2c_accelerometer,
+            i2c_magnetometer,
             state: Cell::new(State::Idle),
             accel_scale: Cell::new(Lsm303Scale::Scale2G),
             mag_range: Cell::new(Lsm303Range::Range1G),
