@@ -16,6 +16,7 @@
 //!     board_kernel,
 //!     capsules_extra::app_loader::DRIVER_NUM,
 //!     dynamic_process_loader,
+//!     dynamic_process_loader,
 //!     ).finalize(components::app_loader_component_static!());
 //! ```
 
@@ -40,19 +41,22 @@ macro_rules! app_loader_component_static {
 pub struct AppLoaderComponent {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
-    driver: &'static dyn dynamic_process_loading::DynamicProcessLoading,
+    storage_driver: &'static dyn dynamic_process_loading::DynamicBinaryFlashing,
+    loading_driver: &'static dyn dynamic_process_loading::DynamicProcessLoading,
 }
 
 impl AppLoaderComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
-        driver: &'static dyn dynamic_process_loading::DynamicProcessLoading,
+        storage_driver: &'static dyn dynamic_process_loading::DynamicBinaryFlashing,
+        loading_driver: &'static dyn dynamic_process_loading::DynamicProcessLoading,
     ) -> Self {
         Self {
             board_kernel,
             driver_num,
-            driver,
+            storage_driver,
+            loading_driver,
         }
     }
 }
@@ -73,11 +77,12 @@ impl Component for AppLoaderComponent {
 
         let dynamic_app_loader = static_buffer.0.write(AppLoader::new(
             self.board_kernel.create_grant(self.driver_num, &grant_cap),
-            self.driver,
+            self.storage_driver,
+            self.loading_driver,
             buffer,
         ));
-        kernel::dynamic_process_loading::DynamicProcessLoading::set_client(
-            self.driver,
+        kernel::dynamic_process_loading::DynamicBinaryFlashing::set_storage_client(
+            self.storage_driver,
             dynamic_app_loader,
         );
         dynamic_app_loader

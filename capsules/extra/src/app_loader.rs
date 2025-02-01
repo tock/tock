@@ -27,11 +27,12 @@
 //! |               capsules::app_loader::AppLoader (this)            |
 //! |                                                                 |
 //! +-----------------------------------------------------------------+
-//!        kernel::dynamic_process_loading::DynamicProcessLoading
+//!         kernel::dynamic_process_loading::DynamicBinaryFlashing
+//!         kernel::dynamic_process_loading::DynamicProcessLoading
 //! +-----------------------------------------------------------------+
-//! |                                                                 |
-//! |               Kernel  | Physical Nonvolatile Storage            |
-//! |                                                                 |
+//! |                                     |                           |
+//! |  Physical Nonvolatile Storage       |           Kernel          |
+//! |                                     |                           |
 //! +-----------------------------------------------------------------+
 //!             hil::nonvolatile_storage::NonvolatileStorage
 //! ```
@@ -44,6 +45,7 @@
 //! let dynamic_app_loader = components::app_loader::AppLoaderComponent::new(
 //!     board_kernel,
 //!     capsules_extra::app_loader::DRIVER_NUM,
+//!     dynamic_process_loader,
 //!     dynamic_process_loader,
 //!     ).finalize(components::app_loader_component_static!());
 //!
@@ -92,7 +94,8 @@ pub struct App {}
 
 pub struct AppLoader<'a> {
     // The underlying driver for the process flashing and loading.
-    driver: &'a dyn dynamic_process_loading::DynamicProcessLoading,
+    storage_driver: &'a dyn dynamic_process_loading::DynamicBinaryFlashing,
+    loading_driver: &'a dyn dynamic_process_loading::DynamicProcessLoading,
     // Per-app state.
     apps: Grant<
         App,
@@ -116,12 +119,14 @@ impl<'a> AppLoader<'a> {
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<0>,
         >,
-        driver: &'a dyn dynamic_process_loading::DynamicProcessLoading,
+        storage_driver: &'a dyn dynamic_process_loading::DynamicBinaryFlashing,
+        loading_driver: &'a dyn dynamic_process_loading::DynamicProcessLoading,
         buffer: &'static mut [u8],
     ) -> AppLoader<'a> {
         AppLoader {
-            driver,
             apps: grant,
+            storage_driver,
+            loading_driver,
             buffer: TakeCell::new(buffer),
             current_process: OptionalCell::empty(),
             new_app_length: Cell::new(0),
@@ -182,7 +187,7 @@ impl<'a> AppLoader<'a> {
                     .map_or(Err(ErrorCode::RESERVE), |buffer| {
                         let mut write_buffer = SubSliceMut::new(buffer);
                         write_buffer.slice(..length); // should be the length supported by the app (currently only powers of 2 work)
-                        let res = self.driver.write_app_data(write_buffer, offset);
+                        let res = self.storage_driver.write_app_data(write_buffer, offset);
                         match res {
                             Ok(()) => Ok(()),
                             Err(e) => Err(e),
@@ -193,8 +198,8 @@ impl<'a> AppLoader<'a> {
     }
 }
 
-impl kernel::dynamic_process_loading::DynamicProcessLoadingClient for AppLoader<'_> {
-    /// Let the app know we are done setting up for the new app
+impl kernel::dynamic_process_loading::DynamicBinaryFlashingClient for AppLoader<'_> {
+    /// Let the requesting app know we are done setting up for the new app
     fn setup_done(&self) {
         // Switch on which user of this capsule generated this callback.
         self.current_process.map(|processid| {
@@ -222,8 +227,10 @@ impl kernel::dynamic_process_loading::DynamicProcessLoadingClient for AppLoader<
             });
         });
     }
+}
 
-    /// Let the app know we are done loading the new process
+impl kernel::dynamic_process_loading::DynamicProcessLoadingClient for AppLoader<'_> {
+    /// Let the requesting app know we are done loading the new process
     fn load_done(&self) {
         self.current_process.map(|processid| {
             let _ = self.apps.enter(processid, move |_app, kernel_data| {
@@ -281,7 +288,7 @@ impl SyscallDriver for AppLoader<'_> {
 
             1 => {
                 //setup phase
-                let res = self.driver.setup(arg1); // pass the size of the app to the setup function
+                let res = self.storage_driver.setup(arg1); // pass the size of the app to the setup function
                 match res {
                     Ok((app_len, setup_done)) => {
                         // schedule the upcall here so the userspace always has to wait for the
@@ -329,7 +336,7 @@ impl SyscallDriver for AppLoader<'_> {
             3 => {
                 // Request kernel to load the new app
 
-                let res = self.driver.load();
+                let res = self.loading_driver.load();
                 match res {
                     Ok(()) => {
                         self.new_app_length.set(0); // reset the app length

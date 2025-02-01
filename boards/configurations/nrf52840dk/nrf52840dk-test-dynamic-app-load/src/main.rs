@@ -442,6 +442,7 @@ pub unsafe fn main() {
         board_kernel,
         capsules_extra::app_loader::DRIVER_NUM,
         dynamic_process_loader,
+        dynamic_process_loader,
     )
     .finalize(components::app_loader_component_static!());
 

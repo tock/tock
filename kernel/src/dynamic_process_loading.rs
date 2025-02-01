@@ -4,7 +4,7 @@
 
 //! Dynamic Process Loader for application loading and updating at runtime.
 //!
-//! These functions facilitate dynamic application loading and process creation
+//! These functions facilitate dynamic application flashing and process creation
 //! during runtime without requiring the user to restart the device.
 
 use core::cell::Cell;
@@ -46,9 +46,9 @@ pub struct ProcessLoadMetadata {
     pub padding_requirement: PaddingRequirement,
 }
 
-/// This interface supports loading processes at runtime.
-pub trait DynamicProcessLoading {
-    /// Call to request loading a new process.
+/// This interface supports flashing binaries at runtime.
+pub trait DynamicBinaryFlashing {
+    /// Call to request flashing a new binary.
     ///
     /// This informs the kernel we want to load a process and the  of the
     /// entire process binary. The kernel will try to find a suitable location
@@ -84,34 +84,36 @@ pub trait DynamicProcessLoading {
         offset: usize,
     ) -> Result<(), ErrorCode>;
 
-    /// Instruct the kernel to write data to the flash.
+    /// Sets a client for the DynamicBinaryFlashing Object
     ///
-    /// `offset` is where to start writing within the region allocated for the
-    /// new process binary from the `setup()` call.
-    ///
-    /// The caller must write the first 8 bytes of the process with valid header
-    /// data. Writes must either be after the first 8 bytes or include the
-    /// entire first 8 bytes.
-    ///
-    /// Returns an error if the write is outside of the permitted region or is
-    /// writing an invalid header.
+    /// When the client operation is done, it calls the `setup_done()`
+    /// and `write_app_data_done()` functions.
+    fn set_storage_client(&self, client: &'static dyn DynamicBinaryFlashingClient);
+}
+
+/// This interface supports loading processes at runtime.
+pub trait DynamicProcessLoading {
+    /// Call to request kernel to load a new process.
     fn load(&self) -> Result<(), ErrorCode>;
 
     /// Sets a client for the DynamicProcessLoading Object
     ///
-    /// When the client operation is done, it calls the `write_app_data_done()`
+    /// When the client operation is done, it calls the `load_done()`
     /// function.
-    fn set_client(&self, client: &'static dyn DynamicProcessLoadingClient);
+    fn set_load_client(&self, client: &'static dyn DynamicProcessLoadingClient);
 }
 
-/// The callback for dynamic process loading.
-pub trait DynamicProcessLoadingClient {
-    /// Any setup work is done and we are ready to load the process binary.
+/// The callback for dynamic binary flashing.
+pub trait DynamicBinaryFlashingClient {
+    /// Any setup work is done and we are ready to write the process binary.
     fn setup_done(&self);
 
     /// The provided app binary buffer has been stored.
     fn write_app_data_done(&self, buffer: &'static mut [u8], length: usize);
+}
 
+/// The callback for dynamic process loading.
+pub trait DynamicProcessLoadingClient {
     /// The new app has been loaded.
     fn load_done(&self);
 }
@@ -123,7 +125,8 @@ pub struct DynamicProcessLoader<'a> {
     flash_driver: &'a dyn NonvolatileStorage<'a>,
     loader_driver: &'a dyn ProcessLoadingAsync<'a>,
     buffer: TakeCell<'static, [u8]>,
-    client: OptionalCell<&'static dyn DynamicProcessLoadingClient>,
+    storage_client: OptionalCell<&'static dyn DynamicBinaryFlashingClient>,
+    load_client: OptionalCell<&'static dyn DynamicProcessLoadingClient>,
     process_load_metadata: OptionalCell<ProcessLoadMetadata>,
     state: Cell<State>,
 }
@@ -142,7 +145,8 @@ impl<'a> DynamicProcessLoader<'a> {
             flash_driver,
             loader_driver,
             buffer: TakeCell::new(buffer),
-            client: OptionalCell::empty(),
+            storage_client: OptionalCell::empty(),
+            load_client: OptionalCell::empty(),
             process_load_metadata: OptionalCell::empty(),
             state: Cell::new(State::Idle),
         }
@@ -355,7 +359,7 @@ impl NonvolatileStorageClient for DynamicProcessLoader<'_> {
                 self.state.set(State::AppWrite);
                 // Switch on which user generated this callback and trigger
                 // client callback.
-                self.client.map(|client| {
+                self.storage_client.map(|client| {
                     client.write_app_data_done(buffer, length);
                 });
             }
@@ -381,7 +385,7 @@ impl NonvolatileStorageClient for DynamicProcessLoader<'_> {
                 self.buffer.replace(buffer);
                 self.state.set(State::AppWrite);
                 // Let the client know we are done setting up.
-                self.client.map(|client| {
+                self.storage_client.map(|client| {
                     client.setup_done();
                 });
             }
@@ -403,7 +407,7 @@ impl ProcessLoadingAsyncClient for DynamicProcessLoader<'_> {
             Ok(()) => {
                 self.state.set(State::Idle);
                 self.reset_process_loading_metadata();
-                self.client.map(|client| {
+                self.load_client.map(|client| {
                     client.load_done();
                 });
             }
@@ -432,10 +436,10 @@ impl ProcessLoadingAsyncClient for DynamicProcessLoader<'_> {
     }
 }
 
-/// Interface exposed to the app_loader capsule
-impl DynamicProcessLoading for DynamicProcessLoader<'_> {
-    fn set_client(&self, client: &'static dyn DynamicProcessLoadingClient) {
-        self.client.set(client);
+/// Storage interface exposed to the app_loader capsule
+impl DynamicBinaryFlashing for DynamicProcessLoader<'_> {
+    fn set_storage_client(&self, client: &'static dyn DynamicBinaryFlashingClient) {
+        self.storage_client.set(client);
     }
 
     fn setup(&self, app_length: usize) -> Result<(usize, bool), ErrorCode> {
@@ -533,6 +537,13 @@ impl DynamicProcessLoading for DynamicProcessLoader<'_> {
             }
         }
     }
+}
+
+/// Loading interface exposed to the app_loader capsule
+impl DynamicProcessLoading for DynamicProcessLoader<'_> {
+    fn set_load_client(&self, client: &'static dyn DynamicProcessLoadingClient) {
+        self.load_client.set(client);
+    }
 
     fn load(&self) -> Result<(), ErrorCode> {
         // We have finished writing the last user data segment, next step is to
@@ -571,10 +582,11 @@ impl DynamicProcessLoading for DynamicProcessLoader<'_> {
                     }
                 }
             };
+
             // we've written a prepad header if required, so now it is time to
             // load the app into the process array.
-            // let process_flash = self.new_process_flash.take().ok_or(ErrorCode::FAIL)?;
 
+            // First we validate the app that was just written.
             let _ = match self.loader_driver.check_new_binary_validity() {
                 Ok(()) => Ok::<(), ProcessBinaryError>(()),
                 Err(_e) => {
