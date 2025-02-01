@@ -52,6 +52,9 @@ pub enum ProcessBinaryError {
 
     /// This entry in flash is just padding.
     Padding,
+
+    /// There is no binary present in this location
+    NoBinaryFound,
 }
 
 impl From<tock_tbf::types::TbfParseError> for ProcessBinaryError {
@@ -108,12 +111,15 @@ impl fmt::Debug for ProcessBinaryError {
             ProcessBinaryError::Padding => {
                 write!(f, "Process item is just padding")
             }
+
+            ProcessBinaryError::NoBinaryFound => {
+                write!(f, "There is no binary to make a process out of")
+            }
         }
     }
 }
 
 /// A process stored in flash.
-#[derive(Debug)]
 pub struct ProcessBinary {
     /// Process flash segment. This is the entire region of nonvolatile flash
     /// that the process occupies.

@@ -13,12 +13,12 @@ use crate::config;
 use crate::debug;
 use crate::hil::nonvolatile_storage::{NonvolatileStorage, NonvolatileStorageClient};
 use crate::process::{self, ProcessLoadingAsync, ProcessLoadingAsyncClient};
+use crate::process_binary::ProcessBinaryError;
+use crate::process_loading::PaddingRequirement;
 use crate::process_loading::ProcessLoadError;
 use crate::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use crate::utilities::leasable_buffer::SubSliceMut;
 use crate::ErrorCode;
-use crate::process_loading::PaddingRequirement;
-use core::ptr::addr_of;
 
 /// Expected buffer length for storing application binaries.
 pub const BUF_LEN: usize = 512;
@@ -120,7 +120,6 @@ pub trait DynamicProcessLoadingClient {
 pub struct DynamicProcessLoader<'a> {
     procs: MapCell<&'static mut [Option<&'static dyn process::Process>]>,
     flash: Cell<&'static [u8]>,
-    new_process_flash: OptionalCell<&'static [u8]>,
     flash_driver: &'a dyn NonvolatileStorage<'a>,
     loader_driver: &'a dyn ProcessLoadingAsync<'a>,
     buffer: TakeCell<'static, [u8]>,
@@ -140,9 +139,8 @@ impl<'a> DynamicProcessLoader<'a> {
         Self {
             procs: MapCell::new(processes),
             flash: Cell::new(flash),
-            new_process_flash: OptionalCell::empty(),
-            flash_driver: flash_driver,
-            loader_driver: loader_driver,
+            flash_driver,
+            loader_driver,
             buffer: TakeCell::new(buffer),
             client: OptionalCell::empty(),
             process_load_metadata: OptionalCell::empty(),
@@ -264,19 +262,10 @@ impl<'a> DynamicProcessLoader<'a> {
             // Pass the first eight bytes of the tbf header to parse out the
             // length of the header and app. We then use those values to see if
             // the app is going to be valid.
-            static mut test_header_slice: [u8; 8] = [0; 8];
-            unsafe { test_header_slice.copy_from_slice(&buffer[..8]) };
-            let header_info: &[u8] = unsafe { &*addr_of!(test_header_slice) };
-            let header = match header_info.get(0..8) {
-                Some(slice) => slice,
-                None => {
-                    // This means this is probably not a header, so return an error
-                    return Err(ErrorCode::INVAL);
-                }
-            };
-
+            let test_header_slice = buffer.get(0..8).ok_or(ErrorCode::INVAL)?;
+            let header = test_header_slice.try_into().or(Err(ErrorCode::FAIL))?;
             let (_version, _header_length, entry_length) =
-                match tock_tbf::parse::parse_tbf_header_lengths(header.try_into().or(Err(ErrorCode::FAIL))?,) {
+                match tock_tbf::parse::parse_tbf_header_lengths(header) {
                     Ok((v, hl, el)) => (v, hl, el),
                     Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(_entry_length)) => {
                         // If we have an invalid header, so we return an error
@@ -354,7 +343,7 @@ impl<'a> DynamicProcessLoader<'a> {
 }
 
 /// This is the callback client for the underlying physical storage driver.
-impl<'a> NonvolatileStorageClient for DynamicProcessLoader<'a> {
+impl NonvolatileStorageClient for DynamicProcessLoader<'_> {
     fn read_done(&self, _buffer: &'static mut [u8], _length: usize) {
         // We will never use this, but we need to implement this anyway.
         unimplemented!();
@@ -408,7 +397,7 @@ impl<'a> NonvolatileStorageClient for DynamicProcessLoader<'a> {
 }
 
 /// Callback client for the async process loader
-impl<'a> ProcessLoadingAsyncClient for DynamicProcessLoader<'a> {
+impl ProcessLoadingAsyncClient for DynamicProcessLoader<'_> {
     fn process_loaded(&self, result: Result<(), ProcessLoadError>) {
         match result {
             Ok(()) => {
@@ -444,7 +433,7 @@ impl<'a> ProcessLoadingAsyncClient for DynamicProcessLoader<'a> {
 }
 
 /// Interface exposed to the app_loader capsule
-impl<'a> DynamicProcessLoading for DynamicProcessLoader<'a> {
+impl DynamicProcessLoading for DynamicProcessLoader<'_> {
     fn set_client(&self, client: &'static dyn DynamicProcessLoadingClient) {
         self.client.set(client);
     }
@@ -455,8 +444,6 @@ impl<'a> DynamicProcessLoading for DynamicProcessLoader<'a> {
         // What happens to the process though? Need to delete it from the
         // process array and load it back in?
 
-        let flash_start = self.flash.get().as_ptr() as usize;
-        let flash = self.flash.get();
         self.process_load_metadata
             .set(ProcessLoadMetadata::default());
         let setup_done: bool;
@@ -470,13 +457,6 @@ impl<'a> DynamicProcessLoading for DynamicProcessLoader<'a> {
                     previous_app_end_addr,
                     next_app_start_addr,
                 )) => {
-                    let offset = new_app_start_address - flash_start;
-                    let new_process_flash = flash
-                        .get(offset..offset + app_length)
-                        .ok_or(ErrorCode::FAIL)?;
-
-                    self.new_process_flash.set(new_process_flash);
-
                     if let Some(mut metadata) = self.process_load_metadata.get() {
                         metadata.new_app_start_addr = new_app_start_address;
                         metadata.new_app_length = app_length;
@@ -593,15 +573,15 @@ impl<'a> DynamicProcessLoading for DynamicProcessLoader<'a> {
             };
             // we've written a prepad header if required, so now it is time to
             // load the app into the process array.
-            let process_flash = self.new_process_flash.take().ok_or(ErrorCode::FAIL)?;
+            // let process_flash = self.new_process_flash.take().ok_or(ErrorCode::FAIL)?;
 
-            // Get the first eight bytes of flash to check if there is another
-            // app.
-            let test_header_slice = match process_flash.get(0..8) {
-                Some(s) => s,
-                None => {
-                    // There is no header here. If we fail here, let us erase
-                    // the app we just wrote.
+            let _ = match self.loader_driver.check_new_binary_validity() {
+                Ok(()) => Ok::<(), ProcessBinaryError>(()),
+                Err(_e) => {
+                    // We are unable to parse the header, which is bad
+                    // because this is the app we just flashed if we fail
+                    // here, let us erase the app we just wrote.
+                    self.state.set(State::PaddingWrite);
                     let _ = self
                         .write_padding_app(metadata.new_app_length, metadata.new_app_start_addr);
                     // Clear all metadata specific to this load.
@@ -610,49 +590,11 @@ impl<'a> DynamicProcessLoading for DynamicProcessLoader<'a> {
                 }
             };
 
-            // Pass the first eight bytes of the tbfheader to parse out the
-            // length of the tbf header and app. We then use those values to see
-            // if we have enough flash remaining to parse the remainder of the
-            // header.
-            let (_version, _header_length, entry_length) =
-                match tock_tbf::parse::parse_tbf_header_lengths(
-                    test_header_slice.try_into().or(Err(ErrorCode::FAIL))?,
-                ) {
-                    Ok((v, hl, el)) => (v, hl, el),
-                    Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(_entry_length)) => {
-                        // Invalid header, return Fail error. If we fail here,
-                        // let us erase the app we just wrote.
-                        self.state.set(State::PaddingWrite);
-                        let _ = self.write_padding_app(
-                            metadata.new_app_length,
-                            metadata.new_app_start_addr,
-                        );
-                        // Clear all metadata specific to this load.
-                        self.reset_process_loading_metadata();
-                        return Err(ErrorCode::FAIL);
-                    }
-                    Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => {
-                        // We are unable to parse the header, which is bad
-                        // because this is the app we just flashed if we fail
-                        // here, let us erase the app we just wrote.
-                        self.state.set(State::PaddingWrite);
-                        let _ = self.write_padding_app(
-                            metadata.new_app_length,
-                            metadata.new_app_start_addr,
-                        );
-                        // Clear all metadata specific to this load.
-                        self.reset_process_loading_metadata();
-                        return Err(ErrorCode::FAIL);
-                    }
-                };
-
-            // Now we can get a slice which only encompasses the length of flash
-            // described by this tbf header.  We will either parse this as an
-            // actual app, or skip over this region.
-            let entry_flash = process_flash
-                .get(0..entry_length as usize)
-                .ok_or(ErrorCode::FAIL)?;
-            self.loader_driver.load_new_applications(entry_flash);
+            // Now that we have validated the app, we load it.
+            let _ = match self.loader_driver.load_new_applications() {
+                Ok(()) => Ok(()),
+                Err(_e) => Err(ErrorCode::FAIL),
+            };
             Ok(())
         } else {
             Err(ErrorCode::BUSY)

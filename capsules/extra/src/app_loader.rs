@@ -120,7 +120,7 @@ impl<'a> AppLoader<'a> {
         buffer: &'static mut [u8],
     ) -> AppLoader<'a> {
         AppLoader {
-            driver: driver,
+            driver,
             apps: grant,
             buffer: TakeCell::new(buffer),
             current_process: OptionalCell::empty(),
