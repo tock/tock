@@ -458,6 +458,14 @@ pub trait ProcessLoadingAsync<'a> {
     /// Start the process loading operation.
     fn start(&self);
 
+    /// Check if the object of size `length` will be within flash bounds if placed
+    /// at address `offset`
+    fn check_if_within_flash_bounds(
+        &self,
+        offset: usize,
+        length: usize,
+    ) -> Result<(), ProcessBinaryError>;
+
     /// Find available flash region for the new application.
     fn check_flash_for_new_address(
         &self,
@@ -1278,6 +1286,21 @@ impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
             .set(SequentialProcessLoaderMachineState::DiscoverProcessBinaries);
         // Start an asynchronous flow so we can issue a callback on error.
         self.deferred_call.set();
+    }
+
+    fn check_if_within_flash_bounds(
+        &self,
+        offset: usize,
+        length: usize,
+    ) -> Result<(), ProcessBinaryError> {
+        let flash = self.flash_bank.get();
+        let flash_end = flash.as_ptr() as usize + flash.len() - 1;
+
+        if flash_end - offset >= length {
+            Ok(())
+        } else {
+            Err(ProcessBinaryError::NotEnoughFlash)
+        }
     }
 
     fn check_flash_for_new_address(

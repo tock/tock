@@ -55,6 +55,7 @@
 use core::cell::Cell;
 use core::cmp;
 
+use kernel::dynamic_binary_flashing;
 use kernel::dynamic_process_loading;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::processbuffer::ReadableProcessBuffer;
@@ -94,7 +95,7 @@ pub struct App {}
 
 pub struct AppLoader<'a> {
     // The underlying driver for the process flashing and loading.
-    storage_driver: &'a dyn dynamic_process_loading::DynamicBinaryFlashing,
+    storage_driver: &'a dyn dynamic_binary_flashing::DynamicBinaryFlashing,
     loading_driver: &'a dyn dynamic_process_loading::DynamicProcessLoading,
     // Per-app state.
     apps: Grant<
@@ -119,7 +120,7 @@ impl<'a> AppLoader<'a> {
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<0>,
         >,
-        storage_driver: &'a dyn dynamic_process_loading::DynamicBinaryFlashing,
+        storage_driver: &'a dyn dynamic_binary_flashing::DynamicBinaryFlashing,
         loading_driver: &'a dyn dynamic_process_loading::DynamicProcessLoading,
         buffer: &'static mut [u8],
     ) -> AppLoader<'a> {
@@ -198,7 +199,7 @@ impl<'a> AppLoader<'a> {
     }
 }
 
-impl kernel::dynamic_process_loading::DynamicBinaryFlashingClient for AppLoader<'_> {
+impl kernel::dynamic_binary_flashing::DynamicBinaryFlashingClient for AppLoader<'_> {
     /// Let the requesting app know we are done setting up for the new app
     fn setup_done(&self) {
         // Switch on which user of this capsule generated this callback.
@@ -336,15 +337,27 @@ impl SyscallDriver for AppLoader<'_> {
             3 => {
                 // Request kernel to load the new app
 
-                let res = self.loading_driver.load();
+                let res = self.loading_driver.check_new_binary_validity();
                 match res {
                     Ok(()) => {
-                        self.new_app_length.set(0); // reset the app length
-                        self.current_process.take();
-                        CommandReturn::success()
+                        // Write prepad app if required.
+                        self.storage_driver.write_prepad_app();
+                        let res = self.loading_driver.load();
+                        match res {
+                            Ok(()) => {
+                                self.new_app_length.set(0);
+                                self.current_process.take();
+                                CommandReturn::success()
+                            }
+                            Err(e) => {
+                                self.new_app_length.set(0);
+                                self.current_process.take();
+                                CommandReturn::failure(e)
+                            }
+                        }
                     }
                     Err(e) => {
-                        self.new_app_length.set(0); // reset the app length
+                        self.new_app_length.set(0);
                         self.current_process.take();
                         CommandReturn::failure(e)
                     }

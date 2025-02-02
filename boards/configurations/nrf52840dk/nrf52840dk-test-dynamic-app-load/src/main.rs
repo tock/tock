@@ -422,26 +422,26 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
+    // Create the dynamic binary flasher.
+    let dynamic_binary_flasher =
+        components::dyn_binary_flasher::BinaryFlasherComponent::new(&base_peripherals.nvmc, loader)
+            .finalize(components::binary_flasher_component_static!(
+                nrf52840::nvmc::Nvmc,
+                nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+            ));
+
     // Create the dynamic process loader.
     let dynamic_process_loader = components::dyn_process_loader::ProcessLoaderComponent::new(
         &mut *addr_of_mut!(PROCESSES),
-        core::slice::from_raw_parts(
-            core::ptr::addr_of!(_sapps),
-            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-        ),
-        &base_peripherals.nvmc,
         loader,
     )
-    .finalize(components::process_loader_component_static!(
-        nrf52840::nvmc::Nvmc,
-        nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
-    ));
+    .finalize(components::process_loader_component_static!());
 
     // Create the dynamic app loader capsule.
     let dynamic_app_loader = components::app_loader::AppLoaderComponent::new(
         board_kernel,
         capsules_extra::app_loader::DRIVER_NUM,
-        dynamic_process_loader,
+        dynamic_binary_flasher,
         dynamic_process_loader,
     )
     .finalize(components::app_loader_component_static!());
