@@ -335,26 +335,16 @@ impl SyscallDriver for AppLoader<'_> {
             }
 
             3 => {
-                // Request kernel to load the new app
+                // Write prepad app if required.
+                self.storage_driver.write_prepad_app();
 
-                let res = self.loading_driver.check_new_binary_validity();
+                // Request kernel to load the new app
+                let res = self.loading_driver.load();
                 match res {
                     Ok(()) => {
-                        // Write prepad app if required.
-                        self.storage_driver.write_prepad_app();
-                        let res = self.loading_driver.load();
-                        match res {
-                            Ok(()) => {
-                                self.new_app_length.set(0);
-                                self.current_process.take();
-                                CommandReturn::success()
-                            }
-                            Err(e) => {
-                                self.new_app_length.set(0);
-                                self.current_process.take();
-                                CommandReturn::failure(e)
-                            }
-                        }
+                        self.new_app_length.set(0);
+                        self.current_process.take();
+                        CommandReturn::success()
                     }
                     Err(e) => {
                         self.new_app_length.set(0);

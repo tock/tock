@@ -473,11 +473,17 @@ pub trait ProcessLoadingAsync<'a> {
     ) -> Result<(usize, PaddingRequirement, usize, usize), ProcessBinaryError>;
 
     /// Return the header slice for the new app.
-    fn check_new_binary_validity(&self) -> Result<(), ProcessBinaryError>;
+    fn check_new_binary_validity(
+        &self,
+        new_app_address: Option<usize>,
+    ) -> Result<(), ProcessBinaryError>;
 
     /// Load applications from a new flash region. This automatically
     /// starts the loading operation.
-    fn load_new_applications(&self) -> Result<(), ProcessBinaryError>;
+    fn load_new_applications(
+        &self,
+        new_app_metadata: Option<(usize, usize)>,
+    ) -> Result<(), ProcessBinaryError>;
 }
 
 /// Operating mode of the loader.
@@ -1329,14 +1335,18 @@ impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
         }
     }
 
-    fn check_new_binary_validity(&self) -> Result<(), ProcessBinaryError> {
-        let mut new_app_addr = 0;
+    fn check_new_binary_validity(
+        &self,
+        new_app_address: Option<usize>,
+    ) -> Result<(), ProcessBinaryError> {
         let flash = self.flash_bank.get();
-        if let Some(metadata) = self.process_binaries_metadata.get() {
-            new_app_addr = metadata.new_app_address - flash.as_ptr() as usize;
-        }
+        let new_app_addr = match new_app_address {
+            Some(address) => address - flash.as_ptr() as usize,
+            None => self.process_binaries_metadata.get().map_or(0, |metadata| {
+                metadata.new_app_address - flash.as_ptr() as usize
+            }),
+        };
 
-        // let new_binary_header_region = flash.get(new_app_addr..new_app_addr + 8);
         // Pass the first eight bytes of the tbfheader to parse out the
         // length of the tbf header and app. We then use those values to see
         // if we have enough flash remaining to parse the remainder of the
@@ -1372,22 +1382,38 @@ impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
         Ok(())
     }
 
-    fn load_new_applications(&self) -> Result<(), ProcessBinaryError> {
-        if let Some(metadata) = self.process_binaries_metadata.get() {
-            let flash = self.flash_bank.get();
-            let process_address = metadata.new_app_address - flash.as_ptr() as usize;
-            let process_flash = self
-                .flash_bank
+    fn load_new_applications(
+        &self,
+        new_app_metadata: Option<(usize, usize)>,
+    ) -> Result<(), ProcessBinaryError> {
+        let (new_app_address, new_app_size) = match new_app_metadata {
+            Some((address, size)) => (address, size),
+            None => self
+                .process_binaries_metadata
                 .get()
-                .get(process_address..process_address + metadata.new_app_size);
-            if let Some(flash) = process_flash {
-                self.flash.set(flash);
-            } else {
-                return Err(ProcessBinaryError::NoBinaryFound);
+                .map_or((0, 0), |metadata| {
+                    (metadata.new_app_address, metadata.new_app_size)
+                }),
+        };
+        let flash = self.flash_bank.get();
+        let process_address = new_app_address - flash.as_ptr() as usize;
+        let process_flash = self
+            .flash_bank
+            .get()
+            .get(process_address..process_address + new_app_size);
+        let result = self.check_new_binary_validity(Some(new_app_address));
+        match result {
+            Ok(()) => {
+                if let Some(flash) = process_flash {
+                    self.flash.set(flash);
+                } else {
+                    return Err(ProcessBinaryError::NoBinaryFound);
+                }
+                self.start();
+                Ok(())
             }
-            self.start();
+            Err(e) => Err(e),
         }
-        Ok(())
     }
 }
 

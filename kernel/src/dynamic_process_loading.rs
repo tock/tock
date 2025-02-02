@@ -26,9 +26,6 @@ pub trait DynamicProcessLoading {
     /// When the client operation is done, it calls the `load_done()`
     /// function.
     fn set_load_client(&self, client: &'static dyn DynamicProcessLoadingClient);
-
-    /// Check if the app we have finished writing is valid.
-    fn check_new_binary_validity(&self) -> Result<(), ErrorCode>;
 }
 
 /// The callback for dynamic process loading.
@@ -95,23 +92,10 @@ impl DynamicProcessLoading for DynamicProcessLoader<'_> {
         self.load_client.set(client);
     }
 
-    fn check_new_binary_validity(&self) -> Result<(), ErrorCode> {
-        // we've written a prepad header if required, so now we check
-        // if the app we've written is valid
-
-        let _ = match self.loader_driver.check_new_binary_validity() {
-            Ok(()) => Ok::<(), ProcessBinaryError>(()),
-            Err(_e) => {
-                return Err(ErrorCode::FAIL);
-            }
-        };
-        Ok(())
-    }
-
     fn load(&self) -> Result<(), ErrorCode> {
         // We have finished writing the last user data segment, next step is to
         // load the process.
-        let _ = match self.loader_driver.load_new_applications() {
+        let _ = match self.loader_driver.load_new_applications(None) {
             Ok(()) => Ok::<(), ProcessBinaryError>(()),
             Err(_e) => return Err(ErrorCode::FAIL),
         };
