@@ -48,6 +48,7 @@ pub mod hts221;
 pub mod humidity;
 pub mod i2c;
 pub mod ieee802154;
+pub mod in_place_process_loader;
 pub mod isl29035;
 pub mod keyboard_hid;
 pub mod kv;

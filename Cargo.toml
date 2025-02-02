@@ -55,7 +55,7 @@ members = [
     "boards/configurations/nrf52840dk/nrf52840dk-test-appid-sha256",
     "boards/configurations/nrf52840dk/nrf52840dk-test-appid-tbf",
     "boards/configurations/nrf52840dk/nrf52840dk-test-kernel",
-    "boards/configurations/nrf52840dk/nrf52840dk-test-dynamic-app-load",
+    "boards/configurations/nrf52840dk/nrf52840dk-test-in-place-process-loading",
     "boards/tutorials/nrf52840dk-hotp-tutorial",
     "boards/tutorials/nrf52840dk-thread-tutorial",
     "capsules/aes_gcm",

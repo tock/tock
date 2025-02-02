@@ -82,7 +82,8 @@ pub struct Platform {
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
     processes: &'static [Option<&'static dyn kernel::process::Process>],
-    dynamic_app_loader: &'static capsules_extra::app_loader::AppLoader<'static>,
+    in_place_process_loader:
+        &'static capsules_extra::in_place_process_loader::InPlaceProcessLoader<'static>,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -96,7 +97,9 @@ impl SyscallDriverLookup for Platform {
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::button::DRIVER_NUM => f(Some(self.button)),
             capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
-            capsules_extra::app_loader::DRIVER_NUM => f(Some(self.dynamic_app_loader)),
+            capsules_extra::in_place_process_loader::DRIVER_NUM => {
+                f(Some(self.in_place_process_loader))
+            }
             _ => f(None),
         }
     }
@@ -422,14 +425,6 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    // Create the dynamic binary flasher.
-    let dynamic_binary_flasher =
-        components::dyn_binary_flasher::BinaryFlasherComponent::new(&base_peripherals.nvmc, loader)
-            .finalize(components::binary_flasher_component_static!(
-                nrf52840::nvmc::Nvmc,
-                nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
-            ));
-
     // Create the dynamic process loader.
     let dynamic_process_loader = components::dyn_process_loader::ProcessLoaderComponent::new(
         &mut *addr_of_mut!(PROCESSES),
@@ -438,13 +433,13 @@ pub unsafe fn main() {
     .finalize(components::process_loader_component_static!());
 
     // Create the dynamic app loader capsule.
-    let dynamic_app_loader = components::app_loader::AppLoaderComponent::new(
-        board_kernel,
-        capsules_extra::app_loader::DRIVER_NUM,
-        dynamic_binary_flasher,
-        dynamic_process_loader,
-    )
-    .finalize(components::app_loader_component_static!());
+    let in_place_process_loader =
+        components::in_place_process_loader::InPlaceProcessLoaderComponent::new(
+            board_kernel,
+            capsules_extra::in_place_process_loader::DRIVER_NUM,
+            dynamic_process_loader,
+        )
+        .finalize(components::in_place_process_loader_component_static!());
 
     //--------------------------------------------------------------------------
     // PLATFORM SETUP, SCHEDULER, AND START KERNEL LOOP
@@ -464,7 +459,7 @@ pub unsafe fn main() {
             scheduler,
             systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
             processes,
-            dynamic_app_loader,
+            in_place_process_loader,
         }
     );
     loader.set_client(dynamic_process_loader);

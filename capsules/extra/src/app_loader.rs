@@ -45,7 +45,7 @@
 //! let dynamic_app_loader = components::app_loader::AppLoaderComponent::new(
 //!     board_kernel,
 //!     capsules_extra::app_loader::DRIVER_NUM,
-//!     dynamic_process_loader,
+//!     dynamic_binary_flasher,
 //!     dynamic_process_loader,
 //!     ).finalize(components::app_loader_component_static!());
 //!
@@ -339,7 +339,7 @@ impl SyscallDriver for AppLoader<'_> {
                 self.storage_driver.write_prepad_app();
 
                 // Request kernel to load the new app
-                let res = self.loading_driver.load();
+                let res = self.loading_driver.load(None);
                 match res {
                     Ok(()) => {
                         self.new_app_length.set(0);
