@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! Component for dynamic binary flashing.
+//! Component for dynamic binary storage.
 //!
 //! This provides one component, BinaryStorageComponent, which provides
 //! a system call interface to DynamicBinaryStorage.
@@ -10,13 +10,15 @@
 //!```rust, ignore
 //! # use kernel::static_init;
 //!
-//! let dynamic_binary_flasher = components::dyn_binary_flasher::BinaryStorageComponent::new(
+//! let dynamic_binary_storage = components::dyn_binary_storage::BinaryStorageComponent::new(
+//!     &mut *addr_of_mut!(PROCESSES),
 //!     &base_peripherals.nvmc,
-//!     loader,
+//!     &loader,
 //! )
-//! .finalize(components::binary_flasher_component_static!(
+//! .finalize(components::binary_storage_component_static!(
 //!     nrf52840::nvmc::Nvmc,
 //!     nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+//!     kernel::process::ProcessStandardDebugFull,
 //! ));
 //! ```
 
@@ -25,17 +27,23 @@ use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::dynamic_binary_storage::DynamicBinaryStorage;
 use kernel::hil;
+use kernel::platform::chip::Chip;
 use kernel::process;
+use kernel::process::ProcessLoadingAsync;
+use kernel::process::ProcessStandardDebug;
+use kernel::process::SequentialProcessLoaderMachine;
 
 // Setup static space for the objects.
 #[macro_export]
-macro_rules! binary_flasher_component_static {
-    ($F:ty, $C:ty $(,)?) => {{
+macro_rules! binary_storage_component_static {
+    ($F:ty, $C:ty, $D:ty $(,)?) => {{
         let page = kernel::static_buf!(<$F as kernel::hil::flash::Flash>::Page);
         let ntp = kernel::static_buf!(
             capsules_extra::nonvolatile_to_pages::NonvolatileToPages<'static, $F>
         );
-        let pl = kernel::static_buf!(kernel::dynamic_binary_storage::DynamicBinaryStorage<'static>);
+        let pl = kernel::static_buf!(
+            kernel::dynamic_binary_storage::DynamicBinaryStorage<'static, $C, $D>
+        );
         let buffer = kernel::static_buf!([u8; kernel::dynamic_binary_storage::BUF_LEN]);
 
         (page, ntp, pl, buffer)
@@ -44,22 +52,26 @@ macro_rules! binary_flasher_component_static {
 
 pub struct BinaryStorageComponent<
     F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
+    C: Chip + 'static,
+    D: ProcessStandardDebug + 'static,
 > {
     processes: &'static mut [Option<&'static dyn process::Process>],
     nv_flash: &'static F,
-    loader_driver: &'static dyn process::ProcessLoadingAsync<'static>,
+    loader_driver: &'static SequentialProcessLoaderMachine<'static, C, D>,
 }
 
 impl<
         F: 'static
             + hil::flash::Flash
             + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
-    > BinaryStorageComponent<F>
+        C: 'static + Chip,
+        D: 'static + ProcessStandardDebug,
+    > BinaryStorageComponent<F, C, D>
 {
     pub fn new(
         processes: &'static mut [Option<&'static dyn process::Process>],
         nv_flash: &'static F,
-        loader_driver: &'static dyn process::ProcessLoadingAsync<'static>,
+        loader_driver: &'static SequentialProcessLoaderMachine<'static, C, D>,
     ) -> Self {
         Self {
             processes,
@@ -73,15 +85,17 @@ impl<
         F: 'static
             + hil::flash::Flash
             + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
-    > Component for BinaryStorageComponent<F>
+        C: 'static + Chip,
+        D: 'static + ProcessStandardDebug,
+    > Component for BinaryStorageComponent<F, C, D>
 {
     type StaticInput = (
         &'static mut MaybeUninit<<F as hil::flash::Flash>::Page>,
         &'static mut MaybeUninit<NonvolatileToPages<'static, F>>,
-        &'static mut MaybeUninit<DynamicBinaryStorage<'static>>,
+        &'static mut MaybeUninit<DynamicBinaryStorage<'static, C, D>>,
         &'static mut MaybeUninit<[u8; kernel::dynamic_binary_storage::BUF_LEN]>,
     );
-    type Output = &'static DynamicBinaryStorage<'static>;
+    type Output = &'static DynamicBinaryStorage<'static, C, D>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let buffer = static_buffer

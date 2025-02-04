@@ -13,12 +13,16 @@ use crate::config;
 use crate::debug;
 use crate::hil::nonvolatile_storage::{NonvolatileStorage, NonvolatileStorageClient};
 use crate::process;
-use crate::process::{ProcessLoadingAsync, ProcessLoadingAsyncClient};
+use crate::process::ProcessLoadingAsyncClient;
 use crate::process_loading::PaddingRequirement;
 use crate::process_loading::ProcessLoadError;
 use crate::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use crate::utilities::leasable_buffer::SubSliceMut;
 use crate::ErrorCode;
+// use crate::process_loading;
+use crate::platform::chip::Chip;
+use crate::process_loading::SequentialProcessLoaderMachine;
+use crate::process_standard::ProcessStandardDebug;
 
 /// Expected buffer length for storing application binaries.
 pub const BUF_LEN: usize = 512;
@@ -110,21 +114,21 @@ pub trait DynamicBinaryStoreClient {
 }
 
 /// Dynamic process loading machine.
-pub struct DynamicBinaryStorage<'a> {
+pub struct DynamicBinaryStorage<'a, C: Chip + 'static, D: ProcessStandardDebug + 'static> {
     processes: MapCell<&'static mut [Option<&'static dyn process::Process>]>,
     flash_driver: &'a dyn NonvolatileStorage<'a>,
-    loader_driver: &'a dyn ProcessLoadingAsync<'a>,
+    loader_driver: &'a SequentialProcessLoaderMachine<'a, C, D>,
     buffer: TakeCell<'static, [u8]>,
     storage_client: OptionalCell<&'static dyn DynamicBinaryStoreClient>,
     process_metadata: OptionalCell<ProcessLoadMetadata>,
     state: Cell<State>,
 }
 
-impl<'a> DynamicBinaryStorage<'a> {
+impl<'a, C: Chip + 'static, D: ProcessStandardDebug + 'static> DynamicBinaryStorage<'a, C, D> {
     pub fn new(
         processes: &'static mut [Option<&'static dyn process::Process>],
         flash_driver: &'a dyn NonvolatileStorage<'a>,
-        loader_driver: &'a dyn ProcessLoadingAsync<'a>,
+        loader_driver: &'a SequentialProcessLoaderMachine<'a, C, D>,
         buffer: &'static mut [u8],
     ) -> Self {
         Self {
@@ -335,7 +339,9 @@ impl<'a> DynamicBinaryStorage<'a> {
 }
 
 /// This is the callback client for the underlying physical storage driver.
-impl NonvolatileStorageClient for DynamicBinaryStorage<'_> {
+impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> NonvolatileStorageClient
+    for DynamicBinaryStorage<'_, C, D>
+{
     fn read_done(&self, _buffer: &'static mut [u8], _length: usize) {
         // We will never use this, but we need to implement this anyway.
         unimplemented!();
@@ -389,7 +395,9 @@ impl NonvolatileStorageClient for DynamicBinaryStorage<'_> {
 }
 
 /// Callback client for the async process loader
-impl ProcessLoadingAsyncClient for DynamicBinaryStorage<'_> {
+impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> ProcessLoadingAsyncClient
+    for DynamicBinaryStorage<'_, C, D>
+{
     fn process_loaded(&self, result: Result<(), ProcessLoadError>) {
         match result {
             Ok(()) => {
@@ -406,22 +414,24 @@ impl ProcessLoadingAsyncClient for DynamicBinaryStorage<'_> {
     }
 
     fn process_loading_finished(&self) {
-        // if config::CONFIG.debug_load_processes {
-        debug!("Processes Loaded:");
-        self.processes.map(|procs| {
-            for (i, proc) in procs.iter().enumerate() {
-                proc.map(|p| {
-                    debug!("[{}] {}", i, p.get_process_name());
-                    debug!("    ShortId: {}", p.short_app_id());
-                });
-            }
-        });
-        // }
+        if config::CONFIG.debug_load_processes {
+            debug!("Processes Loaded:");
+            self.processes.map(|procs| {
+                for (i, proc) in procs.iter().enumerate() {
+                    proc.map(|p| {
+                        debug!("[{}] {}", i, p.get_process_name());
+                        debug!("    ShortId: {}", p.short_app_id());
+                    });
+                }
+            });
+        }
     }
 }
 
 /// Storage interface exposed to the app_loader capsule
-impl DynamicBinaryStore for DynamicBinaryStorage<'_> {
+impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> DynamicBinaryStore
+    for DynamicBinaryStorage<'_, C, D>
+{
     fn set_storage_client(&self, client: &'static dyn DynamicBinaryStoreClient) {
         self.storage_client.set(client);
     }

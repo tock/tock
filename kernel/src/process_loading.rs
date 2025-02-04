@@ -460,31 +460,6 @@ pub trait ProcessLoadingAsync<'a> {
 
     /// Start the process loading operation.
     fn start(&self);
-
-    /// Check if the object of size `length` will be within flash bounds if placed
-    /// at address `offset`
-    fn check_if_within_flash_bounds(
-        &self,
-        offset: usize,
-        length: usize,
-    ) -> Result<(), ProcessBinaryError>;
-
-    /// Find available flash region for the new application.
-    fn check_flash_for_new_address(
-        &self,
-        new_app_size: usize,
-    ) -> Result<(usize, PaddingRequirement, usize, usize), ProcessBinaryError>;
-
-    /// Return the header slice for the new app.
-    fn check_new_binary_validity(&self, app_address: usize) -> Result<(), ProcessBinaryError>;
-
-    /// Load applications from a new flash region. This automatically
-    /// starts the loading operation.
-    fn load_new_applications(
-        &self,
-        app_address: usize,
-        app_size: usize,
-    ) -> Result<(), ProcessLoadError>;
 }
 
 /// Operating mode of the loader.
@@ -1346,48 +1321,10 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
         }
         Ok(new_app_address)
     }
-}
 
-impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
-    for SequentialProcessLoaderMachine<'a, C, D>
-{
-    fn set_boot_client(&self, client: &'a dyn ProcessLoadingAsyncClient) {
-        self.boot_client.set(client);
-    }
-
-    fn set_runtime_client(&self, client: &'a dyn ProcessLoadingAsyncClient) {
-        self.runtime_client.set(client);
-    }
-
-    fn set_policy(&self, policy: &'a dyn AppIdPolicy) {
-        self.policy.replace(policy);
-    }
-
-    fn start(&self) {
-        // Reset process binaries metadata.
-        self.process_binaries_metadata
-            .set(ProcessBinaryMetadata::default());
-
-        if let Some(active_client) = self.active_client.get() {
-            match active_client {
-                SequentialProcessLoaderMachineActiveClient::BootClient => {
-                    self.active_client
-                        .set(SequentialProcessLoaderMachineActiveClient::RuntimeClient);
-                    debug!("Client set to runtime process loader");
-                }
-                SequentialProcessLoaderMachineActiveClient::RuntimeClient => {}
-            }
-        } else {
-            self.active_client
-                .set(SequentialProcessLoaderMachineActiveClient::BootClient);
-        }
-        self.state
-            .set(SequentialProcessLoaderMachineState::DiscoverProcessBinaries);
-        // Start an asynchronous flow so we can issue a callback on error.
-        self.deferred_call.set();
-    }
-
-    fn check_if_within_flash_bounds(
+    /// Function to check if the object with address `offset` of size `length` lies
+    /// within flash bounds.
+    pub fn check_if_within_flash_bounds(
         &self,
         offset: usize,
         length: usize,
@@ -1402,7 +1339,8 @@ impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
         }
     }
 
-    fn check_flash_for_new_address(
+    /// Function to compute an available address for the new application binary.
+    pub fn check_flash_for_new_address(
         &self,
         new_app_size: usize,
     ) -> Result<(usize, PaddingRequirement, usize, usize), ProcessBinaryError> {
@@ -1423,6 +1361,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
         }
     }
 
+    /// Function to check if the app binary at address `app_address` is valid.
     fn check_new_binary_validity(&self, app_address: usize) -> Result<(), ProcessBinaryError> {
         let flash = self.flash_bank.get();
         // Pass the first eight bytes of the tbfheader to parse out the
@@ -1459,7 +1398,9 @@ impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
         Ok(())
     }
 
-    fn load_new_applications(
+    /// Function to start loading the new application at address `app_address` with size
+    /// `app_size`.
+    pub fn load_new_applications(
         &self,
         app_address: usize,
         app_size: usize,
@@ -1477,11 +1418,75 @@ impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
                         ProcessBinaryError::TbfHeaderNotFound,
                     ));
                 }
-                self.start();
+
+                // Reset process binaries metadata.
+                self.process_binaries_metadata
+                    .set(ProcessBinaryMetadata::default());
+
+                if let Some(active_client) = self.active_client.get() {
+                    match active_client {
+                        SequentialProcessLoaderMachineActiveClient::BootClient => {
+                            self.active_client
+                                .set(SequentialProcessLoaderMachineActiveClient::RuntimeClient);
+                            debug!("Client set to runtime process loader");
+                        }
+                        SequentialProcessLoaderMachineActiveClient::RuntimeClient => {}
+                    }
+                } else {
+                    self.active_client
+                        .set(SequentialProcessLoaderMachineActiveClient::BootClient);
+                }
+                self.state
+                    .set(SequentialProcessLoaderMachineState::DiscoverProcessBinaries);
+                // Start an asynchronous flow so we can issue a callback on error.
+                self.deferred_call.set();
+
                 Ok(())
             }
             Err(e) => Err(ProcessLoadError::BinaryError(e)),
         }
+    }
+}
+
+impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
+    for SequentialProcessLoaderMachine<'a, C, D>
+{
+    fn set_boot_client(&self, client: &'a dyn ProcessLoadingAsyncClient) {
+        self.boot_client.set(client);
+    }
+
+    fn set_runtime_client(&self, client: &'a dyn ProcessLoadingAsyncClient) {
+        self.runtime_client.set(client);
+    }
+
+    fn set_policy(&self, policy: &'a dyn AppIdPolicy) {
+        self.policy.replace(policy);
+    }
+
+    fn start(&self) {
+        // Reset process binaries metadata.
+        self.process_binaries_metadata
+            .set(ProcessBinaryMetadata::default());
+
+        // Switch on the ProcessLoadingAsync client based on whether
+        // the process_loading is running for the first time.
+        if let Some(active_client) = self.active_client.get() {
+            match active_client {
+                SequentialProcessLoaderMachineActiveClient::BootClient => {
+                    self.active_client
+                        .set(SequentialProcessLoaderMachineActiveClient::RuntimeClient);
+                    debug!("Client set to runtime process loader");
+                }
+                SequentialProcessLoaderMachineActiveClient::RuntimeClient => {}
+            }
+        } else {
+            self.active_client
+                .set(SequentialProcessLoaderMachineActiveClient::BootClient);
+        }
+        self.state
+            .set(SequentialProcessLoaderMachineState::DiscoverProcessBinaries);
+        // Start an asynchronous flow so we can issue a callback on error.
+        self.deferred_call.set();
     }
 }
 

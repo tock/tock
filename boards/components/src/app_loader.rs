@@ -15,8 +15,7 @@
 //! let dynamic_app_loader = components::app_loader::AppLoaderComponent::new(
 //!     board_kernel,
 //!     capsules_extra::app_loader::DRIVER_NUM,
-//!     dynamic_process_loader,
-//!     dynamic_process_loader,
+//!     dynamic_binary_storage,
 //!     ).finalize(components::app_loader_component_static!());
 //! ```
 
@@ -26,7 +25,6 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::dynamic_binary_storage;
-// use kernel::dynamic_process_loading;
 
 // Setup static space for the objects.
 #[macro_export]

@@ -428,9 +428,10 @@ pub unsafe fn main() {
         &base_peripherals.nvmc,
         loader,
     )
-    .finalize(components::binary_flasher_component_static!(
+    .finalize(components::binary_storage_component_static!(
         nrf52840::nvmc::Nvmc,
         nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+        kernel::process::ProcessStandardDebugFull,
     ));
 
     // Create the dynamic process loader.
