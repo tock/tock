@@ -158,7 +158,7 @@ impl kernel::process::ProcessLoadingAsyncClient for Platform {
     fn process_loaded(&self, _result: Result<(), kernel::process::ProcessLoadError>) {}
 
     fn process_loading_finished(&self) {
-        kernel::debug!("Processes Loaded:");
+        kernel::debug!("Processes Loaded at Main:");
 
         for (i, proc) in self.processes.iter().enumerate() {
             proc.map(|p| {
@@ -423,26 +423,29 @@ pub unsafe fn main() {
     }
 
     // Create the dynamic binary flasher.
-    let dynamic_binary_flasher =
-        components::dyn_binary_flasher::BinaryFlasherComponent::new(&base_peripherals.nvmc, loader)
-            .finalize(components::binary_flasher_component_static!(
-                nrf52840::nvmc::Nvmc,
-                nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
-            ));
-
-    // Create the dynamic process loader.
-    let dynamic_process_loader = components::dyn_process_loader::ProcessLoaderComponent::new(
+    let dynamic_binary_storage = components::dyn_binary_storage::BinaryStorageComponent::new(
         &mut *addr_of_mut!(PROCESSES),
+        &base_peripherals.nvmc,
         loader,
     )
-    .finalize(components::process_loader_component_static!());
+    .finalize(components::binary_flasher_component_static!(
+        nrf52840::nvmc::Nvmc,
+        nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+    ));
+
+    // Create the dynamic process loader.
+    // let dynamic_process_loader = components::dyn_process_loader::ProcessLoaderComponent::new(
+    //     &mut *addr_of_mut!(PROCESSES),
+    //     loader,
+    // )
+    // .finalize(components::process_loader_component_static!());
 
     // Create the dynamic app loader capsule.
     let dynamic_app_loader = components::app_loader::AppLoaderComponent::new(
         board_kernel,
         capsules_extra::app_loader::DRIVER_NUM,
-        dynamic_binary_flasher,
-        dynamic_process_loader,
+        dynamic_binary_storage,
+        // dynamic_process_loader,
     )
     .finalize(components::app_loader_component_static!());
 
@@ -467,7 +470,7 @@ pub unsafe fn main() {
             dynamic_app_loader,
         }
     );
-    loader.set_client(dynamic_process_loader);
+    loader.set_boot_client(platform);
 
     let _ = pconsole.start();
 

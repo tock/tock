@@ -25,8 +25,8 @@ use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
-use kernel::dynamic_binary_flashing;
-use kernel::dynamic_process_loading;
+use kernel::dynamic_binary_storage;
+// use kernel::dynamic_process_loading;
 
 // Setup static space for the objects.
 #[macro_export]
@@ -42,22 +42,22 @@ macro_rules! app_loader_component_static {
 pub struct AppLoaderComponent {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
-    storage_driver: &'static dyn dynamic_binary_flashing::DynamicBinaryFlashing,
-    loading_driver: &'static dyn dynamic_process_loading::DynamicProcessLoading,
+    storage_driver: &'static dyn dynamic_binary_storage::DynamicBinaryStore,
+    // loading_driver: &'static dyn dynamic_process_loading::DynamicProcessLoading,
 }
 
 impl AppLoaderComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
-        storage_driver: &'static dyn dynamic_binary_flashing::DynamicBinaryFlashing,
-        loading_driver: &'static dyn dynamic_process_loading::DynamicProcessLoading,
+        storage_driver: &'static dyn dynamic_binary_storage::DynamicBinaryStore,
+        // loading_driver: &'static dyn dynamic_process_loading::DynamicProcessLoading,
     ) -> Self {
         Self {
             board_kernel,
             driver_num,
             storage_driver,
-            loading_driver,
+            // loading_driver,
         }
     }
 }
@@ -79,10 +79,10 @@ impl Component for AppLoaderComponent {
         let dynamic_app_loader = static_buffer.0.write(AppLoader::new(
             self.board_kernel.create_grant(self.driver_num, &grant_cap),
             self.storage_driver,
-            self.loading_driver,
+            // self.loading_driver,
             buffer,
         ));
-        kernel::dynamic_binary_flashing::DynamicBinaryFlashing::set_storage_client(
+        kernel::dynamic_binary_storage::DynamicBinaryStore::set_storage_client(
             self.storage_driver,
             dynamic_app_loader,
         );

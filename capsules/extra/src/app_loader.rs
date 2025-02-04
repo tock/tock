@@ -27,7 +27,7 @@
 //! |               capsules::app_loader::AppLoader (this)            |
 //! |                                                                 |
 //! +-----------------------------------------------------------------+
-//!         kernel::dynamic_process_loading::DynamicBinaryFlashing
+//!         kernel::dynamic_process_loading::DynamicBinaryStore
 //!         kernel::dynamic_process_loading::DynamicProcessLoading
 //! +-----------------------------------------------------------------+
 //! |                                     |                           |
@@ -55,8 +55,8 @@
 use core::cell::Cell;
 use core::cmp;
 
-use kernel::dynamic_binary_flashing;
-use kernel::dynamic_process_loading;
+use kernel::dynamic_binary_storage;
+// use kernel::dynamic_process_loading;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::processbuffer::ReadableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
@@ -95,8 +95,8 @@ pub struct App {}
 
 pub struct AppLoader<'a> {
     // The underlying driver for the process flashing and loading.
-    storage_driver: &'a dyn dynamic_binary_flashing::DynamicBinaryFlashing,
-    loading_driver: &'a dyn dynamic_process_loading::DynamicProcessLoading,
+    storage_driver: &'a dyn dynamic_binary_storage::DynamicBinaryStore,
+    // storage_driver: &'a dyn dynamic_process_loading::DynamicProcessLoading,
     // Per-app state.
     apps: Grant<
         App,
@@ -120,14 +120,14 @@ impl<'a> AppLoader<'a> {
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<0>,
         >,
-        storage_driver: &'a dyn dynamic_binary_flashing::DynamicBinaryFlashing,
-        loading_driver: &'a dyn dynamic_process_loading::DynamicProcessLoading,
+        storage_driver: &'a dyn dynamic_binary_storage::DynamicBinaryStore,
+        // storage_driver: &'a dyn dynamic_process_loading::DynamicProcessLoading,
         buffer: &'static mut [u8],
     ) -> AppLoader<'a> {
         AppLoader {
             apps: grant,
             storage_driver,
-            loading_driver,
+            // storage_driver,
             buffer: TakeCell::new(buffer),
             current_process: OptionalCell::empty(),
             new_app_length: Cell::new(0),
@@ -199,7 +199,7 @@ impl<'a> AppLoader<'a> {
     }
 }
 
-impl kernel::dynamic_binary_flashing::DynamicBinaryFlashingClient for AppLoader<'_> {
+impl kernel::dynamic_binary_storage::DynamicBinaryStoreClient for AppLoader<'_> {
     /// Let the requesting app know we are done setting up for the new app
     fn setup_done(&self) {
         // Switch on which user of this capsule generated this callback.
@@ -228,9 +228,7 @@ impl kernel::dynamic_binary_flashing::DynamicBinaryFlashingClient for AppLoader<
             });
         });
     }
-}
 
-impl kernel::dynamic_process_loading::DynamicProcessLoadingClient for AppLoader<'_> {
     /// Let the requesting app know we are done loading the new process
     fn load_done(&self) {
         self.current_process.map(|processid| {
@@ -243,6 +241,20 @@ impl kernel::dynamic_process_loading::DynamicProcessLoadingClient for AppLoader<
         });
     }
 }
+
+// impl kernel::dynamic_process_loading::DynamicProcessLoadingClient for AppLoader<'_> {
+//     /// Let the requesting app know we are done loading the new process
+//     fn load_done(&self) {
+//         self.current_process.map(|processid| {
+//             let _ = self.apps.enter(processid, move |_app, kernel_data| {
+//                 // Signal the app.
+//                 kernel_data
+//                     .schedule_upcall(upcall::LOAD_DONE, (0, 0, 0))
+//                     .ok();
+//             });
+//         });
+//     }
+// }
 
 /// Provide an interface for userland.
 impl SyscallDriver for AppLoader<'_> {
@@ -339,7 +351,7 @@ impl SyscallDriver for AppLoader<'_> {
                 self.storage_driver.write_prepad_app();
 
                 // Request kernel to load the new app
-                let res = self.loading_driver.load();
+                let res = self.storage_driver.load();
                 match res {
                     Ok(()) => {
                         self.new_app_length.set(0);

@@ -272,8 +272,7 @@ fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
                     | ProcessBinaryError::IncompatibleKernelVersion { .. }
                     | ProcessBinaryError::IncorrectFlashAddress { .. }
                     | ProcessBinaryError::NotEnabledProcess
-                    | ProcessBinaryError::Padding
-                    | ProcessBinaryError::NoBinaryFound => {
+                    | ProcessBinaryError::Padding => {
                         if config::CONFIG.debug_load_processes {
                             debug!("Unable to use process binary: {:?}.", err);
                         }
@@ -448,9 +447,13 @@ pub trait ProcessLoadingAsyncClient {
 /// Various process loaders may exist. This includes a loader from a MCU's
 /// integrated flash, or a loader from an external flash chip.
 pub trait ProcessLoadingAsync<'a> {
-    /// Set the client to receive callbacks about process loading and when
+    /// Set the boot client to receive callbacks about process loading and when
     /// process loading has finished.
-    fn set_client(&self, client: &'a dyn ProcessLoadingAsyncClient);
+    fn set_boot_client(&self, client: &'a dyn ProcessLoadingAsyncClient);
+
+    /// Set the runtime client to receive callbacks about process loading and when
+    /// process loading has finished.
+    fn set_runtime_client(&self, client: &'a dyn ProcessLoadingAsyncClient);
 
     /// Set the credential checking policy for the loader.
     fn set_policy(&self, policy: &'a dyn AppIdPolicy);
@@ -473,17 +476,15 @@ pub trait ProcessLoadingAsync<'a> {
     ) -> Result<(usize, PaddingRequirement, usize, usize), ProcessBinaryError>;
 
     /// Return the header slice for the new app.
-    fn check_new_binary_validity(
-        &self,
-        new_app_address: Option<usize>,
-    ) -> Result<(), ProcessBinaryError>;
+    fn check_new_binary_validity(&self, app_address: usize) -> Result<(), ProcessBinaryError>;
 
     /// Load applications from a new flash region. This automatically
     /// starts the loading operation.
     fn load_new_applications(
         &self,
-        new_app_metadata: Option<(usize, usize)>,
-    ) -> Result<(), ProcessBinaryError>;
+        app_address: usize,
+        app_size: usize,
+    ) -> Result<(), ProcessLoadError>;
 }
 
 /// Operating mode of the loader.
@@ -495,14 +496,20 @@ enum SequentialProcessLoaderMachineState {
     LoadProcesses,
 }
 
+#[derive(Clone, Copy)]
+enum SequentialProcessLoaderMachineActiveClient {
+    /// Active client is Boot Client, i.e. Platform in Main.
+    BootClient,
+    /// Active Client is whichever runtime process loader is active.
+    RuntimeClient,
+}
+
 /// Metadata struct to hold list of process binary addresses.
 #[derive(Clone, Copy, Debug, Default)]
 struct ProcessBinaryMetadata {
     index: usize,
     process_binaries_start_addresses: [usize; MAX_PROCS],
     process_binaries_end_addresses: [usize; MAX_PROCS],
-    new_app_address: usize,
-    new_app_size: usize,
 }
 
 /// Enum to hold the padding requirements for a new application.
@@ -523,8 +530,10 @@ pub enum PaddingRequirement {
 /// the checker to decide whether the process has sufficient credentials to run.
 pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static, D: ProcessStandardDebug + 'static>
 {
-    /// Client to notify as processes are loaded and process loading finishes.
-    client: OptionalCell<&'a dyn ProcessLoadingAsyncClient>,
+    /// Client to notify as processes are loaded and process loading finishes after boot.
+    boot_client: OptionalCell<&'a dyn ProcessLoadingAsyncClient>,
+    /// Client to notify as processes are loaded and process loading finishes during runtime.
+    runtime_client: OptionalCell<&'a dyn ProcessLoadingAsyncClient>,
     /// Machine to use to check process credentials.
     checker: &'static ProcessCheckerMachine,
     /// Array of stored process references for loaded processes.
@@ -551,6 +560,8 @@ pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static, D: ProcessStand
     storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C, D>,
     /// Current mode of the loading machine.
     state: OptionalCell<SequentialProcessLoaderMachineState>,
+    /// Current client of the loading machine.
+    active_client: OptionalCell<SequentialProcessLoaderMachineActiveClient>,
     /// Lookup tables for process binaries addresses and sizes
     process_binaries_metadata: OptionalCell<ProcessBinaryMetadata>,
 }
@@ -576,7 +587,8 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
         Self {
             deferred_call: DeferredCall::new(),
             checker,
-            client: OptionalCell::empty(),
+            boot_client: OptionalCell::empty(),
+            runtime_client: OptionalCell::empty(),
             procs: MapCell::new(procs),
             proc_binaries: MapCell::new(proc_binaries),
             kernel,
@@ -588,6 +600,7 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
             fault_policy,
             storage_policy,
             state: OptionalCell::empty(),
+            active_client: OptionalCell::empty(),
             process_binaries_metadata: OptionalCell::empty(),
         }
     }
@@ -621,11 +634,19 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
         match ret {
             Ok(pb) => match self.checker.check(pb) {
                 Ok(()) => {}
-                Err(e) => {
-                    self.client.map(|client| {
-                        client.process_loaded(Err(ProcessLoadError::CheckError(e)));
-                    });
-                }
+                Err(e) => match self.active_client.get() {
+                    Some(SequentialProcessLoaderMachineActiveClient::BootClient) => {
+                        self.boot_client.map(|client| {
+                            client.process_loaded(Err(ProcessLoadError::CheckError(e)));
+                        });
+                    }
+                    Some(SequentialProcessLoaderMachineActiveClient::RuntimeClient) => {
+                        self.runtime_client.map(|client| {
+                            client.process_loaded(Err(ProcessLoadError::CheckError(e)));
+                        });
+                    }
+                    None => {}
+                },
             },
             Err(ProcessBinaryError::NotEnoughFlash)
             | Err(ProcessBinaryError::TbfHeaderNotFound) => {
@@ -644,9 +665,19 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
 
                 // Other process binary errors indicate the process is not
                 // compatible. Signal error and try the next item in flash.
-                self.client.map(|client| {
-                    client.process_loaded(Err(ProcessLoadError::BinaryError(e)));
-                });
+                match self.active_client.get() {
+                    Some(SequentialProcessLoaderMachineActiveClient::BootClient) => {
+                        self.boot_client.map(|client| {
+                            client.process_loaded(Err(ProcessLoadError::BinaryError(e)));
+                        });
+                    }
+                    Some(SequentialProcessLoaderMachineActiveClient::RuntimeClient) => {
+                        self.runtime_client.map(|client| {
+                            client.process_loaded(Err(ProcessLoadError::BinaryError(e)));
+                        });
+                    }
+                    None => {}
+                }
                 self.deferred_call.set();
             }
         }
@@ -817,9 +848,19 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
                                         });
                                         // Notify the client the process was loaded
                                         // successfully.
-                                        self.client.map(|client| {
-                                            client.process_loaded(Ok(()));
-                                        });
+                                        match self.active_client.get(){
+                                            Some(SequentialProcessLoaderMachineActiveClient::BootClient) => {
+                                                self.boot_client.map(|client| {
+                                                    client.process_loaded(Ok(()));
+                                                });
+                                            }
+                                            Some(SequentialProcessLoaderMachineActiveClient::RuntimeClient) => {
+                                                self.runtime_client.map(|client| {
+                                                    client.process_loaded(Ok(()));
+                                                });
+                                            }
+                                            None => {}
+                                        }
                                     }
                                     None => {
                                         if config::CONFIG.debug_load_processes {
@@ -834,17 +875,41 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
                                     debug!("Could not load process: {:?}.", err);
                                 }
 
-                                self.client.map(|client| {
-                                    client.process_loaded(Err(err));
-                                });
+                                match self.active_client.get() {
+                                    Some(
+                                        SequentialProcessLoaderMachineActiveClient::BootClient,
+                                    ) => {
+                                        self.boot_client.map(|client| {
+                                            client.process_loaded(Err(err));
+                                        });
+                                    }
+                                    Some(
+                                        SequentialProcessLoaderMachineActiveClient::RuntimeClient,
+                                    ) => {
+                                        self.runtime_client.map(|client| {
+                                            client.process_loaded(Err(err));
+                                        });
+                                    }
+                                    None => {}
+                                }
                             }
                         }
                     }
                     None => {
                         // Nowhere to store the process.
-                        self.client.map(|client| {
-                            client.process_loaded(Err(ProcessLoadError::NoProcessSlot));
-                        });
+                        match self.active_client.get() {
+                            Some(SequentialProcessLoaderMachineActiveClient::BootClient) => {
+                                self.boot_client.map(|client| {
+                                    client.process_loaded(Err(ProcessLoadError::NoProcessSlot));
+                                });
+                            }
+                            Some(SequentialProcessLoaderMachineActiveClient::RuntimeClient) => {
+                                self.runtime_client.map(|client| {
+                                    client.process_loaded(Err(ProcessLoadError::NoProcessSlot));
+                                });
+                            }
+                            None => {}
+                        }
                     }
                 }
             }
@@ -853,9 +918,19 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
 
         // We have iterated all discovered `ProcessBinary`s and loaded what we
         // could so now we can signal that process loading is finished.
-        self.client.map(|client| {
-            client.process_loading_finished();
-        });
+        match self.active_client.get() {
+            Some(SequentialProcessLoaderMachineActiveClient::BootClient) => {
+                self.boot_client.map(|client| {
+                    client.process_loading_finished();
+                });
+            }
+            Some(SequentialProcessLoaderMachineActiveClient::RuntimeClient) => {
+                self.runtime_client.map(|client| {
+                    client.process_loading_finished();
+                });
+            }
+            None => {}
+        }
 
         self.state.clear();
         Ok(())
@@ -1276,8 +1351,12 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
 impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
     for SequentialProcessLoaderMachine<'a, C, D>
 {
-    fn set_client(&self, client: &'a dyn ProcessLoadingAsyncClient) {
-        self.client.set(client);
+    fn set_boot_client(&self, client: &'a dyn ProcessLoadingAsyncClient) {
+        self.boot_client.set(client);
+    }
+
+    fn set_runtime_client(&self, client: &'a dyn ProcessLoadingAsyncClient) {
+        self.runtime_client.set(client);
     }
 
     fn set_policy(&self, policy: &'a dyn AppIdPolicy) {
@@ -1288,6 +1367,20 @@ impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
         // Reset process binaries metadata.
         self.process_binaries_metadata
             .set(ProcessBinaryMetadata::default());
+
+        if let Some(active_client) = self.active_client.get() {
+            match active_client {
+                SequentialProcessLoaderMachineActiveClient::BootClient => {
+                    self.active_client
+                        .set(SequentialProcessLoaderMachineActiveClient::RuntimeClient);
+                    debug!("Client set to runtime process loader");
+                }
+                SequentialProcessLoaderMachineActiveClient::RuntimeClient => {}
+            }
+        } else {
+            self.active_client
+                .set(SequentialProcessLoaderMachineActiveClient::BootClient);
+        }
         self.state
             .set(SequentialProcessLoaderMachineState::DiscoverProcessBinaries);
         // Start an asynchronous flow so we can issue a callback on error.
@@ -1319,11 +1412,6 @@ impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
                     self.compute_padding_requirement_and_neighbors(app_address, new_app_size);
                 let (padding_requirement, previous_app_end_addr, next_app_start_addr) =
                     (pr, prev_app_addr, next_app_addr);
-                if let Some(mut metadata) = self.process_binaries_metadata.get() {
-                    metadata.new_app_address = app_address;
-                    metadata.new_app_size = new_app_size;
-                    self.process_binaries_metadata.set(metadata);
-                }
                 Ok((
                     app_address,
                     padding_requirement,
@@ -1335,23 +1423,13 @@ impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
         }
     }
 
-    fn check_new_binary_validity(
-        &self,
-        new_app_address: Option<usize>,
-    ) -> Result<(), ProcessBinaryError> {
+    fn check_new_binary_validity(&self, app_address: usize) -> Result<(), ProcessBinaryError> {
         let flash = self.flash_bank.get();
-        let new_app_addr = match new_app_address {
-            Some(address) => address - flash.as_ptr() as usize,
-            None => self.process_binaries_metadata.get().map_or(0, |metadata| {
-                metadata.new_app_address - flash.as_ptr() as usize
-            }),
-        };
-
         // Pass the first eight bytes of the tbfheader to parse out the
         // length of the tbf header and app. We then use those values to see
         // if we have enough flash remaining to parse the remainder of the
         // header.
-        let new_binary_header = match flash.get(new_app_addr..new_app_addr + 8) {
+        let binary_header = match flash.get(app_address..app_address + 8) {
             Some(bh) => match bh.get(0..8) {
                 Some(slice) => slice,
                 None => {
@@ -1364,8 +1442,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
         };
         let (_version, _header_length, _entry_length) =
             match tock_tbf::parse::parse_tbf_header_lengths(
-                // new_binary_header.try_into().or(Err(ProcessBinaryError::TbfHeaderNotFound))?,
-                new_binary_header
+                binary_header
                     .try_into()
                     .map_err(|_err: TryFromSliceError| ProcessBinaryError::TbfHeaderNotFound)?,
             ) {
@@ -1373,10 +1450,10 @@ impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
                 Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(_entry_length)) => {
                     // Invalid header, return Fail error. If we fail here,
                     // let us erase the app we just wrote.
-                    return Err(ProcessBinaryError::NoBinaryFound);
+                    return Err(ProcessBinaryError::TbfHeaderNotFound);
                 }
                 Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => {
-                    return Err(ProcessBinaryError::NoBinaryFound);
+                    return Err(ProcessBinaryError::TbfHeaderNotFound);
                 }
             };
         Ok(())
@@ -1384,35 +1461,26 @@ impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
 
     fn load_new_applications(
         &self,
-        new_app_metadata: Option<(usize, usize)>,
-    ) -> Result<(), ProcessBinaryError> {
-        let (new_app_address, new_app_size) = match new_app_metadata {
-            Some((address, size)) => (address, size),
-            None => self
-                .process_binaries_metadata
-                .get()
-                .map_or((0, 0), |metadata| {
-                    (metadata.new_app_address, metadata.new_app_size)
-                }),
-        };
+        app_address: usize,
+        app_size: usize,
+    ) -> Result<(), ProcessLoadError> {
         let flash = self.flash_bank.get();
-        let process_address = new_app_address - flash.as_ptr() as usize;
-        let process_flash = self
-            .flash_bank
-            .get()
-            .get(process_address..process_address + new_app_size);
-        let result = self.check_new_binary_validity(Some(new_app_address));
+        let process_address = app_address - flash.as_ptr() as usize;
+        let process_flash = flash.get(process_address..process_address + app_size);
+        let result = self.check_new_binary_validity(process_address);
         match result {
             Ok(()) => {
                 if let Some(flash) = process_flash {
                     self.flash.set(flash);
                 } else {
-                    return Err(ProcessBinaryError::NoBinaryFound);
+                    return Err(ProcessLoadError::BinaryError(
+                        ProcessBinaryError::TbfHeaderNotFound,
+                    ));
                 }
                 self.start();
                 Ok(())
             }
-            Err(e) => Err(e),
+            Err(e) => Err(ProcessLoadError::BinaryError(e)),
         }
     }
 }
@@ -1433,9 +1501,19 @@ impl<C: Chip, D: ProcessStandardDebug> DeferredCallClient
                     Err(()) => {
                         // If this failed for some reason, we still need to
                         // signal that process loading has finished.
-                        self.client.map(|client| {
-                            client.process_loading_finished();
-                        });
+                        match self.active_client.get() {
+                            Some(SequentialProcessLoaderMachineActiveClient::BootClient) => {
+                                self.boot_client.map(|client| {
+                                    client.process_loading_finished();
+                                });
+                            }
+                            Some(SequentialProcessLoaderMachineActiveClient::RuntimeClient) => {
+                                self.runtime_client.map(|client| {
+                                    client.process_loading_finished();
+                                });
+                            }
+                            None => {}
+                        }
                     }
                 }
             }
@@ -1473,11 +1551,19 @@ impl<C: Chip, D: ProcessStandardDebug> crate::process_checker::ProcessCheckerMac
                             proc_binaries[index] = Some(process_binary);
                         });
                     }
-                    None => {
-                        self.client.map(|client| {
-                            client.process_loaded(Err(ProcessLoadError::NoProcessSlot));
-                        });
-                    }
+                    None => match self.active_client.get() {
+                        Some(SequentialProcessLoaderMachineActiveClient::BootClient) => {
+                            self.boot_client.map(|client| {
+                                client.process_loaded(Err(ProcessLoadError::NoProcessSlot));
+                            });
+                        }
+                        Some(SequentialProcessLoaderMachineActiveClient::RuntimeClient) => {
+                            self.runtime_client.map(|client| {
+                                client.process_loaded(Err(ProcessLoadError::NoProcessSlot));
+                            });
+                        }
+                        None => {}
+                    },
                 }
             }
             Err(e) => {
@@ -1489,9 +1575,19 @@ impl<C: Chip, D: ProcessStandardDebug> crate::process_checker::ProcessCheckerMac
                     );
                 }
                 // Signal error and call try next
-                self.client.map(|client| {
-                    client.process_loaded(Err(ProcessLoadError::CheckError(e)));
-                });
+                match self.active_client.get() {
+                    Some(SequentialProcessLoaderMachineActiveClient::BootClient) => {
+                        self.boot_client.map(|client| {
+                            client.process_loaded(Err(ProcessLoadError::CheckError(e)));
+                        });
+                    }
+                    Some(SequentialProcessLoaderMachineActiveClient::RuntimeClient) => {
+                        self.runtime_client.map(|client| {
+                            client.process_loaded(Err(ProcessLoadError::CheckError(e)));
+                        });
+                    }
+                    None => {}
+                }
             }
         }
 

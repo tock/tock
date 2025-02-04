@@ -109,7 +109,7 @@ pub mod collections;
 pub mod component;
 pub mod debug;
 pub mod deferred_call;
-pub mod dynamic_binary_flashing;
+pub mod dynamic_binary_storage;
 pub mod dynamic_process_loading;
 pub mod errorcode;
 pub mod grant;

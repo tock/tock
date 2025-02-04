@@ -357,7 +357,7 @@ pub unsafe fn main() {
             processes,
         }
     );
-    loader.set_client(platform);
+    loader.set_boot_client(platform);
 
     let _ = pconsole.start();
 

@@ -11,7 +11,6 @@ use crate::config;
 use crate::debug;
 use crate::process;
 use crate::process::{ProcessLoadingAsync, ProcessLoadingAsyncClient};
-use crate::process_binary::ProcessBinaryError;
 use crate::process_loading::ProcessLoadError;
 use crate::utilities::cells::{MapCell, OptionalCell};
 use crate::ErrorCode;
@@ -19,7 +18,7 @@ use crate::ErrorCode;
 /// This interface supports loading processes at runtime.
 pub trait DynamicProcessLoading {
     /// Call to request kernel to load a new process.
-    fn load(&self) -> Result<(), ErrorCode>;
+    fn load(&self, app_address: usize, app_size: usize) -> Result<(), ErrorCode>;
 
     /// Sets a client for the DynamicProcessLoading Object
     ///
@@ -92,11 +91,14 @@ impl DynamicProcessLoading for DynamicProcessLoader<'_> {
         self.load_client.set(client);
     }
 
-    fn load(&self) -> Result<(), ErrorCode> {
+    fn load(&self, app_address: usize, app_size: usize) -> Result<(), ErrorCode> {
         // We have finished writing the last user data segment, next step is to
         // load the process.
-        let _ = match self.loader_driver.load_new_applications(None) {
-            Ok(()) => Ok::<(), ProcessBinaryError>(()),
+        let _ = match self
+            .loader_driver
+            .load_new_applications(app_address, app_size)
+        {
+            Ok(()) => Ok::<(), ProcessLoadError>(()),
             Err(_e) => return Err(ErrorCode::FAIL),
         };
         Ok(())

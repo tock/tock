@@ -12,9 +12,11 @@ use core::cell::Cell;
 use crate::config;
 use crate::debug;
 use crate::hil::nonvolatile_storage::{NonvolatileStorage, NonvolatileStorageClient};
-use crate::process::ProcessLoadingAsync;
+use crate::process;
+use crate::process::{ProcessLoadingAsync, ProcessLoadingAsyncClient};
 use crate::process_loading::PaddingRequirement;
-use crate::utilities::cells::{OptionalCell, TakeCell};
+use crate::process_loading::ProcessLoadError;
+use crate::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use crate::utilities::leasable_buffer::SubSliceMut;
 use crate::ErrorCode;
 
@@ -45,7 +47,7 @@ pub struct ProcessLoadMetadata {
 }
 
 /// This interface supports flashing binaries at runtime.
-pub trait DynamicBinaryFlashing {
+pub trait DynamicBinaryStore {
     /// Call to request flashing a new binary.
     ///
     /// This informs the kernel we want to load a process and the  of the
@@ -82,47 +84,56 @@ pub trait DynamicBinaryFlashing {
         offset: usize,
     ) -> Result<(), ErrorCode>;
 
-    /// Sets a client for the DynamicBinaryFlashing Object
+    /// Sets a client for the DynamicBinaryStore Object
     ///
     /// When the client operation is done, it calls the `setup_done()`
     /// and `write_app_data_done()` functions.
-    fn set_storage_client(&self, client: &'static dyn DynamicBinaryFlashingClient);
+    fn set_storage_client(&self, client: &'static dyn DynamicBinaryStoreClient);
 
     /// Write a prepad app if required
     fn write_prepad_app(&self);
+
+    /// Call to request kernel to load a new process.
+    fn load(&self) -> Result<(), ErrorCode>;
 }
 
 /// The callback for dynamic binary flashing.
-pub trait DynamicBinaryFlashingClient {
+pub trait DynamicBinaryStoreClient {
     /// Any setup work is done and we are ready to write the process binary.
     fn setup_done(&self);
 
     /// The provided app binary buffer has been stored.
     fn write_app_data_done(&self, buffer: &'static mut [u8], length: usize);
+
+    /// The new app has been loaded.
+    fn load_done(&self);
 }
 
 /// Dynamic process loading machine.
-pub struct DynamicBinaryFlasher<'a> {
+pub struct DynamicBinaryStorage<'a> {
+    processes: MapCell<&'static mut [Option<&'static dyn process::Process>]>,
     flash_driver: &'a dyn NonvolatileStorage<'a>,
     loader_driver: &'a dyn ProcessLoadingAsync<'a>,
     buffer: TakeCell<'static, [u8]>,
-    storage_client: OptionalCell<&'static dyn DynamicBinaryFlashingClient>,
-    process_load_metadata: OptionalCell<ProcessLoadMetadata>,
+    storage_client: OptionalCell<&'static dyn DynamicBinaryStoreClient>,
+    process_metadata: OptionalCell<ProcessLoadMetadata>,
     state: Cell<State>,
 }
 
-impl<'a> DynamicBinaryFlasher<'a> {
+impl<'a> DynamicBinaryStorage<'a> {
     pub fn new(
+        processes: &'static mut [Option<&'static dyn process::Process>],
         flash_driver: &'a dyn NonvolatileStorage<'a>,
         loader_driver: &'a dyn ProcessLoadingAsync<'a>,
         buffer: &'static mut [u8],
     ) -> Self {
         Self {
+            processes: MapCell::new(processes),
             flash_driver,
             loader_driver,
             buffer: TakeCell::new(buffer),
             storage_client: OptionalCell::empty(),
-            process_load_metadata: OptionalCell::empty(),
+            process_metadata: OptionalCell::empty(),
             state: Cell::new(State::Idle),
         }
     }
@@ -130,7 +141,7 @@ impl<'a> DynamicBinaryFlasher<'a> {
     /// Function to reset variables and states.
     fn reset_process_loading_metadata(&self) {
         self.state.set(State::Idle);
-        self.process_load_metadata.take();
+        self.process_metadata.take();
     }
 
     /// This function checks whether the new app will fit in the bounds dictated
@@ -144,7 +155,7 @@ impl<'a> DynamicBinaryFlasher<'a> {
     fn compute_address(&self, offset: usize, length: usize) -> Result<usize, ErrorCode> {
         let mut new_app_len: usize = 0;
         let mut new_app_addr: usize = 0;
-        if let Some(metadata) = self.process_load_metadata.get() {
+        if let Some(metadata) = self.process_metadata.get() {
             new_app_addr = metadata.new_app_start_addr;
             new_app_len = metadata.new_app_length;
         }
@@ -261,7 +272,7 @@ impl<'a> DynamicBinaryFlasher<'a> {
             // requested during the setup phase also check if the kernel
             // version matches the version indicated in the new application.
             let mut new_app_len = 0;
-            if let Some(metadata) = self.process_load_metadata.get() {
+            if let Some(metadata) = self.process_metadata.get() {
                 new_app_len = metadata.new_app_length;
             }
             if entry_length as usize != new_app_len {
@@ -324,7 +335,7 @@ impl<'a> DynamicBinaryFlasher<'a> {
 }
 
 /// This is the callback client for the underlying physical storage driver.
-impl NonvolatileStorageClient for DynamicBinaryFlasher<'_> {
+impl NonvolatileStorageClient for DynamicBinaryStorage<'_> {
     fn read_done(&self, _buffer: &'static mut [u8], _length: usize) {
         // We will never use this, but we need to implement this anyway.
         unimplemented!();
@@ -350,7 +361,7 @@ impl NonvolatileStorageClient for DynamicBinaryFlasher<'_> {
                 // PaddingWrite so that the callback after writing the padding
                 // app will get triggererd.
                 self.buffer.replace(buffer);
-                if let Some(metadata) = self.process_load_metadata.get() {
+                if let Some(metadata) = self.process_metadata.get() {
                     let _ = self
                         .write_padding_app(metadata.new_app_length, metadata.new_app_start_addr);
                 }
@@ -377,9 +388,41 @@ impl NonvolatileStorageClient for DynamicBinaryFlasher<'_> {
     }
 }
 
+/// Callback client for the async process loader
+impl ProcessLoadingAsyncClient for DynamicBinaryStorage<'_> {
+    fn process_loaded(&self, result: Result<(), ProcessLoadError>) {
+        match result {
+            Ok(()) => {
+                self.storage_client.map(|client| {
+                    client.load_done();
+                });
+            }
+            Err(_e) => {
+                if config::CONFIG.debug_load_processes {
+                    debug!("Load Failed.");
+                }
+            }
+        }
+    }
+
+    fn process_loading_finished(&self) {
+        // if config::CONFIG.debug_load_processes {
+        debug!("Processes Loaded:");
+        self.processes.map(|procs| {
+            for (i, proc) in procs.iter().enumerate() {
+                proc.map(|p| {
+                    debug!("[{}] {}", i, p.get_process_name());
+                    debug!("    ShortId: {}", p.short_app_id());
+                });
+            }
+        });
+        // }
+    }
+}
+
 /// Storage interface exposed to the app_loader capsule
-impl DynamicBinaryFlashing for DynamicBinaryFlasher<'_> {
-    fn set_storage_client(&self, client: &'static dyn DynamicBinaryFlashingClient) {
+impl DynamicBinaryStore for DynamicBinaryStorage<'_> {
+    fn set_storage_client(&self, client: &'static dyn DynamicBinaryStoreClient) {
         self.storage_client.set(client);
     }
 
@@ -389,8 +432,7 @@ impl DynamicBinaryFlashing for DynamicBinaryFlasher<'_> {
         // What happens to the process though? Need to delete it from the
         // process array and load it back in?
 
-        self.process_load_metadata
-            .set(ProcessLoadMetadata::default());
+        self.process_metadata.set(ProcessLoadMetadata::default());
         let setup_done: bool;
 
         if self.state.get() == State::Idle {
@@ -402,13 +444,13 @@ impl DynamicBinaryFlashing for DynamicBinaryFlasher<'_> {
                     previous_app_end_addr,
                     next_app_start_addr,
                 )) => {
-                    if let Some(mut metadata) = self.process_load_metadata.get() {
+                    if let Some(mut metadata) = self.process_metadata.get() {
                         metadata.new_app_start_addr = new_app_start_address;
                         metadata.new_app_length = app_length;
                         metadata.previous_app_end_addr = previous_app_end_addr;
                         metadata.next_app_start_addr = next_app_start_addr;
                         metadata.padding_requirement = padding_requirement;
-                        self.process_load_metadata.set(metadata);
+                        self.process_metadata.set(metadata);
                     }
 
                     match padding_requirement {
@@ -480,7 +522,7 @@ impl DynamicBinaryFlashing for DynamicBinaryFlasher<'_> {
     }
 
     fn write_prepad_app(&self) {
-        if let Some(metadata) = self.process_load_metadata.get() {
+        if let Some(metadata) = self.process_metadata.get() {
             match metadata.padding_requirement {
                 // If we decided we need to write a padding app before the new
                 // app, we go ahead and do it.
@@ -514,6 +556,27 @@ impl DynamicBinaryFlashing for DynamicBinaryFlasher<'_> {
                 }
             };
         }
+    }
+
+    fn load(&self) -> Result<(), ErrorCode> {
+        // We have finished writing the last user data segment, next step is to
+        // load the process.
+        if let Some(metadata) = self.process_metadata.get() {
+            let _ = match self
+                .loader_driver
+                .load_new_applications(metadata.new_app_start_addr, metadata.new_app_length)
+            {
+                Ok(()) => Ok::<(), ProcessLoadError>(()),
+                Err(_e) => {
+                    self.reset_process_loading_metadata();
+                    return Err(ErrorCode::FAIL);
+                }
+            };
+        } else {
+            self.reset_process_loading_metadata();
+            return Err(ErrorCode::FAIL);
+        }
         self.reset_process_loading_metadata();
+        Ok(())
     }
 }
