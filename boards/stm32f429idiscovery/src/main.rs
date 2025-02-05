@@ -12,6 +12,7 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use core::num::NonZeroU32;
 use core::ptr::{addr_of, addr_of_mut};
 
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
@@ -330,8 +331,12 @@ unsafe fn start() -> (
     // the STM32F429I boards, DISC0 does not have this connection and will
     // not have USART output available!
     base_peripherals.usart1.enable_clock();
-    let uart_mux = components::console::UartMuxComponent::new(&base_peripherals.usart1, 115200)
-        .finalize(components::uart_mux_component_static!());
+    let uart_mux = components::console::UartMuxComponent::new(
+        &base_peripherals.usart1,
+        // PANIC: 115200 != 0
+        NonZeroU32::new(115200).unwrap(),
+    )
+    .finalize(components::uart_mux_component_static!());
 
     (*addr_of_mut!(io::WRITER)).set_initialized();
 

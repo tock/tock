@@ -12,6 +12,7 @@
 
 use capsules_core::test::capsule_test::{CapsuleTestClient, CapsuleTestError};
 use core::cell::Cell;
+use core::num::NonZeroU32;
 use core::ptr::addr_of;
 use kernel::component::Component;
 use kernel::hil::time::Counter;
@@ -228,8 +229,10 @@ pub unsafe fn main() {
     ));
 
     // Virtualize the UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(uart_channel, 115200)
-        .finalize(components::uart_mux_component_static!());
+    let uart_mux =
+        // PANIC: 115200 != 0
+        components::console::UartMuxComponent::new(uart_channel, NonZeroU32::new(115200).unwrap())
+            .finalize(components::uart_mux_component_static!());
 
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux)

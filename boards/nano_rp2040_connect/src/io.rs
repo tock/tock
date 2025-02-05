@@ -3,6 +3,7 @@
 // Copyright Tock Contributors 2022.
 
 use core::fmt::Write;
+use core::num::NonZeroU32;
 use core::panic::PanicInfo;
 
 use kernel::debug::{self, IoWrite};
@@ -55,7 +56,8 @@ impl IoWrite for Writer {
 
                 if !uart0.is_configured() {
                     let parameters = Parameters {
-                        baud_rate: 115200,
+                        // PANIC: 115200 != 0
+                        baud_rate: NonZeroU32::new(115200).unwrap(),
                         width: Width::Eight,
                         parity: Parity::None,
                         stop_bits: StopBits::One,

@@ -12,6 +12,7 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
+use core::num::NonZeroU32;
 use core::ptr::{addr_of, addr_of_mut};
 
 use components::gpio::GpioComponent;
@@ -330,8 +331,12 @@ unsafe fn start() -> (
         create_capability!(capabilities::ProcessManagementCapability);
 
     // Setup UART0
-    let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
-        .finalize(components::uart_mux_component_static!());
+    let uart_mux = components::console::UartMuxComponent::new(
+        &peripherals.uart0,
+        // PANIC: 115200 != 0
+        NonZeroU32::new(115200).unwrap(),
+    )
+    .finalize(components::uart_mux_component_static!());
 
     // Setup the console.
     let console = components::console::ConsoleComponent::new(
