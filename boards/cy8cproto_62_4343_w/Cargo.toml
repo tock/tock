@@ -1,0 +1,26 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright OxidOS Automotive 2025 SRL.
+
+[package]
+name = "cy8cproto_62_4243_w"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+build = "../build.rs"
+
+[dependencies]
+cortexm0p = { path = "../../arch/cortex-m0p" }
+kernel = { path = "../../kernel" }
+psoc62xa = { path = "../../chips/psoc62xa" }
+components = { path = "../components" }
+
+capsules-core = { path = "../../capsules/core" }
+capsules-extra = { path = "../../capsules/extra" }
+capsules-system = { path = "../../capsules/system" }
+
+[build-dependencies]
+tock_build_scripts = { path = "../build_scripts" }
+
+[lints]
+workspace = true
