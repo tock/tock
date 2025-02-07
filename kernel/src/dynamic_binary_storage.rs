@@ -12,17 +12,16 @@ use core::cell::Cell;
 use crate::config;
 use crate::debug;
 use crate::hil::nonvolatile_storage::{NonvolatileStorage, NonvolatileStorageClient};
+use crate::platform::chip::Chip;
 use crate::process;
 use crate::process::ProcessLoadingAsyncClient;
-use crate::process_loading::PaddingRequirement;
-use crate::process_loading::ProcessLoadError;
+use crate::process_loading::{
+    PaddingRequirement, ProcessLoadError, SequentialProcessLoaderMachine,
+};
+use crate::process_standard::ProcessStandardDebug;
 use crate::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use crate::utilities::leasable_buffer::SubSliceMut;
 use crate::ErrorCode;
-// use crate::process_loading;
-use crate::platform::chip::Chip;
-use crate::process_loading::SequentialProcessLoaderMachine;
-use crate::process_standard::ProcessStandardDebug;
 
 /// Expected buffer length for storing application binaries.
 pub const BUF_LEN: usize = 512;
@@ -51,7 +50,7 @@ pub struct ProcessLoadMetadata {
 }
 
 /// This interface supports flashing binaries at runtime.
-pub trait DynamicBinaryStore {
+pub trait SequentialDynamicBinaryStore {
     /// Call to request flashing a new binary.
     ///
     /// This informs the kernel we want to load a process and the  of the
@@ -88,43 +87,59 @@ pub trait DynamicBinaryStore {
         offset: usize,
     ) -> Result<(), ErrorCode>;
 
-    /// Sets a client for the DynamicBinaryStore Object
+    /// Sets a client for the SequentialDynamicBinaryStore Object
     ///
     /// When the client operation is done, it calls the `setup_done()`
     /// and `write_app_data_done()` functions.
-    fn set_storage_client(&self, client: &'static dyn DynamicBinaryStoreClient);
+    fn set_storage_client(&self, client: &'static dyn SequentialDynamicBinaryStoreClient);
 
     /// Write a prepad app if required
     fn write_prepad_app(&self);
-
-    /// Call to request kernel to load a new process.
-    fn load(&self) -> Result<(), ErrorCode>;
 }
 
 /// The callback for dynamic binary flashing.
-pub trait DynamicBinaryStoreClient {
+pub trait SequentialDynamicBinaryStoreClient {
     /// Any setup work is done and we are ready to write the process binary.
     fn setup_done(&self);
 
     /// The provided app binary buffer has been stored.
     fn write_app_data_done(&self, buffer: &'static mut [u8], length: usize);
+}
 
+/// This interface supports loading processes at runtime.
+pub trait SequentialDynamicProcessLoad {
+    /// Call to request kernel to load a new process.
+    fn load(&self) -> Result<(), ErrorCode>;
+
+    /// Sets a client for the SequentialDynamicProcessLoading Object
+    ///
+    /// When the client operation is done, it calls the `load_done()`
+    /// function.
+    fn set_load_client(&self, client: &'static dyn SequentialDynamicProcessLoadClient);
+}
+
+/// The callback for dynamic binary flashing.
+pub trait SequentialDynamicProcessLoadClient {
     /// The new app has been loaded.
     fn load_done(&self);
 }
 
 /// Dynamic process loading machine.
-pub struct DynamicBinaryStorage<'a, C: Chip + 'static, D: ProcessStandardDebug + 'static> {
+pub struct SequentialDynamicBinaryStorage<'a, C: Chip + 'static, D: ProcessStandardDebug + 'static>
+{
     processes: MapCell<&'static mut [Option<&'static dyn process::Process>]>,
     flash_driver: &'a dyn NonvolatileStorage<'a>,
     loader_driver: &'a SequentialProcessLoaderMachine<'a, C, D>,
     buffer: TakeCell<'static, [u8]>,
-    storage_client: OptionalCell<&'static dyn DynamicBinaryStoreClient>,
+    storage_client: OptionalCell<&'static dyn SequentialDynamicBinaryStoreClient>,
+    load_client: OptionalCell<&'static dyn SequentialDynamicProcessLoadClient>,
     process_metadata: OptionalCell<ProcessLoadMetadata>,
     state: Cell<State>,
 }
 
-impl<'a, C: Chip + 'static, D: ProcessStandardDebug + 'static> DynamicBinaryStorage<'a, C, D> {
+impl<'a, C: Chip + 'static, D: ProcessStandardDebug + 'static>
+    SequentialDynamicBinaryStorage<'a, C, D>
+{
     pub fn new(
         processes: &'static mut [Option<&'static dyn process::Process>],
         flash_driver: &'a dyn NonvolatileStorage<'a>,
@@ -137,6 +152,7 @@ impl<'a, C: Chip + 'static, D: ProcessStandardDebug + 'static> DynamicBinaryStor
             loader_driver,
             buffer: TakeCell::new(buffer),
             storage_client: OptionalCell::empty(),
+            load_client: OptionalCell::empty(),
             process_metadata: OptionalCell::empty(),
             state: Cell::new(State::Idle),
         }
@@ -340,7 +356,7 @@ impl<'a, C: Chip + 'static, D: ProcessStandardDebug + 'static> DynamicBinaryStor
 
 /// This is the callback client for the underlying physical storage driver.
 impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> NonvolatileStorageClient
-    for DynamicBinaryStorage<'_, C, D>
+    for SequentialDynamicBinaryStorage<'_, C, D>
 {
     fn read_done(&self, _buffer: &'static mut [u8], _length: usize) {
         // We will never use this, but we need to implement this anyway.
@@ -396,12 +412,12 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> NonvolatileStorageCli
 
 /// Callback client for the async process loader
 impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> ProcessLoadingAsyncClient
-    for DynamicBinaryStorage<'_, C, D>
+    for SequentialDynamicBinaryStorage<'_, C, D>
 {
     fn process_loaded(&self, result: Result<(), ProcessLoadError>) {
         match result {
             Ok(()) => {
-                self.storage_client.map(|client| {
+                self.load_client.map(|client| {
                     client.load_done();
                 });
             }
@@ -414,25 +430,23 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> ProcessLoadingAsyncCl
     }
 
     fn process_loading_finished(&self) {
-        if config::CONFIG.debug_load_processes {
-            debug!("Processes Loaded:");
-            self.processes.map(|procs| {
-                for (i, proc) in procs.iter().enumerate() {
-                    proc.map(|p| {
-                        debug!("[{}] {}", i, p.get_process_name());
-                        debug!("    ShortId: {}", p.short_app_id());
-                    });
-                }
-            });
-        }
+        debug!("Processes Loaded:");
+        self.processes.map(|procs| {
+            for (i, proc) in procs.iter().enumerate() {
+                proc.map(|p| {
+                    debug!("[{}] {}", i, p.get_process_name());
+                    debug!("    ShortId: {}", p.short_app_id());
+                });
+            }
+        });
     }
 }
 
 /// Storage interface exposed to the app_loader capsule
-impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> DynamicBinaryStore
-    for DynamicBinaryStorage<'_, C, D>
+impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> SequentialDynamicBinaryStore
+    for SequentialDynamicBinaryStorage<'_, C, D>
 {
-    fn set_storage_client(&self, client: &'static dyn DynamicBinaryStoreClient) {
+    fn set_storage_client(&self, client: &'static dyn SequentialDynamicBinaryStoreClient) {
         self.storage_client.set(client);
     }
 
@@ -566,6 +580,15 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> DynamicBinaryStore
                 }
             };
         }
+    }
+}
+
+/// Loading interface exposed to the app_loader capsule
+impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> SequentialDynamicProcessLoad
+    for SequentialDynamicBinaryStorage<'_, C, D>
+{
+    fn set_load_client(&self, client: &'static dyn SequentialDynamicProcessLoadClient) {
+        self.load_client.set(client);
     }
 
     fn load(&self) -> Result<(), ErrorCode> {

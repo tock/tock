@@ -16,6 +16,7 @@
 //!     board_kernel,
 //!     capsules_extra::app_loader::DRIVER_NUM,
 //!     dynamic_binary_storage,
+//!     dynamic_binary_storage,
 //!     ).finalize(components::app_loader_component_static!());
 //! ```
 
@@ -40,22 +41,22 @@ macro_rules! app_loader_component_static {
 pub struct AppLoaderComponent {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
-    storage_driver: &'static dyn dynamic_binary_storage::DynamicBinaryStore,
-    // loading_driver: &'static dyn dynamic_process_loading::DynamicProcessLoading,
+    storage_driver: &'static dyn dynamic_binary_storage::SequentialDynamicBinaryStore,
+    load_driver: &'static dyn dynamic_binary_storage::SequentialDynamicProcessLoad,
 }
 
 impl AppLoaderComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
-        storage_driver: &'static dyn dynamic_binary_storage::DynamicBinaryStore,
-        // loading_driver: &'static dyn dynamic_process_loading::DynamicProcessLoading,
+        storage_driver: &'static dyn dynamic_binary_storage::SequentialDynamicBinaryStore,
+        load_driver: &'static dyn dynamic_binary_storage::SequentialDynamicProcessLoad,
     ) -> Self {
         Self {
             board_kernel,
             driver_num,
             storage_driver,
-            // loading_driver,
+            load_driver,
         }
     }
 }
@@ -77,11 +78,15 @@ impl Component for AppLoaderComponent {
         let dynamic_app_loader = static_buffer.0.write(AppLoader::new(
             self.board_kernel.create_grant(self.driver_num, &grant_cap),
             self.storage_driver,
-            // self.loading_driver,
+            self.load_driver,
             buffer,
         ));
-        kernel::dynamic_binary_storage::DynamicBinaryStore::set_storage_client(
+        kernel::dynamic_binary_storage::SequentialDynamicBinaryStore::set_storage_client(
             self.storage_driver,
+            dynamic_app_loader,
+        );
+        kernel::dynamic_binary_storage::SequentialDynamicProcessLoad::set_load_client(
+            self.load_driver,
             dynamic_app_loader,
         );
         dynamic_app_loader

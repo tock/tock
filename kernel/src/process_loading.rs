@@ -471,20 +471,13 @@ enum SequentialProcessLoaderMachineState {
     LoadProcesses,
 }
 
+/// Operating mode of the device.
 #[derive(Clone, Copy)]
-enum SequentialProcessLoaderMachineActiveClient {
-    /// Active client is Boot Client, i.e. Platform in Main.
-    BootClient,
-    /// Active Client is whichever runtime process loader is active.
-    RuntimeClient,
-}
-
-/// Metadata struct to hold list of process binary addresses.
-#[derive(Clone, Copy, Debug, Default)]
-struct ProcessBinaryMetadata {
-    index: usize,
-    process_binaries_start_addresses: [usize; MAX_PROCS],
-    process_binaries_end_addresses: [usize; MAX_PROCS],
+pub enum RunMode {
+    /// Phase of discovering `ProcessBinary` objects in flash.
+    BootMode,
+    /// Phase of loading `ProcessBinary`s into `Process`es.
+    RuntimeMode,
 }
 
 /// Enum to hold the padding requirements for a new application.
@@ -509,6 +502,8 @@ pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static, D: ProcessStand
     boot_client: OptionalCell<&'a dyn ProcessLoadingAsyncClient>,
     /// Client to notify as processes are loaded and process loading finishes during runtime.
     runtime_client: OptionalCell<&'a dyn ProcessLoadingAsyncClient>,
+    /// Current operating mode of the device.
+    run_mode: OptionalCell<RunMode>,
     /// Machine to use to check process credentials.
     checker: &'static ProcessCheckerMachine,
     /// Array of stored process references for loaded processes.
@@ -535,10 +530,6 @@ pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static, D: ProcessStand
     storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C, D>,
     /// Current mode of the loading machine.
     state: OptionalCell<SequentialProcessLoaderMachineState>,
-    /// Current client of the loading machine.
-    active_client: OptionalCell<SequentialProcessLoaderMachineActiveClient>,
-    /// Lookup tables for process binaries addresses and sizes
-    process_binaries_metadata: OptionalCell<ProcessBinaryMetadata>,
 }
 
 impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> {
@@ -564,6 +555,7 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
             checker,
             boot_client: OptionalCell::empty(),
             runtime_client: OptionalCell::empty(),
+            run_mode: OptionalCell::empty(),
             procs: MapCell::new(procs),
             proc_binaries: MapCell::new(proc_binaries),
             kernel,
@@ -575,8 +567,14 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
             fault_policy,
             storage_policy,
             state: OptionalCell::empty(),
-            active_client: OptionalCell::empty(),
-            process_binaries_metadata: OptionalCell::empty(),
+        }
+    }
+
+    /// Find the current active client based on device operation mode.
+    fn get_current_client(&self) -> Option<&dyn ProcessLoadingAsyncClient> {
+        match self.run_mode.get()? {
+            RunMode::BootMode => self.boot_client.get(),
+            RunMode::RuntimeMode => self.runtime_client.get(),
         }
     }
 
@@ -609,18 +607,13 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
         match ret {
             Ok(pb) => match self.checker.check(pb) {
                 Ok(()) => {}
-                Err(e) => match self.active_client.get() {
-                    Some(SequentialProcessLoaderMachineActiveClient::BootClient) => {
-                        self.boot_client.map(|client| {
-                            client.process_loaded(Err(ProcessLoadError::CheckError(e)));
-                        });
+                Err(e) => match self.get_current_client() {
+                    Some(client) => {
+                        client.process_loaded(Err(ProcessLoadError::CheckError(e)));
                     }
-                    Some(SequentialProcessLoaderMachineActiveClient::RuntimeClient) => {
-                        self.runtime_client.map(|client| {
-                            client.process_loaded(Err(ProcessLoadError::CheckError(e)));
-                        });
+                    None => {
+                        debug!("Error: Device is in an unknown operating mode.")
                     }
-                    None => {}
                 },
             },
             Err(ProcessBinaryError::NotEnoughFlash)
@@ -640,19 +633,15 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
 
                 // Other process binary errors indicate the process is not
                 // compatible. Signal error and try the next item in flash.
-                match self.active_client.get() {
-                    Some(SequentialProcessLoaderMachineActiveClient::BootClient) => {
-                        self.boot_client.map(|client| {
-                            client.process_loaded(Err(ProcessLoadError::BinaryError(e)));
-                        });
+                match self.get_current_client() {
+                    Some(client) => {
+                        client.process_loaded(Err(ProcessLoadError::BinaryError(e)));
                     }
-                    Some(SequentialProcessLoaderMachineActiveClient::RuntimeClient) => {
-                        self.runtime_client.map(|client| {
-                            client.process_loaded(Err(ProcessLoadError::BinaryError(e)));
-                        });
+                    None => {
+                        debug!("Error: Device is in an unknown operating mode.")
                     }
-                    None => {}
                 }
+
                 self.deferred_call.set();
             }
         }
@@ -821,20 +810,13 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
                                         self.procs.map(|procs| {
                                             procs[index] = proc;
                                         });
-                                        // Notify the client the process was loaded
-                                        // successfully.
-                                        match self.active_client.get(){
-                                            Some(SequentialProcessLoaderMachineActiveClient::BootClient) => {
-                                                self.boot_client.map(|client| {
-                                                    client.process_loaded(Ok(()));
-                                                });
+                                        match self.get_current_client() {
+                                            Some(client) => {
+                                                client.process_loaded(Ok(()));
                                             }
-                                            Some(SequentialProcessLoaderMachineActiveClient::RuntimeClient) => {
-                                                self.runtime_client.map(|client| {
-                                                    client.process_loaded(Ok(()));
-                                                });
+                                            None => {
+                                                debug!("Error: Device is in an unknown operating mode.")
                                             }
-                                            None => {}
                                         }
                                     }
                                     None => {
@@ -850,42 +832,25 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
                                     debug!("Could not load process: {:?}.", err);
                                 }
 
-                                match self.active_client.get() {
-                                    Some(
-                                        SequentialProcessLoaderMachineActiveClient::BootClient,
-                                    ) => {
-                                        self.boot_client.map(|client| {
-                                            client.process_loaded(Err(err));
-                                        });
+                                match self.get_current_client() {
+                                    Some(client) => {
+                                        client.process_loaded(Err(err));
                                     }
-                                    Some(
-                                        SequentialProcessLoaderMachineActiveClient::RuntimeClient,
-                                    ) => {
-                                        self.runtime_client.map(|client| {
-                                            client.process_loaded(Err(err));
-                                        });
+                                    None => {
+                                        debug!("Error: Device is in an unknown operating mode.")
                                     }
-                                    None => {}
                                 }
                             }
                         }
                     }
-                    None => {
-                        // Nowhere to store the process.
-                        match self.active_client.get() {
-                            Some(SequentialProcessLoaderMachineActiveClient::BootClient) => {
-                                self.boot_client.map(|client| {
-                                    client.process_loaded(Err(ProcessLoadError::NoProcessSlot));
-                                });
-                            }
-                            Some(SequentialProcessLoaderMachineActiveClient::RuntimeClient) => {
-                                self.runtime_client.map(|client| {
-                                    client.process_loaded(Err(ProcessLoadError::NoProcessSlot));
-                                });
-                            }
-                            None => {}
+                    None => match self.get_current_client() {
+                        Some(client) => {
+                            client.process_loaded(Err(ProcessLoadError::NoProcessSlot));
                         }
-                    }
+                        None => {
+                            debug!("Error: Device is in an unknown operating mode.")
+                        }
+                    },
                 }
             }
         }
@@ -893,18 +858,13 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
 
         // We have iterated all discovered `ProcessBinary`s and loaded what we
         // could so now we can signal that process loading is finished.
-        match self.active_client.get() {
-            Some(SequentialProcessLoaderMachineActiveClient::BootClient) => {
-                self.boot_client.map(|client| {
-                    client.process_loading_finished();
-                });
+        match self.get_current_client() {
+            Some(client) => {
+                client.process_loading_finished();
             }
-            Some(SequentialProcessLoaderMachineActiveClient::RuntimeClient) => {
-                self.runtime_client.map(|client| {
-                    client.process_loading_finished();
-                });
+            None => {
+                debug!("Error: Device is in an unknown operating mode.")
             }
-            None => {}
         }
 
         self.state.clear();
@@ -983,17 +943,21 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
     // DYNAMIC PROCESS LOADING HELPERS
     ////////////////////////////////////////////////////////////////////////////////
     /// TODO:
-    /// 1. Get Max number of processes as constant? If they are fixed per board,
-    ///     can i get it somewhere?
-    /// 2. Block app from writing if the version is same and if the binary has not
+    /// 1. Block app from writing if the version is same and if the binary has not
     ///     changed? (possible attack vector)
     ///         - Change version and keep binary image constant otherwise.
     ///         - A bunch of these updates could eat away at the flash's real estate
 
     /// Scan the entire flash to populate lists of existing binaries addresses.
-    fn scan_flash_for_app_binaries(&self, flash: &'static [u8]) -> Result<(), ProcessBinaryError> {
+    fn scan_flash_for_app_binaries(
+        &self,
+        flash: &'static [u8],
+        process_binaries_start_addresses: &mut [usize; MAX_PROCS],
+        process_binaries_end_addresses: &mut [usize; MAX_PROCS],
+    ) -> Result<(), ProcessBinaryError> {
         let flash_end = flash.as_ptr() as usize + flash.len() - 1;
         let mut addresses = flash.as_ptr() as usize;
+        let mut index: usize = 0;
 
         while addresses < flash_end {
             let flash_offset = addresses - flash.as_ptr() as usize;
@@ -1048,25 +1012,22 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
                 .get(flash_offset + app_flash.len()..)
                 .ok_or(ProcessBinaryError::NotEnoughFlash)?;
 
-            if let Some(mut metadata) = self.process_binaries_metadata.get() {
-                let tbf_header = tock_tbf::parse::parse_tbf_header(app_header, version)?;
-                if tbf_header.is_app() {
-                    metadata.process_binaries_start_addresses[metadata.index] =
-                        app_flash.as_ptr() as usize;
-                    metadata.process_binaries_end_addresses[metadata.index] =
-                        app_flash.as_ptr() as usize + app_length as usize;
-                    if config::CONFIG.debug_load_processes {
-                        debug!("Metadata Process binary start address at index {}: {:#010x}, with end_address {:#010x}" ,
-                        metadata.index,
-                        metadata.process_binaries_start_addresses[metadata.index],
-                        metadata.process_binaries_end_addresses[metadata.index]);
-                    }
-                    metadata.index += 1;
-                    self.process_binaries_metadata.set(metadata);
-                } else {
-                    if config::CONFIG.debug_load_processes {
-                        debug!("Is padding!");
-                    }
+            let tbf_header = tock_tbf::parse::parse_tbf_header(app_header, version)
+                .map_err(|e| (ProcessBinaryError::TbfHeaderParseFailure(e)))?;
+            if tbf_header.is_app() {
+                process_binaries_start_addresses[index] = app_flash.as_ptr() as usize;
+                process_binaries_end_addresses[index] =
+                    app_flash.as_ptr() as usize + app_length as usize;
+                if config::CONFIG.debug_load_processes {
+                    debug!("Metadata Process binary start address at index {}: {:#010x}, with end_address {:#010x}" ,
+                    index,
+                    process_binaries_start_addresses[index],
+                    process_binaries_end_addresses[index]);
+                }
+                index += 1;
+            } else {
+                if config::CONFIG.debug_load_processes {
+                    debug!("Is padding!");
                 }
             }
             addresses = remaining_flash.as_ptr() as usize;
@@ -1074,11 +1035,13 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
         Ok(())
     }
 
+    pub fn set_current_run_mode(&self, mode: RunMode) {
+        self.run_mode.set(mode);
+    }
+
     /// Helper function to find the next potential aligned address for the
-    /// new app with size `app_length`.
-    ///
-    /// This currently assumes Cortex-M alignment rules.
-    fn find_next_aligned_address(&self, address: usize, app_length: usize) -> usize {
+    /// new app with size `app_length` assuming Cortex-M alignment rules.
+    fn find_next_cortex_m_aligned_address(&self, address: usize, app_length: usize) -> usize {
         let remaining = address % app_length;
         if remaining == 0 {
             address
@@ -1099,80 +1062,70 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
     }
 
     /// Function to compute the address for a new app with size `app_size`.
-    fn compute_new_app_address(&self, app_size: usize) -> Option<usize> {
-        if let Some(mut metadata) = self.process_binaries_metadata.get() {
-            let mut start_count = 0;
-            let mut end_count = 0;
+    fn compute_new_app_address(
+        &self,
+        app_size: usize,
+        mut process_binaries_start_addresses: [usize; MAX_PROCS],
+        mut process_binaries_end_addresses: [usize; MAX_PROCS],
+    ) -> usize {
+        let mut start_count = 0;
+        let mut end_count = 0;
 
-            // Remove zeros from addresses in place.
-            for i in 0..MAX_PROCS {
-                if metadata.process_binaries_start_addresses[i] != 0 {
-                    metadata.process_binaries_start_addresses[start_count] =
-                        metadata.process_binaries_start_addresses[i];
-                    start_count += 1;
-                }
+        // Remove zeros from addresses in place.
+        for i in 0..MAX_PROCS {
+            if process_binaries_start_addresses[i] != 0 {
+                process_binaries_start_addresses[start_count] = process_binaries_start_addresses[i];
+                start_count += 1;
             }
-
-            for i in 0..MAX_PROCS {
-                if metadata.process_binaries_end_addresses[i] != 0 {
-                    metadata.process_binaries_end_addresses[end_count] =
-                        metadata.process_binaries_end_addresses[i];
-                    end_count += 1;
-                }
-            }
-
-            // Sort the filtered addresses.
-            self.sort_array(&mut metadata.process_binaries_start_addresses, start_count);
-            self.sort_array(&mut metadata.process_binaries_end_addresses, end_count);
-
-            if config::CONFIG.debug_load_processes {
-                debug!(
-                    "sorted start array: {:?}",
-                    metadata.process_binaries_start_addresses
-                );
-                debug!(
-                    "sorted end array: {:?}",
-                    metadata.process_binaries_end_addresses
-                );
-            }
-
-            // If there is only one application in flash:
-            if start_count == 1 {
-                let potential_address = self.find_next_aligned_address(
-                    metadata.process_binaries_end_addresses[0],
-                    app_size,
-                );
-                return Some(potential_address);
-            }
-
-            // Otherwise, iterate through the sorted start and end addresses to find gaps for the new app.
-            for i in 0..start_count - 1 {
-                let gap_start = metadata.process_binaries_end_addresses[i];
-                let gap_end = metadata.process_binaries_start_addresses[i + 1];
-
-                // Ensure gap_end is valid (skip zeros - these indicate there are no process binaries).
-                if gap_end == 0 {
-                    continue;
-                }
-
-                // If there is a valid gap - (gap_end > gap_start), check alignment.
-                if gap_end > gap_start {
-                    let potential_address = self.find_next_aligned_address(gap_start, app_size);
-                    if potential_address + app_size < gap_end {
-                        return Some(potential_address);
-                    }
-                }
-            }
-            // If no gaps found, check after the last app
-            let last_app_end_address = metadata.process_binaries_end_addresses[end_count - 1];
-            let potential_address = self.find_next_aligned_address(last_app_end_address, app_size);
-            // move flash bounds logic to here?
-            return Some(potential_address);
         }
+
+        for i in 0..MAX_PROCS {
+            if process_binaries_end_addresses[i] != 0 {
+                process_binaries_end_addresses[end_count] = process_binaries_end_addresses[i];
+                end_count += 1;
+            }
+        }
+
+        // Sort the filtered addresses.
+        self.sort_array(&mut process_binaries_start_addresses, start_count);
+        self.sort_array(&mut process_binaries_end_addresses, end_count);
+
         if config::CONFIG.debug_load_processes {
-            debug!("No suitable aligned address found");
+            debug!("sorted start array: {:?}", process_binaries_start_addresses);
+            debug!("sorted end array: {:?}", process_binaries_end_addresses);
         }
-        None
+
+        // If there is only one application in flash:
+        if start_count == 1 {
+            let potential_address = self
+                .find_next_cortex_m_aligned_address(process_binaries_end_addresses[0], app_size);
+            return potential_address;
+        }
+
+        // Otherwise, iterate through the sorted start and end addresses to find gaps for the new app.
+        for i in 0..start_count - 1 {
+            let gap_start = process_binaries_end_addresses[i];
+            let gap_end = process_binaries_start_addresses[i + 1];
+
+            // Ensure gap_end is valid (skip zeros - these indicate there are no process binaries).
+            if gap_end == 0 {
+                continue;
+            }
+
+            // If there is a valid gap - (gap_end > gap_start), check alignment.
+            if gap_end > gap_start {
+                let potential_address =
+                    self.find_next_cortex_m_aligned_address(gap_start, app_size);
+                if potential_address + app_size < gap_end {
+                    return potential_address;
+                }
+            }
+        }
+        // If no gaps found, check after the last app
+        let last_app_end_address = process_binaries_end_addresses[end_count - 1];
+        let potential_address =
+            self.find_next_cortex_m_aligned_address(last_app_end_address, app_size);
+        potential_address
     }
 
     /// This function checks if there is a need to pad either before or after
@@ -1286,8 +1239,14 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
         let total_flash_start = total_flash.as_ptr() as usize;
         let total_flash_end = total_flash_start + total_flash.len() - 1;
         let mut new_app_address: usize = total_flash_start;
+        let mut pb_start_address: [usize; MAX_PROCS] = [0; MAX_PROCS];
+        let mut pb_end_address: [usize; MAX_PROCS] = [0; MAX_PROCS];
 
-        match self.scan_flash_for_app_binaries(total_flash) {
+        match self.scan_flash_for_app_binaries(
+            total_flash,
+            &mut pb_start_address,
+            &mut pb_end_address,
+        ) {
             Ok(()) => {
                 if config::CONFIG.debug_load_processes {
                     debug!("Successfully scanned flash");
@@ -1298,16 +1257,13 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
                     // This means we are done scanning the flash and have not found any more headers.
                     // Usually, this is the only place we should arrive at
                     ProcessBinaryError::TbfHeaderNotFound => {
-                        match self.compute_new_app_address(new_app_size) {
-                            Some(new_address) => {
-                                new_app_address = new_address;
-                                if new_app_address + new_app_size - 1 > total_flash_end {
-                                    return Err(ProcessBinaryError::NotEnoughFlash);
-                                }
-                            }
-                            None => {
-                                return Err(ProcessBinaryError::NotEnoughFlash);
-                            }
+                        new_app_address = self.compute_new_app_address(
+                            new_app_size,
+                            pb_start_address,
+                            pb_end_address,
+                        );
+                        if new_app_address + new_app_size - 1 > total_flash_end {
+                            return Err(ProcessBinaryError::NotEnoughFlash);
                         }
                     }
                     _ => {
@@ -1419,25 +1375,10 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
                     ));
                 }
 
-                // Reset process binaries metadata.
-                self.process_binaries_metadata
-                    .set(ProcessBinaryMetadata::default());
-
-                if let Some(active_client) = self.active_client.get() {
-                    match active_client {
-                        SequentialProcessLoaderMachineActiveClient::BootClient => {
-                            self.active_client
-                                .set(SequentialProcessLoaderMachineActiveClient::RuntimeClient);
-                            debug!("Client set to runtime process loader");
-                        }
-                        SequentialProcessLoaderMachineActiveClient::RuntimeClient => {}
-                    }
-                } else {
-                    self.active_client
-                        .set(SequentialProcessLoaderMachineActiveClient::BootClient);
-                }
                 self.state
                     .set(SequentialProcessLoaderMachineState::DiscoverProcessBinaries);
+
+                self.set_current_run_mode(RunMode::RuntimeMode);
                 // Start an asynchronous flow so we can issue a callback on error.
                 self.deferred_call.set();
 
@@ -1464,27 +1405,9 @@ impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
     }
 
     fn start(&self) {
-        // Reset process binaries metadata.
-        self.process_binaries_metadata
-            .set(ProcessBinaryMetadata::default());
-
-        // Switch on the ProcessLoadingAsync client based on whether
-        // the process_loading is running for the first time.
-        if let Some(active_client) = self.active_client.get() {
-            match active_client {
-                SequentialProcessLoaderMachineActiveClient::BootClient => {
-                    self.active_client
-                        .set(SequentialProcessLoaderMachineActiveClient::RuntimeClient);
-                    debug!("Client set to runtime process loader");
-                }
-                SequentialProcessLoaderMachineActiveClient::RuntimeClient => {}
-            }
-        } else {
-            self.active_client
-                .set(SequentialProcessLoaderMachineActiveClient::BootClient);
-        }
         self.state
             .set(SequentialProcessLoaderMachineState::DiscoverProcessBinaries);
+        self.set_current_run_mode(RunMode::BootMode);
         // Start an asynchronous flow so we can issue a callback on error.
         self.deferred_call.set();
     }
@@ -1506,18 +1429,13 @@ impl<C: Chip, D: ProcessStandardDebug> DeferredCallClient
                     Err(()) => {
                         // If this failed for some reason, we still need to
                         // signal that process loading has finished.
-                        match self.active_client.get() {
-                            Some(SequentialProcessLoaderMachineActiveClient::BootClient) => {
-                                self.boot_client.map(|client| {
-                                    client.process_loading_finished();
-                                });
+                        match self.get_current_client() {
+                            Some(client) => {
+                                client.process_loading_finished();
                             }
-                            Some(SequentialProcessLoaderMachineActiveClient::RuntimeClient) => {
-                                self.runtime_client.map(|client| {
-                                    client.process_loading_finished();
-                                });
+                            None => {
+                                debug!("Error: Device is in an unknown operating mode.")
                             }
-                            None => {}
                         }
                     }
                 }
@@ -1556,18 +1474,13 @@ impl<C: Chip, D: ProcessStandardDebug> crate::process_checker::ProcessCheckerMac
                             proc_binaries[index] = Some(process_binary);
                         });
                     }
-                    None => match self.active_client.get() {
-                        Some(SequentialProcessLoaderMachineActiveClient::BootClient) => {
-                            self.boot_client.map(|client| {
-                                client.process_loaded(Err(ProcessLoadError::NoProcessSlot));
-                            });
+                    None => match self.get_current_client() {
+                        Some(client) => {
+                            client.process_loaded(Err(ProcessLoadError::NoProcessSlot));
                         }
-                        Some(SequentialProcessLoaderMachineActiveClient::RuntimeClient) => {
-                            self.runtime_client.map(|client| {
-                                client.process_loaded(Err(ProcessLoadError::NoProcessSlot));
-                            });
+                        None => {
+                            debug!("Error: Device is in an unknown operating mode.")
                         }
-                        None => {}
                     },
                 }
             }
@@ -1580,18 +1493,13 @@ impl<C: Chip, D: ProcessStandardDebug> crate::process_checker::ProcessCheckerMac
                     );
                 }
                 // Signal error and call try next
-                match self.active_client.get() {
-                    Some(SequentialProcessLoaderMachineActiveClient::BootClient) => {
-                        self.boot_client.map(|client| {
-                            client.process_loaded(Err(ProcessLoadError::CheckError(e)));
-                        });
+                match self.get_current_client() {
+                    Some(client) => {
+                        client.process_loaded(Err(ProcessLoadError::CheckError(e)));
                     }
-                    Some(SequentialProcessLoaderMachineActiveClient::RuntimeClient) => {
-                        self.runtime_client.map(|client| {
-                            client.process_loaded(Err(ProcessLoadError::CheckError(e)));
-                        });
+                    None => {
+                        debug!("Error: Device is in an unknown operating mode.")
                     }
-                    None => {}
                 }
             }
         }

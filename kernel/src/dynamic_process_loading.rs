@@ -10,10 +10,12 @@
 use crate::config;
 use crate::debug;
 use crate::process;
-use crate::process::{ProcessLoadingAsync, ProcessLoadingAsyncClient};
+use crate::process::{SequentialProcessLoaderMachine, ProcessLoadingAsyncClient};
 use crate::process_loading::ProcessLoadError;
 use crate::utilities::cells::{MapCell, OptionalCell};
 use crate::ErrorCode;
+use crate::platform::chip::Chip;
+use crate::process_standard::ProcessStandardDebug;
 
 /// This interface supports loading processes at runtime.
 pub trait DynamicProcessLoading {
@@ -34,16 +36,16 @@ pub trait DynamicProcessLoadingClient {
 }
 
 /// Dynamic process loading machine.
-pub struct DynamicProcessLoader<'a> {
+pub struct DynamicProcessLoader<'a, C: Chip + 'static, D: ProcessStandardDebug + 'static> {
     processes: MapCell<&'static mut [Option<&'static dyn process::Process>]>,
-    loader_driver: &'a dyn ProcessLoadingAsync<'a>,
+    loader_driver: &'a SequentialProcessLoaderMachine<'a, C, D>,
     load_client: OptionalCell<&'static dyn DynamicProcessLoadingClient>,
 }
 
-impl<'a> DynamicProcessLoader<'a> {
+impl<'a, C: Chip + 'static, D: ProcessStandardDebug + 'static> DynamicProcessLoader<'a, C, D> {
     pub fn new(
         processes: &'static mut [Option<&'static dyn process::Process>],
-        loader_driver: &'a dyn ProcessLoadingAsync<'a>,
+        loader_driver: &'a SequentialProcessLoaderMachine<'a, C, D>,
     ) -> Self {
         Self {
             processes: MapCell::new(processes),
@@ -54,7 +56,7 @@ impl<'a> DynamicProcessLoader<'a> {
 }
 
 /// Callback client for the async process loader
-impl ProcessLoadingAsyncClient for DynamicProcessLoader<'_> {
+impl <C: Chip + 'static, D: ProcessStandardDebug + 'static> ProcessLoadingAsyncClient for DynamicProcessLoader<'_, C, D> {
     fn process_loaded(&self, result: Result<(), ProcessLoadError>) {
         match result {
             Ok(()) => {
@@ -86,7 +88,7 @@ impl ProcessLoadingAsyncClient for DynamicProcessLoader<'_> {
 }
 
 /// Loading interface exposed to the app_loader capsule
-impl DynamicProcessLoading for DynamicProcessLoader<'_> {
+impl <C: Chip + 'static, D: ProcessStandardDebug + 'static> DynamicProcessLoading for DynamicProcessLoader<'_, C, D> {
     fn set_load_client(&self, client: &'static dyn DynamicProcessLoadingClient) {
         self.load_client.set(client);
     }

@@ -27,8 +27,8 @@
 //! |               capsules::app_loader::AppLoader (this)            |
 //! |                                                                 |
 //! +-----------------------------------------------------------------+
-//!         kernel::dynamic_process_loading::DynamicBinaryStore
-//!         kernel::dynamic_process_loading::DynamicProcessLoading
+//!         kernel::dynamic_binary_storage::SequentialDynamicBinaryStore
+//!         kernel::dynamic_binary_storage::SequentialDynamicProcessLoad
 //! +-----------------------------------------------------------------+
 //! |                                     |                           |
 //! |  Physical Nonvolatile Storage       |           Kernel          |
@@ -45,8 +45,8 @@
 //! let dynamic_app_loader = components::app_loader::AppLoaderComponent::new(
 //!     board_kernel,
 //!     capsules_extra::app_loader::DRIVER_NUM,
-//!     dynamic_process_loader,
-//!     dynamic_process_loader,
+//!     dynamic_binary_storage,
+//!     dynamic_binary_storage,
 //!     ).finalize(components::app_loader_component_static!());
 //!
 //! NOTE: This implementation currently only loads new apps. It does not update apps. That remains to be tested.
@@ -56,7 +56,6 @@ use core::cell::Cell;
 use core::cmp;
 
 use kernel::dynamic_binary_storage;
-// use kernel::dynamic_process_loading;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::processbuffer::ReadableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
@@ -95,8 +94,8 @@ pub struct App {}
 
 pub struct AppLoader<'a> {
     // The underlying driver for the process flashing and loading.
-    storage_driver: &'a dyn dynamic_binary_storage::DynamicBinaryStore,
-    // storage_driver: &'a dyn dynamic_process_loading::DynamicProcessLoading,
+    storage_driver: &'a dyn dynamic_binary_storage::SequentialDynamicBinaryStore,
+    load_driver: &'a dyn dynamic_binary_storage::SequentialDynamicProcessLoad,
     // Per-app state.
     apps: Grant<
         App,
@@ -120,14 +119,14 @@ impl<'a> AppLoader<'a> {
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<0>,
         >,
-        storage_driver: &'a dyn dynamic_binary_storage::DynamicBinaryStore,
-        // storage_driver: &'a dyn dynamic_process_loading::DynamicProcessLoading,
+        storage_driver: &'a dyn dynamic_binary_storage::SequentialDynamicBinaryStore,
+        load_driver: &'a dyn dynamic_binary_storage::SequentialDynamicProcessLoad,
         buffer: &'static mut [u8],
     ) -> AppLoader<'a> {
         AppLoader {
             apps: grant,
             storage_driver,
-            // storage_driver,
+            load_driver,
             buffer: TakeCell::new(buffer),
             current_process: OptionalCell::empty(),
             new_app_length: Cell::new(0),
@@ -199,7 +198,7 @@ impl<'a> AppLoader<'a> {
     }
 }
 
-impl kernel::dynamic_binary_storage::DynamicBinaryStoreClient for AppLoader<'_> {
+impl kernel::dynamic_binary_storage::SequentialDynamicBinaryStoreClient for AppLoader<'_> {
     /// Let the requesting app know we are done setting up for the new app
     fn setup_done(&self) {
         // Switch on which user of this capsule generated this callback.
@@ -228,7 +227,9 @@ impl kernel::dynamic_binary_storage::DynamicBinaryStoreClient for AppLoader<'_> 
             });
         });
     }
+}
 
+impl kernel::dynamic_binary_storage::SequentialDynamicProcessLoadClient for AppLoader<'_> {
     /// Let the requesting app know we are done loading the new process
     fn load_done(&self) {
         self.current_process.map(|processid| {
@@ -241,20 +242,6 @@ impl kernel::dynamic_binary_storage::DynamicBinaryStoreClient for AppLoader<'_> 
         });
     }
 }
-
-// impl kernel::dynamic_process_loading::DynamicProcessLoadingClient for AppLoader<'_> {
-//     /// Let the requesting app know we are done loading the new process
-//     fn load_done(&self) {
-//         self.current_process.map(|processid| {
-//             let _ = self.apps.enter(processid, move |_app, kernel_data| {
-//                 // Signal the app.
-//                 kernel_data
-//                     .schedule_upcall(upcall::LOAD_DONE, (0, 0, 0))
-//                     .ok();
-//             });
-//         });
-//     }
-// }
 
 /// Provide an interface for userland.
 impl SyscallDriver for AppLoader<'_> {
@@ -320,7 +307,7 @@ impl SyscallDriver for AppLoader<'_> {
                             CommandReturn::success()
                         } else {
                             // the setup done upcall is scheduled when the setup_done() function is
-                            // called from the DynamicProcessLoader
+                            // called from the SequentialDynamicProcessLoader
                             CommandReturn::success()
                         }
                     }
@@ -351,7 +338,7 @@ impl SyscallDriver for AppLoader<'_> {
                 self.storage_driver.write_prepad_app();
 
                 // Request kernel to load the new app
-                let res = self.storage_driver.load();
+                let res = self.load_driver.load();
                 match res {
                     Ok(()) => {
                         self.new_app_length.set(0);

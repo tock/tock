@@ -410,43 +410,25 @@ pub unsafe fn main() {
     // Dynamic App Loading
     //--------------------------------------------------------------------------
 
-    // These symbols are defined in the linker script.
-    extern "C" {
-        /// Beginning of the ROM region containing app images.
-        static _sapps: u8;
-        /// End of the ROM region containing app images.
-        static _eapps: u8;
-        /// Beginning of the RAM region for app memory.
-        static mut _sappmem: u8;
-        /// End of the RAM region for app memory.
-        static _eappmem: u8;
-    }
-
     // Create the dynamic binary flasher.
-    let dynamic_binary_storage = components::dyn_binary_storage::BinaryStorageComponent::new(
-        &mut *addr_of_mut!(PROCESSES),
-        &base_peripherals.nvmc,
-        loader,
-    )
-    .finalize(components::binary_storage_component_static!(
-        nrf52840::nvmc::Nvmc,
-        nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
-        kernel::process::ProcessStandardDebugFull,
-    ));
-
-    // Create the dynamic process loader.
-    // let dynamic_process_loader = components::dyn_process_loader::ProcessLoaderComponent::new(
-    //     &mut *addr_of_mut!(PROCESSES),
-    //     loader,
-    // )
-    // .finalize(components::process_loader_component_static!());
+    let dynamic_binary_storage =
+        components::dyn_binary_storage::SequentialBinaryStorageComponent::new(
+            &mut *addr_of_mut!(PROCESSES),
+            &base_peripherals.nvmc,
+            loader,
+        )
+        .finalize(components::sequential_binary_storage_component_static!(
+            nrf52840::nvmc::Nvmc,
+            nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+            kernel::process::ProcessStandardDebugFull,
+        ));
 
     // Create the dynamic app loader capsule.
     let dynamic_app_loader = components::app_loader::AppLoaderComponent::new(
         board_kernel,
         capsules_extra::app_loader::DRIVER_NUM,
         dynamic_binary_storage,
-        // dynamic_process_loader,
+        dynamic_binary_storage,
     )
     .finalize(components::app_loader_component_static!());
 

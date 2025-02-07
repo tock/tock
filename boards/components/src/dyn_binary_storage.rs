@@ -4,18 +4,18 @@
 
 //! Component for dynamic binary storage.
 //!
-//! This provides one component, BinaryStorageComponent, which provides
-//! a system call interface to DynamicBinaryStorage.
+//! This provides one component, SequentialBinaryStorageComponent, which provides
+//! a system call interface to SequentialDynamicBinaryStorage.
 //!
 //!```rust, ignore
 //! # use kernel::static_init;
 //!
-//! let dynamic_binary_storage = components::dyn_binary_storage::BinaryStorageComponent::new(
+//! let dynamic_binary_storage = components::dyn_binary_storage::SequentialBinaryStorageComponent::new(
 //!     &mut *addr_of_mut!(PROCESSES),
 //!     &base_peripherals.nvmc,
 //!     &loader,
 //! )
-//! .finalize(components::binary_storage_component_static!(
+//! .finalize(components::sequential_binary_storage_component_static!(
 //!     nrf52840::nvmc::Nvmc,
 //!     nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
 //!     kernel::process::ProcessStandardDebugFull,
@@ -25,7 +25,7 @@
 use capsules_extra::nonvolatile_to_pages::NonvolatileToPages;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
-use kernel::dynamic_binary_storage::DynamicBinaryStorage;
+use kernel::dynamic_binary_storage::SequentialDynamicBinaryStorage;
 use kernel::hil;
 use kernel::platform::chip::Chip;
 use kernel::process;
@@ -35,14 +35,14 @@ use kernel::process::SequentialProcessLoaderMachine;
 
 // Setup static space for the objects.
 #[macro_export]
-macro_rules! binary_storage_component_static {
+macro_rules! sequential_binary_storage_component_static {
     ($F:ty, $C:ty, $D:ty $(,)?) => {{
         let page = kernel::static_buf!(<$F as kernel::hil::flash::Flash>::Page);
         let ntp = kernel::static_buf!(
             capsules_extra::nonvolatile_to_pages::NonvolatileToPages<'static, $F>
         );
         let pl = kernel::static_buf!(
-            kernel::dynamic_binary_storage::DynamicBinaryStorage<'static, $C, $D>
+            kernel::dynamic_binary_storage::SequentialDynamicBinaryStorage<'static, $C, $D>
         );
         let buffer = kernel::static_buf!([u8; kernel::dynamic_binary_storage::BUF_LEN]);
 
@@ -50,7 +50,7 @@ macro_rules! binary_storage_component_static {
     };};
 }
 
-pub struct BinaryStorageComponent<
+pub struct SequentialBinaryStorageComponent<
     F: 'static + hil::flash::Flash + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
     C: Chip + 'static,
     D: ProcessStandardDebug + 'static,
@@ -66,7 +66,7 @@ impl<
             + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
         C: 'static + Chip,
         D: 'static + ProcessStandardDebug,
-    > BinaryStorageComponent<F, C, D>
+    > SequentialBinaryStorageComponent<F, C, D>
 {
     pub fn new(
         processes: &'static mut [Option<&'static dyn process::Process>],
@@ -87,15 +87,15 @@ impl<
             + hil::flash::HasClient<'static, NonvolatileToPages<'static, F>>,
         C: 'static + Chip,
         D: 'static + ProcessStandardDebug,
-    > Component for BinaryStorageComponent<F, C, D>
+    > Component for SequentialBinaryStorageComponent<F, C, D>
 {
     type StaticInput = (
         &'static mut MaybeUninit<<F as hil::flash::Flash>::Page>,
         &'static mut MaybeUninit<NonvolatileToPages<'static, F>>,
-        &'static mut MaybeUninit<DynamicBinaryStorage<'static, C, D>>,
+        &'static mut MaybeUninit<SequentialDynamicBinaryStorage<'static, C, D>>,
         &'static mut MaybeUninit<[u8; kernel::dynamic_binary_storage::BUF_LEN]>,
     );
-    type Output = &'static DynamicBinaryStorage<'static, C, D>;
+    type Output = &'static SequentialDynamicBinaryStorage<'static, C, D>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let buffer = static_buffer
@@ -111,7 +111,7 @@ impl<
             .write(NonvolatileToPages::new(self.nv_flash, flash_pagebuffer));
         hil::flash::HasClient::set_client(self.nv_flash, nv_to_page);
 
-        let dynamic_binary_storage = static_buffer.2.write(DynamicBinaryStorage::new(
+        let dynamic_binary_storage = static_buffer.2.write(SequentialDynamicBinaryStorage::new(
             self.processes,
             nv_to_page,
             self.loader_driver,
