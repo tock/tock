@@ -29,6 +29,11 @@ const LED2_PIN: Pin = Pin::P0_14;
 const LED3_PIN: Pin = Pin::P0_15;
 const LED4_PIN: Pin = Pin::P0_16;
 
+// The nRF52840DK buttons (see back of board)
+const BUTTON1_PIN: Pin = Pin::P0_11;
+const BUTTON2_PIN: Pin = Pin::P0_12;
+const BUTTON3_PIN: Pin = Pin::P0_24;
+const BUTTON4_PIN: Pin = Pin::P0_25;
 const BUTTON_RST_PIN: Pin = Pin::P0_18;
 
 const UART_RTS: Option<Pin> = Some(Pin::P0_05);
@@ -66,6 +71,8 @@ type AlarmDriver = components::alarm::AlarmDriverComponentType<nrf52840::rtc::Rt
 /// Supported drivers by the platform
 pub struct Platform {
     console: &'static capsules_core::console::Console<'static>,
+    button: &'static capsules_core::button::Button<'static, nrf52840::gpio::GPIOPin<'static>>,
+    adc: &'static capsules_core::adc::AdcDedicated<'static, nrf52840::adc::Adc<'static>>,
     led: &'static capsules_core::led::LedDriver<
         'static,
         kernel::hil::led::LedLow<'static, nrf52840::gpio::GPIOPin<'static>>,
@@ -75,6 +82,7 @@ pub struct Platform {
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
     processes: &'static [Option<&'static dyn kernel::process::Process>],
+    dynamic_app_loader: &'static capsules_extra::app_loader::AppLoader<'static>,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -86,6 +94,9 @@ impl SyscallDriverLookup for Platform {
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
+            capsules_core::button::DRIVER_NUM => f(Some(self.button)),
+            capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
+            capsules_extra::app_loader::DRIVER_NUM => f(Some(self.dynamic_app_loader)),
             _ => f(None),
         }
     }
@@ -147,7 +158,7 @@ impl kernel::process::ProcessLoadingAsyncClient for Platform {
     fn process_loaded(&self, _result: Result<(), kernel::process::ProcessLoadError>) {}
 
     fn process_loading_finished(&self) {
-        kernel::debug!("Processes Loaded:");
+        kernel::debug!("Processes Loaded at Main:");
 
         for (i, proc) in self.processes.iter().enumerate() {
             proc.map(|p| {
@@ -286,6 +297,66 @@ pub unsafe fn main() {
         .finalize(components::debug_writer_component_static!());
 
     //--------------------------------------------------------------------------
+    // BUTTONS
+    //--------------------------------------------------------------------------
+
+    let button = components::button::ButtonComponent::new(
+        board_kernel,
+        capsules_core::button::DRIVER_NUM,
+        components::button_component_helper!(
+            nrf52840::gpio::GPIOPin,
+            (
+                &nrf52840_peripherals.gpio_port[BUTTON1_PIN],
+                kernel::hil::gpio::ActivationMode::ActiveLow,
+                kernel::hil::gpio::FloatingState::PullUp
+            ),
+            (
+                &nrf52840_peripherals.gpio_port[BUTTON2_PIN],
+                kernel::hil::gpio::ActivationMode::ActiveLow,
+                kernel::hil::gpio::FloatingState::PullUp
+            ),
+            (
+                &nrf52840_peripherals.gpio_port[BUTTON3_PIN],
+                kernel::hil::gpio::ActivationMode::ActiveLow,
+                kernel::hil::gpio::FloatingState::PullUp
+            ),
+            (
+                &nrf52840_peripherals.gpio_port[BUTTON4_PIN],
+                kernel::hil::gpio::ActivationMode::ActiveLow,
+                kernel::hil::gpio::FloatingState::PullUp
+            )
+        ),
+    )
+    .finalize(components::button_component_static!(
+        nrf52840::gpio::GPIOPin
+    ));
+
+    //--------------------------------------------------------------------------
+    // ADC
+    //--------------------------------------------------------------------------
+
+    let adc_channels = static_init!(
+        [nrf52840::adc::AdcChannelSetup; 6],
+        [
+            nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput1),
+            nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput2),
+            nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput4),
+            nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput5),
+            nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput6),
+            nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput7),
+        ]
+    );
+    let adc = components::adc::AdcDedicatedComponent::new(
+        &base_peripherals.adc,
+        adc_channels,
+        board_kernel,
+        capsules_core::adc::DRIVER_NUM,
+    )
+    .finalize(components::adc_dedicated_component_static!(
+        nrf52840::adc::Adc
+    ));
+
+    //--------------------------------------------------------------------------
     // NRF CLOCK SETUP
     //--------------------------------------------------------------------------
 
@@ -319,10 +390,6 @@ pub unsafe fn main() {
             ),
         );
 
-    //--------------------------------------------------------------------------
-    // PROCESS LOADING
-    //--------------------------------------------------------------------------
-
     // Create and start the asynchronous process loader.
     let loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
         checker,
@@ -340,6 +407,32 @@ pub unsafe fn main() {
     ));
 
     //--------------------------------------------------------------------------
+    // Dynamic App Loading
+    //--------------------------------------------------------------------------
+
+    // Create the dynamic binary flasher.
+    let dynamic_binary_storage =
+        components::dyn_binary_storage::SequentialBinaryStorageComponent::new(
+            &mut *addr_of_mut!(PROCESSES),
+            &base_peripherals.nvmc,
+            loader,
+        )
+        .finalize(components::sequential_binary_storage_component_static!(
+            nrf52840::nvmc::Nvmc,
+            nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+            kernel::process::ProcessStandardDebugFull,
+        ));
+
+    // Create the dynamic app loader capsule.
+    let dynamic_app_loader = components::app_loader::AppLoaderComponent::new(
+        board_kernel,
+        capsules_extra::app_loader::DRIVER_NUM,
+        dynamic_binary_storage,
+        dynamic_binary_storage,
+    )
+    .finalize(components::app_loader_component_static!());
+
+    //--------------------------------------------------------------------------
     // PLATFORM SETUP, SCHEDULER, AND START KERNEL LOOP
     //--------------------------------------------------------------------------
 
@@ -350,11 +443,14 @@ pub unsafe fn main() {
         Platform,
         Platform {
             console,
+            button,
+            adc,
             led,
             alarm,
             scheduler,
             systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
             processes,
+            dynamic_app_loader,
         }
     );
     loader.set_boot_client(platform);
