@@ -242,9 +242,9 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         //  - Stack offset 4 is R12, which the syscall interface ignores
         let stack_bottom = state.psp as *mut usize;
         ptr::write(stack_bottom.offset(7), state.psr); //......... -> APSR
-        ptr::write(stack_bottom.offset(6), usize::from(callback.pc) | 1); //... -> PC
+        ptr::write(stack_bottom.offset(6), callback.pc.addr() | 1); //... -> PC
         ptr::write(stack_bottom.offset(5), state.yield_pc | 1); // -> LR
-        ptr::write(stack_bottom.offset(3), callback.argument3.into()); // -> R3
+        ptr::write(stack_bottom.offset(3), callback.argument3.as_usize()); // -> R3
         ptr::write(stack_bottom.offset(2), callback.argument2); // -> R2
         ptr::write(stack_bottom.offset(1), callback.argument1); // -> R1
         ptr::write(stack_bottom.offset(0), callback.argument0); // -> R0
