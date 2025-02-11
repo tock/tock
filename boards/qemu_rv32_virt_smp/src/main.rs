@@ -8,7 +8,6 @@
 #![feature(generic_const_exprs)]
 #![feature(naked_functions)]
 #![feature(asm_const)]
-#![feature(inline_const)]
 // Disable this attribute when documenting, as a workaround for
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
@@ -89,7 +88,6 @@ pub unsafe fn main(thread_type: ThreadType) {
     match thread_type {
         T::Main => threads::main_thread::spawn::<{T::Main as usize}>(channel, true),
         T::Application => {
-            // loop {}
             threads::app_thread::spawn::<{T::Application as usize}>(channel)
             // rv32i::semihost_command(0x18, 1, 0);
         },

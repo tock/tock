@@ -35,10 +35,12 @@ pub static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PR
     [None; NUM_PROCS];
 
 // Reference to the process printer for panic dumps.
-pub static mut PROCESS_PRINTER: Option<&'static kernel::process::ProcessPrinterText> = None;
+pub static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
+    None;
 
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: kernel::process::PanicFaultPolicy = kernel::process::PanicFaultPolicy {};
+const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
+    capsules_system::process_policies::PanicFaultPolicy {};
 
 use core::sync::atomic::{AtomicBool, Ordering};
 pub static mut APP_THREAD_READY: AtomicBool = AtomicBool::new(false);
@@ -111,7 +113,6 @@ impl
     type SyscallDriverLookup = Self;
     type SyscallFilter = ();
     type ProcessFault = ();
-    type CredentialsCheckingPolicy = ();
     type Scheduler = CooperativeSched<'static>;
     type SchedulerTimer = VirtualSchedulerTimer<
         VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
@@ -126,9 +127,6 @@ impl
         &()
     }
     fn process_fault(&self) -> &Self::ProcessFault {
-        &()
-    }
-    fn credentials_checking_policy(&self) -> &'static Self::CredentialsCheckingPolicy {
         &()
     }
     fn scheduler(&self) -> &Self::Scheduler {
@@ -178,7 +176,7 @@ pub unsafe fn spawn<const ID: usize>(
     // ---------- BASIC INITIALIZATION -----------
 
     // basic setup of the risc-v imac platform
-    rv32i::configure_trap_handler(rv32i::PermissionMode::Machine);
+    rv32i::configure_trap_handler();
 
     // Set up memory protection immediately after setting the trap handler, to
     // ensure that much of the board initialization routine runs with ePMP
@@ -685,8 +683,12 @@ pub unsafe fn spawn<const ID: usize>(
         debug!("{:?}", err);
     });
 
-    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap,
-                             false,
-                             Some(&|| {
-                             }));
+    board_kernel.kernel_loop(
+        &platform,
+        chip,
+        Some(&platform.ipc),
+        &main_loop_cap,
+        None
+        // Some(&|| {debug!("-----------------------------")})
+    );
 }

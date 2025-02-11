@@ -42,8 +42,8 @@ pub struct PlicAux {
 #[repr(C)]
 pub struct PlicRegisters<const NUM_CONTEXTS: usize>
 where
-    // Ensure the following const expression is valid
-    [(); 2088960 - NUM_CONTEXTS * 128]: Sized,
+    // Ensure a valid const expression
+    [(); 0x20_0000 - 0x2000 - NUM_CONTEXTS * MAX_BIT_REGS * 4]: Sized,
 {
     /// Interrupt Priority Register
     _reserved0: u32,
@@ -54,23 +54,25 @@ where
     _reserved2: [u8; 0x1000 - MAX_BIT_REGS * 4],
     /// Interrupt Enable Register
     enable: [[ReadWrite<u32>; MAX_BIT_REGS]; NUM_CONTEXTS],
-    _reserved3: [u8; (0x20_0000 - 0x2000 - MAX_BIT_REGS * 4) - NUM_CONTEXTS * 128],
+    _reserved3: [u8; 0x20_0000 - 0x2000 - NUM_CONTEXTS * MAX_BIT_REGS * 4],
     /// Aux: Priority and Claim/Complete Register
     aux: [PlicAux; NUM_CONTEXTS],
 }
 
 /// Check that the registers are aligned to the PLIC memory map
-const _: () = assert!(core::mem::offset_of!(PlicRegisters, priority) == 0x4);
-const _: () = assert!(core::mem::offset_of!(PlicRegisters, pending) == 0x1000);
-const _: () = assert!(core::mem::offset_of!(PlicRegisters, enable) == 0x2000);
-const _: () = assert!(core::mem::offset_of!(PlicRegisters, threshold) == 0x20_0000);
-const _: () = assert!(core::mem::offset_of!(PlicRegisters, claim) == 0x20_0004);
+const SINGLE_CONTEXT: usize = 1;
+const _: () = assert!(core::mem::offset_of!(PlicRegisters<SINGLE_CONTEXT>, priority) == 0x4);
+const _: () = assert!(core::mem::offset_of!(PlicRegisters<SINGLE_CONTEXT>, pending) == 0x1000);
+const _: () = assert!(core::mem::offset_of!(PlicRegisters<SINGLE_CONTEXT>, enable) == 0x2000);
+const _: () = assert!(core::mem::offset_of!(PlicRegisters<SINGLE_CONTEXT>, aux) == 0x20_0000);
+const _: () = assert!(core::mem::offset_of!(PlicAux, threshold) == 0x0);
+const _: () = assert!(core::mem::offset_of!(PlicAux, claim) == 0x4);
 
 /// A wrapper around the PLIC registers to provide safe access to the registers
 /// within the defined interrupt number range
 struct RegsWrapper<const NUM_CONTEXTS: usize>
 where
-    [(); 2088960 - NUM_CONTEXTS * 128]: Sized
+    [(); 0x20_0000 - 0x2000 - NUM_CONTEXTS * MAX_BIT_REGS * 4]: Sized,
 {
     registers: StaticRef<PlicRegisters<NUM_CONTEXTS>>,
     total_ints: usize,
@@ -78,7 +80,7 @@ where
 
 impl<const NUM_CONTEXTS: usize> RegsWrapper<NUM_CONTEXTS>
 where
-    [(); 2088960 - NUM_CONTEXTS * 128]: Sized
+    [(); 0x20_0000 - 0x2000 - NUM_CONTEXTS * MAX_BIT_REGS * 4]: Sized,
 {
     const fn new(registers: StaticRef<PlicRegisters<NUM_CONTEXTS>>, total_ints: usize) -> Self {
         Self {
@@ -131,7 +133,7 @@ register_bitfields![u32,
 /// platforms implemented without the generic parameter.
 pub struct Plic<const NUM_CONTEXTS: usize, const TOTAL_INTS: usize = 51>
 where
-    [(); 2088960 - NUM_CONTEXTS * 128]: Sized
+    [(); 0x20_0000 - 0x2000 - NUM_CONTEXTS * MAX_BIT_REGS * 4]: Sized,
 {
     registers: RegsWrapper<NUM_CONTEXTS>,
     saved: [VolatileCell<LocalRegisterCopy<u32>>; 2],
@@ -139,7 +141,7 @@ where
 
 impl<const NUM_CONTEXTS: usize, const TOTAL_INTS: usize> Plic<NUM_CONTEXTS, TOTAL_INTS>
 where
-    [(); 2088960 - NUM_CONTEXTS * 128]: Sized
+    [(); 0x20_0000 - 0x2000 - NUM_CONTEXTS * MAX_BIT_REGS * 4]: Sized,
 {
     pub const fn new(base: StaticRef<PlicRegisters<NUM_CONTEXTS>>) -> Self {
         Plic {
@@ -196,26 +198,6 @@ where
             let old_value = enable_regs[offset as usize].get();
             enable_regs[offset as usize].set(old_value & !(1 << irq));
         }
-    }
-
-    // Enable an interrupt.
-    pub fn enable(&self, context_id: usize, source: usize) {
-        let _ : () = assert!(context_id < NUM_CONTEXTS);
-
-        let enable = &self.registers.enable[context_id][source / 32];
-        let old_val = enable.get();
-        enable.set(old_val | 1 << (source % 32));
-
-        // Set default priority for the source
-        self.registers.priority[source].write(priority::Priority.val(4));
-        self.registers.aux[context_id].threshold.write(priority::Priority.val(0));
-    }
-
-    // Disable an interrupt.
-    pub fn disable(&self, context_id: usize, source: usize) {
-        let enable = &self.registers.enable[context_id][source / 32];
-        let old_val = enable.get();
-        enable.set(old_val & !(1 << (source % 32)));
     }
 
     /// Enable all interrupts.

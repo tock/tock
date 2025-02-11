@@ -434,8 +434,7 @@ impl Kernel {
         chip: &C,
         ipc: Option<&ipc::IPC<NUM_PROCS>>,
         capability: &dyn capabilities::MainLoopCapability,
-        do_closure: bool,
-        closure: Option<&dyn Fn()>,
+        maybe_closure: Option<&dyn Fn()>,
     ) -> ! {
         resources.watchdog().setup();
 
@@ -443,9 +442,7 @@ impl Kernel {
         DeferredCall::verify_setup();
         loop {
             self.kernel_loop_operation(resources, chip, ipc, true, capability);
-            if do_closure {
-                closure.unwrap()();
-            }
+            maybe_closure.map(|c| c());
         }
     }
 
