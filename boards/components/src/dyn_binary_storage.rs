@@ -11,7 +11,6 @@
 //! # use kernel::static_init;
 //!
 //! let dynamic_binary_storage = components::dyn_binary_storage::SequentialBinaryStorageComponent::new(
-//!     &mut *addr_of_mut!(PROCESSES),
 //!     &base_peripherals.nvmc,
 //!     &loader,
 //! )
@@ -28,8 +27,6 @@ use kernel::component::Component;
 use kernel::dynamic_binary_storage::SequentialDynamicBinaryStorage;
 use kernel::hil;
 use kernel::platform::chip::Chip;
-use kernel::process;
-use kernel::process::ProcessLoadingAsync;
 use kernel::process::ProcessStandardDebug;
 use kernel::process::SequentialProcessLoaderMachine;
 
@@ -55,7 +52,6 @@ pub struct SequentialBinaryStorageComponent<
     C: Chip + 'static,
     D: ProcessStandardDebug + 'static,
 > {
-    processes: &'static mut [Option<&'static dyn process::Process>],
     nv_flash: &'static F,
     loader_driver: &'static SequentialProcessLoaderMachine<'static, C, D>,
 }
@@ -69,12 +65,10 @@ impl<
     > SequentialBinaryStorageComponent<F, C, D>
 {
     pub fn new(
-        processes: &'static mut [Option<&'static dyn process::Process>],
         nv_flash: &'static F,
         loader_driver: &'static SequentialProcessLoaderMachine<'static, C, D>,
     ) -> Self {
         Self {
-            processes,
             nv_flash,
             loader_driver,
         }
@@ -112,7 +106,6 @@ impl<
         hil::flash::HasClient::set_client(self.nv_flash, nv_to_page);
 
         let dynamic_binary_storage = static_buffer.2.write(SequentialDynamicBinaryStorage::new(
-            self.processes,
             nv_to_page,
             self.loader_driver,
             buffer,

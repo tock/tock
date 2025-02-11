@@ -413,7 +413,6 @@ pub unsafe fn main() {
     // Create the dynamic binary flasher.
     let dynamic_binary_storage =
         components::dyn_binary_storage::SequentialBinaryStorageComponent::new(
-            &mut *addr_of_mut!(PROCESSES),
             &base_peripherals.nvmc,
             loader,
         )
@@ -453,7 +452,7 @@ pub unsafe fn main() {
             dynamic_app_loader,
         }
     );
-    loader.set_boot_client(platform);
+    loader.set_client(platform);
 
     let _ = pconsole.start();
 

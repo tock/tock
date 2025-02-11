@@ -12,7 +12,6 @@
 //! This module provides multiple process loader options depending on which
 //! features a particular board requires.
 
-use core::array::TryFromSliceError;
 use core::cell::Cell;
 use core::fmt;
 
@@ -31,10 +30,6 @@ use crate::process_policies::ProcessStandardStoragePermissionsPolicy;
 use crate::process_standard::ProcessStandard;
 use crate::process_standard::{ProcessStandardDebug, ProcessStandardDebugFull};
 use crate::utilities::cells::{MapCell, OptionalCell};
-
-// Fixed max supported process slots to store the start addresses of processes
-// to write padding.
-const MAX_PROCS: usize = 10;
 
 /// Errors that can occur when trying to load and create processes.
 pub enum ProcessLoadError {
@@ -449,11 +444,7 @@ pub trait ProcessLoadingAsyncClient {
 pub trait ProcessLoadingAsync<'a> {
     /// Set the boot client to receive callbacks about process loading and when
     /// process loading has finished.
-    fn set_boot_client(&self, client: &'a dyn ProcessLoadingAsyncClient);
-
-    /// Set the runtime client to receive callbacks about process loading and when
-    /// process loading has finished.
-    fn set_runtime_client(&self, client: &'a dyn ProcessLoadingAsyncClient);
+    fn set_client(&self, client: &'a dyn ProcessLoadingAsyncClient);
 
     /// Set the credential checking policy for the loader.
     fn set_policy(&self, policy: &'a dyn AppIdPolicy);
@@ -471,12 +462,12 @@ enum SequentialProcessLoaderMachineState {
     LoadProcesses,
 }
 
-/// Operating mode of the device.
+/// Operating mode of the sequential process loader.
 #[derive(Clone, Copy)]
-pub enum RunMode {
-    /// Phase of discovering `ProcessBinary` objects in flash.
+enum RunMode {
+    /// The loader was called by a board's main function at boot.
     BootMode,
-    /// Phase of loading `ProcessBinary`s into `Process`es.
+    /// The loader was called by a dynamic process loader at runtime.
     RuntimeMode,
 }
 
@@ -532,7 +523,7 @@ pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static, D: ProcessStand
     state: OptionalCell<SequentialProcessLoaderMachineState>,
 }
 
-impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> {
+impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C, D> {
     /// This function is made `pub` so that board files can use it, but loading
     /// processes from slices of flash an memory is fundamentally unsafe.
     /// Therefore, we require the `ProcessManagementCapability` to call this
@@ -570,7 +561,13 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
         }
     }
 
-    /// Find the current active client based on device operation mode.
+    /// Set the runtime client to receive callbacks about process loading and when
+    /// process loading has finished.
+    pub fn set_runtime_client(&self, client: &'a dyn ProcessLoadingAsyncClient) {
+        self.runtime_client.set(client);
+    }
+
+    /// Find the current active client based on the operation mode.
     fn get_current_client(&self) -> Option<&dyn ProcessLoadingAsyncClient> {
         match self.run_mode.get()? {
             RunMode::BootMode => self.boot_client.get(),
@@ -607,14 +604,11 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
         match ret {
             Ok(pb) => match self.checker.check(pb) {
                 Ok(()) => {}
-                Err(e) => match self.get_current_client() {
-                    Some(client) => {
+                Err(e) => {
+                    self.get_current_client().map(|client| {
                         client.process_loaded(Err(ProcessLoadError::CheckError(e)));
-                    }
-                    None => {
-                        debug!("Error: Device is in an unknown operating mode.")
-                    }
-                },
+                    });
+                }
             },
             Err(ProcessBinaryError::NotEnoughFlash)
             | Err(ProcessBinaryError::TbfHeaderNotFound) => {
@@ -633,14 +627,9 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
 
                 // Other process binary errors indicate the process is not
                 // compatible. Signal error and try the next item in flash.
-                match self.get_current_client() {
-                    Some(client) => {
-                        client.process_loaded(Err(ProcessLoadError::BinaryError(e)));
-                    }
-                    None => {
-                        debug!("Error: Device is in an unknown operating mode.")
-                    }
-                }
+                self.get_current_client().map(|client| {
+                    client.process_loaded(Err(ProcessLoadError::BinaryError(e)));
+                });
 
                 self.deferred_call.set();
             }
@@ -810,14 +799,10 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
                                         self.procs.map(|procs| {
                                             procs[index] = proc;
                                         });
-                                        match self.get_current_client() {
-                                            Some(client) => {
-                                                client.process_loaded(Ok(()));
-                                            }
-                                            None => {
-                                                debug!("Error: Device is in an unknown operating mode.")
-                                            }
-                                        }
+
+                                        self.get_current_client().map(|client| {
+                                            client.process_loaded(Ok(()));
+                                        });
                                     }
                                     None => {
                                         if config::CONFIG.debug_load_processes {
@@ -831,26 +816,17 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
                                 if config::CONFIG.debug_load_processes {
                                     debug!("Could not load process: {:?}.", err);
                                 }
-
-                                match self.get_current_client() {
-                                    Some(client) => {
-                                        client.process_loaded(Err(err));
-                                    }
-                                    None => {
-                                        debug!("Error: Device is in an unknown operating mode.")
-                                    }
-                                }
+                                self.get_current_client().map(|client| {
+                                    client.process_loaded(Err(err));
+                                });
                             }
                         }
                     }
-                    None => match self.get_current_client() {
-                        Some(client) => {
+                    None => {
+                        self.get_current_client().map(|client| {
                             client.process_loaded(Err(ProcessLoadError::NoProcessSlot));
-                        }
-                        None => {
-                            debug!("Error: Device is in an unknown operating mode.")
-                        }
-                    },
+                        });
+                    }
                 }
             }
         }
@@ -858,14 +834,9 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
 
         // We have iterated all discovered `ProcessBinary`s and loaded what we
         // could so now we can signal that process loading is finished.
-        match self.get_current_client() {
-            Some(client) => {
-                client.process_loading_finished();
-            }
-            None => {
-                debug!("Error: Device is in an unknown operating mode.")
-            }
-        }
+        self.get_current_client().map(|client| {
+            client.process_loading_finished();
+        });
 
         self.state.clear();
         Ok(())
@@ -952,91 +923,91 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
     fn scan_flash_for_app_binaries(
         &self,
         flash: &'static [u8],
-        process_binaries_start_addresses: &mut [usize; MAX_PROCS],
-        process_binaries_end_addresses: &mut [usize; MAX_PROCS],
-    ) -> Result<(), ProcessBinaryError> {
-        let flash_end = flash.as_ptr() as usize + flash.len() - 1;
-        let mut addresses = flash.as_ptr() as usize;
-        let mut index: usize = 0;
+        process_binaries_start_addresses: &mut [usize],
+        process_binaries_end_addresses: &mut [usize],
+    ) -> Result<(), ()> {
+        fn inner_function(
+            flash: &'static [u8],
+            process_binaries_start_addresses: &mut [usize],
+            process_binaries_end_addresses: &mut [usize],
+        ) -> Result<(), ProcessBinaryError> {
+            let flash_end = flash.as_ptr() as usize + flash.len() - 1;
+            let mut addresses = flash.as_ptr() as usize;
+            let mut index: usize = 0;
 
-        while addresses < flash_end {
-            let flash_offset = addresses - flash.as_ptr() as usize;
-            // If this fails, not enough remaining flash to check for an app.
-            let test_header_slice = flash
-                .get(flash_offset..flash_offset + 8)
-                .ok_or(ProcessBinaryError::NotEnoughFlash)?;
+            while addresses < flash_end {
+                let flash_offset = addresses - flash.as_ptr() as usize;
 
-            // Pass the first eight bytes to tbfheader to parse out the length of
-            // the tbf header and app. We then use those values to see if we have
-            // enough flash remaining to parse the remainder of the header.
-            //
-            // Start by converting [u8] to [u8; 8].
-            let header = test_header_slice
-                .try_into()
-                .or(Err(ProcessBinaryError::NotEnoughFlash))?;
+                let test_header_slice = flash
+                    .get(flash_offset..flash_offset + 8)
+                    .ok_or(ProcessBinaryError::NotEnoughFlash)?;
 
-            let (version, header_length, app_length) =
-                match tock_tbf::parse::parse_tbf_header_lengths(header) {
-                    Ok((v, hl, el)) => (v, hl, el),
-                    Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(app_length)) => {
-                        // If we could not parse the header, then we want to skip over
-                        // this app and look for the next one.
-                        (0, 0, app_length)
+                let header = test_header_slice
+                    .try_into()
+                    .or(Err(ProcessBinaryError::NotEnoughFlash))?;
+
+                let (version, header_length, app_length) =
+                    match tock_tbf::parse::parse_tbf_header_lengths(header) {
+                        Ok((v, hl, el)) => (v, hl, el),
+                        Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(app_length)) => {
+                            (0, 0, app_length)
+                        }
+                        Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => {
+                            return Ok(());
+                        }
+                    };
+
+                let app_flash = flash
+                    .get(flash_offset..flash_offset + app_length as usize)
+                    .ok_or(ProcessBinaryError::NotEnoughFlash)?;
+
+                let app_header = flash
+                    .get(flash_offset..flash_offset + header_length as usize)
+                    .ok_or(ProcessBinaryError::NotEnoughFlash)?;
+
+                let remaining_flash = flash
+                    .get(flash_offset + app_flash.len()..)
+                    .ok_or(ProcessBinaryError::NotEnoughFlash)?;
+
+                let tbf_header = tock_tbf::parse::parse_tbf_header(app_header, version)
+                    .map_err(ProcessBinaryError::TbfHeaderParseFailure)?;
+
+                if tbf_header.is_app() {
+                    process_binaries_start_addresses[index] = app_flash.as_ptr() as usize;
+                    process_binaries_end_addresses[index] =
+                        app_flash.as_ptr() as usize + app_length as usize;
+
+                    if config::CONFIG.debug_load_processes {
+                        debug!(
+                            "Metadata Process binary start address at index {}: {:#010x}, with end_address {:#010x}",
+                            index,
+                            process_binaries_start_addresses[index],
+                            process_binaries_end_addresses[index]
+                        );
                     }
-                    Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => {
-                        // Since Tock apps use a linked list, it is very possible the
-                        // header we started to parse is intentionally invalid to signal
-                        // the end of apps. This is ok and means we can move to the next step.
-                        return Err(ProcessBinaryError::TbfHeaderNotFound);
+                    index += 1;
+                    if index > process_binaries_start_addresses.len() - 1 {
+                        return Err(ProcessBinaryError::NotEnoughFlash);
                     }
-                };
-
-            // Now we can get a slice which only encompasses the length of flash
-            // described by this tbf header.  We will either parse this as an actual
-            // app, or skip over this region.
-            let app_flash = flash
-                .get(flash_offset..flash_offset + app_length as usize)
-                .ok_or(ProcessBinaryError::NotEnoughFlash)?;
-
-            // Check if the current slice is an app or padding. We require this to
-            // populate the process binary metadata arrays with only values of
-            // valid applications.
-            let app_header = flash
-                .get(flash_offset..flash_offset + header_length as usize)
-                .ok_or(ProcessBinaryError::NotEnoughFlash)?;
-
-            // Advance the flash slice for process discovery beyond this last entry.
-            // This will be the start of where we look for a new process since Tock
-            // processes are allocated back-to-back in flash.
-            let remaining_flash = flash
-                .get(flash_offset + app_flash.len()..)
-                .ok_or(ProcessBinaryError::NotEnoughFlash)?;
-
-            let tbf_header = tock_tbf::parse::parse_tbf_header(app_header, version)
-                .map_err(|e| (ProcessBinaryError::TbfHeaderParseFailure(e)))?;
-            if tbf_header.is_app() {
-                process_binaries_start_addresses[index] = app_flash.as_ptr() as usize;
-                process_binaries_end_addresses[index] =
-                    app_flash.as_ptr() as usize + app_length as usize;
-                if config::CONFIG.debug_load_processes {
-                    debug!("Metadata Process binary start address at index {}: {:#010x}, with end_address {:#010x}" ,
-                    index,
-                    process_binaries_start_addresses[index],
-                    process_binaries_end_addresses[index]);
-                }
-                index += 1;
-            } else {
-                if config::CONFIG.debug_load_processes {
+                } else if config::CONFIG.debug_load_processes {
                     debug!("Is padding!");
                 }
-            }
-            addresses = remaining_flash.as_ptr() as usize;
-        }
-        Ok(())
-    }
 
-    pub fn set_current_run_mode(&self, mode: RunMode) {
-        self.run_mode.set(mode);
+                addresses = remaining_flash.as_ptr() as usize;
+            }
+
+            Ok(())
+        }
+
+        // Outer function: Maps errors, treats TbfHeaderNotFound as success
+        match inner_function(
+            flash,
+            process_binaries_start_addresses,
+            process_binaries_end_addresses,
+        ) {
+            Ok(()) => Ok(()),
+            Err(_) => Err(()),
+        }
     }
 
     /// Helper function to find the next potential aligned address for the
@@ -1050,49 +1021,29 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
         }
     }
 
-    /// Helper Function to sort the process binary address arrays manually.
-    fn sort_array(&self, arr: &mut [usize; MAX_PROCS], count: usize) {
-        for i in 0..count {
-            for j in 0..count - i - 1 {
-                if arr[j] > arr[j + 1] {
-                    arr.swap(j, j + 1);
-                }
-            }
-        }
-    }
-
     /// Function to compute the address for a new app with size `app_size`.
     fn compute_new_app_address(
         &self,
         app_size: usize,
-        mut process_binaries_start_addresses: [usize; MAX_PROCS],
-        mut process_binaries_end_addresses: [usize; MAX_PROCS],
+        process_binaries_start_addresses: &mut [usize],
+        process_binaries_end_addresses: &mut [usize],
     ) -> usize {
         let mut start_count = 0;
         let mut end_count = 0;
 
         // Remove zeros from addresses in place.
-        for i in 0..MAX_PROCS {
+        for i in 0..process_binaries_start_addresses.len() {
             if process_binaries_start_addresses[i] != 0 {
                 process_binaries_start_addresses[start_count] = process_binaries_start_addresses[i];
                 start_count += 1;
             }
         }
 
-        for i in 0..MAX_PROCS {
+        for i in 0..process_binaries_end_addresses.len() {
             if process_binaries_end_addresses[i] != 0 {
                 process_binaries_end_addresses[end_count] = process_binaries_end_addresses[i];
                 end_count += 1;
             }
-        }
-
-        // Sort the filtered addresses.
-        self.sort_array(&mut process_binaries_start_addresses, start_count);
-        self.sort_array(&mut process_binaries_end_addresses, end_count);
-
-        if config::CONFIG.debug_load_processes {
-            debug!("sorted start array: {:?}", process_binaries_start_addresses);
-            debug!("sorted end array: {:?}", process_binaries_end_addresses);
         }
 
         // If there is only one application in flash:
@@ -1112,7 +1063,7 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
                 continue;
             }
 
-            // If there is a valid gap - (gap_end > gap_start), check alignment.
+            // If there is a valid gap, i.e., (gap_end > gap_start), check alignment.
             if gap_end > gap_start {
                 let potential_address =
                     self.find_next_cortex_m_aligned_address(gap_start, app_size);
@@ -1133,9 +1084,9 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
     ///
     /// When do we pad?
     ///
-    /// 1. When there is a process in the processes array which is located in
-    ///    flash after the new app but not immediately after, we need to add
-    ///    padding between the new app and the existing app.
+    /// 1. When there is a binary  located in flash after the new app but
+    ///    not immediately after, we need to add padding between the new
+    ///    app and the existing app.
     /// 2. Due to MPU alignment, the new app may be similarly placed not
     ///    immediately after an existing process, in that case, we need to add
     ///    padding between the previous app and the new app.
@@ -1148,6 +1099,8 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
         &self,
         new_app_start_address: usize,
         app_length: usize,
+        process_binaries_start_addresses: &[usize],
+        process_binaries_end_addresses: &[usize],
     ) -> (PaddingRequirement, usize, usize) {
         // The end address of our newly loaded application.
         let new_app_end_address = new_app_start_address + app_length;
@@ -1157,36 +1110,17 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
         let mut previous_app_end_addr = 0;
         let mut padding_requirement: PaddingRequirement = PaddingRequirement::None;
 
-        let mut processes_start_addresses: [usize; MAX_PROCS] = [0; MAX_PROCS];
-        let mut processes_end_addresses: [usize; MAX_PROCS] = [0; MAX_PROCS];
-
-        // Get the start and end addresses in flash of existing processes.
-        self.procs.map(|procs| {
-            for (procs_index, value) in procs.iter().enumerate() {
-                match value {
-                    Some(app) => {
-                        processes_start_addresses[procs_index] = app.get_addresses().flash_start;
-                        processes_end_addresses[procs_index] = app.get_addresses().flash_end;
-                    }
-                    None => {
-                        processes_start_addresses[procs_index] = 0;
-                        processes_end_addresses[procs_index] = 0;
-                    }
-                }
-            }
-        });
-
         // We compute the closest neighbor to our app such that:
         //
-        // 1. If the new app is placed in between two existing processes, we
-        //    compute the closest located processes.
+        // 1. If the new app is placed in between two existing binaries, we
+        //    compute the closest located binaries.
         // 2. Once we compute these values, we determine if we need to write a
         //    pre pad header, or a post pad header, or both.
-        // 3. If there are no apps after ours in the process array, we don't do
-        //    anything.
+        // 3. If there are no apps after ours in the process binary array, we don't
+        //    do anything.
 
         // Postpad requirement.
-        if let Some(next_closest_neighbor) = processes_start_addresses
+        if let Some(next_closest_neighbor) = process_binaries_start_addresses
             .iter()
             .filter(|&&x| x > new_app_end_address - 1)
             .min()
@@ -1203,7 +1137,7 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
         }
 
         // Prepad requirement.
-        if let Some(previous_closest_neighbor) = processes_end_addresses
+        if let Some(previous_closest_neighbor) = process_binaries_end_addresses
             .iter()
             .filter(|&&x| x < new_app_start_address + 1)
             .max()
@@ -1234,45 +1168,27 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
     fn check_flash_for_valid_address(
         &self,
         new_app_size: usize,
+        pb_start_address: &mut [usize],
+        pb_end_address: &mut [usize],
     ) -> Result<usize, ProcessBinaryError> {
         let total_flash = self.flash_bank.get();
         let total_flash_start = total_flash.as_ptr() as usize;
         let total_flash_end = total_flash_start + total_flash.len() - 1;
-        let mut new_app_address: usize = total_flash_start;
-        let mut pb_start_address: [usize; MAX_PROCS] = [0; MAX_PROCS];
-        let mut pb_end_address: [usize; MAX_PROCS] = [0; MAX_PROCS];
+        let new_app_address: usize;
 
-        match self.scan_flash_for_app_binaries(
-            total_flash,
-            &mut pb_start_address,
-            &mut pb_end_address,
-        ) {
+        match self.scan_flash_for_app_binaries(total_flash, pb_start_address, pb_end_address) {
             Ok(()) => {
                 if config::CONFIG.debug_load_processes {
                     debug!("Successfully scanned flash");
                 }
-            }
-            Err(e) => {
-                match e {
-                    // This means we are done scanning the flash and have not found any more headers.
-                    // Usually, this is the only place we should arrive at
-                    ProcessBinaryError::TbfHeaderNotFound => {
-                        new_app_address = self.compute_new_app_address(
-                            new_app_size,
-                            pb_start_address,
-                            pb_end_address,
-                        );
-                        if new_app_address + new_app_size - 1 > total_flash_end {
-                            return Err(ProcessBinaryError::NotEnoughFlash);
-                        }
-                    }
-                    _ => {
-                        if config::CONFIG.debug_load_processes {
-                            debug!("Error: {:?}", e);
-                        }
-                        return Err(e);
-                    }
+                new_app_address =
+                    self.compute_new_app_address(new_app_size, pb_start_address, pb_end_address);
+                if new_app_address + new_app_size - 1 > total_flash_end {
+                    return Err(ProcessBinaryError::NotEnoughFlash);
                 }
+            }
+            Err(()) => {
+                return Err(ProcessBinaryError::NotEnoughFlash);
             }
         }
         Ok(new_app_address)
@@ -1280,19 +1196,11 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
 
     /// Function to check if the object with address `offset` of size `length` lies
     /// within flash bounds.
-    pub fn check_if_within_flash_bounds(
-        &self,
-        offset: usize,
-        length: usize,
-    ) -> Result<(), ProcessBinaryError> {
+    pub fn check_if_within_flash_bounds(&self, offset: usize, length: usize) -> bool {
         let flash = self.flash_bank.get();
         let flash_end = flash.as_ptr() as usize + flash.len() - 1;
 
-        if flash_end - offset >= length {
-            Ok(())
-        } else {
-            Err(ProcessBinaryError::NotEnoughFlash)
-        }
+        (flash_end - offset) >= length
     }
 
     /// Function to compute an available address for the new application binary.
@@ -1300,10 +1208,22 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
         &self,
         new_app_size: usize,
     ) -> Result<(usize, PaddingRequirement, usize, usize), ProcessBinaryError> {
-        match self.check_flash_for_valid_address(new_app_size) {
+        const MAX_PROCS: usize = 10;
+        let mut pb_start_address: [usize; MAX_PROCS] = [0; MAX_PROCS];
+        let mut pb_end_address: [usize; MAX_PROCS] = [0; MAX_PROCS];
+        match self.check_flash_for_valid_address(
+            new_app_size,
+            &mut pb_start_address,
+            &mut pb_end_address,
+        ) {
             Ok(app_address) => {
-                let (pr, prev_app_addr, next_app_addr) =
-                    self.compute_padding_requirement_and_neighbors(app_address, new_app_size);
+                let (pr, prev_app_addr, next_app_addr) = self
+                    .compute_padding_requirement_and_neighbors(
+                        app_address,
+                        new_app_size,
+                        &pb_start_address,
+                        &pb_end_address,
+                    );
                 let (padding_requirement, previous_app_end_addr, next_app_start_addr) =
                     (pr, prev_app_addr, next_app_addr);
                 Ok((
@@ -1318,40 +1238,27 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
     }
 
     /// Function to check if the app binary at address `app_address` is valid.
-    fn check_new_binary_validity(&self, app_address: usize) -> Result<(), ProcessBinaryError> {
+    fn check_new_binary_validity(&self, app_address: usize) -> bool {
         let flash = self.flash_bank.get();
         // Pass the first eight bytes of the tbfheader to parse out the
         // length of the tbf header and app. We then use those values to see
         // if we have enough flash remaining to parse the remainder of the
         // header.
         let binary_header = match flash.get(app_address..app_address + 8) {
-            Some(bh) => match bh.get(0..8) {
-                Some(slice) => slice,
-                None => {
-                    return Err(ProcessBinaryError::TbfHeaderNotFound);
-                }
-            },
-            None => {
-                return Err(ProcessBinaryError::TbfHeaderNotFound);
-            }
+            Some(slice) if slice.len() == 8 => slice,
+            _ => return false, // Ensure exactly 8 bytes are available
         };
-        let (_version, _header_length, _entry_length) =
-            match tock_tbf::parse::parse_tbf_header_lengths(
-                binary_header
-                    .try_into()
-                    .map_err(|_err: TryFromSliceError| ProcessBinaryError::TbfHeaderNotFound)?,
-            ) {
-                Ok((v, hl, el)) => (v, hl, el),
-                Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(_entry_length)) => {
-                    // Invalid header, return Fail error. If we fail here,
-                    // let us erase the app we just wrote.
-                    return Err(ProcessBinaryError::TbfHeaderNotFound);
-                }
-                Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => {
-                    return Err(ProcessBinaryError::TbfHeaderNotFound);
-                }
-            };
-        Ok(())
+
+        let binary_header_array: &[u8; 8] = match binary_header.try_into() {
+            Ok(arr) => arr,
+            Err(_) => return false,
+        };
+
+        match tock_tbf::parse::parse_tbf_header_lengths(binary_header_array) {
+            Ok((_version, _header_length, _entry_length)) => true,
+            Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(__entry_length)) => false,
+            Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => false,
+        }
     }
 
     /// Function to start loading the new application at address `app_address` with size
@@ -1366,7 +1273,7 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
         let process_flash = flash.get(process_address..process_address + app_size);
         let result = self.check_new_binary_validity(process_address);
         match result {
-            Ok(()) => {
+            true => {
                 if let Some(flash) = process_flash {
                     self.flash.set(flash);
                 } else {
@@ -1378,13 +1285,15 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
                 self.state
                     .set(SequentialProcessLoaderMachineState::DiscoverProcessBinaries);
 
-                self.set_current_run_mode(RunMode::RuntimeMode);
+                self.run_mode.set(RunMode::RuntimeMode);
                 // Start an asynchronous flow so we can issue a callback on error.
                 self.deferred_call.set();
 
                 Ok(())
             }
-            Err(e) => Err(ProcessLoadError::BinaryError(e)),
+            false => Err(ProcessLoadError::BinaryError(
+                ProcessBinaryError::TbfHeaderNotFound,
+            )),
         }
     }
 }
@@ -1392,12 +1301,8 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
 impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
     for SequentialProcessLoaderMachine<'a, C, D>
 {
-    fn set_boot_client(&self, client: &'a dyn ProcessLoadingAsyncClient) {
+    fn set_client(&self, client: &'a dyn ProcessLoadingAsyncClient) {
         self.boot_client.set(client);
-    }
-
-    fn set_runtime_client(&self, client: &'a dyn ProcessLoadingAsyncClient) {
-        self.runtime_client.set(client);
     }
 
     fn set_policy(&self, policy: &'a dyn AppIdPolicy) {
@@ -1407,7 +1312,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
     fn start(&self) {
         self.state
             .set(SequentialProcessLoaderMachineState::DiscoverProcessBinaries);
-        self.set_current_run_mode(RunMode::BootMode);
+        self.run_mode.set(RunMode::BootMode);
         // Start an asynchronous flow so we can issue a callback on error.
         self.deferred_call.set();
     }
@@ -1429,14 +1334,9 @@ impl<C: Chip, D: ProcessStandardDebug> DeferredCallClient
                     Err(()) => {
                         // If this failed for some reason, we still need to
                         // signal that process loading has finished.
-                        match self.get_current_client() {
-                            Some(client) => {
-                                client.process_loading_finished();
-                            }
-                            None => {
-                                debug!("Error: Device is in an unknown operating mode.")
-                            }
-                        }
+                        self.get_current_client().map(|client| {
+                            client.process_loading_finished();
+                        });
                     }
                 }
             }
@@ -1474,14 +1374,11 @@ impl<C: Chip, D: ProcessStandardDebug> crate::process_checker::ProcessCheckerMac
                             proc_binaries[index] = Some(process_binary);
                         });
                     }
-                    None => match self.get_current_client() {
-                        Some(client) => {
+                    None => {
+                        self.get_current_client().map(|client| {
                             client.process_loaded(Err(ProcessLoadError::NoProcessSlot));
-                        }
-                        None => {
-                            debug!("Error: Device is in an unknown operating mode.")
-                        }
-                    },
+                        });
+                    }
                 }
             }
             Err(e) => {
@@ -1493,14 +1390,9 @@ impl<C: Chip, D: ProcessStandardDebug> crate::process_checker::ProcessCheckerMac
                     );
                 }
                 // Signal error and call try next
-                match self.get_current_client() {
-                    Some(client) => {
-                        client.process_loaded(Err(ProcessLoadError::CheckError(e)));
-                    }
-                    None => {
-                        debug!("Error: Device is in an unknown operating mode.")
-                    }
-                }
+                self.get_current_client().map(|client| {
+                    client.process_loaded(Err(ProcessLoadError::CheckError(e)));
+                });
             }
         }
 

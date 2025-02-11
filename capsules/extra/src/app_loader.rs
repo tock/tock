@@ -334,9 +334,6 @@ impl SyscallDriver for AppLoader<'_> {
             }
 
             3 => {
-                // Write prepad app if required.
-                self.storage_driver.write_prepad_app();
-
                 // Request kernel to load the new app
                 let res = self.load_driver.load();
                 match res {

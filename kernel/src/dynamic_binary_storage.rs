@@ -13,13 +13,12 @@ use crate::config;
 use crate::debug;
 use crate::hil::nonvolatile_storage::{NonvolatileStorage, NonvolatileStorageClient};
 use crate::platform::chip::Chip;
-use crate::process;
 use crate::process::ProcessLoadingAsyncClient;
 use crate::process_loading::{
     PaddingRequirement, ProcessLoadError, SequentialProcessLoaderMachine,
 };
 use crate::process_standard::ProcessStandardDebug;
-use crate::utilities::cells::{MapCell, OptionalCell, TakeCell};
+use crate::utilities::cells::{OptionalCell, TakeCell};
 use crate::utilities::leasable_buffer::SubSliceMut;
 use crate::ErrorCode;
 
@@ -92,9 +91,6 @@ pub trait SequentialDynamicBinaryStore {
     /// When the client operation is done, it calls the `setup_done()`
     /// and `write_app_data_done()` functions.
     fn set_storage_client(&self, client: &'static dyn SequentialDynamicBinaryStoreClient);
-
-    /// Write a prepad app if required
-    fn write_prepad_app(&self);
 }
 
 /// The callback for dynamic binary flashing.
@@ -127,7 +123,6 @@ pub trait SequentialDynamicProcessLoadClient {
 /// Dynamic process loading machine.
 pub struct SequentialDynamicBinaryStorage<'a, C: Chip + 'static, D: ProcessStandardDebug + 'static>
 {
-    processes: MapCell<&'static mut [Option<&'static dyn process::Process>]>,
     flash_driver: &'a dyn NonvolatileStorage<'a>,
     loader_driver: &'a SequentialProcessLoaderMachine<'a, C, D>,
     buffer: TakeCell<'static, [u8]>,
@@ -141,13 +136,11 @@ impl<'a, C: Chip + 'static, D: ProcessStandardDebug + 'static>
     SequentialDynamicBinaryStorage<'a, C, D>
 {
     pub fn new(
-        processes: &'static mut [Option<&'static dyn process::Process>],
         flash_driver: &'a dyn NonvolatileStorage<'a>,
         loader_driver: &'a SequentialProcessLoaderMachine<'a, C, D>,
         buffer: &'static mut [u8],
     ) -> Self {
         Self {
-            processes: MapCell::new(processes),
             flash_driver,
             loader_driver,
             buffer: TakeCell::new(buffer),
@@ -232,7 +225,7 @@ impl<'a, C: Chip + 'static, D: ProcessStandardDebug + 'static>
     ///   the new app, during the flash erase part of the flash write, we might
     ///   end up with a break in the linked list when the device reboots and we
     ///   never boot app 2.
-    ///     - Potential Fix:  Reserve a section of flash to hold an
+    ///     - Potential Fix: Reserve a section of flash to hold an
     ///       index/repository of valid headers of current processes as a fall
     ///       back mechanism in case we end up with corrupt headers.
     /// - Issue 2: If the header is written successfully, but there is a power
@@ -340,7 +333,7 @@ impl<'a, C: Chip + 'static, D: ProcessStandardDebug + 'static>
                 .loader_driver
                 .check_if_within_flash_bounds(offset, PADDING_TBF_HEADER_LENGTH)
             {
-                Ok(()) => {
+                true => {
                     // Write the header only if there are more than 16 bytes.
                     // available in the flash.
                     let mut padding_slice = SubSliceMut::new(buffer);
@@ -348,9 +341,46 @@ impl<'a, C: Chip + 'static, D: ProcessStandardDebug + 'static>
                     // We are only writing the header, so 16 bytes is enough.
                     self.write(padding_slice, offset)
                 }
-                Err(_e) => Err(ErrorCode::NOMEM),
+                false => Err(ErrorCode::NOMEM),
             }
         })
+    }
+
+    fn write_prepad_app(&self) {
+        if let Some(metadata) = self.process_metadata.get() {
+            match metadata.padding_requirement {
+                // If we decided we need to write a padding app before the new
+                // app, we go ahead and do it.
+                PaddingRequirement::PrePad | PaddingRequirement::PreAndPostPad => {
+                    // Calculate the distance between our app and the previous
+                    // app.
+                    let previous_app_end_addr = metadata.previous_app_end_addr;
+                    let pre_pad_length = metadata.new_app_start_addr - previous_app_end_addr;
+                    self.state.set(State::PaddingWrite);
+                    let padding_result =
+                        self.write_padding_app(pre_pad_length, previous_app_end_addr);
+                    match padding_result {
+                        Ok(()) => {
+                            if config::CONFIG.debug_load_processes {
+                                debug!("Successfully writing prepadding app");
+                            }
+                        }
+                        Err(_e) => {
+                            // This means we were unable to write the padding
+                            // app.
+                            self.reset_process_loading_metadata();
+                        }
+                    };
+                }
+                // We should never reach here if we are not writing a prepad
+                // app.
+                PaddingRequirement::None | PaddingRequirement::PostPad => {
+                    if config::CONFIG.debug_load_processes {
+                        debug!("No PrePad app to write.");
+                    }
+                }
+            };
+        }
     }
 }
 
@@ -430,15 +460,7 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> ProcessLoadingAsyncCl
     }
 
     fn process_loading_finished(&self) {
-        debug!("Processes Loaded:");
-        self.processes.map(|procs| {
-            for (i, proc) in procs.iter().enumerate() {
-                proc.map(|p| {
-                    debug!("[{}] {}", i, p.get_process_name());
-                    debug!("    ShortId: {}", p.short_app_id());
-                });
-            }
-        });
+        debug!("Process Loaded");
     }
 }
 
@@ -544,43 +566,6 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> SequentialDynamicBina
             }
         }
     }
-
-    fn write_prepad_app(&self) {
-        if let Some(metadata) = self.process_metadata.get() {
-            match metadata.padding_requirement {
-                // If we decided we need to write a padding app before the new
-                // app, we go ahead and do it.
-                PaddingRequirement::PrePad | PaddingRequirement::PreAndPostPad => {
-                    // Calculate the distance between our app and the previous
-                    // app.
-                    let previous_app_end_addr = metadata.previous_app_end_addr;
-                    let pre_pad_length = metadata.new_app_start_addr - previous_app_end_addr;
-                    self.state.set(State::PaddingWrite);
-                    let padding_result =
-                        self.write_padding_app(pre_pad_length, previous_app_end_addr);
-                    match padding_result {
-                        Ok(()) => {
-                            if config::CONFIG.debug_load_processes {
-                                debug!("Successfully writing prepadding app");
-                            }
-                        }
-                        Err(_e) => {
-                            // This means we were unable to write the padding
-                            // app.
-                            self.reset_process_loading_metadata();
-                        }
-                    };
-                }
-                // We should never reach here if we are not writing a prepad
-                // app.
-                PaddingRequirement::None | PaddingRequirement::PostPad => {
-                    if config::CONFIG.debug_load_processes {
-                        debug!("No PrePad app to write.");
-                    }
-                }
-            };
-        }
-    }
 }
 
 /// Loading interface exposed to the app_loader capsule
@@ -592,6 +577,9 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> SequentialDynamicProc
     }
 
     fn load(&self) -> Result<(), ErrorCode> {
+        // Write the prepad app if necessary.
+        self.write_prepad_app();
+
         // We have finished writing the last user data segment, next step is to
         // load the process.
         if let Some(metadata) = self.process_metadata.get() {
