@@ -442,7 +442,7 @@ pub trait ProcessLoadingAsyncClient {
 /// Various process loaders may exist. This includes a loader from a MCU's
 /// integrated flash, or a loader from an external flash chip.
 pub trait ProcessLoadingAsync<'a> {
-    /// Set the boot client to receive callbacks about process loading and when
+    /// Set the client to receive callbacks about process loading and when
     /// process loading has finished.
     fn set_client(&self, client: &'a dyn ProcessLoadingAsyncClient);
 
@@ -455,7 +455,7 @@ pub trait ProcessLoadingAsync<'a> {
 
 /// Operating mode of the loader.
 #[derive(Clone, Copy)]
-enum SequentialProcessLoaderMachineState {
+enum SequentialProcessLoaderMachineOperatingState {
     /// Phase of discovering `ProcessBinary` objects in flash.
     DiscoverProcessBinaries,
     /// Phase of loading `ProcessBinary`s into `Process`es.
@@ -463,6 +463,11 @@ enum SequentialProcessLoaderMachineState {
 }
 
 /// Operating mode of the sequential process loader.
+///
+/// The loader supports loading processes from flash at boot, and loading processes
+/// that were written to flash dynamically at runtime. Most of the internal logic is the
+/// same (and therefore reused), but we need to track which mode of operation the
+/// loader is in.
 #[derive(Clone, Copy)]
 enum RunMode {
     /// The loader was called by a board's main function at boot.
@@ -520,7 +525,7 @@ pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static, D: ProcessStand
     /// The storage permissions policy to assign to each created Process.
     storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C, D>,
     /// Current mode of the loading machine.
-    state: OptionalCell<SequentialProcessLoaderMachineState>,
+    state: OptionalCell<SequentialProcessLoaderMachineOperatingState>,
 }
 
 impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C, D> {
@@ -617,7 +622,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                 // into full processes.
 
                 self.state
-                    .set(SequentialProcessLoaderMachineState::LoadProcesses);
+                    .set(SequentialProcessLoaderMachineOperatingState::LoadProcesses);
                 self.deferred_call.set();
             }
             Err(e) => {
@@ -799,7 +804,8 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                                         self.procs.map(|procs| {
                                             procs[index] = proc;
                                         });
-
+                                        // Notify the client the process was loaded
+                                        // successfully.
                                         self.get_current_client().map(|client| {
                                             client.process_loaded(Ok(()));
                                         });
@@ -823,6 +829,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                         }
                     }
                     None => {
+                        // Nowhere to store the process.
                         self.get_current_client().map(|client| {
                             client.process_loaded(Err(ProcessLoadError::NoProcessSlot));
                         });
@@ -1283,7 +1290,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                 }
 
                 self.state
-                    .set(SequentialProcessLoaderMachineState::DiscoverProcessBinaries);
+                    .set(SequentialProcessLoaderMachineOperatingState::DiscoverProcessBinaries);
 
                 self.run_mode.set(RunMode::RuntimeMode);
                 // Start an asynchronous flow so we can issue a callback on error.
@@ -1311,7 +1318,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
 
     fn start(&self) {
         self.state
-            .set(SequentialProcessLoaderMachineState::DiscoverProcessBinaries);
+            .set(SequentialProcessLoaderMachineOperatingState::DiscoverProcessBinaries);
         self.run_mode.set(RunMode::BootMode);
         // Start an asynchronous flow so we can issue a callback on error.
         self.deferred_call.set();
@@ -1324,10 +1331,10 @@ impl<C: Chip, D: ProcessStandardDebug> DeferredCallClient
     fn handle_deferred_call(&self) {
         // We use deferred calls to start the operation in the async loop.
         match self.state.get() {
-            Some(SequentialProcessLoaderMachineState::DiscoverProcessBinaries) => {
+            Some(SequentialProcessLoaderMachineOperatingState::DiscoverProcessBinaries) => {
                 self.load_and_check();
             }
-            Some(SequentialProcessLoaderMachineState::LoadProcesses) => {
+            Some(SequentialProcessLoaderMachineOperatingState::LoadProcesses) => {
                 let ret = self.load_process_objects();
                 match ret {
                     Ok(()) => {}

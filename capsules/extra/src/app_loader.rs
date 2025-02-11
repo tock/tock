@@ -27,8 +27,8 @@
 //! |               capsules::app_loader::AppLoader (this)            |
 //! |                                                                 |
 //! +-----------------------------------------------------------------+
-//!         kernel::dynamic_binary_storage::SequentialDynamicBinaryStore
-//!         kernel::dynamic_binary_storage::SequentialDynamicProcessLoad
+//!         kernel::dynamic_binary_storage::DynamicBinaryStore
+//!         kernel::dynamic_binary_storage::DynamicProcessLoad
 //! +-----------------------------------------------------------------+
 //! |                                     |                           |
 //! |  Physical Nonvolatile Storage       |           Kernel          |
@@ -94,8 +94,8 @@ pub struct App {}
 
 pub struct AppLoader<'a> {
     // The underlying driver for the process flashing and loading.
-    storage_driver: &'a dyn dynamic_binary_storage::SequentialDynamicBinaryStore,
-    load_driver: &'a dyn dynamic_binary_storage::SequentialDynamicProcessLoad,
+    storage_driver: &'a dyn dynamic_binary_storage::DynamicBinaryStore,
+    load_driver: &'a dyn dynamic_binary_storage::DynamicProcessLoad,
     // Per-app state.
     apps: Grant<
         App,
@@ -119,8 +119,8 @@ impl<'a> AppLoader<'a> {
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<0>,
         >,
-        storage_driver: &'a dyn dynamic_binary_storage::SequentialDynamicBinaryStore,
-        load_driver: &'a dyn dynamic_binary_storage::SequentialDynamicProcessLoad,
+        storage_driver: &'a dyn dynamic_binary_storage::DynamicBinaryStore,
+        load_driver: &'a dyn dynamic_binary_storage::DynamicProcessLoad,
         buffer: &'static mut [u8],
     ) -> AppLoader<'a> {
         AppLoader {
@@ -198,7 +198,7 @@ impl<'a> AppLoader<'a> {
     }
 }
 
-impl kernel::dynamic_binary_storage::SequentialDynamicBinaryStoreClient for AppLoader<'_> {
+impl kernel::dynamic_binary_storage::DynamicBinaryStoreClient for AppLoader<'_> {
     /// Let the requesting app know we are done setting up for the new app
     fn setup_done(&self) {
         // Switch on which user of this capsule generated this callback.
@@ -229,7 +229,7 @@ impl kernel::dynamic_binary_storage::SequentialDynamicBinaryStoreClient for AppL
     }
 }
 
-impl kernel::dynamic_binary_storage::SequentialDynamicProcessLoadClient for AppLoader<'_> {
+impl kernel::dynamic_binary_storage::DynamicProcessLoadClient for AppLoader<'_> {
     /// Let the requesting app know we are done loading the new process
     fn load_done(&self) {
         self.current_process.map(|processid| {
@@ -290,26 +290,12 @@ impl SyscallDriver for AppLoader<'_> {
                 //setup phase
                 let res = self.storage_driver.setup(arg1); // pass the size of the app to the setup function
                 match res {
-                    Ok((app_len, setup_done)) => {
+                    Ok(app_len) => {
                         // schedule the upcall here so the userspace always has to wait for the
                         // setup done yield wait
 
                         self.new_app_length.set(app_len);
-                        if setup_done {
-                            self.current_process.map(|processid| {
-                                let _ = self.apps.enter(processid, move |_app, kernel_data| {
-                                    // Signal the app.
-                                    kernel_data
-                                        .schedule_upcall(upcall::SETUP_DONE, (0, 0, 0))
-                                        .ok();
-                                });
-                            });
-                            CommandReturn::success()
-                        } else {
-                            // the setup done upcall is scheduled when the setup_done() function is
-                            // called from the SequentialDynamicProcessLoader
-                            CommandReturn::success()
-                        }
+                        CommandReturn::success()
                     }
                     Err(e) => {
                         self.new_app_length.set(0);

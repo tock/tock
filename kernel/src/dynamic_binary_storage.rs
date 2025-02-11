@@ -40,16 +40,17 @@ pub enum State {
 
 /// Addresses of where the new process will be stored.
 #[derive(Clone, Copy, Default)]
-pub struct ProcessLoadMetadata {
-    pub new_app_start_addr: usize,
-    pub new_app_length: usize,
-    pub previous_app_end_addr: usize,
-    pub next_app_start_addr: usize,
-    pub padding_requirement: PaddingRequirement,
+struct ProcessLoadMetadata {
+    new_app_start_addr: usize,
+    new_app_length: usize,
+    previous_app_end_addr: usize,
+    next_app_start_addr: usize,
+    padding_requirement: PaddingRequirement,
+    setup_padding: bool,
 }
 
 /// This interface supports flashing binaries at runtime.
-pub trait SequentialDynamicBinaryStore {
+pub trait DynamicBinaryStore {
     /// Call to request flashing a new binary.
     ///
     /// This informs the kernel we want to load a process and the  of the
@@ -67,7 +68,7 @@ pub trait SequentialDynamicBinaryStore {
     ///   received.
     /// - `Err(ErrorCode)`: If there is nowhere to store the process a suitable
     ///   `ErrorCode` will be returned.
-    fn setup(&self, app_length: usize) -> Result<(usize, bool), ErrorCode>;
+    fn setup(&self, app_length: usize) -> Result<usize, ErrorCode>;
 
     /// Instruct the kernel to write data to the flash.
     ///
@@ -90,11 +91,11 @@ pub trait SequentialDynamicBinaryStore {
     ///
     /// When the client operation is done, it calls the `setup_done()`
     /// and `write_app_data_done()` functions.
-    fn set_storage_client(&self, client: &'static dyn SequentialDynamicBinaryStoreClient);
+    fn set_storage_client(&self, client: &'static dyn DynamicBinaryStoreClient);
 }
 
 /// The callback for dynamic binary flashing.
-pub trait SequentialDynamicBinaryStoreClient {
+pub trait DynamicBinaryStoreClient {
     /// Any setup work is done and we are ready to write the process binary.
     fn setup_done(&self);
 
@@ -103,7 +104,7 @@ pub trait SequentialDynamicBinaryStoreClient {
 }
 
 /// This interface supports loading processes at runtime.
-pub trait SequentialDynamicProcessLoad {
+pub trait DynamicProcessLoad {
     /// Call to request kernel to load a new process.
     fn load(&self) -> Result<(), ErrorCode>;
 
@@ -111,11 +112,11 @@ pub trait SequentialDynamicProcessLoad {
     ///
     /// When the client operation is done, it calls the `load_done()`
     /// function.
-    fn set_load_client(&self, client: &'static dyn SequentialDynamicProcessLoadClient);
+    fn set_load_client(&self, client: &'static dyn DynamicProcessLoadClient);
 }
 
 /// The callback for dynamic binary flashing.
-pub trait SequentialDynamicProcessLoadClient {
+pub trait DynamicProcessLoadClient {
     /// The new app has been loaded.
     fn load_done(&self);
 }
@@ -126,8 +127,8 @@ pub struct SequentialDynamicBinaryStorage<'a, C: Chip + 'static, D: ProcessStand
     flash_driver: &'a dyn NonvolatileStorage<'a>,
     loader_driver: &'a SequentialProcessLoaderMachine<'a, C, D>,
     buffer: TakeCell<'static, [u8]>,
-    storage_client: OptionalCell<&'static dyn SequentialDynamicBinaryStoreClient>,
-    load_client: OptionalCell<&'static dyn SequentialDynamicProcessLoadClient>,
+    storage_client: OptionalCell<&'static dyn DynamicBinaryStoreClient>,
+    load_client: OptionalCell<&'static dyn DynamicProcessLoadClient>,
     process_metadata: OptionalCell<ProcessLoadMetadata>,
     state: Cell<State>,
 }
@@ -206,34 +207,6 @@ impl<'a, C: Chip + 'static, D: ProcessStandardDebug + 'static>
 
     /// Compute the physical address where we should write the data and then
     /// write it.
-    ///
-    /// Current limitation: There are two limitations with the current
-    /// implementation of how tock looks for and loads apps. Assuming the flash
-    /// looks like this:
-    ///
-    /// ```text
-    ///  ____________________________________________________
-    /// |             |    |            |          |         |
-    /// |     App1    | H? |   NewApp?  |   Pad    |   App2  |
-    /// |_____________|____|____________|__________|_________|
-    /// ```
-    ///
-    /// Assuming the new app goes in between App 1 and App 2 which are existing
-    /// processes, we write the padding after the new app during setup phase.
-    ///
-    /// - Issue 1: If there is a power cycle as we try to write the header for
-    ///   the new app, during the flash erase part of the flash write, we might
-    ///   end up with a break in the linked list when the device reboots and we
-    ///   never boot app 2.
-    ///     - Potential Fix: Reserve a section of flash to hold an
-    ///       index/repository of valid headers of current processes as a fall
-    ///       back mechanism in case we end up with corrupt headers.
-    /// - Issue 2: If the header is written successfully, but there is a power
-    ///   cycle as the rest of the app binary is being written, we could end up
-    ///   with the situation where because the header is valid, we could end up
-    ///   with memory fragmentation.
-    ///     - Potential Fix:  Create a processes monitoring process that is able
-    ///       to clean up after corrupt apps and defragment memory?
     fn write(&self, user_buffer: SubSliceMut<'static, u8>, offset: usize) -> Result<(), ErrorCode> {
         let length = user_buffer.len();
         // Take the buffer to perform tbf header validation and write with.
@@ -423,11 +396,27 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> NonvolatileStorageCli
             State::Setup => {
                 // We have finished writing the post app padding.
                 self.buffer.replace(buffer);
-                self.state.set(State::AppWrite);
-                // Let the client know we are done setting up.
-                self.storage_client.map(|client| {
-                    client.setup_done();
-                });
+
+                if let Some(mut metadata) = self.process_metadata.get() {
+                    if !metadata.setup_padding {
+                        // Write padding header to the beginning of the new app address.
+                        // This ensures that the linked list is not broken in the event of a
+                        // powercycle before the app is fully written and loaded.
+                        debug!("Writing app start padding");
+                        metadata.setup_padding = true;
+                        let _ = self.write_padding_app(
+                            metadata.new_app_length,
+                            metadata.new_app_start_addr,
+                        );
+                        self.process_metadata.set(metadata);
+                    } else {
+                        self.state.set(State::AppWrite);
+                        // Let the client know we are done setting up.
+                        self.storage_client.map(|client| {
+                            client.setup_done();
+                        });
+                    }
+                }
             }
             State::Load => {
                 // We finished writing pre-padding and we need to Load the app.
@@ -465,21 +454,21 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> ProcessLoadingAsyncCl
 }
 
 /// Storage interface exposed to the app_loader capsule
-impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> SequentialDynamicBinaryStore
+impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> DynamicBinaryStore
     for SequentialDynamicBinaryStorage<'_, C, D>
 {
-    fn set_storage_client(&self, client: &'static dyn SequentialDynamicBinaryStoreClient) {
+    fn set_storage_client(&self, client: &'static dyn DynamicBinaryStoreClient) {
         self.storage_client.set(client);
     }
 
-    fn setup(&self, app_length: usize) -> Result<(usize, bool), ErrorCode> {
+    fn setup(&self, app_length: usize) -> Result<usize, ErrorCode> {
         //TODO(?): Check if it is a newer version of an existing app. We can
         // potentially flash the new app and load it before erasing the old one.
         // What happens to the process though? Need to delete it from the
         // process array and load it back in?
 
         self.process_metadata.set(ProcessLoadMetadata::default());
-        let setup_done: bool;
+        // let setup_done: bool;
 
         if self.state.get() == State::Idle {
             self.state.set(State::Setup);
@@ -507,7 +496,7 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> SequentialDynamicBina
                             // either the next app.
                             let new_app_end_address = new_app_start_address + app_length;
                             let post_pad_length = next_app_start_addr - new_app_end_address;
-                            setup_done = false;
+                            // setup_done = false;
 
                             let padding_result =
                                 self.write_padding_app(post_pad_length, new_app_end_address);
@@ -524,11 +513,23 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> SequentialDynamicBina
                         // Otherwise we let the client know we are done with the
                         // setup, and we are ready to write the app to flash.
                         PaddingRequirement::None | PaddingRequirement::PrePad => {
-                            self.state.set(State::AppWrite);
-                            setup_done = true;
+                            if let Some(mut metadata) = self.process_metadata.get() {
+                                if !metadata.setup_padding {
+                                    // Write padding header to the beginning of the new app address.
+                                    // This ensures that the linked list is not broken in the event of a
+                                    // powercycle before the app is fully written and loaded.
+
+                                    metadata.setup_padding = true;
+                                    let _ = self.write_padding_app(
+                                        metadata.new_app_length,
+                                        metadata.new_app_start_addr,
+                                    );
+                                    self.process_metadata.set(metadata);
+                                }
+                            }
                         }
                     };
-                    Ok((app_length, setup_done))
+                    Ok(app_length)
                 }
                 Err(_err) => {
                     // Reset the state to None because we did not find any
@@ -569,10 +570,10 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> SequentialDynamicBina
 }
 
 /// Loading interface exposed to the app_loader capsule
-impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> SequentialDynamicProcessLoad
+impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> DynamicProcessLoad
     for SequentialDynamicBinaryStorage<'_, C, D>
 {
-    fn set_load_client(&self, client: &'static dyn SequentialDynamicProcessLoadClient) {
+    fn set_load_client(&self, client: &'static dyn DynamicProcessLoadClient) {
         self.load_client.set(client);
     }
 

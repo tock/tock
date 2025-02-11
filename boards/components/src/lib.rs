@@ -33,7 +33,7 @@ pub mod date_time;
 pub mod debug_queue;
 pub mod debug_writer;
 pub mod dfrobot_rainfall_sensor;
-pub mod dyn_binary_storage;
+pub mod dynamic_binary_storage;
 pub mod eui64;
 pub mod flash;
 pub mod fm25cl;

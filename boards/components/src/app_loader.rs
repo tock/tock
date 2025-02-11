@@ -41,16 +41,16 @@ macro_rules! app_loader_component_static {
 pub struct AppLoaderComponent {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
-    storage_driver: &'static dyn dynamic_binary_storage::SequentialDynamicBinaryStore,
-    load_driver: &'static dyn dynamic_binary_storage::SequentialDynamicProcessLoad,
+    storage_driver: &'static dyn dynamic_binary_storage::DynamicBinaryStore,
+    load_driver: &'static dyn dynamic_binary_storage::DynamicProcessLoad,
 }
 
 impl AppLoaderComponent {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
-        storage_driver: &'static dyn dynamic_binary_storage::SequentialDynamicBinaryStore,
-        load_driver: &'static dyn dynamic_binary_storage::SequentialDynamicProcessLoad,
+        storage_driver: &'static dyn dynamic_binary_storage::DynamicBinaryStore,
+        load_driver: &'static dyn dynamic_binary_storage::DynamicProcessLoad,
     ) -> Self {
         Self {
             board_kernel,
@@ -81,11 +81,11 @@ impl Component for AppLoaderComponent {
             self.load_driver,
             buffer,
         ));
-        kernel::dynamic_binary_storage::SequentialDynamicBinaryStore::set_storage_client(
+        kernel::dynamic_binary_storage::DynamicBinaryStore::set_storage_client(
             self.storage_driver,
             dynamic_app_loader,
         );
-        kernel::dynamic_binary_storage::SequentialDynamicProcessLoad::set_load_client(
+        kernel::dynamic_binary_storage::DynamicProcessLoad::set_load_client(
             self.load_driver,
             dynamic_app_loader,
         );

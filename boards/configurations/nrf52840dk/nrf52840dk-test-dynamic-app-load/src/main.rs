@@ -412,7 +412,7 @@ pub unsafe fn main() {
 
     // Create the dynamic binary flasher.
     let dynamic_binary_storage =
-        components::dyn_binary_storage::SequentialBinaryStorageComponent::new(
+        components::dynamic_binary_storage::SequentialBinaryStorageComponent::new(
             &base_peripherals.nvmc,
             loader,
         )
