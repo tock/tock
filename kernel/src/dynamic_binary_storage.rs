@@ -468,7 +468,6 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> DynamicBinaryStore
         // process array and load it back in?
 
         self.process_metadata.set(ProcessLoadMetadata::default());
-        // let setup_done: bool;
 
         if self.state.get() == State::Idle {
             self.state.set(State::Setup);
@@ -586,7 +585,7 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> DynamicProcessLoad
         if let Some(metadata) = self.process_metadata.get() {
             let _ = match self
                 .loader_driver
-                .load_new_applications(metadata.new_app_start_addr, metadata.new_app_length)
+                .load_new_process_binary(metadata.new_app_start_addr, metadata.new_app_length)
             {
                 Ok(()) => Ok::<(), ProcessLoadError>(()),
                 Err(_e) => {

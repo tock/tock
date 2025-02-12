@@ -455,7 +455,7 @@ pub trait ProcessLoadingAsync<'a> {
 
 /// Operating mode of the loader.
 #[derive(Clone, Copy)]
-enum SequentialProcessLoaderMachineOperatingState {
+enum SequentialProcessLoaderMachineState {
     /// Phase of discovering `ProcessBinary` objects in flash.
     DiscoverProcessBinaries,
     /// Phase of loading `ProcessBinary`s into `Process`es.
@@ -469,7 +469,7 @@ enum SequentialProcessLoaderMachineOperatingState {
 /// same (and therefore reused), but we need to track which mode of operation the
 /// loader is in.
 #[derive(Clone, Copy)]
-enum RunMode {
+enum SequentialProcessLoaderMachineRunMode {
     /// The loader was called by a board's main function at boot.
     BootMode,
     /// The loader was called by a dynamic process loader at runtime.
@@ -498,15 +498,13 @@ pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static, D: ProcessStand
     boot_client: OptionalCell<&'a dyn ProcessLoadingAsyncClient>,
     /// Client to notify as processes are loaded and process loading finishes during runtime.
     runtime_client: OptionalCell<&'a dyn ProcessLoadingAsyncClient>,
-    /// Current operating mode of the device.
-    run_mode: OptionalCell<RunMode>,
     /// Machine to use to check process credentials.
     checker: &'static ProcessCheckerMachine,
     /// Array of stored process references for loaded processes.
     procs: MapCell<&'static mut [Option<&'static dyn Process>]>,
     /// Array to store `ProcessBinary`s after checking credentials.
     proc_binaries: MapCell<&'static mut [Option<ProcessBinary>]>,
-    /// Total available flash on this board.
+    /// Total available flash for process binaries on this board.
     flash_bank: Cell<&'static [u8]>,
     /// Flash memory region to load processes from.
     flash: Cell<&'static [u8]>,
@@ -525,7 +523,9 @@ pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static, D: ProcessStand
     /// The storage permissions policy to assign to each created Process.
     storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C, D>,
     /// Current mode of the loading machine.
-    state: OptionalCell<SequentialProcessLoaderMachineOperatingState>,
+    state: OptionalCell<SequentialProcessLoaderMachineState>,
+    /// Current operating mode of the loading machine.
+    run_mode: OptionalCell<SequentialProcessLoaderMachineRunMode>,
 }
 
 impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C, D> {
@@ -575,8 +575,8 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
     /// Find the current active client based on the operation mode.
     fn get_current_client(&self) -> Option<&dyn ProcessLoadingAsyncClient> {
         match self.run_mode.get()? {
-            RunMode::BootMode => self.boot_client.get(),
-            RunMode::RuntimeMode => self.runtime_client.get(),
+            SequentialProcessLoaderMachineRunMode::BootMode => self.boot_client.get(),
+            SequentialProcessLoaderMachineRunMode::RuntimeMode => self.runtime_client.get(),
         }
     }
 
@@ -622,7 +622,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                 // into full processes.
 
                 self.state
-                    .set(SequentialProcessLoaderMachineOperatingState::LoadProcesses);
+                    .set(SequentialProcessLoaderMachineState::LoadProcesses);
                 self.deferred_call.set();
             }
             Err(e) => {
@@ -927,7 +927,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
     ///         - A bunch of these updates could eat away at the flash's real estate
 
     /// Scan the entire flash to populate lists of existing binaries addresses.
-    fn scan_flash_for_app_binaries(
+    fn scan_flash_for_process_binaries(
         &self,
         flash: &'static [u8],
         process_binaries_start_addresses: &mut [usize],
@@ -1006,15 +1006,12 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
             Ok(())
         }
 
-        // Outer function: Maps errors, treats TbfHeaderNotFound as success
-        match inner_function(
+        inner_function(
             flash,
             process_binaries_start_addresses,
             process_binaries_end_addresses,
-        ) {
-            Ok(()) => Ok(()),
-            Err(_) => Err(()),
-        }
+        )
+        .or(Err(()))
     }
 
     /// Helper function to find the next potential aligned address for the
@@ -1029,7 +1026,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
     }
 
     /// Function to compute the address for a new app with size `app_size`.
-    fn compute_new_app_address(
+    fn compute_new_process_binary_address(
         &self,
         app_size: usize,
         process_binaries_start_addresses: &mut [usize],
@@ -1181,24 +1178,25 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         let total_flash = self.flash_bank.get();
         let total_flash_start = total_flash.as_ptr() as usize;
         let total_flash_end = total_flash_start + total_flash.len() - 1;
-        let new_app_address: usize;
 
-        match self.scan_flash_for_app_binaries(total_flash, pb_start_address, pb_end_address) {
+        match self.scan_flash_for_process_binaries(total_flash, pb_start_address, pb_end_address) {
             Ok(()) => {
                 if config::CONFIG.debug_load_processes {
                     debug!("Successfully scanned flash");
                 }
-                new_app_address =
-                    self.compute_new_app_address(new_app_size, pb_start_address, pb_end_address);
+                let new_app_address = self.compute_new_process_binary_address(
+                    new_app_size,
+                    pb_start_address,
+                    pb_end_address,
+                );
                 if new_app_address + new_app_size - 1 > total_flash_end {
-                    return Err(ProcessBinaryError::NotEnoughFlash);
+                    Err(ProcessBinaryError::NotEnoughFlash)
+                } else {
+                    Ok(new_app_address)
                 }
             }
-            Err(()) => {
-                return Err(ProcessBinaryError::NotEnoughFlash);
-            }
+            Err(()) => Err(ProcessBinaryError::NotEnoughFlash),
         }
-        Ok(new_app_address)
     }
 
     /// Function to check if the object with address `offset` of size `length` lies
@@ -1270,7 +1268,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
 
     /// Function to start loading the new application at address `app_address` with size
     /// `app_size`.
-    pub fn load_new_applications(
+    pub fn load_new_process_binary(
         &self,
         app_address: usize,
         app_size: usize,
@@ -1290,9 +1288,10 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                 }
 
                 self.state
-                    .set(SequentialProcessLoaderMachineOperatingState::DiscoverProcessBinaries);
+                    .set(SequentialProcessLoaderMachineState::DiscoverProcessBinaries);
 
-                self.run_mode.set(RunMode::RuntimeMode);
+                self.run_mode
+                    .set(SequentialProcessLoaderMachineRunMode::RuntimeMode);
                 // Start an asynchronous flow so we can issue a callback on error.
                 self.deferred_call.set();
 
@@ -1318,8 +1317,9 @@ impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
 
     fn start(&self) {
         self.state
-            .set(SequentialProcessLoaderMachineOperatingState::DiscoverProcessBinaries);
-        self.run_mode.set(RunMode::BootMode);
+            .set(SequentialProcessLoaderMachineState::DiscoverProcessBinaries);
+        self.run_mode
+            .set(SequentialProcessLoaderMachineRunMode::BootMode);
         // Start an asynchronous flow so we can issue a callback on error.
         self.deferred_call.set();
     }
@@ -1331,10 +1331,10 @@ impl<C: Chip, D: ProcessStandardDebug> DeferredCallClient
     fn handle_deferred_call(&self) {
         // We use deferred calls to start the operation in the async loop.
         match self.state.get() {
-            Some(SequentialProcessLoaderMachineOperatingState::DiscoverProcessBinaries) => {
+            Some(SequentialProcessLoaderMachineState::DiscoverProcessBinaries) => {
                 self.load_and_check();
             }
-            Some(SequentialProcessLoaderMachineOperatingState::LoadProcesses) => {
+            Some(SequentialProcessLoaderMachineState::LoadProcesses) => {
                 let ret = self.load_process_objects();
                 match ret {
                     Ok(()) => {}
