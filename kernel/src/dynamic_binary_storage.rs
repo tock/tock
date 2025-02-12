@@ -58,14 +58,9 @@ pub trait DynamicBinaryStore {
     /// in flash to store said process.
     ///
     /// Return value:
-    /// - `Ok((length, wait_for_setup))`: If there is a place to load the
+    /// - `Ok(length)`: If there is a place to load the
     ///   process, the function will return `Ok()` with the size of the region
-    ///   to store the process, and whether the process loader is waiting to set
-    ///   up. This usually happens when we have to write a post pad app. The
-    ///   client app is unable to write new app data until the process loader
-    ///   finishes writing the padding app. So if tihs flag is set, then the
-    ///   client app has to wait until the setup_done subscribe callback is
-    ///   received.
+    ///   to store the process.
     /// - `Err(ErrorCode)`: If there is nowhere to store the process a suitable
     ///   `ErrorCode` will be returned.
     fn setup(&self, app_length: usize) -> Result<usize, ErrorCode>;
@@ -118,7 +113,7 @@ pub trait DynamicProcessLoad {
 /// The callback for dynamic binary flashing.
 pub trait DynamicProcessLoadClient {
     /// The new app has been loaded.
-    fn load_done(&self);
+    fn load_done(&self, result: Result<(), ProcessLoadError>);
 }
 
 /// Dynamic process loading machine.
@@ -437,7 +432,7 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> ProcessLoadingAsyncCl
         match result {
             Ok(()) => {
                 self.load_client.map(|client| {
-                    client.load_done();
+                    client.load_done(result);
                 });
             }
             Err(_e) => {
@@ -449,7 +444,7 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> ProcessLoadingAsyncCl
     }
 
     fn process_loading_finished(&self) {
-        debug!("Process Loaded");
+        unimplemented!();
     }
 }
 

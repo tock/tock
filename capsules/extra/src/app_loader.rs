@@ -57,6 +57,7 @@ use core::cmp;
 
 use kernel::dynamic_binary_storage;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
+use kernel::process::ProcessLoadError;
 use kernel::processbuffer::ReadableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -231,7 +232,7 @@ impl kernel::dynamic_binary_storage::DynamicBinaryStoreClient for AppLoader<'_> 
 
 impl kernel::dynamic_binary_storage::DynamicProcessLoadClient for AppLoader<'_> {
     /// Let the requesting app know we are done loading the new process
-    fn load_done(&self) {
+    fn load_done(&self, _result: Result<(), ProcessLoadError>) {
         self.current_process.map(|processid| {
             let _ = self.apps.enter(processid, move |_app, kernel_data| {
                 // Signal the app.
