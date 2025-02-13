@@ -76,7 +76,7 @@ pub trait DynamicBinaryStore {
     ///
     /// Returns an error if the write is outside of the permitted region or is
     /// writing an invalid header.
-    fn write_app_data(
+    fn write_process_binary_data(
         &self,
         buffer: SubSliceMut<'static, u8>,
         offset: usize,
@@ -85,7 +85,7 @@ pub trait DynamicBinaryStore {
     /// Sets a client for the SequentialDynamicBinaryStore Object
     ///
     /// When the client operation is done, it calls the `setup_done()`
-    /// and `write_app_data_done()` functions.
+    /// and `write_process_binary_data_done()` functions.
     fn set_storage_client(&self, client: &'static dyn DynamicBinaryStoreClient);
 }
 
@@ -95,7 +95,7 @@ pub trait DynamicBinaryStoreClient {
     fn setup_done(&self);
 
     /// The provided app binary buffer has been stored.
-    fn write_app_data_done(&self, buffer: &'static mut [u8], length: usize);
+    fn write_process_binary_data_done(&self, buffer: &'static mut [u8], length: usize);
 }
 
 /// This interface supports loading processes at runtime.
@@ -218,7 +218,7 @@ impl<'a, C: Chip + 'static, D: ProcessStandardDebug + 'static>
         // This means the app is trying to manipulate the space where the TBF
         // header should go. Ideally, we want the app to only write the complete
         // set of 8 bytes which is used to determine if the header is valid. We
-        // don't apps to do this, so we return an error.
+        // don't want apps to do this, so we return an error.
         if (offset == 0 && length < 8) || (offset != 0 && offset < 8) {
             return Err(ErrorCode::INVAL);
         }
@@ -368,7 +368,7 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> NonvolatileStorageCli
                 // Switch on which user generated this callback and trigger
                 // client callback.
                 self.storage_client.map(|client| {
-                    client.write_app_data_done(buffer, length);
+                    client.write_process_binary_data_done(buffer, length);
                 });
             }
             State::PaddingWrite => {
@@ -537,7 +537,7 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> DynamicBinaryStore
         }
     }
 
-    fn write_app_data(
+    fn write_process_binary_data(
         &self,
         buffer: SubSliceMut<'static, u8>,
         offset: usize,

@@ -188,7 +188,9 @@ impl<'a> AppLoader<'a> {
                     .map_or(Err(ErrorCode::RESERVE), |buffer| {
                         let mut write_buffer = SubSliceMut::new(buffer);
                         write_buffer.slice(..length); // should be the length supported by the app (currently only powers of 2 work)
-                        let res = self.storage_driver.write_app_data(write_buffer, offset);
+                        let res = self
+                            .storage_driver
+                            .write_process_binary_data(write_buffer, offset);
                         match res {
                             Ok(()) => Ok(()),
                             Err(e) => Err(e),
@@ -214,7 +216,7 @@ impl kernel::dynamic_binary_storage::DynamicBinaryStoreClient for AppLoader<'_> 
     }
 
     /// Let the app know we are done writing the block of data
-    fn write_app_data_done(&self, buffer: &'static mut [u8], length: usize) {
+    fn write_process_binary_data_done(&self, buffer: &'static mut [u8], length: usize) {
         // Switch on which user of this capsule generated this callback.
         self.current_process.map(|processid| {
             let _ = self.apps.enter(processid, move |_app, kernel_data| {
