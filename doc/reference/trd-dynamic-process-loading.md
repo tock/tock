@@ -215,7 +215,7 @@ The implementation is structured like this:
 
 ```text
  trait DynamicBinaryStore
- trait DynamicProcessStore
+ trait DynamicProcessLoad
 ┌────────────────────────────────┐   ┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐
 │                                │   ╎                                ╎
 │                              ──┼──►╎                                ╎
