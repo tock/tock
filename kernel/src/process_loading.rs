@@ -477,7 +477,7 @@ enum SequentialProcessLoaderMachineRunMode {
 }
 
 /// Enum to hold the padding requirements for a new application.
-#[derive(Clone, Copy, PartialEq, Default)]
+#[derive(Clone, Copy, PartialEq, Default, Debug)]
 pub enum PaddingRequirement {
     #[default]
     None,
@@ -986,7 +986,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
 
                     if config::CONFIG.debug_load_processes {
                         debug!(
-                            "Metadata Process binary start address at index {}: {:#010x}, with end_address {:#010x}",
+                            "[Metadata] Process binary start address at index {}: {:#010x}, with end_address {:#010x}",
                             index,
                             process_binaries_start_addresses[index],
                             process_binaries_end_addresses[index]
@@ -1076,7 +1076,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                 }
             }
         }
-        // If no gaps found, check after the last app
+        // If no gaps found, check after the last app.
         let last_app_end_address = process_binaries_end_addresses[end_count - 1];
         let potential_address =
             self.find_next_cortex_m_aligned_address(last_app_end_address, app_size);
@@ -1261,7 +1261,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
 
         match tock_tbf::parse::parse_tbf_header_lengths(binary_header_array) {
             Ok((_version, _header_length, _entry_length)) => true,
-            Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(__entry_length)) => false,
+            Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(_entry_length)) => false,
             Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => false,
         }
     }

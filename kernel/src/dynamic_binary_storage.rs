@@ -397,7 +397,6 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> NonvolatileStorageCli
                         // Write padding header to the beginning of the new app address.
                         // This ensures that the linked list is not broken in the event of a
                         // powercycle before the app is fully written and loaded.
-                        debug!("Writing app start padding");
                         metadata.setup_padding = true;
                         let _ = self.write_padding_app(
                             metadata.new_app_length,
@@ -443,9 +442,7 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> ProcessLoadingAsyncCl
         }
     }
 
-    fn process_loading_finished(&self) {
-        unimplemented!();
-    }
+    fn process_loading_finished(&self) {}
 }
 
 /// Storage interface exposed to the app_loader capsule
@@ -490,7 +487,6 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> DynamicBinaryStore
                             // either the next app.
                             let new_app_end_address = new_app_start_address + app_length;
                             let post_pad_length = next_app_start_addr - new_app_end_address;
-                            // setup_done = false;
 
                             let padding_result =
                                 self.write_padding_app(post_pad_length, new_app_end_address);

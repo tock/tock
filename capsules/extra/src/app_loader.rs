@@ -234,15 +234,20 @@ impl kernel::dynamic_binary_storage::DynamicBinaryStoreClient for AppLoader<'_> 
 
 impl kernel::dynamic_binary_storage::DynamicProcessLoadClient for AppLoader<'_> {
     /// Let the requesting app know we are done loading the new process
-    fn load_done(&self, _result: Result<(), ProcessLoadError>) {
-        self.current_process.map(|processid| {
-            let _ = self.apps.enter(processid, move |_app, kernel_data| {
-                // Signal the app.
-                kernel_data
-                    .schedule_upcall(upcall::LOAD_DONE, (0, 0, 0))
-                    .ok();
-            });
-        });
+    fn load_done(&self, result: Result<(), ProcessLoadError>) {
+        match result {
+            Ok(()) => {
+                self.current_process.map(|processid| {
+                    let _ = self.apps.enter(processid, move |_app, kernel_data| {
+                        // Signal the app.
+                        kernel_data
+                            .schedule_upcall(upcall::LOAD_DONE, (0, 0, 0))
+                            .ok();
+                    });
+                });
+            }
+            Err(_e) => {}
+        }
     }
 }
 
