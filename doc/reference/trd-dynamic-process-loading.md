@@ -116,7 +116,8 @@ The `0x10001` system call interface provides three operations:
    failure is indicated via an upcall.
 2. `write(process_binary: &[u8], length_bytes: usize, offset_bytes: usize)`:
    This stores a portion of the process binary. Write is expected to be called
-   multiple times to store the entire process binary. Success or failure is
+   multiple times to store the entire process binary and there is no assumption
+   about the order the process binary is written in. Success or failure is
    indicated via an upcall.
 3. `load()`: This indicates the entire process binary has been written and the
    new process binary should be loaded into a process. Success or failure is
@@ -147,7 +148,7 @@ pub trait DynamicBinaryStore {
     fn setup(&self, length: usize) -> Result<usize, ErrorCode>;
 
     /// Store a portion of the process binary.
-    fn write_app_data(&self, buffer: SubSliceMut<'static, u8>, offset: usize) -> Result<(), ErrorCode>;
+    fn write_process_binary_data(&self, buffer: SubSliceMut<'static, u8>, offset: usize) -> Result<(), ErrorCode>;
 
     fn set_storage_client(&self, client: &'static dyn DynamicBinaryStoreClient);
 }
@@ -157,7 +158,7 @@ trait DynamicBinaryStoreClient {
     fn setup_done(&self);
 
     /// The provided process binary buffer has been stored.
-    fn write_app_data_done(&self, buffer: &'static mut [u8], length: usize);
+    fn write_process_binary_data_done(&self, buffer: &'static mut [u8], length: usize);
 }
 ```
 
