@@ -51,7 +51,58 @@ ABI.
   3. Both the API and ABI must be efficient and support common call
   patterns in an efficient way.
 
-2.1 Architectural Support and ABIs
+2.1 ABI Stability and Versioning
+--------------------------------
+
+This document describes the ABI for Tock 2.1 and beyond.
+
+The Tock kernel version consists of `MAJOR.MINOR[.PATCH]`. For an
+initial minor release, the `.0` patch is implicit, i.e., versions may
+sequence as `v2.1`, `v2.1.1`, `v2.1.2`, and `v2.2`.
+
+A kernel major and minor version guarantees the ABI for exchanging
+data between kernel and userspace and the system call numbers.
+
+ - A patch release of Tock is for bugfixes. Patch releases will not add
+     to or remove from the kernel ABI surface, however, in select cases
+     behavior may change, see the next subsection for details.
+ - A minor version of Tock is for addition of new features. Minor
+     version releases guarantee backwards-compatibility with userspace
+     applications compiled against any prior release with the same major
+     version.
+ - A major version of Tock is for breaking ABI changes. Generally, Tock
+     attempts to minimize ABI changes. However, there are no stability
+     guarantees provided for applications across major versions.
+
+2.2 ABI Discrepancies
+---------------------
+
+Documents such as this TRD describe the expected behavior of Tock.
+However, it is possible that due to bugs or other errors, the kernel
+implementation does not match expected behavior. When such cases are
+discovered, the core team will make a judgement call that aspires to
+least-surprising behavior. While not hard-and-fast rules, generally
+the following principles will guide decision-making:
+
+ - If behavior is functionally incorrect and userspace could not
+     possibly do the correct thing because of the incorrect behavior
+     (e.g., a command does not actually execute the underlying action or
+     a syscall reports X bytes were written when in reality Y were
+     actually written), the implementation bug will be fixed and
+     included in the next patch (or greater) release.
+ - If behavior is partially incorrect, or incomplete, but it a
+     reasonable userspace app could 'work around' or 'limp along'
+     despite the issue, we are unlikely to change the existing interface
+     or its behavior, but may consider a minor release with a
+     'transition' syscall that corrects the issue, marking the original
+     for removal with the next major release. Applications SHOULD
+     transition to such 'replacement' ABIs when available.
+ - If behavior is consistent, but against guidelines, e.g. several
+     capsules in v2.x do not follow the `Command Identifier 0 =>
+     Exists` convention, the ABI will not change until the next major
+     release.
+
+2.3 Architectural Support and ABIs
 --------------------------------
 
 The primary question for the ABI is how many and which registers transfer
@@ -60,7 +111,7 @@ of the kernel and userspace being able to transfer more information
 without relying on pointers to memory structures. It has the cost of requiring
 every system call to transfer and manipulate more registers.
 
-2.2 Programming Language APIs
+2.4 Programming Language APIs
 ---------------------------------
 
 Userspace support for Rust is an important requirement for Tock. A key
@@ -70,7 +121,7 @@ passes a writeable (mutable) buffer into the kernel, it must relinquish
 any references to that buffer. As a result, the only way for userspace
 to regain a reference to the buffer is for the kernel to pass it back.
 
-2.3 Efficiency
+2.5 Efficiency
 ---------------------------------
 
 Programming language calling conventions are
