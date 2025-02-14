@@ -3,6 +3,7 @@
 // Copyright Tock Contributors 2022.
 
 use core::fmt::{self, Write};
+use core::num::NonZeroU32;
 use core::ptr::addr_of;
 
 use kernel::debug::{self, IoWrite};
@@ -18,7 +19,7 @@ struct Writer<'a> {
     output: &'a mut lpuart::Lpuart<'a>,
 }
 
-const BAUD_RATE: u32 = 115_200;
+const BAUD_RATE: NonZeroU32 = NonZeroU32::new(115_200).unwrap();
 
 impl<'a> Writer<'a> {
     pub unsafe fn new(output: &'a mut lpuart::Lpuart<'a>) -> Self {

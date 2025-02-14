@@ -14,6 +14,7 @@
 #![deny(missing_docs)]
 
 mod imix_components;
+use core::num::NonZeroU32;
 use core::ptr::{addr_of, addr_of_mut};
 
 use capsules_core::alarm::AlarmDriver;
@@ -365,7 +366,8 @@ unsafe fn start() -> (
     // # CONSOLE
     // Create a shared UART channel for the consoles and for kernel debug.
     peripherals.usart3.set_mode(sam4l::usart::UsartMode::Uart);
-    let uart_mux = UartMuxComponent::new(&peripherals.usart3, 115200)
+    // PANIC: 115200 != 0
+    let uart_mux = UartMuxComponent::new(&peripherals.usart3, NonZeroU32::new(115200).unwrap())
         .finalize(components::uart_mux_component_static!());
 
     // # TIMER

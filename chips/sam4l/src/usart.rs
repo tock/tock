@@ -8,6 +8,7 @@
 
 use core::cell::Cell;
 use core::cmp;
+use core::num::NonZeroU32;
 use core::sync::atomic::{AtomicBool, Ordering};
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::spi;
@@ -723,7 +724,8 @@ impl<'a> USART<'a> {
         usart.registers.cr.write(Control::RSTSTA::SET);
     }
 
-    fn set_baud_rate(&self, usart: &USARTRegManager, baud_rate: u32) {
+    fn set_baud_rate(&self, usart: &USARTRegManager, baud_rate: NonZeroU32) {
+        let baud_rate = baud_rate.get();
         let system_frequency = self.pm.get_system_frequency();
 
         // The clock divisor is calculated differently in UART and SPI modes.
@@ -1064,7 +1066,8 @@ impl<'a> spi::SpiMaster<'a> for USART<'a> {
         self.usart_mode.set(UsartMode::Spi);
 
         // Set baud rate, default to 2 MHz.
-        self.set_baud_rate(usart, 2000000);
+        // PANIC: 2_000_000 != 0
+        self.set_baud_rate(usart, NonZeroU32::new(2000000).unwrap());
 
         usart.registers.mr.write(
             Mode::MODE::SPI_MASTER
@@ -1201,12 +1204,17 @@ impl<'a> spi::SpiMaster<'a> for USART<'a> {
 
     /// Returns the actual rate set
     fn set_rate(&self, rate: u32) -> Result<u32, ErrorCode> {
+        let non_zero_rate = match NonZeroU32::new(rate) {
+            Some(non_zero_rate) => non_zero_rate,
+            None => return Err(ErrorCode::INVAL),
+        };
         let usart = &USARTRegManager::new(self);
-        self.set_baud_rate(usart, rate);
+        self.set_baud_rate(usart, non_zero_rate);
 
         // Calculate what rate will actually be
         let system_frequency = self.pm.get_system_frequency();
-        let cd = system_frequency / rate;
+        // DIVISION: No division by 0 can occur because of the `non_zero_rate` type
+        let cd = system_frequency / non_zero_rate.get();
         Ok(system_frequency / cd)
     }
 
