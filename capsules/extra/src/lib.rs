@@ -37,6 +37,7 @@ pub mod date_time;
 pub mod debug_process_restart;
 pub mod dfrobot_rainfall_sensor;
 pub mod distance;
+pub mod ethernet_tap;
 pub mod eui64;
 pub mod fm25cl;
 pub mod ft6x06;
