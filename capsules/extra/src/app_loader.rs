@@ -56,6 +56,7 @@ use core::cell::Cell;
 use core::cmp;
 
 use kernel::dynamic_binary_storage;
+use kernel::errorcode::into_statuscode;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::process::ProcessLoadError;
 use kernel::processbuffer::ReadableProcessBuffer;
@@ -76,8 +77,10 @@ mod upcall {
     pub const WRITE_DONE: usize = 1;
     /// Load done callback.
     pub const LOAD_DONE: usize = 2;
+    /// Abort done callback.
+    pub const ABORT_DONE: usize = 3;
     /// Number of upcalls.
-    pub const COUNT: u8 = 3;
+    pub const COUNT: u8 = 4;
 }
 
 // Ids for read-only allow buffers
@@ -90,8 +93,28 @@ mod ro_allow {
 
 pub const BUF_LEN: usize = 512;
 
-#[derive(Default)]
-pub struct App {}
+#[derive(Clone, Copy, PartialEq)]
+enum AppLoaderCommand {
+    Nop,
+    Setup(usize),
+    Write { offset: usize, length: usize },
+    Load,
+    Abort,
+}
+
+pub struct App {
+    pending_command: bool,
+    command: AppLoaderCommand,
+}
+
+impl Default for App {
+    fn default() -> App {
+        App {
+            pending_command: false,
+            command: AppLoaderCommand::Nop,
+        }
+    }
+}
 
 pub struct AppLoader<'a> {
     // The underlying driver for the process flashing and loading.
@@ -187,7 +210,9 @@ impl<'a> AppLoader<'a> {
                     .take()
                     .map_or(Err(ErrorCode::RESERVE), |buffer| {
                         let mut write_buffer = SubSliceMut::new(buffer);
-                        write_buffer.slice(..length); // should be the length supported by the app (currently only powers of 2 work)
+                        // should be the length supported by
+                        // the app (currently only powers of 2 work)
+                        write_buffer.slice(..length);
                         let res = self
                             .storage_driver
                             .write_process_binary_data(write_buffer, offset);
@@ -199,55 +224,171 @@ impl<'a> AppLoader<'a> {
             })
             .unwrap_or_else(|err| Err(err.into()))
     }
-}
 
-impl kernel::dynamic_binary_storage::DynamicBinaryStoreClient for AppLoader<'_> {
-    /// Let the requesting app know we are done setting up for the new app
-    fn setup_done(&self) {
-        // Switch on which user of this capsule generated this callback.
-        self.current_process.map(|processid| {
-            let _ = self.apps.enter(processid, move |_app, kernel_data| {
-                // Signal the app.
+    // Check to see if we are doing something. If not,
+    // go ahead and do this command. If so, this is queued
+    // and will be run when the pending command completes.
+    fn enqueue_command(&self, command: AppLoaderCommand, process_id: ProcessId) -> CommandReturn {
+        match self
+            .apps
+            .enter(process_id, |app, _| {
+                if app.pending_command {
+                    CommandReturn::failure(ErrorCode::BUSY)
+                } else {
+                    app.pending_command = true;
+                    app.command = command;
+                    CommandReturn::success()
+                }
+            })
+            .map_err(ErrorCode::from)
+        {
+            Err(e) => CommandReturn::failure(e),
+            Ok(_r) => {
+                let r = self.call_apploader(command, process_id);
+                if r != Ok(()) {
+                    self.current_process.take();
+                }
+                CommandReturn::from(r)
+            }
+        }
+    }
+
+    fn schedule_callback(&self, callback_id: usize, data1: usize, data2: usize, data3: usize) {
+        self.current_process.map(|process_id| {
+            let _ = self.apps.enter(process_id, |app, kernel_data| {
+                app.pending_command = false;
+                match callback_id {
+                    upcall::ABORT_DONE | upcall::LOAD_DONE => {
+                        self.current_process.take();
+                    }
+                    _ => {}
+                }
                 kernel_data
-                    .schedule_upcall(upcall::SETUP_DONE, (0, 0, 0))
+                    .schedule_upcall(callback_id, (data1, data2, data3))
                     .ok();
             });
         });
     }
 
-    /// Let the app know we are done writing the block of data
-    fn write_process_binary_data_done(&self, buffer: &'static mut [u8], length: usize) {
-        // Switch on which user of this capsule generated this callback.
-        self.current_process.map(|processid| {
-            let _ = self.apps.enter(processid, move |_app, kernel_data| {
-                // Replace the buffer we used to do this write.
-                self.buffer.replace(buffer);
+    fn run_next_command(&self, callback_id: usize, data1: usize, data2: usize, data3: usize) {
+        self.schedule_callback(callback_id, data1, data2, data3);
 
-                // And then signal the app.
-                kernel_data
-                    .schedule_upcall(upcall::WRITE_DONE, (length, 0, 0))
-                    .ok();
+        let mut command = AppLoaderCommand::Nop;
+
+        // Check if there are any pending events.
+        for app in self.apps.iter() {
+            let process_id = app.processid();
+            let start_command = app.enter(|app, _| {
+                if app.pending_command {
+                    app.pending_command = false;
+                    command = app.command;
+                    true
+                } else {
+                    false
+                }
             });
-        });
+            if start_command {
+                match self.call_apploader(command, process_id) {
+                    Err(_err) => {
+                        self.current_process.take();
+                        self.new_app_length.set(0);
+                    }
+                    Ok(()) => {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    fn call_apploader(
+        &self,
+        command: AppLoaderCommand,
+        process_id: ProcessId,
+    ) -> Result<(), ErrorCode> {
+        match command {
+            AppLoaderCommand::Setup(app_size) => {
+                let res = self.storage_driver.setup(app_size);
+                match res {
+                    Ok(app_length) => {
+                        self.new_app_length.set(app_length);
+                        Ok(())
+                    }
+                    Err(e) => Err(e),
+                }
+            }
+            AppLoaderCommand::Write { offset, length } => {
+                let res = self.write(offset, length, process_id);
+                match res {
+                    Ok(()) => Ok(()),
+                    Err(e) => Err(e),
+                }
+            }
+            AppLoaderCommand::Load => {
+                let res = self.load_driver.load();
+                match res {
+                    Ok(()) => {
+                        self.new_app_length.set(0);
+                        Ok(())
+                    }
+                    Err(e) => Err(e),
+                }
+            }
+            AppLoaderCommand::Abort => {
+                let res = self.storage_driver.abort();
+                match res {
+                    Ok(()) => {
+                        self.new_app_length.set(0);
+                        Ok(())
+                    }
+                    Err(e) => Err(e),
+                }
+            }
+            _ => Err(ErrorCode::NOSUPPORT),
+        }
+    }
+}
+
+impl kernel::dynamic_binary_storage::DynamicBinaryStoreClient for AppLoader<'_> {
+    /// Let the requesting app know we are done setting up for the new app
+    fn setup_done(&self, result: Result<(), ErrorCode>) {
+        self.run_next_command(upcall::SETUP_DONE, into_statuscode(result), 0, 0);
+    }
+
+    /// Let the app know we are done writing the block of data
+    fn write_process_binary_data_done(
+        &self,
+        result: Result<(), ErrorCode>,
+        buffer: &'static mut [u8],
+        length: usize,
+    ) {
+        self.buffer.replace(buffer);
+        self.run_next_command(upcall::WRITE_DONE, into_statuscode(result), length, 0);
+    }
+
+    /// Let the app know we are done aborting the setup/write of the new app
+    fn abort_done(&self, result: Result<(), ErrorCode>) {
+        self.run_next_command(upcall::ABORT_DONE, into_statuscode(result), 0, 0);
     }
 }
 
 impl kernel::dynamic_binary_storage::DynamicProcessLoadClient for AppLoader<'_> {
     /// Let the requesting app know we are done loading the new process
     fn load_done(&self, result: Result<(), ProcessLoadError>) {
-        match result {
-            Ok(()) => {
-                self.current_process.map(|processid| {
-                    let _ = self.apps.enter(processid, move |_app, kernel_data| {
-                        // Signal the app.
-                        kernel_data
-                            .schedule_upcall(upcall::LOAD_DONE, (0, 0, 0))
-                            .ok();
-                    });
-                });
-            }
-            Err(_e) => {}
-        }
+        let status_code = match result {
+            Ok(()) => 0,
+            Err(e) => match e {
+                ProcessLoadError::NotEnoughMemory => 1,
+                ProcessLoadError::MpuInvalidFlashLength => 2,
+                ProcessLoadError::MpuConfigurationError => 3,
+                ProcessLoadError::MemoryAddressMismatch { .. } => 4,
+                ProcessLoadError::NoProcessSlot => 5,
+                ProcessLoadError::BinaryError(_) => 6,
+                ProcessLoadError::CheckError(_) => 7,
+                ProcessLoadError::InternalError => 9,
+            },
+        };
+        self.run_next_command(upcall::LOAD_DONE, status_code, 0, 0);
     }
 }
 
@@ -272,6 +413,7 @@ impl SyscallDriver for AppLoader<'_> {
     ///        - Returns ErrorCode::FAIL if:
     ///            - The kernel is unable to create a process object for the application
     ///            - The kernel fails to write a padding app (thereby potentially breaking the linkedlist)
+    /// - `4`: Request kernel to abort setup/write operation.
     fn command(
         &self,
         command_num: usize,
@@ -288,7 +430,7 @@ impl SyscallDriver for AppLoader<'_> {
         if match_or_nonexistent {
             self.current_process.set(processid);
         } else {
-            return CommandReturn::failure(ErrorCode::NOMEM);
+            return CommandReturn::failure(ErrorCode::BUSY);
         }
 
         match command_num {
@@ -296,53 +438,20 @@ impl SyscallDriver for AppLoader<'_> {
 
             1 => {
                 //setup phase
-                let res = self.storage_driver.setup(arg1); // pass the size of the app to the setup function
-                match res {
-                    Ok(app_len) => {
-                        // schedule the upcall here so the userspace always has to wait for the
-                        // setup done yield wait
-
-                        self.new_app_length.set(app_len);
-                        CommandReturn::success()
-                    }
-                    Err(e) => {
-                        self.new_app_length.set(0);
-                        self.current_process.take();
-                        CommandReturn::failure(e)
-                    }
-                }
+                self.enqueue_command(AppLoaderCommand::Setup(arg1), processid)
             }
 
-            2 => {
-                // Request kernel to write app to flash
+            2 => self.enqueue_command(
+                AppLoaderCommand::Write {
+                    offset: arg1,
+                    length: arg2,
+                },
+                processid,
+            ),
 
-                let res = self.write(arg1, arg2, processid);
-                match res {
-                    Ok(()) => CommandReturn::success(),
-                    Err(e) => {
-                        self.new_app_length.set(0);
-                        self.current_process.take();
-                        CommandReturn::failure(e)
-                    }
-                }
-            }
+            3 => self.enqueue_command(AppLoaderCommand::Load, processid),
 
-            3 => {
-                // Request kernel to load the new app
-                let res = self.load_driver.load();
-                match res {
-                    Ok(()) => {
-                        self.new_app_length.set(0);
-                        self.current_process.take();
-                        CommandReturn::success()
-                    }
-                    Err(e) => {
-                        self.new_app_length.set(0);
-                        self.current_process.take();
-                        CommandReturn::failure(e)
-                    }
-                }
-            }
+            4 => self.enqueue_command(AppLoaderCommand::Abort, processid),
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }

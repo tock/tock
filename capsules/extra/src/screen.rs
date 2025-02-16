@@ -177,7 +177,7 @@ impl<'a> Screen<'a> {
 
     fn call_screen(&self, command: ScreenCommand, process_id: ProcessId) -> Result<(), ErrorCode> {
         match command {
-            ScreenCommand::SetBrightness(brighness) => self.screen.set_brightness(brighness),
+            ScreenCommand::SetBrightness(brightness) => self.screen.set_brightness(brightness),
             ScreenCommand::SetPower(enabled) => self.screen.set_power(enabled),
             ScreenCommand::SetInvert(enabled) => self.screen.set_invert(enabled),
             ScreenCommand::SetRotation(rotation) => {

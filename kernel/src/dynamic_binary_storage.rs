@@ -34,6 +34,7 @@ pub enum State {
     Setup,
     AppWrite,
     Load,
+    Abort,
     PaddingWrite,
     Fail,
 }
@@ -82,20 +83,31 @@ pub trait DynamicBinaryStore {
         offset: usize,
     ) -> Result<(), ErrorCode>;
 
+    /// Call to abort the setup/writing process.
+    fn abort(&self) -> Result<(), ErrorCode>;
+
     /// Sets a client for the SequentialDynamicBinaryStore Object
     ///
-    /// When the client operation is done, it calls the `setup_done()`
-    /// and `write_process_binary_data_done()` functions.
+    /// When the client operation is done, it calls the `setup_done()`,
+    /// `write_process_binary_data_done()` and `abort_done()` functions.
     fn set_storage_client(&self, client: &'static dyn DynamicBinaryStoreClient);
 }
 
 /// The callback for dynamic binary flashing.
 pub trait DynamicBinaryStoreClient {
     /// Any setup work is done and we are ready to write the process binary.
-    fn setup_done(&self);
+    fn setup_done(&self, result: Result<(), ErrorCode>);
 
     /// The provided app binary buffer has been stored.
-    fn write_process_binary_data_done(&self, buffer: &'static mut [u8], length: usize);
+    fn write_process_binary_data_done(
+        &self,
+        result: Result<(), ErrorCode>,
+        buffer: &'static mut [u8],
+        length: usize,
+    );
+
+    /// Canceled any writing process and freed up reserved space.
+    fn abort_done(&self, result: Result<(), ErrorCode>);
 }
 
 /// This interface supports loading processes at runtime.
@@ -193,7 +205,7 @@ impl<'a, C: Chip + 'static, D: ProcessStandardDebug + 'static>
             // If we are going to write the padding header, we already know
             // where to write in flash, so we don't have to add the start
             // address
-            State::Setup | State::Load | State::PaddingWrite => Ok(offset),
+            State::Setup | State::Load | State::PaddingWrite | State::Abort => Ok(offset),
             // We aren't supposed to be able to write unless we are in one of
             // the first two write states
             _ => Err(ErrorCode::FAIL),
@@ -368,7 +380,7 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> NonvolatileStorageCli
                 // Switch on which user generated this callback and trigger
                 // client callback.
                 self.storage_client.map(|client| {
-                    client.write_process_binary_data_done(buffer, length);
+                    client.write_process_binary_data_done(Ok(()), buffer, length);
                 });
             }
             State::PaddingWrite => {
@@ -407,7 +419,7 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> NonvolatileStorageCli
                         self.state.set(State::AppWrite);
                         // Let the client know we are done setting up.
                         self.storage_client.map(|client| {
-                            client.setup_done();
+                            client.setup_done(Ok(()));
                         });
                     }
                 }
@@ -415,6 +427,14 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> NonvolatileStorageCli
             State::Load => {
                 // We finished writing pre-padding and we need to Load the app.
                 self.buffer.replace(buffer);
+            }
+            State::Abort => {
+                self.buffer.replace(buffer);
+                // Reset metadata and let client know we are done aborting.
+                self.reset_process_loading_metadata();
+                self.storage_client.map(|client| {
+                    client.abort_done(Ok(()));
+                });
             }
             State::Idle => {
                 self.buffer.replace(buffer);
@@ -454,11 +474,6 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> DynamicBinaryStore
     }
 
     fn setup(&self, app_length: usize) -> Result<usize, ErrorCode> {
-        //TODO(?): Check if it is a newer version of an existing app. We can
-        // potentially flash the new app and load it before erasing the old one.
-        // What happens to the process though? Need to delete it from the
-        // process array and load it back in?
-
         self.process_metadata.set(ProcessLoadMetadata::default());
 
         if self.state.get() == State::Idle {
@@ -555,6 +570,27 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> DynamicBinaryStore
                 // so return a Busy error.
                 Err(ErrorCode::BUSY)
             }
+        }
+    }
+
+    fn abort(&self) -> Result<(), ErrorCode> {
+        match self.state.get() {
+            State::Setup | State::AppWrite => {
+                self.state.set(State::Abort);
+                if let Some(metadata) = self.process_metadata.get() {
+                    // Write padding header to the beginning of the new app address.
+                    // This ensures that the flash space is reclaimed for future use.
+                    match self
+                        .write_padding_app(metadata.new_app_length, metadata.new_app_start_addr)
+                    {
+                        Ok(()) => Ok(()),
+                        Err(e) => Err(e),
+                    }
+                } else {
+                    Err(ErrorCode::FAIL)
+                }
+            }
+            _ => Err(ErrorCode::BUSY),
         }
     }
 }

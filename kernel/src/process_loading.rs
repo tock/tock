@@ -477,7 +477,7 @@ enum SequentialProcessLoaderMachineRunMode {
 }
 
 /// Enum to hold the padding requirements for a new application.
-#[derive(Clone, Copy, PartialEq, Default, Debug)]
+#[derive(Clone, Copy, PartialEq, Default)]
 pub enum PaddingRequirement {
     #[default]
     None,
