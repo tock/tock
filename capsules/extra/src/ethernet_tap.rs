@@ -599,7 +599,7 @@ impl<'a, E: EthernetAdapterDatapath<'a>> EthernetAdapterDatapathClient
         // frame_header[2..4]: length (excluding frame_header)
         frame_header[2..4].copy_from_slice(&u16::to_ne_bytes(len_u16));
 
-        // frame_header[4..12]: length (excluding frame_header)
+        // frame_header[4..12]: timestamp
         frame_header[4..12].copy_from_slice(&u64::to_ne_bytes(timestamp.unwrap_or(0)));
 
         // For each process, try to place the new frame (with header) into its
