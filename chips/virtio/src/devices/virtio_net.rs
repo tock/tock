@@ -1,9 +1,10 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2022.
+// Copyright Tock Contributors 2025.
 
 use core::cell::Cell;
 
+use kernel::hil::ethernet::{EthernetAdapterDatapath, EthernetAdapterDatapathClient};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::{register_bitfields, LocalRegisterCopy};
 use kernel::ErrorCode;
@@ -42,18 +43,18 @@ register_bitfields![u64,
 ];
 
 pub struct VirtIONet<'a> {
-    id: Cell<usize>,
     rxqueue: &'a SplitVirtqueue<'static, 'static, 2>,
     txqueue: &'a SplitVirtqueue<'static, 'static, 2>,
     tx_header: OptionalCell<&'static mut [u8; 12]>,
+    tx_frame_info: Cell<(u16, usize)>,
     rx_header: OptionalCell<&'static mut [u8]>,
     rx_buffer: OptionalCell<&'static mut [u8]>,
-    client: OptionalCell<&'a dyn VirtIONetClient>,
+    client: OptionalCell<&'a dyn EthernetAdapterDatapathClient>,
+    rx_enabled: Cell<bool>,
 }
 
 impl<'a> VirtIONet<'a> {
     pub fn new(
-        id: usize,
         txqueue: &'a SplitVirtqueue<'static, 'static, 2>,
         tx_header: &'static mut [u8; 12],
         rxqueue: &'a SplitVirtqueue<'static, 'static, 2>,
@@ -64,112 +65,45 @@ impl<'a> VirtIONet<'a> {
         rxqueue.enable_used_callbacks();
 
         VirtIONet {
-            id: Cell::new(id),
             rxqueue,
             txqueue,
             tx_header: OptionalCell::new(tx_header),
-            client: OptionalCell::empty(),
+            tx_frame_info: Cell::new((0, 0)),
             rx_header: OptionalCell::new(rx_header),
             rx_buffer: OptionalCell::new(rx_buffer),
+            client: OptionalCell::empty(),
+            rx_enabled: Cell::new(false),
         }
     }
 
-    pub fn id(&self) -> usize {
-        self.id.get()
-    }
+    fn reinsert_virtqueue_receive_buffer(&self) {
+        // Don't reinsert receive buffer when reception is disabled. The buffers
+        // will be reinserted on the next call to `enable_receive`:
+        if !self.rx_enabled.get() {
+            return;
+        }
 
-    pub fn set_client(&self, client: &'a dyn VirtIONetClient) {
-        self.client.set(client);
-    }
+        // Place the receive buffers into the device's VirtQueue
+        if let Some(rx_buffer) = self.rx_buffer.take() {
+            let rx_buffer_len = rx_buffer.len();
 
-    // This is not executed as part of the `device_initialized` hook to avoid
-    // missing any packets if a client has not been registered, and because this
-    // device can be used in a transmit-only fashion before invoking this
-    // function.
-    pub fn enable_rx(&self) {
-        // To start operation, put the receive buffers into the device initially
-        let rx_buffer = self.rx_buffer.take().unwrap();
-        let rx_buffer_len = rx_buffer.len();
+            let mut buffer_chain = [
+                Some(VirtqueueBuffer {
+                    buf: self.rx_header.take().unwrap(),
+                    len: 12,
+                    device_writeable: true,
+                }),
+                Some(VirtqueueBuffer {
+                    buf: rx_buffer,
+                    len: rx_buffer_len,
+                    device_writeable: true,
+                }),
+            ];
 
-        let mut buffer_chain = [
-            Some(VirtqueueBuffer {
-                buf: self.rx_header.take().unwrap(),
-                len: 12,
-                device_writeable: true,
-            }),
-            Some(VirtqueueBuffer {
-                buf: rx_buffer,
-                len: rx_buffer_len,
-                device_writeable: true,
-            }),
-        ];
-
-        self.rxqueue
-            .provide_buffer_chain(&mut buffer_chain)
-            .unwrap();
-    }
-
-    pub fn return_rx_buffer(&self, buf: &'static mut [u8]) {
-        assert!(self.rx_buffer.is_none());
-        assert!(self.rx_header.is_some());
-        self.rx_buffer.replace(buf);
-
-        // Re-register the RX buffer with the Virtqueue:
-        self.enable_rx();
-    }
-
-    pub fn send_packet(
-        &self,
-        packet: &'static mut [u8],
-        packet_len: usize,
-    ) -> Result<(), (&'static mut [u8], ErrorCode)> {
-        // Try to get a hold of the header buffer
-        //
-        // Otherwise, the device is currently busy transmissing a buffer
-        //
-        // TODO: Implement simultaneous transmissions
-        let mut packet_buf = Some(VirtqueueBuffer {
-            buf: packet,
-            len: packet_len,
-            device_writeable: false,
-        });
-
-        let header_buf = self
-            .tx_header
-            .take()
-            .ok_or(ErrorCode::BUSY)
-            .map_err(|ret| (packet_buf.take().unwrap().buf, ret))?;
-
-        // Write the header
-        //
-        // TODO: Can this be done more elegantly using a struct of registers?
-        header_buf[0] = 0; // flags -> we don't want checksumming
-        header_buf[1] = 0; // gso -> no checksumming or fragmentation
-        header_buf[2] = 0; // hdr_len_low
-        header_buf[3] = 0; // hdr_len_high
-        header_buf[4] = 0; // gso_size
-        header_buf[5] = 0; // gso_size
-        header_buf[6] = 0; // csum_start
-        header_buf[7] = 0; // csum_start
-        header_buf[8] = 0; // csum_offset
-        header_buf[9] = 0; // csum_offsetb
-        header_buf[10] = 0; // num_buffers
-        header_buf[11] = 0; // num_buffers
-
-        let mut buffer_chain = [
-            Some(VirtqueueBuffer {
-                buf: header_buf,
-                len: 12,
-                device_writeable: false,
-            }),
-            packet_buf.take(),
-        ];
-
-        self.txqueue
-            .provide_buffer_chain(&mut buffer_chain)
-            .map_err(move |ret| (buffer_chain[1].take().unwrap().buf, ret))?;
-
-        Ok(())
+            self.rxqueue
+                .provide_buffer_chain(&mut buffer_chain)
+                .unwrap();
+        }
     }
 }
 
@@ -181,25 +115,43 @@ impl SplitVirtqueueClient<'static> for VirtIONet<'_> {
         bytes_used: usize,
     ) {
         if queue_number == self.rxqueue.queue_number().unwrap() {
-            // Received a packet
+            // Received an Ethernet frame
 
             let rx_header = buffer_chain[0].take().expect("No header buffer").buf;
             // TODO: do something with the header
             self.rx_header.replace(rx_header);
 
             let rx_buffer = buffer_chain[1].take().expect("No rx content buffer").buf;
-            self.client.map(move |client| {
-                client.packet_received(self.id.get(), rx_buffer, bytes_used - 12)
-            });
+
+            if self.rx_enabled.get() {
+                self.client
+                    .map(|client| client.received_frame(&rx_buffer[..(bytes_used - 12)], None));
+            }
+
+            self.rx_buffer.replace(rx_buffer);
+
+            // Re-run enable RX to provide the RX buffer chain back to the
+            // device (if reception is still enabled):
+            self.reinsert_virtqueue_receive_buffer();
         } else if queue_number == self.txqueue.queue_number().unwrap() {
-            // Sent a packet
+            // Sent an Ethernet frame
 
             let header_buf = buffer_chain[0].take().expect("No header buffer").buf;
             self.tx_header.replace(header_buf.try_into().unwrap());
 
-            let packet_buf = buffer_chain[1].take().expect("No packet buffer").buf;
-            self.client
-                .map(move |client| client.packet_sent(self.id.get(), packet_buf));
+            let frame_buf = buffer_chain[1].take().expect("No frame buffer").buf;
+
+            let (frame_len, transmission_identifier) = self.tx_frame_info.get();
+
+            self.client.map(move |client| {
+                client.transmit_frame_done(
+                    Ok(()),
+                    frame_buf,
+                    frame_len,
+                    transmission_identifier,
+                    None,
+                )
+            });
         } else {
             panic!("Callback from unknown queue");
         }
@@ -241,7 +193,84 @@ impl VirtIODeviceDriver for VirtIONet<'_> {
     }
 }
 
-pub trait VirtIONetClient {
-    fn packet_sent(&self, id: usize, buffer: &'static mut [u8]);
-    fn packet_received(&self, id: usize, buffer: &'static mut [u8], len: usize);
+impl<'a> EthernetAdapterDatapath<'a> for VirtIONet<'a> {
+    fn set_client(&self, client: &'a dyn EthernetAdapterDatapathClient) {
+        self.client.set(client);
+    }
+
+    fn enable_receive(&self) {
+        // Enable receive callbacks:
+        self.rx_enabled.set(true);
+
+        // Attempt to reinsert any driver-owned receive buffers into the receive
+        // queues. This will be a nop if reception was already enabled before
+        // this call:
+        self.reinsert_virtqueue_receive_buffer();
+    }
+
+    fn disable_receive(&self) {
+        // Disable receive callbacks:
+        self.rx_enabled.set(false);
+
+        // We don't "steal" any receive buffers out of the virtqueue, but the
+        // above flag will avoid reinserting buffers into the VirtQueue until
+        // reception is enabled again:
+    }
+
+    fn transmit_frame(
+        &self,
+        frame_buffer: &'static mut [u8],
+        len: u16,
+        transmission_identifier: usize,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        // Try to get a hold of the header buffer
+        //
+        // Otherwise, the device is currently busy transmissing a buffer
+        //
+        // TODO: Implement simultaneous transmissions
+        let mut frame_queue_buf = Some(VirtqueueBuffer {
+            buf: frame_buffer,
+            len: len as usize,
+            device_writeable: false,
+        });
+
+        let header_buf = self
+            .tx_header
+            .take()
+            .ok_or(ErrorCode::BUSY)
+            .map_err(|ret| (ret, frame_queue_buf.take().unwrap().buf))?;
+
+        // Write the header
+        //
+        // TODO: Can this be done more elegantly using a struct of registers?
+        header_buf[0] = 0; // flags -> we don't want checksumming
+        header_buf[1] = 0; // gso -> no checksumming or fragmentation
+        header_buf[2] = 0; // hdr_len_low
+        header_buf[3] = 0; // hdr_len_high
+        header_buf[4] = 0; // gso_size
+        header_buf[5] = 0; // gso_size
+        header_buf[6] = 0; // csum_start
+        header_buf[7] = 0; // csum_start
+        header_buf[8] = 0; // csum_offset
+        header_buf[9] = 0; // csum_offsetb
+        header_buf[10] = 0; // num_buffers
+        header_buf[11] = 0; // num_buffers
+
+        let mut buffer_chain = [
+            Some(VirtqueueBuffer {
+                buf: header_buf,
+                len: 12,
+                device_writeable: false,
+            }),
+            frame_queue_buf.take(),
+        ];
+
+        self.tx_frame_info.set((len, transmission_identifier));
+
+        self.txqueue
+            .provide_buffer_chain(&mut buffer_chain)
+            .map_err(move |ret| (ret, buffer_chain[1].take().unwrap().buf))?;
+
+        Ok(())
+    }
 }

@@ -84,6 +84,14 @@ Support for wireless radios.
 - **[LoRa Phy]**: Support for exposing Semtech devices to userspace
   See the lora_things_plus board for an example
 
+Networking
+----------
+
+Network stacks and related infrastructure.
+
+- **[Ethernet Tap Driver](src/ethernet_tap.rs)**: Forwarding raw IEEE
+  802.3 Ethernet frames from / to userspace. Useful for running
+  network stacks in userspace.
 
 Libraries
 ---------
