@@ -5,9 +5,9 @@ Dynamic Process Loading
 **Working Group:** Kernel<br/>
 **Type:** Documentary<br/>
 **Status:** Draft <br/>
-**Author:** Brad Campbell<br/>
+**Author:** Brad Campbell, Viswajith Govinda Rajan<br/>
 **Draft-Created:** 2025/02/12<br/>
-**Draft-Modified:** 2025/02/12<br/>
+**Draft-Modified:** 2025/02/16<br/>
 **Draft-Version:** 1<br/>
 **Draft-Discuss:** devel@lists.tockos.org<br/>
 
@@ -32,10 +32,11 @@ from the kernel, they can be updated or added while the Tock kernel continues
 normal operation. Tock provides an interface for supporting application installs
 at runtime.
 
-Dynamically adding applications is comprised of two operations:
+Dynamically adding applications is comprised of three operations:
 
 1. Storing the new process binary.
 2. Loading the new process binary into a Tock process.
+3. Aborting the storing operation.
 
 This TRD documents both interfaces. The first operation (i.e., storing the
 process binary) is particularly important as that functionality is introduced by
@@ -72,19 +73,19 @@ The general architecture is shown here:
 ```text                                                                         
 ┌────────────────────────────────────────────────────┐                         
 │                                                    │                         
-│        Userspace Application                       │                         
+│             Userspace Application                  │                         
 │                                                    │                         
 └────────────────────────────────────────────────────┘                         
-──────Syscall 0x10001────────────────────────────────                         
+─────────────────Syscall 0x10001──────────────────────                         
 ┌────────────────────────────────────────────────────┐                         
 │                                                    │ Conventional    
-│        AppLoader Capsule                           │ Capsule            
+│               AppLoader Capsule                    │ Capsule            
 │                                                    │                         
 └────────────────────────────────────────────────────┘                         
  trait DynamicBinaryStore    trait DynamicProcessLoad                         
 ┌────────────────────────┐  ┌────────────────────────┐                         
 │                        │  │                        │ Kernel          
-│ DynamicStore           │  │ DynamicLoad            │ Capsules                  
+│     DynamicStore       │  │      DynamicLoad       │ Capsules                  
 │                        │  │                        │                         
 └────────────────────────┘  └────────────────────────┘                         
 ```
@@ -108,7 +109,7 @@ The layers provide differing levels of trust for each component.
 3 System Call API
 =================================
 
-The `0x10001` system call interface provides three operations:
+The `0x10001` system call interface provides four operations:
 
 1. `setup(process_binary_size_bytes: usize)`: This initiates the process of
    loading a new process binary. The capsule will attempt to allocate resources
@@ -122,6 +123,9 @@ The `0x10001` system call interface provides three operations:
 3. `load()`: This indicates the entire process binary has been written and the
    new process binary should be loaded into a process. Success or failure is
    indicated via an upcall.
+4. `abort()`: This operation cancels the setup/write operation and frees 
+   allocated resources so that they are available for a different process. 
+   Success or failure is indicated via an upcall.
 
 These operations are implemented using conventional allow, command, and
 subscribe system calls.
@@ -150,6 +154,9 @@ pub trait DynamicBinaryStore {
     /// Store a portion of the process binary.
     fn write_process_binary_data(&self, buffer: SubSliceMut<'static, u8>, offset: usize) -> Result<(), ErrorCode>;
 
+    /// Call to abort the setup/writing process.
+    fn abort(&self) -> Result<(), ErrorCode>;
+
     fn set_storage_client(&self, client: &'static dyn DynamicBinaryStoreClient);
 }
 
@@ -159,13 +166,17 @@ trait DynamicBinaryStoreClient {
 
     /// The provided process binary buffer has been stored.
     fn write_process_binary_data_done(&self, buffer: &'static mut [u8], length: usize);
+
+    /// Canceled any setup or writing operation and freed up reserved space.
+    fn abort_done(&self, result: Result<(), ErrorCode>);
 }
 ```
 
 The `setup()` call allows the implementation to allocate the needed resources to
 store the process binary. An implementation is responsible for storing
-individual chunks of the process binary. Each operation may be asynchronous and
-must generate a callback.
+individual chunks of the process binary. The `abort()` call deallocates the 
+resources and frees them up for a future process. Each operation may be 
+asynchronous and must generate a callback.
 
 The interface is intentionally general to support different underlying storage
 formats and storage media.
@@ -217,7 +228,7 @@ The implementation is structured like this:
 ```text
  trait DynamicBinaryStore
  trait DynamicProcessLoad
-┌────────────────────────────────┐   ┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐
+┌────────────────────────────────┐   ┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐
 │                                │   ╎                                ╎
 │                              ──┼──►╎                                ╎
 │                                │   ╎                                ╎
@@ -225,7 +236,7 @@ The implementation is structured like this:
 │                                │   ╎                                ╎
 │                                │   ╎                                ╎
 │                                │   ╎                                ╎
-└────────────────────────────────┘   └╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘
+└────────────────────────────────┘   └╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘
  hil::NonvolatileStorage
 ```
 
@@ -256,7 +267,7 @@ determined to have a valid TBF header.
 
 Second, `SequentialDynamicBinaryStorage` does not allow the calling capsule to
 write a portion of the first eight bytes of the process binary (where the
-`total_size` field is located). It must write then entire region, and
+`total_size` field is located). It must write the entire region, and
 `SequentialDynamicBinaryStorage` ensures those first eight bytes are correct
 (i.e., they match the size of the process binary and use a valid TBF header
 version).
@@ -296,6 +307,7 @@ future.
 ===============================
 ```
 Brad Campbell <bradjc@virginia.edu>
+Viswajith Govinda Rajan <vishgr@virginia.edu>
 ```
 
 [TRD1]: trd1-trds.md "Tock Reference Document (TRD) Structure and Keywords"
