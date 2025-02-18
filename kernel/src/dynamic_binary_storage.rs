@@ -106,7 +106,7 @@ pub trait DynamicBinaryStoreClient {
         length: usize,
     );
 
-    /// Canceled any writing process and freed up reserved space.
+    /// Canceled any setup or writing operation and freed up reserved space.
     fn abort_done(&self, result: Result<(), ErrorCode>);
 }
 
@@ -544,7 +544,10 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> DynamicBinaryStore
                 }
             }
         } else {
-            Err(ErrorCode::BUSY)
+            // We are in the wrong mode of operation. Ideally we should never reach
+            // here, but this error exists as a failsafe. The capsule should send
+            // a busy error out to the userland app.
+            Err(ErrorCode::INVAL)
         }
     }
 
@@ -566,9 +569,10 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> DynamicBinaryStore
                 }
             }
             _ => {
-                // We should never enter write for the rest of the conditions,
-                // so return a Busy error.
-                Err(ErrorCode::BUSY)
+                // We are in the wrong mode of operation. Ideally we should never reach
+                // here, but this error exists as a failsafe. The capsule should send
+                // a busy error out to the userland app.
+                Err(ErrorCode::INVAL)
             }
         }
     }
@@ -584,13 +588,20 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> DynamicBinaryStore
                         .write_padding_app(metadata.new_app_length, metadata.new_app_start_addr)
                     {
                         Ok(()) => Ok(()),
-                        Err(e) => Err(e),
+                        // If abort() returns ErrorCode::BUSY,
+                        // the userland app is expected to retry abort.
+                        Err(_) => Err(ErrorCode::BUSY),
                     }
                 } else {
                     Err(ErrorCode::FAIL)
                 }
             }
-            _ => Err(ErrorCode::BUSY),
+            _ => {
+                // We are in the wrong mode of operation. Ideally we should never reach
+                // here, but this error exists as a failsafe. The capsule should send
+                // a busy error out to the userland app.
+                Err(ErrorCode::INVAL)
+            }
         }
     }
 }
