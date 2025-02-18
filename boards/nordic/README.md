@@ -17,9 +17,6 @@ The result is:
 
 This naming matches the products released by Nordic, but users should be careful.
 
-Additionally, the acd52832 board is a platform developed by Aconno that
-features a nrf52832 chip.
-
 
 Tock Hierarchy
 --------------
