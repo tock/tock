@@ -53,9 +53,8 @@ macro_rules! debug_writer_component_static {
         let ring = kernel::static_buf!(kernel::collections::ring_buffer::RingBuffer<'static, u8>);
         let buffer = kernel::static_buf!([u8; 1024 * $BUF_SIZE_KB]);
         let debug = kernel::static_buf!(kernel::debug::DebugWriter);
-        let debug_wrapper = kernel::static_buf!(kernel::debug::DebugWriterWrapper);
 
-        (uart, ring, buffer, debug, debug_wrapper)
+        (uart, ring, buffer, debug)
     };};
     () => {{
         $crate::debug_writer_component_static!($crate::debug_writer::DEFAULT_DEBUG_BUFFER_KBYTE)
@@ -73,9 +72,11 @@ macro_rules! debug_writer_no_mux_component_static {
         let ring = kernel::static_buf!(kernel::collections::ring_buffer::RingBuffer<'static, u8>);
         let buffer = kernel::static_buf!([u8; 1024 * $BUF_SIZE_KB]);
         let debug = kernel::static_buf!(kernel::debug::DebugWriter);
-        let debug_wrapper = kernel::static_buf!(kernel::debug::DebugWriterWrapper);
+        let debug_wrappers = kernel::static_buf!(
+            kernel::threadlocal::SingleThread<kernel::debug::DebugWriterWrapper>
+        );
 
-        (ring, buffer, debug, debug_wrapper)
+        (ring, buffer, debug, debug_wrappers)
     };};
     () => {{
         use $crate::debug_writer::DEFAULT_DEBUG_BUFFER_KBYTE;
@@ -106,7 +107,6 @@ impl<const BUF_SIZE_BYTES: usize> Component for DebugWriterComponent<BUF_SIZE_BY
         &'static mut MaybeUninit<RingBuffer<'static, u8>>,
         &'static mut MaybeUninit<[u8; BUF_SIZE_BYTES]>,
         &'static mut MaybeUninit<kernel::debug::DebugWriter>,
-        &'static mut MaybeUninit<kernel::debug::DebugWriterWrapper>,
     );
     type Output = ();
 
@@ -126,9 +126,12 @@ impl<const BUF_SIZE_BYTES: usize> Component for DebugWriterComponent<BUF_SIZE_BY
         ));
         hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
 
-        let debug_wrapper = s.4.write(kernel::debug::DebugWriterWrapper::new(debugger));
+        let debug_wrapper = kernel::debug::DebugWriterWrapper::new(debugger);
+        let closure = |writer: &mut kernel::debug::DebugWriterWrapper| {
+            *writer = debug_wrapper;
+        };
         unsafe {
-            kernel::debug::set_debug_writer_wrapper(debug_wrapper);
+            kernel::debug::with_debug_writer_panic(closure);
         }
     }
 }
@@ -159,7 +162,9 @@ impl<U: uart::Uart<'static> + uart::Transmit<'static> + 'static, const BUF_SIZE_
         &'static mut MaybeUninit<RingBuffer<'static, u8>>,
         &'static mut MaybeUninit<[u8; BUF_SIZE_BYTES]>,
         &'static mut MaybeUninit<kernel::debug::DebugWriter>,
-        &'static mut MaybeUninit<kernel::debug::DebugWriterWrapper>,
+        &'static mut MaybeUninit<
+            kernel::threadlocal::SingleThread<kernel::debug::DebugWriterWrapper>,
+        >,
     );
     type Output = ();
 
@@ -176,9 +181,11 @@ impl<U: uart::Uart<'static> + uart::Transmit<'static> + 'static, const BUF_SIZE_
         ));
         hil::uart::Transmit::set_transmit_client(self.uart, debugger);
 
-        let debug_wrapper = s.3.write(kernel::debug::DebugWriterWrapper::new(debugger));
+        let debug_wrapper = kernel::debug::DebugWriterWrapper::new(debugger);
+        let debug_wrappers =
+            s.3.write(unsafe { kernel::threadlocal::SingleThread::new(debug_wrapper) });
         unsafe {
-            kernel::debug::set_debug_writer_wrapper(debug_wrapper);
+            kernel::debug::set_debug_writer_wrappers(debug_wrappers);
         }
 
         let _ = self.uart.configure(uart::Parameters {

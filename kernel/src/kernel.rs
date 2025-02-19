@@ -19,7 +19,7 @@ use crate::errorcode::ErrorCode;
 use crate::grant::{AllowRoSize, AllowRwSize, Grant, UpcallSize};
 use crate::ipc;
 use crate::memop;
-use crate::platform::chip::Chip;
+use crate::platform::chip::{Chip, ChipAtomic};
 use crate::platform::mpu::MPU;
 use crate::platform::platform::ContextSwitchCallback;
 use crate::platform::platform::KernelResources;
@@ -33,7 +33,10 @@ use crate::syscall::{ContextSwitchReason, SyscallReturn};
 use crate::syscall::{Syscall, YieldCall};
 use crate::syscall_driver::CommandReturn;
 use crate::upcall::{Upcall, UpcallId};
-use crate::utilities::cells::NumericCellExt;
+use crate::utilities::cells::{NumericCellExt, OptionalCell};
+
+use tock_tbf::types::TbfFooterV2Credentials;
+use tock_tbf::types::TbfParseError;
 
 /// Threshold in microseconds to consider a process's timeslice to be exhausted.
 /// That is, Tock will skip re-scheduling a process if its remaining timeslice
@@ -358,7 +361,7 @@ impl Kernel {
     /// This function has one configuration option: `no_sleep`. If that argument
     /// is set to true, the kernel will never attempt to put the chip to sleep,
     /// and this function can be called again immediately.
-    pub fn kernel_loop_operation<KR: KernelResources<C>, C: Chip, const NUM_PROCS: u8>(
+    pub fn kernel_loop_operation<KR: KernelResources<C>, C: Chip + ChipAtomic, const NUM_PROCS: u8>(
         &self,
         resources: &KR,
         chip: &C,
@@ -425,18 +428,21 @@ impl Kernel {
     ///
     /// Most of the behavior of this loop is controlled by the [`Scheduler`]
     /// implementation in use.
-    pub fn kernel_loop<KR: KernelResources<C>, C: Chip, const NUM_PROCS: u8>(
+    pub fn kernel_loop<KR: KernelResources<C>, C: Chip + ChipAtomic, const NUM_PROCS: u8>(
         &self,
         resources: &KR,
         chip: &C,
         ipc: Option<&ipc::IPC<NUM_PROCS>>,
         capability: &dyn capabilities::MainLoopCapability,
+        maybe_closure: Option<&dyn Fn()>,
     ) -> ! {
         resources.watchdog().setup();
+
         // Before we begin, verify that deferred calls were soundly setup.
         DeferredCall::verify_setup();
         loop {
-            self.kernel_loop_operation(resources, chip, ipc, false, capability);
+            self.kernel_loop_operation(resources, chip, ipc, true, capability);
+            maybe_closure.map(|c| c());
         }
     }
 

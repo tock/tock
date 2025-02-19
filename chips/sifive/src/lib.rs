@@ -5,6 +5,7 @@
 //! Implementations for generic SiFive MCU peripherals.
 
 #![no_std]
+#![feature(generic_const_exprs)]
 #![crate_name = "sifive"]
 #![crate_type = "rlib"]
 

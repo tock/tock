@@ -9,20 +9,22 @@ use core::ptr::addr_of;
 
 use kernel::debug;
 use kernel::hil::time::Freq10MHz;
-use kernel::platform::chip::{Chip, InterruptService};
+use kernel::platform::chip::{Chip, ChipAtomic, InterruptService};
 
+use kernel::threadlocal::{DynThreadId, ThreadId};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable};
 
 use rv32i::csr::{mcause, mie::mie, mip::mip, CSR};
 
-use crate::plic::PLIC;
 use sifive::plic::Plic;
 
-use crate::interrupts;
+use crate::{interrupts, plic, clint, portal, MAX_CONTEXTS};
+use crate::uart::Uart16550;
+use crate::portal::QemuRv32VirtPortal;
 
 use virtio::transports::mmio::VirtIOMMIODevice;
 
-type QemuRv32VirtPMP = rv32i::pmp::PMPUserMPU<
+pub type QemuRv32VirtPMP = rv32i::pmp::PMPUserMPU<
     5,
     rv32i::pmp::kernel_protection_mml_epmp::KernelProtectionMMLEPMP<16, 5>,
 >;
@@ -32,20 +34,20 @@ pub type QemuRv32VirtClint<'a> = sifive::clint::Clint<'a, Freq10MHz>;
 pub struct QemuRv32VirtChip<'a, I: InterruptService + 'a> {
     userspace_kernel_boundary: rv32i::syscall::SysCall,
     pmp: QemuRv32VirtPMP,
-    plic: &'a Plic,
+    plic: &'a Plic<MAX_CONTEXTS>,
     timer: &'a QemuRv32VirtClint<'a>,
     plic_interrupt_service: &'a I,
 }
 
 pub struct QemuRv32VirtDefaultPeripherals<'a> {
-    pub uart0: crate::uart::Uart16550<'a>,
+    pub uart0: &'a Uart16550<'a>,
     pub virtio_mmio: [VirtIOMMIODevice; 8],
 }
 
-impl QemuRv32VirtDefaultPeripherals<'_> {
-    pub fn new() -> Self {
+impl<'a> QemuRv32VirtDefaultPeripherals<'a> {
+    pub fn new(uart0: &'a Uart16550<'a>) -> Self {
         Self {
-            uart0: crate::uart::Uart16550::new(crate::uart::UART0_BASE),
+            uart0,
             virtio_mmio: [
                 VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_0_BASE),
                 VirtIOMMIODevice::new(crate::virtio_mmio::VIRTIO_MMIO_1_BASE),
@@ -63,7 +65,9 @@ impl QemuRv32VirtDefaultPeripherals<'_> {
 impl InterruptService for QemuRv32VirtDefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
-            interrupts::UART0 => self.uart0.handle_interrupt(),
+            interrupts::UART0 => {
+                let _ = self.uart0.handle_interrupt();
+            }
             interrupts::VIRTIO_MMIO_0 => self.virtio_mmio[0].handle_interrupt(),
             interrupts::VIRTIO_MMIO_1 => self.virtio_mmio[1].handle_interrupt(),
             interrupts::VIRTIO_MMIO_2 => self.virtio_mmio[2].handle_interrupt(),
@@ -83,37 +87,70 @@ impl<'a, I: InterruptService + 'a> QemuRv32VirtChip<'a, I> {
         plic_interrupt_service: &'a I,
         timer: &'a QemuRv32VirtClint<'a>,
         pmp: rv32i::pmp::kernel_protection_mml_epmp::KernelProtectionMMLEPMP<16, 5>,
+        plic: &'a Plic<MAX_CONTEXTS>,
     ) -> Self {
         Self {
             userspace_kernel_boundary: rv32i::syscall::SysCall::new(),
             pmp: rv32i::pmp::PMPUserMPU::new(pmp),
-            plic: &*addr_of!(PLIC),
+            plic,
             timer,
             plic_interrupt_service,
         }
     }
 
+    pub unsafe fn disable_plic_interrupts(&self) {
+        let hart_id = CSR.mhartid.extract().get();
+        let context_id = hart_id * 2;
+        self.plic.disable_all(context_id);
+        self.plic.clear_all_pending(context_id);
+    }
+
     pub unsafe fn enable_plic_interrupts(&self) {
-        self.plic.disable_all();
-        self.plic.clear_all_pending();
-        self.plic.enable_all();
+        let hart_id = CSR.mhartid.extract().get();
+        let context_id = hart_id * 2;
+        self.plic.disable_all(context_id);
+        self.plic.clear_all_pending(context_id);
+        self.plic.enable_all(context_id);
     }
 
     unsafe fn handle_plic_interrupts(&self) {
+        let hart_id = CSR.mhartid.extract().get();
+        let context_id = hart_id * 2;
         while let Some(interrupt) = self.plic.get_saved_interrupts() {
             if !self.plic_interrupt_service.service_interrupt(interrupt) {
                 debug!("Pidx {}", interrupt);
             }
             self.atomic(|| {
-                self.plic.complete(interrupt);
+                self.plic.complete(context_id, interrupt);
             });
         }
+    }
+
+    fn has_portal_voyager(&self) -> bool {
+        let closure = |portal: &QemuRv32VirtPortal| -> bool {
+            portal.has_received()
+        };
+
+        unsafe { portal::with_portal_panic(closure) }
+    }
+
+    unsafe fn handle_portal_voyager(&self) {
+        let closure = |portal: &QemuRv32VirtPortal| {
+            portal.receive_voyager();
+
+            self.atomic(|| {
+                portal.received();
+            });
+        };
+
+        portal::with_portal_panic(closure);
     }
 }
 
 impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
     type MPU = QemuRv32VirtPMP;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
+
 
     fn mpu(&self) -> &Self::MPU {
         &self.pmp
@@ -130,14 +167,22 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
             if mip.is_set(mip::mtimer) {
                 self.timer.handle_interrupt();
             }
+
             if self.plic.get_saved_interrupts().is_some() {
                 unsafe {
                     self.handle_plic_interrupts();
                 }
             }
 
+            if self.has_portal_voyager() {
+                unsafe {
+                    self.handle_portal_voyager();
+                }
+            }
+
             if !mip.any_matching_bits_set(mip::mtimer::SET)
                 && self.plic.get_saved_interrupts().is_none()
+                && !self.has_portal_voyager()
             {
                 break;
             }
@@ -156,8 +201,8 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
             return true;
         }
 
-        // Then we can check the PLIC.
-        self.plic.get_saved_interrupts().is_some()
+        // Then we can check the PLIC and inter-core portal requests.
+        self.plic.get_saved_interrupts().is_some() || self.has_portal_voyager()
     }
 
     fn sleep(&self) {
@@ -166,11 +211,13 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
         }
     }
 
-    unsafe fn atomic<F, R>(&self, f: F) -> R
-    where
-        F: FnOnce() -> R,
-    {
-        rv32i::support::atomic(f)
+    fn notify(&self, id: &dyn ThreadId) {
+        self.timer.set_soft_interrupt(id.get_id());
+    }
+
+    fn id(&self) -> DynThreadId {
+        let hart_id = CSR.mhartid.extract().get();
+        unsafe { DynThreadId::new(hart_id) }
     }
 
     unsafe fn print_state(&self, writer: &mut dyn Write) {
@@ -178,6 +225,16 @@ impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
         let _ = writer.write_fmt(format_args!("{}", self.pmp.pmp));
     }
 }
+
+impl<'a, I: InterruptService + 'a> ChipAtomic for QemuRv32VirtChip<'a, I> {
+    unsafe fn atomic<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce() -> R,
+    {
+        rv32i::support::atomic(f)
+    }
+}
+
 
 fn handle_exception(exception: mcause::Exception) {
     match exception {
@@ -201,6 +258,8 @@ fn handle_exception(exception: mcause::Exception) {
     }
 }
 
+pub static mut COUNTER: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
+
 unsafe fn handle_interrupt(intr: mcause::Interrupt) {
     match intr {
         mcause::Interrupt::UserSoft
@@ -215,7 +274,20 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
         }
 
         mcause::Interrupt::MachineSoft => {
+            // Disable IPI
             CSR.mie.modify(mie::msoft::CLEAR);
+
+            let hart_id = CSR.mhartid.extract().get();
+
+            clint::with_clic_panic(|clic| {
+                clic.clear_soft_interrupt(hart_id);
+            });
+
+            portal::with_portal_panic(|portal| {
+                portal.receive_voyager_async();
+            });
+
+            CSR.mie.modify(mie::msoft::SET);
         }
         mcause::Interrupt::MachineTimer => {
             CSR.mie.modify(mie::mtimer::CLEAR);
@@ -224,25 +296,21 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             // We received an interrupt, disable interrupts while we handle them
             CSR.mie.modify(mie::mext::CLEAR);
 
+            let hart_id = CSR.mhartid.extract().get();
+            let context_id = hart_id * 2;
+
             // Claim the interrupt, unwrap() as we know an interrupt exists
             // Once claimed this interrupt won't fire until it's completed
             // NOTE: The interrupt is no longer pending in the PLIC
-            loop {
-                let interrupt = (*addr_of!(PLIC)).next_pending();
-
-                match interrupt {
-                    Some(irq) => {
-                        // Safe as interrupts are disabled
-                        (*addr_of!(PLIC)).save_interrupt(irq);
-                    }
-                    None => {
-                        // Enable generic interrupts
-                        CSR.mie.modify(mie::mext::SET);
-
-                        break;
-                    }
+            plic::with_plic_panic(|plic| {
+                while let Some(irq) = plic.next_pending(context_id) {
+                    // Safe as interrupts are disabled
+                    plic.save_interrupt(irq);
                 }
-            }
+            });
+
+            // Enable generic interrupts
+            CSR.mie.modify(mie::mext::SET);
         }
 
         mcause::Interrupt::Unknown => {

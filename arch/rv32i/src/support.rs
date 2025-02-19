@@ -6,7 +6,10 @@
 
 use crate::csr::{mstatus::mstatus, CSR};
 
-#[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
+use kernel::threadlocal::DynThreadId;
+use kernel::utilities::registers::interfaces::Readable;
+
+#[cfg(all(target_arch = "riscv32", target_os = "none"))]
 #[inline(always)]
 /// NOP instruction
 pub fn nop() {
@@ -47,6 +50,11 @@ where
     CSR.mstatus.read_and_set_bits(original_mie);
 
     res
+}
+
+#[inline(always)]
+pub fn current_hart_id() -> DynThreadId {
+    unsafe { DynThreadId::new(CSR.mhartid.extract().get()) }
 }
 
 // Mock implementations for tests on Travis-CI.

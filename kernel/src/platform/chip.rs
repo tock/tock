@@ -6,6 +6,7 @@
 
 use crate::platform::mpu;
 use crate::syscall;
+use crate::threadlocal;
 use core::fmt::Write;
 
 /// Interface for individual MCUs.
@@ -50,12 +51,11 @@ pub trait Chip {
     /// chip and resumes the scheduler.
     fn sleep(&self);
 
-    /// Run a function in an atomic state, which means that interrupts are
-    /// disabled so that an interrupt will not fire during the passed in
-    /// function's execution.
-    unsafe fn atomic<F, R>(&self, f: F) -> R
-    where
-        F: FnOnce() -> R;
+    /// Send a notification to another thread.
+    fn notify(&self, id: &dyn threadlocal::ThreadId);
+
+    /// Get id
+    fn id(&self) -> threadlocal::DynThreadId;
 
     /// Print out chip state (system registers) to a supplied
     /// writer. This does not print out the execution context
@@ -68,6 +68,16 @@ pub trait Chip {
     /// the Display trait.
     /// Used by panic.
     unsafe fn print_state(&self, writer: &mut dyn Write);
+}
+
+/// This is a separate trait as it is not trait object safe.
+pub trait ChipAtomic {
+    /// Run a function in an atomic state, which means that interrupts are
+    /// disabled so that an interrupt will not fire during the passed in
+    /// function's execution.
+    unsafe fn atomic<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce() -> R;
 }
 
 /// Interface for handling interrupts on a hardware chip.

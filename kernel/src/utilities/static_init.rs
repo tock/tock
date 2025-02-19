@@ -58,6 +58,30 @@ macro_rules! static_init {
 /// [`static_buf!()`](crate::static_buf) are hidden within calls to
 /// [`static_init!()`](crate::static_init) or component helper macros, so start
 /// your search there.
+
+#[macro_export]
+macro_rules! static_init_once {
+    ($T:ty, $e:expr $(,)?) => {{
+        static mut BUF: (core::mem::MaybeUninit<$T>, bool) =
+            (core::mem::MaybeUninit::uninit(), false);
+        if !BUF.1 {
+            BUF.1 = true;
+            BUF.0.write($e)
+        } else {
+            unsafe { BUF.0.assume_init_mut() }
+        }
+    }};
+}
+
+/// An `#[inline(never)]` function that panics internally if the passed reference
+/// is `true`. This function is intended for use within
+/// the `static_buf!()` macro, which removes the size bloat of track_caller
+/// saving the location of every single call to `static_init!()`.
+/// If you hit this panic, you are either calling `static_buf!()` in
+/// a loop or calling a function multiple times which internally
+/// contains a call to `static_buf!()`. Typically, calls to
+/// `static_buf!()` are hidden within calls to `static_init!()` or
+/// component helper macros, so start your search there.
 #[inline(never)]
 pub fn static_buf_check_used(used: &mut bool) {
     // Check if this `BUF` has already been declared and initialized. If it

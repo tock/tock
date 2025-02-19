@@ -121,6 +121,7 @@ pub mod processbuffer;
 pub mod scheduler;
 pub mod storage_permissions;
 pub mod syscall;
+pub mod threadlocal;
 pub mod upcall;
 pub mod utilities;
 
