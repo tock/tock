@@ -7,7 +7,7 @@ Dynamic Process Loading
 **Status:** Draft <br/>
 **Author:** Brad Campbell, Viswajith Govinda Rajan<br/>
 **Draft-Created:** 2025/02/12<br/>
-**Draft-Modified:** 2025/02/16<br/>
+**Draft-Modified:** 2025/02/19<br/>
 **Draft-Version:** 1<br/>
 **Draft-Discuss:** devel@lists.tockos.org<br/>
 
@@ -32,11 +32,10 @@ from the kernel, they can be updated or added while the Tock kernel continues
 normal operation. Tock provides an interface for supporting application installs
 at runtime.
 
-Dynamically adding applications is comprised of three operations:
+Dynamically adding applications is comprised of two operations:
 
 1. Storing the new process binary.
 2. Loading the new process binary into a Tock process.
-3. Aborting the storing operation.
 
 This TRD documents both interfaces. The first operation (i.e., storing the
 process binary) is particularly important as that functionality is introduced by
@@ -172,11 +171,18 @@ trait DynamicBinaryStoreClient {
 }
 ```
 
-The `setup()` call allows the implementation to allocate the needed resources to
-store the process binary. An implementation is responsible for storing
-individual chunks of the process binary. The `abort()` call deallocates the 
-resources and frees them up for a future process. Each operation may be 
-asynchronous and must generate a callback.
+There is a coupling between the `setup()` and `write()` calls.
+The `setup()` call allows the implementation to allocate the needed resources 
+to store the process binary. Because the kernel requires that it reserves the 
+resources required for the new binary before storing it, this method MUST be
+called before calling `write()`. An implementation is responsible for storing
+individual chunks of the process binary.
+
+The `abort()` call deallocates the resources and frees them up for a 
+future process. 
+
+Each operation may be asynchronous and must generate 
+a callback.
 
 The interface is intentionally general to support different underlying storage
 formats and storage media.
@@ -205,6 +211,21 @@ This interface does not mandate that the kernel capsule creates a new process.
 Implementations may include a policy for choosing whether to load a new process
 binary. The implementation must also use the board's chosen credential checking
 policy.
+
+---------------------------------
+
+The methods described for both the traits return a synchronous result to the 
+userland app. If the result is `Ok(())`, the operation requested operation can 
+be performed and the the userland app must wait for an asynchronous upcall 
+indicating the result of the operation. 
+If the result is a variant of `ErrorCode`, the kernel deallocates the 
+resources reserved for the new application and writes a padding application 
+in its stead. The userland application must request for resources with the 
+`setup()` command and restart the process once again. This method reduces 
+potential fragmentation due to problematic binaries.
+
+The exception to this is the `abort()` call, which allows for the userland 
+application to retry the command at a later time. 
 
 
 5 Sequential Process Loading Implementation
