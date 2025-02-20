@@ -43,6 +43,7 @@ pub enum NUM {
     LoRaPhyGPIO           = 0x30004,
     Thread                = 0x30005,
     Eui64                 = 0x30006,
+    EthernetTap           = 0x30007,
 
     // Cryptography
     Rng                   = 0x40001,
