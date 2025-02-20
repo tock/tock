@@ -35,7 +35,7 @@ pub enum NUM {
     I2cMasterSlave        = 0x20006,
     Can                   = 0x20007,
 
-    // Radio
+    // Networking
     BleAdvertising        = 0x30000,
     Ieee802154            = 0x30001,
     Udp                   = 0x30002,
