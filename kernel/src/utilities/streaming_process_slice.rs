@@ -138,7 +138,7 @@ impl<'a> StreamingProcessSlice<'a> {
     const RANGE_VERSION: Range<usize> = 0..2;
     const RANGE_FLAGS: Range<usize> = (Self::RANGE_VERSION.end)..(Self::RANGE_VERSION.end + 2);
     const RANGE_OFFSET: Range<usize> = (Self::RANGE_FLAGS.end)..(Self::RANGE_FLAGS.end + 4);
-    const RANGE_DATA: RangeFrom<usize> = (Self::RANGE_OFFSET.end + 1)..;
+    const RANGE_DATA: RangeFrom<usize> = (Self::RANGE_OFFSET.end)..;
 
     pub fn new(slice: &'a WriteableProcessSlice) -> StreamingProcessSlice<'a> {
         StreamingProcessSlice { slice }
