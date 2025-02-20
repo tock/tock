@@ -10,5 +10,10 @@ include = [
 [build]
 target = "thumbv7em-none-eabi"
 
+[features]
+default = ["screen_ssd1306"]
+screen_ssd1306 = []
+screen_sh1106 = []
+
 [unstable]
 config-include = true

@@ -11,20 +11,32 @@
 #![deny(missing_docs)]
 
 use core::ptr::addr_of_mut;
-use kernel::component::Component;
+
 use kernel::debug;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::static_init;
 use kernel::{capabilities, create_capability};
+use nrf52840dk_lib::{self, PROCESSES};
+
+use capsules_extra::screen::Screen;
+use core::cell::Cell;
+use kernel::component::Component;
+// use kernel::hil::screen::Screen;
+use core::ptr::addr_of;
+use kernel::scheduler::round_robin::RoundRobinSched;
+use kernel::static_init;
+use kernel::syscall::SyscallDriver;
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
-use nrf52840dk_lib::{self, PROCESSES};
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
+// Number of concurrent processes this platform supports.
+const NUM_PROCS: usize = 8;
+
+// type Screen = components::ssd1306::Ssd1306ComponentType<nrf52840::i2c::TWI<'static>>;
 type ScreenDriver = components::screen::ScreenComponentType;
 
 struct Platform {
@@ -33,6 +45,9 @@ struct Platform {
     ieee802154_driver: &'static nrf52840dk_lib::Ieee802154Driver,
     udp_driver: &'static capsules_extra::net::udp::UDPDriver<'static>,
     screen: &'static ScreenDriver, // add screen driver
+    scheduler: &'static RoundRobinSched<'static>,
+    //    soil_value: core::cell::Cell<u32>, //add parameter to store 'soil' from app 'soil-moisture-sensor'
+    // ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -56,7 +71,8 @@ impl KernelResources<Chip> for Platform {
     type SyscallDriverLookup = Self;
     type SyscallFilter = <nrf52840dk_lib::Platform as KernelResources<Chip>>::SyscallFilter;
     type ProcessFault = <nrf52840dk_lib::Platform as KernelResources<Chip>>::ProcessFault;
-    type Scheduler = <nrf52840dk_lib::Platform as KernelResources<Chip>>::Scheduler;
+    // type Scheduler = <nrf52840dk_lib::Platform as KernelResources<Chip>>::Scheduler;
+    type Scheduler = RoundRobinSched<'static>;
     type SchedulerTimer = <nrf52840dk_lib::Platform as KernelResources<Chip>>::SchedulerTimer;
     type WatchDog = <nrf52840dk_lib::Platform as KernelResources<Chip>>::WatchDog;
     type ContextSwitchCallback =
@@ -72,7 +88,8 @@ impl KernelResources<Chip> for Platform {
         self.base.process_fault()
     }
     fn scheduler(&self) -> &Self::Scheduler {
-        self.base.scheduler()
+        // self.base.scheduler()
+        self.scheduler
     }
     fn scheduler_timer(&self) -> &Self::SchedulerTimer {
         self.base.scheduler_timer()
@@ -101,8 +118,9 @@ pub unsafe fn main() {
 
     // set up circular peripheral dependencies
     nrf52840_peripherals.init();
+    let base_peripherals = &nrf52840_peripherals.nrf52;
 
-    let (board_kernel, base_platform, chip, nrf52840_peripherals, mux_alarm) =
+    let (board_kernel, base_platform, chip, default_peripherals, mux_alarm) =
         nrf52840dk_lib::start();
 
     //--------------------------------------------------------------------------
@@ -110,7 +128,7 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
 
     let (eui64_driver, ieee802154_driver, udp_driver) =
-        nrf52840dk_lib::ieee802154_udp(board_kernel, nrf52840_peripherals, mux_alarm);
+        nrf52840dk_lib::ieee802154_udp(board_kernel, default_peripherals, mux_alarm);
 
     //--------------------------------------------------------------------------
     // SCREEN INITIALIZATION
@@ -135,11 +153,11 @@ pub unsafe fn main() {
         .finalize(components::i2c_component_static!(nrf52840::i2c::TWI));
 
     // Create the ssd1306 object for the actual screen driver.
-    #[cfg(feature = "screen_ssd1306")]
-    let ssd1306_sh1106 = components::ssd1306::Ssd1306Component::new(ssd1306_sh1106_i2c, true)
-        .finalize(components::ssd1306_component_static!(nrf52840::i2c::TWI));
+    // #[cfg(feature = "screen_ssd1306")]
+    // let ssd1306_sh1106 = components::ssd1306::Ssd1306Component::new(ssd1306_sh1106_i2c, true)
+    //     .finalize(components::ssd1306_component_static!(nrf52840::i2c::TWI));
 
-    #[cfg(feature = "screen_sh1106")]
+    // #[cfg(feature = "screen_sh1106")]
     let ssd1306_sh1106 = components::sh1106::Sh1106Component::new(ssd1306_sh1106_i2c, true)
         .finalize(components::sh1106_component_static!(nrf52840::i2c::TWI));
 
@@ -153,6 +171,7 @@ pub unsafe fn main() {
 
     ssd1306_sh1106.init_screen();
 
+    //原本的application运行流程
     // These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -165,27 +184,107 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
-    kernel::process::load_processes(
+    // let process_management_capability =
+    //     create_capability!(capabilities::ProcessManagementCapability);
+    // kernel::process::load_processes(
+    //     board_kernel,
+    //     chip,
+    //     core::slice::from_raw_parts(
+    //         core::ptr::addr_of!(_sapps),
+    //         core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
+    //     ),
+    //     core::slice::from_raw_parts_mut(
+    //         core::ptr::addr_of_mut!(_sappmem),
+    //         core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
+    //     ),
+    //     &mut *addr_of_mut!(PROCESSES),
+    //     &FAULT_RESPONSE,
+    //     &process_management_capability,
+    // )
+    // .unwrap_or_else(|err| {
+    //     debug!("Error loading processes!");
+    //     debug!("{:?}", err);
+    // });
+
+    //--------------------------------------------------------------------------
+    // CAPABILITIES
+    //--------------------------------------------------------------------------
+
+    // Create capabilities that the board needs to call certain protected kernel
+    // functions.
+    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+
+    //--------------------------------------------------------------------------
+    // Credential Checking
+    //--------------------------------------------------------------------------
+
+    // Create the software-based SHA engine.
+    let sha = components::sha::ShaSoftware256Component::new()
+        .finalize(components::sha_software_256_component_static!());
+
+    // Create the credential checker.
+    let checking_policy = components::appid::checker_sha::AppCheckerSha256Component::new(sha)
+        .finalize(components::app_checker_sha256_component_static!());
+
+    // Create the AppID assigner.
+    let assigner = components::appid::assigner_name::AppIdAssignerNamesComponent::new()
+        .finalize(components::appid_assigner_names_component_static!());
+
+    // Create the process checking machine.
+    let checker = components::appid::checker::ProcessCheckerMachineComponent::new(checking_policy)
+        .finalize(components::process_checker_machine_component_static!());
+
+    //--------------------------------------------------------------------------
+    // STORAGE PERMISSIONS
+    //--------------------------------------------------------------------------
+
+    let storage_permissions_policy =
+        components::storage_permissions::null::StoragePermissionsNullComponent::new().finalize(
+            components::storage_permissions_null_component_static!(
+                nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+                kernel::process::ProcessStandardDebugFull,
+            ),
+        );
+
+    //--------------------------------------------------------------------------
+    // PROCESS LOADING
+    //--------------------------------------------------------------------------
+
+    // Create and start the asynchronous process loader.
+    let _loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
+        checker,
+        &mut *addr_of_mut!(PROCESSES),
         board_kernel,
         chip,
-        core::slice::from_raw_parts(
-            core::ptr::addr_of!(_sapps),
-            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-        ),
-        core::slice::from_raw_parts_mut(
-            core::ptr::addr_of_mut!(_sappmem),
-            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
-        ),
-        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
-        &process_management_capability,
+        assigner,
+        storage_permissions_policy,
     )
-    .unwrap_or_else(|err| {
-        debug!("Error loading processes!");
-        debug!("{:?}", err);
-    });
+    .finalize(components::process_loader_sequential_component_static!(
+        nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+        kernel::process::ProcessStandardDebugFull,
+        NUM_PROCS
+    ));
+
+    // 添加调试信息
+    for process in PROCESSES.iter() {
+        if let Some(proc) = process {
+            debug!(
+                "Process: name = {}, state = {:?}",
+                proc.get_process_name(),
+                proc.get_state(),
+            );
+        } else {
+            debug!("Empty process slot.");
+        }
+    }
+
+    //--------------------------------------------------------------------------
+    // PLATFORM SETUP, SCHEDULER, AND START KERNEL LOOP
+    //--------------------------------------------------------------------------
+
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
+        .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let platform = Platform {
         base: base_platform,
@@ -193,13 +292,27 @@ pub unsafe fn main() {
         ieee802154_driver,
         udp_driver,
         screen,
+        scheduler,
+        // ipc: kernel::ipc::IPC::new(
+        //     board_kernel,
+        //     kernel::ipc::DRIVER_NUM,
+        //     &memory_allocation_capability,
+        // ),
+        //       soil_value: core::cell::Cell::new(0),
     };
 
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
     board_kernel.kernel_loop(
         &platform,
         chip,
-        Some(&platform.base.ipc),
+        None::<&kernel::ipc::IPC<0>>,
         &main_loop_capability,
     );
+
+    // let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+    // board_kernel.kernel_loop(
+    //     &platform,
+    //     chip,
+    //     Some(&platform.base.ipc),
+    //     &main_loop_capability,
+    // );
 }

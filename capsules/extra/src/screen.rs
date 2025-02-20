@@ -16,9 +16,11 @@
 
 use core::cell::Cell;
 
+use kernel::debug;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
 use kernel::hil::screen::{ScreenPixelFormat, ScreenRotation};
+use kernel::hil::uart::Width;
 use kernel::processbuffer::ReadableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -202,6 +204,7 @@ impl<'a> Screen<'a> {
                 }
             }
             ScreenCommand::Fill => {
+                debug!("Entering Fill command processing...");
                 match self
                     .apps
                     .enter(process_id, |app, kernel_data| {
@@ -224,19 +227,29 @@ impl<'a> Screen<'a> {
                     })
                     .unwrap_or_else(|err| err.into())
                 {
-                    Err(e) => Err(e),
-                    Ok(()) => self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
-                        let len = self.fill_next_buffer_for_write(buffer);
-                        if len > 0 {
-                            let mut data = SubSliceMut::new(buffer);
-                            data.slice(..len);
-                            self.screen.write(data, false)
-                        } else {
-                            self.buffer.replace(buffer);
-                            self.run_next_command(kernel::errorcode::into_statuscode(Ok(())), 0, 0);
-                            Ok(())
-                        }
-                    }),
+                    Err(e) => {
+                        debug!("Error in fill: {:?}", e);
+                        Err(e)
+                    }
+                    Ok(()) => {
+                        debug!("Checking buffer before take: {:?}", self.buffer.is_some());
+                        self.buffer.take().map_or(Err(ErrorCode::NOMEM), |buffer| {
+                            debug!("Fill Buffer taken: {:?}", buffer);
+                            let len = self.fill_next_buffer_for_write(buffer);
+                            if len > 0 {
+                                let mut data = SubSliceMut::new(buffer);
+                                data.slice(..len);
+                                debug!("Calling self.screen.write() with {} bytes", len);
+                                debug!("SubSlice data created: {:?}", data);
+                                self.screen.write(data, false)
+                            } else {
+                                debug!("Buffer replaced: {:?}", buffer);
+                                self.buffer.replace(buffer);
+                                self.run_next_command(kernel::errorcode::into_statuscode(Ok(())), 0, 0);
+                                Ok(())
+                            }
+                        })
+                    }
                 }
             }
 
@@ -262,6 +275,7 @@ impl<'a> Screen<'a> {
                     .unwrap_or_else(|err| err.into())
                 {
                     Ok(()) => self.buffer.take().map_or(Err(ErrorCode::FAIL), |buffer| {
+                        debug!("Write Buffer taken: {:?}", buffer);
                         let len = self.fill_next_buffer_for_write(buffer);
                         if len > 0 {
                             let mut data = SubSliceMut::new(buffer);
@@ -287,6 +301,11 @@ impl<'a> Screen<'a> {
                     app.write_position = 0;
                     app.width = width;
                     app.height = height;
+
+                    debug!(
+                        "Kernel: Calling screen.set_write_frame with x: {}, y: {}, width: {}, height: {}",
+                        x, y, width, height
+                    );
 
                     self.screen.set_write_frame(x, y, width, height)
                 })
@@ -337,11 +356,16 @@ impl<'a> Screen<'a> {
     }
 
     fn fill_next_buffer_for_write(&self, buffer: &mut [u8]) -> usize {
+        debug!(
+            "fill_next_buffer_for_write() called, buffer size: {}",
+            buffer.len()
+        );
         self.current_process.map_or(0, |process_id| {
             self.apps
                 .enter(process_id, |app, kernel_data| {
                     let position = app.write_position;
                     let mut len = app.write_len;
+                    debug!("Filled buffer with {} bytes", len);
                     if position < len {
                         let buffer_size = buffer.len();
                         let chunk_number = position / buffer_size;
@@ -461,6 +485,7 @@ impl SyscallDriver for Screen<'_> {
         data2: usize,
         process_id: ProcessId,
     ) -> CommandReturn {
+        debug!("Kernel: screen capsule received syscall! command number = {command_num}");
         match command_num {
             // Driver existence check
             0 => CommandReturn::success(),
@@ -531,7 +556,9 @@ impl SyscallDriver for Screen<'_> {
 
             // Get Resolution
             23 => {
+                debug!("Kernel:Received Get Resolution Command!");
                 let (width, height) = self.screen.get_resolution();
+                debug!("Kernel: width:{}, height:{}", width, height);
                 CommandReturn::success_u32_u32(width as u32, height as u32)
             }
             // Set Resolution
@@ -555,19 +582,25 @@ impl SyscallDriver for Screen<'_> {
             }
 
             // Set Write Frame
-            100 => self.enqueue_command(
-                ScreenCommand::SetWriteFrame {
-                    x: (data1 >> 16) & 0xFFFF,
-                    y: data1 & 0xFFFF,
-                    width: (data2 >> 16) & 0xFFFF,
-                    height: data2 & 0xFFFF,
-                },
-                process_id,
-            ),
+            100 => {
+                debug!("Kernel: Set frame command received!");
+                self.enqueue_command(
+                    ScreenCommand::SetWriteFrame {
+                        x: (data1 >> 16) & 0xFFFF,
+                        y: data1 & 0xFFFF,
+                        width: (data2 >> 16) & 0xFFFF,
+                        height: data2 & 0xFFFF,
+                    },
+                    process_id,
+                )
+            }
             // Write
             200 => self.enqueue_command(ScreenCommand::Write(data1), process_id),
             // Fill
-            300 => self.enqueue_command(ScreenCommand::Fill, process_id),
+            300 => {
+                debug!("Kernel: Fill command received!");
+                self.enqueue_command(ScreenCommand::Fill, process_id)
+            }
 
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }

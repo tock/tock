@@ -12,6 +12,11 @@ edition.workspace = true
 [lib]
 name = "nrf52840dk_lib"
 
+[features]
+default = ["screen_ssd1306"]
+screen_ssd1306 = []
+screen_sh1106 = []
+
 [[bin]]
 name = "nrf52840dk"
 path = "src/main.rs"

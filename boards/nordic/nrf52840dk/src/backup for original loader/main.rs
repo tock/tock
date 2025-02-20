@@ -11,20 +11,32 @@
 #![deny(missing_docs)]
 
 use core::ptr::addr_of_mut;
-use kernel::component::Component;
+
 use kernel::debug;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::static_init;
 use kernel::{capabilities, create_capability};
+use nrf52840dk_lib::{self, PROCESSES};
+
+use capsules_extra::screen::Screen;
+use core::cell::Cell;
+use kernel::component::Component;
+// use kernel::hil::screen::Screen;
+use core::ptr::addr_of;
+use kernel::scheduler::round_robin::RoundRobinSched;
+use kernel::static_init;
+use kernel::syscall::SyscallDriver;
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
-use nrf52840dk_lib::{self, PROCESSES};
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
+// Number of concurrent processes this platform supports.
+const NUM_PROCS: usize = 8;
+
+// type Screen = components::ssd1306::Ssd1306ComponentType<nrf52840::i2c::TWI<'static>>;
 type ScreenDriver = components::screen::ScreenComponentType;
 
 struct Platform {
@@ -33,6 +45,8 @@ struct Platform {
     ieee802154_driver: &'static nrf52840dk_lib::Ieee802154Driver,
     udp_driver: &'static capsules_extra::net::udp::UDPDriver<'static>,
     screen: &'static ScreenDriver, // add screen driver
+                                   //    soil_value: core::cell::Cell<u32>, //add parameter to store 'soil' from app 'soil-moisture-sensor'
+                                   // ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -101,8 +115,9 @@ pub unsafe fn main() {
 
     // set up circular peripheral dependencies
     nrf52840_peripherals.init();
+    let base_peripherals = &nrf52840_peripherals.nrf52;
 
-    let (board_kernel, base_platform, chip, nrf52840_peripherals, mux_alarm) =
+    let (board_kernel, base_platform, chip, default_peripherals, mux_alarm) =
         nrf52840dk_lib::start();
 
     //--------------------------------------------------------------------------
@@ -110,7 +125,7 @@ pub unsafe fn main() {
     //--------------------------------------------------------------------------
 
     let (eui64_driver, ieee802154_driver, udp_driver) =
-        nrf52840dk_lib::ieee802154_udp(board_kernel, nrf52840_peripherals, mux_alarm);
+        nrf52840dk_lib::ieee802154_udp(board_kernel, default_peripherals, mux_alarm);
 
     //--------------------------------------------------------------------------
     // SCREEN INITIALIZATION
@@ -135,11 +150,11 @@ pub unsafe fn main() {
         .finalize(components::i2c_component_static!(nrf52840::i2c::TWI));
 
     // Create the ssd1306 object for the actual screen driver.
-    #[cfg(feature = "screen_ssd1306")]
-    let ssd1306_sh1106 = components::ssd1306::Ssd1306Component::new(ssd1306_sh1106_i2c, true)
-        .finalize(components::ssd1306_component_static!(nrf52840::i2c::TWI));
+    // #[cfg(feature = "screen_ssd1306")]
+    // let ssd1306_sh1106 = components::ssd1306::Ssd1306Component::new(ssd1306_sh1106_i2c, true)
+    //     .finalize(components::ssd1306_component_static!(nrf52840::i2c::TWI));
 
-    #[cfg(feature = "screen_sh1106")]
+    // #[cfg(feature = "screen_sh1106")]
     let ssd1306_sh1106 = components::sh1106::Sh1106Component::new(ssd1306_sh1106_i2c, true)
         .finalize(components::sh1106_component_static!(nrf52840::i2c::TWI));
 
@@ -153,6 +168,7 @@ pub unsafe fn main() {
 
     ssd1306_sh1106.init_screen();
 
+    //原本的application运行流程
     // These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -193,6 +209,12 @@ pub unsafe fn main() {
         ieee802154_driver,
         udp_driver,
         screen,
+        // ipc: kernel::ipc::IPC::new(
+        //     board_kernel,
+        //     kernel::ipc::DRIVER_NUM,
+        //     &memory_allocation_capability,
+        // ),
+        //       soil_value: core::cell::Cell::new(0),
     };
 
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);

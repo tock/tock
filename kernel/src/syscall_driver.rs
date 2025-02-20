@@ -7,10 +7,10 @@
 //! Drivers implement these interfaces to expose operations to processes.
 
 use crate::errorcode::ErrorCode;
-use crate::process;
 use crate::process::ProcessId;
 use crate::processbuffer::UserspaceReadableProcessBuffer;
 use crate::syscall::SyscallReturn;
+use crate::{debug, process};
 
 /// Possible return values of a `command` driver method, as specified in TRD104.
 ///
@@ -61,6 +61,7 @@ impl CommandReturn {
 
     /// Successful command with two additional 32-bit data fields
     pub fn success_u32_u32(data0: u32, data1: u32) -> Self {
+        debug!("receive data0:{}, data1:{}", data0, data1);
         CommandReturn(SyscallReturn::SuccessU32U32(data0, data1))
     }
 
@@ -124,6 +125,7 @@ pub trait SyscallDriver {
         r3: usize,
         process_id: ProcessId,
     ) -> CommandReturn {
+        debug!("--------Syscall invoked with command_num: {}", command_num);
         CommandReturn::failure(ErrorCode::NOSUPPORT)
     }
 
