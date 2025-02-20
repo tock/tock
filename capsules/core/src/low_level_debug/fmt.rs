@@ -82,7 +82,7 @@ impl core::fmt::Write for WriteAdapter<'_> {
         if let Some(slice) = self.buffer.get_mut(self.used..(self.used + msg.len())) {
             slice.copy_from_slice(msg.as_bytes());
             self.used += msg.len();
-        };
+        }
         Ok(())
     }
 }

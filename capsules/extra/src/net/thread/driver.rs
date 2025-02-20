@@ -231,7 +231,7 @@ impl<'a, A: time::Alarm<'a>> ThreadNetworkDriver<'a, A> {
                 self.state.replace(curr_state);
                 self.terminate_child_join(Err(ErrorCode::BUSY));
             }
-        };
+        }
     }
 
     fn thread_mle_send(
@@ -738,6 +738,6 @@ impl<'a, A: time::Alarm<'a>> CCMClient for ThreadNetworkDriver<'a, A> {
                     .map(|code| self.terminate_child_join(Err(code)));
             }
             _ => (),
-        };
+        }
     }
 }

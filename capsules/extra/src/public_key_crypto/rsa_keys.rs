@@ -304,7 +304,7 @@ impl<const L: usize> RsaPrivKey for RSAKeys<L> {
                 MutImutBuffer::Immutable(buf) => {
                     closure(buf);
                 }
-            };
+            }
             self.private_key.replace(private_key);
             Some(())
         } else {
@@ -332,7 +332,7 @@ impl<const L: usize> RsaPrivKeyMut for RSAKeys<L> {
                     closure(buf);
                 }
                 MutImutBuffer::Immutable(_buf) => unreachable!(),
-            };
+            }
             self.private_key.replace(private_key);
             Some(())
         } else {

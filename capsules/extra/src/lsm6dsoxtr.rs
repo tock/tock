@@ -445,7 +445,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm6dsoxtrI2C<'_, I> {
                     self.nine_dof_client.map(|client| {
                         client.callback(0, 0, 0);
                     });
-                };
+                }
                 self.buffer.replace(buffer);
                 self.i2c.disable();
                 self.state.set(State::Idle);
@@ -474,7 +474,7 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm6dsoxtrI2C<'_, I> {
                     self.nine_dof_client.map(|client| {
                         client.callback(0, 0, 0);
                     });
-                };
+                }
                 self.buffer.replace(buffer);
                 self.i2c.disable();
                 self.state.set(State::Idle);

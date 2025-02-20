@@ -438,7 +438,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                         }
                         return Err(e);
                     }
-                };
+                }
             }
 
             if self.find_key_offset(hash, region_data).is_ok() {
@@ -702,7 +702,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                         }
                         return Err(e);
                     }
-                };
+                }
             }
 
             match self.find_key_offset(hash, region_data) {
@@ -828,7 +828,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                         }
                         return Err(e);
                     }
-                };
+                }
             }
 
             match self.find_key_offset(hash, region_data) {
@@ -926,7 +926,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                         }
                         return Err(e);
                     }
-                };
+                }
             }
 
             match self.find_key_offset(hash, region_data) {
@@ -1005,7 +1005,7 @@ impl<'a, C: FlashController<S>, const S: usize> TicKV<'a, C, S> {
                     }
                     return Err(e);
                 }
-            };
+            }
         }
 
         let mut entry_found = false;

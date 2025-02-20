@@ -395,7 +395,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a, BusAddr8>, P: Pin> ST77XX<'a, A, B, P> {
                     self.width.set(self.screen.default_height);
                     self.height.set(self.screen.default_width);
                 }
-            };
+            }
             self.buffer.map_or_else(
                 || panic!("st77xx: set rotation has no buffer"),
                 |buffer| {
@@ -505,7 +505,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a, BusAddr8>, P: Pin> ST77XX<'a, A, B, P> {
                                 SendCommand::Slice(cmd, len) => {
                                     self.send_command_slice(cmd, len);
                                 }
-                            };
+                            }
                         },
                     );
                 } else {
@@ -614,7 +614,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a, BusAddr8>, P: Pin> ST77XX<'a, A, B, P> {
             _ => {
                 panic!("ST77XX status Idle");
             }
-        };
+        }
     }
 
     fn set_memory_frame(

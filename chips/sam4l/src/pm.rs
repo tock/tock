@@ -875,7 +875,7 @@ impl PowerManager {
                     match startup_mode {
                         OscillatorStartup::FastStart => scif::setup_osc_16mhz_fast_startup(),
                         OscillatorStartup::SlowStart => scif::setup_osc_16mhz_slow_startup(),
-                    };
+                    }
                 }
             }
         }
@@ -898,7 +898,7 @@ impl PowerManager {
                     match startup_mode {
                         OscillatorStartup::FastStart => scif::setup_osc_16mhz_fast_startup(),
                         OscillatorStartup::SlowStart => scif::setup_osc_16mhz_slow_startup(),
-                    };
+                    }
                 }
             }
         }

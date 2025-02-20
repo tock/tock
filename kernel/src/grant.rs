@@ -803,7 +803,7 @@ fn enter_grant_kernel_managed(
         Some(true) => { /* Allocated, nothing to do */ }
         Some(false) => return Err(ErrorCode::NOMEM),
         None => return Err(ErrorCode::FAIL),
-    };
+    }
 
     // Return early if no grant.
     let grant_base_ptr = process.enter_grant(grant_num).or(Err(ErrorCode::NOMEM))?;

@@ -1009,7 +1009,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> CCMClient for Framer<'a, M, A> {
                         };
                         self.rx_state.replace(other_state);
                     }
-                };
+                }
             });
         }
 

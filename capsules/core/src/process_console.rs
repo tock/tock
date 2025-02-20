@@ -1244,7 +1244,7 @@ impl<
                                             self.command_index.set(next_command_len);
                                             self.cursor.set(next_command_len);
                                             command[next_command_len] = EOL;
-                                        };
+                                        }
                                     });
                                 }
                                 EscKey::Left if cursor > 0 => {
@@ -1310,7 +1310,7 @@ impl<
                                     }
                                 }
                                 _ => {}
-                            };
+                            }
                         } else if read_buf[0] == NLINE || read_buf[0] == CR {
                             if (previous_byte == NLINE || previous_byte == CR)
                                 && previous_byte != read_buf[0]
@@ -1429,7 +1429,7 @@ impl<
                     "ProcessConsole issues reads of 1 byte, but receive_complete was length {}",
                     rx_len
                 ),
-            };
+            }
         }
         let _ = self.uart.receive_buffer(read_buf, 1);
     }

@@ -166,7 +166,7 @@ impl<'a, A: Alarm<'a>> Alarm<'a> for VirtualMuxAlarm<'a, A> {
             let expiration = reference.wrapping_add(dt);
             if !cur_alarm.within_range(reference, expiration) {
                 let next = self.mux.next_tick_vals.get();
-                if next.map_or(true, |(next_reference, next_dt)| {
+                if next.is_none_or(|(next_reference, next_dt)| {
                     now.within_range(next_reference, next_reference.wrapping_add(next_dt))
                 }) {
                     self.mux.set_alarm(reference, dt);

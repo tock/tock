@@ -584,7 +584,6 @@ impl Kernel {
                             // to break to handle the interrupt, continue
                             // executing this process, or switch to another
                             // process.
-                            continue;
                         }
                         None => {
                             // Something went wrong when switching to this

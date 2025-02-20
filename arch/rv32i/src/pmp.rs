@@ -183,7 +183,7 @@ impl TORRegionSpec {
             || (end as usize) % 4 != 0
             || (end as usize)
                 .checked_sub(start as usize)
-                .map_or(true, |size| size < 4)
+                .is_none_or(|size| size < 4)
         {
             None
         } else {

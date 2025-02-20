@@ -254,7 +254,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for UsbHidDriver<'a, U>
                         }
                     } else {
                         return CommandReturn::failure(ErrorCode::ALREADY);
-                    };
+                    }
 
                     // If we were able to setup a read then next we do the
                     // transmit.

@@ -65,7 +65,7 @@ impl<'a> OtbnRsa<'a> {
                             );
                         }
                         MutImutBuffer::Immutable(_) => unreachable!(),
-                    };
+                    }
                 });
             }
             MutImutBuffer::Immutable(exponent) => {
@@ -82,7 +82,7 @@ impl<'a> OtbnRsa<'a> {
                         });
                     }
                     MutImutBuffer::Mutable(_) => unreachable!(),
-                };
+                }
             }
         }
     }
@@ -112,7 +112,7 @@ impl<'a> crate::otbn::Client<'a> for OtbnRsa<'a> {
                             );
                         }
                         MutImutBuffer::Immutable(_) => unreachable!(),
-                    };
+                    }
                 });
             }
             MutImutBuffer::Immutable(exponent) => {
@@ -129,7 +129,7 @@ impl<'a> crate::otbn::Client<'a> for OtbnRsa<'a> {
                         });
                     }
                     MutImutBuffer::Mutable(_) => unreachable!(),
-                };
+                }
             }
         }
     }

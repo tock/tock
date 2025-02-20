@@ -743,7 +743,7 @@ impl<'a> USART<'a> {
                 usart.registers.brgr.write(BaudRate::CD.val(cd));
             }
             _ => {}
-        };
+        }
     }
 
     /// In non-SPI mode, this drives RTS low.

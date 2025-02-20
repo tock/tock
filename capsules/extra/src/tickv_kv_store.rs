@@ -365,7 +365,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: KeyType> KVSystemClient<T> for TicKVKVStore<
                                     cb.delete_complete(Err(ErrorCode::FAIL), unhashed_key);
                                 });
                             }
-                        };
+                        }
                     }
                     Operation::GarbageCollect => {}
                 }
