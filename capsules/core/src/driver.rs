@@ -35,7 +35,7 @@ pub enum NUM {
     I2cMasterSlave        = 0x20006,
     Can                   = 0x20007,
 
-    // Radio
+    // Networking
     BleAdvertising        = 0x30000,
     Ieee802154            = 0x30001,
     Udp                   = 0x30002,
@@ -43,6 +43,7 @@ pub enum NUM {
     LoRaPhyGPIO           = 0x30004,
     Thread                = 0x30005,
     Eui64                 = 0x30006,
+    EthernetTap           = 0x30007,
 
     // Cryptography
     Rng                   = 0x40001,
