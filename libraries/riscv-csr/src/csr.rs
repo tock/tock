@@ -17,6 +17,7 @@ pub const MCYCLE: usize = 0xB00;
 pub const MIE: usize = 0x304;
 pub const MTVEC: usize = 0x305;
 pub const MSTATUS: usize = 0x300;
+pub const MHARTID: usize = 0xF14;
 pub const UTVEC: usize = 0x005;
 pub const STVEC: usize = 0x105;
 pub const MSCRATCH: usize = 0x340;

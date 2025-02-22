@@ -240,7 +240,7 @@ impl<'a> Uart16550<'a> {
     }
 }
 
-impl Uart16550<'_> {
+impl<'a> Uart16550<'a> {
     pub fn handle_interrupt(&self) {
         // Currently we can only receive a tx interrupt, however we
         // need to check the interrupt cause nonetheless as this will

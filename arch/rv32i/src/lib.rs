@@ -7,8 +7,13 @@
 #![crate_name = "rv32i"]
 #![crate_type = "rlib"]
 #![no_std]
+#![feature(asm_const)]
+#![feature(naked_functions)]
 
 use core::fmt::Write;
+
+#[cfg(all(target_arch = "riscv32", target_os = "none"))]
+use core::arch::{asm, global_asm};
 
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 
@@ -59,8 +64,11 @@ extern "C" {
     pub fn _start();
 }
 
+pub static mut INITIALIZED: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
+pub static mut INITIALIZED_ACK: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
+
 #[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
-core::arch::global_asm!("
+global_asm! ("
             .section .riscv.start, \"ax\"
             .globl _start
           _start:
@@ -85,62 +93,81 @@ core::arch::global_asm!("
             // Re-enable linker relaxations.
             .option pop
 
-            // Initialize the stack pointer register. This comes directly from
-            // the linker script.
-            la sp, {estack}             // Set the initial stack pointer.
+            // We choose core 0 to initialize memory and be responsible to notify other
+            // cores that they are safe to go. If the current core is core 0, we jump directly
+            // to begin memory initialization.
+            csrr a0, mhartid
+            beqz a0, 002f
 
-            // Set s0 (the frame pointer) to the start of the stack.
-            add  s0, sp, zero           // s0 = sp
+            // Initialize the flag into a well-known state. It is safe to initialize it multiple
+            // times as core 0 (boot core) will continuously notify the completion of the boot
+            // routine until it receives an acknowledgment.
+            // TODO: for more than 2 cores, we should atomically increase the ACK counter.
+            la a0, {initialized}
+            sw zero, 0(a0) // Initialize the flag
 
-            // Initialize mscratch to 0 so that we know that we are currently
-            // in the kernel. This is used for the check in the trap handler.
-            csrw 0x340, zero            // CSR=0x340=mscratch
+          001: // Loop until the completion of the initialization routine
+            lw a0, {initialized}
+            beqz a0, 001b                // Boot routine unfinished, check again.
+
+            la a1, {initialized_ack}     // Boot routine completed, ack and jump to entry.
+            li a2, 1
+            sw a2, 0(a1)
+            j entry
+
+          002: // Memory initialize begin
 
             // INITIALIZE MEMORY
 
-            // Start by initializing .bss memory. The Tock linker script defines
-            // `_szero` and `_ezero` to mark the .bss segment.
-            la a0, {sbss}               // a0 = first address of .bss
-            la a1, {ebss}               // a1 = first address after .bss
+            // First lock the region by marking the last word non-zero.
+            la a0, {ebss}               // a0 = first address after .bss.
+            li a1, 1                    // a1 = non-zero value.
+            sw a1, -4(a0)               // Store a non-zero value to the last word of .bss.
 
-          100: // bss_init_loop
-            beq  a0, a1, 101f           // If a0 == a1, we are done.
-            sw   zero, 0(a0)            // *a0 = 0. Write 0 to the memory location in a0.
-            addi a0, a0, 4              // a0 = a0 + 4. Increment pointer to next word.
-            j 100b                      // Continue the loop.
-
-          101: // bss_init_done
-
-
-            // Now initialize .data memory. This involves coping the values right at the
-            // end of the .text section (in flash) into the .data section (in RAM).
+            // Start by initializing .data memory. This involves coping the values right
+            // at the end of the .text section (in flash) into the .data section (in RAM).
             la a0, {sdata}              // a0 = first address of data section in RAM
             la a1, {edata}              // a1 = first address after data section in RAM
             la a2, {etext}              // a2 = address of stored data initial values
 
-          200: // data_init_loop
-            beq  a0, a1, 201f           // If we have reached the end of the .data
+          100: // data_init_loop
+            beq  a0, a1, 101f           // If we have reached the end of the .data
                                         // section then we are done.
             lw   a3, 0(a2)              // a3 = *a2. Load value from initial values into a3.
             sw   a3, 0(a0)              // *a0 = a3. Store initial value into
                                         // next place in .data.
             addi a0, a0, 4              // a0 = a0 + 4. Increment to next word in memory.
             addi a2, a2, 4              // a2 = a2 + 4. Increment to next word in flash.
+            j 100b                      // Continue the loop.
+
+          101: // data_init_done
+
+            // Now initialize .bss memory. The Tock linker script defines
+            // `_szero` and `_ezero` to mark the .bss segment.
+            la a0, {sbss}               // a0 = first address of .bss
+            la a1, {ebss}               // a1 = first address after .bss
+
+          200: // bss_init_loop
+            beq  a0, a1, 201f           // If a0 == a1, we are done.
+            sw   zero, 0(a0)            // *a0 = 0. Write 0 to the memory location in a0.
+            addi a0, a0, 4              // a0 = a0 + 4. Increment pointer to next word.
             j 200b                      // Continue the loop.
 
-          201: // data_init_done
+          201: // bss_init_done
 
-            // With that initial setup out of the way, we now branch to the main
+            // With that initial setup out of the way, we now branch to the entry
             // code, likely defined in a board's main.rs.
-            j main
+            csrr a0, mhartid
+            j entry
         ",
 gp = sym __global_pointer,
-estack = sym _estack,
 sbss = sym _szero,
 ebss = sym _ezero,
 sdata = sym _srelocate,
 edata = sym _erelocate,
 etext = sym _etext,
+initialized = sym INITIALIZED,
+initialized_ack = sym INITIALIZED_ACK,
 );
 
 /// The various privilege levels in RISC-V.
@@ -527,13 +554,14 @@ pub unsafe fn print_riscv_state(writer: &mut dyn Write) {
          \r\nSystem register dump:\
          \r\n mepc:    {:#010X}    mstatus:     {:#010X}\
          \r\n mcycle:  {:#010X}    minstret:    {:#010X}\
-         \r\n mtvec:   {:#010X}",
+         \r\n mtvec:   {:#010X}    mhartid:     {:#010X}",
         csr::CSR.mtval.get(),
         csr::CSR.mepc.get(),
         csr::CSR.mstatus.get(),
         csr::CSR.mcycle.get(),
         csr::CSR.minstret.get(),
-        csr::CSR.mtvec.get()
+        csr::CSR.mtvec.get(),
+        csr::CSR.mhartid.get(),
     ));
     let mstatus = csr::CSR.mstatus.extract();
     let uie = mstatus.is_set(csr::mstatus::mstatus::uie);

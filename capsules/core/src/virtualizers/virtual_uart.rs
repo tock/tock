@@ -246,7 +246,7 @@ impl<'a> MuxUart<'a> {
                             Err((ecode, buf)) => {
                                 node.tx_client.map(move |client| {
                                     node.transmitting.set(false);
-                                    client.transmitted_buffer(buf, 0, Err(ecode));
+                                    client.transmitted_buffer(buf, len, Err(ecode));
                                 });
                             }
                         },

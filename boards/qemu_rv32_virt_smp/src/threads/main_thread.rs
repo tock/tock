@@ -1,17 +1,3 @@
-// Licensed under the Apache License, Version 2.0 or the MIT License.
-// SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2022.
-
-//! Board file for qemu-system-riscv32 "virt" machine type
-
-#![no_std]
-// Disable this attribute when documenting, as a workaround for
-// https://github.com/rust-lang/rust/issues/62184.
-#![cfg_attr(not(doc), no_main)]
-
-use core::ptr::addr_of;
-use core::ptr::addr_of_mut;
-
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
 use kernel::component::Component;
@@ -20,35 +6,44 @@ use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::KernelResources;
 use kernel::platform::SyscallDriverLookup;
 use kernel::scheduler::cooperative::CooperativeSched;
+use kernel::threadlocal::{
+    ConstThreadId,
+    ThreadLocalDyn
+};
 use kernel::utilities::registers::interfaces::ReadWriteable;
+use kernel::collections::atomic_ring_buffer::AtomicRingBuffer;
+use kernel::collections::ring_buffer::RingBuffer;
 use kernel::{create_capability, debug, static_init};
+
+use kernel::threadlocal::DynThreadId;
+
 use qemu_rv32_virt_chip::chip::{QemuRv32VirtChip, QemuRv32VirtDefaultPeripherals};
+use qemu_rv32_virt_chip::{MAX_THREADS, MAX_CONTEXTS};
+
 use rv32i::csr;
 
-pub mod io;
+use core::ptr::{addr_of, addr_of_mut};
 
-pub const NUM_PROCS: usize = 4;
+use crate::CHIP;
+use crate::PortalInstanceKey;
+
+const NUM_PROCS: usize = 4;
 
 // Actual memory for holding the active process structures. Need an empty list
 // at least.
-static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
+pub static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
     [None; NUM_PROCS];
 
-// Reference to the chip for panic dumps.
-static mut CHIP: Option<&'static QemuRv32VirtChip<QemuRv32VirtDefaultPeripherals>> = None;
-
 // Reference to the process printer for panic dumps.
-static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
+pub static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
     None;
 
 // How should the kernel respond when a process faults.
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
-/// Dummy buffer that causes the linker to reserve enough space for the stack.
-#[no_mangle]
-#[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x8000] = [0; 0x8000];
+use core::sync::atomic::{AtomicBool, Ordering};
+pub static mut APP_THREAD_READY: AtomicBool = AtomicBool::new(false);
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
@@ -148,17 +143,9 @@ impl
     }
 }
 
-/// This is in a separate, inline(never) function so that its stack frame is
-/// removed when this function returns. Otherwise, the stack space used for
-/// these static_inits is wasted.
-#[inline(never)]
-unsafe fn start() -> (
-    &'static kernel::Kernel,
-    QemuRv32VirtPlatform,
-    &'static qemu_rv32_virt_chip::chip::QemuRv32VirtChip<
-        'static,
-        QemuRv32VirtDefaultPeripherals<'static>,
-    >,
+pub unsafe fn spawn<const ID: usize>(
+    channel: &'static AtomicRingBuffer<qemu_rv32_virt_chip::portal::QemuRv32VirtVoyagerReference>,
+    has_app_thread: bool,
 ) {
     // These symbols are defined in the linker script.
     extern "C" {
@@ -184,18 +171,12 @@ unsafe fn start() -> (
         static _esram: u8;
     }
 
+    let id = ConstThreadId::<ID>::new();
+
     // ---------- BASIC INITIALIZATION -----------
 
-    // Basic setup of the RISC-V IMAC platform
+    // basic setup of the risc-v imac platform
     rv32i::configure_trap_handler();
-
-    // Initialize the kernel's deferred call infrastructure for a
-    // single-threaded platform configuration:
-    let deferred_call_state = static_init!(
-	kernel::threadlocal::SingleThread<kernel::deferred_call::ThreadLocalDeferredCallState>,
-	kernel::threadlocal::SingleThread::new(kernel::deferred_call::DEFAULT_DEFERRED_CALL_STATE),
-    );
-    kernel::deferred_call::initialize_global_deferred_call_state(deferred_call_state);
 
     // Set up memory protection immediately after setting the trap handler, to
     // ensure that much of the board initialization routine runs with ePMP
@@ -235,22 +216,131 @@ unsafe fn start() -> (
     // Acquire required capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let main_loop_cap = create_capability!(capabilities::MainLoopCapability);
 
-    // Create a board kernel instance
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
+    let board_kernel = static_init!(
+        kernel::Kernel,
+        kernel::Kernel::new(&*addr_of!(PROCESSES))
+    );
+
+    // ---------- QEMU-SYSTEM-RISCV32 "virt" MACHINE THREAD LOCALS ----------
+
+    // Initialize the kernel's platform-level interrupt controller
+    qemu_rv32_virt_chip::plic::set_global_plic(static_init!(
+        qemu_rv32_virt_chip::QemuRv32VirtThreadLocal<Option<sifive::plic::Plic<MAX_CONTEXTS>>>,
+        qemu_rv32_virt_chip::QemuRv32VirtThreadLocal::new([
+            const { None }; MAX_THREADS
+        ]),
+    ));
+    qemu_rv32_virt_chip::plic::init_plic();
+
+    // Initialize the kernel's core-local interrupt controller
+    qemu_rv32_virt_chip::clint::set_global_clic(static_init!(
+        qemu_rv32_virt_chip::QemuRv32VirtThreadLocal<Option<qemu_rv32_virt_chip::chip::QemuRv32VirtClint>>,
+        qemu_rv32_virt_chip::QemuRv32VirtThreadLocal::new([
+            const { None }; MAX_THREADS
+        ]),
+    ));
+    qemu_rv32_virt_chip::clint::init_clic();
+
+    // Initialize the kernel's deferred call infrastructure
+    kernel::deferred_call::initialize_global_deferred_call_state(static_init!(
+        qemu_rv32_virt_chip::QemuRv32VirtThreadLocal<kernel::deferred_call::ThreadLocalDeferredCallState>,
+        qemu_rv32_virt_chip::QemuRv32VirtThreadLocal::init(kernel::deferred_call::DEFAULT_DEFERRED_CALL_STATE),
+    ));
+
+    // Initial setup for global debugger writters
+    kernel::debug::set_debug_writer_wrappers(static_init!(
+        qemu_rv32_virt_chip::QemuRv32VirtThreadLocal<kernel::debug::DebugWriterWrapper>,
+        qemu_rv32_virt_chip::QemuRv32VirtThreadLocal::new([
+            const { kernel::debug::DebugWriterWrapper::empty() }; MAX_THREADS
+        ]),
+    ));
+
+    // Initial setup for the thread local rv32 portal entrances
+    qemu_rv32_virt_chip::portal::set_portal(static_init!(
+        qemu_rv32_virt_chip::QemuRv32VirtThreadLocal<kernel::utilities::cells::OptionalCell<&'static qemu_rv32_virt_chip::portal::QemuRv32VirtPortal>>,
+        qemu_rv32_virt_chip::QemuRv32VirtThreadLocal::new([
+            const { kernel::utilities::cells::OptionalCell::empty() }; MAX_THREADS
+        ]),
+    ));
+
+    // Initialize the local portal entrance
+    let hw_portal = static_init!(
+        qemu_rv32_virt_chip::portal::QemuRv32VirtPortal,
+        qemu_rv32_virt_chip::portal::QemuRv32VirtPortal::new(
+            channel,
+            unsafe { DynThreadId::new(1) },
+            static_init!(
+                qemu_rv32_virt_chip::portal::QemuRv32VirtVoyager,
+                qemu_rv32_virt_chip::portal::QemuRv32VirtVoyager::Empty,
+            )
+        )
+    );
+
+    qemu_rv32_virt_chip::portal::init_portal_panic(hw_portal);
+
 
     // ---------- QEMU-SYSTEM-RISCV32 "virt" MACHINE PERIPHERALS ----------
 
+    // Initialize the hardware UART device
+    let hardware_uart = static_init!(
+        qemu_rv32_virt_chip::uart::Uart16550,
+        qemu_rv32_virt_chip::uart::Uart16550::new(qemu_rv32_virt_chip::uart::UART0_BASE),
+    );
+
     let peripherals = static_init!(
         QemuRv32VirtDefaultPeripherals,
-        QemuRv32VirtDefaultPeripherals::new(),
+        QemuRv32VirtDefaultPeripherals::new(hardware_uart),
     );
 
     // Create a shared UART channel for the console and for kernel
     // debug over the provided memory-mapped 16550-compatible
     // UART.
-    let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(peripherals.uart0, 115200)
         .finalize(components::uart_mux_component_static!());
+
+    // Set up a portal server and connect to to the UART multiplexer
+    use capsules_core::virtualizers::virtual_uart::UartDevice;
+    let uart_device = static_init!(
+        UartDevice,
+        UartDevice::new(uart_mux, false)
+    );
+    uart_device.setup();
+
+    use capsules_core::portals::teleportable_uart::UartPortal;
+    let uart_portal = static_init!(
+        UartPortal,
+        UartPortal::new(uart_device),
+    );
+    hil::uart::Transmit::set_transmit_client(uart_device, uart_portal);
+
+
+    // ---------- Creating a demux portal and deivce -----
+    use capsules_core::portals::mux_demux::{DemuxPortal, DemuxPortalDevice, DemuxDevice};
+    use capsules_core::portals::teleportable_uart::UartTraveler;
+    use kernel::hil::portal::Portal;
+
+    let demux_portal = static_init!(
+        DemuxPortal,
+        DemuxPortal::new(),
+    );
+    hil::portal::Portal::set_portal_client(demux_portal, hw_portal);
+
+    let uart_portal_device = static_init!(
+        DemuxPortalDevice,
+        DemuxPortalDevice::new(
+            (uart_portal as &dyn Portal<UartTraveler>).into(),
+            demux_portal,
+            PortalInstanceKey::AppKernelUart as usize,
+        ),
+    );
+    uart_portal_device.setup();
+    hil::portal::Portal::set_portal_client(uart_portal, uart_portal_device);
+
+    hw_portal.set_downstream_portal(demux_portal);
+    // ------------ End of setting a demux portal -----------------
+
 
     // Use the RISC-V machine timer timesource
     let hardware_timer = static_init!(
@@ -299,15 +389,15 @@ unsafe fn start() -> (
     // Collect supported VirtIO peripheral indicies and initialize them if they
     // are found. If there are two instances of a supported peripheral, the one
     // on a higher-indexed VirtIO transport is used.
-    let (mut virtio_net_idx, mut virtio_rng_idx) = (None, None);
+    let (mut virtio_net_IDx, mut virtio_rng_IDx) = (None, None);
     for (i, virtio_device) in peripherals.virtio_mmio.iter().enumerate() {
         use qemu_rv32_virt_chip::virtio::devices::VirtIODeviceType;
         match virtio_device.query() {
             Some(VirtIODeviceType::NetworkCard) => {
-                virtio_net_idx = Some(i);
+                virtio_net_IDx = Some(i);
             }
             Some(VirtIODeviceType::EntropySource) => {
-                virtio_rng_idx = Some(i);
+                virtio_rng_IDx = Some(i);
             }
             _ => (),
         }
@@ -320,7 +410,7 @@ unsafe fn start() -> (
             'static,
             qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng<'static, 'static>,
         >,
-    > = if let Some(rng_idx) = virtio_rng_idx {
+    > = if let Some(rng_IDx) = virtio_rng_IDx {
         use kernel::hil::rng::Rng;
         use qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng;
         use qemu_rv32_virt_chip::virtio::queues::split_queue::{
@@ -330,7 +420,7 @@ unsafe fn start() -> (
         use qemu_rv32_virt_chip::virtio::transports::VirtIOTransport;
 
         // EntropySource requires a single Virtqueue for retrieved entropy
-        let descriptors = static_init!(VirtqueueDescriptors<1>, VirtqueueDescriptors::default(),);
+        let descriptors = static_init!(VirtqueueDescriptors<1>, VirtqueueDescriptors::default());
         let available_ring =
             static_init!(VirtqueueAvailableRing<1>, VirtqueueAvailableRing::default(),);
         let used_ring = static_init!(VirtqueueUsedRing<1>, VirtqueueUsedRing::default(),);
@@ -338,7 +428,7 @@ unsafe fn start() -> (
             SplitVirtqueue<1>,
             SplitVirtqueue::new(descriptors, available_ring, used_ring),
         );
-        queue.set_transport(&peripherals.virtio_mmio[rng_idx]);
+        queue.set_transport(&peripherals.virtio_mmio[rng_IDx]);
 
         // VirtIO EntropySource device driver instantiation
         let rng = static_init!(VirtIORng, VirtIORng::new(queue));
@@ -348,14 +438,14 @@ unsafe fn start() -> (
         // Register the queues and driver with the transport, so interrupts
         // are routed properly
         let mmio_queues = static_init!([&'static dyn Virtqueue; 1], [queue; 1]);
-        peripherals.virtio_mmio[rng_idx]
+        peripherals.virtio_mmio[rng_IDx]
             .initialize(rng, mmio_queues)
             .unwrap();
 
         // Provide an internal randomness buffer
         let rng_buffer = static_init!([u8; 64], [0; 64]);
         rng.provide_buffer(rng_buffer)
-            .expect("rng: providing initial buffer failed");
+            .expect("rng: provIDing initial buffer failed");
 
         // Userspace RNG driver over the VirtIO EntropySource
         let rng_driver = static_init!(
@@ -373,6 +463,7 @@ unsafe fn start() -> (
         None
     };
 
+
     // If there is a VirtIO NetworkCard present, use the appropriate VirtIONet
     // driver. Currently this is not used, as work on the userspace network
     // driver and kernel network stack is in progress.
@@ -381,7 +472,7 @@ unsafe fn start() -> (
     // interface.
     let _virtio_net_if: Option<
         &'static qemu_rv32_virt_chip::virtio::devices::virtio_net::VirtIONet<'static>,
-    > = if let Some(net_idx) = virtio_net_idx {
+    > = if let Some(net_IDx) = virtio_net_IDx {
         use qemu_rv32_virt_chip::virtio::devices::virtio_net::VirtIONet;
         use qemu_rv32_virt_chip::virtio::queues::split_queue::{
             SplitVirtqueue, VirtqueueAvailableRing, VirtqueueDescriptors, VirtqueueUsedRing,
@@ -404,7 +495,7 @@ unsafe fn start() -> (
             SplitVirtqueue<2>,
             SplitVirtqueue::new(tx_descriptors, tx_available_ring, tx_used_ring),
         );
-        tx_queue.set_transport(&peripherals.virtio_mmio[net_idx]);
+        tx_queue.set_transport(&peripherals.virtio_mmio[net_IDx]);
 
         // RX Virtqueue
         let rx_descriptors =
@@ -416,7 +507,7 @@ unsafe fn start() -> (
             SplitVirtqueue<2>,
             SplitVirtqueue::new(rx_descriptors, rx_available_ring, rx_used_ring),
         );
-        rx_queue.set_transport(&peripherals.virtio_mmio[net_idx]);
+        rx_queue.set_transport(&peripherals.virtio_mmio[net_IDx]);
 
         // Incoming and outgoing packets are prefixed by a 12-byte
         // VirtIO specific header
@@ -446,7 +537,7 @@ unsafe fn start() -> (
         // Register the queues and driver with the transport, so
         // interrupts are routed properly
         let mmio_queues = static_init!([&'static dyn Virtqueue; 2], [rx_queue, tx_queue]);
-        peripherals.virtio_mmio[net_idx]
+        peripherals.virtio_mmio[net_IDx]
             .initialize(virtio_net, mmio_queues)
             .unwrap();
 
@@ -465,20 +556,30 @@ unsafe fn start() -> (
 
     // ---------- INITIALIZE CHIP, ENABLE INTERRUPTS ---------
 
+    // Escape nonreentrant to get static mut
+    // TODO: impl interrupt trait for threadloca construct to avoid this soundness violation.
+    let plic = qemu_rv32_virt_chip::plic::with_plic_panic(|plic| &*(plic as *mut _));
+
     let chip = static_init!(
         QemuRv32VirtChip<QemuRv32VirtDefaultPeripherals>,
-        QemuRv32VirtChip::new(peripherals, hardware_timer, epmp),
+        QemuRv32VirtChip::new(peripherals, hardware_timer, epmp, plic),
     );
-    CHIP = Some(chip);
+
+    let threadlocal_chip = *core::ptr::addr_of_mut!(CHIP);
+    threadlocal_chip
+        .get_mut()
+        .map(|clocal| clocal.enter_nonreentrant(|c| c.replace(chip)))
+        .expect("This thread cannot access thread-local chip construct");
 
     // Need to enable all interrupts for Tock Kernel
     chip.enable_plic_interrupts();
 
-    // enable interrupts globally
+    // Enable interrupts globally
     csr::CSR
         .mie
         .modify(csr::mie::mie::mext::SET + csr::mie::mie::msoft::SET + csr::mie::mie::mtimer::SET);
     csr::CSR.mstatus.modify(csr::mstatus::mstatus::mie::SET);
+
 
     // ---------- FINAL SYSTEM INITIALIZATION ----------
 
@@ -506,6 +607,7 @@ unsafe fn start() -> (
         uart_mux,
     )
     .finalize(components::console_component_static!());
+
     // Create the debugger object that handles calls to `debug!()`.
     components::debug_writer::DebugWriterComponent::new(uart_mux)
         .finalize(components::debug_writer_component_static!());
@@ -517,9 +619,8 @@ unsafe fn start() -> (
     )
     .finalize(components::low_level_debug_component_static!());
 
-    let scheduler =
-        components::sched::cooperative::CooperativeComponent::new(&*addr_of!(PROCESSES))
-            .finalize(components::cooperative_component_static!(NUM_PROCS));
+    let scheduler = components::sched::cooperative::CooperativeComponent::new(&*addr_of!(PROCESSES))
+        .finalize(components::cooperative_component_static!(NUM_PROCS));
 
     let scheduler_timer = static_init!(
         VirtualSchedulerTimer<
@@ -544,10 +645,21 @@ unsafe fn start() -> (
     };
 
     // Start the process console:
-    let _ = platform.pconsole.start();
+    // let _ = platform.pconsole.start();
 
-    debug!("QEMU RISC-V 32-bit \"virt\" machine, initialization complete.");
-    debug!("Entering main loop.");
+    if has_app_thread {
+        use rv32i::{INITIALIZED, INITIALIZED_ACK};
+        while INITIALIZED_ACK.load(Ordering::SeqCst) != 1 {
+            INITIALIZED.store(1, Ordering::SeqCst);
+        }
+
+        // Block until the app thread kernel is initialized.
+        while !APP_THREAD_READY.load(Ordering::SeqCst) {}
+    }
+
+    debug!("QEMU RISC-V 32-bit {MAX_THREADS}-SMP \"virt\" machine core {ID}, initialization complete.");
+    debug!("Entering main kernel loop.");
+
 
     // ---------- PROCESS LOADING, SCHEDULER LOOP ----------
 
@@ -571,14 +683,12 @@ unsafe fn start() -> (
         debug!("{:?}", err);
     });
 
-    (board_kernel, platform, chip)
-}
-
-/// Main function called after RAM initialized.
-#[no_mangle]
-pub unsafe fn main() {
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
-
-    let (board_kernel, platform, chip) = start();
-    board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
+    board_kernel.kernel_loop(
+        &platform,
+        chip,
+        Some(&platform.ipc),
+        &main_loop_cap,
+        None
+        // Some(&|| {debug!("-----------------------------")})
+    );
 }
