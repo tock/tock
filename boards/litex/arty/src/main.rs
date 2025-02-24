@@ -51,7 +51,11 @@ struct LiteXArtyInterruptablePeripherals {
         socc::SoCRegisterFmt,
         socc::ClockFrequency,
     >,
-    ethmac0: &'static litex_vexriscv::liteeth::LiteEth<'static, socc::SoCRegisterFmt>,
+    ethmac0: &'static litex_vexriscv::liteeth::LiteEth<
+        'static,
+        { socc::ETHMAC_TX_SLOTS },
+        socc::SoCRegisterFmt,
+    >,
 }
 
 impl LiteXArtyInterruptablePeripherals {
@@ -491,15 +495,9 @@ unsafe fn start() -> (
 
     // ---------- ETHERNET ----------
 
-    // TX packet metadata
-    let ethmac0_txinfo = static_init!(
-        [(usize, u16); socc::ETHMAC_TX_SLOTS],
-        [(0, 0); socc::ETHMAC_TX_SLOTS]
-    );
-
     // ETHMAC peripheral
     let ethmac0 = static_init!(
-        litex_vexriscv::liteeth::LiteEth<socc::SoCRegisterFmt>,
+        litex_vexriscv::liteeth::LiteEth<{socc::ETHMAC_TX_SLOTS}, socc::SoCRegisterFmt>,
         litex_vexriscv::liteeth::LiteEth::new(
             StaticRef::new(
                 socc::CSR_ETHMAC_BASE
@@ -510,7 +508,6 @@ unsafe fn start() -> (
             socc::ETHMAC_SLOT_SIZE,
             socc::ETHMAC_RX_SLOTS,
             socc::ETHMAC_TX_SLOTS,
-            ethmac0_txinfo,
         )
     );
 

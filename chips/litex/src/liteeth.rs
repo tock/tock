@@ -13,7 +13,7 @@ use core::cell::Cell;
 use core::slice;
 use kernel::debug;
 use kernel::hil::ethernet::{EthernetAdapterDatapath, EthernetAdapterDatapathClient};
-use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
@@ -77,7 +77,7 @@ impl<R: LiteXSoCRegisterConfiguration> LiteEthMacRegisters<R> {
     }
 }
 
-pub struct LiteEth<'a, R: LiteXSoCRegisterConfiguration> {
+pub struct LiteEth<'a, const MAX_TX_SLOTS: usize, R: LiteXSoCRegisterConfiguration> {
     mac_regs: StaticRef<LiteEthMacRegisters<R>>,
     mac_memory_base: usize,
     mac_memory_len: usize,
@@ -86,11 +86,11 @@ pub struct LiteEth<'a, R: LiteXSoCRegisterConfiguration> {
     tx_slots: usize,
     client: OptionalCell<&'a dyn EthernetAdapterDatapathClient>,
     tx_frame: TakeCell<'static, [u8]>,
-    tx_frame_info: TakeCell<'static, [(usize, u16)]>,
+    tx_frame_info: MapCell<[(usize, u16); MAX_TX_SLOTS]>,
     initialized: Cell<bool>,
 }
 
-impl<'a, R: LiteXSoCRegisterConfiguration> LiteEth<'a, R> {
+impl<'a, const MAX_TX_SLOTS: usize, R: LiteXSoCRegisterConfiguration> LiteEth<'a, MAX_TX_SLOTS, R> {
     pub unsafe fn new(
         mac_regs: StaticRef<LiteEthMacRegisters<R>>,
         mac_memory_base: usize,
@@ -98,8 +98,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteEth<'a, R> {
         slot_size: usize,
         rx_slots: usize,
         tx_slots: usize,
-        tx_frame_info: &'static mut [(usize, u16)],
-    ) -> LiteEth<'a, R> {
+    ) -> Self {
         LiteEth {
             mac_regs,
             mac_memory_base,
@@ -109,7 +108,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteEth<'a, R> {
             tx_slots,
             client: OptionalCell::empty(),
             tx_frame: TakeCell::empty(),
-            tx_frame_info: TakeCell::new(tx_frame_info),
+            tx_frame_info: MapCell::new([(0, 0); MAX_TX_SLOTS]),
             initialized: Cell::new(false),
         }
     }
@@ -129,11 +128,13 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteEth<'a, R> {
         assert!(self.rx_slots > 0, "LiteEth: no RX slot");
         assert!(self.tx_slots > 0, "LiteEth: no TX slot");
 
-        // Sanity check the length of the frame_info buffer, must be the same as
-        // the number of tx slots
+        // Sanity check the length of the frame_info buffer, must be able to fit
+        // all `tx_slots` requested at runtime.
         assert!(
-            self.tx_frame_info.map(|i| i.len()).unwrap() == self.tx_slots,
-            "LiteEth: tx_frame_info.len() must be equal to tx_slots"
+            MAX_TX_SLOTS >= self.tx_slots,
+            "LiteEth: MAX_TX_SLOTS ({}) must be larger or equal to tx_slots ({})",
+            MAX_TX_SLOTS,
+            self.tx_slots,
         );
 
         // Disable TX events (first enabled when a frame is sent)
@@ -249,7 +250,9 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteEth<'a, R> {
     }
 }
 
-impl<'a, R: LiteXSoCRegisterConfiguration> EthernetAdapterDatapath<'a> for LiteEth<'a, R> {
+impl<'a, const MAX_TX_SLOTS: usize, R: LiteXSoCRegisterConfiguration> EthernetAdapterDatapath<'a>
+    for LiteEth<'a, MAX_TX_SLOTS, R>
+{
     fn set_client(&self, client: &'a dyn EthernetAdapterDatapathClient) {
         self.client.set(client);
     }
