@@ -51,7 +51,11 @@ struct LiteXSimInterruptablePeripherals {
         socc::SoCRegisterFmt,
         socc::ClockFrequency,
     >,
-    ethmac0: &'static litex_vexriscv::liteeth::LiteEth<'static, socc::SoCRegisterFmt>,
+    ethmac0: &'static litex_vexriscv::liteeth::LiteEth<
+        'static,
+        { socc::ETHMAC_TX_SLOTS },
+        socc::SoCRegisterFmt,
+    >,
 }
 
 impl LiteXSimInterruptablePeripherals {
@@ -470,12 +474,9 @@ unsafe fn start() -> (
 
     // ---------- ETHERNET ----------
 
-    // Packet receive buffer
-    let ethmac0_rxbuf0 = static_init!([u8; 1522], [0; 1522]);
-
     // ETHMAC peripheral
     let ethmac0 = static_init!(
-        litex_vexriscv::liteeth::LiteEth<socc::SoCRegisterFmt>,
+        litex_vexriscv::liteeth::LiteEth<{socc::ETHMAC_TX_SLOTS}, socc::SoCRegisterFmt>,
         litex_vexriscv::liteeth::LiteEth::new(
             StaticRef::new(
                 socc::CSR_ETHMAC_BASE
@@ -486,7 +487,6 @@ unsafe fn start() -> (
             socc::ETHMAC_SLOT_SIZE,
             socc::ETHMAC_RX_SLOTS,
             socc::ETHMAC_TX_SLOTS,
-            ethmac0_rxbuf0,
         )
     );
 
