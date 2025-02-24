@@ -90,7 +90,7 @@ pub struct LiteEth<'a, const MAX_TX_SLOTS: usize, R: LiteXSoCRegisterConfigurati
     initialized: Cell<bool>,
 }
 
-impl<'a, const MAX_TX_SLOTS: usize, R: LiteXSoCRegisterConfiguration> LiteEth<'a, MAX_TX_SLOTS, R> {
+impl<const MAX_TX_SLOTS: usize, R: LiteXSoCRegisterConfiguration> LiteEth<'_, MAX_TX_SLOTS, R> {
     pub unsafe fn new(
         mac_regs: StaticRef<LiteEthMacRegisters<R>>,
         mac_memory_base: usize,
@@ -301,7 +301,7 @@ impl<'a, const MAX_TX_SLOTS: usize, R: LiteXSoCRegisterConfiguration> EthernetAd
         // Set the slot's frame information
         self.tx_frame_info
             .map(|pkt_info| {
-                pkt_info[slot_id as usize] = (frame_identifier, len);
+                pkt_info[slot_id] = (frame_identifier, len);
             })
             .unwrap();
 
