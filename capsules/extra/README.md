@@ -71,10 +71,10 @@ These drivers provide support for various ICs.
 - **[ST77xx](src/st77xx.rs)**: ST77xx IPS screen.
 
 
-Wireless
+Wireless and Networking
 --------
 
-Support for wireless radios.
+Support for wireless radios, network stacks and related infrastructure.
 
 - **[nRF51822 Serialization](src/nrf51822_serialization.rs)**: Kernel support
   for using the nRF51 serialization library.
@@ -83,7 +83,9 @@ Support for wireless radios.
   advertisements.
 - **[LoRa Phy]**: Support for exposing Semtech devices to userspace
   See the lora_things_plus board for an example
-
+- **[Ethernet Tap Driver](src/ethernet_tap.rs)**: Forwarding raw IEEE
+  802.3 Ethernet frames from / to userspace. Useful for running
+  network stacks in userspace.
 
 Libraries
 ---------
