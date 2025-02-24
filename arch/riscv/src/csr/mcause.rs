@@ -9,13 +9,6 @@ register_bitfields![usize,
         is_interrupt OFFSET(crate::XLEN - 1) NUMBITS(1) [],
         reason OFFSET(0) NUMBITS(crate::XLEN - 1) []
     ],
-    // Per the spec, implementations are allowed to use the higher bits of the
-    // interrupt/exception reason for their own purposes.  For regular parsing,
-    // we only concern ourselves with the "standard" values.
-    /*reason [
-        reserved OFFSET(4) NUMBITS(crate::XLEN - 5) [],
-        std OFFSET(0) NUMBITS(4) []
-    ] */
 ];
 
 /// Trap Cause
