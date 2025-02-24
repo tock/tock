@@ -22,21 +22,12 @@ register_structs! {
         (0x008 => cmd_resp_ctrl: ReadWrite<u32, CMD_RESP_CTRL::Register>),
         (0x00C => cmd_resp_status: ReadOnly<u32, CMD_RESP_STATUS::Register>),
         (0x010 => _reserved0),
-        (0x020 => spi_ctrl: ReadWrite<u32, SPI_CTRL::Register>),
-        (0x024 => spi_status: ReadOnly<u32, SPI_STATUS::Register>),
-        (0x028 => _reserved1),
         (0x040 => uart_ctrl: ReadWrite<u32, UART_CTRL::Register>),
         (0x044 => uart_tx_ctrl: ReadWrite<u32, UART_TX_CTRL::Register>),
         (0x048 => uart_rx_ctrl: ReadWrite<u32, UART_RX_CTRL::Register>),
         (0x04C => uart_rx_status: ReadOnly<u32>),
         (0x050 => uart_flow_ctrl: ReadWrite<u32, UART_FLOW_CTRL::Register>),
         (0x054 => _reserved2),
-        (0x060 => i2c_ctrl: ReadWrite<u32, I2C_CTRL::Register>),
-        (0x064 => i2c_status: ReadOnly<u32, I2C_STATUS::Register>),
-        (0x068 => i2c_m_cmd: ReadWrite<u32, I2C_M_CMD::Register>),
-        (0x06C => i2c_s_cmd: ReadWrite<u32, I2C_S_CMD::Register>),
-        (0x070 => i2c_cfg: ReadWrite<u32, I2C_CFG::Register>),
-        (0x074 => _reserved3),
         (0x200 => tx_ctrl: ReadWrite<u32, TX_CTRL::Register>),
         (0x204 => tx_fifo_ctrl: ReadWrite<u32, TX_FIFO_CTRL::Register>),
         (0x208 => tx_fifo_status: ReadOnly<u32, TX_FIFO_STATUS::Register>),
@@ -54,16 +45,6 @@ register_structs! {
         (0x348 => _reserved8),
         (0xE00 => intr_cause: ReadOnly<u32, INTR_CAUSE::Register>),
         (0xE04 => _reserved9),
-        (0xE80 => intr_i2c_ec: ReadWrite<u32, INTR_I2C_EC::Register>),
-        (0xE84 => _reserved10),
-        (0xE88 => intr_i2c_ec_mask: ReadWrite<u32, INTR_I2C_EC_MASK::Register>),
-        (0xE8C => intr_i2c_ec_masked: ReadOnly<u32, INTR_I2C_EC_MASKED::Register>),
-        (0xE90 => _reserved11),
-        (0xEC0 => intr_spi_ec: ReadWrite<u32, INTR_SPI_EC::Register>),
-        (0xEC4 => _reserved12),
-        (0xEC8 => intr_spi_ec_mask: ReadWrite<u32, INTR_SPI_EC_MASK::Register>),
-        (0xECC => intr_spi_ec_masked: ReadOnly<u32, INTR_SPI_EC_MASKED::Register>),
-        (0xED0 => _reserved13),
         (0xF00 => intr_m: ReadWrite<u32, INTR_M::Register>),
         (0xF04 => intr_m_set: ReadWrite<u32, INTR_M_SET::Register>),
         (0xF08 => intr_m_mask: ReadWrite<u32, INTR_M_MASK::Register>),
@@ -116,32 +97,6 @@ CMD_RESP_STATUS [
     CMD_RESP_EC_BUS_BUSY OFFSET(30) NUMBITS(1) [],
     CMD_RESP_EC_BUSY OFFSET(31) NUMBITS(1) []
 ],
-SPI_CTRL [
-    SSEL_CONTINUOUS OFFSET(0) NUMBITS(1) [],
-    SELECT_PRECEDE OFFSET(1) NUMBITS(1) [],
-    CPHA OFFSET(2) NUMBITS(1) [],
-    CPOL OFFSET(3) NUMBITS(1) [],
-    LATE_MISO_SAMPLE OFFSET(4) NUMBITS(1) [],
-    SCLK_CONTINUOUS OFFSET(5) NUMBITS(1) [],
-    SSEL_POLARITY0 OFFSET(8) NUMBITS(1) [],
-    SSEL_POLARITY1 OFFSET(9) NUMBITS(1) [],
-    SSEL_POLARITY2 OFFSET(10) NUMBITS(1) [],
-    SSEL_POLARITY3 OFFSET(11) NUMBITS(1) [],
-    LOOPBACK OFFSET(16) NUMBITS(1) [],
-    MODE OFFSET(24) NUMBITS(2) [
-        SPI_MOTOROLA = 0,
-        SPI_TI = 1,
-        SPI_NS = 2
-    ],
-    SSEL OFFSET(26) NUMBITS(2) [],
-    MASTER_MODE OFFSET(31) NUMBITS(1) []
-],
-SPI_STATUS [
-    BUS_BUSY OFFSET(0) NUMBITS(1) [],
-    SPI_EC_BUSY OFFSET(1) NUMBITS(1) [],
-    CURR_EZ_ADDR OFFSET(8) NUMBITS(8) [],
-    BASE_EZ_ADDR OFFSET(16) NUMBITS(8) []
-],
 UART_CTRL [
     LOOPBACK OFFSET(16) NUMBITS(1) [],
     MODE OFFSET(24) NUMBITS(2) [
@@ -176,49 +131,6 @@ UART_FLOW_CTRL [
     RTS_POLARITY OFFSET(16) NUMBITS(1) [],
     CTS_POLARITY OFFSET(24) NUMBITS(1) [],
     CTS_ENABLED OFFSET(25) NUMBITS(1) []
-],
-I2C_CTRL [
-    HIGH_PHASE_OVS OFFSET(0) NUMBITS(4) [],
-    LOW_PHASE_OVS OFFSET(4) NUMBITS(4) [],
-    M_READY_DATA_ACK OFFSET(8) NUMBITS(1) [],
-    M_NOT_READY_DATA_NACK OFFSET(9) NUMBITS(1) [],
-    S_GENERAL_IGNORE OFFSET(11) NUMBITS(1) [],
-    S_READY_ADDR_ACK OFFSET(12) NUMBITS(1) [],
-    S_READY_DATA_ACK OFFSET(13) NUMBITS(1) [],
-    S_NOT_READY_ADDR_NACK OFFSET(14) NUMBITS(1) [],
-    S_NOT_READY_DATA_NACK OFFSET(15) NUMBITS(1) [],
-    LOOPBACK OFFSET(16) NUMBITS(1) [],
-    SLAVE_MODE OFFSET(30) NUMBITS(1) [],
-    MASTER_MODE OFFSET(31) NUMBITS(1) []
-],
-I2C_STATUS [
-    BUS_BUSY OFFSET(0) NUMBITS(1) [],
-    I2C_EC_BUSY OFFSET(1) NUMBITS(1) [],
-    S_READ OFFSET(4) NUMBITS(1) [],
-    M_READ OFFSET(5) NUMBITS(1) [],
-    CURR_EZ_ADDR OFFSET(8) NUMBITS(8) [],
-    BASE_EZ_ADDR OFFSET(16) NUMBITS(8) []
-],
-I2C_M_CMD [
-    M_START OFFSET(0) NUMBITS(1) [],
-    M_START_ON_IDLE OFFSET(1) NUMBITS(1) [],
-    M_ACK OFFSET(2) NUMBITS(1) [],
-    M_NACK OFFSET(3) NUMBITS(1) [],
-    M_STOP OFFSET(4) NUMBITS(1) []
-],
-I2C_S_CMD [
-    S_ACK OFFSET(0) NUMBITS(1) [],
-    S_NACK OFFSET(1) NUMBITS(1) []
-],
-I2C_CFG [
-    SDA_IN_FILT_TRIM OFFSET(0) NUMBITS(2) [],
-    SDA_IN_FILT_SEL OFFSET(4) NUMBITS(1) [],
-    SCL_IN_FILT_TRIM OFFSET(8) NUMBITS(2) [],
-    SCL_IN_FILT_SEL OFFSET(12) NUMBITS(1) [],
-    SDA_OUT_FILT0_TRIM OFFSET(16) NUMBITS(2) [],
-    SDA_OUT_FILT1_TRIM OFFSET(18) NUMBITS(2) [],
-    SDA_OUT_FILT2_TRIM OFFSET(20) NUMBITS(2) [],
-    SDA_OUT_FILT_SEL OFFSET(28) NUMBITS(2) []
 ],
 TX_CTRL [
     DATA_WIDTH OFFSET(0) NUMBITS(4) [],
@@ -272,42 +184,6 @@ INTR_CAUSE [
     RX OFFSET(3) NUMBITS(1) [],
     I2C_EC OFFSET(4) NUMBITS(1) [],
     SPI_EC OFFSET(5) NUMBITS(1) []
-],
-INTR_I2C_EC [
-    WAKE_UP OFFSET(0) NUMBITS(1) [],
-    EZ_STOP OFFSET(1) NUMBITS(1) [],
-    EZ_WRITE_STOP OFFSET(2) NUMBITS(1) [],
-    EZ_READ_STOP OFFSET(3) NUMBITS(1) []
-],
-INTR_I2C_EC_MASK [
-    WAKE_UP OFFSET(0) NUMBITS(1) [],
-    EZ_STOP OFFSET(1) NUMBITS(1) [],
-    EZ_WRITE_STOP OFFSET(2) NUMBITS(1) [],
-    EZ_READ_STOP OFFSET(3) NUMBITS(1) []
-],
-INTR_I2C_EC_MASKED [
-    WAKE_UP OFFSET(0) NUMBITS(1) [],
-    EZ_STOP OFFSET(1) NUMBITS(1) [],
-    EZ_WRITE_STOP OFFSET(2) NUMBITS(1) [],
-    EZ_READ_STOP OFFSET(3) NUMBITS(1) []
-],
-INTR_SPI_EC [
-    WAKE_UP OFFSET(0) NUMBITS(1) [],
-    EZ_STOP OFFSET(1) NUMBITS(1) [],
-    EZ_WRITE_STOP OFFSET(2) NUMBITS(1) [],
-    EZ_READ_STOP OFFSET(3) NUMBITS(1) []
-],
-INTR_SPI_EC_MASK [
-    WAKE_UP OFFSET(0) NUMBITS(1) [],
-    EZ_STOP OFFSET(1) NUMBITS(1) [],
-    EZ_WRITE_STOP OFFSET(2) NUMBITS(1) [],
-    EZ_READ_STOP OFFSET(3) NUMBITS(1) []
-],
-INTR_SPI_EC_MASKED [
-    WAKE_UP OFFSET(0) NUMBITS(1) [],
-    EZ_STOP OFFSET(1) NUMBITS(1) [],
-    EZ_WRITE_STOP OFFSET(2) NUMBITS(1) [],
-    EZ_READ_STOP OFFSET(3) NUMBITS(1) []
 ],
 INTR_M [
     I2C_ARB_LOST OFFSET(0) NUMBITS(1) [],
