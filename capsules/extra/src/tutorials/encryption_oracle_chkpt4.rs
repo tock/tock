@@ -175,7 +175,8 @@ impl<'a, A: AES128<'a> + AES128Ctr> EncryptionOracleDriver<'a, A> {
                                 iv[..copy_len].copy_to_slice(&mut static_buf[..copy_len]);
 
                                 AES128::set_iv(self.aes, &static_buf[..copy_len])
-                            })})??;
+                            })
+                        })??;
                 }
 
                 // Our AES engine works with kernel-provided `&'static mut`

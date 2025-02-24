@@ -809,28 +809,26 @@ impl<'a> Usb<'a> {
                             self.complete_ctrl_status();
                         }
                         CtrlState::WriteOut => {
-                            self.client.map(|client| {
-                                match client.ctrl_in(ep as usize) {
-                                    hil::usb::CtrlInResult::Packet(size, last) => {
-                                        if size == 0 {
-                                            panic!("Empty ctrl packet?");
-                                        }
-
-                                        self.copy_slice_out_to_hw(ep as usize, buf as usize, size);
-
-                                        if last {
-                                            self.descriptors[ep as usize]
-                                                .state
-                                                .set(EndpointState::Ctrl(CtrlState::ReadStatus));
-                                        } else {
-                                            self.descriptors[ep as usize]
-                                                .state
-                                                .set(EndpointState::Ctrl(CtrlState::WriteOut));
-                                        }
+                            self.client.map(|client| match client.ctrl_in(ep as usize) {
+                                hil::usb::CtrlInResult::Packet(size, last) => {
+                                    if size == 0 {
+                                        panic!("Empty ctrl packet?");
                                     }
-                                    hil::usb::CtrlInResult::Delay => unimplemented!(),
-                                    hil::usb::CtrlInResult::Error => unreachable!(),
+
+                                    self.copy_slice_out_to_hw(ep as usize, buf as usize, size);
+
+                                    if last {
+                                        self.descriptors[ep as usize]
+                                            .state
+                                            .set(EndpointState::Ctrl(CtrlState::ReadStatus));
+                                    } else {
+                                        self.descriptors[ep as usize]
+                                            .state
+                                            .set(EndpointState::Ctrl(CtrlState::WriteOut));
+                                    }
                                 }
+                                hil::usb::CtrlInResult::Delay => unimplemented!(),
+                                hil::usb::CtrlInResult::Error => unreachable!(),
                             });
                         }
                         CtrlState::SetAddress => {

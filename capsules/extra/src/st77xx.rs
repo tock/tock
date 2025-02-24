@@ -488,23 +488,21 @@ impl<'a, A: Alarm<'a>, B: Bus<'a, BusAddr8>, P: Pin> ST77XX<'a, A, B, P> {
                 if position < self.sequence_len.get() {
                     self.sequence_buffer.map_or_else(
                         || panic!("st77xx: do next op has no sequence buffer"),
-                        |sequence| {
-                            match sequence[position] {
-                                SendCommand::Nop => {
-                                    self.do_next_op();
-                                }
-                                SendCommand::Default(cmd) => {
-                                    self.send_command_with_default_parameters(cmd);
-                                }
-                                SendCommand::Position(cmd, position, len) => {
-                                    self.send_command(cmd, position, len, 1);
-                                }
-                                SendCommand::Repeat(cmd, position, len, repeat) => {
-                                    self.send_command(cmd, position, len, repeat);
-                                }
-                                SendCommand::Slice(cmd, len) => {
-                                    self.send_command_slice(cmd, len);
-                                }
+                        |sequence| match sequence[position] {
+                            SendCommand::Nop => {
+                                self.do_next_op();
+                            }
+                            SendCommand::Default(cmd) => {
+                                self.send_command_with_default_parameters(cmd);
+                            }
+                            SendCommand::Position(cmd, position, len) => {
+                                self.send_command(cmd, position, len, 1);
+                            }
+                            SendCommand::Repeat(cmd, position, len, repeat) => {
+                                self.send_command(cmd, position, len, repeat);
+                            }
+                            SendCommand::Slice(cmd, len) => {
+                                self.send_command_slice(cmd, len);
                             }
                         },
                     );
