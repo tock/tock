@@ -55,7 +55,7 @@ impl IoWrite for Writer {
                     while !uart.tx_ready() {}
                 }
             }
-        };
+        }
         buf.len()
     }
 }

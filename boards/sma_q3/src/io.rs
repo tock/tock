@@ -39,7 +39,7 @@ impl IoWrite for Writer {
             Writer::WriterRtt(rtt_memory) => {
                 rtt_memory.write_sync(buf);
             }
-        };
+        }
         buf.len()
     }
 }

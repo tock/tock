@@ -455,7 +455,7 @@ pub unsafe fn start() -> (
         Err(e) => {
             debug!("error starting rtc {:?}", e);
         }
-    };
+    }
 
     let date_time = components::date_time::DateTimeComponent::new(
         board_kernel,
