@@ -454,7 +454,7 @@ pub unsafe fn print_mcause(mcval: csr::mcause::Trap, writer: &mut dyn Write) {
             csr::mcause::Interrupt::MachineExternal => {
                 let _ = writer.write_fmt(format_args!("Machine external interrupt"));
             }
-            csr::mcause::Interrupt::Unknown => {
+            csr::mcause::Interrupt::Unknown(_) => {
                 let _ = writer.write_fmt(format_args!("Reserved/Unknown"));
             }
         },
