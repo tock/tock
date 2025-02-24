@@ -470,8 +470,11 @@ unsafe fn start() -> (
 
     // ---------- ETHERNET ----------
 
-    // Packet receive buffer
-    let ethmac0_rxbuf0 = static_init!([u8; 1522], [0; 1522]);
+    // TX packet metadata
+    let ethmac0_txinfo = static_init!(
+        [(usize, u16); socc::ETHMAC_TX_SLOTS],
+        [(0, 0); socc::ETHMAC_TX_SLOTS]
+    );
 
     // ETHMAC peripheral
     let ethmac0 = static_init!(
@@ -486,7 +489,7 @@ unsafe fn start() -> (
             socc::ETHMAC_SLOT_SIZE,
             socc::ETHMAC_RX_SLOTS,
             socc::ETHMAC_TX_SLOTS,
-            ethmac0_rxbuf0,
+            ethmac0_txinfo,
         )
     );
 
