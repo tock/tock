@@ -300,23 +300,15 @@ pub enum User {
 #[derive(Clone, Copy, Debug)]
 pub enum NvmCommand {
     GetSize,
-    Read { offset: usize, length: usize },
-    Write { offset: usize, length: usize },
+    Read { offset: usize },
+    Write { offset: usize },
 }
 
 impl NvmCommand {
     fn offset(&self) -> usize {
         match self {
-            NvmCommand::Read { offset, length: _ } => *offset,
-            NvmCommand::Write { offset, length: _ } => *offset,
-            NvmCommand::GetSize => 0,
-        }
-    }
-
-    fn length(&self) -> usize {
-        match self {
-            NvmCommand::Read { offset: _, length } => *length,
-            NvmCommand::Write { offset: _, length } => *length,
+            NvmCommand::Read { offset } => *offset,
+            NvmCommand::Write { offset } => *offset,
             NvmCommand::GetSize => 0,
         }
     }
@@ -324,14 +316,8 @@ impl NvmCommand {
     fn upcall(&self) -> usize {
         match self {
             Self::GetSize => upcall::GET_SIZE_DONE,
-            Self::Write {
-                offset: _,
-                length: _,
-            } => upcall::WRITE_DONE,
-            Self::Read {
-                offset: _,
-                length: _,
-            } => upcall::READ_DONE,
+            Self::Write { offset: _ } => upcall::WRITE_DONE,
+            Self::Read { offset: _ } => upcall::READ_DONE,
         }
     }
 }
@@ -642,17 +628,11 @@ impl<'a, const APP_REGION_SIZE: usize> IsolatedNonvolatileStorage<'a, APP_REGION
             .ok_or(ErrorCode::NOSUPPORT)?;
         let write_id = perms.get_write_id().ok_or(ErrorCode::NOSUPPORT)?;
         match command {
-            NvmCommand::Read {
-                offset: _,
-                length: _,
-            } => perms
+            NvmCommand::Read { offset: _ } => perms
                 .check_read_permission(write_id)
                 .then_some(())
                 .ok_or(ErrorCode::NOSUPPORT),
-            NvmCommand::Write {
-                offset: _,
-                length: _,
-            } => perms
+            NvmCommand::Write { offset: _ } => perms
                 .check_modify_permission(write_id)
                 .then_some(())
                 .ok_or(ErrorCode::NOSUPPORT),
@@ -803,26 +783,13 @@ impl<'a, const APP_REGION_SIZE: usize> IsolatedNonvolatileStorage<'a, APP_REGION
                 }
             }
 
-            NvmCommand::Read {
-                offset: _,
-                length: _,
-            }
-            | NvmCommand::Write {
-                offset: _,
-                length: _,
-            } => {
+            NvmCommand::Read { offset: _ } | NvmCommand::Write { offset: _ } => {
                 // Get the length of the correct allowed buffer.
                 let allow_buf_len = match command {
-                    NvmCommand::Read {
-                        offset: _,
-                        length: _,
-                    } => kernel_data
+                    NvmCommand::Read { offset: _ } => kernel_data
                         .get_readwrite_processbuffer(rw_allow::READ)
                         .map_or(0, |read| read.len()),
-                    NvmCommand::Write {
-                        offset: _,
-                        length: _,
-                    } => kernel_data
+                    NvmCommand::Write { offset: _ } => kernel_data
                         .get_readonly_processbuffer(ro_allow::WRITE)
                         .map_or(0, |read| read.len()),
                     NvmCommand::GetSize => 0,
@@ -839,20 +806,11 @@ impl<'a, const APP_REGION_SIZE: usize> IsolatedNonvolatileStorage<'a, APP_REGION
                 };
 
                 let command_offset = command.offset();
-                let command_len = command.length();
 
-                self.check_userspace_access(command_offset, command_len, app_region)?;
-
-                // Shorten the length if the application gave us nowhere to
-                // put it.
-                let active_len = cmp::min(command_len, allow_buf_len);
+                self.check_userspace_access(command_offset, allow_buf_len, app_region)?;
 
                 // Need to copy bytes if this is a write!
-                if let NvmCommand::Write {
-                    offset: _,
-                    length: _,
-                } = command
-                {
+                if let NvmCommand::Write { offset: _ } = command {
                     let _ = kernel_data
                         .get_readonly_processbuffer(ro_allow::WRITE)
                         .and_then(|write| {
@@ -861,7 +819,7 @@ impl<'a, const APP_REGION_SIZE: usize> IsolatedNonvolatileStorage<'a, APP_REGION
                                     // Check that the internal buffer and
                                     // the buffer that was allowed are long
                                     // enough.
-                                    let write_len = cmp::min(active_len, kernel_buffer.len());
+                                    let write_len = cmp::min(allow_buf_len, kernel_buffer.len());
 
                                     let d = &app_buffer[0..write_len];
                                     for (i, c) in kernel_buffer[0..write_len].iter_mut().enumerate()
@@ -887,20 +845,14 @@ impl<'a, const APP_REGION_SIZE: usize> IsolatedNonvolatileStorage<'a, APP_REGION
                     .map_or(Err(ErrorCode::RESERVE), |buffer| {
                         // Check that the internal buffer and the buffer that was
                         // allowed are long enough.
-                        let active_len_buf = cmp::min(active_len, buffer.len());
+                        let active_len_buf = cmp::min(allow_buf_len, buffer.len());
 
                         match command {
-                            NvmCommand::Read {
-                                offset: _,
-                                length: _,
-                            } => self
+                            NvmCommand::Read { offset: _ } => self
                                 .driver
                                 .read(buffer, physical_address, active_len_buf)
                                 .or(Err(ErrorCode::FAIL)),
-                            NvmCommand::Write {
-                                offset: _,
-                                length: _,
-                            } => self
+                            NvmCommand::Write { offset: _ } => self
                                 .driver
                                 .write(buffer, physical_address, active_len_buf)
                                 .or(Err(ErrorCode::FAIL)),
@@ -1112,8 +1064,8 @@ impl<const APP_REGION_SIZE: usize> SyscallDriver
     fn command(
         &self,
         command_num: usize,
-        offset: usize,
-        length: usize,
+        offset_lo: usize,
+        offset_hi: usize,
         processid: ProcessId,
     ) -> CommandReturn {
         match command_num {
@@ -1127,10 +1079,17 @@ impl<const APP_REGION_SIZE: usize> SyscallDriver
             // original syscall. So, we can store the syscall data in the app's
             // grant and handle it when initialization finishes.
             1 | 2 | 3 => {
+                // We want to handle both 64-bit and 32-bit platforms, but on
+                // 32-bit platforms shifting `offset_hi` doesn't make sense.
+                let offset: usize = if usize::BITS <= 32 {
+                    offset_lo
+                } else {
+                    (offset_lo & 0xFFFFFFFF) | (offset_hi << 32)
+                };
                 let nvm_command = match command_num {
                     1 => NvmCommand::GetSize,
-                    2 => NvmCommand::Read { offset, length },
-                    3 => NvmCommand::Write { offset, length },
+                    2 => NvmCommand::Read { offset },
+                    3 => NvmCommand::Write { offset },
                     _ => return CommandReturn::failure(ErrorCode::NOSUPPORT),
                 };
 

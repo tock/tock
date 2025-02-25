@@ -5,7 +5,8 @@ driver number: 0x50004
 # Isolated Nonvolatile Storage
 
 This Driver provides access to a contiguous, fixed-size region of nonvolatile
-storage the application can use.
+storage the application can use. This interface supports both 32-bit and 64-bit
+address spaces for the nonvolatile storage.
 
 Note: use of this interface is protected by `StoragePermissions`, so
 applications will need storage permissions to use this interface.
@@ -65,9 +66,7 @@ applications will need storage permissions to use this interface.
 
   The read is specified by the offset (in bytes) from the beginning of the app's
   allocated nonvolatile storage region and the length (in bytes) of the read.
-  The driver will read up to the number of bytes specified by length. The copy
-  length is the smaller of the length requested and the size of the allowed
-  buffer.
+  The length is equal to the size of the allowed read buffer.
 
   Calling this command will allocate a storage region if one was not previously
   allocated to the application.
@@ -78,8 +77,8 @@ applications will need storage permissions to use this interface.
 
   #### Arguments
 
-  - **1**: read offset, in bytes
-  - **2**: read length, in bytes
+  - **1**: read offset, in bytes (lower 32 bits)
+  - **2**: read offset, in bytes (upper 32 bits)
 
   #### Returns
 
@@ -108,9 +107,7 @@ applications will need storage permissions to use this interface.
 
   The write is specified by the offset (in bytes) from the beginning of the
   app's allocated nonvolatile storage region and the length (in bytes) of the
-  write. The driver will write up to the number of bytes specified by length.
-  The write length is the smaller of the length requested and the size of the
-  allowed buffer.
+  write. The length is equal to the size of the allowed buffer.
 
   Calling this command will allocate a storage region if one was not previously
   allocated to the application.
@@ -121,8 +118,8 @@ applications will need storage permissions to use this interface.
 
   #### Arguments
 
-  - **1**: write offset, in bytes
-  - **2**: write length, in bytes
+  - **1**: write offset, in bytes (lower 32 bits)
+  - **2**: write offset, in bytes (upper 32 bits)
 
   #### Returns
 
@@ -181,12 +178,12 @@ applications will need storage permissions to use this interface.
   The upcall signature looks like:
 
   ```rust
-  fn upcall(s: Statuscode, length: usize);
+  fn upcall(s: Statuscode);
   ```
 
   Upcall arguments:
   - 0: A `Statuscode` returning the success or failure of the operation.
-  - 1: The number of bytes read into the allowed buffer.
+  - 1: unused
   - 2: unused
 
   The `length` argument is only valid if the status code is `SUCCESS`.
@@ -213,12 +210,12 @@ applications will need storage permissions to use this interface.
   The upcall signature looks like:
 
   ```rust
-  fn upcall(s: Statuscode, length: usize);
+  fn upcall(s: Statuscode);
   ```
 
   Upcall arguments:
   - 0: A `Statuscode` returning the success or failure of the operation.
-  - 1: The number of bytes written to the storage region.
+  - 1: unused
   - 2: unused
 
   The `length` argument is only valid if the status code is `SUCCESS`.
