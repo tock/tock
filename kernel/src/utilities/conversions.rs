@@ -7,6 +7,12 @@
 /// Helper function to convert create a full usize value from two 32-bit usize
 /// values.
 ///
+/// In C this would look like:
+///
+/// ```c
+/// size_t v = (hi << 32) | (uint32_t) lo;
+/// ```
+///
 /// This is useful when passing a machine-sized value (i.e. a `size_t`) via the
 /// system call interface in two 32-bit usize values. On a 32-bit machine this
 /// essentially has no effect; the full value is stored in the `lo` usize. On a
