@@ -26,13 +26,14 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::time::Alarm;
+use kernel::hil::uart;
 use kernel::process::ProcessPrinter;
 
 #[macro_export]
 macro_rules! process_console_component_static {
-    ($A: ty, $COMMAND_HISTORY_LEN: expr $(,)?) => {{
+    ($U:ty, $A: ty, $COMMAND_HISTORY_LEN: expr $(,)?) => {{
         let alarm = kernel::static_buf!(capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, $A>);
-        let uart = kernel::static_buf!(capsules_core::virtualizers::virtual_uart::UartDevice);
+        let uart = kernel::static_buf!(capsules_core::virtualizers::virtual_uart::UartDevice<$U>);
         let pconsole = kernel::static_buf!(
             capsules_core::process_console::ProcessConsole<
                 $COMMAND_HISTORY_LEN,
@@ -60,29 +61,33 @@ macro_rules! process_console_component_static {
             pconsole,
         )
     };};
-    ($A: ty $(,)?) => {{
-        $crate::process_console_component_static!($A, { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN })
+    ($U:ty, $A: ty $(,)?) => {{
+        $crate::process_console_component_static!($U, $A, { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN })
     };};
 }
 
-pub struct ProcessConsoleComponent<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>> {
+pub struct ProcessConsoleComponent<
+    U: uart::Uart<'static> + 'static,
+    A: 'static + Alarm<'static>,
+    const COMMAND_HISTORY_LEN: usize,
+> {
     board_kernel: &'static kernel::Kernel,
-    uart_mux: &'static MuxUart<'static>,
+    uart_mux: &'static MuxUart<'static, U>,
     alarm_mux: &'static MuxAlarm<'static, A>,
     process_printer: &'static dyn ProcessPrinter,
     reset_function: Option<fn() -> !>,
 }
 
-impl<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>>
-    ProcessConsoleComponent<COMMAND_HISTORY_LEN, A>
+impl<U: uart::Uart<'static>, A: 'static + Alarm<'static>, const COMMAND_HISTORY_LEN: usize>
+    ProcessConsoleComponent<U, A, COMMAND_HISTORY_LEN>
 {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
-        uart_mux: &'static MuxUart,
+        uart_mux: &'static MuxUart<'static, U>,
         alarm_mux: &'static MuxAlarm<'static, A>,
         process_printer: &'static dyn ProcessPrinter,
         reset_function: Option<fn() -> !>,
-    ) -> ProcessConsoleComponent<COMMAND_HISTORY_LEN, A> {
+    ) -> Self {
         ProcessConsoleComponent {
             board_kernel,
             uart_mux,
@@ -111,12 +116,12 @@ pub struct Capability;
 unsafe impl capabilities::ProcessManagementCapability for Capability {}
 unsafe impl capabilities::ProcessStartCapability for Capability {}
 
-impl<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>> Component
-    for ProcessConsoleComponent<COMMAND_HISTORY_LEN, A>
+impl<U: uart::Uart<'static>, A: 'static + Alarm<'static>, const COMMAND_HISTORY_LEN: usize>
+    Component for ProcessConsoleComponent<U, A, COMMAND_HISTORY_LEN>
 {
     type StaticInput = (
         &'static mut MaybeUninit<VirtualMuxAlarm<'static, A>>,
-        &'static mut MaybeUninit<UartDevice<'static>>,
+        &'static mut MaybeUninit<UartDevice<'static, U>>,
         &'static mut MaybeUninit<[u8; capsules_core::process_console::WRITE_BUF_LEN]>,
         &'static mut MaybeUninit<[u8; capsules_core::process_console::READ_BUF_LEN]>,
         &'static mut MaybeUninit<[u8; capsules_core::process_console::QUEUE_BUF_LEN]>,

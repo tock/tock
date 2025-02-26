@@ -433,25 +433,25 @@ pub unsafe fn start() -> (
         Some(&nrf52840_peripherals.gpio_port[LED3_PIN]),
     );
 
-    // Choose the channel for serial output. This board can be configured to use
-    // either the Segger RTT channel or via UART with traditional TX/RX GPIO
-    // pins.
-    let uart_channel = if USB_DEBUGGING {
-        // Initialize early so any panic beyond this point can use the RTT
-        // memory object.
-        let mut rtt_memory_refs = components::segger_rtt::SeggerRttMemoryComponent::new()
-            .finalize(components::segger_rtt_memory_component_static!());
+    // // Choose the channel for serial output. This board can be configured to use
+    // // either the Segger RTT channel or via UART with traditional TX/RX GPIO
+    // // pins.
+    // let uart_channel = if USB_DEBUGGING {
+    //     // Initialize early so any panic beyond this point can use the RTT
+    //     // memory object.
+    //     let mut rtt_memory_refs = components::segger_rtt::SeggerRttMemoryComponent::new()
+    //         .finalize(components::segger_rtt_memory_component_static!());
 
-        // XXX: This is inherently unsafe as it aliases the mutable reference to
-        // rtt_memory. This aliases reference is only used inside a panic
-        // handler, which should be OK, but maybe we should use a const
-        // reference to rtt_memory and leverage interior mutability instead.
-        self::io::set_rtt_memory(&*rtt_memory_refs.get_rtt_memory_ptr());
+    //     // XXX: This is inherently unsafe as it aliases the mutable reference to
+    //     // rtt_memory. This aliases reference is only used inside a panic
+    //     // handler, which should be OK, but maybe we should use a const
+    //     // reference to rtt_memory and leverage interior mutability instead.
+    //     self::io::set_rtt_memory(&*rtt_memory_refs.get_rtt_memory_ptr());
 
-        UartChannel::Rtt(rtt_memory_refs)
-    } else {
-        UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD))
-    };
+    //     UartChannel::Rtt(rtt_memory_refs)
+    // } else {
+    //     UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD))
+    // };
 
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
@@ -579,14 +579,21 @@ pub unsafe fn start() -> (
     // UART & CONSOLE & DEBUG
     //--------------------------------------------------------------------------
 
-    let uart_channel = nrf52_components::UartChannelComponent::new(
-        uart_channel,
-        mux_alarm,
-        &base_peripherals.uarte0,
-    )
-    .finalize(nrf52_components::uart_channel_component_static!(
-        nrf52840::rtc::Rtc
-    ));
+    // let uart_channel = nrf52_components::UartChannelComponent::new(
+    //     uart_channel,
+    //     mux_alarm,
+    //     &base_peripherals.uarte0,
+    // )
+    // .finalize(nrf52_components::uart_channel_component_static!(
+    //     nrf52840::rtc::Rtc
+    // ));
+
+    base_peripherals.uarte0.initialize(
+        nrf52840::pinmux::Pinmux::new(UART_TXD as u32),
+        nrf52840::pinmux::Pinmux::new(UART_RXD as u32),
+        UART_CTS.map(|x| nrf52840::pinmux::Pinmux::new(x as u32)),
+        UART_RTS.map(|x| nrf52840::pinmux::Pinmux::new(x as u32)),
+    );
 
     // Tool for displaying information about processes.
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
@@ -594,8 +601,13 @@ pub unsafe fn start() -> (
     PROCESS_PRINTER = Some(process_printer);
 
     // Virtualize the UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(uart_channel, 115200)
-        .finalize(components::uart_mux_component_static!());
+    let uart_mux = components::console::UartMuxComponent::new(
+        &base_peripherals.uarte0,
+        nrf52840::uart::UarteBaudRate::Baud115200,
+    )
+    .finalize(components::uart_mux_component_static!(
+        nrf52840::uart::Uarte
+    ));
 
     // Create the process console, an interactive terminal for managing
     // processes.
@@ -607,6 +619,7 @@ pub unsafe fn start() -> (
         Some(cortexm4::support::reset),
     )
     .finalize(components::process_console_component_static!(
+        nrf52840::uart::Uarte,
         nrf52840::rtc::Rtc<'static>
     ));
 
@@ -616,11 +629,12 @@ pub unsafe fn start() -> (
         capsules_core::console::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(components::console_component_static!());
+    .finalize(components::console_component_static!(nrf52840::uart::Uarte));
 
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux)
-        .finalize(components::debug_writer_component_static!());
+    components::debug_writer::DebugWriterComponent::new(uart_mux).finalize(
+        components::debug_writer_component_static!(nrf52840::uart::Uarte,),
+    );
 
     //--------------------------------------------------------------------------
     // BLE

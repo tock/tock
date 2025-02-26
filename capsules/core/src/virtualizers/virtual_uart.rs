@@ -56,17 +56,17 @@ use kernel::ErrorCode;
 
 pub const RX_BUF_LEN: usize = 64;
 
-pub struct MuxUart<'a> {
-    uart: &'a dyn uart::Uart<'a>,
-    speed: u32,
-    devices: List<'a, UartDevice<'a>>,
-    inflight: OptionalCell<&'a UartDevice<'a>>,
+pub struct MuxUart<'a, U: uart::Uart<'a>> {
+    uart: &'a U,
+    speed: U::BaudRate,
+    devices: List<'a, UartDevice<'a, U>>,
+    inflight: OptionalCell<&'a UartDevice<'a, U>>,
     buffer: TakeCell<'static, [u8]>,
     completing_read: Cell<bool>,
     deferred_call: DeferredCall,
 }
 
-impl uart::TransmitClient for MuxUart<'_> {
+impl<'a, U: uart::Uart<'a>> uart::TransmitClient for MuxUart<'a, U> {
     fn transmitted_buffer(
         &self,
         tx_buffer: &'static mut [u8],
@@ -81,7 +81,7 @@ impl uart::TransmitClient for MuxUart<'_> {
     }
 }
 
-impl uart::ReceiveClient for MuxUart<'_> {
+impl<'a, U: uart::Uart<'a>> uart::ReceiveClient for MuxUart<'a, U> {
     fn received_buffer(
         &self,
         buffer: &'static mut [u8],
@@ -210,9 +210,9 @@ impl uart::ReceiveClient for MuxUart<'_> {
     }
 }
 
-impl<'a> MuxUart<'a> {
-    pub fn new(uart: &'a dyn uart::Uart<'a>, buffer: &'static mut [u8], speed: u32) -> MuxUart<'a> {
-        MuxUart {
+impl<'a, U: uart::Uart<'a>> MuxUart<'a, U> {
+    pub fn new(uart: &'a U, buffer: &'static mut [u8], speed: U::BaudRate) -> Self {
+        Self {
             uart,
             speed,
             devices: List::new(),
@@ -313,7 +313,7 @@ impl<'a> MuxUart<'a> {
     }
 }
 
-impl DeferredCallClient for MuxUart<'_> {
+impl<'a, U: uart::Uart<'a>> DeferredCallClient for MuxUart<'a, U> {
     fn handle_deferred_call(&self) {
         self.do_next_op();
     }
@@ -336,9 +336,9 @@ enum UartDeviceReceiveState {
     Aborting,
 }
 
-pub struct UartDevice<'a> {
+pub struct UartDevice<'a, U: uart::Uart<'a>> {
     state: Cell<UartDeviceReceiveState>,
-    mux: &'a MuxUart<'a>,
+    mux: &'a MuxUart<'a, U>,
     receiver: bool, // Whether or not to pass this UartDevice incoming messages.
     tx_buffer: TakeCell<'static, [u8]>,
     transmitting: Cell<bool>,
@@ -346,14 +346,14 @@ pub struct UartDevice<'a> {
     rx_position: Cell<usize>,
     rx_len: Cell<usize>,
     operation: OptionalCell<Operation>,
-    next: ListLink<'a, UartDevice<'a>>,
+    next: ListLink<'a, UartDevice<'a, U>>,
     rx_client: OptionalCell<&'a dyn uart::ReceiveClient>,
     tx_client: OptionalCell<&'a dyn uart::TransmitClient>,
 }
 
-impl<'a> UartDevice<'a> {
-    pub fn new(mux: &'a MuxUart<'a>, receiver: bool) -> UartDevice<'a> {
-        UartDevice {
+impl<'a, U: uart::Uart<'a>> UartDevice<'a, U> {
+    pub fn new(mux: &'a MuxUart<'a, U>, receiver: bool) -> Self {
+        Self {
             state: Cell::new(UartDeviceReceiveState::Idle),
             mux,
             receiver,
@@ -375,7 +375,7 @@ impl<'a> UartDevice<'a> {
     }
 }
 
-impl uart::TransmitClient for UartDevice<'_> {
+impl<'a, U: uart::Uart<'a>> uart::TransmitClient for UartDevice<'a, U> {
     fn transmitted_buffer(
         &self,
         tx_buffer: &'static mut [u8],
@@ -395,7 +395,7 @@ impl uart::TransmitClient for UartDevice<'_> {
         });
     }
 }
-impl uart::ReceiveClient for UartDevice<'_> {
+impl<'a, U: uart::Uart<'a>> uart::ReceiveClient for UartDevice<'a, U> {
     fn received_buffer(
         &self,
         rx_buffer: &'static mut [u8],
@@ -410,13 +410,13 @@ impl uart::ReceiveClient for UartDevice<'_> {
     }
 }
 
-impl<'a> ListNode<'a, UartDevice<'a>> for UartDevice<'a> {
-    fn next(&'a self) -> &'a ListLink<'a, UartDevice<'a>> {
+impl<'a, U: uart::Uart<'a>> ListNode<'a, UartDevice<'a, U>> for UartDevice<'a, U> {
+    fn next(&'a self) -> &'a ListLink<'a, UartDevice<'a, U>> {
         &self.next
     }
 }
 
-impl<'a> uart::Transmit<'a> for UartDevice<'a> {
+impl<'a, U: uart::Uart<'a>> uart::Transmit<'a> for UartDevice<'a, U> {
     fn set_transmit_client(&self, client: &'a dyn uart::TransmitClient) {
         self.tx_client.set(client);
     }
@@ -456,7 +456,7 @@ impl<'a> uart::Transmit<'a> for UartDevice<'a> {
     }
 }
 
-impl<'a> uart::Receive<'a> for UartDevice<'a> {
+impl<'a, U: uart::Uart<'a>> uart::Receive<'a> for UartDevice<'a, U> {
     fn set_receive_client(&self, client: &'a dyn uart::ReceiveClient) {
         self.rx_client.set(client);
     }

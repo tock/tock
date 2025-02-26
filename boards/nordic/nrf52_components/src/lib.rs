@@ -6,6 +6,4 @@
 
 pub mod startup;
 
-pub use self::startup::{
-    NrfClockComponent, NrfStartupComponent, UartChannel, UartChannelComponent, UartPins,
-};
+pub use self::startup::{NrfClockComponent, NrfStartupComponent, UartChannel, UartPins};

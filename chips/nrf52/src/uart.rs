@@ -159,6 +159,50 @@ register_bitfields! [u32,
     ]
 ];
 
+#[derive(Copy, Clone)]
+pub enum UarteBaudRate {
+    Baud1200,
+    Baud2400,
+    Baud4800,
+    Baud9600,
+    Baud14400,
+    Baud19200,
+    Baud28800,
+    Baud38400,
+    Baud57600,
+    Baud76800,
+    Baud115200,
+    Baud230400,
+    Baud250000,
+    Baud460800,
+    Baud921600,
+    Baud1000000,
+}
+
+impl uart::BaudRate for UarteBaudRate {
+    fn from_nonzero(baud_rate: u32) -> Self {
+        match baud_rate {
+            1200 => UarteBaudRate::Baud1200,
+            2400 => UarteBaudRate::Baud2400,
+            4800 => UarteBaudRate::Baud4800,
+            9600 => UarteBaudRate::Baud9600,
+            14400 => UarteBaudRate::Baud14400,
+            19200 => UarteBaudRate::Baud19200,
+            28800 => UarteBaudRate::Baud28800,
+            38400 => UarteBaudRate::Baud38400,
+            57600 => UarteBaudRate::Baud57600,
+            76800 => UarteBaudRate::Baud76800,
+            115200 => UarteBaudRate::Baud115200,
+            230400 => UarteBaudRate::Baud230400,
+            250000 => UarteBaudRate::Baud250000,
+            460800 => UarteBaudRate::Baud460800,
+            921600 => UarteBaudRate::Baud921600,
+            1000000 => UarteBaudRate::Baud1000000,
+            _ => UarteBaudRate::Baud115200,
+        }
+    }
+}
+
 /// UARTE
 // It should never be instanced outside this module but because a static mutable reference to it
 // is exported outside this module it must be `pub`
@@ -239,25 +283,24 @@ impl<'a> Uarte<'a> {
         self.enable_uart();
     }
 
-    fn set_baud_rate(&self, baud_rate: u32) {
+    fn set_baud_rate(&self, baud_rate: UarteBaudRate) {
         match baud_rate {
-            1200 => self.registers.baudrate.set(0x0004F000),
-            2400 => self.registers.baudrate.set(0x0009D000),
-            4800 => self.registers.baudrate.set(0x0013B000),
-            9600 => self.registers.baudrate.set(0x00275000),
-            14400 => self.registers.baudrate.set(0x003AF000),
-            19200 => self.registers.baudrate.set(0x004EA000),
-            28800 => self.registers.baudrate.set(0x0075C000),
-            38400 => self.registers.baudrate.set(0x009D0000),
-            57600 => self.registers.baudrate.set(0x00EB0000),
-            76800 => self.registers.baudrate.set(0x013A9000),
-            115200 => self.registers.baudrate.set(0x01D60000),
-            230400 => self.registers.baudrate.set(0x03B00000),
-            250000 => self.registers.baudrate.set(0x04000000),
-            460800 => self.registers.baudrate.set(0x07400000),
-            921600 => self.registers.baudrate.set(0x0F000000),
-            1000000 => self.registers.baudrate.set(0x10000000),
-            _ => self.registers.baudrate.set(0x01D60000), //setting default to 115200
+            UarteBaudRate::Baud1200 => self.registers.baudrate.set(0x0004F000),
+            UarteBaudRate::Baud2400 => self.registers.baudrate.set(0x0009D000),
+            UarteBaudRate::Baud4800 => self.registers.baudrate.set(0x0013B000),
+            UarteBaudRate::Baud9600 => self.registers.baudrate.set(0x00275000),
+            UarteBaudRate::Baud14400 => self.registers.baudrate.set(0x003AF000),
+            UarteBaudRate::Baud19200 => self.registers.baudrate.set(0x004EA000),
+            UarteBaudRate::Baud28800 => self.registers.baudrate.set(0x0075C000),
+            UarteBaudRate::Baud38400 => self.registers.baudrate.set(0x009D0000),
+            UarteBaudRate::Baud57600 => self.registers.baudrate.set(0x00EB0000),
+            UarteBaudRate::Baud76800 => self.registers.baudrate.set(0x013A9000),
+            UarteBaudRate::Baud115200 => self.registers.baudrate.set(0x01D60000),
+            UarteBaudRate::Baud230400 => self.registers.baudrate.set(0x03B00000),
+            UarteBaudRate::Baud250000 => self.registers.baudrate.set(0x04000000),
+            UarteBaudRate::Baud460800 => self.registers.baudrate.set(0x07400000),
+            UarteBaudRate::Baud921600 => self.registers.baudrate.set(0x0F000000),
+            UarteBaudRate::Baud1000000 => self.registers.baudrate.set(0x10000000),
         }
     }
 
@@ -469,7 +512,9 @@ impl<'a> uart::Transmit<'a> for Uarte<'a> {
 }
 
 impl uart::Configure for Uarte<'_> {
-    fn configure(&self, params: uart::Parameters) -> Result<(), ErrorCode> {
+    type BaudRate = UarteBaudRate;
+
+    fn configure(&self, params: uart::Parameters<Self::BaudRate>) -> Result<(), ErrorCode> {
         // These could probably be implemented, but are currently ignored, so
         // throw an error.
         if params.stop_bits != uart::StopBits::One {

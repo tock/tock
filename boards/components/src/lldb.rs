@@ -27,12 +27,13 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
+use kernel::hil::uart;
 
 #[macro_export]
 macro_rules! low_level_debug_component_static {
-    () => {{
+    ($U:ty $(,)?) => {{
         let uart =
-            kernel::static_buf!(capsules_core::virtualizers::virtual_uart::UartDevice<'static>);
+            kernel::static_buf!(capsules_core::virtualizers::virtual_uart::UartDevice<'static, $U>);
         let buffer = kernel::static_buf!([u8; capsules_core::low_level_debug::BUF_LEN]);
         let lldb = kernel::static_buf!(
             capsules_core::low_level_debug::LowLevelDebug<
@@ -45,18 +46,18 @@ macro_rules! low_level_debug_component_static {
     };};
 }
 
-pub struct LowLevelDebugComponent {
+pub struct LowLevelDebugComponent<U: uart::Uart<'static> + 'static> {
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
-    uart_mux: &'static MuxUart<'static>,
+    uart_mux: &'static MuxUart<'static, U>,
 }
 
-impl LowLevelDebugComponent {
+impl<U: uart::Uart<'static>> LowLevelDebugComponent<U> {
     pub fn new(
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
-        uart_mux: &'static MuxUart,
-    ) -> LowLevelDebugComponent {
+        uart_mux: &'static MuxUart<'static, U>,
+    ) -> Self {
         LowLevelDebugComponent {
             board_kernel,
             driver_num,
@@ -65,13 +66,13 @@ impl LowLevelDebugComponent {
     }
 }
 
-impl Component for LowLevelDebugComponent {
+impl<U: uart::Uart<'static> + 'static> Component for LowLevelDebugComponent<U> {
     type StaticInput = (
-        &'static mut MaybeUninit<UartDevice<'static>>,
+        &'static mut MaybeUninit<UartDevice<'static, U>>,
         &'static mut MaybeUninit<[u8; capsules_core::low_level_debug::BUF_LEN]>,
-        &'static mut MaybeUninit<LowLevelDebug<'static, UartDevice<'static>>>,
+        &'static mut MaybeUninit<LowLevelDebug<'static, UartDevice<'static, U>>>,
     );
-    type Output = &'static LowLevelDebug<'static, UartDevice<'static>>;
+    type Output = &'static LowLevelDebug<'static, UartDevice<'static, U>>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);

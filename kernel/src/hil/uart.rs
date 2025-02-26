@@ -37,11 +37,21 @@ pub enum Width {
     Eight = 8,
 }
 
+pub trait BaudRate {
+    fn from_nonzero(baud_rate: u32) -> Self;
+}
+
+impl BaudRate for () {
+    fn from_nonzero(_baud_rate: u32) -> Self {
+        ()
+    }
+}
+
 /// UART parameters for configuring the bus.
 #[derive(Copy, Clone, Debug)]
-pub struct Parameters {
+pub struct Parameters<BaudRateType: BaudRate> {
     /// Baud rate in bit/s.
-    pub baud_rate: u32,
+    pub baud_rate: BaudRateType,
     /// Number of bits per word.
     pub width: Width,
     /// Parity bit configuration.
@@ -110,6 +120,8 @@ impl<T: ReceiveClient + TransmitClient> Client for T {}
 
 /// Trait for configuring a UART.
 pub trait Configure {
+    type BaudRate: BaudRate + Copy;
+
     /// Set the configuration parameters for the UART bus.
     ///
     /// ### Return values
@@ -122,7 +134,7 @@ pub trait Configure {
     ///   of 0).
     /// - `Err(ENOSUPPORT)`: The underlying UART cannot satisfy this
     ///   configuration.
-    fn configure(&self, params: Parameters) -> Result<(), ErrorCode>;
+    fn configure(&self, params: Parameters<Self::BaudRate>) -> Result<(), ErrorCode>;
 }
 
 /// Trait for sending data via a UART bus.

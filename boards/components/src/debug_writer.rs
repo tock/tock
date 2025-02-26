@@ -29,6 +29,7 @@ use kernel::collections::ring_buffer::RingBuffer;
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::uart;
+use kernel::hil::uart::BaudRate;
 
 // The sum of the output_buf and internal_buf is set to a multiple of 1024 bytes in order to avoid excessive
 // padding between kernel memory and application memory (which often needs to be aligned to at
@@ -48,8 +49,8 @@ const DEBUG_BUFFER_SPLIT: usize = 64;
 /// quick succession.
 #[macro_export]
 macro_rules! debug_writer_component_static {
-    ($BUF_SIZE_KB:expr) => {{
-        let uart = kernel::static_buf!(capsules_core::virtualizers::virtual_uart::UartDevice);
+    ($U:ty, $BUF_SIZE_KB:expr $(,)?) => {{
+        let uart = kernel::static_buf!(capsules_core::virtualizers::virtual_uart::UartDevice<$U>);
         let ring = kernel::static_buf!(kernel::collections::ring_buffer::RingBuffer<'static, u8>);
         let buffer = kernel::static_buf!([u8; 1024 * $BUF_SIZE_KB]);
         let debug = kernel::static_buf!(kernel::debug::DebugWriter);
@@ -57,8 +58,8 @@ macro_rules! debug_writer_component_static {
 
         (uart, ring, buffer, debug, debug_wrapper)
     };};
-    () => {{
-        $crate::debug_writer_component_static!($crate::debug_writer::DEFAULT_DEBUG_BUFFER_KBYTE)
+    ($U:ty $(,)?) => {{
+        $crate::debug_writer_component_static!($U, $crate::debug_writer::DEFAULT_DEBUG_BUFFER_KBYTE)
     };};
 }
 
@@ -69,7 +70,7 @@ macro_rules! debug_writer_component_static {
 /// quick succession.
 #[macro_export]
 macro_rules! debug_writer_no_mux_component_static {
-    ($BUF_SIZE_KB:expr) => {{
+    ($BUF_SIZE_KB:expr $(,)?) => {{
         let ring = kernel::static_buf!(kernel::collections::ring_buffer::RingBuffer<'static, u8>);
         let buffer = kernel::static_buf!([u8; 1024 * $BUF_SIZE_KB]);
         let debug = kernel::static_buf!(kernel::debug::DebugWriter);
@@ -83,13 +84,13 @@ macro_rules! debug_writer_no_mux_component_static {
     };};
 }
 
-pub struct DebugWriterComponent<const BUF_SIZE_BYTES: usize> {
-    uart_mux: &'static MuxUart<'static>,
+pub struct DebugWriterComponent<U: uart::Uart<'static> + 'static, const BUF_SIZE_BYTES: usize> {
+    uart_mux: &'static MuxUart<'static, U>,
     marker: core::marker::PhantomData<[u8; BUF_SIZE_BYTES]>,
 }
 
-impl<const BUF_SIZE_BYTES: usize> DebugWriterComponent<BUF_SIZE_BYTES> {
-    pub fn new(uart_mux: &'static MuxUart) -> Self {
+impl<U: uart::Uart<'static>, const BUF_SIZE_BYTES: usize> DebugWriterComponent<U, BUF_SIZE_BYTES> {
+    pub fn new(uart_mux: &'static MuxUart<U>) -> Self {
         Self {
             uart_mux,
             marker: core::marker::PhantomData,
@@ -100,9 +101,11 @@ impl<const BUF_SIZE_BYTES: usize> DebugWriterComponent<BUF_SIZE_BYTES> {
 pub struct Capability;
 unsafe impl capabilities::ProcessManagementCapability for Capability {}
 
-impl<const BUF_SIZE_BYTES: usize> Component for DebugWriterComponent<BUF_SIZE_BYTES> {
+impl<U: uart::Uart<'static> + 'static, const BUF_SIZE_BYTES: usize> Component
+    for DebugWriterComponent<U, BUF_SIZE_BYTES>
+{
     type StaticInput = (
-        &'static mut MaybeUninit<UartDevice<'static>>,
+        &'static mut MaybeUninit<UartDevice<'static, U>>,
         &'static mut MaybeUninit<RingBuffer<'static, u8>>,
         &'static mut MaybeUninit<[u8; BUF_SIZE_BYTES]>,
         &'static mut MaybeUninit<kernel::debug::DebugWriter>,
@@ -182,7 +185,7 @@ impl<U: uart::Uart<'static> + uart::Transmit<'static> + 'static, const BUF_SIZE_
         }
 
         let _ = self.uart.configure(uart::Parameters {
-            baud_rate: 115200,
+            baud_rate: U::BaudRate::from_nonzero(115200),
             width: uart::Width::Eight,
             stop_bits: uart::StopBits::One,
             parity: uart::Parity::None,

@@ -72,11 +72,11 @@ impl<U: 'static + hil::uart::UartAdvanced<'static>, G: 'static + hil::gpio::Pin>
     for Nrf51822Component<U, G>
 {
     type StaticInput = (
-        &'static mut MaybeUninit<Nrf51822Serialization<'static>>,
+        &'static mut MaybeUninit<Nrf51822Serialization<'static, U>>,
         &'static mut MaybeUninit<[u8; capsules_extra::nrf51822_serialization::WRITE_BUF_LEN]>,
         &'static mut MaybeUninit<[u8; capsules_extra::nrf51822_serialization::READ_BUF_LEN]>,
     );
-    type Output = &'static Nrf51822Serialization<'static>;
+    type Output = &'static Nrf51822Serialization<'static, U>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);

@@ -29,6 +29,7 @@ use core::cmp;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
 use kernel::hil::uart;
+use kernel::hil::uart::BaudRate;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -79,8 +80,8 @@ pub const READ_BUF_LEN: usize = 600;
 
 // We need two resources: a UART HW driver and driver state for each
 // application.
-pub struct Nrf51822Serialization<'a> {
-    uart: &'a dyn uart::UartAdvanced<'a>,
+pub struct Nrf51822Serialization<'a, U: uart::UartAdvanced<'a>> {
+    uart: &'a U,
     reset_pin: &'a dyn hil::gpio::Pin,
     apps: Grant<
         App,
@@ -93,9 +94,9 @@ pub struct Nrf51822Serialization<'a> {
     rx_buffer: TakeCell<'static, [u8]>,
 }
 
-impl<'a> Nrf51822Serialization<'a> {
+impl<'a, U: uart::UartAdvanced<'a>> Nrf51822Serialization<'a, U> {
     pub fn new(
-        uart: &'a dyn uart::UartAdvanced<'a>,
+        uart: &'a U,
         grant: Grant<
             App,
             UpcallCount<{ upcall::COUNT }>,
@@ -105,8 +106,8 @@ impl<'a> Nrf51822Serialization<'a> {
         reset_pin: &'a dyn hil::gpio::Pin,
         tx_buffer: &'static mut [u8],
         rx_buffer: &'static mut [u8],
-    ) -> Nrf51822Serialization<'a> {
-        Nrf51822Serialization {
+    ) -> Self {
+        Self {
             uart,
             reset_pin,
             apps: grant,
@@ -118,7 +119,7 @@ impl<'a> Nrf51822Serialization<'a> {
 
     pub fn initialize(&self) {
         let _ = self.uart.configure(uart::Parameters {
-            baud_rate: 250000,
+            baud_rate: U::BaudRate::from_nonzero(250000),
             width: uart::Width::Eight,
             stop_bits: uart::StopBits::One,
             parity: uart::Parity::Even,
@@ -137,7 +138,7 @@ impl<'a> Nrf51822Serialization<'a> {
     }
 }
 
-impl SyscallDriver for Nrf51822Serialization<'_> {
+impl<'a, U: uart::UartAdvanced<'a>> SyscallDriver for Nrf51822Serialization<'a, U> {
     /// Issue a command to the Nrf51822Serialization driver.
     ///
     /// ### `command_type`
@@ -267,7 +268,7 @@ impl SyscallDriver for Nrf51822Serialization<'_> {
 }
 
 // Callbacks from the underlying UART driver.
-impl uart::TransmitClient for Nrf51822Serialization<'_> {
+impl<'a, U: uart::UartAdvanced<'a>> uart::TransmitClient for Nrf51822Serialization<'a, U> {
     // Called when the UART TX has finished.
     fn transmitted_buffer(
         &self,
@@ -290,7 +291,7 @@ impl uart::TransmitClient for Nrf51822Serialization<'_> {
     fn transmitted_word(&self, _rcode: Result<(), ErrorCode>) {}
 }
 
-impl uart::ReceiveClient for Nrf51822Serialization<'_> {
+impl<'a, U: uart::UartAdvanced<'a>> uart::ReceiveClient for Nrf51822Serialization<'a, U> {
     // Called when a buffer is received on the UART.
     fn received_buffer(
         &self,

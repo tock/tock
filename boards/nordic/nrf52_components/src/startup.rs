@@ -185,54 +185,54 @@ pub enum UartChannel<'a> {
     Rtt(components::segger_rtt::SeggerRttMemoryRefs<'a>),
 }
 
-pub struct UartChannelComponent {
-    uart_channel: UartChannel<'static>,
-    mux_alarm: &'static MuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
-    uarte0: &'static nrf52::uart::Uarte<'static>,
-}
+// pub struct UartChannelComponent {
+//     uart_channel: UartChannel<'static>,
+//     mux_alarm: &'static MuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+//     uarte0: &'static nrf52::uart::Uarte<'static>,
+// }
 
-impl UartChannelComponent {
-    pub fn new(
-        uart_channel: UartChannel<'static>,
-        mux_alarm: &'static MuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
-        uarte0: &'static nrf52::uart::Uarte<'static>,
-    ) -> Self {
-        Self {
-            uart_channel,
-            mux_alarm,
-            uarte0,
-        }
-    }
-}
+// impl UartChannelComponent {
+//     pub fn new(
+//         uart_channel: UartChannel<'static>,
+//         mux_alarm: &'static MuxAlarm<'static, nrf52::rtc::Rtc<'static>>,
+//         uarte0: &'static nrf52::uart::Uarte<'static>,
+//     ) -> Self {
+//         Self {
+//             uart_channel,
+//             mux_alarm,
+//             uarte0,
+//         }
+//     }
+// }
 
-impl Component for UartChannelComponent {
-    type StaticInput = (
-        &'static mut MaybeUninit<VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>>,
-        &'static mut MaybeUninit<
-            SeggerRtt<'static, VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>>,
-        >,
-    );
-    type Output = &'static dyn kernel::hil::uart::Uart<'static>;
+// impl Component for UartChannelComponent {
+//     type StaticInput = (
+//         &'static mut MaybeUninit<VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>>,
+//         &'static mut MaybeUninit<
+//             SeggerRtt<'static, VirtualMuxAlarm<'static, nrf52::rtc::Rtc<'static>>>,
+//         >,
+//     );
+//     type Output = &'static dyn kernel::hil::uart::Uart<'static>;
 
-    fn finalize(self, s: Self::StaticInput) -> Self::Output {
-        match self.uart_channel {
-            UartChannel::Pins(uart_pins) => {
-                unsafe {
-                    self.uarte0.initialize(
-                        nrf52::pinmux::Pinmux::new(uart_pins.txd as u32),
-                        nrf52::pinmux::Pinmux::new(uart_pins.rxd as u32),
-                        uart_pins.cts.map(|x| nrf52::pinmux::Pinmux::new(x as u32)),
-                        uart_pins.rts.map(|x| nrf52::pinmux::Pinmux::new(x as u32)),
-                    )
-                };
-                self.uarte0
-            }
-            UartChannel::Rtt(rtt_memory) => {
-                let rtt =
-                    components::segger_rtt::SeggerRttComponent::new(self.mux_alarm, rtt_memory)
-                        .finalize(s);
-                rtt
-            }
-        }
-    }
-}
+//     fn finalize(self, s: Self::StaticInput) -> Self::Output {
+//         match self.uart_channel {
+//             UartChannel::Pins(uart_pins) => {
+//                 unsafe {
+//                     self.uarte0.initialize(
+//                         nrf52::pinmux::Pinmux::new(uart_pins.txd as u32),
+//                         nrf52::pinmux::Pinmux::new(uart_pins.rxd as u32),
+//                         uart_pins.cts.map(|x| nrf52::pinmux::Pinmux::new(x as u32)),
+//                         uart_pins.rts.map(|x| nrf52::pinmux::Pinmux::new(x as u32)),
+//                     )
+//                 };
+//                 self.uarte0
+//             }
+//             UartChannel::Rtt(rtt_memory) => {
+//                 let rtt =
+//                     components::segger_rtt::SeggerRttComponent::new(self.mux_alarm, rtt_memory)
+//                         .finalize(s);
+//                 rtt
+//             }
+//         }
+//     }
+// }
