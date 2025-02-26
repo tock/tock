@@ -20,7 +20,7 @@
 /// [`unbounded_shl()`](https://doc.rust-lang.org/stable/std/primitive.usize.html#method.unbounded_shl).
 /// However, that method is currently a nightly-only feature.
 #[inline]
-pub fn usize32_to_usize(lo: usize, hi: usize) -> usize {
+pub const fn usize32_to_usize(lo: usize, hi: usize) -> usize {
     if usize::BITS <= 32 {
         // Just return the lo value since it has the bits we need.
         lo
