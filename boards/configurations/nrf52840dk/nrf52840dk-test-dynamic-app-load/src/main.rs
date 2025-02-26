@@ -281,6 +281,7 @@ pub unsafe fn main() {
     // Tool for displaying information about processes.
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
+    PROCESS_PRINTER = Some(process_printer);
 
     // Create the process console, an interactive terminal for managing
     // processes.

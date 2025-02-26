@@ -953,7 +953,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                     .try_into()
                     .or(Err(ProcessBinaryError::NotEnoughFlash))?;
 
-                let (version, header_length, app_length) =
+                let (_version, header_length, app_length) =
                     match tock_tbf::parse::parse_tbf_header_lengths(header) {
                         Ok((v, hl, el)) => (v, hl, el),
                         Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(app_length)) => {
@@ -976,10 +976,20 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                     .get(flash_offset + app_flash.len()..)
                     .ok_or(ProcessBinaryError::NotEnoughFlash)?;
 
-                let tbf_header = tock_tbf::parse::parse_tbf_header(app_header, version)
-                    .map_err(ProcessBinaryError::TbfHeaderParseFailure)?;
+                // Get the rest of the header. The `remaining_header` variable
+                // will continue to hold the remainder of the header we have
+                // not processed.
+                let remaining_header = app_header
+                    .get(16..)
+                    .ok_or(ProcessBinaryError::NotEnoughFlash)?;
 
-                if tbf_header.is_app() {
+                if remaining_header.len() == 0 {
+                    // This is a padding app.
+                    if config::CONFIG.debug_load_processes {
+                        debug!("Is padding!");
+                    }
+                } else {
+                    // This is an app binary, add it to the pb arrays.
                     process_binaries_start_addresses[index] = app_flash.as_ptr() as usize;
                     process_binaries_end_addresses[index] =
                         app_flash.as_ptr() as usize + app_length as usize;
@@ -996,10 +1006,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                     if index > process_binaries_start_addresses.len() - 1 {
                         return Err(ProcessBinaryError::NotEnoughFlash);
                     }
-                } else if config::CONFIG.debug_load_processes {
-                    debug!("Is padding!");
                 }
-
                 addresses = remaining_flash.as_ptr() as usize;
             }
 
