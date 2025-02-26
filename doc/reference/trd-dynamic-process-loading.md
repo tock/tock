@@ -6,8 +6,8 @@ Dynamic Process Loading
 **Type:** Documentary<br/>
 **Status:** Draft <br/>
 **Author:** Brad Campbell, Viswajith Govinda Rajan<br/>
-**Draft-Created:** 2025/02/12<br/>
-**Draft-Modified:** 2025/02/19<br/>
+**Draft-Created:** 2025/02/26<br/>
+**Draft-Modified:** 2025/02/26<br/>
 **Draft-Version:** 1<br/>
 **Draft-Discuss:** devel@lists.tockos.org<br/>
 
@@ -164,25 +164,25 @@ trait DynamicBinaryStoreClient {
     fn setup_done(&self);
 
     /// The provided process binary buffer has been stored.
-    fn write_process_binary_data_done(&self, buffer: &'static mut [u8], length: usize);
+    fn write_process_binary_data_done(&self, result: Result<(), ErrorCode>, buffer: &'static mut [u8], length: usize);
 
     /// Canceled any setup or writing operation and freed up reserved space.
     fn abort_done(&self, result: Result<(), ErrorCode>);
 }
 ```
 
-There is a coupling between the `setup()` and `write()` calls.
-The `setup()` call allows the implementation to allocate the needed resources 
-to store the process binary. Because the kernel requires that it reserves the 
-resources required for the new binary before storing it, this method MUST be
-called before calling `write()`. An implementation is responsible for storing
-individual chunks of the process binary.
+There is a coupling between the `setup()` and `write()` calls. The `setup()`
+call allows the implementation to allocate the needed resources to store the
+process binary. Because the kernel requires that it reserves the resources
+required for the new binary before storing it, this method MUST be called before
+calling `write()`. An implementation is responsible for storing individual
+chunks of the process binary.
 
-The `abort()` call deallocates the resources and frees them up for a 
-future process. 
+The `abort()` call deallocates any stored resources and resets the
+implementation to handle a new `setup()` call.
 
-Each operation may be asynchronous and must generate 
-a callback.
+Each operation is asynchronous and must generate a callback if the operation
+returns `Ok(())`.
 
 The interface is intentionally general to support different underlying storage
 formats and storage media.
@@ -207,25 +207,13 @@ trait DynamicProcessLoadClient {
 }
 ```
 
+The `load()` operation is asynchronous and must generate a callback if it
+returns `Ok(())`.
+
 This interface does not mandate that the kernel capsule creates a new process.
 Implementations may include a policy for choosing whether to load a new process
 binary. The implementation must also use the board's chosen credential checking
 policy.
-
----------------------------------
-
-The methods described for both the traits return a synchronous result to the 
-userland app. If the result is `Ok(())`, the operation requested operation can 
-be performed and the the userland app must wait for an asynchronous upcall 
-indicating the result of the operation. 
-If the result is a variant of `ErrorCode`, the kernel deallocates the 
-resources reserved for the new application and writes a padding application 
-in its stead. The userland application must request for resources with the 
-`setup()` command and restart the process once again. This method reduces 
-potential fragmentation due to problematic binaries.
-
-The exception to this is the `abort()` call, which allows for the userland 
-application to retry the command at a later time. 
 
 
 5 Sequential Process Loading Implementation
@@ -249,7 +237,7 @@ The implementation is structured like this:
 ```text
  trait DynamicBinaryStore
  trait DynamicProcessLoad
-┌────────────────────────────────┐   ┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐
+┌────────────────────────────────┐   ┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐
 │                                │   ╎                                ╎
 │                              ──┼──►╎                                ╎
 │                                │   ╎                                ╎
@@ -257,7 +245,7 @@ The implementation is structured like this:
 │                                │   ╎                                ╎
 │                                │   ╎                                ╎
 │                                │   ╎                                ╎
-└────────────────────────────────┘   └╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘
+└────────────────────────────────┘   └╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘
  hil::NonvolatileStorage
 ```
 
@@ -266,7 +254,10 @@ the stored process binaries, including discovering the existing process binaries
 and identifying a location in flash where a new process binary can be stored.
 
 The `SequentialDynamicBinaryStorage` is responsible for writing to the flash and
-implementing the kernel capsule traits.
+implementing the kernel capsule traits. On errors when writing to the flash, or
+if the upper layer calls `abort()`, the implementation will write a padding
+application over the incomplete new process binary. This method reduces
+potential fragmentation due to problematic binaries.
 
 5.1 Ensuring Application Availability
 ---------------------------------
