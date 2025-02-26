@@ -453,7 +453,7 @@ pub unsafe fn start() -> (
     match peripherals.rtc.rtc_init() {
         Ok(()) => {}
         Err(e) => {
-            debug!("error starting rtc {:?}", e);
+            debug!("error starting rtc {:?}", e)
         }
     }
 

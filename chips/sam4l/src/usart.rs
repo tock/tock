@@ -742,7 +742,7 @@ impl<'a> USART<'a> {
                 let cd = system_frequency / baud_rate;
                 usart.registers.brgr.write(BaudRate::CD.val(cd));
             }
-            _ => {}
+            UsartMode::Unused => {}
         }
     }
 

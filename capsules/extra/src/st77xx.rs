@@ -489,21 +489,17 @@ impl<'a, A: Alarm<'a>, B: Bus<'a, BusAddr8>, P: Pin> ST77XX<'a, A, B, P> {
                     self.sequence_buffer.map_or_else(
                         || panic!("st77xx: do next op has no sequence buffer"),
                         |sequence| match sequence[position] {
-                            SendCommand::Nop => {
-                                self.do_next_op();
-                            }
+                            SendCommand::Nop => self.do_next_op(),
                             SendCommand::Default(cmd) => {
-                                self.send_command_with_default_parameters(cmd);
+                                self.send_command_with_default_parameters(cmd)
                             }
                             SendCommand::Position(cmd, position, len) => {
-                                self.send_command(cmd, position, len, 1);
+                                self.send_command(cmd, position, len, 1)
                             }
                             SendCommand::Repeat(cmd, position, len, repeat) => {
-                                self.send_command(cmd, position, len, repeat);
+                                self.send_command(cmd, position, len, repeat)
                             }
-                            SendCommand::Slice(cmd, len) => {
-                                self.send_command_slice(cmd, len);
-                            }
+                            SendCommand::Slice(cmd, len) => self.send_command_slice(cmd, len),
                         },
                     );
                 } else {
@@ -512,23 +508,22 @@ impl<'a, A: Alarm<'a>, B: Bus<'a, BusAddr8>, P: Pin> ST77XX<'a, A, B, P> {
                         self.client.map(|client| {
                             self.power_on.set(true);
 
-                            client.screen_is_ready();
+                            client.screen_is_ready()
                         });
                     } else {
                         if self.setup_command.get() {
                             self.setup_command.set(false);
-                            self.setup_client.map(|setup_client| {
-                                setup_client.command_complete(Ok(()));
-                            });
+                            self.setup_client
+                                .map(|setup_client| setup_client.command_complete(Ok(())));
                         } else {
                             self.client.map(|client| {
                                 if self.write_buffer.is_some() {
                                     self.write_buffer.take().map(|buffer| {
                                         let data = SubSliceMut::new(buffer);
-                                        client.write_complete(data, Ok(()));
+                                        client.write_complete(data, Ok(()))
                                     });
                                 } else {
-                                    client.command_complete(Ok(()));
+                                    client.command_complete(Ok(()))
                                 }
                             });
                         }

@@ -49,9 +49,7 @@ impl IoWrite for Writer {
                     });
                 }
                 for &c in buf {
-                    unsafe {
-                        uart.send_byte(c);
-                    }
+                    unsafe { uart.send_byte(c) }
                     while !uart.tx_ready() {}
                 }
             }

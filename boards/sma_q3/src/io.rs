@@ -36,9 +36,7 @@ impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) -> usize {
         match self {
             Writer::Uninitialized => {}
-            Writer::WriterRtt(rtt_memory) => {
-                rtt_memory.write_sync(buf);
-            }
+            Writer::WriterRtt(rtt_memory) => rtt_memory.write_sync(buf),
         }
         buf.len()
     }

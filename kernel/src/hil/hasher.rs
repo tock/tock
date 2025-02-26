@@ -54,7 +54,7 @@ pub trait Hasher<'a, const L: usize> {
     /// callback is fired.
     /// On error the return value will contain a return code and the original data
     /// The possible ErrorCodes are:
-    ///    - BUSY: The system is busy performing an operation The caller should
+    ///    - BUSY: The system is busy performing an operation. The caller should
     ///      expect a callback
     ///    - SIZE: The size of the `data` buffer is invalid
     fn add_data(
@@ -69,7 +69,7 @@ pub trait Hasher<'a, const L: usize> {
     /// callback is fired.
     /// On error the return value will contain a return code and the original data
     /// The possible ErrorCodes are:
-    ///    - BUSY: The system is busy performing an operation The caller should
+    ///    - BUSY: The system is busy performing an operation. The caller should
     ///      expect a callback
     ///    - SIZE: The size of the `data` buffer is invalid
     fn add_mut_data(
@@ -85,7 +85,7 @@ pub trait Hasher<'a, const L: usize> {
     /// If there is data from the `add_data()` command asynchronously waiting to
     /// be written it will be written before the operation starts.
     /// The possible ErrorCodes are:
-    ///    - BUSY: The system is busy performing an operation The caller should
+    ///    - BUSY: The system is busy performing an operation. The caller should
     ///      expect a callback
     ///    - SIZE: The size of the `data` buffer is invalid
     fn run(&'a self, hash: &'static mut [u8; L]) -> Result<(), (ErrorCode, &'static mut [u8; L])>;

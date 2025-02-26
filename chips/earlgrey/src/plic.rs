@@ -93,7 +93,7 @@ impl Plic {
     /// Disable specific interrupt.
     pub fn disable(&self, index: u32) {
         if index >= PLIC_IRQ_NUM as u32 {
-            panic!("Invalid IRQ: {}", index);
+            panic!("Invalid IRQ: {}", index)
         }
         let offset = (index / 32) as usize;
         let mask = !(1 << (index % 32));
@@ -127,7 +127,7 @@ impl Plic {
     /// Saved interrupts are cleared when `'complete()` is called.
     pub unsafe fn save_interrupt(&self, index: u32) {
         if index >= PLIC_IRQ_NUM as u32 {
-            panic!("Invalid IRQ: {}", index);
+            panic!("Invalid IRQ: {}", index)
         }
         let offset = (index / 32) as usize;
         let mask = 1 << (index % 32);
@@ -158,7 +158,7 @@ impl Plic {
     pub unsafe fn complete(&self, index: u32) {
         self.registers.claim.set(index);
         if index >= PLIC_IRQ_NUM as u32 {
-            panic!("Invalid IRQ: {}", index);
+            panic!("Invalid IRQ: {}", index)
         }
         let offset = (index / 32) as usize;
         let mask = !(1 << (index % 32));

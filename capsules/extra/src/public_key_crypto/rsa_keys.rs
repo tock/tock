@@ -301,9 +301,7 @@ impl<const L: usize> RsaPrivKey for RSAKeys<L> {
         if let Some(private_key) = self.private_key.take() {
             match private_key {
                 MutImutBuffer::Mutable(ref _buf) => unreachable!(),
-                MutImutBuffer::Immutable(buf) => {
-                    closure(buf);
-                }
+                MutImutBuffer::Immutable(buf) => closure(buf),
             }
             self.private_key.replace(private_key);
             Some(())
@@ -328,9 +326,7 @@ impl<const L: usize> RsaPrivKeyMut for RSAKeys<L> {
     fn map_exponent(&self, closure: &dyn Fn(&mut [u8])) -> Option<()> {
         if let Some(mut private_key) = self.private_key.take() {
             match private_key {
-                MutImutBuffer::Mutable(ref mut buf) => {
-                    closure(buf);
-                }
+                MutImutBuffer::Mutable(ref mut buf) => closure(buf),
                 MutImutBuffer::Immutable(_buf) => unreachable!(),
             }
             self.private_key.replace(private_key);
