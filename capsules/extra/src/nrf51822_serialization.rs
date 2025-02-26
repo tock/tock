@@ -29,7 +29,6 @@ use core::cmp;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::hil;
 use kernel::hil::uart;
-use kernel::hil::uart::BaudRate;
 use kernel::processbuffer::{ReadableProcessBuffer, WriteableProcessBuffer};
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -119,7 +118,7 @@ impl<'a, U: uart::UartAdvanced<'a>> Nrf51822Serialization<'a, U> {
 
     pub fn initialize(&self) {
         let _ = self.uart.configure(uart::Parameters {
-            baud_rate: U::BaudRate::from_nonzero(250000),
+            baud_rate: core::num::NonZeroU32::new(250000).unwrap().into(),
             width: uart::Width::Eight,
             stop_bits: uart::StopBits::One,
             parity: uart::Parity::Even,

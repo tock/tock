@@ -179,9 +179,9 @@ pub enum UarteBaudRate {
     Baud1000000,
 }
 
-impl uart::BaudRate for UarteBaudRate {
-    fn from_nonzero(baud_rate: u32) -> Self {
-        match baud_rate {
+impl From<core::num::NonZeroU32> for UarteBaudRate {
+    fn from(baud_rate: core::num::NonZeroU32) -> Self {
+        match baud_rate.get() {
             1200 => UarteBaudRate::Baud1200,
             2400 => UarteBaudRate::Baud2400,
             4800 => UarteBaudRate::Baud4800,

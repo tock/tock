@@ -651,7 +651,7 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> hil::usb::Client<'a>
 }
 
 impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> uart::Configure for CdcAcm<'a, U, A> {
-    type BaudRate = ();
+    type BaudRate = uart::NonexistentBaudRate;
 
     fn configure(&self, _parameters: uart::Parameters<Self::BaudRate>) -> Result<(), ErrorCode> {
         // Since this is not a real UART, we don't need to consider these

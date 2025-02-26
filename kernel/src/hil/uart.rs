@@ -37,19 +37,19 @@ pub enum Width {
     Eight = 8,
 }
 
-pub trait BaudRate {
-    fn from_nonzero(baud_rate: u32) -> Self;
-}
+// pub trait BaudRate:  {}
 
-impl BaudRate for () {
-    fn from_nonzero(_baud_rate: u32) -> Self {
-        ()
+#[derive(Copy, Clone)]
+pub struct NonexistentBaudRate {}
+impl From<core::num::NonZeroU32> for NonexistentBaudRate {
+    fn from(_baud_rate: core::num::NonZeroU32) -> Self {
+        NonexistentBaudRate {}
     }
 }
 
 /// UART parameters for configuring the bus.
 #[derive(Copy, Clone, Debug)]
-pub struct Parameters<BaudRateType: BaudRate> {
+pub struct Parameters<BaudRateType: From<core::num::NonZeroU32> + Copy> {
     /// Baud rate in bit/s.
     pub baud_rate: BaudRateType,
     /// Number of bits per word.
@@ -120,7 +120,7 @@ impl<T: ReceiveClient + TransmitClient> Client for T {}
 
 /// Trait for configuring a UART.
 pub trait Configure {
-    type BaudRate: BaudRate + Copy;
+    type BaudRate: From<core::num::NonZeroU32> + Copy;
 
     /// Set the configuration parameters for the UART bus.
     ///

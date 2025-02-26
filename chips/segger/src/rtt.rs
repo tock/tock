@@ -335,7 +335,7 @@ impl<'a, A: hil::time::Alarm<'a>> hil::time::AlarmClient for SeggerRtt<'a, A> {
 // Dummy implementation so this can act as the underlying UART for a
 // virtualized UART MUX. -pal 1/10/19
 impl<'a, A: hil::time::Alarm<'a>> uart::Configure for SeggerRtt<'a, A> {
-    type BaudRate = ();
+    type BaudRate = uart::NonexistentBaudRate;
 
     fn configure(&self, _parameters: uart::Parameters<Self::BaudRate>) -> Result<(), ErrorCode> {
         Err(ErrorCode::FAIL)

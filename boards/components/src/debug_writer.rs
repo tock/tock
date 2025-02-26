@@ -29,7 +29,6 @@ use kernel::collections::ring_buffer::RingBuffer;
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::uart;
-use kernel::hil::uart::BaudRate;
 
 // The sum of the output_buf and internal_buf is set to a multiple of 1024 bytes in order to avoid excessive
 // padding between kernel memory and application memory (which often needs to be aligned to at
@@ -185,7 +184,7 @@ impl<U: uart::Uart<'static> + uart::Transmit<'static> + 'static, const BUF_SIZE_
         }
 
         let _ = self.uart.configure(uart::Parameters {
-            baud_rate: U::BaudRate::from_nonzero(115200),
+            baud_rate: core::num::NonZeroU32::new(115200).unwrap().into(),
             width: uart::Width::Eight,
             stop_bits: uart::StopBits::One,
             parity: uart::Parity::None,
