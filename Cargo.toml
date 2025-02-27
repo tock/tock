@@ -264,6 +264,7 @@ verbose_bit_mask = "allow"
 large_types_passed_by_value = "allow"
 no_mangle_with_rust_abi = "allow"
 struct_field_names = "allow"
+needless_continue = "allow"
 
 
 cast_lossless = "allow"

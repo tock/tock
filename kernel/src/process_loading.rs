@@ -273,6 +273,7 @@ fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
                         }
 
                         // Skip this binary and move to the next one.
+                        continue;
                     }
                 }
             }
