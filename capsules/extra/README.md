@@ -195,3 +195,5 @@ various elements of Tock.
 - **[Debug Process Restart](src/debug_process_restart.rs)**: Force all processes
   to enter a fault state when a button is pressed.
 - **[Panic Button](src/panic_button.rs)**: Use a button to force a `panic!()`.
+- **[Process Info](src/process_info_driver.rs)**: Inspect and control processes.
+
