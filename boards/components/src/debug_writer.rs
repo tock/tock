@@ -79,7 +79,7 @@ macro_rules! debug_writer_no_mux_component_static {
     };};
     () => {{
         use $crate::debug_writer::DEFAULT_DEBUG_BUFFER_KBYTE;
-        $crate::debug_writer_no_mux_component_static!(DEFAULT_DEBUG_BUFFER_KBYTE);
+        $crate::debug_writer_no_mux_component_static!(DEFAULT_DEBUG_BUFFER_KBYTE)
     };};
 }
 
