@@ -448,18 +448,9 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> ProcessLoadingAsyncCl
     for SequentialDynamicBinaryStorage<'_, C, D>
 {
     fn process_loaded(&self, result: Result<(), ProcessLoadError>) {
-        match result {
-            Ok(()) => {
-                self.load_client.map(|client| {
-                    client.load_done(result);
-                });
-            }
-            Err(_e) => {
-                if config::CONFIG.debug_load_processes {
-                    debug!("Load Failed.");
-                }
-            }
-        }
+        self.load_client.map(|client| {
+            client.load_done(result);
+        });
     }
 
     fn process_loading_finished(&self) {}

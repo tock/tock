@@ -268,9 +268,9 @@ fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
                     | ProcessBinaryError::IncorrectFlashAddress { .. }
                     | ProcessBinaryError::NotEnabledProcess
                     | ProcessBinaryError::Padding => {
-                        if config::CONFIG.debug_load_processes {
-                            debug!("Unable to use process binary: {:?}.", err);
-                        }
+                        // if config::CONFIG.debug_load_processes {
+                        debug!("Unable to use process binary: {:?}.", err);
+                        // }
 
                         // Skip this binary and move to the next one.
                         continue;
