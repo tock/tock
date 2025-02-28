@@ -6,6 +6,7 @@
 
 use kernel::capabilities::ProcessManagementCapability;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
+use kernel::process;
 use kernel::processbuffer::WriteableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::Kernel;
@@ -120,6 +121,56 @@ impl<C: ProcessManagementCapability> SyscallDriver for ProcessInfo<C> {
                                             let n = process.get_process_name().as_bytes();
                                             let _ = s[0..n.len()].copy_from_slice_or_err(n);
                                             s[n.len()].set(0);
+                                        }
+                                    });
+                            })
+                        });
+                });
+                CommandReturn::success()
+            }
+
+            5 => {
+                let _ = self.apps.enter(process_id, |_app, kernel_data| {
+                    let _ = kernel_data
+                        .get_readwrite_processbuffer(rw_allow::INFO)
+                        .and_then(|shared| {
+                            shared.mut_enter(|s| {
+                                let mut chunks = s.chunks(size_of::<u32>());
+                                self.kernel
+                                    .process_each_capability(&self.capability, |process| {
+                                        if process.processid().id() == data1 {
+                                            if let Some(chunk) = chunks.nth(0) {
+                                                let _ = chunk.copy_from_slice_or_err(
+                                                    &process
+                                                        .debug_timeslice_expiration_count()
+                                                        .to_le_bytes(),
+                                                );
+                                            }
+                                            if let Some(chunk) = chunks.nth(0) {
+                                                let _ = chunk.copy_from_slice_or_err(
+                                                    &process.debug_syscall_count().to_le_bytes(),
+                                                );
+                                            }
+                                            if let Some(chunk) = chunks.nth(0) {
+                                                let _ = chunk.copy_from_slice_or_err(
+                                                    &process.get_restart_count().to_le_bytes(),
+                                                );
+                                            }
+                                            if let Some(chunk) = chunks.nth(0) {
+                                                let process_state_id: u32 =
+                                                    match process.get_state() {
+                                                        process::State::Running => 0,
+                                                        process::State::Yielded => 1,
+                                                        process::State::YieldedFor(_) => 2,
+                                                        process::State::Stopped(_) => 3,
+                                                        process::State::Faulted => 4,
+                                                        process::State::Terminated => 5,
+                                                    };
+
+                                                let _ = chunk.copy_from_slice_or_err(
+                                                    &process_state_id.to_le_bytes(),
+                                                );
+                                            }
                                         }
                                     });
                             })
