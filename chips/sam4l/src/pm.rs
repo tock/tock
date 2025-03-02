@@ -871,12 +871,10 @@ impl PowerManager {
         // Start the OSC0 if it isn't already in use by the PLL
         if (self.system_on_clocks.get() & ClockMask::PLL as u32) == 0 {
             match frequency {
-                OscillatorFrequency::Frequency16MHz => {
-                    match startup_mode {
-                        OscillatorStartup::FastStart => scif::setup_osc_16mhz_fast_startup(),
-                        OscillatorStartup::SlowStart => scif::setup_osc_16mhz_slow_startup(),
-                    };
-                }
+                OscillatorFrequency::Frequency16MHz => match startup_mode {
+                    OscillatorStartup::FastStart => scif::setup_osc_16mhz_fast_startup(),
+                    OscillatorStartup::SlowStart => scif::setup_osc_16mhz_slow_startup(),
+                },
             }
         }
 
@@ -894,12 +892,10 @@ impl PowerManager {
         // Start the OSC0 if it isn't already on
         if (self.system_on_clocks.get() & ClockMask::OSC0 as u32) == 0 {
             match frequency {
-                OscillatorFrequency::Frequency16MHz => {
-                    match startup_mode {
-                        OscillatorStartup::FastStart => scif::setup_osc_16mhz_fast_startup(),
-                        OscillatorStartup::SlowStart => scif::setup_osc_16mhz_slow_startup(),
-                    };
-                }
+                OscillatorFrequency::Frequency16MHz => match startup_mode {
+                    OscillatorStartup::FastStart => scif::setup_osc_16mhz_fast_startup(),
+                    OscillatorStartup::SlowStart => scif::setup_osc_16mhz_slow_startup(),
+                },
             }
         }
 

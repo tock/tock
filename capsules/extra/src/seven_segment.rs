@@ -362,15 +362,15 @@ impl<'a, P: Pin, A: Alarm<'a>, const NUM_DIGITS: usize> SyscallDriver
     /// ### `command_num`
     ///
     /// - `0`: Driver existence check.
-    /// - `1`: Prints one digit at the requested position. Returns `INVAL` if the
-    ///        position is not valid.
+    /// - `1`: Prints one digit at the requested position. Returns `INVAL` if
+    ///   the position is not valid.
     /// - `2`: Clears all digits currently being displayed.
-    /// - `3`: Print a dot at the requested digit position. Returns
-    ///        `INVAL` if the position is not valid.
-    /// - `4`: Print a custom pattern for a certain digit. Returns
-    ///        `INVAL` if the position is not valid.
-    /// - `5`: Returns the number of digits on the display. This will always be 0 or
-    ///        greater, and therefore also allows for checking for this driver.
+    /// - `3`: Print a dot at the requested digit position. Returns `INVAL` if
+    ///   the position is not valid.
+    /// - `4`: Print a custom pattern for a certain digit. Returns `INVAL` if
+    ///   the position is not valid.
+    /// - `5`: Returns the number of digits on the display. This will always be
+    ///   0 or greater, and therefore also allows for checking for this driver.
     fn command(
         &self,
         command_num: usize,

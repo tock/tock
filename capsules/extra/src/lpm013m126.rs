@@ -743,7 +743,7 @@ where
             _ => {
                 self.extcomin.toggle();
             }
-        };
+        }
     }
 }
 

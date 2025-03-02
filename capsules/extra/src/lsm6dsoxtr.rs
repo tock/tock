@@ -426,8 +426,8 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm6dsoxtrI2C<'_, I> {
                 let mut y: usize = 0;
                 let mut z: usize = 0;
 
-                if status == Ok(()) {
-                    self.nine_dof_client.map(|nine_dof_client| {
+                self.nine_dof_client.map(|nine_dof_client| {
+                    if status == Ok(()) {
                         let scale_factor = self.accel_scale.get() as usize;
                         x = ((((buffer[0] as u16 + ((buffer[1] as u16) << 8)) as i16) as isize)
                             * (SCALE_FACTOR_ACCEL[scale_factor] as isize)
@@ -440,12 +440,10 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm6dsoxtrI2C<'_, I> {
                             * (SCALE_FACTOR_ACCEL[scale_factor] as isize)
                             / 1000) as usize;
                         nine_dof_client.callback(x, y, z)
-                    });
-                } else {
-                    self.nine_dof_client.map(|client| {
-                        client.callback(0, 0, 0);
-                    });
-                };
+                    } else {
+                        nine_dof_client.callback(0, 0, 0)
+                    }
+                });
                 self.buffer.replace(buffer);
                 self.i2c.disable();
                 self.state.set(State::Idle);
@@ -455,8 +453,8 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm6dsoxtrI2C<'_, I> {
                 let mut x: usize = 0;
                 let mut y: usize = 0;
                 let mut z: usize = 0;
-                if status == Ok(()) {
-                    self.nine_dof_client.map(|nine_dof_client| {
+                self.nine_dof_client.map(|nine_dof_client| {
+                    if status == Ok(()) {
                         let scale_factor = self.gyro_range.get() as usize;
                         x = (((buffer[0] as u16 + ((buffer[1] as u16) << 8)) as i16) as isize
                             * (SCALE_FACTOR_GYRO[scale_factor] as isize)
@@ -469,12 +467,10 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm6dsoxtrI2C<'_, I> {
                             * (SCALE_FACTOR_GYRO[scale_factor] as isize)
                             / 100) as usize;
                         nine_dof_client.callback(x, y, z)
-                    });
-                } else {
-                    self.nine_dof_client.map(|client| {
-                        client.callback(0, 0, 0);
-                    });
-                };
+                    } else {
+                        nine_dof_client.callback(0, 0, 0)
+                    }
+                });
                 self.buffer.replace(buffer);
                 self.i2c.disable();
                 self.state.set(State::Idle);
@@ -489,9 +485,8 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm6dsoxtrI2C<'_, I> {
                         * 100) as i32),
                     Err(i2c_error) => Err(i2c_error.into()),
                 };
-                self.temperature_client.map(|client| {
-                    client.callback(temperature);
-                });
+                self.temperature_client
+                    .map(|client| client.callback(temperature));
                 self.buffer.replace(buffer);
                 self.i2c.disable();
                 self.state.set(State::Idle);

@@ -9,7 +9,7 @@
 #![crate_type = "rlib"]
 // `registers/rv_plic_regs` has many register definitions in `register_structs()!`
 // and requires a deeper recursion limit than the default to fully expand.
-#![recursion_limit = "256"]
+#![recursion_limit = "512"]
 
 pub mod chip_config;
 pub mod pinmux_config;

@@ -2009,7 +2009,7 @@ impl<'a> UsbCtrl<'a> {
                                 .ep_in_buf_ctrl
                                 .modify(EP_BUFFER_CONTROL::STALL::SET);
                         }
-                    };
+                    }
                 });
             }
             1..=N_ENDPOINTS => {
@@ -2132,7 +2132,7 @@ impl<'a> UsbCtrl<'a> {
                         .state
                         .set(EndpointState::Ctrl(CtrlState::Init));
                 }
-            };
+            }
         });
     }
 

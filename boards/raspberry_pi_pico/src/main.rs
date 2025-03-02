@@ -453,9 +453,9 @@ pub unsafe fn start() -> (
     match peripherals.rtc.rtc_init() {
         Ok(()) => {}
         Err(e) => {
-            debug!("error starting rtc {:?}", e);
+            debug!("error starting rtc {:?}", e)
         }
-    };
+    }
 
     let date_time = components::date_time::DateTimeComponent::new(
         board_kernel,

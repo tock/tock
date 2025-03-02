@@ -1450,7 +1450,7 @@ impl Pio {
             6 => temp = self.registers.irq.read(IRQ::IRQ6),
             7 => temp = self.registers.irq.read(IRQ::IRQ7),
             _ => debug!("IRQ Number invalid - must be from 0 to 7"),
-        };
+        }
         temp != 0
     }
 

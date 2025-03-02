@@ -134,7 +134,7 @@ impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> MuxI2C<'a, I, S> {
                                     node.operation.set(Op::CommandComplete(Err(e.0)));
                                     node.mux.do_next_op_async();
                                 }
-                            };
+                            }
                         }
                         Op::Read(len) => {
                             match self.smbus.unwrap().smbus_read(node.addr, buf, len) {
@@ -144,7 +144,7 @@ impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> MuxI2C<'a, I, S> {
                                     node.operation.set(Op::CommandComplete(Err(e.0)));
                                     node.mux.do_next_op_async();
                                 }
-                            };
+                            }
                         }
                         Op::WriteRead(wlen, rlen) => {
                             match self
@@ -158,7 +158,7 @@ impl<'a, I: i2c::I2CMaster<'a>, S: i2c::SMBusMaster<'a>> MuxI2C<'a, I, S> {
                                     node.operation.set(Op::CommandComplete(Err(e.0)));
                                     node.mux.do_next_op_async();
                                 }
-                            };
+                            }
                         }
                         Op::CommandComplete(err) => {
                             self.command_complete(buf, err);
