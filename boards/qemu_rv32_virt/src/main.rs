@@ -194,28 +194,28 @@ unsafe fn start() -> (
     // protection.
     let epmp = rv32i::pmp::kernel_protection_mml_epmp::KernelProtectionMMLEPMP::new(
         rv32i::pmp::kernel_protection_mml_epmp::FlashRegion(
-            rv32i::pmp::NAPOTRegionSpec::new(
+            rv32i::pmp::NAPOTRegionSpec::from_start_end(
                 core::ptr::addr_of!(_sflash),
-                core::ptr::addr_of!(_eflash) as usize - core::ptr::addr_of!(_sflash) as usize,
+                core::ptr::addr_of!(_eflash),
             )
             .unwrap(),
         ),
         rv32i::pmp::kernel_protection_mml_epmp::RAMRegion(
-            rv32i::pmp::NAPOTRegionSpec::new(
+            rv32i::pmp::NAPOTRegionSpec::from_start_end(
                 core::ptr::addr_of!(_ssram),
-                core::ptr::addr_of!(_esram) as usize - core::ptr::addr_of!(_ssram) as usize,
+                core::ptr::addr_of!(_esram),
             )
             .unwrap(),
         ),
         rv32i::pmp::kernel_protection_mml_epmp::MMIORegion(
-            rv32i::pmp::NAPOTRegionSpec::new(
+            rv32i::pmp::NAPOTRegionSpec::from_start_size(
                 core::ptr::null::<u8>(), // start
                 0x20000000,              // size
             )
             .unwrap(),
         ),
         rv32i::pmp::kernel_protection_mml_epmp::KernelTextRegion(
-            rv32i::pmp::TORRegionSpec::new(
+            rv32i::pmp::TORRegionSpec::from_start_end(
                 core::ptr::addr_of!(_stext),
                 core::ptr::addr_of!(_etext),
             )

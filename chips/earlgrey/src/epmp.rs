@@ -444,8 +444,8 @@ impl<const HANDOVER_CONFIG_CHECK: bool> EarlGreyEPMP<{ HANDOVER_CONFIG_CHECK }, 
 
         // Provide R/X access to the kernel .text as passed to us above.
         // Allocate a TOR region in PMP entries 2 and 3:
-        csr::CSR.pmpaddr2.set((kernel_text.0.start() as usize) >> 2);
-        csr::CSR.pmpaddr3.set((kernel_text.0.end() as usize) >> 2);
+        csr::CSR.pmpaddr2.set(kernel_text.0.pmpaddr_a());
+        csr::CSR.pmpaddr3.set(kernel_text.0.pmpaddr_b());
 
         // Set the appropriate `pmpcfg0` register value:
         //
@@ -467,14 +467,14 @@ impl<const HANDOVER_CONFIG_CHECK: bool> EarlGreyEPMP<{ HANDOVER_CONFIG_CHECK }, 
 
         // Configure a Read-Only NAPOT region for the entire flash (spanning
         // kernel & apps, but overlayed by the R/X kernel text TOR section)
-        csr::CSR.pmpaddr12.set(flash.0.napot_addr());
+        csr::CSR.pmpaddr12.set(flash.0.pmpaddr());
 
         // Configure a Read-Write NAPOT region for MMIO.
-        csr::CSR.pmpaddr14.set(mmio.0.napot_addr());
+        csr::CSR.pmpaddr14.set(mmio.0.pmpaddr());
 
         // Configure a Read-Write NAPOT region for the entire RAM (spanning
         // kernel & apps)
-        csr::CSR.pmpaddr15.set(ram.0.napot_addr());
+        csr::CSR.pmpaddr15.set(ram.0.pmpaddr());
 
         // With the FLASH, RAM and MMIO configured in separate regions, we can
         // activate this new configuration, and further adjust the permissions
@@ -516,11 +516,11 @@ impl<const HANDOVER_CONFIG_CHECK: bool> EarlGreyEPMP<{ HANDOVER_CONFIG_CHECK }, 
             || csr::CSR.pmpcfg1.get() != 0x00000000
             || csr::CSR.pmpcfg2.get() != 0x00000000
             || csr::CSR.pmpcfg3.get() != 0x9B9B8099
-            || csr::CSR.pmpaddr2.get() != (kernel_text.0.start() as usize) >> 2
-            || csr::CSR.pmpaddr3.get() != (kernel_text.0.end() as usize) >> 2
-            || csr::CSR.pmpaddr12.get() != flash.0.napot_addr()
-            || csr::CSR.pmpaddr14.get() != mmio.0.napot_addr()
-            || csr::CSR.pmpaddr15.get() != ram.0.napot_addr()
+            || csr::CSR.pmpaddr2.get() != kernel_text.0.pmpaddr_a()
+            || csr::CSR.pmpaddr3.get() != kernel_text.0.pmpaddr_b()
+            || csr::CSR.pmpaddr12.get() != flash.0.pmpaddr()
+            || csr::CSR.pmpaddr14.get() != mmio.0.pmpaddr()
+            || csr::CSR.pmpaddr15.get() != ram.0.pmpaddr()
         {
             return Err(EarlGreyEPMPError::SanityCheckFail);
         }
@@ -581,8 +581,8 @@ impl<const HANDOVER_CONFIG_CHECK: bool> EarlGreyEPMP<{ HANDOVER_CONFIG_CHECK }, 
 
         // Provide R/X access to the kernel .text as passed to us above.
         // Allocate a TOR region in PMP entries 0 and 1:
-        csr::CSR.pmpaddr0.set((kernel_text.0.start() as usize) >> 2);
-        csr::CSR.pmpaddr1.set((kernel_text.0.end() as usize) >> 2);
+        csr::CSR.pmpaddr0.set(kernel_text.0.pmpaddr_a());
+        csr::CSR.pmpaddr1.set(kernel_text.0.pmpaddr_b());
 
         // Set the appropriate `pmpcfg0` register value:
         //
@@ -602,15 +602,15 @@ impl<const HANDOVER_CONFIG_CHECK: bool> EarlGreyEPMP<{ HANDOVER_CONFIG_CHECK }, 
         // region to retain MMIO access while reconfiguring the `pmpcfg3` /
         // `pmpaddr15` register. Thus, write the MMIO region access into
         // `pmpaddr12`:
-        csr::CSR.pmpaddr12.set(mmio.0.napot_addr());
+        csr::CSR.pmpaddr12.set(mmio.0.pmpaddr());
 
         // Configure a Read-Only NAPOT region for the entire flash (spanning
         // kernel & apps, but overlayed by the R/X kernel text TOR section)
-        csr::CSR.pmpaddr13.set(flash.0.napot_addr());
+        csr::CSR.pmpaddr13.set(flash.0.pmpaddr());
 
         // Configure a Read-Write NAPOT region for the entire RAM (spanning
         // kernel & apps)
-        csr::CSR.pmpaddr14.set(ram.0.napot_addr());
+        csr::CSR.pmpaddr14.set(ram.0.pmpaddr());
 
         // With the FLASH, RAM and MMIO configured in separate regions, we can
         // activate this new configuration, and further adjust the permissions
@@ -626,7 +626,7 @@ impl<const HANDOVER_CONFIG_CHECK: bool> EarlGreyEPMP<{ HANDOVER_CONFIG_CHECK }, 
 
         // With the new configuration in place, we can adjust the last region's
         // address to be limited to the MMIO region, ...
-        csr::CSR.pmpaddr15.set(mmio.0.napot_addr());
+        csr::CSR.pmpaddr15.set(mmio.0.pmpaddr());
 
         // ...and then deactivate the `pmpaddr12` fallback MMIO region
         //
@@ -672,11 +672,11 @@ impl<const HANDOVER_CONFIG_CHECK: bool> EarlGreyEPMP<{ HANDOVER_CONFIG_CHECK }, 
             || csr::CSR.pmpcfg1.get() != 0x00000000
             || csr::CSR.pmpcfg2.get() != 0x00000000
             || csr::CSR.pmpcfg3.get() != 0x9B9B9980
-            || csr::CSR.pmpaddr0.get() != (kernel_text.0.start() as usize) >> 2
-            || csr::CSR.pmpaddr1.get() != (kernel_text.0.end() as usize) >> 2
-            || csr::CSR.pmpaddr13.get() != flash.0.napot_addr()
-            || csr::CSR.pmpaddr14.get() != ram.0.napot_addr()
-            || csr::CSR.pmpaddr15.get() != mmio.0.napot_addr()
+            || csr::CSR.pmpaddr0.get() != kernel_text.0.pmpaddr_a()
+            || csr::CSR.pmpaddr1.get() != kernel_text.0.pmpaddr_b()
+            || csr::CSR.pmpaddr13.get() != flash.0.pmpaddr()
+            || csr::CSR.pmpaddr14.get() != ram.0.pmpaddr()
+            || csr::CSR.pmpaddr15.get() != mmio.0.pmpaddr()
         {
             return Err(EarlGreyEPMPError::SanityCheckFail);
         }
@@ -737,10 +737,8 @@ impl<const HANDOVER_CONFIG_CHECK: bool> EarlGreyEPMP<{ HANDOVER_CONFIG_CHECK }, 
 
         // Provide R/X access to the kernel .text as passed to us above.
         // Allocate a TOR region in PMP entries 10 and 11:
-        csr::CSR
-            .pmpaddr10
-            .set((kernel_text.0.start() as usize) >> 2);
-        csr::CSR.pmpaddr11.set((kernel_text.0.end() as usize) >> 2);
+        csr::CSR.pmpaddr10.set(kernel_text.0.pmpaddr_a());
+        csr::CSR.pmpaddr11.set(kernel_text.0.pmpaddr_b());
 
         // Set the appropriate `pmpcfg2` register value:
         //
@@ -755,15 +753,15 @@ impl<const HANDOVER_CONFIG_CHECK: bool> EarlGreyEPMP<{ HANDOVER_CONFIG_CHECK }, 
         // region to retain MMIO access while reconfiguring the `pmpcfg3` /
         // `pmpaddr15` register. Thus, write the MMIO region access into
         // `pmpaddr12`:
-        csr::CSR.pmpaddr12.set(mmio.0.napot_addr());
+        csr::CSR.pmpaddr12.set(mmio.0.pmpaddr());
 
         // Configure a Read-Only NAPOT region for the entire flash (spanning
         // kernel & apps, but overlayed by the R/X kernel text TOR section)
-        csr::CSR.pmpaddr13.set(flash.0.napot_addr());
+        csr::CSR.pmpaddr13.set(flash.0.pmpaddr());
 
         // Configure a Read-Write NAPOT region for the entire RAM (spanning
         // kernel & apps)
-        csr::CSR.pmpaddr14.set(ram.0.napot_addr());
+        csr::CSR.pmpaddr14.set(ram.0.pmpaddr());
 
         // With the FLASH, RAM and MMIO configured in separate regions, we can
         // activate this new configuration, and further adjust the permissions
@@ -779,10 +777,10 @@ impl<const HANDOVER_CONFIG_CHECK: bool> EarlGreyEPMP<{ HANDOVER_CONFIG_CHECK }, 
 
         // With the new configuration in place, we can adjust the last region's
         // address to be limited to the MMIO region, ...
-        csr::CSR.pmpaddr15.set(mmio.0.napot_addr());
+        csr::CSR.pmpaddr15.set(mmio.0.pmpaddr());
 
         // ...and then repurpose `pmpaddr12` for the debug port:
-        csr::CSR.pmpaddr12.set(debug_memory.0.napot_addr());
+        csr::CSR.pmpaddr12.set(debug_memory.0.pmpaddr());
 
         // 0x9F = 0b10011111, for RVDM R/W/X memory region
         //        setting L(7) = 1, A(4-3) = NAPOT, X(2) = 1, W(1) = 1, R(0) = 1
@@ -824,12 +822,12 @@ impl<const HANDOVER_CONFIG_CHECK: bool> EarlGreyEPMP<{ HANDOVER_CONFIG_CHECK }, 
             || csr::CSR.pmpcfg1.get() != 0x00000000
             || csr::CSR.pmpcfg2.get() != 0x8d800000
             || csr::CSR.pmpcfg3.get() != 0x9B9B999F
-            || csr::CSR.pmpaddr10.get() != (kernel_text.0.start() as usize) >> 2
-            || csr::CSR.pmpaddr11.get() != (kernel_text.0.end() as usize) >> 2
-            || csr::CSR.pmpaddr12.get() != debug_memory.0.napot_addr()
-            || csr::CSR.pmpaddr13.get() != flash.0.napot_addr()
-            || csr::CSR.pmpaddr14.get() != ram.0.napot_addr()
-            || csr::CSR.pmpaddr15.get() != mmio.0.napot_addr()
+            || csr::CSR.pmpaddr10.get() != kernel_text.0.pmpaddr_a()
+            || csr::CSR.pmpaddr11.get() != kernel_text.0.pmpaddr_b()
+            || csr::CSR.pmpaddr12.get() != debug_memory.0.pmpaddr()
+            || csr::CSR.pmpaddr13.get() != flash.0.pmpaddr()
+            || csr::CSR.pmpaddr14.get() != ram.0.pmpaddr()
+            || csr::CSR.pmpaddr15.get() != mmio.0.pmpaddr()
         {
             return Err(EarlGreyEPMPError::SanityCheckFail);
         }
