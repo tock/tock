@@ -38,7 +38,7 @@ Details of the [application binary interface](../Syscalls.md).
 
 Each driver type that has been allocated a permanent driver number is listed in
 the tables below. The "2.0" column indicates whether the driver has been
-stabilized or not (a "✓" indicates stability) in the Tock 2.0 release.
+[stabilized](../Maintenance.md#stabilizing-a-syscall-driver) or not (a "✓" indicates stability) in the Tock 2.0 release.
 
 ### Base
 
