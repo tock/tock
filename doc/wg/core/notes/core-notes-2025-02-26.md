@@ -68,7 +68,7 @@
     - Brad: Right now, the implementation respects what the threat model says it does. One option would be to update the threat model. Other change the loader somehow.
     - Johnathan: Let me see if I understand right, there is also a checksum on the header, and if that checksum fails the loader doesn't trust it and the list breaks?
     - Viswajith: Not quite...
-    - Johnathan: Conceptually there should be something file-system like that lets you find where apps are located that are trusted, and then app headers which have to be trusted; the intrusive linked list mixes two trust levels in the same header
+    - Johnathan: Conceptually there should be something file-system like that lets you find where apps are located that are trusted, and then app headers which have to be untrusted; the intrusive linked list mixes two trust levels in the same header
     - Brad: I interpret that is that we should stick with the threat model we have; and the issue is the current kernel implementation
     - Leon: I think it's generally very useful to have a checksum on the linked list itself; useful to have as protection against incomplete writes to flash
     - Pat: I need to interject here as note-taker—this is too hard to follow in real time. People are talking past each other and it's not clear what exactly the issue is. This needs a write-up folks can digest
