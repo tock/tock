@@ -143,17 +143,17 @@ interface is marked as stable as of the next release of Tock.
 Syscall driver stabilization process:
 
 1. The driver has complete documentation in the `doc/syscalls` directory.
-1. A Tock developer proposes that a specific driver, as identified by its driver
+2. A Tock developer proposes that a specific driver, as identified by its driver
    number and source code in the upstream Tock repository, should be stabilized
    by creating a pull request that moves the driver to the `capsules/core` crate and
    marks the stabilization column in `doc/syscalls/README.md` with a ⏰.
-1. Stabilization PRs are always considered `P-Significant`, which requires the core
+3. Stabilization PRs are always considered `P-Significant`, which requires the core
    working group to support the stabilization.
-1. The syscall driver must be unchanged for a period of four months. This period
+4. The syscall driver must be unchanged for a period of four months. This period
    may start from a point before the stabilization process started. The driver
    must be reasonably tested during this period.
-1. If changes are required the waiting period resets.
-1. After the probationary period, the syscall driver is marked stabilized at the
+5. If changes are required the waiting period resets.
+6. After the probationary period, the syscall driver is marked stabilized at the
    next Tock major or minor release. The syscall driver is marked stable by
    updating the stabilization column in `doc/syscalls/README.md` with the Tock
    release version number.
