@@ -155,7 +155,7 @@ pub trait DynamicBinaryStore {
     fn setup(&self, length: usize) -> Result<usize, ErrorCode>;
 
     /// Store a portion of the process binary.
-    fn write_process_binary_data(&self, buffer: SubSliceMut<'static, u8>, offset: usize) -> Result<(), ErrorCode>;
+    fn write(&self, buffer: SubSliceMut<'static, u8>, offset: usize) -> Result<(), ErrorCode>;
 
     /// Writing the process binary has finished.
     fn finalize(&self) -> Result<(), ErrorCode>;
@@ -171,7 +171,7 @@ trait DynamicBinaryStoreClient {
     fn setup_done(&self);
 
     /// The provided process binary buffer has been stored.
-    fn write_process_binary_data_done(&self, result: Result<(), ErrorCode>, buffer: &'static mut [u8], length: usize);
+    fn write_done(&self, result: Result<(), ErrorCode>, buffer: &'static mut [u8], length: usize);
 
     /// Operations to finish up writing the new process binary are completed.
     fn finalize_done(&self, result: Result<(), ErrorCode>);
