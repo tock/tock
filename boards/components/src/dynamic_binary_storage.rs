@@ -24,6 +24,7 @@
 use capsules_extra::nonvolatile_to_pages::NonvolatileToPages;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
+use kernel::deferred_call::DeferredCallClient;
 use kernel::dynamic_binary_storage::SequentialDynamicBinaryStorage;
 use kernel::hil;
 use kernel::platform::chip::Chip;
@@ -116,6 +117,7 @@ impl<
         );
         self.loader_driver
             .set_runtime_client(dynamic_binary_storage);
+        dynamic_binary_storage.register();
         dynamic_binary_storage
     }
 }

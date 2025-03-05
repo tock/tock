@@ -11,6 +11,7 @@ use core::cell::Cell;
 
 use crate::config;
 use crate::debug;
+use crate::deferred_call::{DeferredCall, DeferredCallClient};
 use crate::hil::nonvolatile_storage::{NonvolatileStorage, NonvolatileStorageClient};
 use crate::platform::chip::Chip;
 use crate::process::ProcessLoadingAsyncClient;
@@ -83,6 +84,10 @@ pub trait DynamicBinaryStore {
         offset: usize,
     ) -> Result<(), ErrorCode>;
 
+    /// Signal to the kernel that the requesting process is done writing the new
+    /// binary.
+    fn finalize(&self) -> Result<(), ErrorCode>;
+
     /// Call to abort the setup/writing process.
     fn abort(&self) -> Result<(), ErrorCode>;
 
@@ -105,6 +110,10 @@ pub trait DynamicBinaryStoreClient {
         buffer: &'static mut [u8],
         length: usize,
     );
+
+    /// The kernel has finished writing a prepad app if necessary and is ready
+    /// to move to the `load()` phase.
+    fn finalize_done(&self, result: Result<(), ErrorCode>);
 
     /// Canceled any setup or writing operation and freed up reserved space.
     fn abort_done(&self, result: Result<(), ErrorCode>);
@@ -138,6 +147,7 @@ pub struct SequentialDynamicBinaryStorage<'a, C: Chip + 'static, D: ProcessStand
     load_client: OptionalCell<&'static dyn DynamicProcessLoadClient>,
     process_metadata: OptionalCell<ProcessLoadMetadata>,
     state: Cell<State>,
+    deferred_call: DeferredCall,
 }
 
 impl<'a, C: Chip + 'static, D: ProcessStandardDebug + 'static>
@@ -156,6 +166,7 @@ impl<'a, C: Chip + 'static, D: ProcessStandardDebug + 'static>
             load_client: OptionalCell::empty(),
             process_metadata: OptionalCell::empty(),
             state: Cell::new(State::Idle),
+            deferred_call: DeferredCall::new(),
         }
     }
 
@@ -325,42 +336,20 @@ impl<'a, C: Chip + 'static, D: ProcessStandardDebug + 'static>
             }
         })
     }
+}
 
-    fn write_prepad_app(&self) {
-        if let Some(metadata) = self.process_metadata.get() {
-            match metadata.padding_requirement {
-                // If we decided we need to write a padding app before the new
-                // app, we go ahead and do it.
-                PaddingRequirement::PrePad | PaddingRequirement::PreAndPostPad => {
-                    // Calculate the distance between our app and the previous
-                    // app.
-                    let previous_app_end_addr = metadata.previous_app_end_addr;
-                    let pre_pad_length = metadata.new_app_start_addr - previous_app_end_addr;
-                    self.state.set(State::PaddingWrite);
-                    let padding_result =
-                        self.write_padding_app(pre_pad_length, previous_app_end_addr);
-                    match padding_result {
-                        Ok(()) => {
-                            if config::CONFIG.debug_load_processes {
-                                debug!("Successfully writing prepadding app");
-                            }
-                        }
-                        Err(_e) => {
-                            // This means we were unable to write the padding
-                            // app.
-                            self.reset_process_loading_metadata();
-                        }
-                    };
-                }
-                // We should never reach here if we are not writing a prepad
-                // app.
-                PaddingRequirement::None | PaddingRequirement::PostPad => {
-                    if config::CONFIG.debug_load_processes {
-                        debug!("No PrePad app to write.");
-                    }
-                }
-            };
-        }
+impl<C: Chip, D: ProcessStandardDebug> DeferredCallClient
+    for SequentialDynamicBinaryStorage<'_, C, D>
+{
+    fn handle_deferred_call(&self) {
+        // We use deferred call to signal the completion of finalize
+        self.storage_client.map(|client| {
+            client.finalize_done(Ok(()));
+        });
+    }
+
+    fn register(&'static self) {
+        self.deferred_call.register(self);
     }
 }
 
@@ -427,6 +416,9 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> NonvolatileStorageCli
             State::Load => {
                 // We finished writing pre-padding and we need to Load the app.
                 self.buffer.replace(buffer);
+                self.storage_client.map(|client| {
+                    client.finalize_done(Ok(()));
+                });
             }
             State::Abort => {
                 self.buffer.replace(buffer);
@@ -568,6 +560,56 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> DynamicBinaryStore
         }
     }
 
+    fn finalize(&self) -> Result<(), ErrorCode> {
+        match self.state.get() {
+            State::AppWrite => {
+                if let Some(metadata) = self.process_metadata.get() {
+                    match metadata.padding_requirement {
+                        // If we decided we need to write a padding app before the new
+                        // app, we go ahead and do it.
+                        PaddingRequirement::PrePad | PaddingRequirement::PreAndPostPad => {
+                            // Calculate the distance between our app and the previous
+                            // app.
+                            let previous_app_end_addr = metadata.previous_app_end_addr;
+                            let pre_pad_length =
+                                metadata.new_app_start_addr - previous_app_end_addr;
+                            self.state.set(State::Load);
+                            let padding_result =
+                                self.write_padding_app(pre_pad_length, previous_app_end_addr);
+                            match padding_result {
+                                Ok(()) => {
+                                    if config::CONFIG.debug_load_processes {
+                                        debug!("Successfully writing prepadding app");
+                                    }
+                                    Ok(())
+                                }
+                                Err(_e) => {
+                                    // This means we were unable to write the padding
+                                    // app.
+                                    self.reset_process_loading_metadata();
+                                    Err(ErrorCode::FAIL)
+                                }
+                            }
+                        }
+                        // We should never reach here if we are not writing a prepad
+                        // app.
+                        PaddingRequirement::None | PaddingRequirement::PostPad => {
+                            if config::CONFIG.debug_load_processes {
+                                debug!("No PrePad app to write.");
+                            }
+                            self.state.set(State::Load);
+                            self.deferred_call.set();
+                            Ok(())
+                        }
+                    }
+                } else {
+                    Err(ErrorCode::INVAL)
+                }
+            }
+            _ => Err(ErrorCode::INVAL),
+        }
+    }
+
     fn abort(&self) -> Result<(), ErrorCode> {
         match self.state.get() {
             State::Setup | State::AppWrite => {
@@ -606,27 +648,29 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> DynamicProcessLoad
     }
 
     fn load(&self) -> Result<(), ErrorCode> {
-        // Write the prepad app if necessary.
-        self.write_prepad_app();
-
         // We have finished writing the last user data segment, next step is to
         // load the process.
-        if let Some(metadata) = self.process_metadata.get() {
-            let _ = match self
-                .loader_driver
-                .load_new_process_binary(metadata.new_app_start_addr, metadata.new_app_length)
-            {
-                Ok(()) => Ok::<(), ProcessLoadError>(()),
-                Err(_e) => {
+        match self.state.get() {
+            State::Load => {
+                if let Some(metadata) = self.process_metadata.get() {
+                    let _ = match self.loader_driver.load_new_process_binary(
+                        metadata.new_app_start_addr,
+                        metadata.new_app_length,
+                    ) {
+                        Ok(()) => Ok::<(), ProcessLoadError>(()),
+                        Err(_e) => {
+                            self.reset_process_loading_metadata();
+                            return Err(ErrorCode::FAIL);
+                        }
+                    };
+                } else {
                     self.reset_process_loading_metadata();
                     return Err(ErrorCode::FAIL);
                 }
-            };
-        } else {
-            self.reset_process_loading_metadata();
-            return Err(ErrorCode::FAIL);
+                self.reset_process_loading_metadata();
+                Ok(())
+            }
+            _ => Err(ErrorCode::INVAL),
         }
-        self.reset_process_loading_metadata();
-        Ok(())
     }
 }

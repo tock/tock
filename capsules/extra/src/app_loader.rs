@@ -75,12 +75,14 @@ mod upcall {
     pub const SETUP_DONE: usize = 0;
     /// Write done callback.
     pub const WRITE_DONE: usize = 1;
+    /// Finalize done callback.
+    pub const FINALIZE_DONE: usize = 2;
     /// Load done callback.
-    pub const LOAD_DONE: usize = 2;
+    pub const LOAD_DONE: usize = 3;
     /// Abort done callback.
-    pub const ABORT_DONE: usize = 3;
+    pub const ABORT_DONE: usize = 4;
     /// Number of upcalls.
-    pub const COUNT: u8 = 4;
+    pub const COUNT: u8 = 5;
 }
 
 // Ids for read-only allow buffers
@@ -245,6 +247,20 @@ impl kernel::dynamic_binary_storage::DynamicBinaryStoreClient for AppLoader<'_> 
         });
     }
 
+    fn finalize_done(&self, result: Result<(), ErrorCode>) {
+        self.current_process.map(|processid| {
+            let _ = self.apps.enter(processid, move |app, kernel_data| {
+                // And then signal the app.
+                app.pending_command = false;
+
+                self.current_process.take();
+                kernel_data
+                    .schedule_upcall(upcall::FINALIZE_DONE, (into_statuscode(result), 0, 0))
+                    .ok();
+            });
+        });
+    }
+
     fn abort_done(&self, result: Result<(), ErrorCode>) {
         self.current_process.map(|processid| {
             let _ = self.apps.enter(processid, move |app, kernel_data| {
@@ -312,12 +328,18 @@ impl SyscallDriver for AppLoader<'_> {
     ///        - Returns Ok(()) when write is successful
     ///        - Returns ErrorCode::INVAL when the app is violating bounds
     ///        - Returns ErrorCode::FAIL when the write fails
-    /// - `3`: Request kernel to load app.
+    /// - `3`: Signal to the kernel that the writing is done.
+    ///        - Returns Ok(()) if the kernel successfully verified it and
+    ///          set the stage for `load()`.
+    ///        - Returns ErrorCode::FAIL if:
+    ///          - The kernel needs to write a leading padding app but is unable to.
+    ///          - The command is called during setup or load phases.
+    /// - `4`: Request kernel to load app.
     ///        - Returns Ok(()) when the process is successfully loaded
     ///        - Returns ErrorCode::FAIL if:
     ///            - The kernel is unable to create a process object for the application
     ///            - The kernel fails to write a padding app (thereby potentially breaking the linkedlist)
-    /// - `4`: Request kernel to abort setup/write operation.
+    /// - `5`: Request kernel to abort setup/write operation.
     ///        - Returns Ok(()) when the operation is cancelled successfully
     ///        - Returns ErrorCode::BUSY when the abort fails
     ///          (due to padding app being unable to be written, so try again)
@@ -392,6 +414,19 @@ impl SyscallDriver for AppLoader<'_> {
             }
 
             3 => {
+                // Signal to kernel writing is done.
+                let result = self.storage_driver.finalize();
+                match result {
+                    Ok(()) => CommandReturn::success(),
+                    Err(e) => {
+                        self.new_app_length.set(0);
+                        self.current_process.take();
+                        CommandReturn::failure(e)
+                    }
+                }
+            }
+
+            4 => {
                 // Request kernel to load the new app.
                 let res = self.load_driver.load();
                 match res {
@@ -407,7 +442,7 @@ impl SyscallDriver for AppLoader<'_> {
                 }
             }
 
-            4 => {
+            5 => {
                 // Request kernel to abort setup/write operation.
                 let result = self.storage_driver.abort();
                 match result {
