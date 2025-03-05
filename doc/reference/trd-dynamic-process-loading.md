@@ -6,8 +6,8 @@ Dynamic Process Loading
 **Type:** Documentary<br/>
 **Status:** Draft <br/>
 **Author:** Brad Campbell, Viswajith Govinda Rajan<br/>
-**Draft-Created:** 2025/02/26<br/>
-**Draft-Modified:** 2025/02/26<br/>
+**Draft-Created:** 2025/03/05<br/>
+**Draft-Modified:** 2025/03/05<br/>
 **Draft-Version:** 1<br/>
 **Draft-Discuss:** devel@lists.tockos.org<br/>
 
@@ -112,10 +112,14 @@ The `0x10001` system call interface provides four operations:
 
 1. `setup(process_binary_size_bytes: usize)`: This initiates the process of
    loading a new process binary. The `AppLoader` capsule will attempt to allocate resources
-   to be able to store and load a process of the specified size. Success or
+   to be able to store and load a process of the specified size.
+   Each process may only setup one process binary to load at a time.
+   Success or
    failure is indicated via an upcall.
 2. `write(process_binary: &[u8], length_bytes: usize, offset_bytes: usize)`:
-   This stores a portion of the process binary. Write is expected to be called
+   This stores a portion of the process binary.
+   `setup()` must have completed successfully before `write()` can be called.
+   Write is expected to be called
    multiple times to store the entire process binary and there is no assumption
    about the order the process binary is written in. Success or failure is
    indicated via an upcall.
@@ -153,6 +157,9 @@ pub trait DynamicBinaryStore {
     /// Store a portion of the process binary.
     fn write_process_binary_data(&self, buffer: SubSliceMut<'static, u8>, offset: usize) -> Result<(), ErrorCode>;
 
+    /// Writing the process binary has finished.
+    fn finalize(&self) -> Result<(), ErrorCode>;
+
     /// Call to abort the setup/writing process.
     fn abort(&self) -> Result<(), ErrorCode>;
 
@@ -166,20 +173,27 @@ trait DynamicBinaryStoreClient {
     /// The provided process binary buffer has been stored.
     fn write_process_binary_data_done(&self, result: Result<(), ErrorCode>, buffer: &'static mut [u8], length: usize);
 
+    /// Operations to finish up writing the new process binary are completed.
+    fn finalize_done(&self, result: Result<(), ErrorCode>);
+
     /// Canceled any setup or writing operation and freed up reserved space.
     fn abort_done(&self, result: Result<(), ErrorCode>);
 }
 ```
 
-There is a coupling between the `setup()` and `write()` calls. The `setup()`
+There is a coupling between the `setup()`, `write()`, and `finalize()` calls. The `setup()`
 call allows the implementation to allocate the needed resources to store the
 process binary. Because the kernel requires that it reserves the resources
 required for the new binary before storing it, this method MUST be called before
 calling `write()`. An implementation is responsible for storing individual
 chunks of the process binary.
+Once the entire process binary has been written the `finalize()` method must be
+called. This completes the store and the implementation can handle a new
+`setup()` call.
 
 The `abort()` call deallocates any stored resources and resets the
 implementation to handle a new `setup()` call.
+`abort()` can only be called after `setup()` and before `finalize()`.
 
 Each operation is asynchronous and must generate a callback if the operation
 returns `Ok(())`.
