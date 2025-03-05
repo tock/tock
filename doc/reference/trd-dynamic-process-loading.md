@@ -111,7 +111,7 @@ The layers provide differing levels of trust for each component.
 The `0x10001` system call interface provides four operations:
 
 1. `setup(process_binary_size_bytes: usize)`: This initiates the process of
-   loading a new process binary. The capsule will attempt to allocate resources
+   loading a new process binary. The `AppLoader` capsule will attempt to allocate resources
    to be able to store and load a process of the specified size. Success or
    failure is indicated via an upcall.
 2. `write(process_binary: &[u8], length_bytes: usize, offset_bytes: usize)`:
