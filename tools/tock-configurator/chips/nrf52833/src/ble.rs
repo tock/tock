@@ -1,0 +1,29 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright OxidOS Automotive SRL 2024
+//
+// Author: Irina Nita <irina.nita@oxidos.io>
+// Author: Darius Jipa <darius.jipa@oxidos.io>
+
+//! Not fully supported yet.
+
+use parse::constants::PERIPHERALS;
+use parse::peripheral;
+
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+pub enum BleType {
+    RadioBle,
+}
+
+#[derive(Debug)]
+#[peripheral(serde, ident = "ble")]
+pub struct Ble(BleType);
+
+impl parse::Component for Ble {}
+impl parse::BleAdvertisement for Ble {}
+
+impl std::fmt::Display for Ble {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ble_radio")
+    }
+}
