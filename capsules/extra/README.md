@@ -155,6 +155,8 @@ simultaneously) support for generic sensor interfaces.
   gyroscope).
 - **[Nonvolatile Storage](src/nonvolatile_storage_driver.rs)**: Persistent
   storage for userspace.
+- **[Isolated Nonvolatile Storage](src/isolated_nonvolatile_storage_driver.rs)**:
+  Per-app isolated persistent storage for userspace.
 
 
 Utility Capsules
