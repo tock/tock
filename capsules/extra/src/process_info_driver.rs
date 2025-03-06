@@ -4,7 +4,7 @@
 
 //! Allow userspace to inspect the list of processes on the board.
 
-use kernel::capabilities::ProcessManagementCapability;
+use kernel::capabilities::{ProcessManagementCapability, ProcessStartCapability};
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
 use kernel::process;
 use kernel::processbuffer::WriteableProcessBuffer;
@@ -73,12 +73,12 @@ impl<C: ProcessManagementCapability> ProcessInfo<C> {
     }
 }
 
-impl<C: ProcessManagementCapability> SyscallDriver for ProcessInfo<C> {
+impl<C: ProcessManagementCapability + ProcessStartCapability> SyscallDriver for ProcessInfo<C> {
     fn command(
         &self,
         command_num: usize,
         data1: usize,
-        _data2: usize,
+        data2: usize,
         process_id: ProcessId,
     ) -> CommandReturn {
         match command_num {
@@ -176,6 +176,44 @@ impl<C: ProcessManagementCapability> SyscallDriver for ProcessInfo<C> {
                             })
                         });
                 });
+                CommandReturn::success()
+            }
+
+            10 => {
+                self.kernel
+                    .process_each_capability(&self.capability, |process| {
+                        if process.processid().id() == data1 {
+                            match data2 {
+                                1 => {
+                                    // START
+                                    process.resume();
+                                }
+                                2 => {
+                                    // STOP
+                                    process.stop();
+                                }
+
+                                3 => {
+                                    // FAULT
+                                    process.set_fault_state();
+                                }
+
+                                4 => {
+                                    // TERMINATE
+                                    process.terminate(None);
+                                }
+
+                                5 => {
+                                    // BOOT
+                                    if process.get_state() == process::State::Terminated {
+                                        process.start(&self.capability);
+                                    }
+                                }
+
+                                _ => {}
+                            }
+                        }
+                    });
                 CommandReturn::success()
             }
 
