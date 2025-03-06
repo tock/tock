@@ -245,16 +245,13 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> SyscallDriver for UsbHidDriver<'a, U>
                     // a receive we return `ErrorCode::ALREADY`. If the
                     // receive fails we return an error.
                     if let Some(buf) = self.recv_buffer.take() {
-                        match self.usb.receive_buffer(buf) {
-                            Ok(()) => {}
-                            Err((err, buffer)) => {
-                                self.recv_buffer.replace(buffer);
-                                return CommandReturn::failure(err);
-                            }
+                        if let Err((err, buffer)) = self.usb.receive_buffer(buf) {
+                            self.recv_buffer.replace(buffer);
+                            return CommandReturn::failure(err);
                         }
                     } else {
                         return CommandReturn::failure(ErrorCode::ALREADY);
-                    };
+                    }
 
                     // If we were able to setup a read then next we do the
                     // transmit.

@@ -156,7 +156,7 @@ impl Prci {
                 // ... and finally switch to the PLL output
                 regs.pllcfg.modify(pllcfg::sel::SET);
             }
-        };
+        }
         self.current_frequency.set(frequency);
 
         // Finally, disable internal clock as we've now switched to something else.

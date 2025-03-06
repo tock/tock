@@ -106,7 +106,7 @@ impl<'a, F: hil::flash::Flash> MuxFlash<'a, F> {
                                 let _ = self.flash.erase_page(page_number);
                             }
                             _ => {}
-                        };
+                        }
                     },
                     |buf| {
                         match node.operation.get() {

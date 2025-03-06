@@ -3,6 +3,9 @@
 // Copyright OxidOS Automotive 2025 SRL.
 
 #![no_std]
+// `registers/rv_plic_regs` has many register definitions in `register_structs()!`
+// and requires a deeper recursion limit than the default to fully expand.
+#![recursion_limit = "512"]
 
 use cortexm0p::{initialize_ram_jump_to_main, unhandled_interrupt, CortexM0P, CortexMVariant};
 

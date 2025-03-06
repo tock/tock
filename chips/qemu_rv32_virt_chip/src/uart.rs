@@ -393,7 +393,7 @@ impl hil::uart::Configure for Uart16550<'_> {
             Width::Six => lcr.modify(LCR::DataWordLength::Bits6),
             Width::Seven => lcr.modify(LCR::DataWordLength::Bits7),
             Width::Eight => lcr.modify(LCR::DataWordLength::Bits8),
-        };
+        }
 
         match params.stop_bits {
             StopBits::One => LCR::StopBits::One,
@@ -407,12 +407,12 @@ impl hil::uart::Configure for Uart16550<'_> {
             Parity::None => lcr.modify(LCR::Parity.val(0b000)),
             Parity::Odd => lcr.modify(LCR::Parity.val(0b001)),
             Parity::Even => lcr.modify(LCR::Parity.val(0b011)),
-        };
+        }
 
         match params.hw_flow_control {
             true => lcr.modify(LCR::BreakSignal::SET),
             false => lcr.modify(LCR::BreakSignal::CLEAR),
-        };
+        }
 
         self.regs.lcr.set(lcr.get());
 

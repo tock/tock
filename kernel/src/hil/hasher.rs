@@ -54,8 +54,8 @@ pub trait Hasher<'a, const L: usize> {
     /// callback is fired.
     /// On error the return value will contain a return code and the original data
     /// The possible ErrorCodes are:
-    ///    - BUSY: The system is busy performing an operation
-    ///            The caller should expect a callback
+    ///    - BUSY: The system is busy performing an operation. The caller should
+    ///      expect a callback
     ///    - SIZE: The size of the `data` buffer is invalid
     fn add_data(
         &self,
@@ -69,8 +69,8 @@ pub trait Hasher<'a, const L: usize> {
     /// callback is fired.
     /// On error the return value will contain a return code and the original data
     /// The possible ErrorCodes are:
-    ///    - BUSY: The system is busy performing an operation
-    ///            The caller should expect a callback
+    ///    - BUSY: The system is busy performing an operation. The caller should
+    ///      expect a callback
     ///    - SIZE: The size of the `data` buffer is invalid
     fn add_mut_data(
         &self,
@@ -82,11 +82,11 @@ pub trait Hasher<'a, const L: usize> {
     /// This doesn't return any data, instead the client needs to have
     /// set a `hash_done` handler to determine when this is complete.
     /// On error the return value will contain a return code and the original data
-    /// If there is data from the `add_data()` command asyncrously waiting to
+    /// If there is data from the `add_data()` command asynchronously waiting to
     /// be written it will be written before the operation starts.
     /// The possible ErrorCodes are:
-    ///    - BUSY: The system is busy performing an operation
-    ///            The caller should expect a callback
+    ///    - BUSY: The system is busy performing an operation. The caller should
+    ///      expect a callback
     ///    - SIZE: The size of the `data` buffer is invalid
     fn run(&'a self, hash: &'static mut [u8; L]) -> Result<(), (ErrorCode, &'static mut [u8; L])>;
 
@@ -97,7 +97,7 @@ pub trait Hasher<'a, const L: usize> {
 }
 
 pub trait SipHash {
-    /// Optionaly call before `Hasher::run()` to specify the keys used
+    /// Optionally call before `Hasher::run()` to specify the keys used
     /// The possible ErrorCodes are:
     ///    - BUSY: The system is busy
     ///    - ALREADY: An operation is already on going

@@ -123,8 +123,8 @@ pub trait KVSystem<'a> {
     /// the append operation will fail. To update an existing key to a new value
     /// the key must first be invalidated.
     ///
-    /// - `key`: A hashed key. This key will be used in future to retrieve
-    ///          or remove the `value`.
+    /// - `key`: A hashed key. This key will be used in future to retrieve or
+    ///   remove the `value`.
     /// - `value`: A buffer containing the data to be stored to flash.
     ///
     /// On success nothing will be returned.

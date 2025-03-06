@@ -179,6 +179,6 @@ pub fn find_app(name: &str, app_flash: &'static [u8]) -> Result<(usize, usize, u
                     dmem_length as usize,
                 ));
             }
-        };
+        }
     }
 }

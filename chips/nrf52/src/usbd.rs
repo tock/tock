@@ -1450,7 +1450,7 @@ impl<'a> Usbd<'a> {
                                 .state
                                 .set(EndpointState::Ctrl(CtrlState::Init));
                         }
-                    };
+                    }
                 });
             }
             1..=7 => {
@@ -1796,7 +1796,7 @@ impl<'a> Usbd<'a> {
                     debug_tasks!("- task: ep0stall");
                     self.registers.task_ep0stall.write(Task::ENABLE::SET);
                 }
-            };
+            }
         });
     }
 

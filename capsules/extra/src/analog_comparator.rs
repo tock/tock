@@ -119,15 +119,12 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> SyscallDriver
     /// ### `command_num`
     ///
     /// - `0`: Driver existence check.
-    /// - `1`: Perform a simple comparison.
-    ///        Input x chooses the desired comparator ACx (e.g. 0 or 1 for
-    ///        hail, 0-3 for imix)
-    /// - `2`: Start interrupt-based comparisons.
-    ///        Input x chooses the desired comparator ACx (e.g. 0 or 1 for
-    ///        hail, 0-3 for imix)
-    /// - `3`: Stop interrupt-based comparisons.
-    ///        Input x chooses the desired comparator ACx (e.g. 0 or 1 for
-    ///        hail, 0-3 for imix)
+    /// - `1`: Perform a simple comparison. Input x chooses the desired
+    ///   comparator ACx (e.g. 0 or 1 for hail, 0-3 for imix)
+    /// - `2`: Start interrupt-based comparisons. Input x chooses the desired
+    ///   comparator ACx (e.g. 0 or 1 for hail, 0-3 for imix)
+    /// - `3`: Stop interrupt-based comparisons. Input x chooses the desired
+    ///   comparator ACx (e.g. 0 or 1 for hail, 0-3 for imix)
     /// - `4`: Get number of channels.
     fn command(
         &self,

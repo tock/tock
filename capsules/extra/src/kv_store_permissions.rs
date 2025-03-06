@@ -48,7 +48,7 @@ const HEADER_VERSION: u8 = 0;
 pub const HEADER_LENGTH: usize = mem::size_of::<KeyHeader>();
 
 /// This is the header used for KV stores.
-#[repr(packed)]
+#[repr(C, packed)]
 struct KeyHeader {
     version: u8,
     length: u32,

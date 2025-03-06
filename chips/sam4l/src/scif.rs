@@ -511,5 +511,5 @@ fn generic_clock_control_write(
         GenericClock::GCLK9 => SCIF.gcctrl9.write(val),
         GenericClock::GCLK10 => SCIF.gcctrl10.write(val),
         GenericClock::GCLK11 => SCIF.gcctrl11.write(val),
-    };
+    }
 }
