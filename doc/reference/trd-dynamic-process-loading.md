@@ -285,11 +285,11 @@ The `SequentialDynamicBinaryStorage` implementation ensures this invariant holds
 because of two implementation details. First, during the `setup` phase, the
 available storage location for the new process binary may need a padding app
 before, after, or both before and after the new process binary to ensure the
-sequential process binary array remains discoverable. If a padding app is
-required after the new process binary that is written first before any portion
-of the new process binary is stored in flash. If a padding app is required
-before the new process binary, it is only written once the new process binary is
-determined to have a valid TBF header.
+sequential process binary array remains discoverable. If a padding app will be
+required after the new process binary, the padding app is written first before
+any portion of the new process binary is stored in flash. If a padding app will be
+required before the new process binary, the padding app is only written once
+ the new process binary is determined to have a valid TBF header.
 
 Second, `SequentialDynamicBinaryStorage` does not allow the calling capsule to
 write a portion of the first eight bytes of the process binary (where the
