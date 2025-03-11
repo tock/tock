@@ -57,6 +57,7 @@ members = [
     "boards/configurations/nrf52840dk/nrf52840dk-test-kernel",
     "boards/tutorials/nrf52840dk-hotp-tutorial",
     "boards/tutorials/nrf52840dk-thread-tutorial",
+    "capsules/auto",
     "capsules/aes_gcm",
     "capsules/core",
     "capsules/extra",
