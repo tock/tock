@@ -82,12 +82,9 @@ extern "C" {
 #[allow(unused_imports)]
 use kernel::{csr_op, csr_ptr, is_cheri, ldptr, ldx, ptrreg, stptr, stx};
 
-#[cfg(any(
-    doc,
-    all(
-        any(target_arch = "riscv32", target_arch = "riscv64"),
-        target_os = "none"
-    )
+#[cfg(all(
+    any(target_arch = "riscv32", target_arch = "riscv64"),
+    target_os = "none"
 ))]
 core::arch::global_asm!(crate::easm!("
             .section .riscv.start, \"ax\"
@@ -298,12 +295,9 @@ extern "C" {
     pub fn _start_trap();
 }
 
-#[cfg(any(
-    doc,
-    all(
-        any(target_arch = "riscv32", target_arch = "riscv64"),
-        target_os = "none"
-    )
+#[cfg(all(
+    any(target_arch = "riscv32", target_arch = "riscv64"),
+    target_os = "none"
 ))]
 core::arch::global_asm!(crate::easm!(
     "
@@ -416,12 +410,9 @@ core::arch::global_asm!(crate::easm!(
 /// https://elixir.bootlin.com/linux/v5.12.10/source/arch/riscv/include/asm/jump_label.h#L21
 /// as suggested by the RISC-V developers:
 /// https://groups.google.com/a/groups.riscv.org/g/isa-dev/c/XKkYacERM04/m/CdpOcqtRAgAJ
-#[cfg(any(
-    doc,
-    all(
-        any(target_arch = "riscv32", target_arch = "riscv64"),
-        target_os = "none"
-    )
+#[cfg(all(
+    any(target_arch = "riscv32", target_arch = "riscv64"),
+    target_os = "none"
 ))]
 pub unsafe fn semihost_command(command: usize, arg0: usize, arg1: usize) -> usize {
     use core::arch::asm;
@@ -445,7 +436,7 @@ pub unsafe fn semihost_command(command: usize, arg0: usize, arg1: usize) -> usiz
 }
 
 // Mock implementation for tests on Travis-CI.
-#[cfg(not(any(target_os = "none")))]
+#[cfg(not(target_os = "none"))]
 pub unsafe fn semihost_command(_command: usize, _arg0: usize, _arg1: usize) -> usize {
     unimplemented!()
 }
