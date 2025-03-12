@@ -158,25 +158,25 @@ impl NAPOTRegionSpec {
     /// `Some(region)` when all constraints specified in the
     /// [`NAPOTRegionSpec`]'s documentation are satisfied, otherwise `None`.
     pub fn from_start_size(start: *const u8, size: usize) -> Option<Self> {
-        if !size.is_power_of_two() || (start as usize) % size != 0 || size < 8 {
+        if !size.is_power_of_two() || start.addr() % size != 0 || size < 8 {
             return None;
         }
 
         Self::from_pmpaddr_csr(
-            ((start as usize) + (size - 1).overflowing_shr(1).0)
+            (start.addr() + (size - 1).overflowing_shr(1).0)
                 .overflowing_shr(2)
                 .0,
         )
     }
 
-    /// Construct a new [`NAPOTRegionSpec`] from a start .
+    /// Construct a new [`NAPOTRegionSpec`] from a start address and end address.
     ///
-    /// This method accepts a `start` and `end` address. It returns
-    /// `Some(region)` when all constraints specified in the
-    /// [`NAPOTRegionSpec`]'s documentation are satisfied, otherwise `None`.
+    /// This method accepts a `start` address (inclusive) and `end` address
+    /// (exclusive). It returns `Some(region)` when all constraints specified in
+    /// the [`NAPOTRegionSpec`]'s documentation are satisfied, otherwise `None`.
     pub fn from_start_end(start: *const u8, end: *const u8) -> Option<Self> {
-        (end as usize)
-            .checked_sub(start as usize)
+        end.addr()
+            .checked_sub(start.addr())
             .and_then(|size| Self::from_start_size(start, size))
     }
 
@@ -262,7 +262,7 @@ impl TORRegionSpec {
             return None;
         }
 
-        Self::from_pmpaddr_csrs((start as usize) >> 2, (end as usize) >> 2)
+        Self::from_pmpaddr_csrs(start.addr() >> 2, end.addr() >> 2)
     }
 
     /// Get the first `pmpaddrX` CSR value that this TORRegionSpec encodes.
