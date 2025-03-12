@@ -391,6 +391,64 @@ mod tests {
     impl<const A: usize> MPU for FakeMPU<A> {
         type MpuConfig = MpuConfigDefault;
         const MIN_MPUALIGN: usize = A;
+
+        fn enable_app_mpu(&self) {
+            unimplemented!()
+        }
+
+        fn disable_app_mpu(&self) {
+            unimplemented!()
+        }
+
+        fn number_total_regions(&self) -> usize {
+            unimplemented!()
+        }
+
+        fn new_config(&self) -> Option<Self::MpuConfig> {
+            unimplemented!()
+        }
+
+        fn reset_config(&self, _config: &mut Self::MpuConfig) {
+            unimplemented!()
+        }
+
+        fn allocate_region(
+            &self,
+            _unallocated_memory_start: *const u8,
+            _unallocated_memory_size: usize,
+            _min_region_size: usize,
+            _permissions: super::Permissions,
+            _config: &mut Self::MpuConfig,
+        ) -> Option<super::Region> {
+            unimplemented!()
+        }
+
+        fn allocate_app_memory_region(
+            &self,
+            _unallocated_memory_start: *const u8,
+            _unallocated_memory_size: usize,
+            _min_memory_size: usize,
+            _initial_app_memory_size: usize,
+            _initial_kernel_memory_size: usize,
+            _permissions: super::Permissions,
+            _config: &mut Self::MpuConfig,
+        ) -> Option<(*const u8, usize)> {
+            unimplemented!()
+        }
+
+        fn update_app_memory_region(
+            &self,
+            _app_memory_break: *const u8,
+            _kernel_memory_break: *const u8,
+            _permissions: super::Permissions,
+            _config: &mut Self::MpuConfig,
+        ) -> Result<(), ()> {
+            unimplemented!()
+        }
+
+        fn configure_mpu(&self, _config: &Self::MpuConfig) {
+            unimplemented!()
+        }
     }
 
     #[test]
