@@ -623,7 +623,7 @@ impl<'a> GrantKernelData<'a> {
     /// Search the work queue for the first pending operation with the given
     /// `subscribe_num` and if one exists remove it from the task queue.
     ///
-    /// Returns the associated [`Task`] if one was found, otherwise returns
+    /// Returns the associated [`Task`](crate::process::Task) if one was found, otherwise returns
     /// [`None`].
     pub fn remove_upcall(&self, subscribe_num: usize) -> Option<crate::process::Task> {
         self.process.remove_upcall(UpcallId {

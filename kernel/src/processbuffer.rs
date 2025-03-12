@@ -267,8 +267,8 @@ impl ReadOnlyProcessBuffer {
     /// # Safety requirements
     ///
     /// The caller must ensure that the memory `ptr` and `len` refer to was, at some point, derived from a
-    /// [CapabilityPtr] from the process which was valid for a read operation (e.g. using
-    /// [is_valid_for_operation]).
+    /// [CapabilityPtr](crate::utilities::capability_ptr::CapabilityPtr) from the process which was valid for a read operation (e.g. using
+    /// [CapabilityPtr::is_valid_for_operation](crate::utilities::capability_ptr::CapabilityPtr::is_valid_for_operation)).
     ///
     /// If the length is `0`, an arbitrary pointer may be passed into
     /// `ptr`. It does not necessarily have to point to allocated

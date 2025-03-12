@@ -97,9 +97,9 @@ core::arch::global_asm!(crate::easm!("
             // that the linker can emit code with offsets that are relative to
             // the gp register, and the CPU can successfully execute them.
             //
-            // https://gnu-mcu-eclipse.github.io/arch/riscv/programmer/#the-gp-global-pointer-register
-            // https://groups.google.com/a/groups.riscv.org/forum/#!msg/sw-dev/60IdaZj27dY/5MydPLnHAQAJ
-            // https://www.sifive.com/blog/2017/08/28/all-aboard-part-3-linker-relaxation-in-riscv-toolchain/
+            // <https://gnu-mcu-eclipse.github.io/arch/riscv/programmer/#the-gp-global-pointer-register>
+            // <https://groups.google.com/a/groups.riscv.org/forum/#!msg/sw-dev/60IdaZj27dY/5MydPLnHAQAJ>
+            // <https://www.sifive.com/blog/2017/08/28/all-aboard-part-3-linker-relaxation-in-riscv-toolchain/>
             // Likely not a good idea to allow the linker to use global pointer to derive global pointer
             .option push
             .option norelax
@@ -228,7 +228,7 @@ extern "C" {
     /// If it contains any other value, we interpret it to be a memory address
     /// pointing to a particular data structure:
     ///
-    /// ```
+    /// ```raw
     /// mscratch           0               1               2               3
     ///  \->|--------------------------------------------------------------|
     ///     | scratch word, overwritten with s1 register contents          |
@@ -401,15 +401,15 @@ core::arch::global_asm!(crate::easm!(
 
 /// RISC-V semihosting needs three exact instructions in uncompressed form.
 ///
-/// See https://github.com/riscv/riscv-semihosting-spec/blob/main/riscv-semihosting-spec.adoc#11-semihosting-trap-instruction-sequence
+/// See <https://github.com/riscv/riscv-semihosting-spec/blob/main/riscv-semihosting-spec.adoc#11-semihosting-trap-instruction-sequence>
 /// for more details on the three instructions.
 ///
 /// In order to work with semihosting we include the assembly here
 /// where we are able to disable compressed instruction support. This
 /// follows the example used in the Linux kernel:
-/// https://elixir.bootlin.com/linux/v5.12.10/source/arch/riscv/include/asm/jump_label.h#L21
+/// <https://elixir.bootlin.com/linux/v5.12.10/source/arch/riscv/include/asm/jump_label.h#L21>
 /// as suggested by the RISC-V developers:
-/// https://groups.google.com/a/groups.riscv.org/g/isa-dev/c/XKkYacERM04/m/CdpOcqtRAgAJ
+/// <https://groups.google.com/a/groups.riscv.org/g/isa-dev/c/XKkYacERM04/m/CdpOcqtRAgAJ>
 #[cfg(all(
     any(target_arch = "riscv32", target_arch = "riscv64"),
     target_os = "none"
