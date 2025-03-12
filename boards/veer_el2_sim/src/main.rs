@@ -11,7 +11,7 @@
 #![cfg_attr(not(doc), no_main)]
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use core::ptr::{addr_of, addr_of_mut};
+use core::ptr::addr_of;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
@@ -32,7 +32,7 @@ pub const NUM_PROCS: usize = 4;
 
 // Actual memory for holding the active process structures. Need an empty list
 // at least.
-static mut PROCESSES: kernel::ProcessArray<NUM_PROCS> = kernel::Kernel::init_process_array();
+static mut PROCESSES: kernel::ProcessArray<NUM_PROCS> = kernel::init_process_array();
 
 pub type VeeRChip = veer_el2::chip::VeeR<'static, VeeRDefaultPeripherals>;
 

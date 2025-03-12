@@ -39,8 +39,7 @@ pub mod io;
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 0;
 
-static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
-    [None; NUM_PROCS];
+static mut PROCESSES: kernel::ProcessArray<NUM_PROCS> = kernel::init_process_array();
 
 static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>> = None;
 static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =

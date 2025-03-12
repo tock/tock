@@ -20,7 +20,7 @@ use crate::pinmux_layout::BoardPinmuxLayout;
 use capsules_aes_gcm::aes_gcm;
 use capsules_core::virtualizers::virtual_aes_ccm;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
-use core::ptr::{addr_of, addr_of_mut};
+use core::ptr::addr_of;
 use earlgrey::chip::EarlGreyDefaultPeripherals;
 use earlgrey::chip_config::EarlGreyConfig;
 use earlgrey::pinmux_config::EarlGreyPinmuxConfig;
@@ -109,8 +109,7 @@ const NUM_PROCS: usize = 4;
 //
 // Actual memory for holding the active process structures. Need an empty list
 // at least.
-static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; 4] =
-    kernel::Kernel::init_process_array();
+static mut PROCESSES: kernel::ProcessArray<NUM_PROCS> = kernel::init_process_array();
 
 // Test access to the peripherals
 #[cfg(test)]

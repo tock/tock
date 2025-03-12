@@ -51,15 +51,14 @@ use core::str;
 use crate::collections::queue::Queue;
 use crate::collections::ring_buffer::RingBuffer;
 use crate::hil;
+use crate::kernel::ProcEntry;
 use crate::platform::chip::Chip;
-use crate::process::Process;
 use crate::process::ProcessPrinter;
 use crate::processbuffer::ReadableProcessSlice;
 use crate::utilities::binary_write::BinaryToWriteWrapper;
 use crate::utilities::cells::NumericCellExt;
 use crate::utilities::cells::{MapCell, TakeCell};
 use crate::ErrorCode;
-use crate::ProcEntry;
 
 /// Implementation of `std::io::Write` for `no_std`.
 ///
@@ -110,24 +109,6 @@ pub unsafe fn panic_print<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
     processes: &'static [ProcEntry],
     chip: &'static Option<&'static C>,
     process_printer: &'static Option<&'static PP>,
-) {
-    panic_print_2(
-        writer,
-        panic_info,
-        nop,
-        processes,
-        chip.map(|c| c),
-        process_printer.map(|pp| pp),
-    );
-}
-
-pub unsafe fn panic_print_2<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
-    writer: &mut W,
-    panic_info: &PanicInfo,
-    nop: &dyn Fn(),
-    processes: &'static [ProcEntry],
-    chip: Option<&'static C>,
-    process_printer: Option<&'static PP>,
 ) {
     panic_begin(nop);
     // Flush debug buffer if needed
@@ -215,14 +196,6 @@ pub unsafe fn panic_cpu_state<W: Write, C: Chip>(
 pub unsafe fn panic_process_info<PP: ProcessPrinter, W: Write>(
     procs: &'static [ProcEntry],
     process_printer: &'static Option<&'static PP>,
-    writer: &mut W,
-) {
-    panic_process_info_2(procs, process_printer.map(|pp| pp), writer)
-}
-
-pub unsafe fn panic_process_info_2<PP: ProcessPrinter, W: Write>(
-    procs: &'static [ProcEntry],
-    process_printer: Option<&'static PP>,
     writer: &mut W,
 ) {
     process_printer.map(|printer| {

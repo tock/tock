@@ -16,7 +16,7 @@
 mod fcb;
 mod io;
 
-use core::ptr::{addr_of, addr_of_mut};
+use core::ptr::addr_of;
 
 use imxrt1060::gpio::PinId;
 use imxrt1060::iomuxc::{MuxMode, PadId, Sion};
@@ -33,7 +33,7 @@ use kernel::{create_capability, static_init};
 const NUM_PROCS: usize = 4;
 
 /// Actual process memory
-static mut PROCESSES: kernel::ProcessArray<NUM_PROCS> = kernel::Kernel::init_process_array();
+static mut PROCESSES: kernel::ProcessArray<NUM_PROCS> = kernel::init_process_array();
 
 /// What should we do if a process faults?
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =

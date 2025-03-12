@@ -10,7 +10,7 @@
 #![cfg_attr(not(doc), no_main)]
 #![deny(missing_docs)]
 
-use core::ptr::{addr_of, addr_of_mut};
+use core::ptr::addr_of;
 
 use kernel::component::Component;
 use kernel::hil::led::LedLow;
@@ -47,8 +47,7 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 8;
 
-static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
-    [None; NUM_PROCS];
+static mut PROCESSES: kernel::ProcessArray<NUM_PROCS> = kernel::init_process_array();
 
 static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>> = None;
 
@@ -74,7 +73,7 @@ pub struct Platform {
     alarm: &'static AlarmDriver,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
-    processes: &'static [Option<&'static dyn kernel::process::Process>],
+    board_kernel: &'static kernel::Kernel,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -149,11 +148,16 @@ impl kernel::process::ProcessLoadingAsyncClient for Platform {
     fn process_loading_finished(&self) {
         kernel::debug!("Processes Loaded:");
 
-        for (i, proc) in self.processes.iter().enumerate() {
-            proc.map(|p| {
-                kernel::debug!("[{}] {}", i, p.get_process_name());
-                kernel::debug!("    ShortId: {}", p.short_app_id());
-            });
+        struct MyCap;
+        unsafe impl kernel::capabilities::ProcessManagementCapability for MyCap {}
+
+        for (i, p) in self
+            .board_kernel
+            .process_iter_capability(&MyCap)
+            .enumerate()
+        {
+            kernel::debug!("[{}] {}", i, p.get_process_name());
+            kernel::debug!("    ShortId: {}", p.short_app_id());
         }
     }
 }
@@ -326,7 +330,6 @@ pub unsafe fn main() {
     // Create and start the asynchronous process loader.
     let loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
         checker,
-        &mut *addr_of_mut!(PROCESSES),
         board_kernel,
         chip,
         &FAULT_RESPONSE,
@@ -354,7 +357,7 @@ pub unsafe fn main() {
             alarm,
             scheduler,
             systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
-            processes,
+            board_kernel,
         }
     );
     loader.set_client(platform);

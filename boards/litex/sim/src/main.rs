@@ -9,7 +9,7 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 
-use core::ptr::{addr_of, addr_of_mut};
+use core::ptr::addr_of;
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
@@ -89,7 +89,7 @@ const NUM_PROCS: usize = 4;
 
 // Actual memory for holding the active process structures. Need an
 // empty list at least.
-static mut PROCESSES: kernel::ProcessArray<NUM_PROCS> = kernel::Kernel::init_process_array();
+static mut PROCESSES: kernel::ProcessArray<NUM_PROCS> = kernel::init_process_array();
 
 // Reference to the chip and UART hardware for panic dumps
 struct LiteXSimPanicReferences {

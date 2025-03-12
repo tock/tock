@@ -16,7 +16,6 @@
 #![reexport_test_harness_main = "test_main"]
 
 use core::ptr::addr_of;
-use core::ptr::addr_of_mut;
 
 use apollo3::chip::Apollo3DefaultPeripherals;
 use capsules_core::virtualizers::virtual_alarm::MuxAlarm;
@@ -42,7 +41,7 @@ mod tests;
 const NUM_PROCS: usize = 4;
 
 // Actual memory for holding the active process structures.
-static mut PROCESSES: kernel::ProcessArray<NUM_PROCS> = kernel::Kernel::init_process_array();
+static mut PROCESSES: kernel::ProcessArray<NUM_PROCS> = kernel::init_process_array();
 
 // Static reference to chip for panic dumps.
 static mut CHIP: Option<&'static apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> = None;

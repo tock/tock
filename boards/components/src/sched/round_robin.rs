@@ -17,10 +17,8 @@
 // Last modified: 03/31/2020
 
 use core::mem::MaybeUninit;
-use kernel::collections::list::ListLink;
 use kernel::component::Component;
 use kernel::scheduler::round_robin::{RoundRobinProcessNode, RoundRobinSched};
-use kernel::ProcEntry;
 
 #[macro_export]
 macro_rules! round_robin_component_static {
@@ -37,11 +35,13 @@ macro_rules! round_robin_component_static {
 }
 
 pub struct RoundRobinComponent<const NUM_PROCS: usize> {
-    processes: &'static [ProcEntry],
+    processes: &'static kernel::ProcessArray<NUM_PROCS>,
 }
 
 impl<const NUM_PROCS: usize> RoundRobinComponent<NUM_PROCS> {
-    pub fn new(processes: &'static [ProcEntry]) -> RoundRobinComponent<NUM_PROCS> {
+    pub fn new(
+        processes: &'static kernel::ProcessArray<NUM_PROCS>,
+    ) -> RoundRobinComponent<NUM_PROCS> {
         RoundRobinComponent { processes }
     }
 }

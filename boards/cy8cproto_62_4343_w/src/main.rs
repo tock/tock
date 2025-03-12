@@ -17,7 +17,7 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::led::LedsComponent;
-use core::ptr::{addr_of, addr_of_mut};
+use core::ptr::addr_of;
 use kernel::component::Component;
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -40,8 +40,7 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
-static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
-    [None; NUM_PROCS];
+static mut PROCESSES: kernel::ProcessArray<NUM_PROCS> = kernel::init_process_array();
 
 static mut CHIP: Option<&'static Psoc62xa<PsoC62xaDefaultPeripherals>> = None;
 
@@ -285,7 +284,7 @@ pub unsafe fn main() {
     };
 
     CHIP = Some(chip);
-    (*addr_of_mut!(io::WRITER)).set_scb(&peripherals.scb);
+    (*addr_of!(io::WRITER)).set_scb(&peripherals.scb);
 
     kernel::debug!("Initialization complete. Entering main loop.");
 
@@ -319,7 +318,6 @@ pub unsafe fn main() {
             core::ptr::addr_of_mut!(_sappmem),
             core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_management_capability,
     )

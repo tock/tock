@@ -136,6 +136,6 @@ mod syscall_driver;
 
 // Core resources exposed as `kernel::Type`.
 pub use crate::errorcode::ErrorCode;
-pub use crate::kernel::Kernel;
+pub use crate::kernel::{init_process_array, Kernel, ProcEntry, ProcessArray};
 pub use crate::process::ProcessId;
 pub use crate::scheduler::Scheduler;

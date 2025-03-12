@@ -27,9 +27,9 @@ use core::num::NonZeroU32;
 use crate::collections::list::{List, ListLink, ListNode};
 use crate::hil::time::{self, ConvertTicks, Ticks};
 use crate::platform::chip::Chip;
-use crate::process::Process;
 use crate::process::StoppedExecutingReason;
 use crate::scheduler::{Scheduler, SchedulingDecision};
+use crate::ProcEntry;
 
 #[derive(Default)]
 struct MfProcState {
@@ -39,13 +39,13 @@ struct MfProcState {
 
 /// Nodes store per-process state
 pub struct MLFQProcessNode<'a> {
-    proc: &'static Cell<Option<&'static dyn Process>>,
+    proc: &'static ProcEntry,
     state: MfProcState,
     next: ListLink<'a, MLFQProcessNode<'a>>,
 }
 
 impl<'a> MLFQProcessNode<'a> {
-    pub fn new(proc: &'static Cell<Option<&'static dyn Process>>) -> MLFQProcessNode<'a> {
+    pub fn new(proc: &'static ProcEntry) -> MLFQProcessNode<'a> {
         MLFQProcessNode {
             proc,
             state: MfProcState::default(),
@@ -109,7 +109,7 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
         for (idx, queue) in self.processes.iter().enumerate() {
             let next = queue
                 .iter()
-                .find(|node_ref| node_ref.proc.get().is_some_and(|proc| proc.ready()));
+                .find(|node_ref| node_ref.proc.get_active().is_some_and(|proc| proc.ready()));
             if next.is_some() {
                 // pop procs to back until we get to match
                 loop {
@@ -151,7 +151,7 @@ impl<A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<'_, 
         }
         let node_ref = node_ref_opt.unwrap();
         let timeslice = self.get_timeslice_us(queue_idx) - node_ref.state.us_used_this_queue.get();
-        let next = node_ref.proc.get().unwrap().processid();
+        let next = node_ref.proc.get_active().unwrap().processid();
         self.last_queue_idx.set(queue_idx);
         self.last_timeslice.set(timeslice);
 

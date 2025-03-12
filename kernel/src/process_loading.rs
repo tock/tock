@@ -154,10 +154,8 @@ pub fn load_processes<C: Chip>(
 
     if config::CONFIG.debug_process_credentials {
         debug!("Checking: no checking, load and run all processes");
-    }
-    for p in kernel.get_process_iter() {
-        if config::CONFIG.debug_process_credentials {
-            debug!("Running {}", p.get_process_name());
+        for proc in kernel.get_process_iter() {
+            debug!("Running {}", proc.get_process_name());
         }
     }
     Ok(())
@@ -202,7 +200,6 @@ fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
     let mut remaining_flash = app_flash;
     let mut remaining_memory = app_memory;
 
-    // Try to discover processes until first error that we cannot skip
     loop {
         let load_binary_result = discover_process_binary(remaining_flash);
 
@@ -222,14 +219,12 @@ fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
                 match load_result {
                     Ok((new_mem, proc)) => {
                         remaining_memory = new_mem;
-                        match proc {
-                            Some(p) => {
-                                if config::CONFIG.debug_load_processes {
+                        if config::CONFIG.debug_load_processes {
+                            match proc {
+                                Some(p) => {
                                     debug!("Loaded process {}", p.get_process_name())
                                 }
-                            }
-                            None => {
-                                if config::CONFIG.debug_load_processes {
+                                None => {
                                     debug!("No process loaded.");
                                 }
                             }
@@ -388,8 +383,8 @@ fn load_process<C: Chip, D: ProcessStandardDebug>(
         .map_err(|(e, memory)| (memory, e))?
     };
 
-    if config::CONFIG.debug_load_processes {
-        process_option.map(|process| {
+    process_option.map(|process| {
+        if config::CONFIG.debug_load_processes {
             debug!(
                 "Loading: {} [{}] flash={:#010X}-{:#010X} ram={:#010X}-{:#010X}",
                 process.get_process_name(),
@@ -399,8 +394,8 @@ fn load_process<C: Chip, D: ProcessStandardDebug>(
                 process.get_addresses().sram_start,
                 process.get_addresses().sram_end - 1,
             );
-        });
-    }
+        }
+    });
 
     Ok((unused_memory, process_option))
 }
@@ -672,8 +667,8 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
                 // doesn't conflict with any of those. Since those processes
                 // are already loaded, we just need to check if this process
                 // binary has the same AppID as an already loaded process.
-                for p in self.kernel.get_process_iter() {
-                    let blocked = self.is_blocked_from_loading_by_process(&process_binary, p);
+                for proc in self.kernel.get_process_iter() {
+                    let blocked = self.is_blocked_from_loading_by_process(&process_binary, proc);
 
                     if blocked {
                         ok_to_load = false;
@@ -917,39 +912,5 @@ impl<C: Chip, D: ProcessStandardDebug> crate::process_checker::ProcessCheckerMac
 
         // Try to load the next process in flash.
         self.deferred_call.set();
-    }
-}
-
-/// Return (flash, ram)
-/// Must call this only once as the ram is mut.
-pub unsafe fn get_mems() -> (&'static [u8], &'static mut [u8]) {
-    #[cfg(target_os = "none")]
-    {
-        // These symbols are defined in the linker script.
-        extern "C" {
-            /// Beginning of the ROM region containing app images.
-            static _sapps: u8;
-            /// End of the ROM region containing app images.
-            static _eapps: u8;
-            /// Beginning of the RAM region for app memory.
-            static mut _sappmem: u8;
-            /// End of the RAM region for app memory.
-            static _eappmem: u8;
-        }
-        (
-            core::slice::from_raw_parts(
-                &_sapps as *const u8,
-                &_eapps as *const u8 as usize - &_sapps as *const u8 as usize,
-            ),
-            core::slice::from_raw_parts_mut(
-                core::ptr::addr_of_mut!(_sappmem) as *mut u8,
-                core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
-            ),
-        )
-    }
-
-    #[cfg(not(target_os = "none"))]
-    {
-        (&[], &mut [])
     }
 }
