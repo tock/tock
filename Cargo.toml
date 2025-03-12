@@ -121,6 +121,11 @@ opt-level = "z"
 debug = true
 codegen-units = 1
 
+# Non-CHERI compilers do not expect the target feature, but we still need to
+# gate on it without generating the warning.
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_feature, values("xcheri"))'] }
+
 # CLIPPY CONFIGURATION
 #
 # We first disallow all lints in a particular group, then re-allow each one

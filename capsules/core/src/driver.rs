@@ -26,6 +26,8 @@ pub enum NUM {
 
     // Kernel
     Ipc                   = 0x10000,
+    ProcLoader            = 0x10002,
+    MMU                   = 0x10003,
 
     // HW Buses
     Spi                   = 0x20001,

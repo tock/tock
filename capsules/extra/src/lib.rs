@@ -3,6 +3,13 @@
 // Copyright Tock Contributors 2022.
 
 #![forbid(unsafe_code)]
+#![cfg_attr(
+    target_feature = "xcheri",
+    feature(const_convert),
+    feature(result_option_inspect),
+    feature(is_some_and),
+    feature(return_position_impl_trait_in_trait)
+)]
 #![no_std]
 
 pub mod test;
@@ -56,6 +63,7 @@ pub mod kv_store_permissions;
 pub mod l3gd20;
 pub mod led_matrix;
 pub mod log;
+#[cfg(not(target_feature = "xcheri"))] // uses something from the standard lib without a polyfill
 pub mod lpm013m126;
 pub mod lps22hb;
 pub mod lps25hb;

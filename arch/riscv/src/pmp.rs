@@ -9,7 +9,7 @@ use core::{cmp, fmt};
 
 use kernel::platform::mpu;
 use kernel::utilities::cells::OptionalCell;
-use kernel::utilities::registers::{register_bitfields, LocalRegisterCopy};
+use kernel::utilities::registers::{interfaces::Writeable, register_bitfields, LocalRegisterCopy};
 
 use crate::csr;
 
@@ -34,6 +34,48 @@ register_bitfields![u8,
         l OFFSET(7) NUMBITS(1) []
     ]
 ];
+
+// This is to handle a QEMU bug. QEMU tries not to do a PMP check for every instruction,
+// but when a PMP check is performed, the access size is not known because QEMU
+// does not know how many instructions it will translate for one basic block.
+// Instead, it just checks if an entire page worth could be translated.
+// This requires us to over align to the size QEMU assumes is a page.
+#[cfg(feature = "page_align_pmp")]
+const PMP_ALIGN: usize = 0x1000;
+
+// I know PMP align is actually 4, but by making it 8 I can get rid of the whole "sizes less than
+// 8 need to be rounded up to 8, but sizes greater than 8 to the nearest 4" nonsense.
+
+#[cfg(not(feature = "page_align_pmp"))]
+const PMP_ALIGN: usize = 8;
+
+/* TODO: I gave up on merging this file with my 64-bit fixes
+    but will probably need these functions again when I can be bothered
+// Align down, return difference
+fn align_down_diff(an_addr: &mut usize) -> usize {
+    let diff = *an_addr % PMP_ALIGN;
+    *an_addr -= diff;
+    diff
+}
+
+fn align_up(an_addr: &mut usize) {
+    *an_addr = *an_addr + ((!*an_addr) % PMP_ALIGN)
+}
+
+// Align region to cover at least [start, start+size)
+fn align_region(start: &mut usize, size: &mut usize) {
+    // Region start round up
+    *size += align_down_diff(start);
+
+    // Region size round up
+    align_up(size);
+
+    // Regions must be at least 8 bytes
+    if *size < 8 {
+        *size = if 8 > PMP_ALIGN { 8 } else { PMP_ALIGN };
+    }
+}
+*/
 
 /// A `pmpcfg` octet for a user-mode (non-locked) TOR-addressed PMP region.
 ///
@@ -568,6 +610,7 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
     for PMPUserMPU<MAX_REGIONS, P>
 {
     type MpuConfig = PMPUserMPUConfig<MAX_REGIONS>;
+    const MIN_MPUALIGN: usize = PMP_ALIGN;
 
     fn enable_app_mpu(&self) {
         // TODO: This operation may fail when the PMP is not exclusively used
@@ -715,7 +758,7 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
         &self,
         region: mpu::Region,
         config: &mut Self::MpuConfig,
-    ) -> Result<(), ()> {
+    ) -> Result<mpu::RemoveRegionResult, kernel::ErrorCode> {
         let index = config
             .regions
             .iter()
@@ -727,12 +770,12 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
                     && r.2 == (region.start_address() as usize + region.size()) as *const u8
             })
             .map(|(i, _)| i)
-            .ok_or(())?;
+            .ok_or(kernel::ErrorCode::INVAL)?;
 
         config.regions[index].0 = TORUserPMPCFG::OFF;
         config.is_dirty.set(true);
 
-        Ok(())
+        Ok(mpu::RemoveRegionResult::Sync)
     }
 
     fn allocate_app_memory_region(
@@ -2226,4 +2269,16 @@ pub mod kernel_protection_mml_epmp {
             Ok(())
         }
     }
+}
+
+// If we have a PMP and are not using it, we still need to enable it or all accesses will fail
+pub fn pmp_permit_all() {
+    // With NAPOT, the more ones, the bigger the range.
+    csr::CSR.pmpaddr0.set(usize::MAX);
+    csr::CSR.pmpcfg0.write(
+        csr::pmpconfig::pmpcfg::r0::SET
+            + csr::pmpconfig::pmpcfg::w0::SET
+            + csr::pmpconfig::pmpcfg::x0::SET
+            + csr::pmpconfig::pmpcfg::a0::NAPOT,
+    );
 }

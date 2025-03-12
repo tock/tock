@@ -53,6 +53,7 @@
 //! some_capsule.register();
 //! ```
 
+use crate::polyfill;
 use crate::utilities::cells::OptionalCell;
 use core::cell::Cell;
 use core::marker::Copy;
@@ -94,7 +95,7 @@ impl<'a> DynDefCallRef<'a> {
     // same calling convention for any type.
     fn new<T: DeferredCallClient>(x: &'a T) -> Self {
         Self {
-            data: core::ptr::from_ref(x) as *const (),
+            data: polyfill::core::ptr::from_ref(x) as *const (),
             callback: |p| unsafe { T::handle_deferred_call(&*p.cast()) },
             _lifetime: PhantomData,
         }

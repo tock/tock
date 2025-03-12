@@ -107,6 +107,10 @@ pub const PMPADDR61: usize = 0x3ED;
 pub const PMPADDR62: usize = 0x3EE;
 pub const PMPADDR63: usize = 0x3EF;
 
+pub const HMPCOUNTER_BASE: usize = 0xC00;
+
+pub const SATP: usize = 0x180;
+
 /// Read/Write registers.
 #[derive(Copy, Clone)]
 pub struct ReadWriteRiscvCsr<T: UIntLike, R: RegisterLongName, const V: usize> {

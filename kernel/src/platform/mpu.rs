@@ -4,6 +4,7 @@
 
 //! Interface for configuring the Memory Protection Unit.
 
+use crate::{ErrorCode, ProcessId};
 use core::cmp;
 use core::fmt::{self, Display};
 
@@ -66,6 +67,13 @@ impl Display for MpuConfigDefault {
     }
 }
 
+pub enum RemoveRegionResult {
+    /// Region was removed synchronously
+    Sync,
+    /// Region will be revoked next time [crate::process::Process::revoke_regions] is called
+    Async(crate::OnlyInCfg!(async_mpu_config)),
+}
+
 /// The generic trait that particular memory protection unit implementations
 /// need to implement.
 ///
@@ -94,11 +102,30 @@ pub trait MPU {
     /// current state to help with debugging.
     type MpuConfig: Display;
 
+    /// The minimum power of two alignment this MPU supports.
+    /// Possibly, greater alignment is required for a particular span.
+    const MIN_MPUALIGN: usize;
+
+    /// Align a specific range such that it could be an MPU region. If this does
+    /// Depend on the length/location, leave this as the default implementation.
+    fn align_range(base: usize, length: usize) -> (usize, usize) {
+        let mask = Self::MIN_MPUALIGN - 1;
+        let new_base = base & !mask;
+        let new_length = (length + (base - new_base) + mask) & !mask;
+        (new_base, new_length)
+    }
+
     /// Enables the MPU for userspace apps.
     ///
     /// This function must enable the permission restrictions on the various
     /// regions protected by the MPU.
     fn enable_app_mpu(&self);
+
+    /// Notify the MPU there is a new process.
+    /// We do NOT provide the config argument here
+    /// as doing so blocks the MPU from allocating
+    /// in the grant region for the pprocess.
+    fn new_process(&self, _app_id: ProcessId) {}
 
     /// Disables the MPU for userspace apps.
     ///
@@ -174,7 +201,27 @@ pub trait MPU {
     /// # Return Value
     ///
     /// Returns an error if the specified region is not exactly mapped to the process as specified
-    fn remove_memory_region(&self, region: Region, config: &mut Self::MpuConfig) -> Result<(), ()>;
+    /// Returns `Ok(RemoveRegionResult::Sync)` if the region is removed immediately,
+    /// or `Ok(RemoveRegionResult::Async)` if `revoke_regions` must also be called.
+    fn remove_memory_region(
+        &self,
+        _region: Region,
+        _config: &mut Self::MpuConfig,
+    ) -> Result<RemoveRegionResult, ErrorCode> {
+        Ok(RemoveRegionResult::Sync)
+    }
+
+    /// Actually revoke regions previously requested with remove_memory_region
+    /// Safety: no LiveARef or LivePRef may exist to any memory that might be revoked,
+    /// Nor may any grants be entered via the legacy mechanism if allowed memory might be revoked.
+    #[allow(unused_variables)]
+    unsafe fn revoke_regions(
+        &self,
+        config: &mut Self::MpuConfig,
+        proc: &dyn crate::process::Process,
+    ) -> Result<(), ErrorCode> {
+        Ok(())
+    }
 
     /// Chooses the location for a process's memory, and allocates an MPU region
     /// covering the app-owned part.
@@ -266,6 +313,7 @@ pub trait MPU {
 /// Implement default MPU trait for unit.
 impl MPU for () {
     type MpuConfig = MpuConfigDefault;
+    const MIN_MPUALIGN: usize = 1;
 
     fn enable_app_mpu(&self) {}
 
@@ -294,14 +342,6 @@ impl MPU for () {
         } else {
             Some(Region::new(unallocated_memory_start, min_region_size))
         }
-    }
-
-    fn remove_memory_region(
-        &self,
-        _region: Region,
-        _config: &mut Self::MpuConfig,
-    ) -> Result<(), ()> {
-        Ok(())
     }
 
     fn allocate_app_memory_region(
@@ -340,4 +380,82 @@ impl MPU for () {
     }
 
     fn configure_mpu(&self, _config: &Self::MpuConfig) {}
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::platform::mpu::{MpuConfigDefault, MPU};
+
+    struct FakeMPU<const A: usize> {}
+
+    impl<const A: usize> MPU for FakeMPU<A> {
+        type MpuConfig = MpuConfigDefault;
+        const MIN_MPUALIGN: usize = A;
+
+        fn enable_app_mpu(&self) {
+            unimplemented!()
+        }
+
+        fn disable_app_mpu(&self) {
+            unimplemented!()
+        }
+
+        fn number_total_regions(&self) -> usize {
+            unimplemented!()
+        }
+
+        fn new_config(&self) -> Option<Self::MpuConfig> {
+            unimplemented!()
+        }
+
+        fn reset_config(&self, _config: &mut Self::MpuConfig) {
+            unimplemented!()
+        }
+
+        fn allocate_region(
+            &self,
+            _unallocated_memory_start: *const u8,
+            _unallocated_memory_size: usize,
+            _min_region_size: usize,
+            _permissions: super::Permissions,
+            _config: &mut Self::MpuConfig,
+        ) -> Option<super::Region> {
+            unimplemented!()
+        }
+
+        fn allocate_app_memory_region(
+            &self,
+            _unallocated_memory_start: *const u8,
+            _unallocated_memory_size: usize,
+            _min_memory_size: usize,
+            _initial_app_memory_size: usize,
+            _initial_kernel_memory_size: usize,
+            _permissions: super::Permissions,
+            _config: &mut Self::MpuConfig,
+        ) -> Option<(*const u8, usize)> {
+            unimplemented!()
+        }
+
+        fn update_app_memory_region(
+            &self,
+            _app_memory_break: *const u8,
+            _kernel_memory_break: *const u8,
+            _permissions: super::Permissions,
+            _config: &mut Self::MpuConfig,
+        ) -> Result<(), ()> {
+            unimplemented!()
+        }
+
+        fn configure_mpu(&self, _config: &Self::MpuConfig) {
+            unimplemented!()
+        }
+    }
+
+    #[test]
+    fn test_alignment_logic() {
+        assert_eq!(FakeMPU::<1>::align_range(0, 100), (0, 100));
+        assert_eq!(FakeMPU::<1>::align_range(123, 100), (123, 100));
+        assert_eq!(FakeMPU::<128>::align_range(130, 100), (128, 128));
+        assert_eq!(FakeMPU::<128>::align_range(200, 100), (128, 256));
+    }
 }

@@ -4,30 +4,29 @@
 
 //! RISC-V Generic Machine Timer
 
+use core::marker::PhantomData;
+use core::ops::Deref;
 use kernel::hil::time::{Ticks, Ticks64};
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::ReadWrite;
 use kernel::ErrorCode;
 
-pub struct MachineTimer<'a> {
-    compare_low: &'a ReadWrite<u32>,
-    compare_high: &'a ReadWrite<u32>,
-    value_low: &'a ReadWrite<u32>,
-    value_high: &'a ReadWrite<u32>,
+pub struct MachineTimer<'a, T: 'a + Deref<Target = ReadWrite<u32>> = &'a ReadWrite<u32>> {
+    compare_low: T,
+    compare_high: T,
+    value_low: T,
+    value_high: T,
+    p: PhantomData<&'a ReadWrite<u32>>,
 }
 
-impl<'a> MachineTimer<'a> {
-    pub const fn new(
-        compare_low: &'a ReadWrite<u32>,
-        compare_high: &'a ReadWrite<u32>,
-        value_low: &'a ReadWrite<u32>,
-        value_high: &'a ReadWrite<u32>,
-    ) -> Self {
+impl<'a, T: 'a + Deref<Target = ReadWrite<u32>>> MachineTimer<'a, T> {
+    pub const fn new(compare_low: T, compare_high: T, value_low: T, value_high: T) -> Self {
         MachineTimer {
             compare_low,
             compare_high,
             value_low,
             value_high,
+            p: PhantomData,
         }
     }
 

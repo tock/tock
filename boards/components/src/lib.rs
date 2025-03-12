@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
+#![cfg_attr(target_feature = "xcheri", feature(inline_const))]
 #![no_std]
 
 pub mod adc;

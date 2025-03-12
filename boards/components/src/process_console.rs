@@ -140,16 +140,22 @@ impl<const COMMAND_HISTORY_LEN: usize, A: 'static + Alarm<'static>> Component
 
         // Get addresses of where the kernel is placed to enable additional
         // debugging in process console.
-        let kernel_addresses = process_console::KernelAddresses {
-            stack_start: core::ptr::addr_of!(_sstack),
-            stack_end: core::ptr::addr_of!(_estack),
-            text_start: core::ptr::addr_of!(_stext),
-            text_end: core::ptr::addr_of!(_etext),
-            read_only_data_start: core::ptr::addr_of!(_srodata),
-            relocations_start: core::ptr::addr_of!(_srelocate),
-            relocations_end: core::ptr::addr_of!(_erelocate),
-            bss_start: core::ptr::addr_of!(_szero),
-            bss_end: core::ptr::addr_of!(_ezero),
+
+        // SAFETY: we only access these extern statics to inspect their address
+        // addr_of! only inspects address, requires unsafe for rustc <= 1.67 (which cheri still uses)
+        #[allow(unused_unsafe)]
+        let kernel_addresses = unsafe {
+            process_console::KernelAddresses {
+                stack_start: core::ptr::addr_of!(_sstack),
+                stack_end: core::ptr::addr_of!(_estack),
+                text_start: core::ptr::addr_of!(_stext),
+                text_end: core::ptr::addr_of!(_etext),
+                read_only_data_start: core::ptr::addr_of!(_srodata),
+                relocations_start: core::ptr::addr_of!(_srelocate),
+                relocations_end: core::ptr::addr_of!(_erelocate),
+                bss_start: core::ptr::addr_of!(_szero),
+                bss_end: core::ptr::addr_of!(_ezero),
+            }
         };
 
         let console_alarm = static_buffer.0.write(VirtualMuxAlarm::new(self.alarm_mux));

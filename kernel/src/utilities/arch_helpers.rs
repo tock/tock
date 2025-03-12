@@ -10,7 +10,8 @@
 //! `kernel` crate as all `arch` crates already depend on it.
 
 use crate::syscall::SyscallReturn;
-use crate::ErrorCode;
+use crate::utilities::capability_ptr::{CapabilityPtr, CapabilityPtrPermissions};
+use crate::utilities::machine_register::MachineRegister;
 
 /// Helper function to split a [`u64`] into a higher and lower [`u32`].
 ///
@@ -45,82 +46,111 @@ pub enum TRD104SyscallReturnVariant {
     SuccessU32U64 = 133,
 }
 
-/// System call return variants defined as defined in TRD104.
-///
-/// These are a strict subset of the variants defined in the core
-/// kernel's [`SyscallReturn`] enum. For documentation on the
-/// individual variants, refer to this type instead.
+/// Enumeration of the system call return type variant identifiers described in
+/// the (not yet existant) TRD105.
+#[repr(u32)]
 #[derive(Copy, Clone, Debug)]
-pub enum TRD104SyscallReturn {
-    Failure(ErrorCode),
-    FailureU32(ErrorCode, u32),
-    FailureU32U32(ErrorCode, u32, u32),
-    FailureU64(ErrorCode, u64),
-    Success,
-    SuccessU32(u32),
-    SuccessU32U32(u32, u32),
-    SuccessU32U32U32(u32, u32, u32),
-    SuccessU64(u64),
-    SuccessU32U64(u32, u64),
-    AllowReadWriteSuccess(*mut u8, usize),
-    AllowReadWriteFailure(ErrorCode, *mut u8, usize),
-    UserspaceReadableAllowSuccess(*mut u8, usize),
-    UserspaceReadableAllowFailure(ErrorCode, *mut u8, usize),
-    AllowReadOnlySuccess(*const u8, usize),
-    AllowReadOnlyFailure(ErrorCode, *const u8, usize),
-    SubscribeSuccess(*const (), usize),
-    SubscribeFailure(ErrorCode, *const (), usize),
-    YieldWaitFor(usize, usize, usize),
+pub enum TRD105SyscallReturnVariant {
+    Failure = 0,
+    FailureU32 = 1,
+    FailureU32U32 = 2,
+    FailureU64 = 3,
+    FailurePtrUsize = 4,
+    FailurePtrPtr = 5,
+    Success = 128,
+    SuccessU32 = 129,
+    SuccessU32U32 = 130,
+    SuccessU64 = 131,
+    SuccessU32U32U32 = 132,
+    SuccessU32U64 = 133,
+    SuccessAddr = 134,
+    SucessPtr = 135,
+    SucessPtrUsize = 136,
+    SucessPtrPtr = 137,
 }
 
-impl TRD104SyscallReturn {
+/// A (kernel private) set of variants that matches SyscallReturn.
+/// These must be mapped into ABI variants.
+pub enum SyscallReturnVariant {
+    Failure,
+    FailureU32,
+    FailureU32U32,
+    FailureU64,
+    FailurePtrUsize,
+    FailurePtrPtr,
+    Success,
+    SuccessU32,
+    SuccessU32U32,
+    SuccessU64,
+    SuccessU32U32U32,
+    SuccessU32U64,
+    SuccessAddr,
+    SucessPtr,
+    SucessPtrUsize,
+    SucessPtrPtr,
+}
+
+impl From<TRD104SyscallReturnVariant> for usize {
+    fn from(value: TRD104SyscallReturnVariant) -> Self {
+        value as usize
+    }
+}
+
+impl From<TRD105SyscallReturnVariant> for usize {
+    fn from(value: TRD105SyscallReturnVariant) -> Self {
+        value as usize
+    }
+}
+
+impl From<SyscallReturnVariant> for TRD104SyscallReturnVariant {
     /// Map from the kernel's [`SyscallReturn`] enum to the subset of return
     /// values specified in TRD104. This ensures backwards compatibility with
     /// architectures implementing the ABI as specified in TRD104.
-    pub fn from_syscall_return(syscall_return: SyscallReturn) -> Self {
-        match syscall_return {
+    fn from(value: SyscallReturnVariant) -> Self {
+        match value {
             // Identical variants:
-            SyscallReturn::Failure(a) => TRD104SyscallReturn::Failure(a),
-            SyscallReturn::FailureU32(a, b) => TRD104SyscallReturn::FailureU32(a, b),
-            SyscallReturn::FailureU32U32(a, b, c) => TRD104SyscallReturn::FailureU32U32(a, b, c),
-            SyscallReturn::FailureU64(a, b) => TRD104SyscallReturn::FailureU64(a, b),
-            SyscallReturn::Success => TRD104SyscallReturn::Success,
-            SyscallReturn::SuccessU32(a) => TRD104SyscallReturn::SuccessU32(a),
-            SyscallReturn::SuccessU32U32(a, b) => TRD104SyscallReturn::SuccessU32U32(a, b),
-            SyscallReturn::SuccessU32U32U32(a, b, c) => {
-                TRD104SyscallReturn::SuccessU32U32U32(a, b, c)
-            }
-            SyscallReturn::SuccessU64(a) => TRD104SyscallReturn::SuccessU64(a),
-            SyscallReturn::SuccessU32U64(a, b) => TRD104SyscallReturn::SuccessU32U64(a, b),
-            SyscallReturn::AllowReadWriteSuccess(a, b) => {
-                TRD104SyscallReturn::AllowReadWriteSuccess(a, b)
-            }
-            SyscallReturn::AllowReadWriteFailure(a, b, c) => {
-                TRD104SyscallReturn::AllowReadWriteFailure(a, b, c)
-            }
-            SyscallReturn::UserspaceReadableAllowSuccess(a, b) => {
-                TRD104SyscallReturn::UserspaceReadableAllowSuccess(a, b)
-            }
-            SyscallReturn::UserspaceReadableAllowFailure(a, b, c) => {
-                TRD104SyscallReturn::UserspaceReadableAllowFailure(a, b, c)
-            }
-            SyscallReturn::AllowReadOnlySuccess(a, b) => {
-                TRD104SyscallReturn::AllowReadOnlySuccess(a, b)
-            }
-            SyscallReturn::AllowReadOnlyFailure(a, b, c) => {
-                TRD104SyscallReturn::AllowReadOnlyFailure(a, b, c)
-            }
-            SyscallReturn::SubscribeSuccess(a, b) => TRD104SyscallReturn::SubscribeSuccess(a, b),
-            SyscallReturn::SubscribeFailure(a, b, c) => {
-                TRD104SyscallReturn::SubscribeFailure(a, b, c)
-            }
-            SyscallReturn::YieldWaitFor(a, b, c) => TRD104SyscallReturn::YieldWaitFor(a, b, c),
-
+            SyscallReturnVariant::Failure => TRD104SyscallReturnVariant::Failure,
+            SyscallReturnVariant::FailureU32 => TRD104SyscallReturnVariant::FailureU32,
+            SyscallReturnVariant::FailureU32U32 => TRD104SyscallReturnVariant::FailureU32U32,
+            SyscallReturnVariant::FailureU64 => TRD104SyscallReturnVariant::FailureU64,
+            SyscallReturnVariant::Success => TRD104SyscallReturnVariant::Success,
+            SyscallReturnVariant::SuccessU32 => TRD104SyscallReturnVariant::SuccessU32,
+            SyscallReturnVariant::SuccessU32U32 => TRD104SyscallReturnVariant::SuccessU32U32,
+            SyscallReturnVariant::SuccessU64 => TRD104SyscallReturnVariant::SuccessU64,
+            SyscallReturnVariant::SuccessU32U32U32 => TRD104SyscallReturnVariant::SuccessU32U32U32,
+            SyscallReturnVariant::SuccessU32U64 => TRD104SyscallReturnVariant::SuccessU32U64,
             // Compatibility mapping:
-            SyscallReturn::SuccessAddr(a) => TRD104SyscallReturn::SuccessU32(a as u32),
-            SyscallReturn::SuccessPtr(a) => {
-                TRD104SyscallReturn::SuccessU32(a.as_ptr::<()>() as u32)
-            }
+            SyscallReturnVariant::FailurePtrUsize => TRD104SyscallReturnVariant::FailureU32U32,
+            SyscallReturnVariant::FailurePtrPtr => TRD104SyscallReturnVariant::FailureU32U32,
+            SyscallReturnVariant::SuccessAddr => TRD104SyscallReturnVariant::SuccessU32,
+            SyscallReturnVariant::SucessPtr => TRD104SyscallReturnVariant::SuccessU32,
+            SyscallReturnVariant::SucessPtrUsize => TRD104SyscallReturnVariant::SuccessU32U32,
+            SyscallReturnVariant::SucessPtrPtr => TRD104SyscallReturnVariant::SuccessU32U32,
+        }
+    }
+}
+
+impl From<SyscallReturnVariant> for TRD105SyscallReturnVariant {
+    fn from(value: SyscallReturnVariant) -> Self {
+        match value {
+            // Same as TRD104
+            SyscallReturnVariant::Failure => TRD105SyscallReturnVariant::Failure,
+            SyscallReturnVariant::FailureU32 => TRD105SyscallReturnVariant::FailureU32,
+            SyscallReturnVariant::FailureU32U32 => TRD105SyscallReturnVariant::FailureU32U32,
+            SyscallReturnVariant::FailureU64 => TRD105SyscallReturnVariant::FailureU64,
+            SyscallReturnVariant::Success => TRD105SyscallReturnVariant::Success,
+            SyscallReturnVariant::SuccessU32 => TRD105SyscallReturnVariant::SuccessU32,
+            SyscallReturnVariant::SuccessU32U32 => TRD105SyscallReturnVariant::SuccessU32U32,
+            SyscallReturnVariant::SuccessU64 => TRD105SyscallReturnVariant::SuccessU64,
+            SyscallReturnVariant::SuccessU32U32U32 => TRD105SyscallReturnVariant::SuccessU32U32U32,
+            SyscallReturnVariant::SuccessU32U64 => TRD105SyscallReturnVariant::SuccessU32U64,
+            // TRD105 only mappings
+            SyscallReturnVariant::FailurePtrUsize => TRD105SyscallReturnVariant::FailurePtrUsize,
+            SyscallReturnVariant::FailurePtrPtr => TRD105SyscallReturnVariant::FailurePtrPtr,
+            SyscallReturnVariant::SuccessAddr => TRD105SyscallReturnVariant::SuccessAddr,
+            SyscallReturnVariant::SucessPtr => TRD105SyscallReturnVariant::SucessPtr,
+            SyscallReturnVariant::SucessPtrUsize => TRD105SyscallReturnVariant::SucessPtrUsize,
+            SyscallReturnVariant::SucessPtrPtr => TRD105SyscallReturnVariant::SucessPtrPtr,
         }
     }
 }
@@ -129,116 +159,248 @@ impl TRD104SyscallReturn {
 /// specified in TRD104. Architectures which do not follow TRD104 are free to
 /// define their own encoding.
 pub fn encode_syscall_return_trd104(
-    syscall_return: &TRD104SyscallReturn,
+    syscall_return: &SyscallReturn,
     a0: &mut u32,
     a1: &mut u32,
     a2: &mut u32,
     a3: &mut u32,
 ) {
+    if core::mem::size_of::<MachineRegister>() == core::mem::size_of::<u32>() {
+        // SAFETY: if the two unsized integers are the same size references to them
+        // can be safely transmuted. The size checks that there is no extra metadata.
+        // NOTE: This could be made safe via an extra copy to the stack, but this would be an
+        // extra copy and would have subtly different semantics of replacing unused registers
+        // with a default.
+        unsafe {
+            let a0 = &mut *(crate::polyfill::core::ptr::from_mut(a0) as *mut MachineRegister);
+            let a1 = &mut *(crate::polyfill::core::ptr::from_mut(a1) as *mut MachineRegister);
+            let a2 = &mut *(crate::polyfill::core::ptr::from_mut(a2) as *mut MachineRegister);
+            let a3 = &mut *(crate::polyfill::core::ptr::from_mut(a3) as *mut MachineRegister);
+            encode_syscall_return_with_variant::<TRD104SyscallReturnVariant>(
+                syscall_return,
+                a0,
+                a1,
+                a2,
+                a3,
+            );
+        }
+    } else {
+        panic!("encode_syscall_return_trd104 used on a 64-bit platform or CHERI platform")
+    }
+}
+
+/// An extension of TRD104 that works for 32-bit and 64-bit platforms, and can remap variants.
+///
+/// On 32-bit platforms using.
+/// Using TRD104SyscallReturnVariant on a 32-bit platform, this is exactly TRD104.
+/// Using TRD105SyscallReturnVariant on any platform should be TRD1105.
+/// Archtiectures not following either of these are free to provide their own mappings.
+/// On 64-bit platforms, both 64-bit and usize values are passed as a single register,
+/// shifting down register number if that means fewer registers are needed.
+/// For usize, there is no change in number of registers between platforms.
+/// For explicitly 64-bit arguments, this would require rewriting prototypes for userspace
+/// functions between 32 and 64 bit platforms.
+/// No usize other than 4 and 8 bytes is supported.
+/// CHERI notes:
+/// the high part of any capability register is zeroed if any non CapabilityPtr arguments are
+/// passed.
+/// SuccessPtr is as passed the full CapabilityPtr register.
+/// Pointers from allow'd buffers have minimal bounds reattached that cover their length,
+/// and the same permissions that were checked at the syscall boundary.
+pub fn encode_syscall_return_with_variant<
+    SyscallVariant: From<SyscallReturnVariant> + Into<usize>,
+>(
+    syscall_return: &SyscallReturn,
+    a0: &mut MachineRegister,
+    a1: &mut MachineRegister,
+    a2: &mut MachineRegister,
+    a3: &mut MachineRegister,
+) {
+    // Writes a 64-bit value into either one (64-bit platforms) or two (32-bit platforms) registers
+    fn write_64(a: &mut MachineRegister, b: &mut MachineRegister, val: u64) {
+        let is_64_bit = core::mem::size_of::<usize>() == 8;
+        if !is_64_bit {
+            let (msb, lsb) = u64_to_be_u32s(val);
+            *a = (lsb as usize).into();
+            *b = (msb as usize).into();
+        } else {
+            *a = (val as usize).into();
+        }
+    }
+
+    fn variant_to_reg<SyscallVariant: From<SyscallReturnVariant> + Into<usize>>(
+        v: SyscallReturnVariant,
+    ) -> MachineRegister {
+        // First map from
+        let lowered_to_abi: SyscallVariant = v.into();
+        // Then cast to usize
+        let as_usize: usize = lowered_to_abi.into();
+        // and pack that into a register
+        as_usize.into()
+    }
+
     match *syscall_return {
-        TRD104SyscallReturn::Failure(e) => {
-            *a0 = TRD104SyscallReturnVariant::Failure as u32;
-            *a1 = usize::from(e) as u32;
+        SyscallReturn::Failure(e) => {
+            *a0 = variant_to_reg::<SyscallVariant>(SyscallReturnVariant::Failure);
+            *a1 = (usize::from(e)).into();
         }
-        TRD104SyscallReturn::FailureU32(e, data0) => {
-            *a0 = TRD104SyscallReturnVariant::FailureU32 as u32;
-            *a1 = usize::from(e) as u32;
-            *a2 = data0;
+        SyscallReturn::FailureU32(e, data0) => {
+            *a0 = variant_to_reg::<SyscallVariant>(SyscallReturnVariant::FailureU32);
+            *a1 = usize::from(e).into();
+            *a2 = (data0 as usize).into();
         }
-        TRD104SyscallReturn::FailureU32U32(e, data0, data1) => {
-            *a0 = TRD104SyscallReturnVariant::FailureU32U32 as u32;
-            *a1 = usize::from(e) as u32;
-            *a2 = data0;
-            *a3 = data1;
+        SyscallReturn::FailureU32U32(e, data0, data1) => {
+            *a0 = variant_to_reg::<SyscallVariant>(SyscallReturnVariant::FailureU32U32);
+            *a1 = (usize::from(e)).into();
+            *a2 = (data0 as usize).into();
+            *a3 = (data1 as usize).into();
         }
-        TRD104SyscallReturn::FailureU64(e, data0) => {
-            let (data0_msb, data0_lsb) = u64_to_be_u32s(data0);
-            *a0 = TRD104SyscallReturnVariant::FailureU64 as u32;
-            *a1 = usize::from(e) as u32;
-            *a2 = data0_lsb;
-            *a3 = data0_msb;
+        SyscallReturn::FailureU64(e, data0) => {
+            *a0 = variant_to_reg::<SyscallVariant>(SyscallReturnVariant::FailureU64);
+            *a1 = (usize::from(e)).into();
+            write_64(a2, a3, data0)
         }
-        TRD104SyscallReturn::Success => {
-            *a0 = TRD104SyscallReturnVariant::Success as u32;
+        SyscallReturn::Success => {
+            *a0 = variant_to_reg::<SyscallVariant>(SyscallReturnVariant::Success);
         }
-        TRD104SyscallReturn::SuccessU32(data0) => {
-            *a0 = TRD104SyscallReturnVariant::SuccessU32 as u32;
-            *a1 = data0;
+        SyscallReturn::SuccessU32(data0) => {
+            *a0 = variant_to_reg::<SyscallVariant>(SyscallReturnVariant::SuccessU32);
+            *a1 = (data0 as usize).into();
         }
-        TRD104SyscallReturn::SuccessU32U32(data0, data1) => {
-            *a0 = TRD104SyscallReturnVariant::SuccessU32U32 as u32;
-            *a1 = data0;
-            *a2 = data1;
+        SyscallReturn::SuccessU32U32(data0, data1) => {
+            *a0 = variant_to_reg::<SyscallVariant>(SyscallReturnVariant::SuccessU32U32);
+            *a1 = (data0 as usize).into();
+            *a2 = (data1 as usize).into();
         }
-        TRD104SyscallReturn::SuccessU32U32U32(data0, data1, data2) => {
-            *a0 = TRD104SyscallReturnVariant::SuccessU32U32U32 as u32;
-            *a1 = data0;
-            *a2 = data1;
-            *a3 = data2;
+        SyscallReturn::SuccessU32U32U32(data0, data1, data2) => {
+            *a0 = variant_to_reg::<SyscallVariant>(SyscallReturnVariant::SuccessU32U32U32);
+            *a1 = (data0 as usize).into();
+            *a2 = (data1 as usize).into();
+            *a3 = (data2 as usize).into();
         }
-        TRD104SyscallReturn::SuccessU64(data0) => {
-            let (data0_msb, data0_lsb) = u64_to_be_u32s(data0);
-
-            *a0 = TRD104SyscallReturnVariant::SuccessU64 as u32;
-            *a1 = data0_lsb;
-            *a2 = data0_msb;
+        SyscallReturn::SuccessU64(data0) => {
+            *a0 = variant_to_reg::<SyscallVariant>(SyscallReturnVariant::SuccessU64);
+            write_64(a1, a2, data0);
         }
-        TRD104SyscallReturn::SuccessU32U64(data0, data1) => {
-            let (data1_msb, data1_lsb) = u64_to_be_u32s(data1);
-
-            *a0 = TRD104SyscallReturnVariant::SuccessU32U64 as u32;
-            *a1 = data0;
-            *a2 = data1_lsb;
-            *a3 = data1_msb;
+        SyscallReturn::SuccessU32U64(data0, data1) => {
+            *a0 = variant_to_reg::<SyscallVariant>(SyscallReturnVariant::SuccessU32U64);
+            *a1 = (data0 as usize).into();
+            write_64(a2, a3, data1);
         }
-        TRD104SyscallReturn::AllowReadWriteSuccess(ptr, len) => {
-            *a0 = TRD104SyscallReturnVariant::SuccessU32U32 as u32;
-            *a1 = ptr as u32;
-            *a2 = len as u32;
+        SyscallReturn::AllowReadWriteSuccess(ptr, len) => {
+            *a0 = variant_to_reg::<SyscallVariant>(SyscallReturnVariant::SucessPtrUsize);
+            // Safety: we previously checked these permissions and this length when this was
+            // allowed to us
+            *a1 = unsafe {
+                CapabilityPtr::new_with_authority(
+                    ptr as *const (),
+                    ptr as usize,
+                    len,
+                    CapabilityPtrPermissions::ReadWrite,
+                )
+                .into()
+            };
+            *a2 = len.into();
         }
-        TRD104SyscallReturn::UserspaceReadableAllowSuccess(ptr, len) => {
-            *a0 = TRD104SyscallReturnVariant::SuccessU32U32 as u32;
-            *a1 = ptr as u32;
-            *a2 = len as u32;
+        SyscallReturn::UserspaceReadableAllowSuccess(ptr, len) => {
+            *a0 = variant_to_reg::<SyscallVariant>(SyscallReturnVariant::SucessPtrUsize);
+            // Safety: we previously checked these permissions and this length when this was
+            // allowed to us
+            *a1 = unsafe {
+                CapabilityPtr::new_with_authority(
+                    ptr as *const (),
+                    ptr as usize,
+                    len,
+                    CapabilityPtrPermissions::Read,
+                )
+                .into()
+            };
+            *a2 = len.into();
         }
-        TRD104SyscallReturn::AllowReadWriteFailure(err, ptr, len) => {
-            *a0 = TRD104SyscallReturnVariant::FailureU32U32 as u32;
-            *a1 = usize::from(err) as u32;
-            *a2 = ptr as u32;
-            *a3 = len as u32;
+        SyscallReturn::AllowReadWriteFailure(err, ptr, len) => {
+            *a0 = variant_to_reg::<SyscallVariant>(SyscallReturnVariant::FailurePtrUsize);
+            *a1 = (usize::from(err)).into();
+            // Safety: we previously checked these permissions and this length when this was
+            // allowed to us
+            *a2 = unsafe {
+                CapabilityPtr::new_with_authority(
+                    ptr as *const (),
+                    ptr as usize,
+                    len,
+                    CapabilityPtrPermissions::ReadWrite,
+                )
+                .into()
+            };
+            *a3 = len.into();
         }
-        TRD104SyscallReturn::UserspaceReadableAllowFailure(err, ptr, len) => {
-            *a0 = TRD104SyscallReturnVariant::FailureU32U32 as u32;
-            *a1 = usize::from(err) as u32;
-            *a2 = ptr as u32;
-            *a3 = len as u32;
+        SyscallReturn::UserspaceReadableAllowFailure(err, ptr, len) => {
+            *a0 = variant_to_reg::<SyscallVariant>(SyscallReturnVariant::FailurePtrUsize);
+            *a1 = (usize::from(err)).into();
+            // Safety: we previously checked these permissions and this length when this was
+            // allowed to us
+            *a2 = unsafe {
+                CapabilityPtr::new_with_authority(
+                    ptr as *const (),
+                    ptr as usize,
+                    len,
+                    CapabilityPtrPermissions::Read,
+                )
+                .into()
+            };
+            *a3 = len.into();
         }
-        TRD104SyscallReturn::AllowReadOnlySuccess(ptr, len) => {
-            *a0 = TRD104SyscallReturnVariant::SuccessU32U32 as u32;
-            *a1 = ptr as u32;
-            *a2 = len as u32;
+        SyscallReturn::AllowReadOnlySuccess(ptr, len) => {
+            *a0 = variant_to_reg::<SyscallVariant>(SyscallReturnVariant::SucessPtrUsize);
+            // Safety: we previously checked these permissions and this length when this was
+            // allowed to us
+            *a1 = unsafe {
+                CapabilityPtr::new_with_authority(
+                    ptr as *const (),
+                    ptr as usize,
+                    len,
+                    CapabilityPtrPermissions::Read,
+                )
+                .into()
+            };
+            *a2 = len.into();
         }
-        TRD104SyscallReturn::AllowReadOnlyFailure(err, ptr, len) => {
-            *a0 = TRD104SyscallReturnVariant::FailureU32U32 as u32;
-            *a1 = usize::from(err) as u32;
-            *a2 = ptr as u32;
-            *a3 = len as u32;
+        SyscallReturn::AllowReadOnlyFailure(err, ptr, len) => {
+            *a0 = variant_to_reg::<SyscallVariant>(SyscallReturnVariant::FailurePtrUsize);
+            *a1 = (usize::from(err)).into();
+            *a2 = unsafe {
+                CapabilityPtr::new_with_authority(
+                    ptr as *const (),
+                    ptr as usize,
+                    len,
+                    CapabilityPtrPermissions::Read,
+                )
+                .into()
+            };
+            *a3 = len.into();
         }
-        TRD104SyscallReturn::SubscribeSuccess(ptr, data) => {
-            *a0 = TRD104SyscallReturnVariant::SuccessU32U32 as u32;
-            *a1 = ptr as u32;
-            *a2 = data as u32;
+        SyscallReturn::SubscribeSuccess(ptr, data) => {
+            *a0 = variant_to_reg::<SyscallVariant>(SyscallReturnVariant::SucessPtrPtr);
+            *a1 = (ptr as usize).into();
+            *a2 = data.into();
         }
-        TRD104SyscallReturn::SubscribeFailure(err, ptr, data) => {
-            *a0 = TRD104SyscallReturnVariant::FailureU32U32 as u32;
-            *a1 = usize::from(err) as u32;
-            *a2 = ptr as u32;
-            *a3 = data as u32;
+        SyscallReturn::SubscribeFailure(err, ptr, data) => {
+            *a0 = variant_to_reg::<SyscallVariant>(SyscallReturnVariant::FailurePtrPtr);
+            *a1 = (usize::from(err)).into();
+            *a2 = (ptr as usize).into();
+            *a3 = data.into();
         }
-        TRD104SyscallReturn::YieldWaitFor(data0, data1, data2) => {
-            *a0 = data0 as u32;
-            *a1 = data1 as u32;
-            *a2 = data2 as u32;
+        SyscallReturn::SuccessPtr(metaptr) => {
+            *a0 = variant_to_reg::<SyscallVariant>(SyscallReturnVariant::SucessPtr);
+            *a1 = metaptr.into();
+        }
+        SyscallReturn::SuccessAddr(addr) => {
+            *a0 = variant_to_reg::<SyscallVariant>(SyscallReturnVariant::SuccessAddr);
+            *a1 = addr.into();
+        }
+        SyscallReturn::YieldWaitFor(data0, data1, data2) => {
+            *a0 = data0.into();
+            *a1 = data1.into();
+            *a2 = data2.into();
         }
     }
 }

@@ -37,6 +37,7 @@
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules_core::virtualizers::virtual_spi::{MuxSpiMaster, VirtualSpiMasterDevice};
+#[cfg(not(target_feature = "xcheri"))]
 use capsules_extra::lpm013m126::Lpm013m126;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
@@ -105,6 +106,7 @@ where
     }
 }
 
+#[cfg(not(target_feature = "xcheri"))]
 impl<A, P, S> Component for Lpm013m126Component<A, P, S>
 where
     A: 'static + Alarm<'static>,

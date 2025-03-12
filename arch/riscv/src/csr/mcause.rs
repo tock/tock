@@ -50,7 +50,7 @@ pub enum Interrupt {
 }
 
 /// Exception
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Exception {
     InstructionMisaligned,
     InstructionFault,
@@ -66,6 +66,10 @@ pub enum Exception {
     InstructionPageFault,
     LoadPageFault,
     StorePageFault,
+    #[cfg(target_feature = "xcheri")]
+    CHERIPageException,
+    #[cfg(target_feature = "xcheri")]
+    CHERIException,
     Unknown,
 }
 
@@ -105,6 +109,10 @@ impl Exception {
             12 => Exception::InstructionPageFault,
             13 => Exception::LoadPageFault,
             15 => Exception::StorePageFault,
+            #[cfg(target_feature = "xcheri")]
+            0x1b => Exception::CHERIPageException,
+            #[cfg(target_feature = "xcheri")]
+            0x1c => Exception::CHERIException,
             _ => Exception::Unknown,
         }
     }

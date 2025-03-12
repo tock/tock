@@ -911,7 +911,10 @@ impl Kernel {
                         // > process executable memory...), the kernel...MUST
                         // > immediately return a failure with a error code of
                         // > `INVALID`.
+
                         let rval1 = upcall_ptr.map_or(None, |upcall_ptr_nonnull| {
+                            // Why not `as_ptr_checked`? Just passing through user-provided value
+                            // anyway. If it's invalid, they'll find out soon enough.
                             if !process.is_valid_upcall_function_pointer(upcall_ptr_nonnull.as_ptr()) {
                                 Some(ErrorCode::INVAL)
                             } else {
