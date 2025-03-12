@@ -169,7 +169,7 @@ future platforms. This document defines the following conceptual types:
   </tr>
   <tr>
     <td><tt>POINTER_OR_ZERO</tt><br/><tt>OPAQUE_POINTER_OR_ZERO</tt></td>
-    <td><tt>uintptr_t</tt></td>
+    <td><tt>void *</tt></td>
     <td>A type capable of holding a pointer to a valid memory location OR the
     value `0`, which is defined as the NULL sentinel.</td>
   </tr>
