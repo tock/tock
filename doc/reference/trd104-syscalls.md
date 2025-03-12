@@ -640,12 +640,19 @@ platform and what drivers were compiled into the kernel.
 The register arguments for Command system calls are as follows. The registers
 r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
 
-| Argument          | Register | Type                                                 |
-|-------------------|----------|------------------------------------------------------|
-| Driver number     | r0       | `u32`                                                |
-| Command number    | r1       | `u32`                                                |
-| Argument 0        | r2       | `{u8, i8, u16, i16, u32, i32, u64_lo, i64_lo}` |
-| Argument 1        | r3       | `{u8, i8, u16, i16, u32, i32, u64_hi, i64_hi}` |
+| Argument          | Register | Type                         |
+|-------------------|----------|------------------------------|
+| Driver number     | r0       | `u32`                        |
+| Command number    | r1       | `u32`                        |
+| Argument 0        | r2       | `{u32, i32, u64_lo, i64_lo}` |
+| Argument 1        | r3       | `{u32, i32, u64_hi, i64_hi}` |
+
+> When passing values derived from types whose representation is smaller than
+> the native machine register width (e.g. `u8`, `i16`), they must be explicitly
+> cast to a type whose storage matches the native machine register width in a
+> manner which compels the compiler to emit code which actually updates the
+> underlying storage. Signed values must use the native signed type, i.e., an
+> `i8` must not be cast to a `u32`.
 
 The return variants of Command are instance-specific. Each specific
 Command instance (combination of Driver and Command number) specifies
