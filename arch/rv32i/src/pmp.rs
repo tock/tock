@@ -106,52 +106,57 @@ impl From<mpu::Permissions> for TORUserPMPCFG {
 /// - the region is at least 8 bytes long
 ///
 /// By accepting this type, PMP implementations can rely on these requirements
-/// to be verified. Furthermore, they can use the
-/// [`NAPOTRegionSpec::napot_addr`] convenience method to retrieve an `pmpaddrX`
-/// CSR value encoding this region's address and length.
+/// to be verified. Furthermore, they can use the [`NAPOTRegionSpec::pmpaddr`]
+/// convenience method to retrieve an `pmpaddrX` CSR value encoding this
+/// region's address and length.
 #[derive(Copy, Clone, Debug)]
 pub struct NAPOTRegionSpec {
-    start: *const u8,
-    size: usize,
+    pmpaddr: usize,
 }
 
 impl NAPOTRegionSpec {
-    /// Construct a new [`NAPOTRegionSpec`]
+    /// Construct a new [`NAPOTRegionSpec`] from a start address and size.
     ///
     /// This method accepts a `start` address and a region length. It returns
     /// `Some(region)` when all constraints specified in the
     /// [`NAPOTRegionSpec`]'s documentation are satisfied, otherwise `None`.
-    pub fn new(start: *const u8, size: usize) -> Option<Self> {
+    pub fn from_start_size(start: *const u8, size: usize) -> Option<Self> {
         if !size.is_power_of_two() || (start as usize) % size != 0 || size < 8 {
             None
         } else {
-            Some(NAPOTRegionSpec { start, size })
+            Some(NAPOTRegionSpec {
+                pmpaddr: ((start as usize) + (size - 1).overflowing_shr(1).0)
+                    .overflowing_shr(2)
+                    .0,
+            })
         }
     }
 
-    /// Retrieve the start address of this [`NAPOTRegionSpec`].
-    pub fn start(&self) -> *const u8 {
-        self.start
+    /// Construct a new [`NAPOTRegionSpec`] from a start .
+    ///
+    /// This method accepts a `start` and `end` address. It returns
+    /// `Some(region)` when all constraints specified in the
+    /// [`NAPOTRegionSpec`]'s documentation are satisfied, otherwise `None`.
+    pub fn from_start_end(start: *const u8, end: *const u8) -> Option<Self> {
+        (end as usize)
+            .checked_sub(start as usize)
+            .and_then(|size| Self::from_start_size(start, size))
     }
 
-    /// Retrieve the size of this [`NAPOTRegionSpec`].
-    pub fn size(&self) -> usize {
-        self.size
-    }
-
-    /// Retrieve the end address of this [`NAPOTRegionSpec`].
-    pub fn end(&self) -> *const u8 {
-        unsafe { self.start.add(self.size) }
+    /// Construct a new [`NAPOTRegionSpec`] from a pmpaddr CSR value.
+    ///
+    /// As every single integer in `[0; usize::MAX]` is a valid `pmpaddrX` CSR
+    /// for a region configured in NAPOT mode, this operation is infallible.
+    pub fn from_pmpaddr_csr(pmpaddr: usize) -> Self {
+        NAPOTRegionSpec { pmpaddr }
     }
 
     /// Retrieve a `pmpaddrX`-CSR compatible representation of this
     /// [`NAPOTRegionSpec`]'s address and length. For this value to be valid in
     /// a `CSR` register, the `pmpcfgX` octet's `A` (address mode) value
     /// belonging to this `pmpaddrX`-CSR must be set to `NAPOT` (0b11).
-    pub fn napot_addr(&self) -> usize {
-        ((self.start as usize) + (self.size - 1).overflowing_shr(1).0)
-            .overflowing_shr(2)
-            .0
+    pub fn pmpaddr(&self) -> usize {
+        self.pmpaddr
     }
 }
 
@@ -168,17 +173,17 @@ impl NAPOTRegionSpec {
 /// to be verified.
 #[derive(Copy, Clone, Debug)]
 pub struct TORRegionSpec {
-    start: *const u8,
-    end: *const u8,
+    pmpaddr_a: usize,
+    pmpaddr_b: usize,
 }
 
 impl TORRegionSpec {
-    /// Construct a new [`TORRegionSpec`]
+    /// Construct a new [`TORRegionSpec`] from a range of addresses.
     ///
     /// This method accepts a `start` and `end` address. It returns
     /// `Some(region)` when all constraints specified in the [`TORRegionSpec`]'s
     /// documentation are satisfied, otherwise `None`.
-    pub fn new(start: *const u8, end: *const u8) -> Option<Self> {
+    pub fn from_start_end(start: *const u8, end: *const u8) -> Option<Self> {
         if (start as usize) % 4 != 0
             || (end as usize) % 4 != 0
             || (end as usize)
@@ -187,18 +192,37 @@ impl TORRegionSpec {
         {
             None
         } else {
-            Some(TORRegionSpec { start, end })
+            Some(TORRegionSpec {
+                pmpaddr_a: (start as usize) >> 2,
+                pmpaddr_b: (end as usize) >> 2,
+            })
         }
     }
 
-    /// Retrieve the start address of this [`TORRegionSpec`].
-    pub fn start(&self) -> *const u8 {
-        self.start
+    /// Construct a new [`TORRegionSpec`] from a pair of pmpaddrX CSR values.
+    ///
+    /// This method accepts two `pmpaddrX` CSR values that together are
+    /// configured to describe a single TOR memory region. The second `pmpaddr_b`
+    /// must be strictly greater than `pmpaddr_a`, which translates into a
+    /// minimum region size of 4 bytes. Otherwise this function returns `None`.
+    pub fn from_pmpaddr_csrs(pmpaddr_a: usize, pmpaddr_b: usize) -> Option<TORRegionSpec> {
+        if pmpaddr_a >= pmpaddr_b {
+            None
+        } else {
+            Some(TORRegionSpec {
+                pmpaddr_a,
+                pmpaddr_b,
+            })
+        }
     }
 
-    /// Retrieve the end address of this [`TORRegionSpec`].
-    pub fn end(&self) -> *const u8 {
-        self.end
+    /// Get the first `pmpaddrX` CSR value that this TORRegionSpec encodes.
+    pub fn pmpaddr_a(&self) -> usize {
+        self.pmpaddr_a
+    }
+
+    pub fn pmpaddr_b(&self) -> usize {
+        self.pmpaddr_b
     }
 }
 
@@ -1480,7 +1504,7 @@ pub mod kernel_protection {
                     + pmpcfg_octet::x::CLEAR
                     + pmpcfg_octet::l::SET)
                     .into(),
-                mmio.0.napot_addr(),
+                mmio.0.pmpaddr(),
             );
 
             // RAM at n - 3:
@@ -1492,7 +1516,7 @@ pub mod kernel_protection {
                     + pmpcfg_octet::x::CLEAR
                     + pmpcfg_octet::l::SET)
                     .into(),
-                ram.0.napot_addr(),
+                ram.0.pmpaddr(),
             );
 
             // `.text` at n - 6 and n - 5 (TOR region):
@@ -1504,7 +1528,7 @@ pub mod kernel_protection {
                     + pmpcfg_octet::x::CLEAR
                     + pmpcfg_octet::l::SET)
                     .into(),
-                (kernel_text.0.start() as usize) >> 2,
+                kernel_text.0.pmpaddr_a(),
             );
             write_pmpaddr_pmpcfg(
                 AVAILABLE_ENTRIES - 5,
@@ -1514,7 +1538,7 @@ pub mod kernel_protection {
                     + pmpcfg_octet::x::SET
                     + pmpcfg_octet::l::SET)
                     .into(),
-                (kernel_text.0.end() as usize) >> 2,
+                kernel_text.0.pmpaddr_b(),
             );
 
             // flash at n - 4:
@@ -1526,7 +1550,7 @@ pub mod kernel_protection {
                     + pmpcfg_octet::x::CLEAR
                     + pmpcfg_octet::l::SET)
                     .into(),
-                flash.0.napot_addr(),
+                flash.0.pmpaddr(),
             );
 
             // Now that the kernel has explicit region definitions for any
@@ -1861,7 +1885,7 @@ pub mod kernel_protection_mml_epmp {
                     + pmpcfg_octet::x::CLEAR
                     + pmpcfg_octet::l::SET)
                     .into(),
-                (kernel_text.0.start() as usize) >> 2,
+                kernel_text.0.pmpaddr_a(),
             );
             write_pmpaddr_pmpcfg(
                 1,
@@ -1871,7 +1895,7 @@ pub mod kernel_protection_mml_epmp {
                     + pmpcfg_octet::x::SET
                     + pmpcfg_octet::l::SET)
                     .into(),
-                (kernel_text.0.end() as usize) >> 2,
+                kernel_text.0.pmpaddr_b(),
             );
 
             // MMIO at n - 1:
@@ -1883,7 +1907,7 @@ pub mod kernel_protection_mml_epmp {
                     + pmpcfg_octet::x::CLEAR
                     + pmpcfg_octet::l::SET)
                     .into(),
-                mmio.0.napot_addr(),
+                mmio.0.pmpaddr(),
             );
 
             // RAM at n - 2:
@@ -1895,7 +1919,7 @@ pub mod kernel_protection_mml_epmp {
                     + pmpcfg_octet::x::CLEAR
                     + pmpcfg_octet::l::SET)
                     .into(),
-                ram.0.napot_addr(),
+                ram.0.pmpaddr(),
             );
 
             // flash at n - 3:
@@ -1907,7 +1931,7 @@ pub mod kernel_protection_mml_epmp {
                     + pmpcfg_octet::x::CLEAR
                     + pmpcfg_octet::l::SET)
                     .into(),
-                flash.0.napot_addr(),
+                flash.0.pmpaddr(),
             );
 
             // Finally, attempt to enable the MSECCFG security bits, and verify
