@@ -18,10 +18,11 @@
 //!
 //! There is one ReadWrite and one ReadOnly allow buffers, both at index `0`.
 //!
-//! * ReadOnly: Advertising data, containing the full _payload_ (i.e. excluding the header) the
-//!             process wishes to advertise.
-//! * ReadWrite: Passive scanning buffer, which is populated during BLE scans with complete (i.e.
-//!              including headers) advertising packets received on channels 37, 38 and 39.
+//! * ReadOnly: Advertising data, containing the full _payload_ (i.e. excluding
+//!   the header) the process wishes to advertise.
+//! * ReadWrite: Passive scanning buffer, which is populated during BLE scans
+//!   with complete (i.e. including headers) advertising packets received on
+//!   channels 37, 38 and 39.
 //!
 //! The possible return codes from the 'allow' system call indicate the following:
 //!
@@ -37,8 +38,8 @@
 //!  The `subscribe` system call supports two arguments `subscribe number' and `callback`.
 //!  The `subscribe` is used to specify the specific operation, currently:
 //!
-//! * 0: provides a callback user-space when a device scanning for advertisements
-//!      and the callback is used to invoke user-space processes.
+//! * 0: provides a callback user-space when a device scanning for
+//!   advertisements and the callback is used to invoke user-space processes.
 //!
 //! The possible return codes from the `allow` system call indicate the following:
 //!

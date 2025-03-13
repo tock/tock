@@ -388,7 +388,7 @@ impl<'a> Screen<'a> {
                                 let mut write_len = buffer_size / bytes_per_pixel;
                                 if write_len > len {
                                     write_len = len
-                                };
+                                }
                                 app.write_position += write_len * bytes_per_pixel;
                                 kernel_data
                                     .get_readonly_processbuffer(ro_allow::SHARED)

@@ -620,7 +620,7 @@ unsafe fn start() -> (
     match peripherals.rtc.rtc_init() {
         Err(e) => debug!("{:?}", e),
         _ => (),
-    };
+    }
 
     let date_time = components::date_time::DateTimeComponent::new(
         board_kernel,

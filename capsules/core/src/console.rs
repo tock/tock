@@ -277,12 +277,12 @@ impl SyscallDriver for Console<'_> {
     /// ### `command_num`
     ///
     /// - `0`: Driver existence check.
-    /// - `1`: Transmits a buffer passed via `allow`, up to the length
-    ///        passed in `arg1`
+    /// - `1`: Transmits a buffer passed via `allow`, up to the length passed in
+    ///   `arg1`
     /// - `2`: Receives into a buffer passed via `allow`, up to the length
-    ///        passed in `arg1`
-    /// - `3`: Cancel any in progress receives and return (via callback)
-    ///        what has been received so far.
+    ///   passed in `arg1`
+    /// - `3`: Cancel any in progress receives and return (via callback) what
+    ///   has been received so far.
     fn command(
         &self,
         cmd_num: usize,

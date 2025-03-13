@@ -86,13 +86,13 @@ impl<L: led::Led, const NUM_LEDS: usize> SyscallDriver for LedDriver<'_, L, NUM_
     /// ### `command_num`
     ///
     /// - `0`: Returns the number of LEDs on the board. This will always be 0 or
-    ///        greater, and therefore also allows for checking for this driver.
+    ///   greater, and therefore also allows for checking for this driver.
     /// - `1`: Turn the LED at index specified by `data` on. Returns `INVAL` if
-    ///        the LED index is not valid.
-    /// - `2`: Turn the LED at index specified by `data` off. Returns `INVAL`
-    ///        if the LED index is not valid.
+    ///   the LED index is not valid.
+    /// - `2`: Turn the LED at index specified by `data` off. Returns `INVAL` if
+    ///   the LED index is not valid.
     /// - `3`: Toggle the LED at index specified by `data` on or off. Returns
-    ///        `INVAL` if the LED index is not valid.
+    ///   `INVAL` if the LED index is not valid.
     fn command(&self, command_num: usize, data: usize, _: usize, _: ProcessId) -> CommandReturn {
         match command_num {
             // get number of LEDs
