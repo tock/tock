@@ -109,6 +109,7 @@ pub mod collections;
 pub mod component;
 pub mod debug;
 pub mod deferred_call;
+pub mod dynamic_binary_storage;
 pub mod errorcode;
 pub mod grant;
 pub mod hil;
