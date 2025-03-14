@@ -58,6 +58,7 @@ members = [
     "boards/tutorials/nrf52840dk-hotp-tutorial",
     "boards/tutorials/nrf52840dk-thread-tutorial",
     "capsules/aes_gcm",
+    "capsules/ecdsa_sw",
     "capsules/core",
     "capsules/extra",
     "capsules/system",
