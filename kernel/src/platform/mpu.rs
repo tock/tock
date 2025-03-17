@@ -53,6 +53,36 @@ impl Region {
     }
 }
 
+// Breaks returned by the `allocate_app_memory_region` method
+#[derive(Clone, Copy)]
+pub struct AllocatedBreaksAndSize {
+    app_start: *const u8,
+    app_size: usize,
+    memory_size: usize,
+}
+
+impl AllocatedBreaksAndSize {
+    pub fn new(app_start: *const u8, app_size: usize, memory_size: usize) -> Self {
+        Self {
+            app_start,
+            app_size,
+            memory_size,
+        }
+    }
+
+    pub fn app_start(&self) -> *const u8 {
+        self.app_start
+    }
+
+    pub fn app_size(&self) -> usize {
+        self.app_size
+    }
+
+    pub fn memory_size(&self) -> usize {
+        self.memory_size
+    }
+}
+
 /// Null type for the default type of the `MpuConfig` type in an implementation
 /// of the `MPU` trait.
 ///
@@ -223,7 +253,7 @@ pub trait MPU {
         initial_kernel_memory_size: usize,
         permissions: Permissions,
         config: &mut Self::MpuConfig,
-    ) -> Option<(*const u8, usize)>;
+    ) -> Option<AllocatedBreaksAndSize>;
 
     /// Updates the MPU region for app-owned memory.
     ///
@@ -249,7 +279,7 @@ pub trait MPU {
         kernel_memory_break: *const u8,
         permissions: Permissions,
         config: &mut Self::MpuConfig,
-    ) -> Result<(), ()>;
+    ) -> Result<*const u8, ()>;
 
     /// Configures the MPU with the provided region configuration.
     ///
@@ -313,7 +343,7 @@ impl MPU for () {
         initial_kernel_memory_size: usize,
         _permissions: Permissions,
         _config: &mut Self::MpuConfig,
-    ) -> Option<(*const u8, usize)> {
+    ) -> Option<AllocatedBreaksAndSize> {
         let memory_size = cmp::max(
             min_memory_size,
             initial_app_memory_size + initial_kernel_memory_size,
@@ -321,7 +351,11 @@ impl MPU for () {
         if memory_size > unallocated_memory_size {
             None
         } else {
-            Some((unallocated_memory_start, memory_size))
+            Some(AllocatedBreaksAndSize::new(
+                unallocated_memory_start,
+                initial_app_memory_size,
+                memory_size,
+            ))
         }
     }
 
@@ -331,11 +365,11 @@ impl MPU for () {
         kernel_memory_break: *const u8,
         _permissions: Permissions,
         _config: &mut Self::MpuConfig,
-    ) -> Result<(), ()> {
+    ) -> Result<*const u8, ()> {
         if (app_memory_break as usize) > (kernel_memory_break as usize) {
             Err(())
         } else {
-            Ok(())
+            Ok(app_memory_break)
         }
     }
 
