@@ -240,7 +240,8 @@ pub trait MPU {
     ///
     /// # Return Value
     ///
-    /// This function returns the start address and the size of the memory block
+    /// This function returns the start address of the accessible region,
+    /// size of the accessible region, and the total size of the memory block
     /// chosen for the process. If it is infeasible to find a memory block or
     /// allocate the MPU region, or if the function has already been called,
     /// returns None. If None is returned no changes are made.
@@ -269,6 +270,8 @@ pub trait MPU {
     /// - `config`:              MPU region configuration
     ///
     /// # Return Value
+    ///
+    /// Returns a pointer to the end of the app accessible region if updating succeeds.
     ///
     /// Returns an error if it is infeasible to update the MPU region, or if it
     /// was never created. If an error is returned no changes are made to the
