@@ -307,6 +307,7 @@ ci-runner-github-clippy:\
 ci-runner-github-build:\
 	ci-job-syntax\
 	ci-job-compilation\
+	ci-job-msrv\
 	ci-job-debug-support-targets\
 	ci-job-collect-artifacts
 	$(call banner,CI-Runner: GitHub build runner DONE)
@@ -349,6 +350,7 @@ ci-runner-netlify:\
 ## If rules require setup, the setup rule comes right before the job definition.
 ## The order of rules within a runner try to optimize for performance if
 ## executed in linear order.
+
 
 
 
@@ -414,6 +416,29 @@ ci-job-syntax:
 ci-job-compilation:
 	$(call banner,CI-Job: Compilation)
 	@NOWARNINGS=true $(MAKE) allboards
+
+
+define ci_setup_msrv
+	$(call banner,CI-Setup: Install cargo-hack)
+	cargo install cargo-hack
+endef
+
+.PHONY: ci-setup-msrv
+ci-setup-msrv:
+	$(call ci_setup_helper,\
+		cargo hack -V &> /dev/null && echo yes,\
+		Install 'cargo-hack' using cargo,\
+		ci_setup_msrv,\
+		CI_JOB_MSRV)
+
+define ci_job_msrv
+	$(call banner,CI-Job: MSRV Check)
+	@cd boards/hail && cargo hack check --rust-version --target thumbv7em-none-eabihf
+endef
+
+.PHONY: ci-job-msrv
+ci-job-msrv: ci-setup-msrv
+	$(if $(CI_JOB_MSRV),$(call ci_job_msrv))
 
 .PHONY: ci-job-debug-support-targets
 ci-job-debug-support-targets:

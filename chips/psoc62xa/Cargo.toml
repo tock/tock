@@ -1,0 +1,17 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright OxidOS Automotive 2025 SRL.
+
+[package]
+name = "psoc62xa"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+cortexm0p = { path="../../arch/cortex-m0p" }
+kernel = { path = "../../kernel" }
+enum_primitive = { path = "../../libraries/enum_primitive" }
+
+[lints]
+workspace = true

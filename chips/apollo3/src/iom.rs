@@ -414,7 +414,7 @@ impl<'a> Iom<'_> {
     }
 
     /// The IOM has a few erratas when used in FIFO mode (as we do here).
-    /// See: https://ambiq.com/wp-content/uploads/2022/01/Apollo3-Blue-Errata-List.pdf
+    /// See: <https://ambiq.com/wp-content/uploads/2022/01/Apollo3-Blue-Errata-List.pdf>
     ///
     /// ERR009 means that we might get a THR interrupt incorrectly, it also
     /// appears that the FIFOxSIZ fields are a little slow to update, so even

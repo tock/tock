@@ -28,7 +28,7 @@ jobs:
   litex-sim-ci:
     strategy:
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-22.04]
 
     # The type of runner that the job will run on
     runs-on: ${{ matrix.os }}
@@ -57,7 +57,7 @@ jobs:
       # applications.
       - name: Install tockloader
         run: |
-          pip3 install tockloader==1.12.0
+          pip3 install tockloader==1.13.0
 
       # Clone tock-litex support repository under ./tock-litex, check out the
       # targeted release.
@@ -104,8 +104,8 @@ jobs:
           # bugs fixed in libtock-c, backwards-incompatible changes in
           # Tock or new tests this might need to be updated.
           #
-          # libtock-c of Feb 9, 2024, 3:08 PM EST
-          ref: 0e72c922e13cd83a1aaae7a5f587099d45815e6a
+          # libtock-c of Mon Dec 9 21:35:38 2024 +0000
+          ref: 820579455300762558718510d89960fd693131c1
           path: libtock-c
 
       - name: Build libtock-c apps
@@ -118,13 +118,13 @@ jobs:
             rv32imc|rv32imc.0x00088080.0x40010000|0x00088080|0x40010000"
           export LIBTOCK_C_APPS="\
             c_hello \
-            tests/console_timeout \
-            tests/mpu_walk_region \
+            tests/console/console_timeout \
+            tests/mpu/mpu_walk_region \
             tests/printf_long \
             rot13_service \
             rot13_client \
-            tests/console_recv_short \
-            tests/console_recv_long"
+            tests/console/console_recv_short \
+            tests/console/console_recv_long"
           pushd libtock-c/examples
           for APP in $LIBTOCK_C_APPS; do
             make -C "$APP"

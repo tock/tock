@@ -190,7 +190,7 @@ impl<Port: hil::gpio_async::Port> SyscallDriver for GPIOAsync<'_, Port> {
         // On any command other than 0, we check if another command is in flight
         if self.configuring_process.is_some() {
             return CommandReturn::failure(ErrorCode::BUSY);
-        };
+        }
 
         let res = match command_number {
             // enable output

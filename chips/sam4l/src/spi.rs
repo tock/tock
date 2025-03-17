@@ -350,7 +350,7 @@ impl<'a> SpiHw<'a> {
         match polarity {
             ClockPolarity::IdleHigh => csr.modify(ChipSelectParams::CPOL::InactiveHigh),
             ClockPolarity::IdleLow => csr.modify(ChipSelectParams::CPOL::InactiveLow),
-        };
+        }
     }
 
     fn get_polarity(&self) -> ClockPolarity {
@@ -369,7 +369,7 @@ impl<'a> SpiHw<'a> {
         match phase {
             ClockPhase::SampleLeading => csr.modify(ChipSelectParams::NCPHA::CaptureLeading),
             ClockPhase::SampleTrailing => csr.modify(ChipSelectParams::NCPHA::CaptureTrailing),
-        };
+        }
     }
 
     fn get_phase(&self) -> ClockPhase {

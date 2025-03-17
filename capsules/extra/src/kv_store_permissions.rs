@@ -40,6 +40,7 @@ enum Operation {
     Add,
     Update,
     Delete,
+    GarbageCollect,
 }
 
 /// Current version of the Tock K-V header.
@@ -47,7 +48,7 @@ const HEADER_VERSION: u8 = 0;
 pub const HEADER_LENGTH: usize = mem::size_of::<KeyHeader>();
 
 /// This is the header used for KV stores.
-#[repr(packed)]
+#[repr(C, packed)]
 struct KeyHeader {
     version: u8,
     length: u32,
@@ -288,6 +289,16 @@ impl<'a, K: kv::KV<'a>> kv::KVPermissions<'a> for KVStorePermissions<'a, K> {
         }
     }
 
+    fn garbage_collect(&self) -> Result<(), ErrorCode> {
+        if self.operation.is_some() {
+            return Err(ErrorCode::BUSY);
+        }
+
+        self.operation.set(Operation::GarbageCollect);
+
+        self.kv.garbage_collect()
+    }
+
     fn header_size(&self) -> usize {
         HEADER_LENGTH
     }
@@ -501,6 +512,13 @@ impl<'a, K: kv::KV<'a>> kv::KVClient for KVStorePermissions<'a, K> {
         self.operation.clear();
         self.client.map(move |cb| {
             cb.delete_complete(result, key);
+        });
+    }
+
+    fn garbage_collection_complete(&self, result: Result<(), ErrorCode>) {
+        self.operation.clear();
+        self.client.map(move |cb| {
+            cb.garbage_collection_complete(result);
         });
     }
 }

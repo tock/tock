@@ -12,6 +12,7 @@ use core::fmt;
 use core::fmt::write;
 use core::str;
 use kernel::capabilities::ProcessManagementCapability;
+use kernel::capabilities::ProcessStartCapability;
 use kernel::hil::time::ConvertTicks;
 use kernel::utilities::cells::MapCell;
 use kernel::utilities::cells::TakeCell;
@@ -36,7 +37,7 @@ pub const QUEUE_BUF_LEN: usize = 300;
 pub const READ_BUF_LEN: usize = 4;
 /// Commands can be up to 32 bytes long: since commands themselves are 4-5
 /// characters, limiting arguments to 25 bytes or so seems fine for now.
-pub const COMMAND_BUF_LEN: usize = 32;
+pub const COMMAND_BUF_LEN: usize = 64;
 /// Default size for the history command.
 pub const DEFAULT_COMMAND_HISTORY_LEN: usize = 10;
 
@@ -225,7 +226,7 @@ pub struct ProcessConsole<
     'a,
     const COMMAND_HISTORY_LEN: usize,
     A: Alarm<'a>,
-    C: ProcessManagementCapability,
+    C: ProcessManagementCapability + ProcessStartCapability,
 > {
     uart: &'a dyn uart::UartData<'a>,
     alarm: &'a A,
@@ -433,8 +434,12 @@ impl BinaryWrite for ConsoleWriter {
     }
 }
 
-impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCapability>
-    ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
+impl<
+        'a,
+        const COMMAND_HISTORY_LEN: usize,
+        A: Alarm<'a>,
+        C: ProcessManagementCapability + ProcessStartCapability,
+    > ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
 {
     pub fn new(
         uart: &'a dyn uart::UartData<'a>,
@@ -861,7 +866,10 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                             let mut console_writer = ConsoleWriter::new();
                                             let _ = write(
                                                 &mut console_writer,
-                                                format_args!("Process {} terminated\n", proc_name),
+                                                format_args!(
+                                                    "Process {} terminated\r\n",
+                                                    proc_name
+                                                ),
                                             );
 
                                             let _ = self.write_bytes(
@@ -879,7 +887,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                         if proc_name == name
                                             && proc.get_state() == State::Terminated
                                         {
-                                            proc.try_restart(None);
+                                            proc.start(&self.capability);
                                         }
                                     });
                             });
@@ -1122,8 +1130,12 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
     }
 }
 
-impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCapability> AlarmClient
-    for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
+impl<
+        'a,
+        const COMMAND_HISTORY_LEN: usize,
+        A: Alarm<'a>,
+        C: ProcessManagementCapability + ProcessStartCapability,
+    > AlarmClient for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
 {
     fn alarm(&self) {
         self.prompt();
@@ -1133,8 +1145,12 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
     }
 }
 
-impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCapability>
-    uart::TransmitClient for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
+impl<
+        'a,
+        const COMMAND_HISTORY_LEN: usize,
+        A: Alarm<'a>,
+        C: ProcessManagementCapability + ProcessStartCapability,
+    > uart::TransmitClient for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
 {
     fn transmitted_buffer(
         &self,
@@ -1169,8 +1185,12 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
     }
 }
 
-impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCapability>
-    uart::ReceiveClient for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
+impl<
+        'a,
+        const COMMAND_HISTORY_LEN: usize,
+        A: Alarm<'a>,
+        C: ProcessManagementCapability + ProcessStartCapability,
+    > uart::ReceiveClient for ProcessConsole<'a, COMMAND_HISTORY_LEN, A, C>
 {
     fn received_buffer(
         &self,
@@ -1224,7 +1244,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                             self.command_index.set(next_command_len);
                                             self.cursor.set(next_command_len);
                                             command[next_command_len] = EOL;
-                                        };
+                                        }
                                     });
                                 }
                                 EscKey::Left if cursor > 0 => {
@@ -1290,7 +1310,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                                     }
                                 }
                                 _ => {}
-                            };
+                            }
                         } else if read_buf[0] == NLINE || read_buf[0] == CR {
                             if (previous_byte == NLINE || previous_byte == CR)
                                 && previous_byte != read_buf[0]
@@ -1409,7 +1429,7 @@ impl<'a, const COMMAND_HISTORY_LEN: usize, A: Alarm<'a>, C: ProcessManagementCap
                     "ProcessConsole issues reads of 1 byte, but receive_complete was length {}",
                     rx_len
                 ),
-            };
+            }
         }
         let _ = self.uart.receive_buffer(read_buf, 1);
     }

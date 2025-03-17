@@ -13,11 +13,11 @@ members = [
     "arch/cortex-m7",
     "arch/riscv",
     "arch/rv32i",
-    "boards/acd52832",
     "boards/nano_rp2040_connect",
     "boards/arty_e21",
     "boards/opentitan/earlgrey-cw310",
     "boards/esp32-c3-devkitM-1",
+    "boards/cy8cproto_62_4343_w",
     "boards/clue_nrf52840",
     "boards/veer_el2_sim",
     "boards/hail",
@@ -80,6 +80,7 @@ members = [
     "chips/nrf52840",
     "chips/nrf5x",
     "chips/qemu_rv32_virt_chip",
+    "chips/psoc62xa",
     "chips/rp2040",
     "chips/sam4l",
     "chips/segger",
@@ -103,7 +104,7 @@ exclude = ["tools/"]
 resolver = "2"
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.3-dev"
 authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
 edition = "2021"
 
@@ -154,7 +155,6 @@ option_map_unit_fn = "allow"
 nonminimal_bool = "allow"
 identity-op = "allow"
 while-let-loop = "allow"
-only_used_in_recursion = "allow"
 manual-range-patterns = "allow"
 manual-flatten = "allow"
 
@@ -264,6 +264,7 @@ verbose_bit_mask = "allow"
 large_types_passed_by_value = "allow"
 no_mangle_with_rust_abi = "allow"
 struct_field_names = "allow"
+needless_continue = "allow"
 
 
 cast_lossless = "allow"

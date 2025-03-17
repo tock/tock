@@ -552,8 +552,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             || self.state.get() == State::Running
     }
 
-    fn remove_pending_upcalls(&self, upcall_id: UpcallId) {
-        self.tasks.map(|tasks| {
+    fn remove_pending_upcalls(&self, upcall_id: UpcallId) -> usize {
+        self.tasks.map_or(0, |tasks| {
             let count_before = tasks.len();
             tasks.retain(|task| match task {
                 // Remove only tasks that are function calls with an id equal
@@ -564,8 +564,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                 },
                 _ => true,
             });
+            let count_after = tasks.len();
             if config::CONFIG.trace_syscalls {
-                let count_after = tasks.len();
                 debug!(
                     "[{:?}] remove_pending_upcalls[{:#x}:{}] = {} upcall(s) removed",
                     self.processid(),
@@ -574,7 +574,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                     count_before - count_after,
                 );
             }
-        });
+            count_after - count_before
+        })
     }
 
     fn is_running(&self) -> bool {
@@ -1450,7 +1451,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             \r\n Total number of grant regions defined: {}\r\n",
             self.kernel.get_grant_count_and_finalize()
         ));
-        let rows = (number_grants + 2) / 3;
+        let rows = number_grants.div_ceil(3);
 
         // Access our array of grant pointers.
         self.grant_pointers.map(|grant_pointers| {
@@ -1962,7 +1963,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
                 // reconstitute the original memory slice.
                 return Err((ProcessLoadError::InternalError, unused_memory));
             }
-        };
+        }
 
         let flash_start = process.flash.as_ptr();
         let app_start =
@@ -2129,7 +2130,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
                 // faulted and not schedule it.
                 return Err(ErrorCode::RESERVE);
             }
-        };
+        }
 
         self.restart_count.increment();
 

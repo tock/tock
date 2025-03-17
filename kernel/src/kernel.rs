@@ -9,6 +9,7 @@
 //! etc.) is defined in the `scheduler` subcrate and selected by a board.
 
 use core::cell::Cell;
+use core::num::NonZeroU32;
 
 use crate::capabilities;
 use crate::config;
@@ -476,7 +477,7 @@ impl Kernel {
         chip: &C,
         process: &dyn process::Process,
         ipc: Option<&crate::ipc::IPC<NUM_PROCS>>,
-        timeslice_us: Option<u32>,
+        timeslice_us: Option<NonZeroU32>,
     ) -> (process::StoppedExecutingReason, Option<u32>) {
         // We must use a dummy scheduler timer if the process should be executed
         // without any timeslice restrictions. Note, a chip may not provide a
@@ -508,7 +509,7 @@ impl Kernel {
         // timeslice.
         loop {
             let stop_running = match scheduler_timer.get_remaining_us() {
-                Some(us) => us <= MIN_QUANTA_THRESHOLD_US,
+                Some(us) => us.get() <= MIN_QUANTA_THRESHOLD_US,
                 None => true,
             };
             if stop_running {
@@ -709,11 +710,11 @@ impl Kernel {
             // first.
             if return_reason == process::StoppedExecutingReason::TimesliceExpired {
                 // used the whole timeslice
-                timeslice
+                timeslice.get()
             } else {
                 match scheduler_timer.get_remaining_us() {
-                    Some(remaining) => timeslice - remaining,
-                    None => timeslice, // used whole timeslice
+                    Some(remaining) => timeslice.get() - remaining.get(),
+                    None => timeslice.get(), // used whole timeslice
                 }
             }
         });
@@ -1016,7 +1017,7 @@ impl Kernel {
                             // that there are no pending upcalls with the same
                             // identifier but with the old function pointer, we
                             // clear them now.
-                            process.remove_pending_upcalls(upcall_id);
+                            let _ =process.remove_pending_upcalls(upcall_id);
                         }
 
                         if config::CONFIG.trace_syscalls {
@@ -1402,15 +1403,35 @@ impl Kernel {
             Syscall::Exit {
                 which,
                 completion_code,
-            } => match which {
-                // The process called the `exit-terminate` system call.
-                0 => process.terminate(Some(completion_code as u32)),
-                // The process called the `exit-restart` system call.
-                1 => process.try_restart(Some(completion_code as u32)),
-                // The process called an invalid variant of the Exit
-                // system call class.
-                _ => process.set_syscall_return_value(SyscallReturn::Failure(ErrorCode::NOSUPPORT)),
-            },
+            } => {
+                // exit try restart modifies the ID of the process.
+                let old_process_id = process.processid();
+                let optional_return_value = match which {
+                    // The process called the `exit-terminate` system call.
+                    0 => {
+                        process.terminate(Some(completion_code as u32));
+                        None
+                    }
+                    // The process called the `exit-restart` system call.
+                    1 => {
+                        process.try_restart(Some(completion_code as u32));
+                        None
+                    }
+                    // The process called an invalid variant of the Exit
+                    // system call class.
+                    _ => {
+                        let return_value = SyscallReturn::Failure(ErrorCode::NOSUPPORT);
+                        process.set_syscall_return_value(return_value);
+                        Some(return_value)
+                    }
+                };
+                if config::CONFIG.trace_syscalls {
+                    debug!(
+                        "[{:?}] exit(which: {}, completion_code: {}) = {:?}",
+                        old_process_id, which, completion_code, optional_return_value,
+                    );
+                }
+            }
         }
     }
 }

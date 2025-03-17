@@ -215,7 +215,7 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             }
         }
 
-        mcause::Interrupt::Unknown => {
+        mcause::Interrupt::Unknown(_) => {
             panic!("interrupt of unknown cause");
         }
     }
