@@ -847,7 +847,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                 Err(Error::AddressOutOfBounds)
             } else if new_break > self.kernel_memory_break.get() {
                 Err(Error::OutOfMemory)
-            } else if let Ok(new_break) = self.chip.mpu().update_app_memory_region(
+            } else if let Ok(new_mpu_allocated_break) = self.chip.mpu().update_app_memory_region(
                 new_break,
                 self.kernel_memory_break.get(),
                 mpu::Permissions::ReadWriteOnly,
@@ -855,10 +855,12 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             ) {
                 let old_break = self.app_break.get();
                 // set the app break to the end of the MPU accesible region
-                self.app_break.set(new_break);
+                self.app_break.set(new_mpu_allocated_break);
                 self.chip.mpu().configure_mpu(config);
 
                 let base = self.mem_start() as usize;
+                // Set the break_result to the new_break asked for
+                // by the app
                 let break_result = unsafe {
                     CapabilityPtr::new_with_authority(
                         old_break as *const (),
