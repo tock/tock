@@ -13,6 +13,7 @@ pub mod i2c;
 pub mod interrupts;
 pub mod pio;
 pub mod pio_pwm;
+pub mod pio_spi;
 pub mod pwm;
 pub mod resets;
 pub mod rtc;
