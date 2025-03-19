@@ -138,12 +138,12 @@ impl<I: I2CDevice> I2CClient for ChirpI2cMoisture<'_, I> {
                     Operation::Moisture => {
                         let capacitance = (((buffer[0] as u32) << 8) | (buffer[1] as u32)) as f32;
 
-                        // 247 is the capacitance in air
-                        // 510 is the capacitance in water
+                        // 240 is the rough capacitance in air
+                        // 400 is the rough capacitance in wet soil
                         // Use those to calculate the moisture percentage, which is rougly linear
                         // https://github.com/Miceuz/i2c-moisture-sensor/blob/master/README.md#how-to-interpret-the-readings
                         // Note that this gives moisture in hundredths of a percent
-                        let moisture_content = ((capacitance - 247.0) / (510.0 - 247.0)) * 10000.0;
+                        let moisture_content = ((capacitance - 240.0) / (400.0 - 240.0)) * 10000.0;
 
                         self.state.set(DeviceState::Normal);
                         self.buffer.replace(buffer);
