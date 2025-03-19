@@ -78,7 +78,6 @@ impl<I: 'static + i2c::I2CMaster<'static>> Component for ChirpI2cMoistureCompone
             s.2.write(ChirpI2cMoisture::new(chirp_i2c_moisture_i2c, i2c_buffer));
 
         chirp_i2c_moisture_i2c.set_client(chirp_i2c_moisture);
-        chirp_i2c_moisture.initialise();
         chirp_i2c_moisture
     }
 }
