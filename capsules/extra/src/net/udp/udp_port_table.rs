@@ -217,7 +217,7 @@ impl UdpPortManager {
             .map_or(true, |port_query| port_query.is_bound(port));
         if user_bound {
             return Ok(true);
-        };
+        }
         let ret = self
             .port_array
             .map(|table| {

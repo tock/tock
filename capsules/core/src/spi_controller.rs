@@ -186,8 +186,12 @@ impl<'a, S: SpiMasterDevice<'a>> Spi<'a, S> {
                 .take()
                 .unwrap_or((&mut [] as &'static mut [u8]).into());
             kwbuf.slice(0..write_len);
-            self.spi_master
-                .read_write_bytes(kwbuf, self.kernel_read.take())
+            if let Some(mut krbuf) = self.kernel_read.take() {
+                krbuf.slice(0..rlen);
+                self.spi_master.read_write_bytes(kwbuf, Some(krbuf))
+            } else {
+                self.spi_master.read_write_bytes(kwbuf, None)
+            }
         };
     }
 }

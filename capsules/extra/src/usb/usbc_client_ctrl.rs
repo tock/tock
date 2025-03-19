@@ -422,7 +422,7 @@ impl<'a, 'b, U: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, U> {
                 self.controller.enable_address();
             }
             _ => {}
-        };
+        }
         self.state[endpoint].set(State::Init);
     }
 }

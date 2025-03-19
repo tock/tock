@@ -380,7 +380,7 @@ pub trait Configure {
     ///
     /// * `Ok()` - The timing parameters were calculated and stored.
     /// * `Err(ErrorCode)` - Indicates the error because of which the request
-    ///                      cannot be completed
+    ///   cannot be completed
     fn set_bitrate(&self, bitrate: u32) -> Result<(), ErrorCode>;
 
     /// Configures the CAN peripheral with the given arguments. This function is
@@ -390,14 +390,14 @@ pub trait Configure {
     ///
     /// # Arguments:
     ///
-    /// * `bit_timing` - A BitTiming structure to define the bit timing
-    ///                  settings for the peripheral
+    /// * `bit_timing` - A BitTiming structure to define the bit timing settings
+    ///   for the peripheral
     ///
     /// # Return values:
     ///
     /// * `Ok()` - The parameters were stored.
     /// * `Err(ErrorCode)` - Indicates the error because of which the request
-    ///                      cannot be completed
+    ///   cannot be completed
     fn set_bit_timing(&self, bit_timing: BitTiming) -> Result<(), ErrorCode>;
 
     /// Configures the CAN peripheral with the given arguments. This function is
@@ -407,34 +407,34 @@ pub trait Configure {
     ///
     /// # Arguments:
     ///
-    /// * `mode` - An OperationMode structure to define the running mode
-    ///            of the peripheral
+    /// * `mode` - An OperationMode structure to define the running mode of the
+    ///   peripheral
     ///
     /// # Return values:
     ///
     /// * `Ok()` - The parameters were stored.
     /// * `Err(ErrorCode)` - Indicates the error because of which the request
-    ///                      cannot be completed
+    ///   cannot be completed
     fn set_operation_mode(&self, mode: OperationMode) -> Result<(), ErrorCode>;
 
     /// Returns the current timing parameters for the CAN peripheral.
     ///
     /// # Return values:
     ///
-    /// * `Ok(BitTiming)` - The current timing parameters
-    ///                            given to the peripheral
-    /// * `Err(ErrorCode)` - Indicates the error because of which the
-    ///                      request cannot be completed
+    /// * `Ok(BitTiming)` - The current timing parameters given to the
+    ///   peripheral
+    /// * `Err(ErrorCode)` - Indicates the error because of which the request
+    ///   cannot be completed
     fn get_bit_timing(&self) -> Result<BitTiming, ErrorCode>;
 
     /// Returns the current operating mode for the CAN peripheral.
     ///
     /// # Return values:
     ///
-    /// * `Ok(OperationMode)` - The current operating mode parameter
-    ///                         given to the peripheral
-    /// * `Err(ErrorCode)` - Indicates the error because of which the
-    ///                      request cannot be completed
+    /// * `Ok(OperationMode)` - The current operating mode parameter given to
+    ///   the peripheral
+    /// * `Err(ErrorCode)` - Indicates the error because of which the request
+    ///   cannot be completed
     fn get_operation_mode(&self) -> Result<OperationMode, ErrorCode>;
 
     /// Configures the CAN peripheral with the automatic retransmission setting.
@@ -444,14 +444,13 @@ pub trait Configure {
     ///
     /// # Arguments:
     ///
-    /// * `automatic` - Value to configure the automatic retransmission
-    ///                 setting
+    /// * `automatic` - Value to configure the automatic retransmission setting
     ///
     /// # Return values:
     ///
     /// * `Ok()` - The setting was stored.
     /// * `Err(ErrorCode)` - Indicates the error because of which the request
-    ///                      cannot be completed
+    ///   cannot be completed
     fn set_automatic_retransmission(&self, automatic: bool) -> Result<(), ErrorCode>;
 
     /// Configures the CAN peripheral with the automatic wake up setting.
@@ -467,7 +466,7 @@ pub trait Configure {
     ///
     /// * `Ok()` - The setting was stored.
     /// * `Err(ErrorCode)` - Indicates the error because of which the request
-    ///                      cannot be completed
+    ///   cannot be completed
     fn set_wake_up(&self, wake_up: bool) -> Result<(), ErrorCode>;
 
     /// Returns the current automatic retransmission setting of the peripheral.
@@ -475,8 +474,8 @@ pub trait Configure {
     /// # Return values:
     ///
     /// * `Ok(bool)` - The current automatic retransmission setting
-    /// * `Err(ErrorCode)` - Indicates the error because of which the
-    ///                      request cannot be completed
+    /// * `Err(ErrorCode)` - Indicates the error because of which the request
+    ///   cannot be completed
     fn get_automatic_retransmission(&self) -> Result<bool, ErrorCode>;
 
     /// Returns the current automatic wake up setting of the peripheral.
@@ -484,8 +483,8 @@ pub trait Configure {
     /// # Return values:
     ///
     /// * `Ok(bool)` - The current automatic wake up setting
-    /// * `Err(ErrorCode)` - Indicates the error because of which the
-    ///                      request cannot be completed
+    /// * `Err(ErrorCode)` - Indicates the error because of which the request
+    ///   cannot be completed
     fn get_wake_up(&self) -> Result<bool, ErrorCode>;
 
     /// Returns the number of receive FIFOs the peripheral provides
@@ -516,27 +515,27 @@ pub trait ConfigureFd: Configure {
     /// # Arguments:
     ///
     /// * `payload_bit_timing` - A BitTiming structure to define the bit timing
-    ///                         settings for the frame payload
+    ///   settings for the frame payload
     ///
     /// # Return values:
     ///
     /// * `Ok()` - The parameters were stored.
     /// * `Err(ErrorCode)` - Indicates the error because of which the request
-    ///                      cannot be completed
-    ///                    - `ErrorCode::NOSUPPORT` indicates that payload timing
-    ///                      is not supported
+    ///   cannot be completed
+    ///   - `ErrorCode::NOSUPPORT` indicates that payload timing is not
+    ///     supported
     fn set_payload_bit_timing(&self, payload_bit_timing: BitTiming) -> Result<(), ErrorCode>;
 
     /// Returns the current timing parameters for the CAN peripheral.
     ///
     /// # Return values:
     ///
-    /// * `Ok(BitTiming)` - The current timing for the frame payload
-    ///                     given to the peripheral
-    /// * `Err(ErrorCode)` - Indicates the error because of which the
-    ///                      request cannot be completed
-    ///                    - `ErrorCode::NOSUPPORT` indicates that payload timing
-    ///                      is not supported
+    /// * `Ok(BitTiming)` - The current timing for the frame payload given to
+    ///   the peripheral
+    /// * `Err(ErrorCode)` - Indicates the error because of which the request
+    ///   cannot be completed
+    ///   - `ErrorCode::NOSUPPORT` indicates that payload timing is not
+    ///     supported
     fn get_payload_bit_timing(&self) -> Result<BitTiming, ErrorCode>;
 
     /// Returns the maximum accepted frame size in bytes.
@@ -556,27 +555,26 @@ pub trait Filter {
     /// # Arguments:
     ///
     /// * `filter` - A FilterParameters structure to define the filter
-    ///                  configuration
+    ///   configuration
     ///
     /// # Return values:
     ///
     /// * `Ok()` - The filter was successfully configured.
-    /// * `Err(ErrorCode)` - indicates the error because of which the
-    ///                      request cannot be completed
+    /// * `Err(ErrorCode)` - indicates the error because of which the request
+    ///   cannot be completed
     fn enable_filter(&self, filter: FilterParameters) -> Result<(), ErrorCode>;
 
     /// Disables a filter.
     ///
     /// # Arguments:
     ///
-    /// * `number` - The filter Id to identify the filter bank
-    ///                     to disable
+    /// * `number` - The filter Id to identify the filter bank to disable
     ///
     /// # Return values:
     ///
     /// * `Ok()` - The filter was successfully disabled.
-    /// * `Err(ErrorCode)` - indicates the error because of which the
-    ///                      request cannot be completed
+    /// * `Err(ErrorCode)` - indicates the error because of which the request
+    ///   cannot be completed
     fn disable_filter(&self, number: u32) -> Result<(), ErrorCode>;
 
     /// Returns the number of filters the peripheral provides
@@ -596,18 +594,17 @@ pub trait Controller {
     ///
     /// # Return values:
     ///
-    /// * `Ok()` - The parameters were provided and the process can begin.
-    ///            The driver will call the `state_changed` and `enabled`
-    ///            callbacks after the process ends. Both of the callbacks
-    ///            must be called and the capsule should wait for the `enable`
-    ///            callback before transmitting or receiving frames, as enabling
-    ///            might fail with an error. While `state_changed` will report
-    ///            the device as being in `State::Disabled`, it does not report
-    ///            the error. A client cannot otherwise differentiate between
-    ///            a callback issued due to failed `enable` or a peripheral's decision
-    ///            to enter a disabled state.
-    /// * `Err(ErrorCode)` - Indicates the error because of which the
-    ///                      request cannot be completed.
+    /// * `Ok()` - The parameters were provided and the process can begin. The
+    ///   driver will call the `state_changed` and `enabled` callbacks after the
+    ///   process ends. Both of the callbacks must be called and the capsule
+    ///   should wait for the `enable` callback before transmitting or receiving
+    ///   frames, as enabling might fail with an error. While `state_changed`
+    ///   will report the device as being in `State::Disabled`, it does not
+    ///   report the error. A client cannot otherwise differentiate between a
+    ///   callback issued due to failed `enable` or a peripheral's decision to
+    ///   enter a disabled state.
+    /// * `Err(ErrorCode)` - Indicates the error because of which the request
+    ///   cannot be completed.
     ///     * `ErrorCode::BUSY` - the peripheral was already enabled
     ///     * `ErrorCode::INVAL` - no arguments were previously provided
     fn enable(&self) -> Result<(), ErrorCode>;
@@ -618,17 +615,16 @@ pub trait Controller {
     /// # Return values:
     ///
     /// * `Ok()` - The peripheral was already enabled and the process can begin.
-    ///            The driver will call the `state_changed` and `disabled`
-    ///            callbacks after the process ends. Both of the callbacks
-    ///            must be called and the capsule should wait for the `disabled`
-    ///            callback before considering the peripheral disabled, as disabling
-    ///            might fail with an erro . While `state_changed` will report
-    ///            the device as being in `State::Enabled`, it does not report
-    ///            the error. A client cannot otherwise differentiate between
-    ///            a callback issued due to failed `disable` or a peripheral's decision
-    ///            to enter the enable state.
-    /// * `Err(ErrorCode)` - Indicates the error because of which the
-    ///                      request cannot be completed.
+    ///   The driver will call the `state_changed` and `disabled` callbacks
+    ///   after the process ends. Both of the callbacks must be called and the
+    ///   capsule should wait for the `disabled` callback before considering the
+    ///   peripheral disabled, as disabling might fail with an erro . While
+    ///   `state_changed` will report the device as being in `State::Enabled`,
+    ///   it does not report the error. A client cannot otherwise differentiate
+    ///   between a callback issued due to failed `disable` or a peripheral's
+    ///   decision to enter the enable state.
+    /// * `Err(ErrorCode)` - Indicates the error because of which the request
+    ///   cannot be completed.
     ///     * `ErrorCode::OFF` - the peripheral was not previously enabled
     fn disable(&self) -> Result<(), ErrorCode>;
 
@@ -637,8 +633,8 @@ pub trait Controller {
     /// # Return values:
     ///
     /// * `Ok(State)` - The state of the CAN peripheral if it is functional
-    /// * `Err(ErrorCode)` - The driver cannot report the state of the peripheral
-    ///                      if it is not functional.
+    /// * `Err(ErrorCode)` - The driver cannot report the state of the
+    ///   peripheral if it is not functional.
     fn get_state(&self) -> Result<State, ErrorCode>;
 }
 
@@ -663,12 +659,11 @@ pub trait Transmit<const PACKET_SIZE: usize> {
     /// * `len` - Length of the current message
     ///
     /// # Return values:
-    /// * `Ok()` - The transmission request was successful and the caller
-    ///            will receive a for the `transmit_complete` callback function call
-    /// * `Err(ErrorCode, &'static mut [u8])` - a tuple with the error that occurred
-    ///                                         during the transmission request and
-    ///                                         the buffer that was provided as an
-    ///                                         argument to the function
+    /// * `Ok()` - The transmission request was successful and the caller will
+    ///   receive a for the `transmit_complete` callback function call
+    /// * `Err(ErrorCode, &'static mut [u8])` - a tuple with the error that
+    ///   occurred during the transmission request and the buffer that was
+    ///   provided as an argument to the function
     fn send(
         &self,
         id: Id,
@@ -699,12 +694,11 @@ pub trait Receive<const PACKET_SIZE: usize> {
     ///
     /// # Return values:
     ///
-    /// * `Ok()` - The receive request was successful and the caller waits for the
-    ///            `message_received` callback function to receive data
-    /// * `Err(ErrorCode, &'static mut [u8])` - tuple with the error that occurred
-    ///                                         during the reception request and
-    ///                                         the buffer that was received as an
-    ///                                         argument to the function
+    /// * `Ok()` - The receive request was successful and the caller waits for
+    ///   the `message_received` callback function to receive data
+    /// * `Err(ErrorCode, &'static mut [u8])` - tuple with the error that
+    ///   occurred during the reception request and the buffer that was received
+    ///   as an argument to the function
     fn start_receive_process(
         &self,
         buffer: &'static mut [u8; PACKET_SIZE],
@@ -716,9 +710,9 @@ pub trait Receive<const PACKET_SIZE: usize> {
     /// # Return values:
     ///
     /// * `Ok()` - The request was successful an the caller waits for the
-    ///            `stopped` callback function after this command
-    /// * `Err(ErrorCode)` - Indicates the error because of which the
-    ///                      request cannot be completed
+    ///   `stopped` callback function after this command
+    /// * `Err(ErrorCode)` - Indicates the error because of which the request
+    ///   cannot be completed
     fn stop_receive(&self) -> Result<(), ErrorCode>;
 }
 
@@ -740,8 +734,8 @@ pub trait ControllerClient {
     /// # Arguments:
     ///
     /// * `status`
-    ///     * `Ok()` - The peripheral has been successfully enabled; the
-    ///                actual state is transmitted via `state_changed` callback
+    ///     * `Ok()` - The peripheral has been successfully enabled; the actual
+    ///       state is transmitted via `state_changed` callback
     ///     * `Err(ErrorCode)` - The error that occurred during the enable process
     fn enabled(&self, status: Result<(), ErrorCode>);
 
@@ -753,8 +747,8 @@ pub trait ControllerClient {
     /// # Arguments:
     ///
     /// * `status`
-    ///     * `Ok()` - The peripheral has been successfully disabled; the
-    ///                actual state is transmitted via `state_changed` callback
+    ///     * `Ok()` - The peripheral has been successfully disabled; the actual
+    ///       state is transmitted via `state_changed` callback
     ///     * `Err(ErrorCode)` - The error that occurred during the disable process
     fn disabled(&self, status: Result<(), ErrorCode>);
 }
@@ -781,11 +775,11 @@ pub trait ReceiveClient<const PACKET_SIZE: usize> {
     /// # Arguments:
     ///
     /// * `id` - The identifier of the received message
-    /// * `buffer` - A reference to the buffer where the data is stored. This data must
-    ///              be stored. This buffer is usually a slice to the original buffer
-    ///              that was supplied to the `start_receive_process`. It must be used
-    ///              within this function call. In most cases the data is copied to a
-    ///              driver or application buffer.
+    /// * `buffer` - A reference to the buffer where the data is stored. This
+    ///   data must be stored. This buffer is usually a slice to the original
+    ///   buffer that was supplied to the `start_receive_process`. It must be
+    ///   used within this function call. In most cases the data is copied to a
+    ///   driver or application buffer.
     /// * `len` - The length of the buffer
     /// * `status` - The status for the request
     ///     * `Ok()` - There was no error during the reception process
@@ -803,7 +797,7 @@ pub trait ReceiveClient<const PACKET_SIZE: usize> {
     /// # Arguments:
     ///
     /// * `buffer` - The buffer that was given as an argument to the
-    ///               `start_receive_process` function
+    ///   `start_receive_process` function
     fn stopped(&self, buffer: &'static mut [u8; PACKET_SIZE]);
 }
 
