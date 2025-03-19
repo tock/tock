@@ -6,13 +6,15 @@
 
 use core::f32;
 
+use flux_support::assume;
+
 // VTOCK-TODO: supplementary Z3 proofs for these two functions
 // VTOCK-TODO: use actual const names
 
 /// Get closest power of two greater than the given number.
 #[flux_rs::trusted] // Bitwise arithmetic
 // 2147483648 is half of u32::MAX. Anything higher than that causes overflow
-#[flux_rs::sig(fn(num: u32) -> u32{r: (num < 2147483648 => r > num)})]
+#[flux_rs::sig(fn(num: u32) -> u32{r: r >= num && (bv_int_to_bv32(r) & (bv_int_to_bv32(r) - 1) == 0) && r/2 <= num} requires num < u32::MAX)]
 pub fn closest_power_of_two(mut num: u32) -> u32 {
     num -= 1;
     num |= num >> 1;
@@ -24,10 +26,11 @@ pub fn closest_power_of_two(mut num: u32) -> u32 {
     num
 }
 
-#[flux_rs::trusted] // bitwise arithmetic
+#[flux_rs::trusted]
+// bitwise arithmetic
 // 2147483648 is half of u32::MAX. Anything higher than that deviates from closest_power_of_two
 // I added this function to avoid unnecessary downcasts, which can be dangerous.
-#[flux_rs::sig(fn(num: usize) -> usize{r: (num < 2147483648 => r > num)})]
+#[flux_rs::sig(fn(num: usize) -> usize{r: r >= num && r/2 <= num} requires num < usize::MAX)]
 pub fn closest_power_of_two_usize(mut num: usize) -> usize {
     num -= 1;
     num |= num >> 1;
@@ -60,7 +63,9 @@ impl PowerOfTwo {
     /// Converts a number two the nearest `PowerOfTwo` greater-than-or-equal to
     /// it.
     pub fn ceiling<F: Into<u32>>(f: F) -> PowerOfTwo {
-        PowerOfTwo(log_base_two(closest_power_of_two(f.into())))
+        let v = f.into();
+        assume(v < u32::MAX);
+        PowerOfTwo(log_base_two(closest_power_of_two(v)))
     }
 
     /// Creates a new `PowerOfTwo` representing the number zero.

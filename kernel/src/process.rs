@@ -203,10 +203,10 @@ impl ProcessId {
     /// the app owns and can write to. This includes the app's code and data and
     /// any padding at the end of the app. It does not include the TBF header,
     /// or any space that the kernel is using for any potential bookkeeping.
-    pub fn get_editable_flash_range(&self) -> (usize, usize) {
-        self.kernel.process_map_or((0, 0), *self, |process| {
-            let addresses = process.get_addresses();
-            (addresses.flash_non_protected_start, addresses.flash_end)
+    pub fn get_editable_flash_range(&self) -> Result<(usize, usize), ()> {
+        self.kernel.process_map_or(Ok((0, 0)), *self, |process| {
+            let addresses = process.get_addresses()?;
+            Ok((addresses.flash_non_protected_start, addresses.flash_end))
         })
     }
 
@@ -644,7 +644,7 @@ pub trait Process {
     /// accessible memory. However, to avoid undefined behavior the caller needs
     /// to ensure that no other references exist to the process's memory before
     /// calling this function.
-    unsafe fn set_byte(&self, addr: FluxPtrU8Mut, value: u8) -> bool;
+    unsafe fn set_byte(&self, addr: FluxPtrU8Mut, value: u8) -> Result<bool, ()>;
 
     /// Return the permissions for this process for a given `driver_num`.
     ///
@@ -791,7 +791,7 @@ pub trait Process {
     ///
     /// Returns `true` if the upcall function pointer is valid for this process,
     /// and `false` otherwise.
-    fn is_valid_upcall_function_pointer(&self, upcall_fn: NonNull<()>) -> bool;
+    fn is_valid_upcall_function_pointer(&self, upcall_fn: NonNull<()>) -> Result<bool, ()>;
 
     // functions for processes that are architecture specific
 
@@ -828,7 +828,19 @@ pub trait Process {
 
     /// Return process state information related to the location in memory of
     /// various process data structures.
-    fn get_addresses(&self) -> ProcessAddresses;
+    fn get_addresses(&self) -> Result<ProcessAddresses, ()>;
+
+    /// Flash start
+    fn get_flash_start(&self) -> usize;
+
+    /// Flash End
+    fn get_flash_end(&self) -> usize;
+
+    /// SRAM Start
+    fn get_sram_start(&self) -> usize;
+
+    /// SRAM End
+    fn get_sram_end(&self) -> usize;
 
     /// Return process state information related to the size in memory of
     /// various process data structures.

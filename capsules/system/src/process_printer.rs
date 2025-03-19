@@ -60,7 +60,7 @@ impl ProcessPrinter for ProcessPrinterText {
         let dropped_upcall_count = process.debug_dropped_upcall_count();
         let restart_count = process.get_restart_count();
 
-        let addresses = process.get_addresses();
+        let addresses = process.get_addresses().ok()?;
         let sizes = process.get_sizes();
 
         let process_struct_memory_location = addresses.sram_end

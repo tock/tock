@@ -401,10 +401,10 @@ fn load_process<C: Chip>(
                 "Loading: {} [{}] flash={:#010X}-{:#010X} ram={:#010X}-{:#010X}",
                 process.get_process_name(),
                 index,
-                process.get_addresses().flash_start,
-                process.get_addresses().flash_end,
-                process.get_addresses().sram_start,
-                process.get_addresses().sram_end - 1,
+                process.get_flash_start(),
+                process.get_flash_end(),
+                process.get_sram_start(),
+                process.get_sram_end()
             );
         }
     });
@@ -855,7 +855,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
             debug!(
                 "Loading: Process {}({:#02x}) does{} block {}({:#02x})",
                 process.get_process_name(),
-                process.get_addresses().flash_start,
+                process.get_flash_start(),
                 if blocks { " not" } else { "" },
                 pb.header.get_package_name().unwrap_or(""),
                 pb.flash.as_ptr() as usize,

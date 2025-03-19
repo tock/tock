@@ -835,7 +835,14 @@ impl Kernel {
                         // so we can safely call `set_byte()`.
                         unsafe {
                             let address = param_a.as_fluxptr();
-                            process.set_byte(address, has_tasks as u8);
+                            let maybe_set_byte = process.set_byte(address, has_tasks as u8);
+                            if maybe_set_byte.is_err() {
+                                debug!("Uh oh, value in map cell in use");
+                                process.set_syscall_return_value(SyscallReturn::Failure(
+                                    ErrorCode::FAIL,
+                                ));
+                                return;
+                            }
                         }
 
                         if has_tasks {
@@ -903,10 +910,15 @@ impl Kernel {
                         // > immediately return a failure with a error code of
                         // > `INVALID`.
                         let rval1 = ptr.and_then(|upcall_ptr_nonnull| {
-                            if !process.is_valid_upcall_function_pointer(upcall_ptr_nonnull) {
-                                Some(ErrorCode::INVAL)
+                            let is_valid_maybe = process.is_valid_upcall_function_pointer(upcall_ptr_nonnull).ok();
+                            if let Some(is_valid_upcall) = is_valid_maybe {
+                                if !is_valid_upcall {
+                                    Some(ErrorCode::INVAL)
+                                } else {
+                                    None
+                                }
                             } else {
-                                None
+                                Some(ErrorCode::FAIL)
                             }
                         });
 

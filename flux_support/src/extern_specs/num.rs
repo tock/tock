@@ -28,4 +28,7 @@ impl usize {
                                  (num > 1 => r <= 30)
                             })]
     fn leading_zeros(self) -> u32;
+
+    #[sig(fn(num: usize, rhs: usize) -> usize[if num < rhs { 0 } else { num - rhs }])]
+    fn saturating_sub(self, rhs: usize) -> usize;
 }

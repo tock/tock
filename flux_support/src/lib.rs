@@ -1,11 +1,13 @@
 #![no_std]
 
 mod extern_specs;
+mod flux_pair;
 mod flux_ptr;
 mod flux_range;
 mod flux_register_interface;
 mod math;
 use core::panic;
+pub use flux_pair::*;
 pub use flux_ptr::*;
 pub use flux_range::*;
 pub use flux_register_interface::*;

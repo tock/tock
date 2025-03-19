@@ -319,7 +319,7 @@ impl<T: Configure> StandardBitTiming for T {
             + Self::MAX_BIT_TIMINGS.segment1
             + Self::MAX_BIT_TIMINGS.segment2
             + Self::SYNC_SEG) as u32;
-        
+
         flux_support::assume(ts > 0);
 
         for prescaler in

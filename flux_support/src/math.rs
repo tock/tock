@@ -1,8 +1,17 @@
 use crate::FluxPtr;
 
-#[flux_rs::sig(fn(lhs: usize, rhs: usize) -> usize {r: (lhs >= rhs => r == lhs) && (rhs > lhs => r == rhs)})]
+#[flux_rs::sig(fn(lhs: usize, rhs: usize) -> usize[if lhs >= rhs { lhs } else { rhs }])]
 pub fn max_usize(lhs: usize, rhs: usize) -> usize {
     if lhs >= rhs {
+        lhs
+    } else {
+        rhs
+    }
+}
+
+#[flux_rs::sig(fn(lhs: usize, rhs: usize) -> usize[if lhs <= rhs { lhs } else { rhs }])]
+pub fn min_usize(lhs: usize, rhs: usize) -> usize {
+    if lhs <= rhs {
         lhs
     } else {
         rhs

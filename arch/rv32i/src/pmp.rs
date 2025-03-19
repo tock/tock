@@ -735,20 +735,22 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
         Ok(())
     }
 
-    fn allocate_app_memory_region(
+    // VTOCK TODO: allocate flash here
+    fn allocate_app_memory_regions(
         &self,
         unallocated_memory_start: FluxPtr,
         unallocated_memory_size: usize,
         min_memory_size: usize,
         initial_app_memory_size: usize,
         initial_kernel_memory_size: usize,
-        permissions: mpu::Permissions,
+        flash_start: FluxPtr,
+        flash_size: usize,
         config: &mut Self::MpuConfig,
-    ) -> Option<(FluxPtr, usize)> {
+    ) -> Result<mpu::AllocatedAppBreaksAndSize, mpu::AllocateAppMemoryError> {
         // An app memory region can only be allocated once per `MpuConfig`.
         // If we already have one, abort:
         if config.app_memory_region.is_some() {
-            return None;
+            return Err(mpu::AllocateAppMemoryError::HeapError);
         }
 
         // Find a free region slot. If we don't have one, abort early:
@@ -757,7 +759,8 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
             .iter()
             .enumerate()
             .find(|(_i, (pmpcfg, _, _))| *pmpcfg == TORUserPMPCFG::OFF)
-            .map(|(i, _)| i)?;
+            .map(|(i, _)| i)
+            .ok_or(mpu::AllocateAppMemoryError::HeapError)?;
 
         // Now, meet the PMP TOR region constraints for the region specified by
         // `initial_app_memory_size` (which is the part of the region actually
@@ -788,7 +791,7 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
         // kernel memory sections, and is `min_memory_size` bytes
         // long. Calculate the length of this block with our new PMP-aliged
         // size:
-        let memory_block_size = cmp::max(
+        let memory_block_size = max_usize(
             min_memory_size,
             pmp_region_size + initial_kernel_memory_size,
         );
@@ -806,7 +809,7 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
             > (usize::from(unallocated_memory_start)) + unallocated_memory_size
         {
             // Overflowing the provided memory region, can't make allocation:
-            return None;
+            return Err(mpu::AllocateAppMemoryError::HeapError);
         }
 
         // Finally, check that this new region does not overlap with any
@@ -815,30 +818,39 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
             if region.0 != TORUserPMPCFG::OFF
                 && region_overlaps(region, start as *const u8, memory_block_size)
             {
-                return None;
+                return Err(mpu::AllocateAppMemoryError::HeapError);
             }
         }
 
         // All checks passed, store region allocation, indicate the
         // app_memory_region, and mark config as dirty:
         config.regions[region_num] = (
-            permissions.into(),
+            mpu::Permissions::ReadWriteOnly.into(),
             start as *const u8,
             (start + pmp_region_size) as *const u8,
         );
         config.is_dirty.set(true);
         config.app_memory_region.replace(region_num);
 
-        Some((flux_support::FluxPtr::from(start), memory_block_size))
+        Ok(mpu::AllocatedAppBreaksAndSize {
+            breaks: mpu::AllocatedAppBreaks {
+                memory_start: FluxPtr::from(start),
+                app_break: FluxPtr::from(start + pmp_region_size),
+            },
+            memory_size: memory_block_size,
+        })
     }
 
-    fn update_app_memory_region(
+    // VTOCK TODO: check flash is set
+    fn update_app_memory_regions(
         &self,
-        app_memory_break: FluxPtr,
-        kernel_memory_break: FluxPtr,
-        permissions: mpu::Permissions,
+        mem_start: FluxPtrU8,
+        app_memory_break: FluxPtrU8Mut,
+        kernel_memory_break: FluxPtrU8Mut,
+        flash_start: FluxPtr,
+        flash_size: usize,
         config: &mut Self::MpuConfig,
-    ) -> Result<(), ()> {
+    ) -> Result<mpu::AllocatedAppBreaks, ()> {
         let region_num = config.app_memory_region.get().ok_or(())?;
 
         let mut app_memory_break = app_memory_break as FluxPtr;
@@ -858,11 +870,14 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
 
         // If we're not out of memory, update the region configuration
         // accordingly:
-        config.regions[region_num].0 = permissions.into();
+        config.regions[region_num].0 = mpu::Permissions::ReadWriteOnly.into();
         config.regions[region_num].2 = u8::from(app_memory_break) as *const u8;
         config.is_dirty.set(true);
 
-        Ok(())
+        Ok(mpu::AllocatedAppBreaks {
+            memory_start: FluxPtr::from(config.regions[region_num].1 as *mut u8),
+            app_break: app_memory_break,
+        })
     }
 
     fn configure_mpu(&mut self, config: &Self::MpuConfig) {
@@ -965,7 +980,7 @@ pub mod test {
         // bytes, but only the first `0x10000000` should be accessible to the
         // app.
         let (region_2_start, region_2_size) = mpu
-            .allocate_app_memory_region(
+            .allocate_app_memory_regions(
                 0xc0000000 as *const u8,
                 0x20000000,
                 0x20000000,
@@ -1065,7 +1080,7 @@ pub mod test {
                 mpu.allocate_region(*memory_start, *memory_size, *length, *perms, &mut config);
 
             match allocation_res {
-                Some(region) => {
+                Some((region, _)) => {
                     mpu.remove_memory_region(region, &mut config)
                         .expect("Failed to remove valid MPU region allocation");
                 }
@@ -1096,7 +1111,7 @@ pub mod test {
         assert!(region_2.size() == 0x10000000);
 
         // Now, we can grow the app memory break into this region:
-        mpu.update_app_memory_region(
+        mpu.update_app_memory_regions(
             0xd0000004 as *const u8,
             0xd8000000 as *const u8,
             Permissions::ReadWriteOnly,

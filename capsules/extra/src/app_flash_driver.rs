@@ -102,7 +102,9 @@ impl<'a> AppFlash<'a> {
                 let flash_length = kernel_data
                     .get_readonly_processbuffer(ro_allow::BUFFER)
                     .map_or(0, |buffer| buffer.len());
-                let (app_flash_start, app_flash_end) = processid.get_editable_flash_range();
+                let (app_flash_start, app_flash_end) = processid
+                    .get_editable_flash_range()
+                    .map_err(|_| ErrorCode::FAIL)?;
                 if flash_address < app_flash_start
                     || flash_address >= app_flash_end
                     || flash_address + flash_length >= app_flash_end

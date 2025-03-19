@@ -6,7 +6,6 @@
 
 use crate::collections::queue;
 
-
 #[flux_rs::refined_by(ring_len: int, hd: int, tl: int)]
 #[flux_rs::invariant(ring_len > 1)]
 pub struct RingBuffer<'a, T: 'a> {
