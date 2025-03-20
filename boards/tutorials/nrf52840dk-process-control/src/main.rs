@@ -60,7 +60,7 @@ struct Platform {
     >,
     nonvolatile_storage:
         &'static capsules_extra::nonvolatile_storage_driver::NonvolatileStorage<'static>,
-    process_info: &'static capsules_extra::process_info_driver::ProcessInfo<PMCapability>,
+    process_info: &'static capsules_extra::process_info::ProcessInfo<PMCapability>,
     processes: &'static [Option<&'static dyn kernel::process::Process>],
     dynamic_app_loader: &'static capsules_extra::app_loader::AppLoader<'static>,
 }
@@ -76,7 +76,7 @@ impl SyscallDriverLookup for Platform {
             capsules_extra::screen::DRIVER_NUM => f(Some(self.screen)),
             capsules_core::led::DRIVER_NUM => f(Some(self.led)),
             capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
-            capsules_extra::process_info_driver::DRIVER_NUM => f(Some(self.process_info)),
+            capsules_extra::process_info::DRIVER_NUM => f(Some(self.process_info)),
             capsules_extra::nonvolatile_storage_driver::DRIVER_NUM => {
                 f(Some(self.nonvolatile_storage))
             }
@@ -249,10 +249,10 @@ pub unsafe fn main() {
 
     let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
     let process_info = kernel::static_init!(
-        capsules_extra::process_info_driver::ProcessInfo<PMCapability>,
-        capsules_extra::process_info_driver::ProcessInfo::new(
+        capsules_extra::process_info::ProcessInfo<PMCapability>,
+        capsules_extra::process_info::ProcessInfo::new(
             board_kernel,
-            board_kernel.create_grant(capsules_extra::process_info_driver::DRIVER_NUM, &grant_cap),
+            board_kernel.create_grant(capsules_extra::process_info::DRIVER_NUM, &grant_cap),
             PMCapability
         )
     );

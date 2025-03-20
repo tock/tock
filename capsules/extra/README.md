@@ -119,6 +119,8 @@ These provide common and better abstractions for userspace.
 - **[Ambient Light](src/ambient_light.rs)**: Query light sensors.
 - **[App Flash](src/app_flash_driver.rs)**: Allow applications to write their
   own flash.
+- **[App Loader](src/app_loader.rs)**: Allow applications to request to 
+install and load new applications.
 - **[Buzzer](src/buzzer_driver.rs)**: Simple buzzer.
 - **[Servo](src/servo.rs)**: Servo motor.
 - **[Date-Time](src/date_time.rs)**: Real time clock date/time support.
@@ -129,6 +131,8 @@ These provide common and better abstractions for userspace.
 - **[LED Matrix](src/led_matrix.rs)**: Control a 2D array of LEDs.
 - **[Moisture](src/moisture.rs)**: Query moisture sensors.
 - **[Pressure](src/pressure.rs)**: Pressure sensors.
+- **[Process Info](src/process_info.rs)**: Expose current processes, 
+relevant stats and methods to control process flow.
 - **[Proximity](src/proximity.rs)**: Proximity sensors.
 - **[PWM](src/pwm.rs)**: Pulse-width modulation support.
 - **[Rainfall](src/rainfall.rs)**: Query rainfall sensors.
