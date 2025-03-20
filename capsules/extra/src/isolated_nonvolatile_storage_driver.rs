@@ -52,18 +52,18 @@
 //! This capsule caches the location of an application's storage region in
 //! grant. This cached location is set on the first usage of this capsule.
 //!
-//! Here is a general high-level overview of what happens when an
-//! app makes their first syscall:
-//!  1. App engages with the capsule by making any syscall.
-//!  2. Capsule searches through storage to see if that app
-//!     has an existing region.
-//!  3. a. If the capsule finds a matching region:
-//!         - Cache the app's region information in its grant.
-//!     b. If the capsule DOESN'T find a matching region:
-//!         - Allocate a new region for that app.
-//!         - Erase the region's usable area.
-//!   4. Handle the syscall that the app originally made.
-//!   5. When the syscall finishes, notify the app via upcall.
+//! Here is a general high-level overview of what happens when an app makes its
+//! first syscall:
+//! 1. App engages with the capsule by making any syscall.
+//! 2. Capsule searches through storage to see if that app has an existing
+//!    region.
+//! 3. a. If the capsule finds a matching region:
+//!    - Cache the app's region information in its grant.
+//!    b. If the capsule DOESN'T find a matching region:
+//!    - Allocate a new region for that app.
+//!    - Erase the region's usable area.
+//! 4. Handle the syscall that the app originally made.
+//! 5. When the syscall finishes, notify the app via upcall.
 //!
 //! ## Example Software Stack
 //!
@@ -938,7 +938,7 @@ impl<const APP_REGION_SIZE: usize> hil::nonvolatile_storage::NonvolatileStorageC
                             }
                         }
                         _ => {}
-                    };
+                    }
                 }
                 User::App { processid } => {
                     let _ = self.apps.enter(processid, move |app, kernel_data| {
@@ -1057,7 +1057,7 @@ impl<const APP_REGION_SIZE: usize> hil::nonvolatile_storage::NonvolatileStorageC
                             }
                         }
                         _ => {}
-                    };
+                    }
                 }
                 User::App { processid } => {
                     let _ = self.apps.enter(processid, move |app, kernel_data| {
