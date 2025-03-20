@@ -32,6 +32,7 @@ type Ieee802154RawDriver =
 /// Needed for process info capsule.
 pub struct PMCapability;
 unsafe impl capabilities::ProcessManagementCapability for PMCapability {}
+unsafe impl capabilities::ProcessStartCapability for PMCapability {}
 
 struct Platform {
     base: nrf52840dk_lib::Platform,
