@@ -93,6 +93,7 @@ members = [
     "chips/stm32f4xx",
     "chips/veer_el2",
     "chips/virtio",
+    "chips_unsafe/segger_unsafe",
     "kernel",
     "libraries/enum_primitive",
     "libraries/riscv-csr",

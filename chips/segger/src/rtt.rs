@@ -83,14 +83,13 @@
 //! ```
 
 use core::cell::Cell;
-use core::marker::PhantomData;
-use core::ops::Index;
-use core::sync::atomic::{fence, Ordering};
 use kernel::hil;
 use kernel::hil::time::ConvertTicks;
 use kernel::hil::uart;
-use kernel::utilities::cells::{OptionalCell, TakeCell, VolatileCell};
+use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
+use kernel::utilities::leasable_buffer::{SubSlice, SubSliceMut};
 use kernel::ErrorCode;
+use segger_unsafe::rtt_unsafe::{SeggerRttDownBuffer, SeggerRttUpBuffer};
 
 /// Suggested length for the up buffer to pass to the Segger RTT capsule.
 pub const DEFAULT_UP_BUFFER_LENGTH: usize = 1024;
@@ -114,41 +113,16 @@ pub struct SeggerRttMemory<'a> {
     id: [u8; 16],
     number_up_buffers: u32,
     number_down_buffers: u32,
-    up_buffer: SeggerRttBuffer<'a>,
-    down_buffer: SeggerRttBuffer<'a>,
-}
-
-#[repr(C)]
-pub struct SeggerRttBuffer<'a> {
-    name: *const u8, // Pointer to the name of this channel. Must be a 4 byte thin pointer.
-    // These fields are marked as `pub` to allow access in the panic handler.
-    pub buffer: *const VolatileCell<u8>, // Pointer to the buffer for this channel.
-    pub length: u32,
-    pub write_position: VolatileCell<u32>,
-    read_position: VolatileCell<u32>,
-    flags: u32,
-    _lifetime: PhantomData<&'a ()>,
-}
-
-impl Index<usize> for SeggerRttBuffer<'_> {
-    type Output = VolatileCell<u8>;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        let index = index as isize;
-        if index >= self.length as isize {
-            panic!("Index out of bounds {}/{}", index, self.length)
-        } else {
-            unsafe { &*self.buffer.offset(index) }
-        }
-    }
+    up_buffer: SeggerRttUpBuffer<'a>,
+    down_buffer: SeggerRttDownBuffer<'a>,
 }
 
 impl<'a> SeggerRttMemory<'a> {
     pub fn new_raw(
         up_buffer_name: &'a [u8],
-        up_buffer: &'a [VolatileCell<u8>],
+        up_buffer: &'a mut [u8],
         down_buffer_name: &'a [u8],
-        down_buffer: &'a [VolatileCell<u8>],
+        down_buffer: &'a [u8],
     ) -> SeggerRttMemory<'a> {
         SeggerRttMemory {
             // This field is a magic value that must be set to "SEGGER RTT" for the debugger to
@@ -161,48 +135,23 @@ impl<'a> SeggerRttMemory<'a> {
             id: *b"SEGGER RTT\0\0\0\0\0\0",
             number_up_buffers: 1,
             number_down_buffers: 1,
-            up_buffer: SeggerRttBuffer {
-                name: up_buffer_name.as_ptr(),
-                buffer: up_buffer.as_ptr(),
-                length: up_buffer.len() as u32,
-                write_position: VolatileCell::new(0),
-                read_position: VolatileCell::new(0),
-                flags: 0,
-                _lifetime: PhantomData,
-            },
-            down_buffer: SeggerRttBuffer {
-                name: down_buffer_name.as_ptr(),
-                buffer: down_buffer.as_ptr(),
-                length: down_buffer.len() as u32,
-                write_position: VolatileCell::new(0),
-                read_position: VolatileCell::new(0),
-                flags: 0,
-                _lifetime: PhantomData,
-            },
+            up_buffer: SeggerRttUpBuffer::new(up_buffer_name, up_buffer),
+            down_buffer: SeggerRttDownBuffer::new(down_buffer_name, down_buffer),
         }
     }
 
     /// This getter allows access to the underlying buffer in the panic handler.
     /// The result is a pointer so that only `unsafe` code can actually dereference it - this is to
     /// restrict this priviledged access to the panic handler.
-    pub fn get_up_buffer_ptr(&self) -> *const SeggerRttBuffer<'a> {
+    pub fn get_up_buffer_ptr(&self) -> *const SeggerRttUpBuffer<'a> {
         &self.up_buffer
     }
 
     pub fn write_sync(&self, buf: &[u8]) {
-        let mut index = self.up_buffer.write_position.get() as usize;
-        fence(Ordering::SeqCst);
-
-        let buffer_len = self.up_buffer.length as usize;
-        for c in buf.iter() {
-            index = (index + 1) % buffer_len;
-            while self.up_buffer.read_position.get() as usize == index {
-                core::hint::spin_loop();
-            }
-            self.up_buffer[index].set(*c);
-            fence(Ordering::SeqCst);
-            self.up_buffer.write_position.set(index as u32);
-            fence(Ordering::SeqCst);
+        let mut ss = SubSlice::new(buf);
+        while ss.len() > 0 {
+            self.up_buffer.spin_until_sync();
+            self.up_buffer.write_until_full(&mut ss);
         }
     }
 }
@@ -214,9 +163,7 @@ pub struct SeggerRtt<'a, A: hil::time::Alarm<'a>> {
     tx_client_buffer: TakeCell<'static, [u8]>,
     tx_len: Cell<usize>,
     rx_client: OptionalCell<&'a dyn uart::ReceiveClient>,
-    rx_client_buffer: TakeCell<'static, [u8]>,
-    rx_cursor: Cell<usize>,
-    rx_len: Cell<usize>,
+    rx_client_buffer: MapCell<SubSliceMut<'static, u8>>,
 }
 
 impl<'a, A: hil::time::Alarm<'a>> SeggerRtt<'a, A> {
@@ -228,9 +175,7 @@ impl<'a, A: hil::time::Alarm<'a>> SeggerRtt<'a, A> {
             tx_client_buffer: TakeCell::empty(),
             tx_len: Cell::new(0),
             rx_client: OptionalCell::empty(),
-            rx_client_buffer: TakeCell::empty(),
-            rx_cursor: Cell::new(0),
-            rx_len: Cell::new(0),
+            rx_client_buffer: MapCell::empty(),
         }
     }
 }
@@ -247,21 +192,9 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Transmit<'a> for SeggerRtt<'a, A> {
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         if self.config.is_some() {
             self.config.map(|config| {
-                // Copy the incoming data into the buffer. Once we increment
-                // the `write_position` the RTT listener will go ahead and read
-                // the message from us.
-                let mut index = config.up_buffer.write_position.get() as usize;
-                fence(Ordering::SeqCst);
-
-                let buffer_len = config.up_buffer.length as usize;
-                for i in 0..tx_len {
-                    config.up_buffer[(i + index) % buffer_len].set(tx_data[i]);
-                }
-                fence(Ordering::SeqCst);
-
-                index = (index + tx_len) % buffer_len;
-                config.up_buffer.write_position.set(index as u32);
-                fence(Ordering::SeqCst);
+                let mut ss = SubSlice::new(tx_data);
+                ss.slice(0..tx_len);
+                config.up_buffer.write_until_full(&mut ss);
 
                 self.tx_len.set(tx_len);
                 // Save the client buffer so we can pass it back with the callback.
@@ -300,34 +233,24 @@ impl<'a, A: hil::time::Alarm<'a>> hil::time::AlarmClient for SeggerRtt<'a, A> {
             });
         });
         self.rx_client.map(|client| {
-            self.rx_client_buffer.take().map(|buffer| {
+            if let Some(mut buffer) = self.rx_client_buffer.take() {
                 self.config.map(|config| {
-                    let write_position = &config.down_buffer.write_position;
-                    let read_position = &config.down_buffer.read_position;
-
-                    // ensure all reads/writes to position data has already happened
-                    fence(Ordering::SeqCst);
-                    while self.rx_cursor.get() < self.rx_len.get()
-                        && write_position.get() != read_position.get()
-                    {
-                        buffer[self.rx_cursor.get()] =
-                            config.down_buffer[read_position.get() as usize].get();
-                        // ensure output data ordered before updating read_position
-                        fence(Ordering::SeqCst);
-                        read_position.set((read_position.get() + 1) % config.down_buffer.length);
-                        self.rx_cursor.set(self.rx_cursor.get() + 1);
-                    }
-                    // "flush" the final rx_cursor update
-                    fence(Ordering::SeqCst);
+                    // Ask the down channel to read as many bytes as are
+                    // available.
+                    config.down_buffer.try_read(&mut buffer);
                 });
-                if self.rx_cursor.get() == self.rx_len.get() {
-                    client.received_buffer(buffer, self.rx_len.get(), Ok(()), uart::Error::None);
+                if buffer.len() == 0 {
+                    // We've finished the requested read, reset to recover the
+                    // length, and reliquensh the buffer.
+                    buffer.reset();
+                    let len = buffer.len();
+                    client.received_buffer(buffer.take(), len, Ok(()), uart::Error::None);
                 } else {
                     let delay = self.alarm.ticks_from_ms(RX_MS_DELAY);
                     self.alarm.set_alarm(self.alarm.now(), delay);
-                    self.rx_client_buffer.put(Some(buffer))
+                    self.rx_client_buffer.put(buffer)
                 }
-            });
+            };
         });
     }
 }
@@ -350,9 +273,8 @@ impl<'a, A: hil::time::Alarm<'a>> uart::Receive<'a> for SeggerRtt<'a, A> {
         buffer: &'static mut [u8],
         len: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        self.rx_client_buffer.put(Some(buffer));
-        self.rx_len.set(len);
-        self.rx_cursor.set(0);
+        self.rx_client_buffer
+            .put(SubSliceMut::new(&mut buffer[0..len]));
         if !self.alarm.is_armed() {
             let delay = self.alarm.ticks_from_ms(RX_MS_DELAY);
             self.alarm.set_alarm(self.alarm.now(), delay);

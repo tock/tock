@@ -3,14 +3,13 @@
 # Copyright Tock Contributors 2022.
 
 [package]
-name = "segger"
+name = "segger_unsafe"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 
 [dependencies]
 kernel = { path = "../../kernel" }
-segger_unsafe = { path = "../../chips_unsafe/segger_unsafe" }
 
 [lints]
 workspace = true
