@@ -1,17 +1,18 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2025.
 //
 // Author: Jason Hu <jasonhu2026@u.northwestern.edu>
 //         Anthony Alvarez <anthonyalvarez2026@u.northwestern.edu>
 
 //! Programmable Input Output (PIO) hardware test file.
 use crate::clocks::{self};
-use crate::pio::{PIONumber, Pio, PioRxClient, PioTxClient, SMNumber, StateMachineConfiguration};
+use crate::pio::{Pio, PioRxClient, PioTxClient, SMNumber, StateMachineConfiguration};
 use core::cell::Cell;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::spi::cs::{ChipSelectPolar, Polarity};
+use kernel::hil::spi::SpiMasterClient;
 use kernel::hil::spi::{ClockPhase, ClockPolarity};
-use kernel::hil::spi::{SpiMaster, SpiMasterClient};
 use kernel::utilities::cells::MapCell;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::SubSliceMut;
@@ -61,7 +62,6 @@ let _pio_spi: &'static mut PioSpi<'static> = static_init!(
             11, // in pin (MISO)
             12, // out pin (MOSI)
             SMNumber::SM0,
-            PIONumber::PIO0,
         )
     );
 
@@ -79,7 +79,6 @@ pub struct PioSpi<'a> {
     out_pin: u32,
     in_pin: u32,
     sm_number: SMNumber,
-    pio_number: PIONumber,
     client: OptionalCell<&'a dyn SpiMasterClient>,
     tx_buffer: MapCell<SubSliceMut<'static, u8>>,
     tx_position: Cell<usize>,
@@ -113,16 +112,14 @@ impl<'a> PioSpi<'a> {
         in_pin: u32,
         out_pin: u32,
         sm_number: SMNumber,
-        pio_number: PIONumber,
     ) -> Self {
         Self {
             clocks: OptionalCell::new(clocks),
-            pio: pio,
-            clock_pin: clock_pin,
-            in_pin: in_pin,
-            out_pin: out_pin,
-            sm_number: sm_number,
-            pio_number: pio_number,
+            pio,
+            clock_pin,
+            in_pin,
+            out_pin,
+            sm_number,
             client: OptionalCell::empty(),
             tx_buffer: MapCell::empty(),
             tx_position: Cell::new(0),
@@ -225,11 +222,7 @@ impl<'a> PioSpi<'a> {
 
         if let Some(tx_buffer) = self.tx_buffer.take() {
             self.client.map(|client| {
-                client.read_write_done(
-                    tx_buffer,
-                    self.rx_buffer.take(),
-                    Ok(transaction_size as usize),
-                );
+                client.read_write_done(tx_buffer, self.rx_buffer.take(), Ok(transaction_size));
             });
         }
     }
@@ -410,7 +403,7 @@ impl<'a> hil::spi::SpiMaster<'a> for PioSpi<'a> {
             }
         };
 
-        data = data >> AUTOPULL_SHIFT;
+        data >>= AUTOPULL_SHIFT;
 
         if !self.hold_low.get() {
             self.set_chip_select(false);
@@ -517,7 +510,7 @@ impl<'a> hil::spi::SpiMaster<'a> for PioSpi<'a> {
     }
 }
 
-impl<'a> PioTxClient for PioSpi<'a> {
+impl PioTxClient for PioSpi<'_> {
     // Buffer space availble, so send next byte
     fn on_buffer_space_available(&self) {
         self.tx_position.set(self.tx_position.get() + 1);
@@ -534,7 +527,7 @@ impl<'a> PioTxClient for PioSpi<'a> {
     }
 }
 
-impl<'a> PioRxClient for PioSpi<'a> {
+impl PioRxClient for PioSpi<'_> {
     // Data received, so update buffer and continue reading/writing
     fn on_data_received(&self, data: u32) {
         let data = data >> AUTOPULL_SHIFT;
@@ -557,7 +550,7 @@ impl<'a> PioRxClient for PioSpi<'a> {
     }
 }
 
-impl<'a> DeferredCallClient for PioSpi<'a> {
+impl DeferredCallClient for PioSpi<'_> {
     // deferred call to calling the client
     fn handle_deferred_call(&self) {
         self.call_client_and_clean_up();
