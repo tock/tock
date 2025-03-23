@@ -179,7 +179,7 @@ pub unsafe fn next_pending_with_mask(mask: (u128, u128)) -> Option<u32> {
         .enumerate()
     {
         let interrupt_mask = if block < 4 { mask.1 } else { mask.0 };
-        let ispr_masked = ispr.get() & !((interrupt_mask >> (32 * block % 4)) as u32);
+        let ispr_masked = ispr.get() & !((interrupt_mask >> (32 * (block % 4))) as u32);
 
         // If there are any high bits there is a pending interrupt
         if ispr_masked != 0 {
@@ -212,7 +212,7 @@ pub unsafe fn has_pending_with_mask(mask: (u128, u128)) -> bool {
         .enumerate()
         .fold(0, |i, (block, ispr)| {
             let interrupt_mask = if block < 4 { mask.1 } else { mask.0 };
-            (ispr.get() & !((interrupt_mask >> (32 * block % 4)) as u32)) | i
+            (ispr.get() & !((interrupt_mask >> (32 * (block % 4))) as u32)) | i
         })
         != 0
 }
