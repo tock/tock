@@ -107,10 +107,6 @@ struct GrantPointerEntry {
 // VTOCK-TODO: is it ok for app_break == kernel_break?
 // kernel_memory_break > app_break && app_break <= high_water_mark
 #[flux_rs::refined_by(kernel_break: int, app_break: int, allow_high_water_mark: int, mem_start: int, mem_len: int, flash_start: int, flash_len: int)]
-#[flux_rs::invariant(kernel_break >= app_break)]
-#[flux_rs::invariant(kernel_break < mem_start + mem_len)]
-#[flux_rs::invariant(app_break >= allow_high_water_mark)]
-#[flux_rs::invariant(allow_high_water_mark >= mem_start)]
 #[derive(Clone, Copy)]
 struct ProcessBreaks {
     /// Pointer to the end of the allocated (and MPU protected) grant region.
@@ -175,16 +171,22 @@ impl ProcessBreaks {
     mpu_config: <<C as Chip>::MPU as MPU>::MpuConfig
 )]
 #[flux_rs::invariant(mem_start + mem_len <= usize::MAX)]
+#[flux_rs::invariant(flash_start + flash_len < mem_start)]
+#[flux_rs::invariant(kernel_break >= app_break)]
+#[flux_rs::invariant(kernel_break < mem_start + mem_len)]
+#[flux_rs::invariant(app_break >= allow_high_water_mark)]
+#[flux_rs::invariant(allow_high_water_mark >= mem_start)]
 struct BreaksAndMPUConfig<C: 'static + Chip> {
     /// Configuration data for the MPU
     #[field({<<C as Chip>::MPU as MPU>::MpuConfig[mpu_config] | 
         app_break >= mem_start &&
         kernel_break <= mem_start + mem_len &&
         <<C as Chip>::MPU as MPU>::config_can_access_heap(mpu_config, mem_start, app_break) &&
-        <<C as Chip>::MPU as MPU>::config_can_access_flash(mpu_config, flash_start, flash_len) &&
-        <<C as Chip>::MPU as MPU>::config_cant_access_at_all(mpu_config, 0, flash_start) &&
-        <<C as Chip>::MPU as MPU>::config_cant_access_at_all(mpu_config, flash_start + flash_len, mem_start - (flash_start + flash_len)) &&
-        <<C as Chip>::MPU as MPU>::config_cant_access_at_all(mpu_config, app_break, 0xffff_ffff)
+        <<C as Chip>::MPU as MPU>::config_can_access_flash(mpu_config, flash_start, flash_start + flash_len) &&
+        <<C as Chip>::MPU as MPU>::config_cant_access_at_all(mpu_config, 0, flash_start - 1) &&
+        <<C as Chip>::MPU as MPU>::config_cant_access_at_all(mpu_config, flash_start + flash_len + 1, mem_start - 1) &&
+        <<C as Chip>::MPU as MPU>::config_cant_access_at_all(mpu_config, app_break + 1, u32::MAX) &&
+        <<C as Chip>::MPU as MPU>::ipc_cant_access_process_mem(mpu_config, flash_start, flash_start + flash_len, mem_start, u32::MAX)
     })]
     pub mpu_config: <<C as Chip>::MPU as MPU>::MpuConfig,
 
@@ -200,28 +202,14 @@ impl<C: 'static + Chip> BreaksAndMPUConfig<C> {
     #[flux_rs::sig(
         fn (
             self: &strg Self[@bc],
-            FluxPtrU8Mut,
+            FluxPtrU8Mut[@new_break],
             &mut <C as Chip>::MPU
         ) -> Result<FluxPtrU8Mut[bc.app_break], Error>[#res]
             ensures self: Self {new_bc: 
                 new_bc.mem_start == bc.mem_start &&
                 new_bc.mem_len == bc.mem_len &&
                 new_bc.flash_start == bc.flash_start &&
-                new_bc.flash_len == bc.flash_len
-                // new_bc.kernel_break == bc.kernel_break
-                // &&
-                // new_bc.app_break >= new_bc.allow_high_water_mark &&
-                // new_bc.app_break <= new_bc.kernel_break  &&
-                // new_bc.kernel_break < new_bc.mem_start + new_bc.mem_len &&
-                // new_bc.allow_high_water_mark >= new_bc.mem_start &&
-                // (res => 
-                //     <<C as Chip>::MPU as MPU>::config_can_access_heap(new_bc.mpu_config, new_bc.mem_start, new_bc.app_break) &&
-                //     <<C as Chip>::MPU as MPU>::config_can_access_flash(new_bc.mpu_config, new_bc.flash_start, new_bc.flash_len) &&
-                //     <<C as Chip>::MPU as MPU>::config_cant_access_at_all(new_bc.mpu_config, 0, new_bc.flash_start) &&
-                //     <<C as Chip>::MPU as MPU>::config_cant_access_at_all(new_bc.mpu_config, new_bc.flash_start + new_bc.flash_len, new_bc.mem_start - (new_bc.flash_start + new_bc.flash_len)) &&
-                //     <<C as Chip>::MPU as MPU>::config_cant_access_at_all(new_bc.mpu_config, new_bc.app_break, 0xffff_ffff)
-                // ) &&
-                // (!res => new_bc == bc) // WTF :(
+                new_bc.flash_len == bc.flash_len 
             }
     )]
     pub(crate) fn brk(
@@ -229,12 +217,23 @@ impl<C: 'static + Chip> BreaksAndMPUConfig<C> {
         new_break: FluxPtrU8Mut,
         mpu: &mut <C as Chip>::MPU,
     ) -> Result<FluxPtrU8Mut, Error> {
-        if new_break < self.breaks.allow_high_water_mark || new_break >= self.mem_end() {
+        // VTOCK BUG: original check is not good enough
+        // 1. need to make sure break is not equal to mem_start
+        // 2. need to make sure the new break is not too big
+        if new_break < self.breaks.allow_high_water_mark
+            || new_break >= self.mem_end()
+            || new_break <= self.mem_start()
+            || new_break
+                .wrapping_sub(self.mem_start().as_usize())
+                .as_usize()
+                > (u32::MAX / 2 + 1) as usize
+        {
             Err(Error::AddressOutOfBounds)
         } else if new_break > self.breaks.kernel_memory_break {
             Err(Error::OutOfMemory)
         } else if let Ok(mpu_breaks) = mpu.update_app_memory_regions(
-            self.breaks.mem_start,
+            self.mem_start(),
+            self.breaks.app_break,
             new_break,
             self.breaks.kernel_memory_break,
             self.flash_start(),
@@ -254,6 +253,11 @@ impl<C: 'static + Chip> BreaksAndMPUConfig<C> {
     #[flux_rs::sig(fn (&Self[@pb]) -> FluxPtrU8[pb.mem_start + pb.mem_len])]
     fn mem_end(&self) -> FluxPtrU8 {
         self.breaks.mem_start.wrapping_add(self.breaks.mem_len)
+    }
+
+    #[flux_rs::sig(fn (&Self[@pb]) -> FluxPtrU8[pb.mem_start])]
+    fn mem_start(&self) -> FluxPtrU8 {
+        self.breaks.mem_start
     }
 
     #[flux_rs::trusted]

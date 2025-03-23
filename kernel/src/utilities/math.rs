@@ -13,8 +13,7 @@ use flux_support::assume;
 
 /// Get closest power of two greater than the given number.
 #[flux_rs::trusted] // Bitwise arithmetic
-// 2147483648 is half of u32::MAX. Anything higher than that causes overflow
-#[flux_rs::sig(fn(num: u32) -> u32{r: r >= num && (bv_int_to_bv32(r) & (bv_int_to_bv32(r) - 1) == 0) && r/2 <= num} requires num < u32::MAX)]
+#[flux_rs::sig(fn(num: u32) -> u32{r: r >= num && r/2 <= num && num <= u32::MAX / 2 + 1} requires num <= u32::MAX / 2 + 1)]
 pub fn closest_power_of_two(mut num: u32) -> u32 {
     num -= 1;
     num |= num >> 1;
@@ -30,7 +29,7 @@ pub fn closest_power_of_two(mut num: u32) -> u32 {
 // bitwise arithmetic
 // 2147483648 is half of u32::MAX. Anything higher than that deviates from closest_power_of_two
 // I added this function to avoid unnecessary downcasts, which can be dangerous.
-#[flux_rs::sig(fn(num: usize) -> usize{r: r >= num && r/2 <= num} requires num < usize::MAX)]
+#[flux_rs::sig(fn(num: usize) -> usize{r: r >= num && r/2 <= num && (r >= 16 => r % 16 == 0) && r <= u32::MAX / 2 + 1} requires num <= u32::MAX / 2 + 1)]
 pub fn closest_power_of_two_usize(mut num: usize) -> usize {
     num -= 1;
     num |= num >> 1;
@@ -64,7 +63,7 @@ impl PowerOfTwo {
     /// it.
     pub fn ceiling<F: Into<u32>>(f: F) -> PowerOfTwo {
         let v = f.into();
-        assume(v < u32::MAX);
+        assume(v <= u32::MAX / 2);
         PowerOfTwo(log_base_two(closest_power_of_two(v)))
     }
 
@@ -91,7 +90,7 @@ pub fn log_base_two(num: u32) -> u32 {
     }
 }
 
-#[flux_rs::sig(fn(num: usize{num < 4294967295}) -> u32{r: (r < 64) && (num > 1 => r > 0)})]
+#[flux_rs::sig(fn(num: usize{num < u32::MAX}) -> u32{r: (num == 0 => r == 0) && r <= 31 && (num < 512 => r < 9) && (num >= 512 => r >= 9)})]
 pub fn log_base_two_u32_usize(num: usize) -> u32 {
     if num == 0 {
         0

@@ -25,6 +25,8 @@ pub struct FluxPtr {
 
 #[flux_rs::trusted]
 impl From<usize> for FluxPtr {
+    #[flux_rs::sig(fn (value: usize) -> FluxPtr[value])]
+    #[flux_rs::trusted]
     fn from(value: usize) -> Self {
         FluxPtr {
             inner: value as *mut u8,
