@@ -157,7 +157,7 @@ impl<'a, P: gpio::InterruptPin<'a>> SyscallDriver for Button<'a, P> {
             // TODO(Tock 3.0): TRD104 specifies that Command 0 should return Success, not SuccessU32,
             // but this driver is unchanged since it has been stabilized. It will be brought into
             // compliance as part of the next major release of Tock. See #3375.
-            0 => CommandReturn::success_u32(pins.len() as u32),
+            0 => CommandReturn::success(pins.len() as u32),
 
             // enable interrupts for a button
             1 => {
@@ -212,7 +212,7 @@ impl<'a, P: gpio::InterruptPin<'a>> SyscallDriver for Button<'a, P> {
                     CommandReturn::failure(ErrorCode::INVAL) /* impossible button */
                 } else {
                     let button_state = self.get_button_state(data as u32);
-                    CommandReturn::success_u32(button_state as u32)
+                    CommandReturn::success(button_state as u32)
                 }
             }
 
