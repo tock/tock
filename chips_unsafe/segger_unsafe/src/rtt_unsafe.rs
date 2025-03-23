@@ -47,47 +47,28 @@ unsafe fn volatile_copy_nonoverlapping_memory(dst: *mut u8, src: *const u8, coun
 ///          non-blocking mode (and whether non-blocking should drop messages
 ///          when they will not fit (0, default) or write what can fit and trim
 ///          the rest (1)).
+///
+/// Note that host-written memory regions _must_ have static lifetimes. The
+/// RTT protocol does not allow for configuration to change during runtime.
+/// Once a down buffer is created and detected by a debugger, the storage
+/// behind [read_position] can be modified at any time and this permission
+/// can never be revoked. The `'a` lifetime is provided for the up buffer
+/// itself. As this is written by the host (and, at-worst read by a debugger)
+/// the storage behind [buffer] does not _need_ to be `'static`, and this
+/// allows us to avoid requiring creators to provide a `'static mut` buffer.
 #[repr(C)]
-pub struct SeggerRttUpBuffer<'a> {
+pub struct SeggerRttUpBuffer {
     channel_name: *const u8,
     buffer: *mut u8,
     length: u32,
     write_position: VolatileCell<u32>,
     read_position: VolatileCell<u32>,
     flags: u32,
-    _lifetime: PhantomData<&'a ()>,
+    _lifetime: PhantomData<&'static ()>,
 }
 
-/// A channel for communicating from host to target.
-///
-/// Semantics for "down" channels defined by the RTT protocol:
-///  - [channel_name]: C-string, unchanged after init
-///  - [buffer]: Host-written ring buffer
-///  - [length]: Ring buffer size, unchanged after init
-///  - [write_position]: The next location the host will write to
-///  - [read_position]: The next location the target will read from
-///  - [flags]:
-///     - Flags[31:24]: Used for validity check, must be zero.
-///     - Flags[23:2]: Reserved for future use.
-///     - Flags[1:0]: RTT operating mode.
-///         - Nominally the same as up channels, it is unclear from
-///           available documentation whether Segger host implementations
-///           will respect blocking or preferred trim semantics. The Tock
-///           implementation leaves this at 0 (default), which will cause
-///           the host to drop messages in full if the buffer is full.
-#[repr(C)]
-pub struct SeggerRttDownBuffer<'a> {
-    channel_name: *const u8,
-    buffer: *const u8,
-    length: u32,
-    write_position: VolatileCell<u32>,
-    read_position: VolatileCell<u32>,
-    flags: u32,
-    _lifetime: PhantomData<&'a ()>,
-}
-
-impl<'a> SeggerRttUpBuffer<'a> {
-    pub fn new(name: &'a [u8], buffer: &'a mut [u8]) -> SeggerRttUpBuffer<'a> {
+impl SeggerRttUpBuffer {
+    pub fn new(name: &[u8], buffer: &mut [u8]) -> SeggerRttUpBuffer {
         SeggerRttUpBuffer {
             channel_name: name.as_ptr(),
             buffer: buffer.as_mut_ptr(),
@@ -153,8 +134,42 @@ impl<'a> SeggerRttUpBuffer<'a> {
     }
 }
 
-impl<'a> SeggerRttDownBuffer<'a> {
-    pub fn new(name: &'a [u8], buffer: &'a [u8]) -> SeggerRttDownBuffer<'a> {
+/// A channel for communicating from host to target.
+///
+/// Semantics for "down" channels defined by the RTT protocol:
+///  - [channel_name]: C-string, unchanged after init
+///  - [buffer]: Host-written ring buffer
+///  - [length]: Ring buffer size, unchanged after init
+///  - [write_position]: The next location the host will write to
+///  - [read_position]: The next location the target will read from
+///  - [flags]:
+///     - Flags[31:24]: Used for validity check, must be zero.
+///     - Flags[23:2]: Reserved for future use.
+///     - Flags[1:0]: RTT operating mode.
+///         - Nominally the same as up channels, it is unclear from
+///           available documentation whether Segger host implementations
+///           will respect blocking or preferred trim semantics. The Tock
+///           implementation leaves this at 0 (default), which will cause
+///           the host to drop messages in full if the buffer is full.
+///
+/// Note that host-written memory regions _must_ have static lifetimes. The
+/// RTT protocol does not allow for configuration to change during runtime.
+/// Once a down buffer is created and detected by a debugger, the storage
+/// behind [buffer] and [write_position] can be modified at any time and this
+/// permission can never be revoked.
+#[repr(C)]
+pub struct SeggerRttDownBuffer {
+    channel_name: *const u8,
+    buffer: *const u8,
+    length: u32,
+    write_position: VolatileCell<u32>,
+    read_position: VolatileCell<u32>,
+    flags: u32,
+    _lifetime: PhantomData<&'static ()>,
+}
+
+impl SeggerRttDownBuffer {
+    pub fn new(name: &[u8], buffer: &'static [u8]) -> SeggerRttDownBuffer {
         SeggerRttDownBuffer {
             channel_name: name.as_ptr(),
             buffer: buffer.as_ptr(),

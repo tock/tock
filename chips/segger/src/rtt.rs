@@ -83,6 +83,7 @@
 //! ```
 
 use core::cell::Cell;
+use core::marker::PhantomData;
 use kernel::hil;
 use kernel::hil::time::ConvertTicks;
 use kernel::hil::uart;
@@ -108,22 +109,31 @@ const RX_MS_DELAY: u32 = 100;
 /// It must exist in memory in exactly this form so that the segger
 /// JTAG tool can find it in the chip's memory and read and write
 /// messages to the appropriate buffers.
+///
+/// Once this structure has been discovered by a debugger, portions
+/// of the underlying memory are eligible to be written by external
+/// host at any time, and can never be revoked. Similarly, the
+/// configuration struct is expected by the host to be immutable
+/// once discovered (which can happen any time the [id] string is
+/// valid in-memory, which is written by the struct constructor).
+/// For this reason, this struct must have a `'static` lifetime.
 #[repr(C)]
-pub struct SeggerRttMemory<'a> {
+pub struct SeggerRttMemory {
     id: [u8; 16],
     number_up_buffers: u32,
     number_down_buffers: u32,
-    up_buffer: SeggerRttUpBuffer<'a>,
-    down_buffer: SeggerRttDownBuffer<'a>,
+    up_buffer: SeggerRttUpBuffer,
+    down_buffer: SeggerRttDownBuffer,
+    _lifetime: PhantomData<&'static ()>,
 }
 
-impl<'a> SeggerRttMemory<'a> {
+impl<'a> SeggerRttMemory {
     pub fn new_raw(
-        up_buffer_name: &'a [u8],
-        up_buffer: &'a mut [u8],
-        down_buffer_name: &'a [u8],
-        down_buffer: &'a [u8],
-    ) -> SeggerRttMemory<'a> {
+        up_buffer_name: &[u8],
+        up_buffer: &mut [u8],
+        down_buffer_name: &[u8],
+        down_buffer: &'static [u8],
+    ) -> SeggerRttMemory {
         SeggerRttMemory {
             // This field is a magic value that must be set to "SEGGER RTT" for the debugger to
             // recognize it when scanning the memory.
@@ -137,13 +147,14 @@ impl<'a> SeggerRttMemory<'a> {
             number_down_buffers: 1,
             up_buffer: SeggerRttUpBuffer::new(up_buffer_name, up_buffer),
             down_buffer: SeggerRttDownBuffer::new(down_buffer_name, down_buffer),
+            _lifetime: PhantomData,
         }
     }
 
     /// This getter allows access to the underlying buffer in the panic handler.
     /// The result is a pointer so that only `unsafe` code can actually dereference it - this is to
     /// restrict this priviledged access to the panic handler.
-    pub fn get_up_buffer_ptr(&self) -> *const SeggerRttUpBuffer<'a> {
+    pub fn get_up_buffer_ptr(&self) -> *const SeggerRttUpBuffer {
         &self.up_buffer
     }
 
@@ -158,7 +169,7 @@ impl<'a> SeggerRttMemory<'a> {
 
 pub struct SeggerRtt<'a, A: hil::time::Alarm<'a>> {
     alarm: &'a A, // Dummy alarm so we can get a callback.
-    config: TakeCell<'a, SeggerRttMemory<'a>>,
+    config: TakeCell<'static, SeggerRttMemory>,
     tx_client: OptionalCell<&'a dyn uart::TransmitClient>,
     tx_client_buffer: TakeCell<'static, [u8]>,
     tx_len: Cell<usize>,
@@ -167,7 +178,7 @@ pub struct SeggerRtt<'a, A: hil::time::Alarm<'a>> {
 }
 
 impl<'a, A: hil::time::Alarm<'a>> SeggerRtt<'a, A> {
-    pub fn new(alarm: &'a A, config: &'a mut SeggerRttMemory<'a>) -> SeggerRtt<'a, A> {
+    pub fn new(alarm: &'a A, config: &'static mut SeggerRttMemory) -> SeggerRtt<'a, A> {
         SeggerRtt {
             alarm,
             config: TakeCell::new(config),

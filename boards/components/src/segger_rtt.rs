@@ -57,11 +57,11 @@ macro_rules! segger_rtt_component_static {
 }
 
 pub struct SeggerRttMemoryRefs<'a> {
-    rtt_memory: &'a mut SeggerRttMemory<'a>,
+    rtt_memory: &'a mut SeggerRttMemory,
 }
 
 impl<'a> SeggerRttMemoryRefs<'a> {
-    pub unsafe fn get_rtt_memory_ptr(&mut self) -> *mut SeggerRttMemory<'a> {
+    pub unsafe fn get_rtt_memory_ptr(&mut self) -> *mut SeggerRttMemory {
         core::ptr::from_mut(self.rtt_memory)
     }
 }
@@ -76,7 +76,7 @@ impl SeggerRttMemoryComponent {
 
 impl Component for SeggerRttMemoryComponent {
     type StaticInput = (
-        &'static mut MaybeUninit<SeggerRttMemory<'static>>,
+        &'static mut MaybeUninit<SeggerRttMemory>,
         &'static mut MaybeUninit<[u8; segger::rtt::DEFAULT_UP_BUFFER_LENGTH]>,
         &'static mut MaybeUninit<[u8; segger::rtt::DEFAULT_DOWN_BUFFER_LENGTH]>,
     );
