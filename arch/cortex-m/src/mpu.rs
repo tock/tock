@@ -1109,7 +1109,6 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
             config_cant_access_at_all(old_c, 0, u32::MAX)
         ensures config: CortexMConfig[#new_c]
     )]
-    #[flux_rs::trusted_impl] // fixpoint encoding
     fn allocate_app_memory_regions(
         &self,
         unallocated_memory_start: FluxPtrU8,
@@ -1297,7 +1296,6 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
             app_break - mem_start <= u32::MAX / 2 + 1 &&
             app_break > mem_start &&
             config_can_access_flash(old_c, fstart, fstart + fsz) &&
-            config_can_access_heap(old_c, mem_start, old_app_break) &&
             config_cant_access_at_all(old_c, 0, fstart - 1) &&
             config_cant_access_at_all(old_c, fstart + fsz + 1, mem_start - 1) &&
             config_cant_access_at_all(old_c, old_app_break + 1, u32::MAX) &&
@@ -1310,7 +1308,6 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
             ipc_cant_access_process_mem(old_c, fstart, fstart + fsz, mem_start, u32::MAX)
         ensures config: CortexMConfig[#new_c], !res => old_c == new_c
     )]
-    #[flux_rs::trusted_impl] // fixpoint encoding
     fn update_app_memory_regions(
         &self,
         mem_start: FluxPtrU8,
