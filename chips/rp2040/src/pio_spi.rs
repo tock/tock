@@ -25,6 +25,23 @@ const AUTOPULL_SHIFT: usize = 24;
 // Frequency of system clock, for rate changes
 const SYSCLOCK_FREQ: u32 = 125_000_000;
 
+/**
+ * The following programs are in PIO asm
+ * SPI_CPHA0 and SPI_CPHA1 are sourced from pico examples
+ * https://github.com/raspberrypi/pico-examples/blob/master/pio/spi/spi.pio
+ *
+ * For the idle high clock programs, we took inspiration of how Zephyr did it
+ * which was the simple change of swapping when the side set pin outputs 0 or 1
+ * https://github.com/zephyrproject-rtos/zephyr/blob/main/drivers/spi/spi_rpi_pico_pio.c
+ *
+ * for further reference consult the RP2040 datasheet chapter 3 (especially sections 3.4 and 3.6)
+ * https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
+ *
+ * One can compile pioasm programs locally using the official pico sdk,
+ * Or you can use the following website and copy the hex output
+ * https://wokwi.com/tools/pioasm
+ */
+
 // Leading edge clock phase + Idle low clock
 const SPI_CPHA0: [u16; 2] = [
     0x6101, /*  0: out    pins, 1         side 0 [1] */
@@ -68,6 +85,8 @@ let _pio_spi: &'static mut PioSpi<'static> = static_init!(
     // make the pio subscribe to interrupts
     peripherals.pio0.sm(SMNumber::SM0).set_rx_client(_pio_spi);
     peripherals.pio0.sm(SMNumber::SM0).set_tx_client(_pio_spi);
+    _pio_spi.register(); // necessary for asynchronous transactions
+
 
 By default it is in clock idle low, sample leading edge clock phase, 1 MHz clock frequency
 */

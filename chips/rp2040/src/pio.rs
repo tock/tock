@@ -1786,7 +1786,7 @@ mod examples {
             sm.set_enabled(true);
         }
 
-        // # Debuggling
+        // # Debugging
         /// Returns current instruction running on the state machine.
         pub fn read_instr(&self, sm_number: SMNumber) -> u32 {
             self.registers.sm[sm_number as usize]
