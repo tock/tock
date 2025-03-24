@@ -4,14 +4,17 @@
 
 // todo: this module needs some polish
 
+use crate::tock_x86::bits32::paging::{
+    PAddr, PDEntry, PTEntry, PTFlags, PD, PDFLAGS, PT, PTFLAGS,
+};
+use crate::tock_x86::controlregs::{self, CR0, CR4};
+use crate::tock_x86::tlb;
 use core::{cmp, fmt, mem};
 use kernel::platform::mpu::{Permissions, Region, MPU};
 use kernel::utilities::cells::MapCell;
-use x86::controlregs::{self, Cr0, Cr4};
-use x86::tlb;
+use tock_registers::LocalRegisterCopy;
 
 use core::cell::RefCell;
-use x86::bits32::paging::{PAddr, PDEntry, PDFlags, PTEntry, PTFlags, PD, PT};
 
 //
 // Information about the page table and virtual addresses can be found here:
@@ -204,24 +207,24 @@ impl<'a> PagingMPU<'a> {
         // so that all 32-bit space is accesible by the kernel
         // Starts at 0x0000_0000 to 0xFFFF_FFFF covering full
         for (n, entry) in page_directory.iter_mut().enumerate() {
+            let mut entry_flags = LocalRegisterCopy::new(0);
+            entry_flags.write(PDFLAGS::PS::SET + PDFLAGS::RW::SET + PDFLAGS::P::SET);
             // Set up the page directory with
-            *entry = PDEntry::new(
-                PAddr::from(PAGE_SIZE_4M * n),
-                PDFlags::PS | PDFlags::RW | PDFlags::P,
-            );
+            *entry = PDEntry::new(PAddr::from(PAGE_SIZE_4M * n), entry_flags);
         }
 
         // This Page Directory Entry maps the space from 0x0000_0000 until 0x40_0000
         // this entry needs to be marked as User Accessible so entries in page table can be accessible to user.
-        page_directory[0] = PDEntry::new(
-            PAddr::from(self.page_table_paddr),
-            PDFlags::P | PDFlags::RW | PDFlags::US,
-        );
+        let mut page_directory_flags = LocalRegisterCopy::new(0);
+        page_directory_flags.write(PDFLAGS::P::SET + PDFLAGS::RW::SET + PDFLAGS::US::SET);
+        page_directory[0] = PDEntry::new(PAddr::from(self.page_table_paddr), page_directory_flags);
 
         //  Map the first 4 MiB of memory into 4 KiB entries
         let mut page_table = self.pt.borrow_mut();
+        let mut page_table_flags = LocalRegisterCopy::new(0);
+        page_table_flags.write(PTFLAGS::P::SET + PTFLAGS::RW::SET);
         for (n, entry) in page_table.iter_mut().enumerate() {
-            *entry = PTEntry::new(PAddr::from(PAGE_SIZE_4K * n), PTFlags::P | PTFlags::RW);
+            *entry = PTEntry::new(PAddr::from(PAGE_SIZE_4K * n), page_table_flags);
         }
     }
 
@@ -234,8 +237,8 @@ impl<'a> PagingMPU<'a> {
     unsafe fn enable_paging(&self) {
         // In order to enable a 4M make sure PSE is enabled in CR4
         let mut cr4_value = unsafe { controlregs::cr4() };
-        if !cr4_value.contains(Cr4::CR4_ENABLE_PSE) {
-            cr4_value.toggle(Cr4::CR4_ENABLE_PSE);
+        if !cr4_value.is_set(CR4::CR4_ENABLE_PSE) {
+            cr4_value.modify(CR4::CR4_ENABLE_PSE::SET);
             unsafe {
                 controlregs::cr4_write(cr4_value);
             }
@@ -246,8 +249,9 @@ impl<'a> PagingMPU<'a> {
             controlregs::cr3_write(self.page_dir_paddr as u64);
 
             // Finally enable paging setting the value in CR0
-            let cr0_value = controlregs::cr0();
-            controlregs::cr0_write(cr0_value | Cr0::CR0_ENABLE_PAGING);
+            let mut cr0_value = controlregs::cr0();
+            cr0_value.modify(CR0::CR0_ENABLE_PAGING::SET);
+            controlregs::cr0_write(cr0_value);
         }
     }
 
@@ -341,20 +345,26 @@ impl<'a> MPU for PagingMPU<'a> {
         // Execution protection needs to enable PAE on the system needs support from CPU.
         // Need to check then the pages entry will go to use NXE bit
 
-        let pages_attr = match permissions {
-            Permissions::ReadWriteExecute => PTFlags::P | PTFlags::RW | PTFlags::US,
-            Permissions::ReadWriteOnly => PTFlags::P | PTFlags::RW | PTFlags::US,
-            Permissions::ReadExecuteOnly => PTFlags::P | PTFlags::US,
-            Permissions::ReadOnly => PTFlags::P | PTFlags::US,
-            Permissions::ExecuteOnly => PTFlags::P | PTFlags::US,
+        let mut pages_attr = LocalRegisterCopy::new(0);
+        match permissions {
+            Permissions::ReadWriteExecute => {
+                pages_attr.write(PTFLAGS::P::SET + PTFLAGS::RW::SET + PTFLAGS::US::SET)
+            }
+            Permissions::ReadWriteOnly => {
+                pages_attr.write(PTFLAGS::P::SET + PTFLAGS::RW::SET + PTFLAGS::US::SET)
+            }
+            Permissions::ReadExecuteOnly => pages_attr.write(PTFLAGS::P::SET + PTFLAGS::US::SET),
+            Permissions::ReadOnly => pages_attr.write(PTFLAGS::P::SET + PTFLAGS::US::SET),
+            Permissions::ExecuteOnly => pages_attr.write(PTFLAGS::P::SET + PTFLAGS::US::SET),
         };
 
         // For allocating a region we also need the right level to set it back to
         // if is a shared region in RAM memory this region needs to be WR to Kernel
         // anything else should be just Present
-        let pages_clear = match permissions {
-            Permissions::ReadWriteOnly => PTFlags::P | PTFlags::RW,
-            _ => PTFlags::P,
+        let mut pages_clear = LocalRegisterCopy::new(0);
+        match permissions {
+            Permissions::ReadWriteOnly => pages_clear.write(PTFLAGS::P::SET + PTFLAGS::RW::SET),
+            _ => pages_clear.write(PTFLAGS::P::SET),
         };
 
         // Calculate the page offset based on the init.
@@ -435,8 +445,10 @@ impl<'a> MPU for PagingMPU<'a> {
             let mut sram_page_table = self.pt.borrow_mut();
             for page_index in start_page..=last_page {
                 // Reset using the same Address but modify flags
+                let mut sram_page_table_flags = LocalRegisterCopy::new(0);
+                sram_page_table_flags.write(PTFLAGS::P::SET);
                 sram_page_table[page_index] =
-                    PTEntry::new(sram_page_table[page_index].address(), PTFlags::P);
+                    PTEntry::new(sram_page_table[page_index].address(), sram_page_table_flags);
 
                 // invalidate the TLB to the virtual address
                 let inv_page = page_index * PAGE_SIZE_4K;
@@ -483,12 +495,17 @@ impl<'a> MPU for PagingMPU<'a> {
         aligned_kernel_mem_size = initial_kernel_memory_size.next_multiple_of(PAGE_SIZE_4K);
         aligned_min_mem_size = min_memory_size.next_multiple_of(PAGE_SIZE_4K);
 
-        let pages_attr = match permissions {
-            Permissions::ReadWriteExecute => PTFlags::P | PTFlags::RW | PTFlags::US,
-            Permissions::ReadWriteOnly => PTFlags::P | PTFlags::RW | PTFlags::US,
-            Permissions::ReadExecuteOnly => PTFlags::P | PTFlags::US,
-            Permissions::ReadOnly => PTFlags::P | PTFlags::US,
-            Permissions::ExecuteOnly => PTFlags::P | PTFlags::US,
+        let mut pages_attr = LocalRegisterCopy::new(0);
+        match permissions {
+            Permissions::ReadWriteExecute => {
+                pages_attr.write(PTFLAGS::P::SET + PTFLAGS::RW::SET + PTFLAGS::US::SET)
+            }
+            Permissions::ReadWriteOnly => {
+                pages_attr.write(PTFLAGS::P::SET + PTFLAGS::RW::SET + PTFLAGS::US::SET)
+            }
+            Permissions::ReadExecuteOnly => pages_attr.write(PTFLAGS::P::SET + PTFLAGS::US::SET),
+            Permissions::ReadOnly => pages_attr.write(PTFLAGS::P::SET + PTFLAGS::US::SET),
+            Permissions::ExecuteOnly => pages_attr.write(PTFLAGS::P::SET + PTFLAGS::US::SET),
         };
 
         // Compute what the maximum should be at this point all should be page-aligned.
@@ -523,9 +540,11 @@ impl<'a> MPU for PagingMPU<'a> {
 
             let allocate_index = allocate_index.unwrap();
 
+            let mut alloc_regions_flags_clear = LocalRegisterCopy::new(0);
+            alloc_regions_flags_clear.write(PTFLAGS::P::SET + PTFLAGS::RW::SET);
             config.page_information.alloc_regions[allocate_index] = Some(AllocateRegion {
                 flags_set: pages_attr,
-                flags_clear: PTFlags::P | PTFlags::RW,
+                flags_clear: alloc_regions_flags_clear,
                 start_index_page: start_mem_page,
                 pages: calc_alloc_pages(aligned_app_mem_size),
             });

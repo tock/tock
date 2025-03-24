@@ -29,8 +29,8 @@ use kernel::scheduler::cooperative::CooperativeSched;
 use kernel::syscall::SyscallDriver;
 use kernel::{create_capability, static_init, Kernel};
 
-use x86::bits32::paging::{PDEntry, PTEntry, PD, PT};
-use x86::irq;
+use tock_x86::tock_x86::bits32::paging::{PDEntry, PTEntry, PD, PT};
+use tock_x86::tock_x86::irq;
 
 use pc::pit::{Pit, RELOAD_1KHZ};
 use pc::{Pc, PcComponent};

@@ -50,6 +50,8 @@ pub mod support;
 
 pub mod mpu;
 
+pub mod tock_x86;
+
 core::arch::global_asm!(include_str!("start.s"));
 
 /// Performs low-level CPU initialization.

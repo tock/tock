@@ -14,7 +14,6 @@ components = { path = "../components" }
 kernel = { path = "../../kernel" }
 pc = { path = "../../chips/pc" }
 tock-x86 = { path = "../../arch/x86" }
-x86 = "0.51"
 
 capsules-core = { path = "../../capsules/core" }
 capsules-extra = { path = "../../capsules/extra" }

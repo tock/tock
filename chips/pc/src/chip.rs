@@ -8,14 +8,13 @@ use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::platform::chip::Chip;
 
+use tock_x86::tock_x86::bits32::paging::{PD, PT};
 use tock_x86::mpu::PagingMPU;
 use tock_x86::support;
 use tock_x86::{Boundary, InterruptPoller};
 
 use crate::pit::{Pit, RELOAD_1KHZ};
 use crate::serial::{SerialPort, SerialPortComponent, COM1_BASE, COM2_BASE, COM3_BASE, COM4_BASE};
-
-use x86::bits32::paging::{PD, PT};
 
 /// Interrupt constants for legacy PC peripherals
 mod interrupt {
