@@ -23,7 +23,7 @@ impl u64 {
 // Only works when usize is 32-bits
 #[flux_rs::extern_spec]
 impl usize {
-    #[sig(fn(num: usize{num < u32::MAX}) -> u32{r: (num == 0 => r == 32) && (num > 0 => r <= 31)})]
+    #[sig(fn(num: usize{num < u32::MAX}) -> u32{r: (num == 0 => r == 32) && (num > 0 => r <= 31) && (num >= 512 => r <= 22) && (num < 512 => r > 22)})]
     fn leading_zeros(self) -> u32;
 
     #[sig(fn(num: usize{num < u32::MAX}) -> u32{r: (num == 0 => r == 32) && (num > 0 => r <= 31)})]
