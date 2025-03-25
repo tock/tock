@@ -312,11 +312,25 @@ pub struct DebugWriter {
     count: Cell<usize>,
 }
 
+pub trait DebugWriterTrait: Write + IoWrite {
+    fn publish_bytes(&self) -> usize;
+    fn available_len(&self) -> usize {
+        0
+    }
+    fn increment_count(&self) {}
+
+    fn get_count(&self) -> usize {
+        0
+    }
+    fn extract(&self) -> Option<&mut RingBuffer<'static, u8>> {
+        None
+    }
+}
 /// Static variable that holds the kernel's reference to the debug tool.
 ///
 /// This is needed so the `debug!()` macros have a reference to the object to
 /// use.
-static DEBUG_WRITER: SingleThreadValue<MapCell<&'static DebugWriter>> =
+static DEBUG_WRITER: SingleThreadValue<MapCell<&'static mut dyn DebugWriterTrait>> =
     SingleThreadValue::new(MapCell::empty());
 
 /// Initialize the static debug writer.
@@ -341,7 +355,7 @@ pub unsafe fn initialize_debug_writer_wrapper_unsafe<P: ThreadIdProvider>() {
 
 fn try_get_debug_writer<F, R>(closure: F) -> Option<R>
 where
-    F: FnOnce(&DebugWriter) -> R,
+    F: FnOnce(&dyn DebugWriter) -> R,
 {
     DEBUG_WRITER
         .get()
@@ -350,7 +364,7 @@ where
 
 /// Function used by board main.rs to set a reference to the writer.
 pub fn set_debug_writer_wrapper<C: SetDebugWriterCapability>(
-    debug_writer: &'static DebugWriter,
+    debug_writer: &'static mut dyn DebugWriterTrait,
     _cap: C,
 ) {
     DEBUG_WRITER.get().map(|dw| dw.replace(debug_writer));
@@ -520,7 +534,7 @@ pub fn debug_available_len() -> usize {
 }
 
 fn write_header(
-    writer: &mut &DebugWriter,
+    writer: &mut &mut dyn DebugWriter,
     (file, line): &(&'static str, u32),
 ) -> Result<(), core::fmt::Error> {
     writer.increment_count();
