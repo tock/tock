@@ -1419,7 +1419,6 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
     // TODO: reimplement dirty tracking
     // TODO: add for loop back in
     #[flux_rs::sig(fn(self: &strg Self, &CortexMConfig[@config]) ensures self: Self{mpu: mpu_configured_for(mpu, config)})]
-    #[flux_rs::trusted_impl] // fixpoint encoding
     fn configure_mpu(&mut self, config: &CortexMConfig) {
         // If the hardware is already configured for this app and the app's MPU
         // configuration has not changed, then skip the hardware update.
