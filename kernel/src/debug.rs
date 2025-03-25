@@ -303,22 +303,36 @@ pub struct DebugWriter {
     count: Cell<usize>,
 }
 
+pub trait DebugWriterTrait: Write + IoWrite {
+    fn publish_bytes(&self) -> usize;
+    fn available_len(&self) -> usize {
+        0
+    }
+    fn increment_count(&self) {}
+
+    fn get_count(&self) -> usize {
+        0
+    }
+    fn extract(&self) -> Option<&mut RingBuffer<'static, u8>> {
+        None
+    }
+}
 /// Static variable that holds the kernel's reference to the debug tool.
 ///
 /// This is needed so the `debug!()` macros have a reference to the object to
 /// use.
-static mut DEBUG_WRITER: Option<&'static mut DebugWriterWrapper> = None;
+static mut DEBUG_WRITER: Option<&'static mut dyn DebugWriterTrait> = None;
 
-unsafe fn try_get_debug_writer() -> Option<&'static mut DebugWriterWrapper> {
+unsafe fn try_get_debug_writer() -> Option<&'static mut dyn DebugWriterTrait> {
     (*addr_of_mut!(DEBUG_WRITER)).as_deref_mut()
 }
 
-unsafe fn get_debug_writer() -> &'static mut DebugWriterWrapper {
+unsafe fn get_debug_writer() -> &'static mut dyn DebugWriterTrait {
     try_get_debug_writer().unwrap() // Unwrap fail = Must call `set_debug_writer_wrapper` in board initialization.
 }
 
 /// Function used by board main.rs to set a reference to the writer.
-pub unsafe fn set_debug_writer_wrapper(debug_writer: &'static mut DebugWriterWrapper) {
+pub unsafe fn set_debug_writer_wrapper(debug_writer: &'static mut dyn DebugWriterTrait) {
     DEBUG_WRITER = Some(debug_writer);
 }
 
@@ -416,7 +430,7 @@ impl hil::uart::TransmitClient for DebugWriter {
 }
 
 /// Pass through functions.
-impl DebugWriterWrapper {
+impl DebugWriterTrait for DebugWriterWrapper {
     fn increment_count(&self) {
         self.dw.map(|dw| {
             dw.increment_count();
@@ -427,10 +441,6 @@ impl DebugWriterWrapper {
         self.dw.map_or(0, |dw| dw.get_count())
     }
 
-    fn publish_bytes(&self) -> usize {
-        self.dw.map_or(0, |dw| dw.publish_bytes())
-    }
-
     fn extract(&self) -> Option<&mut RingBuffer<'static, u8>> {
         self.dw.map_or(None, |dw| dw.extract())
     }
@@ -439,6 +449,10 @@ impl DebugWriterWrapper {
         const FULL_MSG: &[u8] = b"\n*** DEBUG BUFFER FULL ***\n";
         self.dw
             .map_or(0, |dw| dw.available_len().saturating_sub(FULL_MSG.len()))
+    }
+
+    fn publish_bytes(&self) -> usize {
+        self.dw.map_or(0, |dw| dw.publish_bytes())
     }
 }
 
@@ -480,17 +494,17 @@ impl Write for DebugWriterWrapper {
 
 /// Write a debug message without a trailing newline.
 pub fn debug_print(args: Arguments) {
-    let writer = unsafe { get_debug_writer() };
+    let mut writer = unsafe { get_debug_writer() };
 
-    let _ = write(writer, args);
+    let _ = write(&mut writer, args);
     writer.publish_bytes();
 }
 
 /// Write a debug message with a trailing newline.
 pub fn debug_println(args: Arguments) {
-    let writer = unsafe { get_debug_writer() };
+    let mut writer = unsafe { get_debug_writer() };
 
-    let _ = write(writer, args);
+    let _ = write(&mut writer, args);
     let _ = writer.write_str("\r\n");
     writer.publish_bytes();
 }
@@ -518,7 +532,7 @@ pub fn debug_available_len() -> usize {
     writer.available_len()
 }
 
-fn write_header(writer: &mut DebugWriterWrapper, (file, line): &(&'static str, u32)) -> Result {
+fn write_header(writer: &mut dyn DebugWriterTrait, (file, line): &(&'static str, u32)) -> Result {
     writer.increment_count();
     let count = writer.get_count();
     writer.write_fmt(format_args!("TOCK_DEBUG({}): {}:{}: ", count, file, line))
@@ -527,20 +541,20 @@ fn write_header(writer: &mut DebugWriterWrapper, (file, line): &(&'static str, u
 /// Write a debug message with file and line information without a trailing
 /// newline.
 pub fn debug_verbose_print(args: Arguments, file_line: &(&'static str, u32)) {
-    let writer = unsafe { get_debug_writer() };
+    let mut writer = unsafe { get_debug_writer() };
 
     let _ = write_header(writer, file_line);
-    let _ = write(writer, args);
+    let _ = write(&mut writer, args);
     writer.publish_bytes();
 }
 
 /// Write a debug message with file and line information with a trailing
 /// newline.
 pub fn debug_verbose_println(args: Arguments, file_line: &(&'static str, u32)) {
-    let writer = unsafe { get_debug_writer() };
+    let mut writer = unsafe { get_debug_writer() };
 
     let _ = write_header(writer, file_line);
-    let _ = write(writer, args);
+    let _ = write(&mut writer, args);
     let _ = writer.write_str("\r\n");
     writer.publish_bytes();
 }
