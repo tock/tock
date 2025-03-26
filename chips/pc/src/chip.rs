@@ -96,7 +96,7 @@ impl<'a, const PR: u16> Chip for Pc<'a, PR> {
 
     #[cfg(target_arch = "x86")]
     fn sleep(&self) {
-        use x86::registers::bits32::eflags;
+        use x86::registers::bits32::eflags::{self, EFLAGS};
 
         // On conventional embedded architectures like ARM and RISC-V, interrupts must be disabled
         // before going to sleep. But on x86 it is the opposite; we must ensure interrupts are
@@ -208,8 +208,8 @@ impl Component for PcComponent<'static> {
         let pit = unsafe { Pit::new() };
 
         let paging = unsafe {
-            let pd_addr = (self.pd as *const _) as usize;
-            let pt_addr = (self.pt as *const _) as usize;
+            let pd_addr = core::ptr::from_ref(self.pd) as usize;
+            let pt_addr = core::ptr::from_ref(self.pt) as usize;
             PagingMPU::new(self.pd, pd_addr, self.pt, pt_addr)
         };
 

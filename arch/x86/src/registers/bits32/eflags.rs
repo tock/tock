@@ -7,6 +7,9 @@
 use kernel::utilities::registers::register_bitfields;
 use tock_registers::LocalRegisterCopy;
 
+#[cfg(target_arch = "x86")]
+use core::arch::asm;
+
 register_bitfields![u32,
     pub EFLAGS[
         /// Carry Flag (CF)

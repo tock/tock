@@ -85,7 +85,7 @@ pub unsafe fn lgdt<T>(gdt: &DescriptorTablePointer<T>) {
 #[cfg(target_arch = "x86")]
 pub unsafe fn sgdt<T>(idt: &mut DescriptorTablePointer<T>) {
     unsafe {
-        asm!("sgdt ({0})", in(reg) idt as *mut DescriptorTablePointer<T>, options(att_syntax));
+        asm!("sgdt ({0})", in(reg) core::ptr::from_mut::<DescriptorTablePointer<T>>(idt), options(att_syntax));
     }
 }
 
@@ -140,7 +140,7 @@ pub unsafe fn lidt<T>(idt: &DescriptorTablePointer<T>) {
 #[cfg(target_arch = "x86")]
 pub unsafe fn sidt<T>(idt: &mut DescriptorTablePointer<T>) {
     unsafe {
-        asm!("sidt ({0})", in(reg) idt as *mut DescriptorTablePointer<T>, options(att_syntax));
+        asm!("sidt ({0})", in(reg) core::ptr::from_mut::<DescriptorTablePointer<T>>(idt), options(att_syntax));
     }
 }
 

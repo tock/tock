@@ -4,6 +4,8 @@
 
 // This is inspired and adapted for Tock from the [x86](https://github.com/gz/rust-x86) crate.
 
+#[cfg(target_arch = "x86")]
+use core::arch::asm;
 use core::fmt;
 /// x86 Exception description (see also Intel Vol. 3a Chapter 6).
 #[derive(Debug)]
@@ -306,12 +308,12 @@ pub unsafe fn disable() {
 
 //For CI only
 
-#[cfg(not(any(doc, target_arch = "x86")))]
+#[cfg(not(target_arch = "x86"))]
 pub unsafe fn enable() {
     unimplemented!()
 }
 
-#[cfg(not(any(doc, target_arch = "x86")))]
+#[cfg(not(target_arch = "x86"))]
 pub unsafe fn disable() {
     unimplemented!()
 }

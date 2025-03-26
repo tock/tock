@@ -512,7 +512,6 @@ pub(crate) enum DescriptorType {
 #[allow(clippy::upper_case_acronyms)]
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-
 pub enum SystemDescriptorTypes32 {
     //Reserved0 = 0b0000,
     TSSAvailable16 = 0b0001,

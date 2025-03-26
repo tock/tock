@@ -4,6 +4,9 @@
 
 //! Miscellaneous low-level operations
 
+#[cfg(target_arch = "x86")]
+use core::arch::asm;
+
 /// Execute a given closure atomically.
 ///
 /// This function ensures interrupts are disabled before invoking the given closue `f`. This allows
@@ -15,7 +18,6 @@ where
 {
     use crate::registers::bits32::eflags::{self, EFLAGS};
     use crate::registers::irq;
-    use core::arch::asm;
 
     // Safety: We assume that this function is only ever called from inside the Tock kernel itself
     //         running with a CPL of 0. This allows us to read EFLAGS and disable/enable interrupts

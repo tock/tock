@@ -90,6 +90,8 @@ pub unsafe fn init() {
 #[cfg(target_arch = "x86")]
 #[inline(always)]
 pub unsafe fn halt() {
+    use core::arch::asm;
+
     unsafe {
         asm!("hlt", options(att_syntax, nomem, nostack)); // check if preserves_flags
     }

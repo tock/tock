@@ -20,7 +20,8 @@ pub unsafe fn stack_jmp(stack: *mut (), ip: *const ()) -> ! {
     unsafe {
         asm!("movl {0}, %esp; jmp {1}", in(reg) stack, in(reg) ip, options(att_syntax));
     }
-    loop {}
+
+    unreachable!()
 }
 
 //For CI only

@@ -190,8 +190,9 @@ impl UserspaceKernelBoundary for Boundary {
                     arg2 as usize,
                     arg3 as usize,
                 )
-                .map(|syscall| ContextSwitchReason::SyscallFired { syscall })
-                .unwrap_or(ContextSwitchReason::Fault)
+                .map_or(ContextSwitchReason::Fault, |syscall| {
+                    ContextSwitchReason::SyscallFired { syscall }
+                })
             }
             _ => ContextSwitchReason::Interrupted,
         };

@@ -7,6 +7,9 @@
 use kernel::utilities::registers::register_bitfields;
 use tock_registers::LocalRegisterCopy;
 
+#[cfg(target_arch = "x86")]
+use core::arch::asm;
+
 register_bitfields![u32,
     pub CR0[
         CR0_PROTECTED_MODE OFFSET(0) NUMBITS(1),
