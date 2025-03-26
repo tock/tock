@@ -41,12 +41,12 @@ pub unsafe fn load_tr(sel: segmentation::SegmentSelector) {
 
 //For CI only
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn tr() -> segmentation::SegmentSelector {
     unimplemented!()
 }
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn load_tr(_sel: segmentation::SegmentSelector) {
     unimplemented!()
 }

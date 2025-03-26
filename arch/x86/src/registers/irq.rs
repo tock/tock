@@ -306,12 +306,12 @@ pub unsafe fn disable() {
 
 //For CI only
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn enable() {
     unimplemented!()
 }
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn disable() {
     unimplemented!()
 }

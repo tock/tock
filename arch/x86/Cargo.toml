@@ -13,3 +13,5 @@ kernel = { path = "../../kernel" }
 tock-cells = { path = "../../libraries/tock-cells" }
 tock-registers = { path = "../../libraries/tock-register-interface" }
 
+[lints]
+workspace = true

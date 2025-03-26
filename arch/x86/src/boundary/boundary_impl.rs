@@ -18,6 +18,12 @@ use super::UserContext;
 /// Defines the usermode-kernelmode ABI for x86 platforms.
 pub struct Boundary;
 
+impl Default for Boundary {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Boundary {
     /// Minimum required size for initial process memory.
     ///
@@ -130,7 +136,7 @@ impl UserspaceKernelBoundary for Boundary {
             state.write_stack(2, upcall.argument2 as u32, accessible_memory_start, app_brk)?;
             state.write_stack(3, upcall.argument3 as u32, accessible_memory_start, app_brk)?;
 
-            state.push_stack(state.eip as u32, accessible_memory_start, app_brk)?;
+            state.push_stack(state.eip, accessible_memory_start, app_brk)?;
         }
 
         // The next time we switch to this process, we will directly jump to the upcall. When the

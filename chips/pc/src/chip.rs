@@ -9,7 +9,6 @@ use kernel::component::Component;
 use kernel::platform::chip::Chip;
 
 use x86::mpu::PagingMPU;
-use x86::registers::bits32::eflags::EFLAGS;
 use x86::registers::bits32::paging::{PD, PT};
 use x86::support;
 use x86::{Boundary, InterruptPoller};
@@ -22,7 +21,7 @@ mod interrupt {
     use crate::pic::PIC1_OFFSET;
 
     /// Interrupt number used by PIT
-    pub(super) const PIT: u32 = (PIC1_OFFSET as u32) + 0;
+    pub(super) const PIT: u32 = PIC1_OFFSET as u32;
 
     /// Interrupt number shared by COM2 and COM4 serial devices
     pub(super) const COM2_COM4: u32 = (PIC1_OFFSET as u32) + 3;
@@ -133,7 +132,7 @@ impl<'a, const PR: u16> Chip for Pc<'a, PR> {
         }
     }
 
-    #[cfg(not(target_arch = "x86"))]
+    #[cfg(not(any(doc, target_arch = "x86")))]
     fn sleep(&self) {
         unimplemented!()
     }

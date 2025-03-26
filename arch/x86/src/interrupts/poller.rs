@@ -72,7 +72,7 @@ impl InterruptPoller {
             //         singleton without racing against interrupt handlers.
             let poller = unsafe { &*ptr::addr_of!(SINGLETON) };
 
-            f(&poller)
+            f(poller)
         })
     }
 

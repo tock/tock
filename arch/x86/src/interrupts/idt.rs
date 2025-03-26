@@ -82,7 +82,7 @@ pub(super) unsafe fn init() {
     let stub_1_addr = unsafe { &handler_stub_1 as *const u8 as u32 };
     let stub_size = stub_1_addr - stub_base;
 
-    for i in 0..NUM_VECTORS {
+    for (i, idt_item) in idt.iter_mut().enumerate() {
         let stub_addr = stub_base + (stub_size * i as u32);
 
         // Certain interrupts need DPL of 3 so they can be invoked from user mode.
@@ -96,7 +96,7 @@ pub(super) unsafe fn init() {
             .present()
             .dpl(dpl)
             .finish();
-        idt[i] = desc;
+        *idt_item = desc;
     }
 
     unsafe {

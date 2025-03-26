@@ -71,8 +71,8 @@
 mod context;
 use context::UserContext;
 
-mod boundary;
-pub use self::boundary::Boundary;
+mod boundary_impl;
+pub use self::boundary_impl::Boundary;
 
 core::arch::global_asm!(include_str!("switch_to_user.s"));
 core::arch::global_asm!(include_str!("return_from_user.s"));

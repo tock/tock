@@ -89,32 +89,32 @@ pub unsafe fn inl(port: u16) -> u32 {
 
 //For CI only
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn outb(_port: u16, _val: u8) {
     unimplemented!()
 }
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn inb(_port: u16) -> u8 {
     unimplemented!()
 }
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn outw(_port: u16, _val: u16) {
     unimplemented!()
 }
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn inw(_port: u16) -> u16 {
     unimplemented!()
 }
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn outl(_port: u16, _val: u32) {
     unimplemented!()
 }
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn inl(_port: u16) -> u32 {
     unimplemented!()
 }

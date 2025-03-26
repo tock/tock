@@ -32,7 +32,7 @@ pub unsafe fn flush_all() {
 
 // For CI only
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn flush(_addr: usize) {
     unimplemented!()
 }

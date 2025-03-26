@@ -69,7 +69,7 @@ impl PageTableConfig {
         self.ram_pages = sections;
     }
     pub fn get_ram(&self) -> usize {
-        return self.start_ram_section;
+        self.start_ram_section
     }
 }
 
@@ -77,6 +77,12 @@ pub struct MemoryProtectionConfig {
     num_regions: usize,
     ram_regions: usize,
     page_information: PageTableConfig,
+}
+
+impl Default for MemoryProtectionConfig {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl MemoryProtectionConfig {
@@ -141,8 +147,7 @@ pub struct PagingMPU<'a> {
 }
 
 fn calc_page_index(memory_address: usize) -> usize {
-    let page_index = memory_address as usize / PAGE_SIZE_4K;
-    return page_index;
+    memory_address / PAGE_SIZE_4K
 }
 
 // It will calculate the required pages doing a round up to Page size.
@@ -159,15 +164,15 @@ impl<'a> PagingMPU<'a> {
     ) -> Self {
         let page_dir = RefCell::new(page_dir);
         let page_table = RefCell::new(page_table);
-        let mpu = Self {
+
+        Self {
             num_regions: 0,
             config_pages: MapCell::empty(),
             page_dir_paddr,
             page_table_paddr,
             pd: page_dir,
             pt: page_table,
-        };
-        return mpu;
+        }
     }
 
     ///
@@ -192,7 +197,7 @@ impl<'a> PagingMPU<'a> {
     {
         let mut page_table = self.pt.borrow_mut();
         let mut page_index = virtual_addr >> PAGE_BITS_4K;
-        page_index = page_index & PAGE_TABLE_MASK;
+        page_index &= PAGE_TABLE_MASK;
 
         closure(&mut page_table[page_index]);
     }
@@ -309,20 +314,14 @@ impl<'a> MPU for PagingMPU<'a> {
         permissions: Permissions,
         config: &mut Self::MpuConfig,
     ) -> Option<Region> {
-        let page_index: usize;
-        let pages_alloc_requested: usize;
-        let total_page_aligned_size: usize;
-        let aligned_address_start: usize;
-        let end_of_unallocated_memory: usize;
-        let end_of_allocated_memory: usize;
-
         // Check for the start of the unallocated memory as to be 4K Page aligned.
-        aligned_address_start = (unallocated_memory_start as usize).next_multiple_of(PAGE_SIZE_4K);
-        page_index = calc_page_index(aligned_address_start);
+        let aligned_address_start: usize =
+            (unallocated_memory_start as usize).next_multiple_of(PAGE_SIZE_4K);
+        let page_index: usize = calc_page_index(aligned_address_start);
 
-        pages_alloc_requested = calc_alloc_pages(min_region_size);
+        let pages_alloc_requested: usize = calc_alloc_pages(min_region_size);
 
-        total_page_aligned_size = pages_alloc_requested * PAGE_SIZE_4K;
+        let total_page_aligned_size: usize = pages_alloc_requested * PAGE_SIZE_4K;
 
         if aligned_address_start + total_page_aligned_size
             > unallocated_memory_start as usize + unallocated_memory_size
@@ -331,14 +330,12 @@ impl<'a> MPU for PagingMPU<'a> {
         }
 
         // check to see if this is an exact duplicate region allocation
-        for r in config.page_information.alloc_regions.iter() {
-            if let Some(r) = r {
-                if r.start_index_page == page_index && r.pages == pages_alloc_requested {
-                    return Some(Region::new(
-                        aligned_address_start as *const u8,
-                        total_page_aligned_size,
-                    ));
-                }
+        for r in config.page_information.alloc_regions.iter().flatten() {
+            if r.start_index_page == page_index && r.pages == pages_alloc_requested {
+                return Some(Region::new(
+                    aligned_address_start as *const u8,
+                    total_page_aligned_size,
+                ));
             }
         }
 
@@ -373,10 +370,11 @@ impl<'a> MPU for PagingMPU<'a> {
         }
 
         // check for the start and end to be within limits
-        end_of_unallocated_memory = unallocated_memory_start as usize + unallocated_memory_size;
-        end_of_allocated_memory = aligned_address_start + total_page_aligned_size - 1;
+        let end_of_unallocated_memory: usize =
+            unallocated_memory_start as usize + unallocated_memory_size;
+        let end_of_allocated_memory: usize = aligned_address_start + total_page_aligned_size - 1;
         if calc_page_index(end_of_allocated_memory) > calc_page_index(end_of_unallocated_memory) {
-            return None;
+            None
         } else {
             // Find the next free region that is not used
             let index = config
@@ -411,10 +409,10 @@ impl<'a> MPU for PagingMPU<'a> {
                 .page_information
                 .set_app(page_index, config.num_regions);
 
-            return Some(Region::new(
+            Some(Region::new(
                 aligned_address_start as *const u8,
                 total_page_aligned_size,
-            ));
+            ))
         }
     }
 
@@ -469,31 +467,22 @@ impl<'a> MPU for PagingMPU<'a> {
         permissions: Permissions,
         config: &mut Self::MpuConfig,
     ) -> Option<(*const u8, usize)> {
-        let aligned_address_app: usize;
-        let start_mem_page: usize;
-        let aligned_app_mem_size: usize;
-        let aligned_kernel_mem_size: usize;
-        let aligned_min_mem_size: usize;
-        let end_of_unallocated_memory: usize;
-        let end_of_allocated_memory: usize;
-        let pages_alloc_requested: usize;
-        let kernel_alloc_pages: usize;
-        let last_unallocated_memory: usize;
-        let last_page_app_mem: usize;
-
         // this should allocate memory in a continous block right after the user
         // the kernel should be there
 
-        aligned_address_app = (unallocated_memory_start as usize).next_multiple_of(PAGE_SIZE_4K);
-        last_unallocated_memory = (unallocated_memory_start as usize) + unallocated_memory_size;
-        start_mem_page = calc_page_index(aligned_address_app);
+        let aligned_address_app: usize =
+            (unallocated_memory_start as usize).next_multiple_of(PAGE_SIZE_4K);
+        let last_unallocated_memory: usize =
+            (unallocated_memory_start as usize) + unallocated_memory_size;
+        let start_mem_page: usize = calc_page_index(aligned_address_app);
 
-        last_page_app_mem = calc_page_index(last_unallocated_memory);
+        let last_page_app_mem: usize = calc_page_index(last_unallocated_memory);
 
         // for x86 the minimal granularity is a 4k page
-        aligned_app_mem_size = initial_app_memory_size.next_multiple_of(PAGE_SIZE_4K);
-        aligned_kernel_mem_size = initial_kernel_memory_size.next_multiple_of(PAGE_SIZE_4K);
-        aligned_min_mem_size = min_memory_size.next_multiple_of(PAGE_SIZE_4K);
+        let aligned_app_mem_size: usize = initial_app_memory_size.next_multiple_of(PAGE_SIZE_4K);
+        let aligned_kernel_mem_size: usize =
+            initial_kernel_memory_size.next_multiple_of(PAGE_SIZE_4K);
+        let aligned_min_mem_size: usize = min_memory_size.next_multiple_of(PAGE_SIZE_4K);
 
         let mut pages_attr = LocalRegisterCopy::new(0);
         match permissions {
@@ -514,8 +503,8 @@ impl<'a> MPU for PagingMPU<'a> {
             aligned_min_mem_size + aligned_kernel_mem_size,
             aligned_app_mem_size + aligned_kernel_mem_size,
         );
-        pages_alloc_requested = calc_alloc_pages(total_memory_size);
-        kernel_alloc_pages = calc_alloc_pages(aligned_kernel_mem_size);
+        let pages_alloc_requested: usize = calc_alloc_pages(total_memory_size);
+        let kernel_alloc_pages: usize = calc_alloc_pages(aligned_kernel_mem_size);
 
         // Check the page offset based on the init and last page
         if start_mem_page > MAX_PTE_ENTRY || start_mem_page + pages_alloc_requested > MAX_PTE_ENTRY
@@ -523,8 +512,9 @@ impl<'a> MPU for PagingMPU<'a> {
             return None;
         }
         // Check the boundary to the end of the calculated data size.
-        end_of_unallocated_memory = unallocated_memory_start as usize + unallocated_memory_size;
-        end_of_allocated_memory = aligned_address_app + total_memory_size;
+        let end_of_unallocated_memory: usize =
+            unallocated_memory_start as usize + unallocated_memory_size;
+        let end_of_allocated_memory: usize = aligned_address_app + total_memory_size;
         if end_of_allocated_memory > end_of_unallocated_memory {
             None
         } else {
@@ -534,9 +524,7 @@ impl<'a> MPU for PagingMPU<'a> {
                 .iter_mut()
                 .position(|r| r.is_none());
 
-            if allocate_index.is_none() {
-                return None;
-            }
+            allocate_index?;
 
             let allocate_index = allocate_index.unwrap();
 
@@ -618,15 +606,13 @@ impl<'a> MPU for PagingMPU<'a> {
         self.config_pages.map(|current_config| {
             unsafe {
                 let mut sram_page_table = self.pt.borrow_mut();
-                for r in current_config.alloc_regions.iter() {
-                    if let Some(r) = r {
-                        let init_region_page = r.start_index_page;
-                        let last_region_page = init_region_page + r.pages;
-                        for page_index in init_region_page..=last_region_page {
-                            // Reset using the same Address setting flags
-                            sram_page_table[page_index] =
-                                PTEntry::new(sram_page_table[page_index].address(), r.flags_clear);
-                        }
+                for r in current_config.alloc_regions.iter().flatten() {
+                    let init_region_page = r.start_index_page;
+                    let last_region_page = init_region_page + r.pages;
+                    for page_index in init_region_page..=last_region_page {
+                        // Reset using the same Address setting flags
+                        sram_page_table[page_index] =
+                            PTEntry::new(sram_page_table[page_index].address(), r.flags_clear);
                     }
                 }
 
@@ -640,15 +626,13 @@ impl<'a> MPU for PagingMPU<'a> {
         self.config_pages.map(|app_config| {
             unsafe {
                 let mut sram_page_table = self.pt.borrow_mut();
-                for r in app_config.alloc_regions.iter() {
-                    if let Some(r) = r {
-                        let init_region_page = r.start_index_page;
-                        let last_region_page = init_region_page + r.pages;
-                        for page_index in init_region_page..=last_region_page {
-                            // Reset using the same Address setting flags
-                            sram_page_table[page_index] =
-                                PTEntry::new(sram_page_table[page_index].address(), r.flags_set);
-                        }
+                for r in app_config.alloc_regions.iter().flatten() {
+                    let init_region_page = r.start_index_page;
+                    let last_region_page = init_region_page + r.pages;
+                    for page_index in init_region_page..=last_region_page {
+                        // Reset using the same Address setting flags
+                        sram_page_table[page_index] =
+                            PTEntry::new(sram_page_table[page_index].address(), r.flags_set);
                     }
                 }
                 // Moving to a single operation so it can refresh TLB's at the same time

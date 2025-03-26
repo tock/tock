@@ -54,6 +54,12 @@ pub struct TaskStateSegment {
     pub iobp_offset: u16,
 }
 
+impl Default for TaskStateSegment {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TaskStateSegment {
     pub const fn new() -> TaskStateSegment {
         TaskStateSegment {

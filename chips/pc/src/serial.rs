@@ -163,11 +163,11 @@ pub struct SerialPort<'a> {
 impl<'a> SerialPort<'a> {
     /// Finishes out a long-running TX operation.
     fn finish_tx(&self, res: Result<(), ErrorCode>) {
-        self.tx_buffer.take().map(|b| {
+        if let Some(b) = self.tx_buffer.take() {
             self.tx_client.map(|c| {
                 c.transmitted_buffer(b, self.tx_len.get(), res);
             });
-        });
+        }
     }
 
     /// Finishes out a long-running RX operation.
@@ -180,10 +180,10 @@ impl<'a> SerialPort<'a> {
             io::outb(self.base + offsets::IER, ier.get());
         }
 
-        self.rx_buffer.take().map(|b| {
+        if let Some(b) = self.rx_buffer.take() {
             self.rx_client
                 .map(|c| c.received_buffer(b, self.rx_len.get(), res, error));
-        });
+        }
     }
 
     /// Handler to call when a TX interrupt occurs.

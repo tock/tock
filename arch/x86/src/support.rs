@@ -38,7 +38,7 @@ where
     }
 }
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub fn atomic<F, R>(_: F) -> R
 where
     F: FnOnce() -> R,
@@ -55,7 +55,7 @@ pub fn nop() {
     }
 }
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 #[inline(always)]
 pub fn nop() {
     unimplemented!()

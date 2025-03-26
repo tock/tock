@@ -202,7 +202,7 @@ pub trait BuildDescriptor<Descriptor> {
 
 impl BuildDescriptor<Descriptor> for DescriptorBuilder {
     fn finish(&self) -> Descriptor {
-        let mut desc: Descriptor = Default::default();
+        let mut desc = Descriptor::default();
         desc.apply_builder_settings(self);
         let typ = match self.typ {
             Some(DescriptorType::System32(typ)) => typ as u8,
@@ -537,32 +537,32 @@ pub enum SystemDescriptorTypes32 {
 
 //For CI only
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn load_ss(_sel: SegmentSelector) {
     unimplemented!()
 }
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn load_ds(_sel: SegmentSelector) {
     unimplemented!()
 }
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn load_es(_sel: SegmentSelector) {
     unimplemented!()
 }
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn load_fs(_sel: SegmentSelector) {
     unimplemented!()
 }
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn load_gs(_sel: SegmentSelector) {
     unimplemented!()
 }
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn load_cs(_sel: SegmentSelector) {
     unimplemented!()
 }

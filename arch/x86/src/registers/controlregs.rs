@@ -134,32 +134,32 @@ pub unsafe fn cr3_write(val: u64) {
 
 // For CI only
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn cr0() -> Cr0 {
     unimplemented!()
 }
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn cr0_write(_val: Cr0) {
     unimplemented!()
 }
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn cr4() -> Cr4 {
     unimplemented!()
 }
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn cr4_write(_val: Cr4) {
     unimplemented!()
 }
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn cr3() -> u64 {
     unimplemented!()
 }
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn cr3_write(_val: u64) {
     unimplemented!()
 }

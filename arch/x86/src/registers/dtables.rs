@@ -41,7 +41,7 @@ impl<T> DescriptorTablePointer<T> {
         let len = size_of::<T>() - 1;
         assert!(len < 0x10000);
         DescriptorTablePointer {
-            base: tbl as *const T,
+            base: core::ptr::from_ref::<T>(tbl),
             limit: len as u16,
         }
     }
@@ -50,7 +50,7 @@ impl<T> DescriptorTablePointer<T> {
         // GDT, LDT, and IDT all expect the limit to be set to "one less".
         // See Intel 3a, Section 3.5.1 "Segment Descriptor Tables" and
         // Section 6.10 "Interrupt Descriptor Table (IDT)".
-        let len = slice.len() * size_of::<T>() - 1;
+        let len = core::mem::size_of_val(slice) - 1;
         assert!(len < 0x10000);
         DescriptorTablePointer {
             base: slice.as_ptr(),
@@ -146,32 +146,32 @@ pub unsafe fn sidt<T>(idt: &mut DescriptorTablePointer<T>) {
 
 //For CI only
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn lgdt<T>(_gdt: &DescriptorTablePointer<T>) {
     unimplemented!()
 }
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn sgdt<T>(_idt: &mut DescriptorTablePointer<T>) {
     unimplemented!()
 }
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn load_ldtr(_selector: SegmentSelector) {
     unimplemented!()
 }
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn ldtr() -> SegmentSelector {
     unimplemented!()
 }
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn lidt<T>(_idt: &DescriptorTablePointer<T>) {
     unimplemented!()
 }
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn sidt<T>(_idt: &mut DescriptorTablePointer<T>) {
     unimplemented!()
 }

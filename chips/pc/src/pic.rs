@@ -101,9 +101,9 @@ pub(crate) unsafe fn init() {
 /// from the normal kernel loop could interfere with this crate's interrupt handling logic.
 pub(crate) unsafe fn eoi(num: u32) {
     let _ = u8::try_from(num).map(|num| unsafe {
-        if num >= PIC1_OFFSET && num < PIC1_OFFSET + 8 {
+        if (PIC1_OFFSET..PIC1_OFFSET + 8).contains(&num) {
             io::outb(PIC1_CMD, PIC_CMD_EOI);
-        } else if num >= PIC2_OFFSET && num < PIC2_OFFSET + 8 {
+        } else if (PIC2_OFFSET..PIC2_OFFSET + 8).contains(&num) {
             io::outb(PIC2_CMD, PIC_CMD_EOI);
         }
     });

@@ -147,9 +147,9 @@ impl UserContext {
 
 impl Display for UserContext {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        writeln!(f, "")?;
+        writeln!(f)?;
         writeln!(f, " CPU Registers:")?;
-        writeln!(f, "")?;
+        writeln!(f)?;
         writeln!(f, "  EAX: {:#010x}      EBX: {:#010x}", self.eax, self.ebx)?;
         writeln!(f, "  ECX: {:#010x}      EDX: {:#010x}", self.ecx, self.edx)?;
         writeln!(f, "  ESI: {:#010x}      EDI: {:#010x}", self.esi, self.edi)?;
@@ -176,7 +176,7 @@ impl Display for UserContext {
         )?;
 
         if self.exception != 0 || self.err_code != 0 {
-            writeln!(f, "")?;
+            writeln!(f)?;
             if let Some(msg) = EXCEPTIONS.get(self.exception as usize) {
                 writeln!(f, " Exception: {}", msg)?;
             } else {

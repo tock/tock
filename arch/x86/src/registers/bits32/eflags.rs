@@ -52,6 +52,12 @@ register_bitfields![u32,
 #[derive(Copy, Clone, Debug)]
 pub struct EFlags(pub LocalRegisterCopy<u32, EFLAGS::Register>);
 
+impl Default for EFlags {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EFlags {
     /// Create a new SegmentSelector
     /// # Arguments
@@ -84,12 +90,12 @@ pub unsafe fn set(val: EFlags) {
 
 //For CI only
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn read() -> EFlags {
     unimplemented!()
 }
 
-#[cfg(not(target_arch = "x86"))]
+#[cfg(not(any(doc, target_arch = "x86")))]
 pub unsafe fn set(_val: EFlags) {
     unimplemented!()
 }
