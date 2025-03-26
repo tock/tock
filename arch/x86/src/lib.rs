@@ -51,6 +51,7 @@ pub mod mpu;
 
 pub mod registers;
 
+#[cfg(target_arch = "x86")]
 core::arch::global_asm!(include_str!("start.s"));
 
 /// Performs low-level CPU initialization.
