@@ -171,8 +171,9 @@ unsafe fn setup() -> (
     kernel::debug::assign_gpios(None, None, None);
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
-        .finalize(components::uart_mux_component_static!());
+    let uart_mux =
+        components::console::UartMuxComponent::new(&peripherals.uart0, hil::uart::BAUD115200)
+            .finalize(components::uart_mux_component_static!());
 
     let gpio = components::gpio::GpioComponent::new(
         board_kernel,

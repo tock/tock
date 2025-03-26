@@ -12,7 +12,9 @@
 
 use core::cell::Cell;
 use core::cmp::min;
+use core::num::NonZero;
 use kernel::hil::uart;
+use kernel::non_zero;
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, WriteOnly};
@@ -246,15 +248,15 @@ impl<'a> Uarte<'a> {
     //
     // Technically only RX is limited to 1MBaud, can TX up to 8MBaud:
     // https://devzone.nordicsemi.com/f/nordic-q-a/84204/framing-error-and-noisy-data-when-using-uarte-at-high-baud-rate
-    fn get_divider_for_baud(&self, baud_rate: u32) -> Result<u32, ErrorCode> {
-        if baud_rate > 1_000_000 || baud_rate < 1200 {
+    fn get_divider_for_baud(&self, baud_rate: NonZero<u32>) -> Result<u32, ErrorCode> {
+        if baud_rate > non_zero!(1_000_000) || baud_rate < non_zero!(1200) {
             return Err(ErrorCode::INVAL);
         }
 
         // force 64 bit values for precision
         let system_clock = 16000000u64; // TODO: Support dynamic clock
         let scalar = 32u64;
-        let target_baud: u64 = baud_rate.into();
+        let target_baud: u64 = baud_rate.get().into();
 
         // n.b. bits 11-0 are ignored by hardware
         let divider64 = (((target_baud << scalar) + (system_clock >> 1)) / system_clock) + 0x800;
@@ -263,7 +265,7 @@ impl<'a> Uarte<'a> {
         Ok(divider)
     }
 
-    fn set_baud_rate(&self, baud_rate: u32) -> Result<(), ErrorCode> {
+    fn set_baud_rate(&self, baud_rate: NonZero<u32>) -> Result<(), ErrorCode> {
         let divider = self.get_divider_for_baud(baud_rate)?;
         self.registers.baudrate.set(divider);
 
@@ -548,13 +550,17 @@ impl<'a> uart::Receive<'a> for Uarte<'a> {
 
 #[cfg(test)]
 mod tests {
+    use core::num::NonZero;
+    use kernel::non_zero;
     use kernel::ErrorCode;
 
     #[test]
     fn baud_rate_divider_calculation() {
         let u = super::Uarte::new(super::UARTE0_BASE);
-        assert_eq!(u.get_divider_for_baud(0), Err(ErrorCode::INVAL));
-        assert_eq!(u.get_divider_for_baud(4_000_000), Err(ErrorCode::INVAL));
+        assert_eq!(
+            u.get_divider_for_baud(non_zero!(4_000_000)),
+            Err(ErrorCode::INVAL)
+        );
 
         // The constants below are the list from the Nordic technical documents.
         //
@@ -567,34 +573,34 @@ mod tests {
         // computation of the divider yields 115203 (+0.002% err). Both work in
         // practice, but the error here is an annoying and uncharacteristic
         // Nordic quirk.
-        assert_eq!(u.get_divider_for_baud(1200), Ok(0x0004F000));
-        assert_eq!(u.get_divider_for_baud(2400), Ok(0x0009D000));
-        assert_eq!(u.get_divider_for_baud(4800), Ok(0x0013B000));
-        assert_eq!(u.get_divider_for_baud(9600), Ok(0x00275000));
-        //assert_eq!(u.get_divider_for_baud(14400), Ok(0x003AF000));
-        assert_eq!(u.get_divider_for_baud(19200), Ok(0x004EA000));
-        //assert_eq!(u.get_divider_for_baud(28800), Ok(0x0075C000));
-        //assert_eq!(u.get_divider_for_baud(38400), Ok(0x009D0000));
-        //assert_eq!(u.get_divider_for_baud(57600), Ok(0x00EB0000));
-        assert_eq!(u.get_divider_for_baud(76800), Ok(0x013A9000));
-        //assert_eq!(u.get_divider_for_baud(115200), Ok(0x01D60000));
-        //assert_eq!(u.get_divider_for_baud(230400), Ok(0x03B00000));
-        assert_eq!(u.get_divider_for_baud(250000), Ok(0x04000000));
-        //assert_eq!(u.get_divider_for_baud(460800), Ok(0x07400000));
-        //assert_eq!(u.get_divider_for_baud(921600), Ok(0x0F000000));
-        assert_eq!(u.get_divider_for_baud(1000000), Ok(0x10000000));
+        assert_eq!(u.get_divider_for_baud(non_zero!(1200)), Ok(0x0004F000));
+        assert_eq!(u.get_divider_for_baud(non_zero!(2400)), Ok(0x0009D000));
+        assert_eq!(u.get_divider_for_baud(non_zero!(4800)), Ok(0x0013B000));
+        assert_eq!(u.get_divider_for_baud(non_zero!(9600)), Ok(0x00275000));
+        //assert_eq!(u.get_divider_for_baud(non_zero!(14400)), Ok(0x003AF000));
+        assert_eq!(u.get_divider_for_baud(non_zero!(19200)), Ok(0x004EA000));
+        //assert_eq!(u.get_divider_for_baud(non_zero!(28800)), Ok(0x0075C000));
+        //assert_eq!(u.get_divider_for_baud(non_zero!(38400)), Ok(0x009D0000));
+        //assert_eq!(u.get_divider_for_baud(non_zero!(57600)), Ok(0x00EB0000));
+        assert_eq!(u.get_divider_for_baud(non_zero!(76800)), Ok(0x013A9000));
+        //assert_eq!(u.get_divider_for_baud(non_zero!(115200)), Ok(0x01D60000));
+        //assert_eq!(u.get_divider_for_baud(non_zero!(230400)), Ok(0x03B00000));
+        assert_eq!(u.get_divider_for_baud(non_zero!(250000)), Ok(0x04000000));
+        //assert_eq!(u.get_divider_for_baud(non_zero!(460800)), Ok(0x07400000));
+        //assert_eq!(u.get_divider_for_baud(non_zero!(921600)), Ok(0x0F000000));
+        assert_eq!(u.get_divider_for_baud(non_zero!(1000000)), Ok(0x10000000));
         //
         // For completeness of testing, we do verify that the calculation works
         // as-expected to generate the empirically correct divisors.  (i.e.,
         // these are not the datasheet constants, but are the correct divisors
         // for the desired bauds):
-        assert_eq!(u.get_divider_for_baud(14400), Ok(0x003B0000));
-        assert_eq!(u.get_divider_for_baud(28800), Ok(0x0075F000));
-        assert_eq!(u.get_divider_for_baud(38400), Ok(0x009D5000));
-        assert_eq!(u.get_divider_for_baud(57600), Ok(0x00EBF000));
-        assert_eq!(u.get_divider_for_baud(115200), Ok(0x01D7E000));
-        assert_eq!(u.get_divider_for_baud(230400), Ok(0x03AFB000));
-        assert_eq!(u.get_divider_for_baud(460800), Ok(0x075F7000));
-        assert_eq!(u.get_divider_for_baud(921600), Ok(0x0EBEE000));
+        assert_eq!(u.get_divider_for_baud(non_zero!(14400)), Ok(0x003B0000));
+        assert_eq!(u.get_divider_for_baud(non_zero!(28800)), Ok(0x0075F000));
+        assert_eq!(u.get_divider_for_baud(non_zero!(38400)), Ok(0x009D5000));
+        assert_eq!(u.get_divider_for_baud(non_zero!(57600)), Ok(0x00EBF000));
+        assert_eq!(u.get_divider_for_baud(non_zero!(115200)), Ok(0x01D7E000));
+        assert_eq!(u.get_divider_for_baud(non_zero!(230400)), Ok(0x03AFB000));
+        assert_eq!(u.get_divider_for_baud(non_zero!(460800)), Ok(0x075F7000));
+        assert_eq!(u.get_divider_for_baud(non_zero!(921600)), Ok(0x0EBEE000));
     }
 }

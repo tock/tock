@@ -78,6 +78,7 @@ use capsules_extra::net::ipv6::ip_utils::IPAddr;
 use kernel::component::Component;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
+use kernel::hil::uart::BAUD115200;
 #[allow(unused_imports)]
 use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -594,7 +595,7 @@ pub unsafe fn start() -> (
     PROCESS_PRINTER = Some(process_printer);
 
     // Virtualize the UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(uart_channel, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(uart_channel, BAUD115200)
         .finalize(components::uart_mux_component_static!());
 
     // Create the process console, an interactive terminal for managing

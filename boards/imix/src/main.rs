@@ -32,6 +32,7 @@ use kernel::hil::radio;
 #[allow(unused_imports)]
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::symmetric_encryption::AES128;
+use kernel::hil::uart::BAUD115200;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 
@@ -365,7 +366,7 @@ unsafe fn start() -> (
     // # CONSOLE
     // Create a shared UART channel for the consoles and for kernel debug.
     peripherals.usart3.set_mode(sam4l::usart::UsartMode::Uart);
-    let uart_mux = UartMuxComponent::new(&peripherals.usart3, 115200)
+    let uart_mux = UartMuxComponent::new(&peripherals.usart3, BAUD115200)
         .finalize(components::uart_mux_component_static!());
 
     // # TIMER

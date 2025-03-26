@@ -9,6 +9,7 @@ use kernel::debug;
 use kernel::debug::IoWrite;
 use kernel::hil::led;
 use kernel::hil::uart;
+use kernel::hil::uart::BAUD115200;
 use nrf52840::gpio::Pin;
 use nrf52840::uart::UARTE0_BASE;
 
@@ -47,7 +48,7 @@ impl IoWrite for Writer {
         if !self.initialized {
             self.initialized = true;
             let _ = uart.configure(uart::Parameters {
-                baud_rate: 115200,
+                baud_rate: BAUD115200,
                 stop_bits: uart::StopBits::One,
                 parity: uart::Parity::None,
                 hw_flow_control: false,

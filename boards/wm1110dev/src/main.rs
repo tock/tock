@@ -23,6 +23,7 @@ use kernel::hil::gpio::Output;
 use kernel::hil::led::LedHigh;
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::time::Counter;
+use kernel::hil::uart::BAUD115200;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
@@ -308,7 +309,7 @@ pub unsafe fn start() -> (
     );
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(&base_peripherals.uarte0, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(&base_peripherals.uarte0, BAUD115200)
         .finalize(components::uart_mux_component_static!());
 
     // Setup the console.

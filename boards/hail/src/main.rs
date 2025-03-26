@@ -19,6 +19,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
 use kernel::hil::led::LedLow;
+use kernel::hil::uart::BAUD115200;
 use kernel::hil::Controller;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
@@ -280,7 +281,7 @@ unsafe fn start() -> (
     peripherals.usart0.set_mode(sam4l::usart::UsartMode::Uart);
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(&peripherals.usart0, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(&peripherals.usart0, BAUD115200)
         .finalize(components::uart_mux_component_static!());
     uart_mux.initialize();
 
