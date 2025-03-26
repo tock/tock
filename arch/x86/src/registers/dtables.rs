@@ -1,6 +1,16 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2025.
+
+// This is inspired and adapted for Tock from the [x86](https://github.com/gz/rust-x86) crate.
+
 //! Functions and data-structures for working with descriptor tables.
+
 use super::segmentation::SegmentSelector;
+
+#[cfg(target_arch = "x86")]
 use core::arch::asm;
+
 use core::fmt;
 use core::mem::size_of;
 
@@ -61,6 +71,7 @@ impl<T> fmt::Debug for DescriptorTablePointer<T> {
 ///
 /// # Safety
 /// Needs CPL 0.
+#[cfg(target_arch = "x86")]
 pub unsafe fn lgdt<T>(gdt: &DescriptorTablePointer<T>) {
     unsafe {
         asm!("lgdt ({0})", in(reg) gdt, options(att_syntax));
@@ -71,6 +82,7 @@ pub unsafe fn lgdt<T>(gdt: &DescriptorTablePointer<T>) {
 ///
 /// # Safety
 /// Needs CPL 0.
+#[cfg(target_arch = "x86")]
 pub unsafe fn sgdt<T>(idt: &mut DescriptorTablePointer<T>) {
     unsafe {
         asm!("sgdt ({0})", in(reg) idt as *mut DescriptorTablePointer<T>, options(att_syntax));
@@ -87,6 +99,7 @@ pub unsafe fn sgdt<T>(idt: &mut DescriptorTablePointer<T>) {
 ///
 /// # Safety
 /// Needs CPL 0.
+#[cfg(target_arch = "x86")]
 pub unsafe fn load_ldtr(selector: SegmentSelector) {
     unsafe {
         asm!("lldt {0:x}", in(reg) selector.bits(), options(att_syntax));
@@ -100,6 +113,7 @@ pub unsafe fn load_ldtr(selector: SegmentSelector) {
 ///
 /// # Safety
 /// Needs CPL 0.
+#[cfg(target_arch = "x86")]
 pub unsafe fn ldtr() -> SegmentSelector {
     let selector: u16;
     unsafe {
@@ -112,6 +126,7 @@ pub unsafe fn ldtr() -> SegmentSelector {
 ///
 /// # Safety
 /// Needs CPL 0.
+#[cfg(target_arch = "x86")]
 pub unsafe fn lidt<T>(idt: &DescriptorTablePointer<T>) {
     unsafe {
         asm!("lidt ({0})", in(reg) idt, options(att_syntax));
@@ -122,8 +137,41 @@ pub unsafe fn lidt<T>(idt: &DescriptorTablePointer<T>) {
 ///
 /// # Safety
 /// Needs CPL 0.
+#[cfg(target_arch = "x86")]
 pub unsafe fn sidt<T>(idt: &mut DescriptorTablePointer<T>) {
     unsafe {
         asm!("sidt ({0})", in(reg) idt as *mut DescriptorTablePointer<T>, options(att_syntax));
     }
+}
+
+//For CI only
+
+#[cfg(not(target_arch = "x86"))]
+pub unsafe fn lgdt<T>(_gdt: &DescriptorTablePointer<T>) {
+    unimplemented!()
+}
+
+#[cfg(not(target_arch = "x86"))]
+pub unsafe fn sgdt<T>(_idt: &mut DescriptorTablePointer<T>) {
+    unimplemented!()
+}
+
+#[cfg(not(target_arch = "x86"))]
+pub unsafe fn load_ldtr(_selector: SegmentSelector) {
+    unimplemented!()
+}
+
+#[cfg(not(target_arch = "x86"))]
+pub unsafe fn ldtr() -> SegmentSelector {
+    unimplemented!()
+}
+
+#[cfg(not(target_arch = "x86"))]
+pub unsafe fn lidt<T>(_idt: &DescriptorTablePointer<T>) {
+    unimplemented!()
+}
+
+#[cfg(not(target_arch = "x86"))]
+pub unsafe fn sidt<T>(_idt: &mut DescriptorTablePointer<T>) {
+    unimplemented!()
 }

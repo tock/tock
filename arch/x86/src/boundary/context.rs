@@ -5,7 +5,7 @@
 use core::fmt::{self, Display, Formatter};
 use core::ptr;
 
-use x86::irq::EXCEPTIONS;
+use crate::registers::irq::EXCEPTIONS;
 
 /// Stored CPU state of a user-mode app
 ///

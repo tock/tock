@@ -20,7 +20,7 @@ unsafe fn panic_handler(pi: &PanicInfo) -> ! {
     debug::panic_print(
         &mut com1,
         pi,
-        &tock_x86::support::nop,
+        &x86::support::nop,
         &*ptr::addr_of!(PROCESSES),
         &*ptr::addr_of!(CHIP),
         &*ptr::addr_of!(PROCESS_PRINTER),

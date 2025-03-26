@@ -1,3 +1,9 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2025.
+
+// This is inspired and adapted for Tock from the [x86](https://github.com/gz/rust-x86) crate.
+
 //! Helpers to program the task state segment.
 //! See Intel 3a, Chapter 7
 

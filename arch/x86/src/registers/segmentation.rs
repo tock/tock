@@ -1,6 +1,14 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2025.
+
+// This is inspired and adapted for Tock from the [x86](https://github.com/gz/rust-x86) crate.
+
+use super::ring::Ring;
 use kernel::utilities::registers::register_bitfields;
 use tock_registers::LocalRegisterCopy;
-use super::ring::Ring;
+
+#[cfg(target_arch = "x86")]
 use core::arch::asm;
 
 macro_rules! bit {
@@ -45,14 +53,13 @@ impl SegmentSelector {
 
     /// Make a new segment selector from a untyped u16 value.
     pub fn from_raw(bits: u16) -> SegmentSelector {
-        SegmentSelector (LocalRegisterCopy::new(bits))
+        SegmentSelector(LocalRegisterCopy::new(bits))
     }
 
     pub fn bits(&self) -> u16 {
         self.0.get()
-    } 
+    }
 }
-
 
 /// Entry for IDT, GDT or LDT. Provides size and location of a segment.
 /// See Intel 3a, Section 3.4.5 "Segment Descriptors", and Section 3.5.2
@@ -67,7 +74,6 @@ impl Descriptor {
     pub const NULL: Descriptor = Descriptor { lower: 0, upper: 0 };
 
     pub(crate) fn apply_builder_settings(&mut self, builder: &DescriptorBuilder) {
-
         if let Some(ring) = builder.dpl {
             self.set_dpl(ring)
         }
@@ -106,11 +112,9 @@ impl Descriptor {
     }
 
     pub fn set_base_limit(&mut self, base: u32, limit: u32) {
-
         // Clear the base and limit fields in Descriptor
         self.lower = 0;
         self.upper &= 0x00F0FF00;
-
 
         // Set the new base
         self.lower |= base << 16;
@@ -119,9 +123,8 @@ impl Descriptor {
 
         // Set the new limit
         self.lower |= limit & 0xffff;
-        let limit_last_four_bits = (limit >> 16) & 0x0f;    
+        let limit_last_four_bits = (limit >> 16) & 0x0f;
         self.upper |= limit_last_four_bits << 16;
-
     }
 
     /// Creates a new descriptor with selector and offset (for IDT Gate descriptors,
@@ -139,7 +142,6 @@ impl Descriptor {
         // Set offset
         self.lower |= offset & 0x0000ffff;
         self.upper |= offset & 0xffff0000;
-
     }
 
     /// Set the type of the descriptor (bits 8-11).
@@ -224,7 +226,6 @@ impl BuildDescriptor<Descriptor> for DescriptorBuilder {
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum CodeSegmentType {
-
     /// Code Execute-Only
     Execute = 0b1000,
 
@@ -248,7 +249,6 @@ pub enum CodeSegmentType {
 
     /// Code Execute/Read, conforming, accessed
     ExecuteReadConformingAccessed = 0b1111,
-
 }
 
 /// Data Segment types for descriptors.
@@ -299,13 +299,11 @@ impl GateDescriptorBuilder<u32> for DescriptorBuilder {
         DescriptorBuilder::with_base_limit(base, limit).set_type(typ)
     }
 
-
     fn call_gate_descriptor(selector: SegmentSelector, offset: u32) -> DescriptorBuilder {
         DescriptorBuilder::with_selector_offset(selector, offset.into()).set_type(
             DescriptorType::System32(SystemDescriptorTypes32::CallGate32),
         )
     }
-
 
     fn interrupt_descriptor(selector: SegmentSelector, offset: u32) -> DescriptorBuilder {
         DescriptorBuilder::with_selector_offset(selector, offset.into()).set_type(
@@ -313,13 +311,10 @@ impl GateDescriptorBuilder<u32> for DescriptorBuilder {
         )
     }
 
-
     fn trap_gate_descriptor(selector: SegmentSelector, offset: u32) -> DescriptorBuilder {
         DescriptorBuilder::with_selector_offset(selector, offset.into()).set_type(
             DescriptorType::System32(SystemDescriptorTypes32::TrapGate32),
-
         )
-
     }
 }
 
@@ -341,10 +336,8 @@ impl SegmentDescriptorBuilder<u32> for DescriptorBuilder {
     }
 }
 
-
 /// Makes building descriptors easier (hopefully).
 pub struct DescriptorBuilder {
-
     /// The base defines the location of byte 0 of the segment within the 4-GByte linear address space.
 
     /// The limit is the size of the range covered by the segment. Really a 20bit value.
@@ -448,8 +441,9 @@ impl DescriptorBuilder {
 /// Reload stack segment register.
 /// # Safety
 /// Needs CPL 0.
+#[cfg(target_arch = "x86")]
 pub unsafe fn load_ss(sel: SegmentSelector) {
-    unsafe{
+    unsafe {
         asm!("movw {0:x}, %ss", in(reg) sel.bits(), options(att_syntax));
     }
 }
@@ -457,8 +451,9 @@ pub unsafe fn load_ss(sel: SegmentSelector) {
 /// Reload data segment register.
 /// # Safety
 /// Needs CPL 0.
+#[cfg(target_arch = "x86")]
 pub unsafe fn load_ds(sel: SegmentSelector) {
-    unsafe{
+    unsafe {
         asm!("movw {0:x}, %ds", in(reg) sel.bits(), options(att_syntax));
     }
 }
@@ -466,8 +461,9 @@ pub unsafe fn load_ds(sel: SegmentSelector) {
 /// Reload es segment register.
 /// # Safety
 /// Needs CPL 0.
+#[cfg(target_arch = "x86")]
 pub unsafe fn load_es(sel: SegmentSelector) {
-    unsafe{
+    unsafe {
         asm!("movw {0:x}, %es", in(reg) sel.bits(), options(att_syntax));
     }
 }
@@ -475,8 +471,9 @@ pub unsafe fn load_es(sel: SegmentSelector) {
 /// Reload fs segment register.
 /// # Safety
 /// Needs CPL 0.
+#[cfg(target_arch = "x86")]
 pub unsafe fn load_fs(sel: SegmentSelector) {
-    unsafe{
+    unsafe {
         asm!("movw {0:x}, %fs", in(reg) sel.bits(), options(att_syntax));
     }
 }
@@ -484,14 +481,16 @@ pub unsafe fn load_fs(sel: SegmentSelector) {
 /// Reload gs segment register.
 /// # Safety
 /// Needs CPL 0.
+#[cfg(target_arch = "x86")]
 pub unsafe fn load_gs(sel: SegmentSelector) {
-    unsafe{
+    unsafe {
         asm!("movw {0:x}, %gs", in(reg) sel.bits(), options(att_syntax));
     }
 }
 
+#[cfg(target_arch = "x86")]
 pub unsafe fn load_cs(sel: SegmentSelector) {
-    unsafe{
+    unsafe {
         asm!("pushl {0}; \
             pushl $1f; \
             lretl; \
@@ -511,9 +510,7 @@ pub(crate) enum DescriptorType {
 /// See also Intel 3a, Table 3-2 System Segment and Gate-Descriptor Types.
 
 #[allow(clippy::upper_case_acronyms)]
-
 #[repr(u8)]
-
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 
 pub enum SystemDescriptorTypes32 {
@@ -536,4 +533,36 @@ pub enum SystemDescriptorTypes32 {
     //Reserved3 = 0b1101,
     InterruptGate32 = 0b1110,
     TrapGate32 = 0b1111,
+}
+
+//For CI only
+
+#[cfg(not(target_arch = "x86"))]
+pub unsafe fn load_ss(_sel: SegmentSelector) {
+    unimplemented!()
+}
+
+#[cfg(not(target_arch = "x86"))]
+pub unsafe fn load_ds(_sel: SegmentSelector) {
+    unimplemented!()
+}
+
+#[cfg(not(target_arch = "x86"))]
+pub unsafe fn load_es(_sel: SegmentSelector) {
+    unimplemented!()
+}
+
+#[cfg(not(target_arch = "x86"))]
+pub unsafe fn load_fs(_sel: SegmentSelector) {
+    unimplemented!()
+}
+
+#[cfg(not(target_arch = "x86"))]
+pub unsafe fn load_gs(_sel: SegmentSelector) {
+    unimplemented!()
+}
+
+#[cfg(not(target_arch = "x86"))]
+pub unsafe fn load_cs(_sel: SegmentSelector) {
+    unimplemented!()
 }

@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2024.
 
-use tock_x86::InterruptPoller;
+use x86::InterruptPoller;
 
 use super::pic;
 
 /// Handler for external interrupts.
 ///
-/// This function is called by the [`tock_x86`] crate to handle interrupts from external devices.
+/// This function is called by the [`x86`] crate to handle interrupts from external devices.
 /// It calls [`InterruptPoller::set_pending`] to mark the interrupt as pending, then issues an EOI
 /// message to the system interrupt controller so that subsequent interrupts can be delivered.
 ///

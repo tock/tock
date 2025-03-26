@@ -1,3 +1,9 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2025.
+
+// This is inspired and adapted for Tock from the [x86](https://github.com/gz/rust-x86) crate.
+
 //! Description of the data-structures for IA-32 paging mode.
 
 use core::fmt;
@@ -27,14 +33,15 @@ impl From<i32> for PAddr {
         PAddr(num as u32)
     }
 }
-#[allow(clippy::clippy::from_over_into)]
+
+#[allow(clippy::from_over_into)]
 impl Into<u32> for PAddr {
     fn into(self) -> u32 {
         self.0
     }
 }
 
-#[allow(clippy::clippy::from_over_into)]
+#[allow(clippy::from_over_into)]
 impl Into<usize> for PAddr {
     fn into(self) -> usize {
         self.0 as usize

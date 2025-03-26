@@ -6,7 +6,7 @@
 //!
 //! ## Safety
 //!
-//! This crate inherits all of the same safety hazards as outlined by [`tock_x86`].
+//! This crate inherits all of the same safety hazards as outlined by [`x86`].
 //!
 //! Additionally, this crate assumes the presence of certain traditional/legacy PC peripherals such
 //! as serial ports and interrupt controllers.

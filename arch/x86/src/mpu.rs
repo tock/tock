@@ -4,11 +4,11 @@
 
 // todo: this module needs some polish
 
-use crate::tock_x86::bits32::paging::{
+use crate::registers::bits32::paging::{
     PAddr, PDEntry, PTEntry, PTFlags, PD, PDFLAGS, PT, PTFLAGS,
 };
-use crate::tock_x86::controlregs::{self, CR0, CR4};
-use crate::tock_x86::tlb;
+use crate::registers::controlregs::{self, CR0, CR4};
+use crate::registers::tlb;
 use core::{cmp, fmt, mem};
 use kernel::platform::mpu::{Permissions, Region, MPU};
 use kernel::utilities::cells::MapCell;
@@ -162,8 +162,8 @@ impl<'a> PagingMPU<'a> {
         let mpu = Self {
             num_regions: 0,
             config_pages: MapCell::empty(),
-            page_dir_paddr: page_dir_paddr,
-            page_table_paddr: page_table_paddr,
+            page_dir_paddr,
+            page_table_paddr,
             pd: page_dir,
             pt: page_table,
         };

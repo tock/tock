@@ -1,5 +1,10 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2025.
+
+// This is inspired and adapted for Tock from the [x86](https://github.com/gz/rust-x86) crate.
+
 use core::fmt;
-use core::arch::asm;
 /// x86 Exception description (see also Intel Vol. 3a Chapter 6).
 #[derive(Debug)]
 pub struct InterruptDescription {
@@ -281,8 +286,32 @@ pub static EXCEPTIONS: [InterruptDescription; 32] = [
 ///
 /// # Safety
 /// Only allowed if we have IO privileges for the current operating level in RFlags.
+#[cfg(target_arch = "x86")]
 pub unsafe fn enable() {
-    unsafe{
+    unsafe {
         asm!("sti");
     }
+}
+
+/// Disable Interrupts.
+///
+/// # Safety
+/// Only allowed if we have IO privileges for the current operating level in RFlags.
+#[cfg(target_arch = "x86")]
+pub unsafe fn disable() {
+    unsafe {
+        asm!("cli");
+    }
+}
+
+//For CI only
+
+#[cfg(not(target_arch = "x86"))]
+pub unsafe fn enable() {
+    unimplemented!()
+}
+
+#[cfg(not(target_arch = "x86"))]
+pub unsafe fn disable() {
+    unimplemented!()
 }

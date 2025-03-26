@@ -10,8 +10,7 @@ edition.workspace = true
 
 [dependencies]
 kernel = { path = "../../kernel" }
-tock-x86 = { path = "../../arch/x86" }
+x86 = { path = "../../arch/x86" }
 tock-registers = { path = "../../libraries/tock-register-interface" }
 tock-cells = { path = "../../libraries/tock-cells" }
-# todo: remove external dependency
-x86 = "0.51"
+

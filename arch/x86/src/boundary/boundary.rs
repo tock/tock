@@ -4,13 +4,13 @@
 
 use core::fmt::Write;
 
-use x86::bits32::eflags::EFlags;
+use crate::registers::bits32::eflags::{EFlags, EFLAGS};
 
 use kernel::process::FunctionCall;
 use kernel::syscall::{ContextSwitchReason, Syscall, SyscallReturn, UserspaceKernelBoundary};
 use kernel::ErrorCode;
 
-use crate::interrupts::{SYSCALL_VECTOR, IDT_RESERVED_EXCEPTIONS};
+use crate::interrupts::{IDT_RESERVED_EXCEPTIONS, SYSCALL_VECTOR};
 use crate::segmentation::{USER_CODE, USER_DATA};
 
 use super::UserContext;
@@ -55,7 +55,7 @@ impl UserspaceKernelBoundary for Boundary {
         let esp = (app_brk as u32) - 16;
 
         let mut eflags = EFlags::new();
-        eflags.set(EFlags::FLAGS_IF, true);
+        eflags.0.modify(EFLAGS::FLAGS_IF::SET);
 
         state.eax = 0;
         state.ebx = 0;
@@ -66,7 +66,7 @@ impl UserspaceKernelBoundary for Boundary {
         state.ebp = 0;
         state.esp = esp;
         state.eip = 0;
-        state.eflags = eflags.bits();
+        state.eflags = eflags.0.get();
         state.cs = USER_CODE.bits() as u32;
         state.ss = USER_DATA.bits() as u32;
         state.ds = USER_DATA.bits() as u32;

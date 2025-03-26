@@ -8,10 +8,11 @@ use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::platform::chip::Chip;
 
-use tock_x86::tock_x86::bits32::paging::{PD, PT};
-use tock_x86::mpu::PagingMPU;
-use tock_x86::support;
-use tock_x86::{Boundary, InterruptPoller};
+use x86::mpu::PagingMPU;
+use x86::registers::bits32::eflags::EFLAGS;
+use x86::registers::bits32::paging::{PD, PT};
+use x86::support;
+use x86::{Boundary, InterruptPoller};
 
 use crate::pit::{Pit, RELOAD_1KHZ};
 use crate::serial::{SerialPort, SerialPortComponent, COM1_BASE, COM2_BASE, COM3_BASE, COM4_BASE};
@@ -96,13 +97,13 @@ impl<'a, const PR: u16> Chip for Pc<'a, PR> {
 
     #[cfg(target_arch = "x86")]
     fn sleep(&self) {
-        use x86::bits32::eflags::{self, EFlags};
+        use x86::registers::bits32::eflags;
 
         // On conventional embedded architectures like ARM and RISC-V, interrupts must be disabled
         // before going to sleep. But on x86 it is the opposite; we must ensure interrupts are
         // enabled before issuing the HLT instruction. Otherwise we will never wake up.
         let eflags = unsafe { eflags::read() };
-        let enabled = eflags.contains(EFlags::FLAGS_IF);
+        let enabled = eflags.0.is_set(EFLAGS::FLAGS_IF);
 
         if enabled {
             // Interrupts are already enabled, so go ahead and HLT.
@@ -159,7 +160,7 @@ impl<'a, const PR: u16> Chip for Pc<'a, PR> {
 ///
 /// During the call to `finalize()`, this helper will perform low-level initialization of the PC
 /// hardware to ensure a consistent CPU state. This includes initializing memory segmentation and
-/// interrupt handling. See [`tock_x86::init`] for further details.
+/// interrupt handling. See [`x86::init`] for further details.
 pub struct PcComponent<'a> {
     pd: &'a mut PD,
     pt: &'a mut PT,
@@ -176,7 +177,7 @@ impl<'a> PcComponent<'a> {
     /// Before calling, memory must be identity-mapped. Otherwise, introduction of flat segmentation
     /// will cause the kernel's code/data to move unexpectedly.
     ///
-    /// See [`tock_x86::init`] for further details.
+    /// See [`x86::init`] for further details.
     pub unsafe fn new(pd: &'a mut PD, pt: &'a mut PT) -> Self {
         Self { pd, pt }
     }
@@ -196,7 +197,7 @@ impl Component for PcComponent<'static> {
         // Low-level hardware initialization. We do this first to guarantee the CPU is in a
         // predictable state before initializing the chip object.
         unsafe {
-            tock_x86::init();
+            x86::init();
             crate::pic::init();
         }
 

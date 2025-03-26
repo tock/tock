@@ -17,7 +17,7 @@ use core::cell::Cell;
 use core::fmt::{self, Write};
 use core::mem::MaybeUninit;
 
-use tock_x86::tock_x86::io;
+use x86::registers::io;
 
 use kernel::component::Component;
 use kernel::debug::IoWrite;

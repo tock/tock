@@ -40,14 +40,14 @@
 use core::mem;
 use core::ptr;
 
-use crate::tock_x86::bits32::task::TaskStateSegment;
-use crate::tock_x86::dtables::{self, DescriptorTablePointer};
-use crate::tock_x86::ring::Ring;
-use crate::tock_x86::segmentation::{
+use crate::registers::bits32::task::TaskStateSegment;
+use crate::registers::dtables::{self, DescriptorTablePointer};
+use crate::registers::ring::Ring;
+use crate::registers::segmentation::{
     self, BuildDescriptor, CodeSegmentType, DataSegmentType, Descriptor, DescriptorBuilder,
     GateDescriptorBuilder, SegmentDescriptorBuilder, SegmentSelector,
 };
-use crate::tock_x86::task;
+use crate::registers::task;
 
 use kernel::static_init;
 

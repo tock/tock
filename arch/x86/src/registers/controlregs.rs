@@ -1,4 +1,9 @@
-use core::arch::asm;
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2025.
+
+// This is inspired and adapted for Tock from the [x86](https://github.com/gz/rust-x86) crate.
+
 use kernel::utilities::registers::register_bitfields;
 use tock_registers::LocalRegisterCopy;
 
@@ -48,6 +53,7 @@ pub type Cr4 = LocalRegisterCopy<u32, CR4::Register>;
 ///
 /// # Safety
 /// Needs CPL 0.
+#[cfg(target_arch = "x86")]
 pub unsafe fn cr0() -> Cr0 {
     let ret: u32;
     unsafe {
@@ -60,6 +66,7 @@ pub unsafe fn cr0() -> Cr0 {
 ///
 /// # Safety
 /// Needs CPL 0.
+#[cfg(target_arch = "x86")]
 pub unsafe fn cr0_write(val: Cr0) {
     unsafe {
         asm!("mov {0}, %cr0", in(reg) val.get(), options(att_syntax));
@@ -70,6 +77,7 @@ pub unsafe fn cr0_write(val: Cr0) {
 ///
 /// # Safety
 /// Needs CPL 0.
+#[cfg(target_arch = "x86")]
 pub unsafe fn cr4() -> Cr4 {
     let ret: u32;
     unsafe {
@@ -83,7 +91,7 @@ pub unsafe fn cr4() -> Cr4 {
 /// # Example
 ///
 /// ```no_run
-/// use x86::controlregs::*;
+/// use x86::registers::controlregs::*;
 /// unsafe {
 ///   let cr4 = cr4();
 ///   let cr4 = cr4 | Cr4::CR4_ENABLE_PSE;
@@ -93,6 +101,7 @@ pub unsafe fn cr4() -> Cr4 {
 ///
 /// # Safety
 /// Needs CPL 0.
+#[cfg(target_arch = "x86")]
 pub unsafe fn cr4_write(val: Cr4) {
     unsafe {
         asm!("mov {0}, %cr4", in(reg) val.get(), options(att_syntax));
@@ -103,6 +112,7 @@ pub unsafe fn cr4_write(val: Cr4) {
 ///
 /// # Safety
 /// Needs CPL 0.
+#[cfg(target_arch = "x86")]
 pub unsafe fn cr3() -> u64 {
     let ret: usize;
     unsafe {
@@ -115,8 +125,41 @@ pub unsafe fn cr3() -> u64 {
 ///
 /// # Safety
 /// Needs CPL 0.
+#[cfg(target_arch = "x86")]
 pub unsafe fn cr3_write(val: u64) {
     unsafe {
         asm!("mov {0}, %cr3", in(reg) val as usize, options(att_syntax));
     }
+}
+
+// For CI only
+
+#[cfg(not(target_arch = "x86"))]
+pub unsafe fn cr0() -> Cr0 {
+    unimplemented!()
+}
+
+#[cfg(not(target_arch = "x86"))]
+pub unsafe fn cr0_write(_val: Cr0) {
+    unimplemented!()
+}
+
+#[cfg(not(target_arch = "x86"))]
+pub unsafe fn cr4() -> Cr4 {
+    unimplemented!()
+}
+
+#[cfg(not(target_arch = "x86"))]
+pub unsafe fn cr4_write(_val: Cr4) {
+    unimplemented!()
+}
+
+#[cfg(not(target_arch = "x86"))]
+pub unsafe fn cr3() -> u64 {
+    unimplemented!()
+}
+
+#[cfg(not(target_arch = "x86"))]
+pub unsafe fn cr3_write(_val: u64) {
+    unimplemented!()
 }

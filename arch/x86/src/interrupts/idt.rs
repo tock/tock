@@ -19,10 +19,12 @@
 //! [`handler_stub_1`]). Care is taken to ensure each stub is the exact same size, which allows us
 //! to use these symbols to compute the addresses of all the rest.
 
-use crate::tock_x86::dtables::{self, DescriptorTablePointer};
-use crate::tock_x86::irq::{BREAKPOINT_VECTOR, DEBUG_VECTOR, OVERFLOW_VECTOR};
-use crate::tock_x86::segmentation::{BuildDescriptor, Descriptor, DescriptorBuilder, GateDescriptorBuilder};
-use crate::tock_x86::ring::Ring;
+use crate::registers::dtables::{self, DescriptorTablePointer};
+use crate::registers::irq::{BREAKPOINT_VECTOR, DEBUG_VECTOR, OVERFLOW_VECTOR};
+use crate::registers::ring::Ring;
+use crate::registers::segmentation::{
+    BuildDescriptor, Descriptor, DescriptorBuilder, GateDescriptorBuilder,
+};
 
 use kernel::static_init;
 

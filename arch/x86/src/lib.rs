@@ -36,7 +36,6 @@
 
 #![deny(unsafe_op_in_unsafe_fn)]
 #![no_std]
-
 mod boundary;
 pub use boundary::Boundary;
 
@@ -50,7 +49,7 @@ pub mod support;
 
 pub mod mpu;
 
-pub mod tock_x86;
+pub mod registers;
 
 core::arch::global_asm!(include_str!("start.s"));
 
@@ -75,5 +74,23 @@ pub unsafe fn init() {
     unsafe {
         segmentation::init();
         interrupts::init();
+    }
+}
+
+/// Stops instruction execution and places the processor in a HALT state.
+///
+/// An enabled interrupt (including NMI and SMI), a debug exception, the BINIT#
+/// signal, the INIT# signal, or the RESET# signal will resume execution. If an
+/// interrupt (including NMI) is used to resume execution after a HLT instruction,
+/// the saved instruction pointer (CS:EIP) points to the instruction following
+/// the HLT instruction.
+///
+/// # Safety
+/// Will cause a general protection fault if used outside of ring 0.
+#[cfg(target_arch = "x86")]
+#[inline(always)]
+pub unsafe fn halt() {
+    unsafe {
+        asm!("hlt", options(att_syntax, nomem, nostack)); // check if preserves_flags
     }
 }
