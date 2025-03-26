@@ -72,7 +72,7 @@ impl<'a> hil::public_key_crypto::signature::SignatureVerify<'a, 32, 64>
                     })
                     .unwrap()
             } else {
-                Err((kernel::ErrorCode::FAIL, hash, signature))
+                Err((kernel::ErrorCode::INVAL, hash, signature))
             }
         } else {
             Err((kernel::ErrorCode::FAIL, hash, signature))
