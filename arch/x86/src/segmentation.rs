@@ -83,7 +83,7 @@ unsafe fn init_tss() -> Descriptor {
         TSS_INSTANCE.ss0 = KERNEL_DATA.bits();
     }
 
-    let tss_base = unsafe { ptr::addr_of!(TSS_INSTANCE) } as u64;
+    let tss_base = ptr::addr_of!(TSS_INSTANCE) as u64;
     let tss_limit = mem::size_of::<TaskStateSegment>() as u64;
 
     <DescriptorBuilder as GateDescriptorBuilder<u32>>::tss_descriptor(tss_base, tss_limit, true)
