@@ -141,7 +141,6 @@ pub fn load_processes<C: Chip>(
     chip: &'static C,
     app_flash: &'static [u8],
     app_memory: &'static mut [u8],
-    mut procs: &'static mut [Option<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
     _capability_management: &dyn ProcessManagementCapability,
 ) -> Result<(), ProcessLoadError> {
@@ -150,19 +149,14 @@ pub fn load_processes<C: Chip>(
         chip,
         app_flash,
         app_memory,
-        &mut procs,
         fault_policy,
     )?;
 
     if config::CONFIG.debug_process_credentials {
         debug!("Checking: no checking, load and run all processes");
-    }
-    for proc in procs.iter() {
-        proc.map(|p| {
-            if config::CONFIG.debug_process_credentials {
-                debug!("Running {}", p.get_process_name());
-            }
-        });
+        for proc in kernel.get_process_iter() {
+            debug!("Running {}", proc.get_process_name());
+        }
     }
     Ok(())
 }
@@ -191,7 +185,6 @@ fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
     chip: &'static C,
     app_flash: &'static [u8],
     app_memory: &'static mut [u8],
-    procs: &mut &'static mut [Option<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
 ) -> Result<(), ProcessLoadError> {
     if config::CONFIG.debug_load_processes {
@@ -206,10 +199,8 @@ fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
 
     let mut remaining_flash = app_flash;
     let mut remaining_memory = app_memory;
-    // Try to discover up to `procs.len()` processes in flash.
-    let mut index = 0;
-    let num_procs = procs.len();
-    while index < num_procs {
+
+    loop {
         let load_binary_result = discover_process_binary(remaining_flash);
 
         match load_binary_result {
@@ -222,23 +213,18 @@ fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
                     process_binary,
                     remaining_memory,
                     ShortId::LocallyUnique,
-                    index,
                     fault_policy,
                     &(),
                 );
                 match load_result {
                     Ok((new_mem, proc)) => {
                         remaining_memory = new_mem;
-                        match proc {
-                            Some(p) => {
-                                if config::CONFIG.debug_load_processes {
+                        if config::CONFIG.debug_load_processes {
+                            match proc {
+                                Some(p) => {
                                     debug!("Loaded process {}", p.get_process_name())
                                 }
-                                procs[index] = proc;
-                                index += 1;
-                            }
-                            None => {
-                                if config::CONFIG.debug_load_processes {
+                                None => {
                                     debug!("No process loaded.");
                                 }
                             }
@@ -360,7 +346,6 @@ fn load_process<C: Chip, D: ProcessStandardDebug>(
     process_binary: ProcessBinary,
     app_memory: &'static mut [u8],
     app_id: ShortId,
-    index: usize,
     fault_policy: &'static dyn ProcessFaultPolicy,
     storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C, D>,
 ) -> Result<(&'static mut [u8], Option<&'static dyn Process>), (&'static mut [u8], ProcessLoadError)>
@@ -394,7 +379,6 @@ fn load_process<C: Chip, D: ProcessStandardDebug>(
             fault_policy,
             storage_policy,
             app_id,
-            index,
         )
         .map_err(|(e, memory)| (memory, e))?
     };
@@ -404,7 +388,7 @@ fn load_process<C: Chip, D: ProcessStandardDebug>(
             debug!(
                 "Loading: {} [{}] flash={:#010X}-{:#010X} ram={:#010X}-{:#010X}",
                 process.get_process_name(),
-                index,
+                process.processid().index,
                 process.get_addresses().flash_start,
                 process.get_addresses().flash_end,
                 process.get_addresses().sram_start,
@@ -474,8 +458,6 @@ pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static, D: ProcessStand
     client: OptionalCell<&'a dyn ProcessLoadingAsyncClient>,
     /// Machine to use to check process credentials.
     checker: &'static ProcessCheckerMachine,
-    /// Array of stored process references for loaded processes.
-    procs: MapCell<&'static mut [Option<&'static dyn Process>]>,
     /// Array to store `ProcessBinary`s after checking credentials.
     proc_binaries: MapCell<&'static mut [Option<ProcessBinary>]>,
     /// Flash memory region to load processes from.
@@ -505,7 +487,6 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
     /// function.
     pub fn new(
         checker: &'static ProcessCheckerMachine,
-        procs: &'static mut [Option<&'static dyn Process>],
         proc_binaries: &'static mut [Option<ProcessBinary>],
         kernel: &'static Kernel,
         chip: &'static C,
@@ -520,7 +501,6 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
             deferred_call: DeferredCall::new(),
             checker,
             client: OptionalCell::empty(),
-            procs: MapCell::new(procs),
             proc_binaries: MapCell::new(proc_binaries),
             kernel,
             chip,
@@ -531,18 +511,6 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
             storage_policy,
             state: OptionalCell::empty(),
         }
-    }
-
-    /// Find a slot in the `PROCESSES` array to store this process.
-    fn find_open_process_slot(&self) -> Option<usize> {
-        self.procs.map_or(None, |procs| {
-            for (i, p) in procs.iter().enumerate() {
-                if p.is_none() {
-                    return Some(i);
-                }
-            }
-            None
-        })
     }
 
     /// Find a slot in the `PROCESS_BINARIES` array to store this process.
@@ -699,92 +667,66 @@ impl<C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'_, C, D> 
                 // doesn't conflict with any of those. Since those processes
                 // are already loaded, we just need to check if this process
                 // binary has the same AppID as an already loaded process.
-                self.procs.map(|procs| {
-                    for proc in procs.iter() {
-                        match proc {
-                            Some(p) => {
-                                let blocked =
-                                    self.is_blocked_from_loading_by_process(&process_binary, *p);
+                for proc in self.kernel.get_process_iter() {
+                    let blocked = self.is_blocked_from_loading_by_process(&process_binary, proc);
 
-                                if blocked {
-                                    ok_to_load = false;
-                                    break;
-                                }
-                            }
-                            None => {}
-                        }
+                    if blocked {
+                        ok_to_load = false;
+                        break;
                     }
-                });
+                }
 
                 if !ok_to_load {
                     continue;
                 }
 
                 // If we get here it is ok to load the process.
-                match self.find_open_process_slot() {
-                    Some(index) => {
-                        // Calculate the ShortId for this new process.
-                        let short_app_id = self.policy.map_or(ShortId::LocallyUnique, |policy| {
-                            policy.to_short_id(&process_binary)
-                        });
 
-                        // Try to create a `Process` object.
-                        let load_result = load_process(
-                            self.kernel,
-                            self.chip,
-                            process_binary,
-                            self.app_memory.take(),
-                            short_app_id,
-                            index,
-                            self.fault_policy,
-                            self.storage_policy,
-                        );
-                        match load_result {
-                            Ok((new_mem, proc)) => {
-                                self.app_memory.set(new_mem);
-                                match proc {
-                                    Some(p) => {
-                                        if config::CONFIG.debug_load_processes {
-                                            debug!(
-                                                "Loading: Loaded process {}",
-                                                p.get_process_name()
-                                            )
-                                        }
+                // Calculate the ShortId for this new process.
+                let short_app_id = self.policy.map_or(ShortId::LocallyUnique, |policy| {
+                    policy.to_short_id(&process_binary)
+                });
 
-                                        // Store the `ProcessStandard` object in the `PROCESSES`
-                                        // array.
-                                        self.procs.map(|procs| {
-                                            procs[index] = proc;
-                                        });
-                                        // Notify the client the process was loaded
-                                        // successfully.
-                                        self.client.map(|client| {
-                                            client.process_loaded(Ok(()));
-                                        });
-                                    }
-                                    None => {
-                                        if config::CONFIG.debug_load_processes {
-                                            debug!("No process loaded.");
-                                        }
-                                    }
-                                }
-                            }
-                            Err((new_mem, err)) => {
-                                self.app_memory.set(new_mem);
+                // Try to create a `Process` object.
+                let load_result = load_process(
+                    self.kernel,
+                    self.chip,
+                    process_binary,
+                    self.app_memory.take(),
+                    short_app_id,
+                    self.fault_policy,
+                    self.storage_policy,
+                );
+                match load_result {
+                    Ok((new_mem, proc)) => {
+                        self.app_memory.set(new_mem);
+                        match proc {
+                            Some(p) => {
                                 if config::CONFIG.debug_load_processes {
-                                    debug!("Could not load process: {:?}.", err);
+                                    debug!("Loading: Loaded process {}", p.get_process_name())
                                 }
 
+                                // Notify the client the process was loaded
+                                // successfully.
                                 self.client.map(|client| {
-                                    client.process_loaded(Err(err));
+                                    client.process_loaded(Ok(()));
                                 });
+                            }
+                            None => {
+                                if config::CONFIG.debug_load_processes {
+                                    debug!("No process loaded.");
+                                }
                             }
                         }
                     }
-                    None => {
-                        // Nowhere to store the process.
+                    Err((new_mem, err)) => {
+                        self.app_memory.set(new_mem);
+                        if config::CONFIG.debug_load_processes {
+                            debug!("Could not load process: {:?}.", err);
+                        }
+
                         self.client.map(|client| {
-                            client.process_loaded(Err(ProcessLoadError::NoProcessSlot));
+                            client.process_loaded(Err(err));
                         });
                     }
                 }

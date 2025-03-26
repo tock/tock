@@ -1545,7 +1545,6 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         fault_policy: &'static dyn ProcessFaultPolicy,
         storage_permissions_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C, D>,
         app_id: ShortId,
-        index: usize,
     ) -> Result<(Option<&'static dyn Process>, &'a mut [u8]), (ProcessLoadError, &'a mut [u8])>
     {
         let process_name = pb.header.get_package_name();
@@ -1879,18 +1878,11 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         let process: &mut ProcessStandard<C, D> =
             &mut *(process_struct_memory_location as *mut ProcessStandard<'static, C, D>);
 
-        // Ask the kernel for a unique identifier for this process that is being
-        // created.
-        let unique_identifier = kernel.create_process_identifier();
-
         // Save copies of these in case the app was compiled for fixed addresses
         // for later debugging.
         let fixed_address_flash = pb.header.get_fixed_address_flash();
         let fixed_address_ram = pb.header.get_fixed_address_ram();
 
-        process
-            .process_id
-            .set(ProcessId::new(kernel, unique_identifier, index));
         process.app_id = app_id;
         process.kernel = kernel;
         process.chip = chip;
@@ -1999,8 +1991,15 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // permissions.
         process.storage_permissions = storage_permissions_policy.get_permissions(process);
 
-        // Return the process object and a remaining memory for processes slice.
-        Ok((Some(process), unused_memory))
+        match kernel.allocate_next_available_process(process) {
+            Ok(process_id) => {
+                process.process_id.set(process_id);
+
+                // Return the process object and a remaining memory for processes slice.
+                Ok((Some(process), unused_memory))
+            }
+            Err(err) => Err((err, unused_memory)),
+        }
     }
 
     /// Reset the process, resetting all of its state and re-initializing it so

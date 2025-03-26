@@ -13,7 +13,6 @@
 #![deny(missing_docs)]
 
 use core::ptr::addr_of;
-use core::ptr::addr_of_mut;
 
 use kernel::capabilities;
 use kernel::component::Component;
@@ -25,6 +24,7 @@ use kernel::hil::spi::SpiMaster;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
+use kernel::ProcessArray;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
@@ -79,8 +79,7 @@ const FAULT_RESPONSE: capsules_system::process_policies::StopWithDebugFaultPolic
 const NUM_PROCS: usize = 8;
 
 // State for loading and holding applications.
-static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
-    [None; NUM_PROCS];
+static mut PROCESSES: ProcessArray<NUM_PROCS> = kernel::init_process_array();
 
 static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>> = None;
 static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
@@ -532,7 +531,6 @@ pub unsafe fn start() -> (
             core::ptr::addr_of_mut!(_sappmem),
             core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_management_capability,
     )

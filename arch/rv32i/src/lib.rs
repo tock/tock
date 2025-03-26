@@ -561,52 +561,22 @@ pub unsafe fn print_riscv_state(writer: &mut dyn Write) {
     let e_usoft = csr::CSR.mie.is_set(csr::mie::mie::usoft);
     let e_ssoft = csr::CSR.mie.is_set(csr::mie::mie::ssoft);
     let e_msoft = csr::CSR.mie.is_set(csr::mie::mie::msoft);
-    let e_utimer = csr::CSR.mie.is_set(csr::mie::mie::utimer);
-    let e_stimer = csr::CSR.mie.is_set(csr::mie::mie::stimer);
-    let e_mtimer = csr::CSR.mie.is_set(csr::mie::mie::mtimer);
-    let e_uext = csr::CSR.mie.is_set(csr::mie::mie::uext);
-    let e_sext = csr::CSR.mie.is_set(csr::mie::mie::sext);
-    let e_mext = csr::CSR.mie.is_set(csr::mie::mie::mext);
 
     let p_usoft = csr::CSR.mip.is_set(csr::mip::mip::usoft);
     let p_ssoft = csr::CSR.mip.is_set(csr::mip::mip::ssoft);
     let p_msoft = csr::CSR.mip.is_set(csr::mip::mip::msoft);
-    let p_utimer = csr::CSR.mip.is_set(csr::mip::mip::utimer);
-    let p_stimer = csr::CSR.mip.is_set(csr::mip::mip::stimer);
-    let p_mtimer = csr::CSR.mip.is_set(csr::mip::mip::mtimer);
-    let p_uext = csr::CSR.mip.is_set(csr::mip::mip::uext);
-    let p_sext = csr::CSR.mip.is_set(csr::mip::mip::sext);
-    let p_mext = csr::CSR.mip.is_set(csr::mip::mip::mext);
     let _ = writer.write_fmt(format_args!(
         "\r\n mie:   {:#010X}   mip:   {:#010X}\
-         \r\n  usoft:  {:6}              {:6}\
-         \r\n  ssoft:  {:6}              {:6}\
-         \r\n  msoft:  {:6}              {:6}\
-         \r\n  utimer: {:6}              {:6}\
-         \r\n  stimer: {:6}              {:6}\
-         \r\n  mtimer: {:6}              {:6}\
-         \r\n  uext:   {:6}              {:6}\
-         \r\n  sext:   {:6}              {:6}\
-         \r\n  mext:   {:6}              {:6}\r\n",
+         \r\n  usoft:  {e_usoft:6}              {p_usoft:6}\
+         \r\n  ssoft:  {e_ssoft:6}              {p_ssoft:6}\
+         \r\n  msoft:  {e_msoft:6}              {p_msoft:6}\r\n",
+        /*\r\n  utimer: {e_utimer:6}              {p_utimer:6}\
+        \r\n  stimer: {e_stimer:6}              {p_stimer:6}\
+        \r\n  mtimer: {e_mtimer:6}              {p_mtimer:6}\
+        \r\n  uext:   {e_uext:6}              {p_uext:6}\
+        \r\n  sext:   {e_sext:6}              {p_sext:6}\
+        \r\n  mext:   {e_mext:6}              {p_mext:6}\r\n",*/
         csr::CSR.mie.get(),
         csr::CSR.mip.get(),
-        e_usoft,
-        p_usoft,
-        e_ssoft,
-        p_ssoft,
-        e_msoft,
-        p_msoft,
-        e_utimer,
-        p_utimer,
-        e_stimer,
-        p_stimer,
-        e_mtimer,
-        p_mtimer,
-        e_uext,
-        p_uext,
-        e_sext,
-        p_sext,
-        e_mext,
-        p_mext
     ));
 }

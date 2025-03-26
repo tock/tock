@@ -51,8 +51,8 @@ use core::str;
 use crate::collections::queue::Queue;
 use crate::collections::ring_buffer::RingBuffer;
 use crate::hil;
+use crate::kernel::ProcEntry;
 use crate::platform::chip::Chip;
-use crate::process::Process;
 use crate::process::ProcessPrinter;
 use crate::processbuffer::ReadableProcessSlice;
 use crate::utilities::binary_write::BinaryToWriteWrapper;
@@ -106,7 +106,7 @@ pub unsafe fn panic_print<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
-    processes: &'static [Option<&'static dyn Process>],
+    processes: &'static [ProcEntry],
     chip: &'static Option<&'static C>,
     process_printer: &'static Option<&'static PP>,
 ) {
@@ -138,7 +138,7 @@ pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip, PP: ProcessPr
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
-    processes: &'static [Option<&'static dyn Process>],
+    processes: &'static [ProcEntry],
     chip: &'static Option<&'static C>,
     process_printer: &'static Option<&'static PP>,
 ) -> ! {
@@ -194,7 +194,7 @@ pub unsafe fn panic_cpu_state<W: Write, C: Chip>(
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
 pub unsafe fn panic_process_info<PP: ProcessPrinter, W: Write>(
-    procs: &'static [Option<&'static dyn Process>],
+    procs: &'static [ProcEntry],
     process_printer: &'static Option<&'static PP>,
     writer: &mut W,
 ) {
@@ -202,7 +202,7 @@ pub unsafe fn panic_process_info<PP: ProcessPrinter, W: Write>(
         // print data about each process
         let _ = writer.write_fmt(format_args!("\r\n---| App Status |---\r\n"));
         for proc in procs {
-            proc.map(|process| {
+            proc.proc_ref.get().map(|process| {
                 // Print the memory map and basic process info.
                 //
                 // Because we are using a synchronous printer we do not need to

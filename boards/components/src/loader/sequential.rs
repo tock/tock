@@ -38,7 +38,6 @@ pub struct ProcessLoaderSequentialComponent<
     const NUM_PROCS: usize,
 > {
     checker: &'static kernel::process::ProcessCheckerMachine,
-    processes: &'static mut [Option<&'static dyn kernel::process::Process>],
     kernel: &'static kernel::Kernel,
     chip: &'static C,
     fault_policy: &'static dyn kernel::process::ProcessFaultPolicy,
@@ -51,7 +50,6 @@ impl<C: Chip, D: ProcessStandardDebug, const NUM_PROCS: usize>
 {
     pub fn new(
         checker: &'static kernel::process::ProcessCheckerMachine,
-        processes: &'static mut [Option<&'static dyn kernel::process::Process>],
         kernel: &'static kernel::Kernel,
         chip: &'static C,
         fault_policy: &'static dyn kernel::process::ProcessFaultPolicy,
@@ -60,7 +58,6 @@ impl<C: Chip, D: ProcessStandardDebug, const NUM_PROCS: usize>
     ) -> Self {
         Self {
             checker,
-            processes,
             kernel,
             chip,
             fault_policy,
@@ -80,7 +77,7 @@ impl<C: Chip, D: ProcessStandardDebug, const NUM_PROCS: usize> Component
 
     type Output = &'static kernel::process::SequentialProcessLoaderMachine<'static, C, D>;
 
-    fn finalize(mut self, s: Self::StaticInput) -> Self::Output {
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let proc_manage_cap =
             kernel::create_capability!(kernel::capabilities::ProcessManagementCapability);
 
@@ -102,7 +99,6 @@ impl<C: Chip, D: ProcessStandardDebug, const NUM_PROCS: usize> Component
         let loader = unsafe {
             s.0.write(kernel::process::SequentialProcessLoaderMachine::new(
                 self.checker,
-                *core::ptr::addr_of_mut!(self.processes),
                 process_binary_array,
                 self.kernel,
                 self.chip,

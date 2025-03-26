@@ -133,7 +133,7 @@ use core::ops::{Deref, DerefMut};
 use core::ptr::{write, NonNull};
 use core::slice;
 
-use crate::kernel::Kernel;
+use crate::kernel::{Kernel, ProcEntry};
 use crate::process::{Error, Process, ProcessCustomGrantIdentifier, ProcessId};
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::processbuffer::{ReadOnlyProcessBufferRef, ReadWriteProcessBufferRef};
@@ -1810,8 +1810,8 @@ pub struct Iter<
 
     /// Iterator over valid processes.
     subiter: core::iter::FilterMap<
-        core::slice::Iter<'a, Option<&'static dyn Process>>,
-        fn(&Option<&'static dyn Process>) -> Option<&'static dyn Process>,
+        core::slice::Iter<'a, ProcEntry>,
+        fn(&ProcEntry) -> Option<&'static dyn Process>,
     >,
 }
 
