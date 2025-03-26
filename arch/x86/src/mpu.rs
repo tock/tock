@@ -272,13 +272,13 @@ impl<'a> PagingMPU<'a> {
     }
 }
 
-impl<'a> fmt::Display for PagingMPU<'a> {
+impl fmt::Display for PagingMPU<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Num_regions: {:?}, ...", self.num_regions,)
     }
 }
 
-impl<'a> MPU for PagingMPU<'a> {
+impl MPU for PagingMPU<'_> {
     type MpuConfig = MemoryProtectionConfig;
 
     fn new_config(&self) -> Option<Self::MpuConfig> {
@@ -353,7 +353,7 @@ impl<'a> MPU for PagingMPU<'a> {
             Permissions::ReadExecuteOnly => pages_attr.write(PTFLAGS::P::SET + PTFLAGS::US::SET),
             Permissions::ReadOnly => pages_attr.write(PTFLAGS::P::SET + PTFLAGS::US::SET),
             Permissions::ExecuteOnly => pages_attr.write(PTFLAGS::P::SET + PTFLAGS::US::SET),
-        };
+        }
 
         // For allocating a region we also need the right level to set it back to
         // if is a shared region in RAM memory this region needs to be WR to Kernel
@@ -362,7 +362,7 @@ impl<'a> MPU for PagingMPU<'a> {
         match permissions {
             Permissions::ReadWriteOnly => pages_clear.write(PTFLAGS::P::SET + PTFLAGS::RW::SET),
             _ => pages_clear.write(PTFLAGS::P::SET),
-        };
+        }
 
         // Calculate the page offset based on the init.
         if page_index > MAX_PTE_ENTRY || page_index + pages_alloc_requested > MAX_PTE_ENTRY {
@@ -393,7 +393,7 @@ impl<'a> MPU for PagingMPU<'a> {
                     });
                 }
                 None => return None,
-            };
+            }
 
             let last_page = page_index + pages_alloc_requested;
 
@@ -437,7 +437,7 @@ impl<'a> MPU for PagingMPU<'a> {
                     config.page_information.alloc_regions[i] = None;
                 }
                 None => return Err(()),
-            };
+            }
 
             // Update the page table to remove the region
             let mut sram_page_table = self.pt.borrow_mut();
@@ -495,7 +495,7 @@ impl<'a> MPU for PagingMPU<'a> {
             Permissions::ReadExecuteOnly => pages_attr.write(PTFLAGS::P::SET + PTFLAGS::US::SET),
             Permissions::ReadOnly => pages_attr.write(PTFLAGS::P::SET + PTFLAGS::US::SET),
             Permissions::ExecuteOnly => pages_attr.write(PTFLAGS::P::SET + PTFLAGS::US::SET),
-        };
+        }
 
         // Compute what the maximum should be at this point all should be page-aligned.
 

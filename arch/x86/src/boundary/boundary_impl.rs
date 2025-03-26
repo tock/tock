@@ -95,7 +95,33 @@ impl UserspaceKernelBoundary for Boundary {
         let mut ret2 = 0;
         let mut ret3 = 0;
 
-        return_value.encode_syscall_return(&mut ret0, &mut ret1, &mut ret2, &mut ret3);
+        // These operations are only safe so long as
+        // - the pointers are properly aligned. This is guaranteed because the
+        //   pointers are all offset multiples of 4 bytes from the stack
+        //   pointer, which is guaranteed to be properly aligned after
+        //   exception entry on Cortex-M. See
+        //   https://github.com/tock/tock/pull/2478#issuecomment-796389747
+        //   for more details.
+        // - the pointer is dereferencable, i.e. the memory range of
+        //   the given size starting at the pointer must all be within
+        //   the bounds of a single allocated object
+        // - the pointer must point to an initialized instance of its
+        //   type
+        // - during the lifetime of the returned reference (of the
+        //   cast, essentially an arbitrary 'a), the memory must not
+        //   get accessed (read or written) through any other pointer.
+        //
+        // Refer to
+        // https://doc.rust-lang.org/std/primitive.pointer.html#safety-13
+        kernel::utilities::arch_helpers::encode_syscall_return_trd104(
+            &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(
+                return_value,
+            ),
+            &mut ret0,
+            &mut ret1,
+            &mut ret2,
+            &mut ret3,
+        );
 
         // App allocates 16 bytes of stack space for passing syscall arguments. We re-use that stack
         // space to pass return values.
@@ -130,18 +156,24 @@ impl UserspaceKernelBoundary for Boundary {
         //   stack space from that syscall. This is okay because `yield` doesn't return anything.
         //
         // Safety: Caller of this function has guaranteed that the memory region is valid.
+        // usize is u32 on x86
         unsafe {
             state.write_stack(0, upcall.argument0 as u32, accessible_memory_start, app_brk)?;
             state.write_stack(1, upcall.argument1 as u32, accessible_memory_start, app_brk)?;
             state.write_stack(2, upcall.argument2 as u32, accessible_memory_start, app_brk)?;
-            state.write_stack(3, upcall.argument3 as u32, accessible_memory_start, app_brk)?;
+            state.write_stack(
+                3,
+                upcall.argument3.as_usize() as u32,
+                accessible_memory_start,
+                app_brk,
+            )?;
 
             state.push_stack(state.eip, accessible_memory_start, app_brk)?;
         }
 
         // The next time we switch to this process, we will directly jump to the upcall. When the
         // upcall issues `ret`, it will return to wherever the yield syscall was invoked.
-        state.eip = upcall.pc as u32;
+        state.eip = upcall.pc.addr() as u32;
 
         Ok(())
     }
@@ -186,9 +218,9 @@ impl UserspaceKernelBoundary for Boundary {
                 Syscall::from_register_arguments(
                     num,
                     arg0 as usize,
-                    arg1 as usize,
-                    arg2 as usize,
-                    arg3 as usize,
+                    (arg1 as usize).into(),
+                    (arg2 as usize).into(),
+                    (arg3 as usize).into(),
                 )
                 .map_or(ContextSwitchReason::Fault, |syscall| {
                     ContextSwitchReason::SyscallFired { syscall }
