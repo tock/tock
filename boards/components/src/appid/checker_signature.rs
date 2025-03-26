@@ -31,7 +31,9 @@ pub type AppCheckerSignatureComponentType<S, H, const HL: usize, const SL: usize
     capsules_system::process_checker::signature::AppCheckerSignature<'static, S, H, HL, SL>;
 
 pub struct AppCheckerSignatureComponent<
-    S: kernel::hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL> + 'static,
+    S: kernel::hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>
+        + kernel::hil::public_key_crypto::keys::KeySelect<'static>
+        + 'static,
     H: kernel::hil::digest::DigestDataHash<'static, HL> + 'static,
     const HL: usize,
     const SL: usize,
@@ -42,7 +44,8 @@ pub struct AppCheckerSignatureComponent<
 }
 
 impl<
-        S: kernel::hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>,
+        S: kernel::hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>
+            + kernel::hil::public_key_crypto::keys::KeySelect<'static>,
         H: kernel::hil::digest::DigestDataHash<'static, HL>,
         const HL: usize,
         const SL: usize,
@@ -62,7 +65,8 @@ impl<
 }
 
 impl<
-        S: kernel::hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>,
+        S: kernel::hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>
+            + kernel::hil::public_key_crypto::keys::KeySelect<'static>,
         H: kernel::hil::digest::DigestDataHash<'static, HL> + kernel::hil::digest::Digest<'static, HL>,
         const HL: usize,
         const SL: usize,
@@ -99,6 +103,7 @@ impl<
         );
 
         digest::Digest::set_client(self.hasher, checker);
+        kernel::hil::public_key_crypto::keys::KeySelect::set_client(self.verifier, checker);
         public_key_crypto::signature::SignatureVerify::set_verify_client(self.verifier, checker);
 
         checker
