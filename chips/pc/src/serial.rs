@@ -160,7 +160,7 @@ pub struct SerialPort<'a> {
     dc: DeferredCall,
 }
 
-impl<'a> SerialPort<'a> {
+impl SerialPort<'_> {
     /// Finishes out a long-running TX operation.
     fn finish_tx(&self, res: Result<(), ErrorCode>) {
         if let Some(b) = self.tx_buffer.take() {
@@ -242,7 +242,7 @@ impl<'a> SerialPort<'a> {
     }
 }
 
-impl<'a> Configure for SerialPort<'a> {
+impl Configure for SerialPort<'_> {
     fn configure(&self, params: Parameters) -> Result<(), ErrorCode> {
         if params.baud_rate == 0 {
             return Err(ErrorCode::INVAL);
@@ -406,7 +406,7 @@ impl<'a> Receive<'a> for SerialPort<'a> {
     }
 }
 
-impl<'a> DeferredCallClient for SerialPort<'a> {
+impl DeferredCallClient for SerialPort<'_> {
     fn handle_deferred_call(&self) {
         if self.tx_abort.get() {
             self.finish_tx(Err(ErrorCode::CANCEL));

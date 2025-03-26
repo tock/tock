@@ -116,7 +116,7 @@ pub struct Pit<'a, const R: u16> {
     now: Cell<usize>,
 }
 
-impl<'a, const R: u16> Pit<'a, R> {
+impl<const R: u16> Pit<'_, R> {
     /// Creates a new PIT timer object.
     ///
     /// ## Safety
@@ -169,7 +169,7 @@ impl<'a, const R: u16> Pit<'a, R> {
     }
 }
 
-impl<'a, const R: u16> Time for Pit<'a, R> {
+impl<const R: u16> Time for Pit<'_, R> {
     type Frequency = PitFreq<R>;
 
     type Ticks = Ticks32;
