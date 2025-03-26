@@ -29,6 +29,7 @@ const GET_LIGHT: u8 = 0x04;
 const GET_TEMPERATURE: u8 = 0x05;
 #[allow(dead_code)]
 const RESET: u8 = 0x06;
+#[allow(dead_code)]
 const GET_VERSION: u8 = 0x07;
 #[allow(dead_code)]
 const SLEEP: u8 = 0x08;
@@ -37,7 +38,6 @@ const GET_BUSY: u8 = 0x09;
 
 #[derive(Clone, Copy, PartialEq)]
 enum DeviceState {
-    Identify,
     Normal,
     StartMoisture,
     FinalMoisture,
@@ -64,23 +64,9 @@ impl<'a, I: I2CDevice> ChirpI2cMoisture<'a, I> {
             buffer: TakeCell::new(buffer),
             i2c,
             moisture_client: OptionalCell::empty(),
-            state: Cell::new(DeviceState::Identify),
+            state: Cell::new(DeviceState::Normal),
             op: Cell::new(Operation::None),
         }
-    }
-
-    pub fn initialise(&self) {
-        self.buffer.take().map(|buffer| {
-            if self.state.get() == DeviceState::Identify {
-                // Read the version register
-                buffer[0] = GET_VERSION;
-                if let Err((_e, buf)) = self.i2c.write_read(buffer, 1, 1) {
-                    self.buffer.replace(buf);
-                }
-            } else {
-                self.buffer.replace(buffer);
-            }
-        });
     }
 }
 
@@ -132,18 +118,6 @@ impl<I: I2CDevice> I2CClient for ChirpI2cMoisture<'_, I> {
         }
 
         match self.state.get() {
-            DeviceState::Identify => {
-                if buffer[0] < 0x22 {
-                    // We don't have the correct version, this isn't the correct device
-                    // Just stop here
-                    self.buffer.replace(buffer);
-                    return;
-                }
-
-                self.buffer.replace(buffer);
-                self.state.set(DeviceState::Normal);
-                self.op.set(Operation::None);
-            }
             DeviceState::StartMoisture => match self.op.get() {
                 Operation::None => (),
                 Operation::Moisture => {
@@ -164,12 +138,12 @@ impl<I: I2CDevice> I2CClient for ChirpI2cMoisture<'_, I> {
                     Operation::Moisture => {
                         let capacitance = (((buffer[0] as u32) << 8) | (buffer[1] as u32)) as f32;
 
-                        // 247 is the capacitance in air
-                        // 510 is the capacitance in water
+                        // 240 is the rough capacitance in air
+                        // 400 is the rough capacitance in wet soil
                         // Use those to calculate the moisture percentage, which is rougly linear
                         // https://github.com/Miceuz/i2c-moisture-sensor/blob/master/README.md#how-to-interpret-the-readings
                         // Note that this gives moisture in hundredths of a percent
-                        let moisture_content = ((capacitance - 247.0) / (510.0 - 247.0)) * 10000.0;
+                        let moisture_content = ((capacitance - 240.0) / (400.0 - 240.0)) * 10000.0;
 
                         self.state.set(DeviceState::Normal);
                         self.buffer.replace(buffer);
