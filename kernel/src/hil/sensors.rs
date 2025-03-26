@@ -35,6 +35,34 @@ pub trait HumidityClient {
     fn callback(&self, value: usize);
 }
 
+/// A basic interface for a moisture sensor
+pub trait MoistureDriver<'a> {
+    fn set_client(&self, client: &'a dyn MoistureClient);
+
+    /// Read the moisture value from a sensor. The value is returned
+    /// via the `MoistureClient` callback.
+    ///
+    /// This function might return the following errors:
+    /// - `BUSY`: Indicates that the hardware is busy with an existing operation
+    ///   or initialisation/calibration.
+    /// - `NOSUPPORT`: Indicates that this data type isn't supported.
+    fn read_moisture(&self) -> Result<(), ErrorCode>;
+}
+
+/// Client for receiving moisture readings.
+pub trait MoistureClient {
+    /// Called when a moisture reading has completed.
+    ///
+    /// - `value`: the most recently read moisture in hundredths of
+    /// percent, or Err on failure.
+    ///
+    /// This function might return the following errors:
+    /// - `BUSY`: Indicates that the hardware is busy with an existing operation
+    ///   or initialisation/calibration.
+    /// - `NOSUPPORT`: Indicates that this data type isn't supported.
+    fn callback(&self, value: Result<usize, ErrorCode>);
+}
+
 /// A basic interface for a Air Quality sensor
 pub trait AirQualityDriver<'a> {
     /// Set the client to be notified when the capsule has data ready.
@@ -50,8 +78,8 @@ pub trait AirQualityDriver<'a> {
     /// hardware can be used to improve the measurement accuracy.
     ///
     /// This function might return the following errors:
-    /// - `BUSY`: Indicates that the hardware is busy with an existing
-    ///           operation or initialisation/calibration.
+    /// - `BUSY`: Indicates that the hardware is busy with an existing operation
+    ///   or initialisation/calibration.
     /// - `NOSUPPORT`: Indicates that this data type isn't supported.
     fn specify_environment(
         &self,
@@ -64,8 +92,8 @@ pub trait AirQualityDriver<'a> {
     /// callback when the data is ready.
     ///
     /// This function might return the following errors:
-    /// - `BUSY`: Indicates that the hardware is busy with an existing
-    ///           operation or initialisation/calibration.
+    /// - `BUSY`: Indicates that the hardware is busy with an existing operation
+    ///   or initialisation/calibration.
     /// - `NOSUPPORT`: Indicates that this data type isn't supported.
     fn read_co2(&self) -> Result<(), ErrorCode>;
 
@@ -74,8 +102,8 @@ pub trait AirQualityDriver<'a> {
     /// callback when the data is ready.
     ///
     /// This function might return the following errors:
-    /// - `BUSY`: Indicates that the hardware is busy with an existing
-    ///           operation or initialisation/calibration.
+    /// - `BUSY`: Indicates that the hardware is busy with an existing operation
+    ///   or initialisation/calibration.
     /// - `NOSUPPORT`: Indicates that this data type isn't supported.
     fn read_tvoc(&self) -> Result<(), ErrorCode>;
 }
@@ -88,13 +116,13 @@ pub trait AirQualityClient {
     /// Called when a CO2 or equivalent CO2 (eCO2) reading has completed.
     ///
     /// - `value`: will contain the latest CO2 reading in ppm. An example value
-    ///            might be `400`.
+    ///   might be `400`.
     fn co2_data_available(&self, value: Result<u32, ErrorCode>);
 
     /// Called when a Total Organic Compound (TVOC) reading has completed.
     ///
     /// - `value`: will contain the latest TVOC reading in ppb. An example value
-    ///            might be `0`.
+    ///   might be `0`.
     fn tvoc_data_available(&self, value: Result<u32, ErrorCode>);
 }
 
@@ -193,14 +221,14 @@ pub trait SoundPressure<'a> {
     ///
     /// As this is usually a microphone, some boards require an explicit enable
     /// so that they can turn on an LED. This function enables that microphone and LED.
-    /// Not calling this function may result in innacurate readings.
+    /// Not calling this function may result in inaccurate readings.
     fn enable(&self) -> Result<(), ErrorCode>;
 
     /// Disable
     ///
     /// As this is usually a microphone, some boards require an explicit enable
     /// so that they can turn on an LED. This function turns off that microphone. Readings
-    /// perfomed after this function call might return innacurate.
+    /// performed after this function call might return inaccurate.
     fn disable(&self) -> Result<(), ErrorCode>;
 
     /// Set the client
@@ -217,8 +245,8 @@ pub trait PressureDriver<'a> {
     /// Used to initialize a atmospheric pressure reading
     ///
     /// This function might return the following errors:
-    /// - `BUSY`: Indicates that the hardware is busy with an existing
-    ///           operation or initialisation/calibration.
+    /// - `BUSY`: Indicates that the hardware is busy with an existing operation
+    ///   or initialisation/calibration.
     /// - `FAIL`: Failed to correctly communicate over communication protocol.
     /// - `NOSUPPORT`: Indicates that this data type isn't supported.
     fn read_atmospheric_pressure(&self) -> Result<(), ErrorCode>;
@@ -232,4 +260,63 @@ pub trait PressureClient {
     ///
     /// Returns the value in hPa.
     fn callback(&self, pressure: Result<u32, ErrorCode>);
+}
+
+/// A basic interface for distance sensor.
+pub trait Distance<'a> {
+    /// Set the client
+    fn set_client(&self, client: &'a dyn DistanceClient);
+
+    /// Initiates a distance reading from the sensor.
+    ///
+    /// This function might return the following errors:
+    /// - `BUSY`: Indicates that the hardware is currently busy.
+    /// - `FAIL`: Indicates that there was a failure in communication.
+    fn read_distance(&self) -> Result<(), ErrorCode>;
+
+    /// Get the maximum distance the sensor can measure in mm
+    fn get_maximum_distance(&self) -> u32;
+
+    /// Get the minimum distance the sensor can measure in mm
+    fn get_minimum_distance(&self) -> u32;
+}
+
+/// Client for receiving distance readings.
+pub trait DistanceClient {
+    /// Called when a distance measurement has completed.
+    ///
+    /// - `distance`: the most recently measured distance in millimeters. If
+    ///   there was an error, this will be `Err(ErrorCode)`.
+    fn callback(&self, distance: Result<u32, ErrorCode>);
+}
+
+/// A basic interface for a rain fall sensor
+pub trait RainFallDriver<'a> {
+    fn set_client(&self, client: &'a dyn RainFallClient);
+
+    /// Read the rain fall value from a sensor. The value is returned
+    /// via the `RainFallClient` callback.
+    ///
+    /// - `hours`: the number of hours of rainfall to report. 1 to 24 hours are
+    ///   valid values (if supported by the hardware).
+    ///
+    /// This function might return the following errors:
+    /// - `BUSY`: Indicates that the hardware is busy with an existing operation
+    ///   or initialisation/calibration.
+    /// - `NOSUPPORT`: Indicates that the value of `hours` is not supported.
+    fn read_rainfall(&self, hours: usize) -> Result<(), ErrorCode>;
+}
+
+/// Client for receiving moisture readings.
+pub trait RainFallClient {
+    /// Called when a moisture reading has completed.
+    ///
+    /// - `value`: the number of um of rain in the time period specified, or Err
+    ///   on failure.
+    ///
+    /// This function might return the following errors:
+    /// - `BUSY`: Indicates that the hardware is busy with an existing operation
+    ///   or initialisation/calibration.
+    /// - `NOSUPPORT`: Indicates that the value of `hours` is not supported.
+    fn callback(&self, value: Result<usize, ErrorCode>);
 }

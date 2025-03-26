@@ -104,9 +104,11 @@ const TX_MS_DELAY: u32 = 1;
 /// Milliseconds to wait between checking if rx data is available
 const RX_MS_DELAY: u32 = 100;
 
-/// This structure is defined by the segger RTT protocol. It must exist in
-/// memory in exactly this form so that the segger JTAG tool can find it in the
-/// chip's memory and read and write messages to the appropriate buffers.
+/// This structure is defined by the segger RTT protocol.
+///
+/// It must exist in memory in exactly this form so that the segger
+/// JTAG tool can find it in the chip's memory and read and write
+/// messages to the appropriate buffers.
 #[repr(C)]
 pub struct SeggerRttMemory<'a> {
     id: [u8; 16],
@@ -128,7 +130,7 @@ pub struct SeggerRttBuffer<'a> {
     _lifetime: PhantomData<&'a ()>,
 }
 
-impl<'a> Index<usize> for SeggerRttBuffer<'a> {
+impl Index<usize> for SeggerRttBuffer<'_> {
     type Output = VolatileCell<u8>;
 
     fn index(&self, index: usize) -> &Self::Output {

@@ -77,12 +77,12 @@ impl<'b> WriteAdapter<'b> {
     }
 }
 
-impl<'b> core::fmt::Write for WriteAdapter<'b> {
+impl core::fmt::Write for WriteAdapter<'_> {
     fn write_str(&mut self, msg: &str) -> core::fmt::Result {
         if let Some(slice) = self.buffer.get_mut(self.used..(self.used + msg.len())) {
             slice.copy_from_slice(msg.as_bytes());
             self.used += msg.len();
-        };
+        }
         Ok(())
     }
 }

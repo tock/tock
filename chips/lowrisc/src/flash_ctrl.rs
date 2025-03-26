@@ -289,6 +289,7 @@ pub const FLASH_PROG_WINDOW_MASK: u32 = 0xFFFFFFF0;
 pub struct LowRiscPage(pub [u8; PAGE_SIZE]);
 
 /// Defines region permissions for flash memory protection.
+///
 /// To be used when requesting the flash controller to set
 /// specific permissions for a regions, or when reading
 /// the existing permission associated with a region.
@@ -365,7 +366,7 @@ pub struct FlashCtrl<'a> {
     region_num: FlashRegion,
 }
 
-impl<'a> FlashCtrl<'a> {
+impl FlashCtrl<'_> {
     pub fn new(base: StaticRef<FlashCtrlRegisters>, region_num: FlashRegion) -> Self {
         FlashCtrl {
             registers: base,
@@ -665,9 +666,10 @@ impl<'a> FlashCtrl<'a> {
     /// # Arguments
     ///
     /// * `start_addr`  - Starting address to be converted to a page number
-    ///                    Note: This is the absolute address, i.e `FLASH_ADDR_OFFSET` and onwards
-    /// * `end_addr`    - End address to be converted to a page number
-    ///                    Note: This is the absolute address, i.e `FLASH_ADDR_OFFSET` and onwards
+    ///   Note: This is the absolute address, i.e `FLASH_ADDR_OFFSET` and
+    ///   onwards
+    /// * `end_addr`    - End address to be converted to a page number Note:
+    ///   This is the absolute address, i.e `FLASH_ADDR_OFFSET` and onwards
     fn mp_addr_to_page_range(
         &self,
         mut start_addr: usize,
@@ -718,13 +720,14 @@ impl<'a> FlashCtrl<'a> {
     /// # Arguments
     ///
     /// * `start_addr`  - Starting address that bounds the start of this region.
-    ///                    Note: This is the absolute address, i.e `FLASH_ADDR_OFFSET` and onwards
-    /// * `end_addr`    - End address that bounds the end of this region
-    ///                    Note: This is the absolute address, i.e `FLASH_ADDR_OFFSET` and onwards
-    /// * `region_num`  - The configuration region number associated with this region.
-    ///                   This associates the specified permissions to a configuration region,
-    ///                   the number of simultaneous configs supported
-    ///                   should be requested by `mp_get_num_regions()`
+    ///   Note: This is the absolute address, i.e `FLASH_ADDR_OFFSET` and
+    ///   onwards
+    /// * `end_addr`    - End address that bounds the end of this region Note:
+    ///   This is the absolute address, i.e `FLASH_ADDR_OFFSET` and onwards
+    /// * `region_num`  - The configuration region number associated with this
+    ///   region. This associates the specified permissions to a configuration
+    ///   region, the number of simultaneous configs supported should be
+    ///   requested by `mp_get_num_regions()`
     /// * `mp_perms`    - Specifies the permissions to set
     ///
     /// # Examples
@@ -824,8 +827,9 @@ impl<'a> FlashCtrl<'a> {
     ///
     /// # Arguments
     ///
-    /// * `region_num`  - The configuration region number associated with this region.
-    ///                   This associates the specified permissions to a configuration region.
+    /// * `region_num`  - The configuration region number associated with this
+    ///   region. This associates the specified permissions to a configuration
+    ///   region.
     pub fn mp_read_region_perms(&self, region_num: usize) -> Result<FlashMPConfig, ErrorCode> {
         if region_num > FlashRegion::REGION7 as usize {
             return Err(ErrorCode::NOSUPPORT);
@@ -888,8 +892,9 @@ impl<'a> FlashCtrl<'a> {
     ///
     /// # Arguments
     ///
-    /// * `region_num`  - The configuration region number associated with this region.
-    ///                   This associates the specified permissions to a configuration region.
+    /// * `region_num`  - The configuration region number associated with this
+    ///   region. This associates the specified permissions to a configuration
+    ///   region.
     pub fn mp_is_region_locked(&self, region_num: usize) -> Result<bool, ErrorCode> {
         if region_num > FlashRegion::REGION7 as usize {
             return Err(ErrorCode::NOSUPPORT);
@@ -913,8 +918,9 @@ impl<'a> FlashCtrl<'a> {
     ///
     /// # Arguments
     ///
-    /// * `region_num`  - The configuration region number associated with this region.
-    ///                   This associates the specified permissions to a configuration region.
+    /// * `region_num`  - The configuration region number associated with this
+    ///   region. This associates the specified permissions to a configuration
+    ///   region.
     pub fn mp_lock_region_cfg(&self, region_num: usize) -> Result<(), ErrorCode> {
         if region_num > FlashRegion::REGION7 as usize {
             return Err(ErrorCode::NOSUPPORT);

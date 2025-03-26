@@ -68,6 +68,9 @@ use {
     kernel::hil::rng::Rng,
 };
 
+#[cfg(any(feature = "chirp_i2c_moisture", feature = "dfrobot_i2c_rainfall"))]
+use capsules_core::virtualizers::virtual_i2c::MuxI2C;
+
 /// Support routines for debugging I/O.
 pub mod io;
 
@@ -122,9 +125,20 @@ pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 const LORA_SPI_DRIVER_NUM: usize = capsules_core::driver::NUM::LoRaPhySPI as usize;
 const LORA_GPIO_DRIVER_NUM: usize = capsules_core::driver::NUM::LoRaPhyGPIO as usize;
 
+type ChirpI2cMoistureType = components::chirp_i2c_moisture::ChirpI2cMoistureComponentType<
+    capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, apollo3::iom::Iom<'static>>,
+>;
+type DFRobotRainFallType = components::dfrobot_rainfall_sensor::DFRobotRainFallSensorComponentType<
+    capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+        'static,
+        apollo3::stimer::STimer<'static>,
+    >,
+    capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, apollo3::iom::Iom<'static>>,
+>;
 type BME280Sensor = components::bme280::Bme280ComponentType<
     capsules_core::virtualizers::virtual_i2c::I2CDevice<'static, apollo3::iom::Iom<'static>>,
 >;
+
 type TemperatureDriver = components::temperature::TemperatureComponentType<BME280Sensor>;
 type HumidityDriver = components::humidity::HumidityComponentType<BME280Sensor>;
 
@@ -159,14 +173,11 @@ struct LoRaThingsPlus {
         >,
     >,
     sx1262_gpio: &'static capsules_core::gpio::GPIO<'static, apollo3::gpio::GpioPin<'static>>,
-    ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
-        'static,
-        apollo3::ble::Ble<'static>,
-        VirtualMuxAlarm<'static, apollo3::stimer::STimer<'static>>,
-    >,
     temperature: &'static TemperatureDriver,
     humidity: &'static HumidityDriver,
     air_quality: &'static capsules_extra::air_quality::AirQualitySensor<'static>,
+    moisture: Option<&'static components::moisture::MoistureComponentType<ChirpI2cMoistureType>>,
+    rainfall: Option<&'static components::rainfall::RainFallComponentType<DFRobotRainFallType>>,
     rng: Option<
         &'static capsules_core::rng::RngDriver<
             'static,
@@ -263,6 +274,53 @@ unsafe fn setup_atecc508a(
     rng_local
 }
 
+#[cfg(feature = "chirp_i2c_moisture")]
+unsafe fn setup_chirp_i2c_moisture(
+    board_kernel: &'static kernel::Kernel,
+    _memory_allocation_cap: &dyn capabilities::MemoryAllocationCapability,
+    mux_i2c: &'static MuxI2C<'static, apollo3::iom::Iom<'static>>,
+) -> &'static components::moisture::MoistureComponentType<ChirpI2cMoistureType> {
+    let chirp_moisture =
+        components::chirp_i2c_moisture::ChirpI2cMoistureComponent::new(mux_i2c, 0x20).finalize(
+            components::chirp_i2c_moisture_component_static!(apollo3::iom::Iom<'static>),
+        );
+
+    let moisture = components::moisture::MoistureComponent::new(
+        board_kernel,
+        capsules_extra::moisture::DRIVER_NUM,
+        chirp_moisture,
+    )
+    .finalize(components::moisture_component_static!(ChirpI2cMoistureType));
+
+    moisture
+}
+
+#[cfg(feature = "dfrobot_i2c_rainfall")]
+unsafe fn setup_dfrobot_i2c_rainfall(
+    board_kernel: &'static kernel::Kernel,
+    _memory_allocation_cap: &dyn capabilities::MemoryAllocationCapability,
+    mux_i2c: &'static MuxI2C<'static, apollo3::iom::Iom<'static>>,
+    mux_alarm: &'static MuxAlarm<'static, apollo3::stimer::STimer<'static>>,
+) -> &'static components::rainfall::RainFallComponentType<DFRobotRainFallType> {
+    let dfrobot_rainfall =
+        components::dfrobot_rainfall_sensor::DFRobotRainFallSensorComponent::new(
+            mux_i2c, 0x1D, mux_alarm,
+        )
+        .finalize(components::dfrobot_rainfall_sensor_component_static!(
+            apollo3::stimer::STimer<'static>,
+            apollo3::iom::Iom<'static>
+        ));
+
+    let rainfall = components::rainfall::RainFallComponent::new(
+        board_kernel,
+        capsules_extra::rainfall::DRIVER_NUM,
+        dfrobot_rainfall,
+    )
+    .finalize(components::rainfall_component_static!(DFRobotRainFallType));
+
+    rainfall
+}
+
 /// Mapping of integer syscalls to objects that implement syscalls.
 impl SyscallDriverLookup for LoRaThingsPlus {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
@@ -278,7 +336,6 @@ impl SyscallDriverLookup for LoRaThingsPlus {
             capsules_core::spi_controller::DRIVER_NUM => f(Some(self.external_spi_controller)),
             LORA_SPI_DRIVER_NUM => f(Some(self.sx1262_spi_controller)),
             LORA_GPIO_DRIVER_NUM => f(Some(self.sx1262_gpio)),
-            capsules_extra::ble_advertising_driver::DRIVER_NUM => f(Some(self.ble_radio)),
             capsules_extra::temperature::DRIVER_NUM => f(Some(self.temperature)),
             capsules_extra::humidity::DRIVER_NUM => f(Some(self.humidity)),
             capsules_extra::air_quality::DRIVER_NUM => f(Some(self.air_quality)),
@@ -286,6 +343,20 @@ impl SyscallDriverLookup for LoRaThingsPlus {
             capsules_core::rng::DRIVER_NUM => {
                 if let Some(rng) = self.rng {
                     f(Some(rng))
+                } else {
+                    f(None)
+                }
+            }
+            capsules_extra::moisture::DRIVER_NUM => {
+                if let Some(moisture) = self.moisture {
+                    f(Some(moisture))
+                } else {
+                    f(None)
+                }
+            }
+            capsules_extra::rainfall::DRIVER_NUM => {
+                if let Some(rainfall) = self.rainfall {
+                    f(Some(rainfall))
                 } else {
                     f(None)
                 }
@@ -346,7 +417,6 @@ unsafe fn setup() -> (
     clkgen.set_clock_frequency(apollo3::clkgen::ClockFrequency::Freq48MHz);
 
     // initialize capabilities
-    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
@@ -494,6 +564,25 @@ unsafe fn setup() -> (
     .finalize(components::air_quality_component_static!());
     CCS811 = Some(ccs811);
 
+    #[cfg(feature = "chirp_i2c_moisture")]
+    let moisture = Some(setup_chirp_i2c_moisture(
+        board_kernel,
+        &memory_allocation_cap,
+        mux_i2c,
+    ));
+    #[cfg(not(feature = "chirp_i2c_moisture"))]
+    let moisture = None;
+
+    #[cfg(feature = "dfrobot_i2c_rainfall")]
+    let rainfall = Some(setup_dfrobot_i2c_rainfall(
+        board_kernel,
+        &memory_allocation_cap,
+        mux_i2c,
+        mux_alarm,
+    ));
+    #[cfg(not(feature = "dfrobot_i2c_rainfall"))]
+    let rainfall = None;
+
     #[cfg(feature = "atecc508a")]
     let rng = Some(setup_atecc508a(
         board_kernel,
@@ -561,24 +650,7 @@ unsafe fn setup() -> (
     .finalize(components::gpio_component_static!(apollo3::gpio::GpioPin));
 
     // Setup BLE
-    mcu_ctrl.enable_ble();
-    clkgen.enable_ble();
-    pwr_ctrl.enable_ble();
-    peripherals.ble.setup_clocks();
-    mcu_ctrl.reset_ble();
-    peripherals.ble.power_up();
-    peripherals.ble.ble_initialise();
-
-    let ble_radio = components::ble::BLEComponent::new(
-        board_kernel,
-        capsules_extra::ble_advertising_driver::DRIVER_NUM,
-        &peripherals.ble,
-        mux_alarm,
-    )
-    .finalize(components::ble_component_static!(
-        apollo3::stimer::STimer,
-        apollo3::ble::Ble,
-    ));
+    mcu_ctrl.disable_ble();
 
     // Flash
     let flash_ctrl_read_buf = static_init!(
@@ -739,10 +811,11 @@ unsafe fn setup() -> (
             external_spi_controller,
             sx1262_spi_controller,
             sx1262_gpio,
-            ble_radio,
             temperature,
             humidity,
             air_quality,
+            moisture,
+            rainfall,
             rng,
             scheduler,
             systick,
@@ -756,25 +829,94 @@ unsafe fn setup() -> (
     );
     CHIP = Some(chip);
 
-    kernel::process::load_processes(
+    let checking_policy;
+    #[cfg(feature = "atecc508a")]
+    {
+        // Create the software-based SHA engine.
+        // We could use the ATECC508a for SHA, but writing the entire
+        // application to the device to compute a digtest ends up being
+        // pretty slow and the ATECC508a doesn't support the DigestVerify trait
+        let sha = components::sha::ShaSoftware256Component::new()
+            .finalize(components::sha_software_256_component_static!());
+
+        // These are the generated test keys used below, please do not use them
+        // for anything important!!!!
+        //
+        // These keys are not leaked, they are only used for this test case.
+        //
+        // -----BEGIN PRIVATE KEY-----
+        // MIGHAgEBMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgWClhguWHtAK85Kqc
+        // /BucDBQMGQw6R2PEQkyISHkn5xWhRANCAAQUFMTFoNL9oFpGmg6Cp351hQMq9hol
+        // KpEdQfjP1nYF1jxqz52YjPpFHvudkK/fFsik5Rd0AevNkQqjBdWEqmpW
+        // -----END PRIVATE KEY-----
+        //
+        // -----BEGIN PUBLIC KEY-----
+        // MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEFBTExaDS/aBaRpoOgqd+dYUDKvYa
+        // JSqRHUH4z9Z2BdY8as+dmIz6RR77nZCv3xbIpOUXdAHrzZEKowXVhKpqVg==
+        // -----END PUBLIC KEY-----
+        let public_key = static_init!(
+            [u8; 64],
+            [
+                0x14, 0x14, 0xc4, 0xc5, 0xa0, 0xd2, 0xfd, 0xa0, 0x5a, 0x46, 0x9a, 0x0e, 0x82, 0xa7,
+                0x7e, 0x75, 0x85, 0x03, 0x2a, 0xf6, 0x1a, 0x25, 0x2a, 0x91, 0x1d, 0x41, 0xf8, 0xcf,
+                0xd6, 0x76, 0x05, 0xd6, 0x3c, 0x6a, 0xcf, 0x9d, 0x98, 0x8c, 0xfa, 0x45, 0x1e, 0xfb,
+                0x9d, 0x90, 0xaf, 0xdf, 0x16, 0xc8, 0xa4, 0xe5, 0x17, 0x74, 0x01, 0xeb, 0xcd, 0x91,
+                0x0a, 0xa3, 0x05, 0xd5, 0x84, 0xaa, 0x6a, 0x56
+            ]
+        );
+
+        ATECC508A.unwrap().set_public_key(Some(public_key));
+
+        checking_policy = components::appid::checker_signature::AppCheckerSignatureComponent::new(
+            sha,
+            ATECC508A.unwrap(),
+            tock_tbf::types::TbfFooterV2CredentialsType::EcdsaNistP256,
+        )
+        .finalize(components::app_checker_signature_component_static!(
+            capsules_extra::atecc508a::Atecc508a<'static>,
+            capsules_extra::sha256::Sha256Software<'static>,
+            32,
+            64,
+        ));
+    };
+    #[cfg(not(feature = "atecc508a"))]
+    {
+        checking_policy = components::appid::checker_null::AppCheckerNullComponent::new()
+            .finalize(components::app_checker_null_component_static!());
+    }
+
+    // Create the AppID assigner.
+    let assigner = components::appid::assigner_name::AppIdAssignerNamesComponent::new()
+        .finalize(components::appid_assigner_names_component_static!());
+
+    // Create the process checking machine.
+    let checker = components::appid::checker::ProcessCheckerMachineComponent::new(checking_policy)
+        .finalize(components::process_checker_machine_component_static!());
+
+    let storage_permissions_policy =
+        components::storage_permissions::tbf_header::StoragePermissionsTbfHeaderComponent::new()
+            .finalize(
+                components::storage_permissions_tbf_header_component_static!(
+                    apollo3::chip::Apollo3<Apollo3DefaultPeripherals>,
+                    kernel::process::ProcessStandardDebugFull,
+                ),
+            );
+
+    // Create and start the asynchronous process loader.
+    let _loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
+        checker,
+        &mut *addr_of_mut!(PROCESSES),
         board_kernel,
         chip,
-        core::slice::from_raw_parts(
-            core::ptr::addr_of!(_sapps),
-            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-        ),
-        core::slice::from_raw_parts_mut(
-            core::ptr::addr_of_mut!(_sappmem),
-            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
-        ),
-        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
-        &process_mgmt_cap,
+        assigner,
+        storage_permissions_policy,
     )
-    .unwrap_or_else(|err| {
-        debug!("Error loading processes!");
-        debug!("{:?}", err);
-    });
+    .finalize(components::process_loader_sequential_component_static!(
+        apollo3::chip::Apollo3<Apollo3DefaultPeripherals>,
+        kernel::process::ProcessStandardDebugFull,
+        NUM_PROCS,
+    ));
 
     (board_kernel, artemis_nano, chip)
 }

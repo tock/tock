@@ -176,7 +176,6 @@ impl<'a, A: AES128<'a> + AES128Ctr> EncryptionOracleDriver<'a, A> {
 
                                 AES128::set_iv(self.aes, &static_buf[..copy_len])
                             })
-                            .map_err(Into::into)
                         })??;
                 }
 

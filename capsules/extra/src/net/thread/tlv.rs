@@ -3,9 +3,10 @@
 // Copyright Tock Contributors 2022.
 
 //! Implements Type-Length-Value (TLV) encoding and decoding as outlined
-//! in the Thread 1.1.1 Specification. TLVs are used to serialize
-//! information exchanged during mesh link establishment (MLE). MLE is
-//! covered in Chapter 4.
+//! in the Thread 1.1.1 Specification.
+//!
+//! TLVs are used to serialize information exchanged during mesh link
+//! establishment (MLE). MLE is covered in Chapter 4.
 //!
 //! MLE messages consist of a command type and a series of TLV parameters.
 //!
@@ -28,7 +29,7 @@
 //!
 //! 1. Type   - A one-byte TLV type number.
 //! 2. Length - A one-byte number representing the length of the TLV
-//!             value in bytes.
+//!    value in bytes.
 //! 3. Value  - The TLV value.
 //!
 //! For some TLVs, the TLV type number is shifted left by one to leave the

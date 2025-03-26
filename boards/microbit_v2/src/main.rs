@@ -88,6 +88,8 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 type TemperatureDriver =
     components::temperature::TemperatureComponentType<nrf52::temperature::Temp<'static>>;
 type RngDriver = components::rng::RngComponentType<nrf52833::trng::Trng<'static>>;
+type Ieee802154RawDriver =
+    components::ieee802154::Ieee802154RawComponentType<nrf52833::ieee802154_radio::Radio<'static>>;
 
 /// Supported drivers by the platform
 pub struct MicroBit {
@@ -99,6 +101,8 @@ pub struct MicroBit {
             nrf52::rtc::Rtc<'static>,
         >,
     >,
+    eui64: &'static capsules_extra::eui64::Eui64,
+    ieee802154: &'static Ieee802154RawDriver,
     console: &'static capsules_core::console::Console<'static>,
     gpio: &'static capsules_core::gpio::GPIO<'static, nrf52::gpio::GPIOPin<'static>>,
     led: &'static capsules_core::led::LedDriver<
@@ -170,6 +174,8 @@ impl SyscallDriverLookup for MicroBit {
             capsules_extra::pwm::DRIVER_NUM => f(Some(self.pwm)),
             capsules_extra::app_flash_driver::DRIVER_NUM => f(Some(self.app_flash)),
             capsules_extra::sound_pressure::DRIVER_NUM => f(Some(self.sound_pressure)),
+            capsules_extra::eui64::DRIVER_NUM => f(Some(self.eui64)),
+            capsules_extra::ieee802154::DRIVER_NUM => f(Some(self.ieee802154)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
         }
@@ -221,9 +227,14 @@ unsafe fn start() -> (
 ) {
     nrf52833::init();
 
+    let ieee802154_ack_buf = static_init!(
+        [u8; nrf52833::ieee802154_radio::ACK_BUF_SIZE],
+        [0; nrf52833::ieee802154_radio::ACK_BUF_SIZE]
+    );
+    // Initialize chip peripheral drivers
     let nrf52833_peripherals = static_init!(
         Nrf52833DefaultPeripherals,
-        Nrf52833DefaultPeripherals::new()
+        Nrf52833DefaultPeripherals::new(ieee802154_ack_buf)
     );
 
     // set up circular peripheral dependencies
@@ -233,6 +244,23 @@ unsafe fn start() -> (
 
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
 
+    //--------------------------------------------------------------------------
+    // RAW 802.15.4
+    //--------------------------------------------------------------------------
+
+    let device_id = (*addr_of!(nrf52833::ficr::FICR_INSTANCE)).id();
+
+    let eui64 = components::eui64::Eui64Component::new(u64::from_le_bytes(device_id))
+        .finalize(components::eui64_component_static!());
+
+    let ieee802154 = components::ieee802154::Ieee802154RawComponent::new(
+        board_kernel,
+        capsules_extra::ieee802154::DRIVER_NUM,
+        &nrf52833_peripherals.ieee802154_radio,
+    )
+    .finalize(components::ieee802154_raw_component_static!(
+        nrf52833::ieee802154_radio::Radio,
+    ));
     //--------------------------------------------------------------------------
     // CAPABILITIES
     //--------------------------------------------------------------------------
@@ -712,6 +740,8 @@ unsafe fn start() -> (
 
     let microbit = MicroBit {
         ble_radio,
+        ieee802154,
+        eui64,
         console,
         gpio,
         button,

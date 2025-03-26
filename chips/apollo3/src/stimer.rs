@@ -100,13 +100,18 @@ pub struct STimer<'a> {
     client: OptionalCell<&'a dyn AlarmClient>,
 }
 
-impl<'a> STimer<'_> {
+impl<'a> STimer<'a> {
     // Unsafe bc of use of STIMER_BASE internally
-    pub const fn new() -> STimer<'a> {
-        STimer {
+    pub fn new() -> STimer<'a> {
+        let timer = STimer {
             registers: STIMER_BASE,
             client: OptionalCell::empty(),
-        }
+        };
+
+        // Reset so that time starts at 0
+        let _ = timer.reset();
+
+        timer
     }
 
     pub fn handle_interrupt(&self) {
@@ -153,7 +158,8 @@ impl<'a> Counter<'a> for STimer<'a> {
     }
 
     fn reset(&self) -> Result<(), ErrorCode> {
-        Err(ErrorCode::FAIL)
+        self.registers.stcfg.write(STCFG::CLEAR::SET);
+        Ok(())
     }
 
     fn is_running(&self) -> bool {

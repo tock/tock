@@ -40,6 +40,7 @@ enum Operation {
     Add,
     Update,
     Delete,
+    GarbageCollect,
 }
 
 /// `TicKVKVStore` implements the KV interface using the TicKV KVSystem
@@ -209,6 +210,21 @@ impl<'a, K: KVSystem<'a, K = T>, T: KeyType> kv::KV<'a> for TicKVKVStore<'a, K, 
             None => Err((key, ErrorCode::FAIL)),
         }
     }
+
+    fn garbage_collect(&self) -> Result<(), ErrorCode> {
+        if self.operation.is_some() {
+            return Err(ErrorCode::BUSY);
+        }
+
+        self.operation.set(Operation::GarbageCollect);
+
+        if let Err(e) = self.kv.garbage_collect() {
+            self.operation.clear();
+            Err(e)
+        } else {
+            Ok(())
+        }
+    }
 }
 
 impl<'a, K: KVSystem<'a, K = T>, T: KeyType> KVSystemClient<T> for TicKVKVStore<'a, K, T> {
@@ -260,6 +276,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: KeyType> KVSystemClient<T> for TicKVKVStore<
                             cb.delete_complete(Err(ErrorCode::FAIL), unhashed_key);
                         });
                     }
+                    Operation::GarbageCollect => {}
                 }
             } else {
                 match op {
@@ -336,20 +353,19 @@ impl<'a, K: KVSystem<'a, K = T>, T: KeyType> KVSystemClient<T> for TicKVKVStore<
                             }
                         }
                     }
-                    Operation::Delete => {
-                        match self.kv.invalidate_key(hashed_key) {
-                            Ok(()) => {
-                                self.unhashed_key.replace(unhashed_key);
-                            }
-                            Err((key, _e)) => {
-                                self.hashed_key.replace(key);
-                                self.operation.clear();
-                                self.client.map(move |cb| {
-                                    cb.delete_complete(Err(ErrorCode::FAIL), unhashed_key);
-                                });
-                            }
-                        };
-                    }
+                    Operation::Delete => match self.kv.invalidate_key(hashed_key) {
+                        Ok(()) => {
+                            self.unhashed_key.replace(unhashed_key);
+                        }
+                        Err((key, _e)) => {
+                            self.hashed_key.replace(key);
+                            self.operation.clear();
+                            self.client.map(move |cb| {
+                                cb.delete_complete(Err(ErrorCode::FAIL), unhashed_key);
+                            });
+                        }
+                    },
+                    Operation::GarbageCollect => {}
                 }
             }
         });
@@ -441,6 +457,7 @@ impl<'a, K: KVSystem<'a, K = T>, T: KeyType> KVSystemClient<T> for TicKVKVStore<
                     });
                 });
             }
+            Operation::GarbageCollect => {}
         });
     }
 
@@ -564,8 +581,14 @@ impl<'a, K: KVSystem<'a, K = T>, T: KeyType> KVSystemClient<T> for TicKVKVStore<
                     });
                 });
             }
+            Operation::GarbageCollect => {}
         });
     }
 
-    fn garbage_collect_complete(&self, _result: Result<(), ErrorCode>) {}
+    fn garbage_collect_complete(&self, result: Result<(), ErrorCode>) {
+        self.operation.clear();
+        self.client.map(move |cb| {
+            cb.garbage_collection_complete(result);
+        });
+    }
 }

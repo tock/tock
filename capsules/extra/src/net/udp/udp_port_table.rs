@@ -52,9 +52,10 @@ use kernel::ErrorCode;
 // is.
 pub const MAX_NUM_BOUND_PORTS: usize = 16;
 
-/// The SocketBindingEntry struct is stored in the PORT_TABLE and conveys what port is bound
-/// at the given index if one is bound. If no port is bound, the value stored
-/// at that location in the table is Unbound.
+/// Conveys what port is bound at the given index.
+///
+/// If no port is bound, the value stored at that location in the
+/// table is Unbound.
 #[derive(Clone, Copy, PartialEq)]
 pub enum SocketBindingEntry {
     Port(u16),
@@ -67,18 +68,18 @@ pub trait PortQuery {
     fn is_bound(&self, port: u16) -> bool;
 }
 
-/// A UdpSocket provides a handle into the bound port table. When binding to
-/// a port, the socket is consumed and Udp{Sender, Receiver}Binding structs are returned. When
-/// undbinding, the socket is returned and can be used to bind to other ports.
+/// Provides a handle into the bound port table.
+///
+/// When binding to a port, the socket is consumed and Udp{Sender,
+/// Receiver}Binding structs are returned. When undbinding, the socket
+/// is returned and can be used to bind to other ports.
 #[derive(Debug)]
 pub struct UdpSocket {
     idx: usize,
     port_table: &'static UdpPortManager,
 }
 
-/// The UdpPortManager maintains a reference to the port_array, which manages what
-/// ports are bound at any given moment, and user_ports, which provides a
-/// handle to userspace port bindings in the UDP driver.
+/// Maps bound ports to userspace port bindings.
 pub struct UdpPortManager {
     port_array: TakeCell<'static, [Option<SocketBindingEntry>]>,
     user_ports: OptionalCell<&'static dyn PortQuery>,
@@ -216,7 +217,7 @@ impl UdpPortManager {
             .map_or(true, |port_query| port_query.is_bound(port));
         if user_bound {
             return Ok(true);
-        };
+        }
         let ret = self
             .port_array
             .map(|table| {

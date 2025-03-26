@@ -70,8 +70,8 @@ impl<'a, S: KVSystem<'static>, T: KeyType> KVSystemTest<'a, S, T> {
     }
 }
 
-impl<'a, S: KVSystem<'static, K = T>, T: KeyType + core::fmt::Debug> KVSystemClient<T>
-    for KVSystemTest<'a, S, T>
+impl<S: KVSystem<'static, K = T>, T: KeyType + core::fmt::Debug> KVSystemClient<T>
+    for KVSystemTest<'_, S, T>
 {
     fn generate_key_complete(
         &self,

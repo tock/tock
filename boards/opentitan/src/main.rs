@@ -47,6 +47,8 @@ pub mod pinmux_layout;
 #[cfg(test)]
 mod tests;
 
+/// Chip configuration.
+///
 /// The `earlgrey` chip crate supports multiple targets with slightly different
 /// configurations, which are encoded through implementations of the
 /// `earlgrey::chip_config::EarlGreyConfig` trait. This type provides different

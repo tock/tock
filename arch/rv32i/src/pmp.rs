@@ -183,7 +183,7 @@ impl TORRegionSpec {
             || (end as usize) % 4 != 0
             || (end as usize)
                 .checked_sub(start as usize)
-                .map_or(true, |size| size < 4)
+                .is_none_or(|size| size < 4)
         {
             None
         } else {
@@ -1719,9 +1719,11 @@ pub mod kernel_protection_mml_epmp {
     #[derive(Copy, Clone, Debug)]
     pub struct KernelTextRegion(pub TORRegionSpec);
 
-    /// A RISC-V ePMP implementation which supports machine-mode (kernel) memory
-    /// protection by using the machine-mode lockdown mode (MML), with a fixed
-    /// number of "kernel regions" (such as `.text`, flash, RAM and MMIO).
+    /// A RISC-V ePMP implementation.
+    ///
+    /// Supports machine-mode (kernel) memory protection by using the
+    /// machine-mode lockdown mode (MML), with a fixed number of
+    /// "kernel regions" (such as `.text`, flash, RAM and MMIO).
     ///
     /// This implementation will configure the ePMP in the following way:
     ///

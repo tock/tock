@@ -429,7 +429,7 @@ impl<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> LiteXAlarm<'t, 'c, 
     }
 }
 
-impl<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> Time for LiteXAlarm<'t, 'c, R, F> {
+impl<'t, R: LiteXSoCRegisterConfiguration, F: Frequency> Time for LiteXAlarm<'t, '_, R, F> {
     type Frequency = F;
     type Ticks = <LiteXTimerUptime<'t, R, F> as Time>::Ticks;
 
@@ -438,9 +438,7 @@ impl<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> Time for LiteXAlarm
     }
 }
 
-impl<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> Alarm<'c>
-    for LiteXAlarm<'t, 'c, R, F>
-{
+impl<'c, R: LiteXSoCRegisterConfiguration, F: Frequency> Alarm<'c> for LiteXAlarm<'_, 'c, R, F> {
     fn set_alarm_client(&self, client: &'c dyn AlarmClient) {
         self.alarm_client.set(client);
     }
@@ -483,9 +481,7 @@ impl<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> Alarm<'c>
     }
 }
 
-impl<'t, 'c, R: LiteXSoCRegisterConfiguration, F: Frequency> TimerClient
-    for LiteXAlarm<'t, 'c, R, F>
-{
+impl<R: LiteXSoCRegisterConfiguration, F: Frequency> TimerClient for LiteXAlarm<'_, '_, R, F> {
     fn timer(&self) {
         self.timer_tick(true);
     }

@@ -40,7 +40,7 @@ impl<'a> TestRng<'a> {
     }
 }
 
-impl<'a> Client for TestRng<'a> {
+impl Client for TestRng<'_> {
     fn randomness_available(
         &self,
         randomness: &mut dyn Iterator<Item = u32>,

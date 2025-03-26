@@ -149,13 +149,13 @@ pub mod cs {
         pub polarity: Polarity,
     }
 
-    impl<'a, P: crate::hil::gpio::Output> Clone for ChipSelectPolar<'a, P> {
+    impl<P: crate::hil::gpio::Output> Clone for ChipSelectPolar<'_, P> {
         fn clone(&self) -> Self {
             *self
         }
     }
 
-    impl<'a, P: crate::hil::gpio::Output> Copy for ChipSelectPolar<'a, P> {}
+    impl<P: crate::hil::gpio::Output> Copy for ChipSelectPolar<'_, P> {}
 
     impl<'a, P: crate::hil::gpio::Output, A: ChipSelectActivePolarity>
         IntoChipSelect<ChipSelectPolar<'a, P>, A> for &'a P
@@ -173,7 +173,7 @@ pub mod cs {
     /// [`activate`](ChipSelectPolar::activate) and
     /// [`deactivate`](ChipSelectPolar::deactivate) methods to automatically set
     /// or clear the chip select pin based on the stored polarity.
-    impl<'a, P: crate::hil::gpio::Output> ChipSelectPolar<'a, P> {
+    impl<P: crate::hil::gpio::Output> ChipSelectPolar<'_, P> {
         /// Deactivate the chip select pin.
         ///
         /// High if active low, low if active high.

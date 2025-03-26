@@ -157,7 +157,7 @@ const SPI_HOST_CMD_BIDIRECTIONAL: u32 = 3;
 // SPI Host Command Speed: Standard SPI
 const SPI_HOST_CMD_STANDARD_SPI: u32 = 0;
 
-impl<'a> SpiHost<'a> {
+impl SpiHost<'_> {
     pub fn new(base: StaticRef<SpiHostRegisters>, cpu_clk: u32) -> Self {
         SpiHost {
             registers: base,
@@ -522,7 +522,7 @@ impl<'a> SpiHost<'a> {
     /// Divide a/b and return a value always rounded
     /// up to the nearest integer
     fn div_up(&self, a: usize, b: usize) -> usize {
-        (a + (b - 1)) / b
+        a.div_ceil(b)
     }
 
     /// Calculate the scaler based on a specified tsclk rate
@@ -694,7 +694,7 @@ impl<'a> hil::spi::SpiMaster<'a> for SpiHost<'a> {
         match polarity {
             ClockPolarity::IdleLow => regs.config_opts.modify(conf_opts::CPOL_0::CLEAR),
             ClockPolarity::IdleHigh => regs.config_opts.modify(conf_opts::CPOL_0::SET),
-        };
+        }
         Ok(())
     }
 
@@ -713,7 +713,7 @@ impl<'a> hil::spi::SpiMaster<'a> for SpiHost<'a> {
         match phase {
             ClockPhase::SampleLeading => regs.config_opts.modify(conf_opts::CPHA_0::CLEAR),
             ClockPhase::SampleTrailing => regs.config_opts.modify(conf_opts::CPHA_0::SET),
-        };
+        }
         Ok(())
     }
 

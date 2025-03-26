@@ -74,7 +74,7 @@ use kernel::utilities::registers::{register_bitfields, ReadOnly, ReadWrite, Writ
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
-use nrf52::constants::TxPower;
+use crate::constants::TxPower;
 
 const RADIO_BASE: StaticRef<RadioRegisters> =
     unsafe { StaticRef::new(0x40001000 as *const RadioRegisters) };
@@ -707,7 +707,7 @@ pub struct Radio<'a> {
     deferred_call_operation: OptionalCell<DeferredOperation>,
 }
 
-impl<'a> AlarmClient for Radio<'a> {
+impl AlarmClient for Radio<'_> {
     fn alarm(&self) {
         // This alarm function is the callback for when the CCA backoff alarm completes
         // Attempt a new CCA period by issuing CCASTART task
@@ -951,7 +951,7 @@ impl<'a> Radio<'a> {
 
                     // Ready event from Tx ramp up will be in radio internal
                     // TXIDLE state
-                    if self.registers.state.get() == nrf52::constants::RADIO_STATE_TXIDLE {
+                    if self.registers.state.get() == crate::constants::RADIO_STATE_TXIDLE {
                         start_task = true;
                     }
                 }
@@ -1126,10 +1126,10 @@ impl<'a> Radio<'a> {
             .write(CrcConfiguration::LEN::TWO + CrcConfiguration::SKIPADDR::IEEE802154);
         self.registers
             .crcinit
-            .set(nrf52::constants::RADIO_CRCINIT_IEEE802154);
+            .set(crate::constants::RADIO_CRCINIT_IEEE802154);
         self.registers
             .crcpoly
-            .set(nrf52::constants::RADIO_CRCPOLY_IEEE802154);
+            .set(crate::constants::RADIO_CRCPOLY_IEEE802154);
     }
 
     fn ieee802154_set_rampup_mode(&self) {
@@ -1140,10 +1140,10 @@ impl<'a> Radio<'a> {
 
     fn ieee802154_set_cca_config(&self) {
         self.registers.ccactrl.write(
-            CCAControl::CCAMODE.val(nrf52::constants::IEEE802154_CCA_MODE)
-                + CCAControl::CCAEDTHRESH.val(nrf52::constants::IEEE802154_CCA_ED_THRESH)
-                + CCAControl::CCACORRTHRESH.val(nrf52::constants::IEEE802154_CCA_CORR_THRESH)
-                + CCAControl::CCACORRCNT.val(nrf52::constants::IEEE802154_CCA_CORR_CNT),
+            CCAControl::CCAMODE.val(crate::constants::IEEE802154_CCA_MODE)
+                + CCAControl::CCAEDTHRESH.val(crate::constants::IEEE802154_CCA_ED_THRESH)
+                + CCAControl::CCACORRTHRESH.val(crate::constants::IEEE802154_CCA_CORR_THRESH)
+                + CCAControl::CCACORRCNT.val(crate::constants::IEEE802154_CCA_CORR_CNT),
         );
     }
 
@@ -1158,7 +1158,7 @@ impl<'a> Radio<'a> {
 
         self.registers
             .pcnf1
-            .write(PacketConfiguration1::MAXLEN.val(nrf52::constants::RADIO_PAYLOAD_LENGTH as u32));
+            .write(PacketConfiguration1::MAXLEN.val(crate::constants::RADIO_PAYLOAD_LENGTH as u32));
     }
 
     fn ieee802154_set_channel_rate(&self) {
@@ -1319,7 +1319,7 @@ impl<'a> kernel::hil::radio::RadioConfig<'a> for Radio<'a> {
 
     fn set_tx_power(&self, tx_power: i8) -> Result<(), ErrorCode> {
         // Convert u8 to TxPower
-        match nrf52::constants::TxPower::try_from(tx_power as u8) {
+        match crate::constants::TxPower::try_from(tx_power as u8) {
             // Invalid transmitting power, propagate error
             Err(()) => Err(ErrorCode::NOSUPPORT),
             // Valid transmitting power, propagate success

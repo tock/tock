@@ -375,7 +375,7 @@ unsafe fn start() -> (
     let uart_mux = components::console::UartMuxComponent::new(&base_peripherals.usart3, 115200)
         .finalize(components::uart_mux_component_static!());
 
-    io::WRITER.set_initialized();
+    (*addr_of_mut!(io::WRITER)).set_initialized();
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
@@ -620,7 +620,7 @@ unsafe fn start() -> (
     match peripherals.rtc.rtc_init() {
         Err(e) => debug!("{:?}", e),
         _ => (),
-    };
+    }
 
     let date_time = components::date_time::DateTimeComponent::new(
         board_kernel,

@@ -375,14 +375,14 @@ impl<'a, A: AES128<'a> + AES128Ctr + AES128CBC + AES128ECB> VirtualAES128CCM<'a,
 
         // Append the auth data and 0-pad to a multiple of 16 bytes
         off = enc_consume!(buf, off; encode_bytes, a_data);
-        let auth_len = ((off + AES128_BLOCK_SIZE - 1) / AES128_BLOCK_SIZE) * AES128_BLOCK_SIZE;
+        let auth_len = off.div_ceil(AES128_BLOCK_SIZE) * AES128_BLOCK_SIZE;
         stream_len_cond!(buf, auth_len);
         buf[off..auth_len].iter_mut().for_each(|b| *b = 0);
         off = auth_len;
 
         // Append plaintext data and 0-pad to a multiple of 16 bytes
         off = enc_consume!(buf, off; encode_bytes, m_data);
-        let enc_len = ((off + AES128_BLOCK_SIZE - 1) / AES128_BLOCK_SIZE) * AES128_BLOCK_SIZE;
+        let enc_len = off.div_ceil(AES128_BLOCK_SIZE) * AES128_BLOCK_SIZE;
         stream_len_cond!(buf, enc_len);
         buf[off..enc_len].iter_mut().for_each(|b| *b = 0);
         off = enc_len;

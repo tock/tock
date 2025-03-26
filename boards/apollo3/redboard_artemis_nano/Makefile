@@ -44,4 +44,5 @@ flash-app:
 
 .PHONY: test
 test:
-	$(Q)OBJCOPY=${OBJCOPY} PORT=$(PORT) $(CARGO) test $(NO_RUN) --bin $(PLATFORM) --release
+	$(Q)OBJCOPY=${OBJCOPY} PORT=$(PORT) $(CARGO) test $(NO_RUN) \
+	    --bin $(PLATFORM) --release

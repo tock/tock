@@ -3,20 +3,20 @@
 // Copyright Tock Contributors 2022.
 
 use core::fmt::Write;
-use cortexm4::{nvic, CortexM4, CortexMVariant};
+use cortexm4f::{nvic, CortexM4F, CortexMVariant};
 use kernel::platform::chip::InterruptService;
 
 pub struct NRF52<'a, I: InterruptService + 'a> {
-    mpu: cortexm4::mpu::MPU,
-    userspace_kernel_boundary: cortexm4::syscall::SysCall,
+    mpu: cortexm4f::mpu::MPU,
+    userspace_kernel_boundary: cortexm4f::syscall::SysCall,
     interrupt_service: &'a I,
 }
 
 impl<'a, I: InterruptService + 'a> NRF52<'a, I> {
     pub unsafe fn new(interrupt_service: &'a I) -> Self {
         Self {
-            mpu: cortexm4::mpu::MPU::new(),
-            userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
+            mpu: cortexm4f::mpu::MPU::new(),
+            userspace_kernel_boundary: cortexm4f::syscall::SysCall::new(),
             interrupt_service,
         }
     }
@@ -48,7 +48,7 @@ pub struct Nrf52DefaultPeripherals<'a> {
     pub pwm0: crate::pwm::Pwm,
 }
 
-impl<'a> Nrf52DefaultPeripherals<'a> {
+impl Nrf52DefaultPeripherals<'_> {
     pub fn new() -> Self {
         Self {
             acomp: crate::acomp::Comparator::new(),
@@ -77,7 +77,7 @@ impl<'a> Nrf52DefaultPeripherals<'a> {
         kernel::deferred_call::DeferredCallClient::register(&self.nvmc);
     }
 }
-impl<'a> kernel::platform::chip::InterruptService for Nrf52DefaultPeripherals<'a> {
+impl kernel::platform::chip::InterruptService for Nrf52DefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             crate::peripheral_interrupts::COMP => self.acomp.handle_interrupt(),
@@ -105,8 +105,8 @@ impl<'a> kernel::platform::chip::InterruptService for Nrf52DefaultPeripherals<'a
 }
 
 impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for NRF52<'a, I> {
-    type MPU = cortexm4::mpu::MPU;
-    type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
+    type MPU = cortexm4f::mpu::MPU;
+    type UserspaceKernelBoundary = cortexm4f::syscall::SysCall;
 
     fn mpu(&self) -> &Self::MPU {
         &self.mpu
@@ -139,7 +139,7 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for NRF52<'a, I>
 
     fn sleep(&self) {
         unsafe {
-            cortexm4::support::wfi();
+            cortexm4f::support::wfi();
         }
     }
 
@@ -147,10 +147,10 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for NRF52<'a, I>
     where
         F: FnOnce() -> R,
     {
-        cortexm4::support::atomic(f)
+        cortexm4f::support::atomic(f)
     }
 
     unsafe fn print_state(&self, write: &mut dyn Write) {
-        CortexM4::print_cortexm_state(write);
+        CortexM4F::print_cortexm_state(write);
     }
 }

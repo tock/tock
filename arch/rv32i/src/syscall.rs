@@ -172,7 +172,10 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         let (a1slice, r) = r.split_at_mut(R_A2 - R_A1);
         let (a2slice, a3slice) = r.split_at_mut(R_A3 - R_A2);
 
-        return_value.encode_syscall_return(
+        kernel::utilities::arch_helpers::encode_syscall_return_trd104(
+            &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(
+                return_value,
+            ),
             &mut a0slice[0],
             &mut a1slice[0],
             &mut a2slice[0],
@@ -195,7 +198,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         state.regs[R_A0] = callback.argument0 as u32;
         state.regs[R_A1] = callback.argument1 as u32;
         state.regs[R_A2] = callback.argument2 as u32;
-        state.regs[R_A3] = callback.argument3 as u32;
+        state.regs[R_A3] = callback.argument3.as_usize() as u32;
 
         // We also need to set the return address (ra) register so that the new
         // function that the process is running returns to the correct location.
@@ -206,7 +209,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         state.regs[R_RA] = state.pc;
 
         // Save the PC we expect to execute.
-        state.pc = callback.pc as u32;
+        state.pc = callback.pc.addr() as u32;
 
         Ok(())
     }
@@ -631,9 +634,9 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
                         let syscall = kernel::syscall::Syscall::from_register_arguments(
                             state.regs[R_A4] as u8,
                             state.regs[R_A0] as usize,
-                            state.regs[R_A1] as usize,
-                            state.regs[R_A2] as usize,
-                            state.regs[R_A3] as usize,
+                            (state.regs[R_A1] as usize).into(),
+                            (state.regs[R_A2] as usize).into(),
+                            (state.regs[R_A3] as usize).into(),
                         );
 
                         match syscall {

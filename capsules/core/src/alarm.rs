@@ -391,8 +391,8 @@ impl<'a, A: Alarm<'a>> SyscallDriver for AlarmDriver<'a, A> {
     /// - `3`: Stop the alarm if it is outstanding
     /// - `4`: Deprecated
     /// - `5`: Set an alarm to fire at a given clock value `time` relative to `now`
-    /// - `6`: Set an alarm to fire at a given clock value `time` relative to a provided
-    ///        reference point.
+    /// - `6`: Set an alarm to fire at a given clock value `time` relative to a
+    ///   provided reference point.
     fn command(
         &self,
         cmd_type: usize,
@@ -564,7 +564,7 @@ mod test {
         _frequency: PhantomData<F>,
     }
 
-    impl<'a, T: Ticks, F: Frequency> Time for MockAlarm<'a, T, F> {
+    impl<T: Ticks, F: Frequency> Time for MockAlarm<'_, T, F> {
         type Frequency = F;
         type Ticks = T;
 

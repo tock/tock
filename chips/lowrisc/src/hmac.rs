@@ -127,7 +127,7 @@ impl Hmac<'_> {
     // Return true if processing more data, false if the buffer
     // is completely processed.
     fn data_progress(&self) -> bool {
-        self.data.take().map_or(false, |buf| match buf {
+        self.data.take().is_some_and(|buf| match buf {
             SubSliceMutImmut::Immutable(mut b) => {
                 if b.len() == 0 {
                     self.data.set(Some(SubSliceMutImmut::Immutable(b)));

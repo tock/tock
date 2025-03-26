@@ -150,7 +150,7 @@ pub struct Ios<'a> {
     op: Cell<Operation>,
 }
 
-impl<'a> Ios<'_> {
+impl<'a> Ios<'a> {
     pub fn new() -> Ios<'a> {
         Ios {
             registers: IOS_BASE,

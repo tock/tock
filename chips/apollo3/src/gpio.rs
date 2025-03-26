@@ -22,7 +22,7 @@ pub struct Port<'a> {
     pins: [GpioPin<'a>; 50],
 }
 
-impl<'a> Port<'a> {
+impl Port<'_> {
     pub const fn new() -> Self {
         Self {
             pins: [
@@ -940,7 +940,7 @@ impl<'a> GpioPin<'a> {
     }
 }
 
-impl<'a> gpio::Configure for GpioPin<'a> {
+impl gpio::Configure for GpioPin<'_> {
     fn configuration(&self) -> gpio::Configuration {
         unimplemented!();
     }
@@ -1162,7 +1162,7 @@ impl<'a> gpio::Configure for GpioPin<'a> {
     }
 }
 
-impl<'a> gpio::Input for GpioPin<'a> {
+impl gpio::Input for GpioPin<'_> {
     fn read(&self) -> bool {
         let regs = self.registers;
 
@@ -1174,7 +1174,7 @@ impl<'a> gpio::Input for GpioPin<'a> {
     }
 }
 
-impl<'a> gpio::Output for GpioPin<'a> {
+impl gpio::Output for GpioPin<'_> {
     fn toggle(&self) -> bool {
         let regs = self.registers;
         let cur_value;

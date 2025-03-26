@@ -231,7 +231,7 @@ impl<
                 }
 
                 // If this app has a pending command let's use it.
-                app.pending_run_app.take().map_or(false, |processid| {
+                app.pending_run_app.take().is_some_and(|processid| {
                     // Mark this driver as being in use.
                     self.processid.set(processid);
                     // Actually make the buzz happen.
@@ -473,17 +473,14 @@ impl<
 ///
 /// ### `allow_num`
 ///
-/// - `0`: Allow a buffer for storing the key.
-///        The kernel will read from this when running
-///        This should not be changed after running `run` until the HMAC
-///        has completed
-/// - `1`: Allow a buffer for storing the buffer.
-///        The kernel will read from this when running
-///        This should not be changed after running `run` until the HMAC
-///        has completed
-/// - `2`: Allow a buffer for storing the digest.
-///        The kernel will fill this with the HMAC digest before calling
-///        the `hash_done` callback.
+/// - `0`: Allow a buffer for storing the key. The kernel will read from this
+///   when running This should not be changed after running `run` until the HMAC
+///   has completed
+/// - `1`: Allow a buffer for storing the buffer. The kernel will read from this
+///   when running This should not be changed after running `run` until the HMAC
+///   has completed
+/// - `2`: Allow a buffer for storing the digest. The kernel will fill this with
+///   the HMAC digest before calling the `hash_done` callback.
 impl<
         'a,
         H: digest::Digest<'a, L> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
@@ -494,8 +491,8 @@ impl<
     //
     // ### `subscribe_num`
     //
-    // - `0`: Subscribe to interrupts from HMAC events.
-    //        The callback signature is `fn(result: u32)`
+    // - `0`: Subscribe to interrupts from HMAC events. The callback signature
+    //   is `fn(result: u32)`
 
     /// Setup and run the HMAC hardware
     ///

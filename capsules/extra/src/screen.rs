@@ -353,17 +353,19 @@ impl<'a> Screen<'a> {
                                     .get_readonly_processbuffer(ro_allow::SHARED)
                                     .and_then(|shared| {
                                         shared.enter(|s| {
+                                            let mut count = 0;
                                             let mut chunks = s.chunks(buffer_size);
                                             if let Some(chunk) = chunks.nth(chunk_number) {
                                                 for (i, byte) in chunk.iter().enumerate() {
                                                     if pos < len {
                                                         buffer[i] = byte.get();
-                                                        pos += 1
+                                                        count += 1;
+                                                        pos += 1;
                                                     } else {
                                                         break;
                                                     }
                                                 }
-                                                app.write_len - initial_pos
+                                                count
                                             } else {
                                                 // stop writing
                                                 0
@@ -386,7 +388,7 @@ impl<'a> Screen<'a> {
                                 let mut write_len = buffer_size / bytes_per_pixel;
                                 if write_len > len {
                                     write_len = len
-                                };
+                                }
                                 app.write_position += write_len * bytes_per_pixel;
                                 kernel_data
                                     .get_readonly_processbuffer(ro_allow::SHARED)
@@ -421,7 +423,7 @@ impl<'a> Screen<'a> {
     }
 }
 
-impl<'a> hil::screen::ScreenClient for Screen<'a> {
+impl hil::screen::ScreenClient for Screen<'_> {
     fn command_complete(&self, r: Result<(), ErrorCode>) {
         self.run_next_command(kernel::errorcode::into_statuscode(r), 0, 0);
     }
@@ -445,13 +447,13 @@ impl<'a> hil::screen::ScreenClient for Screen<'a> {
     }
 }
 
-impl<'a> hil::screen::ScreenSetupClient for Screen<'a> {
+impl hil::screen::ScreenSetupClient for Screen<'_> {
     fn command_complete(&self, r: Result<(), ErrorCode>) {
         self.run_next_command(kernel::errorcode::into_statuscode(r), 0, 0);
     }
 }
 
-impl<'a> SyscallDriver for Screen<'a> {
+impl SyscallDriver for Screen<'_> {
     fn command(
         &self,
         command_num: usize,

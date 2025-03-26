@@ -2,13 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2023.
 
-//! This file contains the structs and methods associated with the Thread
-//! networking layer. This represents a first attempt in Tock
-//! to support Thread networking. The current implementation successfully
-//! joins a Tock device as a child node to a Thread parent (tested using
-//! OpenThread). This Thread capsule is a client to the UDP Mux.
-//! The associated ThreadNetwork struct must be created in the `thread_network.rs`
-//! component.
+//! Structs and methods associated with the Thread networking layer.
+//!
+//! This represents a first attempt in Tock to support Thread
+//! networking. The current implementation successfully joins a Tock
+//! device as a child node to a Thread parent (tested using
+//! OpenThread). This Thread capsule is a client to the UDP Mux.  The
+//! associated ThreadNetwork struct must be created in the
+//! `thread_network.rs` component.
 //!
 //! The Userland interface is incredibly simple at this juncture. An application
 //! can begin the Thread child/parent joining by issuing a syscall command
@@ -230,7 +231,7 @@ impl<'a, A: time::Alarm<'a>> ThreadNetworkDriver<'a, A> {
                 self.state.replace(curr_state);
                 self.terminate_child_join(Err(ErrorCode::BUSY));
             }
-        };
+        }
     }
 
     fn thread_mle_send(
@@ -732,11 +733,11 @@ impl<'a, A: time::Alarm<'a>> CCMClient for ThreadNetworkDriver<'a, A> {
                 // Move the decrypted MLE message into the recv_buf and execute the receiving logic. Upon
                 // an error in `recv_logic`, joining the network fails and schedule termination upcall
                 self.recv_buffer.replace(assembled_subslice);
-                self.recv_logic(IPAddr(src_ipv6))
-                    .err()
-                    .map(|code| self.terminate_child_join(Err(code)));
+                if let Err(code) = self.recv_logic(IPAddr(src_ipv6)) {
+                    self.terminate_child_join(Err(code))
+                }
             }
             _ => (),
-        };
+        }
     }
 }

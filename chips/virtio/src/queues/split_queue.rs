@@ -857,7 +857,7 @@ impl<'a, 'b, const MAX_QUEUE_SIZE: usize> SplitVirtqueue<'a, 'b, MAX_QUEUE_SIZE>
     }
 }
 
-impl<'a, 'b, const MAX_QUEUE_SIZE: usize> Virtqueue for SplitVirtqueue<'a, 'b, MAX_QUEUE_SIZE> {
+impl<const MAX_QUEUE_SIZE: usize> Virtqueue for SplitVirtqueue<'_, '_, MAX_QUEUE_SIZE> {
     fn used_interrupt(&self) {
         assert!(self.initialized.get());
         // A buffer MAY have been put into the used in by the device

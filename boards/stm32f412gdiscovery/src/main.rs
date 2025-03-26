@@ -27,6 +27,7 @@ use kernel::{create_capability, debug, static_init};
 use stm32f412g::chip_specs::Stm32f412Specs;
 use stm32f412g::clocks::hsi::HSI_FREQUENCY_MHZ;
 use stm32f412g::interrupt_service::Stm32f412gDefaultPeripherals;
+use stm32f412g::rcc::PllSource;
 
 /// Support routines for debugging I/O.
 pub mod io;
@@ -179,6 +180,7 @@ unsafe fn set_pin_primary_functions(
     syscfg: &stm32f412g::syscfg::Syscfg,
     i2c1: &stm32f412g::i2c::I2C,
     gpio_ports: &'static stm32f412g::gpio::GpioPorts<'static>,
+    peripheral_clock_frequency: usize,
 ) {
     use kernel::hil::gpio::Configure;
     use stm32f412g::gpio::{AlternateFunction, Mode, PinId, PortId};
@@ -269,7 +271,10 @@ unsafe fn set_pin_primary_functions(
     });
 
     i2c1.enable_clock();
-    i2c1.set_speed(stm32f412g::i2c::I2CSpeed::Speed100k, 16);
+    i2c1.set_speed(
+        stm32f412g::i2c::I2CSpeed::Speed400k,
+        peripheral_clock_frequency,
+    );
 
     // FT6206 interrupt
     gpio_ports.get_pin(PinId::PG05).map(|pin| {
@@ -414,6 +419,14 @@ unsafe fn start() -> (
     );
 
     peripherals.init();
+
+    let _ = clocks.set_ahb_prescaler(stm32f412g::rcc::AHBPrescaler::DivideBy1);
+    let _ = clocks.set_apb1_prescaler(stm32f412g::rcc::APBPrescaler::DivideBy4);
+    let _ = clocks.set_apb2_prescaler(stm32f412g::rcc::APBPrescaler::DivideBy2);
+    let _ = clocks.set_pll_frequency_mhz(PllSource::HSI, 100);
+    let _ = clocks.pll.enable();
+    let _ = clocks.set_sys_clock_source(stm32f412g::rcc::SysClockSource::PLL);
+
     let base_peripherals = &peripherals.stm32f4;
     setup_peripherals(
         &base_peripherals.tim2,
@@ -421,8 +434,12 @@ unsafe fn start() -> (
         &peripherals.trng,
     );
 
-    // We use the default HSI 16Mhz clock
-    set_pin_primary_functions(syscfg, &base_peripherals.i2c1, &base_peripherals.gpio_ports);
+    set_pin_primary_functions(
+        syscfg,
+        &base_peripherals.i2c1,
+        &base_peripherals.gpio_ports,
+        clocks.get_apb1_frequency_mhz(),
+    );
 
     setup_dma(
         dma1,
@@ -445,7 +462,7 @@ unsafe fn start() -> (
     let uart_mux = components::console::UartMuxComponent::new(&base_peripherals.usart2, 115200)
         .finalize(components::uart_mux_component_static!());
 
-    io::WRITER.set_initialized();
+    (*addr_of_mut!(io::WRITER)).set_initialized();
 
     // Create capabilities that the board needs to call certain protected kernel
     // functions.
@@ -653,7 +670,7 @@ unsafe fn start() -> (
         tft,
         Some(tft),
     )
-    .finalize(components::screen_component_static!(57600));
+    .finalize(components::screen_component_static!(1024));
 
     let touch = components::touch::MultiTouchComponent::new(
         board_kernel,

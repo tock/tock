@@ -27,7 +27,7 @@ impl<'a> Stm32f401ccDefaultPeripherals<'a> {
         self.stm32f4.setup_circular_deps();
     }
 }
-impl<'a> kernel::platform::chip::InterruptService for Stm32f401ccDefaultPeripherals<'a> {
+impl kernel::platform::chip::InterruptService for Stm32f401ccDefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         #[allow(clippy::match_single_binding)]
         match interrupt {

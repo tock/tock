@@ -45,8 +45,10 @@ use kernel::ErrorCode;
 // We store addresses using primitive data types like `u8`, `u16`, `u32`, and `u64`.
 
 /// The `DataWidth` enum and associated `BusAddr` structs define the width
-/// of the data transmitted over a bus. The `BusAddr::bytes`` function transforms
-/// the address into the specified endianness and returns an iterator.
+/// of the data transmitted over a bus.
+///
+/// The `BusAddr::bytes`` function transforms the address into the
+/// specified endianness and returns an iterator.
 pub enum DataWidth {
     Bits8,
     Bits16LE,
@@ -507,7 +509,7 @@ impl<'a, A: BusAddr, I: I2CDevice> Bus<'a, A> for I2CMasterBus<'a, I> {
     }
 }
 
-impl<'a, I: I2CDevice> I2CClient for I2CMasterBus<'a, I> {
+impl<I: I2CDevice> I2CClient for I2CMasterBus<'_, I> {
     fn command_complete(&self, buffer: &'static mut [u8], status: Result<(), Error>) {
         let len = match status {
             Ok(()) => self.len.get(),
@@ -597,7 +599,7 @@ impl<'a, A: BusAddr + Into<BusAddr8080>, B: Bus8080<'static>> Bus<'a, A> for Bus
     }
 }
 
-impl<'a, B: Bus8080<'static>> bus8080::Client for Bus8080Bus<'a, B> {
+impl<B: Bus8080<'static>> bus8080::Client for Bus8080Bus<'_, B> {
     fn command_complete(
         &self,
         buffer: Option<&'static mut [u8]>,

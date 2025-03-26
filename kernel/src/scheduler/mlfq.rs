@@ -10,24 +10,24 @@
 //! This scheduler can be summarized by the following rules:
 //!
 //! - Rule 1: If Priority(A) > Priority(B), and both are ready, A runs (B
-//!           doesn't).
+//!   doesn't).
 //! - Rule 2: If Priority(A) = Priority(B), A & B run in round-robin fashion
-//!           using the time slice (quantum length) of the given queue.
+//!   using the time slice (quantum length) of the given queue.
 //! - Rule 3: When a job enters the system, it is placed at the highest priority
-//!           (the topmost queue).
+//!   (the topmost queue).
 //! - Rule 4: Once a job uses up its time allotment at a given level (regardless
-//!           of how many times it has given up the CPU), its priority is
-//!           reduced (i.e., it moves down one queue).
+//!   of how many times it has given up the CPU), its priority is reduced (i.e.,
+//!   it moves down one queue).
 //! - Rule 5: After some time period S, move all the jobs in the system to the
-//!           topmost queue.
+//!   topmost queue.
 
 use core::cell::Cell;
+use core::num::NonZeroU32;
 
 use crate::collections::list::{List, ListLink, ListNode};
 use crate::hil::time::{self, ConvertTicks, Ticks};
 use crate::platform::chip::Chip;
 use crate::process::Process;
-use crate::process::ProcessId;
 use crate::process::StoppedExecutingReason;
 use crate::scheduler::{Scheduler, SchedulingDecision};
 
@@ -96,9 +96,8 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
 
     fn redeem_all_procs(&self) {
         for queue in self.processes.iter().skip(1) {
-            match queue.pop_head() {
-                Some(proc) => self.processes[0].push_tail(proc),
-                None => continue,
+            if let Some(proc) = queue.pop_head() {
+                self.processes[0].push_tail(proc)
             }
         }
     }
@@ -110,7 +109,7 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
         for (idx, queue) in self.processes.iter().enumerate() {
             let next = queue
                 .iter()
-                .find(|node_ref| node_ref.proc.map_or(false, |proc| proc.ready()));
+                .find(|node_ref| node_ref.proc.is_some_and(|proc| proc.ready()));
             if next.is_some() {
                 // pop procs to back until we get to match
                 loop {
@@ -131,7 +130,7 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
     }
 }
 
-impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<'a, A> {
+impl<A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<'_, A> {
     fn next(&self) -> SchedulingDecision {
         let now = self.alarm.now();
         let next_reset = self.next_reset.get();
@@ -156,7 +155,7 @@ impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<
         self.last_queue_idx.set(queue_idx);
         self.last_timeslice.set(timeslice);
 
-        SchedulingDecision::RunProcess((next, Some(timeslice)))
+        SchedulingDecision::RunProcess((next, NonZeroU32::new(timeslice)))
     }
 
     fn result(&self, result: StoppedExecutingReason, execution_time_us: Option<u32>) {
@@ -181,10 +180,5 @@ impl<'a, A: 'static + time::Alarm<'static>, C: Chip> Scheduler<C> for MLFQSched<
         } else {
             self.processes[queue_idx].push_tail(self.processes[queue_idx].pop_head().unwrap());
         }
-    }
-
-    unsafe fn continue_process(&self, _: ProcessId, _: &C) -> bool {
-        // This MLFQ scheduler only preempts processes if there is a timeslice expiration
-        true
     }
 }

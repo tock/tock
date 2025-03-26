@@ -369,6 +369,11 @@ impl<'a, R: radio::Radio<'a>, A: Alarm<'a>> Mac<'a> for XMac<'a, R, A> {
         self.radio.is_on()
     }
 
+    fn start(&self) -> Result<(), ErrorCode> {
+        self.state.set(XMacState::STARTUP);
+        self.radio.start()
+    }
+
     fn set_config_client(&self, client: &'a dyn radio::ConfigClient) {
         self.radio.set_config_client(client)
     }

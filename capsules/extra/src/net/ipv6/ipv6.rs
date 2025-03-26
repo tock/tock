@@ -306,12 +306,14 @@ impl IP6Header {
     }
 }
 
-/// This defines the currently supported `TransportHeader` types. The contents
-/// of each header is encapsulated by the enum type. Note that this definition
-/// of `TransportHeader`s means that recursive headers are not supported.
-/// As of now, there is no support for sending raw IP packets without a transport header.
-/// Currently we accept the overhead of copying these structs in/out of an OptionalCell
-/// in `udp_send.rs`.
+/// This defines the currently supported `TransportHeader` types.
+///
+/// The contents of each header is encapsulated by the enum type. Note
+/// that this definition of `TransportHeader`s means that recursive
+/// headers are not supported.  As of now, there is no support for
+/// sending raw IP packets without a transport header.  Currently we
+/// accept the overhead of copying these structs in/out of an
+/// OptionalCell in `udp_send.rs`.
 #[derive(Copy, Clone)]
 pub enum TransportHeader {
     UDP(UDPHeader),

@@ -359,7 +359,7 @@ pub unsafe fn start() -> (
     // DEVICEADDR register on the nRF52 to set the serial number.
     let serial_number_buf = static_init!([u8; 17], [0; 17]);
     let serial_number_string: &'static str =
-        nrf52::ficr::FICR_INSTANCE.address_str(serial_number_buf);
+        (*addr_of!(nrf52::ficr::FICR_INSTANCE)).address_str(serial_number_buf);
     let strings = static_init!(
         [&str; 3],
         [
@@ -565,7 +565,7 @@ pub unsafe fn start() -> (
             nrf52840::aes::AesECB
         ));
 
-    let device_id = nrf52840::ficr::FICR_INSTANCE.id();
+    let device_id = (*addr_of!(nrf52840::ficr::FICR_INSTANCE)).id();
     let device_id_bottom_16 = u16::from_le_bytes([device_id[0], device_id[1]]);
     let (ieee802154_radio, mux_mac) = components::ieee802154::Ieee802154Component::new(
         board_kernel,

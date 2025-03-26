@@ -95,7 +95,7 @@ pub struct Rtc<'a> {
     enabled: Cell<bool>,
 }
 
-impl<'a> Rtc<'a> {
+impl Rtc<'_> {
     pub const fn new() -> Self {
         Self {
             registers: RTC1_BASE,

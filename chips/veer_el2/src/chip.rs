@@ -199,12 +199,12 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             // Once claimed this interrupt won't fire until it's completed
             // NOTE: The interrupt is no longer pending in the PIC
             loop {
-                let interrupt = PIC.next_pending();
+                let interrupt = (*addr_of!(PIC)).next_pending();
 
                 match interrupt {
                     Some(irq) => {
                         // Safe as interrupts are disabled
-                        PIC.save_interrupt(irq);
+                        (*addr_of!(PIC)).save_interrupt(irq);
                     }
                     None => {
                         // Enable generic interrupts
@@ -215,7 +215,7 @@ unsafe fn handle_interrupt(intr: mcause::Interrupt) {
             }
         }
 
-        mcause::Interrupt::Unknown => {
+        mcause::Interrupt::Unknown(_) => {
             panic!("interrupt of unknown cause");
         }
     }
@@ -241,6 +241,7 @@ pub unsafe extern "C" fn start_trap_rust() {
 }
 
 /// Function that gets called if an interrupt occurs while an app was running.
+///
 /// mcause is passed in, and this function should correctly handle disabling the
 /// interrupt that fired so that it does not trigger again.
 #[export_name = "_disable_interrupt_trap_rust_from_app"]

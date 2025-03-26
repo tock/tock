@@ -294,7 +294,7 @@ pub unsafe fn start() -> (
     peripherals.resets.unreset_all_except(&[], true);
 
     // Set the UART used for panic
-    io::WRITER.set_uart(&peripherals.uart0);
+    (*addr_of_mut!(io::WRITER)).set_uart(&peripherals.uart0);
 
     //set RX and TX pins in UART mode
     let gpio_tx = peripherals.pins.get_pin(RPGpio::GPIO0);
@@ -453,9 +453,9 @@ pub unsafe fn start() -> (
     match peripherals.rtc.rtc_init() {
         Ok(()) => {}
         Err(e) => {
-            debug!("error starting rtc {:?}", e);
+            debug!("error starting rtc {:?}", e)
         }
-    };
+    }
 
     let date_time = components::date_time::DateTimeComponent::new(
         board_kernel,

@@ -175,7 +175,7 @@ pub struct Ast<'a> {
     callback: OptionalCell<&'a dyn time::AlarmClient>,
 }
 
-impl<'a> Ast<'a> {
+impl Ast<'_> {
     pub const fn new() -> Self {
         Self {
             registers: AST_ADDRESS,
@@ -211,7 +211,7 @@ enum Clock {
     Clock1K = 4,
 }
 
-impl<'a> Ast<'a> {
+impl Ast<'_> {
     fn clock_busy(&self) -> bool {
         self.registers.sr.is_set(Status::CLKBUSY)
     }

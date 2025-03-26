@@ -27,7 +27,7 @@ pub struct Rng<'a> {
     deferred_call: DeferredCall,
 }
 
-impl<'a> Rng<'_> {
+impl<'a> Rng<'a> {
     pub fn new() -> Rng<'a> {
         Rng {
             register: RNG_DATA_REG,
@@ -38,7 +38,7 @@ impl<'a> Rng<'_> {
     }
 }
 
-impl<'a> DeferredCallClient for Rng<'a> {
+impl DeferredCallClient for Rng<'_> {
     fn register(&'static self) {
         self.deferred_call.register(self);
     }
@@ -48,7 +48,7 @@ impl<'a> DeferredCallClient for Rng<'a> {
         self.client.map(|client| {
             if let Continue::More = client.entropy_available(&mut RngIter(self), Ok(())) {
                 self.deferred_call.set();
-            };
+            }
         });
     }
 }

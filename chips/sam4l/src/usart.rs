@@ -336,8 +336,8 @@ impl Drop for USARTRegManager<'_> {
                 + Interrupt::RXRDY::SET,
         );
 
-        let rx_active = self.rx_dma.map_or(false, |rx_dma| rx_dma.is_enabled());
-        let tx_active = self.tx_dma.map_or(false, |tx_dma| tx_dma.is_enabled());
+        let rx_active = self.rx_dma.is_some_and(|rx_dma| rx_dma.is_enabled());
+        let tx_active = self.tx_dma.is_some_and(|tx_dma| tx_dma.is_enabled());
 
         // Special-case panic here as panic does not actually use the
         // USART driver code in this file, rather it writes the registers
@@ -742,8 +742,8 @@ impl<'a> USART<'a> {
                 let cd = system_frequency / baud_rate;
                 usart.registers.brgr.write(BaudRate::CD.val(cd));
             }
-            _ => {}
-        };
+            UsartMode::Unused => {}
+        }
     }
 
     /// In non-SPI mode, this drives RTS low.

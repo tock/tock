@@ -31,9 +31,11 @@ pub static mut SYSCALL_FIRED: usize = 0;
 #[used]
 pub static mut APP_HARD_FAULT: usize = 0;
 
-/// This is used in the hardfault handler. When an app faults, the hardfault
-/// handler stores the value of the SCB registers in this static array. This
-/// makes them available to be displayed in a diagnostic fault message.
+/// This is used in the hardfault handler.
+///
+/// When an app faults, the hardfault handler stores the value of the
+/// SCB registers in this static array. This makes them available to
+/// be displayed in a diagnostic fault message.
 #[no_mangle]
 #[used]
 pub static mut SCB_REGISTERS: [u32; 5] = [0; 5];
@@ -195,7 +197,15 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         //
         // Refer to
         // https://doc.rust-lang.org/std/primitive.pointer.html#safety-13
-        return_value.encode_syscall_return(&mut *r0, &mut *r1, &mut *r2, &mut *r3);
+        kernel::utilities::arch_helpers::encode_syscall_return_trd104(
+            &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(
+                return_value,
+            ),
+            &mut *r0,
+            &mut *r1,
+            &mut *r2,
+            &mut *r3,
+        );
 
         Ok(())
     }
@@ -232,9 +242,9 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         //  - Stack offset 4 is R12, which the syscall interface ignores
         let stack_bottom = state.psp as *mut usize;
         ptr::write(stack_bottom.offset(7), state.psr); //......... -> APSR
-        ptr::write(stack_bottom.offset(6), callback.pc | 1); //... -> PC
+        ptr::write(stack_bottom.offset(6), callback.pc.addr() | 1); //... -> PC
         ptr::write(stack_bottom.offset(5), state.yield_pc | 1); // -> LR
-        ptr::write(stack_bottom.offset(3), callback.argument3); // -> R3
+        ptr::write(stack_bottom.offset(3), callback.argument3.as_usize()); // -> R3
         ptr::write(stack_bottom.offset(2), callback.argument2); // -> R2
         ptr::write(stack_bottom.offset(1), callback.argument1); // -> R1
         ptr::write(stack_bottom.offset(0), callback.argument0); // -> R0
@@ -300,8 +310,13 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
 
             // Use the helper function to convert these raw values into a Tock
             // `Syscall` type.
-            let syscall =
-                kernel::syscall::Syscall::from_register_arguments(svc_num, r0, r1, r2, r3);
+            let syscall = kernel::syscall::Syscall::from_register_arguments(
+                svc_num,
+                r0,
+                r1.into(),
+                r2.into(),
+                r3.into(),
+            );
 
             match syscall {
                 Some(s) => kernel::syscall::ContextSwitchReason::SyscallFired { syscall: s },

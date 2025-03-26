@@ -1,21 +1,19 @@
 # Licensed under the Apache License, Version 2.0 or the MIT License.
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright Tock Contributors 2022.
+# Copyright OxidOS Automotive 2025 SRL.
 
 [package]
-name = "acd52832"
+name = "cy8cproto_62_4243_w"
 version.workspace = true
 authors.workspace = true
-build = "../build.rs"
 edition.workspace = true
+build = "../build.rs"
 
 [dependencies]
-components = { path = "../components" }
-cortexm4 = { path = "../../arch/cortex-m4" }
+cortexm0p = { path = "../../arch/cortex-m0p" }
 kernel = { path = "../../kernel" }
-nrf52832 = { path = "../../chips/nrf52832" }
-segger = { path = "../../chips/segger" }
-nrf52_components = { path = "../nordic/nrf52_components" }
+psoc62xa = { path = "../../chips/psoc62xa" }
+components = { path = "../components" }
 
 capsules-core = { path = "../../capsules/core" }
 capsules-extra = { path = "../../capsules/extra" }

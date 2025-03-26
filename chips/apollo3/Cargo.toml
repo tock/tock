@@ -9,7 +9,7 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-cortexm4 = { path = "../../arch/cortex-m4" }
+cortexm4f = { path = "../../arch/cortex-m4f" }
 enum_primitive = { path = "../../libraries/enum_primitive" }
 kernel = { path = "../../kernel" }
 

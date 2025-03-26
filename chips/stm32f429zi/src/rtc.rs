@@ -379,7 +379,7 @@ enum DeferredCallTask {
     Set,
 }
 
-impl<'a> DeferredCallClient for Rtc<'a> {
+impl DeferredCallClient for Rtc<'_> {
     fn handle_deferred_call(&self) {
         self.deferred_call_task.take().map(|value| match value {
             DeferredCallTask::Get => self

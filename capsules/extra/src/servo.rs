@@ -7,6 +7,7 @@
 //! Usage
 //! -----
 //!
+//! ```ignore
 //! use kernel::static_init;
 //! let mux_pwm = components::pwm::PwmMuxComponent::new(&peripherals.pwm)
 //! .finalize(components::pwm_mux_component_static!(rp2040::pwm::Pwm));
@@ -32,6 +33,7 @@
 //! capsules_extra::servo::Servo<'static, 2>,
 //! capsules_extra::servo::Servo::new(multi_servo)
 //! );
+//! ```
 
 use kernel::hil;
 use kernel::syscall::{CommandReturn, SyscallDriver};
@@ -52,7 +54,7 @@ impl<'a, const SERVO_COUNT: usize> Servo<'a, SERVO_COUNT> {
     }
 }
 /// Provide an interface for userland.
-impl<'a, const SERVO_COUNT: usize> SyscallDriver for Servo<'a, SERVO_COUNT> {
+impl<const SERVO_COUNT: usize> SyscallDriver for Servo<'_, SERVO_COUNT> {
     /// Command interface.
     ///
     /// ### `command_num`

@@ -36,7 +36,7 @@ impl<'a> Stm32f429ziDefaultPeripherals<'a> {
         kernel::deferred_call::DeferredCallClient::register(&self.rtc);
     }
 }
-impl<'a> kernel::platform::chip::InterruptService for Stm32f429ziDefaultPeripherals<'a> {
+impl kernel::platform::chip::InterruptService for Stm32f429ziDefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             // put Stm32f429zi specific interrupts here

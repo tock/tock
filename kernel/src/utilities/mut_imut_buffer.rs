@@ -43,7 +43,7 @@ pub enum MutImutBuffer<'a, T> {
     Immutable(&'a [T]),
 }
 
-impl<'a, T> MutImutBuffer<'a, T> {
+impl<T> MutImutBuffer<'_, T> {
     /// Returns the length of the underlying buffer.
     pub fn len(&self) -> usize {
         match self {

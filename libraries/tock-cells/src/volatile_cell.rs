@@ -18,9 +18,12 @@
 use core::cell::UnsafeCell;
 use core::ptr;
 
-/// `VolatileCell` provides a wrapper around unsafe volatile pointer reads and
-/// writes. This is particularly useful for accessing microcontroller registers
-/// by (unsafely) casting a pointer to the register into a `VolatileCell`.
+/// `VolatileCell` provides a wrapper around unsafe volatile pointer
+/// reads and writes.
+///
+/// This is particularly useful for accessing microcontroller
+/// registers by (unsafely) casting a pointer to the register into a
+/// `VolatileCell`.
 ///
 /// ```
 /// use tock_cells::volatile_cell::VolatileCell;

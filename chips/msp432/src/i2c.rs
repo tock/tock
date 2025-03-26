@@ -36,7 +36,7 @@ pub struct I2c<'a> {
     master_client: OptionalCell<&'a dyn i2c::I2CHwMasterClient>,
 }
 
-impl<'a> I2c<'a> {
+impl I2c<'_> {
     pub fn new(registers: StaticRef<UsciBRegisters>) -> Self {
         Self {
             registers,

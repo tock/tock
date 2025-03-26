@@ -9,7 +9,7 @@
 //! etc.) is defined in the `scheduler` subcrate and selected by a board.
 
 use core::cell::Cell;
-use core::ptr::NonNull;
+use core::num::NonZeroU32;
 
 use crate::capabilities;
 use crate::config;
@@ -249,9 +249,9 @@ impl Kernel {
     /// This is needed for `ProcessId` itself to implement the `.index()`
     /// command to verify that the referenced app is still at the correct index.
     pub(crate) fn processid_is_valid(&self, processid: &ProcessId) -> bool {
-        self.processes.get(processid.index).map_or(false, |p| {
-            p.map_or(false, |process| process.processid().id() == processid.id())
-        })
+        self.processes
+            .get(processid.index)
+            .is_some_and(|p| p.is_some_and(|process| process.processid().id() == processid.id()))
     }
 
     /// Create a new grant. This is used in board initialization to setup grants
@@ -477,7 +477,7 @@ impl Kernel {
         chip: &C,
         process: &dyn process::Process,
         ipc: Option<&crate::ipc::IPC<NUM_PROCS>>,
-        timeslice_us: Option<u32>,
+        timeslice_us: Option<NonZeroU32>,
     ) -> (process::StoppedExecutingReason, Option<u32>) {
         // We must use a dummy scheduler timer if the process should be executed
         // without any timeslice restrictions. Note, a chip may not provide a
@@ -509,7 +509,7 @@ impl Kernel {
         // timeslice.
         loop {
             let stop_running = match scheduler_timer.get_remaining_us() {
-                Some(us) => us <= MIN_QUANTA_THRESHOLD_US,
+                Some(us) => us.get() <= MIN_QUANTA_THRESHOLD_US,
                 None => true,
             };
             if stop_running {
@@ -710,11 +710,11 @@ impl Kernel {
             // first.
             if return_reason == process::StoppedExecutingReason::TimesliceExpired {
                 // used the whole timeslice
-                timeslice
+                timeslice.get()
             } else {
                 match scheduler_timer.get_remaining_us() {
-                    Some(remaining) => timeslice - remaining,
-                    None => timeslice, // used whole timeslice
+                    Some(remaining) => timeslice.get() - remaining.get(),
+                    None => timeslice.get(), // used whole timeslice
                 }
             }
         });
@@ -877,15 +877,31 @@ impl Kernel {
                             subscribe_num: subdriver_number,
                         };
 
-                        // First check if `upcall_ptr` is null. A null
-                        // `upcall_ptr` will result in `None` here and
-                        // represents the special "unsubscribe" operation.
-                        let ptr = NonNull::new(upcall_ptr);
+                        // TODO: when the compiler supports capability types
+                        // bring this back as a NonNull
+                        // type. https://github.com/tock/tock/issues/4134.
+                        //
+                        // Previously, we had a NonNull type (that had a niche)
+                        // here, and could wrap that in Option to fill the niche
+                        // and handle the Null case. CapabilityPtr is filling
+                        // the gap left by * const(), which does not have the
+                        // niche and allows NULL internally. Having a CHERI
+                        // capability type with a niche is (maybe?) predicated
+                        // on having better compiler support.
+                        // Option<NonNull<()>> is preferable here, and it should
+                        // go back to it just as soon as we can express "non
+                        // null capability". For now, checking for the null case
+                        // is handled internally in each `map_or` call.
+                        //
+                        //First check if `upcall_ptr` is null. A null
+                        //`upcall_ptr` will result in `None` here and
+                        //represents the special "unsubscribe" operation.
+                        //let ptr = NonNull::new(upcall_ptr);
 
                         // For convenience create an `Upcall` type now. This is
                         // just a data structure and doesn't do any checking or
                         // conversion.
-                        let upcall = Upcall::new(process.processid(), upcall_id, appdata, ptr);
+                        let upcall = Upcall::new(process.processid(), upcall_id, appdata, upcall_ptr);
 
                         // If `ptr` is not null, we must first verify that the
                         // upcall function pointer is within process accessible
@@ -895,8 +911,8 @@ impl Kernel {
                         // > process executable memory...), the kernel...MUST
                         // > immediately return a failure with a error code of
                         // > `INVALID`.
-                        let rval1 = ptr.and_then(|upcall_ptr_nonnull| {
-                            if !process.is_valid_upcall_function_pointer(upcall_ptr_nonnull) {
+                        let rval1 = upcall_ptr.map_or(None, |upcall_ptr_nonnull| {
+                            if !process.is_valid_upcall_function_pointer(upcall_ptr_nonnull.as_ptr()) {
                                 Some(ErrorCode::INVAL)
                             } else {
                                 None
@@ -1001,7 +1017,7 @@ impl Kernel {
                             // that there are no pending upcalls with the same
                             // identifier but with the old function pointer, we
                             // clear them now.
-                            process.remove_pending_upcalls(upcall_id);
+                            let _ =process.remove_pending_upcalls(upcall_id);
                         }
 
                         if config::CONFIG.trace_syscalls {
@@ -1010,7 +1026,7 @@ impl Kernel {
                                 process.processid(),
                                 driver_number,
                                 subdriver_number,
-                                upcall_ptr as usize,
+                                upcall_ptr,
                                 appdata,
                                 rval
                             );
@@ -1387,15 +1403,35 @@ impl Kernel {
             Syscall::Exit {
                 which,
                 completion_code,
-            } => match which {
-                // The process called the `exit-terminate` system call.
-                0 => process.terminate(Some(completion_code as u32)),
-                // The process called the `exit-restart` system call.
-                1 => process.try_restart(Some(completion_code as u32)),
-                // The process called an invalid variant of the Exit
-                // system call class.
-                _ => process.set_syscall_return_value(SyscallReturn::Failure(ErrorCode::NOSUPPORT)),
-            },
+            } => {
+                // exit try restart modifies the ID of the process.
+                let old_process_id = process.processid();
+                let optional_return_value = match which {
+                    // The process called the `exit-terminate` system call.
+                    0 => {
+                        process.terminate(Some(completion_code as u32));
+                        None
+                    }
+                    // The process called the `exit-restart` system call.
+                    1 => {
+                        process.try_restart(Some(completion_code as u32));
+                        None
+                    }
+                    // The process called an invalid variant of the Exit
+                    // system call class.
+                    _ => {
+                        let return_value = SyscallReturn::Failure(ErrorCode::NOSUPPORT);
+                        process.set_syscall_return_value(return_value);
+                        Some(return_value)
+                    }
+                };
+                if config::CONFIG.trace_syscalls {
+                    debug!(
+                        "[{:?}] exit(which: {}, completion_code: {}) = {:?}",
+                        old_process_id, which, completion_code, optional_return_value,
+                    );
+                }
+            }
         }
     }
 }

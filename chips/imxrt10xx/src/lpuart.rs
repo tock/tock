@@ -801,7 +801,7 @@ impl<'a> hil::uart::Transmit<'a> for Lpuart<'a> {
     }
 }
 
-impl<'a> hil::uart::Configure for Lpuart<'a> {
+impl hil::uart::Configure for Lpuart<'_> {
     fn configure(&self, params: hil::uart::Parameters) -> Result<(), ErrorCode> {
         if params.baud_rate != 115200
             || params.stop_bits != hil::uart::StopBits::One
@@ -916,7 +916,7 @@ impl ClockInterface for LpuartClock<'_> {
     }
 }
 
-impl<'a> dma::DmaClient for Lpuart<'a> {
+impl dma::DmaClient for Lpuart<'_> {
     fn transfer_complete(&self, result: dma::Result) {
         match result {
             // Successful transfer from memory to peripheral

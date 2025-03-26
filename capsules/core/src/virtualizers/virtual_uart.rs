@@ -66,7 +66,7 @@ pub struct MuxUart<'a> {
     deferred_call: DeferredCall,
 }
 
-impl<'a> uart::TransmitClient for MuxUart<'a> {
+impl uart::TransmitClient for MuxUart<'_> {
     fn transmitted_buffer(
         &self,
         tx_buffer: &'static mut [u8],
@@ -81,7 +81,7 @@ impl<'a> uart::TransmitClient for MuxUart<'a> {
     }
 }
 
-impl<'a> uart::ReceiveClient for MuxUart<'a> {
+impl uart::ReceiveClient for MuxUart<'_> {
     fn received_buffer(
         &self,
         buffer: &'static mut [u8],
@@ -375,7 +375,7 @@ impl<'a> UartDevice<'a> {
     }
 }
 
-impl<'a> uart::TransmitClient for UartDevice<'a> {
+impl uart::TransmitClient for UartDevice<'_> {
     fn transmitted_buffer(
         &self,
         tx_buffer: &'static mut [u8],
@@ -395,7 +395,7 @@ impl<'a> uart::TransmitClient for UartDevice<'a> {
         });
     }
 }
-impl<'a> uart::ReceiveClient for UartDevice<'a> {
+impl uart::ReceiveClient for UartDevice<'_> {
     fn received_buffer(
         &self,
         rx_buffer: &'static mut [u8],

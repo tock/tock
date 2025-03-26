@@ -174,7 +174,7 @@ impl hil::nonvolatile_storage::NonvolatileStorageClient for AppFlash<'_> {
                         .get_readonly_processbuffer(ro_allow::BUFFER)
                         .and_then(|buffer| {
                             buffer.enter(|app_buffer| {
-                                self.buffer.take().map_or(false, |buffer| {
+                                self.buffer.take().is_some_and(|buffer| {
                                     if app_buffer.len() != 512 {
                                         false
                                     } else {

@@ -7,30 +7,26 @@
 //! Programmable Input Output (PIO) hardware test file.
 use crate::clocks::{self};
 use crate::gpio::RPGpio;
-use crate::pio::{PIONumber, Pio, SMNumber, StateMachineConfiguration};
+use crate::pio::{Pio, SMNumber, StateMachineConfiguration};
 
-use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::utilities::cells::TakeCell;
 use kernel::{hil, ErrorCode};
 
 pub struct PioPwm<'a> {
-    clocks: OptionalCell<&'a clocks::Clocks>,
+    clocks: &'a clocks::Clocks,
     pio: TakeCell<'a, Pio>,
 }
 
 impl<'a> PioPwm<'a> {
-    pub fn new(pio: &'a mut Pio) -> Self {
+    pub fn new(pio: &'a mut Pio, clocks: &'a clocks::Clocks) -> Self {
         Self {
-            clocks: OptionalCell::empty(),
+            clocks,
             pio: TakeCell::new(pio),
         }
     }
-
-    pub fn set_clocks(&self, clocks: &'a clocks::Clocks) {
-        self.clocks.set(clocks);
-    }
 }
 
-impl<'a> hil::pwm::Pwm for PioPwm<'a> {
+impl hil::pwm::Pwm for PioPwm<'_> {
     type Pin = RPGpio;
 
     fn start(
@@ -58,7 +54,7 @@ impl<'a> hil::pwm::Pwm for PioPwm<'a> {
 
         self.pio.map(|pio| {
             pio.init();
-            pio.add_program(&path);
+            pio.add_program(Some(0), &path).ok();
             let mut custom_config = StateMachineConfiguration::default();
 
             let pin_nr = *pin as u32;
@@ -72,17 +68,10 @@ impl<'a> hil::pwm::Pwm for PioPwm<'a> {
             let pwm_period = ((max_freq / frequency_hz) / 3) as u32;
             let sm_number = SMNumber::SM0;
             let duty_cycle = duty_cycle_percentage as u32;
-            pio.pwm_program_init(
-                PIONumber::PIO0,
-                sm_number,
-                pin_nr,
-                pwm_period,
-                &custom_config,
-            );
-            pio.sm_put_blocking(
-                sm_number,
-                pwm_period * duty_cycle / (self.get_maximum_duty_cycle()) as u32,
-            );
+            pio.pwm_program_init(sm_number, pin_nr, pwm_period, &custom_config);
+            pio.sm(sm_number)
+                .push_blocking(pwm_period * duty_cycle / (self.get_maximum_duty_cycle()) as u32)
+                .ok();
         });
 
         Ok(())
@@ -101,8 +90,6 @@ impl<'a> hil::pwm::Pwm for PioPwm<'a> {
     // For the rp2040, this will always return 125_000_000. Watch out as any value above
     // 1_000_000 is not precise and WILL give modified frequency and duty cycle values.
     fn get_maximum_frequency_hz(&self) -> usize {
-        self.clocks
-            .unwrap_or_panic()
-            .get_frequency(clocks::Clock::System) as usize
+        self.clocks.get_frequency(clocks::Clock::System) as usize
     }
 }

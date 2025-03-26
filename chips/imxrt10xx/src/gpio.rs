@@ -573,7 +573,7 @@ impl U32Ext for u32 {
     }
 }
 
-impl<'a> Pin<'a> {
+impl Pin<'_> {
     /// Fabricate a new `Pin` from a `PinId`
     pub fn from_pin_id(pin_id: PinId) -> Self {
         Self::new(

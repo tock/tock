@@ -78,6 +78,148 @@ impl CommandReturn {
     pub fn success_u32_u64(data0: u32, data1: u64) -> Self {
         CommandReturn(SyscallReturn::SuccessU32U64(data0, data1))
     }
+
+    /// Returns true if this [`CommandReturn`] is of type
+    /// [`SyscallReturn::Failure`].
+    pub fn is_failure(&self) -> bool {
+        matches!(self.0, SyscallReturn::Failure(_))
+    }
+
+    /// Returns true if this [`CommandReturn`] is of type
+    /// [`SyscallReturn::FailureU32`].
+    pub fn is_failure_u32(&self) -> bool {
+        matches!(self.0, SyscallReturn::FailureU32(_, _))
+    }
+
+    /// Returns true if this [`CommandReturn`] is of type
+    /// [`SyscallReturn::FailureU32U32`].
+    pub fn is_failure_2_u32(&self) -> bool {
+        matches!(self.0, SyscallReturn::FailureU32U32(_, _, _))
+    }
+
+    /// Returns true if this [`CommandReturn`] is of type
+    /// [`SyscallReturn::FailureU64`].
+    pub fn is_failure_u64(&self) -> bool {
+        matches!(self.0, SyscallReturn::FailureU64(_, _))
+    }
+
+    /// Returns true if this [`CommandReturn`] is of type
+    /// [`SyscallReturn::Success`]. Note that this does not return true for
+    /// other success types, such as [`SyscallReturn::SuccessU32`].
+    pub fn is_success(&self) -> bool {
+        matches!(self.0, SyscallReturn::Success)
+    }
+
+    /// Returns true if this [`CommandReturn`] is of type
+    /// [`SyscallReturn::SuccessU32`].
+    pub fn is_success_u32(&self) -> bool {
+        matches!(self.0, SyscallReturn::SuccessU32(_))
+    }
+
+    /// Returns true if this [`CommandReturn`] is of type
+    /// [`SyscallReturn::SuccessU32U32`].
+    pub fn is_success_2_u32(&self) -> bool {
+        matches!(self.0, SyscallReturn::SuccessU32U32(_, _))
+    }
+
+    /// Returns true if this [`CommandReturn`] is of type
+    /// [`SyscallReturn::SuccessU64`].
+    pub fn is_success_u64(&self) -> bool {
+        matches!(self.0, SyscallReturn::SuccessU64(_))
+    }
+
+    /// Returns true if this [`CommandReturn`] is of type
+    /// [`SyscallReturn::SuccessU32U32U32`].
+    pub fn is_success_3_u32(&self) -> bool {
+        matches!(self.0, SyscallReturn::SuccessU32U32U32(_, _, _))
+    }
+
+    /// Returns true if this CommandReturn is of type
+    /// [`SyscallReturn::SuccessU32U64`].
+    pub fn is_success_u32_u64(&self) -> bool {
+        matches!(self.0, SyscallReturn::SuccessU32U64(_, _))
+    }
+
+    /// Returns the [`ErrorCode`] if this [`CommandReturn`] is of type
+    /// [`SyscallReturn::Failure`].
+    pub fn get_failure(&self) -> Option<ErrorCode> {
+        match self.0 {
+            SyscallReturn::Failure(r1) => Some(r1),
+            _ => None,
+        }
+    }
+
+    /// Returns the [`ErrorCode`] and value if this [`CommandReturn`] is of type
+    /// [`SyscallReturn::FailureU32`].
+    pub fn get_failure_u32(&self) -> Option<(ErrorCode, u32)> {
+        match self.0 {
+            SyscallReturn::FailureU32(r1, r2) => Some((r1, r2)),
+            _ => None,
+        }
+    }
+
+    /// Returns the [`ErrorCode`] and values if this [`CommandReturn`] is of type
+    /// [`SyscallReturn::FailureU32U32`].
+    pub fn get_failure_2_u32(&self) -> Option<(ErrorCode, u32, u32)> {
+        match self.0 {
+            SyscallReturn::FailureU32U32(r1, r2, r3) => Some((r1, r2, r3)),
+            _ => None,
+        }
+    }
+
+    /// Returns the [`ErrorCode`] and value if this [`CommandReturn`] is of type
+    ///  [`SyscallReturn::FailureU64`].
+    pub fn get_failure_u64(&self) -> Option<(ErrorCode, u64)> {
+        match self.0 {
+            SyscallReturn::FailureU64(r1, r2) => Some((r1, r2)),
+            _ => None,
+        }
+    }
+
+    /// Returns the value if this [`CommandReturn`] is of type
+    /// [`SyscallReturn::SuccessU32`].
+    pub fn get_success_u32(&self) -> Option<u32> {
+        match self.0 {
+            SyscallReturn::SuccessU32(r1) => Some(r1),
+            _ => None,
+        }
+    }
+
+    /// Returns the values if this [`CommandReturn`] is of type
+    /// [`SyscallReturn::SuccessU32U32`].
+    pub fn get_success_2_u32(&self) -> Option<(u32, u32)> {
+        match self.0 {
+            SyscallReturn::SuccessU32U32(r1, r2) => Some((r1, r2)),
+            _ => None,
+        }
+    }
+
+    /// Returns the value if this [`CommandReturn`] is of type
+    /// [`SyscallReturn::SuccessU64`].
+    pub fn get_success_u64(&self) -> Option<u64> {
+        match self.0 {
+            SyscallReturn::SuccessU64(r1) => Some(r1),
+            _ => None,
+        }
+    }
+
+    /// Returns the values if this [`CommandReturn`] is of type
+    /// [`SyscallReturn::SuccessU32U32U32`].
+    pub fn get_success_3_u32(&self) -> Option<(u32, u32, u32)> {
+        match self.0 {
+            SyscallReturn::SuccessU32U32U32(r1, r2, r3) => Some((r1, r2, r3)),
+            _ => None,
+        }
+    }
+
+    /// Returns the values if this [`CommandReturn`] is of type
+    /// [`SyscallReturn::SuccessU32U64`].
+    pub fn get_success_u32_u64(&self) -> Option<(u32, u64)> {
+        match self.0 {
+            SyscallReturn::SuccessU32U64(r1, r2) => Some((r1, r2)),
+            _ => None,
+        }
+    }
 }
 
 impl From<Result<(), ErrorCode>> for CommandReturn {
@@ -96,10 +238,13 @@ impl From<process::Error> for CommandReturn {
 }
 
 /// Trait for capsules implementing peripheral driver system calls specified in
-/// TRD104. The kernel translates the values passed from userspace into Rust
-/// types and includes which process is making the call. All of these system
-/// calls perform very little synchronous work; long running computations or I/O
-/// should be split-phase, with an upcall indicating their completion.
+/// TRD104.
+///
+/// The kernel translates the values passed from userspace into Rust
+/// types and includes which process is making the call. All of these
+/// system calls perform very little synchronous work; long running
+/// computations or I/O should be split-phase, with an upcall
+/// indicating their completion.
 ///
 /// The exact instances of each of these methods (which identifiers are valid
 /// and what they represents) are specific to the peripheral system call driver.
@@ -237,4 +382,265 @@ pub trait SyscallDriver {
     // Capsules that do not need upcalls but do use process buffers must also
     // implement this function.
     fn allocate_grant(&self, process_id: ProcessId) -> Result<(), crate::process::Error>;
+}
+
+#[cfg(test)]
+mod test {
+    use crate::syscall_driver::CommandReturn;
+    use crate::ErrorCode;
+
+    #[test]
+    fn failure() {
+        let command_return = CommandReturn::failure(ErrorCode::RESERVE);
+        assert!(command_return.is_failure());
+        assert!(!command_return.is_failure_u32());
+        assert!(!command_return.is_failure_2_u32());
+        assert!(!command_return.is_failure_u64());
+        assert!(!command_return.is_success());
+        assert!(!command_return.is_success_u32());
+        assert!(!command_return.is_success_2_u32());
+        assert!(!command_return.is_success_u64());
+        assert!(!command_return.is_success_3_u32());
+        assert!(!command_return.is_success_u32_u64());
+        assert_eq!(command_return.get_failure(), Some(ErrorCode::RESERVE));
+        assert_eq!(command_return.get_failure_u32(), None);
+        assert_eq!(command_return.get_failure_2_u32(), None);
+        assert_eq!(command_return.get_failure_u64(), None);
+        assert_eq!(command_return.get_success_u32(), None);
+        assert_eq!(command_return.get_success_2_u32(), None);
+        assert_eq!(command_return.get_success_u64(), None);
+        assert_eq!(command_return.get_success_3_u32(), None);
+        assert_eq!(command_return.get_success_u32_u64(), None);
+    }
+
+    #[test]
+    fn failure_u32() {
+        let command_return = CommandReturn::failure_u32(ErrorCode::OFF, 1002);
+        assert!(!command_return.is_failure());
+        assert!(command_return.is_failure_u32());
+        assert!(!command_return.is_failure_2_u32());
+        assert!(!command_return.is_failure_u64());
+        assert!(!command_return.is_success());
+        assert!(!command_return.is_success_u32());
+        assert!(!command_return.is_success_2_u32());
+        assert!(!command_return.is_success_u64());
+        assert!(!command_return.is_success_3_u32());
+        assert!(!command_return.is_success_u32_u64());
+        assert_eq!(command_return.get_failure(), None);
+        assert_eq!(
+            command_return.get_failure_u32(),
+            Some((ErrorCode::OFF, 1002))
+        );
+        assert_eq!(command_return.get_failure_2_u32(), None);
+        assert_eq!(command_return.get_failure_u64(), None);
+        assert_eq!(command_return.get_success_u32(), None);
+        assert_eq!(command_return.get_success_2_u32(), None);
+        assert_eq!(command_return.get_success_u64(), None);
+        assert_eq!(command_return.get_success_3_u32(), None);
+        assert_eq!(command_return.get_success_u32_u64(), None);
+    }
+
+    #[test]
+    fn failure_2_u32() {
+        let command_return = CommandReturn::failure_u32_u32(ErrorCode::ALREADY, 1002, 1003);
+        assert!(!command_return.is_failure());
+        assert!(!command_return.is_failure_u32());
+        assert!(command_return.is_failure_2_u32());
+        assert!(!command_return.is_failure_u64());
+        assert!(!command_return.is_success());
+        assert!(!command_return.is_success_u32());
+        assert!(!command_return.is_success_2_u32());
+        assert!(!command_return.is_success_u64());
+        assert!(!command_return.is_success_3_u32());
+        assert!(!command_return.is_success_u32_u64());
+        assert_eq!(command_return.get_failure(), None);
+        assert_eq!(command_return.get_failure_u32(), None);
+        assert_eq!(
+            command_return.get_failure_2_u32(),
+            Some((ErrorCode::ALREADY, 1002, 1003))
+        );
+        assert_eq!(command_return.get_failure_u64(), None);
+        assert_eq!(command_return.get_success_u32(), None);
+        assert_eq!(command_return.get_success_2_u32(), None);
+        assert_eq!(command_return.get_success_u64(), None);
+        assert_eq!(command_return.get_success_3_u32(), None);
+        assert_eq!(command_return.get_success_u32_u64(), None);
+    }
+
+    #[test]
+    fn failure_u64() {
+        let command_return = CommandReturn::failure_u64(ErrorCode::BUSY, 0x0000_1003_0000_1002);
+        assert!(!command_return.is_failure());
+        assert!(!command_return.is_failure_u32());
+        assert!(!command_return.is_failure_2_u32());
+        assert!(command_return.is_failure_u64());
+        assert!(!command_return.is_success());
+        assert!(!command_return.is_success_u32());
+        assert!(!command_return.is_success_2_u32());
+        assert!(!command_return.is_success_u64());
+        assert!(!command_return.is_success_3_u32());
+        assert!(!command_return.is_success_u32_u64());
+        assert_eq!(command_return.get_failure(), None);
+        assert_eq!(command_return.get_failure_u32(), None);
+        assert_eq!(command_return.get_failure_2_u32(), None);
+        assert_eq!(
+            command_return.get_failure_u64(),
+            Some((ErrorCode::BUSY, 0x0000_1003_0000_1002))
+        );
+        assert_eq!(command_return.get_success_u32(), None);
+        assert_eq!(command_return.get_success_2_u32(), None);
+        assert_eq!(command_return.get_success_u64(), None);
+        assert_eq!(command_return.get_success_3_u32(), None);
+        assert_eq!(command_return.get_success_u32_u64(), None);
+    }
+
+    #[test]
+    fn success() {
+        let command_return = CommandReturn::success();
+        assert!(!command_return.is_failure());
+        assert!(!command_return.is_failure_u32());
+        assert!(!command_return.is_failure_2_u32());
+        assert!(!command_return.is_failure_u64());
+        assert!(command_return.is_success());
+        assert!(!command_return.is_success_u32());
+        assert!(!command_return.is_success_2_u32());
+        assert!(!command_return.is_success_u64());
+        assert!(!command_return.is_success_3_u32());
+        assert!(!command_return.is_success_u32_u64());
+        assert_eq!(command_return.get_failure(), None);
+        assert_eq!(command_return.get_failure_u32(), None);
+        assert_eq!(command_return.get_failure_2_u32(), None);
+        assert_eq!(command_return.get_failure_u64(), None);
+        assert_eq!(command_return.get_success_u32(), None);
+        assert_eq!(command_return.get_success_2_u32(), None);
+        assert_eq!(command_return.get_success_u64(), None);
+        assert_eq!(command_return.get_success_3_u32(), None);
+        assert_eq!(command_return.get_success_u32_u64(), None);
+    }
+
+    #[test]
+    fn success_u32() {
+        let command_return = CommandReturn::success_u32(1001);
+        assert!(!command_return.is_failure());
+        assert!(!command_return.is_failure_u32());
+        assert!(!command_return.is_failure_2_u32());
+        assert!(!command_return.is_failure_u64());
+        assert!(!command_return.is_success());
+        assert!(command_return.is_success_u32());
+        assert!(!command_return.is_success_2_u32());
+        assert!(!command_return.is_success_u64());
+        assert!(!command_return.is_success_3_u32());
+        assert!(!command_return.is_success_u32_u64());
+        assert_eq!(command_return.get_failure(), None);
+        assert_eq!(command_return.get_failure_u32(), None);
+        assert_eq!(command_return.get_failure_2_u32(), None);
+        assert_eq!(command_return.get_failure_u64(), None);
+        assert_eq!(command_return.get_success_u32(), Some(1001));
+        assert_eq!(command_return.get_success_2_u32(), None);
+        assert_eq!(command_return.get_success_u64(), None);
+        assert_eq!(command_return.get_success_3_u32(), None);
+        assert_eq!(command_return.get_success_u32_u64(), None);
+    }
+
+    #[test]
+    fn success_2_u32() {
+        let command_return = CommandReturn::success_u32_u32(1001, 1002);
+        assert!(!command_return.is_failure());
+        assert!(!command_return.is_failure_u32());
+        assert!(!command_return.is_failure_2_u32());
+        assert!(!command_return.is_failure_u64());
+        assert!(!command_return.is_success());
+        assert!(!command_return.is_success_u32());
+        assert!(command_return.is_success_2_u32());
+        assert!(!command_return.is_success_u64());
+        assert!(!command_return.is_success_3_u32());
+        assert!(!command_return.is_success_u32_u64());
+        assert_eq!(command_return.get_failure(), None);
+        assert_eq!(command_return.get_failure_u32(), None);
+        assert_eq!(command_return.get_failure_2_u32(), None);
+        assert_eq!(command_return.get_failure_u64(), None);
+        assert_eq!(command_return.get_success_u32(), None);
+        assert_eq!(command_return.get_success_2_u32(), Some((1001, 1002)));
+        assert_eq!(command_return.get_success_u64(), None);
+        assert_eq!(command_return.get_success_3_u32(), None);
+        assert_eq!(command_return.get_success_u32_u64(), None);
+    }
+
+    #[test]
+    fn success_u64() {
+        let command_return = CommandReturn::success_u64(0x0000_1002_0000_1001);
+        assert!(!command_return.is_failure());
+        assert!(!command_return.is_failure_u32());
+        assert!(!command_return.is_failure_2_u32());
+        assert!(!command_return.is_failure_u64());
+        assert!(!command_return.is_success());
+        assert!(!command_return.is_success_u32());
+        assert!(!command_return.is_success_2_u32());
+        assert!(command_return.is_success_u64());
+        assert!(!command_return.is_success_3_u32());
+        assert!(!command_return.is_success_u32_u64());
+        assert_eq!(command_return.get_failure(), None);
+        assert_eq!(command_return.get_failure_u32(), None);
+        assert_eq!(command_return.get_failure_2_u32(), None);
+        assert_eq!(command_return.get_failure_u64(), None);
+        assert_eq!(command_return.get_success_u32(), None);
+        assert_eq!(command_return.get_success_2_u32(), None);
+        assert_eq!(
+            command_return.get_success_u64(),
+            Some(0x0000_1002_0000_1001)
+        );
+        assert_eq!(command_return.get_success_3_u32(), None);
+        assert_eq!(command_return.get_success_u32_u64(), None);
+    }
+
+    #[test]
+    fn success_3_u32() {
+        let command_return = CommandReturn::success_u32_u32_u32(1001, 1002, 1003);
+        assert!(!command_return.is_failure());
+        assert!(!command_return.is_failure_u32());
+        assert!(!command_return.is_failure_2_u32());
+        assert!(!command_return.is_failure_u64());
+        assert!(!command_return.is_success());
+        assert!(!command_return.is_success_u32());
+        assert!(!command_return.is_success_2_u32());
+        assert!(!command_return.is_success_u64());
+        assert!(command_return.is_success_3_u32());
+        assert!(!command_return.is_success_u32_u64());
+        assert_eq!(command_return.get_failure(), None);
+        assert_eq!(command_return.get_failure_u32(), None);
+        assert_eq!(command_return.get_failure_2_u32(), None);
+        assert_eq!(command_return.get_failure_u64(), None);
+        assert_eq!(command_return.get_success_u32(), None);
+        assert_eq!(command_return.get_success_2_u32(), None);
+        assert_eq!(command_return.get_success_u64(), None);
+        assert_eq!(command_return.get_success_3_u32(), Some((1001, 1002, 1003)));
+        assert_eq!(command_return.get_success_u32_u64(), None);
+    }
+
+    #[test]
+    fn success_u32_u64() {
+        let command_return = CommandReturn::success_u32_u64(1001, 0x0000_1003_0000_1002);
+        assert!(!command_return.is_failure());
+        assert!(!command_return.is_failure_u32());
+        assert!(!command_return.is_failure_2_u32());
+        assert!(!command_return.is_failure_u64());
+        assert!(!command_return.is_success());
+        assert!(!command_return.is_success_u32());
+        assert!(!command_return.is_success_2_u32());
+        assert!(!command_return.is_success_u64());
+        assert!(!command_return.is_success_3_u32());
+        assert!(command_return.is_success_u32_u64());
+        assert_eq!(command_return.get_failure(), None);
+        assert_eq!(command_return.get_failure_u32(), None);
+        assert_eq!(command_return.get_failure_2_u32(), None);
+        assert_eq!(command_return.get_failure_u64(), None);
+        assert_eq!(command_return.get_success_u32(), None);
+        assert_eq!(command_return.get_success_2_u32(), None);
+        assert_eq!(command_return.get_success_u64(), None);
+        assert_eq!(command_return.get_success_3_u32(), None);
+        assert_eq!(
+            command_return.get_success_u32_u64(),
+            Some((1001, 0x0000_1003_0000_1002))
+        );
+    }
 }

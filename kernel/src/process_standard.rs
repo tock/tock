@@ -36,6 +36,7 @@ use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::storage_permissions::StoragePermissions;
 use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
 use crate::upcall::UpcallId;
+use crate::utilities::capability_ptr::{CapabilityPtr, CapabilityPtrPermissions};
 use crate::utilities::cells::{MapCell, NumericCellExt, OptionalCell};
 
 use tock_tbf::types::CommandPermissions;
@@ -551,8 +552,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             || self.state.get() == State::Running
     }
 
-    fn remove_pending_upcalls(&self, upcall_id: UpcallId) {
-        self.tasks.map(|tasks| {
+    fn remove_pending_upcalls(&self, upcall_id: UpcallId) -> usize {
+        self.tasks.map_or(0, |tasks| {
             let count_before = tasks.len();
             tasks.retain(|task| match task {
                 // Remove only tasks that are function calls with an id equal
@@ -563,8 +564,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                 },
                 _ => true,
             });
+            let count_after = tasks.len();
             if config::CONFIG.trace_syscalls {
-                let count_after = tasks.len();
                 debug!(
                     "[{:?}] remove_pending_upcalls[{:#x}:{}] = {} upcall(s) removed",
                     self.processid(),
@@ -573,7 +574,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                     count_before - count_after,
                 );
             }
-        });
+            count_after - count_before
+        })
     }
 
     fn is_running(&self) -> bool {
@@ -753,7 +755,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         self.header.number_writeable_flash_regions()
     }
 
-    fn get_writeable_flash_region(&self, region_index: usize) -> (u32, u32) {
+    fn get_writeable_flash_region(&self, region_index: usize) -> (usize, usize) {
         self.header.get_writeable_flash_region(region_index)
     }
 
@@ -808,10 +810,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
     fn remove_mpu_region(&self, region: mpu::Region) -> Result<(), ErrorCode> {
         self.mpu_config.map_or(Err(ErrorCode::INVAL), |config| {
             // Find the existing mpu region that we are removing; it needs to match exactly.
-            if let Some(internal_region) = self
-                .mpu_regions
-                .iter()
-                .find(|r| r.get().map_or(false, |r| r == region))
+            if let Some(internal_region) = self.mpu_regions.iter().find(|r| r.get() == Some(region))
             {
                 self.chip
                     .mpu()
@@ -827,7 +826,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         })
     }
 
-    fn sbrk(&self, increment: isize) -> Result<*const u8, Error> {
+    fn sbrk(&self, increment: isize) -> Result<CapabilityPtr, Error> {
         // Do not modify an inactive process.
         if !self.is_running() {
             return Err(Error::InactiveApp);
@@ -837,7 +836,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         self.brk(new_break)
     }
 
-    fn brk(&self, new_break: *const u8) -> Result<*const u8, Error> {
+    fn brk(&self, new_break: *const u8) -> Result<CapabilityPtr, Error> {
         // Do not modify an inactive process.
         if !self.is_running() {
             return Err(Error::InactiveApp);
@@ -859,7 +858,18 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                 let old_break = self.app_break.get();
                 self.app_break.set(new_break);
                 self.chip.mpu().configure_mpu(config);
-                Ok(old_break)
+
+                let base = self.mem_start() as usize;
+                let break_result = unsafe {
+                    CapabilityPtr::new_with_authority(
+                        old_break as *const (),
+                        base,
+                        (new_break as usize) - base,
+                        CapabilityPtrPermissions::ReadWrite,
+                    )
+                };
+
+                Ok(break_result)
             }
         })
     }
@@ -1229,8 +1239,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             })
     }
 
-    fn is_valid_upcall_function_pointer(&self, upcall_fn: NonNull<()>) -> bool {
-        let ptr = upcall_fn.as_ptr() as *const u8;
+    fn is_valid_upcall_function_pointer(&self, upcall_fn: *const ()) -> bool {
+        let ptr = upcall_fn as *const u8;
         let size = mem::size_of::<*const u8>();
 
         // It is okay if this function is in memory or flash.
@@ -1441,7 +1451,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             \r\n Total number of grant regions defined: {}\r\n",
             self.kernel.get_grant_count_and_finalize()
         ));
-        let rows = (number_grants + 2) / 3;
+        let rows = number_grants.div_ceil(3);
 
         // Access our array of grant pointers.
         self.grant_pointers.map(|grant_pointers| {
@@ -1953,13 +1963,25 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
                 // reconstitute the original memory slice.
                 return Err((ProcessLoadError::InternalError, unused_memory));
             }
-        };
+        }
 
         let flash_start = process.flash.as_ptr();
         let app_start =
             flash_start.wrapping_add(process.header.get_app_start_offset() as usize) as usize;
-        let init_fn =
+        let init_addr =
             flash_start.wrapping_add(process.header.get_init_function_offset() as usize) as usize;
+        let fn_base = flash_start as usize;
+        let fn_len = process.flash.len();
+
+        // We need to construct a capability with sufficient authority to cover all of a user's
+        // code, with permissions to execute it. The entirety of flash is sufficient.
+
+        let init_fn = CapabilityPtr::new_with_authority(
+            init_addr as *const (),
+            fn_base,
+            fn_len,
+            CapabilityPtrPermissions::Execute,
+        );
 
         process.tasks.map(|tasks| {
             tasks.enqueue(Task::FunctionCall(FunctionCall {
@@ -1968,7 +1990,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
                 argument0: app_start,
                 argument1: process.memory_start as usize,
                 argument2: process.memory_len,
-                argument3: process.app_break.get() as usize,
+                argument3: (process.app_break.get() as usize).into(),
             }));
         });
 
@@ -2108,7 +2130,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
                 // faulted and not schedule it.
                 return Err(ErrorCode::RESERVE);
             }
-        };
+        }
 
         self.restart_count.increment();
 
@@ -2119,8 +2141,20 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         let flash_start = self.flash_start();
         let app_start =
             flash_start.wrapping_add(self.header.get_app_start_offset() as usize) as usize;
-        let init_fn =
+        let init_addr =
             flash_start.wrapping_add(self.header.get_init_function_offset() as usize) as usize;
+
+        // We need to construct a capability with sufficient authority to cover all of a user's
+        // code, with permissions to execute it. The entirety of flash is sufficient.
+
+        let init_fn = unsafe {
+            CapabilityPtr::new_with_authority(
+                init_addr as *const (),
+                flash_start as usize,
+                (self.flash_end() as usize) - (flash_start as usize),
+                CapabilityPtrPermissions::Execute,
+            )
+        };
 
         self.enqueue_task(Task::FunctionCall(FunctionCall {
             source: FunctionCallSource::Kernel,
@@ -2128,7 +2162,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
             argument0: app_start,
             argument1: self.memory_start as usize,
             argument2: self.memory_len,
-            argument3: self.app_break.get() as usize,
+            argument3: (self.app_break.get() as usize).into(),
         }))
     }
 
@@ -2138,6 +2172,11 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
     /// to be accessible to the process and to not overlap with the grant
     /// region.
     fn in_app_owned_memory(&self, buf_start_addr: *const u8, size: usize) -> bool {
+        // TODO: On some platforms, CapabilityPtr has sufficient authority that we
+        // could skip this check.
+        // CapabilityPtr needs to make it slightly further, and we need to add
+        // interfaces that tell us how much assurance it gives on the current
+        // platform.
         let buf_end_addr = buf_start_addr.wrapping_add(size);
 
         buf_end_addr >= buf_start_addr
@@ -2150,6 +2189,11 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
     /// this method returns true, the buffer is guaranteed to be readable to the
     /// process.
     fn in_app_flash_memory(&self, buf_start_addr: *const u8, size: usize) -> bool {
+        // TODO: On some platforms, CapabilityPtr has sufficient authority that we
+        // could skip this check.
+        // CapabilityPtr needs to make it slightly further, and we need to add
+        // interfaces that tell us how much assurance it gives on the current
+        // platform.
         let buf_end_addr = buf_start_addr.wrapping_add(size);
 
         buf_end_addr >= buf_start_addr

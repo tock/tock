@@ -435,7 +435,7 @@ impl<'a> hil::uart::ReceiveAdvanced<'a> for Uart<'a> {
     }
 }
 
-impl<'a> DeferredCallClient for Uart<'a> {
+impl DeferredCallClient for Uart<'_> {
     fn handle_deferred_call(&self) {
         self.consume_rx();
     }

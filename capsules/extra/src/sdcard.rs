@@ -1258,7 +1258,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
 
     pub fn is_installed(&self) -> bool {
         // if there is no detect pin, assume an sd card is installed
-        self.detect_pin.get().map_or(true, |pin| {
+        self.detect_pin.get().is_none_or(|pin| {
             // sd card detection pin is active low
             !pin.read()
         })
@@ -1466,7 +1466,8 @@ impl<'a, A: hil::time::Alarm<'a>> hil::gpio::Client for SDCard<'a, A> {
     }
 }
 
-/// Application driver for SD Card capsule, layers on top of SD Card capsule
+/// Application driver for SD Card capsule.
+///
 /// This is used if the SDCard is going to be attached directly to userspace
 /// syscalls. SDCardDriver can be ignored if another capsule is going to build
 /// off of the SDCard instead

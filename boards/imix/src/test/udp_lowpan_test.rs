@@ -278,7 +278,7 @@ impl<'a, A: time::Alarm<'a>> LowpanTest<'a, A> {
         match TEST_LOOP {
             true => self.test_counter.set((test_counter + 1) % self.num_tests()),
             false => self.test_counter.set(test_counter + 1),
-        };
+        }
     }
 
     fn num_tests(&self) -> usize {

@@ -630,44 +630,41 @@ impl<'a, M: device::MacDevice<'a>> SyscallDriver for RadioDriver<'a, M> {
     /// - `0`: Driver existence check.
     /// - `1`: Return radio status. Ok(())/OFF = on/off.
     /// - `2`: Set short MAC address.
-    /// - `3`: Set long MAC address.
-    ///        app_cfg (in): 8 bytes: the long MAC address.
+    /// - `3`: Set long MAC address. app_cfg (in): 8 bytes: the long MAC
+    ///   address.
     /// - `4`: Set PAN ID.
     /// - `5`: Set channel.
     /// - `6`: Set transmission power.
     /// - `7`: Commit any configuration changes.
     /// - `8`: Get the short MAC address.
-    /// - `9`: Get the long MAC address.
-    ///        app_cfg (out): 8 bytes: the long MAC address.
+    /// - `9`: Get the long MAC address. app_cfg (out): 8 bytes: the long MAC
+    ///   address.
     /// - `10`: Get the PAN ID.
     /// - `11`: Get the channel.
     /// - `12`: Get the transmission power.
     /// - `13`: Get the maximum number of neighbors.
     /// - `14`: Get the current number of neighbors.
     /// - `15`: Get the short address of the neighbor at an index.
-    /// - `16`: Get the long address of the neighbor at an index.
-    ///        app_cfg (out): 8 bytes: the long MAC address.
+    /// - `16`: Get the long address of the neighbor at an index. app_cfg (out):
+    ///   8 bytes: the long MAC address.
     /// - `17`: Add a new neighbor with the given short and long address.
-    ///        app_cfg (in): 8 bytes: the long MAC address.
+    ///   app_cfg (in): 8 bytes: the long MAC address.
     /// - `18`: Remove the neighbor at an index.
     /// - `19`: Get the maximum number of keys.
     /// - `20`: Get the current number of keys.
     /// - `21`: Get the security level of the key at an index.
-    /// - `22`: Get the key id of the key at an index.
-    ///        app_cfg (out): 1 byte: the key ID mode +
-    ///                       up to 9 bytes: the key ID.
-    /// - `23`: Get the key at an index.
-    ///        app_cfg (out): 16 bytes: the key.
-    /// - `24`: Add a new key with the given description.
-    ///        app_cfg (in): 1 byte: the security level +
-    ///                      1 byte: the key ID mode +
-    ///                      9 bytes: the key ID (might not use all bytes) +
-    ///                      16 bytes: the key.
+    /// - `22`: Get the key id of the key at an index. app_cfg (out): 1 byte:
+    ///   the key ID mode + up to 9 bytes: the key ID.
+    /// - `23`: Get the key at an index. app_cfg (out): 16 bytes: the key.
+    /// - `24`: Add a new key with the given description. app_cfg (in): 1 byte:
+    ///   the security level + 1 byte: the key ID mode + 9 bytes: the key ID
+    ///   (might not use all bytes) + 16 bytes: the key.
     /// - `25`: Remove the key at an index.
     /// - `26`: Transmit a frame (parse required). Take the provided payload and
-    ///        parameters to encrypt, form headers, and transmit the frame.
+    ///   parameters to encrypt, form headers, and transmit the frame.
     /// - `28`: Set long address.
     /// - `29`: Get the long MAC address.
+    /// - `30`: Turn the radio on.
     fn command(
         &self,
         command_number: usize,
@@ -967,6 +964,7 @@ impl<'a, M: device::MacDevice<'a>> SyscallDriver for RadioDriver<'a, M> {
                 let addr = u64::from_be_bytes(self.mac.get_address_long());
                 CommandReturn::success_u64(addr)
             }
+            30 => self.mac.start().into(),
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
     }

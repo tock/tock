@@ -304,9 +304,6 @@ pub unsafe fn start() -> (
     // Unreset all peripherals
     peripherals.resets.unreset_all_except(&[], true);
 
-    // Set the UART used for panic
-    io::WRITER.set_uart(&peripherals.uart0);
-
     //set RX and TX pins in UART mode
     let gpio_tx = peripherals.pins.get_pin(RPGpio::GPIO0);
     let gpio_rx = peripherals.pins.get_pin(RPGpio::GPIO1);
@@ -314,7 +311,7 @@ pub unsafe fn start() -> (
     gpio_tx.set_function(GpioFunction::UART);
 
     // Set the UART used for panic
-    io::WRITER.set_uart(&peripherals.uart0);
+    (*addr_of_mut!(io::WRITER)).set_uart(&peripherals.uart0);
 
     // Disable IE for pads 26-29 (the Pico SDK runtime does this, not sure why)
     for pin in 26..30 {
@@ -699,8 +696,7 @@ pub unsafe fn start() -> (
 
     let mut pio: Pio = Pio::new_pio0();
 
-    let pio_pwm = PioPwm::new(&mut pio);
-    pio_pwm.set_clocks(&peripherals.clocks);
+    let _pio_pwm = PioPwm::new(&mut pio, &peripherals.clocks);
     // This will start a PWM with PIO with the set frequency and duty cycle on the specified pin.
     // pio_pwm
     //     .start(

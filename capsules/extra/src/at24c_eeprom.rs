@@ -224,7 +224,7 @@ impl I2CClient for AT24C<'static> {
     }
 }
 
-impl<'a> hil::flash::Flash for AT24C<'a> {
+impl hil::flash::Flash for AT24C<'_> {
     type Page = EEPROMPage;
 
     fn read_page(

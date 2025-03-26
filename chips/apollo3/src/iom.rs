@@ -406,11 +406,27 @@ impl<'a> Iom<'_> {
 
         // Wait a few cycles to ensure the reset completes
         for _i in 0..30 {
-            cortexm4::support::nop();
+            cortexm4f::support::nop();
         }
 
         // Exit the reset state
         regs.fifoctrl.modify(FIFOCTRL::FIFORSTN::SET);
+    }
+
+    /// The IOM has a few erratas when used in FIFO mode (as we do here).
+    /// See: <https://ambiq.com/wp-content/uploads/2022/01/Apollo3-Blue-Errata-List.pdf>
+    ///
+    /// ERR009 means that we might get a THR interrupt incorrectly, it also
+    /// appears that the FIFOxSIZ fields are a little slow to update, so even
+    /// if we check the fields, they contain the wrong information.
+    ///
+    /// Adding a small delay here is enough to ensure the fifoptr values update
+    /// before the next iteration. This value is mostly arbitrary, but the
+    /// current value seems to work reliably.
+    fn iom_fifo_errata_delay(&self) {
+        for _i in 0..3000 {
+            cortexm4f::support::nop();
+        }
     }
 
     fn i2c_write_data(&self) {
@@ -480,15 +496,7 @@ impl<'a> Iom<'_> {
             for i in (data_popped / 4)..(len / 4) {
                 let data_idx = i * 4;
 
-                // The IOM doesn't correctly pop the data if we read it too fast
-                // there are a few erratas against the IOM when reading data
-                // from the FIFO (compared to DMA). Adding a small delay here is
-                // enough to ensure the fifoptr values update before the next
-                // iteration.
-                // See: https://ambiq.com/wp-content/uploads/2022/01/Apollo3-Blue-Errata-List.pdf
-                for _i in 0..3000 {
-                    cortexm4::support::nop();
-                }
+                self.iom_fifo_errata_delay();
 
                 if regs.fifoptr.read(FIFOPTR::FIFO1SIZ) < 4 {
                     self.read_index.set(data_popped);
@@ -507,6 +515,8 @@ impl<'a> Iom<'_> {
 
             // Get remaining data that isn't 4 bytes long
             if len < 4 || data_popped > (len - 4) {
+                self.iom_fifo_errata_delay();
+
                 // Check if we have any left over data
                 if len % 4 == 1 {
                     let d = regs.fifopop.get().to_ne_bytes();
@@ -587,15 +597,7 @@ impl<'a> Iom<'_> {
             // Read the incoming data
             if let Some(mut buf) = self.spi_read_buffer.take() {
                 while self.registers.fifoptr.read(FIFOPTR::FIFO1SIZ) > 0 {
-                    // The IOM doesn't correctly pop the data if we read it too fast
-                    // there are a few erratas against the IOM when reading data
-                    // from the FIFO (compared to DMA). Adding a small delay here is
-                    // enough to ensure the fifoptr values update before the next
-                    // iteration.
-                    // See: https://ambiq.com/wp-content/uploads/2022/01/Apollo3-Blue-Errata-List.pdf
-                    for _i in 0..3000 {
-                        cortexm4::support::nop();
-                    }
+                    self.iom_fifo_errata_delay();
 
                     let d = self.registers.fifopop.get().to_ne_bytes();
                     let data_idx = self.read_index.get();
@@ -630,15 +632,7 @@ impl<'a> Iom<'_> {
                 }
             } else {
                 while self.registers.fifoptr.read(FIFOPTR::FIFO1SIZ) > 0 {
-                    // The IOM doesn't correctly pop the data if we read it too fast
-                    // there are a few erratas against the IOM when reading data
-                    // from the FIFO (compared to DMA). Adding a small delay here is
-                    // enough to ensure the fifoptr values update before the next
-                    // iteration.
-                    // See: https://ambiq.com/wp-content/uploads/2022/01/Apollo3-Blue-Errata-List.pdf
-                    for _i in 0..3000 {
-                        cortexm4::support::nop();
-                    }
+                    self.iom_fifo_errata_delay();
 
                     let _d = self.registers.fifopop.get().to_ne_bytes();
                 }
@@ -1236,8 +1230,12 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
             Option<SubSliceMut<'static, u8>>,
         ),
     > {
-        let write_len = write_buffer.len();
-        let read_len = read_buffer.as_ref().map_or(0, |b| b.len());
+        let (write_len, read_len) = if let Some(rb) = read_buffer.as_ref() {
+            let min = write_buffer.len().min(rb.len());
+            (min, min)
+        } else {
+            (write_buffer.len(), 0)
+        };
 
         // Disable DMA as we don't support it
         self.registers.dmacfg.write(DMACFG::DMAEN::CLEAR);
@@ -1293,8 +1291,18 @@ impl<'a> SpiMaster<'a> for Iom<'a> {
             && transfered_bytes < 24
         {
             let idx = self.write_index.get();
-            let data =
-                u32::from_le_bytes(write_buffer[idx..(idx + 4)].try_into().unwrap_or([0; 4]));
+
+            // Caution: This must handle "bytes remaining % 4 != 0" correctly.
+            let chunk = write_buffer[idx..].chunks(4).next().unwrap_or(&[]);
+
+            let data = u32::from_le_bytes([
+                chunk.get(0).copied().unwrap_or(0),
+                chunk.get(1).copied().unwrap_or(0),
+                chunk.get(2).copied().unwrap_or(0),
+                chunk.get(3).copied().unwrap_or(0),
+            ]);
+
+            self.iom_fifo_errata_delay();
 
             self.registers.fifopush.set(data);
             self.write_index.set(idx + 4);
