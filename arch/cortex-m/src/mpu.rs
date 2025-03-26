@@ -606,11 +606,7 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
         // Size must be a power of two, so:
         // https://www.youtube.com/watch?v=ovo6zwv6DX4.
         let mut memory_size_po2 = math::closest_power_of_two(memory_size as u32) as usize;
-
-        // Region size is the actual size the MPU region will be set to, and is
-        // half of the total power of two size we are allocating to the app.
-        let mut region_size = memory_size_po2 / 2;
-        let exponent = math::log_base_two(region_size as u32);
+        let exponent = math::log_base_two(memory_size_po2 as u32);
 
         // Check for compliance with the constraints of the MPU.
         if exponent < 9 {
@@ -622,6 +618,10 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
             // Region sizes must be 4GB or smaller.
             return None;
         }
+
+        // Region size is the actual size the MPU region will be set to, and is
+        // half of the total power of two size we are allocating to the app.
+        let mut region_size = memory_size_po2 / 2;
 
         // The region should start as close as possible to the start of the
         // unallocated memory.
@@ -653,19 +653,12 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
         let kernel_memory_break = region_start + memory_size_po2 - initial_kernel_memory_size;
 
         // If the last subregion covering app-owned memory overlaps the start of
-        // kernel-owned memory, we increase the process memory block by the minimum
-        // amount needed to make sure there is no overlap
-        //
-        // In general this will likely be `2` but we compute it precisely to make sure
-        // there are no edge cases left unhandled
+        // kernel-owned memory, we make the entire process memory block twice as
+        // big so there is plenty of space between app-owned and kernel-owned
+        // memory.
         if subregions_enabled_end > kernel_memory_break {
             memory_size_po2 *= 2;
             region_size *= 2;
-
-            // make sure the new region size is not too big
-            if exponent + 1 > 32 {
-                return None;
-            }
 
             if region_start % region_size != 0 {
                 region_start += region_size - (region_start % region_size);
