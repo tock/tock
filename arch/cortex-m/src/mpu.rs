@@ -657,6 +657,7 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
         // big so there is plenty of space between app-owned and kernel-owned
         // memory.
         if subregions_enabled_end > kernel_memory_break {
+            memory_size_po2 *= 2;
             region_size *= 2;
 
             if region_start % region_size != 0 {
