@@ -443,17 +443,17 @@ IRQ0_INTF [
     SM0_RXNEMPTY OFFSET(0) NUMBITS(1) []
 ],
 IRQ0_INTS [
-    SM3 OFFSET(0) NUMBITS(1) [],
-    SM2 OFFSET(0) NUMBITS(1) [],
-    SM1 OFFSET(0) NUMBITS(1) [],
-    SM0 OFFSET(0) NUMBITS(1) [],
-    SM3_TXNFULL OFFSET(0) NUMBITS(1) [],
-    SM2_TXNFULL OFFSET(0) NUMBITS(1) [],
-    SM1_TXNFULL OFFSET(0) NUMBITS(1) [],
-    SM0_TXNFULL OFFSET(0) NUMBITS(1) [],
-    SM3_RXNEMPTY OFFSET(0) NUMBITS(1) [],
-    SM2_RXNEMPTY OFFSET(0) NUMBITS(1) [],
-    SM1_RXNEMPTY OFFSET(0) NUMBITS(1) [],
+    SM3 OFFSET(11) NUMBITS(1) [],
+    SM2 OFFSET(10) NUMBITS(1) [],
+    SM1 OFFSET(9) NUMBITS(1) [],
+    SM0 OFFSET(8) NUMBITS(1) [],
+    SM3_TXNFULL OFFSET(7) NUMBITS(1) [],
+    SM2_TXNFULL OFFSET(6) NUMBITS(1) [],
+    SM1_TXNFULL OFFSET(5) NUMBITS(1) [],
+    SM0_TXNFULL OFFSET(4) NUMBITS(1) [],
+    SM3_RXNEMPTY OFFSET(3) NUMBITS(1) [],
+    SM2_RXNEMPTY OFFSET(2) NUMBITS(1) [],
+    SM1_RXNEMPTY OFFSET(1) NUMBITS(1) [],
     SM0_RXNEMPTY OFFSET(0) NUMBITS(1) []
 ],
 IRQ1_INTE [
@@ -560,6 +560,7 @@ where
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct LoadedProgram {
     used_memory: u32,
     origin: usize,
@@ -586,7 +587,7 @@ pub enum SMNumber {
 const SM_NUMBERS: [SMNumber; 4] = [SMNumber::SM0, SMNumber::SM1, SMNumber::SM2, SMNumber::SM3];
 
 /// There can be 2 PIOs per RP2040.
-#[derive(PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum PIONumber {
     PIO0 = 0,
     PIO1 = 1,
@@ -990,6 +991,17 @@ impl StateMachine {
             SMNumber::SM1 => FSTAT::RXEMPTY1,
             SMNumber::SM2 => FSTAT::RXEMPTY2,
             SMNumber::SM3 => FSTAT::RXEMPTY3,
+        };
+        self.registers.fstat.read(field) != 0
+    }
+
+    /// Returns true if the TX FIFO is empty.
+    pub fn tx_empty(&self) -> bool {
+        let field = match self.sm_number {
+            SMNumber::SM0 => FSTAT::TXEMPTY0,
+            SMNumber::SM1 => FSTAT::TXEMPTY1,
+            SMNumber::SM2 => FSTAT::TXEMPTY2,
+            SMNumber::SM3 => FSTAT::TXEMPTY3,
         };
         self.registers.fstat.read(field) != 0
     }
@@ -1582,6 +1594,9 @@ impl Pio {
                 .instr_mem
                 .modify(INSTR_MEMx::INSTR_MEM::CLEAR);
         }
+
+        // update the mask of used instructions slots
+        self.instructions_used.set(0);
     }
 
     /// Initialize a new PIO with the same default configuration for all four state machines.
@@ -1739,6 +1754,35 @@ mod examples {
             sm.push_blocking(pwm_period).ok();
             sm.exec(pull_command);
             sm.exec(out_isr_32_command);
+            sm.set_enabled(true);
+        }
+
+        pub fn spi_program_init(
+            &self,
+            sm_number: SMNumber,
+            clock_pin: u32,
+            in_pin: u32,
+            out_pin: u32,
+            config: &StateMachineConfiguration,
+        ) {
+            let sm = &self.sms[sm_number as usize];
+            sm.config(config);
+            self.gpio_init(&RPGpioPin::new(RPGpio::from_u32(clock_pin)));
+            self.gpio_init(&RPGpioPin::new(RPGpio::from_u32(in_pin)));
+            self.gpio_init(&RPGpioPin::new(RPGpio::from_u32(out_pin)));
+            sm.set_enabled(false);
+
+            // Important: make the sideset pin an output pin then make it a side set pin
+            // and make sure to do all of this BEFORE setting the outpin as an outpin
+            sm.set_out_pins(clock_pin, 1);
+            sm.set_pins_dirs(clock_pin, 1, true);
+            sm.set_side_set_pins(clock_pin, 1, false, false); // Do not switch pin dirs again, it will mess with the output settings
+
+            sm.set_pins_dirs(out_pin, 1, true);
+            sm.set_out_pins(out_pin, config.out_pins_count);
+
+            sm.init();
+            sm.clear_fifos();
             sm.set_enabled(true);
         }
 
