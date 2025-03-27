@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2024.
 
-//! Board file for qemu-system-i386 "q35" machine type
+//! Board file for qemu-system-i486 "q35" machine type
 
 #![no_std]
 // Disable this attribute when documenting, as a workaround for
