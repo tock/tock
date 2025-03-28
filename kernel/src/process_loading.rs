@@ -920,11 +920,6 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
     ////////////////////////////////////////////////////////////////////////////////
     // DYNAMIC PROCESS LOADING HELPERS
     ////////////////////////////////////////////////////////////////////////////////
-    /// TODO:
-    /// 1. Block app from writing if the version is same and if the binary has not
-    ///     changed? (possible attack vector)
-    ///         - Change version and keep binary image constant otherwise.
-    ///         - A bunch of these updates could eat away at the flash's real estate
 
     /// Scan the entire flash to populate lists of existing binaries addresses.
     fn scan_flash_for_process_binaries(
