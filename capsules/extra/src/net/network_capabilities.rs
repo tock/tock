@@ -43,7 +43,7 @@ impl AddrRange {
         match self {
             AddrRange::Any => true,
             AddrRange::NoAddrs => false,
-            AddrRange::AddrSet(allowed_addrs) => allowed_addrs.iter().any(|&a| a == addr),
+            AddrRange::AddrSet(allowed_addrs) => allowed_addrs.contains(&addr),
             AddrRange::Addr(allowed_addr) => addr == *allowed_addr, //TODO: refs?
             AddrRange::Subnet(allowed_addr, prefix_len) => {
                 let full_bytes: usize = prefix_len / 8;
@@ -76,7 +76,7 @@ impl PortRange {
         match self {
             PortRange::Any => true,
             PortRange::NoPorts => false,
-            PortRange::PortSet(allowed_ports) => allowed_ports.iter().any(|&p| p == port), // TODO: check refs
+            PortRange::PortSet(allowed_ports) => allowed_ports.contains(&port), // TODO: check refs
             PortRange::Range(low, high) => *low <= port && port <= *high,
             PortRange::Port(allowed_port) => port == *allowed_port,
         }
