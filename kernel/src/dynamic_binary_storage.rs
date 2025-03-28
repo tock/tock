@@ -100,12 +100,7 @@ pub trait DynamicBinaryStoreClient {
     fn setup_done(&self, result: Result<(), ErrorCode>);
 
     /// The provided app binary buffer has been stored.
-    fn write_process_binary_data_done(
-        &self,
-        result: Result<(), ErrorCode>,
-        buffer: &'static mut [u8],
-        length: usize,
-    );
+    fn write_done(&self, result: Result<(), ErrorCode>, buffer: &'static mut [u8], length: usize);
 
     /// The kernel has finished writing a prepad app if necessary and is ready
     /// to move to the `load()` phase.
@@ -369,7 +364,7 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> NonvolatileStorageCli
                 // Switch on which user generated this callback and trigger
                 // client callback.
                 self.storage_client.map(|client| {
-                    client.write_process_binary_data_done(Ok(()), buffer, length);
+                    client.write_done(Ok(()), buffer, length);
                 });
             }
             State::PaddingWrite => {

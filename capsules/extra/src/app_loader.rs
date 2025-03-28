@@ -224,12 +224,7 @@ impl kernel::dynamic_binary_storage::DynamicBinaryStoreClient for AppLoader<'_> 
     }
 
     /// Let the app know we are done writing the block of data
-    fn write_process_binary_data_done(
-        &self,
-        result: Result<(), ErrorCode>,
-        buffer: &'static mut [u8],
-        length: usize,
-    ) {
+    fn write_done(&self, result: Result<(), ErrorCode>, buffer: &'static mut [u8], length: usize) {
         // Switch on which user of this capsule generated this callback.
         self.current_process.map(|processid| {
             let _ = self.apps.enter(processid, move |app, kernel_data| {
