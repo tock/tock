@@ -90,7 +90,7 @@ pub trait DynamicBinaryStore {
     /// Sets a client for the SequentialDynamicBinaryStore Object
     ///
     /// When the client operation is done, it calls the `setup_done()`,
-    /// `write_process_binary_data_done()` and `abort_done()` functions.
+    /// `write_done()` and `abort_done()` functions.
     fn set_storage_client(&self, client: &'static dyn DynamicBinaryStoreClient);
 }
 
@@ -325,7 +325,7 @@ impl<'a, C: Chip + 'static, D: ProcessStandardDebug + 'static>
                     let mut padding_slice = SubSliceMut::new(buffer);
                     padding_slice.slice(..PADDING_TBF_HEADER_LENGTH);
                     // We are only writing the header, so 16 bytes is enough.
-                    self.write(padding_slice, offset)
+                    self.write_buffer(padding_slice, offset)
                 }
                 false => Err(ErrorCode::NOMEM),
             }
