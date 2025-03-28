@@ -511,7 +511,7 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> DynamicBinaryStore
                                 }
                             }
                         }
-                    };
+                    }
                     Ok(app_length)
                 }
                 Err(_err) => {
