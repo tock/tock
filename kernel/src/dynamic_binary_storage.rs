@@ -78,11 +78,7 @@ pub trait DynamicBinaryStore {
     ///
     /// Returns an error if the write is outside of the permitted region or is
     /// writing an invalid header.
-    fn write_process_binary_data(
-        &self,
-        buffer: SubSliceMut<'static, u8>,
-        offset: usize,
-    ) -> Result<(), ErrorCode>;
+    fn write(&self, buffer: SubSliceMut<'static, u8>, offset: usize) -> Result<(), ErrorCode>;
 
     /// Signal to the kernel that the requesting process is done writing the new
     /// binary.
@@ -225,7 +221,11 @@ impl<'a, C: Chip + 'static, D: ProcessStandardDebug + 'static>
 
     /// Compute the physical address where we should write the data and then
     /// write it.
-    fn write(&self, user_buffer: SubSliceMut<'static, u8>, offset: usize) -> Result<(), ErrorCode> {
+    fn write_buffer(
+        &self,
+        user_buffer: SubSliceMut<'static, u8>,
+        offset: usize,
+    ) -> Result<(), ErrorCode> {
         let length = user_buffer.len();
         // Take the buffer to perform tbf header validation and write with.
         let buffer = user_buffer.take();
@@ -534,14 +534,10 @@ impl<C: Chip + 'static, D: ProcessStandardDebug + 'static> DynamicBinaryStore
         }
     }
 
-    fn write_process_binary_data(
-        &self,
-        buffer: SubSliceMut<'static, u8>,
-        offset: usize,
-    ) -> Result<(), ErrorCode> {
+    fn write(&self, buffer: SubSliceMut<'static, u8>, offset: usize) -> Result<(), ErrorCode> {
         match self.state.get() {
             State::AppWrite => {
-                let res = self.write(buffer, offset);
+                let res = self.write_buffer(buffer, offset);
                 match res {
                     Ok(()) => Ok(()),
                     Err(e) => {

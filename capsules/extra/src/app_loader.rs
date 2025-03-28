@@ -197,9 +197,7 @@ impl<'a> AppLoader<'a> {
                         // should be the length supported by the app
                         // (currently only powers of 2 work)
                         write_buffer.slice(..length);
-                        let res = self
-                            .storage_driver
-                            .write_process_binary_data(write_buffer, offset);
+                        let res = self.storage_driver.write(write_buffer, offset);
                         match res {
                             Ok(()) => Ok(()),
                             Err(e) => Err(e),
