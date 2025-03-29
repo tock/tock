@@ -847,19 +847,20 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                 Err(Error::AddressOutOfBounds)
             } else if new_break > self.kernel_memory_break.get() {
                 Err(Error::OutOfMemory)
-            } else if let Err(()) = self.chip.mpu().update_app_memory_region(
+            } else if let Ok(new_mpu_allocated_break) = self.chip.mpu().update_app_memory_region(
                 new_break,
                 self.kernel_memory_break.get(),
                 mpu::Permissions::ReadWriteOnly,
                 config,
             ) {
-                Err(Error::OutOfMemory)
-            } else {
                 let old_break = self.app_break.get();
-                self.app_break.set(new_break);
+                // set the app break to the end of the MPU accesible region
+                self.app_break.set(new_mpu_allocated_break);
                 self.chip.mpu().configure_mpu(config);
 
                 let base = self.mem_start() as usize;
+                // Set the break_result to the new_break asked for
+                // by the app
                 let break_result = unsafe {
                     CapabilityPtr::new_with_authority(
                         old_break as *const (),
@@ -870,6 +871,9 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                 };
 
                 Ok(break_result)
+            } else {
+                // MPU could not allocate a region without overlapping the kernel owned memory
+                Err(Error::OutOfMemory)
             }
         })
     }
@@ -1691,7 +1695,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // - the kernel-owned allocation growing downward starting at the end
         //   of this allocation, `initial_kernel_memory_size` bytes long.
         //
-        let (allocation_start, allocation_size) = match chip.mpu().allocate_app_memory_region(
+        let allocated_breaks_and_size = match chip.mpu().allocate_app_memory_region(
             remaining_memory.as_ptr(),
             remaining_memory.len(),
             min_total_memory_size,
@@ -1700,7 +1704,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
             mpu::Permissions::ReadWriteOnly,
             &mut mpu_config,
         ) {
-            Some((memory_start, memory_size)) => (memory_start, memory_size),
+            Some(breaks_and_size) => breaks_and_size,
             None => {
                 // Failed to load process. Insufficient memory.
                 if config::CONFIG.debug_load_processes {
@@ -1715,6 +1719,8 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
                 return Err((ProcessLoadError::NotEnoughMemory, remaining_memory));
             }
         };
+        let allocation_start = allocated_breaks_and_size.app_start();
+        let allocation_size = allocated_breaks_and_size.memory_size();
 
         // Determine the offset of the app-owned part of the above memory
         // allocation. An MPU may not place it at the very start of
@@ -1778,7 +1784,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         //   1. optional padding at the start of the memory region of
         //      `app_memory_start_offset` bytes,
         //
-        //   2. the app accessible memory region of `min_process_memory_size`,
+        //   2. the app accessible memory region given by the MPU,
         //
         //   3. optional unallocated memory, and
         //
@@ -1802,8 +1808,9 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         let allocated_memory_len = allocated_memory.len();
 
         // Slice off the process-accessible memory:
+        let accessible_process_memory_size = allocated_breaks_and_size.app_size();
         let (app_accessible_memory, allocated_kernel_memory) =
-            allocated_memory.split_at_mut(min_process_memory_size);
+            allocated_memory.split_at_mut(accessible_process_memory_size);
 
         // Set the initial process-accessible memory:
         let initial_app_brk = app_accessible_memory
@@ -2071,32 +2078,33 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         let initial_kernel_memory_size =
             grant_ptrs_offset + Self::CALLBACKS_OFFSET + Self::PROCESS_STRUCT_OFFSET;
 
-        let app_mpu_mem = self.chip.mpu().allocate_app_memory_region(
-            self.mem_start(),
-            self.memory_len,
-            self.memory_len, //we want exactly as much as we had before restart
-            min_process_memory_size,
-            initial_kernel_memory_size,
-            mpu::Permissions::ReadWriteOnly,
-            &mut mpu_config,
-        );
-        let (app_mpu_mem_start, app_mpu_mem_len) = match app_mpu_mem {
-            Some((start, len)) => (start, len),
-            None => {
-                // We couldn't configure the MPU for the process. This shouldn't
-                // happen since we were able to start the process before, but at
-                // this point it is better to leave the app faulted and not
-                // schedule it.
-                return Err(ErrorCode::NOMEM);
-            }
-        };
+        let app_mpu_mem = self
+            .chip
+            .mpu()
+            .allocate_app_memory_region(
+                self.mem_start(),
+                self.memory_len,
+                self.memory_len, //we want exactly as much as we had before restart
+                min_process_memory_size,
+                initial_kernel_memory_size,
+                mpu::Permissions::ReadWriteOnly,
+                &mut mpu_config,
+            )
+            // We couldn't configure the MPU for the process. This shouldn't
+            // happen since we were able to start the process before, but at
+            // this point it is better to leave the app faulted and not
+            // schedule it.
+            .ok_or(ErrorCode::NOMEM)?;
+        let app_mpu_mem_start = app_mpu_mem.app_start();
+        let app_mpu_mem_len = app_mpu_mem.memory_size();
 
         // Reset memory pointers now that we know the layout of the process
         // memory and know that we can configure the MPU.
 
         // app_brk is set based on minimum syscall size above the start of
         // memory.
-        let app_brk = app_mpu_mem_start.wrapping_add(min_process_memory_size);
+        let app_accessible_mem_size = app_mpu_mem.app_size();
+        let app_brk = app_mpu_mem_start.wrapping_add(app_accessible_mem_size);
         self.app_break.set(app_brk);
         // kernel_brk is calculated backwards from the end of memory the size of
         // the initial kernel data structures.
@@ -2220,57 +2228,51 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
     /// accessible region from the new kernel memory break after doing the
     /// allocation, then this will return `None`.
     fn allocate_in_grant_region_internal(&self, size: usize, align: usize) -> Option<NonNull<u8>> {
-        self.mpu_config.and_then(|config| {
-            // First, compute the candidate new pointer. Note that at this point
-            // we have not yet checked whether there is space for this
-            // allocation or that it meets alignment requirements.
-            let new_break_unaligned = self.kernel_memory_break.get().wrapping_sub(size);
+        // First, compute the candidate new pointer. Note that at this point
+        // we have not yet checked whether there is space for this
+        // allocation or that it meets alignment requirements.
+        let new_break_unaligned = self.kernel_memory_break.get().wrapping_sub(size);
 
-            // Our minimum alignment requirement is two bytes, so that the
-            // lowest bit of the address will always be zero and we can use it
-            // as a flag. It doesn't hurt to increase the alignment (except for
-            // potentially a wasted byte) so we make sure `align` is at least
-            // two.
-            let align = cmp::max(align, 2);
+        // Our minimum alignment requirement is two bytes, so that the
+        // lowest bit of the address will always be zero and we can use it
+        // as a flag. It doesn't hurt to increase the alignment (except for
+        // potentially a wasted byte) so we make sure `align` is at least
+        // two.
+        let align = cmp::max(align, 2);
 
-            // The alignment must be a power of two, 2^a. The expression
-            // `!(align - 1)` then returns a mask with leading ones, followed by
-            // `a` trailing zeros.
-            let alignment_mask = !(align - 1);
-            let new_break = (new_break_unaligned as usize & alignment_mask) as *const u8;
+        // The alignment must be a power of two, 2^a. The expression
+        // `!(align - 1)` then returns a mask with leading ones, followed by
+        // `a` trailing zeros.
+        let alignment_mask = !(align - 1);
+        let new_break = (new_break_unaligned as usize & alignment_mask) as *const u8;
 
-            // Verify there is space for this allocation
-            if new_break < self.app_break.get() {
-                None
-                // Verify it didn't wrap around
-            } else if new_break > self.kernel_memory_break.get() {
-                None
-                // Verify this is compatible with the MPU.
-            } else if let Err(()) = self.chip.mpu().update_app_memory_region(
-                self.app_break.get(),
-                new_break,
-                mpu::Permissions::ReadWriteOnly,
-                config,
-            ) {
-                None
-            } else {
-                // Allocation is valid.
+        // Verify there is space for this allocation
+        if new_break < self.app_break.get() {
+            None
+            // Verify it didn't wrap around
+        } else if new_break > self.kernel_memory_break.get() {
+            None
+            // Verify this is compatible with the MPU.
+        } else {
+            // Allocation is valid.
+            //
+            // **IMPORTANT NOTE**: because the app break is precisely what the mpu covers,
+            // there is no need to check compatibility with the MPU
+            //
+            // We always allocate down, so we must lower the
+            // kernel_memory_break.
+            self.kernel_memory_break.set(new_break);
 
-                // We always allocate down, so we must lower the
-                // kernel_memory_break.
-                self.kernel_memory_break.set(new_break);
+            // We need `grant_ptr` as a mutable pointer.
+            let grant_ptr = new_break as *mut u8;
 
-                // We need `grant_ptr` as a mutable pointer.
-                let grant_ptr = new_break as *mut u8;
-
-                // ### Safety
-                //
-                // Here we are guaranteeing that `grant_ptr` is not null. We can
-                // ensure this because we just created `grant_ptr` based on the
-                // process's allocated memory, and we know it cannot be null.
-                unsafe { Some(NonNull::new_unchecked(grant_ptr)) }
-            }
-        })
+            // ### Safety
+            //
+            // Here we are guaranteeing that `grant_ptr` is not null. We can
+            // ensure this because we just created `grant_ptr` based on the
+            // process's allocated memory, and we know it cannot be null.
+            unsafe { Some(NonNull::new_unchecked(grant_ptr)) }
+        }
     }
 
     /// Create the identifier for a custom grant that grant.rs uses to access

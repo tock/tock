@@ -744,7 +744,7 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
         initial_kernel_memory_size: usize,
         permissions: mpu::Permissions,
         config: &mut Self::MpuConfig,
-    ) -> Option<(*const u8, usize)> {
+    ) -> Option<mpu::AllocatedBreaksAndSize> {
         // An app memory region can only be allocated once per `MpuConfig`.
         // If we already have one, abort:
         if config.app_memory_region.is_some() {
@@ -828,7 +828,11 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
         config.is_dirty.set(true);
         config.app_memory_region.replace(region_num);
 
-        Some((start as *const u8, memory_block_size))
+        Some(mpu::AllocatedBreaksAndSize::new(
+            start as *const u8,
+            pmp_region_size,
+            memory_block_size,
+        ))
     }
 
     fn update_app_memory_region(
@@ -837,7 +841,7 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
         kernel_memory_break: *const u8,
         permissions: mpu::Permissions,
         config: &mut Self::MpuConfig,
-    ) -> Result<(), ()> {
+    ) -> Result<*const u8, ()> {
         let region_num = config.app_memory_region.get().ok_or(())?;
 
         let mut app_memory_break = app_memory_break as usize;
@@ -861,7 +865,7 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
         config.regions[region_num].2 = app_memory_break as *const u8;
         config.is_dirty.set(true);
 
-        Ok(())
+        Ok(app_memory_break as *const u8)
     }
 
     fn configure_mpu(&self, config: &Self::MpuConfig) {
