@@ -28,6 +28,8 @@ macro_rules! static_init {
     }};
 }
 
+pub use static_init;
+
 /// Internal helper function for [`static_buf!()`](crate::static_buf).
 ///
 /// This must be public to work within the macro but should never be used
@@ -121,6 +123,8 @@ macro_rules! static_buf {
     }};
 }
 
+pub use static_buf;
+
 /// A version of [`static_buf!()`] that adds an exported name to the buffer.
 ///
 /// This creates a static buffer exactly as [`static_buf!()`] does. In general,
@@ -174,3 +178,4 @@ macro_rules! static_named_buf {
         &mut BUF.0
     }};
 }
+pub use static_named_buf;
