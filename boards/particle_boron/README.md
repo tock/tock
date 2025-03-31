@@ -11,7 +11,7 @@ The [Particle_Boron](https://docs.particle.io/reference/datasheets/b-series/boro
 To program the [Particle_Boron](https://docs.particle.io/reference/datasheets/b-series/boron-datasheet/) with Tock, you will need a JLink JTAG device and the
 appropriate cables.
 
-Then, follow the [Tock Getting Started guide](../../../doc/Getting_Started.md)
+Then, follow the [Tock Getting Started guide](../../doc/Getting_Started.md)
 
 ## Programming the kernel
 
