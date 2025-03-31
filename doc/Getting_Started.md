@@ -187,6 +187,7 @@ with:
 ```bash
 (Ubuntu): sudo apt-get install openocd
 (MacOS): brew install open-ocd
+(Fedora): sudo dnf install openocd
 ```
 
 We require at least version `0.10.0`.
