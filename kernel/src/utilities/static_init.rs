@@ -28,6 +28,8 @@ macro_rules! static_init {
     }};
 }
 
+// Import the above macro to include its doc-comment into the generated public
+// API Rustdoc.
 pub use static_init;
 
 /// Internal helper function for [`static_buf!()`](crate::static_buf).
