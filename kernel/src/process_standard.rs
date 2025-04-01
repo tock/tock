@@ -832,7 +832,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             return Err(Error::InactiveApp);
         }
 
-        let new_break = unsafe { self.app_break.get().offset(increment) };
+        let new_break = self.app_break.get().wrapping_offset(increment);
         self.brk(new_break)
     }
 
