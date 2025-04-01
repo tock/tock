@@ -120,7 +120,7 @@ impl fmt::Debug for ProcessBinaryError {
 pub struct ProcessBinary {
     /// Process flash segment. This is the entire region of nonvolatile flash
     /// that the process occupies.
-    #[field({&[u8][flash_len] | flash_len > 0})]
+    #[field(&[u8][flash_len])]
     pub flash: &'static [u8],
 
     /// The footers of the process binary (may be zero-sized), which are metadata

@@ -1,5 +1,5 @@
 #![allow(unused)]
-use core::slice::{Iter, SliceIndex};
+use core::slice::{self, Iter, SliceIndex};
 
 // #[flux_rs::extern_spec]
 // #[generics(Self as base, T as base)]

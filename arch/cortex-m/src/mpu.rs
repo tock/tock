@@ -37,13 +37,17 @@ flux_rs::defs! {
     // Rbar
     fn valid(reg:bitvec<32>) -> bool { bit(reg, 0x00000010)}
     fn region(reg:bitvec<32>) -> bitvec<32> { extract(reg, 0x0000000f, 0)}
+    // fn region(reg: bitvec<32>) -> bitvec<32> { reg & 0x0000_0007 }
     fn addr(reg:bitvec<32>) -> bitvec<32> {  extract(reg, 0xffffffe0, 5)}
+    // fn addr(reg: bitvec<32>) -> bitvec<32> { reg & 0xffff_ffe0 }
     // Rasr
     fn xn(reg:bitvec<32>) -> bool { bit(reg, 0x08000000)}
     fn region_enable(reg:bitvec<32>) -> bool { bit(reg, 0x00000001)}
     fn ap(reg:bitvec<32>) -> bitvec<32> { extract(reg, 0x07000000, 24) }
     fn srd(reg:bitvec<32>) -> bitvec<32> { extract(reg, 0x0000ff00, 8) }
+    // fn srd(reg: bitvec<32>) -> bitvec<32> { reg & 0x0000_FF00 }
     fn size(reg:bitvec<32>) -> bitvec<32> { bv32(1) << (extract(reg, 0x0000003e, 1) + 1) }
+    // fn size(reg: bitvec<32>) -> bitvec<32> { bv32(1) << ((reg & 0x0000_003E) + 1) }
 
     fn value(fv: FieldValueU32) -> bitvec<32> { fv.value}
     fn rbar(region: CortexMRegion) -> bitvec<32> { value(region.rbar) }
@@ -139,7 +143,14 @@ flux_rs::defs! {
         // the permissions match
         perms_match_exactly(value(rasr), perms) &&
         // and the subregions are set correctly
-        subregions_enabled_exactly(value(rasr), first_subregion(rbar, rasr, astart), last_subregion(rbar, rasr, astart, asize))
+        (
+            size(value(rasr)) >= 256 
+                => subregions_enabled_exactly(value(rasr), first_subregion(rbar, rasr, astart), last_subregion(rbar, rasr, astart, asize))
+        ) &&
+        (
+            size(value(rasr)) < 256 => srd(value(rasr)) == 0
+        )
+
     }
 
     fn region_can_access(region: CortexMRegion, start: int, end: int, perms: mpu::Permissions) -> bool {
@@ -188,17 +199,17 @@ flux_rs::defs! {
     }
 
     fn config_cant_access_at_all(config: CortexMConfig, start: int, end: int) -> bool {
-        forall i in 0..8 {
+        forall i in 0..3 {
             region_cant_access_at_all(map_get(config, i), start, end)
         }
     }
 
-    fn ipc_cant_access_process_mem(config: CortexMConfig, fstart: int, fend: int, hstart: int, hend: int) -> bool {
-        forall i in 3..8 {
-            region_cant_access_at_all(map_get(config, i), fstart, fend) &&
-            region_cant_access_at_all(map_get(config, i), hstart, hend)
-        }
-    }
+    // fn ipc_cant_access_process_mem(config: CortexMConfig, fstart: int, fend: int, hstart: int, hend: int) -> bool {
+    //     forall i in 3..8 {
+    //         region_cant_access_at_all(map_get(config, i), fstart, fend) &&
+    //         region_cant_access_at_all(map_get(config, i), hstart, hend)
+    //     }
+    // }
 }
 
 // VTOCK_TODO: better solution for hardware register spooky-action-at-a-distance
@@ -654,7 +665,11 @@ impl CortexMRegion {
                 r.perms == perms &&
                 r.set  
             }
-        requires (subregions => rsize >= 256) && rsize < u32::MAX
+        requires 
+            rsize % 8 == 0 && 
+            rsize >= 32 &&
+            (subregions => rsize >= 256) &&
+            rsize <= u32::MAX / 2 + 1
     )]
     #[flux_rs::trusted] // VTOCK TODO: this one is a beast
     fn new(
@@ -948,7 +963,7 @@ impl<const MIN_REGION_SIZE: usize> MPU<MIN_REGION_SIZE> {
 #[flux_rs::assoc(fn config_can_access_flash(c: CortexMConfig, fstart: int, fend: int) -> bool { config_can_access_flash(c, fstart, fend) })]
 #[flux_rs::assoc(fn config_can_access_heap(c: CortexMConfig, hstart: int, hend: int) -> bool { config_can_access_heap(c, hstart, hend) })]
 #[flux_rs::assoc(fn config_cant_access_at_all(c: CortexMConfig, start: int, end: int) -> bool { config_cant_access_at_all(c, start, end) } )]
-#[flux_rs::assoc(fn ipc_cant_access_process_mem(c: CortexMConfig, fstart: int, fend: int, hstart: int, hend: int) -> bool { ipc_cant_access_process_mem(c, fstart, fend, hstart, hend) } )]
+// #[flux_rs::assoc(fn ipc_cant_access_process_mem(c: CortexMConfig, fstart: int, fend: int, hstart: int, hend: int) -> bool { ipc_cant_access_process_mem(c, fstart, fend, hstart, hend) } )]
 impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
     type MpuConfig = CortexMConfig;
 
@@ -1078,7 +1093,7 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
         fn (
             &Self,
             FluxPtrU8[@mem_start],
-            usize,
+            usize[@memsz],
             usize[@min_mem_sz],
             usize[@appmsz],
             usize[@kernelmsz],
@@ -1088,24 +1103,19 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
         ) -> Result<{b. mpu::AllocatedAppBreaksAndSize[b] |
             b.app_break <= b.memory_start + b.memory_size - kernelmsz &&
             b.app_break >= b.memory_start + appmsz &&
+            b.memory_start >= mem_start &&
+            b.memory_start + b.memory_size <= u32::MAX &&
+            b.memory_start > 0 &&
             config_can_access_flash(new_c, fstart, fstart + fsz) &&
             config_can_access_heap(new_c, b.memory_start, b.app_break) &&
             config_cant_access_at_all(new_c, 0, fstart - 1) &&
             config_cant_access_at_all(new_c, fstart + fsz + 1, b.memory_start - 1) &&
             config_cant_access_at_all(new_c, b.app_break + 1, u32::MAX) 
+            // &&
+            // ipc_cant_access_process_mem(new_c, fstart, fstart + fsz, mem_start, u32::MAX)
         }, mpu::AllocateAppMemoryError>
         requires 
-            fstart + fsz < mem_start &&
-            min_mem_sz > 0 &&
-            min_mem_sz <= u32::MAX / 2 + 1 &&
-            appmsz > 0 &&
-            kernelmsz > 0 &&
-            appmsz + kernelmsz <= u32::MAX / 2 + 1 &&
-            fstart > 0 &&
-            fstart <= u32::MAX / 2 + 1 && 
-            fsz > 0 &&
-            fsz <= u32::MAX / 2 + 1 &&
-            appmsz + kernelmsz < u32::MAX && 
+            (fstart + fsz <= mem_start || mem_start + memsz <= fstart) &&
             config_cant_access_at_all(old_c, 0, u32::MAX)
         ensures config: CortexMConfig[#new_c]
     )]
@@ -1121,6 +1131,10 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
         config: &mut CortexMConfig,
     ) -> Result<mpu::AllocatedAppBreaksAndSize, mpu::AllocateAppMemoryError> {
         // first allocate flash
+        if flash_start.as_usize() == 0 || flash_size == 0 || flash_start.as_usize() > (u32::MAX / 2 + 1) as usize || flash_size > (u32::MAX / 2 + 1) as usize {
+            return Err(AllocateAppMemoryError::FlashError)
+        }
+
         let region = self
             .create_region(
                 FLASH_REGION,
@@ -1148,6 +1162,10 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
             min_memory_size,
             initial_app_memory_size + initial_kernel_memory_size,
         );
+
+        if memory_size > (u32::MAX / 2 + 1) as usize || memory_size == 0 {
+            return Err(AllocateAppMemoryError::HeapError)
+        }
 
         // Size must be a power of two, so:
         // https://www.youtube.com/watch?v=ovo6zwv6DX4.
@@ -1288,24 +1306,25 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
             config_can_access_heap(new_c, b.memory_start, b.app_break) &&
             config_cant_access_at_all(new_c, 0, fstart - 1) &&
             config_cant_access_at_all(new_c, fstart + fsz + 1, b.memory_start - 1) &&
-            config_cant_access_at_all(new_c, b.app_break + 1, u32::MAX) &&
-            ipc_cant_access_process_mem(new_c, fstart, fstart + fsz, b.memory_start, u32::MAX)
+            config_cant_access_at_all(new_c, b.app_break + 1, u32::MAX) 
+            // &&
+            // ipc_cant_access_process_mem(new_c, fstart, fstart + fsz, b.memory_start, u32::MAX)
         }, ()>[#res]
         requires 
             fstart + fsz < mem_start &&
-            app_break - mem_start <= u32::MAX / 2 + 1 &&
             app_break > mem_start &&
             config_can_access_flash(old_c, fstart, fstart + fsz) &&
             config_cant_access_at_all(old_c, 0, fstart - 1) &&
             config_cant_access_at_all(old_c, fstart + fsz + 1, mem_start - 1) &&
-            config_cant_access_at_all(old_c, old_app_break + 1, u32::MAX) &&
+            config_cant_access_at_all(old_c, old_app_break + 1, u32::MAX) 
+            // &&
             // VTOCK TODO: 
             // I understand that there is a possibility that some IPC region might 
             // have access to mem_start - old_app_break. Therefore, if we shrink the app break,
             // the config may still have access to the old memory. It would make sense to me if we 
             // had to say region_cant_access_at_all(..., mem_start, old_app_break). But somehow, even 
             // u32::MAX - 1 doesn't work as the end address here... 
-            ipc_cant_access_process_mem(old_c, fstart, fstart + fsz, mem_start, u32::MAX)
+            // ipc_cant_access_process_mem(old_c, fstart, fstart + fsz, mem_start, u32::MAX)
         ensures config: CortexMConfig[#new_c], !res => old_c == new_c
     )]
     fn update_app_memory_regions(

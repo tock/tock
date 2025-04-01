@@ -1,1 +1,2 @@
 cache = true
+solver = "cvc5"

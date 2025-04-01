@@ -395,19 +395,23 @@ fn load_process<C: Chip>(
         .map_err(|(e, memory)| (memory, e))?
     };
 
-    process_option.map(|process| {
+    let debug_opt = process_option.map_or(None, |process| {
         if config::CONFIG.debug_load_processes {
             debug!(
                 "Loading: {} [{}] flash={:#010X}-{:#010X} ram={:#010X}-{:#010X}",
                 process.get_process_name(),
                 index,
-                process.get_flash_start(),
-                process.get_flash_end(),
-                process.get_sram_start(),
-                process.get_sram_end()
+                process.get_flash_start()?,
+                process.get_flash_end()?,
+                process.get_sram_start()?,
+                process.get_sram_end()?
             );
         }
+        Some(())
     });
+    if debug_opt == None {
+        return Err((unused_memory, ProcessLoadError::InternalError));
+    }
 
     Ok((unused_memory, process_option))
 }
@@ -852,14 +856,16 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
         let blocks = same_app_id || same_short_app_id;
 
         if config::CONFIG.debug_process_credentials {
-            debug!(
-                "Loading: Process {}({:#02x}) does{} block {}({:#02x})",
-                process.get_process_name(),
-                process.get_flash_start(),
-                if blocks { " not" } else { "" },
-                pb.header.get_package_name().unwrap_or(""),
-                pb.flash.as_ptr() as usize,
-            );
+            process.get_flash_start().map(|flash_start| {
+                debug!(
+                    "Loading: Process {}({:#02x}) does{} block {}({:#02x})",
+                    process.get_process_name(),
+                    flash_start,
+                    if blocks { " not" } else { "" },
+                    pb.header.get_package_name().unwrap_or(""),
+                    pb.flash.as_ptr() as usize,
+                )
+            });
         }
 
         blocks
