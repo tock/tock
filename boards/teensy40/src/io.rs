@@ -8,7 +8,7 @@ use core::ptr::addr_of;
 use kernel::debug::{self, IoWrite};
 use kernel::hil::{
     led,
-    uart::{self, Configure},
+    uart::{self, Configure, BAUD115200},
 };
 
 use crate::imxrt1060::gpio;
@@ -18,12 +18,10 @@ struct Writer<'a> {
     output: &'a mut lpuart::Lpuart<'a>,
 }
 
-const BAUD_RATE: u32 = 115_200;
-
 impl<'a> Writer<'a> {
     pub unsafe fn new(output: &'a mut lpuart::Lpuart<'a>) -> Self {
         let _ = output.configure(uart::Parameters {
-            baud_rate: BAUD_RATE,
+            baud_rate: BAUD115200,
             stop_bits: uart::StopBits::One,
             parity: uart::Parity::None,
             hw_flow_control: false,

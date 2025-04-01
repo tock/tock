@@ -26,6 +26,7 @@ use kernel::hil::led::LedHigh;
 use kernel::hil::symmetric_encryption::AES128;
 use kernel::hil::time::Alarm;
 use kernel::hil::time::Counter;
+use kernel::hil::uart::BAUD115200;
 use kernel::hil::usb::Client;
 use kernel::platform::chip::Chip;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -506,7 +507,7 @@ unsafe fn start() -> (
     CDC_REF_FOR_PANIC = Some(cdc); //for use by panic handler
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(cdc, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(cdc, BAUD115200)
         .finalize(components::uart_mux_component_static!());
 
     // Setup the console.

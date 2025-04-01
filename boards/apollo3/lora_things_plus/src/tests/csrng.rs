@@ -7,9 +7,9 @@
 use crate::tests::run_kernel_op;
 use crate::ATECC508A;
 use capsules_core::test::rng::TestEntropy32;
-use kernel::debug;
 use kernel::hil::entropy::Entropy32;
 use kernel::static_init;
+use kernel::{debug, non_zero};
 
 #[test_case]
 fn run_csrng_entropy32() {

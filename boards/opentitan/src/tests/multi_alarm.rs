@@ -20,9 +20,9 @@ use crate::ALARM;
 use capsules_core::test::random_alarm::TestRandomAlarm;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use earlgrey::timer::RvTimer;
-use kernel::debug;
 use kernel::hil::time::Alarm;
 use kernel::static_init;
+use kernel::{debug, non_zero};
 
 static mut TESTS: Option<
     [&'static TestRandomAlarm<

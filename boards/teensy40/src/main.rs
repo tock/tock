@@ -23,6 +23,7 @@ use imxrt1060::iomuxc::{MuxMode, PadId, Sion};
 use imxrt10xx as imxrt1060;
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::hil::uart::BAUD115200;
 use kernel::hil::{gpio::Configure, led::LedHigh};
 use kernel::platform::chip::ClockInterface;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -257,7 +258,7 @@ unsafe fn start() -> (&'static kernel::Kernel, Teensy40, &'static Chip) {
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
     // TODO how many of these should there be...?
 
-    let uart_mux = components::console::UartMuxComponent::new(&peripherals.lpuart2, 115_200)
+    let uart_mux = components::console::UartMuxComponent::new(&peripherals.lpuart2, BAUD115200)
         .finalize(components::uart_mux_component_static!());
     // Create the debugger object that handles calls to `debug!()`
     components::debug_writer::DebugWriterComponent::new(uart_mux)

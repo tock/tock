@@ -20,6 +20,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil::gpio::Configure;
 use kernel::hil::led::LedHigh;
+use kernel::hil::uart::BAUD115200;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
@@ -317,7 +318,7 @@ unsafe fn start() -> (
 
     // Create a shared UART channel for kernel debug.
     base_peripherals.usart2.enable_clock();
-    let uart_mux = components::console::UartMuxComponent::new(&base_peripherals.usart2, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(&base_peripherals.usart2, BAUD115200)
         .finalize(components::uart_mux_component_static!());
 
     // `finalize()` configures the underlying USART, so we need to
