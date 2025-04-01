@@ -180,4 +180,7 @@ macro_rules! static_named_buf {
         &mut BUF.0
     }};
 }
+
+// Import the above macro to include its doc-comment into the generated public
+// API Rustdoc.
 pub use static_named_buf;
