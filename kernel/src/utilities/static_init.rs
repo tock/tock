@@ -125,6 +125,8 @@ macro_rules! static_buf {
     }};
 }
 
+// Import the above macro to include its doc-comment into the generated public
+// API Rustdoc.
 pub use static_buf;
 
 /// A version of [`static_buf!()`] that adds an exported name to the buffer.
