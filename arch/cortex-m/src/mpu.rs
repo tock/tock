@@ -588,7 +588,7 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
         initial_kernel_memory_size: usize,
         permissions: mpu::Permissions,
         config: &mut Self::MpuConfig,
-    ) -> Option<(*const u8, usize)> {
+    ) -> Option<mpu::AllocatedBreaksAndSize> {
         // Check that no previously allocated regions overlap the unallocated
         // memory.
         for region in config.regions.iter() {
@@ -707,7 +707,12 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
         config.regions[1] = region1;
         config.is_dirty.set(true);
 
-        Some((region_start as *const u8, memory_size_po2))
+        let app_size = num_enabled_subregions * (region_size / 8);
+        Some(mpu::AllocatedBreaksAndSize::new(
+            region_start as *const u8,
+            app_size,
+            memory_size_po2,
+        ))
     }
 
     fn update_app_memory_region(
@@ -716,7 +721,7 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
         kernel_memory_break: *const u8,
         permissions: mpu::Permissions,
         config: &mut Self::MpuConfig,
-    ) -> Result<(), ()> {
+    ) -> Result<*const u8, ()> {
         // Get first region, or error if the process tried to update app memory
         // MPU region before it was created.
         let (region_start_ptr, region_size) = config.regions[0].location().ok_or(())?;
@@ -782,7 +787,7 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
         config.regions[1] = region1;
         config.is_dirty.set(true);
 
-        Ok(())
+        Ok((region_start + num_enabled_subregions * (region_size / 8)) as *const u8)
     }
 
     fn configure_mpu(&self, config: &Self::MpuConfig) {
