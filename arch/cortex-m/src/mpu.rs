@@ -631,7 +631,7 @@ impl CortexMRegion {
             rsize <= u32::MAX / 2 + 1 &&
             rstart % rsize == 0
     )]
-    // #[flux_rs::trusted] // VTOCK TODO: this one is a beast
+    #[flux_rs::trusted] // VTOCK todo: Hanging
     fn new(
         logical_start: FluxPtrU8,
         logical_size: usize,
