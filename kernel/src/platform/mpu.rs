@@ -313,6 +313,7 @@ pub trait MPU {
         }, AllocateAppMemoryError>
         requires 
             fstart + fsz < mem_start &&
+            min_mem_sz > 0 &&
             <Self as MPU>::config_cant_access_at_all(old_c, 0, u32::MAX)
         ensures config: Self::MpuConfig[#new_c]
     )]

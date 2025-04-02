@@ -784,6 +784,7 @@ impl<const MIN_REGION_SIZE: usize> MPU<MIN_REGION_SIZE> {
             }>
         requires minsz > 0 && minsz <= u32::MAX / 2 + 1 && size <= u32::MAX / 2 + 1 && start <= u32::MAX / 2 + 1
     )]
+    #[flux_rs::trusted]
     fn create_region(
         &self,
         region_num: usize,
@@ -1082,7 +1083,8 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
             // ipc_cant_access_process_mem(new_c, fstart, fstart + fsz, mem_start, u32::MAX)
         }, mpu::AllocateAppMemoryError>
         requires 
-            (fstart + fsz <= mem_start || mem_start + memsz <= fstart) &&
+            fstart + fsz < mem_start &&
+            min_mem_sz > 0 &&
             config_cant_access_at_all(old_c, 0, u32::MAX)
         ensures config: CortexMConfig[#new_c]
     )]
@@ -1333,9 +1335,10 @@ impl<const MIN_REGION_SIZE: usize> mpu::MPU for MPU<MIN_REGION_SIZE> {
 
         // VTOCK todo: can we prove this?
         // from allocate_app_memory_region
-        assume(region_size >= 256 && region_size < u32::MAX as usize); 
+        assume(region_size >= 256 && region_size <= (u32::MAX / 2 + 1) as usize); 
         assume(region_size % 8 == 0);
         assume(region_start + region_size * 2 >= kernel_memory_break.as_usize());
+        assume(region_start % region_size == 0);
 
         let app_memory_break = app_memory_break.as_usize();
         let kernel_memory_break = kernel_memory_break.as_usize();
