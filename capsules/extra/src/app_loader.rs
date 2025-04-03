@@ -309,6 +309,9 @@ impl SyscallDriver for AppLoader<'_> {
     ///    - The kernel has already dedicated this driver to another process.
     ///    - The kernel is busy executing another command for this process.
     ///
+    /// Currently, this capsule is not virtualized and can only be used by one
+    /// application at a time.
+    ///
     /// Commands are selected by the lowest 8 bits of the first argument.
     ///
     /// ### `command_num`
@@ -352,7 +355,12 @@ impl SyscallDriver for AppLoader<'_> {
         let match_or_nonexistent = self.current_process.map_or(true, |current_process| {
             self.apps
                 .enter(current_process, |_, _| current_process == processid)
-                .unwrap_or(true)
+                .unwrap_or_else(|_e| {
+                    let _ = self.storage_driver.abort();
+                    self.new_app_length.set(0);
+                    self.current_process.take();
+                    false
+                })
         });
         if match_or_nonexistent {
             self.current_process.set(processid);
@@ -441,6 +449,7 @@ impl SyscallDriver for AppLoader<'_> {
                 match result {
                     Ok(()) => {
                         self.new_app_length.set(0);
+                        self.current_process.take();
                         CommandReturn::success()
                     }
                     Err(e) => {
