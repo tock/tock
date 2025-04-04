@@ -403,6 +403,7 @@ ci-job-clippy:
 	# actually check the arch-specific functions.
 	@cd boards/nordic/nrf52840dk && cargo clippy -- -D warnings
 	@cd boards/hifive1 && cargo clippy -- -D warnings
+	@cd boards/qemu_i486_q35 && cargo clippy -- -D warnings
 
 
 
