@@ -61,6 +61,16 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 type AlarmDriver = components::alarm::AlarmDriverComponentType<nrf52840::rtc::Rtc<'static>>;
 
+type Verifier = ecdsa_sw::p256_verifier::EcdsaP256SignatureVerifier<'static>;
+type SignatureVerifyInMemoryKeys =
+    components::signature_verify_in_memory_keys::SignatureVerifyInMemoryKeysComponentType<
+        Verifier,
+        1,
+        64,
+        32,
+        64,
+    >;
+
 /// Supported drivers by the platform
 pub struct Platform {
     console: &'static capsules_core::console::Console<'static>,
@@ -294,22 +304,33 @@ pub unsafe fn main() {
             0x34, 0x30, 0x89, 0x26, 0x4c, 0x23, 0x62, 0xb1
         ]
     );
+    let verifying_keys = kernel::static_init!([&'static mut [u8; 64]; 1], [verifying_key]);
 
     // Setup the ECDSA-P256 verifier.
     let ecdsa_p256_verifier = kernel::static_init!(
         ecdsa_sw::p256_verifier::EcdsaP256SignatureVerifier<'static>,
-        ecdsa_sw::p256_verifier::EcdsaP256SignatureVerifier::new(verifying_key)
+        ecdsa_sw::p256_verifier::EcdsaP256SignatureVerifier::new()
     );
     ecdsa_p256_verifier.register();
+
+    // Setup the in-memory key selector.
+    let verifier_multiple_keys =
+        components::signature_verify_in_memory_keys::SignatureVerifyInMemoryKeysComponent::new(
+            ecdsa_p256_verifier,
+            verifying_keys,
+        )
+        .finalize(
+            components::signature_verify_in_memory_keys_component_static!(Verifier, 1, 64, 32, 64,),
+        );
 
     // Policy checks for a valid EcdsaNistP256 signature.
     let checking_policy = components::appid::checker_signature::AppCheckerSignatureComponent::new(
         sha,
-        ecdsa_p256_verifier,
+        verifier_multiple_keys,
         tock_tbf::types::TbfFooterV2CredentialsType::EcdsaNistP256,
     )
     .finalize(components::app_checker_signature_component_static!(
-        ecdsa_sw::p256_verifier::EcdsaP256SignatureVerifier<'static>,
+        SignatureVerifyInMemoryKeys,
         capsules_extra::sha256::Sha256Software<'static>,
         32,
         64,
