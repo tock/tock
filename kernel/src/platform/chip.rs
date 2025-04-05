@@ -3,8 +3,7 @@
 // Copyright Tock Contributors 2022.
 
 //! Interfaces for implementing microcontrollers in Tock.
-
-use crate::platform::mpu;
+use crate::allocator::IntoCortexMPU;
 use crate::syscall;
 use core::fmt::Write;
 
@@ -18,12 +17,12 @@ use core::fmt::Write;
 /// Each microcontroller should define a struct and implement this trait.
 pub trait Chip {
     /// The particular Memory Protection Unit (MPU) for this chip.
-    type MPU: mpu::MPU;
 
     /// The implementation of the interface between userspace and the kernel for
     /// this specific chip. Likely this is architecture specific, but individual
     /// chips may have various custom requirements.
     type UserspaceKernelBoundary: syscall::UserspaceKernelBoundary;
+    type MPU: IntoCortexMPU;
 
     /// The kernel calls this function to tell the chip to check for all pending
     /// interrupts and to correctly dispatch them to the peripheral drivers for
@@ -38,7 +37,7 @@ pub trait Chip {
     fn has_pending_interrupts(&self) -> bool;
 
     /// Returns a reference to the implementation for the MPU on this chip.
-    fn mpu(&self) -> &mut Self::MPU;
+    fn mpu(&self) -> &Self::MPU;
 
     /// Returns a reference to the implementation for the interface between
     /// userspace and kernelspace.

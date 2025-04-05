@@ -18,7 +18,7 @@ use core::arch::global_asm;
 pub mod dcb;
 #[flux_rs::ignore]
 pub mod dwt;
-pub mod mpu;
+// pub mod mpu;
 #[flux_rs::ignore]
 pub mod nvic;
 #[flux_rs::ignore]

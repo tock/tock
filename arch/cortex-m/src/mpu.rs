@@ -28,7 +28,8 @@ flux_rs::defs! {
 
     // rbar
     fn rbar_global_region_enabled(reg: bitvec<32>) -> bool { bit(reg, 0x1) }
-    fn rbar_region_number(reg: bitvec<32>) -> bitvec<32> { reg & 0x7 }
+    fn rbar_valid_bit_set(reg: bitvec<32>) -> bool { bit(reg, 0x10) }
+    fn rbar_region_number(reg: bitvec<32>) -> bitvec<32> { reg & 0xF }
     fn rbar_region_start(reg: bitvec<32>) -> bitvec<32> { reg & 0xFFFF_FFE0 }
 
     // rasr
@@ -96,6 +97,7 @@ flux_rs::defs! {
 
     fn can_access_exactly(rbar: FieldValueU32, rasr: FieldValueU32, rstart: int, rsize: int, astart: int, asize: int, perms: mpu::Permissions) -> bool {
         rbar_global_region_enabled(rbar.value) &&
+        rbar_valid_bit_set(rbar.value) &&
         rbar_region_start(rbar.value) == bv32(rstart) &&
         rasr_region_size(rasr.value) == bv32(rsize) &&
         subregions_enabled_exactly(
@@ -607,40 +609,47 @@ fn xor_mask(mask: u8, i: usize) -> u8 {
     mask ^ (1 << i)
 }
 
+#[flux_rs::trusted]
+#[flux_rs::sig(fn ({usize[@fsr] | fsr <= lsr}, {usize[@lsr] | lsr < 8}) -> u8[bv_bv32_to_int(bv32(u8::MAX) & enabled_srd_mask(bv32(fsr), bv32(lsr)))])]
+fn subregion_mask(min_subregion: usize, max_subregion: usize) -> u8 {
+    let enabled_mask = ((1 << (max_subregion - min_subregion + 1)) - 1) << min_subregion;
+    u8::MAX & enabled_mask
+}
+
+#[flux_rs::trusted]
+#[flux_rs::sig(fn (region_start: FluxPtrU8) -> u32[bv_bv32_to_int(bv32(region_start) >> 5)])]
+fn region_start_rs32(region_start: FluxPtrU8) -> u32 {
+    region_start.as_u32() >> 5
+}
+
 impl CortexMRegion {
-    #[flux_rs::sig(
-        fn (
-            FluxPtrU8[@astart],
-            usize[@asize],
-            FluxPtrU8[@rstart], 
-            usize[@rsize],
-            usize[@no],
-            Option<(usize,usize)>[@subregions], 
-            mpu::Permissions[@perms]
-        ) -> CortexMRegion {r: 
-                r.astart == astart &&
-                r.asize == asize &&
-                r.region_no == no &&
-                r.perms == perms &&
-                r.set  
-            }
-        requires 
-            rsize % 8 == 0 && 
-            rsize >= 32 &&
-            (subregions => rsize >= 256) &&
-            rsize <= u32::MAX / 2 + 1 &&
-            rstart % rsize == 0
-    )]
-    #[flux_rs::trusted] // VTOCK todo: Hanging
-    fn new(
-        logical_start: FluxPtrU8,
-        logical_size: usize,
+
+    #[flux_rs::sig(fn (region_start: FluxPtrU8, region_num: usize) -> FieldValueU32<RegionBaseAddress::Register>{rbar: 
+        rbar_region_number(rbar.value) == bv32(region_num) &&
+        rbar_global_region_enabled(rbar.value) &&
+        rbar_region_start(rbar.value) == bv32(region_start)
+    })]
+    fn base_address_register(
         region_start: FluxPtrU8,
+        region_num: usize
+    ) -> FieldValueU32<RegionBaseAddress::Register> {
+        RegionBaseAddress::ADDR().val(region_start_rs32(region_start))
+            + RegionBaseAddress::VALID::UseRBAR()
+            + RegionBaseAddress::REGION().val(region_num as u32)
+    }
+
+    #[flux_rs::sig(
+        fn (region_size: usize, permissions: mpu::Permissions) -> FieldValueU32<RegionAttributes::Register>{rasr: 
+            rasr_region_size(rasr.value) == bv32(region_size) &&
+            perms_match_exactly(rasr.value, permissions) &&
+            subregions_enabled_exactly(rasr.value, 0, 7)
+        }
+        requires region_size >= 32 && region_size <= u32::MAX / 2 + 1
+    )]
+    fn attributes_register_no_srd(
         region_size: usize,
-        region_num: usize,
-        subregions: Option<(usize, usize)>,
-        permissions: mpu::Permissions,
-    ) -> CortexMRegion {
+        permissions: mpu::Permissions
+    ) -> FieldValueU32<RegionAttributes::Register> {
         // Determine access and execute permissions
         let (access, execute) = match permissions {
             mpu::Permissions::ReadWriteExecute => (
@@ -664,36 +673,58 @@ impl CortexMRegion {
                 RegionAttributes::XN::Enable(),
             ),
         };
-
-        // Base address register
-        let base_address = RegionBaseAddress::ADDR().val((region_start.as_u32()) >> 5)
-            + RegionBaseAddress::VALID::UseRBAR()
-            + RegionBaseAddress::REGION().val(region_num as u32);
-
         // let size_value = math::log_base_two_u32_usize(region_size) - 1;
         let size_value = math::log_base_two(region_size as u32) - 1;
 
         // Attributes register
-        let mut attributes = RegionAttributes::ENABLE::SET()
+        RegionAttributes::ENABLE::SET()
             + RegionAttributes::SIZE().val(size_value)
             + access
-            + execute;
+            + execute
+    }
+
+    #[flux_rs::sig(
+        fn (
+            FluxPtrU8[@astart],
+            usize[@asize],
+            FluxPtrU8[@rstart], 
+            usize[@rsize],
+            usize[@no],
+            Option<(usize,usize)>[@subregions], 
+            mpu::Permissions[@perms]
+        ) -> CortexMRegion {r: 
+                r.astart == astart &&
+                r.asize == asize &&
+                r.region_no == no &&
+                r.perms == perms &&
+                r.set  
+            }
+        requires 
+            rsize >= 32 &&
+            (subregions => rsize >= 256) &&
+            rsize <= u32::MAX / 2 + 1
+    )]
+    fn new(
+        logical_start: FluxPtrU8,
+        logical_size: usize,
+        region_start: FluxPtrU8,
+        region_size: usize,
+        region_num: usize,
+        subregions: Option<(usize, usize)>,
+        permissions: mpu::Permissions,
+    ) -> CortexMRegion {
+
+        // Base address register
+        let base_address = Self::base_address_register(region_start, region_num);
+        // Attributes register
+        let mut attributes = Self::attributes_register_no_srd(region_size, permissions);
 
         // If using subregions, add a subregion mask. The mask is a 8-bit
         // bitfield where `0` indicates that the corresponding subregion is enabled.
         // To compute the mask, we start with all subregions disabled and enable
         // the ones in the inclusive range [min_subregion, max_subregion].
         if let Some((min_subregion, max_subregion)) = subregions {
-            // let mask = (min_subregion..=max_subregion).fold(u8::MAX, |res, i| {
-            //     // Enable subregions bit by bit (1 ^ 1 == 0)
-            //     res ^ (1 << i)
-            // });
-            let mut mask= u8::MAX; 
-            let mut i = min_subregion;
-            while i <= max_subregion {
-                mask = xor_mask(mask, i);
-                i += 1;
-            }
+            let mask = subregion_mask(min_subregion, max_subregion);
             attributes += RegionAttributes::SRD().val(mask as u32);
         }
 
@@ -1526,7 +1557,7 @@ mod test_new {
 
     // masks out the first 3 bits of the rbar register
     fn region_number_set(rbar: FieldValueU32<RegionBaseAddress::Register>, region_number: usize) {
-        assert!(rbar.value() & 0x7 == region_number as u32)
+        assert!(rbar.value() & 0xF == region_number as u32)
     }
 
     fn global_region_enabled(rasr: FieldValueU32<RegionAttributes::Register>) {
@@ -1539,6 +1570,10 @@ mod test_new {
 
     fn region_size_set(rasr: FieldValueU32<RegionAttributes::Register>, region_size: usize) {
         assert!((1 << ((rasr.value() & 0x0000003e) >> 1) + 1) == region_size as u32);
+    }
+
+    fn rbar_valid_set(rbar: FieldValueU32<RegionBaseAddress::Register>) {
+        assert!(rbar.value() & 0x10 != 0);
     }
 
     fn test_region(region: CortexMRegion, region_start: usize, region_size: usize, accessible_start: usize, accessible_size: usize, region_number: usize, perms: Permissions) {
@@ -1611,7 +1646,7 @@ mod test_new {
         // TODO: Make sure this is the case when calls are made. 
 
         // permissions: Can be any enum variants
-        let mut region_size_po2 = 8;
+        let mut region_size_po2 = 5;
         while region_size_po2 <= 32 {
             let region_size = 2_usize.pow(region_size_po2);
             for mut region_start in 0..((u32::MAX / 2 + 1) as usize) {
@@ -1624,7 +1659,7 @@ mod test_new {
                 };
 
                 // 8 regions only
-                for region_number in 0..8 {
+                for region_number in 0..16 {
                     if region_size >= 256 {
                         // subregions
                         test_with_subregions(region_start as usize, region_size, region_number);

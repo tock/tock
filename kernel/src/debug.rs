@@ -58,6 +58,7 @@ use core::fmt::{write, Arguments, Result, Write};
 use core::panic::PanicInfo;
 use core::str;
 
+use crate::allocator::IntoCortexMPU;
 use crate::collections::queue::Queue;
 use crate::collections::ring_buffer::RingBuffer;
 use crate::hil;
@@ -127,9 +128,9 @@ pub unsafe fn panic_print<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
     // printing process information will attempt to access memory. If
     // we are provided a chip reference, attempt to disable userspace
     // memory protection first:
-    chip.map(|c| {
-        use crate::platform::mpu::MPU;
-        c.mpu().disable_app_mpu()
+    chip.map(|c| match c.mpu().into_cortex_mpu() {
+        crate::allocator::CortexMpuTypes::Sixteen(mpu) => mpu.disable_app_mpu(),
+        crate::allocator::CortexMpuTypes::Eight(mpu) => mpu.disable_app_mpu(),
     });
     panic_process_info(processes, process_printer, writer);
 }

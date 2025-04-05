@@ -11,7 +11,7 @@
 use core::fmt::Write;
 
 pub mod mpu {
-    pub type MPU = cortexm::mpu::MPU<8, 32>;
+    pub type MPU = kernel::allocator::cortexm_mpu::MPU<8>;
 }
 
 pub use cortexm::initialize_ram_jump_to_main;

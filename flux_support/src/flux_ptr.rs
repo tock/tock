@@ -11,9 +11,9 @@ use core::ops::{Deref, DerefMut};
 use core::option::Option;
 use core::option::Option::Some;
 use core::prelude::rust_2021::derive;
+use core::ptr::null;
+use core::ptr::null_mut;
 use core::ptr::NonNull;
-use core::todo;
-use core::unimplemented;
 use flux_rs::{refined_by, sig};
 
 use crate::Pair;
@@ -146,21 +146,28 @@ impl FluxPtr {
         self.inner as u32
     }
 
+    #[flux_rs::trusted]
     #[sig(fn() -> Self[0])]
     pub const fn null() -> Self {
-        unimplemented!()
+        Self {
+            inner: null::<u8>() as *mut u8,
+        }
     }
 
+    #[flux_rs::trusted]
     #[sig(fn() -> Self[0])]
     pub const fn null_mut() -> Self {
-        unimplemented!()
+        Self {
+            inner: null_mut::<u8>() as *mut u8,
+        }
     }
 
     // VTOCK-TODO: Add precondition that input isn't zero
-    #[sig(fn(Self[@ptr]) -> NonNull<u8>[ptr])]
-    pub fn as_nonnull(self) -> NonNull<u8> {
-        unimplemented!()
-    }
+    // #[flux_rs::sig]
+    // #[sig(fn({ Self[@ptr] | ptr != 0 }) -> NonNull<u8>[ptr])]
+    // pub fn as_nonnull(self) -> NonNull<u8> {
+    //     NonNull::new(self.inner)
+    // }
 
     /// # Safety
     /// the size of u8 is 1 so this is equivalent to self + count
@@ -202,21 +209,28 @@ impl PartialOrd for FluxPtr {
     }
 
     // Provided methods
+    #[flux_rs::trusted]
     #[sig(fn(self: &Self[@lhs], other: &Self[@rhs]) -> bool[lhs < rhs])]
-    fn lt(&self, _other: &Self) -> bool {
-        todo!()
+    fn lt(&self, other: &Self) -> bool {
+        self.inner.lt(&other.inner)
     }
+
+    #[flux_rs::trusted]
     #[sig(fn(self: &Self[@lhs], other: &Self[@rhs]) -> bool[lhs <= rhs])]
-    fn le(&self, _other: &Self) -> bool {
-        todo!()
+    fn le(&self, other: &Self) -> bool {
+        self.inner.le(&other.inner)
     }
+
+    #[flux_rs::trusted]
     #[sig(fn(self: &Self[@lhs], other: &Self[@rhs]) -> bool[lhs > rhs])]
-    fn gt(&self, _other: &Self) -> bool {
-        todo!()
+    fn gt(&self, other: &Self) -> bool {
+        self.inner.gt(&other.inner)
     }
+
+    #[flux_rs::trusted]
     #[sig(fn(self: &Self[@lhs], other: &Self[@rhs]) -> bool[lhs >= rhs])]
-    fn ge(&self, _other: &Self) -> bool {
-        todo!()
+    fn ge(&self, other: &Self) -> bool {
+        self.inner.ge(&other.inner)
     }
 }
 
