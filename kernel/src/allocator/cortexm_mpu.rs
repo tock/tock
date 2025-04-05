@@ -301,19 +301,19 @@ impl fmt::Display for CortexMRegion {
         write!(f, "\r\n Cortex-M Region")?;
         if let Some(location) = self.location() {
             let access_bits = self.attributes().read(RegionAttributes::AP());
-            let start = location.accessible_start.as_usize();
+            let start = location.region_start.as_usize();
             write!(
                 f,
                 "\
                     \r\n  Region: [{:#010X}:{:#010X}], length: {} bytes; ({:#x})",
                 start,
-                start + location.accessible_size,
-                location.accessible_size,
+                start + location.region_size,
+                location.region_size,
                 // access_str,
                 access_bits,
             )?;
             let subregion_bits = self.attributes().read(RegionAttributes::SRD());
-            let subregion_size = location.accessible_size / 8; // VTock BUG : This is wrong - cannot use logical size to compute the subregion size
+            let subregion_size = location.region_size / 8; 
             for j in 0..8 {
                 write!(
                     f,
