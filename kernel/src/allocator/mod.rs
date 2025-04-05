@@ -474,7 +474,6 @@ impl AppMemoryAllocator {
         flash_start: FluxPtrU8,
         flash_size: usize,
     ) -> Result<Self, AllocateAppMemoryError> {
-        crate::debug!("Inside new app alloc");
         let mut app_regions = Self::new_regions();
 
         // get our flash region
@@ -486,7 +485,6 @@ impl AppMemoryAllocator {
                 mpu::Permissions::ReadExecuteOnly,
             )
             .ok_or(AllocateAppMemoryError::FlashError)?;
-        crate::debug!("Got flash region");
 
         app_regions.set(FLASH_REGION_NUMBER, flash_region);
 
@@ -503,7 +501,6 @@ impl AppMemoryAllocator {
                 mpu::Permissions::ReadWriteOnly,
             )
             .ok_or(AllocateAppMemoryError::HeapError)?;
-        crate::debug!("Got heap region");
 
         let memory_start = region
             .accessible_start()
@@ -541,7 +538,6 @@ impl AppMemoryAllocator {
             flash_size,
         };
 
-        crate::debug!("The breaks: {:?}", breaks);
         Ok(
             Self {
                 breaks,
