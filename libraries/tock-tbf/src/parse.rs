@@ -69,7 +69,7 @@ pub fn parse_tbf_header_lengths(
 /// should use the `parse_tbf_header_lengths()` function to determine this
 /// length to create the correct sized slice.
 pub fn parse_tbf_header(
-    header: &'static [u8],
+    header: &[u8],
     version: u16,
 ) -> Result<types::TbfHeader, types::TbfParseError> {
     match version {
@@ -122,11 +122,11 @@ pub fn parse_tbf_header(
                 // options.
                 let mut main_pointer: Option<types::TbfHeaderV2Main> = None;
                 let mut program_pointer: Option<types::TbfHeaderV2Program> = None;
-                let mut wfr_pointer: Option<&'static [u8]> = None;
+                let mut wfr_pointer: Option<&[u8]> = None;
                 let mut app_name_str = "";
-                let mut fixed_address_pointer: Option<&'static [u8]> = None;
-                let mut permissions_pointer: Option<&'static [u8]> = None;
-                let mut storage_permissions_pointer: Option<&'static [u8]> = None;
+                let mut fixed_address_pointer: Option<&[u8]> = None;
+                let mut permissions_pointer: Option<&[u8]> = None;
+                let mut storage_permissions_pointer: Option<&[u8]> = None;
                 let mut kernel_version: Option<types::TbfHeaderV2KernelVersion> = None;
                 let mut short_id: Option<types::TbfHeaderV2ShortId> = None;
 

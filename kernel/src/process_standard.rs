@@ -439,7 +439,7 @@ pub struct ProcessStandard<'a, C: 'static + Chip, D: 'static + ProcessStandardDe
     footers: &'static [u8],
 
     /// Collection of pointers to the TBF header in flash.
-    header: tock_tbf::types::TbfHeader,
+    header: tock_tbf::types::TbfHeader<'static>,
 
     /// Credential that was approved for this process, or `None` if the
     /// credential was permitted to run without an accepted credential.
