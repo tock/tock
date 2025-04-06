@@ -530,8 +530,8 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     fn setup_mpu(&self) {
         self.app_memory_allocator.map(|am| {
             match self.chip.mpu().into_cortex_mpu() {
-                allocator::CortexMpuTypes::Sixteen(mpu) => mpu.configure_mpu(&am.regions),
-                allocator::CortexMpuTypes::Eight(mpu) => mpu.configure_mpu(&am.regions),
+                allocator::CortexMpuTypes::Sixteen(mpu) => mpu.configure_mpu(&am.regions, am.breaks),
+                allocator::CortexMpuTypes::Eight(mpu) => mpu.configure_mpu(&am.regions, am.breaks),
             }
 
         });
@@ -1981,13 +1981,6 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     fn flash_end(&self) -> Option<FluxPtrU8Mut> {
         self.app_memory_allocator.map_or(None, |am| {
             Some(am.flash_end())
-        })
-    }
-
-    /// The lowest address of the grant region for the process.
-    fn kernel_memory_break(&self) -> Result<FluxPtrU8Mut, ()> {
-        self.app_memory_allocator.map_or(Err(()), |am| {
-            Ok(am.kernel_break())
         })
     }
 

@@ -99,6 +99,15 @@ flux_rs::defs! {
         }
     }
 
+    fn app_regions_correct(regions: RArray<CortexMRegion>, breaks: AppBreaks) -> bool {
+        app_regions_can_access_flash(regions, breaks.flash_start, breaks.flash_start + breaks.flash_size) &&
+        app_regions_can_access_ram(regions, breaks.memory_start, breaks.app_break) &&
+        app_regions_cant_access_at_all(regions, 0, breaks.flash_start - 1) &&
+        app_regions_cant_access_at_all(regions, breaks.flash_start + breaks.flash_size, breaks.memory_start - 1) &&
+        app_regions_cant_access_at_all(regions, breaks.app_break + 1, u32::MAX) &&
+        no_app_regions_overlap(regions)
+    }
+
     fn rnum(region: CortexMRegion) -> int { region.region_no}
     fn rbar(region: CortexMRegion) -> bitvec<32>{ region.rbar.value }
     fn rasr(region: CortexMRegion) -> bitvec<32> { region.rasr.value }
@@ -146,14 +155,7 @@ const RAM_REGION_NUMBER: usize = 0;
 const FLASH_REGION_NUMBER: usize = 1;
 
 #[flux_rs::refined_by(regions: Map<int, CortexMRegion>, breaks: AppBreaks)]
-#[flux_rs::invariant(
-    app_regions_can_access_flash(regions, breaks.flash_start, breaks.flash_start + breaks.flash_size) &&
-    app_regions_can_access_ram(regions, breaks.memory_start, breaks.app_break) &&
-    app_regions_cant_access_at_all(regions, 0, breaks.flash_start - 1) &&
-    app_regions_cant_access_at_all(regions, breaks.flash_start + breaks.flash_size, breaks.memory_start - 1) &&
-    app_regions_cant_access_at_all(regions, breaks.app_break + 1, u32::MAX) &&
-    no_app_regions_overlap(regions)
-)]
+#[flux_rs::invariant(app_regions_correct(regions, breaks))]
 #[flux_rs::invariant(breaks.memory_start + breaks.memory_size <= u32::MAX)]
 #[flux_rs::invariant(breaks.kernel_break < breaks.memory_start + breaks.memory_size)]
 #[flux_rs::invariant(breaks.flash_start + breaks.flash_size < breaks.memory_start)]
@@ -192,25 +194,9 @@ impl AppMemoryAllocator {
         regions.set(5, CortexMRegion::empty(5));
         regions.set(6, CortexMRegion::empty(6));
         regions.set(7, CortexMRegion::empty(7));
-        // let mut i = 0;
-        // while i < regions.len() {
-        //     regions.set(i, CortexMRegion::empty(i));
-        //     i += 1;
-        // }
+
         regions
     }
-
-    // #[flux_rs::sig(fn (self: &strg Self) ensures self: Self)]
-    // pub(crate) fn reset(&mut self) {
-    //     // for (i, r) in self.regions.iter_mut().enumerate() {
-    //     //     *r = <M as mpu::MPU>::Region::default(i)
-    //     // }
-    //     let mut i = 0;
-    //     while i < self.regions.len() {
-    //         self.regions.set(i, CortexMRegion::empty(i));
-    //         i += 1;
-    //     }
-    // }
 
     #[flux_rs::sig(fn (&Self[@b]) -> FluxPtrU8[b.breaks.flash_start])]
     pub(crate) fn flash_start(&self) -> FluxPtrU8 {
