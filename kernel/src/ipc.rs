@@ -93,7 +93,7 @@ impl<const NUM_PROCS: u8> IPC<NUM_PROCS> {
                         self.data
                             .kernel
                             .process_map_or(None, schedule_on, |process| {
-                                process.add_mpu_region(slice.ptr(), slice.len(), slice.len())
+                                process.add_mpu_region(slice.ptr(), slice.len())
                             });
                         (slice.len(), slice.ptr().as_usize())
                     }

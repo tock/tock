@@ -79,10 +79,10 @@ flux_rs::defs! {
 
     fn regions_overlap(region1: CortexMRegion, region2: CortexMRegion) -> bool {
         if region1.set && region2.set {
-            let fst_region_start = region1.astart;
-            let fst_region_end = region1.astart + region1.asize;
-            let snd_region_start = region2.astart;
-            let snd_region_end = region2.astart + region2.asize;
+            let fst_region_start = region1.rstart;
+            let fst_region_end = region1.rstart + region1.rsize;
+            let snd_region_start = region2.rstart;
+            let snd_region_end = region2.rstart + region2.rsize;
             fst_region_start < snd_region_end && snd_region_start < fst_region_end
         } else {
             false
@@ -413,17 +413,15 @@ impl AppMemoryAllocator {
     #[flux_rs::trusted] // IPC is entirely broken, being rewritten and not worth verifying
     pub(crate) fn allocate_ipc_region(
         &mut self,
-        unallocated_memory_start: FluxPtrU8Mut,
-        unallocated_memory_size: usize,
-        min_region_size: usize,
+        start: FluxPtrU8,
+        size: usize,
         permissions: mpu::Permissions,
     ) -> Result<mpu::Region, ()> {
         let region_idx = self.next_available_ipc_idx().ok_or(())?;
-        let region = CortexMRegion::new_region(
-                region_idx + 2, // Adds two because the first two are reserved for app flash and ram
-                unallocated_memory_start,
-                unallocated_memory_size,
-                min_region_size,
+        let region = CortexMRegion::create_exact_region(
+                region_idx, 
+                start,
+                size,
                 permissions,
             )
             .ok_or(())?;
@@ -477,10 +475,9 @@ impl AppMemoryAllocator {
         let mut app_regions = Self::new_regions();
 
         // get our flash region
-        let flash_region = CortexMRegion::new_region(
+        let flash_region = CortexMRegion::create_exact_region(
                 FLASH_REGION_NUMBER,
                 flash_start,
-                flash_size,
                 flash_size,
                 mpu::Permissions::ReadExecuteOnly,
             )
@@ -493,7 +490,7 @@ impl AppMemoryAllocator {
             min_memory_size,
             initial_app_memory_size 
         );
-        let region = CortexMRegion::new_region(
+        let region = CortexMRegion::create_bounded_region(
                 RAM_REGION_NUMBER,
                 unallocated_memory_start,
                 unallocated_memory_size,
@@ -576,25 +573,26 @@ impl AppMemoryAllocator {
         {
             return Err(Error::AddressOutOfBounds);
         }
-        let new_region_size = new_app_break.wrapping_sub(memory_start.as_usize());
-        let new_region = CortexMRegion::new_region(
-                RAM_REGION_NUMBER,
-                self.memory_start(),
-                self.memory_size(),
-                new_region_size.as_usize(),
-                mpu::Permissions::ReadWriteOnly,
-            )
-            .ok_or(Error::OutOfMemory)?;
-        let new_new_app_break = new_region
+        let new_region_size = new_app_break.as_usize() - memory_start.as_usize();
+        let new_region = CortexMRegion::adjust_region_fixed_start(
+            self.memory_start(),
+            self.memory_size(),
+            new_region_size,
+            RAM_REGION_NUMBER,
+            mpu::Permissions::ReadWriteOnly,
+        ).ok_or(Error::OutOfMemory)?;
+
+        // no need to check overlap because the current region is bounded?
+
+        let new_app_break = new_region
             .accessible_start()
             .ok_or(Error::KernelError)?
             .as_usize()
             + new_region.accessible_size().ok_or(Error::KernelError)?;
-        let new_app_size = new_region.accessible_size().ok_or(Error::KernelError)?;
-        if new_new_app_break > kernel_break.as_usize() {
+        if new_app_break > kernel_break.as_usize() {
             return Err(Error::OutOfMemory);
         }
-        self.breaks.app_break = FluxPtrU8::from(new_new_app_break);
+        self.breaks.app_break = FluxPtrU8::from(new_app_break);
         self.regions.set(RAM_REGION_NUMBER, new_region);
         Ok(())
     }
