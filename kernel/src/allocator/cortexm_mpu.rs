@@ -648,17 +648,7 @@ impl CortexMRegion {
                     power_of_two(tz)
                 } else {
                     // This case means `start` is 0.
-
-                    // VTOCK Bug?
-                    // This is interesting. We are able to prove the case this way
-                    // assert(size <= (u32::MAX / 2 + 1) as usize);
-                    //
-                    // but casting the usize to u32 does not work:
-                    // assert(size as u32 <= u32::MAX / 2 + 1);
-                    // if size as u32 > u32::MAX / 2 + 1 {
-                    //     return None
-                    // }
-                    let mut ceil = math::closest_power_of_two_usize(size);
+                    let mut ceil = size.next_power_of_two();
                     if ceil < 256 {
                         ceil = 256
                     }
@@ -706,7 +696,7 @@ impl CortexMRegion {
             Some(CortexMRegion::new(
                 start,
                 size, 
-                underlying_region_start.as_fluxptr(), 
+                FluxPtr::from(underlying_region_start),
                 underlying_region_size, 
                 region_number, 
                 subregions,
@@ -734,6 +724,8 @@ impl CortexMRegion {
                 r.set  
             }
         requires 
+            astart >= rstart &&
+            rstart + rsize >= astart + asize &&
             // rsize % 8 == 0 && 
             rsize >= 32 &&
             (subregions => rsize >= 256) &&
