@@ -5,6 +5,7 @@
 //! Kernel-userland system call interface for RISC-V architecture.
 
 use core::fmt::{Display, Formatter, Write};
+use core::marker::PhantomData;
 use core::mem::size_of;
 use core::ops::Range;
 
@@ -12,6 +13,7 @@ use crate::csr::mcause;
 use kernel;
 use kernel::errorcode::ErrorCode;
 use kernel::syscall::ContextSwitchReason;
+use kernel::utilities::arch_helpers::Variant;
 use kernel::utilities::capability_ptr::CapabilityPtr;
 use kernel::utilities::machine_register::MachineRegister;
 
@@ -148,15 +150,23 @@ impl core::convert::TryFrom<&[u8]> for RiscvStoredState {
 }
 
 /// Implementation of the `UserspaceKernelBoundary` for the RISC-V architecture.
-pub struct SysCall(());
+pub struct SysCall<V: Variant = kernel::utilities::arch_helpers::TRD104SyscallReturnVariant>(
+    PhantomData<V>,
+);
 
-impl SysCall {
-    pub const unsafe fn new() -> SysCall {
-        SysCall(())
+impl<V: Variant> SysCall<V> {
+    pub const unsafe fn new_variant() -> SysCall {
+        SysCall(PhantomData)
     }
 }
 
-impl kernel::syscall::UserspaceKernelBoundary for SysCall {
+impl SysCall {
+    pub const unsafe fn new() -> SysCall {
+        Self::new_variant()
+    }
+}
+
+impl<V: Variant> kernel::syscall::UserspaceKernelBoundary for SysCall<V> {
     type StoredState = RiscvStoredState;
 
     fn initial_process_app_brk_size(&self) -> usize {
@@ -228,31 +238,13 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         let (a1slice, r) = r.split_at_mut(R_A2 - R_A1);
         let (a2slice, a3slice) = r.split_at_mut(R_A3 - R_A2);
 
-        if (core::mem::size_of::<usize>() == core::mem::size_of::<u32>())
-            && !kernel::config::CONFIG.is_cheri
-        {
-            // On non-CHERI, 32-bit platforms we use trd104 for backwards compatability
-            kernel::utilities::arch_helpers::encode_syscall_return_with_variant::<
-                kernel::utilities::arch_helpers::TRD104SyscallReturnVariant,
-            >(
-                &return_value,
-                &mut a0slice[0],
-                &mut a1slice[0],
-                &mut a2slice[0],
-                &mut a3slice[0],
-            );
-        } else {
-            // Other platforms can use TRD105
-            kernel::utilities::arch_helpers::encode_syscall_return_with_variant::<
-                kernel::utilities::arch_helpers::TRD105SyscallReturnVariant,
-            >(
-                &return_value,
-                &mut a0slice[0],
-                &mut a1slice[0],
-                &mut a2slice[0],
-                &mut a3slice[0],
-            );
-        }
+        kernel::utilities::arch_helpers::encode_syscall_return_with_variant::<V>(
+            &return_value,
+            &mut a0slice[0],
+            &mut a1slice[0],
+            &mut a2slice[0],
+            &mut a3slice[0],
+        );
 
         // We do not use process memory, so this cannot fail.
         Ok(())

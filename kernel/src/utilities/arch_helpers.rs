@@ -189,6 +189,11 @@ pub fn encode_syscall_return_trd104(
     }
 }
 
+/// Trait alias for syscall variants
+pub trait Variant: From<SyscallReturnVariant> + Into<usize> {}
+
+impl<T: From<SyscallReturnVariant> + Into<usize>> Variant for T {}
+
 /// An extension of TRD104 that works for 32-bit and 64-bit platforms, and can remap variants.
 ///
 /// On 32-bit platforms using.
@@ -207,9 +212,7 @@ pub fn encode_syscall_return_trd104(
 /// SuccessPtr is as passed the full CapabilityPtr register.
 /// Pointers from allow'd buffers have minimal bounds reattached that cover their length,
 /// and the same permissions that were checked at the syscall boundary.
-pub fn encode_syscall_return_with_variant<
-    SyscallVariant: From<SyscallReturnVariant> + Into<usize>,
->(
+pub fn encode_syscall_return_with_variant<SyscallVariant: Variant>(
     syscall_return: &SyscallReturn,
     a0: &mut MachineRegister,
     a1: &mut MachineRegister,
