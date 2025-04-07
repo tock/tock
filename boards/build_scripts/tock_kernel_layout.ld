@@ -289,14 +289,11 @@ SECTIONS
          * and openocd fails to write it.
          *
          * An issue has been submitted https://github.com/raspberrypi/openocd/issues/25
-         * These bytes broke QEMU. Need to look at this further.
          */
-        /*
         BYTE(0xFF)
         BYTE(0xFF)
         BYTE(0xFF)
         BYTE(0xFF)
-         */
     } > prog
     /* _eapps symbol used by tock to calculate the length of app flash */
     _eapps = _sapps + LENGTH(prog);
