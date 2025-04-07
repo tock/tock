@@ -408,7 +408,6 @@ impl GhostRegionState {
     rsize: int,
     perms: mpu::Permissions
 )]
-
 pub(crate) struct CortexMRegion {
     #[field(Option<{l. CortexMLocation[l] | l.astart == astart && l.asize == asize && l.rstart == rstart && l.rsize == rsize }>[set])]
     location: Option<CortexMLocation>, // actually accessible start and size
@@ -876,7 +875,7 @@ impl CortexMRegion {
         }
     }
 
-    #[flux_rs::sig(fn (&Self[@app]) -> Option<FluxPtr[app.astart]>[app.set])]
+    #[flux_rs::sig(fn (&Self[@r]) -> Option<FluxPtr[r.astart]>[r.set])]
     pub(crate) fn accessible_start(&self) -> Option<FluxPtr> {
         match self.location() {
             Some(l) => Some(l.accessible_start),
@@ -884,7 +883,7 @@ impl CortexMRegion {
         }
     }
 
-    #[flux_rs::sig(fn (&Self[@app]) -> Option<usize[app.asize]>[app.set])]
+    #[flux_rs::sig(fn (&Self[@r]) -> Option<usize[r.asize]>[r.set])]
     pub(crate) fn accessible_size(&self) -> Option<usize> {
         match self.location() {
             Some(l) => Some(l.accessible_size),
@@ -892,7 +891,7 @@ impl CortexMRegion {
         }
     }
 
-    #[flux_rs::sig(fn (&Self[@app]) -> Option<usize[app.rsize]>[app.set])]
+    #[flux_rs::sig(fn (&Self[@r]) -> Option<usize[r.rsize]>[r.set])]
     pub(crate) fn region_size(&self) -> Option<usize> {
         match self.location() {
             Some(l) => Some(l.region_size),
@@ -923,9 +922,9 @@ impl<const NUM_REGIONS: usize> MPU<NUM_REGIONS> {
         self.registers.mpu_type.read(Type::DREGION().into_inner()) as usize
     }
 
-    #[flux_rs::sig(fn (&Self[@mpu], { &RArray<CortexMRegion>[@regions] | app_regions_correct(regions, breaks) }, AppBreaks[@breaks]))]
+    #[flux_rs::sig(fn (&Self[@mpu], { &RArray<CortexMRegion>[@regions] | app_regions_correct(regions, breaks) }, &AppBreaks[@breaks]))]
     #[flux_rs::trusted]
-    pub(crate) fn configure_mpu(&self, regions: &RArray<CortexMRegion>, _ghost_breaks: AppBreaks) {
+    pub(crate) fn configure_mpu(&self, regions: &RArray<CortexMRegion>, _ghost_breaks: &AppBreaks) {
         // If the hardware is already configured for this app and the app's MPU
         // configuration has not changed, then skip the hardware update.
         // if !self.hardware_is_configured_for.contains(&config.id()) || config.is_dirty() {

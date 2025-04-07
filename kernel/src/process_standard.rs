@@ -526,18 +526,17 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         });
     }
 
-    #[flux_rs::trusted]
+    #[flux_rs::trusted] // VR: Fixpoint encoding error
     fn setup_mpu(&self) {
         self.app_memory_allocator
             .map(|am| match self.chip.mpu().into_cortex_mpu() {
                 allocator::CortexMpuTypes::Sixteen(mpu) => {
-                    mpu.configure_mpu(&am.regions, am.breaks)
+                    mpu.configure_mpu(&am.regions, am.breaks())
                 }
-                allocator::CortexMpuTypes::Eight(mpu) => mpu.configure_mpu(&am.regions, am.breaks),
+                allocator::CortexMpuTypes::Eight(mpu) => mpu.configure_mpu(&am.regions, am.breaks()),
             });
     }
 
-    #[flux_rs::trusted] // VTOCK: This is problematic and deals with IPC
     fn add_mpu_region(&self, start: FluxPtrU8, size: usize) -> Option<mpu::Region> {
         self.app_memory_allocator.and_then(|am| {
             am.allocate_ipc_region(start, size, mpu::Permissions::ReadWriteOnly)
@@ -1745,6 +1744,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     /// Reset the process, resetting all of its state and re-initializing it so
     /// it can start running. Assumes the process is not running but is still in
     /// flash and still has its memory region allocated to it.
+    #[flux_rs::trusted]
     fn reset(&self) -> Result<(), ErrorCode> {
         // We need a new process identifier for this process since the restarted
         // version is in effect a new process. This is also necessary to

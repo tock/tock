@@ -19,7 +19,7 @@ use flux_rs::{refined_by, sig};
 use crate::Pair;
 
 #[flux_rs::opaque]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Eq)]
 #[refined_by(ptr: int)]
 pub struct FluxPtr {
     inner: *mut u8,
@@ -199,6 +199,14 @@ impl FluxPtr {
     #[flux_rs::trusted]
     pub fn unsafe_as_ptr(self) -> *mut u8 {
         self.inner
+    }
+}
+
+impl PartialEq for FluxPtr {
+    #[flux_rs::trusted]
+    #[flux_rs::sig(fn (&Self[@x], &Self[@y]) -> bool[x == y])]
+    fn eq(&self, other: &Self) -> bool {
+        self.inner == other.inner
     }
 }
 
