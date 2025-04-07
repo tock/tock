@@ -203,7 +203,6 @@ impl CapabilityPtr {
     /// serve as the only memory isolation primitive in the system, this method
     /// can thus break Tock's isolation model. As semi-trusted kernel code can
     /// name this type and method, it is thus marked as `unsafe`.
-    ///
     #[inline]
     pub unsafe fn new_with_authority(
         ptr: *const (),

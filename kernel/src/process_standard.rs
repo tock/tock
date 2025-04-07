@@ -860,9 +860,6 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         })
     }
 
-    /// Actually revoke regions previously requested with remove_memory_region
-    /// Safety: no LiveARef or LivePRef may exist to any memory that might be revoked,
-    /// Nor may any grants be entered via the legacy mechanism if allowed memory might be revoked.
     unsafe fn revoke_regions(&self) -> Result<(), ErrorCode> {
         self.mpu_config.map_or(Err(ErrorCode::INVAL), |config| {
             let result = unsafe { self.chip.mpu().revoke_regions(config, self) };

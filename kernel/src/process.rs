@@ -703,7 +703,9 @@ pub trait Process {
 
     /// Actually revoke regions previously requested with remove_memory_region.
     ///
-    /// Safety: no grants for this process can be entered/open when this is called. I.e. this
+    /// ### Safety
+    ///
+    /// No grants for this process can be entered/open when this is called. I.e. this
     /// should never be called downstream from a capsule.
     unsafe fn revoke_regions(&self) -> Result<(), ErrorCode>;
 

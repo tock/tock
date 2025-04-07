@@ -125,9 +125,10 @@ pub trait MPU {
     fn enable_app_mpu(&self);
 
     /// Notify the MPU there is a new process.
+    ///
     /// We do NOT provide the config argument here
     /// as doing so blocks the MPU from allocating
-    /// in the grant region for the pprocess.
+    /// in the grant region for the process.
     fn new_process(&self, _app_id: ProcessId) {}
 
     /// Disables the MPU for userspace apps.
@@ -214,8 +215,11 @@ pub trait MPU {
         Ok(RemoveRegionResult::Sync)
     }
 
-    /// Actually revoke regions previously requested with remove_memory_region
-    /// Safety: no LiveARef or LivePRef may exist to any memory that might be revoked,
+    /// Actually revoke regions previously requested with remove_memory_region.
+    ///
+    /// ### Safety
+    ///
+    /// No LiveARef or LivePRef may exist to any memory that might be revoked,
     /// Nor may any grants be entered via the legacy mechanism if allowed memory might be revoked.
     #[allow(unused_variables)]
     unsafe fn revoke_regions(
