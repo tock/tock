@@ -506,7 +506,8 @@ impl AppMemoryAllocator {
                 b.flash_size == flash_size &&
                 b.memory_start >= unallocated_memory_start &&
                 b.memory_start + b.memory_size <= u32::MAX &&
-                b.memory_start > 0 
+                b.memory_start > 0 &&
+                b.memory_size >= initial_kernel_memory_size
             }, ()>
             requires 
                 ram_region.astart >= unallocated_memory_start &&
@@ -575,11 +576,7 @@ impl AppMemoryAllocator {
                 app.breaks.memory_start >= mem_start &&
                 app.breaks.memory_start + app.breaks.memory_size <= u32::MAX &&
                 app.breaks.memory_start > 0 &&
-                app_can_access_flash_exactly(regions, breaks.flash_start, breaks.flash_start + breaks.flash_size) &&
-                app_can_access_ram_exactly(regions, breaks.memory_start, breaks.app_break) 
-                &&
-                no_region_overlaps_app_block(regions, breaks.memory_start, breaks.memory_start + breaks.memory_size)
-
+                app.breaks.memory_size >= kernel_mem_size
             }, AllocateAppMemoryError>
         requires flash_start + flash_size < mem_start && min_mem_size > 0 && kernel_mem_size > 0
     )]

@@ -1343,10 +1343,11 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // `sizeof(usize)` bytes.
         let usize_size = core::mem::size_of::<usize>();
         assume(usize_size > 0 && usize_size <= 8);
+        let callbacks_offset = Self::CALLBACKS_OFFSET;
         let process_struct_offset = Self::PROCESS_STRUCT_OFFSET;
         assume(process_struct_offset < isize_into_usize(isize::MAX));
         let initial_kernel_memory_size =
-            grant_ptrs_offset + Self::CALLBACKS_OFFSET + process_struct_offset + usize_size;
+            grant_ptrs_offset + callbacks_offset + process_struct_offset + usize_size;
 
         // By default we start with the initial size of process-accessible
         // memory set to 0. This maximizes the flexibility that processes have
@@ -1579,10 +1580,9 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         // Calling `wrapping_sub` is safe here, as we've factored in an optional
         // padding of at most `sizeof(usize)` bytes in the calculation of
         // `initial_kernel_memory_size` above.
-        let mut kernel_memory_break = allocated_memory_start.wrapping_add(allocated_memory_len);
+        let mut kernel_memory_break = app_memory_alloc.memory_end();
 
-        kernel_memory_break =
-            kernel_memory_break.wrapping_sub(kernel_memory_break.as_usize() % usize_size);
+        kernel_memory_break = kernel_memory_break.wrapping_sub(kernel_memory_break.as_usize() % usize_size);
 
         // Now that we know we have the space we can setup the grant pointers.
         // kernel_memory_break = kernel_memory_break.offset(-(grant_ptrs_offset as isize)); // VTOCK TODO: Something about usize cast to isize here?
@@ -1602,8 +1602,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
 
         // Now that we know we have the space we can setup the memory for the
         // upcalls.
-        let callbacks_isize = usize_into_isize(Self::CALLBACKS_OFFSET);
-
+        let callbacks_isize = usize_into_isize(callbacks_offset);
         kernel_memory_break = kernel_memory_break.offset(-callbacks_isize);
 
         // This is safe today, as MPU constraints ensure that `memory_start`
