@@ -26,7 +26,7 @@ impl usize {
     #[sig(fn(num: usize{num < u32::MAX}) -> u32{r: (num == 0 => r == 32) && (num > 0 => r <= 31) && (num >= 512 => r <= 22) && (num < 512 => r > 22)})]
     fn leading_zeros(self) -> u32;
 
-    #[sig(fn(num: usize{num < u32::MAX}) -> u32{r: (num == 0 => r == 32) && (num > 0 => r <= 31)})]
+    #[sig(fn(num: usize{num < u32::MAX}) -> u32{r: (num == 0 => r == 32) && (num > 0 => r <= 31) && (num == u32::MAX => r == 0)})]
     fn trailing_zeros(self) -> u32;
 
     #[sig(fn (num: usize{num < u32::MAX}) -> u32{r: r <= 32})]
@@ -37,4 +37,10 @@ impl usize {
 
     #[sig(fn(num: usize, rhs: usize) -> usize[(num + rhs - 1) / rhs] requires rhs > 0)]
     fn div_ceil(self, rhs: usize) -> usize;
+
+    #[sig(fn(num: usize) -> bool[num > 0 && bv_int_to_bv32(num) & (bv_int_to_bv32(num) - 1) == 0])]
+    fn is_power_of_two(self) -> bool;
+
+    #[sig(fn(num: usize) -> usize{r: r >= num && r/2 <= num && (num > 4 => r % 8 == 0) && r <= u32::MAX / 2 + 1} requires num <= u32::MAX / 2 + 1)]
+    fn next_power_of_two(self) -> usize;
 }
