@@ -578,7 +578,7 @@ impl AppMemoryAllocator {
                 app.breaks.memory_start > 0 &&
                 app.breaks.memory_size >= kernel_mem_size
             }, AllocateAppMemoryError>
-        requires flash_start + flash_size < mem_start && min_mem_size > 0 && kernel_mem_size > 0
+        requires flash_start + flash_size < mem_start && kernel_mem_size > 0
     )]
     pub(crate) fn new_app_alloc(
         unallocated_memory_start: FluxPtrU8,

@@ -1795,25 +1795,6 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         let initial_kernel_memory_size =
             grant_ptrs_offset + Self::CALLBACKS_OFFSET + Self::PROCESS_STRUCT_OFFSET;
 
-        // make sure we aren't overflowing
-        if min_process_memory_size + initial_kernel_memory_size > (u32::MAX / 2 + 1) as usize {
-            return Err(ErrorCode::FAIL);
-        }
-        if min_process_memory_size == 0 {
-            return Err(ErrorCode::FAIL);
-        }
-
-        // allocate mpu regions for app flash and ram
-        // let app_mpu_mem = self.chip.mpu().allocate_app_memory_regions(
-        //     breaks_and_mpu_config.breaks.mem_start,
-        //     breaks_and_mpu_config.breaks.mem_len,
-        //     breaks_and_mpu_config.breaks.mem_len,
-        //     min_process_memory_size,
-        //     initial_kernel_memory_size,
-        //     breaks_and_mpu_config.breaks.flash_start,
-        //     breaks_and_mpu_config.breaks.flash_size,
-        //     &mut breaks_and_mpu_config.mpu_config,
-        // );
         let maybe_app_mem_alloc = AppMemoryAllocator::new_app_alloc(
             app_breaks.memory_start,
             app_breaks.memory_size,
