@@ -6,6 +6,8 @@
 
 #![crate_name = "riscv"]
 #![crate_type = "rlib"]
+// The CHERI toolchain is older than the standard Tock. These features are stable on the Tock
+// toolchain, and unstable on the CHERI toolchain.
 #![cfg_attr(
     target_feature = "xcheri",
     feature(nonzero_min_max),

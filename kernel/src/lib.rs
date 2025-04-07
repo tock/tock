@@ -89,6 +89,8 @@
 //!    this use case. It is likely we will have to create new interfaces as new
 //!    use cases are discovered.
 
+// The CHERI toolchain is older than the standard Tock. These features are stable on the Tock
+// toolchain, and unstable on the CHERI toolchain.
 #![cfg_attr(
     target_feature = "xcheri",
     feature(as_array_of_cells),

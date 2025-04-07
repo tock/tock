@@ -4,7 +4,7 @@
 
 //! This file helps Tock build with stale toolchains
 //! The current set of toolchains that need support are:
-//! nightly-2024-07-08 (default for Tock)
+//! The toolchain specified in rust-toolchain.toml
 //! Cheri toolchain (rust 1.67)
 
 #[cfg(target_feature = "xcheri")]

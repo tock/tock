@@ -3,6 +3,8 @@
 // Copyright Tock Contributors 2023.
 
 #![forbid(unsafe_code)]
+// The CHERI toolchain is older than the standard Tock. These features are stable on the Tock
+// toolchain, and unstable on the CHERI toolchain.
 #![cfg_attr(
     target_feature = "xcheri",
     feature(result_option_inspect),

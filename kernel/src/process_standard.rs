@@ -20,7 +20,7 @@ use crate::debug;
 use crate::errorcode::ErrorCode;
 use crate::kernel::Kernel;
 use crate::platform::chip::Chip;
-use crate::platform::mpu::{self, RemoveRegionResult, MPU};
+use crate::platform::mpu::{self, MPU};
 use crate::process::BinaryVersion;
 use crate::process::ProcessBinary;
 use crate::process::{Error, FunctionCall, FunctionCallSource, Process, Task};
@@ -342,13 +342,16 @@ struct GrantPointerEntry {
     grant_ptr: *mut u8,
 }
 
+/// The state for each MPU region for a process
 #[derive(Copy, Clone, PartialEq)]
 enum MPURegionState {
-    // Region can be allocated
+    /// Region is free and can be allocated
     Free,
-    // Region in active use by the process
+    /// Region in active use by the process
     InUse(mpu::Region),
-    // Process should not be using the region, but this has not yet been configured
+    /// Process should not be using the region, but this has not yet been configured.
+    /// The process may or may not actually be able to access the region while in this state, the
+    /// kernel should not rely on either behavior for its own safety.
     BeingRevoked(OnlyInCfg!(async_mpu_config, mpu::Region)),
 }
 
@@ -835,11 +838,11 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                     .or(Err(ErrorCode::FAIL))?;
 
                 match result {
-                    RemoveRegionResult::Sync => {
+                    mpu::RemoveRegionResult::Sync => {
                         // Remove this region from the tracking cache of mpu_regions
                         internal_region.set(MPURegionState::Free);
                     }
-                    RemoveRegionResult::Async(_) => {
+                    mpu::RemoveRegionResult::Async(_) => {
                         // Track as revocation in progress
                         internal_region.set(MPURegionState::BeingRevoked(<OnlyInCfg!(
                             async_mpu_config,

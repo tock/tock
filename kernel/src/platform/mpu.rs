@@ -67,6 +67,7 @@ impl Display for MpuConfigDefault {
     }
 }
 
+/// Valid results for [MPU::remove_memory_region]
 pub enum RemoveRegionResult {
     /// Region was removed synchronously
     Sync,
@@ -103,11 +104,13 @@ pub trait MPU {
     type MpuConfig: Display;
 
     /// The minimum power of two alignment this MPU supports.
+    ///
     /// Possibly, greater alignment is required for a particular span.
     const MIN_MPUALIGN: usize;
 
-    /// Align a specific range such that it could be an MPU region. If this does
-    /// Depend on the length/location, leave this as the default implementation.
+    /// Align a specific range such that it could be an MPU region.
+    ///
+    /// If this does Depend on the length/location, leave this as the default implementation.
     fn align_range(base: usize, length: usize) -> (usize, usize) {
         let mask = Self::MIN_MPUALIGN - 1;
         let new_base = base & !mask;
