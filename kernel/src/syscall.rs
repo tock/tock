@@ -70,7 +70,7 @@ use core::fmt::Write;
 
 use crate::errorcode::ErrorCode;
 use crate::process;
-use crate::utilities::capability_ptr::CapabilityPtr;
+use crate::utilities::capability_ptr::{CapabilityPtr, CapabilityPtrPermissions};
 use crate::utilities::machine_register::MachineRegister;
 
 pub use crate::syscall_driver::{CommandReturn, SyscallDriver};
@@ -267,19 +267,30 @@ impl Syscall {
             Ok(SyscallClass::ReadWriteAllow) => Some(Syscall::ReadWriteAllow {
                 driver_number: r0,
                 subdriver_number: r1.as_usize(),
-                allow_address: r2.as_capability_ptr().as_ptr::<u8>().cast_mut(),
+                allow_address: r2
+                    .as_capability_ptr()
+                    .as_ptr_checked::<u8>(r3.as_usize(), CapabilityPtrPermissions::ReadWrite)
+                    .ok()?
+                    .cast_mut(),
                 allow_size: r3.as_usize(),
             }),
             Ok(SyscallClass::UserspaceReadableAllow) => Some(Syscall::UserspaceReadableAllow {
                 driver_number: r0,
                 subdriver_number: r1.as_usize(),
-                allow_address: r2.as_capability_ptr().as_ptr::<u8>().cast_mut(),
+                allow_address: r2
+                    .as_capability_ptr()
+                    .as_ptr_checked::<u8>(r3.as_usize(), CapabilityPtrPermissions::ReadWrite)
+                    .ok()?
+                    .cast_mut(),
                 allow_size: r3.as_usize(),
             }),
             Ok(SyscallClass::ReadOnlyAllow) => Some(Syscall::ReadOnlyAllow {
                 driver_number: r0,
                 subdriver_number: r1.as_usize(),
-                allow_address: r2.as_capability_ptr().as_ptr(),
+                allow_address: r2
+                    .as_capability_ptr()
+                    .as_ptr_checked(r3.as_usize(), CapabilityPtrPermissions::Read)
+                    .ok()?,
                 allow_size: r3.as_usize(),
             }),
             Ok(SyscallClass::Memop) => Some(Syscall::Memop {

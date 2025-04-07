@@ -152,7 +152,14 @@ impl CapabilityPtr {
     pub fn is_valid_for_operation(&self, length: usize, perms: CapabilityPtrPermissions) -> bool {
         match self.ptr.get_match() {
             CfgMatch::True(cheri_ptr) => {
-                cheri_ptr.is_valid_for_operation(length, cheri_perms_for(perms))
+                // CHERI can distinguish between a valid and invalid capability with zero length.
+                // Tock, on the other hand, allows length zero allocations at any address.
+                // This is especially important as NULL and zero are often used with allow
+                // syscalls, which will reject invalid capabilities.
+                // We special case length 0 here. This is important for users as they cannot rely
+                // on the sanctity of zero length allocations to use as tokens. They are likely
+                // already using length 1 anyway so as not to be confused between adjacent objects.
+                (length == 0) || cheri_ptr.is_valid_for_operation(length, cheri_perms_for(perms))
             }
             CfgMatch::False(_) => true,
         }
