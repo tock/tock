@@ -1743,7 +1743,6 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     /// Reset the process, resetting all of its state and re-initializing it so
     /// it can start running. Assumes the process is not running but is still in
     /// flash and still has its memory region allocated to it.
-    #[flux_rs::trusted]
     fn reset(&self) -> Result<(), ErrorCode> {
         // We need a new process identifier for this process since the restarted
         // version is in effect a new process. This is also necessary to
