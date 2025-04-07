@@ -11,11 +11,13 @@ use core::ops::Range;
 
 use crate::csr::mcause;
 use kernel;
+use kernel::config::{CfgMatch, CfgMatchMut};
 use kernel::errorcode::ErrorCode;
 use kernel::syscall::ContextSwitchReason;
 use kernel::utilities::arch_helpers::Variant;
 use kernel::utilities::capability_ptr::CapabilityPtr;
 use kernel::utilities::machine_register::MachineRegister;
+use kernel::TIfCfg;
 
 /// This holds all of the state that the kernel must keep for the process when
 /// the process is not executing.
@@ -31,8 +33,7 @@ pub struct RiscvStoredState {
     pc: CapabilityPtr,
 
     /// This holds the default data capability. Switched with the kernel DDC if we trap from an app.
-    #[cfg(target_feature = "xcheri")]
-    ddc: CapabilityPtr,
+    ddc: TIfCfg!(is_cheri, CapabilityPtr),
 
     /// We need to store the mcause CSR between when the trap occurs and after
     /// we exit the trap handler and resume the context switching code.
@@ -45,31 +46,25 @@ pub struct RiscvStoredState {
 }
 
 pub struct DdcDisplay<'a> {
-    _state: &'a RiscvStoredState,
+    state: &'a RiscvStoredState,
 }
 
 impl Display for DdcDisplay<'_> {
     fn fmt(&self, _f: &mut Formatter<'_>) -> core::fmt::Result {
-        #[cfg(target_feature = "xcheri")]
-        {
-            return _f.write_fmt(format_args!("DDC: {:#010X}", self._state.ddc));
+        match self.state.ddc.get_match() {
+            CfgMatch::True(ddc) => _f.write_fmt(format_args!("DDC: {:#010X}", ddc)),
+            CfgMatch::False(()) => Ok(()),
         }
-        #[cfg(not(target_feature = "xcheri"))]
-        core::fmt::Result::Ok(())
     }
 }
 
 impl RiscvStoredState {
     pub fn get_ddc_display(&self) -> DdcDisplay {
-        DdcDisplay { _state: self }
+        DdcDisplay { state: self }
     }
 }
 
-// Because who would ever need offsetof?
-#[cfg(target_feature = "xcheri")]
-pub const CAUSE_OFFSET: usize = size_of::<MachineRegister>() * 33;
-#[cfg(not(target_feature = "xcheri"))]
-pub const CAUSE_OFFSET: usize = size_of::<MachineRegister>() * 32;
+pub const CAUSE_OFFSET: usize = kernel::polyfill::core::mem::offset_of!(RiscvStoredState, mcause);
 
 // Named offsets into the stored state registers.  These needs to be kept in
 // sync with the register save logic in _start_trap() as well as the register
@@ -134,8 +129,7 @@ impl core::convert::TryFrom<&[u8]> for RiscvStoredState {
             let mut res = RiscvStoredState {
                 regs: [0usize.into(); 31],
                 pc: (usize_from_u8_slice(ss, PC_IDX)? as usize).into(),
-                #[cfg(target_feature = "xcheri")]
-                ddc: 0usize.into(),
+                ddc: <TIfCfg!(is_cheri, CapabilityPtr)>::new(usize::into(0), ()),
                 mcause: usize_from_u8_slice(ss, MCAUSE_IDX)?,
                 mtval: usize_from_u8_slice(ss, MTVAL_IDX)?,
             };
@@ -188,17 +182,18 @@ impl<V: Variant> kernel::syscall::UserspaceKernelBoundary for SysCall<V> {
         // CHERI note: this PC cannot be executed. It will always be replaced with an initial fn.
         state.pc = usize::into(0);
 
-        #[cfg(target_feature = "xcheri")]
-        {
-            use kernel::utilities::capability_ptr::CapabilityPtrPermissions::ReadWrite;
-            let start = accessible_memory_start as usize;
+        match state.ddc.get_match_mut() {
+            CfgMatchMut::True(ddc) => {
+                let start = accessible_memory_start as usize;
 
-            state.ddc = CapabilityPtr::new_with_authority(
-                start as *const (),
-                start,
-                (_app_brk as usize) - start,
-                ReadWrite,
-            );
+                *ddc = CapabilityPtr::new_with_authority(
+                    start as *const (),
+                    start,
+                    (_app_brk as usize) - start,
+                    kernel::utilities::capability_ptr::CapabilityPtrPermissions::ReadWrite,
+                );
+            }
+            _ => {}
         }
 
         state.mcause = 0;
