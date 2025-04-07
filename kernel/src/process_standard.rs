@@ -909,18 +909,22 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             } else {
                 let old_break = self.app_break.get();
 
-                // On CHERI, we need to zero anything accessible by the app
-                if crate::config::CONFIG.is_cheri {
-                    unsafe {
-                        // Safety: Given that we are about to include this in the application break,
-                        // this cannot also be used by the kernel. It also won't have been previously
-                        // allowed as allow would not allow something past the break.
-                        core::ptr::write_bytes(
-                            old_break as *mut u8,
-                            0,
-                            (new_break as usize) - (old_break as usize),
-                        );
-                    }
+                unsafe {
+                    // Safety:
+                    // u8 has alignment of one so this always aligned.
+                    // The app break has provenance of the original allocation made for a
+                    // process, and we will not exceed those bound because of the length
+                    // checks we just made.
+                    // Given that we are about to include this in the application break,
+                    // there are no kernel references to this range.
+                    // It also won't have been previously allowed as allow would not permit
+                    // something past the break. This, this pointer should still be valid for
+                    // writes.
+                    core::ptr::write_bytes(
+                        old_break as *mut u8,
+                        0,
+                        (new_break as usize) - (old_break as usize),
+                    );
                 }
 
                 self.app_break.set(new_break);
