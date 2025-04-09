@@ -53,10 +53,6 @@ fn theorem_aligned_ge(_x: usize, _y: usize) {}
 fn theorem_aligned0(_x: usize, _y: usize) {}
 
 #[flux_rs::trusted(reason = "math")]
-#[flux_rs::sig(fn (usize[@x], usize[@y], usize[@z]) requires aligned(x, y) && pow2(y) && pow2(z) && y * z <= x ensures aligned(x, y * z))]
-fn theorem_aligned_mul(_x: usize, _y: usize, _z: usize) {}
-
-#[flux_rs::trusted(reason = "math")]
 #[flux_rs::sig(fn (x: usize) requires x > 0 && x < 32 ensures to_pow2(x) > 1)]
 fn theorem_to_pow2_gt1(x: usize) {}
 
@@ -65,24 +61,8 @@ fn theorem_to_pow2_gt1(x: usize) {}
 fn theorem_to_pow2_is_pow2(_n: usize) {}
 
 #[flux_rs::trusted(reason = "math")]
-#[flux_rs::sig(fn (x:usize, y:usize) requires pow2(x) && pow2(y) && x >= y ensures pow2(x / y) &&  y * (x / y) == x )]
-fn theorem_pow2_div_ge(_x: usize, _y: usize) {}
-
-#[flux_rs::trusted(reason = "math")]
-#[flux_rs::sig(fn () ensures pow2(1))]
-fn theorem_pow2_one() {}
-
-#[flux_rs::trusted(reason = "math")]
-#[flux_rs::sig(fn () ensures pow2(256))]
-fn theorem_256_pow2() {}
-
-#[flux_rs::trusted(reason = "math")]
-#[flux_rs::sig(fn (r:usize, k:usize) requires (pow2(r) && pow2(k) && k < r) ensures pow2(r / k))]
-fn theorem_pow2_div(_r: usize, k: usize) {}
-
-#[flux_rs::trusted(reason = "math")]
-#[flux_rs::sig(fn (r:usize, k:usize) requires (pow2(r) && pow2(k)) ensures pow2(r * k))]
-fn theorem_pow2_mul(_r: usize, k: usize) {}
+#[flux_rs::sig(fn (usize[@x], usize[@y], usize[@z]) requires aligned(x, y) && z <= y && pow2(y) && pow2(z) ensures aligned(x, z))]
+fn theorem_pow2_le_aligned(x: usize, y: usize, z: usize) {}
 
 #[flux_rs::trusted(reason = "math")]
 #[flux_rs::sig(fn (r:usize) requires pow2(r) && r >= 8 ensures octet(r))]
@@ -660,36 +640,22 @@ fn next_aligned_power_of_two(po2_aligned_start: usize, min_size: usize) -> Optio
         return None;
     }
 
-    // Find the largest power of 2 that divides start evenly
+    // Find the largest power of 2 that divides start 
     // VTOCK TODO: Should just be usize stuff
     assume(po2_aligned_start <= u32::MAX as usize);
     let mut trailing_zeros = po2_aligned_start.trailing_zeros() as usize;
-
     let largest_pow2_divisor = power_of_two(usize_to_u32(trailing_zeros));
     theorem_to_pow2_is_pow2(trailing_zeros);
     theorem_to_pow2_gt1(trailing_zeros);
 
-    // Start with the minimum required size, rounded up to the next power of 2
+    // all powers of two less than largest_pow2_divisors will align the start
     let min_power = min_size.next_power_of_two();
-    assert(min_power >= min_size);
-
-    // Find the smallest power of 2 that's >= min_power and a multiple of largest_pow2_divisor
-    let multiplier = if (min_power >= largest_pow2_divisor) {
-        theorem_pow2_div_ge(min_power, largest_pow2_divisor);
-        min_power / largest_pow2_divisor
+    if min_power <= largest_pow2_divisor && min_power >= 8 {
+        theorem_pow2_octet(min_power);
+        theorem_pow2_le_aligned(po2_aligned_start, largest_pow2_divisor, min_power);
+        Some(min_power)
     } else {
-        theorem_pow2_one();
-        1
-    };
-
-    let res = largest_pow2_divisor * multiplier;
-    theorem_pow2_mul(largest_pow2_divisor, multiplier);
-
-    if po2_aligned_start >= res {
-        theorem_pow2_octet(res);
-        theorem_aligned_mul(po2_aligned_start, largest_pow2_divisor, multiplier);
-        Some(res)
-    } else {
+        // in this case such a value doesn't exist
         None
     }
 }
@@ -807,6 +773,8 @@ impl CortexMRegion {
         let min_region_size = flux_support::max_usize(256, region_size);
         let mut underlying_region_size =
             next_aligned_power_of_two(region_start.as_usize(), min_region_size)?;
+        crate::debug!("Hello from assert, {:x} {min_region_size}, {underlying_region_size}", region_start.as_usize());
+        assert!(region_start.as_usize() % underlying_region_size == 0);
 
         if underlying_region_size > available_size
             || underlying_region_size > (u32::MAX / 2 + 1) as usize
