@@ -526,7 +526,6 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         });
     }
 
-    #[flux_rs::trusted] // VR: Fixpoint encoding error
     fn setup_mpu(&self) {
         self.app_memory_allocator
             .map(|am| match self.chip.mpu().into_cortex_mpu() {
@@ -1059,7 +1058,7 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         }
     }
 
-    #[flux_rs::trusted] // https://github.com/flux-rs/flux/issues/782
+    #[flux_rs::trusted(reason = "assignment might be unsafe (https://github.com/flux-rs/flux/issues/782)")]
     fn switch_to(&self) -> Option<syscall::ContextSwitchReason> {
         // Cannot switch to an invalid process
         if !self.is_running() {

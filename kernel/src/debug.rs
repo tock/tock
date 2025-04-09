@@ -267,7 +267,7 @@ pub static mut DEBUG_GPIOS: (
     Option<&'static dyn hil::gpio::Pin>,
 ) = (None, None, None);
 
-#[flux_rs::trusted] // ICE: Invalid deref of *mut
+#[flux_rs::trusted(reason = "ICE: Invalid deref of *mut `place_ty.rs:481`")]
 pub unsafe fn assign_gpios(
     gpio0: Option<&'static dyn hil::gpio::Pin>,
     gpio1: Option<&'static dyn hil::gpio::Pin>,
@@ -544,7 +544,6 @@ impl DebugWriterWrapper {
 }
 
 impl IoWrite for DebugWriterWrapper {
-    #[flux_rs::trusted] // incompatible types
     fn write(&mut self, bytes: &[u8]) -> usize {
         const FULL_MSG: &[u8] = b"\n*** DEBUG BUFFER FULL ***\n";
         self.dw.map_or(0, |dw| {

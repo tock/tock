@@ -762,7 +762,7 @@ impl ReadableProcessSlice {
     ///
     /// The length of `self` must be the same as `dest`. Subslicing
     /// can be used to obtain a slice of matching length.
-    #[flux_rs::trusted] // Need spec for enumerate
+    #[flux_rs::trusted(reason = "assertion might fail: possible out of bound access (needs spec for Enumerate)")]
     #[flux_rs::sig(fn (self: &Self, dest: &strg [u8]) -> Result<(), ErrorCode> ensures dest: [u8] )]
     pub fn copy_to_slice_or_err(&self, dest: &mut [u8]) -> Result<(), ErrorCode> {
         // Method implemetation adopted from the
@@ -796,7 +796,7 @@ impl ReadableProcessSlice {
     }
 
     /// Iterate the slice in chunks.
-    #[flux_rs::trusted] // Unexpected escaping region
+    #[flux_rs::trusted(reason = "ICE: unexpected escaping regions")]
     pub fn chunks(
         &self,
         chunk_size: usize,
@@ -869,7 +869,7 @@ impl Index<usize> for ReadableProcessSlice {
     // Cell to read-only operations
     type Output = ReadableProcessByte;
 
-    #[flux_rs::trusted_impl]
+    #[flux_rs::trusted_impl(reason = "needs associated refinement on Index trait")]
     #[flux_rs::sig(fn(self: &ReadableProcessSlice[@len], idx: usize ) -> &Self::Output requires len > idx)]
     fn index(&self, idx: usize) -> &Self::Output {
         // As ReadableProcessSlice is a transparent wrapper around its
@@ -1037,7 +1037,7 @@ impl WriteableProcessSlice {
     }
 
     /// Iterate over the slice in chunks.
-    #[flux_rs::trusted] // Unexpected escaping region
+    #[flux_rs::trusted(reason = "ICE: unexpected escaping regions")]
     pub fn chunks(
         &self,
         chunk_size: usize,
@@ -1110,7 +1110,7 @@ impl Index<usize> for WriteableProcessSlice {
     // mutating the memory contents is allowed.
     type Output = Cell<u8>;
 
-    #[flux_rs::trusted_impl]
+    #[flux_rs::trusted_impl(reason = "needs associated refinement on Index trait")]
     #[flux_rs::sig(fn(self: &WriteableProcessSlice[@len], idx: usize) -> &Self::Output requires len > idx)]
     fn index(&self, idx: usize) -> &Self::Output {
         // As WriteableProcessSlice is a transparent wrapper around

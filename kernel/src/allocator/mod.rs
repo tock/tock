@@ -384,7 +384,7 @@ impl AppMemoryAllocator {
     }
 
     #[flux_rs::sig(fn (&Self) -> Option<{idx. usize[idx] | idx > 1 && idx < 8}>)]
-    #[flux_rs::trusted] // VR: type invariant may not hold???
+    #[flux_rs::trusted(reason = "invariant might not hold (when place is folded) - there's no mutation")] 
     fn next_available_ipc_idx(&self) -> Option<usize> {
         let mut i = 0;
         while i < self.regions.len() {

@@ -326,7 +326,7 @@ impl<'a, T> SubSliceMut<'a, T> {
     /// s.slice(0..250);
     /// network.send(s);
     /// ```
-    #[flux_rs::trusted] // Arithmetic - needs range extern_spec
+    #[flux_rs::trusted(reason = "assignment might me unsafe & arithmetic may overflow")]
     pub fn slice<R: RangeBounds<usize>>(&mut self, range: R) {
         let start = match range.start_bound() {
             Bound::Included(s) => *s,
@@ -451,7 +451,7 @@ impl<'a, T> SubSlice<'a, T> {
     /// s.slice(0..250);
     /// network.send(s);
     /// ```
-    #[flux_rs::trusted] // Arithmetic - needs range extern_spec
+    #[flux_rs::trusted(reason = "assignment might be unsafe & arithmetic may overflow")]
     pub fn slice<R: RangeBounds<usize>>(&mut self, range: R) {
         let start = match range.start_bound() {
             Bound::Included(s) => *s,

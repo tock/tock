@@ -124,7 +124,7 @@ flux_rs::defs! {
 
 // VTOCK-TODO: supplementary proof?
 #[flux_rs::sig(fn(n: u32{n <= 32}) -> usize {r: r > 0 && (r > 2 => r % 8 == 0) && r <= u32::MAX})]
-#[flux_rs::trusted]
+#[flux_rs::trusted(reason = "math support (bitwise arithmetic fact)")]
 fn power_of_two(n: u32) -> usize {
     1_usize << n
 }
@@ -133,7 +133,7 @@ fn power_of_two(n: u32) -> usize {
 #[flux_rs::refined_by(regions: Map<int, CortexMRegion>)]
 struct RegionGhostState {}
 impl RegionGhostState {
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "ghost state")]
     const fn new() -> Self {
         Self {}
     }
@@ -143,7 +143,7 @@ impl RegionGhostState {
 #[flux_rs::refined_by(regions: Map<int, bitvec<32>>, attrs: Map<int, bitvec<32>>)]
 struct HwGhostState {}
 impl HwGhostState {
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "ghost state")]
     const fn new() -> Self {
         Self {}
     }
@@ -363,7 +363,7 @@ struct GhostRegionState {}
 
 impl GhostRegionState {
     // trusted intializer for ghost state stuff
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "ghost state")]
     #[flux_rs::sig(fn (
         FluxPtrU8[@astart],
         usize[@asize],
@@ -384,7 +384,7 @@ impl GhostRegionState {
         Self {}
     }
 
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "ghost state")]
     #[flux_rs::sig(fn (
         usize[@region_num]
     ) -> GhostRegionState { r: r.region_no == region_num }
@@ -432,13 +432,13 @@ impl PartialEq<mpu::Region> for CortexMRegion {
     }
 }
 
-#[flux_rs::trusted]
+#[flux_rs::trusted(reason = "math support (bitwise arithmetic fact)")]
 #[flux_rs::sig(fn (u8[@mask], usize[@i]) -> u8[bv_bv32_to_int(xor(bv32(mask), bv32(1) << bv32(i)))])]
 fn xor_mask(mask: u8, i: usize) -> u8 {
     mask ^ (1 << i)
 }
 
-#[flux_rs::trusted]
+#[flux_rs::trusted(reason = "math support (valid usize to u32 cast)")]
 #[flux_rs::sig(fn ({ usize[@n] | n <= u32::MAX }) -> u32[n])]
 fn usize_to_u32(n: usize) -> u32 {
     n as u32
@@ -451,7 +451,7 @@ fn usize_to_u32(n: usize) -> u32 {
             po2_start < u32::MAX &&
             min_size >= 256
 )]
-#[flux_rs::trusted] // VR: slow
+#[flux_rs::trusted(reason = "too slow")]
 fn next_aligned_power_of_two(po2_aligned_start: usize, min_size: usize) -> usize {
     // if start is 0 everything aligns
     if po2_aligned_start == 0 {
@@ -923,7 +923,7 @@ impl<const NUM_REGIONS: usize> MPU<NUM_REGIONS> {
     }
 
     #[flux_rs::sig(fn (&Self[@mpu], { &RArray<CortexMRegion>[@regions] | app_regions_correct(regions, breaks) }, &AppBreaks[@breaks]))]
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "needs specs for Iterator and Range")]
     pub(crate) fn configure_mpu(&self, regions: &RArray<CortexMRegion>, _ghost_breaks: &AppBreaks) {
         // If the hardware is already configured for this app and the app's MPU
         // configuration has not changed, then skip the hardware update.

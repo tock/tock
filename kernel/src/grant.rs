@@ -356,7 +356,7 @@ impl<'a> EnteredGrantKernelManagedLayout<'a> {
         grant_t_size: GrantDataSize,
         grant_t_align: GrantDataAlign,
     ) -> usize {
-        #[flux_rs::trusted] // bitwise arithmetic
+        #[flux_rs::trusted(reason = "arithmetic operation may overflow (bitwise arithmetic)")]
         #[flux_rs::sig(fn(usize, usize{align: align > 0}) -> usize{n: n > 0})]
         fn calc_padding(kernel_managed_size: usize, align: usize) -> usize {
             // We know that grant_t_align is a power of 2, so we can make a mask
@@ -1333,7 +1333,6 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
     /// If `panic_on_reenter` is `true`, this will panic if the grant region is
     /// already currently entered. If `panic_on_reenter` is `false`, this will
     /// return `None` if the grant region is entered and do nothing.
-    #[flux_rs::trusted] // ICE: incompatible types
     fn access_grant_with_allocator<F, R>(self, fun: F, panic_on_reenter: bool) -> Option<R>
     where
         F: FnOnce(&mut GrantData<T>, &GrantKernelData, &mut GrantRegionAllocator) -> R,
@@ -1781,7 +1780,7 @@ impl<T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: AllowRwSi
     ///
     /// Calling this function when an [`ProcessGrant`] for a process is
     /// currently entered will result in a panic.
-    #[flux_rs::trusted] // Incompatible base types
+    #[flux_rs::trusted(reason = "ICE: assertion `left == right` failed `infer.rs:869`")]
     pub fn iter(&self) -> Iter<T, Upcalls, AllowROs, AllowRWs> {
         Iter {
             grant: self,
@@ -1813,7 +1812,6 @@ impl<'a, T: Default, Upcalls: UpcallSize, AllowROs: AllowRoSize, AllowRWs: Allow
 {
     type Item = ProcessGrant<'a, T, Upcalls, AllowROs, AllowRWs>;
 
-    #[flux_rs::trusted] // cannot infer substitution
     fn next(&mut self) -> Option<Self::Item> {
         let grant = self.grant;
         // Get the next `ProcessId` from the kernel processes array that is

@@ -184,7 +184,7 @@ pub fn load_processes<C: Chip>(
 /// `ProcessLoadError` if something goes wrong during TBF parsing or process
 /// creation.
 #[inline(always)]
-#[flux_rs::trusted] // ICE: Expected array or slice type
+#[flux_rs::trusted(reason = "ICE: expected array or slice type `checker.rs:1188`")]
 fn load_processes_from_flash<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
@@ -350,8 +350,8 @@ fn discover_process_binary(
 /// pool that its RAM should be allocated from. Returns `Ok` if the process
 /// object was created, `Err` with a relevant error if the process object could
 /// not be created.
-#[flux_rs::trusted] // Arithmetic warnings - needs slice extern spec
-                    // #[flux_rs::sig(fn<C>(&Kernel, &C, ProcessBinary, &mut [u8]{len: len > 0}, ShortId, usize, _ ) -> Result<_,_>)]
+#[flux_rs::trusted(reason = "error jumping to join point")]
+//#[flux_rs::sig(fn<C>(_, _, _, &mut [u8]{len: len > 0}, _, _, _ ) -> _)]
 fn load_process<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
@@ -659,7 +659,7 @@ impl<'a, C: Chip> SequentialProcessLoaderMachine<'a, C> {
     /// Create process objects from the discovered process binaries.
     ///
     /// This verifies that the discovered processes are valid to run.
-    #[flux_rs::trusted] // ICE: Expected array or slice type
+    #[flux_rs::trusted(reason = "ICE: expected array or slice type `checker.rs:1188`")]
     fn load_process_objects(&self) -> Result<(), ()> {
         let proc_binaries = self.proc_binaries.take().ok_or(())?;
         let proc_binaries_len = proc_binaries.len();
@@ -921,7 +921,7 @@ impl<'a, C: Chip> DeferredCallClient for SequentialProcessLoaderMachine<'a, C> {
 impl<'a, C: Chip> crate::process_checker::ProcessCheckerMachineClient
     for SequentialProcessLoaderMachine<'a, C>
 {
-    #[flux_rs::trusted] // Expected array or slice type
+    #[flux_rs::trusted(reason = "ICE: expected array or slice type `checker.rs:1188`")] 
     fn done(
         &self,
         process_binary: ProcessBinary,
