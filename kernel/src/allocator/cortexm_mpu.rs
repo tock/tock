@@ -65,12 +65,8 @@ fn theorem_to_pow2_gt1(x: usize) {}
 fn theorem_to_pow2_is_pow2(_n: usize) {}
 
 #[flux_rs::trusted(reason = "math")]
-#[flux_rs::sig(fn (x: usize, y: usize) requires pow2(x) && pow2(y) && x >= y ensures aligned(x, y) && (x + y - 1) / y == x / y)]
-fn theorem_pow2_ge_aligned(_x: usize, _y: usize) {}
-
-#[flux_rs::trusted(reason = "math")]
-#[flux_rs::sig(fn (x:usize, y:usize) requires pow2(x) && pow2(y) && x > 1 && y > 1 ensures pow2((x + y - 1) / y))]
-fn theorem_pow2_div_ceil(_x: usize, _y: usize) {}
+#[flux_rs::sig(fn (x:usize, y:usize) requires pow2(x) && pow2(y) && x >= y ensures pow2(x / y) &&  y * (x / y) == x )]
+fn theorem_pow2_div_ge(_x: usize, _y: usize) {}
 
 #[flux_rs::trusted(reason = "math")]
 #[flux_rs::sig(fn () ensures pow2(1))]
@@ -91,10 +87,6 @@ fn theorem_pow2_mul(_r: usize, k: usize) {}
 #[flux_rs::trusted(reason = "math")]
 #[flux_rs::sig(fn (r:usize) requires pow2(r) && r >= 8 ensures octet(r))]
 fn theorem_pow2_octet(_n: usize) {}
-
-#[flux_rs::trusted(reason = "math")]
-#[flux_rs::sig(fn (r:usize) requires pow2(r) && octet(r) ensures pow2(r / 8))]
-fn theorem_pow2_octet_div(_n: usize) {}
 
 #[flux_rs::trusted(reason = "math")]
 #[flux_rs::sig(fn (r:usize) requires octet(r) ensures 8 * (r / 8) == r)]
@@ -659,20 +651,23 @@ fn next_aligned_power_of_two(po2_aligned_start: usize, min_size: usize) -> Optio
     // VTOCK TODO: Should just be usize stuff
     assume(po2_aligned_start <= u32::MAX as usize);
     let mut trailing_zeros = po2_aligned_start.trailing_zeros() as usize;
-    assert(trailing_zeros > 0);
 
     let largest_pow2_divisor = power_of_two(usize_to_u32(trailing_zeros));
     theorem_to_pow2_is_pow2(trailing_zeros);
     theorem_to_pow2_gt1(trailing_zeros);
-    assert(largest_pow2_divisor > 1);
 
     // Start with the minimum required size, rounded up to the next power of 2
     let min_power = min_size.next_power_of_two();
+    assert(min_power >= min_size);
 
     // Find the smallest power of 2 that's >= min_power and a multiple of largest_pow2_divisor
-    let multiplier = (min_power + largest_pow2_divisor - 1) / largest_pow2_divisor;
-    theorem_pow2_one();
-    theorem_pow2_div_ceil(min_power, largest_pow2_divisor);
+    let multiplier = if (min_power >= largest_pow2_divisor) {
+        theorem_pow2_div_ge(min_power, largest_pow2_divisor);
+        min_power / largest_pow2_divisor
+    } else {
+        theorem_pow2_one();
+        1
+    };
 
     let res = largest_pow2_divisor * multiplier;
     theorem_pow2_mul(largest_pow2_divisor, multiplier);
