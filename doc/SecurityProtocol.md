@@ -22,16 +22,16 @@ The Security Response Team consists of maintainers with expertise in different s
 
 ## Subsystem Contacts
 
-| Subsystem | Primary Contact | Secondary Contact |
-| --------- | --------------- | ----------------- |
-| Kernel    | TBD             | TBD               |
-| IPC       | TBD             | TBD               |
-| MPU       | TBD             | TBD               |
-| Drivers   | TBD             | TBD               |
-| Apps      | TBD             | TBD               |
-| Libraries | TBD             | TBD               |
-| Hardware  | TBD             | TBD               |
-| Build     | TBD             | TBD               |
+| Subsystem  | Primary Contact | Secondary Contact |
+| ---------- | --------------- | ----------------- |
+| Kernel     | TBD             | TBD               |
+| IPC        | TBD             | TBD               |
+| MPU        | TBD             | TBD               |
+| Drivers    | TBD             | TBD               |
+| libtock-c  | TBD             | TBD               |
+| libtock-rs | TBD             | TBD               |
+| Hardware   | TBD             | TBD               |
+| Build      | TBD             | TBD               |
 
 ## Vulnerability Handling Process
 
