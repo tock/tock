@@ -773,8 +773,6 @@ impl CortexMRegion {
         let min_region_size = flux_support::max_usize(256, region_size);
         let mut underlying_region_size =
             next_aligned_power_of_two(region_start.as_usize(), min_region_size)?;
-        crate::debug!("Hello from assert, {:x} {min_region_size}, {underlying_region_size}", region_start.as_usize());
-        assert!(region_start.as_usize() % underlying_region_size == 0);
 
         if underlying_region_size > available_size
             || underlying_region_size > (u32::MAX / 2 + 1) as usize
