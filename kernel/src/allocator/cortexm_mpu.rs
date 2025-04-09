@@ -618,7 +618,6 @@ fn log_base_two(num: u32) -> u32 {
 })]
 fn subregion_mask(min_subregion: usize, max_subregion: usize) -> u8 {
     let enabled_mask = ((1 << (max_subregion - min_subregion + 1)) - 1) << min_subregion;
-    crate::debug!("{}, {}, enabled_mask: {:b}, and: {:b}", min_subregion, max_subregion, enabled_mask, u8::MAX & enabled_mask);
     if enabled_mask == 0 {
         enabled_mask
     } else {
