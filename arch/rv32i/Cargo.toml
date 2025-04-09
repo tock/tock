@@ -8,9 +8,6 @@ version.workspace = true
 authors.workspace = true
 edition.workspace = true
 
-[package.metadata.flux]
-enabled = true
-
 [dependencies]
 kernel = { path = "../../kernel" }
 flux_support = { path = "../../flux_support" }

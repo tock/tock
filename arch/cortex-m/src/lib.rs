@@ -10,6 +10,7 @@
 #![feature(proc_macro_hygiene)]
 
 use core::fmt::Write;
+use flux_support::capability::*;
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 use core::arch::global_asm;
@@ -116,6 +117,8 @@ pub trait CortexMVariant {
     unsafe fn switch_to_user(
         user_stack: *const usize,
         process_regs: &mut [usize; 8],
+        mpu_configured_capability: MpuConfiguredCapability,
+        mpu_enabled_capability: MpuEnabledCapability,
     ) -> *const usize;
 
     /// Format and display architecture-specific state useful for debugging.

@@ -550,13 +550,14 @@ impl Kernel {
                     resources
                         .context_switch_callback()
                         .context_switch_hook(process);
-                    process.setup_mpu();
-                    match chip.mpu().into_cortex_mpu() {
+                    let mpu_configured_capability = process.setup_mpu();
+                    let mpu_enabled_capability = match chip.mpu().into_cortex_mpu() {
                         crate::allocator::CortexMpuTypes::Sixteen(mpu) => mpu.enable_app_mpu(),
                         crate::allocator::CortexMpuTypes::Eight(mpu) => mpu.enable_app_mpu(),
                     };
                     scheduler_timer.arm();
-                    let context_switch_reason = process.switch_to();
+                    let context_switch_reason =
+                        process.switch_to(mpu_configured_capability, mpu_enabled_capability);
                     scheduler_timer.disarm();
                     match chip.mpu().into_cortex_mpu() {
                         crate::allocator::CortexMpuTypes::Sixteen(mpu) => mpu.disable_app_mpu(),

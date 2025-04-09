@@ -71,6 +71,7 @@ use core::fmt::Write;
 use crate::errorcode::ErrorCode;
 use crate::process;
 pub use crate::syscall_driver::{CommandReturn, SyscallDriver};
+use flux_support::capability::*;
 #[allow(clippy::wildcard_imports)]
 use flux_support::*;
 
@@ -807,8 +808,8 @@ pub trait UserspaceKernelBoundary {
     /// pointers are valid for the process.
     unsafe fn switch_to_process(
         &self,
-        accessible_memory_start: FluxPtrU8Mut,
-        app_brk: FluxPtrU8Mut,
+        mpu_configured_capability: MpuConfiguredCapability,
+        mpu_enabled_capability: MpuEnabledCapability,
         state: &mut Self::StoredState,
     ) -> (ContextSwitchReason, Option<FluxPtrU8Mut>);
 

@@ -9,6 +9,7 @@ use core::marker::PhantomData;
 use core::mem::{self, size_of};
 use core::ops::Range;
 use core::ptr::{self, addr_of, addr_of_mut, read_volatile, write_volatile};
+use flux_support::capability::*;
 use flux_support::*;
 use kernel::errorcode::ErrorCode;
 
@@ -244,11 +245,19 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
 
     unsafe fn switch_to_process(
         &self,
-        accessible_memory_start: FluxPtrU8,
-        app_brk: FluxPtrU8,
+        mpu_configured_capability: MpuConfiguredCapability,
+        mpu_enabled_capability: MpuEnabledCapability,
         state: &mut CortexMStoredState,
     ) -> (kernel::syscall::ContextSwitchReason, Option<FluxPtrU8>) {
-        let new_stack_pointer = A::switch_to_user(state.psp as *const usize, &mut state.regs);
+        let accessible_memory_start = mpu_configured_capability.start;
+        let app_brk = mpu_configured_capability.brk;
+
+        let new_stack_pointer = A::switch_to_user(
+            state.psp as *const usize,
+            &mut state.regs,
+            mpu_configured_capability,
+            mpu_enabled_capability,
+        );
 
         // We need to keep track of the current stack pointer.
         state.psp = new_stack_pointer as usize;

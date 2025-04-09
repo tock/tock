@@ -12,6 +12,7 @@ edition.workspace = true
 kernel = { path = "../../kernel" }
 cortexm = { path = "../cortex-m" }
 cortexv7m = { path = "../cortex-v7m" }
+flux_support = { path = "../../flux_support" }
 
 [lints]
 workspace = true

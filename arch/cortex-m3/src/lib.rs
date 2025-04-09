@@ -9,9 +9,10 @@
 #![no_std]
 
 use core::fmt::Write;
+use flux_support::capability::*;
 
 pub mod mpu {
-    pub type MPU = kernel::allocator::cortexm_mpu::MPU<8>;
+    pub type MPU = kernel::allocator::MPU<8>;
 }
 
 pub use cortexm::initialize_ram_jump_to_main;
@@ -46,6 +47,8 @@ impl cortexm::CortexMVariant for CortexM3 {
     unsafe fn switch_to_user(
         _user_stack: *const usize,
         _process_regs: &mut [usize; 8],
+        mpu_configured: MpuConfiguredCapability,
+        mpu_enabled: MpuEnabledCapability,
     ) -> *const usize {
         unimplemented!()
     }

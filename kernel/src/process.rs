@@ -35,6 +35,7 @@ pub use crate::process_policies::ProcessFaultPolicy;
 pub use crate::process_printer::{ProcessPrinter, ProcessPrinterContext};
 pub use crate::process_standard::ProcessStandard;
 
+use flux_support::capability::*;
 /// Userspace process identifier.
 ///
 /// This is an opaque type that can be used to represent a running process on
@@ -666,7 +667,7 @@ pub trait Process {
     ///
     /// It is not valid to call this function when the process is inactive (i.e.
     /// the process will not run again).
-    fn setup_mpu(&self);
+    fn setup_mpu(&self) -> MpuConfiguredCapability;
 
     /// Allocate a new MPU region for the process that is at least
     /// `min_region_size` bytes and lies within the specified stretch of
@@ -812,7 +813,11 @@ pub trait Process {
     ///
     /// This will return `None` if the process is inactive and cannot be
     /// switched to.
-    fn switch_to(&self) -> Option<syscall::ContextSwitchReason>;
+    fn switch_to(
+        &self,
+        mpu_configured: MpuConfiguredCapability,
+        mpu_enabled: MpuEnabledCapability,
+    ) -> Option<syscall::ContextSwitchReason>;
 
     /// Return process state information related to the location in memory of
     /// various process data structures.

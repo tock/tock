@@ -15,6 +15,7 @@ use core::ptr::NonNull;
 use core::{mem, str};
 #[allow(clippy::wildcard_imports)]
 use flux_support::*;
+use flux_support::capability::*;
 
 use crate::allocator::{self, AppMemoryAllocator, IntoCortexMPU};
 use crate::collections::queue::Queue;
@@ -526,14 +527,14 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         });
     }
 
-    fn setup_mpu(&self) {
+    fn setup_mpu(&self) -> MpuConfiguredCapability {
         self.app_memory_allocator
-            .map(|am| match self.chip.mpu().into_cortex_mpu() {
+            .map_or(Err(()), |am| match self.chip.mpu().into_cortex_mpu() {
                 allocator::CortexMpuTypes::Sixteen(mpu) => {
-                    mpu.configure_mpu(&am.regions, am.breaks())
-                }
-                allocator::CortexMpuTypes::Eight(mpu) => mpu.configure_mpu(&am.regions, am.breaks()),
-            });
+                    Ok(am.configure_mpu(mpu))
+            }
+                allocator::CortexMpuTypes::Eight(mpu) => Ok(am.configure_mpu(mpu))
+            }).expect("Fatal kernel bug in setting up MPU - cannot branch to process as it would be unsafe")
     }
 
     fn add_mpu_region(&self, start: FluxPtrU8, size: usize) -> Option<mpu::Region> {
@@ -1058,15 +1059,12 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         }
     }
 
-    #[flux_rs::trusted(reason = "assignment might be unsafe (https://github.com/flux-rs/flux/issues/782)")]
-    fn switch_to(&self) -> Option<syscall::ContextSwitchReason> {
+    fn switch_to(&self, mpu_configured: MpuConfiguredCapability, mpu_enabled: MpuEnabledCapability) -> Option<syscall::ContextSwitchReason> {
         // Cannot switch to an invalid process
         if !self.is_running() {
             return None;
         }
 
-        let mem_start = self.mem_start()?;
-        let app_memory_break = self.app_memory_break().ok()?;
         let (switch_reason, stack_pointer) =
             self.stored_state.map_or((None, None), |stored_state| {
                 // Switch to the process. We guarantee that the memory pointers
@@ -1076,26 +1074,14 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                     let (switch_reason, optional_stack_pointer) = self
                         .chip
                         .userspace_kernel_boundary()
-                        .switch_to_process(mem_start, app_memory_break, stored_state);
+                        .switch_to_process(mpu_configured, mpu_enabled, stored_state);
                     (Some(switch_reason), optional_stack_pointer)
                 }
             });
 
         // If the UKB implementation passed us a stack pointer, update our
         // debugging state. This is completely optional.
-        if let Some(sp) = stack_pointer {
-            self.debug.map(|debug| {
-                match debug.app_stack_min_pointer {
-                    None => debug.app_stack_min_pointer = Some(sp),
-                    Some(asmp) => {
-                        // Update max stack depth if needed.
-                        if sp < asmp {
-                            debug.app_stack_min_pointer = Some(sp);
-                        }
-                    }
-                }
-            });
-        }
+        self.update_debug_sp(stack_pointer);
 
         switch_reason
     }
@@ -1866,6 +1852,23 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
             argument2: app_breaks.memory_size,
             argument3: app_breaks.app_break.as_usize(),
         }))
+    }
+
+    #[flux_rs::trusted] // https://github.com/flux-rs/flux/issues/782
+    fn update_debug_sp(&self, stack_pointer: Option<FluxPtrU8>) {
+        if let Some(sp) = stack_pointer {
+            self.debug.map(|debug| {
+                match debug.app_stack_min_pointer {
+                    None => debug.app_stack_min_pointer = Some(sp),
+                    Some(asmp) => {
+                        // Update max stack depth if needed.
+                        if sp < asmp {
+                            debug.app_stack_min_pointer = Some(sp);
+                        }
+                    }
+                }
+            });
+        }
     }
 
     /// Checks if the buffer represented by the passed in base pointer and size

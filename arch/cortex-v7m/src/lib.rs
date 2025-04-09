@@ -10,6 +10,7 @@
 
 #[cfg(all(target_arch = "arm", target_os = "none"))]
 use core::arch::global_asm;
+use flux_support::capability::*;
 
 // These constants are defined in the linker script.
 extern "C" {
@@ -224,6 +225,8 @@ global_asm!(
 pub unsafe fn switch_to_user_arm_v7m(
     mut user_stack: *const usize,
     process_regs: &mut [usize; 8],
+    mpu_configured_capability: MpuConfiguredCapability,
+    mpu_enabled_capability: MpuEnabledCapability,
 ) -> *const usize {
     use core::arch::asm;
     asm!(
