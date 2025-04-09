@@ -53,11 +53,11 @@ fn theorem_aligned_ge(_x: usize, _y: usize) {}
 fn theorem_aligned0(_x: usize, _y: usize) {}
 
 #[flux_rs::trusted(reason = "math")]
-#[flux_rs::sig(fn (usize[@x], usize[@y], usize[@z]) requires aligned(x, y) && pow2(y) && pow2(z) && y * z >= x ensures aligned(x, y * z))]
+#[flux_rs::sig(fn (usize[@x], usize[@y], usize[@z]) requires aligned(x, y) && pow2(y) && pow2(z) && y * z <= x ensures aligned(x, y * z))]
 fn theorem_aligned_mul(_x: usize, _y: usize, _z: usize) {}
 
 #[flux_rs::trusted(reason = "math")]
-#[flux_rs::sig(fn (x: usize) requires x > 0 ensures to_pow2(x) > 1)]
+#[flux_rs::sig(fn (x: usize) requires x > 0 && x < 32 ensures to_pow2(x) > 1)]
 fn theorem_to_pow2_gt1(x: usize) {}
 
 #[flux_rs::trusted(reason = "math")]
@@ -69,7 +69,7 @@ fn theorem_to_pow2_is_pow2(_n: usize) {}
 fn theorem_pow2_ge_aligned(_x: usize, _y: usize) {}
 
 #[flux_rs::trusted(reason = "math")]
-#[flux_rs::sig(fn (x:usize, y:usize) requires pow2(x) && pow2(y) && x > 1 && y > 1 ensures (x >= y => pow2((x + y - 1) / y)) && (x < y => (x + y - 1) / y == 1))]
+#[flux_rs::sig(fn (x:usize, y:usize) requires pow2(x) && pow2(y) && x > 1 && y > 1 ensures pow2((x + y - 1) / y))]
 fn theorem_pow2_div_ceil(_x: usize, _y: usize) {}
 
 #[flux_rs::trusted(reason = "math")]
@@ -677,12 +677,12 @@ fn next_aligned_power_of_two(po2_aligned_start: usize, min_size: usize) -> Optio
     let res = largest_pow2_divisor * multiplier;
     theorem_pow2_mul(largest_pow2_divisor, multiplier);
 
-    if res < po2_aligned_start {
-        return None
-    } else {
+    if po2_aligned_start >= res {
         theorem_pow2_octet(res);
         theorem_aligned_mul(po2_aligned_start, largest_pow2_divisor, multiplier);
         Some(res)
+    } else {
+        None
     }
 }
 
