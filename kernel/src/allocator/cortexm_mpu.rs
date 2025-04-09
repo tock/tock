@@ -606,10 +606,24 @@ fn log_base_two(num: u32) -> u32 {
 }
 
 #[flux_rs::trusted(reason = "math support (bitwise arithmetic fact)")]
-#[flux_rs::sig(fn ({usize[@fsr] | fsr <= lsr}, {usize[@lsr] | lsr < 8}) -> u8[bv_bv32_to_int(bv32(u8::MAX) & (bv_xor(0xff, enabled_srd_mask(bv32(fsr), bv32(lsr)))))])]
+// VTOCK Note: Realized this only works when enabled_mask is not 0 because
+// 0xff ^ 0 == 1 but anything & 0 = 0. 
+#[flux_rs::sig(fn ({usize[@fsr] | fsr <= lsr}, {usize[@lsr] | lsr < 8}) -> u8{r: 
+    let mask = enabled_srd_mask(bv32(fsr), bv32(lsr));
+    if mask == 0 {
+        bv32(r) == mask
+    } else {
+        bv32(r) == bv_xor(0xff, mask)
+    }
+})]
 fn subregion_mask(min_subregion: usize, max_subregion: usize) -> u8 {
     let enabled_mask = ((1 << (max_subregion - min_subregion + 1)) - 1) << min_subregion;
-    u8::MAX & (0xff ^ enabled_mask)
+    crate::debug!("{}, {}, enabled_mask: {:b}, and: {:b}", min_subregion, max_subregion, enabled_mask, u8::MAX & enabled_mask);
+    if enabled_mask == 0 {
+        enabled_mask
+    } else {
+        u8::MAX ^ enabled_mask
+    }
 }
 
 #[flux_rs::trusted]
