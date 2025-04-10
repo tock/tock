@@ -73,7 +73,7 @@ fn theorem_pow2_octet(_n: usize) {}
 fn theorem_div_octet(_n: usize) {}
 
 #[flux_rs::trusted(reason = "math")]
-#[flux_rs::sig(fn (x: usize, y: usize) requires y >= 32 && pow2(y) && aligned(x, y) ensures first_five_bits(bv32(x)) == 0)]
+#[flux_rs::sig(fn (x: usize, y: usize) requires y >= 32 && pow2(y) && aligned(x, y) ensures least_five_bits(bv32(x)) == 0)]
 fn theorem_aligned_value_ge32_lowest_five_bits0(x: usize, y: usize) {}
 
 #[flux_rs::reveal(octet, first_subregion_from_logical)]
@@ -121,12 +121,13 @@ flux_rs::defs! {
     fn bit(reg: bitvec<32>, power_of_two: bitvec<32>) -> bool { reg & power_of_two != 0}
     fn extract(reg: bitvec<32>, mask:int, offset: int) -> bitvec<32> { (reg & bv32(mask)) >> bv32(offset) }
 
-    fn first_five_bits(val: bitvec<32>) -> bitvec<32> { extract(val, 0xFFFF_FFE0, 0) }
+    fn least_five_bits(val: bitvec<32>) -> bitvec<32> { val & 0x1F }
 
     // rbar
     fn rbar_valid_bit_set(reg: bitvec<32>) -> bool { bit(reg, 0x10) }
     fn rbar_region_number(reg: bitvec<32>) -> bitvec<32> { reg & 0xF }
-    fn rbar_region_start(reg: bitvec<32>) -> bitvec<32> { extract(reg, 0xFFFF_FFE0, 5) }
+    // NOTE: don't shift by 5 because we need the last 5 bits as all 0
+    fn rbar_region_start(reg: bitvec<32>) -> bitvec<32> { reg & 0xFFFF_FFE0 }
 
     // rasr
     fn rasr_global_region_enabled(reg: bitvec<32>) -> bool { bit(reg, 0x1) }
@@ -606,7 +607,7 @@ fn subregion_mask(min_subregion: usize, max_subregion: usize) -> u8 {
 }
 
 #[flux_rs::trusted]
-#[flux_rs::sig(fn (region_start: FluxPtrU8) -> u32{r: first_five_bits(bv32(region_start)) == 0 => r == region_start})]
+#[flux_rs::sig(fn (region_start: FluxPtrU8) -> u32{r: least_five_bits(bv32(region_start)) == 0 => bv32(r) << 5 == bv32(region_start)})]
 fn region_start_rs32(region_start: FluxPtrU8) -> u32 {
     region_start.as_u32() >> 5
 }
@@ -885,7 +886,8 @@ impl CortexMRegion {
     #[flux_rs::reveal(
         rbar_region_number,
         rbar_region_start, 
-        rbar_valid_bit_set
+        rbar_valid_bit_set,
+        least_five_bits
     )]
     #[flux_rs::sig(fn (region_start: FluxPtrU8, region_num: usize, region_size: usize) -> FieldValueU32<RegionBaseAddress::Register>{rbar:
         rbar_region_number(rbar.value) == bv32(region_num) &&
