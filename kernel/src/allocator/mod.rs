@@ -460,29 +460,26 @@ impl AppMemoryAllocator {
         fn (
             mem_start: FluxPtrU8,
             mem_size: usize, 
-            min_size: usize, 
             app_mem_size: usize
         ) -> Result<{r. CortexMRegion[r] |
             r.set &&
             r.region_no == RAM_REGION_NUMBER &&
             r.astart >= mem_start &&
-            r.astart + r.asize >= r.astart + min_size &&
+            r.astart + r.asize >= r.astart + app_mem_size &&
             r.perms == mpu::Permissions { r: true, w: true, x: false }
          }, ()>
     )]
     fn get_ram_region(
         unallocated_memory_start: FluxPtrU8,
         unallocated_memory_size: usize,
-        min_memory_size: usize,
         initial_app_memory_size: usize,
     ) -> Result<CortexMRegion, ()> {
         // set our stack, data, and heap up
-        let ideal_region_size = flux_support::max_usize(min_memory_size, initial_app_memory_size);
         CortexMRegion::create_bounded_region(
             RAM_REGION_NUMBER,
             unallocated_memory_start,
             unallocated_memory_size,
-            ideal_region_size,
+            initial_app_memory_size,
             mpu::Permissions::ReadWriteOnly,
         )
         .ok_or(())
@@ -493,6 +490,7 @@ impl AppMemoryAllocator {
             ram_region: CortexMRegion,
             unallocated_memory_start: FluxPtrU8,
             unallocated_memory_size: usize,
+            min_memory_size: usize,
             initial_kernel_memory_size: usize,
             flash_start: FluxPtrU8,
             flash_size: usize,
@@ -503,6 +501,7 @@ impl AppMemoryAllocator {
                 b.flash_size == flash_size &&
                 b.memory_start >= unallocated_memory_start &&
                 b.memory_start + b.memory_size <= u32::MAX &&
+                b.memory_start + b.memory_size >= min_memory_size &&
                 b.memory_start > 0 &&
                 b.memory_size >= initial_kernel_memory_size
             }, ()>
@@ -517,6 +516,7 @@ impl AppMemoryAllocator {
         ram_region: CortexMRegion,
         unallocated_memory_start: FluxPtrU8,
         unallocated_memory_size: usize,
+        min_memory_size: usize,
         initial_kernel_memory_size: usize,
         flash_start: FluxPtrU8,
         flash_size: usize,
@@ -527,11 +527,14 @@ impl AppMemoryAllocator {
 
         // compute the total block size:
         // if the process block size is too big fail
-        if app_memory_size + initial_kernel_memory_size > (u32::MAX / 2 + 1) as usize {
+        if app_memory_size + initial_kernel_memory_size > (u32::MAX / 2 + 1) as usize 
+            || min_memory_size > (u32::MAX / 2 + 1) as usize 
+        {
             return Err(());
         }
         // make it a power of two to add some space between the app and the kernel regions of memory
         let mut total_block_size = app_memory_size + initial_kernel_memory_size;
+        total_block_size = flux_support::max_usize(min_memory_size, total_block_size);
         total_block_size = total_block_size.next_power_of_two();
 
         let block_end = memory_start.as_usize() + total_block_size;
@@ -604,7 +607,6 @@ impl AppMemoryAllocator {
         let ram_region = Self::get_ram_region(
             unallocated_memory_start,
             unallocated_memory_size,
-            min_memory_size,
             initial_app_memory_size,
         )
         .map_err(|_| AllocateAppMemoryError::HeapError)?;
@@ -617,6 +619,7 @@ impl AppMemoryAllocator {
             ram_region,
             unallocated_memory_start,
             unallocated_memory_size,
+            min_memory_size,
             initial_kernel_memory_size,
             flash_start,
             flash_size,
