@@ -1,0 +1,17 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2024.
+
+[package]
+name = "x86"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+kernel = { path = "../../kernel" }
+tock-cells = { path = "../../libraries/tock-cells" }
+tock-registers = { path = "../../libraries/tock-register-interface" }
+
+[lints]
+workspace = true
