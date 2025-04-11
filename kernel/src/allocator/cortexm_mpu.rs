@@ -49,19 +49,19 @@ impl usize {
 
 /* a bunch of theorems and proof code */
 
-#[flux_rs::trusted(reason = "math")]
-#[flux_rs::sig(fn (usize[@x], usize[@y]) requires aligned(x, y) ensures x >= y)]
+#[flux_rs::reveal(aligned)]
+#[flux_rs::sig(fn (usize[@x], usize[@y]) requires x > 0 && aligned(x, y) ensures x >= y)]
 fn theorem_aligned_ge(_x: usize, _y: usize) {}
 
-#[flux_rs::trusted(reason = "math")]
+#[flux_rs::reveal(aligned)]
 #[flux_rs::sig(fn (usize[@x], usize[@y]) requires x == 0 && y > 0 ensures aligned(x, y))]
 fn theorem_aligned0(_x: usize, _y: usize) {}
 
-#[flux_rs::trusted(reason = "math")]
+#[flux_rs::reveal(to_pow2)]
 #[flux_rs::sig(fn (x: usize) requires x > 0 && x < 32 ensures to_pow2(x) > 1)]
 fn theorem_to_pow2_gt1(x: usize) {}
 
-#[flux_rs::trusted(reason = "math")]
+#[flux_rs::reveal(pow2, to_pow2)]
 #[flux_rs::sig(fn (usize[@n]) requires n < 32 ensures pow2(to_pow2(n)))]
 fn theorem_to_pow2_is_pow2(_n: usize) {}
 
@@ -73,7 +73,7 @@ fn theorem_pow2_le_aligned(x: usize, y: usize, z: usize) {}
 #[flux_rs::sig(fn (r:usize) requires pow2(r) && r >= 8 ensures octet(r))]
 fn theorem_pow2_octet(_n: usize) {}
 
-#[flux_rs::trusted(reason = "math")]
+#[flux_rs::reveal(octet)]
 #[flux_rs::sig(fn (r:usize) requires octet(r) ensures 8 * (r / 8) == r)]
 fn theorem_div_octet(_n: usize) {}
 
