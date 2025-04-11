@@ -233,9 +233,8 @@ flux_rs::defs! {
 
 /* bunch of code */
 
-#[flux_rs::trusted(reason = "VR: SMT hanging - BRUH!")]
-#[flux_rs::reveal(aligned)]
-#[flux_rs::sig(fn (start: usize, size: usize) -> usize{r: r >= start && aligned(r, size)} requires size > 0)]
+#[flux_rs::trusted(reason = "solver hanging")]
+#[flux_rs::sig(fn (start: usize, size: usize) -> usize{r: r >= start && aligned(r, size)} requires size > 0 && start + size <= usize::MAX)]
 fn align(start: usize, size: usize) -> usize {
     start + size - (start % size)
 }
