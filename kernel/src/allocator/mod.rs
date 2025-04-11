@@ -478,17 +478,14 @@ impl AppMemoryAllocator {
     ) -> Result<CortexMRegion, ()> {
         // set our stack, data, and heap up
         let ideal_region_size = flux_support::max_usize(min_memory_size, initial_app_memory_size);
-        let ram_region = CortexMRegion::create_bounded_region(
+        CortexMRegion::create_bounded_region(
             RAM_REGION_NUMBER,
             unallocated_memory_start,
             unallocated_memory_size,
             ideal_region_size,
             mpu::Permissions::ReadWriteOnly,
         )
-        .ok_or(())?;
-        let region_size = ram_region.accessible_size().ok_or(())?;
-        crate::debug!("[EVAL] alloc_mem_diff {}", region_size - ideal_region_size);
-        Ok(ram_region)
+        .ok_or(())
     }
 
     #[flux_rs::sig(
@@ -658,8 +655,6 @@ impl AppMemoryAllocator {
             mpu::Permissions::ReadWriteOnly,
         )
         .ok_or(Error::OutOfMemory)?;
-        let region_size = new_region.accessible_size().ok_or(Error::KernelError)?;
-        crate::debug!("[EVAL] update_mem_diff {}", region_size - new_region_size);
 
         let new_app_break = new_region
             .accessible_start()

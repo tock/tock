@@ -912,9 +912,6 @@ impl CortexMRegion {
             + RegionBaseAddress::REGION().val(usize_to_u32(region_num))
     }
 
-    #[flux_rs::sig(fn (region_size:u32, size_value: u32) requires size_from_base2(bv32(size_value)) == bv32(region_size))]
-    fn theorem_size_value(region_size: u32, size_value: u32) {}
-
     #[flux_rs::reveal(
         subregions_enabled_bit_set,
         subregions_disabled_bit_set,
