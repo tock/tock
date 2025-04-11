@@ -6,6 +6,11 @@
 //! Implementation of the memory protection unit for the Cortex-M0+, Cortex-M3,
 //! Cortex-M4, and Cortex-M7
 
+
+// TICK: 
+// The trusted bits of code (importantly all the math theorems used in the proof of new)
+// have been formally verified in Lean here: https://github.com/PLSysSec/vtock-lean
+
 use core::cell::Cell;
 use core::cmp;
 use core::f32::MIN;
