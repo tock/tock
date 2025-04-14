@@ -18,6 +18,7 @@ def install_and_run_apps(serial_port, test_app_paths):
         folder_name = os.path.basename(os.path.normpath(test_app_path))
         
         # Extract package name from Makefile
+        print(test_app_path)
         path = os.path.join(libtockc_dir_abs, test_app_path)
 
         # Parse the Makefile to get PACKAGE_NAME
@@ -48,6 +49,7 @@ def install_and_run_apps(serial_port, test_app_paths):
                 # Read a line from the serial port
                 line = ser.readline().decode('utf-8').strip()
                 # Add the line to the output
+                print(line)
                 output.append(line)
                 # Check if TEST_LENGTH seconds have passed
                 if time.time() - start_time > TEST_LENGTH:
@@ -68,56 +70,64 @@ def install_and_run_apps(serial_port, test_app_paths):
 
 
 def run_tests(kernel_path, serial_port, tests_to_run):
-    output = {}
+    output = []
     abs_dir = os.path.abspath(kernel_path)
-    os.system(f"cd {abs_dir} && make install")
+    os.system(f"cd {abs_dir} && git fetch && git checkout memory-benchmarks && make install")
 
     for test in tests_to_run:
-        name = ",".join(test)
-        output[name] = install_and_run_apps(serial_port, test)
+        output += install_and_run_apps(serial_port, test)
         
     return output
 
 
-def compare_outputs(vtock_output, tock_output):
-    print("Comparing Outputs!")
-    print()
-    for test in vtock_output:
-        vtock_test_output = "\n".join(vtock_output[test]).strip()
-        tock_test_output = "\n".join(tock_output[test]).strip()
-        if vtock_test_output != tock_test_output:
-            print(f"Diff in {test}") 
-            print(f"VTock output:\n{vtock_test_output}")
-            print(f"Tock output:\n{tock_test_output}")
-            print()
-            print()
+def outputs_into_avgs(output_list):
+    average_hash_map = {}
+    for item in output_list:
+        # split by spaces
+        parts = item.split(" ")
+        if parts[0] == "[EVAL]":
+            try: 
+                fn_name = parts[1]
+                mem_diff = int(parts[2])
+            except:
+                # if the value is not an int, skip it
+                continue
+
+            # check if the function name is in the hash map
+            if fn_name not in average_hash_map:
+                average_hash_map[fn_name] = (1, mem_diff)
+            else:
+                # get the current count and sum of cycles
+                count, sum_mem_diff = average_hash_map[fn_name]
+
+                # increment the count
+                count += 1
+
+                # add the cycles to the sum
+                sum_mem_diff += mem_diff
+
+                # update the hash map
+                average_hash_map[fn_name] = (count, sum_mem_diff)
+
+    for key, (count, sum_mem_diff) in average_hash_map.items():
+        average_hash_map[key] = sum_mem_diff / count 
+
+    return average_hash_map
 
 
 TESTS_TO_RUN = [
-    ["examples/sensors"], 
-    ["examples/c_hello"],
-    ["examples/tests/printf_long"],
-    ["examples/tests/console/console_recv_short"],
-    ["examples/tests/console/console_recv_long"],
-    ["examples/tests/console/console_timeout"],
-    ["examples/blink"],
-    ["examples/rot13_client", "examples/rot13_service"],
-    ["examples/tests/malloc_test01"],
-    ["examples/tests/malloc_test02"],
-    ["examples/tests/stack_size_test01"],
-    ["examples/tests/stack_size_test02"],
-    ["examples/tests/mpu/mpu_stack_growth"],
-    ["examples/tests/mpu/mpu_walk_region"],
-    ["examples/tests/adc/adc"],
-    ["examples/tutorials/05_ipc/led", "examples/tutorials/05_ipc/rng", "examples/tutorials/05_ipc/logic"],
-    ["examples/ble_advertising"],
     ["vtock_brk_bench"]
 ]
 
 
+# Example usage
 if __name__ == "__main__":
     os.system(f"cd {LIBTOCKC_DIR} && git fetch && git checkout vtock-benchmarks")
     serial_port = "/dev/cu.usbmodem0010502398691"
     vtock_output = run_tests(INSTRUMENTED_VTOCK_DIR, serial_port, TESTS_TO_RUN)
     tock_output = run_tests(INSTRUMENTED_TOCK_DIR, serial_port, TESTS_TO_RUN)
-    compare_outputs(vtock_output, tock_output)
+    vtock_avgs = outputs_into_avgs(vtock_output)
+    tock_avgs = outputs_into_avgs(tock_output)
+    for fn_name, vtock_avg in vtock_avgs.items():
+        tock_avg = tock_avgs[fn_name]
+        print("[{}] VTock: {} | Baseline: {} | Difference: {} Bytes | Percent Difference {:.2f}%".format(fn_name, vtock_avg, tock_avg, vtock_avg - tock_avg, (vtock_avg - tock_avg) / tock_avg * 100)) 
