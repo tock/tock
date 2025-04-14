@@ -1117,7 +1117,6 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
 
     fn get_addresses(&self) -> Result<ProcessAddresses, ()> {
         self.app_memory_allocator.map_or(Err(()), |am| {
-            crate::debug!("The breaks in get addresses are: {:?}", am.breaks);
             Ok(ProcessAddresses {
                 flash_start: am.flash_start().as_usize(),
                 flash_non_protected_start: am
