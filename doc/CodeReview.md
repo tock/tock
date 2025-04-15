@@ -97,7 +97,11 @@ possible responses:
 
 Significant pull requests are relatively uncommon, however, they will generally
 require extensive discussion and several revisions from the pull request author
-or other contributors.
+or other contributors. Significant PRs are often discussed during working group
+meetings, with feedback captured in meeting notes and commonly summarized in a
+comment on the PR thread. While the goal is for all significant PRs to receive a
+full core team review, sometimes members are unavailable for extended periods,
+in which case a subset of the core team may elect to merge a significant PR.
 
 ### Upkeep pull requests
 
