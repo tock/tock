@@ -258,6 +258,25 @@ impl AppMemoryAllocator {
             && end <= self.breaks.flash_start.wrapping_add(self.breaks.flash_size)
     }
 
+    pub(crate) fn is_valid_upcall_function_pointer(&self, ptr: FluxPtrU8, size: usize) -> bool {
+        // It is okay if this function is in memory or flash.
+        let end = ptr.wrapping_add(size);
+        self.in_app_flash_memory(ptr, end) || self.in_app_ram_memory(ptr, end)
+    }
+
+    pub(crate) unsafe fn set_byte(&self, mut addr: FluxPtrU8Mut, value: u8) -> bool {
+        let end = addr.wrapping_add(1);
+        if self.in_app_ram_memory(addr, end) {
+            // We verify that this will only write process-accessible memory,
+            // but this can still be undefined behavior if something else holds
+            // a reference to this memory.
+            *addr = value;
+            true
+        } else {
+            false
+        }
+    }
+
     #[flux_rs::sig(fn (self: &strg Self, _, _) -> Result<(), ()> ensures self: Self)]
     pub(crate) fn add_shared_readonly_buffer(
         &mut self,

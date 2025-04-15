@@ -673,26 +673,6 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
                     Ok(app_mem.add_shared_readonly_buffer(buf_start_addr, size))
                 })
                 .map_err(|_| ErrorCode::INVAL)?;
-            //     if self
-            //     .in_app_owned_memory(buf_start_addr, size)
-            //     .map_err(|_| ErrorCode::FAIL)?
-            //     || self.in_app_flash_memory(buf_start_addr, size)
-            // {
-            //     // TODO: Check for buffer aliasing here
-
-            //     if self
-            //         .in_app_owned_memory(buf_start_addr, size)
-            //         .map_err(|_| ErrorCode::FAIL)?
-            //     {
-            //         // Valid buffer, and since this is in read-write memory (i.e.
-            //         // not flash), we need to adjust the process's watermark. Note:
-            //         // `in_app_owned_memory()` ensures this offset does not wrap.
-
-            //         self.breaks_and_config
-            //             .map_or(Err(ErrorCode::FAIL), |breaks_and_config| {
-            //                 Ok(breaks_and_config.set_high_water_mark_to_buf_end(buf_end_addr))
-            //             })?;
-            //     }
 
             // Clippy complains that we're dereferencing a pointer in a public
             // and safe function here. While we are not dereferencing the
@@ -717,16 +697,10 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
         }
     }
 
-    unsafe fn set_byte(&self, mut addr: FluxPtrU8Mut, value: u8) -> Result<bool, ()> {
-        if self.in_app_owned_memory(addr, 1)? {
-            // We verify that this will only write process-accessible memory,
-            // but this can still be undefined behavior if something else holds
-            // a reference to this memory.
-            *addr = value;
-            Ok(true)
-        } else {
-            Ok(false)
-        }
+    fn set_byte(&self, addr: FluxPtrU8Mut, value: u8) -> Result<bool, ()> {
+        self.app_memory_allocator.map_or(Err(()), |am| {
+            unsafe { Ok(am.set_byte(addr, value)) }
+        })
     }
 
     fn grant_is_allocated(&self, grant_num: usize) -> Option<bool> {
@@ -950,12 +924,9 @@ impl<C: Chip> Process for ProcessStandard<'_, C> {
     fn is_valid_upcall_function_pointer(&self, upcall_fn: NonNull<()>) -> Result<bool, ()> {
         let ptr = upcall_fn.as_fluxptr();
         let size = mem::size_of::<FluxPtrU8Mut>();
-
-        // It is okay if this function is in memory or flash.
-        Ok(
-            self.in_app_flash_memory(ptr, size).ok_or(())?
-                || self.in_app_owned_memory(ptr, size)?,
-        )
+        self.app_memory_allocator.map_or(Err(()), |am| {
+            Ok(am.is_valid_upcall_function_pointer(ptr, size))
+        })
     }
 
     fn get_process_name(&self) -> &'static str {
@@ -1870,31 +1841,6 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         }
     }
 
-    /// Checks if the buffer represented by the passed in base pointer and size
-    /// is within the RAM bounds currently exposed to the processes (i.e. ending
-    /// at `app_break`). If this method returns `true`, the buffer is guaranteed
-    /// to be accessible to the process and to not overlap with the grant
-    /// region.
-    fn in_app_owned_memory(&self, buf_start_addr: FluxPtrU8Mut, size: usize) -> Result<bool, ()> {
-        let buf_end_addr = buf_start_addr.wrapping_add(size);
-        self.app_memory_allocator.map_or(Err(()), |am| {
-            Ok(am.in_app_ram_memory(buf_start_addr, buf_end_addr))
-        })
-    }
-
-    /// Checks if the buffer represented by the passed in base pointer and size
-    /// are within the readable region of an application's flash memory.  If
-    /// this method returns true, the buffer is guaranteed to be readable to the
-    /// process.
-    fn in_app_flash_memory(&self, buf_start_addr: FluxPtrU8Mut, size: usize) -> Option<bool> {
-        let buf_end_addr = buf_start_addr.wrapping_add(size);
-        Some(
-            buf_end_addr >= buf_start_addr
-                && buf_start_addr >= self.flash_non_protected_start()?
-                && buf_end_addr <= self.flash_end()?,
-        )
-    }
-
     /// Reset all `grant_ptr`s to NULL.
     unsafe fn grant_ptrs_reset(&self) {
         self.grant_pointers.map(|grant_pointers| {
@@ -1947,19 +1893,6 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
     fn flash_start(&self) -> Option<FluxPtrU8Mut> {
         self.app_memory_allocator
             .map_or(None, |am| Some(am.flash_start()))
-    }
-
-    /// Get the first address of process's flash that isn't protected by the
-    /// kernel. The protected range of flash contains the TBF header and
-    /// potentially other state the kernel is storing on behalf of the process,
-    /// and cannot be edited by the process.
-    fn flash_non_protected_start(&self) -> Option<FluxPtrU8Mut> {
-        self.app_memory_allocator.map_or(None, |am| {
-            Some(
-                am.flash_start()
-                    .wrapping_add(self.header.get_protected_size() as usize),
-            )
-        })
     }
 
     /// The first address after the end of the flash region allocated for this

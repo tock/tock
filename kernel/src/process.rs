@@ -645,7 +645,7 @@ pub trait Process {
     /// accessible memory. However, to avoid undefined behavior the caller needs
     /// to ensure that no other references exist to the process's memory before
     /// calling this function.
-    unsafe fn set_byte(&self, addr: FluxPtrU8Mut, value: u8) -> Result<bool, ()>;
+    fn set_byte(&self, addr: FluxPtrU8Mut, value: u8) -> Result<bool, ()>;
 
     /// Return the permissions for this process for a given `driver_num`.
     ///
