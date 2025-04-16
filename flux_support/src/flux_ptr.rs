@@ -25,10 +25,10 @@ pub struct FluxPtr {
     inner: *mut u8,
 }
 
-#[flux_rs::trusted]
+#[flux_rs::trusted(reason = "flux wrappers")]
 impl From<usize> for FluxPtr {
     #[flux_rs::sig(fn (value: usize) -> FluxPtr[value])]
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     fn from(value: usize) -> Self {
         FluxPtr {
             inner: value as *mut u8,
@@ -38,7 +38,7 @@ impl From<usize> for FluxPtr {
 
 impl From<NonNull<u8>> for FluxPtr {
     #[flux_rs::sig(fn (value: NonNull<u8>) -> FluxPtr[value])]
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     fn from(value: NonNull<u8>) -> Self {
         FluxPtr {
             inner: value.as_ptr(),
@@ -46,7 +46,7 @@ impl From<NonNull<u8>> for FluxPtr {
     }
 }
 
-#[flux_rs::trusted]
+#[flux_rs::trusted(reason = "flux wrappers")]
 impl From<*mut u8> for FluxPtr {
     fn from(value: *mut u8) -> Self {
         FluxPtr {
@@ -55,7 +55,7 @@ impl From<*mut u8> for FluxPtr {
     }
 }
 
-#[flux_rs::trusted]
+#[flux_rs::trusted(reason = "flux wrappers")]
 impl From<FluxPtr> for NonNull<u8> {
     fn from(value: FluxPtr) -> NonNull<u8> {
         unsafe { NonNull::new_unchecked(value.inner) }
@@ -70,7 +70,7 @@ impl From<FluxPtr> for u32 {
 }
 
 // convert FluxPtr to *const u8
-#[flux_rs::trusted]
+#[flux_rs::trusted(reason = "flux wrappers")]
 impl From<FluxPtr> for u8 {
     fn from(ptr: FluxPtr) -> u8 {
         ptr.inner as u8
@@ -85,7 +85,7 @@ impl From<FluxPtr> for usize {
 }
 
 // Implement Rem trait for FluxPtr
-#[flux_rs::trusted]
+#[flux_rs::trusted(reason = "flux wrappers")]
 impl Rem<usize> for FluxPtr {
     type Output = usize;
 
@@ -95,7 +95,7 @@ impl Rem<usize> for FluxPtr {
 }
 
 // implement implement `AddAssign<usize>`` for FluxPtr
-#[flux_rs::trusted]
+#[flux_rs::trusted(reason = "flux wrappers")]
 impl core::ops::AddAssign<usize> for FluxPtr {
     fn add_assign(&mut self, rhs: usize) {
         *self = FluxPtr {
@@ -112,7 +112,7 @@ impl core::cmp::Ord for FluxPtr {
 
 // VTOCK-TODO: fill in these functions with obvious implementations
 impl FluxPtr {
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     #[sig(fn(self: Self[@lhs], rhs: usize) -> Self[if lhs + rhs <= usize::MAX { lhs + rhs } else { lhs + rhs - usize::MAX }])]
     pub const fn wrapping_add(self, count: usize) -> FluxPtr {
         Self {
@@ -120,7 +120,7 @@ impl FluxPtr {
         }
     }
 
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     #[sig(fn(self: Self[@lhs], rhs: usize) -> Self[if lhs >= rhs { lhs - rhs } else { - (lhs - rhs) }])]
     pub const fn wrapping_sub(self, count: usize) -> FluxPtr {
         Self {
@@ -128,25 +128,25 @@ impl FluxPtr {
         }
     }
 
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     #[sig(fn(self: Self[@n]) -> bool[n == 0] )]
     pub fn is_null(self) -> bool {
         self.inner.is_null()
     }
 
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     #[sig(fn(self: Self[@n]) -> usize[n])]
     pub fn as_usize(self) -> usize {
         self.inner as usize
     }
 
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     #[sig(fn(self: Self[@n]) -> u32[n])]
     pub fn as_u32(self) -> u32 {
         self.inner as u32
     }
 
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     #[sig(fn() -> Self[0])]
     pub const fn null() -> Self {
         Self {
@@ -154,7 +154,7 @@ impl FluxPtr {
         }
     }
 
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     #[sig(fn() -> Self[0])]
     pub const fn null_mut() -> Self {
         Self {
@@ -172,7 +172,7 @@ impl FluxPtr {
     /// # Safety
     /// the size of u8 is 1 so this is equivalent to self + count
     /// must not overflow the address space
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     #[flux_rs::sig(fn (Self[@s], { isize[@count] | s + count >= 0 && s + count <= usize::MAX }) -> Self[s + count])]
     pub const unsafe fn offset(self, count: isize) -> Self {
         Self {
@@ -180,7 +180,7 @@ impl FluxPtr {
         }
     }
 
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     pub const fn wrapping_offset(self, count: isize) -> Self {
         Self {
             inner: self.inner.wrapping_offset(count),
@@ -188,7 +188,7 @@ impl FluxPtr {
     }
 
     /// # Safety
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     #[flux_rs::sig(fn (Self[@s], { usize[@count] | s + count <= usize::MAX }) -> Self[s + count])]
     pub const unsafe fn add(self, count: usize) -> Self {
         Self {
@@ -196,46 +196,46 @@ impl FluxPtr {
         }
     }
 
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     pub fn unsafe_as_ptr(self) -> *mut u8 {
         self.inner
     }
 }
 
 impl PartialEq for FluxPtr {
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     #[flux_rs::sig(fn (&Self[@x], &Self[@y]) -> bool[x == y])]
     fn eq(&self, other: &Self) -> bool {
         self.inner == other.inner
     }
 }
 
-#[flux_rs::trusted]
+#[flux_rs::trusted(reason = "flux wrappers")]
 impl PartialOrd for FluxPtr {
     fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         Some(self.cmp(other))
     }
 
     // Provided methods
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     #[sig(fn(self: &Self[@lhs], other: &Self[@rhs]) -> bool[lhs < rhs])]
     fn lt(&self, other: &Self) -> bool {
         self.inner.lt(&other.inner)
     }
 
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     #[sig(fn(self: &Self[@lhs], other: &Self[@rhs]) -> bool[lhs <= rhs])]
     fn le(&self, other: &Self) -> bool {
         self.inner.le(&other.inner)
     }
 
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     #[sig(fn(self: &Self[@lhs], other: &Self[@rhs]) -> bool[lhs > rhs])]
     fn gt(&self, other: &Self) -> bool {
         self.inner.gt(&other.inner)
     }
 
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     #[sig(fn(self: &Self[@lhs], other: &Self[@rhs]) -> bool[lhs >= rhs])]
     fn ge(&self, other: &Self) -> bool {
         self.inner.ge(&other.inner)
@@ -277,14 +277,14 @@ impl FluxPtrExt for usize {
 impl Deref for FluxPtr {
     type Target = u8;
 
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     fn deref(&self) -> &Self::Target {
         unsafe { &*self.inner }
     }
 }
 
 impl DerefMut for FluxPtr {
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { &mut *self.inner }
     }
@@ -305,7 +305,7 @@ pub struct SlicesToRaw {
 }
 
 // TRUSTED: From Rust aliasing rules + the fact that we trust flash < ram in the address space
-#[flux_rs::trusted]
+#[flux_rs::trusted(reason = "flux wrappers")]
 #[flux_rs::sig(fn (&[u8][@l1], &mut [u8][@l2]) -> Pair<SlicesToRaw, SlicesToRaw>{p: flash_before_ram(p.fst, p.snd) })]
 pub fn mem_slices_to_raw_ptrs(flash: &[u8], ram: &mut [u8]) -> Pair<SlicesToRaw, SlicesToRaw> {
     Pair {
@@ -320,19 +320,19 @@ pub fn mem_slices_to_raw_ptrs(flash: &[u8], ram: &mut [u8]) -> Pair<SlicesToRaw,
     }
 }
 
-#[flux_rs::trusted]
+#[flux_rs::trusted(reason = "flux wrappers")]
 #[flux_rs::sig(fn (_, usize[@len]) -> &mut [T][len])]
 pub fn from_raw_parts_mut<'a, T>(data: *mut T, len: usize) -> &'a mut [T] {
     unsafe { core::slice::from_raw_parts_mut(data, len) }
 }
 
-#[flux_rs::trusted]
+#[flux_rs::trusted(reason = "flux wrappers")]
 #[flux_rs::sig(fn ({usize[@x] | x < isize::MAX}) -> isize[x])]
 pub fn usize_into_isize(x: usize) -> isize {
     x as isize
 }
 
-#[flux_rs::trusted]
+#[flux_rs::trusted(reason = "flux wrappers")]
 #[flux_rs::sig(fn ({isize[@x] | x >= 0}) -> usize[x])]
 pub fn isize_into_usize(x: isize) -> usize {
     x as usize

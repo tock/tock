@@ -1824,7 +1824,7 @@ impl<C: 'static + Chip> ProcessStandard<'_, C> {
         }))
     }
 
-    #[flux_rs::trusted] // https://github.com/flux-rs/flux/issues/782
+    #[flux_rs::trusted(reason = "unsafe assignment caused by extern spec: https://github.com/flux-rs/flux/issues/782")] 
     fn update_debug_sp(&self, stack_pointer: Option<FluxPtrU8>) {
         if let Some(sp) = stack_pointer {
             self.debug.map(|debug| {

@@ -22,7 +22,7 @@ pub struct FieldU32<R: RegisterLongName> {
 
 #[allow(dead_code)]
 impl<R: RegisterLongName> FieldU32<R> {
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     #[flux_rs::sig(fn(mask: u32, shift: usize) -> Self[bv32(mask), bv32(shift)])]
     pub const fn new(mask: u32, shift: usize) -> Self {
         Self {
@@ -34,7 +34,7 @@ impl<R: RegisterLongName> FieldU32<R> {
         mask: mask << shift,
         value: (value & mask) << shift,
     */
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     #[flux_rs::sig(fn(&Self[@mask, @shift], value: u32) -> FieldValueU32<R>[bv_shl(mask, shift), bv_shl(bv_and(bv32(value), mask), shift)])]
     pub fn val(&self, value: u32) -> FieldValueU32<R> {
         FieldValueU32 {
@@ -42,7 +42,7 @@ impl<R: RegisterLongName> FieldU32<R> {
         }
     }
 
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     pub fn into_inner(self) -> Field<u32, R> {
         self.inner
     }
@@ -56,7 +56,7 @@ pub struct FieldValueU32<R: RegisterLongName> {
 }
 
 impl<R: RegisterLongName> FieldValueU32<R> {
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     // mask << shift, value << shift
     #[flux_rs::sig(fn(u32[@mask], usize[@shift], u32[@value]) -> Self[bv_shl(bv32(mask), bv32(shift)), bv_shl(bv32(value), bv32(shift))])]
     pub const fn new(mask: u32, shift: usize, value: u32) -> Self {
@@ -66,7 +66,7 @@ impl<R: RegisterLongName> FieldValueU32<R> {
     }
 
     #[inline]
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     // (val & (mask << shift)) >> shift
     #[flux_rs::sig(fn(&Self[@mask, @val], FieldU32<R>[@_mask2, @shift]) -> u32[bv_bv32_to_int(bv_lshr(bv_and(val, bv_shl(mask, shift)), shift))])]
     pub fn read(&self, field: FieldU32<R>) -> u32 {
@@ -74,19 +74,19 @@ impl<R: RegisterLongName> FieldValueU32<R> {
     }
 
     #[inline]
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     #[flux_rs::sig(fn(self: &Self[@mask, @_value]) -> u32[bv_bv32_to_int(mask)])]
     pub fn mask(&self) -> u32 {
         self.inner.mask
     }
 
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     pub fn into_inner(self) -> FieldValue<u32, R> {
         self.inner
     }
 
     #[inline]
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     #[flux_rs::sig(fn(self: &Self[@_mask, @value]) -> u32[bv_bv32_to_int(value)])]
     pub fn value(&self) -> u32 {
         self.inner.value
@@ -98,7 +98,7 @@ impl<R: RegisterLongName> Add for FieldValueU32<R> {
     type Output = Self;
 
     #[inline]
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     #[flux_rs::sig(fn(Self[@mask0, @value0], Self[@mask1, @value1]) -> FieldValueU32<R>[bv_or(mask0, mask1), bv_or(value0, value1)])]
     fn add(self, rhs: Self) -> Self {
         FieldValueU32 {
@@ -112,7 +112,7 @@ impl<R: RegisterLongName> Add for FieldValueU32<R> {
 }
 
 impl<R: RegisterLongName> AddAssign for FieldValueU32<R> {
-    #[flux_rs::trusted]
+    #[flux_rs::trusted(reason = "flux wrappers")]
     #[flux_rs::sig(fn(self: &strg Self[@mask0, @value0], Self[@mask1, @value1]) ensures self: Self[bv_or(mask0, mask1), bv_or(value0, value1)])]
     fn add_assign(&mut self, other: Self) {
         self.inner += other.inner;
