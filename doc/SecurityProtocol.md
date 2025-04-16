@@ -2,23 +2,23 @@
 
 ## Overview
 
-This document outlines the internal process for handling security vulnerabilities in Tock. It establishes clear procedures for managing privately reported security issues, ensuring timely responses, clear communication, and efficient resolution.
+This document outlines internal procedures for handling security vulnerabilities in Tock.
 
 ## Roles and Responsibilities
 
 ### Triage Coordinator
 
-The Triage Coordinator (currently @charles37) is responsible for:
+The Triage Coordinator (currently @charles37) responsibilities:
 
-- Initial review of security reports within 48 hours (2 working days)
-- Proper categorization and assignment of vulnerabilities
-- Coordination of the response team
-- communication with stakeholders
-- Tracking progress and ensuring timely resolution
+- Initial review of security reports within 48 hours
+- Categorization and assignment of vulnerabilities
+- Coordination of response team
+- Communication with stakeholders
+- Tracking progress and ensuring resolution
 
 ### Security Response Team
 
-The Security Response Team consists of maintainers with expertise in different subsystems who can be called upon to address security vulnerabilities.
+Consists of subsystem maintainers called upon to address vulnerabilities.
 
 ## Subsystem Contacts
 
@@ -32,66 +32,68 @@ The Security Response Team consists of maintainers with expertise in different s
 | libtock-rs | TBD             | TBD               |
 | Hardware   | TBD             | TBD               |
 | Build      | TBD             | TBD               |
+| ARM        | @ppannuto       | TBD               |
+| RISC-V     | @ lschuermann   | TBD               |
 
 ## Vulnerability Handling Process
 
 ### 1. Reception and Initial Assessment (0-48 hours)
 
-1. Critical security vulnerabilities are received via security@lists.tockos.org, Less critical security vulnerabilities are received via the [Report a vulnerability](https://github.com/tock/tock/security/advisories/new) tab on GitHub
-2. The Triage Coordinator acknowledges receipt
-3. Initial assessment is performed to validate the report and determine:
+1. All security vulnerabilities received via security@lists.tockos.org
+2. Acknowledge receipt
+3. Initial assessment:
    - Severity (Critical, High, Medium, Low)
    - Affected components
    - Priority (P0, P1, P2, P3)
-4. Create a private GitHub Security Advisory if the report is valid
+4. Create private GitHub Security Advisory if valid
 
 ### 2. Assignment and Response Planning (48-72 hours)
 
-1. Assign the vulnerability to appropriate subsystem maintainers via the chart below
-2. Establish a communication channel for the response team if deemed serious enough.
-3. Define a timeline for resolution based on severity:
-   - Critical (P0): Target resolution within 7 days
-   - High (P1): Target resolution within 14 days
-   - Medium (P2): Target resolution within 30 days
-   - Low (P3): Target resolution within 60 days
-4. Notify relevant stakeholders while maintaining confidentiality
+1. Assign vulnerability to subsystem maintainers
+2. Establish response team channel if serious
+3. Define resolution timeline by severity:
+   - Critical (P0): 7 days
+   - High (P1): 14 days
+   - Medium (P2): 30 days
+   - Low (P3): 60 days
+4. Notify stakeholders confidentially
 
-### 3. Remediation Development (Timeline based on severity)
+### 3. Remediation Development
 
-1. Develop and test fixes in a private branch
-2. Conduct thorough code reviews
-3. Validate that the fix resolves the vulnerability without introducing new issues
-4. Document the vulnerability and fix in detail for internal tracking
-5. Prepare release notes for eventual disclosure
+- Develop and test fixes privately
+- Conduct thorough code reviews
+- Validate fix without new issues
+- Document vulnerability internally
+- Prepare disclosure notes
 
 ### 4. Public Disclosure Preparation
 
-1. Determine an appropriate disclosure date (considering fix readiness and user impact)
-2. Request a CVE identifier through GitHub Security Advisories
-3. Prepare a comprehensive security advisory including:
-   - Detailed description of the vulnerability
-   - Affected versions
-   - Mitigation measures
-   - Upgrade instructions
-   - Acknowledgment of the reporter
-4. Prepare patched release
+- Determine disclosure date
+- Request CVE identifier
+- Prepare comprehensive advisory:
+  - Detailed description
+  - Affected versions
+  - Mitigation measures
+  - Upgrade instructions
+  - Reporter acknowledgment
+- Prepare patched release
 
 ### 5. Release and Disclosure
 
-1. Merge the fix to the main branch
-2. Release patched versions according to the release process
-3. Publish the GitHub Security Advisory
-4. Send notifications to:
-   - The Tock security mailing list
-   - The reporter of the vulnerability
-   - Any other necessary stakeholders
-5. Update public documentation if necessary
+- Merge fix to main branch
+- Release patched version
+- Publish advisory
+- Notify:
+  - Public security-announce mailing list
+  - Reporter
+  - Stakeholders
+- Update public documentation
 
 ### 6. Post-Disclosure Activities
 
-1. Monitor for any issues with the fix
-2. Conduct a retrospective to improve the security response process
-3. Update this document with any lessons learned
+- Monitor fix issues
+- Conduct retrospective
+- Update documentation
 
 ## Communication Templates
 
