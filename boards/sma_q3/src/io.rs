@@ -43,7 +43,6 @@ impl IoWrite for Writer {
 }
 
 #[cfg(not(test))]
-#[no_mangle]
 #[panic_handler]
 /// Panic handler
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {

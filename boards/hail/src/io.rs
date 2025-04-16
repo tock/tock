@@ -56,7 +56,6 @@ impl IoWrite for Writer {
 
 /// Panic handler.
 #[cfg(not(test))]
-#[no_mangle]
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     // turn off the non panic leds, just in case
