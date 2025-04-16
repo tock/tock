@@ -50,7 +50,6 @@ impl Write for Writer<'_> {
     }
 }
 
-#[no_mangle]
 #[panic_handler]
 unsafe fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
     let ccm = crate::imxrt1060::ccm::Ccm::new();

@@ -61,7 +61,6 @@ impl IoWrite for Writer {
 const LED2_R_PIN: Pin = Pin::P0_13;
 
 #[cfg(not(test))]
-#[no_mangle]
 #[panic_handler]
 /// Panic handler
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {

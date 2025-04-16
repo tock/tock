@@ -41,7 +41,6 @@ impl IoWrite for Writer {
 /// # Safety
 /// Accesses memory-mapped registers.
 #[cfg(not(test))]
-#[no_mangle]
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let writer = &mut *addr_of_mut!(WRITER);

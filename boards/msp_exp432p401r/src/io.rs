@@ -38,7 +38,6 @@ impl IoWrite for Uart {
 }
 
 /// Panic handler
-#[no_mangle]
 #[panic_handler]
 pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
     const LED1_PIN: IntPinNr = IntPinNr::P01_0;
