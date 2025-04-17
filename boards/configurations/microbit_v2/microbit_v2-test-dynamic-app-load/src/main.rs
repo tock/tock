@@ -90,7 +90,11 @@ type TemperatureDriver =
 type RngDriver = components::rng::RngComponentType<nrf52833::trng::Trng<'static>>;
 type Ieee802154RawDriver =
     components::ieee802154::Ieee802154RawComponentType<nrf52833::ieee802154_radio::Radio<'static>>;
-
+type DynamicBinaryStorage<'a> = kernel::dynamic_binary_storage::SequentialDynamicBinaryStorage<
+    'static,
+    nrf52833::chip::NRF52<'a, Nrf52833DefaultPeripherals<'a>>,
+    kernel::process::ProcessStandardDebugFull,
+>;
 /// Supported drivers by the platform
 pub struct MicroBit {
     ble_radio: &'static capsules_extra::ble_advertising_driver::BLE<
@@ -148,7 +152,10 @@ pub struct MicroBit {
     pwm: &'static capsules_extra::pwm::Pwm<'static, 1>,
     app_flash: &'static capsules_extra::app_flash_driver::AppFlash<'static>,
     sound_pressure: &'static capsules_extra::sound_pressure::SoundPressureSensor<'static>,
-    dynamic_app_loader: &'static capsules_extra::app_loader::AppLoader<'static>,
+    dynamic_app_loader: &'static capsules_extra::app_loader::AppLoader<
+        DynamicBinaryStorage<'static>,
+        DynamicBinaryStorage<'static>,
+    >,
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
@@ -796,7 +803,10 @@ unsafe fn start() -> (
         dynamic_binary_storage,
         dynamic_binary_storage,
     )
-    .finalize(components::app_loader_component_static!());
+    .finalize(components::app_loader_component_static!(
+        DynamicBinaryStorage<'static>,
+        DynamicBinaryStorage<'static>,
+    ));
 
     //--------------------------------------------------------------------------
     // FINAL SETUP AND BOARD BOOT

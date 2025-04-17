@@ -55,7 +55,7 @@ struct ProcessLoadMetadata {
 pub trait DynamicBinaryStore {
     /// Call to request flashing a new binary.
     ///
-    /// This informs the kernel we want to load a process and the  of the
+    /// This informs the kernel we want to load a process, and the size of the
     /// entire process binary. The kernel will try to find a suitable location
     /// in flash to store said process.
     ///
@@ -102,7 +102,7 @@ pub trait DynamicBinaryStoreClient {
     /// The provided app binary buffer has been stored.
     fn write_done(&self, result: Result<(), ErrorCode>, buffer: &'static mut [u8], length: usize);
 
-    /// The kernel has finished writing a prepad app if necessary and is ready
+    /// The kernel has successfully finished finalizing the new app and is ready
     /// to move to the `load()` phase.
     fn finalize_done(&self, result: Result<(), ErrorCode>);
 
@@ -188,11 +188,9 @@ impl<'a, C: Chip + 'static, D: ProcessStandardDebug + 'static>
                 // Check if there is an overflow while adding length and offset.
                 match offset.checked_add(length) {
                     Some(result) => {
-                        // Check if the length of the new write block goes over
-                        // the total size alloted to the new application. We
-                        // also check if the new app is trying to write beyond
+                        // Check if the new app is trying to write beyond
                         // the bounds of the flash region allocated to it.
-                        if length > new_app_len || result > new_app_len {
+                        if result > new_app_len {
                             // This means the app is out of bounds.
                             Err(ErrorCode::INVAL)
                         } else {

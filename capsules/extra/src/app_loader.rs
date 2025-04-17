@@ -42,14 +42,25 @@
 //! ```rust, ignore
 //! # use kernel::static_init;
 //!
+//! type DynamicBinaryStorage<'a> = kernel::dynamic_binary_storage::SequentialDynamicBinaryStorage<
+//! 'static,
+//! nrf52840::chip::NRF52<'a, Nrf52840DefaultPeripherals<'a>>,
+//! kernel::process::ProcessStandardDebugFull,
+//! >;
+//!
 //! let dynamic_app_loader = components::app_loader::AppLoaderComponent::new(
 //!     board_kernel,
 //!     capsules_extra::app_loader::DRIVER_NUM,
 //!     dynamic_binary_storage,
 //!     dynamic_binary_storage,
-//!     ).finalize(components::app_loader_component_static!());
+//!     ).finalize(components::app_loader_component_static!(
+//!     DynamicBinaryStorage<'static>,
+//!     DynamicBinaryStorage<'static>,
+//!     ));
 //!
-//! NOTE: This implementation currently only loads new apps. It does not update apps. That remains to be tested.
+//! NOTE:
+//! 1. This capsule is not virtualized, and can only serve one app at a time.
+//! 2. This implementation currently only loads new apps. It does not update apps.
 //! ```
 
 use core::cell::Cell;
@@ -100,10 +111,13 @@ pub struct App {
     pending_command: bool,
 }
 
-pub struct AppLoader<'a> {
+pub struct AppLoader<
+    S: dynamic_binary_storage::DynamicBinaryStore + 'static,
+    L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+> {
     // The underlying driver for the process flashing and loading.
-    storage_driver: &'a dyn dynamic_binary_storage::DynamicBinaryStore,
-    load_driver: &'a dyn dynamic_binary_storage::DynamicProcessLoad,
+    storage_driver: &'static S,
+    load_driver: &'static L,
     // Per-app state.
     apps: Grant<
         App,
@@ -119,7 +133,11 @@ pub struct AppLoader<'a> {
     new_app_length: Cell<usize>,
 }
 
-impl<'a> AppLoader<'a> {
+impl<
+        S: dynamic_binary_storage::DynamicBinaryStore + 'static,
+        L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+    > AppLoader<S, L>
+{
     pub fn new(
         grant: Grant<
             App,
@@ -127,10 +145,10 @@ impl<'a> AppLoader<'a> {
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<0>,
         >,
-        storage_driver: &'a dyn dynamic_binary_storage::DynamicBinaryStore,
-        load_driver: &'a dyn dynamic_binary_storage::DynamicProcessLoad,
+        storage_driver: &'static S,
+        load_driver: &'static L,
         buffer: &'static mut [u8],
-    ) -> AppLoader<'a> {
+    ) -> AppLoader<S, L> {
         AppLoader {
             apps: grant,
             storage_driver,
@@ -148,7 +166,7 @@ impl<'a> AppLoader<'a> {
         // is offset in the physical memory.
         match offset.checked_add(length) {
             Some(result) => {
-                if length > self.new_app_length.get() || result > self.new_app_length.get() {
+                if result > self.new_app_length.get() {
                     // this means the app is out of bounds
                     return Err(ErrorCode::INVAL);
                 }
@@ -157,39 +175,44 @@ impl<'a> AppLoader<'a> {
                 return Err(ErrorCode::INVAL);
             }
         }
+
         self.apps
             .enter(processid, |_app, kernel_data| {
-                // Get the length of the correct allowed buffer.
-                let allow_buf_len = kernel_data
-                    .get_readonly_processbuffer(ro_allow::WRITE)
-                    .map_or(0, |read| read.len());
+                let mut active_len = 0;
 
-                // Check that it exists.
-                if allow_buf_len == 0 || self.buffer.is_none() {
-                    return Err(ErrorCode::RESERVE);
-                }
-
-                // Shorten the length if the application did not give us
-                // enough bytes in the allowed buffer.
-                let active_len = cmp::min(length, allow_buf_len);
-
-                // copy data into the kernel buffer!
-                let _ = kernel_data
+                let result = kernel_data
                     .get_readonly_processbuffer(ro_allow::WRITE)
                     .and_then(|write| {
                         write.enter(|app_buffer| {
-                            self.buffer.map(|kernel_buffer| {
-                                // Check that the internal buffer and the buffer that was
-                                // allowed are long enough.
-                                let write_len = cmp::min(active_len, kernel_buffer.len());
+                            self.buffer
+                                .map(|kernel_buffer| {
+                                    // Get the length of the allowed buffer
+                                    let allow_buf_len = app_buffer.len();
 
-                                let buf_data = &app_buffer[0..write_len];
-                                for (i, c) in kernel_buffer[0..write_len].iter_mut().enumerate() {
-                                    *c = buf_data[i].get();
-                                }
-                            });
+                                    // Check that the buffer length is not zero
+                                    if allow_buf_len == 0 {
+                                        return Err(ErrorCode::RESERVE);
+                                    }
+
+                                    // Shorten the length if the application did not give us
+                                    // enough bytes in the allowed buffer.
+                                    active_len = cmp::min(length, allow_buf_len);
+
+                                    // copy data into the kernel buffer!
+                                    let write_len = cmp::min(active_len, kernel_buffer.len());
+                                    let () = app_buffer[..write_len]
+                                        .copy_to_slice(&mut kernel_buffer[..write_len]);
+
+                                    Ok(())
+                                })
+                                .unwrap_or(Err(ErrorCode::RESERVE))
                         })
                     });
+
+                if result.is_err() {
+                    return Err(ErrorCode::RESERVE);
+                }
+
                 self.buffer
                     .take()
                     .map_or(Err(ErrorCode::RESERVE), |buffer| {
@@ -208,7 +231,11 @@ impl<'a> AppLoader<'a> {
     }
 }
 
-impl kernel::dynamic_binary_storage::DynamicBinaryStoreClient for AppLoader<'_> {
+impl<
+        S: dynamic_binary_storage::DynamicBinaryStore + 'static,
+        L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+    > dynamic_binary_storage::DynamicBinaryStoreClient for AppLoader<S, L>
+{
     /// Let the requesting app know we are done setting up for the new app
     fn setup_done(&self, result: Result<(), ErrorCode>) {
         // Switch on which user of this capsule generated this callback.
@@ -240,6 +267,7 @@ impl kernel::dynamic_binary_storage::DynamicBinaryStoreClient for AppLoader<'_> 
         });
     }
 
+    /// Let the app know we are done finalizing, and are ready to load
     fn finalize_done(&self, result: Result<(), ErrorCode>) {
         self.current_process.map(|processid| {
             let _ = self.apps.enter(processid, move |app, kernel_data| {
@@ -254,6 +282,7 @@ impl kernel::dynamic_binary_storage::DynamicBinaryStoreClient for AppLoader<'_> 
         });
     }
 
+    /// Let the app know we have aborted the new app writing process
     fn abort_done(&self, result: Result<(), ErrorCode>) {
         self.current_process.map(|processid| {
             let _ = self.apps.enter(processid, move |app, kernel_data| {
@@ -269,22 +298,38 @@ impl kernel::dynamic_binary_storage::DynamicBinaryStoreClient for AppLoader<'_> 
     }
 }
 
-impl kernel::dynamic_binary_storage::DynamicProcessLoadClient for AppLoader<'_> {
+impl<
+        S: dynamic_binary_storage::DynamicBinaryStore + 'static,
+        L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+    > dynamic_binary_storage::DynamicProcessLoadClient for AppLoader<S, L>
+{
     /// Let the requesting app know we are done loading the new process
+    ///
+    /// Error Type Mapping.
+    ///
+    /// This method converts `ProcessLoadError` to `ErrorCode` so it can be
+    /// passed to userspace.
+    ///
+    /// Currently,
+    /// 1. ProcessLoadError::NotEnoughMemory       <==> ErrorCode::NOMEM
+    /// 2. ProcessLoadError::MpuInvalidFlashLength <==> ErrorCode::INVAL
+    /// 3. ProcessLoadError::InternalError         <==> ErrorCode::OFF
+    /// 4. All other ProcessLoadError types        <==> ErrorCode::FAIL
+
     fn load_done(&self, result: Result<(), ProcessLoadError>) {
         let status_code = match result {
-            Ok(()) => 0,
+            Ok(()) => Ok(()),
             Err(e) => match e {
-                ProcessLoadError::NotEnoughMemory => 9,
-                ProcessLoadError::MpuInvalidFlashLength => 6,
-                ProcessLoadError::MpuConfigurationError => 1,
-                ProcessLoadError::MemoryAddressMismatch { .. } => 1,
-                ProcessLoadError::NoProcessSlot => 1,
-                ProcessLoadError::BinaryError(_) => 1,
-                ProcessLoadError::CheckError(_) => 1,
+                ProcessLoadError::NotEnoughMemory => Err(ErrorCode::NOMEM),
+                ProcessLoadError::MpuInvalidFlashLength => Err(ErrorCode::INVAL),
+                ProcessLoadError::MpuConfigurationError => Err(ErrorCode::FAIL),
+                ProcessLoadError::MemoryAddressMismatch { .. } => Err(ErrorCode::FAIL),
+                ProcessLoadError::NoProcessSlot => Err(ErrorCode::FAIL),
+                ProcessLoadError::BinaryError(_) => Err(ErrorCode::FAIL),
+                ProcessLoadError::CheckError(_) => Err(ErrorCode::FAIL),
                 // This error is usually a result of bug in the kernel
                 // so we return Powered OFF error, because that is unlikely.
-                ProcessLoadError::InternalError => 4,
+                ProcessLoadError::InternalError => Err(ErrorCode::OFF),
             },
         };
 
@@ -294,7 +339,7 @@ impl kernel::dynamic_binary_storage::DynamicProcessLoadClient for AppLoader<'_> 
                 // Signal the app.
                 self.current_process.take();
                 kernel_data
-                    .schedule_upcall(upcall::LOAD_DONE, (status_code, 0, 0))
+                    .schedule_upcall(upcall::LOAD_DONE, (into_statuscode(status_code), 0, 0))
                     .ok();
             });
         });
@@ -302,7 +347,11 @@ impl kernel::dynamic_binary_storage::DynamicProcessLoadClient for AppLoader<'_> 
 }
 
 /// Provide an interface for userland.
-impl SyscallDriver for AppLoader<'_> {
+impl<
+        S: dynamic_binary_storage::DynamicBinaryStore + 'static,
+        L: dynamic_binary_storage::DynamicProcessLoad + 'static,
+    > SyscallDriver for AppLoader<S, L>
+{
     /// Command interface.
     ///
     /// The driver returns ErrorCode::BUSY if:
@@ -334,7 +383,6 @@ impl SyscallDriver for AppLoader<'_> {
     ///        - Returns Ok(()) when the process is successfully loaded
     ///        - Returns ErrorCode::FAIL if:
     ///            - The kernel is unable to create a process object for the application
-    ///            - The kernel fails to write a padding app (thereby potentially breaking the linkedlist)
     /// - `5`: Request kernel to abort setup/write operation.
     ///        - Returns Ok(()) when the operation is cancelled successfully
     ///        - Returns ErrorCode::BUSY when the abort fails
@@ -376,7 +424,12 @@ impl SyscallDriver for AppLoader<'_> {
         }
 
         match command_num {
-            0 => CommandReturn::success(),
+            0 => {
+                // Remove ownership from the current process so
+                // other processes can discover this driver
+                self.current_process.take();
+                CommandReturn::success()
+            }
 
             1 => {
                 // Request kernel to allocate resources for

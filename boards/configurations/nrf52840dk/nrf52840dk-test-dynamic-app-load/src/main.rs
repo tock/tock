@@ -71,6 +71,12 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 type AlarmDriver = components::alarm::AlarmDriverComponentType<nrf52840::rtc::Rtc<'static>>;
 
+type DynamicBinaryStorage<'a> = kernel::dynamic_binary_storage::SequentialDynamicBinaryStorage<
+    'static,
+    nrf52840::chip::NRF52<'a, Nrf52840DefaultPeripherals<'a>>,
+    kernel::process::ProcessStandardDebugFull,
+>;
+
 /// Supported drivers by the platform
 pub struct Platform {
     console: &'static capsules_core::console::Console<'static>,
@@ -85,7 +91,10 @@ pub struct Platform {
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
     processes: &'static [Option<&'static dyn kernel::process::Process>],
-    dynamic_app_loader: &'static capsules_extra::app_loader::AppLoader<'static>,
+    dynamic_app_loader: &'static capsules_extra::app_loader::AppLoader<
+        DynamicBinaryStorage<'static>,
+        DynamicBinaryStorage<'static>,
+    >,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -433,7 +442,10 @@ pub unsafe fn main() {
         dynamic_binary_storage,
         dynamic_binary_storage,
     )
-    .finalize(components::app_loader_component_static!());
+    .finalize(components::app_loader_component_static!(
+        DynamicBinaryStorage<'static>,
+        DynamicBinaryStorage<'static>,
+    ));
 
     //--------------------------------------------------------------------------
     // PLATFORM SETUP, SCHEDULER, AND START KERNEL LOOP
