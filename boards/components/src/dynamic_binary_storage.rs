@@ -31,6 +31,8 @@ use kernel::platform::chip::Chip;
 use kernel::process::ProcessStandardDebug;
 use kernel::process::SequentialProcessLoaderMachine;
 
+pub type NVPages<F> = capsules_extra::nonvolatile_to_pages::NonvolatileToPages<'static, F>;
+
 // Setup static space for the objects.
 #[macro_export]
 macro_rules! sequential_binary_storage_component_static {
@@ -40,7 +42,13 @@ macro_rules! sequential_binary_storage_component_static {
             capsules_extra::nonvolatile_to_pages::NonvolatileToPages<'static, $F>
         );
         let pl = kernel::static_buf!(
-            kernel::dynamic_binary_storage::SequentialDynamicBinaryStorage<'static, $C, $D>
+            kernel::dynamic_binary_storage::SequentialDynamicBinaryStorage<
+                'static,
+                'static,
+                $C,
+                $D,
+                capsules_extra::nonvolatile_to_pages::NonvolatileToPages<'static, $F>,
+            >
         );
         let buffer = kernel::static_buf!([u8; kernel::dynamic_binary_storage::BUF_LEN]);
 
@@ -87,10 +95,18 @@ impl<
     type StaticInput = (
         &'static mut MaybeUninit<<F as hil::flash::Flash>::Page>,
         &'static mut MaybeUninit<NonvolatileToPages<'static, F>>,
-        &'static mut MaybeUninit<SequentialDynamicBinaryStorage<'static, C, D>>,
+        &'static mut MaybeUninit<
+            SequentialDynamicBinaryStorage<'static, 'static, C, D, NonvolatileToPages<'static, F>>,
+        >,
         &'static mut MaybeUninit<[u8; kernel::dynamic_binary_storage::BUF_LEN]>,
     );
-    type Output = &'static SequentialDynamicBinaryStorage<'static, C, D>;
+    type Output = &'static SequentialDynamicBinaryStorage<
+        'static,
+        'static,
+        C,
+        D,
+        NonvolatileToPages<'static, F>,
+    >;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let buffer = static_buffer

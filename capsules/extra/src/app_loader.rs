@@ -42,10 +42,12 @@
 //! ```rust, ignore
 //! # use kernel::static_init;
 //!
+//! type NonVolatilePages = components::dynamic_binary_storage::NVPages<nrf52840::nvmc::Nvmc>;
 //! type DynamicBinaryStorage<'a> = kernel::dynamic_binary_storage::SequentialDynamicBinaryStorage<
 //! 'static,
 //! nrf52840::chip::NRF52<'a, Nrf52840DefaultPeripherals<'a>>,
 //! kernel::process::ProcessStandardDebugFull,
+//! NonVolatilePages,
 //! >;
 //!
 //! let dynamic_app_loader = components::app_loader::AppLoaderComponent::new(

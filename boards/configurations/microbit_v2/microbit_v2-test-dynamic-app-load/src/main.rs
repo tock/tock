@@ -90,10 +90,13 @@ type TemperatureDriver =
 type RngDriver = components::rng::RngComponentType<nrf52833::trng::Trng<'static>>;
 type Ieee802154RawDriver =
     components::ieee802154::Ieee802154RawComponentType<nrf52833::ieee802154_radio::Radio<'static>>;
+type NonVolatilePages = components::dynamic_binary_storage::NVPages<nrf52833::nvmc::Nvmc>;
 type DynamicBinaryStorage<'a> = kernel::dynamic_binary_storage::SequentialDynamicBinaryStorage<
+    'static,
     'static,
     nrf52833::chip::NRF52<'a, Nrf52833DefaultPeripherals<'a>>,
     kernel::process::ProcessStandardDebugFull,
+    NonVolatilePages,
 >;
 /// Supported drivers by the platform
 pub struct MicroBit {

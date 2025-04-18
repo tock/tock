@@ -71,10 +71,13 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 type AlarmDriver = components::alarm::AlarmDriverComponentType<nrf52840::rtc::Rtc<'static>>;
 
+type NonVolatilePages = components::dynamic_binary_storage::NVPages<nrf52840::nvmc::Nvmc>;
 type DynamicBinaryStorage<'a> = kernel::dynamic_binary_storage::SequentialDynamicBinaryStorage<
+    'static,
     'static,
     nrf52840::chip::NRF52<'a, Nrf52840DefaultPeripherals<'a>>,
     kernel::process::ProcessStandardDebugFull,
+    NonVolatilePages,
 >;
 
 /// Supported drivers by the platform
