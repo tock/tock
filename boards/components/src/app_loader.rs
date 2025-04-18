@@ -4,20 +4,31 @@
 
 //! Component for Dynamic App Loading Drivers.
 //!
-//! This provides one component, NonvolatileStorageComponent, which provides
-//! a system call interface to non-volatile storage.
+//! This provides one component, AppLoaderComponent, which provides
+//! a system call interface to the dynamic app loading capsule.
 //!
 //! Example instantiation:
 //!
 //! ```rust
 //! # use kernel::static_init;
 //!
+//! type NonVolatilePages = components::dynamic_binary_storage::NVPages<nrf52840::nvmc::Nvmc>;
+//! type DynamicBinaryStorage<'a> = kernel::dynamic_binary_storage::SequentialDynamicBinaryStorage<
+//! 'static,
+//! nrf52840::chip::NRF52<'a, Nrf52840DefaultPeripherals<'a>>,
+//! kernel::process::ProcessStandardDebugFull,
+//! NonVolatilePages,
+//! >;
+//!
 //! let dynamic_app_loader = components::app_loader::AppLoaderComponent::new(
 //!     board_kernel,
 //!     capsules_extra::app_loader::DRIVER_NUM,
 //!     dynamic_binary_storage,
 //!     dynamic_binary_storage,
-//!     ).finalize(components::app_loader_component_static!());
+//!     ).finalize(components::app_loader_component_static!(
+//!     DynamicBinaryStorage<'static>,
+//!     DynamicBinaryStorage<'static>,
+//!     ));
 //! ```
 
 use capsules_extra::app_loader::AppLoader;
