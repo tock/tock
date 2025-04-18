@@ -120,7 +120,7 @@ These provide common and better abstractions for userspace.
 - **[App Flash](src/app_flash_driver.rs)**: Allow applications to write their
   own flash.
 - **[App Loader](src/app_loader.rs)**: Allow applications to request to 
-install and load new applications.
+  install and load new applications.
 - **[Buzzer](src/buzzer_driver.rs)**: Simple buzzer.
 - **[Servo](src/servo.rs)**: Servo motor.
 - **[Date-Time](src/date_time.rs)**: Real time clock date/time support.
