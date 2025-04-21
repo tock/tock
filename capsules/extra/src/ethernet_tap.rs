@@ -141,7 +141,7 @@
 //! ## Read-write allow type system calls:
 //!
 //! - **Read-write allow buffer `0`**: Allow a [`StreamingProcessSlice`] for
-//!    received frames to be written by the driver.
+//!   received frames to be written by the driver.
 //!
 //! - **Read-write allow buffer `1`**: Allow a buffer for transmitted frame
 //!   metadata to be written by the driver.
