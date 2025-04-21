@@ -369,27 +369,27 @@ impl<
     ///
     /// - `0`: Return Ok(()) if this driver is included on the platform.
     /// - `1`: Request kernel to setup for loading app.
-    ///        - Returns appsize if the kernel has available space
-    ///        - Returns ErrorCode::FAIL if the kernel is unable to allocate space for the new app
+    ///  - Returns appsize if the kernel has available space
+    ///  - Returns ErrorCode::FAIL if the kernel is unable to allocate space for the new app
     /// - `2`: Request kernel to write app data to the nonvolatile_storage
-    ///        - Returns Ok(()) when write is successful
-    ///        - Returns ErrorCode::INVAL when the app is violating bounds
-    ///        - Returns ErrorCode::FAIL when the write fails
+    ///  - Returns Ok(()) when write is successful
+    ///  - Returns ErrorCode::INVAL when the app is violating bounds
+    ///  - Returns ErrorCode::FAIL when the write fails
     /// - `3`: Signal to the kernel that the writing is done.
-    ///        - Returns Ok(()) if the kernel successfully verified it and
-    ///          set the stage for `load()`.
-    ///        - Returns ErrorCode::FAIL if:
-    ///          - The kernel needs to write a leading padding app but is unable to.
-    ///          - The command is called during setup or load phases.
+    ///  - Returns Ok(()) if the kernel successfully verified it and
+    ///  set the stage for `load()`.
+    ///  - Returns ErrorCode::FAIL if:
+    ///  a. The kernel needs to write a leading padding app but is unable to.
+    ///  b. The command is called during setup or load phases.
     /// - `4`: Request kernel to load app.
-    ///        - Returns Ok(()) when the process is successfully loaded
-    ///        - Returns ErrorCode::FAIL if:
-    ///            - The kernel is unable to create a process object for the application
+    ///  - Returns Ok(()) when the process is successfully loaded
+    ///  - Returns ErrorCode::FAIL if:
+    ///  a. The kernel is unable to create a process object for the application
     /// - `5`: Request kernel to abort setup/write operation.
-    ///        - Returns Ok(()) when the operation is cancelled successfully
-    ///        - Returns ErrorCode::BUSY when the abort fails
-    ///          (due to padding app being unable to be written, so try again)
-    ///        - Returns ErrorCode::FAIL if the driver is not dedicated to this process
+    ///  - Returns Ok(()) when the operation is cancelled successfully
+    ///  - Returns ErrorCode::BUSY when the abort fails
+    ///  (due to padding app being unable to be written, so try again)
+    ///  - Returns ErrorCode::FAIL if the driver is not dedicated to this process
     ///
     /// The driver returns ErrorCode::INVAL if any operation is called before the
     /// preceeding operation was invoked. For example, `write()` cannot be called before
