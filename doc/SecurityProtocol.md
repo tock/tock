@@ -33,7 +33,7 @@ Consists of subsystem maintainers called upon to address vulnerabilities.
 | Hardware   | TBD             | TBD               |
 | Build      | TBD             | TBD               |
 | ARM        | @ppannuto       | TBD               |
-| RISC-V     | @ lschuermann   | TBD               |
+| RISC-V     | @lschuermann    | TBD               |
 
 ## Vulnerability Handling Process
 
