@@ -32,6 +32,11 @@ macro_rules! interrupt_mask {
         let mut high_interrupt: u128 = 0;
         let mut low_interrupt: u128 = 0;
         $(
+            // Validate that the interrupt index is within the high and low
+            // interrupt range.
+            const{ assert!($interrupt < 256); }
+            const{ assert!($interrupt >= 0); }
+
             if ($interrupt < 128) {
                 low_interrupt |= (1u128 << $interrupt)
             }
