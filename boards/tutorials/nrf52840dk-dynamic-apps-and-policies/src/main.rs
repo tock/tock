@@ -14,10 +14,13 @@ use kernel::component::Component;
 use kernel::hil::led::LedLow;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessLoadingAsync;
+use kernel::process::ShortId;
 use kernel::{capabilities, create_capability, static_init};
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
 use nrf52840dk_lib::{self, PROCESSES};
+
+mod app_id_assigner_name_metadata;
 
 // The nRF52840DK LEDs (see back of board)
 const LED1_PIN: Pin = Pin::P0_13;
@@ -76,6 +79,19 @@ type AppLoaderDriver = capsules_extra::app_loader::AppLoader<
     DynamicBinaryStorage<'static>,
     DynamicBinaryStorage<'static>,
 >;
+
+//------------------------------------------------------------------------------
+// SHORTID HELPER FUNCTION
+//------------------------------------------------------------------------------
+
+fn create_short_id_from_name(name: &str, metadata: u8) -> ShortId {
+    let sum = kernel::utilities::helpers::crc32_posix(name.as_bytes());
+
+    // Combine the metadata and CRC into the short id.
+    let sid = ((metadata as u32) << 28) | (sum & 0xFFFFFFF);
+
+    core::num::NonZeroU32::new(sid).into()
+}
 
 //------------------------------------------------------------------------------
 // PLATFORM
@@ -247,34 +263,21 @@ pub unsafe fn main() {
         [capsules_extra::screen_shared::AppScreenRegion; 3],
         [
             capsules_extra::screen_shared::AppScreenRegion::new(
-                kernel::process::ShortId::Fixed(
-                    core::num::NonZeroU32::new(kernel::utilities::helpers::crc32_posix(
-                        b"process_control"
-                    ))
-                    .unwrap()
-                ),
+                create_short_id_from_name("process_manager", 0x0),
                 0,      // x
                 0,      // y
                 16 * 8, // width
                 7 * 8   // height
             ),
             capsules_extra::screen_shared::AppScreenRegion::new(
-                kernel::process::ShortId::Fixed(
-                    core::num::NonZeroU32::new(kernel::utilities::helpers::crc32_posix(b"counter"))
-                        .unwrap()
-                ),
+                create_short_id_from_name("counter", 0x0),
                 0,     // x
                 7 * 8, // y
                 8 * 8, // width
                 1 * 8  // height
             ),
             capsules_extra::screen_shared::AppScreenRegion::new(
-                kernel::process::ShortId::Fixed(
-                    core::num::NonZeroU32::new(kernel::utilities::helpers::crc32_posix(
-                        b"temperature"
-                    ))
-                    .unwrap()
-                ),
+                create_short_id_from_name("temperature", 0x0),
                 8 * 8, // x
                 7 * 8, // y
                 8 * 8, // width
@@ -351,8 +354,10 @@ pub unsafe fn main() {
         .finalize(components::app_checker_null_component_static!());
 
     // Create the AppID assigner.
-    let assigner = components::appid::assigner_name::AppIdAssignerNamesComponent::new()
-        .finalize(components::appid_assigner_names_component_static!());
+    let assigner = static_init!(
+        app_id_assigner_name_metadata::AppIdAssignerNameMetadata,
+        app_id_assigner_name_metadata::AppIdAssignerNameMetadata::new()
+    );
 
     // Create the process checking machine.
     let checker = components::appid::checker::ProcessCheckerMachineComponent::new(checking_policy)
