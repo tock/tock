@@ -25,12 +25,9 @@ Consists of subsystem maintainers called upon to address vulnerabilities.
 | Subsystem  | Primary Contact | Secondary Contact |
 | ---------- | --------------- | ----------------- |
 | Kernel     | TBD             | TBD               |
-| IPC        | TBD             | TBD               |
-| MPU        | TBD             | TBD               |
 | Drivers    | TBD             | TBD               |
 | libtock-c  | TBD             | TBD               |
 | libtock-rs | TBD             | TBD               |
-| Hardware   | TBD             | TBD               |
 | Build      | TBD             | TBD               |
 | ARM        | @ppannuto       | TBD               |
 | RISC-V     | @lschuermann    | TBD               |
@@ -51,11 +48,7 @@ Consists of subsystem maintainers called upon to address vulnerabilities.
 
 1. Assign vulnerability to subsystem maintainers
 2. Establish response team channel if serious
-3. Define resolution timeline by severity:
-   - Critical (P0): 7 days
-   - High (P1): 14 days
-   - Medium (P2): 30 days
-   - Low (P3): 60 days
+3. Define resolution timeline by severity
 4. Notify stakeholders confidentially
 
 ### 3. Remediation Development
@@ -69,13 +62,13 @@ Consists of subsystem maintainers called upon to address vulnerabilities.
 ### 4. Public Disclosure Preparation
 
 - Determine disclosure date
-- Request CVE identifier
 - Prepare comprehensive advisory:
   - Detailed description
   - Affected versions
   - Mitigation measures
   - Upgrade instructions
   - Reporter acknowledgment
+- Issue security advisory
 - Prepare patched release
 
 ### 5. Release and Disclosure
