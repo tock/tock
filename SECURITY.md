@@ -33,7 +33,7 @@ Our process includes:
 2. Assigning to appropriate subsystem maintainer
 3. Developing and testing a fix
 4. Releasing a patched version
-5. Issuing a security advisory and/or CVE (if applicable)
+5. Issuing a security advisory (if applicable)
 6. Publicly acknowledging the reporter (unless anonymity requested)
 
 ## Security Advisories
