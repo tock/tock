@@ -745,6 +745,10 @@ struct SavedAllowRo {
     len: usize,
 }
 
+// This allow is still needed on the current stable compiler, but generates a warning
+// on the current nightly compiler, as of 05/18/2025. So allow this warning for now.
+// This can probably be fixed on the next nightly update.
+#[allow(clippy::derivable_impls)]
 impl Default for SavedAllowRo {
     fn default() -> Self {
         Self {
@@ -763,6 +767,10 @@ struct SavedAllowRw {
     len: usize,
 }
 
+// This allow is still needed on the current stable compiler, but generates a warning
+// on the current nightly compiler, as of 05/18/2025. So allow this warning for now.
+// This can probably be fixed on the next nightly update.
+#[allow(clippy::derivable_impls)]
 impl Default for SavedAllowRw {
     fn default() -> Self {
         Self {

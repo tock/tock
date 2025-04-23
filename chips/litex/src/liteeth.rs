@@ -155,6 +155,7 @@ impl<const MAX_TX_SLOTS: usize, R: LiteXSoCRegisterConfiguration> LiteEth<'_, MA
         self.initialized.set(true);
     }
 
+    #[allow(clippy::mut_from_ref)]
     unsafe fn get_slot_buffer(&self, tx: bool, slot_id: usize) -> Option<&mut [u8]> {
         if (tx && slot_id > self.tx_slots) || (!tx && slot_id > self.rx_slots) {
             return None;
