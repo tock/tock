@@ -67,7 +67,6 @@ impl IoWrite for Writer {
 }
 
 /// Panic handler.
-#[no_mangle]
 #[panic_handler]
 pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
     // User LD3 is connected to PE09
