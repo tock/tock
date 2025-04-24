@@ -21,16 +21,16 @@
 //! components::debug_writer::DebugWriterComponent::new(uart_mux)
 //!     .finalize(components::debug_writer_component_static!());
 //! ```
-//! 
+//!
 //! An alternative to using DebugWriterComponent, which is restricted to UART-based mechanism, it is possible to
 //! implement a custom DebugWriter that can be used for other types of output. For example a simple "endless"
 //! FIFO with fixed "push" address:
 //!
 //! ```ignore
 //! use kernel::debug::DebugWriter;
-//! 
+//!
 //! pub struct SyncDebugWriter;
-//!     
+//!
 //! impl DebugWriter for SyncDebugWriter {
 //!
 //!    fn write(&self, buf: &[u8], _overflow: &[u8]) -> usize {
@@ -43,7 +43,7 @@
 //! }
 //! ```
 //! And instantiate it in the main board file:
-//! 
+//!
 //! ```ignore
 //! let debug_writer = static_init!(
 //!     utils::SyncDebugWriter,
@@ -330,7 +330,7 @@ pub trait DebugWriter {
     /// The `overflow` slice is used as a message to be appended to the end of the available
     /// buffer if it becomes full.
     fn write(&self, bytes: &[u8], overflow: &[u8]) -> usize;
-    
+
     /// Available length of the internal buffer
     fn available_len(&self) -> usize {
         // Default implementation is to return maximum (for synchronous/unbuffered implementations)
