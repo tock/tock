@@ -21,14 +21,14 @@
 //!   │ (e.g., `AppCheckerSignature`)         │
 //!   │                                       │
 //!   └───────────────────────────────────────┘
-//!     SignatureVerify + KeySelect      ^
+//!     SignatureVerify + SelectKey      ^
 //!   ┌─────────────────────────────┐    │
 //!   │                             │    │
 //!   │ SignatureVerifyInMemoryKeys │    │SignatureVerifyClient
 //!   │    (this module)            │    │
 //!   │                             │    │
 //!   └─────────────────────────────┘    │
-//!     SignatureVerify + KeySet         │
+//!     SignatureVerify + SetKey         │
 //!   ┌───────────────────────────────────────┐
 //!   │                                       │
 //!   │         Signature Verifier            │
@@ -46,7 +46,7 @@ use kernel::ErrorCode;
 pub struct SignatureVerifyInMemoryKeys<
     'a,
     S: hil::public_key_crypto::signature::SignatureVerify<'a, HL, SL>
-        + hil::public_key_crypto::keys::KeySet<'a, KL>,
+        + hil::public_key_crypto::keys::SetKey<'a, KL>,
     const NUM_KEYS: usize,
     const KL: usize,
     const HL: usize,
@@ -58,13 +58,13 @@ pub struct SignatureVerifyInMemoryKeys<
     active_key: OptionalCell<usize>,
     active_key_previous: Cell<usize>,
 
-    client_key_select: OptionalCell<&'a dyn hil::public_key_crypto::keys::KeySelectClient>,
+    client_key_select: OptionalCell<&'a dyn hil::public_key_crypto::keys::SelectKeyClient>,
 }
 
 impl<
         'a,
         S: hil::public_key_crypto::signature::SignatureVerify<'a, HL, SL>
-            + hil::public_key_crypto::keys::KeySet<'a, KL>,
+            + hil::public_key_crypto::keys::SetKey<'a, KL>,
         const NUM_KEYS: usize,
         const KL: usize,
         const HL: usize,
@@ -91,7 +91,7 @@ impl<
 impl<
         'a,
         S: hil::public_key_crypto::signature::SignatureVerify<'a, HL, SL>
-            + hil::public_key_crypto::keys::KeySet<'a, KL>,
+            + hil::public_key_crypto::keys::SetKey<'a, KL>,
         const NUM_KEYS: usize,
         const KL: usize,
         const HL: usize,
@@ -125,12 +125,12 @@ impl<
 impl<
         'a,
         S: hil::public_key_crypto::signature::SignatureVerify<'a, HL, SL>
-            + hil::public_key_crypto::keys::KeySet<'a, KL>,
+            + hil::public_key_crypto::keys::SetKey<'a, KL>,
         const NUM_KEYS: usize,
         const KL: usize,
         const HL: usize,
         const SL: usize,
-    > hil::public_key_crypto::keys::KeySelect<'a>
+    > hil::public_key_crypto::keys::SelectKey<'a>
     for SignatureVerifyInMemoryKeys<'a, S, NUM_KEYS, KL, HL, SL>
 {
     fn get_key_count(&self) -> usize {
@@ -165,7 +165,7 @@ impl<
         self.verifier.set_key(key).map_err(|(e, _key)| e)
     }
 
-    fn set_client(&self, client: &'a dyn hil::public_key_crypto::keys::KeySelectClient) {
+    fn set_client(&self, client: &'a dyn hil::public_key_crypto::keys::SelectKeyClient) {
         self.client_key_select.replace(client);
     }
 }
@@ -173,12 +173,12 @@ impl<
 impl<
         'a,
         S: hil::public_key_crypto::signature::SignatureVerify<'a, HL, SL>
-            + hil::public_key_crypto::keys::KeySet<'a, KL>,
+            + hil::public_key_crypto::keys::SetKey<'a, KL>,
         const NUM_KEYS: usize,
         const KL: usize,
         const HL: usize,
         const SL: usize,
-    > hil::public_key_crypto::keys::KeySetClient<KL>
+    > hil::public_key_crypto::keys::SetKeyClient<KL>
     for SignatureVerifyInMemoryKeys<'a, S, NUM_KEYS, KL, HL, SL>
 {
     fn set_key_done(

@@ -9,7 +9,7 @@ use p256::ecdsa::signature::hazmat::PrehashVerifier;
 
 use core::cell::Cell;
 use kernel::hil;
-use kernel::hil::public_key_crypto::keys::KeySetClient;
+use kernel::hil::public_key_crypto::keys::SetKeyClient;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
@@ -21,7 +21,7 @@ enum State {
 pub struct EcdsaP256SignatureVerifier<'a> {
     verified: Cell<bool>,
     client: OptionalCell<&'a dyn hil::public_key_crypto::signature::ClientVerify<32, 64>>,
-    client_key_set: OptionalCell<&'a dyn hil::public_key_crypto::keys::KeySetClient<64>>,
+    client_key_set: OptionalCell<&'a dyn hil::public_key_crypto::keys::SetKeyClient<64>>,
     verifying_key: TakeCell<'static, [u8; 64]>,
     hash_storage: TakeCell<'static, [u8; 32]>,
     signature_storage: TakeCell<'static, [u8; 64]>,
@@ -100,7 +100,7 @@ impl<'a> hil::public_key_crypto::signature::SignatureVerify<'a, 32, 64>
     }
 }
 
-impl<'a> hil::public_key_crypto::keys::KeySet<'a, 64> for EcdsaP256SignatureVerifier<'a> {
+impl<'a> hil::public_key_crypto::keys::SetKey<'a, 64> for EcdsaP256SignatureVerifier<'a> {
     fn set_key(
         &self,
         key: &'static mut [u8; 64],
@@ -112,7 +112,7 @@ impl<'a> hil::public_key_crypto::keys::KeySet<'a, 64> for EcdsaP256SignatureVeri
         Ok(())
     }
 
-    fn set_client(&self, client: &'a dyn KeySetClient<64>) {
+    fn set_client(&self, client: &'a dyn SetKeyClient<64>) {
         self.client_key_set.replace(client);
     }
 }
