@@ -98,7 +98,7 @@ unsafe fn init_tss() -> Descriptor {
 /// ## Safety
 ///
 /// When handling interrupts that occur during user mode, the context switching logic has very
-/// specific expectations about the layout of the kernel's stack frame. See _return_from_user.s_ for
+/// specific expectations about the layout of the kernel's stack frame. See _return_from_user.rs_ for
 /// complete details.
 ///
 /// When calling this function, the stack frame referenced by `esp` must meet these expectations.

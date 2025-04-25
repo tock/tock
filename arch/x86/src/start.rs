@@ -1,14 +1,11 @@
-# Licensed under the Apache License, Version 2.0 or the MIT License.
-# SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright Tock Contributors 2024.
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2024.
 
-# Common kernel entrypoint for x86 platforms
-#
-# Performs the bare minimum of initialization necessary before safely jumping to Rust code.
-#
-# Many of the symbols referenced by this function originate from Tock's default linker script, which
-# can be found at boards/kernel_layout.ld.
+use core::arch::global_asm;
 
+global_asm!(
+    "
 .section .text
 
 .global main
@@ -51,3 +48,6 @@ _start:
 3:
     hlt
     jmp     3b
+
+"
+);

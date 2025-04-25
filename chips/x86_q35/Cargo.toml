@@ -3,7 +3,7 @@
 # Copyright Tock Contributors 2024.
 
 [package]
-name = "pc"
+name = "x86_q35"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

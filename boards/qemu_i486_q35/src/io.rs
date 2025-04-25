@@ -7,7 +7,7 @@ use core::ptr;
 
 use kernel::debug;
 
-use pc::serial::{BlockingSerialPort, COM1_BASE};
+use x86_q35::serial::{BlockingSerialPort, COM1_BASE};
 
 use crate::{CHIP, PROCESSES, PROCESS_PRINTER};
 

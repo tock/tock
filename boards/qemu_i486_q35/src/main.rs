@@ -32,8 +32,8 @@ use kernel::{create_capability, static_init, Kernel};
 use x86::registers::bits32::paging::{PDEntry, PTEntry, PD, PT};
 use x86::registers::irq;
 
-use pc::pit::{Pit, RELOAD_1KHZ};
-use pc::{Pc, PcComponent};
+use x86_q35::pit::{Pit, RELOAD_1KHZ};
+use x86_q35::{Pc, PcComponent};
 
 mod multiboot;
 use multiboot::MultibootV1Header;
@@ -161,7 +161,7 @@ unsafe extern "cdecl" fn main() {
         &mut *ptr::addr_of_mut!(PAGE_DIR),
         &mut *ptr::addr_of_mut!(PAGE_TABLE),
     )
-    .finalize(pc::pc_component_static!());
+    .finalize(x86_q35::x86_q35_component_static!());
 
     // Acquire required capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);

@@ -13,7 +13,7 @@
 //!
 //! Instead of writing 256 unique ISRs, this crate uses _build.rs_ to automatically generate 256
 //! tiny "handler stubs". Each stub is a short assembly routine which pushes the current interrupt
-//! number on the stack before jumping to the common ISR entrypoint in _handler_entry.s_.
+//! number on the stack before jumping to the common ISR entrypoint in _handler_entry.rs_.
 //!
 //! The generated assembly also exports symbols for the first two stubs ([`handler_stub_0`] and
 //! [`handler_stub_1`]). Care is taken to ensure each stub is the exact same size, which allows us

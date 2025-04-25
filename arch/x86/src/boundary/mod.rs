@@ -75,10 +75,10 @@ mod boundary_impl;
 pub use self::boundary_impl::Boundary;
 
 #[cfg(target_arch = "x86")]
-core::arch::global_asm!(include_str!("switch_to_user.s"));
+mod switch_to_user;
 
 #[cfg(target_arch = "x86")]
-core::arch::global_asm!(include_str!("return_from_user.s"));
+mod return_from_user;
 
 extern "cdecl" {
     /// Performs a context switch to the given process.

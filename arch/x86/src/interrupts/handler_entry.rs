@@ -1,9 +1,11 @@
-# Licensed under the Apache License, Version 2.0 or the MIT License.
-# SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright Tock Contributors 2024.
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2024.
 
-# Common low-level entrypoint for x86 interrupt handling
+use core::arch::global_asm;
 
+global_asm!(
+    "
 .section .text
 
 .global handle_external_interrupt
@@ -86,3 +88,6 @@ handler_entry:
     # handle_kernel_exception should never return, but just in case...
 2:
     jmp     2b
+
+"
+);

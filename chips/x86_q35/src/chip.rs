@@ -233,7 +233,7 @@ impl Component for PcComponent<'static> {
 
 /// Provides static buffers needed for `PcComponent::finalize()`.
 #[macro_export]
-macro_rules! pc_component_static {
+macro_rules! x86_q35_component_static {
     () => {{
         (
             $crate::serial_port_component_static!(),

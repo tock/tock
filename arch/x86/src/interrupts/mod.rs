@@ -11,10 +11,10 @@ mod poller;
 pub use self::poller::InterruptPoller;
 
 #[cfg(target_arch = "x86")]
-core::arch::global_asm!(include_str!("handler_stubs.s"));
+mod handler_stubs;
 
 #[cfg(target_arch = "x86")]
-core::arch::global_asm!(include_str!("handler_entry.s"));
+mod handler_entry;
 
 /// Total number of interrupt vectors.
 const NUM_VECTORS: usize = 256;
