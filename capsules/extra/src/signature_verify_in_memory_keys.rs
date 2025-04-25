@@ -149,9 +149,6 @@ impl<
             self.active_key_previous.set(active_key);
         }
 
-        // Mark which key is now active.
-        self.active_key.set(index);
-
         // Extract the key from our stored list of buffers holding keys. Return
         // `INVAL` if the index is greater than the number of keys we have and
         // return `NOMEM` if the key is not in our storage.
@@ -161,6 +158,9 @@ impl<
             .ok_or(ErrorCode::INVAL)?
             .take()
             .ok_or(ErrorCode::NOMEM)?;
+
+        // Mark which key is now active.
+        self.active_key.set(index);
 
         self.verifier.set_key(key).map_err(|(e, _key)| e)
     }
