@@ -285,7 +285,7 @@ pub trait RsaPrivKeyMut: PubPrivKeyMut + RsaKeyMut {
 }
 
 /// Client for selecting keys.
-pub trait KeySelectClient {
+pub trait SelectKeyClient {
     /// Called when the specified key is active and ready to use for the next
     /// cryptographic operation.
     ///
@@ -314,7 +314,7 @@ pub trait KeySelectClient {
 /// `get_key_count()-1`.
 ///
 /// The stored keys can be public or private keys.
-pub trait KeySelect<'a> {
+pub trait SelectKey<'a> {
     /// Return the number of keys that the device can switch among.
     ///
     /// Each key must be identifiable by a consistent index.
@@ -334,11 +334,11 @@ pub trait KeySelect<'a> {
     /// - `Err(ErrorCode::ALREADY)` if the key is already selected.
     fn select_key(&self, index: usize) -> Result<(), ErrorCode>;
 
-    fn set_client(&self, client: &'a dyn KeySelectClient);
+    fn set_client(&self, client: &'a dyn SelectKeyClient);
 }
 
 /// Client for setting keys.
-pub trait KeySetClient<const KL: usize> {
+pub trait SetKeyClient<const KL: usize> {
     /// Called when the key has been set.
     ///
     /// Returns the previous key if one was set.
@@ -363,7 +363,7 @@ pub trait KeySetClient<const KL: usize> {
 /// used for implementations that hold keys in memory. However, this interface
 /// is asynchronous as keys may be stored in external storage or an external
 /// chip and require an asynchronous operations.
-pub trait KeySet<'a, const KL: usize> {
+pub trait SetKey<'a, const KL: usize> {
     /// Set the current key.
     ///
     /// This is asynchronous. If there is an existing key that key will be
@@ -376,5 +376,5 @@ pub trait KeySet<'a, const KL: usize> {
     fn set_key(&self, key: &'static mut [u8; KL])
         -> Result<(), (ErrorCode, &'static mut [u8; KL])>;
 
-    fn set_client(&self, client: &'a dyn KeySetClient<KL>);
+    fn set_client(&self, client: &'a dyn SetKeyClient<KL>);
 }

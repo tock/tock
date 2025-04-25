@@ -26,7 +26,7 @@ use tock_tbf::types::TbfFooterV2CredentialsType;
 pub struct AppCheckerSignature<
     'a,
     S: hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>
-        + hil::public_key_crypto::keys::KeySelect<'a>,
+        + hil::public_key_crypto::keys::SelectKey<'a>,
     H: hil::digest::DigestDataHash<'a, HL>,
     const HL: usize,
     const SL: usize,
@@ -45,7 +45,7 @@ pub struct AppCheckerSignature<
 impl<
         'a,
         S: hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>
-            + hil::public_key_crypto::keys::KeySelect<'a>,
+            + hil::public_key_crypto::keys::SelectKey<'a>,
         H: hil::digest::DigestDataHash<'a, HL>,
         const HL: usize,
         const SL: usize,
@@ -106,7 +106,7 @@ impl<
 impl<
         'a,
         S: hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>
-            + hil::public_key_crypto::keys::KeySelect<'a>,
+            + hil::public_key_crypto::keys::SelectKey<'a>,
         H: hil::digest::DigestDataHash<'a, HL>,
         const HL: usize,
         const SL: usize,
@@ -144,11 +144,11 @@ impl<
 impl<
         'a,
         S: hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>
-            + hil::public_key_crypto::keys::KeySelect<'a>,
+            + hil::public_key_crypto::keys::SelectKey<'a>,
         H: hil::digest::DigestDataHash<'a, HL>,
         const HL: usize,
         const SL: usize,
-    > hil::public_key_crypto::keys::KeySelectClient for AppCheckerSignature<'a, S, H, HL, SL>
+    > hil::public_key_crypto::keys::SelectKeyClient for AppCheckerSignature<'a, S, H, HL, SL>
 {
     fn select_key_done(&self, _index: usize, error: Result<(), ErrorCode>) {
         match error {
@@ -168,7 +168,7 @@ impl<
 impl<
         'a,
         S: hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>
-            + hil::public_key_crypto::keys::KeySelect<'a>,
+            + hil::public_key_crypto::keys::SelectKey<'a>,
         H: hil::digest::DigestDataHash<'a, HL>,
         const HL: usize,
         const SL: usize,
@@ -218,7 +218,7 @@ impl<
 impl<
         'a,
         S: hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>
-            + hil::public_key_crypto::keys::KeySelect<'a>,
+            + hil::public_key_crypto::keys::SelectKey<'a>,
         H: hil::digest::DigestDataHash<'a, HL>,
         const HL: usize,
         const SL: usize,
@@ -233,7 +233,7 @@ impl<
 impl<
         'a,
         S: hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>
-            + hil::public_key_crypto::keys::KeySelect<'a>,
+            + hil::public_key_crypto::keys::SelectKey<'a>,
         H: hil::digest::DigestDataHash<'a, HL>,
         const HL: usize,
         const SL: usize,
@@ -300,7 +300,7 @@ impl<
 impl<
         'a,
         S: hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>
-            + hil::public_key_crypto::keys::KeySelect<'a>,
+            + hil::public_key_crypto::keys::SelectKey<'a>,
         H: hil::digest::DigestDataHash<'a, HL>,
         const HL: usize,
         const SL: usize,

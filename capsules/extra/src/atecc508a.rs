@@ -203,7 +203,7 @@ pub struct Atecc508a<'a> {
     signature_data: TakeCell<'static, [u8; 64]>,
     ext_public_key: TakeCell<'static, [u8; 64]>,
     previous_ext_public_key: TakeCell<'static, [u8; 64]>,
-    key_set_client: OptionalCell<&'a dyn keys::KeySetClient<64>>,
+    key_set_client: OptionalCell<&'a dyn keys::SetKeyClient<64>>,
     deferred_call: kernel::deferred_call::DeferredCall,
 
     wakeup_device: fn(),
@@ -1401,7 +1401,7 @@ impl<'a> SignatureVerify<'a, 32, 64> for Atecc508a<'a> {
     }
 }
 
-impl<'a> keys::KeySet<'a, 64> for Atecc508a<'a> {
+impl<'a> keys::SetKey<'a, 64> for Atecc508a<'a> {
     fn set_key(
         &self,
         key: &'static mut [u8; 64],
@@ -1413,7 +1413,7 @@ impl<'a> keys::KeySet<'a, 64> for Atecc508a<'a> {
         Ok(())
     }
 
-    fn set_client(&self, client: &'a dyn keys::KeySetClient<64>) {
+    fn set_client(&self, client: &'a dyn keys::SetKeyClient<64>) {
         self.key_set_client.replace(client);
     }
 }
