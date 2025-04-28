@@ -39,7 +39,7 @@ pub struct AppCheckerSignature<
     credential_type: TbfFooterV2CredentialsType,
     credentials: OptionalCell<TbfFooterV2Credentials>,
     binary: OptionalCell<&'static [u8]>,
-    active_key_index: Cell<usize>,
+    active_key_index: Cell<(usize, usize)>,
 }
 
 impl<
@@ -67,7 +67,7 @@ impl<
             credential_type,
             credentials: OptionalCell::empty(),
             binary: OptionalCell::empty(),
-            active_key_index: Cell::new(0),
+            active_key_index: Cell::new((0, 0)),
         }
     }
 
@@ -150,6 +150,29 @@ impl<
         const SL: usize,
     > hil::public_key_crypto::keys::SelectKeyClient for AppCheckerSignature<'a, S, H, HL, SL>
 {
+    fn get_key_count_done(&self, count: usize) {
+        // We have the hash, we know how many keys, now we need to select the
+        // first key to check. Activate the first key.
+        self.active_key_index.set((0, count));
+        match self.verifier.select_key(0) {
+            Err(select_key_error) => match select_key_error {
+                ErrorCode::ALREADY => {
+                    // The key was already selected so we can go ahead
+                    // to do the verification now.
+                    self.do_verify()
+                }
+                _ => {
+                    self.client.map(|c| {
+                        let binary = self.binary.take().unwrap();
+                        let cred = self.credentials.take().unwrap();
+                        c.check_done(Err(ErrorCode::FAIL), cred, binary)
+                    });
+                }
+            },
+            Ok(()) => {}
+        }
+    }
+
     fn select_key_done(&self, _index: usize, error: Result<(), ErrorCode>) {
         match error {
             Err(e) => {
@@ -190,24 +213,16 @@ impl<
                 });
             }
             Ok(()) => {
-                // We got a hash. Next we need to select the first key to check.
-                // Activate the first key.
-                self.active_key_index.set(0);
-                match self.verifier.select_key(0) {
-                    Err(select_key_error) => match select_key_error {
-                        ErrorCode::ALREADY => {
-                            // The key was already selected so we can go ahead
-                            // to do the verification now.
-                            self.do_verify()
-                        }
-                        _ => {
-                            self.client.map(|c| {
-                                let binary = self.binary.take().unwrap();
-                                let cred = self.credentials.take().unwrap();
-                                c.check_done(Err(ErrorCode::FAIL), cred, binary)
-                            });
-                        }
-                    },
+                // We got a hash. Next we need to figure out how many keys we
+                // have.
+                match self.verifier.get_key_count() {
+                    Err(_) => {
+                        self.client.map(|c| {
+                            let binary = self.binary.take().unwrap();
+                            let cred = self.credentials.take().unwrap();
+                            c.check_done(Err(ErrorCode::FAIL), cred, binary)
+                        });
+                    }
                     Ok(()) => {}
                 }
             }
@@ -249,6 +264,8 @@ impl<
         self.hash.replace(hash);
         self.signature.replace(signature);
 
+        let (current_key, number_keys) = self.active_key_index.get();
+
         // Check if the verification was successful. If so, we can issue the
         // callback.
         if result.unwrap_or(false) {
@@ -258,7 +275,7 @@ impl<
                 c.check_done(
                     Ok(CheckResult::Accept(Some(
                         kernel::process_checker::CheckResultAcceptMetadata {
-                            metadata: self.active_key_index.get(),
+                            metadata: current_key,
                         },
                     ))),
                     cred,
@@ -269,8 +286,7 @@ impl<
             // The current key did not verify the signature. Check if there are
             // more keys we can try or return `Pass`.
 
-            let number_keys = self.verifier.get_key_count();
-            let next_key = self.active_key_index.get() + 1;
+            let next_key = current_key + 1;
             if next_key == number_keys {
                 // No more keys to try so we can report that we couldn't verify
                 // the key.
@@ -281,7 +297,7 @@ impl<
                 });
             } else {
                 // Activate the next key.
-                self.active_key_index.set(next_key);
+                self.active_key_index.set((next_key, number_keys));
                 match self.verifier.select_key(next_key) {
                     Err(_) => {
                         self.client.map(|c| {

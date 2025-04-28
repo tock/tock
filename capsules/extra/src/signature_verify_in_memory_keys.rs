@@ -59,6 +59,8 @@ pub struct SignatureVerifyInMemoryKeys<
     active_key_previous: Cell<usize>,
 
     client_key_select: OptionalCell<&'a dyn hil::public_key_crypto::keys::SelectKeyClient>,
+
+    deferred_call: kernel::deferred_call::DeferredCall,
 }
 
 impl<
@@ -78,6 +80,7 @@ impl<
             active_key: OptionalCell::empty(),
             active_key_previous: Cell::new(0),
             client_key_select: OptionalCell::empty(),
+            deferred_call: kernel::deferred_call::DeferredCall::new(),
         }
     }
 
@@ -133,8 +136,9 @@ impl<
     > hil::public_key_crypto::keys::SelectKey<'a>
     for SignatureVerifyInMemoryKeys<'a, S, NUM_KEYS, KL, HL, SL>
 {
-    fn get_key_count(&self) -> usize {
-        NUM_KEYS
+    fn get_key_count(&self) -> Result<(), ErrorCode> {
+        self.deferred_call.set();
+        Ok(())
     }
 
     fn select_key(&self, index: usize) -> Result<(), ErrorCode> {
@@ -195,5 +199,27 @@ impl<
         self.client_key_select.map(|client| {
             client.select_key_done(self.active_key.get().unwrap_or(0), error);
         });
+    }
+}
+
+impl<
+        'a,
+        S: hil::public_key_crypto::signature::SignatureVerify<'a, HL, SL>
+            + hil::public_key_crypto::keys::SetKey<'a, KL>,
+        const NUM_KEYS: usize,
+        const KL: usize,
+        const HL: usize,
+        const SL: usize,
+    > kernel::deferred_call::DeferredCallClient
+    for SignatureVerifyInMemoryKeys<'a, S, NUM_KEYS, KL, HL, SL>
+{
+    fn handle_deferred_call(&self) {
+        self.client_key_select.map(|client| {
+            client.get_key_count_done(NUM_KEYS);
+        });
+    }
+
+    fn register(&'static self) {
+        self.deferred_call.register(self);
     }
 }
