@@ -6,6 +6,7 @@
 
 use core::mem::MaybeUninit;
 use kernel::component::Component;
+use kernel::deferred_call::DeferredCallClient;
 
 #[macro_export]
 macro_rules! signature_verify_in_memory_keys_component_static {
@@ -110,6 +111,7 @@ impl<
         for (i, k) in self.keys.iter_mut().enumerate() {
             let _ = verifier_multiple_keys.init_key(i, k);
         }
+        verifier_multiple_keys.register();
         verifier_multiple_keys
     }
 }
