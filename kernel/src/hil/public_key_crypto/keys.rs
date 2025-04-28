@@ -286,6 +286,9 @@ pub trait RsaPrivKeyMut: PubPrivKeyMut + RsaKeyMut {
 
 /// Client for selecting keys.
 pub trait SelectKeyClient {
+    /// Called when the number of keys available is known.
+    fn get_key_count_done(&self, count: usize);
+
     /// Called when the specified key is active and ready to use for the next
     /// cryptographic operation.
     ///
@@ -318,7 +321,16 @@ pub trait SelectKey<'a> {
     /// Return the number of keys that the device can switch among.
     ///
     /// Each key must be identifiable by a consistent index.
-    fn get_key_count(&self) -> usize;
+    ///
+    /// This operation is asynchronous and its completion is signaled by
+    /// `get_key_count_done()`.
+    ///
+    /// ## Return
+    ///
+    /// `Ok()` if getting the count has started. Otherwise:
+    /// - `Err(ErrorCode::FAIL)` if the key count could not be started and there
+    ///   will be no callback.
+    fn get_key_count(&self) -> Result<(), ErrorCode>;
 
     /// Set the key identified by its index as the active key.
     ///
