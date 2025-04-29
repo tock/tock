@@ -4,14 +4,20 @@
 
 //! Shared implementations for ARM Cortex-M33 MCUs.
 
-#![crate_name = "cortexm33"]
-#![crate_type = "rlib"]
 #![no_std]
 
 use core::fmt::Write;
 
 pub mod mpu {
-    pub type MPU = cortexm::mpu::MPU<16, 32>; // Cortex-M7 MPU has 16 regions
+    use kernel::utilities::StaticRef;
+    pub type MPU = cortexm::mpu::MPU<16, 32>;
+
+    const MPU_BASE_ADDRESS: StaticRef<cortexm::mpu::MpuRegisters> =
+        unsafe { StaticRef::new(0xE002ED90 as *const cortexm::mpu::MpuRegisters) };
+
+    pub unsafe fn new() -> MPU {
+        MPU::new(MPU_BASE_ADDRESS)
+    }
 }
 
 pub use cortexm::initialize_ram_jump_to_main;
