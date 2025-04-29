@@ -156,6 +156,15 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> MPU<NUM_REGIONS, MI
         }
     }
 
+    // Function for boards that have TrustZone.
+    pub const unsafe fn new_ns() -> Self {
+        Self {
+            registers: MPU_NS_BASE_ADDRESS,
+            config_count: Cell::new(NonZeroUsize::MIN),
+            hardware_is_configured_for: OptionalCell::empty(),
+        }
+    }
+
     // Function useful for boards where the bootloader sets up some
     // MPU configuration that conflicts with Tock's configuration:
     pub unsafe fn clear_mpu(&self) {
