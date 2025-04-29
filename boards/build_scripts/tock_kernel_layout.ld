@@ -263,7 +263,17 @@ SECTIONS
         _erelocate = .;
     } > ram
 
-
+    /*
+     * This padding has been added because arm-none-eabi-objcopy
+     * overwrites the stack if this isn't added.
+     * Not sure why.
+     */
+    .padding (NOLOAD) : {
+		BYTE(0xFF)
+		BYTE(0xFF)
+		BYTE(0xFF)
+		BYTE(0xFF)
+	} > ram
 
     /* Section for application binaries in flash.
      *
