@@ -647,12 +647,9 @@ r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
 | Argument 0        | r2       | `{u32, i32, u64_lo, i64_lo}` |
 | Argument 1        | r3       | `{u32, i32, u64_hi, i64_hi}` |
 
-> When passing values derived from types whose representation is smaller than
-> the native machine register width (e.g. `u8`, `i16`), they must be explicitly
-> cast to a type whose storage matches the native machine register width in a
-> manner which compels the compiler to emit code which actually updates the
-> underlying storage. Signed values must use the native signed type, i.e., an
-> `i8` must not be cast to a `u32`.
+When passing values with types whose representation is smaller than 32 bits
+(e.g. `u8` or `i16`), they must be explicitly cast to a `u32` (if unsigned) or
+`i32` (if signed).
 
 The return variants of Command are instance-specific. Each specific
 Command instance (combination of Driver and Command number) specifies
