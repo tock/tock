@@ -115,7 +115,7 @@ in the same registers that will be used to invoke those calls. This allows
 the system call handlers in the kernel to pass them unchanged, rather than
 have to move them between registers.
 
-For example, the current `command` implementation has this signature:
+For example, `command` has this signature:
 
 ```rust
 fn command(&self, minor_num: usize, r2: usize, r3: usize, caller_id: AppId) -> Result<(), ErrorCode>
