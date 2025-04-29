@@ -60,6 +60,7 @@ ifeq ($(TARGET),)
   # Get the specified target using the unstable `cargo config get` command.
   TARGET_QUOTES := $(shell $(CARGO) config get --format json-value build.target)
   # Remove the quotes from around the target name.
+  TARGET := $(patsubst "%",%,$(TARGET_QUOTES)) 
   TARGET := $(subst .json,,$(patsubst "%",%,$(TARGET_QUOTES)))
 endif
 
@@ -71,7 +72,9 @@ $(call check_defined, PLATFORM)
 $(call check_defined, TARGET)
 
 # Location of target-specific build.
-TARGET_PATH := $(TARGET_DIRECTORY)$(TARGET)
+# Make sure we delete the ".json" extension if we are building a custon TARGET 
+# defined in a JSON file as cargo defines the target folder without ".json".
+TARGET_PATH := $(TARGET_DIRECTORY)$(subst .json,,$(TARGET))
 
 # If environment variable V or VERBOSE is non-empty, be verbose.
 ifneq ($(V),)
