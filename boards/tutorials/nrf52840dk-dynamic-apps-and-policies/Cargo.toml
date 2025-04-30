@@ -3,7 +3,7 @@
 # Copyright Tock Contributors 2022.
 
 [package]
-name = "nrf52840dk-process-control"
+name = "nrf52840dk-dynamic-apps-and-policies"
 version.workspace = true
 authors.workspace = true
 build = "../../build.rs"

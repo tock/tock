@@ -74,9 +74,9 @@ type AlarmDriver = components::alarm::AlarmDriverComponentType<nrf52840::rtc::Rt
 type Screen = components::ssd1306::Ssd1306ComponentType<nrf52840::i2c::TWI<'static>>;
 type ScreenDriver = components::screen::ScreenSharedComponentType<Screen>;
 
-type NonVolatilePages = components::dynamic_binary_storage::NVPages<
-    capsules_core::virtualizers::virtual_flash::FlashUser<'static, nrf52840::nvmc::Nvmc>,
->;
+type FlashUserType =
+    capsules_core::virtualizers::virtual_flash::FlashUser<'static, nrf52840::nvmc::Nvmc>;
+type NonVolatilePages = components::dynamic_binary_storage::NVPages<FlashUserType>;
 type DynamicBinaryStorage<'a> = kernel::dynamic_binary_storage::SequentialDynamicBinaryStorage<
     'static,
     'static,
@@ -392,6 +392,46 @@ pub unsafe fn main() {
     ));
 
     //--------------------------------------------------------------------------
+    // VIRTUAL FLASH
+    //--------------------------------------------------------------------------
+
+    let mux_flash = components::flash::FlashMuxComponent::new(&nrf52840_peripherals.nrf52.nvmc)
+        .finalize(components::flash_mux_component_static!(
+            nrf52840::nvmc::Nvmc
+        ));
+
+    // Create a virtual flash user for dynamic binary storage
+    let virtual_flash_dbs = components::flash::FlashUserComponent::new(mux_flash).finalize(
+        components::flash_user_component_static!(nrf52840::nvmc::Nvmc),
+    );
+
+    // Create a virtual flash user for nonvolatile
+    let virtual_flash_nvm = components::flash::FlashUserComponent::new(mux_flash).finalize(
+        components::flash_user_component_static!(nrf52840::nvmc::Nvmc),
+    );
+
+    //--------------------------------------------------------------------------
+    // NONVOLATILE STORAGE
+    //--------------------------------------------------------------------------
+
+    // 32kB of userspace-accessible storage, page aligned:
+    kernel::storage_volume!(APP_STORAGE, 32);
+
+    let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
+        board_kernel,
+        capsules_extra::nonvolatile_storage_driver::DRIVER_NUM,
+        virtual_flash_nvm,
+        core::ptr::addr_of!(APP_STORAGE) as usize,
+        APP_STORAGE.len(),
+        // No kernel-writeable flash:
+        core::ptr::null::<()>() as usize,
+        0,
+    )
+    .finalize(components::nonvolatile_storage_component_static!(
+        capsules_core::virtualizers::virtual_flash::FlashUser<'static, nrf52840::nvmc::Nvmc>
+    ));
+
+    //--------------------------------------------------------------------------
     // NRF CLOCK SETUP
     //--------------------------------------------------------------------------
 
@@ -484,35 +524,12 @@ pub unsafe fn main() {
     // PROCESS INFO FOR USERSPACE
     //--------------------------------------------------------------------------
 
-    let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
-    let process_info = kernel::static_init!(
-        capsules_extra::process_info_driver::ProcessInfo<PMCapability>,
-        capsules_extra::process_info_driver::ProcessInfo::new(
-            board_kernel,
-            board_kernel.create_grant(capsules_extra::process_info_driver::DRIVER_NUM, &grant_cap),
-            PMCapability
-        )
-    );
-
-    CHIP = Some(chip);
-
-    let mux_flash = components::flash::FlashMuxComponent::new(&nrf52840_peripherals.nrf52.nvmc)
-        .finalize(components::flash_mux_component_static!(
-            nrf52840::nvmc::Nvmc
-        ));
-
-    // Create a virtual flash user for dynamic binary storage
-    let virtual_flash_dbs = components::flash::FlashUserComponent::new(mux_flash).finalize(
-        components::flash_user_component_static!(nrf52840::nvmc::Nvmc),
-    );
-
-    // Create a virtual flash user for nonvolatile
-    let virtual_flash_nvm = components::flash::FlashUserComponent::new(mux_flash).finalize(
-        components::flash_user_component_static!(nrf52840::nvmc::Nvmc),
-    );
+    // let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
+    let process_info = components::process_info_driver::new()
+        .finalize(components::process_info_component_static!());
 
     //--------------------------------------------------------------------------
-    // Credential Checking
+    // CREDENTIAL CHECKING
     //--------------------------------------------------------------------------
 
     // Create the credential checker.
@@ -539,6 +556,10 @@ pub unsafe fn main() {
             ),
         );
 
+    //--------------------------------------------------------------------------
+    // ASYNCHRONOUS PROCESS LOADER MACHINE
+    //--------------------------------------------------------------------------
+
     // Create and start the asynchronous process loader.
     let loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
         checker,
@@ -556,7 +577,7 @@ pub unsafe fn main() {
     ));
 
     //--------------------------------------------------------------------------
-    // Dynamic App Loading
+    // DYNAMIC PROCESS LOADING
     //--------------------------------------------------------------------------
 
     // Create the dynamic binary flasher.
@@ -566,7 +587,7 @@ pub unsafe fn main() {
             loader,
         )
         .finalize(components::sequential_binary_storage_component_static!(
-            capsules_core::virtualizers::virtual_flash::FlashUser<'static, nrf52840::nvmc::Nvmc>,
+            FlashUserType,
             nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
             kernel::process::ProcessStandardDebugFull,
         ));
@@ -581,27 +602,6 @@ pub unsafe fn main() {
     .finalize(components::app_loader_component_static!(
         DynamicBinaryStorage<'static>,
         DynamicBinaryStorage<'static>,
-    ));
-
-    //--------------------------------------------------------------------------
-    // NONVOLATILE STORAGE
-    //--------------------------------------------------------------------------
-
-    // 32kB of userspace-accessible storage, page aligned:
-    kernel::storage_volume!(APP_STORAGE, 32);
-
-    let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
-        board_kernel,
-        capsules_extra::nonvolatile_storage_driver::DRIVER_NUM,
-        virtual_flash_nvm,
-        core::ptr::addr_of!(APP_STORAGE) as usize,
-        APP_STORAGE.len(),
-        // No kernel-writeable flash:
-        core::ptr::null::<()>() as usize,
-        0,
-    )
-    .finalize(components::nonvolatile_storage_component_static!(
-        capsules_core::virtualizers::virtual_flash::FlashUser<'static, nrf52840::nvmc::Nvmc>
     ));
 
     //--------------------------------------------------------------------------
