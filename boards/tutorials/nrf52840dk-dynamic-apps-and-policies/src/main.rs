@@ -1,6 +1,6 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2022.
+// Copyright Tock Contributors 2025.
 
 //! Tock kernel for the Nordic Semiconductor nRF52840 development kit (DK).
 
@@ -61,7 +61,6 @@ static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::Pr
     None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
-#[no_mangle]
 #[link_section = ".stack_buffer"]
 pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
@@ -69,14 +68,29 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 // SYSCALL DRIVER TYPE DEFINITIONS
 //------------------------------------------------------------------------------
 
+/// Needed for process info capsule.
+pub struct PMCapability;
+unsafe impl capabilities::ProcessManagementCapability for PMCapability {}
+unsafe impl capabilities::ProcessStartCapability for PMCapability {}
+
 type AlarmDriver = components::alarm::AlarmDriverComponentType<nrf52840::rtc::Rtc<'static>>;
 
 type Screen = components::ssd1306::Ssd1306ComponentType<nrf52840::i2c::TWI<'static>>;
 type ScreenDriver = components::screen::ScreenSharedComponentType<Screen>;
 
-type FlashUserType =
+type ProcessInfoDriver = capsules_extra::process_info_driver::ProcessInfo<PMCapability>;
+
+type IsolatedNonvolatileStorageDriver =
+    capsules_extra::isolated_nonvolatile_storage_driver::IsolatedNonvolatileStorage<
+        'static,
+        {
+            components::isolated_nonvolatile_storage::ISOLATED_NONVOLATILE_STORAGE_APP_REGION_SIZE_DEFAULT
+        },
+    >;
+
+type FlashUser =
     capsules_core::virtualizers::virtual_flash::FlashUser<'static, nrf52840::nvmc::Nvmc>;
-type NonVolatilePages = components::dynamic_binary_storage::NVPages<FlashUserType>;
+type NonVolatilePages = components::dynamic_binary_storage::NVPages<FlashUser>;
 type DynamicBinaryStorage<'a> = kernel::dynamic_binary_storage::SequentialDynamicBinaryStorage<
     'static,
     'static,
@@ -84,11 +98,10 @@ type DynamicBinaryStorage<'a> = kernel::dynamic_binary_storage::SequentialDynami
     kernel::process::ProcessStandardDebugFull,
     NonVolatilePages,
 >;
-
-/// Needed for process info capsule.
-pub struct PMCapability;
-unsafe impl capabilities::ProcessManagementCapability for PMCapability {}
-unsafe impl capabilities::ProcessStartCapability for PMCapability {}
+type AppLoaderDriver = capsules_extra::app_loader::AppLoader<
+    DynamicBinaryStorage<'static>,
+    DynamicBinaryStorage<'static>,
+>;
 
 /// Supported drivers by the platform
 pub struct Platform {
@@ -105,13 +118,9 @@ pub struct Platform {
     screen: &'static ScreenDriver,
     systick: cortexm4::systick::SysTick,
     processes: &'static [Option<&'static dyn kernel::process::Process>],
-    process_info: &'static capsules_extra::process_info_driver::ProcessInfo<PMCapability>,
-    nonvolatile_storage:
-        &'static capsules_extra::nonvolatile_storage_driver::NonvolatileStorage<'static>,
-    dynamic_app_loader: &'static capsules_extra::app_loader::AppLoader<
-        DynamicBinaryStorage<'static>,
-        DynamicBinaryStorage<'static>,
-    >,
+    process_info: &'static ProcessInfoDriver,
+    nonvolatile_storage: &'static IsolatedNonvolatileStorageDriver,
+    dynamic_app_loader: &'static AppLoaderDriver,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -127,7 +136,7 @@ impl SyscallDriverLookup for Platform {
             capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules_extra::screen::DRIVER_NUM => f(Some(self.screen)),
             capsules_extra::process_info_driver::DRIVER_NUM => f(Some(self.process_info)),
-            capsules_extra::nonvolatile_storage_driver::DRIVER_NUM => {
+            capsules_extra::isolated_nonvolatile_storage_driver::DRIVER_NUM => {
                 f(Some(self.nonvolatile_storage))
             }
             capsules_extra::app_loader::DRIVER_NUM => f(Some(self.dynamic_app_loader)),
@@ -417,18 +426,16 @@ pub unsafe fn main() {
     // 32kB of userspace-accessible storage, page aligned:
     kernel::storage_volume!(APP_STORAGE, 32);
 
-    let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
+    let nonvolatile_storage = components::isolated_nonvolatile_storage::IsolatedNonvolatileStorageComponent::new(
         board_kernel,
-        capsules_extra::nonvolatile_storage_driver::DRIVER_NUM,
+        capsules_extra::isolated_nonvolatile_storage_driver::DRIVER_NUM,
         virtual_flash_nvm,
         core::ptr::addr_of!(APP_STORAGE) as usize,
-        APP_STORAGE.len(),
-        // No kernel-writeable flash:
-        core::ptr::null::<()>() as usize,
-        0,
+        APP_STORAGE.len()
     )
-    .finalize(components::nonvolatile_storage_component_static!(
-        capsules_core::virtualizers::virtual_flash::FlashUser<'static, nrf52840::nvmc::Nvmc>
+    .finalize(components::isolated_nonvolatile_storage_component_static!(
+        capsules_core::virtualizers::virtual_flash::FlashUser<'static, nrf52840::nvmc::Nvmc>,
+        { components::isolated_nonvolatile_storage::ISOLATED_NONVOLATILE_STORAGE_APP_REGION_SIZE_DEFAULT }
     ));
 
     //--------------------------------------------------------------------------
@@ -587,7 +594,7 @@ pub unsafe fn main() {
             loader,
         )
         .finalize(components::sequential_binary_storage_component_static!(
-            FlashUserType,
+            FlashUser,
             nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
             kernel::process::ProcessStandardDebugFull,
         ));
