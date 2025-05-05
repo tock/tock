@@ -504,7 +504,6 @@ impl<
                 match result {
                     Ok(()) => {
                         self.new_app_length.set(0);
-                        self.current_process.take();
                         CommandReturn::success()
                     }
                     Err(e) => {
