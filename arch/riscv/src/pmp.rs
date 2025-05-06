@@ -35,15 +35,18 @@ register_bitfields![u8,
     ]
 ];
 
-/// Mask for valid values of the `pmpaddrX` CSRs on RV64 platforms.
+/// Mask for valid values of the `pmpaddrX` CSRs on RISCV platforms.
 ///
 /// RV64 platforms support only a 56 bit physical address space. For this reason
 /// (and because addresses in `pmpaddrX` CSRs are left-shifted by 2 bit) the
 /// uppermost 10 bits of a `pmpaddrX` CSR are defined as WARL-0. ANDing with
 /// this mask achieves the same effect; thus it can be used to determine whether
 /// a given PMP region spec would be legal and applied before writing it to a
-/// `pmpaddrX` CSR.
-const PMPADDR_RV64_MASK: u64 = 0x003F_FFFF_FFFF_FFFF;
+/// `pmpaddrX` CSR. For RV32 platforms, th whole 32 bit address range is valid.
+///
+/// This mask will have the value `0x003F_FFFF_FFFF_FFFF` on RV64 platforms, and
+/// `0xFFFFFFFF` on RV32 platforms.
+const PMPADDR_MASK: usize = (0x003F_FFFF_FFFF_FFFFu64 & usize::MAX as u64) as usize;
 
 /// A `pmpcfg` octet for a user-mode (non-locked) TOR-addressed PMP region.
 ///
@@ -142,14 +145,11 @@ impl NAPOTRegionSpec {
     /// rejects the `pmpaddr` (tests whether any of the 10 most significant bits
     /// are non-zero).
     pub fn from_pmpaddr_csr(pmpaddr: usize) -> Option<Self> {
-        // On 64-bit platforms, the 10 most significant bits must be 0:
-        if core::mem::size_of::<usize>() == core::mem::size_of::<u64>() {
-            if (pmpaddr as u64) & !PMPADDR_RV64_MASK != 0 {
-                return None;
-            }
-        }
-
-        Some(NAPOTRegionSpec { pmpaddr })
+        // On 64-bit platforms, the 10 most significant bits must be 0
+        // Prevent the `&-masking with zero` lint error in case of RV32
+        // The redundant checks in this case are optimized out by the compiler on any 1-3,z opt-level
+        #[allow(clippy::bad_bit_mask)]
+        (pmpaddr & !PMPADDR_MASK == 0).then_some(NAPOTRegionSpec { pmpaddr })
     }
 
     /// Construct a new [`NAPOTRegionSpec`] from a start address and size.
@@ -241,26 +241,16 @@ impl TORRegionSpec {
     /// this case, returns `None` (tests whether any of the 10 most significant
     /// bits of either `pmpaddr` are non-zero).
     pub fn from_pmpaddr_csrs(pmpaddr_a: usize, pmpaddr_b: usize) -> Option<TORRegionSpec> {
-        if pmpaddr_a >= pmpaddr_b {
-            return None;
-        }
-
-        // On 64-bit platforms, the 10 most significant bits must be 0:
-        if core::mem::size_of::<usize>() == core::mem::size_of::<u64>() {
-            // Checking pmpaddr_b should be sufficient (as it must be greater),
-            // but we'll leave it up to the compiler to be smart enough to
-            // figure that out:
-            if (pmpaddr_a as u64) & !PMPADDR_RV64_MASK != 0
-                || (pmpaddr_b as u64) & !PMPADDR_RV64_MASK != 0
-            {
-                return None;
-            }
-        }
-
-        Some(TORRegionSpec {
-            pmpaddr_a,
-            pmpaddr_b,
-        })
+        // Prevent the `&-masking with zero` lint error in case of RV32
+        // The redundant checks in this case are optimized out by the compiler on any 1-3,z opt-level
+        #[allow(clippy::bad_bit_mask)]
+        ((pmpaddr_a < pmpaddr_b)
+            && (pmpaddr_a & !PMPADDR_MASK == 0)
+            && (pmpaddr_b & !PMPADDR_MASK == 0))
+            .then_some(TORRegionSpec {
+                pmpaddr_a,
+                pmpaddr_b,
+            })
     }
 
     /// Construct a new [`TORRegionSpec`] from a range of addresses.
