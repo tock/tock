@@ -35,17 +35,18 @@ register_bitfields![u8,
     ]
 ];
 
-/// Mask for valid values of the `pmpaddrX` CSRs on RV64 platforms.
+/// Mask for valid values of the `pmpaddrX` CSRs on RISCV platforms.
 ///
 /// RV64 platforms support only a 56 bit physical address space. For this reason
 /// (and because addresses in `pmpaddrX` CSRs are left-shifted by 2 bit) the
 /// uppermost 10 bits of a `pmpaddrX` CSR are defined as WARL-0. ANDing with
 /// this mask achieves the same effect; thus it can be used to determine whether
 /// a given PMP region spec would be legal and applied before writing it to a
-/// `pmpaddrX` CSR.
+/// `pmpaddrX` CSR. For RV32 platforms, th whole 32 bit address range is valid.
+///
 /// This mask will have the value `0x003F_FFFF_FFFF_FFFF` on RV64 platforms, and
 /// `0xFFFFFFFF` on RV32 platforms.
-const PMPADDR_RV64_MASK: usize = (0x003F_FFFF_FFFF_FFFFu64 & usize::MAX as u64) as usize;
+const PMPADDR_MASK: usize = (0x003F_FFFF_FFFF_FFFFu64 & usize::MAX as u64) as usize;
 
 /// A `pmpcfg` octet for a user-mode (non-locked) TOR-addressed PMP region.
 ///
@@ -148,7 +149,7 @@ impl NAPOTRegionSpec {
         // Prevent the `&-masking with zero` lint error in case of RV32
         // The redundant checks in this case are optimized out by the compiler on any 1-3,z opt-level
         #[allow(clippy::bad_bit_mask)]
-        (pmpaddr & !PMPADDR_RV64_MASK == 0).then_some(NAPOTRegionSpec { pmpaddr })
+        (pmpaddr & !PMPADDR_MASK == 0).then_some(NAPOTRegionSpec { pmpaddr })
     }
 
     /// Construct a new [`NAPOTRegionSpec`] from a start address and size.
@@ -244,8 +245,8 @@ impl TORRegionSpec {
         // The redundant checks in this case are optimized out by the compiler on any 1-3,z opt-level
         #[allow(clippy::bad_bit_mask)]
         ((pmpaddr_a < pmpaddr_b)
-            && (pmpaddr_a & !PMPADDR_RV64_MASK == 0)
-            && (pmpaddr_b & !PMPADDR_RV64_MASK == 0))
+            && (pmpaddr_a & !PMPADDR_MASK == 0)
+            && (pmpaddr_b & !PMPADDR_MASK == 0))
             .then_some(TORRegionSpec {
                 pmpaddr_a,
                 pmpaddr_b,
