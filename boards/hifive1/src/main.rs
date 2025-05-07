@@ -9,9 +9,7 @@
 //! This board file is only compatible with revision B of the HiFive1.
 
 #![no_std]
-// Disable this attribute when documenting, as a workaround for
-// https://github.com/rust-lang/rust/issues/62184.
-#![cfg_attr(not(doc), no_main)]
+#![no_main]
 
 use core::ptr::{addr_of, addr_of_mut};
 

@@ -7,9 +7,7 @@
 //! It is based on nRF52833 SoC (Cortex M4 core with a BLE).
 
 #![no_std]
-// Disable this attribute when documenting, as a workaround for
-// https://github.com/rust-lang/rust/issues/62184.
-#![cfg_attr(not(doc), no_main)]
+#![no_main]
 #![deny(missing_docs)]
 
 use core::ptr::{addr_of, addr_of_mut};

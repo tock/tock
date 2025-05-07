@@ -7,9 +7,7 @@
 //! It is based on nRF52840 Express SoC (Cortex M4 core with a BLE + IEEE 802.15.4 transceiver).
 
 #![no_std]
-// Disable this attribute when documenting, as a workaround for
-// https://github.com/rust-lang/rust/issues/62184.
-#![cfg_attr(not(doc), no_main)]
+#![no_main]
 #![deny(missing_docs)]
 
 use core::ptr::addr_of;

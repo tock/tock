@@ -31,9 +31,7 @@
 //! IOM5: Pins used by UART0
 
 #![no_std]
-// Disable this attribute when documenting, as a workaround for
-// https://github.com/rust-lang/rust/issues/62184.
-#![cfg_attr(not(doc), no_main)]
+#![no_main]
 #![deny(missing_docs)]
 #![feature(custom_test_frameworks)]
 #![test_runner(test_runner)]
