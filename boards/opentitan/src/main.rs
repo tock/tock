@@ -20,6 +20,7 @@ use crate::pinmux_layout::BoardPinmuxLayout;
 use capsules_aes_gcm::aes_gcm;
 use capsules_core::virtualizers::virtual_aes_ccm;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
+use core::num::NonZero;
 use core::ptr::{addr_of, addr_of_mut};
 use earlgrey::chip::EarlGreyDefaultPeripherals;
 use earlgrey::chip_config::EarlGreyConfig;
@@ -33,6 +34,7 @@ use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::rng::Rng;
 use kernel::hil::symmetric_encryption::AES128;
+use kernel::hil::uart::BAUD115200;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup, TbfHeaderFilterDefaultAllow};
 use kernel::scheduler::priority::PrioritySched;
@@ -65,7 +67,7 @@ impl EarlGreyConfig for ChipConfig {
     const CPU_FREQ: u32 = 24_000_000;
     const PERIPHERAL_FREQ: u32 = 6_000_000;
     const AON_TIMER_FREQ: u32 = 250_000;
-    const UART_BAUDRATE: u32 = 115200;
+    const UART_BAUDRATE: NonZero<u32> = BAUD115200;
 }
 
 #[cfg(feature = "sim_verilator")]

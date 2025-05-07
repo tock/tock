@@ -20,6 +20,7 @@ use components::led::LedsComponent;
 use core::ptr::{addr_of, addr_of_mut};
 use kernel::component::Component;
 use kernel::hil::led::LedHigh;
+use kernel::hil::uart::BAUD115200;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{capabilities, create_capability, static_init, Kernel};
@@ -158,7 +159,7 @@ pub unsafe fn main() {
     let board_kernel = static_init!(Kernel, Kernel::new(&*addr_of!(PROCESSES)));
 
     // Create a shared UART channel for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(&peripherals.scb, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(&peripherals.scb, BAUD115200)
         .finalize(components::uart_mux_component_static!());
 
     let console = components::console::ConsoleComponent::new(

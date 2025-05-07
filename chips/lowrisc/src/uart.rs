@@ -5,6 +5,7 @@
 //! UART driver.
 
 use core::cell::Cell;
+use core::num::NonZeroU32;
 use kernel::ErrorCode;
 
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
@@ -72,11 +73,11 @@ impl<'a> Uart<'a> {
         }
     }
 
-    fn set_baud_rate(&self, baud_rate: u32) -> Result<(), ErrorCode> {
+    fn set_baud_rate(&self, baud_rate: NonZeroU32) -> Result<(), ErrorCode> {
         const NCO_BITS: u32 = u32::count_ones(CTRL::NCO.mask);
 
         let regs = self.registers;
-        let baud_adj = (baud_rate as u64) << (NCO_BITS + 4);
+        let baud_adj = (baud_rate.get() as u64) << (NCO_BITS + 4);
         let freq_clk = self.clock_frequency as u64;
         let uart_ctrl_nco = div_round_bounded(baud_adj, freq_clk)?;
 
