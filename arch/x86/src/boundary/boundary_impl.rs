@@ -32,7 +32,7 @@ impl Boundary {
     /// - 4 dwords for initial upcall arguments
     /// - 1 dword for initial upcall return address (although this will be zero for init_fn)
     /// - 4 dwords of scratch space for invoking memop syscalls
-    const MIN_APP_BRK: u32 = 9 * 4;
+    const MIN_APP_BRK: u32 = 9 * core::mem::size_of::<usize>() as u32;
 
     /// Constructs a new instance of `SysCall`.
     pub fn new() -> Self {
@@ -99,7 +99,7 @@ impl UserspaceKernelBoundary for Boundary {
         // - the pointers are properly aligned. This is guaranteed because the
         //   pointers are all offset multiples of 4 bytes from the stack
         //   pointer, which is guaranteed to be properly aligned after
-        //   exception entry on Cortex-M. See
+        //   exception entry on x86. See
         //   https://github.com/tock/tock/pull/2478#issuecomment-796389747
         //   for more details.
         // - the pointer is dereferencable, i.e. the memory range of

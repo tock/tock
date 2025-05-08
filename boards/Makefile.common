@@ -60,8 +60,7 @@ ifeq ($(TARGET),)
   # Get the specified target using the unstable `cargo config get` command.
   TARGET_QUOTES := $(shell $(CARGO) config get --format json-value build.target)
   # Remove the quotes from around the target name.
-  TARGET := $(patsubst "%",%,$(TARGET_QUOTES)) 
-  TARGET := $(subst .json,,$(patsubst "%",%,$(TARGET_QUOTES)))
+  TARGET := $(patsubst "%",%,$(TARGET_QUOTES))
 endif
 
 
@@ -218,6 +217,7 @@ RUST_FLAGS = $(shell $(CARGO) -Zunstable-options config get build.rustflags --fo
   $(info )
   $(info PLATFORM                      = $(PLATFORM))
   $(info TARGET                        = $(TARGET))
+  $(info TARGET_PATH                   = $(TARGET_PATH))
   $(info TOCK_KERNEL_VERSION           = $(TOCK_KERNEL_VERSION))
   $(info RUSTFLAGS                     = $(RUST_FLAGS))
   $(info MAKEFLAGS                     = $(MAKEFLAGS))

@@ -35,7 +35,7 @@ QEMU_BASE_CMDLINE := \
 # If tock fails to boot with the following error: "qemu_i486_q35: cannot execute binary file",
 # replace objcopy with the full path to GNU objcopy.
 .PHONY: run
-run: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
+run: $(TARGET_PATH)/release/$(PLATFORM).elf
 	@echo
 	@echo Reordering ELF file sections
 	@objcopy $<

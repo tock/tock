@@ -3,6 +3,7 @@
 // Copyright Tock Contributors 2024.
 
 use core::fmt::{self, Display, Formatter};
+use core::mem::size_of;
 use core::ptr;
 
 use crate::registers::irq::EXCEPTIONS;
@@ -127,7 +128,7 @@ impl UserContext {
         accessible_memory_start: *const u8,
         app_brk: *const u8,
     ) -> Result<(), ()> {
-        let stack_addr = self.esp + (offset * 4);
+        let stack_addr = self.esp + (offset * size_of::<usize>() as u32);
 
         if stack_addr < accessible_memory_start as u32 {
             return Err(());
