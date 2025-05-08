@@ -132,6 +132,10 @@ register_bitfields![u32,
 const MPU_BASE_ADDRESS: StaticRef<MpuRegisters> =
     unsafe { StaticRef::new(0xE000ED90 as *const MpuRegisters) };
 
+/// Non-Secure alias for the MPU.
+const MPU_NS_BASE_ADDRESS: StaticRef<MpuRegisters> =
+    unsafe { StaticRef::new(0xE002ED90 as *const MpuRegisters) };
+
 /// State related to the real physical MPU.
 ///
 /// There should only be one instantiation of this object as it represents
@@ -152,6 +156,15 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> MPU<NUM_REGIONS, MI
     pub const unsafe fn new() -> Self {
         Self {
             registers: MPU_BASE_ADDRESS,
+            config_count: Cell::new(NonZeroUsize::MIN),
+            hardware_is_configured_for: OptionalCell::empty(),
+        }
+    }
+
+    // Function for boards that have TrustZone.
+    pub const unsafe fn new_ns() -> Self {
+        Self {
+            registers: MPU_NS_BASE_ADDRESS,
             config_count: Cell::new(NonZeroUsize::MIN),
             hardware_is_configured_for: OptionalCell::empty(),
         }
