@@ -115,6 +115,7 @@ Virtual hardware platforms that are regularly tested as part of the CI.
 | [LiteX on Digilent Arty A-7](litex/arty/README.md)                | RISC-V RV32IMC   | LiteX+VexRiscV | custom     | tockloader (flash-file)[^1] | No            |
 | [Verilated LiteX Simulation](litex/sim/README.md)                 | RISC-V RV32IMC   | LiteX+VexRiscv | custom     | tockloader (flash-file)[^1] | No            |
 | [VeeR EL2 simulation](veer_el2_sim/README.md)                     | RISC-V RV32IMC   | VeeR EL2       | custom     | custom                      | No            |
+| [QEMU i486 Q53](qemu_i486_q35/README.md)                          | i468             | Q35            | custom     | custom                      | Yes           |
 
 [^1]: Tockloader is not able to interact with this board directly, but
       can be used to work on a flash-image of the board, which can in
