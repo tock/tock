@@ -43,7 +43,7 @@ register_structs! {
         // Comparator Register0
         (0x20 => comp0: ReadWrite<u32, Comparator0::Register>),
 
-        // Mask Regsiter0
+        // Mask Register0
         // The maximum mask size is 32KB
         (0x24 => mask0: ReadWrite<u32, Comparator0Mask::Register>),
 
@@ -55,7 +55,7 @@ register_structs! {
         // Comparator Register1
         (0x30 => comp1: ReadWrite<u32, Comparator1::Register>),
 
-        // Mask Regsiter1
+        // Mask Register1
         // The maximum mask size is 32KB
         (0x34 => mask1: ReadWrite<u32, Comparator1Mask::Register>),
 
@@ -67,7 +67,7 @@ register_structs! {
         // Comparator Register2
         (0x40 => comp2: ReadWrite<u32, Comparator2::Register>),
 
-        // Mask Regsiter2
+        // Mask Register2
         // The maximum mask size is 32KB
         (0x44 => mask2: ReadWrite<u32, Comparator2Mask::Register>),
 
@@ -79,7 +79,7 @@ register_structs! {
         // Comparator Register3
         (0x50 => comp3: ReadWrite<u32, Comparator3::Register>),
 
-        // Mask Regsiter3
+        // Mask Register3
         // The maximum mask size is 33KB
         (0x54 => mask3: ReadWrite<u32, Comparator3Mask::Register>),
 
@@ -220,12 +220,12 @@ register_bitfields![u32,
     ],
 
     LsuCount[
-        /// Counts additional cycles required to excecute all load store instructions
+        /// Counts additional cycles required to execute all load store instructions
         LSUCNT          OFFSET(0)   NUMBITS(8),
     ],
 
     FoldedInstructionCount[
-        /// Increments by one for each instruction that takes 0 cycles to excecute.
+        /// Increments by one for each instruction that takes 0 cycles to execute.
         FOLDCNT          OFFSET(0)   NUMBITS(8),
     ],
 
@@ -241,7 +241,7 @@ register_bitfields![u32,
     ],
 
     Comparator0Mask[
-        /// Size of ignore mask aplied to the access address for address range matching by comparator 0.
+        /// Size of ignore mask applied to the access address for address range matching by comparator 0.
         /// WARN: Maximum Mask size is IMPLEMENTATION DEFINED.
         MASK       OFFSET(0)   NUMBITS(5),
     ],
@@ -261,7 +261,7 @@ register_bitfields![u32,
         /// RW.
         DATAVADDR0  OFFSET(12)   NUMBITS(4),
 
-        /// Size of data comparision (Byte, Halfword, Word).
+        /// Size of data comparison (Byte, Halfword, Word).
         /// RW.
         DATAVSIZE   OFFSET(10)   NUMBITS(2),
 
@@ -273,7 +273,7 @@ register_bitfields![u32,
         /// RW.
         DATAVMATCH  OFFSET(8)    NUMBITS(1),
 
-        /// Enable cycle count comparision for comparator 0.
+        /// Enable cycle count comparison for comparator 0.
         /// WARN: Only supported by FUNCTION0
         /// RW.
         CYCMATCH    OFFSET(7)    NUMBITS(1),
@@ -295,7 +295,7 @@ register_bitfields![u32,
     ],
 
     Comparator1Mask[
-        /// Size of ignore mask aplied to the access address for address range matching by comparator 0.
+        /// Size of ignore mask applied to the access address for address range matching by comparator 0.
         /// WARN: Maximum Mask size is IMPLEMENTATION DEFINED.
         MASK       OFFSET(0)   NUMBITS(5),
     ],
@@ -315,7 +315,7 @@ register_bitfields![u32,
         /// RW.
         DATAVADDR0  OFFSET(12)   NUMBITS(4),
 
-        /// Size of data comparision (Byte, Halfword, Word).
+        /// Size of data comparison (Byte, Halfword, Word).
         /// RW.
         DATAVSIZE   OFFSET(10)   NUMBITS(2),
 
@@ -344,7 +344,7 @@ register_bitfields![u32,
     ],
 
     Comparator2Mask[
-        /// Size of ignore mask aplied to the access address for address range matching by comparator 0.
+        /// Size of ignore mask applied to the access address for address range matching by comparator 0.
         /// WARN: Maximum Mask size is IMPLEMENTATION DEFINED.
         MASK       OFFSET(0)   NUMBITS(5),
     ],
@@ -364,7 +364,7 @@ register_bitfields![u32,
         /// RW.
         DATAVADDR0  OFFSET(12)   NUMBITS(4),
 
-        /// Size of data comparision (Byte, Halfword, Word).
+        /// Size of data comparison (Byte, Halfword, Word).
         /// RW.
         DATAVSIZE   OFFSET(10)   NUMBITS(2),
 
@@ -393,7 +393,7 @@ register_bitfields![u32,
     ],
 
     Comparator3Mask[
-        /// Size of ignore mask aplied to the access address for address range matching by comparator 0.
+        /// Size of ignore mask applied to the access address for address range matching by comparator 0.
         /// WARN: Maximum Mask size is IMPLEMENTATION DEFINED.
         MASK       OFFSET(0)   NUMBITS(5),
     ],
@@ -413,7 +413,7 @@ register_bitfields![u32,
         /// RW.
         DATAVADDR0  OFFSET(12)   NUMBITS(4),
 
-        /// Size of data comparision (Byte, Halfword, Word).
+        /// Size of data comparison (Byte, Halfword, Word).
         /// RW.
         DATAVSIZE   OFFSET(10)   NUMBITS(2),
 

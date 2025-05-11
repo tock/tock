@@ -109,7 +109,7 @@ pub trait UIntLike:
     fn zero() -> Self;
 }
 
-// Helper macro for implementing the UIntLike trait on differrent
+// Helper macro for implementing the UIntLike trait on different
 // types.
 macro_rules! UIntLike_impl_for {
     ($type:ty) => {
