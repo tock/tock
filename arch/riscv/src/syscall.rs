@@ -307,7 +307,7 @@ impl<V: Variant> kernel::syscall::UserspaceKernelBoundary for SysCall<V> {
         // is not set, hence the compiler has to assume the assembly
         // will issue arbitrary memory accesses (acting as a compiler
         // fence).
-        core::arch::asm!(crate::easm!("
+        core::arch::asm!(concat!("
           // Before switching to the app we need to save some kernel registers
           // to the kernel stack, specifically ones which we can't mark as
           // clobbered in the asm!() block. We then save the stack pointer in
@@ -347,9 +347,13 @@ impl<V: Variant> kernel::syscall::UserspaceKernelBoundary for SysCall<V> {
           // tp (can't be clobbered / used as an operand)
           // gp (can't be clobbered / used as an operand)
           // and a0/to which is the process state pointer/label to jump to
-          " FOR_EACH("Reg" in ["s1","s0","tp","gp","a0","t0"] :
-            stptr!() ptrreg!() "\\()\\Reg, (6-FOR_N)*{CLEN_BYTES}(sp)"
-          )"
+
+          ", stptr!(), ptrreg!("s1"), ", (6)*{CLEN_BYTES}(sp)
+          ", stptr!(), ptrreg!("s0"), ", (5)*{CLEN_BYTES}(sp)
+          ", stptr!(), ptrreg!("tp"), ", (4)*{CLEN_BYTES}(sp)
+          ", stptr!(), ptrreg!("gp"), ", (3)*{CLEN_BYTES}(sp)
+          ", stptr!(), ptrreg!("a0"), ", (2)*{CLEN_BYTES}(sp)
+          ", stptr!(), ptrreg!("t0"), ", (1)*{CLEN_BYTES}(sp)
 
           // sw x0, 0*4(sp)   // Reserved as scratch space for the trap handler
 
@@ -377,7 +381,7 @@ impl<V: Variant> kernel::syscall::UserspaceKernelBoundary for SysCall<V> {
           //   0x00000080 -> bit 7 -> MPIE (enable interrupts on mret)
           li    t0, 0x00000080
           csrs  mstatus, t0         // set bits in mstatus
-          " csr_op!("mscratch" <- "sp")" // Store `sp` in mscratch CSR. Discard the
+          ", csr_op!("mscratch" <- "sp"), " // Store `sp` in mscratch CSR. Discard the
                                        // prior value, must have been set to zero.
 
           // We have to set the mepc CSR with the PC we want the app to start
@@ -385,8 +389,8 @@ impl<V: Variant> kernel::syscall::UserspaceKernelBoundary for SysCall<V> {
           // (either when the app returned back to the kernel or in the
           // `set_process_function()` function).
           // Retrieve the PC from Riscv32iStoredState
-          " ldptr!() ptrreg!("t0") ", 31*{CLEN_BYTES}(a0)
-          " csr_op!("mepc" <- "t0") "// Set mepc CSR to the app's PC.
+          ", ldptr!(), ptrreg!("t0"), ", 31*{CLEN_BYTES}(a0)
+          ", csr_op!("mepc" <- "t0"), "// Set mepc CSR to the app's PC.
 
           // Restore all of the app registers from what we saved. If this is the
           // first time running the app then most of these values are
@@ -398,23 +402,50 @@ impl<V: Variant> kernel::syscall::UserspaceKernelBoundary for SysCall<V> {
           // state pointer into the `sp` register instead of `a0`. Doing so
           // allows us to use compressed instructions for all of these loads:
           mv    sp,  a0             // sp <- a0 (per-process stored state)
-          " FOR_RANGE("regn" in 1 .. 32 :
-                ".if \\regn != 2 // do last since we overwrite our pointer
-                    " ldptr!() ptrregn!() "\\()\\regn, (\\regn-1)*{CLEN_BYTES}(sp)
-                 .endif"
-          )
 
-          ".if " is_cheri!() "
+          ",  ldptr!(), ptrregn!(1), ", (0)*{CLEN_BYTES}(sp)
+          // skip 2 (sp) as we want to overwrite the stack pointer last
+          ",  ldptr!(), ptrregn!(3), ", (2)*{CLEN_BYTES}(sp)
+          ",  ldptr!(), ptrregn!(4), ", (3)*{CLEN_BYTES}(sp)
+          ",  ldptr!(), ptrregn!(5), ", (4)*{CLEN_BYTES}(sp)
+          ",  ldptr!(), ptrregn!(6), ", (5)*{CLEN_BYTES}(sp)
+          ",  ldptr!(), ptrregn!(7), ", (6)*{CLEN_BYTES}(sp)
+          ",  ldptr!(), ptrregn!(8), ", (7)*{CLEN_BYTES}(sp)
+          ",  ldptr!(), ptrregn!(9), ", (8)*{CLEN_BYTES}(sp)
+          ",  ldptr!(), ptrregn!(10), ", (9)*{CLEN_BYTES}(sp)
+          ",  ldptr!(), ptrregn!(11), ", (10)*{CLEN_BYTES}(sp)
+          ",  ldptr!(), ptrregn!(12), ", (11)*{CLEN_BYTES}(sp)
+          ",  ldptr!(), ptrregn!(13), ", (12)*{CLEN_BYTES}(sp)
+          ",  ldptr!(), ptrregn!(14), ", (13)*{CLEN_BYTES}(sp)
+          ",  ldptr!(), ptrregn!(15), ", (14)*{CLEN_BYTES}(sp)
+          ",  ldptr!(), ptrregn!(16), ", (15)*{CLEN_BYTES}(sp)
+          ",  ldptr!(), ptrregn!(17), ", (16)*{CLEN_BYTES}(sp)
+          ",  ldptr!(), ptrregn!(18), ", (17)*{CLEN_BYTES}(sp)
+          ",  ldptr!(), ptrregn!(19), ", (18)*{CLEN_BYTES}(sp)
+          ",  ldptr!(), ptrregn!(20), ", (19)*{CLEN_BYTES}(sp)
+          ",  ldptr!(), ptrregn!(21), ", (20)*{CLEN_BYTES}(sp)
+          ",  ldptr!(), ptrregn!(22), ", (21)*{CLEN_BYTES}(sp)
+          ",  ldptr!(), ptrregn!(23), ", (22)*{CLEN_BYTES}(sp)
+          ",  ldptr!(), ptrregn!(24), ", (23)*{CLEN_BYTES}(sp)
+          ",  ldptr!(), ptrregn!(25), ", (24)*{CLEN_BYTES}(sp)
+          ",  ldptr!(), ptrregn!(26), ", (25)*{CLEN_BYTES}(sp)
+          ",  ldptr!(), ptrregn!(27), ", (26)*{CLEN_BYTES}(sp)
+          ",  ldptr!(), ptrregn!(28), ", (27)*{CLEN_BYTES}(sp)
+          ",  ldptr!(), ptrregn!(29), ", (28)*{CLEN_BYTES}(sp)
+          ",  ldptr!(), ptrregn!(30), ", (29)*{CLEN_BYTES}(sp)
+          ",  ldptr!(), ptrregn!(31), ", (30)*{CLEN_BYTES}(sp)
+
+          .if ", is_cheri!(), "
               // Load processes DDC. We cannot restore it before the last load has happened.
               // We can use mtdc as a scratch register (have it hold ct1), so ct1 can hold ddc.
               // DDC should currently hold the kernel DDC, which should eventually go in mtdc
               cspecialw   mtdc, ct1
-              " ldptr!() ptrreg!("t1") ", 32*{CLEN_BYTES}(sp)
+              ", ldptr!(), ptrreg!("t1"), ", 32*{CLEN_BYTES}(sp)
           .endif
 
-          " ldptr!() ptrregn!(2) ", 1*{CLEN_BYTES}(sp) // sp. Do last since we overwrite our pointer.
+          ", ldptr!(), ptrregn!(2), ", 1*{CLEN_BYTES}(sp) // sp. Do last since we overwrite our pointer.
 
-          .if " is_cheri!() "
+          .if ", is_cheri!(), "
               // Currently:
               //    mtdc holds ct1
               //    ct1 holds ddc
@@ -451,13 +482,13 @@ impl<V: Variant> kernel::syscall::UserspaceKernelBoundary for SysCall<V> {
           // Thus we can clobber `s1` and load the address of the per-process
           // stored state:
           //
-          " ldptr!() ptrreg!("s1") ", 2*{CLEN_BYTES}(s0)
+          ", ldptr!(), ptrreg!("s1"), ", 2*{CLEN_BYTES}(s0)
           // With the per-process stored state address in `s1`, save all
           // non-clobbered registers. Save the `sp` first, then do the same
           // switcheroo as above, moving the per-process stored state pointer
           // into `sp`. This allows us to use compressed instructions for all
           // these stores:
-          " stptr!() ptrregn!(2) ", 1*{CLEN_BYTES}(s1) // Save app's sp
+          ", stptr!(), ptrregn!(2), ", 1*{CLEN_BYTES}(s1) // Save app's sp
 
           mv    sp,  s1             // sp <- s1 (per-process stored state)
 
@@ -468,20 +499,44 @@ impl<V: Variant> kernel::syscall::UserspaceKernelBoundary for SysCall<V> {
           // ------------------------> s0, in mscratch right now
           // ------------------------> s1, stored at 0*4(s0) right now
 
-          "  FOR_RANGE("regn" in 1 .. 32 :
-                ".if \\regn != 2 && \\regn != 8 && \\regn != 9
-                " stptr!() ptrregn!() "\\()\\regn, (\\regn-1)*{CLEN_BYTES}(sp)
-                .endif"
-            )
-          "
+          ",  stptr!(), ptrregn!(1), ", (0)*{CLEN_BYTES}(sp)
+          // skip 2
+          ",  stptr!(), ptrregn!(3), ", (2)*{CLEN_BYTES}(sp)
+          ",  stptr!(), ptrregn!(4), ", (3)*{CLEN_BYTES}(sp)
+          ",  stptr!(), ptrregn!(5), ", (4)*{CLEN_BYTES}(sp)
+          ",  stptr!(), ptrregn!(6), ", (5)*{CLEN_BYTES}(sp)
+          ",  stptr!(), ptrregn!(7), ", (6)*{CLEN_BYTES}(sp)
+          // skip 8 / 9
+          ",  stptr!(), ptrregn!(10), ", (9)*{CLEN_BYTES}(sp)
+          ",  stptr!(), ptrregn!(11), ", (10)*{CLEN_BYTES}(sp)
+          ",  stptr!(), ptrregn!(12), ", (11)*{CLEN_BYTES}(sp)
+          ",  stptr!(), ptrregn!(13), ", (12)*{CLEN_BYTES}(sp)
+          ",  stptr!(), ptrregn!(14), ", (13)*{CLEN_BYTES}(sp)
+          ",  stptr!(), ptrregn!(15), ", (14)*{CLEN_BYTES}(sp)
+          ",  stptr!(), ptrregn!(16), ", (15)*{CLEN_BYTES}(sp)
+          ",  stptr!(), ptrregn!(17), ", (16)*{CLEN_BYTES}(sp)
+          ",  stptr!(), ptrregn!(18), ", (17)*{CLEN_BYTES}(sp)
+          ",  stptr!(), ptrregn!(19), ", (18)*{CLEN_BYTES}(sp)
+          ",  stptr!(), ptrregn!(20), ", (19)*{CLEN_BYTES}(sp)
+          ",  stptr!(), ptrregn!(21), ", (20)*{CLEN_BYTES}(sp)
+          ",  stptr!(), ptrregn!(22), ", (21)*{CLEN_BYTES}(sp)
+          ",  stptr!(), ptrregn!(23), ", (22)*{CLEN_BYTES}(sp)
+          ",  stptr!(), ptrregn!(24), ", (23)*{CLEN_BYTES}(sp)
+          ",  stptr!(), ptrregn!(25), ", (24)*{CLEN_BYTES}(sp)
+          ",  stptr!(), ptrregn!(26), ", (25)*{CLEN_BYTES}(sp)
+          ",  stptr!(), ptrregn!(27), ", (26)*{CLEN_BYTES}(sp)
+          ",  stptr!(), ptrregn!(28), ", (27)*{CLEN_BYTES}(sp)
+          ",  stptr!(), ptrregn!(29), ", (28)*{CLEN_BYTES}(sp)
+          ",  stptr!(), ptrregn!(30), ", (29)*{CLEN_BYTES}(sp)
+          ",  stptr!(), ptrregn!(31), ", (30)*{CLEN_BYTES}(sp)
 
           // At this point, we can restore s0 into our stack pointer:
           mv   sp, s0
 
           // Now retrieve the original value of s1 and save that as well. We
           // must not clobber s1, our per-process stored state pointer.
-          " ldptr!() ptrreg!("s0") ", 0*{CLEN_BYTES}(sp)  // s0 = app s1 (from trap handler scratch space)
-          " stptr!() ptrreg!("s0") ", 8*{CLEN_BYTES}(s1) // Save app s1 to per-process state
+          ", ldptr!(), ptrreg!("s0"), ", 0*{CLEN_BYTES}(sp)  // s0 = app s1 (from trap handler scratch space)
+          ", stptr!(), ptrreg!("s0"), ", 8*{CLEN_BYTES}(s1) // Save app s1 to per-process state
 
           // Retrieve the original value of s0 from the mscratch CSR, save it.
           //
@@ -489,10 +544,10 @@ impl<V: Variant> kernel::syscall::UserspaceKernelBoundary for SysCall<V> {
           // the CSR. `csrrw` allows us to read and write the CSR in a single
           // instruction:
           li s0, 0
-          " csr_op!("s0" <- "mscratch" <- "s0") " // s0 <- mscratch[app s0] <- zero
-          " stptr!() ptrreg!("s0") ", 7*{CLEN_BYTES}(s1) // Save app s0 to per-process state
+          ", csr_op!("s0" <- "mscratch" <- "s0"), " // s0 <- mscratch[app s0] <- zero
+          ", stptr!(), ptrreg!("s0"), ", 7*{CLEN_BYTES}(s1) // Save app s0 to per-process state
 
-          .if " is_cheri!() "
+          .if ", is_cheri!(), "
               // We now need to save the trapped DDC (which is in mtdc)
               // and restore mtdc it to what it was for the next trap
               cspecialr ct0, ddc
@@ -532,23 +587,23 @@ impl<V: Variant> kernel::syscall::UserspaceKernelBoundary for SysCall<V> {
           // the mret instruction, which leaves the trap handler.
           la    s0, 300f            // Load _return_to_kernel into t0.
 
-          .if " is_cheri!() "
+          .if ", is_cheri!(), "
               // On CHERI, we must add some metadata to s0 as we will use it to take traps
               cspecialr ct1, pcc
               csetaddr  cs0, ct1, s0
           .endif
 
-          " csr_op!("s0" <- "mepc" <- "s0") " // s0 <- mepc[app pc] <- _return_to_kernel
-          " stptr!() ptrreg!("s0") ", 31*{CLEN_BYTES}(s1) // Store app's pc in stored state struct.
+          ", csr_op!("s0" <- "mepc" <- "s0"), " // s0 <- mepc[app pc] <- _return_to_kernel
+          ", stptr!(), ptrreg!("s0"), ", 31*{CLEN_BYTES}(s1) // Store app's pc in stored state struct.
 
           // Save mtval to the stored state struct
           csrr  s0, mtval
-          " stx!() " s0, ({CAUSE_OFFSET} + {XLEN_BYTES})(s1)
+          ", stx!(), " s0, ({CAUSE_OFFSET} + {XLEN_BYTES})(s1)
 
           // Save mcause and leave it loaded into a0, as we call a function
           // with it below:
           csrr  a0, mcause
-          " stx!() " a0, {CAUSE_OFFSET}(s1)
+          ", stx!(), " a0, {CAUSE_OFFSET}(s1)
 
           // Depending on the value of a0, we might be calling into a function
           // while still in the trap handler. The callee may rely on the `gp`,
@@ -561,9 +616,9 @@ impl<V: Variant> kernel::syscall::UserspaceKernelBoundary for SysCall<V> {
           // LLVM relies on it to not be clobbered internally, but it is not
           // part of the RISC-V C ABI, which we need to follow here.
           //
-          " ldptr!() ptrreg!("s0") ", 5*{CLEN_BYTES}(sp)  // fp/s0: Restore the frame pointer
-          " ldptr!() ptrreg!("tp") ", 4*{CLEN_BYTES}(sp)  // fp/s0: Restore the frame pointer
-          " ldptr!() ptrreg!("gp") ", 3*{CLEN_BYTES}(sp)  // fp/s0: Restore the frame pointer
+          ", ldptr!(), ptrreg!("s0"), ", 5*{CLEN_BYTES}(sp)  // fp/s0: Restore the frame pointer
+          ", ldptr!(), ptrreg!("tp"), ", 4*{CLEN_BYTES}(sp)  // fp/s0: Restore the frame pointer
+          ", ldptr!(), ptrreg!("gp"), ", 3*{CLEN_BYTES}(sp)  // fp/s0: Restore the frame pointer
 
           // --------------------------------------------------------------------
           // From this point onward, avoid clobbering the following registers:
@@ -624,7 +679,7 @@ impl<V: Variant> kernel::syscall::UserspaceKernelBoundary for SysCall<V> {
           // Restore them:
           //
           mv    a0, s1              // a0 = per-process stored state
-          " ldptr!() ptrreg!("s1") ", 6*{CLEN_BYTES}(sp)  // restore s1 (used by LLVM internally)
+          ", ldptr!(), ptrreg!("s1"), ", 6*{CLEN_BYTES}(sp)  // restore s1 (used by LLVM internally)
 
           // We need thus need to mark all registers as clobbered, except:
           //

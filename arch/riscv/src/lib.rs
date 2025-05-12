@@ -17,7 +17,6 @@
 #![no_std]
 
 pub mod csr;
-pub mod easm;
 pub mod pmp;
 pub mod support;
 pub mod syscall;
@@ -88,7 +87,7 @@ use kernel::{csr_op, csr_ptr, is_cheri, ldptr, ldx, ptrreg, stptr, stx};
     any(target_arch = "riscv32", target_arch = "riscv64"),
     target_os = "none"
 ))]
-core::arch::global_asm!(crate::easm!("
+core::arch::global_asm!(concat!("
             .section .riscv.start, \"ax\"
             .globl _start
           _start:
@@ -127,7 +126,7 @@ core::arch::global_asm!(crate::easm!("
 
           100: // bss_init_loop
             beq  a0, a1, 101f           // If a0 == a1, we are done.
-            " stx!() " zero, 0(a0)      // *a0 = 0. Write 0 to the memory location in a0.
+            ", stx!(), " zero, 0(a0)    // *a0 = 0. Write 0 to the memory location in a0.
             addi a0, a0, {XLEN_BYTES}   // a0 = a0 + XLEN_BYTES. Increment pointer to next word.
             j 100b                      // Continue the loop.
 
@@ -143,8 +142,8 @@ core::arch::global_asm!(crate::easm!("
           200: // data_init_loop
             beq  a0, a1, 201f           // If we have reached the end of the .data
                                         // section then we are done.
-            " ldx!() " a3, 0(a2)        // a3 = *a2. Load value from initial values into a3.
-            " stx!() " a3, 0(a0)        // *a0 = a3. Store initial value into
+            ", ldx!(), " a3, 0(a2)      // a3 = *a2. Load value from initial values into a3.
+            ", stx!(), " a3, 0(a0)      // *a0 = a3. Store initial value into
                                         // next place in .data.
             addi a0, a0, {XLEN_BYTES}   // a0 = a0 + XLEN_BYTES. Increment to next word in memory.
             addi a2, a2, {XLEN_BYTES}   // a2 = a2 + XLEN_BYTES. Increment to next word in flash.
@@ -152,7 +151,7 @@ core::arch::global_asm!(crate::easm!("
 
           201: // data_init_done
 
-            .if " is_cheri!() "
+            .if ", is_cheri!(), "
                 // Set up mtdc for any future traps
                 cspecialr  ct0, pcc
                 cspecialw  mtdc, ct0
@@ -296,12 +295,11 @@ extern "C" {
     /// the contract as stated above.
     pub fn _start_trap();
 }
-
 #[cfg(all(
     any(target_arch = "riscv32", target_arch = "riscv64"),
     target_os = "none"
 ))]
-core::arch::global_asm!(crate::easm!(
+core::arch::global_asm!(concat!(
     "
             .section .riscv.trap, \"ax\"
             .globl _start_trap
@@ -317,12 +315,12 @@ core::arch::global_asm!(crate::easm!(
 
             // Atomically swap s0 and mscratch:
             // s0 = mscratch; mscratch = s0
-            " csr_op!("s0" <- "mscratch" <- "s0")"
+            ", csr_op!("s0" <- "mscratch" <- "s0"), "
 
             // If mscratch contained 0, invoke the kernel trap handler.
             beq   s0, x0, 100f      // if s0==x0: goto 100
 
-            .if " is_cheri!() "
+            .if ", is_cheri!(), "
                 // On CHERI, no loads and stores can happen until we switch DDC.
                 // Do a little juggle to swap mtdc and ddc (does not clobber ct0).
                 // When we have some registers spare we will restore mtdc
@@ -333,8 +331,8 @@ core::arch::global_asm!(crate::easm!(
 
             // Else, save the current value of s1 to `0*CLEN_BYTES(s0)`, load `1*CLEN_BYTES(s0)`
             // into s1 and jump to it (invoking a custom trap handler).
-            " stptr!() ptrreg!("s1") ", 0*{CLEN_BYTES}(s0)  // *s0 = s1
-            " ldptr!() ptrreg!("s1") ", 1*{CLEN_BYTES}(s0)  // s1 = *(s0+CLEN_BYTES)
+            ", stptr!(), ptrreg!("s1"), ", 0*{CLEN_BYTES}(s0)  // *s0 = s1
+            ", ldptr!(), ptrreg!("s1"), ", 1*{CLEN_BYTES}(s0)  // s1 = *(s0+CLEN_BYTES)
             jr    s1                // goto s1
 
           100: // _start_kernel_trap
@@ -367,26 +365,52 @@ core::arch::global_asm!(crate::easm!(
 
             // Restore s0. We reset mscratch to 0 (kernel trap handler mode)
             li s0, 0
-            " csr_op!("s0" <- "mscratch" <- "s0")"// s0=mscratch, mscratch=0
+            ", csr_op!("s0" <- "mscratch" <- "s0"), "// s0=mscratch, mscratch=0
 
             // Make room for the caller saved registers we need to restore after
             // running any trap handler code.
             addi sp, sp, -16*{CLEN_BYTES}
 
-            // Save all of the caller saved registers."
-            FOR_EACH("Reg" in ["ra", "t0", "t1", "t2", "t3", "t4", "t5", "t6", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"] :
-                stptr!() ptrreg!() "\\()\\Reg, FOR_N*{CLEN_BYTES}(sp)"
-            )"
+            // Save all of the caller saved registers.
+            ", stptr!(), ptrreg!("ra"), ", 0*{CLEN_BYTES}(sp)
+            ", stptr!(), ptrreg!("t0"), ", 1*{CLEN_BYTES}(sp)
+            ", stptr!(), ptrreg!("t1"), ", 2*{CLEN_BYTES}(sp)
+            ", stptr!(), ptrreg!("t2"), ", 3*{CLEN_BYTES}(sp)
+            ", stptr!(), ptrreg!("t3"), ", 4*{CLEN_BYTES}(sp)
+            ", stptr!(), ptrreg!("t4"), ", 5*{CLEN_BYTES}(sp)
+            ", stptr!(), ptrreg!("t5"), ", 6*{CLEN_BYTES}(sp)
+            ", stptr!(), ptrreg!("t6"), ", 7*{CLEN_BYTES}(sp)
+            ", stptr!(), ptrreg!("a0"), ", 8*{CLEN_BYTES}(sp)
+            ", stptr!(), ptrreg!("a1"), ", 9*{CLEN_BYTES}(sp)
+            ", stptr!(), ptrreg!("a2"), ", 10*{CLEN_BYTES}(sp)
+            ", stptr!(), ptrreg!("a3"), ", 11*{CLEN_BYTES}(sp)
+            ", stptr!(), ptrreg!("a4"), ", 12*{CLEN_BYTES}(sp)
+            ", stptr!(), ptrreg!("a5"), ", 13*{CLEN_BYTES}(sp)
+            ", stptr!(), ptrreg!("a6"), ", 14*{CLEN_BYTES}(sp)
+            ", stptr!(), ptrreg!("a7"), ", 15*{CLEN_BYTES}(sp)
 
             // Jump to board-specific trap handler code. Likely this was an
             // interrupt and we want to disable a particular interrupt, but each
             // board/chip can customize this as needed.
             jal ra, _start_trap_rust_from_kernel
 
-            // Restore the registers from the stack."
-            FOR_EACH("Reg" in ["ra", "t0", "t1", "t2", "t3", "t4", "t5", "t6", "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"] :
-                ldptr!() ptrreg!() "\\()\\Reg, FOR_N*{CLEN_BYTES}(sp)"
-            )"
+            // Restore the registers from the stack.
+            ", ldptr!(), ptrreg!("ra"), ", 0*{CLEN_BYTES}(sp)
+            ", ldptr!(), ptrreg!("t0"), ", 1*{CLEN_BYTES}(sp)
+            ", ldptr!(), ptrreg!("t1"), ", 2*{CLEN_BYTES}(sp)
+            ", ldptr!(), ptrreg!("t2"), ", 3*{CLEN_BYTES}(sp)
+            ", ldptr!(), ptrreg!("t3"), ", 4*{CLEN_BYTES}(sp)
+            ", ldptr!(), ptrreg!("t4"), ", 5*{CLEN_BYTES}(sp)
+            ", ldptr!(), ptrreg!("t5"), ", 6*{CLEN_BYTES}(sp)
+            ", ldptr!(), ptrreg!("t6"), ", 7*{CLEN_BYTES}(sp)
+            ", ldptr!(), ptrreg!("a0"), ", 8*{CLEN_BYTES}(sp)
+            ", ldptr!(), ptrreg!("a1"), ", 9*{CLEN_BYTES}(sp)
+            ", ldptr!(), ptrreg!("a2"), ", 10*{CLEN_BYTES}(sp)
+            ", ldptr!(), ptrreg!("a3"), ", 11*{CLEN_BYTES}(sp)
+            ", ldptr!(), ptrreg!("a4"), ", 12*{CLEN_BYTES}(sp)
+            ", ldptr!(), ptrreg!("a5"), ", 13*{CLEN_BYTES}(sp)
+            ", ldptr!(), ptrreg!("a6"), ", 14*{CLEN_BYTES}(sp)
+            ", ldptr!(), ptrreg!("a7"), ", 15*{CLEN_BYTES}(sp)
 
             // Reset the stack pointer.
             addi sp, sp, 16*{CLEN_BYTES}
