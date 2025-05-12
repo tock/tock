@@ -155,10 +155,12 @@ impl CapabilityPtr {
                 // CHERI can distinguish between a valid and invalid capability with zero length.
                 // Tock, on the other hand, allows length zero allocations at any address.
                 // This is especially important as NULL and zero are often used with allow
-                // syscalls, which will reject invalid capabilities.
-                // We special case length 0 here. This is important for users as they cannot rely
-                // on the sanctity of zero length allocations to use as tokens. They are likely
-                // already using length 1 anyway so as not to be confused between adjacent objects.
+                // syscalls, which will reject invalid capabilities but must accept those values.
+                // As we special case length 0 here (making it always valid) this can result in the
+                // kernel accepting an invalid CHERI capability and returning it back to
+                // userspace as a valid one.
+                // This means that CHERI Tock users should not rely on tags of zero length
+                // capabilities for securing any of their own mechanisms.
                 (length == 0) || cheri_ptr.is_valid_for_operation(length, cheri_perms_for(perms))
             }
             CfgMatch::False(_) => true,

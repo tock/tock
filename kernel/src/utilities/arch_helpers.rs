@@ -196,10 +196,9 @@ impl<T: From<SyscallReturnVariant> + Into<usize>> Variant for T {}
 
 /// An extension of TRD104 that works for 32-bit and 64-bit platforms, and can remap variants.
 ///
-/// On 32-bit platforms using.
 /// Using TRD104SyscallReturnVariant on a 32-bit platform, this is exactly TRD104.
 /// Using TRD105SyscallReturnVariant on any platform should be TRD1105.
-/// Archtiectures not following either of these are free to provide their own mappings.
+/// Architectures not following either of these are free to provide their own mappings.
 /// On 64-bit platforms, both 64-bit and usize values are passed as a single register,
 /// shifting down register number if that means fewer registers are needed.
 /// For usize, there is no change in number of registers between platforms.
@@ -234,11 +233,11 @@ pub fn encode_syscall_return_with_variant<SyscallVariant: Variant>(
     fn variant_to_reg<SyscallVariant: From<SyscallReturnVariant> + Into<usize>>(
         v: SyscallReturnVariant,
     ) -> MachineRegister {
-        // First map from
+        // First map from `SyscallReturnVariant` to platform specific `SyscallVariant`
         let lowered_to_abi: SyscallVariant = v.into();
-        // Then cast to usize
+        // Then cast to usize to pass across user/kernel boundary
         let as_usize: usize = lowered_to_abi.into();
-        // and pack that into a register
+        // and pack that usize into a register
         as_usize.into()
     }
 

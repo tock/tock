@@ -86,8 +86,6 @@ const TAG: [u8; 4] = [b'r', b'v', b'5', b'i'];
 const TAG: [u8; 8] = [b'r', b'v', b'5', b'i', b'r', b'v', b'5', b'i'];
 const METADATA_LEN: usize = 3;
 
-// TODO: CHERI. This seems to be for swap or some such. Needs thinking about.
-
 const VERSION_IDX: usize = 0;
 const SIZE_IDX: usize = 1;
 const TAG_IDX: usize = 2;
