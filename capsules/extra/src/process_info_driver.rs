@@ -23,7 +23,8 @@
 //! - 3: Fill the allow RW buffer with the short IDs for the running processes
 //!   on the board. Returns the number of running processes.
 //! - 4: Put the name of the process specified by the process ID in `data1` in
-//!   the allow RW buffer.
+//!   the allow RW buffer (as much as will fit). Returns the full length of the
+//!   process name.
 //! - 5: Fill the allow RW buffer with the following information for the process
 //!   specified by the process ID in `data1`.
 //!   - The number of timeslice expirations.
@@ -31,7 +32,7 @@
 //!   - The number of restarts.
 //!   - The current process state (running=0, yielded=1, yieldedfor=2,
 //!     stopped=3, faulted=4, terminated=5).
-//! - 10: Change the process state. `data1` is the process ID, and `data2 is the
+//! - 6: Change the process state. `data1` is the process ID, and `data2` is the
 //!   new state.(1=start, 2=stop, 3=fault, 4=terminate, 5=boot).
 
 use kernel::capabilities::{ProcessManagementCapability, ProcessStartCapability};
@@ -89,7 +90,7 @@ impl<C: ProcessManagementCapability> ProcessInfo<C> {
                             .process_each_capability(&self.capability, |process| {
                                 // Get the next chunk to write the next
                                 // PID into.
-                                if let Some(chunk) = chunks.nth(0) {
+                                if let Some(chunk) = chunks.next() {
                                     let _ =
                                         chunk.copy_from_slice_or_err(&func(process).to_le_bytes());
                                 }
@@ -136,29 +137,56 @@ impl<C: ProcessManagementCapability + ProcessStartCapability> SyscallDriver for 
                 CommandReturn::success_u32(count)
             }
 
-            4 => {
-                let _ = self.apps.enter(process_id, |_app, kernel_data| {
-                    let _ = kernel_data
+            4 => self
+                .apps
+                .enter(process_id, |_app, kernel_data| {
+                    kernel_data
                         .get_readwrite_processbuffer(rw_allow::INFO)
                         .and_then(|shared| {
                             shared.mut_enter(|s| {
+                                // We need to differentiate between no matching
+                                // apps (based on ProcessId) and an app with a
+                                // 0 length name.
+                                let mut matched_name_len: Option<usize> = None;
+
                                 self.kernel
                                     .process_each_capability(&self.capability, |process| {
                                         if process.processid().id() == data1 {
                                             let n = process.get_process_name().as_bytes();
-                                            let _ = s[0..n.len()].copy_from_slice_or_err(n);
-                                            s[n.len()].set(0);
+
+                                            let name_len = n.len();
+                                            let buffer_len = s.len();
+                                            let copy_len = core::cmp::min(name_len, buffer_len);
+
+                                            // Copy as much as we can into the
+                                            // allowed buffer.
+                                            s.get(0..copy_len).map(|dest| {
+                                                n.get(0..copy_len).map(|src| {
+                                                    let _ = dest.copy_from_slice_or_err(src);
+                                                });
+                                            });
+
+                                            // Return that we did find a
+                                            // matching app with a name of a
+                                            // specific length.
+                                            matched_name_len = Some(name_len);
                                         }
                                     });
+                                if let Some(nlen) = matched_name_len {
+                                    CommandReturn::success_u32(nlen as u32)
+                                } else {
+                                    CommandReturn::failure(ErrorCode::INVAL)
+                                }
                             })
-                        });
-                });
-                CommandReturn::success()
-            }
+                        })
+                        .unwrap_or_else(|err| CommandReturn::failure(err.into()))
+                })
+                .unwrap_or_else(|err| CommandReturn::failure(err.into())),
 
-            5 => {
-                let _ = self.apps.enter(process_id, |_app, kernel_data| {
-                    let _ = kernel_data
+            5 => self
+                .apps
+                .enter(process_id, |_app, kernel_data| {
+                    kernel_data
                         .get_readwrite_processbuffer(rw_allow::INFO)
                         .and_then(|shared| {
                             shared.mut_enter(|s| {
@@ -166,24 +194,24 @@ impl<C: ProcessManagementCapability + ProcessStartCapability> SyscallDriver for 
                                 self.kernel
                                     .process_each_capability(&self.capability, |process| {
                                         if process.processid().id() == data1 {
-                                            if let Some(chunk) = chunks.nth(0) {
+                                            if let Some(chunk) = chunks.next() {
                                                 let _ = chunk.copy_from_slice_or_err(
                                                     &process
                                                         .debug_timeslice_expiration_count()
                                                         .to_le_bytes(),
                                                 );
                                             }
-                                            if let Some(chunk) = chunks.nth(0) {
+                                            if let Some(chunk) = chunks.next() {
                                                 let _ = chunk.copy_from_slice_or_err(
                                                     &process.debug_syscall_count().to_le_bytes(),
                                                 );
                                             }
-                                            if let Some(chunk) = chunks.nth(0) {
+                                            if let Some(chunk) = chunks.next() {
                                                 let _ = chunk.copy_from_slice_or_err(
                                                     &process.get_restart_count().to_le_bytes(),
                                                 );
                                             }
-                                            if let Some(chunk) = chunks.nth(0) {
+                                            if let Some(chunk) = chunks.next() {
                                                 let process_state_id: u32 =
                                                     match process.get_state() {
                                                         process::State::Running => 0,
@@ -200,16 +228,20 @@ impl<C: ProcessManagementCapability + ProcessStartCapability> SyscallDriver for 
                                             }
                                         }
                                     });
+                                CommandReturn::success()
                             })
-                        });
-                });
-                CommandReturn::success()
-            }
+                        })
+                        .unwrap_or_else(|err| CommandReturn::failure(err.into()))
+                })
+                .unwrap_or_else(|err| CommandReturn::failure(err.into())),
 
-            10 => {
+            6 => {
+                let mut matched = false;
                 self.kernel
                     .process_each_capability(&self.capability, |process| {
                         if process.processid().id() == data1 {
+                            matched = true;
+
                             match data2 {
                                 1 => {
                                     // START
@@ -241,7 +273,11 @@ impl<C: ProcessManagementCapability + ProcessStartCapability> SyscallDriver for 
                             }
                         }
                     });
-                CommandReturn::success()
+                if matched {
+                    CommandReturn::success()
+                } else {
+                    CommandReturn::failure(ErrorCode::INVAL)
+                }
             }
 
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
