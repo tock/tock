@@ -23,7 +23,7 @@ const NUM_VECTORS: usize = 256;
 pub const SYSCALL_VECTOR: u8 = 0x40;
 
 /// Number of exceptions reserved in the IDT by Intel.
-/// Reference: https://en.wikipedia.org/wiki/Interrupt_descriptor_table#Common_IDT_layouts
+/// Reference: <https://en.wikipedia.org/wiki/Interrupt_descriptor_table#Common_IDT_layouts>
 pub const IDT_RESERVED_EXCEPTIONS: u8 = 32;
 
 /// Performs global initialization of interrupt handling.
