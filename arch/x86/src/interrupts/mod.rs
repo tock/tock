@@ -17,7 +17,7 @@ mod handler_stubs;
 mod handler_entry;
 
 /// Total number of interrupt vectors.
-const NUM_VECTORS: usize = 256;
+pub const NUM_VECTORS: usize = 256;
 
 /// Interrupt number used for Tock system calls on x86.
 pub const SYSCALL_VECTOR: u8 = 0x40;
