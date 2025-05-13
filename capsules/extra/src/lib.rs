@@ -79,6 +79,7 @@ pub mod nrf51822_serialization;
 pub mod panic_button;
 pub mod pca9544a;
 pub mod pressure;
+pub mod process_info_driver;
 pub mod proximity;
 pub mod public_key_crypto;
 pub mod pwm;
