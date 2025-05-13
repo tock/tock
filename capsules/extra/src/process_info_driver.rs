@@ -53,7 +53,7 @@ mod rw_allow {
     pub const COUNT: u8 = 1;
 }
 
-pub struct ProcessInfo<C: ProcessManagementCapability> {
+pub struct ProcessInfo<C: ProcessManagementCapability + ProcessStartCapability> {
     apps: Grant<(), UpcallCount<0>, AllowRoCount<0>, AllowRwCount<{ rw_allow::COUNT }>>,
     /// Reference to the kernel object so we can access process state.
     kernel: &'static Kernel,
@@ -61,7 +61,7 @@ pub struct ProcessInfo<C: ProcessManagementCapability> {
     capability: C,
 }
 
-impl<C: ProcessManagementCapability> ProcessInfo<C> {
+impl<C: ProcessManagementCapability + ProcessStartCapability> ProcessInfo<C> {
     pub fn new(
         kernel: &'static Kernel,
         grant: Grant<(), UpcallCount<0>, AllowRoCount<0>, AllowRwCount<{ rw_allow::COUNT }>>,
