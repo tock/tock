@@ -132,7 +132,7 @@ impl<'a, const PR: u16> Chip for Pc<'a, PR> {
         }
     }
 
-    #[cfg(not(any(doc, target_arch = "x86")))]
+    #[cfg(not(target_arch = "x86"))]
     fn sleep(&self) {
         unimplemented!()
     }
