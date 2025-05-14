@@ -106,7 +106,7 @@ members = [
     "libraries/riscv-csr",
     "libraries/tock-cells",
     "libraries/tock-register-interface",
-    "libraries/tickv",
+    "libraries/tickv", "kernel-async",
 ]
 exclude = ["tools/"]
 resolver = "2"

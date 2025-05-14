@@ -1,0 +1,14 @@
+[package]
+name = "kernel-async"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+kernel = { path = "../kernel" }
+embedded-hal-async = "1.0.0"
+embedded-alloc = "0.6.0"
+cortex-m = { version = "0.7.6", features = ["critical-section-single-core"]}
+
+[lints]
+workspace = true

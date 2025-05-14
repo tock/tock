@@ -10,7 +10,7 @@ use core::cell::Cell;
 use kernel::collections::list::{List, ListLink, ListNode};
 use kernel::hil::time::{self, Alarm, Ticks, Time};
 use kernel::utilities::cells::OptionalCell;
-use kernel::ErrorCode;
+use kernel::{debug, ErrorCode};
 
 #[derive(Copy, Clone)]
 struct TickDtReference<T: Ticks> {

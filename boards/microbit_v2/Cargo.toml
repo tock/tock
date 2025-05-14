@@ -21,6 +21,8 @@ capsules-core = { path = "../../capsules/core" }
 capsules-extra = { path = "../../capsules/extra" }
 capsules-system = { path = "../../capsules/system" }
 
+kernel-async = { path = "../../kernel-async" }
+
 [build-dependencies]
 tock_build_scripts = { path = "../build_scripts" }
 
