@@ -1,4 +1,5 @@
 use core::future::Future;
+use core::future::IntoFuture;
 use core::pin::Pin;
 
 use core::task::Context;
@@ -61,21 +62,18 @@ impl<'a, D: AsyncDriver> Executor<D> {
     fn poll(&'static self) {
         debug!("poll");
         let self_ptr = self as *const Self as *const ();
-        if let Some(true) = self.future.map(|future| {
+        if let Some(Some(value)) = self.future.map(|future| {
             let waker = unsafe { Waker::from_raw(RawWaker::new(self_ptr, self.waker_vtable)) };
             let mut context = Context::from_waker(&waker);
             match unsafe { Pin::new_unchecked(future) }.poll(&mut context) {
-                Poll::Ready(()) => true,
-                Poll::Pending => false,
+                Poll::Ready(value) => Some(value),
+                Poll::Pending => None,
             }
         }) {
             drop(self.future.take());
-            self.ready()
+            self.driver.done(value)
         };
         debug!("poll done");
-    }
-    fn ready(&self) {
-        self.driver.done();
     }
 
     fn waker_vtable(&self) -> &'static RawWakerVTable {
@@ -96,9 +94,14 @@ impl<D: AsyncDriver> Runner for Executor<D> {
 }
 
 pub trait AsyncDriver {
-    type F: Future<Output = ()> + 'static;
+    type F: Future + 'static;
 
+    /// The asynchronous part of
+    /// the driver
     fn run(&'static self) -> Self::F;
 
-    fn done(&self) {}
+    /// Optional methods that is used by the [`Executor`] to
+    /// notify the driver that the execution of the future
+    /// ended.
+    fn done(&self, _value: <Self::F as IntoFuture>::Output) {}
 }

@@ -75,7 +75,7 @@ impl<A: Alarm<'static> + 'static> AsyncDriver for HelloPrintDriver<A> {
         }
     }
 
-    fn done(&self) {
+    fn done(&self, _value: ()) {
         debug!("done");
         self.runner.get().unwrap().execute().unwrap();
     }
