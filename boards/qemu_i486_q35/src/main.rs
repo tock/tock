@@ -275,8 +275,6 @@ unsafe extern "cdecl" fn main() {
     );
     virtual_alarm_delay.setup();
 
-    kernel_async::init();
-
     let delay = static_init!(
         Delay<
             capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
