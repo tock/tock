@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
+//! Helper functions for the Cortex-M architecture.
+
 use crate::scb;
 
+/// NOP instruction
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[inline(always)]
-/// NOP instruction
 pub fn nop() {
     use core::arch::asm;
     unsafe {
@@ -14,14 +16,15 @@ pub fn nop() {
     }
 }
 
+/// WFI instruction
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 #[inline(always)]
-/// WFI instruction
 pub unsafe fn wfi() {
     use core::arch::asm;
     asm!("wfi", options(nomem, preserves_flags));
 }
 
+/// Atomic operation
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 pub unsafe fn atomic<F, R>(f: F) -> R
 where
@@ -38,19 +41,20 @@ where
     res
 }
 
+/// NOP instruction (mock)
 // Mock implementations for tests on Travis-CI.
 #[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
-/// NOP instruction (mock)
 pub fn nop() {
     unimplemented!()
 }
 
-#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
 /// WFI instruction (mock)
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
 pub unsafe fn wfi() {
     unimplemented!()
 }
 
+/// Atomic operation (mock)
 #[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
 pub unsafe fn atomic<F, R>(_f: F) -> R
 where
@@ -59,6 +63,7 @@ where
     unimplemented!()
 }
 
+/// Reset the chip.
 pub fn reset() -> ! {
     unsafe {
         scb::reset();
