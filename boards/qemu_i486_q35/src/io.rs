@@ -15,6 +15,8 @@ use crate::{CHIP, PROCESSES, PROCESS_PRINTER};
 #[cfg(not(test))]
 #[panic_handler]
 unsafe fn panic_handler(pi: &PanicInfo) -> ! {
+    use core::arch::asm;
+
     let mut com1 = BlockingSerialPort::new(COM1_BASE);
 
     debug::panic_print(
@@ -24,6 +26,15 @@ unsafe fn panic_handler(pi: &PanicInfo) -> ! {
         &*ptr::addr_of!(PROCESSES),
         &*ptr::addr_of!(CHIP),
         &*ptr::addr_of!(PROCESS_PRINTER),
+    );
+
+    // stop qemu
+    asm!(
+        "
+        mov dx, 0xf4
+        mov al, 0x01
+        out dx,al
+        "
     );
 
     loop {}
