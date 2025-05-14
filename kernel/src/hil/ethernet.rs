@@ -107,17 +107,17 @@ pub trait EthernetAdapterDatapath<'a> {
     /// Enable reception of Ethernet frames.
     ///
     /// Ethernet adapters must not invoke any
-    /// [`EthernetAdapaterClient::received_frame`] client methods before this
-    /// function is called, and not after [`EthernetAdapater::disable_receive`]
-    /// is called.
+    /// [`EthernetAdapterDatapathClient::received_frame`] client methods before
+    /// this function is called, and not after
+    /// [`EthernetAdapterDatapath::disable_receive`] is called.
     fn enable_receive(&self);
 
     /// Disable reception of Ethernet frames.
     ///
     /// Ethernet adapters must not invoke any
-    /// [`EthernetAdapaterClient::received_frame`] client methods after this
-    /// function is called, until a subsequent call to
-    /// [`EthernetAdapater::enable_receive`].
+    /// [`EthernetAdapterDatapathClient::received_frame`] client methods after
+    /// this function is called, until a subsequent call to
+    /// [`EthernetAdapterDatapath::enable_receive`].
     fn disable_receive(&self);
 
     /// Transmit an Ethernet frame / enqueue a frame for transmission.
