@@ -102,11 +102,12 @@ members = [
     "chips/veer_el2",
     "chips/virtio",
     "kernel",
+    "kernel-async",
     "libraries/enum_primitive",
     "libraries/riscv-csr",
     "libraries/tock-cells",
     "libraries/tock-register-interface",
-    "libraries/tickv", "kernel-async",
+    "libraries/tickv",
 ]
 exclude = ["tools/"]
 resolver = "2"
