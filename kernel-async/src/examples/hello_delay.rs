@@ -65,7 +65,7 @@ pub unsafe fn create_hello_print_driver<'a, A: Alarm<'a>>(
         let mut delay_instance = delay.get_instance().unwrap();
         loop {
             debug!("Hello");
-            delay_instance.delay_ns(1_000_000).await;
+            delay_instance.delay_ns(1_000_000_000).await;
             debug!("awaited");
         }
     })));

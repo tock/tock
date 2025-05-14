@@ -26,7 +26,7 @@ pub struct Delay<'a, A: Alarm<'a>> {
 impl<'a, A: Alarm<'a>> Delay<'a, A> {
     pub fn new(alarm: &'a A) -> Delay<'a, A> {
         Delay {
-            has_instance: AtomicBool::new(false),
+            has_instance: AtomicBool::new(true),
             alarm,
             waker: Cell::new(None),
         }
@@ -86,6 +86,7 @@ impl<'a, A: Alarm<'a>> Future for DelayInstance<'a, A> {
             }
             State::Sleeping => {
                 if !self.alarm.is_armed() {
+                    self.state = State::Off;
                     Poll::Ready(())
                 } else {
                     Poll::Pending

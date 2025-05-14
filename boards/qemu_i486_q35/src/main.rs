@@ -10,6 +10,7 @@
 #![cfg_attr(not(doc), no_main)]
 
 use core::ptr;
+use kernel::hil::time::Alarm;
 
 use capsules_core::alarm;
 use capsules_core::console::{self, Console};
@@ -29,6 +30,8 @@ use kernel::scheduler::cooperative::CooperativeSched;
 use kernel::syscall::SyscallDriver;
 use kernel::{create_capability, static_init, Kernel};
 
+use kernel_async::delay::Delay;
+use kernel_async::examples::{create_hello_print_driver, HelloPrintDriver};
 use x86::registers::bits32::paging::{PDEntry, PTEntry, PD, PT};
 use x86::registers::irq;
 
@@ -262,6 +265,30 @@ unsafe extern "cdecl" fn main() {
         VirtualSchedulerTimer::new(systick_virtual_alarm)
     );
 
+    let virtual_alarm_delay = static_init!(
+        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+            'static,
+            Pit<'static, RELOAD_1KHZ>,
+        >,
+        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
+    );
+    virtual_alarm_delay.setup();
+
+    kernel_async::init();
+
+    let delay = static_init!(
+        Delay<
+            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+                'static,
+                Pit<'static, RELOAD_1KHZ>,
+            >,
+        >,
+        Delay::new(virtual_alarm_delay)
+    );
+    virtual_alarm_delay.set_alarm_client(delay);
+
+    let hello_print = static_init!(HelloPrintDriver, create_hello_print_driver(delay));
+
     let platform = QemuI386Q35Platform {
         pconsole,
         console,
@@ -315,6 +342,8 @@ unsafe extern "cdecl" fn main() {
         debug!("Error loading processes!");
         debug!("{:?}", err);
     });
+
+    hello_print.execute();
 
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap);
 }

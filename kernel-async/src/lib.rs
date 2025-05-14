@@ -6,9 +6,19 @@ pub mod examples;
 pub mod executor;
 
 extern crate alloc;
-extern crate cortex_m;
 
+use critical_section::RawRestoreState;
 use embedded_alloc::LlffHeap as Heap;
+
+struct MyCriticalSection;
+critical_section::set_impl!(MyCriticalSection);
+
+// Tock is single threaded, so locking is not required
+unsafe impl critical_section::Impl for MyCriticalSection {
+    unsafe fn acquire() -> RawRestoreState {}
+
+    unsafe fn release(_token: RawRestoreState) {}
+}
 
 #[global_allocator]
 static HEAP: Heap = Heap::empty();
