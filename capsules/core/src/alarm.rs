@@ -40,6 +40,7 @@ pub struct AlarmDriver<'a, A: Alarm<'a>> {
         Grant<AlarmData<A::Ticks>, UpcallCount<NUM_UPCALLS>, AllowRoCount<0>, AllowRwCount<0>>,
 }
 
+use kernel::{capabilities, create_capability};
 impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
     pub const fn new(
         alarm: &'a A,
@@ -50,6 +51,7 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
             AllowRwCount<0>,
         >,
     ) -> AlarmDriver<'a, A> {
+        let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
         AlarmDriver {
             alarm,
             app_alarms: grant,
