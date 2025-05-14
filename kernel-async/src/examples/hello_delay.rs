@@ -47,8 +47,11 @@ impl<A: Alarm<'static> + 'static> SyscallDriver for HelloPrintDriver<A> {
         match command_num {
             0 => CommandReturn::success(),
             1 => {
-                let _ = self.runner.get().unwrap().execute();
-                CommandReturn::success()
+                if let Err(err) = self.runner.get().unwrap().execute() {
+                    CommandReturn::failure(err)
+                } else {
+                    CommandReturn::success()
+                }
             }
             _ => CommandReturn::failure(ErrorCode::NOSUPPORT),
         }
