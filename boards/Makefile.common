@@ -71,7 +71,9 @@ $(call check_defined, PLATFORM)
 $(call check_defined, TARGET)
 
 # Location of target-specific build.
-TARGET_PATH := $(TARGET_DIRECTORY)$(TARGET)
+# Make sure we delete the ".json" extension if we are building a custon TARGET 
+# defined in a JSON file as cargo defines the target folder without ".json".
+TARGET_PATH := $(TARGET_DIRECTORY)$(subst .json,,$(TARGET))
 
 # If environment variable V or VERBOSE is non-empty, be verbose.
 ifneq ($(V),)
@@ -215,6 +217,7 @@ RUST_FLAGS = $(shell $(CARGO) -Zunstable-options config get build.rustflags --fo
   $(info )
   $(info PLATFORM                      = $(PLATFORM))
   $(info TARGET                        = $(TARGET))
+  $(info TARGET_PATH                   = $(TARGET_PATH))
   $(info TOCK_KERNEL_VERSION           = $(TOCK_KERNEL_VERSION))
   $(info RUSTFLAGS                     = $(RUST_FLAGS))
   $(info MAKEFLAGS                     = $(MAKEFLAGS))
