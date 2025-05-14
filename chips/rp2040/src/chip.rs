@@ -44,7 +44,7 @@ pub struct Rp2040<'a, I: InterruptService + 'a> {
 impl<'a, I: InterruptService> Rp2040<'a, I> {
     pub unsafe fn new(interrupt_service: &'a I, sio: &'a SIO) -> Self {
         Self {
-            mpu: cortexm0p::mpu::MPU::new(),
+            mpu: cortexm0p::mpu::new(),
             userspace_kernel_boundary: cortexm0p::syscall::SysCall::new(),
             interrupt_service,
             sio,

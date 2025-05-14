@@ -97,7 +97,7 @@ impl kernel::platform::chip::InterruptService for Msp432DefaultPeripherals<'_> {
 impl<'a, I: InterruptService + 'a> Msp432<'a, I> {
     pub unsafe fn new(interrupt_service: &'a I) -> Self {
         Self {
-            mpu: cortexm4::mpu::MPU::new(),
+            mpu: cortexm4::mpu::new(),
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
             interrupt_service,
         }
