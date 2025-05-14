@@ -11,12 +11,15 @@
 //! Usage
 //! -----
 //! ```rust
-//! DebugWriterComponent::new(uart_mux).finalize(components::debug_writer_component_static!());
+//! let debug_wrapper = components::debug_writer::DebugWriterComponent::new(uart_mux)
+//!     .finalize(components::debug_writer_component_static!());
+//! kernel::debug::set_debug_writer_wrapper(debug_wrapper);
 //!
-//! components::debug_writer::DebugWriterNoMuxComponent::new(
+//! let debug_wrapper = components::debug_writer::DebugWriterNoMuxComponent::new(
 //!     &nrf52::uart::UARTE0,
 //! )
-//! .finalize(());
+//! .finalize(components::debug_writer_no_mux_component_static!());
+//! kernel::debug::set_debug_writer_wrapper(debug_wrapper);
 //! ```
 
 // Author: Brad Campbell <bradjc@virginia.edu>
@@ -108,7 +111,7 @@ impl<const BUF_SIZE_BYTES: usize> Component for DebugWriterComponent<BUF_SIZE_BY
         &'static mut MaybeUninit<kernel::debug::DebugWriter>,
         &'static mut MaybeUninit<kernel::debug::DebugWriterWrapper>,
     );
-    type Output = ();
+    type Output = &'static mut kernel::debug::DebugWriterWrapper;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let buf = s.2.write([0; BUF_SIZE_BYTES]);
@@ -127,9 +130,7 @@ impl<const BUF_SIZE_BYTES: usize> Component for DebugWriterComponent<BUF_SIZE_BY
         hil::uart::Transmit::set_transmit_client(debugger_uart, debugger);
 
         let debug_wrapper = s.4.write(kernel::debug::DebugWriterWrapper::new(debugger));
-        unsafe {
-            kernel::debug::set_debug_writer_wrapper(debug_wrapper);
-        }
+        debug_wrapper
     }
 }
 
@@ -161,7 +162,7 @@ impl<U: uart::Uart<'static> + uart::Transmit<'static> + 'static, const BUF_SIZE_
         &'static mut MaybeUninit<kernel::debug::DebugWriter>,
         &'static mut MaybeUninit<kernel::debug::DebugWriterWrapper>,
     );
-    type Output = ();
+    type Output = &'static mut kernel::debug::DebugWriterWrapper;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         let buf = s.1.write([0; BUF_SIZE_BYTES]);
@@ -177,9 +178,6 @@ impl<U: uart::Uart<'static> + uart::Transmit<'static> + 'static, const BUF_SIZE_
         hil::uart::Transmit::set_transmit_client(self.uart, debugger);
 
         let debug_wrapper = s.3.write(kernel::debug::DebugWriterWrapper::new(debugger));
-        unsafe {
-            kernel::debug::set_debug_writer_wrapper(debug_wrapper);
-        }
 
         let _ = self.uart.configure(uart::Parameters {
             baud_rate: 115200,
@@ -188,5 +186,6 @@ impl<U: uart::Uart<'static> + uart::Transmit<'static> + 'static, const BUF_SIZE_
             parity: uart::Parity::None,
             hw_flow_control: false,
         });
+        debug_wrapper
     }
 }
