@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
+//! Cortex-M System Call Interface
+//!
 //! Implementation of the architecture-specific portions of the kernel-userland
 //! system call interface.
 
@@ -40,9 +42,6 @@ pub static mut APP_HARD_FAULT: usize = 0;
 #[used]
 pub static mut SCB_REGISTERS: [u32; 5] = [0; 5];
 
-// Space for 8 u32s: r0-r3, r12, lr, pc, and xPSR
-const SVC_FRAME_SIZE: usize = 32;
-
 /// This holds all of the state that the kernel must keep for the process when
 /// the process is not executing.
 #[derive(Default)]
@@ -52,6 +51,9 @@ pub struct CortexMStoredState {
     psr: usize,
     psp: usize,
 }
+
+// Space for 8 u32s: r0-r3, r12, lr, pc, and xPSR
+const SVC_FRAME_SIZE: usize = 32;
 
 /// Values for encoding the stored state buffer in a binary slice.
 const VERSION: usize = 1;
@@ -69,6 +71,7 @@ const REGS_IDX: usize = 6;
 const REGS_RANGE: Range<usize> = REGS_IDX..REGS_IDX + 8;
 
 const USIZE_SZ: usize = size_of::<usize>();
+
 fn usize_byte_range(index: usize) -> Range<usize> {
     index * USIZE_SZ..(index + 1) * USIZE_SZ
 }
@@ -113,8 +116,9 @@ impl core::convert::TryFrom<&[u8]> for CortexMStoredState {
     }
 }
 
-/// Implementation of the `UserspaceKernelBoundary` for the Cortex-M non-floating point
-/// architecture.
+/// Implementation of the
+/// [`UserspaceKernelBoundary`](kernel::syscall::UserspaceKernelBoundary) for
+/// the Cortex-M non-floating point architecture.
 pub struct SysCall<A: CortexMVariant>(PhantomData<A>);
 
 impl<A: CortexMVariant> SysCall<A> {

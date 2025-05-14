@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
+//! Cortex-M Memory Protection Unit (MPU)
+//!
 //! Implementation of the memory protection unit for the Cortex-M0+, Cortex-M3,
-//! Cortex-M4, and Cortex-M7
+//! Cortex-M4, and Cortex-M7.
 
 use core::cell::Cell;
 use core::cmp;
