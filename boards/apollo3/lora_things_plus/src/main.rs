@@ -461,8 +461,9 @@ unsafe fn setup() -> (
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux)
+    let debug_wrapper = components::debug_writer::DebugWriterComponent::new(uart_mux)
         .finalize(components::debug_writer_component_static!());
+    kernel::debug::set_debug_writer_wrapper(debug_wrapper);
 
     // LEDs
     let led = components::led::LedsComponent::new().finalize(components::led_component_static!(

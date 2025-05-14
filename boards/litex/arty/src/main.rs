@@ -589,8 +589,9 @@ unsafe fn start() -> (
     .finalize(components::console_component_static!());
 
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux)
+    let debug_wrapper = components::debug_writer::DebugWriterComponent::new(uart_mux)
         .finalize(components::debug_writer_component_static!());
+    kernel::debug::set_debug_writer_wrapper(debug_wrapper);
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,
