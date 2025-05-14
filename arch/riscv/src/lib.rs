@@ -4,8 +4,6 @@
 
 //! Shared support for RISC-V architectures.
 
-#![crate_name = "riscv"]
-#![crate_type = "rlib"]
 #![no_std]
 
 use core::fmt::Write;

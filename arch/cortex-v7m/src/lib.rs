@@ -4,8 +4,6 @@
 
 //! Generic support for all Cortex-M platforms.
 
-#![crate_name = "cortexv7m"]
-#![crate_type = "rlib"]
 #![no_std]
 
 // These constants are defined in the linker script.

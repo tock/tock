@@ -4,8 +4,6 @@
 
 //! Generic support for all Cortex-M platforms.
 
-#![crate_name = "cortexm"]
-#![crate_type = "rlib"]
 #![no_std]
 
 use core::fmt::Write;

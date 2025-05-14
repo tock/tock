@@ -4,8 +4,6 @@
 
 //! Shared implementations for ARM Cortex-M4F MCUs.
 
-#![crate_name = "cortexm4f"]
-#![crate_type = "rlib"]
 #![no_std]
 
 use core::fmt::Write;
