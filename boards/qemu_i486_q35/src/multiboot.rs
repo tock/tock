@@ -4,7 +4,7 @@
 
 //! Minimal implementation of Multiboot V1
 //!
-//! https://www.gnu.org/software/grub/manual/multiboot/multiboot.html
+//! <https://www.gnu.org/software/grub/manual/multiboot/multiboot.html>
 
 /// Magic number for Multboot V1 header
 const MAGIC_NUMBER: u32 = 0x1BADB002;

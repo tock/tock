@@ -6,8 +6,8 @@
 //!
 //! This implementation is based on guidance from the following sources:
 //!
-//! * https://wiki.osdev.org/8259_PIC
-//! * https://github.com/rust-osdev/pic8259
+//! * <https://wiki.osdev.org/8259_PIC>
+//! * <https://github.com/rust-osdev/pic8259>
 
 use x86::registers::io;
 use x86::IDT_RESERVED_EXCEPTIONS;

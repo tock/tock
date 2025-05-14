@@ -9,9 +9,9 @@
 //!
 //! This implementation is based on guidance from the following sources:
 //!
-//! * https://en.wikibooks.org/wiki/Serial_Programming/8250_UART_Programming
-//! * https://wiki.osdev.org/Serial_Ports
-//! * https://docs.freebsd.org/en/articles/serial-uart/index.html
+//! * <https://en.wikibooks.org/wiki/Serial_Programming/8250_UART_Programming>
+//! * <https://wiki.osdev.org/Serial_Ports>
+//! * <https://docs.freebsd.org/en/articles/serial-uart/index.html>
 
 use core::cell::Cell;
 use core::fmt::{self, Write};
@@ -47,7 +47,7 @@ pub const COM4_BASE: u16 = 0x02E8;
 const BAUD_CLOCK: u32 = 115_200;
 
 /// The following offsets are relative to the base I/O port address of an 8250-compatible UART
-/// device. Reference: https://en.wikibooks.org/wiki/Serial_Programming/8250_UART_Programming
+/// device. Reference: <https://en.wikibooks.org/wiki/Serial_Programming/8250_UART_Programming>
 mod offsets {
     /// Transmit Holding Register
     pub(crate) const THR: u16 = 0;

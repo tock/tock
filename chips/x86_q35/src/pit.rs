@@ -14,8 +14,8 @@
 //!
 //! This implementation is based on guidance from the following sources:
 //!
-//! * https://wiki.osdev.org/Programmable_Interval_Timer
-//! * https://en.wikipedia.org/wiki/Intel_8253
+//! * <https://wiki.osdev.org/Programmable_Interval_Timer>
+//! * <https://en.wikipedia.org/wiki/Intel_8253>
 
 use core::cell::Cell;
 
