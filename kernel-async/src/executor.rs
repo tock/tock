@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2022.
+
 use core::future::Future;
 use core::future::IntoFuture;
 use core::pin::Pin;
@@ -13,17 +17,17 @@ use kernel::static_init;
 use kernel::utilities::cells::MapCell;
 use kernel::ErrorCode;
 
-fn waker_clone<'a, D: AsyncDriver + 'static>(ptr_poller: *const ()) -> RawWaker {
+fn waker_clone<D: AsyncDriver + 'static>(ptr_poller: *const ()) -> RawWaker {
     let executor = unsafe { &*(ptr_poller as *const Executor<D>) };
     RawWaker::new(ptr_poller, executor.waker_vtable())
 }
 
-fn waker_wake<'a, D: AsyncDriver + 'static>(ptr_poller: *const ()) {
+fn waker_wake<D: AsyncDriver + 'static>(ptr_poller: *const ()) {
     let executor = unsafe { &*(ptr_poller as *const Executor<D>) };
     executor.poll();
 }
 
-fn waker_wake_by_ref<'a, D: AsyncDriver + 'static>(ptr_poller: *const ()) {
+fn waker_wake_by_ref<D: AsyncDriver + 'static>(ptr_poller: *const ()) {
     let executor = unsafe { &*(ptr_poller as *const Executor<D>) };
     executor.poll();
 }
@@ -40,7 +44,7 @@ pub struct Executor<D: AsyncDriver + 'static> {
     driver: &'static D,
 }
 
-impl<'a, D: AsyncDriver> Executor<D> {
+impl<D: AsyncDriver> Executor<D> {
     pub fn new(driver: &'static D) -> Executor<D> {
         Executor {
             future: MapCell::empty(),
@@ -61,7 +65,7 @@ impl<'a, D: AsyncDriver> Executor<D> {
 
     fn poll(&'static self) {
         debug!("poll");
-        let self_ptr = self as *const Self as *const ();
+        let self_ptr = core::ptr::from_ref::<Self>(self) as *const ();
         if let Some(Some(value)) = self.future.map(|future| {
             let waker = unsafe { Waker::from_raw(RawWaker::new(self_ptr, self.waker_vtable)) };
             let mut context = Context::from_waker(&waker);
@@ -72,7 +76,7 @@ impl<'a, D: AsyncDriver> Executor<D> {
         }) {
             drop(self.future.take());
             self.driver.done(value)
-        };
+        }
         debug!("poll done");
     }
 
