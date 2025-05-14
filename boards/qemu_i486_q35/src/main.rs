@@ -31,7 +31,8 @@ use kernel::syscall::SyscallDriver;
 use kernel::{create_capability, static_init, Kernel};
 
 use kernel_async::delay::Delay;
-use kernel_async::examples::{create_hello_print_driver, HelloPrintDriver};
+use kernel_async::examples::HelloPrintDriver;
+use kernel_async::executor::Executor;
 use x86::registers::bits32::paging::{PDEntry, PTEntry, PD, PT};
 use x86::registers::irq;
 
@@ -287,7 +288,29 @@ unsafe extern "cdecl" fn main() {
     );
     virtual_alarm_delay.set_alarm_client(delay);
 
-    let hello_print = static_init!(HelloPrintDriver, create_hello_print_driver(delay));
+    let hello_print = static_init!(
+        HelloPrintDriver<
+            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+                'static,
+                Pit<'static, RELOAD_1KHZ>,
+            >,
+        >,
+        HelloPrintDriver::new(delay)
+    );
+
+    let executor = static_init!(
+        Executor<
+            HelloPrintDriver<
+                capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
+                    'static,
+                    Pit<'static, RELOAD_1KHZ>,
+                >,
+            >,
+        >,
+        Executor::new(hello_print)
+    );
+
+    hello_print.set_runner(Some(executor));
 
     let platform = QemuI386Q35Platform {
         pconsole,
@@ -343,7 +366,8 @@ unsafe extern "cdecl" fn main() {
         debug!("{:?}", err);
     });
 
-    hello_print.execute();
+    debug!("{:?}", hello_print.execute());
+    debug!("{:?}", hello_print.execute());
 
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap);
 }

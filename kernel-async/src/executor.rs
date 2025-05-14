@@ -10,90 +10,72 @@ use core::task::Waker;
 use kernel::debug;
 use kernel::static_init;
 use kernel::utilities::cells::MapCell;
-use kernel::utilities::cells::OptionalCell;
 use kernel::ErrorCode;
 
-fn waker_clone<'a, T: 'static, F: Future<Output = T> + 'static, I: Fn(T) -> F>(
-    ptr_poller: *const (),
-) -> RawWaker {
-    debug!("clone");
-    let executor = unsafe { &*(ptr_poller as *const Executor<'a, T, F, I>) };
+fn waker_clone<'a, D: AsyncDriver + 'static>(ptr_poller: *const ()) -> RawWaker {
+    let executor = unsafe { &*(ptr_poller as *const Executor<D>) };
     RawWaker::new(ptr_poller, executor.waker_vtable())
 }
 
-fn waker_wake<'a, T: 'static, F: Future<Output = T> + 'static, I: Fn(T) -> F>(
-    ptr_poller: *const (),
-) {
-    debug!("wake");
-    // let vtable_ptr_poller = unsafe { ptr_poller.offset(1) };
-    // let poller: &dyn Poller = unsafe { transmute((ptr_poller, vtable_ptr_poller)) };
-    let poller: &dyn Poller =
-        unsafe { &*(ptr_poller as *const Executor<'a, T, F, I> as *const dyn Poller) };
-    poller.poll();
+fn waker_wake<'a, D: AsyncDriver + 'static>(ptr_poller: *const ()) {
+    let executor = unsafe { &*(ptr_poller as *const Executor<D>) };
+    executor.poll();
 }
 
-fn waker_wake_by_ref<'a, T: 'static, F: Future<Output = T> + 'static, I: Fn(T) -> F>(
-    ptr_poller: *const (),
-) {
-    debug!("wake_by_ref");
-    // let vtable_ptr_poller = unsafe { ptr_poller.offset(1) };
-    // let poller: &dyn Poller = unsafe { transmute((ptr_poller, vtable_ptr_poller)) };
-    let poller: &dyn Poller =
-        unsafe { &*(ptr_poller as *const Executor<'a, T, F, I> as *const dyn Poller) };
-    poller.poll();
+fn waker_wake_by_ref<'a, D: AsyncDriver + 'static>(ptr_poller: *const ()) {
+    let executor = unsafe { &*(ptr_poller as *const Executor<D>) };
+    executor.poll();
 }
 
-fn waker_drop(_ptr_poller: *const ()) {
-    debug!("drop");
+fn waker_drop(_ptr_poller: *const ()) {}
+
+pub trait Runner {
+    fn execute(&'static self) -> Result<(), ErrorCode>;
 }
 
-pub trait Runner<T: 'static> {
-    fn execute(&'static self, t: T) -> Result<(), (ErrorCode, T)>;
-}
-
-pub trait Poller {
-    fn poll(&'static self);
-}
-
-pub trait ExecutorClient<T: 'static = ()> {
-    fn ready(&self, t: T);
-}
-
-pub struct Executor<'a, T: 'static, F: Future<Output = T> + 'static, I: Fn(T) -> F> {
-    init: I,
-    future: MapCell<F>,
-    client: OptionalCell<&'a dyn ExecutorClient<T>>,
+pub struct Executor<D: AsyncDriver + 'static> {
+    future: MapCell<D::F>,
     waker_vtable: &'static RawWakerVTable,
+    driver: &'static D,
 }
 
-impl<'a, T: 'static, F: Future<Output = T> + 'static, I: Fn(T) -> F> Executor<'a, T, F, I> {
-    pub fn new(init: I) -> Executor<'a, T, F, I> {
+impl<'a, D: AsyncDriver> Executor<D> {
+    pub fn new(driver: &'static D) -> Executor<D> {
         Executor {
-            init,
             future: MapCell::empty(),
-            client: OptionalCell::empty(),
             waker_vtable: unsafe {
                 static_init!(
                     RawWakerVTable,
                     RawWakerVTable::new(
-                        waker_clone::<T, F, I>,
-                        waker_wake::<T, F, I>,
-                        waker_wake_by_ref::<T, F, I>,
+                        waker_clone::<D>,
+                        waker_wake::<D>,
+                        waker_wake_by_ref::<D>,
                         waker_drop,
                     )
                 )
             },
+            driver,
         }
     }
 
-    pub fn set_client(&self, client: &'a dyn ExecutorClient<T>) {
-        self.client.replace(client);
+    fn poll(&'static self) {
+        debug!("poll");
+        let self_ptr = self as *const Self as *const ();
+        if let Some(true) = self.future.map(|future| {
+            let waker = unsafe { Waker::from_raw(RawWaker::new(self_ptr, self.waker_vtable)) };
+            let mut context = Context::from_waker(&waker);
+            match unsafe { Pin::new_unchecked(future) }.poll(&mut context) {
+                Poll::Ready(()) => true,
+                Poll::Pending => false,
+            }
+        }) {
+            drop(self.future.take());
+            self.ready()
+        };
+        debug!("poll done");
     }
-
-    fn ready(&self, v: T) {
-        self.client.map(|client| {
-            client.ready(v);
-        });
+    fn ready(&self) {
+        self.driver.done();
     }
 
     fn waker_vtable(&self) -> &'static RawWakerVTable {
@@ -101,36 +83,22 @@ impl<'a, T: 'static, F: Future<Output = T> + 'static, I: Fn(T) -> F> Executor<'a
     }
 }
 
-impl<'a, T: 'static, F: Future<Output = T> + 'static, I: Fn(T) -> F> Runner<T>
-    for Executor<'a, T, F, I>
-{
-    fn execute(&'static self, t: T) -> Result<(), (ErrorCode, T)> {
+impl<D: AsyncDriver> Runner for Executor<D> {
+    fn execute(&'static self) -> Result<(), ErrorCode> {
         if self.future.is_none() {
-            self.future.replace((self.init)(t));
+            self.future.replace(self.driver.run());
             self.poll();
             Ok(())
         } else {
-            Err((ErrorCode::BUSY, t))
+            Err(ErrorCode::BUSY)
         }
     }
 }
 
-impl<'a, T: 'static, F: Future<Output = T> + 'static, I: Fn(T) -> F> Poller
-    for Executor<'a, T, F, I>
-{
-    fn poll(&'static self) {
-        debug!("poll");
-        let self_ptr = self as *const Self as *const ();
-        self.future.map(|future| {
-            let waker = unsafe { Waker::from_raw(RawWaker::new(self_ptr, self.waker_vtable)) };
-            let mut context = Context::from_waker(&waker);
-            match unsafe { Pin::new_unchecked(future) }.poll(&mut context) {
-                Poll::Ready(v) => {
-                    self.future.take();
-                    self.ready(v)
-                }
-                Poll::Pending => {}
-            }
-        });
-    }
+pub trait AsyncDriver {
+    type F: Future<Output = ()> + 'static;
+
+    fn run(&'static self) -> Self::F;
+
+    fn done(&self) {}
 }

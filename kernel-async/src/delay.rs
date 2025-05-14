@@ -33,7 +33,7 @@ impl<'a, A: Alarm<'a>> Delay<'a, A> {
     }
 
     fn drop_instance(&self) {
-        self.has_instance.store(false, Ordering::Relaxed);
+        self.has_instance.store(true, Ordering::Relaxed);
     }
 
     // is 'static required?
