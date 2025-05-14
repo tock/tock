@@ -23,7 +23,7 @@ use super::NUM_VECTORS;
 /// `e310x` chip crate.
 ///
 /// Internally, it maintains a large bitfield with a separate flag for every possible interrupt
-/// vector (total of [`NUM_VECTORS`]). When an interrupt occurs, a very lightweight ISR is
+/// vector (total of `NUM_VECTORS`). When an interrupt occurs, a very lightweight ISR is
 /// responsible for setting the corresponding flag. To poll for pending interrupts from within the
 /// kernel loop, we simply need to iterate over this bitfield and return the index of each active
 /// bit.
@@ -61,7 +61,7 @@ static mut SINGLETON: InterruptPoller = InterruptPoller {
 impl InterruptPoller {
     /// Provides safe access to the singleton instance of `InterruptPoller`.
     ///
-    /// The given closure `f` is executed with interrupts disabled (using [`support::atomic`]) and
+    /// The given closure `f` is executed with interrupts disabled (using [`support::atomic`](crate::support::atomic)) and
     /// passed a reference to the singleton.
     pub fn access<F, R>(f: F) -> R
     where

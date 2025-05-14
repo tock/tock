@@ -4,14 +4,14 @@
 
 //! Miscellaneous low-level operations
 
-#[cfg(target_arch = "x86")]
+#[cfg(any(doc, target_arch = "x86"))]
 use core::arch::asm;
 
 /// Execute a given closure atomically.
 ///
 /// This function ensures interrupts are disabled before invoking the given closue `f`. This allows
 /// you to safely perform memory accesses which would otherwise race against interrupt handlers.
-#[cfg(target_arch = "x86")]
+#[cfg(any(doc, target_arch = "x86"))]
 pub fn atomic<F, R>(f: F) -> R
 where
     F: FnOnce() -> R,
@@ -49,7 +49,7 @@ where
 }
 
 /// Executes a single NOP instruction.
-#[cfg(target_arch = "x86")]
+#[cfg(any(doc, target_arch = "x86"))]
 #[inline(always)]
 pub fn nop() {
     unsafe {
