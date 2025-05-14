@@ -21,8 +21,6 @@ use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, debug_verbose, static_init};
 
-use kernel_async::delay::{Delay, DelayInstance};
-use kernel_async::examples::{create_hello_print_driver, HelloPrintDriver};
 use nrf52833::gpio::Pin;
 use nrf52833::interrupt_service::Nrf52833DefaultPeripherals;
 
@@ -151,8 +149,6 @@ pub struct MicroBit {
 
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
-
-    hello_print: &'static HelloPrintDriver,
 }
 
 impl SyscallDriverLookup for MicroBit {
@@ -179,7 +175,6 @@ impl SyscallDriverLookup for MicroBit {
             capsules_extra::eui64::DRIVER_NUM => f(Some(self.eui64)),
             capsules_extra::ieee802154::DRIVER_NUM => f(Some(self.ieee802154)),
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
-            100 => f(Some(self.hello_print)),
             _ => f(None),
         }
     }
@@ -741,27 +736,6 @@ unsafe fn start() -> (
     let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
-    let virtual_alarm_delay = static_init!(
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, nrf52833::rtc::Rtc>,
-        capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm::new(mux_alarm)
-    );
-    virtual_alarm_delay.setup();
-
-    kernel_async::init();
-
-    let delay = static_init!(
-        Delay<
-            capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
-                'static,
-                nrf52833::rtc::Rtc,
-            >,
-        >,
-        Delay::new(virtual_alarm_delay)
-    );
-    virtual_alarm_delay.set_alarm_client(delay);
-
-    let hello_print = static_init!(HelloPrintDriver, create_hello_print_driver(delay));
-
     let microbit = MicroBit {
         ble_radio,
         ieee802154,
@@ -788,7 +762,6 @@ unsafe fn start() -> (
 
         scheduler,
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
-        hello_print,
     };
 
     let chip = static_init!(
@@ -834,8 +807,6 @@ unsafe fn start() -> (
         debug!("Error loading processes!");
         debug!("{:?}", err);
     });
-
-    hello_print.execute();
 
     (board_kernel, microbit, chip)
 }
