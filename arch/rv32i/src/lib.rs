@@ -4,8 +4,6 @@
 
 //! Support for the 32-bit RISC-V architecture.
 
-#![crate_name = "rv32i"]
-#![crate_type = "rlib"]
 #![no_std]
 
 pub mod clic;

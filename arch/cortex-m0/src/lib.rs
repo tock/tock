@@ -4,8 +4,6 @@
 
 //! Shared implementations for ARM Cortex-M0 MCUs.
 
-#![crate_name = "cortexm0"]
-#![crate_type = "rlib"]
 #![no_std]
 
 use core::fmt::Write;

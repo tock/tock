@@ -5,8 +5,6 @@
 //! Drivers and chip support for EarlGrey.
 
 #![no_std]
-#![crate_name = "earlgrey"]
-#![crate_type = "rlib"]
 // `registers/rv_plic_regs` has many register definitions in `register_structs()!`
 // and requires a deeper recursion limit than the default to fully expand.
 #![recursion_limit = "512"]
