@@ -398,7 +398,11 @@ unsafe fn start() -> (
     .finalize(components::console_ordered_component_static!(
         sam4l::ast::Ast
     ));
-    DebugWriterComponent::new(uart_mux).finalize(components::debug_writer_component_static!());
+    DebugWriterComponent::new(
+        uart_mux,
+        create_capability!(capabilities::SetDebugWriterCapability),
+    )
+    .finalize(components::debug_writer_component_static!());
 
     // Allow processes to communicate over BLE through the nRF51822
     peripherals.usart2.set_mode(sam4l::usart::UsartMode::Uart);

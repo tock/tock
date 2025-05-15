@@ -306,8 +306,11 @@ unsafe fn start() -> (
     .finalize(components::process_console_component_static!(
         sam4l::ast::Ast<'static>
     ));
-    components::debug_writer::DebugWriterComponent::new(uart_mux)
-        .finalize(components::debug_writer_component_static!());
+    components::debug_writer::DebugWriterComponent::new(
+        uart_mux,
+        create_capability!(capabilities::SetDebugWriterCapability),
+    )
+    .finalize(components::debug_writer_component_static!());
 
     // Initialize USART3 for UART for the nRF serialization link.
     peripherals.usart3.set_mode(sam4l::usart::UsartMode::Uart);
