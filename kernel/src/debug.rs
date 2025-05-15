@@ -18,8 +18,11 @@
 //!     None,
 //! );
 //!
-//! components::debug_writer::DebugWriterComponent::new(uart_mux)
-//!     .finalize(components::debug_writer_component_static!());
+//! components::debug_writer::DebugWriterComponent::new(
+//!     uart_mux,
+//!     create_capability!(kernel::capabilities::SetDebugWriterCapability)
+//! )
+//! .finalize(components::debug_writer_component_static!());
 //! ```
 //!
 //! Example
@@ -48,6 +51,7 @@ use core::panic::PanicInfo;
 use core::ptr::addr_of_mut;
 use core::str;
 
+use crate::capabilities::SetDebugWriterCapability;
 use crate::collections::queue::Queue;
 use crate::collections::ring_buffer::RingBuffer;
 use crate::hil;
@@ -318,8 +322,13 @@ unsafe fn get_debug_writer() -> &'static mut DebugWriterWrapper {
 }
 
 /// Function used by board main.rs to set a reference to the writer.
-pub unsafe fn set_debug_writer_wrapper(debug_writer: &'static mut DebugWriterWrapper) {
-    DEBUG_WRITER = Some(debug_writer);
+pub fn set_debug_writer_wrapper<C: SetDebugWriterCapability>(
+    debug_writer: &'static mut DebugWriterWrapper,
+    _cap: C,
+) {
+    unsafe {
+        DEBUG_WRITER = Some(debug_writer);
+    }
 }
 
 impl DebugWriterWrapper {

@@ -117,3 +117,11 @@ pub unsafe trait CreatePortTableCapability {}
 /// A capsule would never hold this capability although it may hold
 /// capabilities created via this capability.
 pub unsafe trait NetworkCapabilityCreationCapability {}
+
+/// The `SetDebugWriterCapability` allows the holder to set the debug writer
+/// mechanism in the kernel.
+///
+/// The debug writer is held by the kernel to enable the `debug!()` macro. The
+/// debug writer mechanism has access to debugging print messages which may
+/// contain information about the operation of the kernel.
+pub unsafe trait SetDebugWriterCapability {}
