@@ -903,6 +903,15 @@ unsafe fn setup() -> (
                 ),
             );
 
+    let app_flash = core::slice::from_raw_parts(
+        core::ptr::addr_of!(_sapps),
+        core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
+    );
+    let app_memory = core::slice::from_raw_parts_mut(
+        core::ptr::addr_of_mut!(_sappmem),
+        core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
+    );
+
     // Create and start the asynchronous process loader.
     let _loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
         checker,
@@ -912,6 +921,8 @@ unsafe fn setup() -> (
         &FAULT_RESPONSE,
         assigner,
         storage_permissions_policy,
+        app_flash,
+        app_memory,
     )
     .finalize(components::process_loader_sequential_component_static!(
         apollo3::chip::Apollo3<Apollo3DefaultPeripherals>,
