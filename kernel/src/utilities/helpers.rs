@@ -14,7 +14,6 @@
 /// ```
 /// # use kernel::capabilities::{ProcessManagementCapability, MemoryAllocationCapability};
 /// # use kernel::create_capability;
-///
 /// let process_mgmt_cap = create_capability!(ProcessManagementCapability);
 /// let unified_cap = create_capability!(ProcessManagementCapability, MemoryAllocationCapability);
 /// ```
@@ -29,6 +28,15 @@
 /// `unsafe`. Specifically, an internal `allow(unsafe_code)` directive
 /// will conflict with any `forbid(unsafe_code)` at the crate or block
 /// level.
+///
+/// ```compile_fail
+/// # use kernel::capabilities::ProcessManagementCapability;
+/// # use kernel::create_capability;
+/// #[forbid(unsafe_code)]
+/// fn untrusted_fn() {
+///     let process_mgmt_cap = create_capability!(ProcessManagementCapability);
+/// }
+/// ```
 #[macro_export]
 macro_rules! create_capability {
     ($($T:ty),+) => {{
