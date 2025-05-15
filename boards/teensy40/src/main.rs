@@ -260,8 +260,11 @@ unsafe fn start() -> (&'static kernel::Kernel, Teensy40, &'static Chip) {
     let uart_mux = components::console::UartMuxComponent::new(&peripherals.lpuart2, 115_200)
         .finalize(components::uart_mux_component_static!());
     // Create the debugger object that handles calls to `debug!()`
-    components::debug_writer::DebugWriterComponent::new(uart_mux)
-        .finalize(components::debug_writer_component_static!());
+    components::debug_writer::DebugWriterComponent::new(
+        uart_mux,
+        create_capability!(capabilities::SetDebugWriterCapability),
+    )
+    .finalize(components::debug_writer_component_static!());
 
     // Setup the console
     let console = components::console::ConsoleComponent::new(

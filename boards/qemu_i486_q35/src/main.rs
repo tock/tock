@@ -244,7 +244,11 @@ unsafe extern "cdecl" fn main() {
         .finalize(components::console_component_static!());
 
     // Create the debugger object that handles calls to `debug!()`.
-    DebugWriterComponent::new(uart_mux).finalize(components::debug_writer_component_static!());
+    DebugWriterComponent::new(
+        uart_mux,
+        create_capability!(capabilities::SetDebugWriterCapability),
+    )
+    .finalize(components::debug_writer_component_static!());
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,
