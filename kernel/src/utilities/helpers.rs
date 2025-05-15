@@ -9,25 +9,43 @@
 //!
 //! The macros are exported through the top level of the `kernel` crate.
 
-/// Create an object with the given capability.
+/// Create an object with the given capabilities.
 ///
-/// ```ignore
-/// use kernel::capabilities::ProcessManagementCapability;
-/// use kernel;
-///
+/// ```
+/// # use kernel::capabilities::{ProcessManagementCapability, MemoryAllocationCapability};
+/// # use kernel::create_capability;
 /// let process_mgmt_cap = create_capability!(ProcessManagementCapability);
+/// let unified_cap = create_capability!(ProcessManagementCapability, MemoryAllocationCapability);
 /// ```
 ///
 /// This helper macro cannot be called from `#![forbid(unsafe_code)]` crates,
 /// and is used by trusted code to generate a capability that it can either use
 /// or pass to another module.
+///
+/// # Safety
+///
+/// This macro can only be used in a context that is allowed to use
+/// `unsafe`. Specifically, an internal `allow(unsafe_code)` directive
+/// will conflict with any `forbid(unsafe_code)` at the crate or block
+/// level.
+///
+/// ```compile_fail
+/// # use kernel::capabilities::ProcessManagementCapability;
+/// # use kernel::create_capability;
+/// #[forbid(unsafe_code)]
+/// fn untrusted_fn() {
+///     let process_mgmt_cap = create_capability!(ProcessManagementCapability);
+/// }
+/// ```
 #[macro_export]
 macro_rules! create_capability {
-    ($T:ty $(,)?) => {{
-        struct Cap;
+    ($($T:ty),+) => {{
         #[allow(unsafe_code)]
-        unsafe impl $T for Cap {}
-        Cap
+        struct Cap(());
+        $(
+            unsafe impl $T for Cap {}
+        )*
+        Cap(())
     }};
 }
 
