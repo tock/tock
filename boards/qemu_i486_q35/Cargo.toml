@@ -14,6 +14,7 @@ components = { path = "../components" }
 kernel = { path = "../../kernel" }
 x86_q35 = { path = "../../chips/x86_q35" }
 x86 = { path = "../../arch/x86" }
+kernel-async = { path = "../../kernel-async" }
 
 capsules-core = { path = "../../capsules/core" }
 capsules-extra = { path = "../../capsules/extra" }

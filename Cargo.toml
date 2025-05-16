@@ -102,6 +102,7 @@ members = [
     "chips/veer_el2",
     "chips/virtio",
     "kernel",
+    "kernel-async",
     "libraries/enum_primitive",
     "libraries/riscv-csr",
     "libraries/tock-cells",
