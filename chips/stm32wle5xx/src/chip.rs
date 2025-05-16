@@ -23,6 +23,7 @@ pub struct Stm32wle5xxDefaultPeripherals<'a, ChipSpecs> {
     pub gpio_ports: crate::gpio::GpioPorts<'a>,
     pub usart1: crate::usart::Usart<'a>,
     pub usart2: crate::usart::Usart<'a>,
+    pub tim2: crate::tim2::Tim2<'a>,
 }
 
 impl<'a, ChipSpecs: ChipSpecsTrait> Stm32wle5xxDefaultPeripherals<'a, ChipSpecs> {
@@ -32,6 +33,7 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Stm32wle5xxDefaultPeripherals<'a, ChipSpecs>
             gpio_ports: crate::gpio::GpioPorts::new(clocks),
             usart1: crate::usart::Usart::new_usart1(clocks),
             usart2: crate::usart::Usart::new_usart2(clocks),
+            tim2: crate::tim2::Tim2::new(clocks),
         }
     }
 
@@ -48,6 +50,7 @@ impl<ChipSpecs: ChipSpecsTrait> InterruptService for Stm32wle5xxDefaultPeriphera
         match interrupt {
             nvic::USART1 => self.usart1.handle_interrupt(),
             nvic::USART2 => self.usart2.handle_interrupt(),
+            nvic::TIM2 => self.tim2.handle_interrupt(),
             _ => return false,
         }
         true
