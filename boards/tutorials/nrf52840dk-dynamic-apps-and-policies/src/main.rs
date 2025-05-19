@@ -266,21 +266,21 @@ pub unsafe fn main() {
         [capsules_extra::screen_shared::AppScreenRegion; 3],
         [
             capsules_extra::screen_shared::AppScreenRegion::new(
-                create_short_id_from_name("process_manager", 0x0),
+                create_short_id_from_name("process_manager", 0xf),
                 0,      // x
                 0,      // y
                 16 * 8, // width
                 7 * 8   // height
             ),
             capsules_extra::screen_shared::AppScreenRegion::new(
-                create_short_id_from_name("counter", 0x0),
+                create_short_id_from_name("counter", 0xf),
                 0,     // x
                 7 * 8, // y
                 8 * 8, // width
                 1 * 8  // height
             ),
             capsules_extra::screen_shared::AppScreenRegion::new(
-                create_short_id_from_name("temperature", 0x0),
+                create_short_id_from_name("temperature", 0xf),
                 8 * 8, // x
                 7 * 8, // y
                 8 * 8, // width
