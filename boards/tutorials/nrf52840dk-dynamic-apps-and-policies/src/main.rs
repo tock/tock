@@ -51,7 +51,10 @@ pub struct PMCapability;
 unsafe impl capabilities::ProcessManagementCapability for PMCapability {}
 unsafe impl capabilities::ProcessStartCapability for PMCapability {}
 
+#[cfg(feature = "screen_ssd1306")]
 type Screen = components::ssd1306::Ssd1306ComponentType<nrf52840::i2c::TWI<'static>>;
+#[cfg(feature = "screen_sh1106")]
+type Screen = components::sh1106::Sh1106ComponentType<nrf52840::i2c::TWI<'static>>;
 type ScreenDriver = components::screen::ScreenSharedComponentType<Screen>;
 
 type ProcessInfoDriver = capsules_extra::process_info_driver::ProcessInfo<PMCapability>;
