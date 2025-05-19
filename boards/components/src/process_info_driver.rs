@@ -13,10 +13,10 @@ use kernel::create_capability;
 
 #[macro_export]
 macro_rules! process_info_component_static {
-    () => {{
+    ($C:ty $(,)?) => {{
         let process_info = kernel::static_buf!(
             capsules_extra::process_info_driver::ProcessInfo<
-                components::process_info_driver::Capability,
+                $C,
             >
         );
 
@@ -43,13 +43,13 @@ impl<C: ProcessManagementCapability + ProcessStartCapability> ProcessInfoCompone
 impl<C: ProcessManagementCapability + ProcessStartCapability + 'static> Component
     for ProcessInfoComponent<C>
 {
-    type StaticInput = (&'static mut MaybeUninit<ProcessInfo<C>>,);
+    type StaticInput = &'static mut MaybeUninit<ProcessInfo<C>>;
     type Output = &'static process_info_driver::ProcessInfo<C>;
 
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let grant_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
-        let process_info = static_buffer.0.write(ProcessInfo::new(
+        let process_info = static_buffer.write(ProcessInfo::new(
             self.board_kernel,
             self.board_kernel.create_grant(self.driver_num, &grant_cap),
             self.capability,
