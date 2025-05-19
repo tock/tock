@@ -11,7 +11,6 @@
 use core::ptr::{addr_of, addr_of_mut};
 
 use kernel::component::Component;
-use kernel::hil::led::LedLow;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessLoadingAsync;
 use kernel::process::ShortId;
@@ -21,12 +20,6 @@ use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
 use nrf52840dk_lib::{self, PROCESSES};
 
 mod app_id_assigner_name_metadata;
-
-// The nRF52840DK LEDs (see back of board)
-const LED1_PIN: Pin = Pin::P0_13;
-const LED2_PIN: Pin = Pin::P0_14;
-const LED3_PIN: Pin = Pin::P0_15;
-const LED4_PIN: Pin = Pin::P0_16;
 
 // GPIO used for the screen shield
 const SCREEN_I2C_SDA_PIN: Pin = Pin::P1_10;
@@ -51,14 +44,6 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 pub struct PMCapability;
 unsafe impl capabilities::ProcessManagementCapability for PMCapability {}
 unsafe impl capabilities::ProcessStartCapability for PMCapability {}
-
-type LedDriver = capsules_core::led::LedDriver<
-    'static,
-    kernel::hil::led::LedLow<'static, nrf52840::gpio::GPIOPin<'static>>,
-    4,
->;
-
-type AdcDriver = capsules_core::adc::AdcDedicated<'static, nrf52840::adc::Adc<'static>>;
 
 #[cfg(feature = "screen_ssd1306")]
 type Screen = components::ssd1306::Ssd1306ComponentType<nrf52840::i2c::TWI<'static>>;
@@ -113,8 +98,6 @@ struct Platform {
     processes: &'static [Option<&'static dyn kernel::process::Process>],
     base: nrf52840dk_lib::Platform,
     screen: &'static ScreenDriver,
-    adc: &'static AdcDriver,
-    led: &'static LedDriver,
     process_info: &'static ProcessInfoDriver,
     nonvolatile_storage: &'static IsolatedNonvolatileStorageDriver,
     dynamic_app_loader: &'static AppLoaderDriver,
@@ -128,8 +111,6 @@ impl SyscallDriverLookup for Platform {
     {
         match driver_num {
             capsules_extra::screen::DRIVER_NUM => f(Some(self.screen)),
-            capsules_core::led::DRIVER_NUM => f(Some(self.led)),
-            capsules_core::adc::DRIVER_NUM => f(Some(self.adc)),
             capsules_extra::process_info_driver::DRIVER_NUM => f(Some(self.process_info)),
             capsules_extra::isolated_nonvolatile_storage_driver::DRIVER_NUM => {
                 f(Some(self.nonvolatile_storage))
@@ -206,43 +187,6 @@ pub unsafe fn main() {
         nrf52840dk_lib::start();
 
     CHIP = Some(chip);
-
-    //--------------------------------------------------------------------------
-    // LEDs
-    //--------------------------------------------------------------------------
-
-    let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
-        LedLow<'static, nrf52840::gpio::GPIOPin>,
-        LedLow::new(&nrf52840_peripherals.gpio_port[LED1_PIN]),
-        LedLow::new(&nrf52840_peripherals.gpio_port[LED2_PIN]),
-        LedLow::new(&nrf52840_peripherals.gpio_port[LED3_PIN]),
-        LedLow::new(&nrf52840_peripherals.gpio_port[LED4_PIN]),
-    ));
-
-    //--------------------------------------------------------------------------
-    // ADC
-    //--------------------------------------------------------------------------
-
-    let adc_channels = static_init!(
-        [nrf52840::adc::AdcChannelSetup; 6],
-        [
-            nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput1),
-            nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput2),
-            nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput4),
-            nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput5),
-            nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput6),
-            nrf52840::adc::AdcChannelSetup::new(nrf52840::adc::AdcChannel::AnalogInput7),
-        ]
-    );
-    let adc = components::adc::AdcDedicatedComponent::new(
-        &nrf52840_peripherals.nrf52.adc,
-        adc_channels,
-        board_kernel,
-        capsules_core::adc::DRIVER_NUM,
-    )
-    .finalize(components::adc_dedicated_component_static!(
-        nrf52840::adc::Adc
-    ));
 
     //--------------------------------------------------------------------------
     // SCREEN
@@ -469,8 +413,7 @@ pub unsafe fn main() {
             processes,
             base: base_platform,
             screen,
-            adc,
-            led,
+
             process_info,
             nonvolatile_storage,
             dynamic_app_loader,
