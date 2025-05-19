@@ -35,7 +35,8 @@ const SCREEN_I2C_SCL_PIN: Pin = Pin::P1_11;
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 8;
 
-static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>> = None;
+type Chip = nrf52840dk_lib::Chip;
+static mut CHIP: Option<&'static Chip> = None;
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
@@ -50,6 +51,14 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 pub struct PMCapability;
 unsafe impl capabilities::ProcessManagementCapability for PMCapability {}
 unsafe impl capabilities::ProcessStartCapability for PMCapability {}
+
+type LedDriver = capsules_core::led::LedDriver<
+    'static,
+    kernel::hil::led::LedLow<'static, nrf52840::gpio::GPIOPin<'static>>,
+    4,
+>;
+
+type AdcDriver = capsules_core::adc::AdcDedicated<'static, nrf52840::adc::Adc<'static>>;
 
 #[cfg(feature = "screen_ssd1306")]
 type Screen = components::ssd1306::Ssd1306ComponentType<nrf52840::i2c::TWI<'static>>;
@@ -101,20 +110,17 @@ fn create_short_id_from_name(name: &str, metadata: u8) -> ShortId {
 //------------------------------------------------------------------------------
 
 struct Platform {
+    processes: &'static [Option<&'static dyn kernel::process::Process>],
     base: nrf52840dk_lib::Platform,
     screen: &'static ScreenDriver,
-    adc: &'static capsules_core::adc::AdcDedicated<'static, nrf52840::adc::Adc<'static>>,
-    led: &'static capsules_core::led::LedDriver<
-        'static,
-        kernel::hil::led::LedLow<'static, nrf52840::gpio::GPIOPin<'static>>,
-        4,
-    >,
-    processes: &'static [Option<&'static dyn kernel::process::Process>],
+    adc: &'static AdcDriver,
+    led: &'static LedDriver,
     process_info: &'static ProcessInfoDriver,
     nonvolatile_storage: &'static IsolatedNonvolatileStorageDriver,
     dynamic_app_loader: &'static AppLoaderDriver,
 }
 
+// Expose system call interfaces to userspace.
 impl SyscallDriverLookup for Platform {
     fn with_driver<F, R>(&self, driver_num: usize, f: F) -> R
     where
@@ -134,8 +140,7 @@ impl SyscallDriverLookup for Platform {
     }
 }
 
-type Chip = nrf52840dk_lib::Chip;
-
+// Configure the kernel.
 impl KernelResources<Chip> for Platform {
     type SyscallDriverLookup = Self;
     type SyscallFilter = <nrf52840dk_lib::Platform as KernelResources<Chip>>::SyscallFilter;
@@ -169,6 +174,7 @@ impl KernelResources<Chip> for Platform {
     }
 }
 
+// Called by the process loader when the board boots.
 impl kernel::process::ProcessLoadingAsyncClient for Platform {
     fn process_loaded(&self, _result: Result<(), kernel::process::ProcessLoadError>) {}
 
@@ -183,6 +189,10 @@ impl kernel::process::ProcessLoadingAsyncClient for Platform {
         }
     }
 }
+
+//------------------------------------------------------------------------------
+// MAIN
+//------------------------------------------------------------------------------
 
 /// Main function called after RAM initialized.
 #[no_mangle]
@@ -326,11 +336,11 @@ pub unsafe fn main() {
     kernel::storage_volume!(APP_STORAGE, 32);
 
     let nonvolatile_storage = components::isolated_nonvolatile_storage::IsolatedNonvolatileStorageComponent::new(
-    board_kernel,
-    capsules_extra::isolated_nonvolatile_storage_driver::DRIVER_NUM,
-    virtual_flash_nvm,
-    core::ptr::addr_of!(APP_STORAGE) as usize,
-    APP_STORAGE.len()
+        board_kernel,
+        capsules_extra::isolated_nonvolatile_storage_driver::DRIVER_NUM,
+        virtual_flash_nvm,
+        core::ptr::addr_of!(APP_STORAGE) as usize,
+        APP_STORAGE.len()
     )
     .finalize(components::isolated_nonvolatile_storage_component_static!(
         capsules_core::virtualizers::virtual_flash::FlashUser<'static, nrf52840::nvmc::Nvmc>,
@@ -349,7 +359,7 @@ pub unsafe fn main() {
     .finalize(components::process_info_component_static!(PMCapability));
 
     //--------------------------------------------------------------------------
-    // Credential Checking
+    // CREDENTIAL CHECKING
     //--------------------------------------------------------------------------
 
     // Create the credential checker.
@@ -377,6 +387,10 @@ pub unsafe fn main() {
                 kernel::process::ProcessStandardDebugFull,
             ),
         );
+
+    //--------------------------------------------------------------------------
+    // PROCESS LOADING
+    //--------------------------------------------------------------------------
 
     // These symbols are defined in the standard Tock linker script.
     extern "C" {
@@ -418,7 +432,7 @@ pub unsafe fn main() {
     ));
 
     //--------------------------------------------------------------------------
-    // Dynamic App Loading
+    // DYNAMIC PROCESS LOADING
     //--------------------------------------------------------------------------
 
     // Create the dynamic binary flasher.
@@ -446,17 +460,17 @@ pub unsafe fn main() {
     ));
 
     //--------------------------------------------------------------------------
-    // PLATFORM SETUP, SCHEDULER, AND START KERNEL LOOP
+    // PLATFORM SETUP AND START KERNEL LOOP
     //--------------------------------------------------------------------------
 
     let platform = static_init!(
         Platform,
         Platform {
+            processes,
             base: base_platform,
             screen,
             adc,
             led,
-            processes,
             process_info,
             nonvolatile_storage,
             dynamic_app_loader,
