@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! Tock kernel for the Nordic Semiconductor nRF52840 development kit (DK).
+//! Tock kernel for the nRF52840-based dynamic processes and policies tutorial.
 
 #![no_std]
 #![no_main]
@@ -31,10 +31,9 @@ const NUM_PROCS: usize = 8;
 type Chip = nrf52840dk_lib::Chip;
 static mut CHIP: Option<&'static Chip> = None;
 
-// State for loading and holding applications.
 // How should the kernel respond when a process faults.
-const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
-    capsules_system::process_policies::PanicFaultPolicy {};
+const FAULT_RESPONSE: capsules_system::process_policies::StopWithDebugFaultPolicy =
+    capsules_system::process_policies::StopWithDebugFaultPolicy {};
 
 //------------------------------------------------------------------------------
 // SYSCALL DRIVER TYPE DEFINITIONS
