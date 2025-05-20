@@ -16,7 +16,7 @@ pub trait PubPrivKeyGenerateClient<'a> {
     );
 }
 
-/// An internal representation of a asymmetric Public key.
+/// An internal representation of an asymmetric Public key.
 ///
 /// This trait is useful for managing keys internally in Tock.
 ///
@@ -58,7 +58,7 @@ pub trait PubKey {
     fn len(&self) -> usize;
 }
 
-/// An internal representation of a asymmetric Public key.
+/// An internal representation of an asymmetric Public key.
 ///
 /// This trait is useful for managing keys internally in Tock.
 ///
@@ -100,7 +100,7 @@ pub trait PubKeyMut {
     fn len(&self) -> usize;
 }
 
-/// An internal representation of a asymetric Public and Private key.
+/// An internal representation of an asymmetric Public and Private key.
 ///
 /// This trait is useful for managing keys internally in Tock.
 ///
@@ -142,7 +142,7 @@ pub trait PubPrivKey: PubKey {
     fn len(&self) -> usize;
 }
 
-/// An internal representation of a asymetric Public and Private key.
+/// An internal representation of an asymmetric Public and Private key.
 ///
 /// This trait is useful for managing keys internally in Tock.
 ///
@@ -184,7 +184,7 @@ pub trait PubPrivKeyMut: PubKeyMut {
     fn len(&self) -> usize;
 }
 
-/// An internal representation of generating asymetric Public/Private key
+/// An internal representation of generating asymmetric Public/Private key
 /// pairs.
 ///
 /// This trait is useful for managing keys internally in Tock.
