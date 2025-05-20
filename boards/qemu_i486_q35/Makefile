@@ -39,7 +39,7 @@ QEMU_BASE_CMDLINE := \
 run: $(TARGET_PATH)/release/$(PLATFORM).elf
 	@echo
 	@echo Reordering ELF file sections
-	@$(OBJCOPY_PATH)objcopy  $<
+	@$(OBJCOPY)  $<
 	@echo
 	@echo -e "Running $$(qemu-system-i386 --version | head -n1)"\
 	  "(tested: $(WORKING_QEMU_VERSION)) with\n"\
