@@ -20,6 +20,7 @@ use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
 use nrf52840dk_lib::{self, PROCESSES};
 
 mod app_id_assigner_name_metadata;
+mod system_call_filter;
 
 // GPIO used for the screen shield
 const SCREEN_I2C_SDA_PIN: Pin = Pin::P1_10;
@@ -95,6 +96,7 @@ fn create_short_id_from_name(name: &str, metadata: u8) -> ShortId {
 
 struct Platform {
     processes: &'static [Option<&'static dyn kernel::process::Process>],
+    syscall_filter: &'static system_call_filter::DynamicPoliciesCustomFilter,
     base: nrf52840dk_lib::Platform,
     screen: &'static ScreenDriver,
     process_info: &'static ProcessInfoDriver,
@@ -123,7 +125,7 @@ impl SyscallDriverLookup for Platform {
 // Configure the kernel.
 impl KernelResources<Chip> for Platform {
     type SyscallDriverLookup = Self;
-    type SyscallFilter = <nrf52840dk_lib::Platform as KernelResources<Chip>>::SyscallFilter;
+    type SyscallFilter = system_call_filter::DynamicPoliciesCustomFilter;
     type ProcessFault = <nrf52840dk_lib::Platform as KernelResources<Chip>>::ProcessFault;
     type Scheduler = <nrf52840dk_lib::Platform as KernelResources<Chip>>::Scheduler;
     type SchedulerTimer = <nrf52840dk_lib::Platform as KernelResources<Chip>>::SchedulerTimer;
@@ -135,7 +137,7 @@ impl KernelResources<Chip> for Platform {
         self
     }
     fn syscall_filter(&self) -> &Self::SyscallFilter {
-        self.base.syscall_filter()
+        self.syscall_filter
     }
     fn process_fault(&self) -> &Self::ProcessFault {
         self.base.process_fault()
@@ -302,6 +304,15 @@ pub unsafe fn main() {
     .finalize(components::process_info_component_static!(PMCapability));
 
     //--------------------------------------------------------------------------
+    // SYSTEM CALL FILTERING
+    //--------------------------------------------------------------------------
+
+    let syscall_filter = static_init!(
+        system_call_filter::DynamicPoliciesCustomFilter,
+        system_call_filter::DynamicPoliciesCustomFilter {}
+    );
+
+    //--------------------------------------------------------------------------
     // CREDENTIAL CHECKING
     //--------------------------------------------------------------------------
 
@@ -410,9 +421,9 @@ pub unsafe fn main() {
         Platform,
         Platform {
             processes,
+            syscall_filter,
             base: base_platform,
             screen,
-
             process_info,
             nonvolatile_storage,
             dynamic_app_loader,
