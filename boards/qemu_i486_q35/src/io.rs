@@ -39,7 +39,12 @@ fn exit_qemu() -> ! {
         \r\nHINT: Use `killall qemu-system-i386` or the Task Manager to stop.\
         \r\n"
     ));
-    loop {}
+
+    // We use the `htl` instruction in the infinite loop to prevent high CPU usage
+    // if QEMU did not exit.
+    loop {
+        unsafe { asm!("hlt") }
+    }
 }
 
 /// Panic handler.
