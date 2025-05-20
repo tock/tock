@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2024.
 
+use core::fmt::Write;
 use core::ptr;
 use core::{arch::asm, panic::PanicInfo};
 
@@ -26,6 +27,18 @@ fn exit_qemu() -> ! {
         );
     }
 
+    // We prefer the infinite loop to the `options(noreturn)` for `asm!` as
+    // the required `isa-debug-exit` device might be missing in which case
+    // the execution does not stop and generates undefined behaviour.
+    let mut com1 = unsafe { BlockingSerialPort::new(COM1_BASE) };
+    let _ = com1.write_fmt(format_args!(
+        "BUG:  QEMU did not exit.\
+        \r\n      The isa-debug-exit device is missing or is at a wrong address.\
+        \r\n      Please make sure the QEMU command line uses\
+        \r\n      the `-device isa-debug-exit,iobase=0xf4,iosize=0x04` argument.\
+        \r\nHINT: Use `killall qemu-system-i386` or the Task Manager to stop.\
+        \r\n"
+    ));
     loop {}
 }
 
