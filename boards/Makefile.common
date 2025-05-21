@@ -128,10 +128,17 @@ endif
 # only have to be done once per Rust version, but will take some time when
 # compiling for the first time.
 ifneq ($(shell $(RUSTUP) target list | grep "$(TARGET) (installed)"),$(TARGET) (installed))
-  $(warning Request to compile for a missing TARGET, make will install in 5s)
-  $(warning Consider updating 'targets' in 'rust-toolchain.toml')
-  $(shell sleep 5)
-  $(shell $(RUSTUP) target add $(TARGET))
+  $(info Request to compile for a missing TARGET: $(TARGET))
+  $(info )
+  $(info If you are adding a new architecture, you will need to update)
+  $(info 'targets' in 'rust-toolchain.toml' to merge upstream.)
+  $(info )
+  $(info If you are just doing some local testing, you can install the)
+  $(info target manually for just your system with:)
+  $(info )
+  $(info     $(RUSTUP) target add $(TARGET))
+  $(info )
+  $(error Missing required target: $(TARGET))
 endif
 
 # If the board the user is compiling is using the stable toolchain, verify that
