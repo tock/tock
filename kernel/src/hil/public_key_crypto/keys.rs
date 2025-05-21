@@ -351,21 +351,17 @@ pub trait SelectKey<'a> {
 }
 
 /// Client for setting keys.
-pub trait SetKeyClient<const KL: usize> {
+pub trait SetKeyBySliceClient<const KL: usize> {
     /// Called when the key has been set.
     ///
-    /// Returns the previous key if one was set.
+    /// Returns the key that was set.
     ///
     /// ### `error`:
     ///
     /// - `Ok(())`: The key was set successfully.
     /// - `Err(())`: The key was not set successfully.
     ///   - `ErrorCode::FAIL`: The key could not be set.
-    fn set_key_done(
-        &self,
-        previous_key: Option<&'static mut [u8; KL]>,
-        error: Result<(), ErrorCode>,
-    );
+    fn set_key_done(&self, previous_key: &'static mut [u8; KL], error: Result<(), ErrorCode>);
 }
 
 /// Interface for setting keys by a slice.
@@ -376,11 +372,16 @@ pub trait SetKeyClient<const KL: usize> {
 /// used for implementations that hold keys in memory. However, this interface
 /// is asynchronous as keys may be stored in external storage or an external
 /// chip and require an asynchronous operations.
-pub trait SetKey<'a, const KL: usize> {
+///
+/// Implementors cannot hold the slice of the key being set. Instead, they must
+/// make an internal copy of the key and return the slice in
+/// [`SetKeyBySliceClient::set_key_done()`].
+pub trait SetKeyBySlice<'a, const KL: usize> {
     /// Set the current key.
     ///
-    /// This is asynchronous. If there is an existing key that key will be
-    /// returned in the `set_key_done()` callback.
+    /// This is asynchronous. The key slice will be returned in
+    /// [`SetKeyBySliceClient::set_key_done()`], or immediately if there is an
+    /// error.
     ///
     /// ### Return
     ///
@@ -389,5 +390,5 @@ pub trait SetKey<'a, const KL: usize> {
     fn set_key(&self, key: &'static mut [u8; KL])
         -> Result<(), (ErrorCode, &'static mut [u8; KL])>;
 
-    fn set_client(&self, client: &'a dyn SetKeyClient<KL>);
+    fn set_client(&self, client: &'a dyn SetKeyBySliceClient<KL>);
 }
