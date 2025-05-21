@@ -44,21 +44,6 @@ impl EcdsaP256SignatureVerifier<'_> {
     }
 }
 
-impl Default for EcdsaP256SignatureVerifier<'_> {
-    fn default() -> Self {
-        Self {
-            verified: Cell::new(false),
-            client: OptionalCell::empty(),
-            client_key_set: OptionalCell::empty(),
-            verifying_key: TakeCell::empty(),
-            hash_storage: TakeCell::empty(),
-            signature_storage: TakeCell::empty(),
-            deferred_call: kernel::deferred_call::DeferredCall::new(),
-            state: OptionalCell::empty(),
-        }
-    }
-}
-
 impl<'a> hil::public_key_crypto::signature::SignatureVerify<'a, 32, 64>
     for EcdsaP256SignatureVerifier<'a>
 {
