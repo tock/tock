@@ -9,7 +9,7 @@ use p256::ecdsa::signature::hazmat::PrehashVerifier;
 
 use core::cell::Cell;
 use kernel::hil;
-use kernel::hil::public_key_crypto::keys::SetKeyClient;
+use kernel::hil::public_key_crypto::keys::SetKeyBySliceClient;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
 use kernel::ErrorCode;
 
@@ -21,7 +21,7 @@ enum State {
 pub struct EcdsaP256SignatureVerifier<'a> {
     verified: Cell<bool>,
     client: OptionalCell<&'a dyn hil::public_key_crypto::signature::ClientVerify<32, 64>>,
-    client_key_set: OptionalCell<&'a dyn hil::public_key_crypto::keys::SetKeyClient<64>>,
+    client_key_set: OptionalCell<&'a dyn hil::public_key_crypto::keys::SetKeyBySliceClient<64>>,
     verifying_key: TakeCell<'static, [u8; 64]>,
     hash_storage: TakeCell<'static, [u8; 32]>,
     signature_storage: TakeCell<'static, [u8; 64]>,
@@ -30,12 +30,12 @@ pub struct EcdsaP256SignatureVerifier<'a> {
 }
 
 impl EcdsaP256SignatureVerifier<'_> {
-    pub fn new() -> Self {
+    pub fn new(verifying_key: &'static mut [u8; 64]) -> Self {
         Self {
             verified: Cell::new(false),
             client: OptionalCell::empty(),
             client_key_set: OptionalCell::empty(),
-            verifying_key: TakeCell::empty(),
+            verifying_key: TakeCell::new(verifying_key),
             hash_storage: TakeCell::empty(),
             signature_storage: TakeCell::empty(),
             deferred_call: kernel::deferred_call::DeferredCall::new(),
@@ -46,7 +46,16 @@ impl EcdsaP256SignatureVerifier<'_> {
 
 impl Default for EcdsaP256SignatureVerifier<'_> {
     fn default() -> Self {
-        Self::new()
+        Self {
+            verified: Cell::new(false),
+            client: OptionalCell::empty(),
+            client_key_set: OptionalCell::empty(),
+            verifying_key: TakeCell::empty(),
+            hash_storage: TakeCell::empty(),
+            signature_storage: TakeCell::empty(),
+            deferred_call: kernel::deferred_call::DeferredCall::new(),
+            state: OptionalCell::empty(),
+        }
     }
 }
 
@@ -100,7 +109,7 @@ impl<'a> hil::public_key_crypto::signature::SignatureVerify<'a, 32, 64>
     }
 }
 
-impl<'a> hil::public_key_crypto::keys::SetKey<'a, 64> for EcdsaP256SignatureVerifier<'a> {
+impl<'a> hil::public_key_crypto::keys::SetKeyBySlice<'a, 64> for EcdsaP256SignatureVerifier<'a> {
     fn set_key(
         &self,
         key: &'static mut [u8; 64],
@@ -112,7 +121,7 @@ impl<'a> hil::public_key_crypto::keys::SetKey<'a, 64> for EcdsaP256SignatureVeri
         Ok(())
     }
 
-    fn set_client(&self, client: &'a dyn SetKeyClient<64>) {
+    fn set_client(&self, client: &'a dyn SetKeyBySliceClient<64>) {
         self.client_key_set.replace(client);
     }
 }
@@ -131,10 +140,12 @@ impl kernel::deferred_call::DeferredCallClient for EcdsaP256SignatureVerifier<'_
                     });
                 }
                 State::ChangingKey(key) => {
-                    let previous_key = self.verifying_key.replace(key);
+                    self.verifying_key.map(|vkey| {
+                        vkey.copy_from_slice(key);
+                    });
 
                     self.client_key_set.map(|client| {
-                        client.set_key_done(previous_key, Ok(()));
+                        client.set_key_done(key, Ok(()));
                     });
                 }
             }

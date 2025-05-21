@@ -334,9 +334,10 @@ pub unsafe fn main() {
         kernel::static_init!([&'static mut [u8; 64]; 2], [verifying_key0, verifying_key1]);
     // kernel::static_init!([&'static mut [u8; 64]; 1], [verifying_key0]);
     // Setup the ECDSA-P256 verifier.
+    let ecdsa_p256_verifying_key = kernel::static_init!([u8; 64], [0; 64]);
     let ecdsa_p256_verifier = kernel::static_init!(
         ecdsa_sw::p256_verifier::EcdsaP256SignatureVerifier<'static>,
-        ecdsa_sw::p256_verifier::EcdsaP256SignatureVerifier::new()
+        ecdsa_sw::p256_verifier::EcdsaP256SignatureVerifier::new(ecdsa_p256_verifying_key)
     );
     ecdsa_p256_verifier.register();
 

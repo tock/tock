@@ -202,8 +202,8 @@ pub struct Atecc508a<'a> {
     message_data: TakeCell<'static, [u8; 32]>,
     signature_data: TakeCell<'static, [u8; 64]>,
     ext_public_key: TakeCell<'static, [u8; 64]>,
-    previous_ext_public_key: TakeCell<'static, [u8; 64]>,
-    key_set_client: OptionalCell<&'a dyn keys::SetKeyClient<64>>,
+    ext_public_key_temp: TakeCell<'static, [u8; 64]>,
+    key_set_client: OptionalCell<&'a dyn keys::SetKeyBySliceClient<64>>,
     deferred_call: kernel::deferred_call::DeferredCall,
 
     wakeup_device: fn(),
@@ -239,7 +239,7 @@ impl<'a> Atecc508a<'a> {
             message_data: TakeCell::empty(),
             signature_data: TakeCell::empty(),
             ext_public_key: TakeCell::empty(),
-            previous_ext_public_key: TakeCell::empty(),
+            ext_public_key_temp: TakeCell::empty(),
             key_set_client: OptionalCell::empty(),
             deferred_call: kernel::deferred_call::DeferredCall::new(),
             wakeup_device,
@@ -1401,29 +1401,33 @@ impl<'a> SignatureVerify<'a, 32, 64> for Atecc508a<'a> {
     }
 }
 
-impl<'a> keys::SetKey<'a, 64> for Atecc508a<'a> {
+impl<'a> keys::SetKeyBySlice<'a, 64> for Atecc508a<'a> {
     fn set_key(
         &self,
         key: &'static mut [u8; 64],
     ) -> Result<(), (ErrorCode, &'static mut [u8; 64])> {
-        if let Some(previous) = self.set_public_key(Some(key)) {
-            self.previous_ext_public_key.replace(previous);
-        }
+        // Copy the key into our public key buffer.
+        self.ext_public_key.map(|epkey| {
+            epkey.copy_from_slice(key);
+        });
+
+        // Save the key so we can return the buffer in `set_key_done()`.
+        self.ext_public_key_temp.replace(key);
         self.deferred_call.set();
         Ok(())
     }
 
-    fn set_client(&self, client: &'a dyn keys::SetKeyClient<64>) {
+    fn set_client(&self, client: &'a dyn keys::SetKeyBySliceClient<64>) {
         self.key_set_client.replace(client);
     }
 }
 
 impl kernel::deferred_call::DeferredCallClient for Atecc508a<'_> {
     fn handle_deferred_call(&self) {
-        let previous_key = self.previous_ext_public_key.take();
-
         self.key_set_client.map(|client| {
-            client.set_key_done(previous_key, Ok(()));
+            self.ext_public_key_temp
+                .take()
+                .map(|key| client.set_key_done(key, Ok(())))
         });
     }
 

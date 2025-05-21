@@ -43,7 +43,7 @@ pub type SignatureVerifyInMemoryKeysComponentType<
 
 pub struct SignatureVerifyInMemoryKeysComponent<
     S: kernel::hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>
-        + kernel::hil::public_key_crypto::keys::SetKey<'static, KL>
+        + kernel::hil::public_key_crypto::keys::SetKeyBySlice<'static, KL>
         + 'static,
     const NUM_KEYS: usize,
     const KL: usize,
@@ -56,7 +56,7 @@ pub struct SignatureVerifyInMemoryKeysComponent<
 
 impl<
         S: kernel::hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>
-            + kernel::hil::public_key_crypto::keys::SetKey<'static, KL>
+            + kernel::hil::public_key_crypto::keys::SetKeyBySlice<'static, KL>
             + 'static,
         const NUM_KEYS: usize,
         const KL: usize,
@@ -71,7 +71,7 @@ impl<
 
 impl<
         S: kernel::hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>
-            + kernel::hil::public_key_crypto::keys::SetKey<'static, KL>
+            + kernel::hil::public_key_crypto::keys::SetKeyBySlice<'static, KL>
             + 'static,
         const NUM_KEYS: usize,
         const KL: usize,

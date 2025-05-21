@@ -28,7 +28,7 @@
 //!   │    (this module)            │    │
 //!   │                             │    │
 //!   └─────────────────────────────┘    │
-//!     SignatureVerify + SetKey         │
+//!     SignatureVerify + SetKeyBySlice  │
 //!   ┌───────────────────────────────────────┐
 //!   │                                       │
 //!   │         Signature Verifier            │
@@ -37,7 +37,6 @@
 //!   └───────────────────────────────────────┘
 //! ```
 
-use core::cell::Cell;
 use kernel::hil;
 use kernel::utilities::cells::MapCell;
 use kernel::utilities::cells::OptionalCell;
@@ -46,7 +45,7 @@ use kernel::ErrorCode;
 pub struct SignatureVerifyInMemoryKeys<
     'a,
     S: hil::public_key_crypto::signature::SignatureVerify<'a, HL, SL>
-        + hil::public_key_crypto::keys::SetKey<'a, KL>,
+        + hil::public_key_crypto::keys::SetKeyBySlice<'a, KL>,
     const NUM_KEYS: usize,
     const KL: usize,
     const HL: usize,
@@ -56,7 +55,6 @@ pub struct SignatureVerifyInMemoryKeys<
 
     keys: [MapCell<&'static mut [u8; KL]>; NUM_KEYS],
     active_key: OptionalCell<usize>,
-    active_key_previous: Cell<usize>,
 
     client_key_select: OptionalCell<&'a dyn hil::public_key_crypto::keys::SelectKeyClient>,
 
@@ -66,7 +64,7 @@ pub struct SignatureVerifyInMemoryKeys<
 impl<
         'a,
         S: hil::public_key_crypto::signature::SignatureVerify<'a, HL, SL>
-            + hil::public_key_crypto::keys::SetKey<'a, KL>,
+            + hil::public_key_crypto::keys::SetKeyBySlice<'a, KL>,
         const NUM_KEYS: usize,
         const KL: usize,
         const HL: usize,
@@ -78,7 +76,6 @@ impl<
             verifier,
             keys: [const { MapCell::empty() }; NUM_KEYS],
             active_key: OptionalCell::empty(),
-            active_key_previous: Cell::new(0),
             client_key_select: OptionalCell::empty(),
             deferred_call: kernel::deferred_call::DeferredCall::new(),
         }
@@ -94,7 +91,7 @@ impl<
 impl<
         'a,
         S: hil::public_key_crypto::signature::SignatureVerify<'a, HL, SL>
-            + hil::public_key_crypto::keys::SetKey<'a, KL>,
+            + hil::public_key_crypto::keys::SetKeyBySlice<'a, KL>,
         const NUM_KEYS: usize,
         const KL: usize,
         const HL: usize,
@@ -128,7 +125,7 @@ impl<
 impl<
         'a,
         S: hil::public_key_crypto::signature::SignatureVerify<'a, HL, SL>
-            + hil::public_key_crypto::keys::SetKey<'a, KL>,
+            + hil::public_key_crypto::keys::SetKeyBySlice<'a, KL>,
         const NUM_KEYS: usize,
         const KL: usize,
         const HL: usize,
@@ -148,9 +145,6 @@ impl<
             if index == active_key {
                 return Err(ErrorCode::ALREADY);
             }
-
-            // Keep track of where to store the old key once we get it back.
-            self.active_key_previous.set(active_key);
         }
 
         // Extract the key from our stored list of buffers holding keys. Return
@@ -166,7 +160,15 @@ impl<
         // Mark which key is now active.
         self.active_key.set(index);
 
-        self.verifier.set_key(key).map_err(|(e, _key)| e)
+        // Set the key in the verifier. Replace if there is an error.
+        self.verifier.set_key(key).map_err(|(e, k)| {
+            if let Some(slot) = self.keys.get(self.active_key.get().unwrap_or(0)) {
+                slot.replace(k);
+            }
+            self.active_key.clear();
+
+            e
+        })
     }
 
     fn set_client(&self, client: &'a dyn hil::public_key_crypto::keys::SelectKeyClient) {
@@ -177,25 +179,20 @@ impl<
 impl<
         'a,
         S: hil::public_key_crypto::signature::SignatureVerify<'a, HL, SL>
-            + hil::public_key_crypto::keys::SetKey<'a, KL>,
+            + hil::public_key_crypto::keys::SetKeyBySlice<'a, KL>,
         const NUM_KEYS: usize,
         const KL: usize,
         const HL: usize,
         const SL: usize,
-    > hil::public_key_crypto::keys::SetKeyClient<KL>
+    > hil::public_key_crypto::keys::SetKeyBySliceClient<KL>
     for SignatureVerifyInMemoryKeys<'a, S, NUM_KEYS, KL, HL, SL>
 {
-    fn set_key_done(
-        &self,
-        previous_key: Option<&'static mut [u8; KL]>,
-        error: Result<(), ErrorCode>,
-    ) {
-        // If we had set a key previously and got it back, re-store it.
-        if let Some(k) = previous_key {
-            if let Some(slot) = self.keys.get(self.active_key_previous.get()) {
-                slot.replace(k);
-            }
+    fn set_key_done(&self, key: &'static mut [u8; KL], error: Result<(), ErrorCode>) {
+        // Re-store the key we just set.
+        if let Some(slot) = self.keys.get(self.active_key.get().unwrap_or(0)) {
+            slot.replace(key);
         }
+
         self.client_key_select.map(|client| {
             client.select_key_done(self.active_key.get().unwrap_or(0), error);
         });
@@ -205,7 +202,7 @@ impl<
 impl<
         'a,
         S: hil::public_key_crypto::signature::SignatureVerify<'a, HL, SL>
-            + hil::public_key_crypto::keys::SetKey<'a, KL>,
+            + hil::public_key_crypto::keys::SetKeyBySlice<'a, KL>,
         const NUM_KEYS: usize,
         const KL: usize,
         const HL: usize,
