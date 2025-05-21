@@ -314,7 +314,8 @@ pub trait SelectKeyClient {
 /// or waiting for an interrupt.
 ///
 /// Keys are specified by an index starting at zero and going to
-/// `get_key_count()-1`.
+/// `get_key_count()-1`, without gaps. Selecting a key between `0` and
+/// `get_key_count()-1` must not fail with `ErrorCode::INVAL`.
 ///
 /// The stored keys can be public or private keys.
 pub trait SelectKey<'a> {
