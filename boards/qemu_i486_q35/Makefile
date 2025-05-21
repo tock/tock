@@ -20,7 +20,8 @@ QEMU_BASE_CMDLINE := \
     -cpu 486 \
     -machine q35 \
     -net none \
-    -nographic
+    -nographic \
+    -device isa-debug-exit,iobase=0xf4,iosize=0x04
 
 # Run the kernel inside a qemu-system-i386 "q35" machine type simulation
 #
@@ -38,7 +39,7 @@ QEMU_BASE_CMDLINE := \
 run: $(TARGET_PATH)/release/$(PLATFORM).elf
 	@echo
 	@echo Reordering ELF file sections
-	@objcopy $<
+	@$(OBJCOPY)  $<
 	@echo
 	@echo -e "Running $$(qemu-system-i386 --version | head -n1)"\
 	  "(tested: $(WORKING_QEMU_VERSION)) with\n"\
