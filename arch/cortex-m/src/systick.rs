@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! Cortex-M SysTick timer
+//! Cortex-M SysTick Timer
 
 use core::cell::Cell;
 use kernel::utilities::registers::interfaces::{Readable, Writeable};
@@ -198,8 +198,8 @@ impl kernel::platform::scheduler_timer::SchedulerTimer for SysTick {
             ControlAndStatus::CLKSOURCE::SET
         };
 
-        // We really just need to set the TICKINT bit here, but can't use modify
-        // () because readying the CSR register will throw away evidence of
+        // We really just need to set the TICKINT bit here, but can't `modify()`
+        // because readying the CSR register will throw away evidence of
         // expiration if one occurred, so we re-write entire value instead.
         SYSTICK_BASE
             .syst_csr
@@ -216,8 +216,8 @@ impl kernel::platform::scheduler_timer::SchedulerTimer for SysTick {
             ControlAndStatus::CLKSOURCE::SET
         };
 
-        // We really just need to set the TICKINT bit here, but can't use modify
-        // () because readying the CSR register will throw away evidence of
+        // We really just need to set the TICKINT bit here, but can't `modify()`
+        // because readying the CSR register will throw away evidence of
         // expiration if one occurred, so we re-write entire value instead.
         SYSTICK_BASE
             .syst_csr

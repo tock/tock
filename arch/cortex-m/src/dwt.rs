@@ -245,8 +245,9 @@ register_bitfields![u32,
 
     Comparator0Mask[
         /// Size of ignore mask applied to the access address for address range
-        /// matching by comparator 0. WARN: Maximum Mask size is IMPLEMENTATION
-        /// DEFINED.
+        /// matching by comparator 0.
+        ///
+        /// WARN: Maximum Mask size is IMPLEMENTATION DEFINED.
         MASK       OFFSET(0)   NUMBITS(5),
     ],
 

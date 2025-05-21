@@ -176,7 +176,7 @@ pub unsafe fn next_pending() -> Option<u32> {
 /// pending.
 ///
 /// Mask is defined as two `u128` fields,
-///   `mask.0` has the bits corresponding to interrupts from 128 to 240
+///   `mask.0` has the bits corresponding to interrupts from 128 to 240.
 ///   `mask.1` has the bits corresponding to interrupts from 0 to 127.
 pub unsafe fn next_pending_with_mask(mask: (u128, u128)) -> Option<u32> {
     for (block, ispr) in NVIC
@@ -210,7 +210,7 @@ pub unsafe fn has_pending() -> bool {
 /// the indices that correspond to the bits set in mask
 ///
 /// Mask is defined as two `u128` fields,
-///   `mask.0` has the bits corresponding to interrupts from 128 to 240
+///   `mask.0` has the bits corresponding to interrupts from 128 to 240.
 ///   `mask.1` has the bits corresponding to interrupts from 0 to 127.
 pub unsafe fn has_pending_with_mask(mask: (u128, u128)) -> bool {
     NVIC.ispr
