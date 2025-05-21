@@ -10,14 +10,14 @@ use kernel::hil::{digest, public_key_crypto};
 
 #[macro_export]
 macro_rules! app_checker_signature_component_static {
-    ($S:ty, $H:ty, $HASH_LEN:expr, $SIGNATURE_LEN:expr $(,)?) => {{
+    ($SignatureKind:ty, $HashKind:ty, $HASH_LEN:expr, $SIGNATURE_LEN:expr $(,)?) => {{
         let hash_buffer = kernel::static_buf!([u8; $HASH_LEN]);
         let signature_buffer = kernel::static_buf!([u8; $SIGNATURE_LEN]);
         let checker = kernel::static_buf!(
             capsules_system::process_checker::signature::AppCheckerSignature<
                 'static,
-                $S,
-                $H,
+                $SignatureKind,
+                $HashKind,
                 $HASH_LEN,
                 $SIGNATURE_LEN,
             >
@@ -27,41 +27,45 @@ macro_rules! app_checker_signature_component_static {
     };};
 }
 
-pub type AppCheckerSignatureComponentType<S, H, const HASH_LEN: usize, const SIGNATURE_LEN: usize> =
-    capsules_system::process_checker::signature::AppCheckerSignature<
-        'static,
-        S,
-        H,
-        HASH_LEN,
-        SIGNATURE_LEN,
-    >;
+pub type AppCheckerSignatureComponentType<
+    SignatureKind,
+    HashKind,
+    const HASH_LEN: usize,
+    const SIGNATURE_LEN: usize,
+> = capsules_system::process_checker::signature::AppCheckerSignature<
+    'static,
+    SignatureKind,
+    HashKind,
+    HASH_LEN,
+    SIGNATURE_LEN,
+>;
 
 pub struct AppCheckerSignatureComponent<
-    S: kernel::hil::public_key_crypto::signature::SignatureVerify<'static, HASH_LEN, SIGNATURE_LEN>
+    SignatureKind: kernel::hil::public_key_crypto::signature::SignatureVerify<'static, HASH_LEN, SIGNATURE_LEN>
         + 'static,
-    H: kernel::hil::digest::DigestDataHash<'static, HASH_LEN> + 'static,
+    HashKind: kernel::hil::digest::DigestDataHash<'static, HASH_LEN> + 'static,
     const HASH_LEN: usize,
     const SIGNATURE_LEN: usize,
 > {
-    hasher: &'static H,
-    verifier: &'static S,
+    hasher: &'static HashKind,
+    verifier: &'static SignatureKind,
     credential_type: tock_tbf::types::TbfFooterV2CredentialsType,
 }
 
 impl<
-        S: kernel::hil::public_key_crypto::signature::SignatureVerify<
+        SignatureKind: kernel::hil::public_key_crypto::signature::SignatureVerify<
             'static,
             HASH_LEN,
             SIGNATURE_LEN,
         >,
-        H: kernel::hil::digest::DigestDataHash<'static, HASH_LEN>,
+        HashKind: kernel::hil::digest::DigestDataHash<'static, HASH_LEN>,
         const HASH_LEN: usize,
         const SIGNATURE_LEN: usize,
-    > AppCheckerSignatureComponent<S, H, HASH_LEN, SIGNATURE_LEN>
+    > AppCheckerSignatureComponent<SignatureKind, HashKind, HASH_LEN, SIGNATURE_LEN>
 {
     pub fn new(
-        hasher: &'static H,
-        verifier: &'static S,
+        hasher: &'static HashKind,
+        verifier: &'static SignatureKind,
         credential_type: tock_tbf::types::TbfFooterV2CredentialsType,
     ) -> Self {
         Self {
@@ -73,23 +77,23 @@ impl<
 }
 
 impl<
-        S: kernel::hil::public_key_crypto::signature::SignatureVerify<
+        SignatureKind: kernel::hil::public_key_crypto::signature::SignatureVerify<
             'static,
             HASH_LEN,
             SIGNATURE_LEN,
         >,
-        H: kernel::hil::digest::DigestDataHash<'static, HASH_LEN>
+        HashKind: kernel::hil::digest::DigestDataHash<'static, HASH_LEN>
             + kernel::hil::digest::Digest<'static, HASH_LEN>,
         const HASH_LEN: usize,
         const SIGNATURE_LEN: usize,
-    > Component for AppCheckerSignatureComponent<S, H, HASH_LEN, SIGNATURE_LEN>
+    > Component for AppCheckerSignatureComponent<SignatureKind, HashKind, HASH_LEN, SIGNATURE_LEN>
 {
     type StaticInput = (
         &'static mut MaybeUninit<
             capsules_system::process_checker::signature::AppCheckerSignature<
                 'static,
-                S,
-                H,
+                SignatureKind,
+                HashKind,
                 HASH_LEN,
                 SIGNATURE_LEN,
             >,
@@ -100,8 +104,8 @@ impl<
 
     type Output = &'static capsules_system::process_checker::signature::AppCheckerSignature<
         'static,
-        S,
-        H,
+        SignatureKind,
+        HashKind,
         HASH_LEN,
         SIGNATURE_LEN,
     >;
