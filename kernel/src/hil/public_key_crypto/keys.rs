@@ -344,7 +344,6 @@ pub trait SelectKey<'a> {
     ///
     /// `Ok()` if the key select operation was accepted. Otherwise:
     /// - `Err(ErrorCode::INVAL)` if the index is not valid.
-    /// - `Err(ErrorCode::ALREADY)` if the key is already selected.
     fn select_key(&self, index: usize) -> Result<(), ErrorCode>;
 
     fn set_client(&self, client: &'a dyn SelectKeyClient);

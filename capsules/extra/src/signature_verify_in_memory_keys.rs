@@ -139,14 +139,6 @@ impl<
     }
 
     fn select_key(&self, index: usize) -> Result<(), ErrorCode> {
-        if let Some(active_key) = self.active_key.get() {
-            // Check if we already have the requested key active and don't need
-            // to do anything.
-            if index == active_key {
-                return Err(ErrorCode::ALREADY);
-            }
-        }
-
         // Extract the key from our stored list of buffers holding keys. Return
         // `INVAL` if the index is greater than the number of keys we have and
         // return `NOMEM` if the key is not in our storage.
