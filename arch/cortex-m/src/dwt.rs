@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! ARM Data Watchpoint and Trace Unit
+//! Cortex-M Data Watchpoint and Trace Unit (DWT)
 //!
 //! <https://developer.arm.com/documentation/100166/0001/Data-Watchpoint-and-Trace-Unit/DWT-Programmers--model?lang=en>
 
@@ -116,91 +116,92 @@ register_bitfields![u32,
         /// RO
         NOPERFCNT       OFFSET(24)  NUMBITS(1),
 
-        /// Writing 1 enables event counter packets generation if [`PCSAMPLENA`] is set to 0.
-        /// Defaults to 0b0 on reset.
-        /// WARN: This bit is UNKNOWN if `NOTPRCPKT` or `NOCYCCNT` is read as one.
+        /// Writing 1 enables event counter packets generation if
+        /// [`PCSAMPLENA`] is set to 0. Defaults to 0b0 on reset.
+        /// WARN: This bit is UNKNOWN if [`NOTPRCPKT`] or [`NOCYCCNT`] is read
+        /// as one.
         /// RW
         CYCEVTENA       OFFSET(22)  NUMBITS(1),
 
-        /// Writing 1 enables generation of folded instruction counter overflow event. Defaults to
-        /// 0b0 on reset.
-        /// WARN: This bit is UNKNOWN if `NOPERFCNT` reads as one.
+        /// Writing 1 enables generation of folded instruction counter overflow
+        /// event. Defaults to 0b0 on reset.
+        /// WARN: This bit is UNKNOWN if [`NOPERFCNT`] reads as one.
         /// RW
         FOLDEVTENA      OFFSET(21)  NUMBITS(1),
 
         /// Writing 1 enables generation of LSU counter overflow event.
         /// Defaults to 0b0 on reset.
-        /// WARN: This bit is UNKNOWN if `NOPERFCNT` reads as one.
+        /// WARN: This bit is UNKNOWN if [`NOPERFCNT`] reads as one.
         /// RW
         LSUEVTENA       OFFSET(20)  NUMBITS(1),
 
         /// Writing 1 enables generation of sleep counter overflow event.
         /// Defaults to 0b0 on reset.
-        /// WARN: This bit is UNKNOWN if `NOPERFCNT` reads as one.
+        /// WARN: This bit is UNKNOWN if [`NOPERFCNT`] reads as one.
         /// RW
         SLEEPEVTENA     OFFSET(19)  NUMBITS(1),
 
         /// Writing 1 enables generation of exception overhead counter overflow event.
         /// Defaults to 0b0 on reset.
-        /// WARN: This bit is UNKNOWN if `NOPERFCNT` reads as one.
+        /// WARN: This bit is UNKNOWN if [`NOPERFCNT`] reads as one.
         /// RW
         EXCEVTENA       OFFSET(18)  NUMBITS(1),
 
         /// Writing 1 enables generation of the CPI counter overlow event.
         /// Defaults to 0b0 on reset.
-        /// WARN: This bit is UNKNOWN if `NOPERFCNT` reads as one.
+        /// WARN: This bit is UNKNOWN if [`NOPERFCNT`] reads as one.
         /// RW
         CPIEVTENA       OFFSET(17)  NUMBITS(1),
 
         /// Writing 1 enables generation of exception trace.
         /// Defaults to 0b0 on reset.
-        /// WARN: This bit is UNKNOWN if `NOTRCPKT` reads as one.
+        /// WARN: This bit is UNKNOWN if [`NOTRCPKT`] reads as one.
         /// RW
         EXCTRCENA       OFFSET(16)  NUMBITS(1),
 
-        /// Writing 1 enables use of [`POSTCNT`] counter as a timer for Periodic PC sample packet
-        /// generation.
+        /// Writing 1 enables use of [`POSTCNT`] counter as a timer for Periodic
+        /// PC sample packet generation.
         /// Defaults to 0b0 on reset.
-        /// WARN: This bit is UNKNOWN if `NOTRCPKT` or `NOCYCCNT` read as one.
+        /// WARN: This bit is UNKNOWN if [`NOTRCPKT`] or [`NOCYCCNT`] read as one.
         /// RW
         PCSAMPLENA      OFFSET(12)  NUMBITS(1),
 
-        /// Determines the position of synchronisation packet counter tap on the `CYCCNT` counter
-        /// and thus the synchronisation packet rate.
-        /// Defaults to UNKNOWN on reset.
-        /// WARN: This bit is UNKNOWN if `NOCYCCNT` reads as one.
+        /// Determines the position of synchronisation packet counter tap on the
+        /// `CYCCNT` counter and thus the synchronisation packet rate. Defaults
+        /// to UNKNOWN on reset.
+        /// WARN: This bit is UNKNOWN if [`NOCYCCNT`] reads as one.
         /// RW
         SYNCTAP         OFFSET(10)  NUMBITS(2),
 
-        /// Determines the position of the `POSTCNT` tap on the `CYCCNT` counter.
+        /// Determines the position of the [`POSTCNT`] tap on the [`CYCCNT`] counter.
         /// Defaults to UNKNOWN on reset.
-        /// WARN: This bit is UNKNOWN if `NOCYCCNT` reads as one.
+        /// WARN: This bit is UNKNOWN if [`NOCYCCNT`] reads as one.
         /// RW
         CYCTAP          OFFSET(9)  NUMBITS(1),
 
-        /// Initial value for the `POSTCNT` counter.
+        /// Initial value for the [`POSTCNT`] counter.
         /// Defaults to UNKNOWN on reset.
-        /// WARN: This bit is UNKNOWN if `NOCYCCNT` reads as one.
+        /// WARN: This bit is UNKNOWN if [`NOCYCCNT`] reads as one.
         /// RW
         POSTINIT        OFFSET(8)  NUMBITS(4),
 
-        /// Reload value for the `POSTCNT` counter.
+        /// Reload value for the [`POSTCNT`] counter.
         /// Defaults to UNKNOWN on reset.
-        /// WARN: This bit is UNKNOWN if `NOCYCCNT` reads as one.
+        /// WARN: This bit is UNKNOWN if [`NOCYCCNT`] reads as one.
         /// RW
         POSTPRESET      OFFSET(1)  NUMBITS(4),
 
-        /// Writing 1 enables `CYCCNT`.
+        /// Writing 1 enables [`CYCCNT`].
         /// Defaults to 0b0 on reset.
-        /// WARN: This bit is UNKNOWN if `NOCYCCNT` reads as one.
+        /// WARN: This bit is UNKNOWN if [`NOCYCCNT`] reads as one.
         /// RW
         CYCNTENA       OFFSET(0)  NUMBITS(1),
     ],
 
     CycleCount[
-        /// When enabled, increases on each processor clock cycle when Control::CYCNTENA and
-        /// DEMCRL::TRCENA read as one.
-        /// Wraps to zero on overflow.
+        /// When enabled, increases on each processor clock cycle when
+        /// [`Control::CYCNTENA`] and [`DEMCRL::TRCENA`] read as one. Wraps to
+        /// zero on overflow.
         CYCCNT          OFFSET(0)   NUMBITS(32),
     ],
 
@@ -220,12 +221,14 @@ register_bitfields![u32,
     ],
 
     LsuCount[
-        /// Counts additional cycles required to execute all load store instructions
+        /// Counts additional cycles required to execute all load store
+        /// instructions
         LSUCNT          OFFSET(0)   NUMBITS(8),
     ],
 
     FoldedInstructionCount[
-        /// Increments by one for each instruction that takes 0 cycles to execute.
+        /// Increments by one for each instruction that takes 0 cycles to
+        /// execute.
         FOLDCNT          OFFSET(0)   NUMBITS(8),
     ],
 
@@ -241,7 +244,9 @@ register_bitfields![u32,
     ],
 
     Comparator0Mask[
-        /// Size of ignore mask applied to the access address for address range matching by comparator 0.
+        /// Size of ignore mask applied to the access address for address range
+        /// matching by comparator 0.
+        ///
         /// WARN: Maximum Mask size is IMPLEMENTATION DEFINED.
         MASK       OFFSET(0)   NUMBITS(5),
     ],
@@ -279,7 +284,7 @@ register_bitfields![u32,
         CYCMATCH    OFFSET(7)    NUMBITS(1),
 
         /// Write 1 to enable generation of data trace address packets.
-        /// WARN: If `Control::NOTRCPKT` reads as zero, this bit is UNKNOWN.
+        /// WARN: If [`Control::NOTRCPKT`] reads as zero, this bit is UNKNOWN.
         /// RW.
         EMITRANGE   OFFSET(5)    NUMBITS(1),
 
@@ -295,7 +300,9 @@ register_bitfields![u32,
     ],
 
     Comparator1Mask[
-        /// Size of ignore mask applied to the access address for address range matching by comparator 0.
+        /// Size of ignore mask applied to the access address for address range
+        /// matching by comparator 0.
+        ///
         /// WARN: Maximum Mask size is IMPLEMENTATION DEFINED.
         MASK       OFFSET(0)   NUMBITS(5),
     ],
@@ -311,7 +318,7 @@ register_bitfields![u32,
         DATAVADDR1  OFFSET(16)   NUMBITS(4),
 
         /// Comparator number for linked address comparison.
-        /// Works, when `DATAVMATCH` reads as one.
+        /// Works, when [`DATAVMATCH`] reads as one.
         /// RW.
         DATAVADDR0  OFFSET(12)   NUMBITS(4),
 
@@ -344,7 +351,9 @@ register_bitfields![u32,
     ],
 
     Comparator2Mask[
-        /// Size of ignore mask applied to the access address for address range matching by comparator 0.
+        /// Size of ignore mask applied to the access address for address range
+        /// matching by comparator 0.
+        ///
         /// WARN: Maximum Mask size is IMPLEMENTATION DEFINED.
         MASK       OFFSET(0)   NUMBITS(5),
     ],
@@ -355,7 +364,7 @@ register_bitfields![u32,
         MATCHED     OFFSET(24)   NUMBITS(1),
 
         /// Second comparator number for linked address comparison.
-        /// Works, when `DATAVMATCH` and `LNK1ENA` read as one.
+        /// Works, when [`DATAVMATCH`] and [`LNK1ENA`] read as one.
         /// RW.
         DATAVADDR1  OFFSET(16)   NUMBITS(4),
 
@@ -393,7 +402,9 @@ register_bitfields![u32,
     ],
 
     Comparator3Mask[
-        /// Size of ignore mask applied to the access address for address range matching by comparator 0.
+        /// Size of ignore mask applied to the access address for address range
+        /// matching by comparator 0.
+        ///
         /// WARN: Maximum Mask size is IMPLEMENTATION DEFINED.
         MASK       OFFSET(0)   NUMBITS(5),
     ],
@@ -449,7 +460,7 @@ impl Dwt {
         Self { registers: DWT }
     }
 
-    /// Returns wether a cycle counter is present on the chip.
+    /// Returns whether a cycle counter is present on the chip.
     pub fn is_cycle_counter_present(&self) -> bool {
         DWT.ctrl.read(Control::NOCYCCNT) == 0
     }
@@ -473,7 +484,9 @@ impl hil::hw_debug::CycleCounter for Dwt {
     }
 
     fn reset(&self) {
-        self.registers.ctrl.modify(Control::CYCNTENA::CLEAR); // disable the counter
-        self.registers.cyccnt.set(0); // reset the counter
+        // disable the counter
+        self.registers.ctrl.modify(Control::CYCNTENA::CLEAR);
+        // reset the counter
+        self.registers.cyccnt.set(0);
     }
 }
