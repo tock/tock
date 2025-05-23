@@ -263,8 +263,9 @@ pub struct CortexMRegion {
 
 impl PartialEq<mpu::Region> for CortexMRegion {
     fn eq(&self, other: &mpu::Region) -> bool {
-        self.location
-            .is_some_and(|(addr, size)| addr == other.start_address() && size == other.size())
+        self.location.is_some_and(|(addr, size)| {
+            core::ptr::eq(addr, other.start_address()) && size == other.size()
+        })
     }
 }
 

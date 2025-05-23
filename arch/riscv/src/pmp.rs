@@ -1052,8 +1052,11 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
             .find(|(_i, r)| {
                 // `start as usize + size` in lieu of a safe pointer offset method
                 r.0 != TORUserPMPCFG::OFF
-                    && r.1 == region.start_address()
-                    && r.2 == (region.start_address() as usize + region.size()) as *const u8
+                    && core::ptr::eq(r.1, region.start_address())
+                    && core::ptr::eq(
+                        r.2,
+                        (region.start_address() as usize + region.size()) as *const u8,
+                    )
             })
             .map(|(i, _)| i)
             .ok_or(())?;

@@ -108,7 +108,7 @@ impl core::fmt::Write for WriteToBinaryOffsetWrapper<'_> {
                 0
             } else {
                 // We want to start in the middle.
-                self.offset - self.index
+                self.offset.saturating_sub(self.index)
             };
 
             // Calculate the number of bytes we are going to pass to the

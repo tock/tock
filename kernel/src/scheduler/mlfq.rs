@@ -110,12 +110,12 @@ impl<'a, A: 'static + time::Alarm<'static>> MLFQSched<'a, A> {
             let next = queue
                 .iter()
                 .find(|node_ref| node_ref.proc.is_some_and(|proc| proc.ready()));
-            if next.is_some() {
+            if let Some(inner) = next {
                 // pop procs to back until we get to match
                 loop {
                     let cur = queue.pop_head();
                     if let Some(node) = cur {
-                        if core::ptr::eq(node, next.unwrap()) {
+                        if core::ptr::eq(node, inner) {
                             queue.push_head(node);
                             // match! Put back on front
                             return (next, idx);
