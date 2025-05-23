@@ -61,6 +61,16 @@ pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 type AlarmDriver = components::alarm::AlarmDriverComponentType<nrf52840::rtc::Rtc<'static>>;
 
+type Verifier = ecdsa_sw::p256_verifier::EcdsaP256SignatureVerifier<'static>;
+type SignatureVerifyInMemoryKeys =
+    components::signature_verify_in_memory_keys::SignatureVerifyInMemoryKeysComponentType<
+        Verifier,
+        2,
+        64,
+        32,
+        64,
+    >;
+
 /// Supported drivers by the platform
 pub struct Platform {
     console: &'static capsules_core::console::Console<'static>,
@@ -284,7 +294,7 @@ pub unsafe fn main() {
     //
     //     tockloader tbf credential add ecdsap256 --private-key ec-secp256r1-priv-key.pem
     //
-    let verifying_key = kernel::static_init!(
+    let verifying_key0 = kernel::static_init!(
         [u8; 64],
         [
             0xe0, 0x13, 0x3a, 0x90, 0xa7, 0x4a, 0x35, 0x61, 0x51, 0x8e, 0xe1, 0x44, 0x09, 0xf1,
@@ -294,22 +304,61 @@ pub unsafe fn main() {
             0x34, 0x30, 0x89, 0x26, 0x4c, 0x23, 0x62, 0xb1
         ]
     );
-
+    // - `ec-secp256r1-priv-key2.pem`:
+    //   ```
+    //   -----BEGIN EC PRIVATE KEY-----
+    //   MHcCAQEEIMlpHXMiwjFiTRH015zyxsur59JVKzBUzM9jQTUSjcC9oAoGCCqGSM49
+    //   AwEHoUQDQgAEyT04ecALSi9cv8r8AyQUe++on+X1K3ec2fNR/bw35wwp5u7DxO1X
+    //   bZWNw8Bzh031jaY+je/40/CnCCKt9/ejqg==
+    //   -----END EC PRIVATE KEY-----
+    //   ```
+    //
+    // - `ec-secp256r1-pub-key2.pem`:
+    //   ```
+    //   -----BEGIN PUBLIC KEY-----
+    //   MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEyT04ecALSi9cv8r8AyQUe++on+X1
+    //   K3ec2fNR/bw35wwp5u7DxO1XbZWNw8Bzh031jaY+je/40/CnCCKt9/ejqg==
+    //   -----END PUBLIC KEY-----
+    //   ```
+    let verifying_key1 = kernel::static_init!(
+        [u8; 64],
+        [
+            0xc9, 0x3d, 0x38, 0x79, 0xc0, 0x0b, 0x4a, 0x2f, 0x5c, 0xbf, 0xca, 0xfc, 0x03, 0x24,
+            0x14, 0x7b, 0xef, 0xa8, 0x9f, 0xe5, 0xf5, 0x2b, 0x77, 0x9c, 0xd9, 0xf3, 0x51, 0xfd,
+            0xbc, 0x37, 0xe7, 0x0c, 0x29, 0xe6, 0xee, 0xc3, 0xc4, 0xed, 0x57, 0x6d, 0x95, 0x8d,
+            0xc3, 0xc0, 0x73, 0x87, 0x4d, 0xf5, 0x8d, 0xa6, 0x3e, 0x8d, 0xef, 0xf8, 0xd3, 0xf0,
+            0xa7, 0x08, 0x22, 0xad, 0xf7, 0xf7, 0xa3, 0xaa,
+        ]
+    );
+    let verifying_keys =
+        kernel::static_init!([&'static mut [u8; 64]; 2], [verifying_key0, verifying_key1]);
+    // kernel::static_init!([&'static mut [u8; 64]; 1], [verifying_key0]);
     // Setup the ECDSA-P256 verifier.
+    let ecdsa_p256_verifying_key = kernel::static_init!([u8; 64], [0; 64]);
     let ecdsa_p256_verifier = kernel::static_init!(
         ecdsa_sw::p256_verifier::EcdsaP256SignatureVerifier<'static>,
-        ecdsa_sw::p256_verifier::EcdsaP256SignatureVerifier::new(verifying_key)
+        ecdsa_sw::p256_verifier::EcdsaP256SignatureVerifier::new(ecdsa_p256_verifying_key)
     );
     ecdsa_p256_verifier.register();
+
+    // Setup the in-memory key selector.
+    let verifier_multiple_keys =
+        components::signature_verify_in_memory_keys::SignatureVerifyInMemoryKeysComponent::new(
+            ecdsa_p256_verifier,
+            verifying_keys,
+        )
+        .finalize(
+            components::signature_verify_in_memory_keys_component_static!(Verifier, 2, 64, 32, 64,),
+        );
 
     // Policy checks for a valid EcdsaNistP256 signature.
     let checking_policy = components::appid::checker_signature::AppCheckerSignatureComponent::new(
         sha,
-        ecdsa_p256_verifier,
+        verifier_multiple_keys,
         tock_tbf::types::TbfFooterV2CredentialsType::EcdsaNistP256,
     )
     .finalize(components::app_checker_signature_component_static!(
-        ecdsa_sw::p256_verifier::EcdsaP256SignatureVerifier<'static>,
+        SignatureVerifyInMemoryKeys,
         capsules_extra::sha256::Sha256Software<'static>,
         32,
         64,
