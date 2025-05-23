@@ -154,22 +154,12 @@ impl<
         // We have the hash, we know how many keys, now we need to select the
         // first key to check. Activate the first key.
         self.active_key_index.set((0, count));
-        match self.verifier.select_key(0) {
-            Err(select_key_error) => match select_key_error {
-                ErrorCode::ALREADY => {
-                    // The key was already selected so we can go ahead
-                    // to do the verification now.
-                    self.do_verify()
-                }
-                _ => {
-                    self.client.map(|c| {
-                        let binary = self.binary.take().unwrap();
-                        let cred = self.credentials.take().unwrap();
-                        c.check_done(Err(ErrorCode::FAIL), cred, binary)
-                    });
-                }
-            },
-            Ok(()) => {}
+        if let Err(_e) = self.verifier.select_key(0) {
+            self.client.map(|c| {
+                let binary = self.binary.take().unwrap();
+                let cred = self.credentials.take().unwrap();
+                c.check_done(Err(ErrorCode::FAIL), cred, binary)
+            });
         }
     }
 
