@@ -648,61 +648,17 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
     fn discover_process_binary(&self) -> Result<ProcessBinary, ProcessBinaryError> {
         let flash = self.flash.get();
 
-        if config::CONFIG.debug_load_processes {
-            debug!(
-                "Looking for process binary in flash={:#010X}-{:#010X}",
-                flash.as_ptr() as usize,
-                flash.as_ptr() as usize + flash.len() - 1
-            );
+        match discover_process_binary(flash) {
+            Ok((remaining_flash, pb)) => {
+                self.flash.set(remaining_flash);
+                Ok(pb)
+            }
+
+            Err((remaining_flash, err)) => {
+                self.flash.set(remaining_flash);
+                Err(err)
+            }
         }
-
-        // If this fails, not enough remaining flash to check for an app.
-        let test_header_slice = flash.get(0..8).ok_or(ProcessBinaryError::NotEnoughFlash)?;
-
-        // Pass the first eight bytes to tbfheader to parse out the length of
-        // the tbf header and app. We then use those values to see if we have
-        // enough flash remaining to parse the remainder of the header.
-        //
-        // Start by converting [u8] to [u8; 8].
-        let header = test_header_slice
-            .try_into()
-            .or(Err(ProcessBinaryError::NotEnoughFlash))?;
-
-        let (version, header_length, app_length) =
-            match tock_tbf::parse::parse_tbf_header_lengths(header) {
-                Ok((v, hl, el)) => (v, hl, el),
-                Err(tock_tbf::types::InitialTbfParseError::InvalidHeader(app_length)) => {
-                    // If we could not parse the header, then we want to skip over
-                    // this app and look for the next one.
-                    (0, 0, app_length)
-                }
-                Err(tock_tbf::types::InitialTbfParseError::UnableToParse) => {
-                    // Since Tock apps use a linked list, it is very possible the
-                    // header we started to parse is intentionally invalid to signal
-                    // the end of apps. This is ok and just means we have finished
-                    // loading apps.
-                    return Err(ProcessBinaryError::TbfHeaderNotFound);
-                }
-            };
-
-        // Now we can get a slice which only encompasses the length of flash
-        // described by this tbf header.  We will either parse this as an actual
-        // app, or skip over this region.
-        let app_flash = flash
-            .get(0..app_length as usize)
-            .ok_or(ProcessBinaryError::NotEnoughFlash)?;
-
-        // Advance the flash slice for process discovery beyond this last entry.
-        // This will be the start of where we look for a new process since Tock
-        // processes are allocated back-to-back in flash.
-        let remaining_flash = flash
-            .get(app_flash.len()..)
-            .ok_or(ProcessBinaryError::NotEnoughFlash)?;
-        self.flash.set(remaining_flash);
-
-        let pb = ProcessBinary::create(app_flash, header_length as usize, version, true)?;
-
-        Ok(pb)
     }
 
     /// Create process objects from the discovered process binaries.
