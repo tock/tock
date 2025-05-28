@@ -20,7 +20,11 @@ Include the following information in your report:
 
 After submitting a vulnerability report, expect the following response process:
 
-1. **Acknowledgment**: Receipt acknowledged within 48 hours (2 business days).
+1. **Acknowledgment**: Receipt acknowledged within 5 days.
+  - If you have not received a confirmation within 5 days, please send a
+    _separate_ email _without sensitive information_ to core@lists.tockos.org
+    to alert the Core Team that there is a pending, unacknowledged security
+    issue.
 2. **Verification**: Our security team verifies the issue and may request additional information.
 3. **Resolution Timeline**: Severity-based resolution timeline established; you will be kept informed.
 4. **Public Disclosure**: Coordinated disclosure timing after addressing the vulnerability. A reasonable embargo period is typically requested.

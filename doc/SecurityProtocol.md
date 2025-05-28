@@ -25,13 +25,13 @@ Consists of subsystem maintainers called upon to address vulnerabilities.
 | Subsystem  | Primary Contact | Secondary Contact  |
 | ---------- | --------------- | ------------------ |
 | Kernel     | @alevy          | @alexandruradovici |
-| Drivers    | TBD             | TBD                |
-| libtock-c  | @brghena        | TBD                |
-| libtock-rs | TBD             | TBD                |
-| Build      | TBD             | TBD                |
-| ARM        | @ppannuto       | TBD                |
+| Drivers    | @alevy          | @bradjc            |
+| libtock-c  | @brghena        | @ppanuto           |
+| libtock-rs | @jrvanwhy       | @hudson-ayers      |
+| Build      | @ppannuto       | TBD                |
+| ARM        | @ppannuto       | @alevy             |
 | RISC-V     | @lschuermann    | TBD                |
-| x86        | TBD             | TBD                |
+| x86        | @alexandruradovici | TBD             |
 
 ## Vulnerability Handling Process
 
