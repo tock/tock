@@ -10,7 +10,7 @@ This document outlines internal procedures for handling security vulnerabilities
 
 The Triage Coordinator (currently @charles37) responsibilities:
 
-- Initial review of security reports within 48 hours
+- Initial review of security reports within 5 days
 - Categorization and assignment of vulnerabilities
 - Coordination of response team
 - Communication with stakeholders
@@ -22,20 +22,20 @@ Consists of subsystem maintainers called upon to address vulnerabilities.
 
 ## Subsystem Contacts
 
-| Subsystem  | Primary Contact | Secondary Contact |
-| ---------- | --------------- | ----------------- |
-| Kernel     | @alevy             | @bradjc                |
-| Drivers    | TBD             | TBD               |
-| libtock-c  | TBD             | TBD               |
-| libtock-rs | TBD             | TBD               |
-| Build      | TBD             | TBD               |
-| ARM        | @ppannuto       | TBD               |
-| RISC-V     | @lschuermann    | TBD               |
-| x86        | TBD             | TBD               |
+| Subsystem  | Primary Contact | Secondary Contact  |
+| ---------- | --------------- | ------------------ |
+| Kernel     | @alevy          | @alexandruradovici |
+| Drivers    | TBD             | TBD                |
+| libtock-c  | @brghena        | TBD                |
+| libtock-rs | TBD             | TBD                |
+| Build      | TBD             | TBD                |
+| ARM        | @ppannuto       | TBD                |
+| RISC-V     | @lschuermann    | TBD                |
+| x86        | TBD             | TBD                |
 
 ## Vulnerability Handling Process
 
-### 1. Reception and Initial Assessment (0-48 hours)
+### 1. Reception and Initial Assessment (5 days)
 
 1. All security vulnerabilities received via security@lists.tockos.org
 2. Acknowledge receipt
@@ -45,7 +45,7 @@ Consists of subsystem maintainers called upon to address vulnerabilities.
    - Priority (P0, P1, P2, P3)
 4. Create private GitHub Security Advisory if valid
 
-### 2. Assignment and Response Planning (48-72 hours)
+### 2. Assignment and Response Planning (5 days-1 week)
 
 1. Assign vulnerability to subsystem maintainers
 2. Establish response team channel if serious
