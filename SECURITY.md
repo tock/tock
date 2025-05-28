@@ -41,7 +41,7 @@ Our process includes:
 Security advisories for Tock are published:
 
 - On our GitHub repository as Security Advisories
-- Via the public Tock security-announce mailing list
+- Via the public Tock [security-announce](https://lists.tockos.org/postorius/lists/security-announce.lists.tockos.org/) mailing list
 
 ## Bug Bounty Program
 
