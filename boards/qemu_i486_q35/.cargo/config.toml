@@ -1,0 +1,19 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2024.
+
+include = [
+  "../../cargo/tock_flags.toml",
+  "../../cargo/unstable_flags.toml",
+]
+
+[env]
+# Relative to crate root, not this file
+# TODO: where is the best place to store this config file?
+RUST_TARGET_PATH = "."
+
+[build]
+target = "i486-unknown-none.json"
+
+[unstable]
+config-include = true

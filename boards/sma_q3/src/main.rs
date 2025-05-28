@@ -11,9 +11,7 @@
 //! <https://hackaday.io/project/175577-hackable-nrf52840-smart-watch>
 
 #![no_std]
-// Disable this attribute when documenting, as a workaround for
-// https://github.com/rust-lang/rust/issues/62184.
-#![cfg_attr(not(doc), no_main)]
+#![no_main]
 #![deny(missing_docs)]
 
 use core::ptr::{addr_of, addr_of_mut};
@@ -294,13 +292,13 @@ pub unsafe fn start() -> (
     // Initialize early so any panic beyond this point can use the RTT memory object.
     let uart_channel = {
         // RTT communication channel
-        let mut rtt_memory = components::segger_rtt::SeggerRttMemoryComponent::new()
+        let rtt_memory = components::segger_rtt::SeggerRttMemoryComponent::new()
             .finalize(components::segger_rtt_memory_component_static!());
 
         // TODO: This is inherently unsafe as it aliases the mutable reference to rtt_memory. This
         // aliases reference is only used inside a panic handler, which should be OK, but maybe we
         // should use a const reference to rtt_memory and leverage interior mutability instead.
-        self::io::set_rtt_memory(&*rtt_memory.get_rtt_memory_ptr());
+        self::io::set_rtt_memory(&*core::ptr::from_mut(rtt_memory.rtt_memory));
 
         components::segger_rtt::SeggerRttComponent::new(mux_alarm, rtt_memory)
             .finalize(components::segger_rtt_component_static!(nrf52840::rtc::Rtc))
@@ -329,8 +327,11 @@ pub unsafe fn start() -> (
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux)
-        .finalize(components::debug_writer_component_static!());
+    components::debug_writer::DebugWriterComponent::new(
+        uart_mux,
+        create_capability!(capabilities::SetDebugWriterCapability),
+    )
+    .finalize(components::debug_writer_component_static!());
 
     let ble_radio = components::ble::BLEComponent::new(
         board_kernel,

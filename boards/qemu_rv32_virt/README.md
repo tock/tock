@@ -57,7 +57,7 @@ QEMU standalone, or with a single app. These can be executed through the
   Entering main loop.
   ```
 
-- **`run`**: Start Tock on an emulated QEMU board without an app:
+- **`run-app`**: Start Tock on an emulated QEMU board with an app:
 
   ```
   tock/boards/qemu_rv32_virt $ make run-app APP=$PATH_TO_APP.tbf

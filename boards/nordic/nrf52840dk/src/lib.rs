@@ -439,14 +439,14 @@ pub unsafe fn start() -> (
     let uart_channel = if USB_DEBUGGING {
         // Initialize early so any panic beyond this point can use the RTT
         // memory object.
-        let mut rtt_memory_refs = components::segger_rtt::SeggerRttMemoryComponent::new()
+        let rtt_memory_refs = components::segger_rtt::SeggerRttMemoryComponent::new()
             .finalize(components::segger_rtt_memory_component_static!());
 
         // XXX: This is inherently unsafe as it aliases the mutable reference to
         // rtt_memory. This aliases reference is only used inside a panic
         // handler, which should be OK, but maybe we should use a const
         // reference to rtt_memory and leverage interior mutability instead.
-        self::io::set_rtt_memory(&*rtt_memory_refs.get_rtt_memory_ptr());
+        self::io::set_rtt_memory(&*core::ptr::from_mut(rtt_memory_refs.rtt_memory));
 
         UartChannel::Rtt(rtt_memory_refs)
     } else {
@@ -619,8 +619,11 @@ pub unsafe fn start() -> (
     .finalize(components::console_component_static!());
 
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux)
-        .finalize(components::debug_writer_component_static!());
+    components::debug_writer::DebugWriterComponent::new(
+        uart_mux,
+        create_capability!(capabilities::SetDebugWriterCapability),
+    )
+    .finalize(components::debug_writer_component_static!());
 
     //--------------------------------------------------------------------------
     // BLE

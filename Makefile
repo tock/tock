@@ -249,10 +249,10 @@ ci-help:
 	@echo "review the documentation at 'doc/CodeReview.md'."
 	@echo
 	@echo "The following CI runners are available:"
-	@$(MAKE) -pRrq -f $(lastword $(MAKEFILE_LIST)) : 2>/dev/null | awk -v RS= -F: '/^# File/,/^# Finished Make data base/ {if ($$1 !~ "^[#.]") {print $$1}}' | sort | egrep -v -e '^[^[:alnum:]]' -e '^$@$$' | grep ci-runner | sed 's/^/ - /'
+	@$(MAKE) -pRrq -f $(lastword $(MAKEFILE_LIST)) : 2>/dev/null | awk -v RS= -F: '/^# File/,/^# Finished Make data base/ {if ($$1 !~ "^[#.]") {print $$1}}' | sort | grep -E -v -e '^[^[:alnum:]]' -e '^$@$$' | grep ci-runner | sed 's/^/ - /'
 	@echo
 	@echo "The following CI jobs are available:"
-	@$(MAKE) -pRrq -f $(lastword $(MAKEFILE_LIST)) : 2>/dev/null | awk -v RS= -F: '/^# File/,/^# Finished Make data base/ {if ($$1 !~ "^[#.]") {print $$1}}' | sort | egrep -v -e '^[^[:alnum:]]' -e '^$@$$' | grep ci-job | sed 's/^/ - /'
+	@$(MAKE) -pRrq -f $(lastword $(MAKEFILE_LIST)) : 2>/dev/null | awk -v RS= -F: '/^# File/,/^# Finished Make data base/ {if ($$1 !~ "^[#.]") {print $$1}}' | sort | grep -E -v -e '^[^[:alnum:]]' -e '^$@$$' | grep ci-job | sed 's/^/ - /'
 	@echo
 	@echo To run the recommended local development CI run $$(tput bold)make prepush$$(tput sgr0).
 	@echo Developers are encouraged to always run this before pushing code.
@@ -403,6 +403,7 @@ ci-job-clippy:
 	# actually check the arch-specific functions.
 	@cd boards/nordic/nrf52840dk && cargo clippy -- -D warnings
 	@cd boards/hifive1 && cargo clippy -- -D warnings
+	@cd boards/qemu_i486_q35 && cargo clippy -- -D warnings
 
 
 

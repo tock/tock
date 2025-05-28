@@ -5,8 +5,6 @@
 //! Chip support for the E310-G002 from SiFive.
 
 #![no_std]
-#![crate_name = "e310_g002"]
-#![crate_type = "rlib"]
 
 pub use e310x::{chip, clint, gpio, plic, prci, pwm, rtc, uart, watchdog};
 

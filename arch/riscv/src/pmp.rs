@@ -35,6 +35,19 @@ register_bitfields![u8,
     ]
 ];
 
+/// Mask for valid values of the `pmpaddrX` CSRs on RISCV platforms.
+///
+/// RV64 platforms support only a 56 bit physical address space. For this reason
+/// (and because addresses in `pmpaddrX` CSRs are left-shifted by 2 bit) the
+/// uppermost 10 bits of a `pmpaddrX` CSR are defined as WARL-0. ANDing with
+/// this mask achieves the same effect; thus it can be used to determine whether
+/// a given PMP region spec would be legal and applied before writing it to a
+/// `pmpaddrX` CSR. For RV32 platforms, th whole 32 bit address range is valid.
+///
+/// This mask will have the value `0x003F_FFFF_FFFF_FFFF` on RV64 platforms, and
+/// `0xFFFFFFFF` on RV32 platforms.
+const PMPADDR_MASK: usize = (0x003F_FFFF_FFFF_FFFFu64 & usize::MAX as u64) as usize;
+
 /// A `pmpcfg` octet for a user-mode (non-locked) TOR-addressed PMP region.
 ///
 /// This is a wrapper around a [`pmpcfg_octet`] (`u8`) register type, which
@@ -105,53 +118,87 @@ impl From<mpu::Permissions> for TORUserPMPCFG {
 /// - the region's start address is aligned to the region size
 /// - the region is at least 8 bytes long
 ///
+/// Finally, RISC-V restricts physical address spaces to 34 bit on RV32, and 56
+/// bit on RV64 platforms. A `NAPOTRegionSpec` must not cover addresses
+/// exceeding this address space, respectively. In practice, this means that on
+/// RV64 platforms `NAPOTRegionSpec`s whose encoded `pmpaddrX` CSR contains any
+/// non-zero bits in the 10 most significant bits will be rejected.
+///
 /// By accepting this type, PMP implementations can rely on these requirements
-/// to be verified. Furthermore, they can use the
-/// [`NAPOTRegionSpec::napot_addr`] convenience method to retrieve an `pmpaddrX`
-/// CSR value encoding this region's address and length.
+/// to be verified. Furthermore, they can use the [`NAPOTRegionSpec::pmpaddr`]
+/// convenience method to retrieve an `pmpaddrX` CSR value encoding this
+/// region's address and length.
 #[derive(Copy, Clone, Debug)]
 pub struct NAPOTRegionSpec {
-    start: *const u8,
-    size: usize,
+    pmpaddr: usize,
 }
 
 impl NAPOTRegionSpec {
-    /// Construct a new [`NAPOTRegionSpec`]
+    /// Construct a new [`NAPOTRegionSpec`] from a pmpaddr CSR value.
+    ///
+    /// For an RV32 platform, every single integer in `[0; usize::MAX]` is a
+    /// valid `pmpaddrX` CSR for a region configured in NAPOT mode, and this
+    /// operation is thus effectively infallible.
+    ///
+    /// For RV64 platforms, this operation checks if the range would include any
+    /// address outside of the 56 bit physical address space and, in this case,
+    /// rejects the `pmpaddr` (tests whether any of the 10 most significant bits
+    /// are non-zero).
+    pub fn from_pmpaddr_csr(pmpaddr: usize) -> Option<Self> {
+        // On 64-bit platforms, the 10 most significant bits must be 0
+        // Prevent the `&-masking with zero` lint error in case of RV32
+        // The redundant checks in this case are optimized out by the compiler on any 1-3,z opt-level
+        #[allow(clippy::bad_bit_mask)]
+        (pmpaddr & !PMPADDR_MASK == 0).then_some(NAPOTRegionSpec { pmpaddr })
+    }
+
+    /// Construct a new [`NAPOTRegionSpec`] from a start address and size.
     ///
     /// This method accepts a `start` address and a region length. It returns
     /// `Some(region)` when all constraints specified in the
     /// [`NAPOTRegionSpec`]'s documentation are satisfied, otherwise `None`.
-    pub fn new(start: *const u8, size: usize) -> Option<Self> {
-        if !size.is_power_of_two() || (start as usize) % size != 0 || size < 8 {
-            None
-        } else {
-            Some(NAPOTRegionSpec { start, size })
+    pub fn from_start_size(start: *const u8, size: usize) -> Option<Self> {
+        if !size.is_power_of_two() || start.addr() % size != 0 || size < 8 {
+            return None;
         }
+
+        Self::from_pmpaddr_csr(
+            (start.addr() + (size - 1).overflowing_shr(1).0)
+                .overflowing_shr(2)
+                .0,
+        )
     }
 
-    /// Retrieve the start address of this [`NAPOTRegionSpec`].
-    pub fn start(&self) -> *const u8 {
-        self.start
-    }
-
-    /// Retrieve the size of this [`NAPOTRegionSpec`].
-    pub fn size(&self) -> usize {
-        self.size
-    }
-
-    /// Retrieve the end address of this [`NAPOTRegionSpec`].
-    pub fn end(&self) -> *const u8 {
-        unsafe { self.start.add(self.size) }
+    /// Construct a new [`NAPOTRegionSpec`] from a start address and end address.
+    ///
+    /// This method accepts a `start` address (inclusive) and `end` address
+    /// (exclusive). It returns `Some(region)` when all constraints specified in
+    /// the [`NAPOTRegionSpec`]'s documentation are satisfied, otherwise `None`.
+    pub fn from_start_end(start: *const u8, end: *const u8) -> Option<Self> {
+        end.addr()
+            .checked_sub(start.addr())
+            .and_then(|size| Self::from_start_size(start, size))
     }
 
     /// Retrieve a `pmpaddrX`-CSR compatible representation of this
     /// [`NAPOTRegionSpec`]'s address and length. For this value to be valid in
     /// a `CSR` register, the `pmpcfgX` octet's `A` (address mode) value
     /// belonging to this `pmpaddrX`-CSR must be set to `NAPOT` (0b11).
-    pub fn napot_addr(&self) -> usize {
-        ((self.start as usize) + (self.size - 1).overflowing_shr(1).0)
-            .overflowing_shr(2)
-            .0
+    pub fn pmpaddr(&self) -> usize {
+        self.pmpaddr
+    }
+
+    /// Return the range of physical addresses covered by this PMP region.
+    ///
+    /// This follows the regular Rust range semantics (start inclusive, end
+    /// exclusive). It returns the addresses as u64-integers to ensure that all
+    /// underlying pmpaddrX CSR values can be represented.
+    pub fn address_range(&self) -> core::ops::Range<u64> {
+        let trailing_ones: u64 = self.pmpaddr.trailing_ones() as u64;
+        let size = 0b1000_u64 << trailing_ones;
+        let base_addr: u64 =
+            (self.pmpaddr as u64 & !((1_u64 << trailing_ones).saturating_sub(1))) << 2;
+        base_addr..(base_addr.saturating_add(size))
     }
 }
 
@@ -164,41 +211,73 @@ impl NAPOTRegionSpec {
 /// - the region's end address is aligned to a 4-byte boundary
 /// - the region is at least 4 bytes long
 ///
+/// Finally, RISC-V restricts physical address spaces to 34 bit on RV32, and 56
+/// bit on RV64 platforms. A `TORRegionSpec` must not cover addresses exceeding
+/// this address space, respectively. In practice, this means that on RV64
+/// platforms `TORRegionSpec`s whose encoded `pmpaddrX` CSR contains any
+/// non-zero bits in the 10 most significant bits will be rejected. In
+/// particular, with the `end` pmpaddrX CSR / address being exclusive, the
+/// region cannot span the last 4 bytes of the 56-bit address space on RV64, or
+/// the last 4 bytes of the 34-bit address space on RV32.
+///
 /// By accepting this type, PMP implementations can rely on these requirements
 /// to be verified.
 #[derive(Copy, Clone, Debug)]
 pub struct TORRegionSpec {
-    start: *const u8,
-    end: *const u8,
+    pmpaddr_a: usize,
+    pmpaddr_b: usize,
 }
 
 impl TORRegionSpec {
-    /// Construct a new [`TORRegionSpec`]
+    /// Construct a new [`TORRegionSpec`] from a pair of pmpaddrX CSR values.
+    ///
+    /// This method accepts two `pmpaddrX` CSR values that together are
+    /// configured to describe a single TOR memory region. The second `pmpaddr_b`
+    /// must be strictly greater than `pmpaddr_a`, which translates into a
+    /// minimum region size of 4 bytes. Otherwise this function returns `None`.
+    ///
+    /// For RV64 platforms, this operation also checks if the range would
+    /// include any address outside of the 56 bit physical address space and, in
+    /// this case, returns `None` (tests whether any of the 10 most significant
+    /// bits of either `pmpaddr` are non-zero).
+    pub fn from_pmpaddr_csrs(pmpaddr_a: usize, pmpaddr_b: usize) -> Option<TORRegionSpec> {
+        // Prevent the `&-masking with zero` lint error in case of RV32
+        // The redundant checks in this case are optimized out by the compiler on any 1-3,z opt-level
+        #[allow(clippy::bad_bit_mask)]
+        ((pmpaddr_a < pmpaddr_b)
+            && (pmpaddr_a & !PMPADDR_MASK == 0)
+            && (pmpaddr_b & !PMPADDR_MASK == 0))
+            .then_some(TORRegionSpec {
+                pmpaddr_a,
+                pmpaddr_b,
+            })
+    }
+
+    /// Construct a new [`TORRegionSpec`] from a range of addresses.
     ///
     /// This method accepts a `start` and `end` address. It returns
     /// `Some(region)` when all constraints specified in the [`TORRegionSpec`]'s
     /// documentation are satisfied, otherwise `None`.
-    pub fn new(start: *const u8, end: *const u8) -> Option<Self> {
+    pub fn from_start_end(start: *const u8, end: *const u8) -> Option<Self> {
         if (start as usize) % 4 != 0
             || (end as usize) % 4 != 0
             || (end as usize)
                 .checked_sub(start as usize)
                 .is_none_or(|size| size < 4)
         {
-            None
-        } else {
-            Some(TORRegionSpec { start, end })
+            return None;
         }
+
+        Self::from_pmpaddr_csrs(start.addr() >> 2, end.addr() >> 2)
     }
 
-    /// Retrieve the start address of this [`TORRegionSpec`].
-    pub fn start(&self) -> *const u8 {
-        self.start
+    /// Get the first `pmpaddrX` CSR value that this TORRegionSpec encodes.
+    pub fn pmpaddr_a(&self) -> usize {
+        self.pmpaddr_a
     }
 
-    /// Retrieve the end address of this [`TORRegionSpec`].
-    pub fn end(&self) -> *const u8 {
-        self.end
+    pub fn pmpaddr_b(&self) -> usize {
+        self.pmpaddr_b
     }
 }
 
@@ -240,6 +319,256 @@ fn region_overlaps(
             || region_range.contains(&(other_range.end - 1))
             || other_range.contains(&region_range.start)
             || other_range.contains(&(region_range.end - 1)))
+}
+
+#[cfg(test)]
+pub mod misc_pmp_test {
+    #[test]
+    fn test_napot_region_spec_from_pmpaddr_csr() {
+        use super::NAPOTRegionSpec;
+
+        // Unfortunatly, we can't run these unit tests for different platforms,
+        // with arbitrary bit-widths (at least when using `usize` in the
+        // `TORRegionSpec` internally.
+        //
+        // For now, we check whatever word-size our host-platform has and
+        // generate our test vectors according to those expectations.
+        let pmpaddr_max: usize = if core::mem::size_of::<usize>() == 8 {
+            // This deliberately does not re-use the `PMPADDR_RV64_MASK`
+            // constant which should be equal to this value:
+            0x003F_FFFF_FFFF_FFFF_u64.try_into().unwrap()
+        } else {
+            usize::MAX
+        };
+
+        for (valid, pmpaddr, start, end) in [
+            // Basic sanity checks:
+            (true, 0b0000, 0b0000_0000, 0b0000_1000),
+            (true, 0b0001, 0b0000_0000, 0b0001_0000),
+            (true, 0b0010, 0b0000_1000, 0b0001_0000),
+            (true, 0b0011, 0b0000_0000, 0b0010_0000),
+            (true, 0b0101, 0b0001_0000, 0b0010_0000),
+            (true, 0b1011, 0b0010_0000, 0b0100_0000),
+            // Can span the whole address space (up to 34 bit on RV32, and 5
+            // bit on RV64, 2^{XLEN + 3) byte NAPOT range).
+            (
+                true,
+                pmpaddr_max,
+                0,
+                if core::mem::size_of::<usize>() == 8 {
+                    0x0200_0000_0000_0000
+                } else {
+                    0x0000_0008_0000_0000
+                },
+            ),
+            // Cannot create region larger than `pmpaddr_max`:
+            (
+                core::mem::size_of::<usize>() != 8,
+                pmpaddr_max.saturating_add(1),
+                0,
+                if core::mem::size_of::<usize>() == 8 {
+                    // Doesn't matter, operation should fail:
+                    0
+                } else {
+                    0x0000_0008_0000_0000
+                },
+            ),
+        ] {
+            match (valid, NAPOTRegionSpec::from_pmpaddr_csr(pmpaddr)) {
+                (true, Some(region)) => {
+                    assert_eq!(
+                        region.pmpaddr(),
+                        pmpaddr,
+                        "NAPOTRegionSpec::from_pmpaddr_csr yields wrong CSR value (0x{:x?} vs. 0x{:x?})",
+                        pmpaddr,
+                        region.pmpaddr()
+                    );
+                    assert_eq!(
+                        region.address_range(),
+                        start..end,
+                        "NAPOTRegionSpec::from_pmpaddr_csr yields wrong address range value for CSR 0x{:x?} (0x{:x?}..0x{:x?} vs. 0x{:x?}..0x{:x?})",
+                        pmpaddr,
+                        region.address_range().start,
+                        region.address_range().end,
+                        start,
+                        end
+                    );
+                }
+
+                (true, None) => {
+                    panic!(
+                        "Failed to create NAPOT region over pmpaddr CSR ({:x?}), but has to succeed!",
+                        pmpaddr,
+                    );
+                }
+
+                (false, Some(region)) => {
+                    panic!(
+                        "Creation of TOR region over pmpaddr CSR {:x?} must fail, but succeeded: {:?}",
+                        pmpaddr, region,
+                    );
+                }
+
+                (false, None) => {
+                    // Good, nothing to do here.
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_tor_region_spec_from_pmpaddr_csrs() {
+        use super::TORRegionSpec;
+        // Unfortunatly, we can't run these unit tests for different platforms,
+        // with arbitrary bit-widths (at least when using `usize` in the
+        // `TORRegionSpec` internally.
+        //
+        // For now, we check whatever word-size our host-platform has and
+        // generate our test vectors according to those expectations.
+        let pmpaddr_max: usize = if core::mem::size_of::<usize>() == 8 {
+            // This deliberately does not re-use the `PMPADDR_RV64_MASK`
+            // constant which should be equal to this value:
+            0x003F_FFFF_FFFF_FFFF_u64.try_into().unwrap()
+        } else {
+            usize::MAX
+        };
+
+        for (valid, pmpaddr_a, pmpaddr_b) in [
+            // Can span the whole address space (up to 34 bit on RV32, and 56
+            // bit on RV64):
+            (true, 0, 1),
+            (true, 0x8badf00d, 0xdeadbeef),
+            (true, pmpaddr_max - 1, pmpaddr_max),
+            (true, 0, pmpaddr_max),
+            // Cannot create region smaller than 4 bytes:
+            (false, 0, 0),
+            (false, 0xdeadbeef, 0xdeadbeef),
+            (false, pmpaddr_max, pmpaddr_max),
+            // On 64-bit systems, cannot create region that exceeds 56 bit:
+            (
+                core::mem::size_of::<usize>() != 8,
+                0,
+                pmpaddr_max.saturating_add(1),
+            ),
+            // Cannot create region with end before start:
+            (false, 1, 0),
+            (false, 0xdeadbeef, 0x8badf00d),
+            (false, pmpaddr_max, 0),
+        ] {
+            match (
+                valid,
+                TORRegionSpec::from_pmpaddr_csrs(pmpaddr_a, pmpaddr_b),
+            ) {
+                (true, Some(region)) => {
+                    assert_eq!(region.pmpaddr_a(), pmpaddr_a);
+                    assert_eq!(region.pmpaddr_b(), pmpaddr_b);
+                }
+
+                (true, None) => {
+                    panic!(
+                        "Failed to create TOR region over pmpaddr CSRS ({:x?}, {:x?}), but has to succeed!",
+                        pmpaddr_a, pmpaddr_b,
+                    );
+                }
+
+                (false, Some(region)) => {
+                    panic!(
+                        "Creation of TOR region over pmpaddr CSRs ({:x?}, {:x?}) must fail, but succeeded: {:?}",
+                        pmpaddr_a, pmpaddr_b, region
+                    );
+                }
+
+                (false, None) => {
+                    // Good, nothing to do here.
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_tor_region_spec_from_start_end_addrs() {
+        use super::TORRegionSpec;
+
+        fn panicing_shr_2(i: usize) -> usize {
+            assert_eq!(i & 0b11, 0);
+            i >> 2
+        }
+
+        // Unfortunatly, we can't run these unit tests for different platforms,
+        // with arbitrary bit-widths (at least when using `usize` in the
+        // `TORRegionSpec` internally.
+        //
+        // For now, we check whatever word-size our host-platform has and
+        // generate our test vectors according to those expectations.
+        let last_addr: usize = if core::mem::size_of::<usize>() == 8 {
+            0x03F_FFFF_FFFF_FFFC_u64.try_into().unwrap()
+        } else {
+            // For 32-bit platforms, this cannot actually cover the whole
+            // 32-bit address space. We must exclude the last 4 bytes.
+            usize::MAX & (!0b11)
+        };
+
+        for (valid, start, end) in [
+            // Can span the whole address space (up to 34 bit on RV32, and 56
+            // bit on RV64):
+            (true, 0, 4),
+            (true, 0x13374200, 0xdead10cc),
+            (true, last_addr - 4, last_addr),
+            (true, 0, last_addr),
+            // Cannot create region with start and end address not aligned on
+            // 4-byte boundary:
+            (false, 4, 5),
+            (false, 4, 6),
+            (false, 4, 7),
+            (false, 5, 8),
+            (false, 6, 8),
+            (false, 7, 8),
+            // Cannot create region smaller than 4 bytes:
+            (false, 0, 0),
+            (false, 0x13374200, 0x13374200),
+            (false, 0x13374200, 0x13374201),
+            (false, 0x13374200, 0x13374202),
+            (false, 0x13374200, 0x13374203),
+            (false, last_addr, last_addr),
+            // On 64-bit systems, cannot create region that exceeds 56 or covers
+            // the last 4 bytes of this address space. On 32-bit, cannot cover
+            // the full address space (excluding the last 4 bytes of the address
+            // space):
+            (false, 0, last_addr.checked_add(1).unwrap()),
+            // Cannot create region with end before start:
+            (false, 4, 0),
+            (false, 0xdeadbeef, 0x8badf00d),
+            (false, last_addr, 0),
+        ] {
+            match (
+                valid,
+                TORRegionSpec::from_start_end(start as *const u8, end as *const u8),
+            ) {
+                (true, Some(region)) => {
+                    assert_eq!(region.pmpaddr_a(), panicing_shr_2(start));
+                    assert_eq!(region.pmpaddr_b(), panicing_shr_2(end));
+                }
+
+                (true, None) => {
+                    panic!(
+                        "Failed to create TOR region from address range [{:x?}, {:x?}), but has to succeed!",
+                        start, end,
+                    );
+                }
+
+                (false, Some(region)) => {
+                    panic!(
+                        "Creation of TOR region from address range [{:x?}, {:x?}) must fail, but succeeded: {:?}",
+                        start, end, region
+                    );
+                }
+
+                (false, None) => {
+                    // Good, nothing to do here.
+                }
+            }
+        }
+    }
 }
 
 /// Print a table of the configured PMP regions, read from  the HW CSRs.
@@ -723,8 +1052,11 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
             .find(|(_i, r)| {
                 // `start as usize + size` in lieu of a safe pointer offset method
                 r.0 != TORUserPMPCFG::OFF
-                    && r.1 == region.start_address()
-                    && r.2 == (region.start_address() as usize + region.size()) as *const u8
+                    && core::ptr::eq(r.1, region.start_address())
+                    && core::ptr::eq(
+                        r.2,
+                        (region.start_address() as usize + region.size()) as *const u8,
+                    )
             })
             .map(|(i, _)| i)
             .ok_or(())?;
@@ -874,7 +1206,7 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
 }
 
 #[cfg(test)]
-pub mod test {
+pub mod tor_user_pmp_test {
     use super::{TORUserPMP, TORUserPMPCFG};
 
     struct MockTORUserPMP;
@@ -1480,7 +1812,7 @@ pub mod kernel_protection {
                     + pmpcfg_octet::x::CLEAR
                     + pmpcfg_octet::l::SET)
                     .into(),
-                mmio.0.napot_addr(),
+                mmio.0.pmpaddr(),
             );
 
             // RAM at n - 3:
@@ -1492,7 +1824,7 @@ pub mod kernel_protection {
                     + pmpcfg_octet::x::CLEAR
                     + pmpcfg_octet::l::SET)
                     .into(),
-                ram.0.napot_addr(),
+                ram.0.pmpaddr(),
             );
 
             // `.text` at n - 6 and n - 5 (TOR region):
@@ -1504,7 +1836,7 @@ pub mod kernel_protection {
                     + pmpcfg_octet::x::CLEAR
                     + pmpcfg_octet::l::SET)
                     .into(),
-                (kernel_text.0.start() as usize) >> 2,
+                kernel_text.0.pmpaddr_a(),
             );
             write_pmpaddr_pmpcfg(
                 AVAILABLE_ENTRIES - 5,
@@ -1514,7 +1846,7 @@ pub mod kernel_protection {
                     + pmpcfg_octet::x::SET
                     + pmpcfg_octet::l::SET)
                     .into(),
-                (kernel_text.0.end() as usize) >> 2,
+                kernel_text.0.pmpaddr_b(),
             );
 
             // flash at n - 4:
@@ -1526,7 +1858,7 @@ pub mod kernel_protection {
                     + pmpcfg_octet::x::CLEAR
                     + pmpcfg_octet::l::SET)
                     .into(),
-                flash.0.napot_addr(),
+                flash.0.pmpaddr(),
             );
 
             // Now that the kernel has explicit region definitions for any
@@ -1861,7 +2193,7 @@ pub mod kernel_protection_mml_epmp {
                     + pmpcfg_octet::x::CLEAR
                     + pmpcfg_octet::l::SET)
                     .into(),
-                (kernel_text.0.start() as usize) >> 2,
+                kernel_text.0.pmpaddr_a(),
             );
             write_pmpaddr_pmpcfg(
                 1,
@@ -1871,7 +2203,7 @@ pub mod kernel_protection_mml_epmp {
                     + pmpcfg_octet::x::SET
                     + pmpcfg_octet::l::SET)
                     .into(),
-                (kernel_text.0.end() as usize) >> 2,
+                kernel_text.0.pmpaddr_b(),
             );
 
             // MMIO at n - 1:
@@ -1883,7 +2215,7 @@ pub mod kernel_protection_mml_epmp {
                     + pmpcfg_octet::x::CLEAR
                     + pmpcfg_octet::l::SET)
                     .into(),
-                mmio.0.napot_addr(),
+                mmio.0.pmpaddr(),
             );
 
             // RAM at n - 2:
@@ -1895,7 +2227,7 @@ pub mod kernel_protection_mml_epmp {
                     + pmpcfg_octet::x::CLEAR
                     + pmpcfg_octet::l::SET)
                     .into(),
-                ram.0.napot_addr(),
+                ram.0.pmpaddr(),
             );
 
             // flash at n - 3:
@@ -1907,7 +2239,7 @@ pub mod kernel_protection_mml_epmp {
                     + pmpcfg_octet::x::CLEAR
                     + pmpcfg_octet::l::SET)
                     .into(),
-                flash.0.napot_addr(),
+                flash.0.pmpaddr(),
             );
 
             // Finally, attempt to enable the MSECCFG security bits, and verify

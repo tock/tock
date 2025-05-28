@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-//! Cortex-M NVIC
+//! Cortex-M Nested Vectored Interrupt Controller (NVIC)
 //!
 //! Most NVIC configuration is in the NVIC registers:
 //! <https://developer.arm.com/docs/100165/0201/nested-vectored-interrupt-controller/nvic-programmers-model/table-of-nvic-registers>
@@ -21,23 +21,30 @@ use kernel::utilities::StaticRef;
 /// Generates the (u128, u128) tuple used for the NVIC's mask functions
 /// `next_pending_with_mask` and `next_pending_with_mask`.
 ///
+/// ```rust,ignore
 /// if let Some(interrupt) =
 ///     cortexm0p::nvic::next_pending_with_mask(interrupt_mask!(interrupts::SIO_IRQ_PROC1))
 /// {
 ///     // ...
 /// }
+/// ```
 #[macro_export]
 macro_rules! interrupt_mask {
     ($($interrupt: expr),+) => {{
         let mut high_interrupt: u128 = 0;
         let mut low_interrupt: u128 = 0;
         $(
+            // Validate that the interrupt index is within the high and low
+            // interrupt range.
+            const{ assert!($interrupt < 256); }
+            const{ assert!($interrupt >= 0); }
+
             if ($interrupt < 128) {
-                low_interrupt |= (1 << $interrupt) as u128
+                low_interrupt |= (1u128 << $interrupt)
             }
             else
             {
-                high_interrupt |= (1 << ($interrupt-128)) as u128
+                high_interrupt |= (1u128 << ($interrupt-128))
             }
         );+
         (high_interrupt, low_interrupt)
@@ -164,13 +171,13 @@ pub unsafe fn next_pending() -> Option<u32> {
     None
 }
 
-/// Get the index (0-240) the lowest number pending interrupt while ignoring the interrupts
-/// that correspond to the bits set in mask, or `None` if none
-/// are pending.
+/// Get the index (0-240) the lowest number pending interrupt while ignoring the
+/// interrupts that correspond to the bits set in mask, or `None` if none are
+/// pending.
 ///
-/// Mask is defined as two u128 fields,
-///   mask.0 has the bits corresponding to interrupts from 128 to 240
-///   mask.1 has the bits corresponding to interrupts from 0 to 127
+/// Mask is defined as two `u128` fields,
+///   `mask.0` has the bits corresponding to interrupts from 128 to 240.
+///   `mask.1` has the bits corresponding to interrupts from 0 to 127.
 pub unsafe fn next_pending_with_mask(mask: (u128, u128)) -> Option<u32> {
     for (block, ispr) in NVIC
         .ispr
@@ -202,9 +209,9 @@ pub unsafe fn has_pending() -> bool {
 /// Returns whether there are any pending interrupt bits set while ignoring
 /// the indices that correspond to the bits set in mask
 ///
-/// Mask is defined as two u128 fields,
-///   mask.0 has the bits corresponding to interrupts from 128 to 240
-///   mask.1 has the bits corresponding to interrupts from 0 to 127
+/// Mask is defined as two `u128` fields,
+///   `mask.0` has the bits corresponding to interrupts from 128 to 240.
+///   `mask.1` has the bits corresponding to interrupts from 0 to 127.
 pub unsafe fn has_pending_with_mask(mask: (u128, u128)) -> bool {
     NVIC.ispr
         .iter()
@@ -224,7 +231,7 @@ pub unsafe fn has_pending_with_mask(mask: (u128, u128)) -> bool {
 pub struct Nvic(u32);
 
 impl Nvic {
-    /// Creates a new `Nvic`
+    /// Creates a new `Nvic`.
     ///
     /// Marked unsafe because only chip/platform configuration code should be
     /// able to create these.

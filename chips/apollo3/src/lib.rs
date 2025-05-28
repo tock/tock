@@ -4,8 +4,6 @@
 
 //! Peripheral implementations for the Apollo3 MCU.
 
-#![crate_name = "apollo3"]
-#![crate_type = "rlib"]
 #![no_std]
 
 // Peripherals

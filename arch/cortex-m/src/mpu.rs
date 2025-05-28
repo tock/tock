@@ -2,8 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
+//! Cortex-M Memory Protection Unit (MPU)
+//!
 //! Implementation of the memory protection unit for the Cortex-M0+, Cortex-M3,
-//! Cortex-M4, and Cortex-M7
+//! Cortex-M4, and Cortex-M7.
 
 use core::cell::Cell;
 use core::cmp;
@@ -129,9 +131,6 @@ register_bitfields![u32,
     ]
 ];
 
-const MPU_BASE_ADDRESS: StaticRef<MpuRegisters> =
-    unsafe { StaticRef::new(0xE000ED90 as *const MpuRegisters) };
-
 /// State related to the real physical MPU.
 ///
 /// There should only be one instantiation of this object as it represents
@@ -149,9 +148,9 @@ pub struct MPU<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> {
 }
 
 impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> MPU<NUM_REGIONS, MIN_REGION_SIZE> {
-    pub const unsafe fn new() -> Self {
+    pub const unsafe fn new(registers: StaticRef<MpuRegisters>) -> Self {
         Self {
-            registers: MPU_BASE_ADDRESS,
+            registers,
             config_count: Cell::new(NonZeroUsize::MIN),
             hardware_is_configured_for: OptionalCell::empty(),
         }
@@ -264,8 +263,9 @@ pub struct CortexMRegion {
 
 impl PartialEq<mpu::Region> for CortexMRegion {
     fn eq(&self, other: &mpu::Region) -> bool {
-        self.location
-            .is_some_and(|(addr, size)| addr == other.start_address() && size == other.size())
+        self.location.is_some_and(|(addr, size)| {
+            core::ptr::eq(addr, other.start_address()) && size == other.size()
+        })
     }
 }
 

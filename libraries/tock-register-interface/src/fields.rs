@@ -6,7 +6,7 @@
 //!
 //! To conveniently access and manipulate fields of a register, this
 //! library provides types and macros to describe and access bitfields
-//! of a register. This can be especially useful in conjuction with
+//! of a register. This can be especially useful in conjunction with
 //! the APIs defined in [`interfaces`](crate::interfaces), which make
 //! use of these types and hence allow to access and manipulate
 //! bitfields of proper registers directly.
@@ -375,7 +375,7 @@ macro_rules! register_bitmasks {
                     $offset:expr, $numbits:expr,
                     [$( $(#[$inner:meta])* $valname:ident = $value:expr ),+ $(,)?]
     } => { // this match arm is duplicated below with an allowance for 0 elements in the valname -> value array,
-        // to seperately support the case of zero-variant enums not supporting non-default
+        // to separately support the case of zero-variant enums not supporting non-default
         // representations.
         #[allow(non_upper_case_globals)]
         #[allow(unused)]

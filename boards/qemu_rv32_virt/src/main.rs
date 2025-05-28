@@ -5,9 +5,7 @@
 //! Board file for qemu-system-riscv32 "virt" machine type
 
 #![no_std]
-// Disable this attribute when documenting, as a workaround for
-// https://github.com/rust-lang/rust/issues/62184.
-#![cfg_attr(not(doc), no_main)]
+#![no_main]
 
 use core::ptr::addr_of;
 use core::ptr::addr_of_mut;
@@ -82,6 +80,12 @@ struct QemuRv32VirtPlatform {
             qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng<'static, 'static>,
         >,
     >,
+    virtio_ethernet_tap: Option<
+        &'static capsules_extra::ethernet_tap::EthernetTapDriver<
+            'static,
+            qemu_rv32_virt_chip::virtio::devices::virtio_net::VirtIONet<'static>,
+        >,
+    >,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -97,6 +101,13 @@ impl SyscallDriverLookup for QemuRv32VirtPlatform {
             capsules_core::rng::DRIVER_NUM => {
                 if let Some(rng_driver) = self.virtio_rng {
                     f(Some(rng_driver))
+                } else {
+                    f(None)
+                }
+            }
+            capsules_extra::ethernet_tap::DRIVER_NUM => {
+                if let Some(ethernet_tap_driver) = self.virtio_ethernet_tap {
+                    f(Some(ethernet_tap_driver))
                 } else {
                     f(None)
                 }
@@ -194,28 +205,28 @@ unsafe fn start() -> (
     // protection.
     let epmp = rv32i::pmp::kernel_protection_mml_epmp::KernelProtectionMMLEPMP::new(
         rv32i::pmp::kernel_protection_mml_epmp::FlashRegion(
-            rv32i::pmp::NAPOTRegionSpec::new(
+            rv32i::pmp::NAPOTRegionSpec::from_start_end(
                 core::ptr::addr_of!(_sflash),
-                core::ptr::addr_of!(_eflash) as usize - core::ptr::addr_of!(_sflash) as usize,
+                core::ptr::addr_of!(_eflash),
             )
             .unwrap(),
         ),
         rv32i::pmp::kernel_protection_mml_epmp::RAMRegion(
-            rv32i::pmp::NAPOTRegionSpec::new(
+            rv32i::pmp::NAPOTRegionSpec::from_start_end(
                 core::ptr::addr_of!(_ssram),
-                core::ptr::addr_of!(_esram) as usize - core::ptr::addr_of!(_ssram) as usize,
+                core::ptr::addr_of!(_esram),
             )
             .unwrap(),
         ),
         rv32i::pmp::kernel_protection_mml_epmp::MMIORegion(
-            rv32i::pmp::NAPOTRegionSpec::new(
+            rv32i::pmp::NAPOTRegionSpec::from_start_size(
                 core::ptr::null::<u8>(), // start
                 0x20000000,              // size
             )
             .unwrap(),
         ),
         rv32i::pmp::kernel_protection_mml_epmp::KernelTextRegion(
-            rv32i::pmp::TORRegionSpec::new(
+            rv32i::pmp::TORRegionSpec::from_start_end(
                 core::ptr::addr_of!(_stext),
                 core::ptr::addr_of!(_etext),
             )
@@ -366,14 +377,16 @@ unsafe fn start() -> (
     };
 
     // If there is a VirtIO NetworkCard present, use the appropriate VirtIONet
-    // driver. Currently this is not used, as work on the userspace network
-    // driver and kernel network stack is in progress.
-    //
-    // A template dummy driver is provided to verify basic functionality of this
-    // interface.
-    let _virtio_net_if: Option<
-        &'static qemu_rv32_virt_chip::virtio::devices::virtio_net::VirtIONet<'static>,
+    // driver, and expose this device through the Ethernet Tap driver
+    // (forwarding raw Ethernet frames from and to userspace).
+    let virtio_ethernet_tap: Option<
+        &'static capsules_extra::ethernet_tap::EthernetTapDriver<
+            'static,
+            qemu_rv32_virt_chip::virtio::devices::virtio_net::VirtIONet<'static>,
+        >,
     > = if let Some(net_idx) = virtio_net_idx {
+        use capsules_extra::ethernet_tap::EthernetTapDriver;
+        use kernel::hil::ethernet::EthernetAdapterDatapath;
         use qemu_rv32_virt_chip::virtio::devices::virtio_net::VirtIONet;
         use qemu_rv32_virt_chip::virtio::queues::split_queue::{
             SplitVirtqueue, VirtqueueAvailableRing, VirtqueueDescriptors, VirtqueueUsedRing,
@@ -419,18 +432,10 @@ unsafe fn start() -> (
         // incoming packets into
         let rx_buffer = static_init!([u8; 1526], [0; 1526]);
 
-        // Instantiate the VirtIONet (NetworkCard) driver and set
-        // the queues
+        // Instantiate the VirtIONet (NetworkCard) driver and set the queues
         let virtio_net = static_init!(
             VirtIONet<'static>,
-            VirtIONet::new(
-                0,
-                tx_queue,
-                tx_header_buf,
-                rx_queue,
-                rx_header_buf,
-                rx_buffer,
-            ),
+            VirtIONet::new(tx_queue, tx_header_buf, rx_queue, rx_header_buf, rx_buffer),
         );
         tx_queue.set_client(virtio_net);
         rx_queue.set_client(virtio_net);
@@ -442,14 +447,28 @@ unsafe fn start() -> (
             .initialize(virtio_net, mmio_queues)
             .unwrap();
 
-        // Don't forget to enable RX once when integrating this into a
-        // proper Ethernet stack:
-        // virtio_net.enable_rx();
+        // Instantiate the userspace tap network driver over this device:
+        let virtio_ethernet_tap_tx_buffer = static_init!(
+            [u8; capsules_extra::ethernet_tap::MAX_MTU],
+            [0; capsules_extra::ethernet_tap::MAX_MTU],
+        );
+        let virtio_ethernet_tap = static_init!(
+            EthernetTapDriver<'static, VirtIONet<'static>>,
+            EthernetTapDriver::new(
+                virtio_net,
+                board_kernel.create_grant(
+                    capsules_extra::ethernet_tap::DRIVER_NUM,
+                    &memory_allocation_cap
+                ),
+                virtio_ethernet_tap_tx_buffer,
+            ),
+        );
+        virtio_net.set_client(virtio_ethernet_tap);
 
-        // TODO: When we have a proper Ethernet driver available for userspace,
-        // return that. For now, just return a reference to the raw VirtIONet
-        // driver:
-        Some(virtio_net as &'static VirtIONet)
+        // This enables reception on the underlying device:
+        virtio_ethernet_tap.initialize();
+
+        Some(virtio_ethernet_tap as &'static EthernetTapDriver<'static, VirtIONet<'static>>)
     } else {
         // No VirtIO NetworkCard discovered
         None
@@ -499,8 +518,11 @@ unsafe fn start() -> (
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux)
-        .finalize(components::debug_writer_component_static!());
+    components::debug_writer::DebugWriterComponent::new(
+        uart_mux,
+        create_capability!(capabilities::SetDebugWriterCapability),
+    )
+    .finalize(components::debug_writer_component_static!());
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,
@@ -528,6 +550,7 @@ unsafe fn start() -> (
         scheduler,
         scheduler_timer,
         virtio_rng: virtio_rng_driver,
+        virtio_ethernet_tap,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
@@ -539,6 +562,21 @@ unsafe fn start() -> (
     let _ = platform.pconsole.start();
 
     debug!("QEMU RISC-V 32-bit \"virt\" machine, initialization complete.");
+
+    // This board dynamically discovers VirtIO devices like a randomness source
+    // or a network card. Print a message indicating whether or not each such
+    // device and corresponding userspace driver is present:
+    if virtio_rng_driver.is_some() {
+        debug!("- Found VirtIO EntropySource device, enabling RngDriver");
+    } else {
+        debug!("- VirtIO EntropySource device not found, disabling RngDriver");
+    }
+    if virtio_ethernet_tap.is_some() {
+        debug!("- Found VirtIO NetworkCard device, enabling EthernetTapDriver");
+    } else {
+        debug!("- VirtIO NetworkCard device not found, disabling EthernetTapDriver");
+    }
+
     debug!("Entering main loop.");
 
     // ---------- PROCESS LOADING, SCHEDULER LOOP ----------

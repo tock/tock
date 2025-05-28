@@ -670,7 +670,9 @@ impl<'a, A: Alarm<'a>, P: Pin, S: SpiMasterDevice<'a>> ScreenSetup<'a> for Lpm01
 
     fn set_pixel_format(&self, format: ScreenPixelFormat) -> Result<(), ErrorCode> {
         match format {
-            ScreenPixelFormat::RGB_4BIT | ScreenPixelFormat::RGB_332 => {
+            ScreenPixelFormat::RGB_4BIT
+            | ScreenPixelFormat::RGB_332
+            | ScreenPixelFormat::RGB_565 => {
                 self.pixel_format.set(format);
                 Ok(())
             }

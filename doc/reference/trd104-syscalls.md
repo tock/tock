@@ -7,8 +7,8 @@ System Calls
 **Status:** Draft <br/>
 **Author:** Hudson Ayers, Guillaume Endignoux, Jon Flatley, Philip Levis, Amit Levy, Pat Pannuto, Leon Schuermann, Johnathan Van Why, dcz <br/>
 **Draft-Created:** August 31, 2020<br/>
-**Draft-Modified:** January 15, 2025<br/>
-**Draft-Version:** 10<br/>
+**Draft-Modified:** January 29, 2025<br/>
+**Draft-Version:** 11<br/>
 **Draft-Discuss:** tock-dev@googlegroups.com</br>
 
 Abstract
@@ -133,7 +133,78 @@ to `self` as their first argument. Therefore, `r0` is usually used to dispatch
 onto the correct driver; this argument is consumed by the system call handler
 and replaced with `&self` when the actual system call method is invoked.
 
-3.2 Return Values
+3.2 Syscall Argument Types
+----------------------------------
+
+The use of registers, and the selection of specific registers, imposes physical
+restrictions on the types which can be passed (i.e., this TRD defines the ABI
+for platforms with 32-bit, general purpose registers, which limits any single
+argument to a maximum of 32-bit storage for its type).
+
+Syscalls SHOULD define as specific a type as is semantically meaningful for
+these 32 bits of storage. For example, the `command` syscall uses register 0 as
+a Driver Number and register 1 as a Command Number. These are defined as a
+`u32`, as Tock expects no more than 2^32 drivers, each with no more than 2^32
+commands. A future 64-bit ABI MAY choose to combine these into one syscall
+register. In contrast, other syscall argument slots may have more generic
+purposes, where the type and underlying storage are likely to move in sync on
+future platforms. This document defines the following conceptual types:
+
+<table>
+  <tr>
+    <th>Type</th>
+    <th>C Analog</th>
+    <th>Description</th>
+  </tr>
+  <tr>
+     <td><tt>OPAQUE_NUMERIC</tt></td>
+     <td><tt>(unsigned) int</tt></td>
+     <td>A whole number which is capable of being expressed in a native machine word type.</td>
+  </tr>
+  <tr>
+    <td><tt>SIZE</tt><br/><tt>OPAQUE_SIZE</tt></td>
+    <td><tt>size_t</tt></td>
+    <td>An unsigned, numeric type with a range capable of expressing in bytes the
+   size of any valid <em>contiguous</em> object.</td>
+  </tr>
+  <tr>
+    <td><tt>POINTER_OR_ZERO</tt><br/><tt>OPAQUE_POINTER_OR_ZERO</tt></td>
+    <td><tt>void *</tt></td>
+    <td>A type capable of holding a pointer to a valid memory location OR the
+    value `0`, which is defined as the NULL sentinel.</td>
+  </tr>
+  <tr>
+    <td><tt>C_FUNCTION_POINTER_OR_ZERO</tt></td>
+    <td></td>
+    <td>This describes an argument which holds a pointer to an executable
+    function, where the function adheres to the standard C ABI for the platform
+    (akin to <tt>extern C</tt> in C++ or <tt>extern "C" fn</tt> in Rust) OR the
+    value <tt>0</tt>, which is defined as the NULL sentinel.</td>
+  </tr>
+  <tr>
+    <td><tt>OPAQUE_GENERIC</tt></td>
+    <td></td>
+    <td>This describes an argument with no restrictions on type.</td>
+  </tr>
+</table>
+
+Types prefixed with `OPAQUE` are those where the kernel SHOULD NOT attempt to
+read the value. `OPAQUE` types are generally for pass-through use cases, where
+userspace passes a value back to itself through the kernel.  `OPAQUE` types,
+including `OPAQUE_GENERIC`, MAY have additional metadata associated with them
+(e.g. pointer provenance or tags) which the kernel MUST preserve.
+
+_Note:_ There is no `NUMERIC` type, only `OPAQUE_NUMERIC`, as any use by the
+kernel of machine-width generic number type almost certainly invites the design
+of an ABI which is not portable across architectures.
+
+_Note:_ Historically, Rust conflated some of these concepts with `usize`,
+however, legacy platforms (e.g., those with segmented memory) as well as
+emerging security-oriented platforms (e.g., those with tagged pointers) require
+distinguishing these cases.
+
+
+3.3 Return Values
 ----------------------------------
 
 All system calls have the same return value format. A system call can
@@ -198,7 +269,7 @@ Reserved `r0` values MAY be used by a future TRD and MUST NOT be returned by the
 kernel unless specified in a TRD. Therefore, for future compatibility, userspace
 code MUST handle `r0` values that it does not recognize.
 
-3.3 Error Codes
+3.4 Error Codes
 ---------------------------------
 
 All system call failures return an error code. These error codes are a superset of
@@ -234,7 +305,7 @@ Values greater than 1023 are reserved for userspace library use. Value 1024
 (BADRVAL) is for when a system call returns a different failure or success
 variant than the userspace library expects.
 
-3.4 Returning To Userspace
+3.5 Returning To Userspace
 ---------------------------------
 
 When the kernel returns to userspace, it only gets to set registers for
@@ -337,12 +408,12 @@ There are three Yield system call variants:
 The register arguments for Yield system calls are as follows. The registers
 r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
 
-| Argument               | Register |
-|------------------------|----------|
-| Yield number           | r0       |
-| yield-param-A          | r1       |
-| yield-param-B          | r2       |
-| yield-param-C          | r3       |
+| Argument               | Register | Type     |
+|------------------------|----------|----------|
+| Yield number           | r0       | `u32`    |
+| yield-param-A          | r1       | _varies_ |
+| yield-param-B          | r2       | _varies_ |
+| yield-param-C          | r3       | _varies_ |
 
 The Yield number (in r0) specifies which call is invoked:
 
@@ -360,6 +431,11 @@ The meaning of `yield-param-X` is specific to the yield type.
 
 
 ### 4.1.1 Yield-NoWait
+
+| Argument               | Register | Type           | Value                                            |
+|------------------------|----------|----------------|--------------------------------------------------|
+| Yield number           | r0       | `u32`          | `0`                                              |
+| yield-param-A          | r1       | `*mut [u8; 1]` | Pointer to one byte of userspace memory or `0x0` |
 
 Yield number 0, Yield-NoWait, executes a single upcall if any is
 pending.  If no upcalls are pending it returns immediately.
@@ -388,6 +464,10 @@ empty.
 
 ### 4.1.2 Yield-Wait
 
+| Argument               | Register | Type           | Value |
+|------------------------|----------|----------------|-------|
+| Yield number           | r0       | `u32`          | `1`   |
+
 Yield number 1, Yield-Wait, blocks until an upcall executes. It is
 commonly used when applications have no other work to do and are waiting
 for an event (upcall) to occur to do more work.
@@ -411,6 +491,12 @@ return value of the upcall.
 
 
 ### 4.1.3 Yield-WaitFor
+
+| Argument               | Register | Type  | Value            |
+|------------------------|----------|-------|------------------|
+| Yield number           | r0       | `u32` | `2`              |
+| yield-param-A          | r1       | `u32` | Driver number    |
+| yield-param-B          | r2       | `u32` | Subscribe number |
 
 The third call, Yield-WaitFor, blocks until one
 specific upcall is ready to execute. If
@@ -446,12 +532,12 @@ kernel.
 The register arguments for Subscribe system calls are as follows. The
 registers r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
 
-| Argument            | Register |
-|---------------------|----------|
-| Driver number       | r0       |
-| Subscribe number    | r1       |
-| Upcall pointer      | r2       |
-| Application data    | r3       |
+| Argument            | Register | Type               |
+|---------------------|----------|--------------------|
+| Driver number       | r0       | `u32`              |
+| Subscribe number    | r1       | `u32`              |
+| Upcall pointer      | r2       | C_FUNCTION_POINTER |
+| Application data    | r3       | OPAQUE_GENERIC     |
 
 
 The `upcall pointer` is the address of the first instruction of
@@ -554,16 +640,16 @@ platform and what drivers were compiled into the kernel.
 The register arguments for Command system calls are as follows. The registers
 r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
 
-| Argument          | Register |
-|-------------------|----------|
-| Driver number     | r0       |
-| Command number    | r1       |
-| Argument 0        | r2       |
-| Argument 1        | r3       |
+| Argument          | Register | Type                         |
+|-------------------|----------|------------------------------|
+| Driver number     | r0       | `u32`                        |
+| Command number    | r1       | `u32`                        |
+| Argument 0        | r2       | `{u32, i32, u64_lo, i64_lo}` |
+| Argument 1        | r3       | `{u32, i32, u64_hi, i64_hi}` |
 
-Argument 0 and argument 1 are unsigned 32-bit integers. Command calls should
-never pass pointers: those are passed with Allow calls, as they can adjust
-memory protection to allow the kernel to access them.
+When passing values with types whose representation is smaller than 32 bits
+(e.g. `u8` or `i16`), they must be explicitly cast to a `u32` (if unsigned) or
+`i32` (if signed).
 
 The return variants of Command are instance-specific. Each specific
 Command instance (combination of Driver and Command number) specifies
@@ -596,12 +682,12 @@ The register arguments for Read-Write Allow system calls are as
 follows. The registers r0-r3 correspond to r0-r3 on CortexM and a0-a3
 on RISC-V.
 
-| Argument         | Register |
-|------------------|----------|
-| Driver number    | r0       |
-| Allow number     | r1       |
-| Address          | r2       |
-| Size             | r3       |
+| Argument         | Register | Type              | Additional Restrictions                                                                 |
+|------------------|----------|-------------------|-----------------------------------------------------------------------------------------|
+| Driver number    | r0       | `u32`             |                                                                                         |
+| Allow number     | r1       | `u32`             |                                                                                         |
+| Address          | r2       | `POINTER_OR_ZERO` | Pointers must refer to a contiguous array of writable userspace memory of length `{r3}` |
+| Size             | r3       | `SIZE`            |                                                                                         |
 
 The *allow number* argument is an ordinal number (index) of the buffer.
 When Read-Write Allow is called, the provided buffer
@@ -733,6 +819,13 @@ the buffer).
 4.5 Read-Only Allow (Class ID: 4)
 ---------------------------------
 
+| Argument         | Register | Type              | Additional Restrictions                                                                 |
+|------------------|----------|-------------------|-----------------------------------------------------------------------------------------|
+| Driver number    | r0       | `u32`             |                                                                                         |
+| Allow number     | r1       | `u32`             |                                                                                         |
+| Address          | r2       | `POINTER_OR_ZERO` | Pointers must refer to a contiguous array of readable userspace memory of length `{r3}` |
+| Size             | r3       | `SIZE`            |                                                                                         |
+
 The Read-Only Allow class is very similar to the Read-Write Allow
 class. It differs in some ways:
 
@@ -794,12 +887,12 @@ information about its address space.  The register arguments for
 Memop system calls are as follows. The registers r0-r3 correspond
 to r0-r3 on CortexM and a0-a3 on RISC-V.
 
-| Argument               | Register |
-|------------------------|----------|
-| Operation              | r0       |
-| Operation argument     | r1       |
-| unused                 | r2       |
-| unused                 | r3       |
+| Argument               | Register | Type     |
+|------------------------|----------|----------|
+| Operation              | r0       | `u32`    |
+| Operation argument     | r1       | _varies_ |
+| unused                 | r2       |          |
+| unused                 | r3       |          |
 
 The operation argument specifies which memory operation to perform. There
 are 12:
@@ -847,10 +940,10 @@ allocate new ones.
 The register arguments for Exit system calls are as follows. The registers
 r0-r3 correspond to r0-r3 on CortexM and a0-a3 on RISC-V.
 
-| Argument         | Register |
-|------------------|----------|
-| Exit number      | r0       |
-| Completion code  | r1       |
+| Argument         | Register | Type  |
+|------------------|----------|-------|
+| Exit number      | r0       | `u32` |
+| Completion code  | r1       | `u32` |
 
 The exit number specifies which call is invoked.
 

@@ -1,0 +1,34 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2022.
+
+[package]
+name = "nrf52840dk-dynamic-apps-and-policies"
+version.workspace = true
+authors.workspace = true
+build = "../../build.rs"
+edition.workspace = true
+
+[features]
+default = ["screen_ssd1306"]
+screen_ssd1306 = []
+screen_sh1106 = []
+
+[dependencies]
+kernel = { path = "../../../kernel" }
+
+components = { path = "../../components" }
+segger = { path = "../../../chips/segger" }
+cortexm4 = { path = "../../../arch/cortex-m4" }
+nrf52840 = { path = "../../../chips/nrf52840" }
+nrf52840dk = { path = "../../nordic/nrf52840dk" }
+capsules-core = { path = "../../../capsules/core" }
+capsules-extra = { path = "../../../capsules/extra" }
+capsules-system = { path = "../../../capsules/system" }
+nrf52_components = { path = "../../nordic/nrf52_components" }
+
+[build-dependencies]
+tock_build_scripts = { path = "../../build_scripts" }
+
+[lints]
+workspace = true

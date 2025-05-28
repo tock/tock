@@ -56,6 +56,8 @@ the tables below. The "2.0" column indicates whether the driver has been
 |---|---------------|------------------|--------------------------------------------|
 |   | 0x00009       | [ROS](00009_ros.md) | Read Only State, access system information |
 |   | 0x10000       | IPC              | Inter-process communication                |
+|   | 0x10001       | DBS              | Dynamic Binary Storage/Process Loading     |
+|   | 0x10002       | ProcessInfo      | Inspect and control processes              |
 
 ### Hardware Access
 

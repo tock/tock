@@ -71,10 +71,10 @@ These drivers provide support for various ICs.
 - **[ST77xx](src/st77xx.rs)**: ST77xx IPS screen.
 
 
-Wireless
+Wireless and Networking
 --------
 
-Support for wireless radios.
+Support for wireless radios, network stacks and related infrastructure.
 
 - **[nRF51822 Serialization](src/nrf51822_serialization.rs)**: Kernel support
   for using the nRF51 serialization library.
@@ -83,7 +83,9 @@ Support for wireless radios.
   advertisements.
 - **[LoRa Phy]**: Support for exposing Semtech devices to userspace
   See the lora_things_plus board for an example
-
+- **[Ethernet Tap Driver](src/ethernet_tap.rs)**: Forwarding raw IEEE
+  802.3 Ethernet frames from / to userspace. Useful for running
+  network stacks in userspace.
 
 Libraries
 ---------
@@ -119,6 +121,8 @@ These provide common and better abstractions for userspace.
 - **[Ambient Light](src/ambient_light.rs)**: Query light sensors.
 - **[App Flash](src/app_flash_driver.rs)**: Allow applications to write their
   own flash.
+- **[App Loader](src/app_loader.rs)**: Allow applications to request to 
+  install and load new applications.
 - **[Buzzer](src/buzzer_driver.rs)**: Simple buzzer.
 - **[Servo](src/servo.rs)**: Servo motor.
 - **[Date-Time](src/date_time.rs)**: Real time clock date/time support.
@@ -191,3 +195,5 @@ various elements of Tock.
 - **[Debug Process Restart](src/debug_process_restart.rs)**: Force all processes
   to enter a fault state when a button is pressed.
 - **[Panic Button](src/panic_button.rs)**: Use a button to force a `panic!()`.
+- **[Process Info](src/process_info_driver.rs)**: Inspect and control processes.
+

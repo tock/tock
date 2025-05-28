@@ -9,9 +9,7 @@
 //! This board file is only compatible with revision B of the HiFive1.
 
 #![no_std]
-// Disable this attribute when documenting, as a workaround for
-// https://github.com/rust-lang/rust/issues/62184.
-#![cfg_attr(not(doc), no_main)]
+#![no_main]
 
 use core::ptr::{addr_of, addr_of_mut};
 
@@ -311,8 +309,11 @@ unsafe fn start() -> (
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
     const DEBUG_BUFFER_KB: usize = 1;
-    components::debug_writer::DebugWriterComponent::new(uart_mux)
-        .finalize(components::debug_writer_component_static!(DEBUG_BUFFER_KB));
+    components::debug_writer::DebugWriterComponent::new(
+        uart_mux,
+        create_capability!(capabilities::SetDebugWriterCapability),
+    )
+    .finalize(components::debug_writer_component_static!(DEBUG_BUFFER_KB));
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,

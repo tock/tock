@@ -4,8 +4,6 @@
 
 //! Generic support for all Cortex-M platforms.
 
-#![crate_name = "cortexm"]
-#![crate_type = "rlib"]
 #![no_std]
 
 use core::fmt::Write;
@@ -50,28 +48,28 @@ extern "C" {
 // functions via symbols, as done before this change (tock/tock#3080):
 //
 // - By using a trait carrying proper first-level Rust functions, the type
-//   signatures of the trait and implementing functions are properly
-//   validated. Before these changes, some Cortex-M variants previously used
-//   incorrect type signatures (e.g. `*mut u8` instead of `*const usize`) for
-//   the user_stack argument. It also ensures that all functions are provided by
-//   a respective sub-architecture at compile time, instead of throwing linker
+//   signatures of the trait and implementing functions are properly validated.
+//   Before these changes, some Cortex-M variants previously used incorrect
+//   type signatures (e.g. `*mut u8` instead of `*const usize`) for the
+//   user_stack argument. It also ensures that all functions are provided by a
+//   respective sub-architecture at compile time, instead of throwing linker
 //   errors.
 //
 // - Determining the respective functions at compile time, Rust might be able to
-//   perform more aggressive inlining, especially if more device-specific proper
-//   Rust functions (non hardware-exposed symbols, i.e. not fault or interrupt
-//   handlers) were to be added.
+//   perform more aggressive inlining, especially if more device-specific
+//   proper Rust functions (non hardware-exposed symbols, i.e. not fault or
+//   interrupt handlers) were to be added.
 //
 // - Most importantly, this avoid ambiguity with respect to a compiler fence
 //   being inserted by the compiler around calls to switch_to_user. The asm!
 //   macro in that function call will cause Rust to emit a compiler fence given
 //   the nomem option is not passed, but the opaque extern "C" function call
-//   obscured that code path. While this is probably fine and Rust is obliged to
-//   generate a compiler fence when switching to C code, having a traceable code
-//   path for Rust to the asm! macro will remove any remaining ambiguity and
-//   allow us to argue against requiring volatile accesses to userspace memory
-//   (during context switches). See tock/tock#2582 for further discussion of
-//   this issue.
+//   obscured that code path. While this is probably fine and Rust is obliged
+//   to generate a compiler fence when switching to C code, having a traceable
+//   code path for Rust to the asm! macro will remove any remaining ambiguity
+//   and allow us to argue against requiring volatile accesses to userspace
+//   memory(during context switches). See tock/tock#2582 for further discussion
+//   of this issue.
 pub trait CortexMVariant {
     /// All ISRs not caught by a more specific handler are caught by this
     /// handler. This must ensure the interrupt is disabled (per Tock's
@@ -85,11 +83,11 @@ pub trait CortexMVariant {
     const GENERIC_ISR: unsafe extern "C" fn();
 
     /// The `systick_handler` is called when the systick interrupt occurs,
-    /// signaling that an application executed for longer than its
-    /// timeslice. This interrupt handler is no longer responsible for signaling
-    /// to the kernel thread that an interrupt has occurred, but is slightly
-    /// more efficient than the `generic_isr` handler on account of not needing
-    /// to mark the interrupt as pending.
+    /// signaling that an application executed for longer than its timeslice.
+    /// This interrupt handler is no longer responsible for signaling to the
+    /// kernel thread that an interrupt has occurred, but is slightly more
+    /// efficient than the `generic_isr` handler on account of not needing to
+    /// mark the interrupt as pending.
     const SYSTICK_HANDLER: unsafe extern "C" fn();
 
     /// This is called after a `svc` instruction, both when switching to

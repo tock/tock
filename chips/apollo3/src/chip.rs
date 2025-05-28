@@ -18,7 +18,7 @@ pub struct Apollo3<I: InterruptService + 'static> {
 impl<I: InterruptService + 'static> Apollo3<I> {
     pub unsafe fn new(interrupt_service: &'static I) -> Self {
         Self {
-            mpu: cortexm4f::mpu::MPU::new(),
+            mpu: cortexm4f::mpu::new(),
             userspace_kernel_boundary: cortexm4f::syscall::SysCall::new(),
             interrupt_service,
         }

@@ -5,8 +5,6 @@
 //! Drivers and support modules for LiteX SoCs
 
 #![no_std]
-#![crate_name = "litex"]
-#![crate_type = "rlib"]
 
 // Exported as the LiteX Register Abstraction may be used by other
 // modules

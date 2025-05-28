@@ -94,7 +94,7 @@ impl InterruptService for Stm32f3xxDefaultPeripherals<'_> {
 impl<'a, I: InterruptService + 'a> Stm32f3xx<'a, I> {
     pub unsafe fn new(interrupt_service: &'a I) -> Self {
         Self {
-            mpu: cortexm4f::mpu::MPU::new(),
+            mpu: cortexm4f::mpu::new(),
             userspace_kernel_boundary: cortexm4f::syscall::SysCall::new(),
             interrupt_service,
         }

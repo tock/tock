@@ -17,7 +17,7 @@ set -e
 
 # Bench the current commit that was pushed. Requires navigating back to build directory
 make allboards > /dev/null 2>&1
-for elf in $(find . -maxdepth 8 | grep 'release' | egrep '\.elf$'); do
+for elf in $(find . -maxdepth 8 | grep 'release' | grep -E '\.elf$'); do
     tmp=${elf#*release/}
     b=${tmp%.elf}
     ./tools/print_tock_memory_usage.py -w ${elf} > current-benchmark-${b}
@@ -29,7 +29,7 @@ git checkout "$UPSTREAM_REMOTE_NAME"/"$GITHUB_BASE_REF" > /dev/null 2>&1
 make allboards > /dev/null 2>&1
 
 # Find elfs compiled for release (for use in analyzing binaries in CI),
-for elf in $(find . -maxdepth 8 | grep 'release' | egrep '\.elf$'); do
+for elf in $(find . -maxdepth 8 | grep 'release' | grep -E '\.elf$'); do
     tmp=${elf#*release/}
     b=${tmp%.elf}
     ./tools/print_tock_memory_usage.py -w ${elf} > previous-benchmark-${b}
@@ -38,7 +38,7 @@ done
 DIFF_DETECTED=0
 
 # now calculate diff for each board, and post status to github for each non-0 diff
-for elf in $(find . -maxdepth 8 | grep 'release' | egrep '\.elf$'); do
+for elf in $(find . -maxdepth 8 | grep 'release' | grep -E '\.elf$'); do
     tmp=${elf#*release/}
     b=${tmp%.elf}
     # Compute a summary suitable for GitHub.
