@@ -38,7 +38,8 @@ Consists of subsystem maintainers called upon to address vulnerabilities.
 ### 1. Reception and Initial Assessment (5 days)
 
 1. All security vulnerabilities received via **security@lists.tockos.org**.
-2. Acknowledge receipt.
+2. Acknowledge receipt and assign unique ID.
+   - ID assignment: `uuidgen | cut -d'-' -f1` (example IDs: `C2C47E9A`, `97C24006`)
 3. Initial assessment:
    - Severity (Critical, High, Medium, Low)
    - Affected components
@@ -94,12 +95,15 @@ Consists of subsystem maintainers called upon to address vulnerabilities.
 ### Initial Acknowledgment
 
 ```
-Subject: [Tock Security] Acknowledgment of Security Report
+Subject: [Tock Security] Acknowledgment of Security Report #[ID]
 
 Dear [Reporter Name],
 
 Thank you for reporting this potential security issue to the Tock team.
 We take all security reports seriously and will investigate promptly.
+
+We have assigned this report ID: #[ID]
+Please include a reference to the ID for all future communications regarding this report.
 
 We have received your report and have begun our initial assessment.
 We will keep you updated on our progress and may reach out if we need additional information.
