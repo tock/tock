@@ -55,11 +55,6 @@ impl TRD104SyscallReturnVariant {
         // CAST: TRD104SyscallReturnVariant marked #[repr(u32)]
         self as u32
     }
-
-    const fn to_u64(self) -> u64 {
-        // CAST: size_of::<u64>() > size_of::<u32>()
-        self.to_u32() as u64
-    }
 }
 
 /// System call return variants defined as defined in TRD104.

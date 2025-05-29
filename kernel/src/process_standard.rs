@@ -59,7 +59,7 @@ use crate::storage_permissions::StoragePermissions;
 use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
 use crate::upcall::UpcallId;
 use crate::utilities::capability_ptr::{CapabilityPtr, CapabilityPtrPermissions};
-use crate::utilities::cells::{MapCell, NumericCellExt, OptionalCell};
+use crate::utilities::cells::{MapCell, OptionalCell};
 use crate::utilities::misc::{
     align_down_usize,
     align_up_usize,
