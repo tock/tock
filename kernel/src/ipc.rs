@@ -88,7 +88,9 @@ impl<const NUM_PROCS: u8> IPC<NUM_PROCS> {
                 // call the upcall.
                 let (len, ptr) = match called_from_data.get_readwrite_processbuffer(schedule_on_id)
                 {
-                    Ok(slice) => {
+                    Ok(_slice) => {
+                        todo!()
+                        /*
                         // Ensure receiving app has MPU access to sending app's buffer
                         self.data
                             .kernel
@@ -96,6 +98,7 @@ impl<const NUM_PROCS: u8> IPC<NUM_PROCS> {
                                 process.add_mpu_region(slice.ptr(), slice.len(), slice.len())
                             });
                         (slice.len(), slice.ptr() as usize)
+                        */
                     }
                     Err(_) => (0, 0),
                 };

@@ -61,7 +61,7 @@ use crate::process::ProcessPrinter;
 use crate::processbuffer::ReadableProcessSlice;
 use crate::utilities::binary_write::BinaryToWriteWrapper;
 use crate::utilities::cells::NumericCellExt;
-use crate::utilities::cells::{MapCell, TakeCell};
+use crate::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use crate::ErrorCode;
 
 /// Implementation of `std::io::Write` for `no_std`.
@@ -110,7 +110,7 @@ pub unsafe fn panic_print<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
-    processes: &'static [Option<&'static dyn Process>],
+    processes: &'static [OptionalCell<&'static dyn Process>],
     chip: &'static Option<&'static C>,
     process_printer: &'static Option<&'static PP>,
 ) {
@@ -125,8 +125,8 @@ pub unsafe fn panic_print<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
     // will attempt to access memory. If we are provided a chip reference,
     // attempt to disable userspace memory protection first:
     chip.map(|c| {
-        use crate::platform::mpu::MPU;
-        c.mpu().disable_app_mpu()
+        use crate::platform::mmu::MpuMmuCommon;
+        c.mmu().disable_user_protection()
     });
     panic_process_info(processes, process_printer, writer);
 }
@@ -142,7 +142,7 @@ pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip, PP: ProcessPr
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
-    processes: &'static [Option<&'static dyn Process>],
+    processes: &'static [OptionalCell<&'static dyn Process>],
     chip: &'static Option<&'static C>,
     process_printer: &'static Option<&'static PP>,
 ) -> ! {
@@ -198,7 +198,7 @@ pub unsafe fn panic_cpu_state<W: Write, C: Chip>(
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
 pub unsafe fn panic_process_info<PP: ProcessPrinter, W: Write>(
-    procs: &'static [Option<&'static dyn Process>],
+    procs: &'static [OptionalCell<&'static dyn Process>],
     process_printer: &'static Option<&'static PP>,
     writer: &mut W,
 ) {

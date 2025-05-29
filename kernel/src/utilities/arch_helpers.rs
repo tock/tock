@@ -9,6 +9,10 @@
 //! `arch` crates. While these could also live in a dedicated crate, we use the
 //! `kernel` crate as all `arch` crates already depend on it.
 
+use crate::memory_management::pointers::{
+    ImmutableUserVirtualPointer,
+    MutableUserVirtualPointer,
+};
 use crate::syscall::SyscallReturn;
 use crate::ErrorCode;
 
@@ -17,6 +21,7 @@ use crate::ErrorCode;
 /// Used in encoding 64-bit wide system call return values on 32-bit
 /// platforms.
 #[inline]
+#[cfg(target_pointer_width = "32")]
 fn u64_to_be_u32s(src: u64) -> (u32, u32) {
     let src_bytes = src.to_be_bytes();
     let src_msb = u32::from_be_bytes([src_bytes[0], src_bytes[1], src_bytes[2], src_bytes[3]]);
@@ -45,6 +50,18 @@ pub enum TRD104SyscallReturnVariant {
     SuccessU32U64 = 133,
 }
 
+impl TRD104SyscallReturnVariant {
+    const fn to_u32(self) -> u32 {
+        // CAST: TRD104SyscallReturnVariant marked #[repr(u32)]
+        self as u32
+    }
+
+    const fn to_u64(self) -> u64 {
+        // CAST: size_of::<u64>() > size_of::<u32>()
+        self.to_u32() as u64
+    }
+}
+
 /// System call return variants defined as defined in TRD104.
 ///
 /// These are a strict subset of the variants defined in the core
@@ -62,12 +79,12 @@ pub enum TRD104SyscallReturn {
     SuccessU32U32U32(u32, u32, u32),
     SuccessU64(u64),
     SuccessU32U64(u32, u64),
-    AllowReadWriteSuccess(*mut u8, usize),
-    AllowReadWriteFailure(ErrorCode, *mut u8, usize),
-    UserspaceReadableAllowSuccess(*mut u8, usize),
-    UserspaceReadableAllowFailure(ErrorCode, *mut u8, usize),
-    AllowReadOnlySuccess(*const u8, usize),
-    AllowReadOnlyFailure(ErrorCode, *const u8, usize),
+    AllowReadWriteSuccess(Option<MutableUserVirtualPointer<u8>>, usize),
+    AllowReadWriteFailure(ErrorCode, Option<MutableUserVirtualPointer<u8>>, usize),
+    UserspaceReadableAllowSuccess(Option<MutableUserVirtualPointer<u8>>, usize),
+    UserspaceReadableAllowFailure(ErrorCode, Option<MutableUserVirtualPointer<u8>>, usize),
+    AllowReadOnlySuccess(Option<ImmutableUserVirtualPointer<u8>>, usize),
+    AllowReadOnlyFailure(ErrorCode, Option<ImmutableUserVirtualPointer<u8>>, usize),
     SubscribeSuccess(*const (), usize),
     SubscribeFailure(ErrorCode, *const (), usize),
     YieldWaitFor(usize, usize, usize),
@@ -125,9 +142,10 @@ impl TRD104SyscallReturn {
     }
 }
 
-/// Encode the system call return value into 4 registers, following the encoding
-/// specified in TRD104. Architectures which do not follow TRD104 are free to
-/// define their own encoding.
+/// Encode the system call return value into 4 registers, following the encoding specified in
+/// TRD104 for 32-bit platforms. Architectures which do not follow TRD104 are free to define
+/// their own encoding.
+#[cfg(target_pointer_width = "32")]
 pub fn encode_syscall_return_trd104(
     syscall_return: &TRD104SyscallReturn,
     a0: &mut u32,
@@ -137,41 +155,45 @@ pub fn encode_syscall_return_trd104(
 ) {
     match *syscall_return {
         TRD104SyscallReturn::Failure(e) => {
-            *a0 = TRD104SyscallReturnVariant::Failure as u32;
+            *a0 = TRD104SyscallReturnVariant::Failure.to_u32();
+            // CAST: u32 == usize on 32-bit platforms
             *a1 = usize::from(e) as u32;
         }
         TRD104SyscallReturn::FailureU32(e, data0) => {
-            *a0 = TRD104SyscallReturnVariant::FailureU32 as u32;
+            *a0 = TRD104SyscallReturnVariant::FailureU32.to_u32();
+            // CAST: u32 == usize on 32-bit platforms
             *a1 = usize::from(e) as u32;
             *a2 = data0;
         }
         TRD104SyscallReturn::FailureU32U32(e, data0, data1) => {
-            *a0 = TRD104SyscallReturnVariant::FailureU32U32 as u32;
+            *a0 = TRD104SyscallReturnVariant::FailureU32U32.to_u32();
+            // CAST: u32 == usize on 32-bit platforms
             *a1 = usize::from(e) as u32;
             *a2 = data0;
             *a3 = data1;
         }
         TRD104SyscallReturn::FailureU64(e, data0) => {
             let (data0_msb, data0_lsb) = u64_to_be_u32s(data0);
-            *a0 = TRD104SyscallReturnVariant::FailureU64 as u32;
+            *a0 = TRD104SyscallReturnVariant::FailureU64.to_u32();
+            // CAST: u32 == usize on 32-bit platforms
             *a1 = usize::from(e) as u32;
             *a2 = data0_lsb;
             *a3 = data0_msb;
         }
         TRD104SyscallReturn::Success => {
-            *a0 = TRD104SyscallReturnVariant::Success as u32;
+            *a0 = TRD104SyscallReturnVariant::Success.to_u32();
         }
         TRD104SyscallReturn::SuccessU32(data0) => {
-            *a0 = TRD104SyscallReturnVariant::SuccessU32 as u32;
+            *a0 = TRD104SyscallReturnVariant::SuccessU32.to_u32();
             *a1 = data0;
         }
         TRD104SyscallReturn::SuccessU32U32(data0, data1) => {
-            *a0 = TRD104SyscallReturnVariant::SuccessU32U32 as u32;
+            *a0 = TRD104SyscallReturnVariant::SuccessU32U32.to_u32();
             *a1 = data0;
             *a2 = data1;
         }
         TRD104SyscallReturn::SuccessU32U32U32(data0, data1, data2) => {
-            *a0 = TRD104SyscallReturnVariant::SuccessU32U32U32 as u32;
+            *a0 = TRD104SyscallReturnVariant::SuccessU32U32U32.to_u32();
             *a1 = data0;
             *a2 = data1;
             *a3 = data2;
@@ -179,65 +201,88 @@ pub fn encode_syscall_return_trd104(
         TRD104SyscallReturn::SuccessU64(data0) => {
             let (data0_msb, data0_lsb) = u64_to_be_u32s(data0);
 
-            *a0 = TRD104SyscallReturnVariant::SuccessU64 as u32;
+            *a0 = TRD104SyscallReturnVariant::SuccessU64.to_u32();
             *a1 = data0_lsb;
             *a2 = data0_msb;
         }
         TRD104SyscallReturn::SuccessU32U64(data0, data1) => {
             let (data1_msb, data1_lsb) = u64_to_be_u32s(data1);
 
-            *a0 = TRD104SyscallReturnVariant::SuccessU32U64 as u32;
+            *a0 = TRD104SyscallReturnVariant::SuccessU32U64.to_u32();
             *a1 = data0;
             *a2 = data1_lsb;
             *a3 = data1_msb;
         }
         TRD104SyscallReturn::AllowReadWriteSuccess(ptr, len) => {
-            *a0 = TRD104SyscallReturnVariant::SuccessU32U32 as u32;
-            *a1 = ptr as u32;
+            *a0 = TRD104SyscallReturnVariant::SuccessU32U32.to_u32();
+            // CAST: u32 == usize on 32-bit platforms
+            *a1 = ptr.map_or(0, |ptr| ptr.get_address().get() as u32);
+            // CAST: u32 == usize on 32-bit platforms
             *a2 = len as u32;
         }
         TRD104SyscallReturn::UserspaceReadableAllowSuccess(ptr, len) => {
-            *a0 = TRD104SyscallReturnVariant::SuccessU32U32 as u32;
-            *a1 = ptr as u32;
+            *a0 = TRD104SyscallReturnVariant::SuccessU32U32.to_u32();
+            // CAST: u32 == usize on 32-bit platforms
+            *a1 = ptr.map_or(0, |ptr| ptr.get_address().get() as u32);
+            // CAST: u32 == usize on 32-bit platforms
             *a2 = len as u32;
         }
         TRD104SyscallReturn::AllowReadWriteFailure(err, ptr, len) => {
-            *a0 = TRD104SyscallReturnVariant::FailureU32U32 as u32;
+            *a0 = TRD104SyscallReturnVariant::FailureU32U32.to_u32();
+            // CAST: u32 == usize on 32-bit platforms
             *a1 = usize::from(err) as u32;
-            *a2 = ptr as u32;
+            // CAST: u32 == usize on 32-bit platforms
+            *a2 = ptr.map_or(0, |ptr| ptr.get_address().get() as u32);
+            // CAST: u32 == usize on 32-bit platforms
             *a3 = len as u32;
         }
         TRD104SyscallReturn::UserspaceReadableAllowFailure(err, ptr, len) => {
-            *a0 = TRD104SyscallReturnVariant::FailureU32U32 as u32;
+            *a0 = TRD104SyscallReturnVariant::FailureU32U32.to_u32();
+            // CAST: u32 == usize on 32-bit platforms
             *a1 = usize::from(err) as u32;
-            *a2 = ptr as u32;
+            // CAST: u32 == usize on 32-bit platforms
+            *a2 = ptr.map_or(0, |ptr| ptr.get_address().get() as u32);
+            // CAST: u32 == usize on 32-bit platforms
             *a3 = len as u32;
         }
         TRD104SyscallReturn::AllowReadOnlySuccess(ptr, len) => {
-            *a0 = TRD104SyscallReturnVariant::SuccessU32U32 as u32;
-            *a1 = ptr as u32;
+            *a0 = TRD104SyscallReturnVariant::SuccessU32U32.to_u32();
+            // CAST: u32 == usize on 32-bit platforms
+            *a1 = ptr.map_or(0, |ptr| ptr.get_address().get() as u32);
+            // CAST: u32 == usize on 32-bit platforms
             *a2 = len as u32;
         }
         TRD104SyscallReturn::AllowReadOnlyFailure(err, ptr, len) => {
-            *a0 = TRD104SyscallReturnVariant::FailureU32U32 as u32;
+            *a0 = TRD104SyscallReturnVariant::FailureU32U32.to_u32();
+            // CAST: u32 == usize on 32-bit platforms
             *a1 = usize::from(err) as u32;
-            *a2 = ptr as u32;
+            // CAST: u32 == usize on 32-bit platforms
+            *a2 = ptr.map_or(0, |ptr| ptr.get_address().get() as u32);
+            // CAST: u32 == usize on 32-bit platforms
             *a3 = len as u32;
         }
         TRD104SyscallReturn::SubscribeSuccess(ptr, data) => {
-            *a0 = TRD104SyscallReturnVariant::SuccessU32U32 as u32;
+            *a0 = TRD104SyscallReturnVariant::SuccessU32U32.to_u32();
+            // CAST: u32 == usize on 32-bit platforms
             *a1 = ptr as u32;
+            // CAST: u32 == usize on 32-bit platforms
             *a2 = data as u32;
         }
         TRD104SyscallReturn::SubscribeFailure(err, ptr, data) => {
-            *a0 = TRD104SyscallReturnVariant::FailureU32U32 as u32;
+            *a0 = TRD104SyscallReturnVariant::FailureU32U32.to_u32();
+            // CAST: u32 == usize on 32-bit platforms
             *a1 = usize::from(err) as u32;
+            // CAST: u32 == usize on 32-bit platforms
             *a2 = ptr as u32;
+            // CAST: u32 == usize on 32-bit platforms
             *a3 = data as u32;
         }
         TRD104SyscallReturn::YieldWaitFor(data0, data1, data2) => {
+            // CAST: u32 == usize on 32-bit platforms
             *a0 = data0 as u32;
+            // CAST: u32 == usize on 32-bit platforms
             *a1 = data1 as u32;
+            // CAST: u32 == usize on 32-bit platforms
             *a2 = data2 as u32;
         }
     }

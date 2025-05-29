@@ -4,6 +4,7 @@
 
 //! Implementation of the MEMOP family of syscalls.
 
+use crate::memory_management::pointers::ImmutableUserVirtualPointer;
 use crate::process::Process;
 use crate::syscall::SyscallReturn;
 use crate::utilities::capability_ptr::{CapabilityPtr, CapabilityPtrPermissions};
@@ -46,7 +47,9 @@ pub(crate) fn memop(process: &dyn Process, op_type: usize, r1: usize) -> Syscall
     match op_type {
         // Op Type 0: BRK
         0 => process
-            .brk(r1 as *const u8)
+            // PANIC: TODO: this may be null
+            // SAFETY: a process can pass only user virtual pointers
+            .brk(unsafe { ImmutableUserVirtualPointer::new_from_raw_byte(r1 as *const u8).unwrap() })
             .map(|_| SyscallReturn::Success)
             .unwrap_or(SyscallReturn::Failure(ErrorCode::NOMEM)),
 
@@ -146,13 +149,21 @@ pub(crate) fn memop(process: &dyn Process, op_type: usize, r1: usize) -> Syscall
 
         // Op Type 10: Specify where the start of the app stack is.
         10 => {
-            process.update_stack_start_pointer(r1 as *const u8);
+            let stack_pointer = r1 as *const u8;
+            // PANIC: TODO: this may be null
+            // SAFETY: a process can pass only user virtual pointers
+            let virtual_stack_pointer = unsafe { ImmutableUserVirtualPointer::new_from_raw_byte(stack_pointer).unwrap() };
+            process.update_stack_start_pointer(virtual_stack_pointer);
             SyscallReturn::Success
         }
 
         // Op Type 11: Specify where the start of the app heap is.
         11 => {
-            process.update_heap_start_pointer(r1 as *const u8);
+            let heap_pointer = r1 as *const u8;
+            // PANIC: TODO: this may be null
+            // SAFETY: a process can pass only user virtual pointers
+            let virtual_heap_pointer = unsafe { ImmutableUserVirtualPointer::new_from_raw_byte(heap_pointer).unwrap() };
+            process.update_heap_start_pointer(virtual_heap_pointer);
             SyscallReturn::Success
         }
 

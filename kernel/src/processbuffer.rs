@@ -29,6 +29,7 @@ use core::marker::PhantomData;
 use core::ops::{Deref, Index, Range, RangeFrom, RangeTo};
 
 use crate::capabilities;
+use crate::memory_management::pointers::{ImmutableKernelVirtualPointer, MutableKernelVirtualPointer};
 use crate::process::{self, ProcessId};
 use crate::ErrorCode;
 
@@ -51,7 +52,7 @@ use crate::ErrorCode;
 /// It is sound for multiple overlapping [`ReadableProcessSlice`]s or
 /// [`WriteableProcessSlice`]s to be in scope at the same time.
 unsafe fn raw_processbuf_to_roprocessslice<'a>(
-    ptr: *const u8,
+    ptr: Option<&ImmutableKernelVirtualPointer<u8>>,
     len: usize,
 ) -> &'a ReadableProcessSlice {
     // Transmute a reference to a slice of Cell<u8>s into a reference
@@ -76,9 +77,9 @@ unsafe fn raw_processbuf_to_roprocessslice<'a>(
         // required for accesses of size zero.
         //
         // [1]: https://doc.rust-lang.org/core/ptr/index.html#safety
-        match len {
-            0 => core::slice::from_raw_parts(core::ptr::NonNull::<u8>::dangling().as_ptr(), 0),
-            _ => core::slice::from_raw_parts(ptr, len),
+        match ptr {
+            None => core::slice::from_raw_parts(core::ptr::NonNull::<u8>::dangling().as_ptr(), 0),
+            Some(ptr) => core::slice::from_raw_parts(ptr.as_raw(), len),
         },
     )
 }
@@ -111,7 +112,7 @@ unsafe fn raw_processbuf_to_roprocessslice<'a>(
 /// [`ReadableProcessSlice`]s or [`WriteableProcessSlice`]s to be in
 /// scope at the same time.
 unsafe fn raw_processbuf_to_rwprocessslice<'a>(
-    ptr: *mut u8,
+    ptr: Option<&MutableKernelVirtualPointer<u8>>,
     len: usize,
 ) -> &'a WriteableProcessSlice {
     // Transmute a reference to a slice of Cell<u8>s into a reference
@@ -121,7 +122,7 @@ unsafe fn raw_processbuf_to_rwprocessslice<'a>(
     // around a [Cell<u8>], which is a #[repr(transparent)] wrapper
     // around an [UnsafeCell<u8>], which finally #[repr(transparent)]
     // wraps a [u8]
-    core::mem::transmute::<&[u8], &WriteableProcessSlice>(
+    core::mem::transmute::<&mut [u8], &WriteableProcessSlice>(
         // Rust has very strict requirements on pointer validity[1]
         // which also in part apply to accesses of length 0. We allow
         // an application to supply arbitrary pointers if the buffer
@@ -136,9 +137,9 @@ unsafe fn raw_processbuf_to_rwprocessslice<'a>(
         // required for accesses of size zero.
         //
         // [1]: https://doc.rust-lang.org/core/ptr/index.html#safety
-        match len {
-            0 => core::slice::from_raw_parts_mut(core::ptr::NonNull::<u8>::dangling().as_ptr(), 0),
-            _ => core::slice::from_raw_parts_mut(ptr, len),
+        match ptr {
+            None => core::slice::from_raw_parts_mut(core::ptr::NonNull::<u8>::dangling().as_ptr(), 0),
+            Some(ptr) => core::slice::from_raw_parts_mut(ptr.as_raw(), len),
         },
     )
 }
@@ -234,7 +235,8 @@ pub trait WriteableProcessBuffer: ReadableProcessBuffer {
 /// prior to switching to userspace is required, as the compiler is
 /// free to reorder reads and writes, even through [`Cell`]s.
 pub struct ReadOnlyProcessBuffer {
-    ptr: *const u8,
+    // TODO: Option should wrap both `ptr` and `len`
+    ptr: Option<ImmutableKernelVirtualPointer<u8>>,
     len: usize,
     process_id: Option<ProcessId>,
 }
@@ -247,7 +249,7 @@ impl ReadOnlyProcessBuffer {
     ///
     /// Refer to the safety requirements of
     /// [`ReadOnlyProcessBuffer::new_external`].
-    pub(crate) unsafe fn new(ptr: *const u8, len: usize, process_id: ProcessId) -> Self {
+    pub(crate) unsafe fn new(ptr: Option<ImmutableKernelVirtualPointer<u8>>, len: usize, process_id: ProcessId) -> Self {
         ReadOnlyProcessBuffer {
             ptr,
             len,
@@ -287,7 +289,7 @@ impl ReadOnlyProcessBuffer {
     /// must point to memory mapped as _readable_ and optionally
     /// _writable_ and _executable_.
     pub unsafe fn new_external(
-        ptr: *const u8,
+        ptr: Option<ImmutableKernelVirtualPointer<u8>>,
         len: usize,
         process_id: ProcessId,
         _cap: &dyn capabilities::ExternalProcessCapability,
@@ -303,7 +305,7 @@ impl ReadOnlyProcessBuffer {
     /// `consume` can be used when the kernel needs to pass the
     /// underlying values across the kernel-to-user boundary (e.g., in
     /// return values to system calls).
-    pub(crate) fn consume(self) -> (*const u8, usize) {
+    pub(crate) fn consume(self) -> (Option<ImmutableKernelVirtualPointer<u8>>, usize) {
         (self.ptr, self.len)
     }
 }
@@ -317,10 +319,10 @@ impl ReadableProcessBuffer for ReadOnlyProcessBuffer {
 
     /// Return the pointer to the start of the buffer.
     fn ptr(&self) -> *const u8 {
-        if self.len == 0 {
-            core::ptr::null::<u8>()
-        } else {
-            self.ptr
+        match &self.ptr {
+            None => core::ptr::null(),
+            // SAFETY: TODO
+            Some(ptr) => unsafe { ptr.as_raw() },
         }
     }
 
@@ -354,7 +356,7 @@ impl ReadableProcessBuffer for ReadOnlyProcessBuffer {
                     // comment and subsequent discussion on tock/tock#2632:
                     // https://github.com/tock/tock/pull/2632#issuecomment-869974365
                     Ok(fun(unsafe {
-                        raw_processbuf_to_roprocessslice(self.ptr, self.len)
+                        raw_processbuf_to_roprocessslice(self.ptr.as_ref(), self.len)
                     }))
                 }),
         }
@@ -364,7 +366,7 @@ impl ReadableProcessBuffer for ReadOnlyProcessBuffer {
 impl Default for ReadOnlyProcessBuffer {
     fn default() -> Self {
         ReadOnlyProcessBuffer {
-            ptr: core::ptr::null_mut::<u8>(),
+            ptr: None,
             len: 0,
             process_id: None,
         }
@@ -388,7 +390,7 @@ impl ReadOnlyProcessBufferRef<'_> {
     /// [`ReadOnlyProcessBuffer::new_external`]. The derived lifetime can
     /// help enforce the invariant that this incoming pointer may only
     /// be access for a certain duration.
-    pub(crate) unsafe fn new(ptr: *const u8, len: usize, process_id: ProcessId) -> Self {
+    pub(crate) unsafe fn new(ptr: Option<ImmutableKernelVirtualPointer<u8>>, len: usize, process_id: ProcessId) -> Self {
         Self {
             buf: ReadOnlyProcessBuffer::new(ptr, len, process_id),
             _phantom: PhantomData,
@@ -420,7 +422,8 @@ impl Deref for ReadOnlyProcessBufferRef<'_> {
 /// userspace is required, as the compiler is free to reorder reads
 /// and writes, even through [`Cell`]s.
 pub struct ReadWriteProcessBuffer {
-    ptr: *mut u8,
+    // TODO: Option should wrap both `ptr` and `len`
+    ptr: Option<MutableKernelVirtualPointer<u8>>,
     len: usize,
     process_id: Option<ProcessId>,
 }
@@ -433,7 +436,7 @@ impl ReadWriteProcessBuffer {
     ///
     /// Refer to the safety requirements of
     /// [`ReadWriteProcessBuffer::new_external`].
-    pub(crate) unsafe fn new(ptr: *mut u8, len: usize, process_id: ProcessId) -> Self {
+    pub(crate) unsafe fn new(ptr: Option<MutableKernelVirtualPointer<u8>>, len: usize, process_id: ProcessId) -> Self {
         ReadWriteProcessBuffer {
             ptr,
             len,
@@ -473,7 +476,7 @@ impl ReadWriteProcessBuffer {
     /// must point to memory mapped as _readable_ and optionally
     /// _writable_ and _executable_.
     pub unsafe fn new_external(
-        ptr: *mut u8,
+        ptr: Option<MutableKernelVirtualPointer<u8>>,
         len: usize,
         process_id: ProcessId,
         _cap: &dyn capabilities::ExternalProcessCapability,
@@ -489,7 +492,7 @@ impl ReadWriteProcessBuffer {
     /// `consume` can be used when the kernel needs to pass the
     /// underlying values across the kernel-to-user boundary (e.g., in
     /// return values to system calls).
-    pub(crate) fn consume(self) -> (*mut u8, usize) {
+    pub(crate) fn consume(self) -> (Option<MutableKernelVirtualPointer<u8>>, usize) {
         (self.ptr, self.len)
     }
 
@@ -508,7 +511,7 @@ impl ReadWriteProcessBuffer {
     /// ```
     pub const fn const_default() -> Self {
         Self {
-            ptr: 0x0 as *mut u8,
+            ptr: None,
             len: 0,
             process_id: None,
         }
@@ -524,10 +527,10 @@ impl ReadableProcessBuffer for ReadWriteProcessBuffer {
 
     /// Return the pointer to the start of the buffer.
     fn ptr(&self) -> *const u8 {
-        if self.len == 0 {
-            core::ptr::null::<u8>()
-        } else {
-            self.ptr
+        match &self.ptr {
+            None => core::ptr::null(),
+            // SAFETY: TODO
+            Some(ptr) => unsafe { ptr.as_immutable().as_raw() },
         }
     }
 
@@ -561,7 +564,7 @@ impl ReadableProcessBuffer for ReadWriteProcessBuffer {
                     // comment and subsequent discussion on tock/tock#2632:
                     // https://github.com/tock/tock/pull/2632#issuecomment-869974365
                     Ok(fun(unsafe {
-                        raw_processbuf_to_roprocessslice(self.ptr, self.len)
+                        raw_processbuf_to_roprocessslice(self.ptr.as_ref().map(|ptr| ptr.as_immutable()), self.len)
                     }))
                 }),
         }
@@ -595,7 +598,7 @@ impl WriteableProcessBuffer for ReadWriteProcessBuffer {
                     // comment and subsequent discussion on tock/tock#2632:
                     // https://github.com/tock/tock/pull/2632#issuecomment-869974365
                     Ok(fun(unsafe {
-                        raw_processbuf_to_rwprocessslice(self.ptr, self.len)
+                        raw_processbuf_to_rwprocessslice(self.ptr.as_ref(), self.len)
                     }))
                 }),
         }
@@ -625,7 +628,7 @@ impl ReadWriteProcessBufferRef<'_> {
     /// [`ReadWriteProcessBuffer::new_external`]. The derived lifetime can
     /// help enforce the invariant that this incoming pointer may only
     /// be access for a certain duration.
-    pub(crate) unsafe fn new(ptr: *mut u8, len: usize, process_id: ProcessId) -> Self {
+    pub(crate) unsafe fn new(ptr: Option<MutableKernelVirtualPointer<u8>>, len: usize, process_id: ProcessId) -> Self {
         Self {
             buf: ReadWriteProcessBuffer::new(ptr, len, process_id),
             _phantom: PhantomData,

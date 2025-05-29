@@ -189,7 +189,7 @@ impl SyscallFilter for TbfHeaderFilterDefaultAllow {
             syscall::Syscall::ReadWriteAllow {
                 driver_number,
                 subdriver_number: _,
-                allow_address: _,
+                allow_pointer: _,
                 allow_size: _,
             } => match process.get_command_permissions(*driver_number, 0) {
                 CommandPermissions::NoPermsAtAll => Ok(()),
@@ -201,7 +201,7 @@ impl SyscallFilter for TbfHeaderFilterDefaultAllow {
             syscall::Syscall::UserspaceReadableAllow {
                 driver_number,
                 subdriver_number: _,
-                allow_address: _,
+                allow_pointer: _,
                 allow_size: _,
             } => match process.get_command_permissions(*driver_number, 0) {
                 CommandPermissions::NoPermsAtAll => Ok(()),
@@ -213,7 +213,7 @@ impl SyscallFilter for TbfHeaderFilterDefaultAllow {
             syscall::Syscall::ReadOnlyAllow {
                 driver_number,
                 subdriver_number: _,
-                allow_address: _,
+                allow_pointer: _,
                 allow_size: _,
             } => match process.get_command_permissions(*driver_number, 0) {
                 CommandPermissions::NoPermsAtAll => Ok(()),

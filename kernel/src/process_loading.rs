@@ -20,6 +20,7 @@ use crate::config;
 use crate::debug;
 use crate::deferred_call::{DeferredCall, DeferredCallClient};
 use crate::kernel::Kernel;
+use crate::memory_management::memory_managers::ProcessMemoryMappingError;
 use crate::platform::chip::Chip;
 use crate::process::{Process, ShortId};
 use crate::process_binary::{ProcessBinary, ProcessBinaryError};
@@ -48,13 +49,8 @@ pub enum ProcessLoadError {
     /// (current) MPU constraints and process requirements.
     MpuConfigurationError,
 
-    /// A process specified a fixed memory address that it needs its memory
-    /// range to start at, and the kernel did not or could not give the process
-    /// a memory region starting at that address.
-    MemoryAddressMismatch {
-        actual_address: u32,
-        expected_address: u32,
-    },
+    /// The requested memory mapping is invalid
+    MemoryMappingError(ProcessMemoryMappingError),
 
     /// There is nowhere in the `PROCESSES` array to store this process.
     NoProcessSlot,
@@ -85,14 +81,13 @@ impl fmt::Debug for ProcessLoadError {
                 write!(f, "Configuring the MPU failed")
             }
 
-            ProcessLoadError::MemoryAddressMismatch {
-                actual_address,
-                expected_address,
-            } => write!(
-                f,
-                "App memory does not match requested address Actual:{:#x}, Expected:{:#x}",
-                actual_address, expected_address
-            ),
+            ProcessLoadError::MemoryMappingError(process_memory_mapping_error) => {
+                write!(
+                    f,
+                    "Memory mapping error {:?}",
+                    process_memory_mapping_error,
+                )
+            }
 
             ProcessLoadError::NoProcessSlot => {
                 write!(f, "Nowhere to store the loaded process")
@@ -136,12 +131,11 @@ impl fmt::Debug for ProcessLoadError {
 // however, these functions require a rather large stack frame, which may be an
 // issue for boards small kernel stacks.
 #[inline(always)]
-pub fn load_processes<C: Chip>(
+pub fn load_processes<'a, C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
     app_flash: &'static [u8],
-    app_memory: &'static mut [u8],
-    mut procs: &'static mut [Option<&'static dyn Process>],
+    mut procs: &'a mut [OptionalCell<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
     _capability_management: &dyn ProcessManagementCapability,
 ) -> Result<(), ProcessLoadError> {
@@ -149,7 +143,6 @@ pub fn load_processes<C: Chip>(
         kernel,
         chip,
         app_flash,
-        app_memory,
         &mut procs,
         fault_policy,
     )?;
@@ -186,26 +179,22 @@ pub fn load_processes<C: Chip>(
 /// `ProcessLoadError` if something goes wrong during TBF parsing or process
 /// creation.
 #[inline(always)]
-fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
+fn load_processes_from_flash<'a, C: Chip, D: ProcessStandardDebug + 'static>(
     kernel: &'static Kernel,
     chip: &'static C,
     app_flash: &'static [u8],
-    app_memory: &'static mut [u8],
-    procs: &mut &'static mut [Option<&'static dyn Process>],
+    procs: &mut &'a mut [OptionalCell<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
 ) -> Result<(), ProcessLoadError> {
     if config::CONFIG.debug_load_processes {
         debug!(
-            "Loading processes from flash={:#010X}-{:#010X} into sram={:#010X}-{:#010X}",
+            "Loading processes from flash={:#010X}-{:#010X}",
             app_flash.as_ptr() as usize,
             app_flash.as_ptr() as usize + app_flash.len() - 1,
-            app_memory.as_ptr() as usize,
-            app_memory.as_ptr() as usize + app_memory.len() - 1
         );
     }
 
     let mut remaining_flash = app_flash;
-    let mut remaining_memory = app_memory;
     // Try to discover up to `procs.len()` processes in flash.
     let mut index = 0;
     let num_procs = procs.len();
@@ -220,21 +209,19 @@ fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
                     kernel,
                     chip,
                     process_binary,
-                    remaining_memory,
                     ShortId::LocallyUnique,
                     index,
                     fault_policy,
                     &(),
                 );
                 match load_result {
-                    Ok((new_mem, proc)) => {
-                        remaining_memory = new_mem;
+                    Ok(proc) => {
                         match proc {
                             Some(p) => {
                                 if config::CONFIG.debug_load_processes {
                                     debug!("Loaded process {}", p.get_process_name())
                                 }
-                                procs[index] = proc;
+                                procs[index].insert(proc);
                                 index += 1;
                             }
                             None => {
@@ -244,8 +231,7 @@ fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
                             }
                         }
                     }
-                    Err((new_mem, err)) => {
-                        remaining_memory = new_mem;
+                    Err(err) => {
                         if config::CONFIG.debug_load_processes {
                             debug!("Processes load error: {:?}.", err);
                         }
@@ -354,24 +340,21 @@ fn discover_process_binary(
 /// pool that its RAM should be allocated from. Returns `Ok` if the process
 /// object was created, `Err` with a relevant error if the process object could
 /// not be created.
-fn load_process<C: Chip, D: ProcessStandardDebug>(
+fn load_process<'a, C: Chip, D: ProcessStandardDebug>(
     kernel: &'static Kernel,
     chip: &'static C,
     process_binary: ProcessBinary,
-    app_memory: &'static mut [u8],
     app_id: ShortId,
     index: usize,
     fault_policy: &'static dyn ProcessFaultPolicy,
     storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C, D>,
-) -> Result<(&'static mut [u8], Option<&'static dyn Process>), (&'static mut [u8], ProcessLoadError)>
+) -> Result<Option<&'static dyn Process>, ProcessLoadError>
 {
     if config::CONFIG.debug_load_processes {
         debug!(
-            "Loading: process flash={:#010X}-{:#010X} ram={:#010X}-{:#010X}",
+            "Loading: process flash={:#010X}-{:#010X}",
             process_binary.flash.as_ptr() as usize,
             process_binary.flash.as_ptr() as usize + process_binary.flash.len() - 1,
-            app_memory.as_ptr() as usize,
-            app_memory.as_ptr() as usize + app_memory.len() - 1
         );
     }
 
@@ -385,18 +368,16 @@ fn load_process<C: Chip, D: ProcessStandardDebug>(
     // Try to create a process object from that app slice. If we don't
     // get a process and we didn't get a loading error (aka we got to
     // this point), then the app is a disabled process or just padding.
-    let (process_option, unused_memory) = unsafe {
+    let process_option = unsafe {
         ProcessStandard::<C, D>::create(
             kernel,
             chip,
             process_binary,
-            app_memory,
             fault_policy,
             storage_policy,
             app_id,
             index,
-        )
-        .map_err(|(e, memory)| (memory, e))?
+        )?
     };
 
     process_option.map(|process| {
@@ -413,7 +394,7 @@ fn load_process<C: Chip, D: ProcessStandardDebug>(
         }
     });
 
-    Ok((unused_memory, process_option))
+    Ok(process_option)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -726,12 +707,14 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
 
                 // If we get here it is ok to load the process.
                 match self.find_open_process_slot() {
-                    Some(index) => {
+                    Some(_index) => {
                         // Calculate the ShortId for this new process.
-                        let short_app_id = self.policy.map_or(ShortId::LocallyUnique, |policy| {
+                        let _short_app_id = self.policy.map_or(ShortId::LocallyUnique, |policy| {
                             policy.to_short_id(&process_binary)
                         });
 
+                        todo!()
+                        /*
                         // Try to create a `Process` object.
                         let load_result = load_process(
                             self.kernel,
@@ -783,6 +766,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                                 });
                             }
                         }
+                        */
                     }
                     None => {
                         // Nowhere to store the process.
