@@ -325,7 +325,7 @@ impl<
                 ProcessLoadError::NotEnoughMemory => Err(ErrorCode::NOMEM),
                 ProcessLoadError::MpuInvalidFlashLength => Err(ErrorCode::INVAL),
                 ProcessLoadError::MpuConfigurationError => Err(ErrorCode::FAIL),
-                ProcessLoadError::MemoryAddressMismatch { .. } => Err(ErrorCode::FAIL),
+                ProcessLoadError::MemoryMappingError { .. } => Err(ErrorCode::FAIL),
                 ProcessLoadError::NoProcessSlot => Err(ErrorCode::FAIL),
                 ProcessLoadError::BinaryError(_) => Err(ErrorCode::FAIL),
                 ProcessLoadError::CheckError(_) => Err(ErrorCode::FAIL),
