@@ -489,8 +489,6 @@ pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static, D: ProcessStand
     flash_bank: Cell<&'static [u8]>,
     /// Flash memory region to load processes from.
     flash: Cell<&'static [u8]>,
-    /// Memory available to assign to applications.
-    app_memory: Cell<&'static mut [u8]>,
     /// Mechanism for generating async callbacks.
     deferred_call: DeferredCall,
     /// Reference to the kernel object for creating Processes.
@@ -521,7 +519,6 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         kernel: &'static Kernel,
         chip: &'static C,
         flash: &'static [u8],
-        app_memory: &'static mut [u8],
         fault_policy: &'static dyn ProcessFaultPolicy,
         storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C, D>,
         policy: &'static dyn AppIdPolicy,
@@ -539,7 +536,6 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
             chip,
             flash_bank: Cell::new(flash),
             flash: Cell::new(flash),
-            app_memory: Cell::new(app_memory),
             policy: OptionalCell::new(policy),
             fault_policy,
             storage_policy,
@@ -707,28 +703,24 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
 
                 // If we get here it is ok to load the process.
                 match self.find_open_process_slot() {
-                    Some(_index) => {
+                    Some(index) => {
                         // Calculate the ShortId for this new process.
-                        let _short_app_id = self.policy.map_or(ShortId::LocallyUnique, |policy| {
+                        let short_app_id = self.policy.map_or(ShortId::LocallyUnique, |policy| {
                             policy.to_short_id(&process_binary)
                         });
 
-                        todo!()
-                        /*
                         // Try to create a `Process` object.
                         let load_result = load_process(
                             self.kernel,
                             self.chip,
                             process_binary,
-                            self.app_memory.take(),
                             short_app_id,
                             index,
                             self.fault_policy,
                             self.storage_policy,
                         );
                         match load_result {
-                            Ok((new_mem, proc)) => {
-                                self.app_memory.set(new_mem);
+                            Ok(proc) => {
                                 match proc {
                                     Some(p) => {
                                         if config::CONFIG.debug_load_processes {
@@ -756,8 +748,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                                     }
                                 }
                             }
-                            Err((new_mem, err)) => {
-                                self.app_memory.set(new_mem);
+                            Err(err) => {
                                 if config::CONFIG.debug_load_processes {
                                     debug!("Could not load process: {:?}.", err);
                                 }
@@ -766,7 +757,6 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                                 });
                             }
                         }
-                        */
                     }
                     None => {
                         // Nowhere to store the process.
