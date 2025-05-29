@@ -1,0 +1,96 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2025.
+
+//! ECDSA Signature Verifier for P256 signatures.
+
+use p256::ecdsa;
+use p256::ecdsa::signature::hazmat::PrehashSigner;
+
+use core::cell::Cell;
+use kernel::hil;
+use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
+
+pub struct EcdsaP256SignatureSigner<'a> {
+    client: OptionalCell<&'a dyn hil::public_key_crypto::signature::ClientSign<32, 64>>,
+    signing_key: MapCell<ecdsa::SigningKey>,
+    hash_storage: TakeCell<'static, [u8; 32]>,
+    signature_storage: TakeCell<'static, [u8; 64]>,
+    deferred_call: kernel::deferred_call::DeferredCall,
+}
+
+impl EcdsaP256SignatureSigner<'_> {
+    pub fn new(signing_key_bytes: &[u8; 64]) -> Self {
+        // KAT: figure this out
+        let key = ecdsa::SigningKey::from_bytes(signing_key_bytes);
+
+        let signing_key = key.map_or_else(|_e| MapCell::empty(), MapCell::new);
+
+        Self {
+            client: OptionalCell::empty(),
+            signing_key,
+            hash_storage: TakeCell::empty(),
+            signature_storage: TakeCell::empty(),
+            deferred_call: kernel::deferred_call::DeferredCall::new(),
+        }
+    }
+}
+
+impl<'a> hil::public_key_crypto::signature::SignatureSign<'a, 32, 64>
+    for EcdsaP256SignatureSigner<'a>
+{
+    fn set_sign_client(
+        &self,
+        client: &'a dyn hil::public_key_crypto::signature::ClientSign<32, 64>,
+    ) {
+        self.client.replace(client);
+    }
+
+    fn sign(
+        &self,
+        hash: &'static mut [u8; 32],
+        signature: &'static mut [u8; 64],
+    ) -> Result<
+        (),
+        (
+            kernel::ErrorCode,
+            &'static mut [u8; 32],
+            &'static mut [u8; 64],
+        ),
+    > {
+        if self.signing_key.is_some() {
+            // KAT: figure out what to do here
+            if let Ok(sig) = ecdsa::Signature::from_slice(signature) {
+                self.signing_key
+                    .map(|skey| {
+                        skey.sign_prehash(hash);
+                        self.hash_storage.replace(hash);
+                        self.signature_storage.replace(signature);
+                        self.deferred_call.set();
+                        Ok(())
+                    })
+                    .unwrap()
+            } else {
+                Err((kernel::ErrorCode::INVAL, hash, signature))
+            }
+        } else {
+            Err((kernel::ErrorCode::FAIL, hash, signature))
+        }
+    }
+}
+
+impl kernel::deferred_call::DeferredCallClient for EcdsaP256SignatureSigner<'_> {
+    fn handle_deferred_call(&self) {
+        self.client.map(|client| {
+            if let Some(h) = self.hash_storage.take() {
+                if let Some(s) = self.signature_storage.take() {
+                    client.signing_done(Ok(()), h, s);
+                }
+            }
+        });
+    }
+
+    fn register(&'static self) {
+        self.deferred_call.register(self);
+    }
+}
