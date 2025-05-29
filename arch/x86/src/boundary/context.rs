@@ -8,6 +8,10 @@ use core::ptr;
 
 use crate::registers::irq::EXCEPTIONS;
 
+use kernel::memory_management::pointers::{
+    ImmutableKernelVirtualPointer,
+};
+
 /// Stored CPU state of a user-mode app
 ///
 /// This struct stores the complete CPU state of a user-mode Tock application on x86.
@@ -56,16 +60,18 @@ impl UserContext {
     pub unsafe fn push_stack(
         &mut self,
         value: u32,
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
+        accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        app_brk: &ImmutableKernelVirtualPointer<u8>,
     ) -> Result<(), ()> {
         let new_esp = self.esp - 4;
 
-        if new_esp < accessible_memory_start as u32 {
+        // CAST: usize == u32 on x86
+        if new_esp < accessible_memory_start.get_address().get() as u32 {
             return Err(());
         }
 
-        if new_esp + 4 > app_brk as u32 {
+        // CAST: usize == u32 on x86
+        if new_esp + 4 > app_brk.get_address().get() as u32 {
             return Err(());
         }
 
@@ -91,16 +97,18 @@ impl UserContext {
     pub unsafe fn read_stack(
         &self,
         offset: u32,
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
+        accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        app_brk: &ImmutableKernelVirtualPointer<u8>,
     ) -> Result<u32, ()> {
         let stack_addr = self.esp + (offset * 4);
 
-        if stack_addr < accessible_memory_start as u32 {
+        // CAST: usize == u32 on x86
+        if stack_addr < accessible_memory_start.get_address().get() as u32 {
             return Err(());
         }
 
-        if stack_addr + 4 > app_brk as u32 {
+        // CAST: usize == u32 on x86
+        if stack_addr + 4 > app_brk.get_address().get() as u32 {
             return Err(());
         }
 
@@ -125,16 +133,18 @@ impl UserContext {
         &self,
         offset: u32,
         value: u32,
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
+        accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        app_brk: &ImmutableKernelVirtualPointer<u8>,
     ) -> Result<(), ()> {
         let stack_addr = self.esp + (offset * size_of::<usize>() as u32);
 
-        if stack_addr < accessible_memory_start as u32 {
+        // CAST: usize == u32 on x86
+        if stack_addr < accessible_memory_start.get_address().get() as u32 {
             return Err(());
         }
 
-        if stack_addr + 4 > app_brk as u32 {
+        // CAST: usize == u32 on x86
+        if stack_addr + 4 > app_brk.get_address().get() as u32 {
             return Err(());
         }
 

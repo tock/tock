@@ -6,6 +6,10 @@ use core::fmt::Write;
 
 use crate::registers::bits32::eflags::{EFlags, EFLAGS};
 
+use kernel::memory_management::pointers::{
+    ImmutableKernelVirtualPointer,
+    ImmutableUserVirtualPointer,
+};
 use kernel::process::FunctionCall;
 use kernel::syscall::{ContextSwitchReason, Syscall, SyscallReturn, UserspaceKernelBoundary};
 use kernel::ErrorCode;
@@ -32,7 +36,7 @@ impl Boundary {
     /// - 4 dwords for initial upcall arguments
     /// - 1 dword for initial upcall return address (although this will be zero for init_fn)
     /// - 4 dwords of scratch space for invoking memop syscalls
-    const MIN_APP_BRK: u32 = 9 * core::mem::size_of::<usize>() as u32;
+    const MIN_APP_BRK: usize = 9 * core::mem::size_of::<usize>();
 
     /// Constructs a new instance of `SysCall`.
     pub fn new() -> Self {
@@ -49,16 +53,17 @@ impl UserspaceKernelBoundary for Boundary {
 
     unsafe fn initialize_process(
         &self,
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
+        accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
     ) -> Result<(), ()> {
-        if (app_brk as u32 - accessible_memory_start as u32) < Self::MIN_APP_BRK {
+        if (app_brk.get_address().get() - accessible_memory_start.get_address().get()) < Self::MIN_APP_BRK {
             return Err(());
         }
 
         // We pre-allocate 16 bytes on the stack for initial upcall arguments.
-        let esp = (app_brk as u32) - 16;
+        // CAST: usize == u32 on x86
+        let esp = (app_brk.get_address().get() as u32) - 16;
 
         let mut eflags = EFlags::new();
         eflags.0.modify(EFLAGS::FLAGS_IF::SET);
@@ -85,8 +90,8 @@ impl UserspaceKernelBoundary for Boundary {
 
     unsafe fn set_syscall_return_value(
         &self,
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
+        accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
         return_value: SyscallReturn,
     ) -> Result<(), ()> {
@@ -139,8 +144,8 @@ impl UserspaceKernelBoundary for Boundary {
 
     unsafe fn set_process_function(
         &self,
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
+        accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
         upcall: FunctionCall,
     ) -> Result<(), ()> {
@@ -180,14 +185,14 @@ impl UserspaceKernelBoundary for Boundary {
 
     unsafe fn switch_to_process(
         &self,
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
+        accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
-    ) -> (ContextSwitchReason, Option<*const u8>) {
+    ) -> (ContextSwitchReason, Option<ImmutableUserVirtualPointer<u8>>) {
         // Sanity check: don't try to run a faulted app
         if state.exception != 0 || state.err_code != 0 {
-            let stack_ptr = state.esp as *mut u8;
-            return (ContextSwitchReason::Fault, Some(stack_ptr));
+            //let stack_ptr = state.esp as *mut u8;
+            return (ContextSwitchReason::Fault, None);
         }
 
         let mut err_code = 0;
@@ -229,15 +234,13 @@ impl UserspaceKernelBoundary for Boundary {
             _ => ContextSwitchReason::Interrupted,
         };
 
-        let stack_ptr = state.esp as *const u8;
-
-        (reason, Some(stack_ptr))
+        (reason, None)
     }
 
     unsafe fn print_context(
         &self,
-        _accessible_memory_start: *const u8,
-        _app_brk: *const u8,
+        _accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        _app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &Self::StoredState,
         writer: &mut dyn Write,
     ) {
