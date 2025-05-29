@@ -23,6 +23,12 @@ QEMU_BASE_CMDLINE := \
     -nographic \
     -device isa-debug-exit,iobase=0xf4,iosize=0x04
 
+OBJCOPY=/usr/bin/objcopy
+
+KERNEL=$(TARGET_PATH)/release/$(PLATFORM).elf
+KERNEL_WITH_APP=$(TARGET_PATH)/release/$(PLATFORM)-app.elf
+APPS=.apps.tbf
+
 # Run the kernel inside a qemu-system-i386 "q35" machine type simulation
 #
 # In order to boot with QEMU's -kernel flag, the Multiboot V1 header (at the beginning of .text)
@@ -49,4 +55,21 @@ run: $(TARGET_PATH)/release/$(PLATFORM).elf
 	$(QEMU_BASE_CMDLINE) \
 	  -kernel $<
 
-# todo: add run-app target
+.PHONY: apps
+apps:
+	objcopy --set-section-flags .apps=LOAD,ALLOC $(KERNEL) $(KERNEL_WITH_APP)
+	objcopy --update-section .apps=$(APPS) $(KERNEL_WITH_APP)
+
+.PHONY: run-apps
+run-apps: $(KERNEL) apps
+	@echo
+	@echo Reordering ELF file sections
+	@$(OBJCOPY)  $(KERNEL_WITH_APP)
+	@echo
+	@echo -e "Running $$(qemu-system-i386 --version | head -n1)"\
+	  "(tested: $(WORKING_QEMU_VERSION)) with\n"\
+          " - kernel $(KERNEL_WITH_APP)"
+	@echo "To exit type C-a x"
+	@echo
+	$(QEMU_BASE_CMDLINE) \
+	  -kernel $(KERNEL_WITH_APP)
