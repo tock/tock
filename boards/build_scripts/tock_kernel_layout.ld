@@ -321,7 +321,7 @@ SECTIONS
         *(.sbss .sbss.* .bss .bss.*);
         *(COMMON)
 
-        . = ALIGN(4);
+        . = ALIGN(PAGE_SIZE);
         _ezero = .;
 
 

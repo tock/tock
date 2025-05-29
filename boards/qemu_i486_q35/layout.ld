@@ -24,6 +24,18 @@ PAGE_SIZE = 4K;
 
 SECTIONS
 {
+	_srom = ORIGIN(rom);
+	_erom = ORIGIN(rom) + LENGTH(rom);
+
+	_sprog = ORIGIN(prog);
+	_eprog = ORIGIN(prog) + LENGTH(prog);
+
+	_sram = ORIGIN(ram);
+	_eram = ORIGIN(ram) + LENGTH(ram);
+
+	_speripheral = ORIGIN(pages);
+	_eperipheral = ORIGIN(pages) + LENGTH(pages);
+
     /**
      * Dedicated and aligned storage used for x86 page tables and directories.
      */
