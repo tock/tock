@@ -103,11 +103,15 @@ impl<
     }
 }
 
-pub(crate) struct KernelMemoryManager<'a, Granule> {
+pub(crate) struct KernelMemoryManager<'a, Granule, const USING_MPU: bool> {
     configuration: KernelConfiguration<'a, Granule>,
 }
 
-impl<'a, Granule> KernelMemoryManager<'a, Granule> {
+impl<
+    'a,
+    Granule,
+    const USING_MPU: bool,
+> KernelMemoryManager<'a, Granule, USING_MPU> {
     pub(crate) const fn new(
         rom_region: KernelMappedProtectedAllocatedRegion<'a, Granule>,
         prog_region: KernelMappedProtectedAllocatedRegion<'a, Granule>,
@@ -131,8 +135,18 @@ impl<'a, Granule> KernelMemoryManager<'a, Granule> {
     }
 
     fn is_user_mapping_valid(&self, region: &UserMappedProtectedAllocatedRegion<'a, Granule>) -> bool {
-        true
-        // !self.get_configuration().is_intersecting_user_virtual_region(region)
+        if USING_MPU {
+            let configuration = self.get_configuration();
+            let dirty_prog_region = configuration.get_prog_region();
+            let mapped_prog_region = dirty_prog_region.as_mapped_protected_allocated_region();
+            let dirty_ram_region = configuration.get_ram_region();
+            let mapped_ram_region = dirty_ram_region.as_mapped_protected_allocated_region();
+
+            mapped_prog_region.is_intersecting_virtually(region) ||
+                mapped_ram_region.is_intersecting_virtually(region)
+        } else {
+            !self.get_configuration().is_intersecting_user_virtual_region(region)
+        }
     }
 
     pub(crate) fn is_process_configuration_valid(

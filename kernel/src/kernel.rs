@@ -95,7 +95,7 @@ pub struct Kernel {
     /// Kernel memory manager
     // TODO: the granule is currently hard-coded. Try to rework the kernel so it can work with any
     // granule.
-    kernel_memory_manager: KernelMemoryManager<'static, Page4KiB>,
+    kernel_memory_manager: KernelMemoryManager<'static, Page4KiB, { config::CONFIG.mpu }>,
 }
 
 /// Represents the different outcomes when trying to allocate a grant region

@@ -268,8 +268,8 @@ impl<'a, Granule> core::fmt::Display for ValidProcessConfiguration<'a, Granule> 
 }
 
 //const KERNEL_ROM_REGION_INDEX: usize = 0;
-//const KERNEL_PROG_REGION_INDEX: usize = 1;
-//const KERNEL_RAM_REGION_INDEX: usize = 2;
+const KERNEL_PROG_REGION_INDEX: usize = 1;
+const KERNEL_RAM_REGION_INDEX: usize = 2;
 //const KERNEL_PERIPHERAL_REGION_INDEX: usize = 3;
 
 #[repr(transparent)]
@@ -304,7 +304,6 @@ impl<'a, Granule> KernelConfiguration<'a, Granule> {
         self.0.is_intersecting_virtual_region(region)
     }
 
-    /*
     pub(super) fn get_prog_region(&self) -> &KernelDirtyMappedProtectedAllocatedRegion<Granule> {
         // PANIC: KERNEL_PROG_REGION_INDEX < 4
         self.0.get_region(KERNEL_PROG_REGION_INDEX).unwrap()
@@ -314,7 +313,6 @@ impl<'a, Granule> KernelConfiguration<'a, Granule> {
         // PANIC: KERNEL_RAM_REGION_INDEX < 4
         self.0.get_region(KERNEL_RAM_REGION_INDEX).unwrap()
     }
-    */
 
     pub(super) fn translate_allocated_physical_pointer_byte<
         const IS_MUTABLE: bool,
