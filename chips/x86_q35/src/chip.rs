@@ -59,8 +59,9 @@ pub struct Pc<'a, const PR: u16 = RELOAD_1KHZ> {
 }
 
 impl<'a, const PR: u16> Chip for Pc<'a, PR> {
-    type MPU = PagingMPU<'a>;
-    fn mpu(&self) -> &Self::MPU {
+    type MMU = PagingMPU<'a>;
+
+    fn mmu(&self) -> &Self::MMU {
         &self.paging
     }
 
