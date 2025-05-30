@@ -94,6 +94,7 @@ impl TestLauncher {
             3 => unsafe { test::aes_test::run_aes128_ctr(&self.peripherals.ecb, self) },
             4 => unsafe { test::aes_test::run_aes128_cbc(&self.peripherals.ecb, self) },
             5 => unsafe { test::aes_test::run_aes128_ecb(&self.peripherals.ecb, self) },
+            6 => unsafe { test::ecdsa_p256_test::run_ecdsa_p256(self) },
             _ => kernel::debug!("All tests finished."),
         }
     }

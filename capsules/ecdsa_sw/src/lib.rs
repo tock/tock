@@ -5,4 +5,7 @@
 #![forbid(unsafe_code)]
 #![no_std]
 
+pub mod test;
+
+pub mod p256_signer;
 pub mod p256_verifier;

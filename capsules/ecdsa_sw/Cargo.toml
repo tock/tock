@@ -10,4 +10,5 @@ edition.workspace = true
 
 [dependencies]
 kernel = { path = "../../kernel" }
+capsules-core = { path = "../core" }
 p256 = { version = "0.13.0", default-features = false, features = ["ecdsa"] }
