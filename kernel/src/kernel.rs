@@ -234,7 +234,7 @@ impl Kernel {
         }
     }
 
-    fn translate_user_protected_virtual_pointer_byte<
+    pub(crate) fn translate_user_protected_virtual_pointer_byte<
         const IS_MUTABLE: bool,
         U: AlwaysAligned,
     >(

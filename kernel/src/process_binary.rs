@@ -39,13 +39,6 @@ pub enum ProcessBinaryError {
     /// KernelVersion TBF header.
     IncompatibleKernelVersion { version: Option<(u16, u16)> },
 
-    /// A process specified that its binary must start at a particular address,
-    /// and that is not the address the binary is actually placed at.
-    IncorrectFlashAddress {
-        actual_address: u32,
-        expected_address: u32,
-    },
-
     /// The process binary specifies the process is not enabled, and therefore
     /// cannot be loaded.
     NotEnabledProcess,
@@ -79,15 +72,6 @@ impl fmt::Debug for ProcessBinaryError {
             ProcessBinaryError::NotEnoughFlash => {
                 write!(f, "Not enough flash available for TBF")
             }
-
-            ProcessBinaryError::IncorrectFlashAddress {
-                actual_address,
-                expected_address,
-            } => write!(
-                f,
-                "App flash does not match requested address. Actual:{:#x}, Expected:{:#x}",
-                actual_address, expected_address
-            ),
 
             ProcessBinaryError::IncompatibleKernelVersion { version } => match version {
                 Some((major, minor)) => write!(
@@ -224,22 +208,6 @@ impl ProcessBinary {
         let footer_region = app_flash
             .get(binary_end..total_size)
             .ok_or(ProcessBinaryError::NotEnoughFlash)?;
-
-        // Check that the process is at the correct location in flash if the TBF
-        // header specified a fixed address. If there is a mismatch we catch
-        // that early.
-        if let Some(fixed_flash_start) = tbf_header.get_fixed_address_flash() {
-            // The flash address in the header is based on the app binary, so we
-            // need to take into account the header length.
-            let actual_address = app_flash.as_ptr() as u32 + tbf_header.get_protected_size();
-            let expected_address = fixed_flash_start;
-            if actual_address != expected_address {
-                return Err(ProcessBinaryError::IncorrectFlashAddress {
-                    actual_address,
-                    expected_address,
-                });
-            }
-        }
 
         Ok(Self {
             header: tbf_header,

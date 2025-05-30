@@ -9,6 +9,8 @@ use crate::registers::bits32::eflags::{EFlags, EFLAGS};
 use kernel::memory_management::pointers::{
     ImmutableKernelVirtualPointer,
     ImmutableUserVirtualPointer,
+    MutableKernelVirtualPointer,
+    MutableUserVirtualPointer,
 };
 use kernel::process::FunctionCall;
 use kernel::syscall::{ContextSwitchReason, Syscall, SyscallReturn, UserspaceKernelBoundary};
@@ -53,17 +55,19 @@ impl UserspaceKernelBoundary for Boundary {
 
     unsafe fn initialize_process(
         &self,
-        accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        app_brk: &ImmutableKernelVirtualPointer<u8>,
+        kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
+        _user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
+        user_app_brk: &ImmutableUserVirtualPointer<u8>,
         state: &mut Self::StoredState,
     ) -> Result<(), ()> {
-        if (app_brk.get_address().get() - accessible_memory_start.get_address().get()) < Self::MIN_APP_BRK {
+        if (kernel_app_brk.get_address().get() - kernel_accessible_memory_start.get_address().get()) < Self::MIN_APP_BRK {
             return Err(());
         }
 
         // We pre-allocate 16 bytes on the stack for initial upcall arguments.
         // CAST: usize == u32 on x86
-        let esp = (app_brk.get_address().get() as u32) - 16;
+        let esp = (user_app_brk.get_address().get() as u32) - 16;
 
         let mut eflags = EFlags::new();
         eflags.0.modify(EFLAGS::FLAGS_IF::SET);
@@ -88,10 +92,18 @@ impl UserspaceKernelBoundary for Boundary {
         Ok(())
     }
 
+    fn get_sp(&self, state: &mut Self::StoredState) -> MutableUserVirtualPointer<u8> {
+        // SAFETY: `esp` is a valid user pointer
+        unsafe { MutableUserVirtualPointer::new_from_raw(state.esp as *mut u8) }.unwrap()
+    }
+
     unsafe fn set_syscall_return_value(
         &self,
-        accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        app_brk: &ImmutableKernelVirtualPointer<u8>,
+        kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
+        _user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
+        _user_app_brk: &ImmutableUserVirtualPointer<u8>,
+        sp: &MutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
         return_value: SyscallReturn,
     ) -> Result<(), ()> {
@@ -133,10 +145,10 @@ impl UserspaceKernelBoundary for Boundary {
         //
         // Safety: Caller of this function has guaranteed that the memory region is valid.
         unsafe {
-            state.write_stack(0, ret0, accessible_memory_start, app_brk)?;
-            state.write_stack(1, ret1, accessible_memory_start, app_brk)?;
-            state.write_stack(2, ret2, accessible_memory_start, app_brk)?;
-            state.write_stack(3, ret3, accessible_memory_start, app_brk)?;
+            state.write_stack(0, ret0, kernel_accessible_memory_start, kernel_app_brk, sp)?;
+            state.write_stack(1, ret1, kernel_accessible_memory_start, kernel_app_brk, sp)?;
+            state.write_stack(2, ret2, kernel_accessible_memory_start, kernel_app_brk, sp)?;
+            state.write_stack(3, ret3, kernel_accessible_memory_start, kernel_app_brk, sp)?;
         }
 
         Ok(())
@@ -144,8 +156,11 @@ impl UserspaceKernelBoundary for Boundary {
 
     unsafe fn set_process_function(
         &self,
-        accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        app_brk: &ImmutableKernelVirtualPointer<u8>,
+        kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
+        _user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
+        _user_app_brk: &ImmutableUserVirtualPointer<u8>,
+        sp: &MutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
         upcall: FunctionCall,
     ) -> Result<(), ()> {
@@ -163,17 +178,16 @@ impl UserspaceKernelBoundary for Boundary {
         // Safety: Caller of this function has guaranteed that the memory region is valid.
         // usize is u32 on x86
         unsafe {
-            state.write_stack(0, upcall.argument0 as u32, accessible_memory_start, app_brk)?;
-            state.write_stack(1, upcall.argument1 as u32, accessible_memory_start, app_brk)?;
-            state.write_stack(2, upcall.argument2 as u32, accessible_memory_start, app_brk)?;
+            state.write_stack(0, upcall.argument0 as u32, kernel_accessible_memory_start, kernel_app_brk, sp)?;
+            state.write_stack(1, upcall.argument1 as u32, kernel_accessible_memory_start, kernel_app_brk, sp)?;
+            state.write_stack(2, upcall.argument2 as u32, kernel_accessible_memory_start, kernel_app_brk, sp)?;
             state.write_stack(
                 3,
                 upcall.argument3.as_usize() as u32,
-                accessible_memory_start,
-                app_brk,
+                kernel_accessible_memory_start, kernel_app_brk, sp
             )?;
 
-            state.push_stack(state.eip, accessible_memory_start, app_brk)?;
+            state.push_stack(state.eip, kernel_accessible_memory_start, kernel_app_brk, sp)?;
         }
 
         // The next time we switch to this process, we will directly jump to the upcall. When the
@@ -185,8 +199,11 @@ impl UserspaceKernelBoundary for Boundary {
 
     unsafe fn switch_to_process(
         &self,
-        accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        app_brk: &ImmutableKernelVirtualPointer<u8>,
+        _kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        _kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
+        user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
+        user_app_brk: &ImmutableUserVirtualPointer<u8>,
+        sp: &MutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
     ) -> (ContextSwitchReason, Option<ImmutableUserVirtualPointer<u8>>) {
         // Sanity check: don't try to run a faulted app
@@ -212,13 +229,13 @@ impl UserspaceKernelBoundary for Boundary {
                 //
                 // Safety: Caller of this function has guaranteed that the memory region is valid.
                 let arg0 =
-                    unsafe { state.read_stack(0, accessible_memory_start, app_brk) }.unwrap_or(0);
+                    unsafe { state.read_stack_from_user(0, user_accessible_memory_start, user_app_brk) }.unwrap_or(0);
                 let arg1 =
-                    unsafe { state.read_stack(1, accessible_memory_start, app_brk) }.unwrap_or(0);
+                    unsafe { state.read_stack_from_user(1, user_accessible_memory_start, user_app_brk) }.unwrap_or(0);
                 let arg2 =
-                    unsafe { state.read_stack(2, accessible_memory_start, app_brk) }.unwrap_or(0);
+                    unsafe { state.read_stack_from_user(2, user_accessible_memory_start, user_app_brk) }.unwrap_or(0);
                 let arg3 =
-                    unsafe { state.read_stack(3, accessible_memory_start, app_brk) }.unwrap_or(0);
+                    unsafe { state.read_stack_from_user(3, user_accessible_memory_start, user_app_brk) }.unwrap_or(0);
 
                 Syscall::from_register_arguments(
                     num,

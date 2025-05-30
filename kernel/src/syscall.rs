@@ -73,6 +73,7 @@ use crate::errorcode::ErrorCode;
 use crate::memory_management::pointers::{
     ImmutableKernelVirtualPointer,
     ImmutableUserVirtualPointer,
+    MutableKernelVirtualPointer,
     MutableUserVirtualPointer,
 };
 
@@ -614,10 +615,14 @@ pub trait UserspaceKernelBoundary {
     /// pointers are valid for the process.
     unsafe fn initialize_process(
         &self,
-        accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        app_brk: &ImmutableKernelVirtualPointer<u8>,
+        kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
+        user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
+        user_app_brk: &ImmutableUserVirtualPointer<u8>,
         state: &mut Self::StoredState,
     ) -> Result<(), ()>;
+
+    fn get_sp(&self, state: &mut Self::StoredState) -> MutableUserVirtualPointer<u8>;
 
     /// Set the return value the process should see when it begins executing
     /// again after the syscall. This will only be called after a process has
@@ -636,8 +641,11 @@ pub trait UserspaceKernelBoundary {
     /// pointers are valid for the process.
     unsafe fn set_syscall_return_value(
         &self,
-        accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        app_brk: &ImmutableKernelVirtualPointer<u8>,
+        kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
+        user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
+        user_app_brk: &ImmutableUserVirtualPointer<u8>,
+        sp: &MutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
         return_value: SyscallReturn,
     ) -> Result<(), ()>;
@@ -678,8 +686,11 @@ pub trait UserspaceKernelBoundary {
     /// pointers are valid for the process.
     unsafe fn set_process_function(
         &self,
-        accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        app_brk: &ImmutableKernelVirtualPointer<u8>,
+        kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
+        user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
+        user_app_brk: &ImmutableUserVirtualPointer<u8>,
+        sp: &MutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
         upcall: process::FunctionCall,
     ) -> Result<(), ()>;
@@ -703,8 +714,11 @@ pub trait UserspaceKernelBoundary {
     /// pointers are valid for the process.
     unsafe fn switch_to_process(
         &self,
-        accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        app_brk: &ImmutableKernelVirtualPointer<u8>,
+        kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
+        user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
+        user_app_brk: &ImmutableUserVirtualPointer<u8>,
+        sp: &MutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
     ) -> (ContextSwitchReason, Option<ImmutableUserVirtualPointer<u8>>);
 
