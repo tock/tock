@@ -251,7 +251,6 @@ fn load_processes_from_flash<'a, C: Chip, D: ProcessStandardDebug + 'static>(
 
                     ProcessBinaryError::TbfHeaderParseFailure(_)
                     | ProcessBinaryError::IncompatibleKernelVersion { .. }
-                    | ProcessBinaryError::IncorrectFlashAddress { .. }
                     | ProcessBinaryError::NotEnabledProcess
                     | ProcessBinaryError::Padding => {
                         if config::CONFIG.debug_load_processes {

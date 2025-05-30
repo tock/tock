@@ -11,10 +11,12 @@ use crate::registers::controlregs::{self, CR0, CR4};
 use crate::registers::tlb;
 use core::fmt;
 use kernel::memory_management::pages::Page4KiB;
+use kernel::memory_management::permissions::Permissions;
 use kernel::memory_management::pointers::{
-    MutablePhysicalPointer
+    MutableUserVirtualPointer,
+    MutablePhysicalPointer,
 };
-use kernel::memory_management::regions::PhysicalProtectedAllocatedRegion;
+use kernel::memory_management::regions::UserMappedProtectedAllocatedRegion;
 use kernel::platform::mmu::{
     Asid,
 };
@@ -123,17 +125,23 @@ impl fmt::Display for MemoryProtectionConfig {
 
 struct CachedRegion {
     starting_physical_pointer: MutablePhysicalPointer<Page4KiB>,
+    starting_virtual_pointer: MutableUserVirtualPointer<Page4KiB>,
     page_count: NonZero<usize>,
+    permissions: Permissions,
 }
 
 impl CachedRegion {
-    fn new(protected_region: &PhysicalProtectedAllocatedRegion<Page4KiB>) -> Self {
-        let starting_physical_pointer = *protected_region.get_starting_pointer();
-        let page_count = protected_region.get_protected_length();
+    fn new(mapped_region: &UserMappedProtectedAllocatedRegion<Page4KiB>) -> Self {
+        let starting_physical_pointer = *mapped_region.get_starting_physical_pointer();
+        let starting_virtual_pointer = *mapped_region.get_starting_virtual_pointer();
+        let page_count = mapped_region.get_protected_length();
+        let permissions = mapped_region.get_permissions();
 
         Self {
             starting_physical_pointer,
+            starting_virtual_pointer,
             page_count,
+            permissions,
         }
     }
 
@@ -141,12 +149,20 @@ impl CachedRegion {
         &self.starting_physical_pointer
     }
 
+    fn get_starting_virtual_pointer(&self) -> &MutableUserVirtualPointer<Page4KiB> {
+        &self.starting_virtual_pointer
+    }
+
     fn get_page_count(&self) -> NonZero<usize> {
         self.page_count
     }
+
+    fn get_permissions(&self) -> Permissions {
+        self.permissions
+    }
 }
 
-pub struct PagingMPU<'a> {
+pub struct MMU<'a> {
     num_regions: usize,
     cached_user_prog_region: OptionalCell<CachedRegion>,
     cached_user_ram_region: OptionalCell<CachedRegion>,
@@ -160,7 +176,7 @@ fn calc_page_index(memory_address: usize) -> usize {
     memory_address / PAGE_SIZE_4K
 }
 
-impl<'a> PagingMPU<'a> {
+impl<'a> MMU<'a> {
     pub unsafe fn new(
         page_dir: &'a mut PD,
         page_dir_paddr: usize,
@@ -219,7 +235,7 @@ impl<'a> PagingMPU<'a> {
         // Starts at 0x0000_0000 to 0xFFFF_FFFF covering full
         for (n, entry) in page_directory.iter_mut().enumerate() {
             let mut entry_flags = LocalRegisterCopy::new(0);
-            entry_flags.write(PDFLAGS::PS::SET + PDFLAGS::RW::SET + PDFLAGS::P::SET);
+            entry_flags.modify(PDFLAGS::PS::SET + PDFLAGS::RW::SET + PDFLAGS::P::SET);
             // Set up the page directory with
             *entry = PDEntry::new(PAddr::from(PAGE_SIZE_4M * n), entry_flags);
         }
@@ -227,13 +243,13 @@ impl<'a> PagingMPU<'a> {
         // This Page Directory Entry maps the space from 0x0000_0000 until 0x40_0000
         // this entry needs to be marked as User Accessible so entries in page table can be accessible to user.
         let mut page_directory_flags = LocalRegisterCopy::new(0);
-        page_directory_flags.write(PDFLAGS::P::SET + PDFLAGS::RW::SET + PDFLAGS::US::SET);
+        page_directory_flags.modify(PDFLAGS::P::SET + PDFLAGS::RW::SET + PDFLAGS::US::SET);
         page_directory[0] = PDEntry::new(PAddr::from(self.page_table_paddr), page_directory_flags);
 
         //  Map the first 4 MiB of memory into 4 KiB entries
         let mut page_table = self.pt.borrow_mut();
         let mut page_table_flags = LocalRegisterCopy::new(0);
-        page_table_flags.write(PTFLAGS::P::SET + PTFLAGS::RW::SET);
+        page_table_flags.modify(PTFLAGS::P::SET + PTFLAGS::RW::SET);
         for (n, entry) in page_table.iter_mut().enumerate() {
             *entry = PTEntry::new(PAddr::from(PAGE_SIZE_4K * n), page_table_flags);
         }
@@ -277,82 +293,66 @@ impl<'a> PagingMPU<'a> {
         }
     }
 
-    fn remove_cached_user_prog_region(&self, cached_region: &CachedRegion) {
-        let starting_virtual_pointer = cached_region.get_starting_physical_pointer();
+    fn remove_user_cached_region(&self, cached_region: &CachedRegion) {
+        let starting_virtual_pointer = cached_region.get_starting_virtual_pointer();
+        let starting_physical_pointer = cached_region.get_starting_physical_pointer();
+        let page_count = cached_region.get_page_count();
+        let permissions = cached_region.get_permissions();
+
         let starting_virtual_address = starting_virtual_pointer.get_address();
         let starting_index = calc_page_index(starting_virtual_address.get());
-        let ending_index = starting_index + cached_region.get_page_count().get();
+        let ending_index = starting_index + page_count.get();
+
+        let starting_physical_address = starting_physical_pointer.get_address();
 
         let mut sram_page_table = self.pt.borrow_mut();
-        let mut permissions = LocalRegisterCopy::new(0);
-        permissions.write(PTFLAGS::P::SET);
+        let mut permissions_flags = LocalRegisterCopy::new(0);
+        permissions_flags.modify(PTFLAGS::P::SET);
+
+        if Permissions::ReadWrite == permissions {
+            permissions_flags.modify(PTFLAGS::RW::SET);
+        }
 
         for page_index in starting_index..ending_index {
-            sram_page_table[page_index] = PTEntry::new(sram_page_table[page_index].address(), permissions);
+            let paddr = PAddr(starting_physical_address.get() as u32);
+            sram_page_table[page_index] = PTEntry::new(paddr, permissions_flags);
         }
     }
 
-    fn remove_cached_user_ram_region(&self, cached_region: &CachedRegion) {
-        let starting_virtual_pointer = cached_region.get_starting_physical_pointer();
+    fn add_user_region(&self, mapped_region: &UserMappedProtectedAllocatedRegion<Page4KiB>) {
+        let starting_virtual_pointer = mapped_region.get_starting_virtual_pointer();
+        let starting_physical_pointer = mapped_region.get_starting_physical_pointer();
+        let page_count = mapped_region.get_protected_length();
+        let permissions = mapped_region.get_permissions();
+
         let starting_virtual_address = starting_virtual_pointer.get_address();
         let starting_index = calc_page_index(starting_virtual_address.get());
-        let ending_index = starting_index + cached_region.get_page_count().get();
+        let ending_index = starting_index + page_count.get();
 
-        let mut sram_page_table = self.pt.borrow_mut();
-        let mut permissions = LocalRegisterCopy::new(0);
-        permissions.write(PTFLAGS::P::SET + PTFLAGS::RW::SET);
-
-        for page_index in starting_index..ending_index {
-            sram_page_table[page_index] = PTEntry::new(sram_page_table[page_index].address(), permissions);
-        }
-    }
-
-    fn add_user_prog_region(&self, protected_region: &PhysicalProtectedAllocatedRegion<Page4KiB>) {
-        let starting_physical_pointer = protected_region.get_starting_pointer();
         let starting_physical_address = starting_physical_pointer.get_address();
-        let starting_index = calc_page_index(starting_physical_address.get());
-        let protected_length = protected_region.get_protected_length();
-        let ending_index = starting_index + protected_length.get();
 
         let mut sram_page_table = self.pt.borrow_mut();
-        let mut permissions = LocalRegisterCopy::new(0);
-        permissions.write(PTFLAGS::P::SET + PTFLAGS::US::SET);
+        let mut permissions_flags = LocalRegisterCopy::new(0);
+        permissions_flags.modify(PTFLAGS::P::SET + PTFLAGS::US::SET + PTFLAGS::RW::SET);
 
-        for page_index in starting_index..ending_index {
-            let paddr = PAddr::from(starting_physical_address.get() as u32);
-            sram_page_table[page_index] = PTEntry::new(paddr, permissions);
+        if Permissions::ReadWrite == permissions {
+            permissions_flags.modify(PTFLAGS::RW::SET);
         }
 
-        self.cached_user_prog_region.set(CachedRegion::new(protected_region));
-    }
-
-    fn add_user_ram_region(&self, protected_region: &PhysicalProtectedAllocatedRegion<Page4KiB>) {
-        let starting_physical_pointer = protected_region.get_starting_pointer();
-        let starting_physical_address = starting_physical_pointer.get_address();
-        let starting_index = calc_page_index(starting_physical_address.get());
-        let protected_length = protected_region.get_protected_length();
-        let ending_index = starting_index + protected_length.get();
-
-        let mut sram_page_table = self.pt.borrow_mut();
-        let mut permissions = LocalRegisterCopy::new(0);
-        permissions.write(PTFLAGS::P::SET + PTFLAGS::US::SET + PTFLAGS::RW::SET);
-
         for page_index in starting_index..ending_index {
-            let paddr = PAddr::from(starting_physical_address.get() as u32);
-            sram_page_table[page_index] = PTEntry::new(paddr, permissions);
+            let paddr = PAddr(starting_physical_address.get() as u32);
+            sram_page_table[page_index] = PTEntry::new(paddr, permissions_flags);
         }
-
-        self.cached_user_ram_region.set(CachedRegion::new(protected_region));
     }
 }
 
-impl fmt::Display for PagingMPU<'_> {
+impl fmt::Display for MMU<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Num_regions: {:?}, ...", self.num_regions,)
     }
 }
 
-impl kernel::platform::mmu::MpuMmuCommon for PagingMPU<'_> {
+impl kernel::platform::mmu::MpuMmuCommon for MMU<'_> {
     type Granule = Page4KiB;
 
     // Once the MMU is active, the user protection is always active
@@ -362,29 +362,39 @@ impl kernel::platform::mmu::MpuMmuCommon for PagingMPU<'_> {
     fn disable_user_protection(&self) {}
 }
 
-impl kernel::platform::mmu::MPU for PagingMPU<'_> {
-    fn protect_user_prog_region(
+impl kernel::platform::mmu::MMU for MMU<'_> {
+    fn create_asid(&self) -> Asid {
+        // The current implementation doesn't use ASIDs. This function returns a placeholder value.
+        Asid::new(0)
+    }
+
+    // The current implementation doesn't use ASIDs.
+    fn flush(&self, _asid: Asid) {}
+
+    fn map_user_prog_region(
         &self,
-        protected_region: &PhysicalProtectedAllocatedRegion<Self::Granule>,
+        mapped_region: &UserMappedProtectedAllocatedRegion<Self::Granule>,
     ) {
         if let Some(cached_user_prog_region) = self.cached_user_prog_region.take() {
-            self.remove_cached_user_prog_region(&cached_user_prog_region);
+            self.remove_user_cached_region(&cached_user_prog_region);
         }
 
-        self.add_user_prog_region(protected_region);
+        self.add_user_region(mapped_region);
+        self.cached_user_prog_region.set(CachedRegion::new(mapped_region));
 
         unsafe { tlb::flush_all() };
     }
 
-    fn protect_user_ram_region(
+    fn map_user_ram_region(
         &self,
-        protected_region: &PhysicalProtectedAllocatedRegion<Self::Granule>,
+        mapped_region: &UserMappedProtectedAllocatedRegion<Self::Granule>,
     ) {
         if let Some(cached_user_ram_region) = self.cached_user_ram_region.take() {
-            self.remove_cached_user_ram_region(&cached_user_ram_region);
+            self.remove_user_cached_region(&cached_user_ram_region);
         }
 
-        self.add_user_ram_region(protected_region);
+        self.add_user_region(mapped_region);
+        self.cached_user_ram_region.set(CachedRegion::new(mapped_region));
 
         unsafe { tlb::flush_all() };
     }

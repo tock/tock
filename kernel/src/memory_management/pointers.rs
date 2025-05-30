@@ -746,7 +746,7 @@ impl<
     ///
     /// 1. User virtual pointer if IS_USER == true
     /// 2. Kernel virtual pointer if IS_USER == false
-    pub(crate) unsafe fn new_from_raw(pointer: *mut T) -> Result<Self, Error> {
+    pub unsafe fn new_from_raw(pointer: *mut T) -> Result<Self, Error> {
         // SAFETY: the caller ensures that `pointer` is a virtual pointer.
         let virtual_pointer = unsafe { MutableVirtualPointer::new_raw(pointer)? };
         // SAFETY: the caller ensures that `pointer` is of right type.
