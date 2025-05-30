@@ -7,7 +7,6 @@
 use p256::ecdsa;
 use p256::ecdsa::signature::hazmat::PrehashSigner;
 
-use core::cell::Cell;
 use kernel::hil;
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
 
@@ -20,10 +19,8 @@ pub struct EcdsaP256SignatureSigner<'a> {
 }
 
 impl EcdsaP256SignatureSigner<'_> {
-    pub fn new(signing_key_bytes: &[u8; 64]) -> Self {
-        // KAT: figure this out
-        let key = ecdsa::SigningKey::from_bytes(signing_key_bytes);
-
+    pub fn new(signing_key_bytes: &[u8; 32]) -> Self {
+        let key = ecdsa::SigningKey::from_bytes(signing_key_bytes.into());
         let signing_key = key.map_or_else(|_e| MapCell::empty(), MapCell::new);
 
         Self {
@@ -59,20 +56,20 @@ impl<'a> hil::public_key_crypto::signature::SignatureSign<'a, 32, 64>
         ),
     > {
         if self.signing_key.is_some() {
-            // KAT: figure out what to do here
-            if let Ok(sig) = ecdsa::Signature::from_slice(signature) {
-                self.signing_key
-                    .map(|skey| {
-                        skey.sign_prehash(hash);
+            self.signing_key
+                .map(|skey| {
+                    let maybe_sig: Result<ecdsa::Signature, _> = skey.sign_prehash(hash);
+                    if let Ok(sig) = maybe_sig {
+                        signature.copy_from_slice(&sig.to_bytes());
                         self.hash_storage.replace(hash);
                         self.signature_storage.replace(signature);
                         self.deferred_call.set();
                         Ok(())
-                    })
-                    .unwrap()
-            } else {
-                Err((kernel::ErrorCode::INVAL, hash, signature))
-            }
+                    } else {
+                        Err((kernel::ErrorCode::FAIL, hash, signature))
+                    }
+                })
+                .unwrap()
         } else {
             Err((kernel::ErrorCode::FAIL, hash, signature))
         }
