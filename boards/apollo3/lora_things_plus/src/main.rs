@@ -140,6 +140,18 @@ type BME280Sensor = components::bme280::Bme280ComponentType<
 type TemperatureDriver = components::temperature::TemperatureComponentType<BME280Sensor>;
 type HumidityDriver = components::humidity::HumidityComponentType<BME280Sensor>;
 
+#[cfg(feature = "atecc508a")]
+type Verifier = capsules_extra::atecc508a::Atecc508a<'static>;
+#[cfg(feature = "atecc508a")]
+type SignatureVerifyInMemoryKeys =
+    components::signature_verify_in_memory_keys::SignatureVerifyInMemoryKeysComponentType<
+        Verifier,
+        1,
+        64,
+        32,
+        64,
+    >;
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
 struct LoRaThingsPlus {
@@ -865,16 +877,27 @@ unsafe fn setup() -> (
                 0x0a, 0xa3, 0x05, 0xd5, 0x84, 0xaa, 0x6a, 0x56
             ]
         );
+        let verifying_keys = kernel::static_init!([&'static mut [u8; 64]; 1], [public_key]);
 
-        ATECC508A.unwrap().set_public_key(Some(public_key));
+        // Setup the in-memory key selector.
+        let verifier_multiple_keys =
+            components::signature_verify_in_memory_keys::SignatureVerifyInMemoryKeysComponent::new(
+                ATECC508A.unwrap(),
+                verifying_keys,
+            )
+            .finalize(
+                components::signature_verify_in_memory_keys_component_static!(
+                    Verifier, 1, 64, 32, 64,
+                ),
+            );
 
         checking_policy = components::appid::checker_signature::AppCheckerSignatureComponent::new(
             sha,
-            ATECC508A.unwrap(),
+            verifier_multiple_keys,
             tock_tbf::types::TbfFooterV2CredentialsType::EcdsaNistP256,
         )
         .finalize(components::app_checker_signature_component_static!(
-            capsules_extra::atecc508a::Atecc508a<'static>,
+            SignatureVerifyInMemoryKeys,
             capsules_extra::sha256::Sha256Software<'static>,
             32,
             64,

@@ -16,7 +16,7 @@ pub trait PubPrivKeyGenerateClient<'a> {
     );
 }
 
-/// An internal representation of a asymetric Public key.
+/// An internal representation of an asymmetric Public key.
 ///
 /// This trait is useful for managing keys internally in Tock.
 ///
@@ -58,7 +58,7 @@ pub trait PubKey {
     fn len(&self) -> usize;
 }
 
-/// An internal representation of a asymetric Public key.
+/// An internal representation of an asymmetric Public key.
 ///
 /// This trait is useful for managing keys internally in Tock.
 ///
@@ -100,7 +100,7 @@ pub trait PubKeyMut {
     fn len(&self) -> usize;
 }
 
-/// An internal representation of a asymetric Public and Private key.
+/// An internal representation of an asymmetric Public and Private key.
 ///
 /// This trait is useful for managing keys internally in Tock.
 ///
@@ -142,7 +142,7 @@ pub trait PubPrivKey: PubKey {
     fn len(&self) -> usize;
 }
 
-/// An internal representation of a asymetric Public and Private key.
+/// An internal representation of an asymmetric Public and Private key.
 ///
 /// This trait is useful for managing keys internally in Tock.
 ///
@@ -184,7 +184,7 @@ pub trait PubPrivKeyMut: PubKeyMut {
     fn len(&self) -> usize;
 }
 
-/// An internal representation of generating asymetric Public/Private key
+/// An internal representation of generating asymmetric Public/Private key
 /// pairs.
 ///
 /// This trait is useful for managing keys internally in Tock.
@@ -282,4 +282,112 @@ pub trait RsaPrivKeyMut: PubPrivKeyMut + RsaKeyMut {
     /// The exponent can be returned by calling `import_private_key()` with
     /// the output of this function.
     fn take_exponent(&self) -> Option<&'static mut [u8]>;
+}
+
+/// Client for selecting keys.
+pub trait SelectKeyClient {
+    /// Called when the number of keys available is known.
+    fn get_key_count_done(&self, count: usize);
+
+    /// Called when the specified key is active and ready to use for the next
+    /// cryptographic operation.
+    ///
+    /// ### `error`:
+    ///
+    /// - `Ok(())`: The key was selected successfully.
+    /// - `Err(())`: The key was selected set successfully.
+    ///   - `ErrorCode::INVAL`: The index was not valid.
+    ///   - `ErrorCode::FAIL`: The key could not be set.
+    fn select_key_done(&self, index: usize, error: Result<(), ErrorCode>);
+}
+
+/// Interface for selecting an active key among the number of available keys.
+///
+/// This interface allows for the implementer to maintain an opaque internal
+/// representation of keys. They may be stored in memory, flash, or in secure
+/// element (where the actual key may not be accessible). Users of this
+/// interface can select which key is active for cryptographic operations. There
+/// is no assumption for implementers of this interface that keys can be added
+/// or changed or that keys can be specified by their actual bytes in a slice.
+///
+/// Selecting a key is asynchronous as it may require communication over a bus
+/// or waiting for an interrupt.
+///
+/// Keys are specified by an index starting at zero and going to
+/// `get_key_count()-1`, without gaps. Selecting a key between `0` and
+/// `get_key_count()-1` must not fail with `ErrorCode::INVAL`.
+///
+/// The stored keys can be public or private keys.
+pub trait SelectKey<'a> {
+    /// Return the number of keys that the device can switch among.
+    ///
+    /// Each key must be identifiable by a consistent index.
+    ///
+    /// This operation is asynchronous and its completion is signaled by
+    /// `get_key_count_done()`.
+    ///
+    /// ## Return
+    ///
+    /// `Ok()` if getting the count has started. Otherwise:
+    /// - `Err(ErrorCode::FAIL)` if the key count could not be started and there
+    ///   will be no callback.
+    fn get_key_count(&self) -> Result<(), ErrorCode>;
+
+    /// Set the key identified by its index as the active key.
+    ///
+    /// Indices start at 0 and go to `get_key_count() - 1`.
+    ///
+    /// This operation is asynchronous and its completion is signaled by
+    /// `select_key_done()`.
+    ///
+    /// ## Return
+    ///
+    /// `Ok()` if the key select operation was accepted. Otherwise:
+    /// - `Err(ErrorCode::INVAL)` if the index is not valid.
+    fn select_key(&self, index: usize) -> Result<(), ErrorCode>;
+
+    fn set_client(&self, client: &'a dyn SelectKeyClient);
+}
+
+/// Client for setting keys.
+pub trait SetKeyBySliceClient<const KL: usize> {
+    /// Called when the key has been set.
+    ///
+    /// Returns the key that was set.
+    ///
+    /// ### `error`:
+    ///
+    /// - `Ok(())`: The key was set successfully.
+    /// - `Err(())`: The key was not set successfully.
+    ///   - `ErrorCode::FAIL`: The key could not be set.
+    fn set_key_done(&self, previous_key: &'static mut [u8; KL], error: Result<(), ErrorCode>);
+}
+
+/// Interface for setting keys by a slice.
+///
+/// `KL` is the length of the keys.
+///
+/// Implementers must be able to store keys from a slice. This is most commonly
+/// used for implementations that hold keys in memory. However, this interface
+/// is asynchronous as keys may be stored in external storage or an external
+/// chip and require an asynchronous operations.
+///
+/// Implementors cannot hold the slice of the key being set. Instead, they must
+/// make an internal copy of the key and return the slice in
+/// [`SetKeyBySliceClient::set_key_done()`].
+pub trait SetKeyBySlice<'a, const KL: usize> {
+    /// Set the current key.
+    ///
+    /// This is asynchronous. The key slice will be returned in
+    /// [`SetKeyBySliceClient::set_key_done()`], or immediately if there is an
+    /// error.
+    ///
+    /// ### Return
+    ///
+    /// `Ok()` if the key setting operation was accepted. Otherwise:
+    /// - `Err(ErrorCode::FAIL)` if the key cannot be set.
+    fn set_key(&self, key: &'static mut [u8; KL])
+        -> Result<(), (ErrorCode, &'static mut [u8; KL])>;
+
+    fn set_client(&self, client: &'a dyn SetKeyBySliceClient<KL>);
 }

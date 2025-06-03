@@ -26,6 +26,7 @@ macro_rules! atecc508a_component_static {
         let i2c_buffer = kernel::static_buf!([u8; 140]);
         let entropy_buffer = kernel::static_buf!([u8; 32]);
         let digest_buffer = kernel::static_buf!([u8; 64]);
+        let verify_key_buffer = kernel::static_buf!([u8; 64]);
         let atecc508a = kernel::static_buf!(capsules_extra::atecc508a::Atecc508a<'static>);
 
         (
@@ -33,6 +34,7 @@ macro_rules! atecc508a_component_static {
             i2c_buffer,
             entropy_buffer,
             digest_buffer,
+            verify_key_buffer,
             atecc508a,
         )
     };};
@@ -60,6 +62,7 @@ impl<I: 'static + i2c::I2CMaster<'static>> Component for Atecc508aComponent<I> {
         &'static mut MaybeUninit<[u8; 140]>,
         &'static mut MaybeUninit<[u8; 32]>,
         &'static mut MaybeUninit<[u8; 64]>,
+        &'static mut MaybeUninit<[u8; 64]>,
         &'static mut MaybeUninit<Atecc508a<'static>>,
     );
     type Output = &'static Atecc508a<'static>;
@@ -70,14 +73,16 @@ impl<I: 'static + i2c::I2CMaster<'static>> Component for Atecc508aComponent<I> {
         let i2c_buffer = s.1.write([0; 140]);
         let entropy_buffer = s.2.write([0; 32]);
         let digest_buffer = s.3.write([0; 64]);
+        let verify_key_buffer = s.4.write([0; 64]);
 
-        let atecc508a = s.4.write(Atecc508a::new(
+        let atecc508a = s.5.write(Atecc508a::new(
             atecc508a_i2c,
             i2c_buffer,
             entropy_buffer,
             digest_buffer,
             self.wakeup_device,
         ));
+        atecc508a.set_public_key(Some(verify_key_buffer));
 
         atecc508a_i2c.set_client(atecc508a);
         atecc508a
