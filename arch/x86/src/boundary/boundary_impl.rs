@@ -35,10 +35,9 @@ impl Boundary {
     ///
     /// Need at least 9 dwords of initial stack space for CRT 0:
     ///
-    /// - 4 dwords for initial upcall arguments
     /// - 1 dword for initial upcall return address (although this will be zero for init_fn)
     /// - 4 dwords of scratch space for invoking memop syscalls
-    const MIN_APP_BRK: usize = 9 * core::mem::size_of::<usize>();
+    const MIN_APP_BRK: usize = 5 * core::mem::size_of::<usize>();
 
     /// Constructs a new instance of `SysCall`.
     pub fn new() -> Self {
@@ -55,13 +54,11 @@ impl UserspaceKernelBoundary for Boundary {
 
     unsafe fn initialize_process(
         &self,
-        kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
-        _user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
+        user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
         user_app_brk: &ImmutableUserVirtualPointer<u8>,
         state: &mut Self::StoredState,
     ) -> Result<(), ()> {
-        if (kernel_app_brk.get_address().get() - kernel_accessible_memory_start.get_address().get()) < Self::MIN_APP_BRK {
+        if user_app_brk.get_address().get() - user_accessible_memory_start.get_address().get() < Self::MIN_APP_BRK {
             return Err(());
         }
 

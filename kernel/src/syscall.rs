@@ -615,8 +615,6 @@ pub trait UserspaceKernelBoundary {
     /// pointers are valid for the process.
     unsafe fn initialize_process(
         &self,
-        kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
         user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
         user_app_brk: &ImmutableUserVirtualPointer<u8>,
         state: &mut Self::StoredState,

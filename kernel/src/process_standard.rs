@@ -2001,8 +2001,6 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // TODO: https://github.com/tock/tock/issues/1739
         match process.stored_state.map(|stored_state| {
             chip.userspace_kernel_boundary().initialize_process(
-                &kernel_app_accessible_memory_starting_pointer,
-                &kernel_initial_app_brk,
                 &user_app_accessible_memory_starting_pointer,
                 &user_initial_app_brk,
                 stored_state,
