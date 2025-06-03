@@ -161,7 +161,7 @@ pub struct AppRegion {
     version: HeaderVersion,
     /// Absolute address to describe where an app's nonvolatile region starts.
     /// Note that this is the address FOLLOWING the region's header.
-    offset: usize,
+    absolute_address: usize,
     /// How many bytes allocated to a certain app. Note that this describes the
     /// length of the usable storage region and does not include the region's
     /// header.
@@ -463,13 +463,14 @@ impl<'a, const APP_REGION_SIZE: usize> IsolatedNonvolatileStorage<'a, APP_REGION
             version: CURRENT_HEADER_VERSION,
             // Have this region start where all the existing regions end.
             // Note that the app's actual region starts after the region header.
-            offset: new_header_addr + REGION_HEADER_LEN,
+            absolute_address: new_header_addr + REGION_HEADER_LEN,
             length: APP_REGION_SIZE,
         };
 
         // fail if new region is outside userspace area
-        if region.offset > self.userspace_start_address + self.userspace_length
-            || region.offset + region.length > self.userspace_start_address + self.userspace_length
+        if region.absolute_address > self.userspace_start_address + self.userspace_length
+            || region.absolute_address + region.length
+                > self.userspace_start_address + self.userspace_length
         {
             return Err(ErrorCode::NOMEM);
         }
@@ -518,7 +519,7 @@ impl<'a, const APP_REGION_SIZE: usize> IsolatedNonvolatileStorage<'a, APP_REGION
         region_header: &AppRegionHeader,
         region_header_address: usize,
     ) -> Result<(), ErrorCode> {
-        self.check_header_access(region.offset, region.length)?;
+        self.check_header_access(region.absolute_address, region.length)?;
 
         let header_slice = region_header.to_bytes();
 
@@ -621,7 +622,7 @@ impl<'a, const APP_REGION_SIZE: usize> IsolatedNonvolatileStorage<'a, APP_REGION
                                 version,
                                 // The app's actual region starts after the
                                 // region header.
-                                offset: region_header_address + REGION_HEADER_LEN,
+                                absolute_address: region_header_address + REGION_HEADER_LEN,
                                 length: header.length() as usize,
                             };
                             app.region.replace(region);
@@ -864,11 +865,11 @@ impl<'a, const APP_REGION_SIZE: usize> IsolatedNonvolatileStorage<'a, APP_REGION
                 }
 
                 // Calculate where we want to actually read from in the
-                // physical storage. Note that the given offset for this
+                // physical storage. Note that the offset for this
                 // command is with respect to the app's region address
                 // space. This means that userspace accesses start at 0
                 // which is the start of the app's region.
-                let physical_address = app_region.offset + command_offset;
+                let physical_address = app_region.absolute_address + command_offset;
 
                 let res = self
                     .buffer
@@ -996,13 +997,14 @@ impl<const APP_REGION_SIZE: usize> hil::nonvolatile_storage::NonvolatileStorageC
 
                             // Update our metadata about where the next
                             // unallocated region is.
-                            let next_header_addr = region.offset + region.length;
+                            let next_header_addr = region.absolute_address + region.length;
                             self.next_unallocated_region_header_address
                                 .set(next_header_addr);
 
                             // Erase the userspace accessible content of the region
                             // before handing it off to an app.
-                            let res = self.erase_region_content(region.offset, region.length);
+                            let res =
+                                self.erase_region_content(region.absolute_address, region.length);
                             match res {
                                 Ok((next_erase_start, remaining_bytes)) => {
                                     self.current_user.set(User::RegionManager(
