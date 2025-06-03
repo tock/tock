@@ -868,8 +868,7 @@ impl<'a, const APP_REGION_SIZE: usize> IsolatedNonvolatileStorage<'a, APP_REGION
                 // command is with respect to the app's region address
                 // space. This means that userspace accesses start at 0
                 // which is the start of the app's region.
-                let physical_address =
-                    app_region.offset + command_offset + self.userspace_start_address;
+                let physical_address = app_region.offset + command_offset;
 
                 let res = self
                     .buffer
