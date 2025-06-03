@@ -263,7 +263,7 @@ impl<
         self.as_allocated_region().get_ending_pointer()
     }
 
-    fn get_protected_ending_pointer(&self) -> MutablePointer<IS_VIRTUAL, T> {
+    pub fn get_protected_ending_pointer(&self) -> MutablePointer<IS_VIRTUAL, T> {
         let starting_pointer = self.get_starting_pointer();
         let protected_length = self.get_protected_length();
         // SAFETY: a region cannot wrap around
@@ -284,7 +284,7 @@ impl<
     }
     */
 
-    const fn get_permissions(&self) -> Permissions {
+    pub const fn get_permissions(&self) -> Permissions {
         self.permissions
     }
 

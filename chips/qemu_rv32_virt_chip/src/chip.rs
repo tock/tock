@@ -112,10 +112,10 @@ impl<'a, I: InterruptService + 'a> QemuRv32VirtChip<'a, I> {
 }
 
 impl<'a, I: InterruptService + 'a> Chip for QemuRv32VirtChip<'a, I> {
-    type MPU = QemuRv32VirtPMP;
+    type MMU = QemuRv32VirtPMP;
     type UserspaceKernelBoundary = rv32i::syscall::SysCall;
 
-    fn mpu(&self) -> &Self::MPU {
+    fn mmu(&self) -> &Self::MMU {
         &self.pmp
     }
 
