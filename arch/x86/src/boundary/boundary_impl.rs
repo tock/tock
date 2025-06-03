@@ -99,19 +99,14 @@ impl UserspaceKernelBoundary for Boundary {
 
     unsafe fn set_syscall_return_value(
         &self,
-        kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
+        _kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        _kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
         _user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
         _user_app_brk: &ImmutableUserVirtualPointer<u8>,
-        sp: &MutableKernelVirtualPointer<u8>,
+        _sp: &MutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
         return_value: SyscallReturn,
     ) -> Result<(), ()> {
-        let mut ret0 = 0;
-        let mut ret1 = 0;
-        let mut ret2 = 0;
-        let mut ret3 = 0;
-
         // These operations are only safe so long as
         // - the pointers are properly aligned. This is guaranteed because the
         //   pointers are all offset multiples of 4 bytes from the stack
@@ -134,61 +129,29 @@ impl UserspaceKernelBoundary for Boundary {
             &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(
                 return_value,
             ),
-            &mut ret0,
-            &mut ret1,
-            &mut ret2,
-            &mut ret3,
+            &mut state.ebx,
+            &mut state.ecx,
+            &mut state.edx,
+            &mut state.edi,
         );
-
-        // App allocates 16 bytes of stack space for passing syscall arguments. We re-use that stack
-        // space to pass return values.
-        //
-        // Safety: Caller of this function has guaranteed that the memory region is valid.
-        unsafe {
-            state.write_stack(0, ret0, kernel_accessible_memory_start, kernel_app_brk, sp)?;
-            state.write_stack(1, ret1, kernel_accessible_memory_start, kernel_app_brk, sp)?;
-            state.write_stack(2, ret2, kernel_accessible_memory_start, kernel_app_brk, sp)?;
-            state.write_stack(3, ret3, kernel_accessible_memory_start, kernel_app_brk, sp)?;
-        }
 
         Ok(())
     }
 
     unsafe fn set_process_function(
         &self,
-        kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
+        _kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        _kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
         _user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
         _user_app_brk: &ImmutableUserVirtualPointer<u8>,
-        sp: &MutableKernelVirtualPointer<u8>,
+        _sp: &MutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
         upcall: FunctionCall,
     ) -> Result<(), ()> {
-        // Our x86 port expects upcalls to be standard cdecl routines. We push args and return
-        // address onto the stack accordingly.
-        //
-        // Upcall arguments are written directly into the existing stack space (rather than
-        // being pushed on top). This is safe to do because:
-        //
-        // * When the process first starts ESP is initialized to `app_brk - 16`, giving us exactly
-        //   enough space for these arguments.
-        // * Otherwise, we assume the app is currently issuing a `yield` syscall. We re-use the
-        //   stack space from that syscall. This is okay because `yield` doesn't return anything.
-        //
-        // Safety: Caller of this function has guaranteed that the memory region is valid.
-        // usize is u32 on x86
-        unsafe {
-            state.write_stack(0, upcall.argument0 as u32, kernel_accessible_memory_start, kernel_app_brk, sp)?;
-            state.write_stack(1, upcall.argument1 as u32, kernel_accessible_memory_start, kernel_app_brk, sp)?;
-            state.write_stack(2, upcall.argument2 as u32, kernel_accessible_memory_start, kernel_app_brk, sp)?;
-            state.write_stack(
-                3,
-                upcall.argument3.as_usize() as u32,
-                kernel_accessible_memory_start, kernel_app_brk, sp
-            )?;
-
-            state.push_stack(state.eip, kernel_accessible_memory_start, kernel_app_brk, sp)?;
-        }
+        state.ebx = upcall.argument0 as u32;
+        state.ecx = upcall.argument1 as u32;
+        state.edx = upcall.argument2 as u32;
+        state.edi = upcall.argument3.as_usize() as u32;
 
         // The next time we switch to this process, we will directly jump to the upcall. When the
         // upcall issues `ret`, it will return to wherever the yield syscall was invoked.
@@ -201,9 +164,9 @@ impl UserspaceKernelBoundary for Boundary {
         &self,
         _kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
         _kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
-        user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
-        user_app_brk: &ImmutableUserVirtualPointer<u8>,
-        sp: &MutableKernelVirtualPointer<u8>,
+        _user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
+        _user_app_brk: &ImmutableUserVirtualPointer<u8>,
+        _sp: &MutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
     ) -> (ContextSwitchReason, Option<ImmutableUserVirtualPointer<u8>>) {
         // Sanity check: don't try to run a faulted app
@@ -225,17 +188,10 @@ impl UserspaceKernelBoundary for Boundary {
             SYSCALL_VECTOR => {
                 let num = state.eax as u8;
 
-                // Syscall arguments are passed on the stack using cdecl convention.
-                //
-                // Safety: Caller of this function has guaranteed that the memory region is valid.
-                let arg0 =
-                    unsafe { state.read_stack_from_user(0, user_accessible_memory_start, user_app_brk) }.unwrap_or(0);
-                let arg1 =
-                    unsafe { state.read_stack_from_user(1, user_accessible_memory_start, user_app_brk) }.unwrap_or(0);
-                let arg2 =
-                    unsafe { state.read_stack_from_user(2, user_accessible_memory_start, user_app_brk) }.unwrap_or(0);
-                let arg3 =
-                    unsafe { state.read_stack_from_user(3, user_accessible_memory_start, user_app_brk) }.unwrap_or(0);
+                let arg0 = state.ebx;
+                let arg1 = state.ecx;
+                let arg2 = state.edx;
+                let arg3 = state.edi;
 
                 Syscall::from_register_arguments(
                     num,
