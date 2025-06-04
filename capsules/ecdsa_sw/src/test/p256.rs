@@ -11,6 +11,7 @@
 
 use crate::p256_signer::EcdsaP256SignatureSigner;
 use capsules_core::test::capsule_test::{CapsuleTest, CapsuleTestClient, CapsuleTestError};
+use kernel::debug;
 use kernel::hil::public_key_crypto::signature;
 use kernel::hil::public_key_crypto::signature::SignatureSign;
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -62,8 +63,10 @@ impl signature::ClientSign<32, 64> for TestEcdsaP256Sign {
             Ok(()) => {
                 let correct = self.correct_signature.take().unwrap();
                 let res = if signature == correct {
+                    debug!("EcdsaP256SignTest passed (signatures match)");
                     Ok(())
                 } else {
+                    debug!("EcdsaP256SignTest failed (signatures don't match)");
                     Err(CapsuleTestError::IncorrectResult)
                 };
                 self.client.map(|client| client.done(res));
