@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2025.
 
-//! ECDSA Signature Verifier for P256 signatures.
+//! ECDSA Signer for P256 signatures.
 
 use p256::ecdsa;
 use p256::ecdsa::signature::hazmat::PrehashSigner;
