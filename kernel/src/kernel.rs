@@ -104,23 +104,12 @@ impl Kernel {
         // However, we are not guaranteed that the app still exists at that
         // index in the processes array. To avoid additional overhead, we do the
         // lookup and check here, rather than calling `.index()`.
-        match self.processes.get(processid.index) {
-            Some(pslot) => {
-                match pslot.get_active() {
-                    Some(process) => {
-                        // Check that the process stored here matches the identifier
-                        // in the `processid`.
-                        if process.processid() == processid {
-                            Some(process)
-                        } else {
-                            None
-                        }
-                    }
-                    None => None,
-                }
-            }
-            _ => None,
-        }
+        self.processes
+            .get(processid.index)
+            .and_then(|pslot| pslot.get_active())
+            // Check that the process stored here matches the
+            // identifier in the `processid`.
+            .filter(|process| process.processid() == processid)
     }
 
     /// Run a closure on a specific process if it exists. If the process with a
