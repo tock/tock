@@ -198,15 +198,15 @@ pub unsafe fn panic_cpu_state<W: Write, C: Chip>(
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
 pub unsafe fn panic_process_info<PP: ProcessPrinter, W: Write>(
-    procs: &'static [ProcessSlot],
+    processes: &'static [ProcessSlot],
     process_printer: &'static Option<&'static PP>,
     writer: &mut W,
 ) {
     process_printer.map(|printer| {
         // print data about each process
         let _ = writer.write_fmt(format_args!("\r\n---| App Status |---\r\n"));
-        for proc in procs {
-            proc.proc.get().map(|process| {
+        for slot in processes {
+            slot.proc.get().map(|process| {
                 // Print the memory map and basic process info.
                 //
                 // Because we are using a synchronous printer we do not need to
