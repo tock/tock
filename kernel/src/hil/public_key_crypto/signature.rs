@@ -57,3 +57,54 @@ pub trait SignatureVerify<'a, const HL: usize, const SL: usize> {
         signature: &'static mut [u8; SL],
     ) -> Result<(), (ErrorCode, &'static mut [u8; HL], &'static mut [u8; SL])>;
 }
+
+/// This trait provides callbacks for when the signing has completed.
+pub trait ClientSign<const HL: usize, const SL: usize> {
+    /// Called when the signing is complete.
+    ///
+    /// If the signing operation encounters an error, result will be a
+    /// `Result::Err()` specifying the ErrorCode. Otherwise, result will be
+    /// a `Result::Ok(())`.
+    ///
+    /// If signing operation did encounter errors `result` will be `Err()`
+    /// with an appropriate `ErrorCode`. Valid `ErrorCode`s include:
+    ///
+    /// - `CANCEL`: the operation was cancelled.
+    /// - `FAIL`: an internal failure.
+    fn signing_done(
+        &self,
+        result: Result<(), ErrorCode>,
+        hash: &'static mut [u8; HL],
+        signature: &'static mut [u8; SL],
+    );
+}
+
+/// Sign a message.
+///
+/// This is a generic interface, and it is up to the implementation as to the
+/// signing algorithm being used.
+///
+/// - `HL`: The length in bytes of the hash.
+/// - `SL`: The length in bytes of the signature.
+pub trait SignatureSign<'a, const HL: usize, const SL: usize> {
+    /// Set the client instance which will receive the `signing_done()`
+    /// callback.
+    fn set_sign_client(&self, client: &'a dyn ClientSign<HL, SL>);
+
+    /// Sign the given hash.
+    ///
+    /// If this returns `Ok(())`, then the `signing_done()` callback will
+    /// be called. If this returns `Err()`, no callback will be called.
+    ///
+    /// The valid `ErrorCode`s that can occur are:
+    ///
+    /// - `OFF`: the underlying digest engine is powered down and cannot be
+    ///   used.
+    /// - `BUSY`: there is an outstanding operation already in process, and the
+    ///   signing engine cannot accept another request.
+    fn sign(
+        &self,
+        hash: &'static mut [u8; HL],
+        signature: &'static mut [u8; SL],
+    ) -> Result<(), (ErrorCode, &'static mut [u8; HL], &'static mut [u8; SL])>;
+}
