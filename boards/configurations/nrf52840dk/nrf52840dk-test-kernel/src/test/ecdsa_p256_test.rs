@@ -9,7 +9,6 @@
 //! ```
 
 use capsules_core::test::capsule_test::{CapsuleTest, CapsuleTestClient};
-use core::ptr::addr_of;
 use core::ptr::addr_of_mut;
 use ecdsa_sw::p256_signer::EcdsaP256SignatureSigner;
 use ecdsa_sw::test::p256::TestEcdsaP256Sign;
@@ -61,7 +60,7 @@ unsafe fn static_init_test_ecdsa_p256(
 ) -> &'static TestEcdsaP256Sign {
     let ecdsa = static_init!(
         EcdsaP256SignatureSigner<'static>,
-        EcdsaP256SignatureSigner::new(&*addr_of!(SKEY)),
+        EcdsaP256SignatureSigner::new(&mut *addr_of_mut!(SKEY)),
     );
     kernel::deferred_call::DeferredCallClient::register(ecdsa);
 
