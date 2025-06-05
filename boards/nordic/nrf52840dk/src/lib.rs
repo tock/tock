@@ -453,10 +453,8 @@ pub unsafe fn start_no_pconsole() -> (
     };
 
     // Create an array to hold process references.
-    let processes = static_init!(
-        kernel::process::ProcessArray<NUM_PROCS>,
-        kernel::process::ProcessArray::new()
-    );
+    let processes = components::process_array::ProcessArrayComponent::new()
+        .finalize(components::process_array_component_static!(NUM_PROCS));
     PROCESSES = Some(processes);
 
     // Setup space to store the core kernel data structure.
