@@ -46,30 +46,4 @@ impl<'a, Granule> Allocator<'a, Granule> for StaticAllocator<'a, Granule> {
         self.0.insert(right_subslice);
         Ok(left_subslice)
     }
-
-    fn allocate_from(
-        &self,
-        _starting_address: usize,
-        _count: NonZero<usize>,
-    ) -> Result<MutablePhysicalSlice<'a, Granule>, ()> {
-        todo!()
-        /*
-        let memory = self.take()?;
-        let memory_starting_address = memory.get_starting_address();
-
-        let offset = match starting_address.checked_sub(memory_starting_address) {
-            None => {
-                self.0.insert(Some(memory));
-                return Err(());
-            }
-            Some(offset) => offset,
-        };
-
-        let (_unusued_slice, used_slice) = self.split_at_mut_checked(memory, offset)?;
-        let (allocated_slice, remaining_slice) = self.split_at_mut_checked(used_slice, count.get())?;
-        self.0.insert(Some(remaining_slice));
-
-        Ok(allocated_slice)
-        */
-    }
 }

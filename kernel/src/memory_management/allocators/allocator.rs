@@ -11,11 +11,4 @@ pub trait Allocator<'a, Granule> {
         &self,
         count: NonZero<usize>,
     ) -> Result<MutablePhysicalSlice<'a, Granule>, ()>;
-
-    // TODO: This should be removed
-    fn allocate_from(
-        &self,
-        starting_address: usize,
-        count: NonZero<usize>,
-    ) -> Result<MutablePhysicalSlice<'a, Granule>, ()>;
 }
