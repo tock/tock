@@ -27,6 +27,8 @@ use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::syscall::SyscallDriver;
+use kernel::utilities::cells::OptionalCell;
+use kernel::utilities::slices::NonEmptyMutableSlice;
 use kernel::{capabilities, create_capability, static_init, Kernel};
 
 use rp2040::adc::{Adc, Channel};
@@ -43,6 +45,7 @@ use rp2040::sysinfo;
 use rp2040::timer::RPTimer;
 
 mod io;
+mod linker;
 
 mod flash_bootloader;
 
@@ -64,8 +67,8 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
-static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
-    [None; NUM_PROCS];
+static mut PROCESSES: [OptionalCell<&'static dyn kernel::process::Process>; NUM_PROCS] =
+    [const { OptionalCell::empty() }; NUM_PROCS];
 
 static mut CHIP: Option<&'static Rp2040<Rp2040DefaultPeripherals>> = None;
 static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
@@ -315,7 +318,46 @@ pub unsafe fn start() -> (
 
     CHIP = Some(chip);
 
-    let board_kernel = static_init!(Kernel, Kernel::new(&*addr_of!(PROCESSES)));
+    use kernel::memory_management::pages::Page4KiB;
+    let apps_ram = core::slice::from_raw_parts_mut(
+        (core::ptr::addr_of_mut!(linker::_sappmem) as usize) as *mut Page4KiB,
+        core::ptr::addr_of!(linker::_eappmem) as usize - core::ptr::addr_of!(linker::_sappmem) as usize,
+    );
+
+    // PANIC: the linker script ensures that the RAM region is not empty.
+    let non_empty_ram_memory = NonEmptyMutableSlice::new(apps_ram).unwrap();
+    let physical_ram_memory = kernel::memory_management::slices::MutablePhysicalSlice::new(non_empty_ram_memory);
+
+    type RamAllocator = kernel::memory_management::allocators::StaticAllocator<'static, Page4KiB>;
+    let ram_allocator = RamAllocator::new(physical_ram_memory);
+
+    let physical_kernel_rom_memory = linker::get_kernel_rom_region();
+    let physical_kernel_prog_memory = linker::get_kernel_prog_region();
+    let physical_kernel_ram_memory = linker::get_kernel_ram_region();
+    let physical_kernel_peripheral_memory = linker::get_kernel_peripheral_region();
+
+    let allocated_kernel_rom_memory = kernel::memory_management::regions::PhysicalAllocatedRegion::new(physical_kernel_rom_memory);
+    let allocated_kernel_prog_memory = kernel::memory_management::regions::PhysicalAllocatedRegion::new(physical_kernel_prog_memory);
+    let allocated_kernel_ram_memory = kernel::memory_management::regions::PhysicalAllocatedRegion::new(physical_kernel_ram_memory);
+    let allocated_kernel_peripheral_memory = kernel::memory_management::regions::PhysicalAllocatedRegion::new(physical_kernel_peripheral_memory);
+
+    let mapped_kernel_rom_memory = kernel::memory_management::regions::MappedAllocatedRegion::new_flat(allocated_kernel_rom_memory);
+    let mapped_kernel_prog_memory = kernel::memory_management::regions::MappedAllocatedRegion::new_flat(allocated_kernel_prog_memory);
+    let mapped_kernel_ram_memory = kernel::memory_management::regions::MappedAllocatedRegion::new_flat(allocated_kernel_ram_memory);
+    let mapped_kernel_peripheral_memory = kernel::memory_management::regions::MappedAllocatedRegion::new_flat(allocated_kernel_peripheral_memory);
+
+    // Create a board kernel instance
+    let board_kernel = static_init!(
+        Kernel,
+        Kernel::new(
+            &*core::ptr::addr_of!(PROCESSES),
+            ram_allocator,
+            mapped_kernel_rom_memory,
+            mapped_kernel_prog_memory,
+            mapped_kernel_ram_memory,
+            mapped_kernel_peripheral_memory,
+        )
+    );
 
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
@@ -572,28 +614,12 @@ pub unsafe fn start() -> (
 
     debug!("Initialization complete. Enter main loop");
 
-    // These symbols are defined in the linker script.
-    extern "C" {
-        /// Beginning of the ROM region containing app images.
-        static _sapps: u8;
-        /// End of the ROM region containing app images.
-        static _eapps: u8;
-        /// Beginning of the RAM region for app memory.
-        static mut _sappmem: u8;
-        /// End of the RAM region for app memory.
-        static _eappmem: u8;
-    }
-
     kernel::process::load_processes(
         board_kernel,
         chip,
         core::slice::from_raw_parts(
-            core::ptr::addr_of!(_sapps),
-            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-        ),
-        core::slice::from_raw_parts_mut(
-            core::ptr::addr_of_mut!(_sappmem),
-            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
+            core::ptr::addr_of!(linker::_sprog),
+            core::ptr::addr_of!(linker::_eprog) as usize - core::ptr::addr_of!(linker::_sprog) as usize,
         ),
         &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,

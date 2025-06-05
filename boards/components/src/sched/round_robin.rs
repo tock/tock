@@ -20,6 +20,7 @@ use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::process::Process;
 use kernel::scheduler::round_robin::{RoundRobinProcessNode, RoundRobinSched};
+use kernel::utilities::cells::OptionalCell;
 
 #[macro_export]
 macro_rules! round_robin_component_static {
@@ -36,12 +37,12 @@ macro_rules! round_robin_component_static {
 }
 
 pub struct RoundRobinComponent<const NUM_PROCS: usize> {
-    processes: &'static [Option<&'static dyn Process>],
+    processes: &'static [OptionalCell<&'static dyn Process>],
 }
 
 impl<const NUM_PROCS: usize> RoundRobinComponent<NUM_PROCS> {
     pub fn new(
-        processes: &'static [Option<&'static dyn Process>],
+        processes: &'static [OptionalCell<&'static dyn Process>],
     ) -> RoundRobinComponent<NUM_PROCS> {
         RoundRobinComponent { processes }
     }
