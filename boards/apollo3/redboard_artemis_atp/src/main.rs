@@ -13,9 +13,6 @@
 #![test_runner(test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
-use core::ptr::addr_of;
-use core::ptr::addr_of_mut;
-
 use apollo3::chip::Apollo3DefaultPeripherals;
 use capsules_core::i2c_master_slave_driver::I2CMasterSlaveDriver;
 use capsules_core::virtualizers::virtual_alarm::MuxAlarm;
@@ -27,6 +24,7 @@ use kernel::hil::i2c::I2CSlave;
 use kernel::hil::led::LedHigh;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::process::ProcessArray;
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 
@@ -39,8 +37,8 @@ mod tests;
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
-// Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] = [None; 4];
+/// Static variables used by io.rs.
+static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 
 // Static reference to chip for panic dumps.
 static mut CHIP: Option<&'static apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> = None;
@@ -183,7 +181,12 @@ unsafe fn setup() -> (
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
+    // Create an array to hold process references.
+    let processes = components::process_array::ProcessArrayComponent::new()
+        .finalize(components::process_array_component_static!(NUM_PROCS));
+    PROCESSES = Some(processes);
+
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
     // Power up components
     pwr_ctrl.enable_uart0();
@@ -372,7 +375,7 @@ unsafe fn setup() -> (
         static _eappmem: u8;
     }
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let systick = cortexm4::systick::SysTick::new_with_calibration(48_000_000);
@@ -409,7 +412,6 @@ unsafe fn setup() -> (
             core::ptr::addr_of_mut!(_sappmem),
             core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_mgmt_cap,
     )
