@@ -278,11 +278,10 @@ impl<
         self.as_allocated_region().get_length()
     }
 
-    /*
-    fn get_allocated_length_bytes(&self) -> NonZero<usize> {
-        self.as_allocated_region().get_length_bytes()
+    pub fn get_protected_length_bytes(&self) -> NonZero<usize> {
+        // SAFETY: the size of a protected region may never be larger than `isize::MAX` in bytes
+        unsafe { self.get_protected_length().unchecked_mul(create_non_zero_usize(core::mem::size_of::<T>())) }
     }
-    */
 
     pub const fn get_permissions(&self) -> Permissions {
         self.permissions
