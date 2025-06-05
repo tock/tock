@@ -214,6 +214,14 @@ impl CortexMRegion {
         subregions: Option<(usize, usize)>,
         permissions: Permissions,
     ) -> Option<CortexMRegion> {
+        let size_value = math::log_base_two(region_size as u32) - 1;
+
+        if size_value == 0 {
+            return None;
+        } else if !region_start.is_aligned_to(1 << (size_value as usize)) {
+            return None;
+        }
+
         // Determine access and execute permissions
         let (access, execute) = match permissions {
             Permissions::ReadWrite => (
@@ -234,8 +242,6 @@ impl CortexMRegion {
         let base_address = RegionBaseAddress::ADDR.val((region_start as u32) >> 5)
             + RegionBaseAddress::VALID::UseRBAR
             + RegionBaseAddress::REGION.val(region_num as u32);
-
-        let size_value = math::log_base_two(region_size as u32) - 1;
 
         // Attributes register
         let mut attributes = RegionAttributes::ENABLE::SET

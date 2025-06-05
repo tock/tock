@@ -5,6 +5,7 @@
 //! Generic support for all Cortex-M platforms.
 
 #![no_std]
+#![feature(pointer_is_aligned_to)]
 
 use core::fmt::Write;
 
