@@ -196,16 +196,6 @@ pub struct CortexMRegion {
     attributes: FieldValue<u32, RegionAttributes::Register>,
 }
 
-/*
-impl PartialEq<mpu::Region> for CortexMRegion {
-    fn eq(&self, other: &mpu::Region) -> bool {
-        self.location.is_some_and(|(addr, size)| {
-            core::ptr::eq(addr, other.start_address()) && size == other.size()
-        })
-    }
-}
-*/
-
 impl CortexMRegion {
     fn new(
         region_start: *const u8,
