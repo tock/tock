@@ -158,9 +158,15 @@ manual_unwrap_or_default = "allow"
 # COMPLEXITY LINTS
 complexity = { level = "deny", priority = -1 }
 
+# Subjective, and complex functions may need many arguments.
 too_many_arguments = "allow"
+# This is pretty sensitive, even `Result`s with returned buffers trigger this.
+# It is not worth us creating types for all of these.
 type_complexity = "allow"
+# We use options extensively and they can be as clear as if let statements.
 option_map_unit_fn = "allow"
+# Sometimes the semantic meaning of variables means it is more clear to use
+# nonminimal if statements, particularly when matching hardware or datasheets.
 nonminimal_bool = "allow"
 identity-op = "allow"
 while-let-loop = "allow"
