@@ -7,7 +7,7 @@ use core::panic::PanicInfo;
 use kernel::debug;
 use kernel::debug::IoWrite;
 use kernel::hil::led;
-use kernel::hil::uart::{self, Configure};
+use kernel::hil::uart::{self, Configure, BAUD115200};
 
 use crate::CHIP;
 use crate::PROCESSES;
@@ -36,7 +36,7 @@ impl IoWrite for Writer {
         if !self.initialized {
             self.initialized = true;
             let _ = uart.configure(uart::Parameters {
-                baud_rate: 115200,
+                baud_rate: BAUD115200,
                 width: uart::Width::Eight,
                 stop_bits: uart::StopBits::One,
                 parity: uart::Parity::None,

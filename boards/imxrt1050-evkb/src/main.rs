@@ -19,6 +19,7 @@ use kernel::component::Component;
 use kernel::debug;
 use kernel::hil::gpio::Configure;
 use kernel::hil::led::LedLow;
+use kernel::hil::uart::BAUD115200;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, static_init};
@@ -302,7 +303,7 @@ unsafe fn start() -> (
     // Enable clock
     peripherals.lpuart1.enable_clock();
 
-    let lpuart_mux = components::console::UartMuxComponent::new(&peripherals.lpuart1, 115200)
+    let lpuart_mux = components::console::UartMuxComponent::new(&peripherals.lpuart1, BAUD115200)
         .finalize(components::uart_mux_component_static!());
     (*addr_of_mut!(io::WRITER)).set_initialized();
 

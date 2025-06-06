@@ -16,6 +16,7 @@ use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil::gpio::Configure;
+use kernel::hil::uart::BAUD115200;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
@@ -328,7 +329,7 @@ unsafe fn start() -> (
         create_capability!(capabilities::ProcessManagementCapability);
 
     // Setup UART0
-    let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(&peripherals.uart0, BAUD115200)
         .finalize(components::uart_mux_component_static!());
 
     // Setup the console.
