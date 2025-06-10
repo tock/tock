@@ -15,12 +15,9 @@ use crate::interrupts::{TIMER0_IRQ_0, TIMER1_IRQ_0};
 
 register_structs! {
     /// Controls time and alarms
-///
-/// time is a 64 bit value indicating the time since power-on
-///
-/// timeh is the top 32 bits of time & timel is the bottom 32 bits to ch
-///
-/// An alarm is set by setting alarm_enable and writing to the correspon
+    /// time is a 64 bit value indicating the time since power-on
+    /// timeh is the top 32 bits of time & timel is the bottom 32 bits to ch
+    /// An alarm is set by setting alarm_enable and writing to the correspon
     TimerRegisters {
         /// Write to bits 63:32 of time always write timelw before timehw
         (0x000 => timehw: ReadWrite<u32>),
