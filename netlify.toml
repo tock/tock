@@ -2,9 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0 OR MIT
 # Copyright Tock Contributors 2022.
 
-[[plugins]]
-package = "./tools/netlify-cache"
-
 # Suppress `tput` warnings by setting TERM
 [build]
 environment = { TERM = "dumb" }
