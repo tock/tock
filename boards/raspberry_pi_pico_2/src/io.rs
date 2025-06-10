@@ -86,7 +86,6 @@ impl IoWrite for Writer {
 ///
 /// We just use the standard default provided by the debug module in the kernel.
 #[cfg(not(test))]
-#[no_mangle]
 #[panic_handler]
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     // LED is connected to GPIO 25
@@ -101,7 +100,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
         writer,
         pi,
         &cortexm33::support::nop,
-        &*addr_of!(PROCESSES),
+        PROCESSES.unwrap().as_slice(),
         &*addr_of!(CHIP),
         &*addr_of!(PROCESS_PRINTER),
     )

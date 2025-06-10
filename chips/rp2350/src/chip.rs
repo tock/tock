@@ -56,20 +56,16 @@ impl<I: InterruptService> Chip for Rp2350<'_, I> {
                 Processor::Processor0 => self.processor0_interrupt_mask,
                 Processor::Processor1 => self.processor1_interrupt_mask,
             };
-            loop {
-                if let Some(interrupt) = cortexm33::nvic::next_pending_with_mask(mask) {
-                    // ignore SIO_IRQ_PROC1 as it is intended for processor 1
-                    // not able to unset its pending status
-                    // probably only processor 1 can unset the pending by reading the fifo
-                    if !self.interrupt_service.service_interrupt(interrupt) {
-                        panic!("unhandled interrupt {}", interrupt);
-                    }
-                    let n = cortexm33::nvic::Nvic::new(interrupt);
-                    n.clear_pending();
-                    n.enable();
-                } else {
-                    break;
+            while let Some(interrupt) = cortexm33::nvic::next_pending_with_mask(mask) {
+                // ignore SIO_IRQ_PROC1 as it is intended for processor 1
+                // not able to unset its pending status
+                // probably only processor 1 can unset the pending by reading the fifo
+                if !self.interrupt_service.service_interrupt(interrupt) {
+                    panic!("unhandled interrupt {}", interrupt);
                 }
+                let n = cortexm33::nvic::Nvic::new(interrupt);
+                n.clear_pending();
+                n.enable();
             }
         }
     }
