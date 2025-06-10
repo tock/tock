@@ -78,73 +78,67 @@ register_structs! {
         /// Processor core identifier
         (0x000 => cpuid: ReadWrite<u32>),
         /// Input value for GPIO0...31.
-///
-/// In the Non-secure SIO, Secure-only GPIOs (as per ACCESSCTRL)
+        /// In the Non-secure SIO, Secure-only GPIOs (as per ACCESSCTRL)
         (0x004 => gpio_in: ReadWrite<u32, GPIO_IN::Register>),
         /// Input value on GPIO32...47, QSPI IOs and USB pins
-///
-/// In the Non-secure SIO, Secure-only GPIOs (as per ACCESSCTRL)
+        /// In the Non-secure SIO, Secure-only GPIOs (as per ACCESSCTRL)
         (0x008 => gpio_hi_in: ReadWrite<u32, GPIO_HI_IN::Register>),
         (0x00C => _reserved0),
         /// GPIO0...31 output value
         (0x010 => gpio_out: ReadWrite<u32, GPIO_OUT::Register>),
         /// Output value for GPIO32...47, QSPI IOs and USB pins.
-///
-/// Write to set output level (1/0 -> high/low). Reading back gi
-///
-/// In the Non-secure SIO, Secure-only GPIOs (as per ACCESSCTRL)
+        /// Write to set output level (1/0 -> high/low). Reading back gi
+        /// In the Non-secure SIO, Secure-only GPIOs (as per ACCESSCTRL)
         (0x014 => gpio_hi_out: ReadWrite<u32, GPIO_HI_OUT::Register>),
         /// GPIO0...31 output value set
         (0x018 => gpio_out_set: ReadWrite<u32>),
         /// Output value set for GPIO32..47, QSPI IOs and USB pins.
-/// Perform an atomic bit-set on GPIO_HI_OUT, i.e. `GPIO_HI_OUT
+        /// Perform an atomic bit-set on GPIO_HI_OUT, i.e. `GPIO_HI_OUT
         (0x01C => gpio_hi_out_set: ReadWrite<u32, GPIO_HI_OUT_SET::Register>),
         /// GPIO0...31 output value clear
         (0x020 => gpio_out_clr: ReadWrite<u32>),
         /// Output value clear for GPIO32..47, QSPI IOs and USB pins.
-/// Perform an atomic bit-clear on GPIO_HI_OUT, i.e. `GPIO_HI_OU
+        /// Perform an atomic bit-clear on GPIO_HI_OUT, i.e. `GPIO_HI_OU
         (0x024 => gpio_hi_out_clr: ReadWrite<u32, GPIO_HI_OUT_CLR::Register>),
         /// GPIO0...31 output value XOR
         (0x028 => gpio_out_xor: ReadWrite<u32>),
         /// Output value XOR for GPIO32..47, QSPI IOs and USB pins.
-/// Perform an atomic bitwise XOR on GPIO_HI_OUT, i.e. `GPIO_HI_
+        /// Perform an atomic bitwise XOR on GPIO_HI_OUT, i.e. `GPIO_HI_
         (0x02C => gpio_hi_out_xor: ReadWrite<u32, GPIO_HI_OUT_XOR::Register>),
         /// GPIO0...31 output enable
         (0x030 => gpio_oe: ReadWrite<u32, GPIO_OE::Register>),
         /// Output enable value for GPIO32...47, QSPI IOs and USB pins.
-///
-/// Write output enable (1/0 -> output/input). Reading back give
-///
-/// In the Non-secure SIO, Secure-only GPIOs (as per ACCESSCTRL)
+        /// Write output enable (1/0 -> output/input). Reading back give
+        /// In the Non-secure SIO, Secure-only GPIOs (as per ACCESSCTRL)
         (0x034 => gpio_hi_oe: ReadWrite<u32, GPIO_HI_OE::Register>),
         /// GPIO0...31 output enable set
         (0x038 => gpio_oe_set: ReadWrite<u32>),
         /// Output enable set for GPIO32...47, QSPI IOs and USB pins.
-/// Perform an atomic bit-set on GPIO_HI_OE, i.e. `GPIO_HI_OE |=
+        /// Perform an atomic bit-set on GPIO_HI_OE, i.e. `GPIO_HI_OE |=
         (0x03C => gpio_hi_oe_set: ReadWrite<u32, GPIO_HI_OE_SET::Register>),
         /// GPIO0...31 output enable clear
         (0x040 => gpio_oe_clr: ReadWrite<u32>),
         /// Output enable clear for GPIO32...47, QSPI IOs and USB pins.
-/// Perform an atomic bit-clear on GPIO_HI_OE, i.e. `GPIO_HI_OE
+        /// Perform an atomic bit-clear on GPIO_HI_OE, i.e. `GPIO_HI_OE
         (0x044 => gpio_hi_oe_clr: ReadWrite<u32, GPIO_HI_OE_CLR::Register>),
         /// GPIO0...31 output enable XOR
         (0x048 => gpio_oe_xor: ReadWrite<u32>),
         /// Output enable XOR for GPIO32...47, QSPI IOs and USB pins.
-/// Perform an atomic bitwise XOR on GPIO_HI_OE, i.e. `GPIO_HI_O
+        /// Perform an atomic bitwise XOR on GPIO_HI_OE, i.e. `GPIO_HI_O
         (0x04C => gpio_hi_oe_xor: ReadWrite<u32, GPIO_HI_OE_XOR::Register>),
         /// Status register for inter-core FIFOs (mailboxes).
-/// There is one FIFO in the core 0 -> core 1 direction, and one
-/// Core 0 can see the read side of the 1->0 FIFO (RX), and the
-/// Core 1 can see the read side of the 0->1 FIFO (RX), and the
-/// The SIO IRQ for each core is the logical OR of the VLD, WOF
+        /// There is one FIFO in the core 0 -> core 1 direction, and one
+        /// Core 0 can see the read side of the 1->0 FIFO (RX), and the
+        /// Core 1 can see the read side of the 0->1 FIFO (RX), and the
+        /// The SIO IRQ for each core is the logical OR of the VLD, WOF
         (0x050 => fifo_st: ReadWrite<u32, FIFO_ST::Register>),
         /// Write access to this core's TX FIFO
         (0x054 => fifo_wr: ReadWrite<u32>),
         /// Read access to this core's RX FIFO
         (0x058 => fifo_rd: ReadWrite<u32>),
         /// Spinlock state
-/// A bitmap containing the state of all 32 spinlocks (1=locked)
-/// Mainly intended for debugging.
+        /// A bitmap containing the state of all 32 spinlocks (1=locked)
+        /// Mainly intended for debugging.
         (0x05C => spinlock_st: ReadWrite<u32>),
         (0x060 => _reserved1),
         /// Read/write access to accumulator 0
@@ -174,13 +168,13 @@ register_structs! {
         /// Control register for lane 1
         (0x0B0 => interp0_ctrl_lane1: ReadWrite<u32, INTERP0_CTRL_LANE1::Register>),
         /// Values written here are atomically added to ACCUM0
-/// Reading yields lane 0's raw shift and mask value (BASE0 not
+        /// Reading yields lane 0's raw shift and mask value (BASE0 not
         (0x0B4 => interp0_accum0_add: ReadWrite<u32>),
         /// Values written here are atomically added to ACCUM1
-/// Reading yields lane 1's raw shift and mask value (BASE1 not
+        /// Reading yields lane 1's raw shift and mask value (BASE1 not
         (0x0B8 => interp0_accum1_add: ReadWrite<u32>),
         /// On write, the lower 16 bits go to BASE0, upper bits to BASE1 simultaneously.
-/// Each half is sign-extended to 32 bits if that lane's SIGNED
+        /// Each half is sign-extended to 32 bits if that lane's SIGNED
         (0x0BC => interp0_base_1and0: ReadWrite<u32>),
         /// Read/write access to accumulator 0
         (0x0C0 => interp1_accum0: ReadWrite<u32>),
@@ -209,56 +203,45 @@ register_structs! {
         /// Control register for lane 1
         (0x0F0 => interp1_ctrl_lane1: ReadWrite<u32, INTERP1_CTRL_LANE1::Register>),
         /// Values written here are atomically added to ACCUM0
-/// Reading yields lane 0's raw shift and mask value (BASE0 not
+        /// Reading yields lane 0's raw shift and mask value (BASE0 not
         (0x0F4 => interp1_accum0_add: ReadWrite<u32>),
         /// Values written here are atomically added to ACCUM1
-/// Reading yields lane 1's raw shift and mask value (BASE1 not
+        /// Reading yields lane 1's raw shift and mask value (BASE1 not
         (0x0F8 => interp1_accum1_add: ReadWrite<u32>),
         /// On write, the lower 16 bits go to BASE0, upper bits to BASE1 simultaneously.
-/// Each half is sign-extended to 32 bits if that lane's SIGNED
+        /// Each half is sign-extended to 32 bits if that lane's SIGNED
         (0x0FC => interp1_base_1and0: ReadWrite<u32>),
         /// Reading from a spinlock address will:
-/// - Return 0 if lock is already locked
-/// - Otherwise return nonzero, and simultaneously claim the loc
-///
-/// Writing (any value) releases the lock.
-/// If core 0 and core 1 attempt to claim the same lock simultan
-/// The value returned on success is 0x1 << lock number.
+        /// - Return 0 if lock is already locked
+        /// - Otherwise return nonzero, and simultaneously claim the loc
+        /// Writing (any value) releases the lock.
+        /// If core 0 and core 1 attempt to claim the same lock simultan
+        /// The value returned on success is 0x1 << lock number.
         (0x100 => spinlock: [ReadWrite<u32, SPINLOCK::Register>; 32]),
         /// Trigger a doorbell interrupt on the opposite core.
-///
-/// Write 1 to a bit to set the corresponding bit in DOORBELL_IN
-///
-/// Read to get the status of the doorbells currently asserted o
+        /// Write 1 to a bit to set the corresponding bit in DOORBELL_IN
+        /// Read to get the status of the doorbells currently asserted o
         (0x180 => doorbell_out_set: ReadWrite<u32>),
         /// Clear doorbells which have been posted to the opposite core. This register is in
-///
-/// Writing 1 to a bit in DOORBELL_OUT_CLR clears the correspond
-///
-/// Reading returns the status of the doorbells currently assert
+        /// Writing 1 to a bit in DOORBELL_OUT_CLR clears the correspond
+        /// Reading returns the status of the doorbells currently assert
         (0x184 => doorbell_out_clr: ReadWrite<u32>),
         /// Write 1s to trigger doorbell interrupts on this core. Read to get status of door
         (0x188 => doorbell_in_set: ReadWrite<u32>),
         /// Check and acknowledge doorbells posted to this core. This core's doorbell interr
-///
-/// Write 1 to each bit to clear that bit. The doorbell interrup
+        /// Write 1 to each bit to clear that bit. The doorbell interrup
         (0x18C => doorbell_in_clr: ReadWrite<u32>),
         /// Detach certain core-local peripherals from Secure SIO, and attach them to Non-se
-///
-/// This register is per-core, and is only present on the Secure
-///
-/// Most SIO hardware is duplicated across the Secure and Non-se
+        /// This register is per-core, and is only present on the Secure
+        /// Most SIO hardware is duplicated across the Secure and Non-se
         (0x190 => peri_nonsec: ReadWrite<u32, PERI_NONSEC::Register>),
         (0x194 => _reserved2),
         /// Control the assertion of the standard software interrupt (MIP.MSIP) on the RISC-
-///
-/// Unlike the RISC-V timer, this interrupt is not routed to a n
-///
-/// It is safe for both cores to write to this register on the s
+        /// Unlike the RISC-V timer, this interrupt is not routed to a n
+        /// It is safe for both cores to write to this register on the s
         (0x1A0 => riscv_softirq: ReadWrite<u32, RISCV_SOFTIRQ::Register>),
         /// Control register for the RISC-V 64-bit Machine-mode timer. This timer is only pr
-///
-/// Note whilst this timer follows the RISC-V privileged specifi
+        /// Note whilst this timer follows the RISC-V privileged specifi
         (0x1A4 => mtime_ctrl: ReadWrite<u32, MTIME_CTRL::Register>),
         (0x1A8 => _reserved3),
         /// Read/write access to the high half of RISC-V Machine-mode timer. This register i
@@ -266,48 +249,38 @@ register_structs! {
         /// Read/write access to the high half of RISC-V Machine-mode timer. This register i
         (0x1B4 => mtimeh: ReadWrite<u32>),
         /// Low half of RISC-V Machine-mode timer comparator. This register is core-local, i
-///
-/// The timer interrupt is asserted whenever MTIME is greater th
+        /// The timer interrupt is asserted whenever MTIME is greater th
         (0x1B8 => mtimecmp: ReadWrite<u32>),
         /// High half of RISC-V Machine-mode timer comparator. This register is core-local.
-///
-/// The timer interrupt is asserted whenever MTIME is greater th
+        /// The timer interrupt is asserted whenever MTIME is greater th
         (0x1BC => mtimecmph: ReadWrite<u32>),
         /// Control register for TMDS encoder.
         (0x1C0 => tmds_ctrl: ReadWrite<u32, TMDS_CTRL::Register>),
         /// Write-only access to the TMDS colour data register.
         (0x1C4 => tmds_wdata: ReadWrite<u32>),
         /// Get the encoding of one pixel's worth of colour data, packed into a 32-bit value
-///
-/// The PEEK alias does not shift the colour register when read,
+        /// The PEEK alias does not shift the colour register when read,
         (0x1C8 => tmds_peek_single: ReadWrite<u32>),
         /// Get the encoding of one pixel's worth of colour data, packed into a 32-bit value
-///
-/// The POP alias shifts the colour register when read, as well
+        /// The POP alias shifts the colour register when read, as well
         (0x1CC => tmds_pop_single: ReadWrite<u32>),
         /// Get lane 0 of the encoding of two pixels' worth of colour data. Two 10-bit TMDS
-///
-/// The PEEK alias does not shift the colour register when read,
+        /// The PEEK alias does not shift the colour register when read,
         (0x1D0 => tmds_peek_double_l0: ReadWrite<u32>),
         /// Get lane 0 of the encoding of two pixels' worth of colour data. Two 10-bit TMDS
-///
-/// The POP alias shifts the colour register when read, accordin
+        /// The POP alias shifts the colour register when read, accordin
         (0x1D4 => tmds_pop_double_l0: ReadWrite<u32>),
         /// Get lane 1 of the encoding of two pixels' worth of colour data. Two 10-bit TMDS
-///
-/// The PEEK alias does not shift the colour register when read,
+        /// The PEEK alias does not shift the colour register when read,
         (0x1D8 => tmds_peek_double_l1: ReadWrite<u32>),
         /// Get lane 1 of the encoding of two pixels' worth of colour data. Two 10-bit TMDS
-///
-/// The POP alias shifts the colour register when read, accordin
+        /// The POP alias shifts the colour register when read, accordin
         (0x1DC => tmds_pop_double_l1: ReadWrite<u32>),
         /// Get lane 2 of the encoding of two pixels' worth of colour data. Two 10-bit TMDS
-///
-/// The PEEK alias does not shift the colour register when read,
+        /// The PEEK alias does not shift the colour register when read,
         (0x1E0 => tmds_peek_double_l2: ReadWrite<u32>),
         /// Get lane 2 of the encoding of two pixels' worth of colour data. Two 10-bit TMDS
-///
-/// The POP alias shifts the colour register when read, accordin
+        /// The POP alias shifts the colour register when read, accordin
         (0x1E4 => tmds_pop_double_l2: ReadWrite<u32>),
         (0x1E8 => @END),
     }
@@ -646,10 +619,8 @@ GPIO_HI_IN [
 ],
 GPIO_OUT [
     /// Set output level (1/0 -> high/low) for GPIO0...31. Reading back gives the last v
-///
-/// If core 0 and core 1 both write to GPIO_OUT simultan
-///
-/// In the Non-secure SIO, Secure-only GPIOs (as per ACC
+    /// If core 0 and core 1 both write to GPIO_OUT simultan
+    /// In the Non-secure SIO, Secure-only GPIOs (as per ACC
     GPIO_OUT OFFSET(0) NUMBITS(32) []
 ],
 GPIO_HI_OUT [
@@ -722,10 +693,8 @@ GPIO_HI_OUT_XOR [
 ],
 GPIO_OE [
     /// Set output enable (1/0 -> output/input) for GPIO0...31. Reading back gives the l
-///
-/// If core 0 and core 1 both write to GPIO_OE simultane
-///
-/// In the Non-secure SIO, Secure-only GPIOs (as per ACC
+    /// If core 0 and core 1 both write to GPIO_OE simultane
+    /// In the Non-secure SIO, Secure-only GPIOs (as per ACC
     GPIO_OE OFFSET(0) NUMBITS(32) []
 ],
 GPIO_HI_OE [
@@ -870,29 +839,29 @@ INTERP0_CTRL_LANE0 [
     /// Indicates if any masked-off MSBs in ACCUM0 are set.
     OVERF0 OFFSET(23) NUMBITS(1) [],
     /// Only present on INTERP0 on each core. If BLEND mode is enabled:
-/// - LANE1 result is a linear interpolation between BAS
-/// by the 8 LSBs of lane 1 shift and mask value (a frac
-/// 0 and 255/256ths)
-/// - LANE0 result does not have BASE0 added (yields onl
-/// - FULL result does not have lane 1 shift+mask value
-/// LANE1 SIGNED flag controls whether the interpolation
+    /// - LANE1 result is a linear interpolation between BAS
+    /// by the 8 LSBs of lane 1 shift and mask value (a frac
+    /// 0 and 255/256ths)
+    /// - LANE0 result does not have BASE0 added (yields onl
+    /// - FULL result does not have lane 1 shift+mask value
+    /// LANE1 SIGNED flag controls whether the interpolation
     BLEND OFFSET(21) NUMBITS(1) [],
     /// ORed into bits 29:28 of the lane result presented to the processor on the bus.
-/// No effect on the internal 32-bit datapath. Handy for
-/// of pointers into flash or SRAM.
+    /// No effect on the internal 32-bit datapath. Handy for
+    /// of pointers into flash or SRAM.
     FORCE_MSB OFFSET(19) NUMBITS(2) [],
     /// If 1, mask + shift is bypassed for LANE0 result. This does not affect FULL resul
     ADD_RAW OFFSET(18) NUMBITS(1) [],
     /// If 1, feed the opposite lane's result into this lane's accumulator on POP.
     CROSS_RESULT OFFSET(17) NUMBITS(1) [],
     /// If 1, feed the opposite lane's accumulator into this lane's shift + mask hardwar
-/// Takes effect even if ADD_RAW is set (the CROSS_INPUT
+    /// Takes effect even if ADD_RAW is set (the CROSS_INPUT
     CROSS_INPUT OFFSET(16) NUMBITS(1) [],
     /// If SIGNED is set, the shifted and masked accumulator value is sign-extended to 3
-/// before adding to BASE0, and LANE0 PEEK/POP appear ex
+    /// before adding to BASE0, and LANE0 PEEK/POP appear ex
     SIGNED OFFSET(15) NUMBITS(1) [],
     /// The most-significant bit allowed to pass by the mask (inclusive)
-/// Setting MSB < LSB may cause chip to turn inside-out
+    /// Setting MSB < LSB may cause chip to turn inside-out
     MASK_MSB OFFSET(10) NUMBITS(5) [],
     /// The least-significant bit allowed to pass by the mask (inclusive)
     MASK_LSB OFFSET(5) NUMBITS(5) [],
@@ -901,21 +870,21 @@ INTERP0_CTRL_LANE0 [
 ],
 INTERP0_CTRL_LANE1 [
     /// ORed into bits 29:28 of the lane result presented to the processor on the bus.
-/// No effect on the internal 32-bit datapath. Handy for
-/// of pointers into flash or SRAM.
+    /// No effect on the internal 32-bit datapath. Handy for
+    /// of pointers into flash or SRAM.
     FORCE_MSB OFFSET(19) NUMBITS(2) [],
     /// If 1, mask + shift is bypassed for LANE1 result. This does not affect FULL resul
     ADD_RAW OFFSET(18) NUMBITS(1) [],
     /// If 1, feed the opposite lane's result into this lane's accumulator on POP.
     CROSS_RESULT OFFSET(17) NUMBITS(1) [],
     /// If 1, feed the opposite lane's accumulator into this lane's shift + mask hardwar
-/// Takes effect even if ADD_RAW is set (the CROSS_INPUT
+    /// Takes effect even if ADD_RAW is set (the CROSS_INPUT
     CROSS_INPUT OFFSET(16) NUMBITS(1) [],
     /// If SIGNED is set, the shifted and masked accumulator value is sign-extended to 3
-/// before adding to BASE1, and LANE1 PEEK/POP appear ex
+    /// before adding to BASE1, and LANE1 PEEK/POP appear ex
     SIGNED OFFSET(15) NUMBITS(1) [],
     /// The most-significant bit allowed to pass by the mask (inclusive)
-/// Setting MSB < LSB may cause chip to turn inside-out
+    /// Setting MSB < LSB may cause chip to turn inside-out
     MASK_MSB OFFSET(10) NUMBITS(5) [],
     /// The least-significant bit allowed to pass by the mask (inclusive)
     MASK_LSB OFFSET(5) NUMBITS(5) [],
@@ -986,26 +955,26 @@ INTERP1_CTRL_LANE0 [
     /// Indicates if any masked-off MSBs in ACCUM0 are set.
     OVERF0 OFFSET(23) NUMBITS(1) [],
     /// Only present on INTERP1 on each core. If CLAMP mode is enabled:
-/// - LANE0 result is shifted and masked ACCUM0, clamped
-/// BASE0 and an upper bound of BASE1.
-/// - Signedness of these comparisons is determined by L
+    /// - LANE0 result is shifted and masked ACCUM0, clamped
+    /// BASE0 and an upper bound of BASE1.
+    /// - Signedness of these comparisons is determined by L
     CLAMP OFFSET(22) NUMBITS(1) [],
     /// ORed into bits 29:28 of the lane result presented to the processor on the bus.
-/// No effect on the internal 32-bit datapath. Handy for
-/// of pointers into flash or SRAM.
+    /// No effect on the internal 32-bit datapath. Handy for
+    /// of pointers into flash or SRAM.
     FORCE_MSB OFFSET(19) NUMBITS(2) [],
     /// If 1, mask + shift is bypassed for LANE0 result. This does not affect FULL resul
     ADD_RAW OFFSET(18) NUMBITS(1) [],
     /// If 1, feed the opposite lane's result into this lane's accumulator on POP.
     CROSS_RESULT OFFSET(17) NUMBITS(1) [],
     /// If 1, feed the opposite lane's accumulator into this lane's shift + mask hardwar
-/// Takes effect even if ADD_RAW is set (the CROSS_INPUT
+    /// Takes effect even if ADD_RAW is set (the CROSS_INPUT
     CROSS_INPUT OFFSET(16) NUMBITS(1) [],
     /// If SIGNED is set, the shifted and masked accumulator value is sign-extended to 3
-/// before adding to BASE0, and LANE0 PEEK/POP appear ex
+    /// before adding to BASE0, and LANE0 PEEK/POP appear ex
     SIGNED OFFSET(15) NUMBITS(1) [],
     /// The most-significant bit allowed to pass by the mask (inclusive)
-/// Setting MSB < LSB may cause chip to turn inside-out
+    /// Setting MSB < LSB may cause chip to turn inside-out
     MASK_MSB OFFSET(10) NUMBITS(5) [],
     /// The least-significant bit allowed to pass by the mask (inclusive)
     MASK_LSB OFFSET(5) NUMBITS(5) [],
@@ -1014,21 +983,21 @@ INTERP1_CTRL_LANE0 [
 ],
 INTERP1_CTRL_LANE1 [
     /// ORed into bits 29:28 of the lane result presented to the processor on the bus.
-/// No effect on the internal 32-bit datapath. Handy for
-/// of pointers into flash or SRAM.
+    /// No effect on the internal 32-bit datapath. Handy for
+    /// of pointers into flash or SRAM.
     FORCE_MSB OFFSET(19) NUMBITS(2) [],
     /// If 1, mask + shift is bypassed for LANE1 result. This does not affect FULL resul
     ADD_RAW OFFSET(18) NUMBITS(1) [],
     /// If 1, feed the opposite lane's result into this lane's accumulator on POP.
     CROSS_RESULT OFFSET(17) NUMBITS(1) [],
     /// If 1, feed the opposite lane's accumulator into this lane's shift + mask hardwar
-/// Takes effect even if ADD_RAW is set (the CROSS_INPUT
+    /// Takes effect even if ADD_RAW is set (the CROSS_INPUT
     CROSS_INPUT OFFSET(16) NUMBITS(1) [],
     /// If SIGNED is set, the shifted and masked accumulator value is sign-extended to 3
-/// before adding to BASE1, and LANE1 PEEK/POP appear ex
+    /// before adding to BASE1, and LANE1 PEEK/POP appear ex
     SIGNED OFFSET(15) NUMBITS(1) [],
     /// The most-significant bit allowed to pass by the mask (inclusive)
-/// Setting MSB < LSB may cause chip to turn inside-out
+    /// Setting MSB < LSB may cause chip to turn inside-out
     MASK_MSB OFFSET(10) NUMBITS(5) [],
     /// The least-significant bit allowed to pass by the mask (inclusive)
     MASK_LSB OFFSET(5) NUMBITS(5) [],
@@ -1115,14 +1084,11 @@ TMDS_CTRL [
     /// Clear the running DC balance state of the TMDS encoders. This bit should be writ
     CLEAR_BALANCE OFFSET(28) NUMBITS(1) [],
     /// When encoding two pixels's worth of symbols in one cycle (a read of a PEEK/POP_D
-///
-/// This control disables that shift, so that both encod
+    /// This control disables that shift, so that both encod
     PIX2_NOSHIFT OFFSET(27) NUMBITS(1) [],
     /// Shift applied to the colour data register with each read of a POP alias register
-///
-/// Reading from the POP_SINGLE register, or reading fro
-///
-/// Reading from a POP_DOUBLE register when PIX2_NOSHIFT
+    /// Reading from the POP_SINGLE register, or reading fro
+    /// Reading from a POP_DOUBLE register when PIX2_NOSHIFT
     PIX_SHIFT OFFSET(24) NUMBITS(3) [
         /// Do not shift the colour data register.
         DoNotShiftTheColourDataRegister = 0,
@@ -1138,10 +1104,8 @@ TMDS_CTRL [
         ShiftTheColourDataRegisterBy16Bits = 5
     ],
     /// Enable lane interleaving for reads of PEEK_SINGLE/POP_SINGLE.
-///
-/// When interleaving is disabled, each of the 3 symbols
-///
-/// When interleaving is enabled, the symbols are packed
+    /// When interleaving is disabled, each of the 3 symbols
+    /// When interleaving is enabled, the symbols are packed
     INTERLEAVE OFFSET(23) NUMBITS(1) [],
     /// Number of valid colour MSBs for lane 2 (1-8 bits, encoded as 0 through 7). Remai
     L2_NBITS OFFSET(18) NUMBITS(3) [],
@@ -1150,16 +1114,13 @@ TMDS_CTRL [
     /// Number of valid colour MSBs for lane 0 (1-8 bits, encoded as 0 through 7). Remai
     L0_NBITS OFFSET(12) NUMBITS(3) [],
     /// Right-rotate the 16 LSBs of the colour accumulator by 0-15 bits, in order to get
-///
-/// For example, for RGB565 (red most significant), red
+    /// For example, for RGB565 (red most significant), red
     L2_ROT OFFSET(8) NUMBITS(4) [],
     /// Right-rotate the 16 LSBs of the colour accumulator by 0-15 bits, in order to get
-///
-/// For example, for RGB565, green is bits 10:5, so shou
+    /// For example, for RGB565, green is bits 10:5, so shou
     L1_ROT OFFSET(4) NUMBITS(4) [],
     /// Right-rotate the 16 LSBs of the colour accumulator by 0-15 bits, in order to get
-///
-/// For example, for RGB565 (red most significant), blue
+    /// For example, for RGB565 (red most significant), blue
     L0_ROT OFFSET(0) NUMBITS(4) []
 ],
 TMDS_WDATA [
