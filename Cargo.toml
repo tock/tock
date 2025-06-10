@@ -6,7 +6,6 @@
 members = [
     "arch/cortex-m",
     "arch/cortex-v7m",
-    "arch/cortex-v8m",
     "arch/cortex-m0",
     "arch/cortex-m0p",
     "arch/cortex-m3",
