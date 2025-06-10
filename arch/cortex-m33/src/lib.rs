@@ -35,17 +35,17 @@ pub use cortexm::CortexMVariant;
 pub enum CortexM33 {}
 
 impl cortexm::CortexMVariant for CortexM33 {
-    const GENERIC_ISR: unsafe extern "C" fn() = cortexv8m::generic_isr_arm_v8m;
-    const SYSTICK_HANDLER: unsafe extern "C" fn() = cortexv8m::systick_handler_arm_v8m;
-    const SVC_HANDLER: unsafe extern "C" fn() = cortexv8m::svc_handler_arm_v8m;
-    const HARD_FAULT_HANDLER: unsafe extern "C" fn() = cortexv8m::hard_fault_handler_arm_v8m;
+    const GENERIC_ISR: unsafe extern "C" fn() = cortexv7m::generic_isr_arm_v7m;
+    const SYSTICK_HANDLER: unsafe extern "C" fn() = cortexv7m::systick_handler_arm_v7m;
+    const SVC_HANDLER: unsafe extern "C" fn() = cortexv7m::svc_handler_arm_v7m;
+    const HARD_FAULT_HANDLER: unsafe extern "C" fn() = cortexv7m::hard_fault_handler_arm_v7m;
 
     #[cfg(all(target_arch = "arm", target_os = "none"))]
     unsafe fn switch_to_user(
         user_stack: *const usize,
         process_regs: &mut [usize; 8],
     ) -> *const usize {
-        cortexv8m::switch_to_user_arm_v8m(user_stack, process_regs)
+        cortexv7m::switch_to_user_arm_v7m(user_stack, process_regs)
     }
 
     #[cfg(not(all(target_arch = "arm", target_os = "none")))]
