@@ -13,8 +13,6 @@ use kernel::errorcode::ErrorCode;
 use kernel::memory_management::pointers::{
     ImmutableKernelVirtualPointer,
     ImmutableUserVirtualPointer,
-    MutableKernelVirtualPointer,
-    MutableUserVirtualPointer,
 };
 use kernel::syscall::ContextSwitchReason;
 
@@ -152,18 +150,10 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         Ok(())
     }
 
-    fn get_sp(&self, state: &mut Self::StoredState) -> MutableUserVirtualPointer<u8> {
-        // SAFETY: `esp` is a valid user pointer
-        unsafe { MutableUserVirtualPointer::new_from_raw(state.regs[R_SP] as *mut u8) }.unwrap()
-    }
-
     unsafe fn set_syscall_return_value(
         &self,
-        _kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        _kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
         _user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
         _user_app_brk: &ImmutableUserVirtualPointer<u8>,
-        _sp: &MutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
         return_value: kernel::syscall::SyscallReturn,
     ) -> Result<(), ()> {
@@ -201,11 +191,8 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
     unsafe fn set_process_function(
         &self,
-        _kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        _kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
         _user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
         _user_app_brk: &ImmutableUserVirtualPointer<u8>,
-        _sp: &MutableKernelVirtualPointer<u8>,
         state: &mut Riscv32iStoredState,
         callback: kernel::process::FunctionCall,
     ) -> Result<(), ()> {
@@ -234,11 +221,8 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     #[cfg(not(any(doc, all(target_arch = "riscv32", target_os = "none"))))]
     unsafe fn switch_to_process(
         &self,
-        _kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        _kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
         _user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
         _user_app_brk: &ImmutableUserVirtualPointer<u8>,
-        _sp: &MutableKernelVirtualPointer<u8>,
         _state: &mut Riscv32iStoredState,
     ) -> (ContextSwitchReason, Option<*const u8>) {
         // Convince lint that 'mcause' and 'R_A4' are used during test build
@@ -250,11 +234,8 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     #[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
     unsafe fn switch_to_process(
         &self,
-        _kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        _kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
         _user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
         _user_app_brk: &ImmutableUserVirtualPointer<u8>,
-        _sp: &MutableKernelVirtualPointer<u8>,
         state: &mut Riscv32iStoredState,
     ) -> (ContextSwitchReason, Option<ImmutableUserVirtualPointer<u8>>) {
         use core::arch::asm;
