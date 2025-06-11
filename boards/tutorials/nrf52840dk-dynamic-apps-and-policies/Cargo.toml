@@ -25,6 +25,10 @@ nrf52840dk = { path = "../../nordic/nrf52840dk" }
 capsules-core = { path = "../../../capsules/core" }
 capsules-extra = { path = "../../../capsules/extra" }
 capsules-system = { path = "../../../capsules/system" }
+ecdsa-sw = { path = "../../../capsules/ecdsa_sw" }
+
+tock-tbf = { path = "../../../libraries/tock-tbf" }
+
 nrf52_components = { path = "../../nordic/nrf52_components" }
 
 [build-dependencies]
