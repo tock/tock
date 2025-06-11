@@ -94,7 +94,12 @@ impl<T, R: Relation<T>> RelationalPair<T, R> {
 
 impl<T: Ord + core::fmt::LowerHex> Display for SmallerPair<T> {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(formatter, "({:#x}, {:#x})", self.as_first(), self.as_second())
+        write!(
+            formatter,
+            "({:#x}, {:#x})",
+            self.as_first(),
+            self.as_second()
+        )
     }
 }
 
@@ -152,7 +157,8 @@ impl<'a, T, R: Relation<T>> RelationalPairImmutableReference<'a, T, R> {
 
 pub type SmallerPair<T> = RelationalPair<T, Smaller>;
 pub type SmallerOrEqualPair<T> = RelationalPair<T, SmallerOrEqual>;
-pub type SmallerOrEqualPairImmutableReference<'a, T> = RelationalPairImmutableReference<'a, T, SmallerOrEqual>;
+pub type SmallerOrEqualPairImmutableReference<'a, T> =
+    RelationalPairImmutableReference<'a, T, SmallerOrEqual>;
 
 impl<T: Ord> SmallerPair<T> {
     pub const fn as_smaller(&self) -> &T {
@@ -171,7 +177,10 @@ impl<T: Ord> SmallerPair<T> {
         self.to_second()
     }
 
-    pub fn intersect_with_left<'a>(&'a self, value: &'a T) -> Result<SmallerOrEqualPair<&'a T>, ()> {
+    pub fn intersect_with_left<'a>(
+        &'a self,
+        value: &'a T,
+    ) -> Result<SmallerOrEqualPair<&'a T>, ()> {
         let smaller = self.as_smaller();
         let bigger = self.as_bigger();
 
@@ -195,7 +204,8 @@ impl<T: Ord> SmallerPair<T> {
 }
 
 impl<T: Ord> SmallerPair<T>
-where for<'a> &'a T: Sub<Output = isize>
+where
+    for<'a> &'a T: Sub<Output = isize>,
 {
     pub fn compute_difference(&self) -> NonZero<usize> {
         let smaller = self.as_smaller();
@@ -226,7 +236,8 @@ impl<T: Ord> SmallerOrEqualPair<T> {
 }
 
 impl<T: Ord> SmallerOrEqualPair<T>
-where for<'a> &'a T: Sub<Output = isize>
+where
+    for<'a> &'a T: Sub<Output = isize>,
 {
     pub fn compute_difference(&self) -> usize {
         let smaller = self.as_smaller();
@@ -255,7 +266,8 @@ impl<'a, T: Ord> SmallerOrEqualPairImmutableReference<'a, T> {
 }
 
 impl<'a, T: Ord> SmallerOrEqualPairImmutableReference<'a, T>
-where &'a T: Sub<Output = isize>
+where
+    &'a T: Sub<Output = isize>,
 {
     pub fn compute_difference(&self) -> usize {
         let smaller = self.as_smaller();

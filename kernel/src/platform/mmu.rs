@@ -6,8 +6,7 @@
 
 use crate::memory_management::granules::Granule as GranuleLike;
 use crate::memory_management::regions::{
-    UserMappedProtectedAllocatedRegion,
-    PhysicalProtectedAllocatedRegion,
+    PhysicalProtectedAllocatedRegion, UserMappedProtectedAllocatedRegion,
 };
 
 #[derive(Clone, Copy)]
@@ -65,9 +64,7 @@ impl<T: MPU> MMU for T {
         Asid::new(0)
     }
 
-    fn flush(&self, _asid: Asid) {
-
-    }
+    fn flush(&self, _asid: Asid) {}
 
     fn map_user_prog_region(
         &self,

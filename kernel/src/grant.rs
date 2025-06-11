@@ -135,8 +135,7 @@ use core::slice;
 
 use crate::kernel::Kernel;
 use crate::memory_management::pointers::{
-    ImmutableKernelVirtualPointer,
-    MutableKernelVirtualPointer,
+    ImmutableKernelVirtualPointer, MutableKernelVirtualPointer,
 };
 use crate::process::{Error, Process, ProcessCustomGrantIdentifier, ProcessId};
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
@@ -758,10 +757,7 @@ struct SavedAllowRo {
 #[allow(clippy::derivable_impls)]
 impl Default for SavedAllowRo {
     fn default() -> Self {
-        Self {
-            ptr: None,
-            len: 0,
-        }
+        Self { ptr: None, len: 0 }
     }
 }
 
@@ -782,10 +778,7 @@ struct SavedAllowRw {
 #[allow(clippy::derivable_impls)]
 impl Default for SavedAllowRw {
     fn default() -> Self {
-        Self {
-            ptr: None,
-            len: 0,
-        }
+        Self { ptr: None, len: 0 }
     }
 }
 
@@ -912,8 +905,9 @@ pub(crate) fn allow_ro(
             //
             // The pointer has already been validated to be within application
             // memory before storing the values in the saved slice.
-            let old_allow =
-                unsafe { ReadOnlyProcessBuffer::new(saved.ptr.take(), saved.len, process.processid()) };
+            let old_allow = unsafe {
+                ReadOnlyProcessBuffer::new(saved.ptr.take(), saved.len, process.processid())
+            };
 
             // Replace old values with current buffer.
             let (ptr, len) = buffer.consume();
@@ -960,8 +954,9 @@ pub(crate) fn allow_rw(
             //
             // The pointer has already been validated to be within application
             // memory before storing the values in the saved slice.
-            let old_allow =
-                unsafe { ReadWriteProcessBuffer::new(saved.ptr.take(), saved.len, process.processid()) };
+            let old_allow = unsafe {
+                ReadWriteProcessBuffer::new(saved.ptr.take(), saved.len, process.processid())
+            };
 
             // Replace old values with current buffer.
             let (ptr, len) = buffer.consume();

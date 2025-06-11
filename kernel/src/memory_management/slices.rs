@@ -2,10 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive SRL 2025.
 
-use super::pointers::{
-    Pointer,
-    ValidVirtualPointer,
-};
+use super::pointers::{Pointer, ValidVirtualPointer};
 
 use crate::utilities::alignment::Alignment;
 use crate::utilities::ordering::SmallerPair;
@@ -13,7 +10,9 @@ use crate::utilities::slices::NonEmptySlice;
 
 use core::num::NonZero;
 
-pub struct Slice<'a, const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>(NonEmptySlice<'a, IS_MUTABLE, T>);
+pub struct Slice<'a, const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>(
+    NonEmptySlice<'a, IS_MUTABLE, T>,
+);
 
 pub type PhysicalSlice<'a, const IS_MUTABLE: bool, T> = Slice<'a, false, IS_MUTABLE, T>;
 pub type ImmutablePhysicalSlice<'a, T> = PhysicalSlice<'a, false, T>;
@@ -23,22 +22,23 @@ pub type VirtualSlice<'a, const IS_MUTABLE: bool, T> = Slice<'a, true, IS_MUTABL
 pub type ImmutableVirtualSlice<'a, T> = VirtualSlice<'a, false, T>;
 pub type MutableVirtualSlice<'a, T> = VirtualSlice<'a, true, T>;
 
-pub struct ValidVirtualSlice<'a, const IS_USER: bool, const IS_MUTABLE: bool, T>(VirtualSlice<'a, IS_MUTABLE, T>);
+pub struct ValidVirtualSlice<'a, const IS_USER: bool, const IS_MUTABLE: bool, T>(
+    VirtualSlice<'a, IS_MUTABLE, T>,
+);
 
-pub type UserVirtualSlice<'a, const IS_MUTABLE: bool, T> = ValidVirtualSlice<'a, true, IS_MUTABLE, T>;
+pub type UserVirtualSlice<'a, const IS_MUTABLE: bool, T> =
+    ValidVirtualSlice<'a, true, IS_MUTABLE, T>;
 pub type ImmutableUserVirtualSlice<'a, T> = UserVirtualSlice<'a, false, T>;
 pub type MutableUserVirtualSlice<'a, T> = UserVirtualSlice<'a, true, T>;
 
-pub type KernelVirtualSlice<'a, const IS_MUTABLE: bool, T> = ValidVirtualSlice<'a, false, IS_MUTABLE, T>;
+pub type KernelVirtualSlice<'a, const IS_MUTABLE: bool, T> =
+    ValidVirtualSlice<'a, false, IS_MUTABLE, T>;
 pub type ImmutableKernelVirtualSlice<'a, T> = KernelVirtualSlice<'a, false, T>;
 pub type MutableKernelVirtualSlice<'a, T> = KernelVirtualSlice<'a, true, T>;
 
-impl<
-    'a,
-    const IS_VIRTUAL: bool,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> Slice<'a, IS_VIRTUAL, IS_MUTABLE, T> {
+impl<'a, const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>
+    Slice<'a, IS_VIRTUAL, IS_MUTABLE, T>
+{
     /// # Safety
     ///
     /// The caller must ensure that:
@@ -61,9 +61,7 @@ impl<
     ///
     /// 1. No other reference to the memory covered by this slice exists.
     /// 2. The memory covered by the slice is valid for the <'a> lifetime.
-    pub unsafe fn new_start_end(
-        pointers: SmallerPair<Pointer<IS_VIRTUAL, IS_MUTABLE, T>>,
-    ) -> Self {
+    pub unsafe fn new_start_end(pointers: SmallerPair<Pointer<IS_VIRTUAL, IS_MUTABLE, T>>) -> Self {
         let non_empty_slice = NonEmptySlice::new_start_end(pointers.downgrade());
         // SAFETY: `non_empty_slice` comes from `pointers`
         unsafe { Self::new(non_empty_slice) }
@@ -131,7 +129,7 @@ impl<
 
     pub(crate) fn split_at_checked(
         self,
-        mid: NonZero<usize>
+        mid: NonZero<usize>,
     ) -> Result<(Self, Option<Self>), Self> {
         let non_empty_slice = self.to_non_empty_slice();
         let result = non_empty_slice.split_at_checked(mid);
@@ -148,7 +146,9 @@ impl<
                 let optional_right_slice = match optional_right_non_empty_slice {
                     None => None,
                     // SAFETY: `right_non_empty_slice` comes from `self`, so it has the right type
-                    Some(right_non_empty_slice) => Some(unsafe { Self::new(right_non_empty_slice) }),
+                    Some(right_non_empty_slice) => {
+                        Some(unsafe { Self::new(right_non_empty_slice) })
+                    }
                 };
 
                 Ok((left_slice, optional_right_slice))
@@ -157,12 +157,9 @@ impl<
     }
 }
 
-impl<
-    'a,
-    const IS_USER: bool,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> ValidVirtualSlice<'a, IS_USER, IS_MUTABLE, T> {
+impl<'a, const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment>
+    ValidVirtualSlice<'a, IS_USER, IS_MUTABLE, T>
+{
     /// # Safety
     ///
     /// The caller must ensure that:
@@ -176,12 +173,7 @@ impl<
         length: NonZero<usize>,
     ) -> Self {
         // SAFETY: the safety requirements are ensured by the caller.
-        let virtual_slice = unsafe {
-            VirtualSlice::from_raw_parts(
-                pointer.downgrade(),
-                length,
-            )
-        };
+        let virtual_slice = unsafe { VirtualSlice::from_raw_parts(pointer.downgrade(), length) };
 
         // SAFETY: `pointer` ensures that `virtual_slice` is of the right type.
         unsafe { Self::new(virtual_slice) }
@@ -221,7 +213,7 @@ impl<
 
     pub(crate) fn split_at_checked(
         self,
-        mid: NonZero<usize>
+        mid: NonZero<usize>,
     ) -> Result<(Self, Option<Self>), Self> {
         let virtual_slice = self.to_virtual_slice();
         let result = virtual_slice.split_at_checked(mid);

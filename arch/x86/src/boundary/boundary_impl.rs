@@ -7,8 +7,7 @@ use core::fmt::Write;
 use crate::registers::bits32::eflags::{EFlags, EFLAGS};
 
 use kernel::memory_management::pointers::{
-    ImmutableKernelVirtualPointer,
-    ImmutableUserVirtualPointer,
+    ImmutableKernelVirtualPointer, ImmutableUserVirtualPointer,
 };
 use kernel::process::FunctionCall;
 use kernel::syscall::{ContextSwitchReason, Syscall, SyscallReturn, UserspaceKernelBoundary};
@@ -56,7 +55,9 @@ impl UserspaceKernelBoundary for Boundary {
         user_app_brk: &ImmutableUserVirtualPointer<u8>,
         state: &mut Self::StoredState,
     ) -> Result<(), ()> {
-        if user_app_brk.get_address().get() - user_accessible_memory_start.get_address().get() < Self::MIN_APP_BRK {
+        if user_app_brk.get_address().get() - user_accessible_memory_start.get_address().get()
+            < Self::MIN_APP_BRK
+        {
             return Err(());
         }
 

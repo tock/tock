@@ -71,9 +71,7 @@ use core::ptr::NonNull;
 
 use crate::errorcode::ErrorCode;
 use crate::memory_management::pointers::{
-    ImmutableKernelVirtualPointer,
-    ImmutableUserVirtualPointer,
-    MutableUserVirtualPointer,
+    ImmutableKernelVirtualPointer, ImmutableUserVirtualPointer, MutableUserVirtualPointer,
 };
 
 use crate::process;
@@ -277,7 +275,9 @@ impl Syscall {
                 allow_pointer: NonNull::new(r2.as_capability_ptr().as_ptr::<u8>() as *mut u8)
                     // SAFETY: User space always passes virtual pointers which are obviously user
                     // pointers.
-                    .map(|non_null_pointer| unsafe { MutableUserVirtualPointer::new_from_non_null_byte(non_null_pointer) }),
+                    .map(|non_null_pointer| unsafe {
+                        MutableUserVirtualPointer::new_from_non_null_byte(non_null_pointer)
+                    }),
                 allow_size: r3.as_usize(),
             }),
             Ok(SyscallClass::UserspaceReadableAllow) => Some(Syscall::UserspaceReadableAllow {
@@ -286,7 +286,9 @@ impl Syscall {
                 allow_pointer: NonNull::new(r2.as_capability_ptr().as_ptr::<u8>() as *mut u8)
                     // SAFETY: User space always passes virtual pointers which are obviously user
                     // pointers.
-                    .map(|non_null_pointer| unsafe { MutableUserVirtualPointer::new_from_non_null_byte(non_null_pointer) }),
+                    .map(|non_null_pointer| unsafe {
+                        MutableUserVirtualPointer::new_from_non_null_byte(non_null_pointer)
+                    }),
                 allow_size: r3.as_usize(),
             }),
             Ok(SyscallClass::ReadOnlyAllow) => Some(Syscall::ReadOnlyAllow {
@@ -295,7 +297,9 @@ impl Syscall {
                 allow_pointer: NonNull::new(r2.as_capability_ptr().as_ptr::<u8>() as *mut u8)
                     // SAFETY: User space always passes virtual pointers which are obviously user
                     // pointers.
-                    .map(|non_null_pointer| unsafe { ImmutableUserVirtualPointer::new_from_non_null_byte(non_null_pointer) }),
+                    .map(|non_null_pointer| unsafe {
+                        ImmutableUserVirtualPointer::new_from_non_null_byte(non_null_pointer)
+                    }),
                 allow_size: r3.as_usize(),
             }),
             Ok(SyscallClass::Memop) => Some(Syscall::Memop {

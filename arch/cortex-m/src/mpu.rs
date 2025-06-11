@@ -7,14 +7,10 @@
 //! Implementation of the memory protection unit for the Cortex-M0+, Cortex-M3,
 //! Cortex-M4, and Cortex-M7.
 
-use kernel::platform::mmu::{
-    Asid,
-    MPU as MpuTrait,
-    MpuMmuCommon,
-};
 use kernel::memory_management::pages::Page4KiB;
 use kernel::memory_management::permissions::Permissions;
 use kernel::memory_management::regions::PhysicalProtectedAllocatedRegion;
+use kernel::platform::mmu::{Asid, MpuMmuCommon, MPU as MpuTrait};
 use kernel::utilities::math;
 use kernel::utilities::registers::interfaces::Writeable;
 use kernel::utilities::registers::{register_bitfields, FieldValue, ReadOnly, ReadWrite};
@@ -142,9 +138,7 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> MPU<NUM_REGIONS, MI
     const RAM_REGION_INDEX: usize = 1;
 
     pub unsafe fn new(registers: StaticRef<MpuRegisters>) -> Self {
-        let mpu = Self {
-            registers,
-        };
+        let mpu = Self { registers };
 
         // Mark all regions as empty.
         for region_index in 0..NUM_REGIONS {
@@ -171,14 +165,13 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> MPU<NUM_REGIONS, MI
         index: usize,
         protected_region: &PhysicalProtectedAllocatedRegion<Page4KiB>,
     ) {
-        let starting_pointer = protected_region.get_starting_pointer()
-            .infallible_cast();
+        let starting_pointer = protected_region.get_starting_pointer().infallible_cast();
         let raw_starting_pointer = unsafe { starting_pointer.to_raw() };
         let protected_length_bytes = protected_region.get_protected_length_bytes();
         let permissions = protected_region.get_permissions();
 
         if let Some(cortex_m_region) = CortexMRegion::new(
-            raw_starting_pointer, 
+            raw_starting_pointer,
             protected_length_bytes.get(),
             index,
             None,

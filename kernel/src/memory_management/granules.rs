@@ -2,21 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive SRL 2025.
 
-use crate::utilities::misc::{
-    create_non_zero_usize,
-    divide_non_zero_usize,
-    modulo_non_zero_usize,
-};
 use crate::utilities::alignment::Alignment;
+use crate::utilities::misc::{create_non_zero_usize, divide_non_zero_usize, modulo_non_zero_usize};
 
 use core::num::NonZero;
 
 pub trait Granule: Alignment {
     const SIZE_U8: NonZero<usize>;
 
-    fn ceil_from_byte_count(
-        byte_count: NonZero<usize>,
-    ) -> NonZero<usize> {
+    fn ceil_from_byte_count(byte_count: NonZero<usize>) -> NonZero<usize> {
         let quotient = divide_non_zero_usize(byte_count, Self::SIZE_U8);
         let remainder = modulo_non_zero_usize(byte_count, Self::SIZE_U8);
         let result = if remainder != 0 {

@@ -82,11 +82,7 @@ impl fmt::Debug for ProcessLoadError {
             }
 
             ProcessLoadError::MemoryMappingError(process_memory_mapping_error) => {
-                write!(
-                    f,
-                    "Memory mapping error {:?}",
-                    process_memory_mapping_error,
-                )
+                write!(f, "Memory mapping error {:?}", process_memory_mapping_error,)
             }
 
             ProcessLoadError::NoProcessSlot => {
@@ -215,22 +211,20 @@ fn load_processes_from_flash<'a, C: Chip, D: ProcessStandardDebug + 'static>(
                     &(),
                 );
                 match load_result {
-                    Ok(proc) => {
-                        match proc {
-                            Some(p) => {
-                                if config::CONFIG.debug_load_processes {
-                                    debug!("Loaded process {}", p.get_process_name())
-                                }
-                                procs[index].insert(proc);
-                                index += 1;
+                    Ok(proc) => match proc {
+                        Some(p) => {
+                            if config::CONFIG.debug_load_processes {
+                                debug!("Loaded process {}", p.get_process_name())
                             }
-                            None => {
-                                if config::CONFIG.debug_load_processes {
-                                    debug!("No process loaded.");
-                                }
+                            procs[index].insert(proc);
+                            index += 1;
+                        }
+                        None => {
+                            if config::CONFIG.debug_load_processes {
+                                debug!("No process loaded.");
                             }
                         }
-                    }
+                    },
                     Err(err) => {
                         if config::CONFIG.debug_load_processes {
                             debug!("Processes load error: {:?}.", err);
@@ -347,8 +341,7 @@ fn load_process<'a, C: Chip, D: ProcessStandardDebug>(
     index: usize,
     fault_policy: &'static dyn ProcessFaultPolicy,
     storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C, D>,
-) -> Result<Option<&'static dyn Process>, ProcessLoadError>
-{
+) -> Result<Option<&'static dyn Process>, ProcessLoadError> {
     if config::CONFIG.debug_load_processes {
         debug!(
             "Loading: process flash={:#010X}-{:#010X}",

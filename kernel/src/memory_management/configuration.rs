@@ -3,18 +3,12 @@
 // Copyright OxidOS Automotive SRL 2025.
 
 use super::pointers::{
-    PhysicalPointer,
-    KernelVirtualPointer,
-    UserVirtualPointer,
-    ValidVirtualPointer,
+    KernelVirtualPointer, PhysicalPointer, UserVirtualPointer, ValidVirtualPointer,
 };
 use super::regions::{
-    DirtyMappedProtectedAllocatedRegion,
-    KernelDirtyMappedProtectedAllocatedRegion,
-    KernelMappedProtectedAllocatedRegion,
-    MappedProtectedAllocatedRegion,
-    UserDirtyMappedProtectedAllocatedRegion,
-    UserMappedProtectedAllocatedRegion,
+    DirtyMappedProtectedAllocatedRegion, KernelDirtyMappedProtectedAllocatedRegion,
+    KernelMappedProtectedAllocatedRegion, MappedProtectedAllocatedRegion,
+    UserDirtyMappedProtectedAllocatedRegion, UserMappedProtectedAllocatedRegion,
 };
 
 use crate::platform::mmu::Asid;
@@ -22,30 +16,23 @@ use crate::platform::mmu::Asid;
 use crate::utilities::alignment::AlwaysAligned;
 
 #[repr(transparent)]
-pub(super) struct Configuration<
-    'a,
-    const IS_USER: bool,
-    const NUMBER_REGIONS: usize,
-    Granule,
-> {
+pub(super) struct Configuration<'a, const IS_USER: bool, const NUMBER_REGIONS: usize, Granule> {
     regions: [DirtyMappedProtectedAllocatedRegion<'a, IS_USER, Granule>; NUMBER_REGIONS],
 }
 
-impl<
-    'a,
-    const IS_USER: bool,
-    const NUMBER_REGIONS: usize,
-    Granule,
-> Configuration<'a, IS_USER, NUMBER_REGIONS, Granule> {
+impl<'a, const IS_USER: bool, const NUMBER_REGIONS: usize, Granule>
+    Configuration<'a, IS_USER, NUMBER_REGIONS, Granule>
+{
     pub(super) const fn new(
         regions: [DirtyMappedProtectedAllocatedRegion<'a, IS_USER, Granule>; NUMBER_REGIONS],
     ) -> Self {
-        Self {
-            regions,
-        }
+        Self { regions }
     }
 
-    pub(super) fn get_region(&self, index: usize) -> Option<&DirtyMappedProtectedAllocatedRegion<'a, IS_USER, Granule>> {
+    pub(super) fn get_region(
+        &self,
+        index: usize,
+    ) -> Option<&DirtyMappedProtectedAllocatedRegion<'a, IS_USER, Granule>> {
         self.regions.get(index)
     }
 
@@ -54,7 +41,10 @@ impl<
         target_region: &MappedProtectedAllocatedRegion<'a, OTHER_IS_USER, Granule>,
     ) -> bool {
         for region in &self.regions {
-            if region.as_mapped_protected_allocated_region().is_intersecting_virtually(target_region) {
+            if region
+                .as_mapped_protected_allocated_region()
+                .is_intersecting_virtually(target_region)
+            {
                 return true;
             }
         }
@@ -70,10 +60,11 @@ impl<
         mut physical_pointer: PhysicalPointer<IS_MUTABLE, U>,
     ) -> Result<ValidVirtualPointer<IS_USER, IS_MUTABLE, U>, PhysicalPointer<IS_MUTABLE, U>> {
         for region in &self.regions {
-            physical_pointer = match region.translate_allocated_physical_pointer_byte(physical_pointer) {
-                Err(physical_pointer) => physical_pointer,
-                Ok(virtual_pointer) => return Ok(virtual_pointer),
-            }
+            physical_pointer =
+                match region.translate_allocated_physical_pointer_byte(physical_pointer) {
+                    Err(physical_pointer) => physical_pointer,
+                    Ok(virtual_pointer) => return Ok(virtual_pointer),
+                }
         }
 
         Err(physical_pointer)
@@ -87,7 +78,8 @@ impl<
         mut virtual_pointer: ValidVirtualPointer<IS_USER, IS_MUTABLE, U>,
     ) -> Result<PhysicalPointer<IS_MUTABLE, U>, ValidVirtualPointer<IS_USER, IS_MUTABLE, U>> {
         for region in &self.regions {
-            virtual_pointer = match region.translate_allocated_virtual_pointer_byte(virtual_pointer) {
+            virtual_pointer = match region.translate_allocated_virtual_pointer_byte(virtual_pointer)
+            {
                 Err(virtual_pointer) => virtual_pointer,
                 Ok(physical_pointer) => return Ok(physical_pointer),
             }
@@ -97,7 +89,7 @@ impl<
     }
 }
 
-pub(crate) struct ProcessConfiguration<'a, Granule>{
+pub(crate) struct ProcessConfiguration<'a, Granule> {
     asid: Asid,
     configuration: Configuration<'a, true, 2, Granule>,
 }
@@ -116,7 +108,7 @@ impl<'a, Granule> ProcessConfiguration<'a, Granule> {
 
         Self {
             asid,
-            configuration: Configuration::new([dirty_flash_region, dirty_ram_region])
+            configuration: Configuration::new([dirty_flash_region, dirty_ram_region]),
         }
     }
 
@@ -130,63 +122,61 @@ impl<'a, Granule> ProcessConfiguration<'a, Granule> {
 
     pub(super) fn get_prog_region(&self) -> &UserDirtyMappedProtectedAllocatedRegion<'a, Granule> {
         // PANIC: FLASH_REGION_INDEX < 2
-        self.as_configuration().get_region(FLASH_REGION_INDEX).unwrap()
+        self.as_configuration()
+            .get_region(FLASH_REGION_INDEX)
+            .unwrap()
     }
 
     pub(super) fn get_ram_region(&self) -> &UserDirtyMappedProtectedAllocatedRegion<'a, Granule> {
         // PANIC: RAM_REGION_INDEX < 2
-        self.as_configuration().get_region(RAM_REGION_INDEX).unwrap()
+        self.as_configuration()
+            .get_region(RAM_REGION_INDEX)
+            .unwrap()
     }
 
-    fn translate_protected_physical_pointer_byte<
-        const IS_MUTABLE: bool,
-        U: AlwaysAligned,
-    >(
+    fn translate_protected_physical_pointer_byte<const IS_MUTABLE: bool, U: AlwaysAligned>(
         &self,
         physical_pointer: PhysicalPointer<IS_MUTABLE, U>,
     ) -> Result<UserVirtualPointer<IS_MUTABLE, U>, PhysicalPointer<IS_MUTABLE, U>> {
         let ram_region = self.get_ram_region();
 
-        let physical_pointer = match ram_region.translate_protected_physical_pointer_byte(physical_pointer) {
-            Err(physical_pointer) => physical_pointer,
-            ok @ _ => return ok,
-        };
+        let physical_pointer =
+            match ram_region.translate_protected_physical_pointer_byte(physical_pointer) {
+                Err(physical_pointer) => physical_pointer,
+                ok @ _ => return ok,
+            };
 
         let prog_region = self.get_prog_region();
 
         prog_region.translate_protected_physical_pointer_byte(physical_pointer)
     }
 
-    fn translate_protected_virtual_pointer_byte<
-        const IS_MUTABLE: bool,
-        U: AlwaysAligned,
-    >(
+    fn translate_protected_virtual_pointer_byte<const IS_MUTABLE: bool, U: AlwaysAligned>(
         &self,
         virtual_pointer: UserVirtualPointer<IS_MUTABLE, U>,
     ) -> Result<PhysicalPointer<IS_MUTABLE, U>, UserVirtualPointer<IS_MUTABLE, U>> {
         let ram_region = self.get_ram_region();
-        let virtual_pointer = match ram_region.translate_protected_virtual_pointer_byte(virtual_pointer) {
-            Err(virtual_pointer) => virtual_pointer,
-            ok @ _ => return ok,
-        };
+        let virtual_pointer =
+            match ram_region.translate_protected_virtual_pointer_byte(virtual_pointer) {
+                Err(virtual_pointer) => virtual_pointer,
+                ok @ _ => return ok,
+            };
 
         let prog_region = self.get_prog_region();
         prog_region.translate_protected_virtual_pointer_byte(virtual_pointer)
     }
 
-    fn translate_allocated_virtual_pointer_byte<
-        const IS_MUTABLE: bool,
-        U: AlwaysAligned,
-    >(
+    fn translate_allocated_virtual_pointer_byte<const IS_MUTABLE: bool, U: AlwaysAligned>(
         &self,
         virtual_pointer: UserVirtualPointer<IS_MUTABLE, U>,
     ) -> Result<PhysicalPointer<IS_MUTABLE, U>, UserVirtualPointer<IS_MUTABLE, U>> {
         let ram_region = self.get_ram_region();
 
-        let virtual_pointer = match ram_region.translate_allocated_virtual_pointer_byte(virtual_pointer) {
-            Err(virtual_pointer) => virtual_pointer,
-            ok @ _ => return ok,
-        };
+        let virtual_pointer =
+            match ram_region.translate_allocated_virtual_pointer_byte(virtual_pointer) {
+                Err(virtual_pointer) => virtual_pointer,
+                ok @ _ => return ok,
+            };
 
         let prog_region = self.get_prog_region();
 
@@ -227,7 +217,8 @@ impl<'a, Granule> ValidProcessConfiguration<'a, Granule> {
         &self,
         physical_pointer: PhysicalPointer<IS_MUTABLE, U>,
     ) -> Result<UserVirtualPointer<IS_MUTABLE, U>, PhysicalPointer<IS_MUTABLE, U>> {
-        self.0.translate_protected_physical_pointer_byte(physical_pointer)
+        self.0
+            .translate_protected_physical_pointer_byte(physical_pointer)
     }
 
     pub(crate) fn translate_protected_virtual_pointer_byte<
@@ -237,7 +228,8 @@ impl<'a, Granule> ValidProcessConfiguration<'a, Granule> {
         &self,
         virtual_pointer: UserVirtualPointer<IS_MUTABLE, U>,
     ) -> Result<PhysicalPointer<IS_MUTABLE, U>, UserVirtualPointer<IS_MUTABLE, U>> {
-        self.0.translate_protected_virtual_pointer_byte(virtual_pointer)
+        self.0
+            .translate_protected_virtual_pointer_byte(virtual_pointer)
     }
 
     pub(crate) fn translate_allocated_virtual_pointer_byte<
@@ -247,7 +239,8 @@ impl<'a, Granule> ValidProcessConfiguration<'a, Granule> {
         &self,
         virtual_pointer: UserVirtualPointer<IS_MUTABLE, U>,
     ) -> Result<PhysicalPointer<IS_MUTABLE, U>, UserVirtualPointer<IS_MUTABLE, U>> {
-        self.0.translate_allocated_virtual_pointer_byte(virtual_pointer)
+        self.0
+            .translate_allocated_virtual_pointer_byte(virtual_pointer)
     }
 }
 
@@ -285,7 +278,8 @@ impl<'a, Granule> KernelConfiguration<'a, Granule> {
         let dirty_rom_region = KernelDirtyMappedProtectedAllocatedRegion::new(rom_region);
         let dirty_prog_region = KernelDirtyMappedProtectedAllocatedRegion::new(prog_region);
         let dirty_ram_region = KernelDirtyMappedProtectedAllocatedRegion::new(ram_region);
-        let dirty_peripheral_region = KernelDirtyMappedProtectedAllocatedRegion::new(peripheral_region);
+        let dirty_peripheral_region =
+            KernelDirtyMappedProtectedAllocatedRegion::new(peripheral_region);
 
         let configuration = Configuration::new([
             dirty_rom_region,
@@ -321,7 +315,8 @@ impl<'a, Granule> KernelConfiguration<'a, Granule> {
         &self,
         physical_pointer: PhysicalPointer<IS_MUTABLE, U>,
     ) -> Result<KernelVirtualPointer<IS_MUTABLE, U>, PhysicalPointer<IS_MUTABLE, U>> {
-        self.0.translate_allocated_physical_pointer_byte(physical_pointer)
+        self.0
+            .translate_allocated_physical_pointer_byte(physical_pointer)
     }
 
     pub(super) fn translate_allocated_virtual_pointer_byte<
@@ -331,6 +326,7 @@ impl<'a, Granule> KernelConfiguration<'a, Granule> {
         &self,
         virtual_pointer: KernelVirtualPointer<IS_MUTABLE, U>,
     ) -> Result<PhysicalPointer<IS_MUTABLE, U>, KernelVirtualPointer<IS_MUTABLE, U>> {
-        self.0.translate_allocated_virtual_pointer_byte(virtual_pointer)
+        self.0
+            .translate_allocated_virtual_pointer_byte(virtual_pointer)
     }
 }

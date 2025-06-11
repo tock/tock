@@ -48,14 +48,15 @@ pub(crate) fn memop(process: &dyn Process, op_type: usize, r1: usize) -> Syscall
         // Op Type 0: BRK
         0 => {
             // SAFETY: a process can pass only user virtual pointers
-            let pointer_result = unsafe { ImmutableUserVirtualPointer::new_from_raw_byte(r1 as *const u8) };
+            let pointer_result =
+                unsafe { ImmutableUserVirtualPointer::new_from_raw_byte(r1 as *const u8) };
 
             match pointer_result {
                 Err(()) => SyscallReturn::Failure(ErrorCode::INVAL),
                 Ok(pointer) => process
                     .brk(pointer)
                     .map(|_| SyscallReturn::Success)
-                    .unwrap_or(SyscallReturn::Failure(ErrorCode::NOMEM))
+                    .unwrap_or(SyscallReturn::Failure(ErrorCode::NOMEM)),
             }
         }
 
@@ -156,7 +157,8 @@ pub(crate) fn memop(process: &dyn Process, op_type: usize, r1: usize) -> Syscall
         // Op Type 10: Specify where the start of the app stack is.
         10 => {
             // SAFETY: a process can pass only user virtual pointers
-            let stack_pointer_result = unsafe { ImmutableUserVirtualPointer::new_from_raw_byte(r1 as *const u8) };
+            let stack_pointer_result =
+                unsafe { ImmutableUserVirtualPointer::new_from_raw_byte(r1 as *const u8) };
 
             match stack_pointer_result {
                 Err(()) => SyscallReturn::Failure(ErrorCode::INVAL),
@@ -170,7 +172,8 @@ pub(crate) fn memop(process: &dyn Process, op_type: usize, r1: usize) -> Syscall
         // Op Type 11: Specify where the start of the app heap is.
         11 => {
             // SAFETY: a process can pass only user virtual pointers
-            let heap_pointer_result = unsafe { ImmutableUserVirtualPointer::new_from_raw_byte(r1 as *const u8) };
+            let heap_pointer_result =
+                unsafe { ImmutableUserVirtualPointer::new_from_raw_byte(r1 as *const u8) };
 
             match heap_pointer_result {
                 Err(()) => SyscallReturn::Failure(ErrorCode::INVAL),

@@ -11,8 +11,7 @@ use core::ops::Range;
 use crate::csr::mcause;
 use kernel::errorcode::ErrorCode;
 use kernel::memory_management::pointers::{
-    ImmutableKernelVirtualPointer,
-    ImmutableUserVirtualPointer,
+    ImmutableKernelVirtualPointer, ImmutableUserVirtualPointer,
 };
 use kernel::syscall::ContextSwitchReason;
 

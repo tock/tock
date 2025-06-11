@@ -14,8 +14,7 @@ use core::ops::Range;
 use core::ptr::{self, addr_of, addr_of_mut, read_volatile, write_volatile};
 use kernel::errorcode::ErrorCode;
 use kernel::memory_management::pointers::{
-    ImmutableKernelVirtualPointer,
-    ImmutableUserVirtualPointer,
+    ImmutableKernelVirtualPointer, ImmutableUserVirtualPointer,
 };
 
 use crate::CortexMVariant;
@@ -274,7 +273,10 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
         user_app_brk: &ImmutableUserVirtualPointer<u8>,
         state: &mut CortexMStoredState,
-    ) -> (kernel::syscall::ContextSwitchReason, Option<ImmutableUserVirtualPointer<u8>>) {
+    ) -> (
+        kernel::syscall::ContextSwitchReason,
+        Option<ImmutableUserVirtualPointer<u8>>,
+    ) {
         let user_accessible_memory_start_address = user_accessible_memory_start.get_address();
         let user_app_brk_address = user_app_brk.get_address();
 

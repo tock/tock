@@ -4,22 +4,15 @@
 
 // todo: this module needs some polish
 
-use crate::registers::bits32::paging::{
-    PAddr, PDEntry, PTEntry, PD, PDFLAGS, PT, PTFLAGS,
-};
+use crate::registers::bits32::paging::{PAddr, PDEntry, PTEntry, PD, PDFLAGS, PT, PTFLAGS};
 use crate::registers::controlregs::{self, CR0, CR4};
 use crate::registers::tlb;
 use core::fmt;
 use kernel::memory_management::pages::Page4KiB;
 use kernel::memory_management::permissions::Permissions;
-use kernel::memory_management::pointers::{
-    MutableUserVirtualPointer,
-    MutablePhysicalPointer,
-};
+use kernel::memory_management::pointers::{MutablePhysicalPointer, MutableUserVirtualPointer};
 use kernel::memory_management::regions::UserMappedProtectedAllocatedRegion;
-use kernel::platform::mmu::{
-    Asid,
-};
+use kernel::platform::mmu::Asid;
 use kernel::utilities::cells::OptionalCell;
 use tock_registers::LocalRegisterCopy;
 
@@ -380,7 +373,8 @@ impl kernel::platform::mmu::MMU for MMU<'_> {
         }
 
         self.add_user_region(mapped_region);
-        self.cached_user_prog_region.set(CachedRegion::new(mapped_region));
+        self.cached_user_prog_region
+            .set(CachedRegion::new(mapped_region));
 
         unsafe { tlb::flush_all() };
     }
@@ -394,7 +388,8 @@ impl kernel::platform::mmu::MMU for MMU<'_> {
         }
 
         self.add_user_region(mapped_region);
-        self.cached_user_ram_region.set(CachedRegion::new(mapped_region));
+        self.cached_user_ram_region
+            .set(CachedRegion::new(mapped_region));
 
         unsafe { tlb::flush_all() };
     }

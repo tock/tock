@@ -9,10 +9,7 @@
 //! `arch` crates. While these could also live in a dedicated crate, we use the
 //! `kernel` crate as all `arch` crates already depend on it.
 
-use crate::memory_management::pointers::{
-    ImmutableUserVirtualPointer,
-    MutableUserVirtualPointer,
-};
+use crate::memory_management::pointers::{ImmutableUserVirtualPointer, MutableUserVirtualPointer};
 use crate::syscall::SyscallReturn;
 use crate::ErrorCode;
 

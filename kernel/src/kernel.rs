@@ -20,27 +20,18 @@ use crate::grant::{AllowRoSize, AllowRwSize, Grant, UpcallSize};
 use crate::ipc;
 use crate::memop;
 use crate::memory_management::allocators::StaticAllocator;
-use crate::memory_management::configuration::{
-    ProcessConfiguration,
-    ValidProcessConfiguration,
-};
+use crate::memory_management::configuration::{ProcessConfiguration, ValidProcessConfiguration};
 use crate::memory_management::memory_managers::{
-    KernelMemoryManager,
-    ProcessMemoryManager,
-    ProcessMemoryMappingError,
+    KernelMemoryManager, ProcessMemoryManager, ProcessMemoryMappingError,
 };
 use crate::memory_management::pages::Page4KiB;
 use crate::memory_management::permissions::Permissions;
 use crate::memory_management::pointers::{
-    ImmutableUserVirtualPointer,
-    KernelVirtualPointer,
-    MutableUserVirtualPointer,
-    PhysicalPointer,
+    ImmutableUserVirtualPointer, KernelVirtualPointer, MutableUserVirtualPointer, PhysicalPointer,
     UserVirtualPointer,
 };
 use crate::memory_management::regions::{
-    KernelMappedAllocatedRegion,
-    KernelMappedProtectedAllocatedRegion,
+    KernelMappedAllocatedRegion, KernelMappedProtectedAllocatedRegion,
 };
 use crate::platform::chip::Chip;
 use crate::platform::mmu::{self, MpuMmuCommon as _};
@@ -57,7 +48,7 @@ use crate::syscall::{Syscall, YieldCall};
 use crate::syscall_driver::CommandReturn;
 use crate::upcall::{Upcall, UpcallId};
 use crate::utilities::alignment::AlwaysAligned;
-use crate::utilities::cells::{OptionalCell, NumericCellExt};
+use crate::utilities::cells::{NumericCellExt, OptionalCell};
 
 /// Threshold in microseconds to consider a process's timeslice to be exhausted.
 /// That is, Tock will skip re-scheduling a process if its remaining timeslice
@@ -90,7 +81,8 @@ pub struct Kernel {
     /// Process memory manager
     // TODO: the granule and the allocator are currently hard-coded. Try to rework the kernel so
     // that it can work with any granule and allocator.
-    process_memory_manager: ProcessMemoryManager<'static, Page4KiB, StaticAllocator<'static, Page4KiB>>,
+    process_memory_manager:
+        ProcessMemoryManager<'static, Page4KiB, StaticAllocator<'static, Page4KiB>>,
 
     /// Kernel memory manager
     // TODO: the granule is currently hard-coded. Try to rework the kernel so it can work with any
@@ -146,10 +138,11 @@ impl Kernel {
             kernel_ram_region,
             Permissions::ReadWrite,
         );
-        let protected_kernel_peripheral_region = KernelMappedProtectedAllocatedRegion::new_from_mapped(
-            kernel_peripheral_region,
-            Permissions::ReadWrite,
-        );
+        let protected_kernel_peripheral_region =
+            KernelMappedProtectedAllocatedRegion::new_from_mapped(
+                kernel_peripheral_region,
+                Permissions::ReadWrite,
+            );
 
         let kernel_memory_manager = KernelMemoryManager::new(
             protected_kernel_rom_region,
@@ -179,7 +172,8 @@ impl Kernel {
         &self,
         process_memory_configuration: ProcessConfiguration<'static, Page4KiB>,
     ) -> Result<ValidProcessConfiguration<'static, Page4KiB>, ProcessMemoryMappingError> {
-        self.kernel_memory_manager.is_process_configuration_valid(process_memory_configuration)
+        self.kernel_memory_manager
+            .is_process_configuration_valid(process_memory_configuration)
     }
 
     fn internal_translate_user_protected_physical_pointer_byte_to_user_virtual_pointer_byte<
@@ -215,7 +209,8 @@ impl Kernel {
         &self,
         physical_pointer: PhysicalPointer<IS_MUTABLE, U>,
     ) -> Result<KernelVirtualPointer<IS_MUTABLE, U>, PhysicalPointer<IS_MUTABLE, U>> {
-        self.kernel_memory_manager.translate_allocated_physical_pointer_byte(physical_pointer)
+        self.kernel_memory_manager
+            .translate_allocated_physical_pointer_byte(physical_pointer)
     }
 
     pub(crate) fn internal_translate_user_protected_virtual_pointer_byte<
@@ -228,7 +223,9 @@ impl Kernel {
     ) -> Result<KernelVirtualPointer<IS_MUTABLE, U>, UserVirtualPointer<IS_MUTABLE, U>> {
         let physical_pointer = process_memory_configuration
             .translate_protected_virtual_pointer_byte(user_virtual_pointer)?;
-        match self.translate_kernel_allocated_physical_pointer_byte_to_kernel_virtual_pointer_byte(physical_pointer) {
+        match self.translate_kernel_allocated_physical_pointer_byte_to_kernel_virtual_pointer_byte(
+            physical_pointer,
+        ) {
             Err(_physical_pointer) => Err(user_virtual_pointer),
             Ok(kernel_virtual_pointer) => Ok(kernel_virtual_pointer),
         }
@@ -259,7 +256,9 @@ impl Kernel {
     ) -> Result<KernelVirtualPointer<IS_MUTABLE, U>, UserVirtualPointer<IS_MUTABLE, U>> {
         let physical_pointer = process_memory_configuration
             .translate_allocated_virtual_pointer_byte(user_virtual_pointer)?;
-        match self.translate_kernel_allocated_physical_pointer_byte_to_kernel_virtual_pointer_byte(physical_pointer) {
+        match self.translate_kernel_allocated_physical_pointer_byte_to_kernel_virtual_pointer_byte(
+            physical_pointer,
+        ) {
             Err(_physical_pointer) => Err(user_virtual_pointer),
             Ok(kernel_virtual_pointer) => Ok(kernel_virtual_pointer),
         }
@@ -276,7 +275,10 @@ impl Kernel {
         let physical_pointer = self
             .kernel_memory_manager
             .translate_allocated_virtual_pointer_byte(kernel_virtual_pointer)?;
-        match self.translate_user_protected_physical_pointer_byte_to_user_virtual_pointer_byte(process, physical_pointer) {
+        match self.translate_user_protected_physical_pointer_byte_to_user_virtual_pointer_byte(
+            process,
+            physical_pointer,
+        ) {
             Err(_physical_pointer) => Err(kernel_virtual_pointer),
             Ok(user_virtual_pointer) => Ok(user_virtual_pointer),
         }
@@ -289,13 +291,19 @@ impl Kernel {
         &self,
         process: &dyn process::Process,
         kernel_virtual_pointer: Option<KernelVirtualPointer<IS_MUTABLE, U>>,
-    ) -> Result<Option<UserVirtualPointer<IS_MUTABLE, U>>, Option<KernelVirtualPointer<IS_MUTABLE, U>>> {
+    ) -> Result<
+        Option<UserVirtualPointer<IS_MUTABLE, U>>,
+        Option<KernelVirtualPointer<IS_MUTABLE, U>>,
+    > {
         match kernel_virtual_pointer {
             None => Ok(None),
             Some(non_null_kernel_virtual_pointer) => self
-                .translate_kernel_allocated_to_user_protected_byte(process, non_null_kernel_virtual_pointer)
+                .translate_kernel_allocated_to_user_protected_byte(
+                    process,
+                    non_null_kernel_virtual_pointer,
+                )
                 .map(|user_virtual_pointer| Some(user_virtual_pointer))
-                .map_err(|non_null_kernel_virtual_pointer| Some(non_null_kernel_virtual_pointer))
+                .map_err(|non_null_kernel_virtual_pointer| Some(non_null_kernel_virtual_pointer)),
         }
     }
 
@@ -457,9 +465,10 @@ impl Kernel {
     /// This is needed for `ProcessId` itself to implement the `.index()`
     /// command to verify that the referenced app is still at the correct index.
     pub(crate) fn processid_is_valid(&self, processid: &ProcessId) -> bool {
-        self.processes
-            .get(processid.index)
-            .is_some_and(|p| p.get().is_some_and(|process| process.processid().id() == processid.id()))
+        self.processes.get(processid.index).is_some_and(|p| {
+            p.get()
+                .is_some_and(|process| process.processid().id() == processid.id())
+        })
     }
 
     /// Create a new grant. This is used in board initialization to setup grants
@@ -566,7 +575,11 @@ impl Kernel {
     /// This function has one configuration option: `no_sleep`. If that argument
     /// is set to true, the kernel will never attempt to put the chip to sleep,
     /// and this function can be called again immediately.
-    pub fn kernel_loop_operation<KR: KernelResources<C>, C: Chip<MMU: mmu::MMU<Granule = Page4KiB>>, const NUM_PROCS: u8>(
+    pub fn kernel_loop_operation<
+        KR: KernelResources<C>,
+        C: Chip<MMU: mmu::MMU<Granule = Page4KiB>>,
+        const NUM_PROCS: u8,
+    >(
         &self,
         resources: &KR,
         chip: &C,
@@ -633,7 +646,11 @@ impl Kernel {
     ///
     /// Most of the behavior of this loop is controlled by the [`Scheduler`]
     /// implementation in use.
-    pub fn kernel_loop<KR: KernelResources<C>, C: Chip<MMU: mmu::MMU<Granule = Page4KiB>>, const NUM_PROCS: u8>(
+    pub fn kernel_loop<
+        KR: KernelResources<C>,
+        C: Chip<MMU: mmu::MMU<Granule = Page4KiB>>,
+        const NUM_PROCS: u8,
+    >(
         &self,
         resources: &KR,
         chip: &C,
@@ -756,7 +773,11 @@ impl Kernel {
     /// cooperatively). Notably, time spent in this function by the kernel,
     /// executing system calls or merely setting up the switch to/from
     /// userspace, is charged to the process.
-    fn do_process<KR: KernelResources<C>, C: Chip<MMU: mmu::MMU<Granule = Page4KiB>>, const NUM_PROCS: u8>(
+    fn do_process<
+        KR: KernelResources<C>,
+        C: Chip<MMU: mmu::MMU<Granule = Page4KiB>>,
+        const NUM_PROCS: u8,
+    >(
         &self,
         resources: &KR,
         chip: &C,
@@ -1114,13 +1135,16 @@ impl Kernel {
                         // so we can safely call `set_byte()`.
                         unsafe {
                             // PANIC: TODO: param_a may be null
-                            let user_pointer = MutableUserVirtualPointer::new_from_raw_byte(param_a as *mut u8).unwrap();
+                            let user_pointer =
+                                MutableUserVirtualPointer::new_from_raw_byte(param_a as *mut u8)
+                                    .unwrap();
                             // PANIC: TODO: param_a may be null
                             let kernel_pointer = self
                                 .translate_user_protected_virtual_pointer_byte(
                                     process,
                                     user_pointer,
-                                ).unwrap();
+                                )
+                                .unwrap();
                             process.set_byte(kernel_pointer, has_tasks as u8);
                         }
 

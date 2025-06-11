@@ -29,7 +29,9 @@ use core::marker::PhantomData;
 use core::ops::{Deref, Index, Range, RangeFrom, RangeTo};
 
 use crate::capabilities;
-use crate::memory_management::pointers::{ImmutableKernelVirtualPointer, MutableKernelVirtualPointer};
+use crate::memory_management::pointers::{
+    ImmutableKernelVirtualPointer, MutableKernelVirtualPointer,
+};
 use crate::process::{self, ProcessId};
 use crate::ErrorCode;
 
@@ -138,7 +140,9 @@ unsafe fn raw_processbuf_to_rwprocessslice<'a>(
         //
         // [1]: https://doc.rust-lang.org/core/ptr/index.html#safety
         match ptr {
-            None => core::slice::from_raw_parts_mut(core::ptr::NonNull::<u8>::dangling().as_ptr(), 0),
+            None => {
+                core::slice::from_raw_parts_mut(core::ptr::NonNull::<u8>::dangling().as_ptr(), 0)
+            }
             Some(ptr) => core::slice::from_raw_parts_mut(ptr.as_raw(), len),
         },
     )
@@ -249,7 +253,11 @@ impl ReadOnlyProcessBuffer {
     ///
     /// Refer to the safety requirements of
     /// [`ReadOnlyProcessBuffer::new_external`].
-    pub(crate) unsafe fn new(ptr: Option<ImmutableKernelVirtualPointer<u8>>, len: usize, process_id: ProcessId) -> Self {
+    pub(crate) unsafe fn new(
+        ptr: Option<ImmutableKernelVirtualPointer<u8>>,
+        len: usize,
+        process_id: ProcessId,
+    ) -> Self {
         ReadOnlyProcessBuffer {
             ptr,
             len,
@@ -390,7 +398,11 @@ impl ReadOnlyProcessBufferRef<'_> {
     /// [`ReadOnlyProcessBuffer::new_external`]. The derived lifetime can
     /// help enforce the invariant that this incoming pointer may only
     /// be access for a certain duration.
-    pub(crate) unsafe fn new(ptr: Option<ImmutableKernelVirtualPointer<u8>>, len: usize, process_id: ProcessId) -> Self {
+    pub(crate) unsafe fn new(
+        ptr: Option<ImmutableKernelVirtualPointer<u8>>,
+        len: usize,
+        process_id: ProcessId,
+    ) -> Self {
         Self {
             buf: ReadOnlyProcessBuffer::new(ptr, len, process_id),
             _phantom: PhantomData,
@@ -436,7 +448,11 @@ impl ReadWriteProcessBuffer {
     ///
     /// Refer to the safety requirements of
     /// [`ReadWriteProcessBuffer::new_external`].
-    pub(crate) unsafe fn new(ptr: Option<MutableKernelVirtualPointer<u8>>, len: usize, process_id: ProcessId) -> Self {
+    pub(crate) unsafe fn new(
+        ptr: Option<MutableKernelVirtualPointer<u8>>,
+        len: usize,
+        process_id: ProcessId,
+    ) -> Self {
         ReadWriteProcessBuffer {
             ptr,
             len,
@@ -564,7 +580,10 @@ impl ReadableProcessBuffer for ReadWriteProcessBuffer {
                     // comment and subsequent discussion on tock/tock#2632:
                     // https://github.com/tock/tock/pull/2632#issuecomment-869974365
                     Ok(fun(unsafe {
-                        raw_processbuf_to_roprocessslice(self.ptr.as_ref().map(|ptr| ptr.as_immutable()), self.len)
+                        raw_processbuf_to_roprocessslice(
+                            self.ptr.as_ref().map(|ptr| ptr.as_immutable()),
+                            self.len,
+                        )
                     }))
                 }),
         }
@@ -628,7 +647,11 @@ impl ReadWriteProcessBufferRef<'_> {
     /// [`ReadWriteProcessBuffer::new_external`]. The derived lifetime can
     /// help enforce the invariant that this incoming pointer may only
     /// be access for a certain duration.
-    pub(crate) unsafe fn new(ptr: Option<MutableKernelVirtualPointer<u8>>, len: usize, process_id: ProcessId) -> Self {
+    pub(crate) unsafe fn new(
+        ptr: Option<MutableKernelVirtualPointer<u8>>,
+        len: usize,
+        process_id: ProcessId,
+    ) -> Self {
         Self {
             buf: ReadWriteProcessBuffer::new(ptr, len, process_id),
             _phantom: PhantomData,

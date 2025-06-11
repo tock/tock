@@ -56,7 +56,10 @@ extern "C" {
 ///
 /// 1. `start` and `end` are not page-aligned.
 /// 2. address(`start`) >= address(`end`)
-unsafe fn get_mutable_physical_slice(start: *mut u8, end: *mut u8) -> MutablePhysicalSlice<'static, Page4KiB> {
+unsafe fn get_mutable_physical_slice(
+    start: *mut u8,
+    end: *mut u8,
+) -> MutablePhysicalSlice<'static, Page4KiB> {
     // PANIC: the function's precondition ensures that `start` is page-aligned.
     let start = MutablePointer::new(start.cast()).unwrap();
     // PANIC: the function's precondition ensures that `end` is page-aligned.
@@ -96,7 +99,7 @@ pub(crate) unsafe fn get_kernel_prog_region() -> MutablePhysicalSlice<'static, P
     let kernel_prog_start = core::ptr::addr_of_mut!(_sprog);
     let kernel_prog_end = core::ptr::addr_of_mut!(_eprog);
 
-    // SAFETY: 
+    // SAFETY:
     //
     // 1. the function's precondition ensures that `get_kernel_prog_region()` is called only once
     //    and as such `get_mutable_physical_slice()` too.
@@ -114,7 +117,7 @@ pub(crate) unsafe fn get_kernel_ram_region() -> MutablePhysicalSlice<'static, Pa
     let kernel_ram_start = core::ptr::addr_of_mut!(_sram);
     let kernel_ram_end = core::ptr::addr_of_mut!(_eram);
 
-    // SAFETY: 
+    // SAFETY:
     //
     // 1. the function's precondition ensures that `get_kernel_ram_region()` is called only once
     //    and as such `get_mutable_physical_slice()` too.
@@ -128,7 +131,7 @@ pub(crate) unsafe fn get_kernel_peripheral_region() -> MutablePhysicalSlice<'sta
     let kernel_peripheral_start = core::ptr::addr_of_mut!(_speripheral);
     let kernel_peripheral_end = core::ptr::addr_of_mut!(_eperipheral);
 
-    // SAFETY: 
+    // SAFETY:
     //
     // 1. the function's precondition ensures that `get_kernel_peripheral_region()` is called only
     //    once and as such `get_mutable_physical_slice()` too.

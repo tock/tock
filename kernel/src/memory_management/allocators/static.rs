@@ -28,7 +28,13 @@ impl<'a, Granule> StaticAllocator<'a, Granule> {
         &self,
         memory: MutablePhysicalSlice<'a, Granule>,
         mid: NonZero<usize>,
-    ) -> Result<(MutablePhysicalSlice<'a, Granule>, Option<MutablePhysicalSlice<'a, Granule>>), ()> {
+    ) -> Result<
+        (
+            MutablePhysicalSlice<'a, Granule>,
+            Option<MutablePhysicalSlice<'a, Granule>>,
+        ),
+        (),
+    > {
         memory.split_at_checked(mid).map_err(|memory| {
             self.0.insert(Some(memory));
             ()
@@ -37,10 +43,7 @@ impl<'a, Granule> StaticAllocator<'a, Granule> {
 }
 
 impl<'a, Granule> Allocator<'a, Granule> for StaticAllocator<'a, Granule> {
-    fn allocate(
-        &self,
-        count: NonZero<usize>,
-    ) -> Result<MutablePhysicalSlice<'a, Granule>, ()> {
+    fn allocate(&self, count: NonZero<usize>) -> Result<MutablePhysicalSlice<'a, Granule>, ()> {
         let memory = self.take()?;
         let (left_subslice, right_subslice) = self.split_at_mut_checked(memory, count)?;
         self.0.insert(right_subslice);

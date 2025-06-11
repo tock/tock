@@ -4,41 +4,26 @@
 
 use super::permissions::Permissions;
 use super::pointers::{
-    ImmutablePhysicalPointer,
-    ImmutablePointer,
-    ImmutableVirtualPointer,
-    MutablePhysicalPointer,
-    MutablePointer,
-    PhysicalPointer,
-    Pointer,
-    ValidVirtualPointer,
-    ValidImmutableVirtualPointer,
-    ValidMutableVirtualPointer,
+    ImmutablePhysicalPointer, ImmutablePointer, ImmutableVirtualPointer, MutablePhysicalPointer,
+    MutablePointer, PhysicalPointer, Pointer, ValidImmutableVirtualPointer,
+    ValidMutableVirtualPointer, ValidVirtualPointer,
 };
-use super::slices::{
-    MutablePhysicalSlice,
-    Slice,
-};
+use super::slices::{MutablePhysicalSlice, Slice};
 
 use crate::utilities::alignment::{Alignment, AlwaysAligned};
-use crate::utilities::ordering::{
-    SmallerOrEqualPair,
-    SmallerOrEqualPairImmutableReference,
-    SmallerPair,
-};
 use crate::utilities::misc::create_non_zero_usize;
+use crate::utilities::ordering::{
+    SmallerOrEqualPair, SmallerOrEqualPairImmutableReference, SmallerPair,
+};
 
 use core::cell::Cell;
 use core::marker::PhantomData;
 use core::num::NonZero;
 
-type Pointers<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T> = SmallerPair<Pointer<IS_VIRTUAL, IS_MUTABLE, T>>;
+type Pointers<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T> =
+    SmallerPair<Pointer<IS_VIRTUAL, IS_MUTABLE, T>>;
 
-impl<
-    const IS_VIRTUAL: bool,
-    const IS_MUTABLE: bool,
-    T,
-> Pointers<IS_VIRTUAL, IS_MUTABLE, T> {
+impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T> Pointers<IS_VIRTUAL, IS_MUTABLE, T> {
     fn as_immutable(&self) -> &SmallerPair<Pointer<IS_VIRTUAL, false, T>> {
         // SAFETY: SmallerPair is marked #[repr(transparent)]
         unsafe { &*core::ptr::from_ref(self).cast() }
@@ -46,7 +31,7 @@ impl<
 }
 
 pub struct Region<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>(
-    Pointers<IS_VIRTUAL, IS_MUTABLE, T>
+    Pointers<IS_VIRTUAL, IS_MUTABLE, T>,
 );
 
 pub type ImmutableRegion<const IS_VIRTUAL: bool, T> = Region<IS_VIRTUAL, false, T>;
@@ -68,14 +53,10 @@ pub(crate) enum SliceTranslationError {
 }
 */
 
-impl<
-    const IS_VIRTUAL: bool,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> Region<IS_VIRTUAL, IS_MUTABLE, T> {
-    const fn new_start_end(
-        pointers: Pointers<IS_VIRTUAL, IS_MUTABLE, T>,
-    ) -> Self {
+impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>
+    Region<IS_VIRTUAL, IS_MUTABLE, T>
+{
+    const fn new_start_end(pointers: Pointers<IS_VIRTUAL, IS_MUTABLE, T>) -> Self {
         Self(pointers)
     }
 
@@ -131,18 +112,15 @@ impl<
         let starting_pointer = region.get_starting_pointer();
         let ending_pointer = region.get_ending_pointer();
 
-        self.is_intersecting_pointer(starting_pointer.as_immutable()) ||
-        self.is_containing_pointer(ending_pointer.as_immutable()) ||
-        region.is_intersecting_pointer(self_starting_pointer.as_immutable())
+        self.is_intersecting_pointer(starting_pointer.as_immutable())
+            || self.is_containing_pointer(ending_pointer.as_immutable())
+            || region.is_intersecting_pointer(self_starting_pointer.as_immutable())
     }
 }
 
-impl<
-    'a,
-    const IS_VIRTUAL: bool,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> core::fmt::Display for Region<IS_VIRTUAL, IS_MUTABLE, T> {
+impl<'a, const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment> core::fmt::Display
+    for Region<IS_VIRTUAL, IS_MUTABLE, T>
+{
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(formatter, "{}", self.as_pointers())
     }
@@ -151,14 +129,10 @@ impl<
 #[repr(transparent)]
 pub struct AllocatedRegion<'a, const IS_VIRTUAL: bool, T: Alignment> {
     region: MutableRegion<IS_VIRTUAL, T>,
-    phantom_data: PhantomData<&'a ()>
+    phantom_data: PhantomData<&'a ()>,
 }
 
-impl<
-    'a,
-    const IS_VIRTUAL: bool,
-    T: Alignment,
-> AllocatedRegion<'a, IS_VIRTUAL, T> {
+impl<'a, const IS_VIRTUAL: bool, T: Alignment> AllocatedRegion<'a, IS_VIRTUAL, T> {
     const fn as_region(&self) -> &MutableRegion<IS_VIRTUAL, T> {
         &self.region
     }
@@ -177,15 +151,14 @@ impl<
 
     pub(crate) fn get_length_bytes(&self) -> NonZero<usize> {
         // SAFETY: the size of an allocated region may never be larger than `isize::MAX` in bytes
-        unsafe { self.get_length().unchecked_mul(create_non_zero_usize(core::mem::size_of::<T>())) }
+        unsafe {
+            self.get_length()
+                .unchecked_mul(create_non_zero_usize(core::mem::size_of::<T>()))
+        }
     }
 }
 
-impl<
-    'a,
-    const IS_USER: bool,
-    T: Alignment,
-> core::fmt::Display for AllocatedRegion<'a, IS_USER, T> {
+impl<'a, const IS_USER: bool, T: Alignment> core::fmt::Display for AllocatedRegion<'a, IS_USER, T> {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(formatter, "{}", self.as_region())
     }
@@ -215,11 +188,7 @@ pub struct ProtectedAllocatedRegion<'a, const IS_VIRTUAL: bool, T: Alignment> {
 pub type PhysicalProtectedAllocatedRegion<'a, T> = ProtectedAllocatedRegion<'a, false, T>;
 pub type VirtualProtectedAllocatedRegion<'a, T> = ProtectedAllocatedRegion<'a, true, T>;
 
-impl<
-    'a,
-    const IS_VIRTUAL: bool,
-    T: Alignment,
-> ProtectedAllocatedRegion<'a, IS_VIRTUAL, T> {
+impl<'a, const IS_VIRTUAL: bool, T: Alignment> ProtectedAllocatedRegion<'a, IS_VIRTUAL, T> {
     fn new_protect_entirely(
         allocated_region: AllocatedRegion<'a, IS_VIRTUAL, T>,
         permissions: Permissions,
@@ -280,7 +249,10 @@ impl<
 
     pub fn get_protected_length_bytes(&self) -> NonZero<usize> {
         // SAFETY: the size of a protected region may never be larger than `isize::MAX` in bytes
-        unsafe { self.get_protected_length().unchecked_mul(create_non_zero_usize(core::mem::size_of::<T>())) }
+        unsafe {
+            self.get_protected_length()
+                .unchecked_mul(create_non_zero_usize(core::mem::size_of::<T>()))
+        }
     }
 
     pub const fn get_permissions(&self) -> Permissions {
@@ -298,13 +270,16 @@ impl<
     }
 }
 
-impl<
-    'a,
-    const IS_USER: bool,
-    T: Alignment
-> core::fmt::Display for ProtectedAllocatedRegion<'a, IS_USER, T> {
+impl<'a, const IS_USER: bool, T: Alignment> core::fmt::Display
+    for ProtectedAllocatedRegion<'a, IS_USER, T>
+{
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(formatter, "(Start, End): {}; Permissions: {}", self.as_allocated_region(), self.get_permissions())
+        write!(
+            formatter,
+            "(Start, End): {}; Permissions: {}",
+            self.as_allocated_region(),
+            self.get_permissions()
+        )
     }
 }
 
@@ -316,11 +291,7 @@ pub struct MappedAllocatedRegion<'a, const IS_USER: bool, T: Alignment> {
 //pub(crate) type UserMappedAllocatedRegion<'a, T> = MappedAllocatedRegion<'a, true, T>;
 pub(crate) type KernelMappedAllocatedRegion<'a, T> = MappedAllocatedRegion<'a, false, T>;
 
-impl<
-    'a,
-    const IS_USER: bool,
-    T: Alignment,
-> MappedAllocatedRegion<'a, IS_USER, T> {
+impl<'a, const IS_USER: bool, T: Alignment> MappedAllocatedRegion<'a, IS_USER, T> {
     /// # Safety
     ///
     /// The caller must ensure that the virtual region does not wrap around.
@@ -340,41 +311,40 @@ impl<
     ) -> Result<Self, ()> {
         let allocated_length = allocated_region.get_length();
 
-        if starting_virtual_pointer.checked_add(allocated_length).is_err() {
+        if starting_virtual_pointer
+            .checked_add(allocated_length)
+            .is_err()
+        {
             return Err(());
         }
 
-        let mapped_allocated_region = unsafe {
-            Self::new_unchecked(
-                allocated_region,
-                starting_virtual_pointer,
-            )
-        };
+        let mapped_allocated_region =
+            unsafe { Self::new_unchecked(allocated_region, starting_virtual_pointer) };
 
         Ok(mapped_allocated_region)
     }
 
-    pub fn new_flat(
-        allocated_region: PhysicalAllocatedRegion<'a, T>,
-    ) -> Self {
+    pub fn new_flat(allocated_region: PhysicalAllocatedRegion<'a, T>) -> Self {
         let starting_physical_pointer = allocated_region.get_starting_pointer();
         let starting_virtual_pointer = starting_physical_pointer.to_virtual_pointer();
         // SAFETY: flat mapping is always valid for either userspace or kernel.
-        let valid_starting_virtual_pointer = unsafe { ValidVirtualPointer::new(starting_virtual_pointer) };
+        let valid_starting_virtual_pointer =
+            unsafe { ValidVirtualPointer::new(starting_virtual_pointer) };
 
         // SAFETY: a flat-mapped virtual address is identical to a physical region and since no
         // region can wrap around, the flat-mapped virtual address does not wrap around neither.
-        let mapped_allocated_region = unsafe {
-            Self::new_unchecked(
-                allocated_region,
-                valid_starting_virtual_pointer,
-            )
-        };
+        let mapped_allocated_region =
+            unsafe { Self::new_unchecked(allocated_region, valid_starting_virtual_pointer) };
 
         mapped_allocated_region
     }
 
-    fn consume(self) -> (PhysicalAllocatedRegion<'a, T>, ValidMutableVirtualPointer<IS_USER, T>) {
+    fn consume(
+        self,
+    ) -> (
+        PhysicalAllocatedRegion<'a, T>,
+        ValidMutableVirtualPointer<IS_USER, T>,
+    ) {
         (self.allocated_region, self.starting_virtual_pointer)
     }
 }
@@ -385,20 +355,17 @@ pub struct MappedProtectedAllocatedRegion<'a, const IS_USER: bool, T: Alignment>
 }
 
 pub type UserMappedProtectedAllocatedRegion<'a, T> = MappedProtectedAllocatedRegion<'a, true, T>;
-pub(crate) type KernelMappedProtectedAllocatedRegion<'a, T> = MappedProtectedAllocatedRegion<'a, false, T>;
+pub(crate) type KernelMappedProtectedAllocatedRegion<'a, T> =
+    MappedProtectedAllocatedRegion<'a, false, T>;
 
-impl<
-    'a,
-    const IS_USER: bool,
-    T: Alignment,
-> MappedProtectedAllocatedRegion<'a, IS_USER, T> {
+impl<'a, const IS_USER: bool, T: Alignment> MappedProtectedAllocatedRegion<'a, IS_USER, T> {
     /// # Safety
     ///
     /// The caller must ensure that the virtual address space covered by the region does not wrap
     /// around.
     unsafe fn new_from_protected_unchecked(
         physical_protected_allocated_region: PhysicalProtectedAllocatedRegion<'a, T>,
-        starting_virtual_pointer: ValidMutableVirtualPointer<IS_USER, T>
+        starting_virtual_pointer: ValidMutableVirtualPointer<IS_USER, T>,
     ) -> Self {
         Self {
             physical_protected_allocated_region,
@@ -408,11 +375,14 @@ impl<
 
     pub(crate) fn new_from_protected(
         physical_protected_allocated_region: PhysicalProtectedAllocatedRegion<'a, T>,
-        starting_virtual_pointer: ValidMutableVirtualPointer<IS_USER, T>
+        starting_virtual_pointer: ValidMutableVirtualPointer<IS_USER, T>,
     ) -> Result<Self, ()> {
         let allocated_length = physical_protected_allocated_region.get_allocated_length();
 
-        if starting_virtual_pointer.checked_add(allocated_length).is_err() {
+        if starting_virtual_pointer
+            .checked_add(allocated_length)
+            .is_err()
+        {
             return Err(());
         }
 
@@ -433,11 +403,9 @@ impl<
     ) -> Self {
         let (allocated_region, starting_virtual_pointer) = mapped_allocated_region.consume();
 
-        let physical_protected_allocated_region = PhysicalProtectedAllocatedRegion::new_protect_entirely(
-            allocated_region,
-            permissions,
-        );
-        
+        let physical_protected_allocated_region =
+            PhysicalProtectedAllocatedRegion::new_protect_entirely(allocated_region, permissions);
+
         // SAFETY: MappedAllocatedRegion guarantees that the virtual address space does not wrap
         // around.
         unsafe {
@@ -455,29 +423,37 @@ impl<
     }
 
     pub const fn get_starting_physical_pointer(&self) -> &MutablePhysicalPointer<T> {
-        self.as_physical_protected_allocated_region().get_starting_pointer()
+        self.as_physical_protected_allocated_region()
+            .get_starting_pointer()
     }
 
     const fn get_allocated_ending_physical_pointer(&self) -> MutablePhysicalPointer<T> {
-        *self.as_physical_protected_allocated_region().get_allocated_ending_pointer()
+        *self
+            .as_physical_protected_allocated_region()
+            .get_allocated_ending_pointer()
     }
 
     fn get_protected_ending_physical_pointer(&self) -> MutablePhysicalPointer<T> {
-        self.as_physical_protected_allocated_region().get_protected_ending_pointer()
+        self.as_physical_protected_allocated_region()
+            .get_protected_ending_pointer()
     }
 
     pub const fn get_starting_virtual_pointer(&self) -> &ValidMutableVirtualPointer<IS_USER, T> {
         &self.starting_virtual_pointer
     }
 
-    pub(crate) fn get_protected_ending_virtual_pointer(&self) -> ValidMutableVirtualPointer<IS_USER, T> {
+    pub(crate) fn get_protected_ending_virtual_pointer(
+        &self,
+    ) -> ValidMutableVirtualPointer<IS_USER, T> {
         let starting_virtual_pointer = self.get_starting_virtual_pointer();
         let protected_length = self.get_protected_length();
         // SAFETY: a region may never wrap
         unsafe { starting_virtual_pointer.unchecked_add(protected_length) }
     }
 
-    pub(crate) fn get_allocated_ending_virtual_pointer(&self) -> ValidMutableVirtualPointer<IS_USER, T> {
+    pub(crate) fn get_allocated_ending_virtual_pointer(
+        &self,
+    ) -> ValidMutableVirtualPointer<IS_USER, T> {
         let starting_virtual_pointer = self.get_starting_virtual_pointer();
         let allocated_length = self.get_allocated_length();
         // SAFETY: a region may never wrap
@@ -485,11 +461,13 @@ impl<
     }
 
     pub fn get_protected_length(&self) -> NonZero<usize> {
-        self.as_physical_protected_allocated_region().get_protected_length()
+        self.as_physical_protected_allocated_region()
+            .get_protected_length()
     }
 
     pub fn get_allocated_length(&self) -> NonZero<usize> {
-        self.as_physical_protected_allocated_region().get_allocated_length()
+        self.as_physical_protected_allocated_region()
+            .get_allocated_length()
     }
 
     /*
@@ -499,12 +477,13 @@ impl<
     */
 
     pub const fn get_permissions(&self) -> Permissions {
-        self.as_physical_protected_allocated_region().get_permissions()
+        self.as_physical_protected_allocated_region()
+            .get_permissions()
     }
 
     pub(crate) fn is_containing_protected_virtual_byte(
         &self,
-        virtual_byte: &ValidImmutableVirtualPointer<IS_USER, u8>
+        virtual_byte: &ValidImmutableVirtualPointer<IS_USER, u8>,
     ) -> bool {
         let starting_pointer = self.get_starting_virtual_pointer();
         let ending_pointer = self.get_protected_ending_virtual_pointer();
@@ -547,7 +526,10 @@ impl<
         let casted_starting_pointer = starting_pointer.infallible_cast_ref();
 
         if physical_pointer < &ending_physical_pointer {
-            SmallerOrEqualPairImmutableReference::new(casted_starting_pointer.as_immutable(), physical_pointer)
+            SmallerOrEqualPairImmutableReference::new(
+                casted_starting_pointer.as_immutable(),
+                physical_pointer,
+            )
         } else {
             Err(())
         }
@@ -558,8 +540,11 @@ impl<
         physical_pointer: &'b ImmutablePhysicalPointer<U>,
     ) -> Result<SmallerOrEqualPairImmutableReference<'b, ImmutablePhysicalPointer<U>>, ()> {
         let ending_pointer = self.get_allocated_ending_physical_pointer();
-        
-        self.intersect_physical_byte(physical_pointer, ending_pointer.infallible_cast().to_immutable())
+
+        self.intersect_physical_byte(
+            physical_pointer,
+            ending_pointer.infallible_cast().to_immutable(),
+        )
     }
 
     fn intersect_protected_physical_byte<'b, U: AlwaysAligned>(
@@ -568,19 +553,28 @@ impl<
     ) -> Result<SmallerOrEqualPairImmutableReference<'b, ImmutablePhysicalPointer<U>>, ()> {
         let ending_pointer = self.get_protected_ending_physical_pointer();
 
-        self.intersect_physical_byte(physical_pointer, ending_pointer.infallible_cast().to_immutable())
+        self.intersect_physical_byte(
+            physical_pointer,
+            ending_pointer.infallible_cast().to_immutable(),
+        )
     }
 
     fn intersect_virtual_byte<'b, U: AlwaysAligned>(
         &'b self,
         virtual_pointer: &'b ValidImmutableVirtualPointer<IS_USER, U>,
         ending_virtual_pointer: ValidImmutableVirtualPointer<IS_USER, U>,
-    ) -> Result<SmallerOrEqualPairImmutableReference<'b, ValidImmutableVirtualPointer<IS_USER, U>>, ()> {
+    ) -> Result<
+        SmallerOrEqualPairImmutableReference<'b, ValidImmutableVirtualPointer<IS_USER, U>>,
+        (),
+    > {
         let starting_pointer = self.get_starting_virtual_pointer();
         let casted_starting_pointer = starting_pointer.infallible_cast_ref();
 
         if virtual_pointer < &ending_virtual_pointer {
-            SmallerOrEqualPairImmutableReference::new(casted_starting_pointer.as_immutable(), virtual_pointer)
+            SmallerOrEqualPairImmutableReference::new(
+                casted_starting_pointer.as_immutable(),
+                virtual_pointer,
+            )
         } else {
             Err(())
         }
@@ -589,24 +583,30 @@ impl<
     fn intersect_protected_virtual_byte<'b, U: AlwaysAligned>(
         &'b self,
         virtual_pointer: &'b ValidImmutableVirtualPointer<IS_USER, U>,
-    ) -> Result<SmallerOrEqualPairImmutableReference<'b, ValidImmutableVirtualPointer<IS_USER, U>>, ()> {
+    ) -> Result<
+        SmallerOrEqualPairImmutableReference<'b, ValidImmutableVirtualPointer<IS_USER, U>>,
+        (),
+    > {
         let ending_pointer = self.get_protected_ending_virtual_pointer();
 
         self.intersect_virtual_byte(
             virtual_pointer,
-            ending_pointer.infallible_cast().to_immutable()
+            ending_pointer.infallible_cast().to_immutable(),
         )
     }
 
     fn intersect_allocated_virtual_byte<'b, U: AlwaysAligned>(
         &'b self,
         virtual_pointer: &'b ValidImmutableVirtualPointer<IS_USER, U>,
-    ) -> Result<SmallerOrEqualPairImmutableReference<'b, ValidImmutableVirtualPointer<IS_USER, U>>, ()> {
+    ) -> Result<
+        SmallerOrEqualPairImmutableReference<'b, ValidImmutableVirtualPointer<IS_USER, U>>,
+        (),
+    > {
         let ending_pointer = self.get_allocated_ending_virtual_pointer();
 
         self.intersect_virtual_byte(
             virtual_pointer,
-            ending_pointer.infallible_cast().to_immutable()
+            ending_pointer.infallible_cast().to_immutable(),
         )
     }
 
@@ -627,7 +627,7 @@ impl<
 
     pub(crate) fn is_intersecting_virtual_pointer(
         &self,
-        virtual_pointer: &ImmutableVirtualPointer<T>
+        virtual_pointer: &ImmutableVirtualPointer<T>,
     ) -> bool {
         self.intersect_virtual_pointer(virtual_pointer).is_ok()
     }
@@ -642,9 +642,9 @@ impl<
         let other_end = other_end.as_virtual_pointer();
         let self_start = self.get_starting_virtual_pointer().as_virtual_pointer();
 
-        self.is_intersecting_virtual_pointer(other_start.as_immutable()) ||
-        self.is_containing_virtual_pointer(other_end.as_immutable()) || 
-        other.is_containing_virtual_pointer(self_start.as_immutable())
+        self.is_intersecting_virtual_pointer(other_start.as_immutable())
+            || self.is_containing_virtual_pointer(other_end.as_immutable())
+            || other.is_containing_virtual_pointer(self_start.as_immutable())
     }
 
     pub(crate) fn resize(&self, length: NonZero<usize>) -> Result<(), ()> {
@@ -660,10 +660,12 @@ impl<
             Ok(smaller_or_equal) => {
                 let difference = smaller_or_equal.compute_difference();
                 let starting_virtual_pointer = self.get_starting_virtual_pointer();
-                let casted_starting_virtual_pointer = starting_virtual_pointer.infallible_cast_ref();
+                let casted_starting_virtual_pointer =
+                    starting_virtual_pointer.infallible_cast_ref();
                 // SAFETY: a slice may never wrap
-                let virtual_pointer = unsafe { casted_starting_virtual_pointer.unchecked_add_zero(difference) };
-                
+                let virtual_pointer =
+                    unsafe { casted_starting_virtual_pointer.unchecked_add_zero(difference) };
+
                 Ok(virtual_pointer.cast_mutability())
             }
         }
@@ -678,10 +680,12 @@ impl<
             Ok(smaller_or_equal) => {
                 let difference = smaller_or_equal.compute_difference();
                 let starting_virtual_pointer = self.get_starting_virtual_pointer();
-                let casted_starting_virtual_pointer = starting_virtual_pointer.infallible_cast_ref();
+                let casted_starting_virtual_pointer =
+                    starting_virtual_pointer.infallible_cast_ref();
                 // SAFETY: a slice may never wrap
-                let virtual_pointer = unsafe { casted_starting_virtual_pointer.unchecked_add_zero(difference) };
-                
+                let virtual_pointer =
+                    unsafe { casted_starting_virtual_pointer.unchecked_add_zero(difference) };
+
                 Ok(virtual_pointer.cast_mutability())
             }
         }
@@ -696,9 +700,11 @@ impl<
             Ok(smaller_or_equal) => {
                 let difference = smaller_or_equal.compute_difference();
                 let starting_physical_pointer = self.get_starting_physical_pointer();
-                let casted_starting_physical_pointer = starting_physical_pointer.infallible_cast_ref();
+                let casted_starting_physical_pointer =
+                    starting_physical_pointer.infallible_cast_ref();
                 // SAFETY: a slice may never wrap
-                let physical_pointer = unsafe { casted_starting_physical_pointer.unchecked_add_zero(difference) };
+                let physical_pointer =
+                    unsafe { casted_starting_physical_pointer.unchecked_add_zero(difference) };
 
                 Ok(physical_pointer.cast_mutability())
             }
@@ -714,9 +720,11 @@ impl<
             Ok(smaller_or_equal) => {
                 let difference = smaller_or_equal.compute_difference();
                 let starting_physical_pointer = self.get_starting_physical_pointer();
-                let casted_starting_physical_pointer = starting_physical_pointer.infallible_cast_ref();
+                let casted_starting_physical_pointer =
+                    starting_physical_pointer.infallible_cast_ref();
                 // SAFETY: a slice may never wrap
-                let physical_pointer = unsafe { casted_starting_physical_pointer.unchecked_add_zero(difference) };
+                let physical_pointer =
+                    unsafe { casted_starting_physical_pointer.unchecked_add_zero(difference) };
 
                 Ok(physical_pointer.cast_mutability())
             }
@@ -724,11 +732,9 @@ impl<
     }
 }
 
-impl<
-    'a,
-    const IS_USER: bool,
-    T: Alignment
-> core::fmt::Display for MappedProtectedAllocatedRegion<'a, IS_USER, T> {
+impl<'a, const IS_USER: bool, T: Alignment> core::fmt::Display
+    for MappedProtectedAllocatedRegion<'a, IS_USER, T>
+{
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             formatter,
@@ -744,14 +750,12 @@ pub(crate) struct DirtyMappedProtectedAllocatedRegion<'a, const IS_USER: bool, T
     is_dirty: Cell<bool>,
 }
 
-pub(crate) type UserDirtyMappedProtectedAllocatedRegion<'a, T> = DirtyMappedProtectedAllocatedRegion<'a, true, T>;
-pub(crate) type KernelDirtyMappedProtectedAllocatedRegion<'a, T> = DirtyMappedProtectedAllocatedRegion<'a, false, T>;
+pub(crate) type UserDirtyMappedProtectedAllocatedRegion<'a, T> =
+    DirtyMappedProtectedAllocatedRegion<'a, true, T>;
+pub(crate) type KernelDirtyMappedProtectedAllocatedRegion<'a, T> =
+    DirtyMappedProtectedAllocatedRegion<'a, false, T>;
 
-impl<
-    'a,
-    const IS_USER: bool,
-    T: Alignment,
-> DirtyMappedProtectedAllocatedRegion<'a, IS_USER, T> {
+impl<'a, const IS_USER: bool, T: Alignment> DirtyMappedProtectedAllocatedRegion<'a, IS_USER, T> {
     pub(crate) const fn new(
         mapped_protected_allocated_region: MappedProtectedAllocatedRegion<'a, IS_USER, T>,
     ) -> Self {
@@ -762,7 +766,7 @@ impl<
     }
 
     pub(crate) const fn as_mapped_protected_allocated_region(
-        &self
+        &self,
     ) -> &MappedProtectedAllocatedRegion<'a, IS_USER, T> {
         &self.mapped_protected_allocated_region
     }
@@ -801,40 +805,54 @@ impl<
         result
     }
 
-    pub(super) fn translate_allocated_physical_pointer_byte<const IS_MUTABLE: bool, U: AlwaysAligned>(
+    pub(super) fn translate_allocated_physical_pointer_byte<
+        const IS_MUTABLE: bool,
+        U: AlwaysAligned,
+    >(
         &self,
         physical_pointer: PhysicalPointer<IS_MUTABLE, U>,
     ) -> Result<ValidVirtualPointer<IS_USER, IS_MUTABLE, U>, PhysicalPointer<IS_MUTABLE, U>> {
-        self.as_mapped_protected_allocated_region().translate_allocated_physical_pointer_byte(physical_pointer)
+        self.as_mapped_protected_allocated_region()
+            .translate_allocated_physical_pointer_byte(physical_pointer)
     }
 
-    pub(super) fn translate_protected_physical_pointer_byte<const IS_MUTABLE: bool, U: AlwaysAligned>(
+    pub(super) fn translate_protected_physical_pointer_byte<
+        const IS_MUTABLE: bool,
+        U: AlwaysAligned,
+    >(
         &self,
         physical_pointer: PhysicalPointer<IS_MUTABLE, U>,
     ) -> Result<ValidVirtualPointer<IS_USER, IS_MUTABLE, U>, PhysicalPointer<IS_MUTABLE, U>> {
-        self.as_mapped_protected_allocated_region().translate_protected_physical_pointer_byte(physical_pointer)
+        self.as_mapped_protected_allocated_region()
+            .translate_protected_physical_pointer_byte(physical_pointer)
     }
 
-    pub(super) fn translate_protected_virtual_pointer_byte<const IS_MUTABLE: bool, U: AlwaysAligned>(
+    pub(super) fn translate_protected_virtual_pointer_byte<
+        const IS_MUTABLE: bool,
+        U: AlwaysAligned,
+    >(
         &self,
         virtual_pointer: ValidVirtualPointer<IS_USER, IS_MUTABLE, U>,
     ) -> Result<PhysicalPointer<IS_MUTABLE, U>, ValidVirtualPointer<IS_USER, IS_MUTABLE, U>> {
-        self.as_mapped_protected_allocated_region().translate_protected_virtual_pointer_byte(virtual_pointer)
+        self.as_mapped_protected_allocated_region()
+            .translate_protected_virtual_pointer_byte(virtual_pointer)
     }
 
-    pub(super) fn translate_allocated_virtual_pointer_byte<const IS_MUTABLE: bool, U: AlwaysAligned>(
+    pub(super) fn translate_allocated_virtual_pointer_byte<
+        const IS_MUTABLE: bool,
+        U: AlwaysAligned,
+    >(
         &self,
         virtual_pointer: ValidVirtualPointer<IS_USER, IS_MUTABLE, U>,
     ) -> Result<PhysicalPointer<IS_MUTABLE, U>, ValidVirtualPointer<IS_USER, IS_MUTABLE, U>> {
-        self.as_mapped_protected_allocated_region().translate_allocated_virtual_pointer_byte(virtual_pointer)
+        self.as_mapped_protected_allocated_region()
+            .translate_allocated_virtual_pointer_byte(virtual_pointer)
     }
 }
 
-impl<
-    'a,
-    const IS_USER: bool,
-    T: Alignment
-> core::fmt::Display for DirtyMappedProtectedAllocatedRegion<'a, IS_USER, T> {
+impl<'a, const IS_USER: bool, T: Alignment> core::fmt::Display
+    for DirtyMappedProtectedAllocatedRegion<'a, IS_USER, T>
+{
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             formatter,

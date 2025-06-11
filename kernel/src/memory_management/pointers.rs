@@ -5,10 +5,7 @@
 use crate::utilities::alignment::{Alignment, AlwaysAligned};
 use crate::utilities::ordering::SmallerPair;
 use crate::utilities::pointers::{
-    Error,
-    ImmutablePointer as ImmutablePtr,
-    MutablePointer as MutablePtr,
-    Pointer as Ptr,
+    Error, ImmutablePointer as ImmutablePtr, MutablePointer as MutablePtr, Pointer as Ptr,
 };
 
 use core::cmp::Ordering;
@@ -18,7 +15,9 @@ use core::ops::Sub;
 use core::ptr::NonNull;
 
 #[repr(transparent)]
-pub struct Pointer<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>(Ptr<IS_MUTABLE, T>);
+pub struct Pointer<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>(
+    Ptr<IS_MUTABLE, T>,
+);
 
 pub type ImmutablePointer<const IS_VIRTUAL: bool, T> = Pointer<IS_VIRTUAL, false, T>;
 pub type MutablePointer<const IS_VIRTUAL: bool, T> = Pointer<IS_VIRTUAL, true, T>;
@@ -32,16 +31,20 @@ pub type ImmutableVirtualPointer<T> = VirtualPointer<false, T>;
 pub type MutableVirtualPointer<T> = VirtualPointer<true, T>;
 
 #[repr(transparent)]
-pub struct ValidVirtualPointer<const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment>(Pointer<true, IS_MUTABLE, T>);
+pub struct ValidVirtualPointer<const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment>(
+    Pointer<true, IS_MUTABLE, T>,
+);
 
-pub type ValidImmutableVirtualPointer<const IS_USER: bool, T> = ValidVirtualPointer<IS_USER, false, T>;
+pub type ValidImmutableVirtualPointer<const IS_USER: bool, T> =
+    ValidVirtualPointer<IS_USER, false, T>;
 pub type ValidMutableVirtualPointer<const IS_USER: bool, T> = ValidVirtualPointer<IS_USER, true, T>;
 
 pub type UserVirtualPointer<const IS_MUTABLE: bool, T> = ValidVirtualPointer<true, IS_MUTABLE, T>;
 pub type ImmutableUserVirtualPointer<T> = UserVirtualPointer<false, T>;
 pub type MutableUserVirtualPointer<T> = UserVirtualPointer<true, T>;
 
-pub type KernelVirtualPointer<const IS_MUTABLE: bool, T> = ValidVirtualPointer<false, IS_MUTABLE, T>;
+pub type KernelVirtualPointer<const IS_MUTABLE: bool, T> =
+    ValidVirtualPointer<false, IS_MUTABLE, T>;
 pub type ImmutableKernelVirtualPointer<T> = KernelVirtualPointer<false, T>;
 pub type MutableKernelVirtualPointer<T> = KernelVirtualPointer<true, T>;
 
@@ -50,7 +53,8 @@ pub enum NullablePointer<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alig
     NonNull(Pointer<IS_VIRTUAL, IS_MUTABLE, T>),
 }
 
-pub type ImmutableNullablePointer<const IS_VIRTUAL: bool, T> = NullablePointer<IS_VIRTUAL, false, T>;
+pub type ImmutableNullablePointer<const IS_VIRTUAL: bool, T> =
+    NullablePointer<IS_VIRTUAL, false, T>;
 pub type MutableNullablePointer<const IS_VIRTUAL: bool, T> = NullablePointer<IS_VIRTUAL, true, T>;
 
 pub type NullablePhysicalPointer<const IS_MUTABLE: bool, T> = NullablePointer<false, IS_MUTABLE, T>;
@@ -63,22 +67,22 @@ pub type MutableNullableVirtualPointer<T> = NullableVirtualPointer<true, T>;
 
 pub enum ValidNullableVirtualPointer<const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment> {
     Null,
-    NonNull(ValidVirtualPointer<IS_USER, IS_MUTABLE, T>)
+    NonNull(ValidVirtualPointer<IS_USER, IS_MUTABLE, T>),
 }
 
-pub type UserNullableVirtualPointer<const IS_MUTABLE: bool, T> = ValidNullableVirtualPointer<true, IS_MUTABLE, T>;
+pub type UserNullableVirtualPointer<const IS_MUTABLE: bool, T> =
+    ValidNullableVirtualPointer<true, IS_MUTABLE, T>;
 pub type ImmutableUserNullableVirtualPointer<T> = UserNullableVirtualPointer<false, T>;
 pub type MutableUserNullableVirtualPointer<T> = UserNullableVirtualPointer<true, T>;
 
-pub type KernelNullableVirtualPointer<const IS_MUTABLE: bool, T> = ValidNullableVirtualPointer<false, IS_MUTABLE, T>;
+pub type KernelNullableVirtualPointer<const IS_MUTABLE: bool, T> =
+    ValidNullableVirtualPointer<false, IS_MUTABLE, T>;
 pub type ImmutableKernelNullableVirtualPointer<T> = KernelNullableVirtualPointer<false, T>;
 pub type MutableKernelNullableVirtualPointer<T> = KernelNullableVirtualPointer<true, T>;
 
-impl<
-    const IS_VIRTUAL: bool,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> Pointer<IS_VIRTUAL, IS_MUTABLE, T> {
+impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>
+    Pointer<IS_VIRTUAL, IS_MUTABLE, T>
+{
     /// # Safety
     ///
     /// The caller must ensure that `pointer` is of right type.
@@ -144,7 +148,9 @@ impl<
         unsafe { *core::ptr::from_ref(&self).cast() }
     }
 
-    pub const fn infallible_cast_ref<U: AlwaysAligned>(&self) -> &Pointer<IS_VIRTUAL, IS_MUTABLE, U> {
+    pub const fn infallible_cast_ref<U: AlwaysAligned>(
+        &self,
+    ) -> &Pointer<IS_VIRTUAL, IS_MUTABLE, U> {
         // SAFETY: `Pointer` is marked #[repr(transparent)], so its memory layout is the same for
         // different types.
         unsafe { &*core::ptr::from_ref(self).cast() }
@@ -260,11 +266,9 @@ impl<
     }
 }
 
-impl<
-    const IS_VIRTUAL: bool,
-    const IS_MUTABLE: bool,
-    U: AlwaysAligned,
-> Pointer<IS_VIRTUAL, IS_MUTABLE, U> {
+impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, U: AlwaysAligned>
+    Pointer<IS_VIRTUAL, IS_MUTABLE, U>
+{
     /// # Safety
     ///
     /// The caller must ensure that `non_null_pointer` is of right type.
@@ -276,11 +280,9 @@ impl<
     }
 }
 
-impl<
-    const IS_VIRTUAL: bool,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> core::fmt::LowerHex for Pointer<IS_VIRTUAL, IS_MUTABLE, T> {
+impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment> core::fmt::LowerHex
+    for Pointer<IS_VIRTUAL, IS_MUTABLE, T>
+{
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(formatter, "{:#x}", self.get_address())
     }
@@ -405,15 +407,12 @@ impl<const IS_VIRTUAL: bool, T: Alignment> MutablePointer<IS_VIRTUAL, T> {
         self.as_inner().as_raw()
     }
 
-    pub fn cast_mutability<
-        const IS_MUTABLE: bool,
-    >(self) -> Pointer<IS_VIRTUAL, IS_MUTABLE, T> {
+    pub fn cast_mutability<const IS_MUTABLE: bool>(self) -> Pointer<IS_VIRTUAL, IS_MUTABLE, T> {
         // SAFETY: TODO
         unsafe {
-            core::mem::transmute::<
-                MutablePointer<IS_VIRTUAL, T>,
-                Pointer<IS_VIRTUAL, IS_MUTABLE, T>,
-            >(self)
+            core::mem::transmute::<MutablePointer<IS_VIRTUAL, T>, Pointer<IS_VIRTUAL, IS_MUTABLE, T>>(
+                self,
+            )
         }
     }
 
@@ -432,48 +431,38 @@ impl<const IS_VIRTUAL: bool, T: Alignment> MutablePointer<IS_VIRTUAL, T> {
     }
 }
 
-impl<
-    const IS_VIRTUAL: bool,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> PartialEq for Pointer<IS_VIRTUAL, IS_MUTABLE, T> {
+impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment> PartialEq
+    for Pointer<IS_VIRTUAL, IS_MUTABLE, T>
+{
     fn eq(&self, other: &Self) -> bool {
         self.as_inner() == other.as_inner()
     }
 }
 
-impl<
-    const IS_VIRTUAL: bool,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> Eq for Pointer<IS_VIRTUAL, IS_MUTABLE, T> {}
+impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment> Eq
+    for Pointer<IS_VIRTUAL, IS_MUTABLE, T>
+{
+}
 
-impl<
-    const IS_VIRTUAL: bool,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> PartialOrd for Pointer<IS_VIRTUAL, IS_MUTABLE, T> {
+impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment> PartialOrd
+    for Pointer<IS_VIRTUAL, IS_MUTABLE, T>
+{
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.as_inner().partial_cmp(other.as_inner())
     }
 }
 
-impl<
-    const IS_VIRTUAL: bool,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> Ord for Pointer<IS_VIRTUAL, IS_MUTABLE, T> {
+impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment> Ord
+    for Pointer<IS_VIRTUAL, IS_MUTABLE, T>
+{
     fn cmp(&self, other: &Self) -> Ordering {
         self.as_inner().cmp(other.as_inner())
     }
 }
 
-impl<
-    'a,
-    const IS_VIRTUAL: bool,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> Sub for &'a Pointer<IS_VIRTUAL, IS_MUTABLE, T> {
+impl<'a, const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment> Sub
+    for &'a Pointer<IS_VIRTUAL, IS_MUTABLE, T>
+{
     type Output = isize;
 
     fn sub(self, other: Self) -> Self::Output {
@@ -481,21 +470,17 @@ impl<
     }
 }
 
-impl<
-    const IS_VIRTUAL: bool,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> Debug for Pointer<IS_VIRTUAL, IS_MUTABLE, T> {
+impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment> Debug
+    for Pointer<IS_VIRTUAL, IS_MUTABLE, T>
+{
     fn fmt(&self, formatter: &mut Formatter<'_>) -> core::fmt::Result {
         write!(formatter, "{:?}", self.as_inner())
     }
 }
 
-impl<
-    const IS_VIRTUAL: bool,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> Clone for Pointer<IS_VIRTUAL, IS_MUTABLE, T> {
+impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment> Clone
+    for Pointer<IS_VIRTUAL, IS_MUTABLE, T>
+{
     fn clone(&self) -> Self {
         let inner = self.as_inner();
         // SAFETY: `inner` comes from `self`
@@ -503,17 +488,14 @@ impl<
     }
 }
 
-impl<
-    const IS_VIRTUAL: bool,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> Copy for Pointer<IS_VIRTUAL, IS_MUTABLE, T> {}
+impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment> Copy
+    for Pointer<IS_VIRTUAL, IS_MUTABLE, T>
+{
+}
 
-impl<
-    const IS_USER: bool,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> ValidVirtualPointer<IS_USER, IS_MUTABLE, T> {
+impl<const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment>
+    ValidVirtualPointer<IS_USER, IS_MUTABLE, T>
+{
     /// # Safety
     ///
     /// The caller must ensure that `virtual_pointer` is a valid:
@@ -552,13 +534,17 @@ impl<
         self.0
     }
 
-    pub const fn infallible_cast<U: AlwaysAligned>(self) -> ValidVirtualPointer<IS_USER, IS_MUTABLE, U> {
+    pub const fn infallible_cast<U: AlwaysAligned>(
+        self,
+    ) -> ValidVirtualPointer<IS_USER, IS_MUTABLE, U> {
         // SAFETY: `ValidVirtualPointer` is marked #[repr(transparent)], so its memory layout is the same for
         // different types.
         unsafe { *core::ptr::from_ref(&self).cast() }
     }
 
-    pub const fn infallible_cast_ref<U: AlwaysAligned>(&self) -> &ValidVirtualPointer<IS_USER, IS_MUTABLE, U> {
+    pub const fn infallible_cast_ref<U: AlwaysAligned>(
+        &self,
+    ) -> &ValidVirtualPointer<IS_USER, IS_MUTABLE, U> {
         // SAFETY: `ValidVirtualPointer` is marked #[repr(transparent)], so its memory layout is the same for
         // different types.
         unsafe { &*core::ptr::from_ref(self).cast() }
@@ -633,11 +619,9 @@ impl<
     }
 }
 
-impl<
-    const IS_USER: bool,
-    const IS_MUTABLE: bool,
-    U: AlwaysAligned,
-> ValidVirtualPointer<IS_USER, IS_MUTABLE, U> {
+impl<const IS_USER: bool, const IS_MUTABLE: bool, U: AlwaysAligned>
+    ValidVirtualPointer<IS_USER, IS_MUTABLE, U>
+{
     /// # Safety
     ///
     /// The caller must ensure that `non_null_pointer` is a virtual pointer. It must also ensure
@@ -653,20 +637,15 @@ impl<
     }
 }
 
-impl<
-    const IS_USER: bool,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> core::fmt::LowerHex for ValidVirtualPointer<IS_USER, IS_MUTABLE, T> {
+impl<const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment> core::fmt::LowerHex
+    for ValidVirtualPointer<IS_USER, IS_MUTABLE, T>
+{
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(formatter, "{:#x}", self.get_address())
     }
 }
 
-impl<
-    const IS_USER: bool,
-    T: Alignment,
-> ValidImmutableVirtualPointer<IS_USER, T> {
+impl<const IS_USER: bool, T: Alignment> ValidImmutableVirtualPointer<IS_USER, T> {
     /// # Safety
     ///
     /// The caller must ensure that `pointer` is a valid:
@@ -712,10 +691,7 @@ impl<
     }
 }
 
-impl<
-    const IS_USER: bool,
-    U: AlwaysAligned,
-> ValidImmutableVirtualPointer<IS_USER, U> {
+impl<const IS_USER: bool, U: AlwaysAligned> ValidImmutableVirtualPointer<IS_USER, U> {
     /// # Safety
     ///
     /// The caller must ensure that `pointer` is a virtual pointer. It must also ensure
@@ -736,10 +712,7 @@ impl<
     }
 }
 
-impl<
-    const IS_USER: bool,
-    T: Alignment,
-> ValidMutableVirtualPointer<IS_USER, T> {
+impl<const IS_USER: bool, T: Alignment> ValidMutableVirtualPointer<IS_USER, T> {
     /// # Safety
     ///
     /// The caller must ensure that `pointer` is a valid:
@@ -772,9 +745,9 @@ impl<
         unsafe { virtual_pointer.to_raw() }
     }
 
-    pub fn cast_mutability<
-        const IS_MUTABLE: bool,
-    >(self) -> ValidVirtualPointer<IS_USER, IS_MUTABLE, T> {
+    pub fn cast_mutability<const IS_MUTABLE: bool>(
+        self,
+    ) -> ValidVirtualPointer<IS_USER, IS_MUTABLE, T> {
         // SAFETY: TODO
         unsafe {
             core::mem::transmute::<
@@ -793,10 +766,7 @@ impl<
     }
 }
 
-impl<
-    const IS_USER: bool,
-    U: AlwaysAligned,
-> ValidMutableVirtualPointer<IS_USER, U> {
+impl<const IS_USER: bool, U: AlwaysAligned> ValidMutableVirtualPointer<IS_USER, U> {
     /// # Safety
     ///
     /// The caller must ensure that `pointer` is a virtual pointer. It must also ensure
@@ -817,48 +787,38 @@ impl<
     }
 }
 
-impl<
-    const IS_USER: bool,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> PartialEq for ValidVirtualPointer<IS_USER, IS_MUTABLE, T> {
+impl<const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment> PartialEq
+    for ValidVirtualPointer<IS_USER, IS_MUTABLE, T>
+{
     fn eq(&self, other: &Self) -> bool {
         self.as_virtual_pointer().eq(other.as_virtual_pointer())
     }
 }
 
-impl<
-    const IS_USER: bool,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> Eq for ValidVirtualPointer<IS_USER, IS_MUTABLE, T> {}
+impl<const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment> Eq
+    for ValidVirtualPointer<IS_USER, IS_MUTABLE, T>
+{
+}
 
-impl<
-    const IS_USER: bool,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> PartialOrd for ValidVirtualPointer<IS_USER, IS_MUTABLE, T> {
+impl<const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment> PartialOrd
+    for ValidVirtualPointer<IS_USER, IS_MUTABLE, T>
+{
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<
-    const IS_USER: bool,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> Ord for ValidVirtualPointer<IS_USER, IS_MUTABLE, T> {
+impl<const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment> Ord
+    for ValidVirtualPointer<IS_USER, IS_MUTABLE, T>
+{
     fn cmp(&self, other: &Self) -> Ordering {
         self.as_virtual_pointer().cmp(other.as_virtual_pointer())
     }
 }
 
-impl<
-    'a,
-    const IS_USER: bool,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> Sub for &'a ValidVirtualPointer<IS_USER, IS_MUTABLE, T> {
+impl<'a, const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment> Sub
+    for &'a ValidVirtualPointer<IS_USER, IS_MUTABLE, T>
+{
     type Output = isize;
 
     fn sub(self, other: Self) -> Self::Output {
@@ -866,21 +826,17 @@ impl<
     }
 }
 
-impl<
-    const IS_USER: bool,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> Debug for ValidVirtualPointer<IS_USER, IS_MUTABLE, T> {
+impl<const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment> Debug
+    for ValidVirtualPointer<IS_USER, IS_MUTABLE, T>
+{
     fn fmt(&self, formatter: &mut Formatter<'_>) -> core::fmt::Result {
         write!(formatter, "{:?}", self.as_virtual_pointer())
     }
 }
 
-impl<
-    const IS_USER: bool,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> Clone for ValidVirtualPointer<IS_USER, IS_MUTABLE, T> {
+impl<const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment> Clone
+    for ValidVirtualPointer<IS_USER, IS_MUTABLE, T>
+{
     fn clone(&self) -> Self {
         let inner = self.as_virtual_pointer();
         // SAFETY: `inner` comes from `self`
@@ -888,17 +844,14 @@ impl<
     }
 }
 
-impl<
-    const IS_USER: bool,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> Copy for ValidVirtualPointer<IS_USER, IS_MUTABLE, T> {}
+impl<const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment> Copy
+    for ValidVirtualPointer<IS_USER, IS_MUTABLE, T>
+{
+}
 
-impl<
-    const IS_VIRTUAL: bool,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> NullablePointer<IS_VIRTUAL, IS_MUTABLE, T> {
+impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>
+    NullablePointer<IS_VIRTUAL, IS_MUTABLE, T>
+{
     pub const fn new_null() -> Self {
         NullablePointer::Null
     }
@@ -907,10 +860,14 @@ impl<
         NullablePointer::NonNull(pointer)
     }
 
-    pub const fn infallible_cast<U: AlwaysAligned>(self) -> NullablePointer<IS_VIRTUAL, IS_MUTABLE, U> {
+    pub const fn infallible_cast<U: AlwaysAligned>(
+        self,
+    ) -> NullablePointer<IS_VIRTUAL, IS_MUTABLE, U> {
         match self {
             NullablePointer::Null => NullablePointer::new_null(),
-            NullablePointer::NonNull(pointer) => NullablePointer::new_non_null(pointer.infallible_cast()),
+            NullablePointer::NonNull(pointer) => {
+                NullablePointer::new_non_null(pointer.infallible_cast())
+            }
         }
     }
 
@@ -921,7 +878,10 @@ impl<
         }
     }
 
-    pub fn checked_add(self, count: NonZero<usize>) -> Result<Pointer<IS_VIRTUAL, IS_MUTABLE, T>, ()> {
+    pub fn checked_add(
+        self,
+        count: NonZero<usize>,
+    ) -> Result<Pointer<IS_VIRTUAL, IS_MUTABLE, T>, ()> {
         let address = self.get_address();
 
         let byte_count = match count.get().checked_mul(core::mem::size_of::<T>()) {
@@ -935,18 +895,15 @@ impl<
         };
 
         // SAFETY: adding size_of::<T> * count bytes to a T-aligned pointer without overflow
-        // results in a non-null T-aligned pointer 
+        // results in a non-null T-aligned pointer
         let non_null_pointer = unsafe { NonNull::new_unchecked(new_address as *mut _) };
 
         // SAFETY: `self` guarantees that `non_null_pointer` has the right type.
-        unsafe { Pointer::new_non_null(non_null_pointer) } 
+        unsafe { Pointer::new_non_null(non_null_pointer) }
     }
 }
 
-impl<
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> NullableVirtualPointer<IS_MUTABLE, T> {
+impl<const IS_MUTABLE: bool, T: Alignment> NullableVirtualPointer<IS_MUTABLE, T> {
     /// # Safety
     ///
     /// The caller must ensure that the flat mapping of `self` is a valid physical pointer.
@@ -954,8 +911,10 @@ impl<
         match self {
             NullableVirtualPointer::Null => NullablePhysicalPointer::Null,
             NullableVirtualPointer::NonNull(non_null_pointer) =>
-                // SAFETY: The caller ensures that the flat mapping is valid.
+            // SAFETY: The caller ensures that the flat mapping is valid.
+            {
                 NullablePhysicalPointer::NonNull(unsafe { non_null_pointer.to_physical_pointer() })
+            }
         }
     }
 }
@@ -968,16 +927,16 @@ impl<T: Alignment> ImmutableNullableVirtualPointer<T> {
         match self {
             ImmutableNullableVirtualPointer::Null => core::ptr::null(),
             // SAFETY: the caller ensures that the two pointers are not used at the same time.
-            ImmutableNullableVirtualPointer::NonNull(non_null_pointer) => unsafe { non_null_pointer.to_raw() }
+            ImmutableNullableVirtualPointer::NonNull(non_null_pointer) => unsafe {
+                non_null_pointer.to_raw()
+            },
         }
     }
 }
 
-impl<
-    const IS_VIRTUAL: bool,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> Clone for NullablePointer<IS_VIRTUAL, IS_MUTABLE, T> {
+impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment> Clone
+    for NullablePointer<IS_VIRTUAL, IS_MUTABLE, T>
+{
     fn clone(&self) -> Self {
         match self {
             NullablePointer::Null => NullablePointer::Null,
@@ -986,22 +945,21 @@ impl<
     }
 }
 
-impl<
-    const IS_VIRTUAL: bool,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> Copy for NullablePointer<IS_VIRTUAL, IS_MUTABLE, T> {}
+impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment> Copy
+    for NullablePointer<IS_VIRTUAL, IS_MUTABLE, T>
+{
+}
 
-impl<
-    const IS_USER: bool,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> ValidNullableVirtualPointer<IS_USER, IS_MUTABLE, T> {
+impl<const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment>
+    ValidNullableVirtualPointer<IS_USER, IS_MUTABLE, T>
+{
     pub const fn new_null() -> Self {
         ValidNullableVirtualPointer::Null
     }
 
-    pub const fn new_non_null(valid_virtual_pointer: ValidVirtualPointer<IS_USER, IS_MUTABLE, T>) -> Self {
+    pub const fn new_non_null(
+        valid_virtual_pointer: ValidVirtualPointer<IS_USER, IS_MUTABLE, T>,
+    ) -> Self {
         ValidNullableVirtualPointer::NonNull(valid_virtual_pointer)
     }
 
@@ -1016,10 +974,7 @@ impl<
     }
 }
 
-impl<
-    const IS_USER: bool,
-    T: Alignment,
-> ValidNullableVirtualPointer<IS_USER, false, T> {
+impl<const IS_USER: bool, T: Alignment> ValidNullableVirtualPointer<IS_USER, false, T> {
     /// # Safety
     ///
     /// The caller must ensure that the two pointers are not used at the same time.
@@ -1029,11 +984,9 @@ impl<
     }
 }
 
-impl<
-    const IS_VIRTUAL: bool,
-    const IS_MUTABLE: bool,
-    T: Alignment
-> SmallerPair<Pointer<IS_VIRTUAL, IS_MUTABLE, T>> {
+impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>
+    SmallerPair<Pointer<IS_VIRTUAL, IS_MUTABLE, T>>
+{
     pub(super) fn downgrade(self) -> SmallerPair<Ptr<IS_MUTABLE, T>> {
         let (smaller, bigger) = self.consume();
         let smaller = smaller.downgrade();

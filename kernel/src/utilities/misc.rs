@@ -2,9 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive SRL 2024.
 
-use super::constants::{
-    BITS_PER_U8,
-};
+use super::constants::BITS_PER_U8;
 
 use core::num::NonZero;
 
@@ -48,7 +46,7 @@ macro_rules! create_non_zero {
                 Some(non_zero_value) => non_zero_value,
             }
         }
-    }
+    };
 }
 
 create_non_zero!(create_non_zero_usize, usize);
@@ -113,7 +111,10 @@ macro_rules! impl_divide_zeroable {
             actual_dividend / raw_divisor
         }
 
-        pub const fn $align_down_name(value: $zeroable, alignment: NonZero<$zeroable>) -> $zeroable {
+        pub const fn $align_down_name(
+            value: $zeroable,
+            alignment: NonZero<$zeroable>,
+        ) -> $zeroable {
             let modulo = $modulo_name(value, alignment);
             value - modulo
         }
@@ -122,7 +123,7 @@ macro_rules! impl_divide_zeroable {
             let modulo = $modulo_name(value, alignment);
             value + alignment.get() - modulo
         }
-    }
+    };
 }
 
 impl_divide_zeroable!(
@@ -173,7 +174,7 @@ macro_rules! impl_divide_exact_zeroable {
                 dividend / raw_divisor
             }
         }
-    }
+    };
 }
 
 impl_divide_exact_zeroable!(divide_exact_usize, usize);
@@ -191,7 +192,10 @@ macro_rules! impl_divide_modulo_non_zeroable {
         /// # Return value
         ///
         /// The result of the division.
-        pub const fn $divide_name(dividend: NonZero<$zeroable>, divisor: NonZero<$zeroable>) -> $zeroable {
+        pub const fn $divide_name(
+            dividend: NonZero<$zeroable>,
+            divisor: NonZero<$zeroable>,
+        ) -> $zeroable {
             // DIVISION: The type of the divisor guarantees that it can't be null.
             dividend.get() / divisor.get()
         }
@@ -206,12 +210,18 @@ macro_rules! impl_divide_modulo_non_zeroable {
         /// # Return value
         ///
         /// The remainder of the division.
-        pub const fn $modulo_name(dividend: NonZero<$zeroable>, divisor: NonZero<$zeroable>) -> $zeroable {
+        pub const fn $modulo_name(
+            dividend: NonZero<$zeroable>,
+            divisor: NonZero<$zeroable>,
+        ) -> $zeroable {
             // MODULO: The type of the divisor guarantees that it can't be null.
             dividend.get() % divisor.get()
         }
 
-        pub const fn $ceil_name(dividend: NonZero<$zeroable>, divisor: NonZero<$zeroable>) -> NonZero<$zeroable> {
+        pub const fn $ceil_name(
+            dividend: NonZero<$zeroable>,
+            divisor: NonZero<$zeroable>,
+        ) -> NonZero<$zeroable> {
             let raw_divisor = divisor.get();
             let actual_dividend = dividend.get() + raw_divisor - 1;
             // DIVISION: the type of the divisor guarantees that it can't be null.
@@ -220,7 +230,7 @@ macro_rules! impl_divide_modulo_non_zeroable {
             // cannot be 0.
             unsafe { NonZero::new_unchecked(divide_result) }
         }
-    }
+    };
 }
 
 impl_divide_modulo_non_zeroable!(
@@ -256,7 +266,10 @@ macro_rules! impl_divide_exact_non_zeroable {
         ///
         /// The result of the division
         #[track_caller]
-        pub const fn $name(dividend: NonZero<$zeroable>, divisor: NonZero<$zeroable>) -> NonZero<$zeroable> {
+        pub const fn $name(
+            dividend: NonZero<$zeroable>,
+            divisor: NonZero<$zeroable>,
+        ) -> NonZero<$zeroable> {
             let raw_dividend = dividend.get();
             let raw_divisor = divisor.get();
             if raw_dividend % raw_divisor != 0 {
@@ -272,7 +285,7 @@ macro_rules! impl_divide_exact_non_zeroable {
                 unsafe { NonZero::new_unchecked(raw_dividend / raw_divisor) }
             }
         }
-    }
+    };
 }
 
 impl_divide_exact_non_zeroable!(divide_exact_non_zero_usize, usize);

@@ -15,12 +15,10 @@ use crate::errorcode::ErrorCode;
 use crate::ipc;
 use crate::kernel::Kernel;
 use crate::memory_management::configuration;
-use crate::memory_management::pointers::{
-    ImmutableKernelVirtualPointer,
-    ImmutableUserVirtualPointer,
-    MutableKernelVirtualPointer,
-};
 use crate::memory_management::pages::Page4KiB;
+use crate::memory_management::pointers::{
+    ImmutableKernelVirtualPointer, ImmutableUserVirtualPointer, MutableKernelVirtualPointer,
+};
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::storage_permissions;
 use crate::syscall::{self, Syscall, SyscallReturn};
@@ -780,7 +778,10 @@ pub trait Process {
     /// and `false` otherwise.
     // `upcall_fn` can eventually be a better type:
     // <https://github.com/tock/tock/issues/4134>
-    fn is_valid_upcall_function_pointer(&self, upcall_fn: ImmutableKernelVirtualPointer<u8>) -> bool;
+    fn is_valid_upcall_function_pointer(
+        &self,
+        upcall_fn: ImmutableKernelVirtualPointer<u8>,
+    ) -> bool;
 
     // functions for processes that are architecture specific
 

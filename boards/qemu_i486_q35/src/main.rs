@@ -27,9 +27,9 @@ use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::Process;
 use kernel::scheduler::cooperative::CooperativeSched;
 use kernel::syscall::SyscallDriver;
-use kernel::{create_capability, static_init, Kernel};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::slices::NonEmptyMutableSlice;
+use kernel::{create_capability, static_init, Kernel};
 
 use x86::registers::bits32::paging::{PDEntry, PTEntry, PD, PT};
 use x86::registers::irq;
@@ -52,7 +52,8 @@ const NUM_PROCS: usize = 4;
 
 // Actual memory for holding the active process structures. Need an empty list
 // at least.
-static mut PROCESSES: [OptionalCell<&'static dyn Process>; NUM_PROCS] = [const { OptionalCell::empty() }; NUM_PROCS];
+static mut PROCESSES: [OptionalCell<&'static dyn Process>; NUM_PROCS] =
+    [const { OptionalCell::empty() }; NUM_PROCS];
 
 // Reference to the chip for panic dumps
 static mut CHIP: Option<&'static Pc> = None;
@@ -174,12 +175,14 @@ unsafe extern "cdecl" fn main() {
     use kernel::memory_management::pages::Page4KiB;
     let apps_ram = core::slice::from_raw_parts_mut(
         (core::ptr::addr_of_mut!(linker::_sappmem) as usize) as *mut Page4KiB,
-        core::ptr::addr_of!(linker::_eappmem) as usize - core::ptr::addr_of!(linker::_sappmem) as usize,
+        core::ptr::addr_of!(linker::_eappmem) as usize
+            - core::ptr::addr_of!(linker::_sappmem) as usize,
     );
 
     // PANIC: the linker script ensures that the RAM region is not empty.
     let non_empty_ram_memory = NonEmptyMutableSlice::new(apps_ram).unwrap();
-    let physical_ram_memory = kernel::memory_management::slices::MutablePhysicalSlice::new(non_empty_ram_memory);
+    let physical_ram_memory =
+        kernel::memory_management::slices::MutablePhysicalSlice::new(non_empty_ram_memory);
 
     type RamAllocator = kernel::memory_management::allocators::StaticAllocator<'static, Page4KiB>;
     let ram_allocator = RamAllocator::new(physical_ram_memory);
@@ -189,15 +192,39 @@ unsafe extern "cdecl" fn main() {
     let physical_kernel_ram_memory = linker::get_kernel_ram_region();
     let physical_kernel_peripheral_memory = linker::get_kernel_peripheral_region();
 
-    let allocated_kernel_rom_memory = kernel::memory_management::regions::PhysicalAllocatedRegion::new(physical_kernel_rom_memory);
-    let allocated_kernel_prog_memory = kernel::memory_management::regions::PhysicalAllocatedRegion::new(physical_kernel_prog_memory);
-    let allocated_kernel_ram_memory = kernel::memory_management::regions::PhysicalAllocatedRegion::new(physical_kernel_ram_memory);
-    let allocated_kernel_peripheral_memory = kernel::memory_management::regions::PhysicalAllocatedRegion::new(physical_kernel_peripheral_memory);
+    let allocated_kernel_rom_memory =
+        kernel::memory_management::regions::PhysicalAllocatedRegion::new(
+            physical_kernel_rom_memory,
+        );
+    let allocated_kernel_prog_memory =
+        kernel::memory_management::regions::PhysicalAllocatedRegion::new(
+            physical_kernel_prog_memory,
+        );
+    let allocated_kernel_ram_memory =
+        kernel::memory_management::regions::PhysicalAllocatedRegion::new(
+            physical_kernel_ram_memory,
+        );
+    let allocated_kernel_peripheral_memory =
+        kernel::memory_management::regions::PhysicalAllocatedRegion::new(
+            physical_kernel_peripheral_memory,
+        );
 
-    let mapped_kernel_rom_memory = kernel::memory_management::regions::MappedAllocatedRegion::new_flat(allocated_kernel_rom_memory);
-    let mapped_kernel_prog_memory = kernel::memory_management::regions::MappedAllocatedRegion::new_flat(allocated_kernel_prog_memory);
-    let mapped_kernel_ram_memory = kernel::memory_management::regions::MappedAllocatedRegion::new_flat(allocated_kernel_ram_memory);
-    let mapped_kernel_peripheral_memory = kernel::memory_management::regions::MappedAllocatedRegion::new_flat(allocated_kernel_peripheral_memory);
+    let mapped_kernel_rom_memory =
+        kernel::memory_management::regions::MappedAllocatedRegion::new_flat(
+            allocated_kernel_rom_memory,
+        );
+    let mapped_kernel_prog_memory =
+        kernel::memory_management::regions::MappedAllocatedRegion::new_flat(
+            allocated_kernel_prog_memory,
+        );
+    let mapped_kernel_ram_memory =
+        kernel::memory_management::regions::MappedAllocatedRegion::new_flat(
+            allocated_kernel_ram_memory,
+        );
+    let mapped_kernel_peripheral_memory =
+        kernel::memory_management::regions::MappedAllocatedRegion::new_flat(
+            allocated_kernel_peripheral_memory,
+        );
 
     // Create a board kernel instance
     let board_kernel = static_init!(

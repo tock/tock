@@ -3,8 +3,8 @@
 // Copyright Tock Contributors 2022.
 
 use core::cell::Cell;
-use core::num::NonZeroUsize;
 use core::fmt;
+use core::num::NonZeroUsize;
 
 use kernel::memory_management::pages::Page4KiB;
 use kernel::memory_management::permissions::Permissions;
@@ -838,11 +838,8 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> PMPUserMPU<
         #[allow(clippy::let_unit_value)]
         let _: () = P::CONST_ASSERT_CHECK;
 
-        const DEFAULT_REGION: (TORUserPMPCFG, *const u8, *const u8) = (
-            TORUserPMPCFG::OFF,
-            core::ptr::null(),
-            core::ptr::null(),
-        );
+        const DEFAULT_REGION: (TORUserPMPCFG, *const u8, *const u8) =
+            (TORUserPMPCFG::OFF, core::ptr::null(), core::ptr::null());
 
         PMPUserMPU {
             regions: MapCell::new([DEFAULT_REGION; MAX_REGIONS]),
@@ -876,8 +873,8 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> PMPUserMPU<
     }
 }
 
-impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::platform::mmu::MpuMmuCommon
-    for PMPUserMPU<MAX_REGIONS, P>
+impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static>
+    kernel::platform::mmu::MpuMmuCommon for PMPUserMPU<MAX_REGIONS, P>
 {
     type Granule = Page4KiB;
 

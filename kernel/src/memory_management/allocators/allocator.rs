@@ -7,8 +7,5 @@ use super::super::slices::MutablePhysicalSlice;
 use core::num::NonZero;
 
 pub trait Allocator<'a, Granule> {
-    fn allocate(
-        &self,
-        count: NonZero<usize>,
-    ) -> Result<MutablePhysicalSlice<'a, Granule>, ()>;
+    fn allocate(&self, count: NonZero<usize>) -> Result<MutablePhysicalSlice<'a, Granule>, ()>;
 }

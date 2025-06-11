@@ -2,15 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive SRL 2025.
 
-use super::alignment::{
-    Alignment,
-    AlwaysAligned,
-};
-use super::misc::{
-    create_non_zero_usize,
-    divide_non_zero_usize,
-    modulo_non_zero_usize,
-};
+use super::alignment::{Alignment, AlwaysAligned};
+use super::misc::{create_non_zero_usize, divide_non_zero_usize, modulo_non_zero_usize};
 
 use core::cmp::Ordering;
 use core::fmt::{Debug, Formatter};
@@ -103,7 +96,6 @@ impl<const IS_MUTABLE: bool, T: Alignment> Pointer<IS_MUTABLE, T> {
         // in an address that is also multiple of size_of::<T>()
         let new_pointer = unsafe { Self::new_unchecked_alignment(new_non_null_pointer) };
         new_pointer
-
     }
 
     pub fn checked_add(&self, count: NonZero<usize>) -> Result<Self, ()> {
@@ -146,11 +138,12 @@ impl<const IS_MUTABLE: bool, T: Alignment> Pointer<IS_MUTABLE, T> {
         // CAST: TODO
         let address = raw_pointer.addr() as isize;
         // CAST: TODO
-        let new_raw_pointer = match address.checked_add(count.get() * core::mem::size_of::<T>() as isize) {
-            None => return Err(()),
-            // CAST: TODO
-            Some(new_address) => raw_pointer.with_addr(new_address as usize),
-        };
+        let new_raw_pointer =
+            match address.checked_add(count.get() * core::mem::size_of::<T>() as isize) {
+                None => return Err(()),
+                // CAST: TODO
+                Some(new_address) => raw_pointer.with_addr(new_address as usize),
+            };
         // SAFETY: adding a positive count to a non-null pointer without wrapping results in a
         // non-null pointer
         let new_non_null_pointer = unsafe { NonNull::new_unchecked(new_raw_pointer) };
@@ -171,7 +164,8 @@ impl<const IS_MUTABLE: bool, T: Alignment> Pointer<IS_MUTABLE, T> {
         let difference = unsafe { inner_address.get().unchecked_sub(origin_address.get()) };
         // SAFETY: the caller ensures that `self` > `origin`
         let difference = unsafe { NonZero::new_unchecked(difference) };
-        let distance = divide_non_zero_usize(difference, create_non_zero_usize(core::mem::size_of::<T>()));
+        let distance =
+            divide_non_zero_usize(difference, create_non_zero_usize(core::mem::size_of::<T>()));
         // SAFETY: the caller ensures that `self` > `origin`
         unsafe { NonZero::new_unchecked(distance) }
     }
@@ -268,7 +262,8 @@ impl<T: Alignment> ImmutablePointer<T> {
     pub fn new(pointer: *const T) -> Result<Self, Error> {
         let raw_mutable_pointer = pointer.cast_mut();
 
-        MutablePointer::new(raw_mutable_pointer).map(|mutable_pointer| mutable_pointer.to_immutable())
+        MutablePointer::new(raw_mutable_pointer)
+            .map(|mutable_pointer| mutable_pointer.to_immutable())
     }
 
     pub fn new_from_ref<'a>(reference: &'a T) -> Self {
@@ -309,11 +304,7 @@ impl<const IS_MUTABLE: bool, T: Alignment> Ord for Pointer<IS_MUTABLE, T> {
     }
 }
 
-impl<
-    'a,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> Sub for &'a Pointer<IS_MUTABLE, T> {
+impl<'a, const IS_MUTABLE: bool, T: Alignment> Sub for &'a Pointer<IS_MUTABLE, T> {
     type Output = isize;
 
     fn sub(self, other: Self) -> Self::Output {

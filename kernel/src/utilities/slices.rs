@@ -4,11 +4,7 @@
 
 use super::alignment::Alignment;
 use super::ordering::SmallerPair;
-use super::pointers::{
-    Pointer,
-    ImmutablePointer,
-    MutablePointer,
-};
+use super::pointers::{ImmutablePointer, MutablePointer, Pointer};
 
 use core::marker::PhantomData;
 use core::num::NonZero;
@@ -22,11 +18,7 @@ pub struct NonEmptySlice<'a, const IS_MUTABLE: bool, T: Alignment> {
 pub type NonEmptyImmutableSlice<'a, T> = NonEmptySlice<'a, false, T>;
 pub type NonEmptyMutableSlice<'a, T> = NonEmptySlice<'a, true, T>;
 
-impl<
-    'a,
-    const IS_MUTABLE: bool,
-    T: Alignment,
-> NonEmptySlice<'a, IS_MUTABLE, T> {
+impl<'a, const IS_MUTABLE: bool, T: Alignment> NonEmptySlice<'a, IS_MUTABLE, T> {
     /// # Safety
     ///
     /// 1. the slice must not wrap around
@@ -49,9 +41,7 @@ impl<
     ///
     /// 1. No other reference to the memory covered by this slice exists.
     /// 2. The memory covered by the slice is valid for the <'a> lifetime.
-    pub unsafe fn new_start_end(
-        pointers: SmallerPair<Pointer<IS_MUTABLE, T>>,
-    ) -> Self {
+    pub unsafe fn new_start_end(pointers: SmallerPair<Pointer<IS_MUTABLE, T>>) -> Self {
         // SAFETY: because of the previous if, `end` > `start`
         let length = pointers.compute_difference();
         let start = pointers.to_smaller();
@@ -74,7 +64,7 @@ impl<
 
     pub(crate) fn split_at_checked(
         self,
-        mid: NonZero<usize>
+        mid: NonZero<usize>,
     ) -> Result<(Self, Option<Self>), Self> {
         let length = self.get_length();
 
