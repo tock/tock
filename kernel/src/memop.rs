@@ -46,12 +46,18 @@ use crate::ErrorCode;
 pub(crate) fn memop(process: &dyn Process, op_type: usize, r1: usize) -> SyscallReturn {
     match op_type {
         // Op Type 0: BRK
-        0 => process
-            // PANIC: TODO: this may be null
+        0 => {
             // SAFETY: a process can pass only user virtual pointers
-            .brk(unsafe { ImmutableUserVirtualPointer::new_from_raw_byte(r1 as *const u8).unwrap() })
-            .map(|_| SyscallReturn::Success)
-            .unwrap_or(SyscallReturn::Failure(ErrorCode::NOMEM)),
+            let pointer_result = unsafe { ImmutableUserVirtualPointer::new_from_raw_byte(r1 as *const u8) };
+
+            match pointer_result {
+                Err(()) => SyscallReturn::Failure(ErrorCode::INVAL),
+                Ok(pointer) => process
+                    .brk(pointer)
+                    .map(|_| SyscallReturn::Success)
+                    .unwrap_or(SyscallReturn::Failure(ErrorCode::NOMEM))
+            }
+        }
 
         // Op Type 1: SBRK
         1 => process
@@ -149,22 +155,30 @@ pub(crate) fn memop(process: &dyn Process, op_type: usize, r1: usize) -> Syscall
 
         // Op Type 10: Specify where the start of the app stack is.
         10 => {
-            let stack_pointer = r1 as *const u8;
-            // PANIC: TODO: this may be null
             // SAFETY: a process can pass only user virtual pointers
-            let virtual_stack_pointer = unsafe { ImmutableUserVirtualPointer::new_from_raw_byte(stack_pointer).unwrap() };
-            process.update_stack_start_pointer(virtual_stack_pointer);
-            SyscallReturn::Success
+            let stack_pointer_result = unsafe { ImmutableUserVirtualPointer::new_from_raw_byte(r1 as *const u8) };
+
+            match stack_pointer_result {
+                Err(()) => SyscallReturn::Failure(ErrorCode::INVAL),
+                Ok(stack_pointer) => {
+                    process.update_stack_start_pointer(stack_pointer);
+                    SyscallReturn::Success
+                }
+            }
         }
 
         // Op Type 11: Specify where the start of the app heap is.
         11 => {
-            let heap_pointer = r1 as *const u8;
-            // PANIC: TODO: this may be null
             // SAFETY: a process can pass only user virtual pointers
-            let virtual_heap_pointer = unsafe { ImmutableUserVirtualPointer::new_from_raw_byte(heap_pointer).unwrap() };
-            process.update_heap_start_pointer(virtual_heap_pointer);
-            SyscallReturn::Success
+            let heap_pointer_result = unsafe { ImmutableUserVirtualPointer::new_from_raw_byte(r1 as *const u8) };
+
+            match heap_pointer_result {
+                Err(()) => SyscallReturn::Failure(ErrorCode::INVAL),
+                Ok(heap_pointer) => {
+                    process.update_heap_start_pointer(heap_pointer);
+                    SyscallReturn::Success
+                }
+            }
         }
 
         _ => SyscallReturn::Failure(ErrorCode::NOSUPPORT),
