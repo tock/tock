@@ -238,6 +238,7 @@ pub trait WriteableProcessBuffer: ReadableProcessBuffer {
 /// explicitly supporting interior mutability. Still, a memory barrier
 /// prior to switching to userspace is required, as the compiler is
 /// free to reorder reads and writes, even through [`Cell`]s.
+#[derive(Default)]
 pub struct ReadOnlyProcessBuffer {
     // TODO: Option should wrap both `ptr` and `len`
     ptr: Option<ImmutableKernelVirtualPointer<u8>>,
@@ -367,16 +368,6 @@ impl ReadableProcessBuffer for ReadOnlyProcessBuffer {
                         raw_processbuf_to_roprocessslice(self.ptr.as_ref(), self.len)
                     }))
                 }),
-        }
-    }
-}
-
-impl Default for ReadOnlyProcessBuffer {
-    fn default() -> Self {
-        ReadOnlyProcessBuffer {
-            ptr: None,
-            len: 0,
-            process_id: None,
         }
     }
 }

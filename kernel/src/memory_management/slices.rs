@@ -81,7 +81,7 @@ impl<'a, const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>
         &self.0
     }
 
-    const fn to_non_empty_slice(self) -> NonEmptySlice<'a, IS_MUTABLE, T> {
+    const fn into_non_empty_slice(self) -> NonEmptySlice<'a, IS_MUTABLE, T> {
         self.0
     }
 
@@ -102,15 +102,15 @@ impl<'a, const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>
         self.as_non_empty_slice().get_length()
     }
 
-    fn to_starting_pointer(self) -> Pointer<IS_VIRTUAL, IS_MUTABLE, T> {
-        let aligned_non_null_pointer = self.to_non_empty_slice().to_starting_pointer();
+    fn into_starting_pointer(self) -> Pointer<IS_VIRTUAL, IS_MUTABLE, T> {
+        let aligned_non_null_pointer = self.into_non_empty_slice().into_starting_pointer();
         // SAFETY: `aligned_non_null_pointer` comes from `self`
         unsafe { Pointer::new(aligned_non_null_pointer) }
     }
 
-    pub(super) fn to_pointers(self) -> SmallerPair<Pointer<IS_VIRTUAL, IS_MUTABLE, T>> {
+    pub(super) fn into_pointers(self) -> SmallerPair<Pointer<IS_VIRTUAL, IS_MUTABLE, T>> {
         let length = self.get_length();
-        let starting_pointer = self.to_starting_pointer();
+        let starting_pointer = self.into_starting_pointer();
         // SAFETY: a slice cannot wrap
         let ending_pointer = unsafe { starting_pointer.unchecked_add(length) };
         // SAFETY: since a slice cannot wrap, `ending_pointer` > `starting_pointer`
@@ -131,7 +131,7 @@ impl<'a, const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>
         self,
         mid: NonZero<usize>,
     ) -> Result<(Self, Option<Self>), Self> {
-        let non_empty_slice = self.to_non_empty_slice();
+        let non_empty_slice = self.into_non_empty_slice();
         let result = non_empty_slice.split_at_checked(mid);
 
         match result {
@@ -190,7 +190,7 @@ impl<'a, const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment>
         &self.0
     }
 
-    const fn to_virtual_slice(self) -> VirtualSlice<'a, IS_MUTABLE, T> {
+    const fn into_virtual_slice(self) -> VirtualSlice<'a, IS_MUTABLE, T> {
         self.0
     }
 
@@ -215,7 +215,7 @@ impl<'a, const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment>
         self,
         mid: NonZero<usize>,
     ) -> Result<(Self, Option<Self>), Self> {
-        let virtual_slice = self.to_virtual_slice();
+        let virtual_slice = self.into_virtual_slice();
         let result = virtual_slice.split_at_checked(mid);
 
         match result {

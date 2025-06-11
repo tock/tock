@@ -210,7 +210,7 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         //
         // Refer to
         // https://doc.rust-lang.org/std/primitive.pointer.html#safety-13
-        kernel::utilities::arch_helpers::encode_syscall_return_trd104(
+        kernel::utilities::arch_helpers::encode_syscall_return_trd104_32bit(
             &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(
                 return_value,
             ),

@@ -127,11 +127,11 @@ impl fmt::Debug for ProcessLoadError {
 // however, these functions require a rather large stack frame, which may be an
 // issue for boards small kernel stacks.
 #[inline(always)]
-pub fn load_processes<'a, C: Chip>(
+pub fn load_processes<C: Chip>(
     kernel: &'static Kernel,
     chip: &'static C,
     app_flash: &'static [u8],
-    mut procs: &'a mut [OptionalCell<&'static dyn Process>],
+    procs: &mut [OptionalCell<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
     _capability_management: &dyn ProcessManagementCapability,
 ) -> Result<(), ProcessLoadError> {
@@ -139,7 +139,7 @@ pub fn load_processes<'a, C: Chip>(
         kernel,
         chip,
         app_flash,
-        &mut procs,
+        &procs,
         fault_policy,
     )?;
 
@@ -175,11 +175,11 @@ pub fn load_processes<'a, C: Chip>(
 /// `ProcessLoadError` if something goes wrong during TBF parsing or process
 /// creation.
 #[inline(always)]
-fn load_processes_from_flash<'a, C: Chip, D: ProcessStandardDebug + 'static>(
+fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
     kernel: &'static Kernel,
     chip: &'static C,
     app_flash: &'static [u8],
-    procs: &mut &'a mut [OptionalCell<&'static dyn Process>],
+    procs: &&mut [OptionalCell<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
 ) -> Result<(), ProcessLoadError> {
     if config::CONFIG.debug_load_processes {
@@ -333,7 +333,7 @@ fn discover_process_binary(
 /// pool that its RAM should be allocated from. Returns `Ok` if the process
 /// object was created, `Err` with a relevant error if the process object could
 /// not be created.
-fn load_process<'a, C: Chip, D: ProcessStandardDebug>(
+fn load_process<C: Chip, D: ProcessStandardDebug>(
     kernel: &'static Kernel,
     chip: &'static C,
     process_binary: ProcessBinary,

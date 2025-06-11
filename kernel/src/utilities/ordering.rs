@@ -135,11 +135,11 @@ impl<'a, T, R: Relation<T>> RelationalPairImmutableReference<'a, T, R> {
     }
 
     pub const fn as_first(&self) -> &'a T {
-        *self.as_pair().as_first()
+        self.as_pair().as_first()
     }
 
     pub const fn as_second(&self) -> &'a T {
-        *self.as_pair().as_second()
+        self.as_pair().as_second()
     }
 
     pub fn to_first(self) -> &'a T {

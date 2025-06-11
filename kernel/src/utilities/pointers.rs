@@ -216,7 +216,7 @@ impl<T: Alignment> MutablePointer<T> {
         Self::new_non_null(non_null_pointer).map_err(|()| Error::NotAligned)
     }
 
-    pub fn new_from_ref<'a>(reference: &'a mut T) -> Self {
+    pub fn new_from_ref(reference: &mut T) -> Self {
         let pointer = core::ptr::from_mut(reference);
         // SAFETY: a reference is always suitably aligned and non-null
         unsafe { Self::new_unchecked(pointer) }
@@ -266,7 +266,7 @@ impl<T: Alignment> ImmutablePointer<T> {
             .map(|mutable_pointer| mutable_pointer.to_immutable())
     }
 
-    pub fn new_from_ref<'a>(reference: &'a T) -> Self {
+    pub fn new_from_ref(reference: &T) -> Self {
         let pointer = core::ptr::from_ref(reference);
         // SAFETY: a reference is always suitably aligned and non-null
         unsafe { Self::new_unchecked(pointer) }
@@ -304,7 +304,7 @@ impl<const IS_MUTABLE: bool, T: Alignment> Ord for Pointer<IS_MUTABLE, T> {
     }
 }
 
-impl<'a, const IS_MUTABLE: bool, T: Alignment> Sub for &'a Pointer<IS_MUTABLE, T> {
+impl<const IS_MUTABLE: bool, T: Alignment> Sub for &Pointer<IS_MUTABLE, T> {
     type Output = isize;
 
     fn sub(self, other: Self) -> Self::Output {
@@ -322,9 +322,7 @@ impl<const IS_MUTABLE: bool, T: Alignment> Debug for Pointer<IS_MUTABLE, T> {
 
 impl<const IS_MUTABLE: bool, T: Alignment> Clone for Pointer<IS_MUTABLE, T> {
     fn clone(&self) -> Self {
-        let aligned_non_null_pointer = self.as_non_null();
-        // SAFETY: `aligned_non_null_pointer` comes from `self`
-        unsafe { Self::new_unchecked_alignment(aligned_non_null_pointer.clone()) }
+        *self
     }
 }
 

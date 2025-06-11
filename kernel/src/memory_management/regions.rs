@@ -60,8 +60,8 @@ impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>
         Self(pointers)
     }
 
-    pub fn new<'a>(slice: Slice<'a, IS_VIRTUAL, IS_MUTABLE, T>) -> Self {
-        let pointers = slice.to_pointers();
+    pub fn new(slice: Slice<'_, IS_VIRTUAL, IS_MUTABLE, T>) -> Self {
+        let pointers = slice.into_pointers();
         Self::new_start_end(pointers)
     }
 
@@ -118,7 +118,7 @@ impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>
     }
 }
 
-impl<'a, const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment> core::fmt::Display
+impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment> core::fmt::Display
     for Region<IS_VIRTUAL, IS_MUTABLE, T>
 {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -132,7 +132,7 @@ pub struct AllocatedRegion<'a, const IS_VIRTUAL: bool, T: Alignment> {
     phantom_data: PhantomData<&'a ()>,
 }
 
-impl<'a, const IS_VIRTUAL: bool, T: Alignment> AllocatedRegion<'a, IS_VIRTUAL, T> {
+impl<const IS_VIRTUAL: bool, T: Alignment> AllocatedRegion<'_, IS_VIRTUAL, T> {
     const fn as_region(&self) -> &MutableRegion<IS_VIRTUAL, T> {
         &self.region
     }
@@ -158,7 +158,7 @@ impl<'a, const IS_VIRTUAL: bool, T: Alignment> AllocatedRegion<'a, IS_VIRTUAL, T
     }
 }
 
-impl<'a, const IS_USER: bool, T: Alignment> core::fmt::Display for AllocatedRegion<'a, IS_USER, T> {
+impl<const IS_USER: bool, T: Alignment> core::fmt::Display for AllocatedRegion<'_, IS_USER, T> {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(formatter, "{}", self.as_region())
     }
@@ -169,7 +169,7 @@ pub type PhysicalAllocatedRegion<'a, T> = AllocatedRegion<'a, false, T>;
 
 impl<'a, T: Alignment> PhysicalAllocatedRegion<'a, T> {
     pub fn new(slice: MutablePhysicalSlice<'a, T>) -> Self {
-        let pointers = slice.to_pointers();
+        let pointers = slice.into_pointers();
         let region = MutablePhysicalRegion::new_start_end(pointers);
 
         Self {
@@ -270,8 +270,8 @@ impl<'a, const IS_VIRTUAL: bool, T: Alignment> ProtectedAllocatedRegion<'a, IS_V
     }
 }
 
-impl<'a, const IS_USER: bool, T: Alignment> core::fmt::Display
-    for ProtectedAllocatedRegion<'a, IS_USER, T>
+impl<const IS_USER: bool, T: Alignment> core::fmt::Display
+    for ProtectedAllocatedRegion<'_, IS_USER, T>
 {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
@@ -732,8 +732,8 @@ impl<'a, const IS_USER: bool, T: Alignment> MappedProtectedAllocatedRegion<'a, I
     }
 }
 
-impl<'a, const IS_USER: bool, T: Alignment> core::fmt::Display
-    for MappedProtectedAllocatedRegion<'a, IS_USER, T>
+impl<const IS_USER: bool, T: Alignment> core::fmt::Display
+    for MappedProtectedAllocatedRegion<'_, IS_USER, T>
 {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
@@ -850,8 +850,8 @@ impl<'a, const IS_USER: bool, T: Alignment> DirtyMappedProtectedAllocatedRegion<
     }
 }
 
-impl<'a, const IS_USER: bool, T: Alignment> core::fmt::Display
-    for DirtyMappedProtectedAllocatedRegion<'a, IS_USER, T>
+impl<const IS_USER: bool, T: Alignment> core::fmt::Display
+    for DirtyMappedProtectedAllocatedRegion<'_, IS_USER, T>
 {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(

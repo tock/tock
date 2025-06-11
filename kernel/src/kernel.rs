@@ -1047,7 +1047,7 @@ impl Kernel {
         syscall: Syscall,
     ) {
         // Hook for process debugging.
-        process.debug_syscall_called(syscall.clone());
+        process.debug_syscall_called(syscall);
 
         // Enforce platform-specific syscall filtering here.
         //
@@ -1229,8 +1229,7 @@ impl Kernel {
                         // > immediately return a failure with a error code of
                         // > `INVALID`.
                         let rval1 = upcall_ptr.map_or(None, |upcall_ptr_nonnull| {
-                            // CAST: u8 and () have the same alignment.
-                            let raw_ptr = upcall_ptr_nonnull.as_ptr() as *const u8;
+                            let raw_ptr = upcall_ptr_nonnull.as_ptr();
                             // SAFETY: `raw_ptr` comes from `upcall_ptr` which is a pointer passed
                             // by the user space.
                             let result_user_upcall_ptr = unsafe { ImmutableUserVirtualPointer::new_from_raw_byte(raw_ptr) };
@@ -1238,14 +1237,13 @@ impl Kernel {
                             let user_upcall_ptr = result_user_upcall_ptr.unwrap();
                             self.translate_user_protected_virtual_pointer_byte(process, user_upcall_ptr)
                                 .ok()
-                                .map(|kernel_upcall_ptr| {
+                                .and_then(|kernel_upcall_ptr| {
                                     if !process.is_valid_upcall_function_pointer(kernel_upcall_ptr) {
                                         Some(ErrorCode::INVAL)
                                     } else {
                                         None
                                     }
                                 })
-                            .flatten()
                         });
 
                         // If the upcall is either null or valid, then we
@@ -1849,7 +1847,7 @@ impl Kernel {
                     // system call class.
                     _ => {
                         let return_value = SyscallReturn::Failure(ErrorCode::NOSUPPORT);
-                        process.set_syscall_return_value(return_value.clone());
+                        process.set_syscall_return_value(return_value);
                         Some(return_value)
                     }
                 };

@@ -18,7 +18,6 @@ use crate::ErrorCode;
 /// Used in encoding 64-bit wide system call return values on 32-bit
 /// platforms.
 #[inline]
-#[cfg(target_pointer_width = "32")]
 fn u64_to_be_u32s(src: u64) -> (u32, u32) {
     let src_bytes = src.to_be_bytes();
     let src_msb = u32::from_be_bytes([src_bytes[0], src_bytes[1], src_bytes[2], src_bytes[3]]);
@@ -137,8 +136,7 @@ impl TRD104SyscallReturn {
 /// Encode the system call return value into 4 registers, following the encoding specified in
 /// TRD104 for 32-bit platforms. Architectures which do not follow TRD104 are free to define
 /// their own encoding.
-#[cfg(target_pointer_width = "32")]
-pub fn encode_syscall_return_trd104(
+pub fn encode_syscall_return_trd104_32bit(
     syscall_return: &TRD104SyscallReturn,
     a0: &mut u32,
     a1: &mut u32,

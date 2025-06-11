@@ -18,7 +18,7 @@ pub struct NonEmptySlice<'a, const IS_MUTABLE: bool, T: Alignment> {
 pub type NonEmptyImmutableSlice<'a, T> = NonEmptySlice<'a, false, T>;
 pub type NonEmptyMutableSlice<'a, T> = NonEmptySlice<'a, true, T>;
 
-impl<'a, const IS_MUTABLE: bool, T: Alignment> NonEmptySlice<'a, IS_MUTABLE, T> {
+impl<const IS_MUTABLE: bool, T: Alignment> NonEmptySlice<'_, IS_MUTABLE, T> {
     /// # Safety
     ///
     /// 1. the slice must not wrap around
@@ -50,7 +50,7 @@ impl<'a, const IS_MUTABLE: bool, T: Alignment> NonEmptySlice<'a, IS_MUTABLE, T> 
         unsafe { Self::from_raw_parts(start, length) }
     }
 
-    pub(crate) const fn to_starting_pointer(self) -> Pointer<IS_MUTABLE, T> {
+    pub(crate) const fn into_starting_pointer(self) -> Pointer<IS_MUTABLE, T> {
         self.pointer
     }
 
@@ -78,7 +78,7 @@ impl<'a, const IS_MUTABLE: bool, T: Alignment> NonEmptySlice<'a, IS_MUTABLE, T> 
             Some(right_length) => right_length,
         };
 
-        let left_pointer = self.to_starting_pointer();
+        let left_pointer = self.into_starting_pointer();
         // SAFETY: a slice cannot wrap around and since mid < length,
         // left_pointer.wrapping_add(mid) does not overlap.
         let right_pointer = unsafe { left_pointer.unchecked_add(mid) };

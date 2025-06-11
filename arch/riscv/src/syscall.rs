@@ -174,7 +174,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         let (a1slice, r) = r.split_at_mut(R_A2 - R_A1);
         let (a2slice, a3slice) = r.split_at_mut(R_A3 - R_A2);
 
-        kernel::utilities::arch_helpers::encode_syscall_return_trd104(
+        kernel::utilities::arch_helpers::encode_syscall_return_trd104_32bit(
             &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(
                 return_value,
             ),
@@ -223,7 +223,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         _user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
         _user_app_brk: &ImmutableUserVirtualPointer<u8>,
         _state: &mut Riscv32iStoredState,
-    ) -> (ContextSwitchReason, Option<*const u8>) {
+    ) -> (ContextSwitchReason, Option<ImmutableUserVirtualPointer<u8>>) {
         // Convince lint that 'mcause' and 'R_A4' are used during test build
         let _cause = mcause::Trap::from(_state.mcause as usize);
         let _arg4 = _state.regs[R_A4];

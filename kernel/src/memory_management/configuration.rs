@@ -143,7 +143,7 @@ impl<'a, Granule> ProcessConfiguration<'a, Granule> {
         let physical_pointer =
             match ram_region.translate_protected_physical_pointer_byte(physical_pointer) {
                 Err(physical_pointer) => physical_pointer,
-                ok @ _ => return ok,
+                ok => return ok,
             };
 
         let prog_region = self.get_prog_region();
@@ -159,7 +159,7 @@ impl<'a, Granule> ProcessConfiguration<'a, Granule> {
         let virtual_pointer =
             match ram_region.translate_protected_virtual_pointer_byte(virtual_pointer) {
                 Err(virtual_pointer) => virtual_pointer,
-                ok @ _ => return ok,
+                ok => return ok,
             };
 
         let prog_region = self.get_prog_region();
@@ -175,7 +175,7 @@ impl<'a, Granule> ProcessConfiguration<'a, Granule> {
         let virtual_pointer =
             match ram_region.translate_allocated_virtual_pointer_byte(virtual_pointer) {
                 Err(virtual_pointer) => virtual_pointer,
-                ok @ _ => return ok,
+                ok => return ok,
             };
 
         let prog_region = self.get_prog_region();
@@ -244,18 +244,18 @@ impl<'a, Granule> ValidProcessConfiguration<'a, Granule> {
     }
 }
 
-impl<'a, Granule> core::fmt::Display for ValidProcessConfiguration<'a, Granule> {
+impl<Granule> core::fmt::Display for ValidProcessConfiguration<'_, Granule> {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let header = r#"
+        let header = r"
 +---------------------------------+
 |                                 |
 |  PROCESS MEMORY CONFIGURATION   |
 |                                 |
 +---------------------------------+
-"#;
+";
 
         write!(formatter, "\n{}\n", header)?;
-        write!(formatter, "PROG region: {}\n", self.get_prog_region())?;
+        writeln!(formatter, "PROG region: {}", self.get_prog_region())?;
         write!(formatter, "RAM region: {}", self.get_ram_region())
     }
 }

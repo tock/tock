@@ -2025,7 +2025,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
                 // reconstitute the original memory slice.
                 return Err(ProcessLoadError::InternalError);
             }
-        };
+        }
 
         let flash_start = process.flash.get_starting_pointer();
         // `flash_start` is used to enqueue the initial task of a process. A task runs in user

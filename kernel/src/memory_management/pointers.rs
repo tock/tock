@@ -204,7 +204,7 @@ impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>
     /// The addition must not overflow.
     pub(crate) unsafe fn unchecked_add_zero(&self, count: usize) -> Self {
         match NonZero::new(count) {
-            None => self.clone(),
+            None => *self,
             // SAFETY: the caller ensures that the addition does not overflow
             Some(non_zero_count) => unsafe { self.unchecked_add(non_zero_count) },
         }
@@ -212,21 +212,21 @@ impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>
 
     pub fn checked_add_zero(&self, count: usize) -> Result<Self, ()> {
         match NonZero::new(count) {
-            None => Ok(self.clone()),
+            None => Ok(*self),
             Some(non_zero_count) => self.checked_add(non_zero_count),
         }
     }
 
     pub fn checked_sub_zero(&self, count: usize) -> Result<Self, ()> {
         match NonZero::new(count) {
-            None => Ok(self.clone()),
+            None => Ok(*self),
             Some(non_zero_count) => self.checked_add(non_zero_count),
         }
     }
 
     pub fn checked_offset_zero(&self, count: isize) -> Result<Self, ()> {
         match NonZero::new(count) {
-            None => Ok(self.clone()),
+            None => Ok(*self),
             Some(non_zero_count) => self.checked_offset(non_zero_count),
         }
     }
@@ -323,10 +323,7 @@ impl<const IS_VIRTUAL: bool, T: Alignment> ImmutablePointer<IS_VIRTUAL, T> {
     ///
     /// The caller must ensure that `pointer` is of right type.
     pub(crate) unsafe fn new_raw(pointer: *const T) -> Result<Self, Error> {
-        let pointer = match ImmutablePtr::new(pointer) {
-            Err(error) => return Err(error),
-            Ok(pointer) => pointer,
-        };
+        let pointer = ImmutablePtr::new(pointer)?;
 
         // SAFETY: The caller ensures that `pointer` is of the right type
         let pointer = unsafe { Self::new(pointer) };
@@ -337,7 +334,7 @@ impl<const IS_VIRTUAL: bool, T: Alignment> ImmutablePointer<IS_VIRTUAL, T> {
     /// # Safety
     ///
     /// The caller must ensure that `reference` is of right type.
-    pub unsafe fn new_from_ref<'a>(reference: &'a T) -> Self {
+    pub unsafe fn new_from_ref(reference: &T) -> Self {
         let immutable_pointer = ImmutablePtr::new_from_ref(reference);
         // SAFETY: The caller ensures that `reference` is of the right type
         unsafe { Self::new(immutable_pointer) }
@@ -382,10 +379,7 @@ impl<const IS_VIRTUAL: bool, T: Alignment> MutablePointer<IS_VIRTUAL, T> {
     ///
     /// The caller must ensure that `pointer` is of right type.
     pub unsafe fn new_raw(pointer: *mut T) -> Result<Self, Error> {
-        let pointer = match MutablePtr::new(pointer) {
-            Err(error) => return Err(error),
-            Ok(pointer) => pointer,
-        };
+        let pointer = MutablePtr::new(pointer)?;
 
         // SAFETY: The caller ensures that `pointer` is of the right type
         let pointer = unsafe { Self::new(pointer) };
@@ -448,7 +442,7 @@ impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment> PartialOrd
     for Pointer<IS_VIRTUAL, IS_MUTABLE, T>
 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.as_inner().partial_cmp(other.as_inner())
+        Some(self.cmp(other))
     }
 }
 
@@ -460,8 +454,8 @@ impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment> Ord
     }
 }
 
-impl<'a, const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment> Sub
-    for &'a Pointer<IS_VIRTUAL, IS_MUTABLE, T>
+impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment> Sub
+    for &Pointer<IS_VIRTUAL, IS_MUTABLE, T>
 {
     type Output = isize;
 
@@ -482,9 +476,7 @@ impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment> Clone
     for Pointer<IS_VIRTUAL, IS_MUTABLE, T>
 {
     fn clone(&self) -> Self {
-        let inner = self.as_inner();
-        // SAFETY: `inner` comes from `self`
-        unsafe { Self::new(inner.clone()) }
+        *self
     }
 }
 
@@ -520,10 +512,10 @@ impl<const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment>
         unsafe { &*core::ptr::from_ref(self).cast() }
     }
 
-    pub(crate) fn to_immutable(&self) -> ValidImmutableVirtualPointer<IS_USER, T> {
+    pub(crate) fn to_immutable(self) -> ValidImmutableVirtualPointer<IS_USER, T> {
         // SAFETY: `ValidVirtualPointer` is marked #[repr(transparent)], so it has the same memory
         // representation for both immutable and mutable counter parts.
-        unsafe { *core::ptr::from_ref(self).cast() }
+        unsafe { *core::ptr::from_ref(&self).cast() }
     }
 
     pub fn to_nullable(self) -> ValidNullableVirtualPointer<IS_USER, IS_MUTABLE, T> {
@@ -578,7 +570,7 @@ impl<const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment>
     /// The addition must not overflow.
     pub(crate) unsafe fn unchecked_add_zero(&self, count: usize) -> Self {
         match NonZero::new(count) {
-            None => self.clone(),
+            None => *self,
             // SAFETY: the caller ensures that the addition does not overflow
             Some(non_zero_count) => unsafe { self.unchecked_add(non_zero_count) },
         }
@@ -667,7 +659,7 @@ impl<const IS_USER: bool, T: Alignment> ValidImmutableVirtualPointer<IS_USER, T>
     ///
     /// 1. User virtual reference if IS_USER == true
     /// 2. Kernel virtual reference if IS_USER == false
-    pub unsafe fn new_from_ref<'a>(reference: &'a T) -> Self {
+    pub unsafe fn new_from_ref(reference: &T) -> Self {
         let virtual_pointer = ImmutableVirtualPointer::new_from_ref(reference);
         // SAFETY: The caller ensures that `reference` is of the right type
         unsafe { Self::new(virtual_pointer) }
@@ -816,8 +808,8 @@ impl<const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment> Ord
     }
 }
 
-impl<'a, const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment> Sub
-    for &'a ValidVirtualPointer<IS_USER, IS_MUTABLE, T>
+impl<const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment> Sub
+    for &ValidVirtualPointer<IS_USER, IS_MUTABLE, T>
 {
     type Output = isize;
 
@@ -838,9 +830,7 @@ impl<const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment> Clone
     for ValidVirtualPointer<IS_USER, IS_MUTABLE, T>
 {
     fn clone(&self) -> Self {
-        let inner = self.as_virtual_pointer();
-        // SAFETY: `inner` comes from `self`
-        unsafe { Self::new(inner.clone()) }
+        *self
     }
 }
 
@@ -938,10 +928,7 @@ impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment> Clone
     for NullablePointer<IS_VIRTUAL, IS_MUTABLE, T>
 {
     fn clone(&self) -> Self {
-        match self {
-            NullablePointer::Null => NullablePointer::Null,
-            NullablePointer::NonNull(pointer) => NullablePointer::NonNull(pointer.clone()),
-        }
+        *self
     }
 }
 

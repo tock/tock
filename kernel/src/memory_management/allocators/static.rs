@@ -19,7 +19,7 @@ impl<'a, Granule> StaticAllocator<'a, Granule> {
 
     fn take(&self) -> Result<MutablePhysicalSlice<'a, Granule>, ()> {
         match self.0.take() {
-            None => return Err(()),
+            None => Err(()),
             Some(memory) => Ok(memory),
         }
     }
@@ -37,7 +37,6 @@ impl<'a, Granule> StaticAllocator<'a, Granule> {
     > {
         memory.split_at_checked(mid).map_err(|memory| {
             self.0.insert(Some(memory));
-            ()
         })
     }
 }
