@@ -9,8 +9,6 @@ use crate::registers::bits32::eflags::{EFlags, EFLAGS};
 use kernel::memory_management::pointers::{
     ImmutableKernelVirtualPointer,
     ImmutableUserVirtualPointer,
-    MutableKernelVirtualPointer,
-    MutableUserVirtualPointer,
 };
 use kernel::process::FunctionCall;
 use kernel::syscall::{ContextSwitchReason, Syscall, SyscallReturn, UserspaceKernelBoundary};
@@ -89,18 +87,10 @@ impl UserspaceKernelBoundary for Boundary {
         Ok(())
     }
 
-    fn get_sp(&self, state: &mut Self::StoredState) -> MutableUserVirtualPointer<u8> {
-        // SAFETY: `esp` is a valid user pointer
-        unsafe { MutableUserVirtualPointer::new_from_raw(state.esp as *mut u8) }.unwrap()
-    }
-
     unsafe fn set_syscall_return_value(
         &self,
-        _kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        _kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
         _user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
         _user_app_brk: &ImmutableUserVirtualPointer<u8>,
-        _sp: &MutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
         return_value: SyscallReturn,
     ) -> Result<(), ()> {
@@ -137,11 +127,8 @@ impl UserspaceKernelBoundary for Boundary {
 
     unsafe fn set_process_function(
         &self,
-        _kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        _kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
         _user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
         _user_app_brk: &ImmutableUserVirtualPointer<u8>,
-        _sp: &MutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
         upcall: FunctionCall,
     ) -> Result<(), ()> {
@@ -159,11 +146,8 @@ impl UserspaceKernelBoundary for Boundary {
 
     unsafe fn switch_to_process(
         &self,
-        _kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        _kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
         _user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
         _user_app_brk: &ImmutableUserVirtualPointer<u8>,
-        _sp: &MutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
     ) -> (ContextSwitchReason, Option<ImmutableUserVirtualPointer<u8>>) {
         // Sanity check: don't try to run a faulted app
