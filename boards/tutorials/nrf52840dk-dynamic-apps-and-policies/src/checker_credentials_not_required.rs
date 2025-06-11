@@ -26,8 +26,8 @@ impl<'a, C: kernel::process_checker::AppCredentialsPolicy<'static>>
     }
 }
 
-impl<'a, C: kernel::process_checker::AppCredentialsPolicy<'static>> AppCredentialsPolicy<'static>
-    for AppCheckerCredentialsNotRequired<'a, C>
+impl<C: kernel::process_checker::AppCredentialsPolicy<'static>> AppCredentialsPolicy<'static>
+    for AppCheckerCredentialsNotRequired<'_, C>
 {
     fn require_credentials(&self) -> bool {
         false
