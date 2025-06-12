@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive SRL 2025.
 
+//! Support for data ordering.
+
 use super::pair::Pair;
 
 use core::fmt::Display;
@@ -9,11 +11,14 @@ use core::marker::PhantomData;
 use core::num::NonZero;
 use core::ops::Sub;
 
+/// A relation between two values.
 pub trait Relation<T> {
     fn relation(first: &T, second: &T) -> bool;
 }
 
+/// Smaller relation.
 pub enum Smaller {}
+/// Smaller or equal relation.
 pub enum SmallerOrEqual {}
 
 impl<T: Ord> Relation<T> for Smaller {
@@ -28,12 +33,14 @@ impl<T: Ord> Relation<T> for SmallerOrEqual {
     }
 }
 
+/// Two values that respect the given relation.
 #[repr(transparent)]
 pub struct RelationalPair<T, R: Relation<T>> {
     pair: Pair<T, T>,
     phantom_data: PhantomData<R>,
 }
 
+/// Two references that respect the given relation.
 #[repr(transparent)]
 pub struct RelationalPairImmutableReference<'a, T, R: Relation<T>> {
     pair: Pair<&'a T, &'a T>,

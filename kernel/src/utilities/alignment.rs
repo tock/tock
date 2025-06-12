@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive SRL 2025.
 
+//! Support for type alignment.
+
 use super::misc::create_non_zero_usize;
 
 use core::num::NonZero;

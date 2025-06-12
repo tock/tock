@@ -2,12 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive SRL 2025.
 
+//! Memory granules.
+
 use crate::utilities::alignment::Alignment;
 use crate::utilities::misc::{create_non_zero_usize, divide_non_zero_usize, modulo_non_zero_usize};
 
 use core::num::NonZero;
 
+/// A memory granule.
 pub trait Granule: Alignment {
+    /// The size of the granule, in bytes.
     const SIZE_U8: NonZero<usize>;
 
     fn ceil_from_byte_count(byte_count: NonZero<usize>) -> NonZero<usize> {

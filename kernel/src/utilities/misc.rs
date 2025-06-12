@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive SRL 2024.
 
+//! Miscellaneous functions.
+
 use super::constants::BITS_PER_U8;
 
 use core::num::NonZero;

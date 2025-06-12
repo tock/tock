@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive SRL 2025.
 
+//! Support for slices.
+
 use super::alignment::Alignment;
 use super::ordering::SmallerPair;
 use super::pointers::{ImmutablePointer, MutablePointer, Pointer};
@@ -9,13 +11,16 @@ use super::pointers::{ImmutablePointer, MutablePointer, Pointer};
 use core::marker::PhantomData;
 use core::num::NonZero;
 
+/// A non-empty slice.
 pub struct NonEmptySlice<'a, const IS_MUTABLE: bool, T: Alignment> {
     pointer: Pointer<IS_MUTABLE, T>,
     length: NonZero<usize>,
     phantom_data: PhantomData<&'a ()>,
 }
 
+/// An immutable non-empty slice.
 pub type NonEmptyImmutableSlice<'a, T> = NonEmptySlice<'a, false, T>;
+/// A mutable empty slice.
 pub type NonEmptyMutableSlice<'a, T> = NonEmptySlice<'a, true, T>;
 
 impl<const IS_MUTABLE: bool, T: Alignment> NonEmptySlice<'_, IS_MUTABLE, T> {

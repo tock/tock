@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive SRL 2025.
 
+//! Physical and virtual pointers.
+
 use crate::utilities::alignment::{Alignment, AlwaysAligned};
 use crate::utilities::ordering::SmallerPair;
 use crate::utilities::pointers::{
@@ -14,70 +16,105 @@ use core::num::NonZero;
 use core::ops::Sub;
 use core::ptr::NonNull;
 
+/// A pointer from the perspective of the memory management system.
 #[repr(transparent)]
 pub struct Pointer<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>(
     Ptr<IS_MUTABLE, T>,
 );
 
+/// An immutable pointer from the perspective of the memory management system.
 pub type ImmutablePointer<const IS_VIRTUAL: bool, T> = Pointer<IS_VIRTUAL, false, T>;
+/// A mutable pointer from the perspective of the memory management system.
 pub type MutablePointer<const IS_VIRTUAL: bool, T> = Pointer<IS_VIRTUAL, true, T>;
 
+/// A physical pointer.
 pub type PhysicalPointer<const IS_MUTABLE: bool, T> = Pointer<false, IS_MUTABLE, T>;
+/// An immutable physical pointer.
 pub type ImmutablePhysicalPointer<T> = PhysicalPointer<false, T>;
+/// A mutable physical pointer.
 pub type MutablePhysicalPointer<T> = PhysicalPointer<true, T>;
 
+/// A virtual pointer.
 pub type VirtualPointer<const IS_MUTABLE: bool, T> = Pointer<true, IS_MUTABLE, T>;
+/// An immutable virtual pointer.
 pub type ImmutableVirtualPointer<T> = VirtualPointer<false, T>;
+/// A mutable virtual pointer.
 pub type MutableVirtualPointer<T> = VirtualPointer<true, T>;
 
+/// A valid virtual pointer, that is, a virtual pointer that belongs to the kernel or to a process.
 #[repr(transparent)]
 pub struct ValidVirtualPointer<const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment>(
     Pointer<true, IS_MUTABLE, T>,
 );
 
+/// A valid immutable virtual pointer.
 pub type ValidImmutableVirtualPointer<const IS_USER: bool, T> =
     ValidVirtualPointer<IS_USER, false, T>;
+/// A valid mutable virtual pointer.
 pub type ValidMutableVirtualPointer<const IS_USER: bool, T> = ValidVirtualPointer<IS_USER, true, T>;
 
+/// A user virtual pointer.
 pub type UserVirtualPointer<const IS_MUTABLE: bool, T> = ValidVirtualPointer<true, IS_MUTABLE, T>;
+/// An immutable user virtual pointer.
 pub type ImmutableUserVirtualPointer<T> = UserVirtualPointer<false, T>;
+/// A mutable user virtual pointer.
 pub type MutableUserVirtualPointer<T> = UserVirtualPointer<true, T>;
 
+/// A kernel virtual pointer.
 pub type KernelVirtualPointer<const IS_MUTABLE: bool, T> =
     ValidVirtualPointer<false, IS_MUTABLE, T>;
+/// An immutable kernel virtual pointer.
 pub type ImmutableKernelVirtualPointer<T> = KernelVirtualPointer<false, T>;
+/// A mutable kernel virtual pointer.
 pub type MutableKernelVirtualPointer<T> = KernelVirtualPointer<true, T>;
 
+/// A nullable pointer from the perspective of the memory management system.
 pub enum NullablePointer<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment> {
     Null,
     NonNull(Pointer<IS_VIRTUAL, IS_MUTABLE, T>),
 }
 
+/// An immutable nullable pointer from the perspective of the memory management system.
 pub type ImmutableNullablePointer<const IS_VIRTUAL: bool, T> =
     NullablePointer<IS_VIRTUAL, false, T>;
+/// A mutable nullable pointer from the memory management system pe
 pub type MutableNullablePointer<const IS_VIRTUAL: bool, T> = NullablePointer<IS_VIRTUAL, true, T>;
 
+/// A nullable physical pointer.
 pub type NullablePhysicalPointer<const IS_MUTABLE: bool, T> = NullablePointer<false, IS_MUTABLE, T>;
+/// An immutable nullable physical pointer.
 pub type ImmutableNullablePhysicalPointer<T> = NullablePhysicalPointer<false, T>;
+/// A mutable nullable physical pointer.
 pub type MutableNullablePhysicalPointer<T> = NullablePhysicalPointer<true, T>;
 
+/// A nullable virtual pointer.
 pub type NullableVirtualPointer<const IS_MUTABLE: bool, T> = NullablePointer<true, IS_MUTABLE, T>;
+/// An immutable nullable virtual pointer.
 pub type ImmutableNullableVirtualPointer<T> = NullableVirtualPointer<false, T>;
+/// A mutable nullable virtual pointer.
 pub type MutableNullableVirtualPointer<T> = NullableVirtualPointer<true, T>;
 
+/// A valid nullable virtual pointer, that is, a virtual pointer that belongs to the kernel or to a
+/// process.
 pub enum ValidNullableVirtualPointer<const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment> {
     Null,
     NonNull(ValidVirtualPointer<IS_USER, IS_MUTABLE, T>),
 }
 
+/// A user nullable virtual pointer.
 pub type UserNullableVirtualPointer<const IS_MUTABLE: bool, T> =
     ValidNullableVirtualPointer<true, IS_MUTABLE, T>;
+/// An immutable user nullable virtual pointer.
 pub type ImmutableUserNullableVirtualPointer<T> = UserNullableVirtualPointer<false, T>;
+/// A mutable user nullable virtual pointer.
 pub type MutableUserNullableVirtualPointer<T> = UserNullableVirtualPointer<true, T>;
 
+/// A kernel nullable virtual pointer.
 pub type KernelNullableVirtualPointer<const IS_MUTABLE: bool, T> =
     ValidNullableVirtualPointer<false, IS_MUTABLE, T>;
+/// An immutable kernel virtual pointer.
 pub type ImmutableKernelNullableVirtualPointer<T> = KernelNullableVirtualPointer<false, T>;
+/// A mutable kernel virtual pointer.
 pub type MutableKernelNullableVirtualPointer<T> = KernelNullableVirtualPointer<true, T>;
 
 impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive SRL 2025.
 
+//! Regions of memory.
+
 use super::permissions::Permissions;
 use super::pointers::{
     ImmutablePhysicalPointer, ImmutablePointer, ImmutableVirtualPointer, MutablePhysicalPointer,
@@ -20,6 +22,7 @@ use core::cell::Cell;
 use core::marker::PhantomData;
 use core::num::NonZero;
 
+/// Pointers representing the start and the end of a region.
 type Pointers<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T> =
     SmallerPair<Pointer<IS_VIRTUAL, IS_MUTABLE, T>>;
 
@@ -30,28 +33,29 @@ impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T> Pointers<IS_VIRTUAL, IS_
     }
 }
 
+/// A memory region.
 pub struct Region<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>(
     Pointers<IS_VIRTUAL, IS_MUTABLE, T>,
 );
 
+/// A region of immutable memory.
 pub type ImmutableRegion<const IS_VIRTUAL: bool, T> = Region<IS_VIRTUAL, false, T>;
+/// A region of mutable memory.
 pub type MutableRegion<const IS_VIRTUAL: bool, T> = Region<IS_VIRTUAL, true, T>;
 
+/// A region of physical memory.
 pub type PhysicalRegion<const IS_MUTABLE: bool, T> = Region<false, IS_MUTABLE, T>;
+/// A region of immutable physical memory.
 pub type ImmutablePhysicalRegion<T> = PhysicalRegion<false, T>;
+/// A region of mutable physical memory.
 pub type MutablePhysicalRegion<T> = PhysicalRegion<true, T>;
 
+/// A region of virtual memory.
 pub type VirtualRegion<const IS_MUTABLE: bool, T> = Region<true, IS_MUTABLE, T>;
+/// A region of immutable virtual memory.
 pub type ImmutableVirtualRegion<T> = VirtualRegion<false, T>;
+/// A region of mutable virtual memory.
 pub type MutableVirtualRegion<T> = VirtualRegion<true, T>;
-
-/*
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum SliceTranslationError {
-    StartOutOfBounds,
-    EndOutOfBounds,
-}
-*/
 
 impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>
     Region<IS_VIRTUAL, IS_MUTABLE, T>
@@ -126,6 +130,7 @@ impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment> core::fmt::Di
     }
 }
 
+/// A region of allocated memory.
 #[repr(transparent)]
 pub struct AllocatedRegion<'a, const IS_VIRTUAL: bool, T: Alignment> {
     region: MutableRegion<IS_VIRTUAL, T>,
@@ -164,6 +169,7 @@ impl<const IS_USER: bool, T: Alignment> core::fmt::Display for AllocatedRegion<'
     }
 }
 
+/// A region of allocated physical memory.
 pub type PhysicalAllocatedRegion<'a, T> = AllocatedRegion<'a, false, T>;
 //pub(crate) type VirtualAllocatedRegion<'a, T: Alignment> = AllocatedRegion<'a, true, T>;
 
@@ -179,13 +185,16 @@ impl<'a, T: Alignment> PhysicalAllocatedRegion<'a, T> {
     }
 }
 
+/// A region of allocated memory associated with memory permissions.
 pub struct ProtectedAllocatedRegion<'a, const IS_VIRTUAL: bool, T: Alignment> {
     allocated_region: AllocatedRegion<'a, IS_VIRTUAL, T>,
     protected_length: Cell<NonZero<usize>>,
     permissions: Permissions,
 }
 
+/// A region of allocated physical memory associated with memory permissions.
 pub type PhysicalProtectedAllocatedRegion<'a, T> = ProtectedAllocatedRegion<'a, false, T>;
+/// A region of allocated virtual memory associated with memory permissions.
 pub type VirtualProtectedAllocatedRegion<'a, T> = ProtectedAllocatedRegion<'a, true, T>;
 
 impl<'a, const IS_VIRTUAL: bool, T: Alignment> ProtectedAllocatedRegion<'a, IS_VIRTUAL, T> {
@@ -283,12 +292,14 @@ impl<const IS_USER: bool, T: Alignment> core::fmt::Display
     }
 }
 
+/// A region of virtual memory mapped to allocated physical memory.
 pub struct MappedAllocatedRegion<'a, const IS_USER: bool, T: Alignment> {
     allocated_region: PhysicalAllocatedRegion<'a, T>,
     starting_virtual_pointer: ValidMutableVirtualPointer<IS_USER, T>,
 }
 
 //pub(crate) type UserMappedAllocatedRegion<'a, T> = MappedAllocatedRegion<'a, true, T>;
+/// A region of kernel virtual memory mapped to allocated physical memory.
 pub(crate) type KernelMappedAllocatedRegion<'a, T> = MappedAllocatedRegion<'a, false, T>;
 
 impl<'a, const IS_USER: bool, T: Alignment> MappedAllocatedRegion<'a, IS_USER, T> {
@@ -349,12 +360,17 @@ impl<'a, const IS_USER: bool, T: Alignment> MappedAllocatedRegion<'a, IS_USER, T
     }
 }
 
+/// A region of virtual memory mapped to allocated physical memory protected by memory permissions.
 pub struct MappedProtectedAllocatedRegion<'a, const IS_USER: bool, T: Alignment> {
     physical_protected_allocated_region: PhysicalProtectedAllocatedRegion<'a, T>,
     starting_virtual_pointer: ValidMutableVirtualPointer<IS_USER, T>,
 }
 
+/// A region of user virtual memory mapped to allocated physical memory protected by memory
+/// permissions.
 pub type UserMappedProtectedAllocatedRegion<'a, T> = MappedProtectedAllocatedRegion<'a, true, T>;
+/// A region of kernel virtual memory mapped to allocated physical memory protected by memory
+/// permissions.
 pub(crate) type KernelMappedProtectedAllocatedRegion<'a, T> =
     MappedProtectedAllocatedRegion<'a, false, T>;
 
@@ -745,13 +761,16 @@ impl<const IS_USER: bool, T: Alignment> core::fmt::Display
     }
 }
 
+/// A mapped protected region with a dirty flag.
 pub(crate) struct DirtyMappedProtectedAllocatedRegion<'a, const IS_USER: bool, T: Alignment> {
     mapped_protected_allocated_region: MappedProtectedAllocatedRegion<'a, IS_USER, T>,
     is_dirty: Cell<bool>,
 }
 
+/// A user mapped protected region with a dirty flag.
 pub(crate) type UserDirtyMappedProtectedAllocatedRegion<'a, T> =
     DirtyMappedProtectedAllocatedRegion<'a, true, T>;
+/// A kernel mapped protected region with a dirty flag.
 pub(crate) type KernelDirtyMappedProtectedAllocatedRegion<'a, T> =
     DirtyMappedProtectedAllocatedRegion<'a, false, T>;
 

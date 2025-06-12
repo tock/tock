@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive SRL 2025.
 
+//! Support for pointers.
+
 use super::alignment::{Alignment, AlwaysAligned};
 use super::misc::{create_non_zero_usize, divide_non_zero_usize, modulo_non_zero_usize};
 
@@ -11,16 +13,20 @@ use core::num::NonZero;
 use core::ops::Sub;
 use core::ptr::NonNull;
 
+/// Pointer creation error.
 #[derive(Debug)]
 pub enum Error {
     Null,
     NotAligned,
 }
 
+/// A non-null, aligned pointer.
 #[repr(transparent)]
 pub struct Pointer<const IS_MUTABLE: bool, T: Alignment>(NonNull<T>);
 
+/// A mutable, non-null, aligned pointer.
 pub type MutablePointer<T> = Pointer<true, T>;
+/// An immutable, non-null, aligned pointer.
 pub type ImmutablePointer<T> = Pointer<false, T>;
 
 impl<const IS_MUTABLE: bool, T: Alignment> Pointer<IS_MUTABLE, T> {
@@ -328,12 +334,15 @@ impl<const IS_MUTABLE: bool, T: Alignment> Clone for Pointer<IS_MUTABLE, T> {
 
 impl<const IS_MUTABLE: bool, T: Alignment> Copy for Pointer<IS_MUTABLE, T> {}
 
+/// An aligned pointer.
 pub enum NullablePointer<const IS_MUTABLE: bool, T: Alignment> {
     Null,
     NonNull(Pointer<IS_MUTABLE, T>),
 }
 
+/// An immutable aligned pointer.
 pub type ImmutableNullablePointer<T> = NullablePointer<false, T>;
+/// A mutable aligned pointer.
 pub type MutableNullablePointer<T> = NullablePointer<true, T>;
 
 impl<const IS_MUTABLE: bool, T: Alignment> NullablePointer<IS_MUTABLE, T> {

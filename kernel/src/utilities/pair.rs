@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive SRL 2025.
 
+//! Support for pairs of heterogeneous values
+
+/// A pair of heterogeneous values.
 pub struct Pair<T, U>(T, U);
 
 impl<T, U> Pair<T, U> {

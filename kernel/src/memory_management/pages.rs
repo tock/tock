@@ -2,12 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive SRL 2025.
 
+//! Pages supported by Tock.
+
 use super::granules::Granule;
 
 use crate::utilities::misc::create_non_zero_usize;
 
 use core::num::NonZero;
 
+/// A standard 4KiB page.
 #[repr(align(4096))]
 #[derive(Clone)]
 #[allow(dead_code)]

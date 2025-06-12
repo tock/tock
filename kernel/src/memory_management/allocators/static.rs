@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive SRL 2025.
 
+//! Static allocator.
+
 use super::allocator::Allocator;
 
 use super::super::slices::MutablePhysicalSlice;
@@ -10,6 +12,7 @@ use crate::utilities::cells::OptionalCell;
 
 use core::num::NonZero;
 
+/// A static allocator, i.e. an allocator that allocates memory without freeing it ever.
 pub struct StaticAllocator<'a, Granule>(OptionalCell<MutablePhysicalSlice<'a, Granule>>);
 
 impl<'a, Granule> StaticAllocator<'a, Granule> {

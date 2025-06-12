@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive SRL 2025.
 
+//! Slices of memories from the perspective of the memory management system.
+
 use super::pointers::{Pointer, ValidVirtualPointer};
 
 use crate::utilities::alignment::Alignment;
@@ -10,30 +12,49 @@ use crate::utilities::slices::NonEmptySlice;
 
 use core::num::NonZero;
 
+/// A non-empty slice of memory from the perspective of the memory management system.
 pub struct Slice<'a, const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>(
     NonEmptySlice<'a, IS_MUTABLE, T>,
 );
 
+/// A non-empty slice of physical memory from the perspective of the memory management system.
 pub type PhysicalSlice<'a, const IS_MUTABLE: bool, T> = Slice<'a, false, IS_MUTABLE, T>;
+/// A non-empty slice of immutable physical memory from the perspective of the memory management
+/// system.
 pub type ImmutablePhysicalSlice<'a, T> = PhysicalSlice<'a, false, T>;
+/// A non-empty slice of mutable physical memory from the perspective of the memory management
+/// system.
 pub type MutablePhysicalSlice<'a, T> = PhysicalSlice<'a, true, T>;
 
+/// A non-empty slice of virtual memory from the perspective of the memory management system.
 pub type VirtualSlice<'a, const IS_MUTABLE: bool, T> = Slice<'a, true, IS_MUTABLE, T>;
+/// A non-empty slice of immutable virtual memory from the perspective of the memory management
+/// system.
 pub type ImmutableVirtualSlice<'a, T> = VirtualSlice<'a, false, T>;
+/// A non-empty slice of mutable virtual memory from the perspective of the memory management
+/// system.
 pub type MutableVirtualSlice<'a, T> = VirtualSlice<'a, true, T>;
 
+/// A valid non-empty slice of virtual memory, that is, it belongs to either the kernel or a
+/// process.
 pub struct ValidVirtualSlice<'a, const IS_USER: bool, const IS_MUTABLE: bool, T>(
     VirtualSlice<'a, IS_MUTABLE, T>,
 );
 
+/// A non-empty slice of user virtual memory.
 pub type UserVirtualSlice<'a, const IS_MUTABLE: bool, T> =
     ValidVirtualSlice<'a, true, IS_MUTABLE, T>;
+/// A non-empty slice of user immutable virtual memory.
 pub type ImmutableUserVirtualSlice<'a, T> = UserVirtualSlice<'a, false, T>;
+/// A non-empty slice of user mutable virtual memory.
 pub type MutableUserVirtualSlice<'a, T> = UserVirtualSlice<'a, true, T>;
 
+/// A non-empty slice of kernel virtual memory.
 pub type KernelVirtualSlice<'a, const IS_MUTABLE: bool, T> =
     ValidVirtualSlice<'a, false, IS_MUTABLE, T>;
+/// A non-empty slice of kernel immutable virtual memory.
 pub type ImmutableKernelVirtualSlice<'a, T> = KernelVirtualSlice<'a, false, T>;
+/// A non-empty slice of kernel mutable virtual memory.
 pub type MutableKernelVirtualSlice<'a, T> = KernelVirtualSlice<'a, true, T>;
 
 impl<'a, const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive SRL 2025.
 
+//! Memory managers.
+
 use super::allocators::Allocator as AllocatorTrait;
 use super::configuration::{KernelConfiguration, ProcessConfiguration, ValidProcessConfiguration};
 use super::granules::Granule as GranuleTrait;
@@ -17,6 +19,9 @@ use crate::utilities::alignment::AlwaysAligned;
 use core::marker::PhantomData;
 use core::num::NonZero;
 
+/// A memory manager.
+///
+/// A memory manager currently handles only memory allocation.
 struct MemoryManager<'a, Granule, Allocator: AllocatorTrait<'a, Granule>> {
     allocator: Allocator,
     phantom_data: PhantomData<&'a Granule>,
@@ -40,6 +45,7 @@ impl<'a, Granule, Allocator: AllocatorTrait<'a, Granule>> MemoryManager<'a, Gran
     }
 }
 
+/// Errors on process memory mapping.
 #[derive(Debug)]
 pub enum ProcessMemoryMappingError {
     /// The PROG memory is not a valid user virtual memory.
@@ -48,6 +54,9 @@ pub enum ProcessMemoryMappingError {
     InvalidRamVirtualMemory,
 }
 
+/// Process memory manager.
+///
+/// Handles process memory allocations and process memory configurations.
 pub struct ProcessMemoryManager<'a, Granule, Allocator: AllocatorTrait<'a, Granule>> {
     memory_manager: MemoryManager<'a, Granule, Allocator>,
 }
@@ -79,6 +88,10 @@ impl<'a, Granule: 'a + GranuleTrait, Allocator: AllocatorTrait<'a, Granule>>
     }
 }
 
+/// Kernel memory manager.
+///
+/// Validates process memory configurations and performs offline user -> kernel
+/// address translation.
 pub(crate) struct KernelMemoryManager<'a, Granule, const USING_MPU: bool> {
     configuration: KernelConfiguration<'a, Granule>,
 }

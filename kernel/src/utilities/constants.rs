@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive SRL 2024.
 
+//! Various constants useful throughout the kernel and architecture, chip and
+//! board implementations.
+
 use super::misc::{create_non_zero_usize, divide_non_zero_usize};
 
 use core::num::NonZeroUsize;

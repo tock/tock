@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive SRL 2025.
 
+//! Memory configurations.
+
 use super::pointers::{
     KernelVirtualPointer, PhysicalPointer, UserVirtualPointer, ValidVirtualPointer,
 };
@@ -15,6 +17,7 @@ use crate::platform::mmu::Asid;
 
 use crate::utilities::alignment::AlwaysAligned;
 
+/// Memory configuration.
 #[repr(transparent)]
 pub(super) struct Configuration<'a, const IS_USER: bool, const NUMBER_REGIONS: usize, Granule> {
     regions: [DirtyMappedProtectedAllocatedRegion<'a, IS_USER, Granule>; NUMBER_REGIONS],
@@ -89,6 +92,7 @@ impl<'a, const IS_USER: bool, const NUMBER_REGIONS: usize, Granule>
     }
 }
 
+/// Process memory configuration.
 pub(crate) struct ProcessConfiguration<'a, Granule> {
     asid: Asid,
     configuration: Configuration<'a, true, 2, Granule>,
@@ -184,6 +188,8 @@ impl<'a, Granule> ProcessConfiguration<'a, Granule> {
     }
 }
 
+/// Valid process memory configuration, that is, it doesn't overlap kernel's
+/// virtual address space.
 #[repr(transparent)]
 pub struct ValidProcessConfiguration<'a, Granule>(ProcessConfiguration<'a, Granule>);
 
@@ -265,6 +271,7 @@ const KERNEL_PROG_REGION_INDEX: usize = 1;
 const KERNEL_RAM_REGION_INDEX: usize = 2;
 //const KERNEL_PERIPHERAL_REGION_INDEX: usize = 3;
 
+/// Kernel memory configuration.
 #[repr(transparent)]
 pub(crate) struct KernelConfiguration<'a, Granule>(Configuration<'a, false, 4, Granule>);
 

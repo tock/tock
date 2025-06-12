@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive SRL 2025.
 
+//! Memory permissions.
+
+/// Permissions that might be associated with a region of memory.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Permissions {
     ReadOnly,

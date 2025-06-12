@@ -9,6 +9,7 @@ use crate::memory_management::regions::{
     PhysicalProtectedAllocatedRegion, UserMappedProtectedAllocatedRegion,
 };
 
+/// Addres space identifier.
 #[derive(Clone, Copy)]
 pub struct Asid(u16);
 
@@ -22,6 +23,7 @@ impl Asid {
     }
 }
 
+/// Methods common to both MPUs and MMUs.
 pub trait MpuMmuCommon {
     type Granule: GranuleLike;
 
@@ -30,12 +32,21 @@ pub trait MpuMmuCommon {
     fn disable_user_protection(&self);
 }
 
+/// MPU support.
 pub trait MPU: MpuMmuCommon {
+    /// Applies the memory protections of the given PROG region.
+    ///
+    /// Implementors may ignore the request if invalid. For instance if the region's protected
+    /// length is not a power of two as mandated by the hardware.
     fn protect_user_prog_region(
         &self,
         protected_region: &PhysicalProtectedAllocatedRegion<Self::Granule>,
     );
 
+    /// Applies the memory protections of the given RAM region.
+    ///
+    /// Implementors may ignore the request if invalid. For instance if the region's protected
+    /// length is not a power of two as mandated by the hardware.
     fn protect_user_ram_region(
         &self,
         protected_region: &PhysicalProtectedAllocatedRegion<Self::Granule>,
@@ -43,21 +54,40 @@ pub trait MPU: MpuMmuCommon {
 }
 
 pub trait MMU: MpuMmuCommon {
+    /// Create a new ASID.
+    ///
+    /// This method should return an unique ASID each time is invoked.
+    // TODO: What if all ASIDs are exhausted?
+    //
+    // 1. ARMv8-A supports 8-bit or 16-bit ASIDs.
+    // 2. x64 supports 12-bit ASIDs.
+    // 3. RV32 supports up to 9-bit ASIDs and RV64 up to 16-bit ASIDs.
     fn create_asid(&self) -> Asid;
 
+    /// Flush TLB entries with the given ASID.
+    ///
+    /// If the underlying hardware does not support TLB, this should be implemented as a no-op.
+    /// If the underlying hardware does support TLB, but it doesn't support ASIDs, it should flush
+    /// the entire TLB.
     fn flush(&self, asid: Asid);
 
+    /// Map and protect the given PROG region.
     fn map_user_prog_region(
         &self,
         mapped_protected_region: &UserMappedProtectedAllocatedRegion<Self::Granule>,
     );
 
+    /// Map and protect the given RAM region.
     fn map_user_ram_region(
         &self,
         mapped_protected_region: &UserMappedProtectedAllocatedRegion<Self::Granule>,
     );
 }
 
+/// MMU implementation for MPU hardware.
+///
+/// Tock kernel is designed to run with a MMU by default. However, it can also run on MMU-less
+/// architectures with limited capabilities.
 impl<T: MPU> MMU for T {
     fn create_asid(&self) -> Asid {
         // The returned value doesn't matter.
@@ -70,6 +100,7 @@ impl<T: MPU> MMU for T {
         &self,
         mapped_protected_region: &UserMappedProtectedAllocatedRegion<Self::Granule>,
     ) {
+        // Discard the memory mapping for MPUs.
         let protected_region = mapped_protected_region.as_physical_protected_allocated_region();
         self.protect_user_prog_region(protected_region);
     }
@@ -78,6 +109,7 @@ impl<T: MPU> MMU for T {
         &self,
         mapped_protected_region: &UserMappedProtectedAllocatedRegion<Self::Granule>,
     ) {
+        // Discard the memory mapping for MPUs.
         let protected_region = mapped_protected_region.as_physical_protected_allocated_region();
         self.protect_user_ram_region(protected_region);
     }
