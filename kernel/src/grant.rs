@@ -134,11 +134,15 @@ use core::ptr::{write, NonNull};
 use core::slice;
 
 use crate::kernel::Kernel;
+use crate::memory_management::pointers::{
+    ImmutableKernelVirtualPointer, MutableKernelVirtualPointer,
+};
 use crate::process::{Error, Process, ProcessCustomGrantIdentifier, ProcessId};
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::processbuffer::{ReadOnlyProcessBufferRef, ReadWriteProcessBufferRef};
 use crate::upcall::{Upcall, UpcallError, UpcallId};
 use crate::utilities::capability_ptr::CapabilityPtr;
+use crate::utilities::cells::OptionalCell;
 use crate::utilities::machine_register::MachineRegister;
 use crate::ErrorCode;
 
@@ -740,8 +744,10 @@ struct SavedUpcall {
 /// read-only allow in a process' kernel managed grant space without wasting
 /// memory duplicating information such as process ID.
 #[repr(C)]
+// TODO: Try to wrap SavedAllowRo in an option instead.
 struct SavedAllowRo {
-    ptr: *const u8,
+    ptr: Option<ImmutableKernelVirtualPointer<u8>>,
+    // TODO: This should be NonZero once the structure is wrapped in an option.
     len: usize,
 }
 
@@ -751,10 +757,7 @@ struct SavedAllowRo {
 #[allow(clippy::derivable_impls)]
 impl Default for SavedAllowRo {
     fn default() -> Self {
-        Self {
-            ptr: core::ptr::null(),
-            len: 0,
-        }
+        Self { ptr: None, len: 0 }
     }
 }
 
@@ -762,8 +765,10 @@ impl Default for SavedAllowRo {
 /// read-write allow in a process' kernel managed grant space without wasting
 /// memory duplicating information such as process ID.
 #[repr(C)]
+// TODO: Try to wrap SavedAllowRw in an option instead.
 struct SavedAllowRw {
-    ptr: *mut u8,
+    ptr: Option<MutableKernelVirtualPointer<u8>>,
+    // TODO: This should be NonZero once the structure is wrapped in an option.
     len: usize,
 }
 
@@ -773,10 +778,7 @@ struct SavedAllowRw {
 #[allow(clippy::derivable_impls)]
 impl Default for SavedAllowRw {
     fn default() -> Self {
-        Self {
-            ptr: core::ptr::null_mut(),
-            len: 0,
-        }
+        Self { ptr: None, len: 0 }
     }
 }
 
@@ -903,8 +905,9 @@ pub(crate) fn allow_ro(
             //
             // The pointer has already been validated to be within application
             // memory before storing the values in the saved slice.
-            let old_allow =
-                unsafe { ReadOnlyProcessBuffer::new(saved.ptr, saved.len, process.processid()) };
+            let old_allow = unsafe {
+                ReadOnlyProcessBuffer::new(saved.ptr.take(), saved.len, process.processid())
+            };
 
             // Replace old values with current buffer.
             let (ptr, len) = buffer.consume();
@@ -951,8 +954,9 @@ pub(crate) fn allow_rw(
             //
             // The pointer has already been validated to be within application
             // memory before storing the values in the saved slice.
-            let old_allow =
-                unsafe { ReadWriteProcessBuffer::new(saved.ptr, saved.len, process.processid()) };
+            let old_allow = unsafe {
+                ReadWriteProcessBuffer::new(saved.ptr.take(), saved.len, process.processid())
+            };
 
             // Replace old values with current buffer.
             let (ptr, len) = buffer.consume();
@@ -1818,8 +1822,8 @@ pub struct Iter<
 
     /// Iterator over valid processes.
     subiter: core::iter::FilterMap<
-        core::slice::Iter<'a, Option<&'static dyn Process>>,
-        fn(&Option<&'static dyn Process>) -> Option<&'static dyn Process>,
+        core::slice::Iter<'a, OptionalCell<&'static dyn Process>>,
+        fn(&OptionalCell<&'static dyn Process>) -> Option<&'static dyn Process>,
     >,
 }
 

@@ -91,6 +91,7 @@
 
 #![warn(unreachable_pub)]
 #![no_std]
+#![feature(nonzero_ops)]
 
 /// Kernel major version.
 ///
@@ -115,6 +116,7 @@ pub mod grant;
 pub mod hil;
 pub mod introspection;
 pub mod ipc;
+pub mod memory_management;
 pub mod platform;
 pub mod process;
 pub mod process_checker;

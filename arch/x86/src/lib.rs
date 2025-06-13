@@ -47,7 +47,7 @@ mod segmentation;
 
 pub mod support;
 
-pub mod mpu;
+pub mod mmu;
 
 pub mod registers;
 
