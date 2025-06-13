@@ -2,5 +2,4 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2025.
 
-pub mod hotp_tutorial;
-pub mod signed_sensor_tutorial;
+pub mod encryption_oracle;
