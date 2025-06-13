@@ -316,9 +316,9 @@ fn region_overlaps(
     !region_range.is_empty()
         && !other_range.is_empty()
         && (region_range.contains(&other_range.start)
-            || region_range.contains(&(other_range.end - 1))
+            || region_range.contains(&(other_range.end.saturating_sub(1)))
             || other_range.contains(&region_range.start)
-            || other_range.contains(&(region_range.end - 1)))
+            || other_range.contains(&(region_range.end.saturating_sub(1))))
 }
 
 #[cfg(test)]
