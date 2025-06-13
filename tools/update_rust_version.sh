@@ -36,6 +36,5 @@ echo Updating Rust to $NIGHTLY
 sed -i._SED_HACK "s/nightly-[0-9]*-[0-9]*-[0-9]*/${NIGHTLY}/g" rust-toolchain.toml
 sed -i._SED_HACK "s/nightly-[0-9]*-[0-9]*-[0-9]*/${NIGHTLY}/g" .vscode/settings.json
 sed -i._SED_HACK "s/nightly-[0-9]*-[0-9]*-[0-9]*/${NIGHTLY}/g" doc/Getting_Started.md
-sed -i._SED_HACK "s/nightly-[0-9]*-[0-9]*-[0-9]*/${NIGHTLY}/g" tools/netlify-build.sh
 
 find . -name '*._SED_HACK' -delete
