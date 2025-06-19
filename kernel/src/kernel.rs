@@ -229,7 +229,7 @@ impl Kernel {
     pub(crate) fn processid_is_valid(&self, processid: &ProcessId) -> bool {
         self.processes
             .get(processid.index)
-            .is_some_and(|p| p.is_valid_for(processid.id()))
+            .is_some_and(|p| p.contains_process_with_id(processid.id()))
     }
 
     /// Create a new grant. This is used in board initialization to setup grants
