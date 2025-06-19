@@ -38,7 +38,7 @@ impl ProcessSlot {
 
     /// Return the underlying [`process::Process`] if the slot contains a
     /// process.
-    pub fn get_active(&self) -> Option<&'static dyn process::Process> {
+    pub fn get(&self) -> Option<&'static dyn process::Process> {
         self.proc.get()
     }
 

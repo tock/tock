@@ -72,7 +72,7 @@ impl<C: Chip> Scheduler<C> for CooperativeSched<'_> {
                     }
                 }
             }
-            match node.proc.get_active() {
+            match node.proc.get() {
                 Some(proc) => {
                     if proc.ready() {
                         let next = proc.processid();
