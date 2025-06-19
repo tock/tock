@@ -43,7 +43,7 @@ impl ProcessSlot {
     }
 
     /// Check if the slot contains a process with a matching process ID.
-    pub fn is_valid_for(&self, identifier: usize) -> bool {
+    pub fn contains_process_with_id(&self, identifier: usize) -> bool {
         match self.proc.get() {
             Some(process) => process.processid().id() == identifier,
             None => false,
