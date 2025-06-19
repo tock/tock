@@ -67,7 +67,7 @@ static mut ALARM: Option<&'static MuxAlarm<'static, esp32_c3::timg::TimG<'static
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x900] = [0; 0x900];
+static mut STACK_MEMORY: [u8; 0x900] = [0; 0x900];
 
 type RngDriver = components::rng::RngComponentType<esp32_c3::rng::Rng<'static>>;
 

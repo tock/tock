@@ -46,7 +46,7 @@ mod flash_bootloader;
 /// Allocate memory for the stack
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x1500] = [0; 0x1500];
+static mut STACK_MEMORY: [u8; 0x1500] = [0; 0x1500];
 
 // Manually setting the boot header section that contains the FCB header
 #[used]
