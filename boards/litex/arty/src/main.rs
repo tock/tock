@@ -8,8 +8,6 @@
 #![no_std]
 #![no_main]
 
-use core::ptr::{addr_of, addr_of_mut};
-
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
 use kernel::capabilities;
@@ -18,6 +16,7 @@ use kernel::hil::time::{Alarm, Timer};
 use kernel::platform::chip::InterruptService;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::process::ProcessArray;
 use kernel::scheduler::mlfq::MLFQSched;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::StaticRef;
@@ -85,10 +84,8 @@ impl InterruptService for LiteXArtyInterruptablePeripherals {
 
 const NUM_PROCS: usize = 4;
 
-// Actual memory for holding the active process structures. Need an
-// empty list at least.
-static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
-    [None; NUM_PROCS];
+/// Static variables used by io.rs.
+static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 
 // Reference to the chip, led controller, UART hardware, and process printer for
 // panic dumps.
@@ -329,7 +326,13 @@ unsafe fn start() -> (
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
+    // Create an array to hold process references.
+    let processes = components::process_array::ProcessArrayComponent::new()
+        .finalize(components::process_array_component_static!(NUM_PROCS));
+    PROCESSES = Some(processes);
+
+    // Setup space to store the core kernel data structure.
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
     // ---------- LED CONTROLLER HARDWARE ----------
 
@@ -602,8 +605,8 @@ unsafe fn start() -> (
     )
     .finalize(components::low_level_debug_component_static!());
 
-    let scheduler = components::sched::mlfq::MLFQComponent::new(mux_alarm, &*addr_of!(PROCESSES))
-        .finalize(components::mlfq_component_static!(
+    let scheduler = components::sched::mlfq::MLFQComponent::new(mux_alarm, processes).finalize(
+        components::mlfq_component_static!(
             litex_vexriscv::timer::LiteXAlarm<
                 'static,
                 'static,
@@ -611,7 +614,8 @@ unsafe fn start() -> (
                 socc::ClockFrequency,
             >,
             NUM_PROCS
-        ));
+        ),
+    );
 
     let litex_arty = LiteXArty {
         console,
@@ -642,7 +646,6 @@ unsafe fn start() -> (
             core::ptr::addr_of_mut!(_sappmem),
             core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_mgmt_cap,
     )

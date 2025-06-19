@@ -65,7 +65,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
         writer,
         pi,
         &|| {},
-        &*addr_of!(PROCESSES),
+        PROCESSES.unwrap().as_slice(),
         &*addr_of!(CHIP),
         &*addr_of!(PROCESS_PRINTER),
     );
@@ -76,7 +76,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
         writer,
         pi,
         &rv32i::support::nop,
-        &*addr_of!(PROCESSES),
+        PROCESSES.unwrap().as_slice(),
         &*addr_of!(CHIP),
         &*addr_of!(PROCESS_PRINTER),
     );
@@ -88,13 +88,20 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
     let writer = &mut WRITER;
 
     #[cfg(feature = "sim_verilator")]
-    debug::panic_print(writer, pi, &|| {}, &PROCESSES, &CHIP, &PROCESS_PRINTER);
+    debug::panic_print(
+        writer,
+        pi,
+        &|| {},
+        PROCESSES.unwrap().as_slice(),
+        &CHIP,
+        &PROCESS_PRINTER,
+    );
     #[cfg(not(feature = "sim_verilator"))]
     debug::panic_print(
         writer,
         pi,
         &rv32i::support::nop,
-        &PROCESSES,
+        PROCESSES.unwrap().as_slice(),
         &CHIP,
         &PROCESS_PRINTER,
     );
