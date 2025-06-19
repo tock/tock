@@ -57,7 +57,7 @@ unsafe fn panic_handler(pi: &PanicInfo) -> ! {
         &mut com1,
         pi,
         &x86::support::nop,
-        &*ptr::addr_of!(PROCESSES),
+        PROCESSES.unwrap().as_slice(),
         &*ptr::addr_of!(CHIP),
         &*ptr::addr_of!(PROCESS_PRINTER),
     );
