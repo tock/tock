@@ -85,6 +85,7 @@ Existing Working Groups
 - [OpenTitan](opentitan/README.md)
 - [Network](network/README.md)
 - [Documentation](documentation/README.md)
+- [x86](x86/README.md)
 
 
 Retired Working Groups
