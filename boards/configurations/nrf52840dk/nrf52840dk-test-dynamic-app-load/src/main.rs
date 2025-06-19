@@ -172,7 +172,7 @@ impl kernel::process::ProcessLoadingAsyncClient for Platform {
         kernel::debug!("Processes Loaded at Main:");
 
         for (i, proc) in self.processes.as_slice().iter().enumerate() {
-            proc.get_active().map(|p| {
+            proc.get().map(|p| {
                 kernel::debug!("[{}] {}", i, p.get_process_name());
                 kernel::debug!("    ShortId: {}", p.short_app_id());
             });

@@ -106,7 +106,7 @@ impl Kernel {
         // lookup and check here, rather than calling `.index()`.
         self.processes
             .get(processid.index)
-            .and_then(|pslot| pslot.get_active())
+            .and_then(|pslot| pslot.get())
             // Check that the process stored here matches the
             // identifier in the `processid`.
             .filter(|process| process.processid() == processid)
@@ -185,7 +185,7 @@ impl Kernel {
         core::slice::Iter<ProcessSlot>,
         fn(&ProcessSlot) -> Option<&'static dyn process::Process>,
     > {
-        self.processes.iter().filter_map(ProcessSlot::get_active)
+        self.processes.iter().filter_map(ProcessSlot::get)
     }
 
     /// Run a closure on every valid process. This will iterate the array of

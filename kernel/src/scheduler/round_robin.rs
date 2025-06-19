@@ -92,7 +92,7 @@ impl<C: Chip> Scheduler<C> for RoundRobinSched<'_> {
                     }
                 }
             }
-            match node.proc.get_active() {
+            match node.proc.get() {
                 Some(proc) => {
                     if proc.ready() {
                         next = Some(proc.processid());
