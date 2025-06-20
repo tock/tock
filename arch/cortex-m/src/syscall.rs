@@ -169,13 +169,14 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
 
     unsafe fn set_syscall_return_value(
         &self,
-        user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
-        user_app_brk: &ImmutableUserVirtualPointer<u8>,
+        kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
         return_value: kernel::syscall::SyscallReturn,
     ) -> Result<(), ()> {
-        let user_accessible_memory_start_address = user_accessible_memory_start.get_address();
-        let user_app_brk_address = user_app_brk.get_address();
+        // On ARMv*-M architectures, user and kernel virtual pointers map 1:1.
+        let user_accessible_memory_start_address = kernel_accessible_memory_start.get_address();
+        let user_app_brk_address = kernel_app_brk.get_address();
 
         // For the Cortex-M arch, write the return values in the same
         // place that they were originally passed in (i.e. at the
@@ -237,13 +238,14 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
     /// In effect, this converts `svc` into `bl callback`.
     unsafe fn set_process_function(
         &self,
-        user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
-        user_app_brk: &ImmutableUserVirtualPointer<u8>,
+        kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &mut CortexMStoredState,
         callback: kernel::process::FunctionCall,
     ) -> Result<(), ()> {
-        let user_accessible_memory_start_address = user_accessible_memory_start.get_address();
-        let user_app_brk_address = user_app_brk.get_address();
+        // On ARMv*-M architectures, user and kernel virtual pointers map 1:1.
+        let user_accessible_memory_start_address = kernel_accessible_memory_start.get_address();
+        let user_app_brk_address = kernel_app_brk.get_address();
 
         // Ensure that [`state.psp`, `state.psp + SVC_FRAME_SIZE`] is within
         // process-accessible memory. Alignment is guaranteed by hardware.
@@ -270,15 +272,16 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
 
     unsafe fn switch_to_process(
         &self,
-        user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
-        user_app_brk: &ImmutableUserVirtualPointer<u8>,
+        kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &mut CortexMStoredState,
     ) -> (
         kernel::syscall::ContextSwitchReason,
         Option<ImmutableUserVirtualPointer<u8>>,
     ) {
-        let user_accessible_memory_start_address = user_accessible_memory_start.get_address();
-        let user_app_brk_address = user_app_brk.get_address();
+        // On ARMv*-M architectures, user and kernel virtual pointers map 1:1.
+        let user_accessible_memory_start_address = kernel_accessible_memory_start.get_address();
+        let user_app_brk_address = kernel_app_brk.get_address();
 
         let new_stack_pointer = A::switch_to_user(state.psp as *const usize, &mut state.regs);
 

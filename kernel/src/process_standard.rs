@@ -1235,23 +1235,12 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         match self.stored_state.map(|stored_state| unsafe {
             let kernel_accessible_memory_start =
                 self.get_ram_start().as_immutable().infallible_cast();
-            let user_accessible_memory_start = self
-                .kernel
-                .translate_kernel_allocated_to_user_protected_byte(
-                    self,
-                    kernel_accessible_memory_start,
-                )
-                .unwrap();
 
             // SAFETY: `app_memory_break` represents a valid kernel virtual pointer.
             let kernel_app_brk = ImmutableKernelVirtualPointer::new_from_raw_byte(
                 self.app_memory_break().get() as *const u8,
             )
             .unwrap();
-            let user_app_brk = self
-                .kernel
-                .translate_kernel_allocated_to_user_protected_byte(self, kernel_app_brk)
-                .unwrap();
 
             // Actually set the return value for a particular process.
             //
@@ -1262,8 +1251,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             self.chip
                 .userspace_kernel_boundary()
                 .set_syscall_return_value(
-                    &user_accessible_memory_start,
-                    &user_app_brk,
+                    &kernel_accessible_memory_start,
+                    &kernel_app_brk,
                     stored_state,
                     return_value,
                 )
@@ -1304,13 +1293,6 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         match self.stored_state.map(|stored_state| {
             let kernel_accessible_memory_start =
                 self.get_ram_start().as_immutable().infallible_cast();
-            let user_accessible_memory_start = self
-                .kernel
-                .translate_kernel_allocated_to_user_protected_byte(
-                    self,
-                    kernel_accessible_memory_start,
-                )
-                .unwrap();
 
             // SAFETY: `app_memory_break` represents a valid kernel virtual pointer.
             let kernel_app_brk = unsafe {
@@ -1319,10 +1301,6 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                 )
                 .unwrap()
             };
-            let user_app_brk = self
-                .kernel
-                .translate_kernel_allocated_to_user_protected_byte(self, kernel_app_brk)
-                .unwrap();
 
             // Let the UKB implementation handle setting the process's PC so
             // that the process executes the upcall function. We encapsulate
@@ -1330,8 +1308,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             // passed to `set_process_function` are correct.
             unsafe {
                 self.chip.userspace_kernel_boundary().set_process_function(
-                    &user_accessible_memory_start,
-                    &user_app_brk,
+                    &kernel_accessible_memory_start,
+                    &kernel_app_brk,
                     stored_state,
                     callback,
                 )
@@ -1373,13 +1351,6 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             self.stored_state.map_or((None, None), |stored_state| {
                 let kernel_accessible_memory_start =
                     self.get_ram_start().as_immutable().infallible_cast();
-                let user_accessible_memory_start = self
-                    .kernel
-                    .translate_kernel_allocated_to_user_protected_byte(
-                        self,
-                        kernel_accessible_memory_start,
-                    )
-                    .unwrap();
 
                 // SAFETY: `app_memory_break` represents a valid kernel virtual pointer.
                 let kernel_app_brk = unsafe {
@@ -1388,10 +1359,6 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                     )
                     .unwrap()
                 };
-                let user_app_brk = self
-                    .kernel
-                    .translate_kernel_allocated_to_user_protected_byte(self, kernel_app_brk)
-                    .unwrap();
 
                 // Switch to the process. We guarantee that the memory pointers
                 // we pass are valid, ensuring this context switch is safe.
@@ -1399,8 +1366,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                 unsafe {
                     let (switch_reason, optional_stack_pointer) =
                         self.chip.userspace_kernel_boundary().switch_to_process(
-                            &user_accessible_memory_start,
-                            &user_app_brk,
+                            &kernel_accessible_memory_start,
+                            &kernel_app_brk,
                             stored_state,
                         );
                     (Some(switch_reason), optional_stack_pointer)
