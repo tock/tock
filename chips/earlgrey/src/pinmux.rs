@@ -369,9 +369,8 @@ impl Configure for PadConfig {
     }
 
     fn make_output(&self) -> Configuration {
-        match self.configuration() {
-            Configuration::LowPower => self.connect(),
-            _ => {}
+        if let Configuration::LowPower = self.configuration() {
+            self.connect()
         }
         self.configuration()
     }
@@ -382,9 +381,8 @@ impl Configure for PadConfig {
     }
 
     fn make_input(&self) -> Configuration {
-        match self.configuration() {
-            Configuration::LowPower => self.connect(),
-            _ => {}
+        if let Configuration::LowPower = self.configuration() {
+            self.connect()
         }
         self.configuration()
     }

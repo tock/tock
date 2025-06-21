@@ -594,9 +594,8 @@ impl<'a> Rtc<'a> {
         self.pwr_clock.enable();
 
         // Enable access to the backup domain
-        match crate::pwr::enable_backup_access() {
-            Err(e) => panic!("{:?}", e),
-            _ => (),
+        if let Err(e) = crate::pwr::enable_backup_access() {
+            panic!("{:?}", e)
         }
 
         self.clock.enable();

@@ -155,12 +155,11 @@ impl<'client, R: LiteXSoCRegisterConfiguration> LiteXGPIOController<'client, R> 
     ///
     /// Returns a tuple of (oe, out, in).
     pub(self) fn read_gpio(&self, index: usize) -> (bool, bool, bool) {
-        let res = (
+        (
             (self.regs.gpio_output_enable.get() & (1 << index)) != 0,
             (self.regs.gpio_output.get() & (1 << index)) != 0,
             (self.regs.gpio_input.get() & (1 << index)) != 0,
-        );
-        res
+        )
     }
 
     /// Internal method to set a GPIO pins' interrupt client

@@ -245,7 +245,7 @@ impl<const NUM_REGIONS: usize> CortexMConfig<NUM_REGIONS> {
             if number <= APP_MEMORY_REGION_MAX_NUM {
                 continue;
             }
-            if let None = region.location() {
+            if region.location().is_none() {
                 return Some(number);
             }
         }

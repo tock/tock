@@ -633,11 +633,8 @@ impl Header<'_> {
                 stream_cond!(self.dst_addr.is_some() == self.dst_pan.is_some());
                 stream_cond!(self.src_addr.is_some() == self.src_pan.is_some());
 
-                match (self.dst_pan, self.src_pan) {
-                    (Some(dst_pan), Some(src_pan)) => {
-                        drop_src_pan = dst_pan == src_pan;
-                    }
-                    _ => {}
+                if let (Some(dst_pan), Some(src_pan)) = (self.dst_pan, self.src_pan) {
+                    drop_src_pan = dst_pan == src_pan;
                 }
                 drop_src_pan
             }

@@ -323,32 +323,29 @@ impl<'a, S: hil::screen::Screen<'a>> ScreenShared<'a, S> {
 
                 // If we have a candidate, try to execute the screen operation.
                 if frame_maybe.is_some() {
-                    match frame_maybe {
-                        Some(frame) => {
-                            // Reserve the screen for this process and execute
-                            // the operation.
-                            self.current_process.set(process_id);
-                            match self.call_screen(process_id, frame) {
-                                Ok(()) => {
-                                    // Everything is good, stop looking for apps
-                                    // to execute.
-                                    break;
-                                }
-                                Err(err) => {
-                                    // Could not run the screen command.
-                                    // Un-reserve the screen and do an upcall
-                                    // with the bad news.
-                                    self.current_process.clear();
-                                    self.schedule_callback(
-                                        process_id,
-                                        kernel::errorcode::into_statuscode(Err(err)),
-                                        0,
-                                        0,
-                                    );
-                                }
+                    if let Some(frame) = frame_maybe {
+                        // Reserve the screen for this process and execute
+                        // the operation.
+                        self.current_process.set(process_id);
+                        match self.call_screen(process_id, frame) {
+                            Ok(()) => {
+                                // Everything is good, stop looking for apps
+                                // to execute.
+                                break;
+                            }
+                            Err(err) => {
+                                // Could not run the screen command.
+                                // Un-reserve the screen and do an upcall
+                                // with the bad news.
+                                self.current_process.clear();
+                                self.schedule_callback(
+                                    process_id,
+                                    kernel::errorcode::into_statuscode(Err(err)),
+                                    0,
+                                    0,
+                                );
                             }
                         }
-                        None => {}
                     }
                 }
             }

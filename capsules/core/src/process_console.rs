@@ -1031,11 +1031,8 @@ impl<
 
     fn prompt(&self) {
         // Only display the prompt in active mode.
-        match self.mode.get() {
-            ProcessConsoleState::Active => {
-                let _ = self.write_bytes(b"tock$ ");
-            }
-            _ => {}
+        if self.mode.get() == ProcessConsoleState::Active {
+            let _ = self.write_bytes(b"tock$ ");
         }
     }
 

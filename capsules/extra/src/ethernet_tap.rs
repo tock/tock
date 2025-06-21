@@ -387,7 +387,7 @@ impl<'a, E: EthernetAdapterDatapath<'a>> EthernetTapDriver<'a, E> {
         let _ = self.apps.enter(process_id, |grant, kernel_data| {
             // If the application has allowed a "TX info" buffer, write some
             // transmission metadata to it:
-            let ts_bytes = timestamp.map_or(u64::to_be_bytes(0), |ts| u64::to_be_bytes(ts));
+            let ts_bytes = timestamp.map_or(u64::to_be_bytes(0), u64::to_be_bytes);
             let _ = kernel_data
                 .get_readwrite_processbuffer(rw_allow::TX_FRAME_INFO)
                 .and_then(|tx_frame_info| {

@@ -913,31 +913,28 @@ impl<const APP_REGION_SIZE: usize> hil::nonvolatile_storage::NonvolatileStorageC
             match user {
                 User::RegionManager(state) => {
                     self.buffer.replace(buffer);
-                    match state {
-                        ManagerTask::DiscoverRegions(address) => {
-                            let res = self.header_read_done(address);
-                            match res {
-                                Ok(addr) => match addr {
-                                    Some(next_header_address) => {
-                                        self.current_user.set(User::RegionManager(
-                                            ManagerTask::DiscoverRegions(next_header_address),
-                                        ));
-                                    }
-                                    None => {
-                                        // We finished the scan of existing
-                                        // regions. Now we can check the queue
-                                        // to see if there is any work to be
-                                        // done.
-                                        self.check_queue();
-                                    }
-                                },
-                                Err(_e) => {
-                                    // Not clear what to do here.
+                    if let ManagerTask::DiscoverRegions(address) = state {
+                        let res = self.header_read_done(address);
+                        match res {
+                            Ok(addr) => match addr {
+                                Some(next_header_address) => {
+                                    self.current_user.set(User::RegionManager(
+                                        ManagerTask::DiscoverRegions(next_header_address),
+                                    ));
+                                }
+                                None => {
+                                    // We finished the scan of existing
+                                    // regions. Now we can check the queue
+                                    // to see if there is any work to be
+                                    // done.
                                     self.check_queue();
                                 }
+                            },
+                            Err(_e) => {
+                                // Not clear what to do here.
+                                self.check_queue();
                             }
                         }
-                        _ => {}
                     }
                 }
                 User::App { processid } => {

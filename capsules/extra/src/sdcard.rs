@@ -272,9 +272,8 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
         }
 
         // handle optional detect pin
-        let pin = detect_pin.map_or(None, |pin| {
+        let pin = detect_pin.inspect(|pin| {
             pin.make_input();
-            Some(pin)
         });
 
         // set up and return struct

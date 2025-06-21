@@ -215,7 +215,7 @@ impl<T: Copy> OptionalCell<T> {
     where
         F: FnOnce(T) -> R,
     {
-        self.value.get().map(|val| closure(val))
+        self.value.get().map(closure)
     }
 
     /// Call a closure on the value if the value exists, or return the
@@ -224,7 +224,7 @@ impl<T: Copy> OptionalCell<T> {
     where
         F: FnOnce(T) -> R,
     {
-        self.value.get().map_or(default, |val| closure(val))
+        self.value.get().map_or(default, closure)
     }
 
     /// If the cell contains a value, call a closure supplied with the
@@ -235,7 +235,7 @@ impl<T: Copy> OptionalCell<T> {
         D: FnOnce() -> U,
         F: FnOnce(T) -> U,
     {
-        self.value.get().map_or_else(default, |val| closure(val))
+        self.value.get().map_or_else(default, closure)
     }
 
     /// If the cell is empty, return `None`. Otherwise, call a closure

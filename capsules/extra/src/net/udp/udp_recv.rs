@@ -47,54 +47,50 @@ impl<'a> MuxUdpReceiver<'a> {
 
 impl IP6RecvClient for MuxUdpReceiver<'_> {
     fn receive(&self, ip_header: IP6Header, payload: &[u8]) {
-        match UDPHeader::decode(payload).done() {
-            Some((offset, udp_header)) => {
-                let len = udp_header.get_len() as usize;
-                let dst_port = udp_header.get_dst_port();
-                if len > payload.len() {
-                    debug!("[UDP_RECV] Error: Received UDP length too long");
-                    return;
-                }
-                for rcvr in self.rcvr_list.iter() {
-                    match rcvr.binding.take() {
-                        Some(binding) => {
-                            if binding.get_port() == dst_port {
-                                rcvr.client.map(|client| {
-                                    client.receive(
-                                        ip_header.get_src_addr(),
-                                        ip_header.get_dst_addr(),
-                                        udp_header.get_src_port(),
-                                        udp_header.get_dst_port(),
-                                        &payload[offset..],
-                                    );
-                                });
-                                rcvr.binding.replace(binding);
+        if let Some((offset, udp_header)) = UDPHeader::decode(payload).done() {
+            let len = udp_header.get_len() as usize;
+            let dst_port = udp_header.get_dst_port();
+            if len > payload.len() {
+                debug!("[UDP_RECV] Error: Received UDP length too long");
+                return;
+            }
+            for rcvr in self.rcvr_list.iter() {
+                match rcvr.binding.take() {
+                    Some(binding) => {
+                        if binding.get_port() == dst_port {
+                            rcvr.client.map(|client| {
+                                client.receive(
+                                    ip_header.get_src_addr(),
+                                    ip_header.get_dst_addr(),
+                                    udp_header.get_src_port(),
+                                    udp_header.get_dst_port(),
+                                    &payload[offset..],
+                                );
+                            });
+                            rcvr.binding.replace(binding);
+                            break;
+                        }
+                        rcvr.binding.replace(binding);
+                    }
+                    // The UDPReceiver used by the driver will not have a binding
+                    None => {
+                        if let Some(driver) = self.driver.take() {
+                            if driver.is_bound(dst_port) {
+                                driver.receive(
+                                    ip_header.get_src_addr(),
+                                    ip_header.get_dst_addr(),
+                                    udp_header.get_src_port(),
+                                    udp_header.get_dst_port(),
+                                    &payload[offset..],
+                                );
+                                self.driver.replace(driver);
                                 break;
                             }
-                            rcvr.binding.replace(binding);
+                            self.driver.replace(driver);
                         }
-                        // The UDPReceiver used by the driver will not have a binding
-                        None => match self.driver.take() {
-                            Some(driver) => {
-                                if driver.is_bound(dst_port) {
-                                    driver.receive(
-                                        ip_header.get_src_addr(),
-                                        ip_header.get_dst_addr(),
-                                        udp_header.get_src_port(),
-                                        udp_header.get_dst_port(),
-                                        &payload[offset..],
-                                    );
-                                    self.driver.replace(driver);
-                                    break;
-                                }
-                                self.driver.replace(driver);
-                            }
-                            None => {}
-                        },
                     }
                 }
             }
-            None => {}
         }
     }
 }

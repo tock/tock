@@ -354,11 +354,11 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
         }
 
         // Ensure the source is enabled before configuring it as the system clock source
-        if let false = match source {
+        if !(match source {
             SysClockSource::HSI => self.hsi.is_enabled(),
             SysClockSource::HSE => self.hse.is_enabled(),
             SysClockSource::PLL => self.pll.is_enabled(),
-        } {
+        }) {
             return Err(ErrorCode::FAIL);
         }
 

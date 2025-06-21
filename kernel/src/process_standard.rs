@@ -618,13 +618,12 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
     }
 
     fn resume(&self) {
-        match self.state.get() {
-            State::Stopped(stopped_state) => match stopped_state {
+        if let State::Stopped(stopped_state) = self.state.get() {
+            match stopped_state {
                 StoppedState::Running => self.state.set(State::Running),
                 StoppedState::Yielded => self.state.set(State::Yielded),
                 StoppedState::YieldedFor(upcall_id) => self.state.set(State::YieldedFor(upcall_id)),
-            },
-            _ => {} // Do nothing
+            }
         }
     }
 

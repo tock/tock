@@ -470,10 +470,9 @@ impl SyscallDriver for UDPDriver<'_> {
                     })
                     .unwrap_or_else(|err| Err(err.into()));
                 match res {
-                    Ok(()) => self.do_next_tx_immediate(processid).map_or_else(
-                        |err| CommandReturn::failure(err),
-                        |v| CommandReturn::success_u32(v),
-                    ),
+                    Ok(()) => self
+                        .do_next_tx_immediate(processid)
+                        .map_or_else(CommandReturn::failure, CommandReturn::success_u32),
                     Err(e) => CommandReturn::failure(e),
                 }
             }

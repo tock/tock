@@ -449,30 +449,27 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> hil::usb::Client<'a>
     /// Handle a Control Out transaction
     fn ctrl_out(&'a self, endpoint: usize, packet_bytes: u32) -> hil::usb::CtrlOutResult {
         // Check what state our Ctrl endpoint is in.
-        match self.ctrl_state.get() {
-            CtrlState::SetLineCoding => {
-                // We got a Ctrl SET_LINE_CODING setup, now we are getting the data.
-                // We can parse the data we got.
-                descriptors::CdcAcmSetLineCodingData::get(&self.client_ctrl.ctrl_buffer.buf).map(
-                    |line_coding| {
-                        // If the device is configuring the baud rate to what we
-                        // expect, we continue with the connecting process.
-                        if line_coding.baud_rate == 115200 {
-                            self.set_connecting_state(true, false);
-                        }
+        if self.ctrl_state.get() == CtrlState::SetLineCoding {
+            // We got a Ctrl SET_LINE_CODING setup, now we are getting the data.
+            // We can parse the data we got.
+            descriptors::CdcAcmSetLineCodingData::get(&self.client_ctrl.ctrl_buffer.buf).map(
+                |line_coding| {
+                    // If the device is configuring the baud rate to what we
+                    // expect, we continue with the connecting process.
+                    if line_coding.baud_rate == 115200 {
+                        self.set_connecting_state(true, false);
+                    }
 
-                        // Check if the baud rate we got matches the special flag
-                        // value (1200 baud). If so, we run an optional function
-                        // provided when the CDC stack was configured.
-                        if line_coding.baud_rate == 1200 {
-                            self.host_initiated_function.map(|f| {
-                                f();
-                            });
-                        }
-                    },
-                );
-            }
-            _ => {}
+                    // Check if the baud rate we got matches the special flag
+                    // value (1200 baud). If so, we run an optional function
+                    // provided when the CDC stack was configured.
+                    if line_coding.baud_rate == 1200 {
+                        self.host_initiated_function.map(|f| {
+                            f();
+                        });
+                    }
+                },
+            );
         }
 
         self.client_ctrl.ctrl_out(endpoint, packet_bytes)
@@ -488,22 +485,20 @@ impl<'a, U: hil::usb::UsbController<'a>, A: 'a + Alarm<'a>> hil::usb::Client<'a>
 
         // Here we check to see if we just got connected to a CDC client. If so,
         // we do a delay before transmitting if needed.
-        match self.state.get() {
-            State::Connecting {
-                line_coding,
-                line_state,
-            } => {
-                if line_coding && line_state {
-                    self.state.set(State::ConnectingDelay);
+        if let State::Connecting {
+            line_coding,
+            line_state,
+        } = self.state.get()
+        {
+            if line_coding && line_state {
+                self.state.set(State::ConnectingDelay);
 
-                    // Wait a 100 ms before sending data.
-                    self.timeout_alarm.set_alarm(
-                        self.timeout_alarm.now(),
-                        self.timeout_alarm.ticks_from_ms(100),
-                    );
-                }
+                // Wait a 100 ms before sending data.
+                self.timeout_alarm.set_alarm(
+                    self.timeout_alarm.now(),
+                    self.timeout_alarm.ticks_from_ms(100),
+                );
             }
-            _ => {}
         }
 
         self.client_ctrl.ctrl_status_complete(endpoint)

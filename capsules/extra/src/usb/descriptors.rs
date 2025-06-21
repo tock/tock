@@ -78,21 +78,21 @@ impl SetupData {
                 5 => Some(StandardRequest::SetAddress {
                     device_address: self.value,
                 }),
-                6 => get_descriptor_type((self.value >> 8) as u8).map_or(None, |dt| {
-                    Some(StandardRequest::GetDescriptor {
+                6 => get_descriptor_type((self.value >> 8) as u8).map(|dt| {
+                    StandardRequest::GetDescriptor {
                         descriptor_type: dt,
                         descriptor_index: (self.value & 0xff) as u8,
                         lang_id: self.index,
                         requested_length: self.length,
-                    })
+                    }
                 }),
-                7 => get_set_descriptor_type((self.value >> 8) as u8).map_or(None, |dt| {
-                    Some(StandardRequest::SetDescriptor {
+                7 => get_set_descriptor_type((self.value >> 8) as u8).map(|dt| {
+                    StandardRequest::SetDescriptor {
                         descriptor_type: dt,
                         descriptor_index: (self.value & 0xff) as u8,
                         lang_id: self.index,
                         descriptor_length: self.length,
-                    })
+                    }
                 }),
                 8 => Some(StandardRequest::GetConfiguration),
                 9 => Some(StandardRequest::SetConfiguration {

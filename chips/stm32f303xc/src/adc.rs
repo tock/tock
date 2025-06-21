@@ -577,12 +577,9 @@ impl<'a> Adc<'a> {
             // Set Status
             if self.status.get() == ADCStatus::PoweringOn {
                 self.status.set(ADCStatus::Idle);
-                match self.requested.get() {
-                    ADCStatus::OneSample => {
-                        let _ = self.sample_u32(self.requested_channel.get());
-                        return;
-                    }
-                    _ => {}
+                if self.requested.get() == ADCStatus::OneSample {
+                    let _ = self.sample_u32(self.requested_channel.get());
+                    return;
                 }
             }
         }

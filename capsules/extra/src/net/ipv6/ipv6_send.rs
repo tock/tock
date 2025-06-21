@@ -168,8 +168,8 @@ impl<'a, A: time::Alarm<'a>> IP6Sender<'a> for IP6SendStruct<'a, A> {
             .init(self.src_mac_addr, dst_mac_addr, self.radio.get_pan(), None);
 
         self.init_packet(dst, transport_header, payload);
-        let ret = self.send_next_fragment();
-        ret
+
+        self.send_next_fragment()
     }
 }
 

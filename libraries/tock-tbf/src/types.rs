@@ -1018,7 +1018,7 @@ impl<'a> TbfHeader<'a> {
     /// TBF header.
     pub fn get_fixed_short_id(&self) -> Option<core::num::NonZeroU32> {
         match self {
-            TbfHeader::TbfHeaderV2(hd) => hd.short_id.map_or(None, |si| si.short_id),
+            TbfHeader::TbfHeaderV2(hd) => hd.short_id.and_then(|si| si.short_id),
             _ => None,
         }
     }

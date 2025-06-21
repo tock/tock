@@ -467,8 +467,8 @@ impl<'a, K: KVSystem<'a, K = T>, T: KeyType> KVSystemClient<T> for TicKVKVStore<
         key: &'static mut T,
         ret_buf: SubSliceMut<'static, u8>,
     ) {
-        self.operation.map(|op| match op {
-            Operation::Get => {
+        self.operation.map(|op| {
+            if op == Operation::Get {
                 self.hashed_key.replace(key);
                 self.operation.clear();
 
@@ -486,7 +486,6 @@ impl<'a, K: KVSystem<'a, K = T>, T: KeyType> KVSystemClient<T> for TicKVKVStore<
                     });
                 });
             }
-            _ => {}
         });
     }
 

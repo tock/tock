@@ -1202,7 +1202,7 @@ impl Iterator for Atecc508aRngIter<'_, '_> {
     type Item = u32;
 
     fn next(&mut self) -> Option<u32> {
-        self.0.entropy_buffer.take().map_or(None, |entropy_buffer| {
+        self.0.entropy_buffer.take().map(|entropy_buffer| {
             let offset = self.0.entropy_offset.get();
             let entropy_bytes =
                 <[u8; 4]>::try_from(&entropy_buffer[(offset + 0)..(offset + 4)]).unwrap();
@@ -1215,7 +1215,7 @@ impl Iterator for Atecc508aRngIter<'_, '_> {
             }
             self.0.entropy_buffer.replace(entropy_buffer);
 
-            Some(entropy)
+            entropy
         })
     }
 }
