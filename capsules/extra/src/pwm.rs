@@ -31,11 +31,10 @@ impl<'a, const NUM_PINS: usize> Pwm<'a, NUM_PINS> {
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> Pwm<'a, NUM_PINS> {
         assert!(u16::try_from(NUM_PINS).is_ok());
-        const EMPTY: OptionalCell<ProcessId> = OptionalCell::empty();
         Pwm {
             pwm_pins,
             apps: grant,
-            active_process: [EMPTY; NUM_PINS],
+            active_process: [const { OptionalCell::empty() }; NUM_PINS],
         }
     }
 

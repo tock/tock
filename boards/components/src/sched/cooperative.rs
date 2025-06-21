@@ -55,8 +55,9 @@ impl<const NUM_PROCS: usize> Component for CooperativeComponent<NUM_PROCS> {
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let scheduler = static_buffer.0.write(CooperativeSched::new());
 
-        const UNINIT: MaybeUninit<CoopProcessNode<'static>> = MaybeUninit::uninit();
-        let nodes = static_buffer.1.write([UNINIT; NUM_PROCS]);
+        let nodes = static_buffer
+            .1
+            .write([const { MaybeUninit::uninit() }; NUM_PROCS]);
 
         for (i, node) in nodes.iter_mut().enumerate() {
             let init_node = node.write(CoopProcessNode::new(&self.processes[i]));

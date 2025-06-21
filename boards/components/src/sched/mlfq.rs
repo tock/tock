@@ -70,8 +70,9 @@ impl<A: 'static + time::Alarm<'static>, const NUM_PROCS: usize> Component
 
         let scheduler = static_buffer.1.write(MLFQSched::new(scheduler_alarm));
 
-        const UNINIT: MaybeUninit<MLFQProcessNode<'static>> = MaybeUninit::uninit();
-        let nodes = static_buffer.2.write([UNINIT; NUM_PROCS]);
+        let nodes = static_buffer
+            .2
+            .write([const { MaybeUninit::uninit() }; NUM_PROCS]);
 
         for (i, node) in nodes.iter_mut().enumerate() {
             let init_node = node.write(MLFQProcessNode::new(&self.processes[i]));

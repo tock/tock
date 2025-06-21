@@ -109,10 +109,6 @@ impl DynDefCallRef<'_> {
     }
 }
 
-// The below constant lets us get around Rust not allowing short array
-// initialization for non-default types.
-const EMPTY: OptionalCell<DynDefCallRef<'static>> = OptionalCell::empty();
-
 /// Counter for the number of deferred calls that have been created, this is
 /// used to track that no more than 32 deferred calls have been created.
 // All 3 of the below global statics are accessed only in this file, and all
@@ -132,7 +128,8 @@ static mut BITMASK: Cell<u32> = Cell::new(0);
 /// An array that stores references to up to 32 `DeferredCall`s via the low-cost
 /// [`DynDefCallRef`].
 // This is a 256 byte array, but at least resides in `.bss`.
-static mut DEFCALLS: [OptionalCell<DynDefCallRef<'static>>; 32] = [EMPTY; 32];
+static mut DEFCALLS: [OptionalCell<DynDefCallRef<'static>>; 32] =
+    [const { OptionalCell::empty() }; 32];
 
 pub struct DeferredCall {
     idx: usize,
