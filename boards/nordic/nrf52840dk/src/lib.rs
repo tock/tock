@@ -396,7 +396,7 @@ pub unsafe fn ieee802154_udp(
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
-pub unsafe fn start() -> (
+pub unsafe fn start_no_pconsole() -> (
     &'static kernel::Kernel,
     Platform,
     &'static Chip,
@@ -915,7 +915,6 @@ pub unsafe fn start() -> (
         systick: cortexm4::systick::SysTick::new_with_calibration(64000000),
     };
 
-    let _ = platform.pconsole.start();
     base_peripherals.adc.calibrate();
 
     debug!("Initialization complete. Entering main loop\r");
@@ -928,4 +927,20 @@ pub unsafe fn start() -> (
         nrf52840_peripherals,
         mux_alarm,
     )
+}
+
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+pub unsafe fn start() -> (
+    &'static kernel::Kernel,
+    Platform,
+    &'static Chip,
+    &'static Nrf52840DefaultPeripherals<'static>,
+    &'static MuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
+) {
+    let (kernel, platform, chip, peripherals, mux_alarm) = start_no_pconsole();
+    let _ = platform.pconsole.start();
+    (kernel, platform, chip, peripherals, mux_alarm)
 }

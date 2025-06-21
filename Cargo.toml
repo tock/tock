@@ -61,6 +61,7 @@ members = [
     "boards/configurations/nrf52840dk/nrf52840dk-test-kernel",
     "boards/configurations/nrf52840dk/nrf52840dk-test-dynamic-app-load",
     "boards/configurations/microbit_v2/microbit_v2-test-dynamic-app-load",
+    "boards/tutorials/nrf52840dk-root-of-trust-tutorial",
     "boards/tutorials/nrf52840dk-dynamic-apps-and-policies",
     "boards/tutorials/nrf52840dk-hotp-tutorial",
     "boards/tutorials/nrf52840dk-thread-tutorial",
