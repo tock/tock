@@ -67,11 +67,11 @@
 //! into the Tock system call ABI specification.
 
 use core::fmt::Write;
-use core::ptr::NonNull;
 
 use crate::errorcode::ErrorCode;
 use crate::memory_management::pointers::{
-    ImmutableKernelVirtualPointer, ImmutableUserVirtualPointer, MutableUserVirtualPointer,
+    ImmutableKernelVirtualPointer, ImmutableUserNullableVirtualPointer,
+    ImmutableUserVirtualPointer, MutableUserNullableVirtualPointer,
 };
 
 use crate::process;
@@ -187,7 +187,7 @@ pub enum Syscall {
         /// The buffer identifier.
         subdriver_number: usize,
         /// The address where the buffer starts.
-        allow_pointer: Option<MutableUserVirtualPointer<u8>>,
+        allow_pointer: MutableUserNullableVirtualPointer<u8>,
         /// The size of the buffer in bytes.
         allow_size: usize,
     },
@@ -200,7 +200,7 @@ pub enum Syscall {
         /// The buffer identifier.
         subdriver_number: usize,
         /// The address where the buffer starts.
-        allow_pointer: Option<MutableUserVirtualPointer<u8>>,
+        allow_pointer: MutableUserNullableVirtualPointer<u8>,
         /// The size of the buffer in bytes.
         allow_size: usize,
     },
@@ -213,7 +213,7 @@ pub enum Syscall {
         /// The buffer identifier.
         subdriver_number: usize,
         /// The address where the buffer starts.
-        allow_pointer: Option<ImmutableUserVirtualPointer<u8>>,
+        allow_pointer: ImmutableUserNullableVirtualPointer<u8>,
         /// The size of the buffer in bytes.
         allow_size: usize,
     },
@@ -272,34 +272,37 @@ impl Syscall {
             Ok(SyscallClass::ReadWriteAllow) => Some(Syscall::ReadWriteAllow {
                 driver_number: r0,
                 subdriver_number: r1.as_usize(),
-                allow_pointer: NonNull::new(r2.as_capability_ptr().as_ptr::<u8>() as *mut u8)
-                    // SAFETY: User space always passes virtual pointers which are obviously user
-                    // pointers.
-                    .map(|non_null_pointer| unsafe {
-                        MutableUserVirtualPointer::new_from_non_null_byte(non_null_pointer)
-                    }),
+                // SAFETY: User space always passes virtual pointers which are obviously user
+                // pointers.
+                allow_pointer: unsafe {
+                    MutableUserNullableVirtualPointer::new_from_byte(
+                        r2.as_capability_ptr().as_ptr::<u8>() as *mut u8,
+                    )
+                },
                 allow_size: r3.as_usize(),
             }),
             Ok(SyscallClass::UserspaceReadableAllow) => Some(Syscall::UserspaceReadableAllow {
                 driver_number: r0,
                 subdriver_number: r1.as_usize(),
-                allow_pointer: NonNull::new(r2.as_capability_ptr().as_ptr::<u8>() as *mut u8)
-                    // SAFETY: User space always passes virtual pointers which are obviously user
-                    // pointers.
-                    .map(|non_null_pointer| unsafe {
-                        MutableUserVirtualPointer::new_from_non_null_byte(non_null_pointer)
-                    }),
+                // SAFETY: User space always passes virtual pointers which are obviously user
+                // pointers.
+                allow_pointer: unsafe {
+                    MutableUserNullableVirtualPointer::new_from_byte(
+                        r2.as_capability_ptr().as_ptr::<u8>() as *mut u8,
+                    )
+                },
                 allow_size: r3.as_usize(),
             }),
             Ok(SyscallClass::ReadOnlyAllow) => Some(Syscall::ReadOnlyAllow {
                 driver_number: r0,
                 subdriver_number: r1.as_usize(),
-                allow_pointer: NonNull::new(r2.as_capability_ptr().as_ptr::<u8>() as *mut u8)
-                    // SAFETY: User space always passes virtual pointers which are obviously user
-                    // pointers.
-                    .map(|non_null_pointer| unsafe {
-                        ImmutableUserVirtualPointer::new_from_non_null_byte(non_null_pointer)
-                    }),
+                // SAFETY: User space always passes virtual pointers which are obviously user
+                // pointers.
+                allow_pointer: unsafe {
+                    ImmutableUserNullableVirtualPointer::new_from_byte(
+                        r2.as_capability_ptr().as_ptr::<u8>(),
+                    )
+                },
                 allow_size: r3.as_usize(),
             }),
             Ok(SyscallClass::Memop) => Some(Syscall::Memop {
@@ -457,24 +460,24 @@ pub enum SyscallReturn {
     // as grant is stored in grant allow slots)
     /// Read/Write allow success case, returns the previous allowed buffer and
     /// size to the process.
-    AllowReadWriteSuccess(Option<MutableUserVirtualPointer<u8>>, usize),
+    AllowReadWriteSuccess(MutableUserNullableVirtualPointer<u8>, usize),
     /// Read/Write allow failure case, returns the passed allowed buffer and
     /// size to the process.
-    AllowReadWriteFailure(ErrorCode, Option<MutableUserVirtualPointer<u8>>, usize),
+    AllowReadWriteFailure(ErrorCode, MutableUserNullableVirtualPointer<u8>, usize),
 
     /// Shared Read/Write allow success case, returns the previous allowed
     /// buffer and size to the process.
-    UserspaceReadableAllowSuccess(Option<MutableUserVirtualPointer<u8>>, usize),
+    UserspaceReadableAllowSuccess(MutableUserNullableVirtualPointer<u8>, usize),
     /// Shared Read/Write allow failure case, returns the passed allowed buffer
     /// and size to the process.
-    UserspaceReadableAllowFailure(ErrorCode, Option<MutableUserVirtualPointer<u8>>, usize),
+    UserspaceReadableAllowFailure(ErrorCode, MutableUserNullableVirtualPointer<u8>, usize),
 
     /// Read only allow success case, returns the previous allowed buffer and
     /// size to the process.
-    AllowReadOnlySuccess(Option<ImmutableUserVirtualPointer<u8>>, usize),
+    AllowReadOnlySuccess(ImmutableUserNullableVirtualPointer<u8>, usize),
     /// Read only allow failure case, returns the passed allowed buffer and size
     /// to the process.
-    AllowReadOnlyFailure(ErrorCode, Option<ImmutableUserVirtualPointer<u8>>, usize),
+    AllowReadOnlyFailure(ErrorCode, ImmutableUserNullableVirtualPointer<u8>, usize),
 
     /// Subscribe success case, returns the previous upcall function pointer and
     /// application data.

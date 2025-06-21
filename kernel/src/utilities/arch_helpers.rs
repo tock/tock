@@ -9,7 +9,9 @@
 //! `arch` crates. While these could also live in a dedicated crate, we use the
 //! `kernel` crate as all `arch` crates already depend on it.
 
-use crate::memory_management::pointers::{ImmutableUserVirtualPointer, MutableUserVirtualPointer};
+use crate::memory_management::pointers::{
+    ImmutableUserNullableVirtualPointer, MutableUserNullableVirtualPointer,
+};
 use crate::syscall::SyscallReturn;
 use crate::ErrorCode;
 
@@ -70,12 +72,12 @@ pub enum TRD104SyscallReturn {
     SuccessU32U32U32(u32, u32, u32),
     SuccessU64(u64),
     SuccessU32U64(u32, u64),
-    AllowReadWriteSuccess(Option<MutableUserVirtualPointer<u8>>, usize),
-    AllowReadWriteFailure(ErrorCode, Option<MutableUserVirtualPointer<u8>>, usize),
-    UserspaceReadableAllowSuccess(Option<MutableUserVirtualPointer<u8>>, usize),
-    UserspaceReadableAllowFailure(ErrorCode, Option<MutableUserVirtualPointer<u8>>, usize),
-    AllowReadOnlySuccess(Option<ImmutableUserVirtualPointer<u8>>, usize),
-    AllowReadOnlyFailure(ErrorCode, Option<ImmutableUserVirtualPointer<u8>>, usize),
+    AllowReadWriteSuccess(MutableUserNullableVirtualPointer<u8>, usize),
+    AllowReadWriteFailure(ErrorCode, MutableUserNullableVirtualPointer<u8>, usize),
+    UserspaceReadableAllowSuccess(MutableUserNullableVirtualPointer<u8>, usize),
+    UserspaceReadableAllowFailure(ErrorCode, MutableUserNullableVirtualPointer<u8>, usize),
+    AllowReadOnlySuccess(ImmutableUserNullableVirtualPointer<u8>, usize),
+    AllowReadOnlyFailure(ErrorCode, ImmutableUserNullableVirtualPointer<u8>, usize),
     SubscribeSuccess(*const (), usize),
     SubscribeFailure(ErrorCode, *const (), usize),
     YieldWaitFor(usize, usize, usize),
@@ -206,14 +208,14 @@ pub fn encode_syscall_return_trd104_32bit(
         TRD104SyscallReturn::AllowReadWriteSuccess(ptr, len) => {
             *a0 = TRD104SyscallReturnVariant::SuccessU32U32.to_u32();
             // CAST: u32 == usize on 32-bit platforms
-            *a1 = ptr.map_or(0, |ptr| ptr.get_address().get() as u32);
+            *a1 = ptr.get_address() as u32;
             // CAST: u32 == usize on 32-bit platforms
             *a2 = len as u32;
         }
         TRD104SyscallReturn::UserspaceReadableAllowSuccess(ptr, len) => {
             *a0 = TRD104SyscallReturnVariant::SuccessU32U32.to_u32();
             // CAST: u32 == usize on 32-bit platforms
-            *a1 = ptr.map_or(0, |ptr| ptr.get_address().get() as u32);
+            *a1 = ptr.get_address() as u32;
             // CAST: u32 == usize on 32-bit platforms
             *a2 = len as u32;
         }
@@ -222,7 +224,7 @@ pub fn encode_syscall_return_trd104_32bit(
             // CAST: u32 == usize on 32-bit platforms
             *a1 = usize::from(err) as u32;
             // CAST: u32 == usize on 32-bit platforms
-            *a2 = ptr.map_or(0, |ptr| ptr.get_address().get() as u32);
+            *a2 = ptr.get_address() as u32;
             // CAST: u32 == usize on 32-bit platforms
             *a3 = len as u32;
         }
@@ -231,14 +233,14 @@ pub fn encode_syscall_return_trd104_32bit(
             // CAST: u32 == usize on 32-bit platforms
             *a1 = usize::from(err) as u32;
             // CAST: u32 == usize on 32-bit platforms
-            *a2 = ptr.map_or(0, |ptr| ptr.get_address().get() as u32);
+            *a2 = ptr.get_address() as u32;
             // CAST: u32 == usize on 32-bit platforms
             *a3 = len as u32;
         }
         TRD104SyscallReturn::AllowReadOnlySuccess(ptr, len) => {
             *a0 = TRD104SyscallReturnVariant::SuccessU32U32.to_u32();
             // CAST: u32 == usize on 32-bit platforms
-            *a1 = ptr.map_or(0, |ptr| ptr.get_address().get() as u32);
+            *a1 = ptr.get_address() as u32;
             // CAST: u32 == usize on 32-bit platforms
             *a2 = len as u32;
         }
@@ -247,7 +249,7 @@ pub fn encode_syscall_return_trd104_32bit(
             // CAST: u32 == usize on 32-bit platforms
             *a1 = usize::from(err) as u32;
             // CAST: u32 == usize on 32-bit platforms
-            *a2 = ptr.map_or(0, |ptr| ptr.get_address().get() as u32);
+            *a2 = ptr.get_address() as u32;
             // CAST: u32 == usize on 32-bit platforms
             *a3 = len as u32;
         }

@@ -25,7 +25,8 @@ use crate::memory_management::granules::Granule as GranuleTrait;
 use crate::memory_management::pages::Page4KiB;
 use crate::memory_management::permissions::Permissions;
 use crate::memory_management::pointers::{
-    ImmutableKernelVirtualPointer, ImmutableUserVirtualPointer, ImmutableVirtualPointer,
+    ImmutableKernelNullableVirtualPointer, ImmutableKernelVirtualPointer,
+    ImmutableUserVirtualPointer, ImmutableVirtualPointer, MutableKernelNullableVirtualPointer,
     MutableKernelVirtualPointer, MutablePhysicalPointer, MutableUserVirtualPointer,
 };
 use crate::memory_management::regions::{
@@ -821,7 +822,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
     fn build_readwrite_process_buffer(
         &self,
-        buf_start_addr: Option<MutableKernelVirtualPointer<u8>>,
+        buf_start_addr: MutableKernelNullableVirtualPointer<u8>,
         size: usize,
     ) -> Result<ReadWriteProcessBuffer, ErrorCode> {
         if !self.is_running() {
@@ -858,8 +859,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         };
 
         let buf_start_addr = match buf_start_addr {
-            None => return Err(ErrorCode::INVAL),
-            Some(buf_start_addr) => buf_start_addr,
+            MutableKernelNullableVirtualPointer::Null => return Err(ErrorCode::INVAL),
+            MutableKernelNullableVirtualPointer::NonNull(buf_start_addr) => buf_start_addr,
         };
 
         if self.in_app_owned_memory(buf_start_addr.as_immutable(), non_zero_size) {
@@ -891,11 +892,13 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             // We encapsulate the unsafe here on the condition in the TODO
             // above, as we must ensure that this `ReadWriteProcessBuffer` will
             // be the only reference to this memory.
-            Ok(
-                unsafe {
-                    ReadWriteProcessBuffer::new(Some(buf_start_addr), size, self.processid())
-                },
-            )
+            Ok(unsafe {
+                ReadWriteProcessBuffer::new(
+                    MutableKernelNullableVirtualPointer::NonNull(buf_start_addr),
+                    size,
+                    self.processid(),
+                )
+            })
         } else {
             Err(ErrorCode::INVAL)
         }
@@ -904,7 +907,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
     fn build_readonly_process_buffer(
         &self,
-        buf_start_addr: Option<ImmutableKernelVirtualPointer<u8>>,
+        buf_start_addr: ImmutableKernelNullableVirtualPointer<u8>,
         size: usize,
     ) -> Result<ReadOnlyProcessBuffer, ErrorCode> {
         if !self.is_running() {
@@ -941,8 +944,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         };
 
         let buf_start_addr = match buf_start_addr {
-            None => return Err(ErrorCode::INVAL),
-            Some(buf_start_addr) => buf_start_addr,
+            ImmutableKernelNullableVirtualPointer::Null => return Err(ErrorCode::INVAL),
+            ImmutableKernelNullableVirtualPointer::NonNull(buf_start_addr) => buf_start_addr,
         };
 
         if self.in_app_owned_memory(&buf_start_addr, non_zero_size)
@@ -979,7 +982,13 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             // We encapsulate the unsafe here on the condition in the TODO
             // above, as we must ensure that this `ReadOnlyProcessBuffer` will
             // be the only reference to this memory.
-            Ok(unsafe { ReadOnlyProcessBuffer::new(Some(buf_start_addr), size, self.processid()) })
+            Ok(unsafe {
+                ReadOnlyProcessBuffer::new(
+                    ImmutableKernelNullableVirtualPointer::NonNull(buf_start_addr),
+                    size,
+                    self.processid(),
+                )
+            })
         } else {
             Err(ErrorCode::INVAL)
         }

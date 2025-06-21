@@ -30,7 +30,7 @@ use core::ops::{Deref, Index, Range, RangeFrom, RangeTo};
 
 use crate::capabilities;
 use crate::memory_management::pointers::{
-    ImmutableKernelVirtualPointer, MutableKernelVirtualPointer,
+    ImmutableKernelNullableVirtualPointer, MutableKernelNullableVirtualPointer,
 };
 use crate::process::{self, ProcessId};
 use crate::ErrorCode;
@@ -54,7 +54,7 @@ use crate::ErrorCode;
 /// It is sound for multiple overlapping [`ReadableProcessSlice`]s or
 /// [`WriteableProcessSlice`]s to be in scope at the same time.
 unsafe fn raw_processbuf_to_roprocessslice<'a>(
-    ptr: Option<&ImmutableKernelVirtualPointer<u8>>,
+    ptr: &ImmutableKernelNullableVirtualPointer<u8>,
     len: usize,
 ) -> &'a ReadableProcessSlice {
     // Transmute a reference to a slice of Cell<u8>s into a reference
@@ -80,8 +80,12 @@ unsafe fn raw_processbuf_to_roprocessslice<'a>(
         //
         // [1]: https://doc.rust-lang.org/core/ptr/index.html#safety
         match ptr {
-            None => core::slice::from_raw_parts(core::ptr::NonNull::<u8>::dangling().as_ptr(), 0),
-            Some(ptr) => core::slice::from_raw_parts(ptr.as_raw(), len),
+            ImmutableKernelNullableVirtualPointer::Null => {
+                core::slice::from_raw_parts(core::ptr::NonNull::<u8>::dangling().as_ptr(), 0)
+            }
+            ImmutableKernelNullableVirtualPointer::NonNull(non_null_ptr) => {
+                core::slice::from_raw_parts(non_null_ptr.as_raw(), len)
+            }
         },
     )
 }
@@ -114,7 +118,7 @@ unsafe fn raw_processbuf_to_roprocessslice<'a>(
 /// [`ReadableProcessSlice`]s or [`WriteableProcessSlice`]s to be in
 /// scope at the same time.
 unsafe fn raw_processbuf_to_rwprocessslice<'a>(
-    ptr: Option<&MutableKernelVirtualPointer<u8>>,
+    ptr: &MutableKernelNullableVirtualPointer<u8>,
     len: usize,
 ) -> &'a WriteableProcessSlice {
     // Transmute a reference to a slice of Cell<u8>s into a reference
@@ -140,10 +144,12 @@ unsafe fn raw_processbuf_to_rwprocessslice<'a>(
         //
         // [1]: https://doc.rust-lang.org/core/ptr/index.html#safety
         match ptr {
-            None => {
+            MutableKernelNullableVirtualPointer::Null => {
                 core::slice::from_raw_parts_mut(core::ptr::NonNull::<u8>::dangling().as_ptr(), 0)
             }
-            Some(ptr) => core::slice::from_raw_parts_mut(ptr.as_raw(), len),
+            MutableKernelNullableVirtualPointer::NonNull(non_null_ptr) => {
+                core::slice::from_raw_parts_mut(non_null_ptr.as_raw(), len)
+            }
         },
     )
 }
@@ -240,8 +246,7 @@ pub trait WriteableProcessBuffer: ReadableProcessBuffer {
 /// free to reorder reads and writes, even through [`Cell`]s.
 #[derive(Default)]
 pub struct ReadOnlyProcessBuffer {
-    // TODO: Option should wrap both `ptr` and `len`
-    ptr: Option<ImmutableKernelVirtualPointer<u8>>,
+    ptr: ImmutableKernelNullableVirtualPointer<u8>,
     len: usize,
     process_id: Option<ProcessId>,
 }
@@ -255,7 +260,7 @@ impl ReadOnlyProcessBuffer {
     /// Refer to the safety requirements of
     /// [`ReadOnlyProcessBuffer::new_external`].
     pub(crate) unsafe fn new(
-        ptr: Option<ImmutableKernelVirtualPointer<u8>>,
+        ptr: ImmutableKernelNullableVirtualPointer<u8>,
         len: usize,
         process_id: ProcessId,
     ) -> Self {
@@ -298,7 +303,7 @@ impl ReadOnlyProcessBuffer {
     /// must point to memory mapped as _readable_ and optionally
     /// _writable_ and _executable_.
     pub unsafe fn new_external(
-        ptr: Option<ImmutableKernelVirtualPointer<u8>>,
+        ptr: ImmutableKernelNullableVirtualPointer<u8>,
         len: usize,
         process_id: ProcessId,
         _cap: &dyn capabilities::ExternalProcessCapability,
@@ -314,7 +319,7 @@ impl ReadOnlyProcessBuffer {
     /// `consume` can be used when the kernel needs to pass the
     /// underlying values across the kernel-to-user boundary (e.g., in
     /// return values to system calls).
-    pub(crate) fn consume(self) -> (Option<ImmutableKernelVirtualPointer<u8>>, usize) {
+    pub(crate) fn consume(self) -> (ImmutableKernelNullableVirtualPointer<u8>, usize) {
         (self.ptr, self.len)
     }
 }
@@ -328,11 +333,8 @@ impl ReadableProcessBuffer for ReadOnlyProcessBuffer {
 
     /// Return the pointer to the start of the buffer.
     fn ptr(&self) -> *const u8 {
-        match &self.ptr {
-            None => core::ptr::null(),
-            // SAFETY: TODO
-            Some(ptr) => unsafe { ptr.as_raw() },
-        }
+        // SAFETY: TODO: The method should be marked as unsafe.
+        unsafe { self.ptr.to_raw() }
     }
 
     /// Access the contents of the buffer in a closure.
@@ -365,7 +367,7 @@ impl ReadableProcessBuffer for ReadOnlyProcessBuffer {
                     // comment and subsequent discussion on tock/tock#2632:
                     // https://github.com/tock/tock/pull/2632#issuecomment-869974365
                     Ok(fun(unsafe {
-                        raw_processbuf_to_roprocessslice(self.ptr.as_ref(), self.len)
+                        raw_processbuf_to_roprocessslice(&self.ptr, self.len)
                     }))
                 }),
         }
@@ -390,7 +392,7 @@ impl ReadOnlyProcessBufferRef<'_> {
     /// help enforce the invariant that this incoming pointer may only
     /// be access for a certain duration.
     pub(crate) unsafe fn new(
-        ptr: Option<ImmutableKernelVirtualPointer<u8>>,
+        ptr: ImmutableKernelNullableVirtualPointer<u8>,
         len: usize,
         process_id: ProcessId,
     ) -> Self {
@@ -425,8 +427,7 @@ impl Deref for ReadOnlyProcessBufferRef<'_> {
 /// userspace is required, as the compiler is free to reorder reads
 /// and writes, even through [`Cell`]s.
 pub struct ReadWriteProcessBuffer {
-    // TODO: Option should wrap both `ptr` and `len`
-    ptr: Option<MutableKernelVirtualPointer<u8>>,
+    ptr: MutableKernelNullableVirtualPointer<u8>,
     len: usize,
     process_id: Option<ProcessId>,
 }
@@ -440,7 +441,7 @@ impl ReadWriteProcessBuffer {
     /// Refer to the safety requirements of
     /// [`ReadWriteProcessBuffer::new_external`].
     pub(crate) unsafe fn new(
-        ptr: Option<MutableKernelVirtualPointer<u8>>,
+        ptr: MutableKernelNullableVirtualPointer<u8>,
         len: usize,
         process_id: ProcessId,
     ) -> Self {
@@ -483,7 +484,7 @@ impl ReadWriteProcessBuffer {
     /// must point to memory mapped as _readable_ and optionally
     /// _writable_ and _executable_.
     pub unsafe fn new_external(
-        ptr: Option<MutableKernelVirtualPointer<u8>>,
+        ptr: MutableKernelNullableVirtualPointer<u8>,
         len: usize,
         process_id: ProcessId,
         _cap: &dyn capabilities::ExternalProcessCapability,
@@ -499,7 +500,7 @@ impl ReadWriteProcessBuffer {
     /// `consume` can be used when the kernel needs to pass the
     /// underlying values across the kernel-to-user boundary (e.g., in
     /// return values to system calls).
-    pub(crate) fn consume(self) -> (Option<MutableKernelVirtualPointer<u8>>, usize) {
+    pub(crate) fn consume(self) -> (MutableKernelNullableVirtualPointer<u8>, usize) {
         (self.ptr, self.len)
     }
 
@@ -518,7 +519,7 @@ impl ReadWriteProcessBuffer {
     /// ```
     pub const fn const_default() -> Self {
         Self {
-            ptr: None,
+            ptr: MutableKernelNullableVirtualPointer::new_null(),
             len: 0,
             process_id: None,
         }
@@ -534,11 +535,8 @@ impl ReadableProcessBuffer for ReadWriteProcessBuffer {
 
     /// Return the pointer to the start of the buffer.
     fn ptr(&self) -> *const u8 {
-        match &self.ptr {
-            None => core::ptr::null(),
-            // SAFETY: TODO
-            Some(ptr) => unsafe { ptr.as_immutable().as_raw() },
-        }
+        // SAFETY: TODO: The method should be marked as unsafe.
+        unsafe { self.ptr.to_raw() }
     }
 
     /// Access the contents of the buffer in a closure.
@@ -571,10 +569,7 @@ impl ReadableProcessBuffer for ReadWriteProcessBuffer {
                     // comment and subsequent discussion on tock/tock#2632:
                     // https://github.com/tock/tock/pull/2632#issuecomment-869974365
                     Ok(fun(unsafe {
-                        raw_processbuf_to_roprocessslice(
-                            self.ptr.as_ref().map(|ptr| ptr.as_immutable()),
-                            self.len,
-                        )
+                        raw_processbuf_to_roprocessslice(self.ptr.as_immutable(), self.len)
                     }))
                 }),
         }
@@ -608,7 +603,7 @@ impl WriteableProcessBuffer for ReadWriteProcessBuffer {
                     // comment and subsequent discussion on tock/tock#2632:
                     // https://github.com/tock/tock/pull/2632#issuecomment-869974365
                     Ok(fun(unsafe {
-                        raw_processbuf_to_rwprocessslice(self.ptr.as_ref(), self.len)
+                        raw_processbuf_to_rwprocessslice(&self.ptr, self.len)
                     }))
                 }),
         }
@@ -639,7 +634,7 @@ impl ReadWriteProcessBufferRef<'_> {
     /// help enforce the invariant that this incoming pointer may only
     /// be access for a certain duration.
     pub(crate) unsafe fn new(
-        ptr: Option<MutableKernelVirtualPointer<u8>>,
+        ptr: MutableKernelNullableVirtualPointer<u8>,
         len: usize,
         process_id: ProcessId,
     ) -> Self {

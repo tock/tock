@@ -27,8 +27,8 @@ use crate::memory_management::memory_managers::{
 use crate::memory_management::pages::Page4KiB;
 use crate::memory_management::permissions::Permissions;
 use crate::memory_management::pointers::{
-    ImmutableUserVirtualPointer, KernelVirtualPointer, MutableUserVirtualPointer, PhysicalPointer,
-    UserVirtualPointer,
+    ImmutableUserVirtualPointer, KernelNullableVirtualPointer, KernelVirtualPointer,
+    MutableUserVirtualPointer, PhysicalPointer, UserNullableVirtualPointer, UserVirtualPointer,
 };
 use crate::memory_management::regions::{
     KernelMappedAllocatedRegion, KernelMappedProtectedAllocatedRegion,
@@ -246,6 +246,33 @@ impl Kernel {
         )
     }
 
+    pub(crate) fn translate_user_protected_virtual_nullable_pointer_byte<
+        const IS_MUTABLE: bool,
+        U: AlwaysAligned,
+    >(
+        &self,
+        process: &dyn process::Process,
+        user_virtual_pointer: UserNullableVirtualPointer<IS_MUTABLE, U>,
+    ) -> Result<
+        KernelNullableVirtualPointer<IS_MUTABLE, U>,
+        UserNullableVirtualPointer<IS_MUTABLE, U>,
+    > {
+        match user_virtual_pointer {
+            UserNullableVirtualPointer::Null => Ok(KernelNullableVirtualPointer::Null),
+            UserNullableVirtualPointer::NonNull(non_null_user_virtual_pointer) => self
+                .translate_user_protected_virtual_pointer_byte(
+                    process,
+                    non_null_user_virtual_pointer,
+                )
+                .map(|non_null_kernel_virtual_pointer| {
+                    KernelNullableVirtualPointer::NonNull(non_null_kernel_virtual_pointer)
+                })
+                .map_err(|non_null_user_virtual_pointer| {
+                    UserNullableVirtualPointer::NonNull(non_null_user_virtual_pointer)
+                }),
+        }
+    }
+
     pub(crate) fn internal_translate_user_allocated_virtual_pointer_byte<
         const IS_MUTABLE: bool,
         U: AlwaysAligned,
@@ -290,20 +317,24 @@ impl Kernel {
     >(
         &self,
         process: &dyn process::Process,
-        kernel_virtual_pointer: Option<KernelVirtualPointer<IS_MUTABLE, U>>,
+        kernel_virtual_pointer: KernelNullableVirtualPointer<IS_MUTABLE, U>,
     ) -> Result<
-        Option<UserVirtualPointer<IS_MUTABLE, U>>,
-        Option<KernelVirtualPointer<IS_MUTABLE, U>>,
+        UserNullableVirtualPointer<IS_MUTABLE, U>,
+        KernelNullableVirtualPointer<IS_MUTABLE, U>,
     > {
         match kernel_virtual_pointer {
-            None => Ok(None),
-            Some(non_null_kernel_virtual_pointer) => self
+            KernelNullableVirtualPointer::Null => Ok(UserNullableVirtualPointer::Null),
+            KernelNullableVirtualPointer::NonNull(non_null_kernel_virtual_pointer) => self
                 .translate_kernel_allocated_to_user_protected_byte(
                     process,
                     non_null_kernel_virtual_pointer,
                 )
-                .map(|user_virtual_pointer| Some(user_virtual_pointer))
-                .map_err(|non_null_kernel_virtual_pointer| Some(non_null_kernel_virtual_pointer)),
+                .map(|user_virtual_pointer| {
+                    UserNullableVirtualPointer::NonNull(user_virtual_pointer)
+                })
+                .map_err(|non_null_kernel_virtual_pointer| {
+                    KernelNullableVirtualPointer::NonNull(non_null_kernel_virtual_pointer)
+                }),
         }
     }
 
@@ -1393,17 +1424,16 @@ impl Kernel {
                         allow_pointer,
                         allow_size,
                     } => {
-                        let kernel_allow_pointer = match allow_pointer {
-                            None => None,
-                            Some(non_null_allow_pointer) => {
-                                // PANIC: TODO: don't panic
-                                let non_null_kernel_allow_pointer = self
-                                    .translate_user_protected_virtual_pointer_byte(
-                                        process,
-                                        non_null_allow_pointer,
-                                    ).unwrap();
-                                Some(non_null_kernel_allow_pointer)
+                        let kernel_allow_pointer = match self.translate_user_protected_virtual_nullable_pointer_byte(
+                            process,
+                            allow_pointer,
+                        ) {
+                            Err(allow_pointer) => {
+                                let syscall_return = SyscallReturn::AllowReadWriteFailure(ErrorCode::INVAL, allow_pointer, allow_size);
+                                process.set_syscall_return_value(syscall_return);
+                                return;
                             }
+                            Ok(kernel_allow_pointer) => kernel_allow_pointer,
                         };
 
                         let res = match driver {
@@ -1543,7 +1573,7 @@ impl Kernel {
                                 process.processid(),
                                 driver_number,
                                 subdriver_number,
-                                allow_pointer.map_or(0, |pointer| pointer.get_address().get()),
+                                allow_pointer.get_address(),
                                 allow_size,
                                 res
                             );
@@ -1556,17 +1586,16 @@ impl Kernel {
                         allow_pointer,
                         allow_size,
                     } => {
-                        let kernel_allow_pointer = match allow_pointer {
-                            None => None,
-                            Some(non_null_allow_pointer) => {
-                                // PANIC: TODO: don't panic
-                                let non_null_kernel_allow_pointer = self
-                                    .translate_user_protected_virtual_pointer_byte(
-                                        process,
-                                        non_null_allow_pointer,
-                                    ).unwrap();
-                                Some(non_null_kernel_allow_pointer)
+                        let kernel_allow_pointer = match self.translate_user_protected_virtual_nullable_pointer_byte(
+                            process,
+                            allow_pointer,
+                        ) {
+                            Err(allow_pointer) => {
+                                let syscall_return = SyscallReturn::AllowReadWriteFailure(ErrorCode::INVAL, allow_pointer, allow_size);
+                                process.set_syscall_return_value(syscall_return);
+                                return;
                             }
+                            Ok(kernel_allow_pointer) => kernel_allow_pointer,
                         };
 
                         let res = match driver {
@@ -1646,7 +1675,7 @@ impl Kernel {
                                 process.processid(),
                                 driver_number,
                                 subdriver_number,
-                                allow_pointer.map_or(0, |pointer| pointer.get_address().get()),
+                                allow_pointer.get_address(),
                                 allow_size,
                                 res
                             );
@@ -1659,17 +1688,16 @@ impl Kernel {
                         allow_pointer,
                         allow_size,
                     } => {
-                        let kernel_allow_pointer = match allow_pointer {
-                            None => None,
-                            Some(non_null_allow_pointer) => {
-                                // PANIC: TODO: don't panic
-                                let non_null_kernel_allow_pointer = self
-                                    .translate_user_protected_virtual_pointer_byte(
-                                        process,
-                                        non_null_allow_pointer,
-                                    ).unwrap();
-                                Some(non_null_kernel_allow_pointer)
+                        let kernel_allow_pointer = match self.translate_user_protected_virtual_nullable_pointer_byte(
+                            process,
+                            allow_pointer,
+                        ) {
+                            Err(allow_pointer) => {
+                                let syscall_return = SyscallReturn::AllowReadOnlyFailure(ErrorCode::INVAL, allow_pointer, allow_size);
+                                process.set_syscall_return_value(syscall_return);
+                                return;
                             }
+                            Ok(kernel_allow_pointer) => kernel_allow_pointer,
                         };
 
                         let res = match driver {
@@ -1809,7 +1837,7 @@ impl Kernel {
                                 process.processid(),
                                 driver_number,
                                 subdriver_number,
-                                allow_pointer.map_or(0, |pointer| pointer.get_address().get()),
+                                allow_pointer.get_address(),
                                 allow_size,
                                 res
                             );

@@ -17,7 +17,8 @@ use crate::kernel::Kernel;
 use crate::memory_management::configuration;
 use crate::memory_management::pages::Page4KiB;
 use crate::memory_management::pointers::{
-    ImmutableKernelVirtualPointer, ImmutableUserVirtualPointer, MutableKernelVirtualPointer,
+    ImmutableKernelNullableVirtualPointer, ImmutableKernelVirtualPointer,
+    ImmutableUserVirtualPointer, MutableKernelNullableVirtualPointer, MutableKernelVirtualPointer,
 };
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::storage_permissions;
@@ -617,7 +618,7 @@ pub trait Process {
     /// - For all other errors: [`ErrorCode::FAIL`].
     fn build_readwrite_process_buffer(
         &self,
-        buf_start_addr: Option<MutableKernelVirtualPointer<u8>>,
+        buf_start_addr: MutableKernelNullableVirtualPointer<u8>,
         size: usize,
     ) -> Result<ReadWriteProcessBuffer, ErrorCode>;
 
@@ -639,7 +640,7 @@ pub trait Process {
     /// - For all other errors: [`ErrorCode::FAIL`].
     fn build_readonly_process_buffer(
         &self,
-        buf_start_addr: Option<ImmutableKernelVirtualPointer<u8>>,
+        buf_start_addr: ImmutableKernelNullableVirtualPointer<u8>,
         size: usize,
     ) -> Result<ReadOnlyProcessBuffer, ErrorCode>;
 

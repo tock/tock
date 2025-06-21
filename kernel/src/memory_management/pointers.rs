@@ -69,6 +69,7 @@ pub type ImmutableKernelVirtualPointer<T> = KernelVirtualPointer<false, T>;
 pub type MutableKernelVirtualPointer<T> = KernelVirtualPointer<true, T>;
 
 /// A nullable pointer from the perspective of the memory management system.
+#[repr(C)]
 pub enum NullablePointer<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment> {
     Null,
     NonNull(Pointer<IS_VIRTUAL, IS_MUTABLE, T>),
@@ -96,10 +97,19 @@ pub type MutableNullableVirtualPointer<T> = NullableVirtualPointer<true, T>;
 
 /// A valid nullable virtual pointer, that is, a virtual pointer that belongs to the kernel or to a
 /// process.
+#[repr(C)]
+#[derive(Debug)]
 pub enum ValidNullableVirtualPointer<const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment> {
     Null,
     NonNull(ValidVirtualPointer<IS_USER, IS_MUTABLE, T>),
 }
+
+/// An immutable valid nullable virtual pointer.
+pub type ImmutableValidNullableVirtualPointer<const IS_USER: bool, T> =
+    ValidNullableVirtualPointer<IS_USER, false, T>;
+/// A mutable valid nullable virtual pointer.
+pub type MutableValidNullableVirtualPointer<const IS_USER: bool, T> =
+    ValidNullableVirtualPointer<IS_USER, true, T>;
 
 /// A user nullable virtual pointer.
 pub type UserNullableVirtualPointer<const IS_MUTABLE: bool, T> =
@@ -961,6 +971,21 @@ impl<T: Alignment> ImmutableNullableVirtualPointer<T> {
     }
 }
 
+impl<T: Alignment> MutableNullableVirtualPointer<T> {
+    /// # Safety
+    ///
+    /// The caller must ensure that the two pointers are not used at the same time.
+    pub unsafe fn to_raw(self) -> *mut T {
+        match self {
+            MutableNullableVirtualPointer::Null => core::ptr::null_mut(),
+            // SAFETY: the caller ensures that the two pointers are not used at the same time.
+            MutableNullableVirtualPointer::NonNull(non_null_pointer) => unsafe {
+                non_null_pointer.to_raw()
+            },
+        }
+    }
+}
+
 impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment> Clone
     for NullablePointer<IS_VIRTUAL, IS_MUTABLE, T>
 {
@@ -996,9 +1021,18 @@ impl<const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment>
             }
         }
     }
+
+    pub fn get_address(&self) -> usize {
+        match self {
+            ValidNullableVirtualPointer::Null => 0,
+            ValidNullableVirtualPointer::NonNull(valid_virtual_pointer) => {
+                valid_virtual_pointer.get_address().get()
+            }
+        }
+    }
 }
 
-impl<const IS_USER: bool, T: Alignment> ValidNullableVirtualPointer<IS_USER, false, T> {
+impl<const IS_USER: bool, T: Alignment> ImmutableValidNullableVirtualPointer<IS_USER, T> {
     /// # Safety
     ///
     /// The caller must ensure that the two pointers are not used at the same time.
@@ -1007,6 +1041,101 @@ impl<const IS_USER: bool, T: Alignment> ValidNullableVirtualPointer<IS_USER, fal
         unsafe { nullable_virtual_pointer.to_raw() }
     }
 }
+
+impl<const IS_USER: bool, U: AlwaysAligned> ImmutableValidNullableVirtualPointer<IS_USER, U> {
+    /// # Safety
+    ///
+    /// The caller must ensure that `pointer` is a valid user virtual pointer.
+    pub unsafe fn new_from_byte(pointer: *const U) -> Self {
+        match NonNull::new(pointer as *mut U) {
+            None => ImmutableValidNullableVirtualPointer::Null,
+            Some(non_null_pointer) => ImmutableValidNullableVirtualPointer::NonNull(
+                ValidImmutableVirtualPointer::new_from_non_null_byte(non_null_pointer),
+            ),
+        }
+    }
+}
+
+impl<const IS_USER: bool, T: Alignment> MutableValidNullableVirtualPointer<IS_USER, T> {
+    /// # Safety
+    ///
+    /// The caller must ensure that the two pointers are not used at the same time.
+    pub unsafe fn to_raw(self) -> *mut T {
+        let nullable_virtual_pointer = self.downgrade();
+        unsafe { nullable_virtual_pointer.to_raw() }
+    }
+
+    pub fn as_immutable(&self) -> &ImmutableValidNullableVirtualPointer<IS_USER, T> {
+        // SAFETY: `ValidNullableVirtualPointer` is marked #[repr(C)], so its memory layout is the same for
+        // both immutable and mutable pointers
+        unsafe { &*core::ptr::from_ref(self).cast() }
+    }
+}
+
+impl<const IS_USER: bool, U: AlwaysAligned> MutableValidNullableVirtualPointer<IS_USER, U> {
+    /// # Safety
+    ///
+    /// The caller must ensure that `pointer` is a valid user virtual pointer.
+    pub unsafe fn new_from_byte(pointer: *mut U) -> Self {
+        match NonNull::new(pointer) {
+            None => MutableValidNullableVirtualPointer::Null,
+            Some(non_null_pointer) => MutableValidNullableVirtualPointer::NonNull(
+                ValidMutableVirtualPointer::new_from_non_null_byte(non_null_pointer),
+            ),
+        }
+    }
+}
+
+impl<const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment> Default
+    for ValidNullableVirtualPointer<IS_USER, IS_MUTABLE, T>
+{
+    fn default() -> Self {
+        Self::new_null()
+    }
+}
+
+impl<const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment> Clone
+    for ValidNullableVirtualPointer<IS_USER, IS_MUTABLE, T>
+{
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment> Copy
+    for ValidNullableVirtualPointer<IS_USER, IS_MUTABLE, T>
+{
+}
+
+impl<const IS_USER: bool, T: Alignment> PartialEq
+    for ImmutableValidNullableVirtualPointer<IS_USER, T>
+{
+    fn eq(&self, other: &Self) -> bool {
+        // SAFETY: `raw_pointer` is used for comparaison, then discarded.
+        let raw_pointer = unsafe { self.to_raw() };
+        // SAFETY: `other_raw_pointer` is used for comparaison, then discarded.
+        let other_raw_pointer = unsafe { other.to_raw() };
+
+        raw_pointer == other_raw_pointer
+    }
+}
+
+impl<const IS_USER: bool, T: Alignment> Eq for ImmutableValidNullableVirtualPointer<IS_USER, T> {}
+
+impl<const IS_USER: bool, T: Alignment> PartialEq
+    for MutableValidNullableVirtualPointer<IS_USER, T>
+{
+    fn eq(&self, other: &Self) -> bool {
+        // SAFETY: `raw_pointer` is used for comparaison, then discarded.
+        let raw_pointer = unsafe { self.to_raw() };
+        // SAFETY: `other_raw_pointer` is used for comparaison, then discarded.
+        let other_raw_pointer = unsafe { other.to_raw() };
+
+        raw_pointer == other_raw_pointer
+    }
+}
+
+impl<const IS_USER: bool, T: Alignment> Eq for MutableValidNullableVirtualPointer<IS_USER, T> {}
 
 impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>
     SmallerPair<Pointer<IS_VIRTUAL, IS_MUTABLE, T>>
