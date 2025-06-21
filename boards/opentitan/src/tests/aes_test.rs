@@ -12,9 +12,9 @@ use capsules_extra::test::aes::{TestAes128Cbc, TestAes128Ctr, TestAes128Ecb};
 use capsules_extra::test::aes_ccm;
 use capsules_extra::test::aes_gcm;
 use earlgrey::aes::Aes;
-use kernel::debug;
 use kernel::hil::symmetric_encryption::{AES128, AES128_BLOCK_SIZE, AES128_KEY_SIZE};
 use kernel::static_init;
+use kernel::{debug, non_zero};
 
 /// The only 'test_case' for aes_test as directly invoked by the test runner,
 /// this calls all the other tests, preserving the order in which they must
