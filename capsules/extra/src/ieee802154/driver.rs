@@ -792,9 +792,10 @@ impl<'a, M: device::MacDevice<'a>> SyscallDriver for RadioDriver<'a, M> {
                                 if cfg.len() != 8 {
                                     return CommandReturn::failure(ErrorCode::SIZE);
                                 }
-                                let mut new_neighbor: DeviceDescriptor =
-                                    DeviceDescriptor::default();
-                                new_neighbor.short_addr = arg1 as u16;
+                                let mut new_neighbor = DeviceDescriptor {
+                                    short_addr: arg1 as u16,
+                                    ..Default::default()
+                                };
                                 cfg.copy_to_slice(&mut new_neighbor.long_addr);
                                 self.add_neighbor(new_neighbor)
                                     .map_or(CommandReturn::failure(ErrorCode::INVAL), |index| {
