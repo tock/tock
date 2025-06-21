@@ -580,7 +580,7 @@ impl<'a, M: device::MacDevice<'a>> framer::DeviceProcedure for RadioDriver<'a, M
                     self.backup_device_procedure
                         .and_then(|procedure| procedure.lookup_addr_long(addr))
                 },
-                |res| Some(res),
+                Some,
             )
     }
 }
@@ -609,7 +609,7 @@ impl<'a, M: device::MacDevice<'a>> framer::KeyProcedure for RadioDriver<'a, M> {
                         procedure.lookup_key(SecurityLevel::EncMic32, KeyId::Index(2))
                     })
                 },
-                |res| Some(res),
+                Some,
             )
     }
 }
