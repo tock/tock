@@ -179,29 +179,48 @@ zero_prefixed_literal = "allow"
 # STYLE
 style = { level = "deny", priority = -1 }
 
+# Sometimes an if block is standalone and shouldn't be merged with an else.
 collapsible_else_if = "allow"
+# Multiple if blocks can be clearer to express a particular logical flow.
 collapsible_if = "allow"
+# Sometimes if statements are easier to read than match statements.
 comparison_chain = "allow"
+# Sometimes it's more clear to have repetition in enum names.
 enum-variant-names = "allow"
+# For buffers, `.get(0)` (using byte index) makes more sense than `.first()`.
 get_first = "allow"
+# Buffers and objects can have a length of 0, but it isn't necessarily intuitive
+# to think of a buffer or those objects as "empty".
 len_without_is_empty = "allow"
+# Buffer logic often makes more sense with lengths, and not `is_empty()`.
 len_zero = "allow"
+# Sometimes the borrow checker works better with `match` instead of `.map()`.
 manual-map = "allow"
+# Syntax like `!(-17..=4).contains(&x)` is just not clear.
 manual_range_contains = "allow"
+# Match statement is clear, using `matches!()` is not an improvement.
 match_like_matches_macro = "allow"
+# Sometimes it makes sense to have module in a folder of the same name.
 module_inception = "allow"
+# Maybe someday we want this, but right now `for i in 0..4` is much more clear
+# than using `.iter()` functions like `.skip(n)`.
+needless-range-loop = "allow"
+# We don't need unused Default implementations.
 new_without_default = "allow"
+# Using `Result()` is good practice, even if there is no meaning to the error.
 result_unit_err = "allow"
+# For hardware registers it can make sense to group bits semantically and not
+# just in multiples of four.
+unusual-byte-groupings = "allow"
+# We widely use upper case acronyms for hardware registers and fields.
 upper_case_acronyms = "allow"
 
 
 declare-interior-mutable-const = "allow"
 let_and_return = "allow"
 missing_safety_doc = "allow"
-needless-range-loop = "allow"
 option_map_or_none = "allow"
 redundant_pattern_matching = "allow"
-unusual-byte-groupings = "allow"
 doc_lazy_continuation = "allow"
 
 
