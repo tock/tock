@@ -217,7 +217,6 @@ upper_case_acronyms = "allow"
 
 
 declare-interior-mutable-const = "allow"
-let_and_return = "allow"
 missing_safety_doc = "allow"
 option_map_or_none = "allow"
 redundant_pattern_matching = "allow"

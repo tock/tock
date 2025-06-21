@@ -1030,9 +1030,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         }
         // If no gaps found, check after the last app.
         let last_app_end_address = process_binaries_end_addresses[end_count - 1];
-        let potential_address =
-            self.find_next_cortex_m_aligned_address(last_app_end_address, app_size);
-        potential_address
+        self.find_next_cortex_m_aligned_address(last_app_end_address, app_size)
     }
 
     /// This function checks if there is a need to pad either before or after

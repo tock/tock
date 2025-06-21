@@ -303,9 +303,7 @@ impl<'a> Aes<'a> {
                         }
                         self.write_index.set(index + AES128_BLOCK_SIZE);
 
-                        let more =
-                            self.write_index.get() + AES128_BLOCK_SIZE <= self.stop_index.get();
-                        more
+                        self.write_index.get() + AES128_BLOCK_SIZE <= self.stop_index.get()
                     },
                 )
             },
@@ -327,8 +325,7 @@ impl<'a> Aes<'a> {
 
                 self.write_index.set(index + AES128_BLOCK_SIZE);
 
-                let more = self.write_index.get() + AES128_BLOCK_SIZE <= source.len();
-                more
+                self.write_index.get() + AES128_BLOCK_SIZE <= source.len()
             },
         )
     }
@@ -359,8 +356,7 @@ impl<'a> Aes<'a> {
 
                 self.read_index.set(index + AES128_BLOCK_SIZE);
 
-                let more = self.read_index.get() + AES128_BLOCK_SIZE <= self.stop_index.get();
-                more
+                self.read_index.get() + AES128_BLOCK_SIZE <= self.stop_index.get()
             },
         )
     }
