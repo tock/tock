@@ -20,12 +20,10 @@ pub struct TakeCell<'a, T: 'a + ?Sized> {
 }
 
 impl<'a, T: ?Sized> TakeCell<'a, T> {
-    const EMPTY: Self = Self {
-        val: Cell::new(None),
-    };
-
     pub const fn empty() -> TakeCell<'a, T> {
-        Self::EMPTY
+        Self {
+            val: Cell::new(None),
+        }
     }
 
     /// Creates a new `TakeCell` containing `value`
