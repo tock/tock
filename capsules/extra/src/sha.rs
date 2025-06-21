@@ -65,7 +65,7 @@ enum ShaOperation {
     Sha512,
 }
 
-pub struct ShaDriver<'a, H: digest::Digest<'a, L>, const L: usize> {
+pub struct ShaDriver<'a, H: digest::Digest<'a, DIGEST_LEN>, const DIGEST_LEN: usize> {
     sha: &'a H,
 
     active: Cell<bool>,
@@ -80,26 +80,26 @@ pub struct ShaDriver<'a, H: digest::Digest<'a, L>, const L: usize> {
 
     data_buffer: TakeCell<'static, [u8]>,
     data_copied: Cell<usize>,
-    dest_buffer: TakeCell<'static, [u8; L]>,
+    dest_buffer: TakeCell<'static, [u8; DIGEST_LEN]>,
 }
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
-        const L: usize,
-    > ShaDriver<'a, H, L>
+        H: digest::Digest<'a, DIGEST_LEN> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        const DIGEST_LEN: usize,
+    > ShaDriver<'a, H, DIGEST_LEN>
 {
     pub fn new(
         sha: &'a H,
         data_buffer: &'static mut [u8],
-        dest_buffer: &'static mut [u8; L],
+        dest_buffer: &'static mut [u8; DIGEST_LEN],
         grant: Grant<
             App,
             UpcallCount<1>,
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
-    ) -> ShaDriver<'a, H, L> {
+    ) -> ShaDriver<'a, H, DIGEST_LEN> {
         ShaDriver {
             sha,
             active: Cell::new(false),
@@ -221,9 +221,9 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
-        const L: usize,
-    > digest::ClientData<L> for ShaDriver<'a, H, L>
+        H: digest::Digest<'a, DIGEST_LEN> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        const DIGEST_LEN: usize,
+    > digest::ClientData<DIGEST_LEN> for ShaDriver<'a, H, DIGEST_LEN>
 {
     // Because data needs to be copied from a userspace buffer into a kernel (RAM) one,
     // we always pass mut data; this callback should never be invoked.
@@ -359,11 +359,11 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
-        const L: usize,
-    > digest::ClientHash<L> for ShaDriver<'a, H, L>
+        H: digest::Digest<'a, DIGEST_LEN> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        const DIGEST_LEN: usize,
+    > digest::ClientHash<DIGEST_LEN> for ShaDriver<'a, H, DIGEST_LEN>
 {
-    fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]) {
+    fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut [u8; DIGEST_LEN]) {
         self.processid.map(|id| {
             self.apps
                 .enter(id, |_, kernel_data| {
@@ -377,10 +377,10 @@ impl<
                             dest.mut_enter(|dest| {
                                 let len = dest.len();
 
-                                if len < L {
+                                if len < DIGEST_LEN {
                                     dest.copy_from_slice(&digest[0..len]);
                                 } else {
-                                    dest[0..L].copy_from_slice(digest);
+                                    dest[0..DIGEST_LEN].copy_from_slice(digest);
                                 }
                             })
                         });
@@ -413,11 +413,15 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
-        const L: usize,
-    > digest::ClientVerify<L> for ShaDriver<'a, H, L>
+        H: digest::Digest<'a, DIGEST_LEN> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        const DIGEST_LEN: usize,
+    > digest::ClientVerify<DIGEST_LEN> for ShaDriver<'a, H, DIGEST_LEN>
 {
-    fn verification_done(&self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; L]) {
+    fn verification_done(
+        &self,
+        result: Result<bool, ErrorCode>,
+        compare: &'static mut [u8; DIGEST_LEN],
+    ) {
         self.processid.map(|id| {
             self.apps
                 .enter(id, |_app, kernel_data| {
@@ -448,9 +452,9 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::Sha256 + digest::Sha384 + digest::Sha512,
-        const L: usize,
-    > SyscallDriver for ShaDriver<'a, H, L>
+        H: digest::Digest<'a, DIGEST_LEN> + digest::Sha256 + digest::Sha384 + digest::Sha512,
+        const DIGEST_LEN: usize,
+    > SyscallDriver for ShaDriver<'a, H, DIGEST_LEN>
 {
     /// Setup and run the HMAC hardware
     ///
