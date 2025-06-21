@@ -120,11 +120,11 @@ pub enum Cmd {
 }
 
 impl<'a, I: i2c::I2CMaster<'a>> SyscallDriver for I2CMasterDriver<'a, I> {
-    /// Setup shared buffers.
-    ///
-    /// ### `allow_num`
-    ///
-    /// - `1`: buffer for command
+    // Setup shared buffers.
+    //
+    // ### `allow_num`
+    //
+    // - `1`: buffer for command
 
     // Setup callbacks.
     //

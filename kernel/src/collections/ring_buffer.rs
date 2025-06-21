@@ -32,11 +32,12 @@ impl<'a, T: Copy> RingBuffer<'a, T> {
     ///
     /// Returns:
     /// - `(None, None)` if the buffer is empty.
-    /// - `(Some(slice), None)` if the head is before the tail (therefore all the contents is
-    /// contiguous).
-    /// - `(Some(left), Some(right))` if the head is after the tail. In that case, the logical
-    /// contents of the buffer is `[left, right].concat()` (although physically the "left" slice is
-    /// stored after the "right" slice).
+    /// - `(Some(slice), None)` if the head is before the tail (therefore all
+    ///   the contents is contiguous).
+    /// - `(Some(left), Some(right))` if the head is after the tail. In that
+    ///   case, the logical contents of the buffer is `[left, right].concat()`
+    ///   (although physically the "left" slice is stored after the "right"
+    ///   slice).
     pub fn as_slices(&'a self) -> (Option<&'a [T]>, Option<&'a [T]>) {
         if self.head < self.tail {
             (Some(&self.ring[self.head..self.tail]), None)

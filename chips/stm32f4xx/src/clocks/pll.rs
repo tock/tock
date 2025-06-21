@@ -30,8 +30,8 @@
 //!
 //! # Usage
 //!
-//! For the purposes of brevity, any error checking has been removed. In real applications, always
-//! check the return values of the [Pll] methods.
+//! For the purposes of brevity, any error checking has been removed. In real
+//! applications, always check the return values of the [Pll] methods.
 //!
 //! First, get a reference to the [Pll] struct:
 //! ```rust,ignore
@@ -281,30 +281,33 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
     /// The PLL clock has two outputs:
     ///
     /// + main output used for configuring the system clock
-    /// + a second output called PLL48CLK used by OTG USB FS (48MHz), the random number generator
-    /// (≤ 48MHz) and the SDIO (≤ 48MHz) clocks.
+    /// + a second output called PLL48CLK used by OTG USB FS (48MHz), the random
+    ///   number generator(≤ 48MHz) and the SDIO (≤ 48MHz) clocks.
     ///
-    /// When calling this method, the given frequency is set for the main output. The method will
-    /// attempt to configure the PLL48CLK output to 48MHz, or to the highest value less than 48MHz
-    /// if it is not possible to get a precise 48MHz. In order to obtain a precise 48MHz frequency
-    /// (for the OTG USB FS peripheral), one should call this method with a frequency of 1, 1.5, 2,
-    /// 2.5 ... 4 x 48MHz.
+    /// When calling this method, the given frequency is set for the main
+    /// output. The method will attempt to configure the PLL48CLK output to
+    /// 48MHz, or to the highest value less than 48MHz if it is not possible to
+    /// get a precise 48MHz. In order to obtain a precise 48MHz frequency
+    /// (for the OTG USB FS peripheral), one should call this method with a
+    /// frequency of 1, 1.5, 2, 2.5 ... 4 x 48MHz.
     ///
     /// # Parameters
     ///
     /// + pll_source: PLL source clock (HSI or HSE)
     ///
-    /// + source_frequency: the frequency of the PLL source clock in MHz. For the HSI the frequency
-    /// is fixed to 16MHz. For the HSE, the frequency is hardware-dependent
+    /// + source_frequency: the frequency of the PLL source clock in MHz. For
+    ///   the HSI the frequency is fixed to 16MHz. For the HSE, the frequency
+    ///   is hardware-dependent
     ///
-    /// + desired_frequency_mhz: the desired frequency in MHz. Supported values: 24-216MHz for
-    /// STM32F401 and 13-216MHz for all the other chips
+    /// + desired_frequency_mhz: the desired frequency in MHz. Supported values:
+    ///   24-216MHz for STM32F401 and 13-216MHz for all the other chips
     ///
     /// # Errors
     ///
-    /// + [Err]\([ErrorCode::INVAL]\): if the desired frequency can't be achieved
-    /// + [Err]\([ErrorCode::FAIL]\): if the PLL clock is already enabled. It must be disabled before
-    /// configuring it.
+    /// + [Err]\([ErrorCode::INVAL]\): if the desired frequency can't be
+    ///   achieved
+    /// + [Err]\([ErrorCode::FAIL]\): if the PLL clock is already enabled. It
+    ///   must be disabled before configuring it.
     pub(super) fn set_frequency_mhz(
         &self,
         pll_source: PllSource,

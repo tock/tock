@@ -126,8 +126,8 @@ impl<const TOTAL_INTS: usize> Plic<TOTAL_INTS> {
 
     /// Clear all pending interrupts. The [`PLIC specification`] section 7:
     /// > A successful claim will also atomically clear the corresponding pending bit on the interrupt source..
-    /// Note that this function will only clear the enabled interrupt sources, as only those can be claimed.
-    /// [`PLIC specification`]: <https://github.com/riscv/riscv-plic-spec/blob/master/riscv-plic.adoc>
+    /// > Note that this function will only clear the enabled interrupt sources, as only those can be claimed.
+    /// > [`PLIC specification`]: <https://github.com/riscv/riscv-plic-spec/blob/master/riscv-plic.adoc>
     pub fn clear_all_pending(&self) {
         let claim = self.registers.get_claim_reg();
         loop {
