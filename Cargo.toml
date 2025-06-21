@@ -218,7 +218,6 @@ upper_case_acronyms = "allow"
 
 
 missing_safety_doc = "allow"
-doc_lazy_continuation = "allow"
 
 
 # PERF

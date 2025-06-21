@@ -61,9 +61,9 @@ impl<const SERVO_COUNT: usize> SyscallDriver for Servo<'_, SERVO_COUNT> {
     ///
     /// - `0`: Return Ok(()) if this driver is included on the platform.
     /// - `1`: Returns an u32 representing the number of available servomotors.
-    /// - `2`: Changing the angle immediatelly.`servo_index` receives the index
-    /// corresponding to the servo whose angle we want to adjust
-    /// `angle` is used to receive a value between 0 and 180.
+    /// - `2`: Changing the angle immediately.`servo_index` receives the index
+    ///   corresponding to the servo whose angle we want to adjust `angle` is
+    ///   used to receive a value between 0 and 180.
     /// - `3`: Returning the current angle for a specific index.
     fn command(
         &self,
