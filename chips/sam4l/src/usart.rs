@@ -657,7 +657,7 @@ impl<'a> USART<'a> {
             // `transmit_complete` callback is in a "bad" part of the USART
             // state machine, and clients cannot issue other USART calls from
             // the callback.
-            let txbuffer = self.tx_dma.get().map_or(None, |tx_dma| {
+            let txbuffer = self.tx_dma.get().and_then(|tx_dma| {
                 let buf = tx_dma.abort_transfer();
                 tx_dma.disable();
                 buf
@@ -692,7 +692,7 @@ impl<'a> USART<'a> {
 
                         // Get the RX buffer, and it is ok if we didn't use one,
                         // we can just return None.
-                        let rxbuf = self.rx_dma.get().map_or(None, |dma| {
+                        let rxbuf = self.rx_dma.get().and_then(|dma| {
                             let buf = dma.abort_transfer();
                             dma.disable();
                             buf
