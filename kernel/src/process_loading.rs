@@ -680,17 +680,14 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                 // Start by iterating all other process binaries and seeing
                 // if any are in conflict (same AppID with newer version).
                 for proc_bin in proc_binaries.iter() {
-                    match proc_bin {
-                        Some(other_process_binary) => {
-                            let blocked = self
-                                .is_blocked_from_loading_by(&process_binary, other_process_binary);
+                    if let Some(other_process_binary) = proc_bin {
+                        let blocked =
+                            self.is_blocked_from_loading_by(&process_binary, other_process_binary);
 
-                            if blocked {
-                                ok_to_load = false;
-                                break;
-                            }
+                        if blocked {
+                            ok_to_load = false;
+                            break;
                         }
-                        None => {}
                     }
                 }
 
@@ -705,17 +702,14 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                 // binary has the same AppID as an already loaded process.
                 self.procs.map(|procs| {
                     for proc in procs.iter() {
-                        match proc {
-                            Some(p) => {
-                                let blocked =
-                                    self.is_blocked_from_loading_by_process(&process_binary, *p);
+                        if let Some(p) = proc {
+                            let blocked =
+                                self.is_blocked_from_loading_by_process(&process_binary, *p);
 
-                                if blocked {
-                                    ok_to_load = false;
-                                    break;
-                                }
+                            if blocked {
+                                ok_to_load = false;
+                                break;
                             }
-                            None => {}
                         }
                     }
                 });

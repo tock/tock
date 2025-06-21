@@ -838,14 +838,10 @@ impl PowerManager {
 
         // Don't disable RCFAST if the current clock is still RCFAST, just at
         // a different frequency
-        match clock_source {
-            SystemClockSource::RCFAST { .. } => match prev_clock_source {
-                SystemClockSource::RCFAST { .. } => {
-                    return;
-                }
-                _ => {}
-            },
-            _ => {}
+        if let SystemClockSource::RCFAST { .. } = clock_source {
+            if let SystemClockSource::RCFAST { .. } = prev_clock_source {
+                return;
+            }
         }
         // Disable the previous system clock
         self.disable_system_clock(prev_clock_source);

@@ -406,12 +406,7 @@ impl<'a> hil::spi::SpiMaster<'a> for PioSpi<'a> {
         let mut data: u32;
 
         // One byte operations can be synchronous
-        match self.pio.sm(self.sm_number).push_blocking(val as u32) {
-            Err(err) => {
-                return Err(err);
-            }
-            _ => {}
-        }
+        self.pio.sm(self.sm_number).push_blocking(val as u32)?;
 
         data = match self.pio.sm(self.sm_number).pull_blocking() {
             Ok(val) => val,

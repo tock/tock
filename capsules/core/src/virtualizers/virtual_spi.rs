@@ -104,15 +104,11 @@ impl<'a, Spi: hil::spi::SpiMaster<'a>> MuxSpiMaster<'a, Spi> {
             });
         } else {
             self.inflight.map(|node| {
-                match node.operation.get() {
-                    // we have to report an error
-                    Op::ReadWriteDone(status) => {
-                        node.txbuffer.take().map(|write_buffer| {
-                            let read_buffer = node.rxbuffer.take();
-                            self.read_write_done(write_buffer, read_buffer, status);
-                        });
-                    }
-                    _ => {} // Something is really in flight
+                if let Op::ReadWriteDone(status) = node.operation.get() {
+                    node.txbuffer.take().map(|write_buffer| {
+                        let read_buffer = node.rxbuffer.take();
+                        self.read_write_done(write_buffer, read_buffer, status);
+                    });
                 }
             });
         }

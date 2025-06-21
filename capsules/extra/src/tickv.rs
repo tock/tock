@@ -343,49 +343,39 @@ impl<'a, F: Flash, H: Hasher<'a, 8>, const PAGE_SIZE: usize> TicKVSystem<'a, F, 
         match self.next_operation.get() {
             Operation::None | Operation::Init => {}
             Operation::GetKey => {
-                match self.get_value(
+                if let Err((key, value, error)) = self.get_value(
                     self.key_buffer.take().unwrap(),
                     self.value_buffer.take().unwrap(),
                 ) {
-                    Err((key, value, error)) => {
-                        self.client.map(move |cb| {
-                            cb.get_value_complete(Err(error), key, value);
-                        });
-                    }
-                    _ => {}
+                    self.client.map(move |cb| {
+                        cb.get_value_complete(Err(error), key, value);
+                    });
                 }
             }
             Operation::AppendKey => {
-                match self.append_key(
+                if let Err((key, value, error)) = self.append_key(
                     self.key_buffer.take().unwrap(),
                     self.value_buffer.take().unwrap(),
                 ) {
-                    Err((key, value, error)) => {
-                        self.client.map(move |cb| {
-                            cb.append_key_complete(Err(error), key, value);
-                        });
-                    }
-                    _ => {}
+                    self.client.map(move |cb| {
+                        cb.append_key_complete(Err(error), key, value);
+                    });
                 }
             }
             Operation::InvalidateKey => {
-                match self.invalidate_key(self.key_buffer.take().unwrap()) {
-                    Err((key, error)) => {
-                        self.client.map(move |cb| {
-                            cb.invalidate_key_complete(Err(error), key);
-                        });
-                    }
-                    _ => {}
+                if let Err((key, error)) = self.invalidate_key(self.key_buffer.take().unwrap()) {
+                    self.client.map(move |cb| {
+                        cb.invalidate_key_complete(Err(error), key);
+                    });
                 }
             }
-            Operation::GarbageCollect => match self.garbage_collect() {
-                Err(error) => {
+            Operation::GarbageCollect => {
+                if let Err(error) = self.garbage_collect() {
                     self.client.map(move |cb| {
                         cb.garbage_collect_complete(Err(error));
                     });
                 }
-                _ => {}
-            },
+            }
         }
         self.next_operation.set(Operation::None);
     }
