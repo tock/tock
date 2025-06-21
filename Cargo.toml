@@ -182,7 +182,6 @@ style = { level = "deny", priority = -1 }
 blocks_in_conditions = "allow"
 collapsible_else_if = "allow"
 collapsible_if = "allow"
-collapsible_match = "allow"
 comparison_chain = "allow"
 enum-variant-names = "allow"
 get_first = "allow"
