@@ -8,14 +8,12 @@
 #![no_main]
 #![deny(missing_docs)]
 
-use core::ptr::addr_of_mut;
 use kernel::component::Component;
 use kernel::debug;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::static_init;
 use kernel::{capabilities, create_capability};
 use nrf52840::gpio::Pin;
-use nrf52840dk_lib::{self, PROCESSES};
 
 // State for loading and holding applications.
 // How should the kernel respond when a process faults.
@@ -195,7 +193,6 @@ pub unsafe fn main() {
             core::ptr::addr_of_mut!(_sappmem),
             core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_management_capability,
     )

@@ -16,8 +16,6 @@
 mod fcb;
 mod io;
 
-use core::ptr::{addr_of, addr_of_mut};
-
 use imxrt1060::gpio::PinId;
 use imxrt1060::iomuxc::{MuxMode, PadId, Sion};
 use imxrt10xx as imxrt1060;
@@ -26,16 +24,15 @@ use kernel::component::Component;
 use kernel::hil::{gpio::Configure, led::LedHigh};
 use kernel::platform::chip::ClockInterface;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::process::ProcessArray;
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, static_init};
 
 /// Number of concurrent processes this platform supports
 const NUM_PROCS: usize = 4;
 
-/// Actual process memory
-static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
-    [None; NUM_PROCS];
-
+/// Static variables used by io.rs.
+static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 /// What should we do if a process faults?
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
@@ -254,7 +251,15 @@ unsafe fn start() -> (&'static kernel::Kernel, Teensy40, &'static Chip) {
     CHIP = Some(chip);
 
     // Start loading the kernel
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
+
+    // Create an array to hold process references.
+    let processes = components::process_array::ProcessArrayComponent::new()
+        .finalize(components::process_array_component_static!(NUM_PROCS));
+    PROCESSES = Some(processes);
+
+    // Setup space to store the core kernel data structure.
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
+
     // TODO how many of these should there be...?
 
     let uart_mux = components::console::UartMuxComponent::new(&peripherals.lpuart2, 115_200)
@@ -308,7 +313,7 @@ unsafe fn start() -> (&'static kernel::Kernel, Teensy40, &'static Chip) {
         .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     //
@@ -353,7 +358,6 @@ unsafe fn start() -> (&'static kernel::Kernel, Teensy40, &'static Chip) {
             core::ptr::addr_of_mut!(_sappmem),
             core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_management_capability,
     )

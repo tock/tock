@@ -83,7 +83,7 @@ pub unsafe fn panic_fmt(pi: &core::panic::PanicInfo) -> ! {
         writer,
         pi,
         &cortexm4::support::nop,
-        &*addr_of!(PROCESSES),
+        PROCESSES.unwrap().as_slice(),
         &*addr_of!(CHIP),
         &*addr_of!(PROCESS_PRINTER),
     )

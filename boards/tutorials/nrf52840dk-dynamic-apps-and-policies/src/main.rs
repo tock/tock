@@ -8,8 +8,6 @@
 #![no_main]
 #![deny(missing_docs)]
 
-use core::ptr::{addr_of, addr_of_mut};
-
 use kernel::component::Component;
 use kernel::deferred_call::DeferredCallClient;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
@@ -18,7 +16,6 @@ use kernel::process::ShortId;
 use kernel::{capabilities, create_capability, static_init};
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
-use nrf52840dk_lib::{self, PROCESSES};
 
 mod app_id_assigner_name_metadata;
 mod checker_credentials_not_required;
@@ -122,7 +119,7 @@ fn create_short_id_from_name(name: &str, metadata: u8) -> ShortId {
 //------------------------------------------------------------------------------
 
 struct Platform {
-    processes: &'static [Option<&'static dyn kernel::process::Process>],
+    board_kernel: &'static kernel::Kernel,
     syscall_filter: &'static system_call_filter::DynamicPoliciesCustomFilter,
     base: nrf52840dk_lib::Platform,
     screen: &'static ScreenDriver,
@@ -190,11 +187,15 @@ impl kernel::process::ProcessLoadingAsyncClient for Platform {
     fn process_loading_finished(&self) {
         kernel::debug!("Processes Loaded at Main:");
 
-        for (i, proc) in self.processes.iter().enumerate() {
-            proc.map(|p| {
-                kernel::debug!("[{}] {}", i, p.get_process_name());
-                kernel::debug!("    ShortId: {}", p.short_app_id());
-            });
+        for (i, p) in self
+            .board_kernel
+            .process_iter_capability(&create_capability!(
+                capabilities::ProcessManagementCapability
+            ))
+            .enumerate()
+        {
+            kernel::debug!("[{}] {}", i, p.get_process_name());
+            kernel::debug!("    ShortId: {}", p.short_app_id());
         }
     }
 }
@@ -207,8 +208,6 @@ impl kernel::process::ProcessLoadingAsyncClient for Platform {
 #[no_mangle]
 pub unsafe fn main() {
     let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
-
-    let processes = &*addr_of!(PROCESSES);
 
     // Create the base board:
     let (board_kernel, base_platform, chip, nrf52840_peripherals, _mux_alarm) =
@@ -489,7 +488,6 @@ pub unsafe fn main() {
     // Create and start the asynchronous process loader.
     let loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
         checker,
-        &mut *addr_of_mut!(PROCESSES),
         board_kernel,
         chip,
         &FAULT_RESPONSE,
@@ -539,7 +537,7 @@ pub unsafe fn main() {
     let platform = static_init!(
         Platform,
         Platform {
-            processes,
+            board_kernel,
             syscall_filter,
             base: base_platform,
             screen,
