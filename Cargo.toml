@@ -218,7 +218,6 @@ upper_case_acronyms = "allow"
 
 declare-interior-mutable-const = "allow"
 missing_safety_doc = "allow"
-redundant_pattern_matching = "allow"
 doc_lazy_continuation = "allow"
 
 

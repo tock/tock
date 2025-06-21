@@ -205,7 +205,7 @@ impl<
             Ok(()) => {
                 // We got a hash. Next we need to figure out how many keys we
                 // have.
-                if let Err(_) = self.verifier.get_key_count() {
+                if self.verifier.get_key_count().is_err() {
                     self.client.map(|c| {
                         let binary = self.binary.take().unwrap();
                         let cred = self.credentials.take().unwrap();
@@ -285,7 +285,7 @@ impl<
             } else {
                 // Activate the next key.
                 self.active_key_index.set((next_key, number_keys));
-                if let Err(_) = self.verifier.select_key(next_key) {
+                if self.verifier.select_key(next_key).is_err() {
                     self.client.map(|c| {
                         let binary = self.binary.take().unwrap();
                         let cred = self.credentials.take().unwrap();
