@@ -179,7 +179,6 @@ zero_prefixed_literal = "allow"
 # STYLE
 style = { level = "deny", priority = -1 }
 
-blocks_in_conditions = "allow"
 collapsible_else_if = "allow"
 collapsible_if = "allow"
 comparison_chain = "allow"
