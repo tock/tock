@@ -143,16 +143,8 @@ codegen-units = 1
 #    resulting diff.
 # 3. The third section are lints that we do want we just need to fixup the code
 #    to pass the lint checks.
-#
-# There are some lints we specifically do not want:
-#
-# - `clippy::manual_unwrap_or_default`: As of Apr 2024, this lint has many false
-#   positives.
 [workspace.lints.clippy]
 restriction = "allow"
-
-manual_unwrap_or_default = "allow"
-
 
 # COMPLEXITY LINTS
 complexity = { level = "deny", priority = -1 }
