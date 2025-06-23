@@ -108,7 +108,7 @@ pub trait CortexMVariant {
     /// Format and display architecture-specific state useful for debugging.
     ///
     /// This is generally used after a `panic!()` to aid debugging.
-    unsafe fn print_cortexm_state(writer: &mut dyn Write);
+    fn print_cortexm_state(writer: &mut dyn Write);
 }
 
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
@@ -194,12 +194,19 @@ core::arch::global_asm!(
     etext = sym _etext,
 );
 
-pub unsafe fn print_cortexm_state(writer: &mut dyn Write) {
-    let _ccr = syscall::SCB_REGISTERS[0];
-    let cfsr = syscall::SCB_REGISTERS[1];
-    let hfsr = syscall::SCB_REGISTERS[2];
-    let mmfar = syscall::SCB_REGISTERS[3];
-    let bfar = syscall::SCB_REGISTERS[4];
+pub fn print_cortexm_state(writer: &mut dyn Write) {
+    // # Safety
+    //
+    // I don't know why this is safe.
+    let (_ccr, cfsr, hfsr, mmfar, bfar) = unsafe {
+        (
+            syscall::SCB_REGISTERS[0],
+            syscall::SCB_REGISTERS[1],
+            syscall::SCB_REGISTERS[2],
+            syscall::SCB_REGISTERS[3],
+            syscall::SCB_REGISTERS[4],
+        )
+    };
 
     let iaccviol = (cfsr & 0x01) == 0x01;
     let daccviol = (cfsr & 0x02) == 0x02;
