@@ -223,13 +223,21 @@ doc_lazy_continuation = "allow"
 # PERF
 perf = { level = "deny", priority = -1 }
 
+# Tock extensively uses enums for state machines, and it often is much clearer
+# to store objects between states in the state enum rather than as "global"
+# variables in the struct itself. Therefore, some enums end up quite large.
 large-enum-variant = "allow"
 
 
 # CARGO
 cargo = { level = "deny", priority = -1 }
 
+# Tock includes over 100 crates, and it is just too pedantic to expect each one
+# to have full and correct metadata.
 cargo_common_metadata = "allow"
+# We generally avoid all cargo features, and therefore it isn't intuitive that
+# we would expect some features to be enabled by default, so it can make sense
+# to have a feature to disable something.
 negative-feature-names = "allow"
 
 
