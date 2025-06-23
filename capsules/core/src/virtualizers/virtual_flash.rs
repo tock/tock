@@ -101,11 +101,8 @@ impl<'a, F: hil::flash::Flash> MuxFlash<'a, F> {
                 node.buffer.take().map_or_else(
                     || {
                         // Don't need a buffer for erase.
-                        match node.operation.get() {
-                            Op::Erase(page_number) => {
-                                let _ = self.flash.erase_page(page_number);
-                            }
-                            _ => {}
+                        if let Op::Erase(page_number) = node.operation.get() {
+                            let _ = self.flash.erase_page(page_number);
                         }
                     },
                     |buf| {

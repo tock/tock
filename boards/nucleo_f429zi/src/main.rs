@@ -618,9 +618,8 @@ unsafe fn start() -> (
     ));
 
     // RTC DATE TIME
-    match peripherals.rtc.rtc_init() {
-        Err(e) => debug!("{:?}", e),
-        _ => (),
+    if let Err(e) = peripherals.rtc.rtc_init() {
+        debug!("{:?}", e)
     }
 
     let date_time = components::date_time::DateTimeComponent::new(

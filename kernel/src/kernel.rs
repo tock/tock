@@ -174,11 +174,8 @@ impl Kernel {
         F: FnMut(&dyn process::Process),
     {
         for process in self.processes.iter() {
-            match process {
-                Some(p) => {
-                    closure(*p);
-                }
-                None => {}
+            if let Some(p) = process {
+                closure(*p);
             }
         }
     }
@@ -212,11 +209,8 @@ impl Kernel {
         F: FnMut(&dyn process::Process),
     {
         for process in self.processes.iter() {
-            match process {
-                Some(p) => {
-                    closure(*p);
-                }
-                None => {}
+            if let Some(p) = process {
+                closure(*p);
             }
         }
     }
@@ -229,14 +223,11 @@ impl Kernel {
         F: Fn(&dyn process::Process) -> Option<T>,
     {
         for process in self.processes.iter() {
-            match process {
-                Some(p) => {
-                    let ret = closure(*p);
-                    if ret.is_some() {
-                        return ret;
-                    }
+            if let Some(p) = process {
+                let ret = closure(*p);
+                if ret.is_some() {
+                    return ret;
                 }
-                None => {}
             }
         }
         None

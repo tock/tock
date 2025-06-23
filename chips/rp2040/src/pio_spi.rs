@@ -298,24 +298,22 @@ impl<'a> hil::spi::SpiMaster<'a> for PioSpi<'a> {
             Err(_error) => return Err(ErrorCode::FAIL),
         }
 
-        let mut custom_config = StateMachineConfiguration::default();
-
-        custom_config.div_int = self.clock_div_int.get();
-        custom_config.div_frac = self.clock_div_frac.get();
-
-        // 8 bit mode on pio
-        custom_config.in_push_threshold = 8;
-        custom_config.out_pull_threshold = 8;
-
-        custom_config.side_set_base = self.clock_pin;
-        custom_config.in_pins_base = self.in_pin;
-        custom_config.out_pins_base = self.out_pin;
-        custom_config.side_set_bit_count = 1;
-        custom_config.wrap = wrap;
-
-        // automatically push and pull from the fifos
-        custom_config.in_autopush = true;
-        custom_config.out_autopull = true;
+        let custom_config = StateMachineConfiguration {
+            div_int: self.clock_div_int.get(),
+            div_frac: self.clock_div_frac.get(),
+            // 8 bit mode on pio
+            in_push_threshold: 8,
+            out_pull_threshold: 8,
+            side_set_base: self.clock_pin,
+            in_pins_base: self.in_pin,
+            out_pins_base: self.out_pin,
+            side_set_bit_count: 1,
+            wrap,
+            // automatically push and pull from the fifos
+            in_autopush: true,
+            out_autopull: true,
+            ..Default::default()
+        };
 
         self.pio.spi_program_init(
             self.sm_number,
@@ -406,12 +404,7 @@ impl<'a> hil::spi::SpiMaster<'a> for PioSpi<'a> {
         let mut data: u32;
 
         // One byte operations can be synchronous
-        match self.pio.sm(self.sm_number).push_blocking(val as u32) {
-            Err(err) => {
-                return Err(err);
-            }
-            _ => {}
-        }
+        self.pio.sm(self.sm_number).push_blocking(val as u32)?;
 
         data = match self.pio.sm(self.sm_number).pull_blocking() {
             Ok(val) => val,

@@ -93,9 +93,8 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> AnalogComparator<'a, A
         }
         // Convert channel index
         let chan = self.channels[channel];
-        let result = self.analog_comparator.start_comparing(chan);
 
-        result
+        self.analog_comparator.start_comparing(chan)
     }
 
     // Stop comparing on a channel
@@ -105,9 +104,8 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> AnalogComparator<'a, A
         }
         // Convert channel index
         let chan = self.channels[channel];
-        let result = self.analog_comparator.stop_comparing(chan);
 
-        result
+        self.analog_comparator.stop_comparing(chan)
     }
 }
 

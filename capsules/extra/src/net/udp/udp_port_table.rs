@@ -178,13 +178,10 @@ impl UdpPortManager {
                 let mut result: Result<UdpSocket, Result<(), ErrorCode>> =
                     Err(Err(ErrorCode::FAIL));
                 for i in 0..MAX_NUM_BOUND_PORTS {
-                    match table[i] {
-                        None => {
-                            result = Ok(UdpSocket::new(i, self));
-                            table[i] = Some(SocketBindingEntry::Unbound);
-                            break;
-                        }
-                        _ => (),
+                    if table[i].is_none() {
+                        result = Ok(UdpSocket::new(i, self));
+                        table[i] = Some(SocketBindingEntry::Unbound);
+                        break;
                     }
                 }
                 result
@@ -196,13 +193,12 @@ impl UdpPortManager {
     /// unbound. If the slot is bound, the socket is being dropped after a call to
     /// bind(), and the slot in the table should remain reserved.
     fn destroy_socket(&self, socket: &UdpSocket) {
-        self.port_array.map(|table| match table[socket.idx] {
-            Some(entry) => {
+        self.port_array.map(|table| {
+            if let Some(entry) = table[socket.idx] {
                 if entry == SocketBindingEntry::Unbound {
                     table[socket.idx] = None;
                 }
             }
-            _ => {}
         });
     }
 
@@ -223,14 +219,11 @@ impl UdpPortManager {
             .map(|table| {
                 let mut port_exists = false;
                 for i in 0..MAX_NUM_BOUND_PORTS {
-                    match table[i] {
-                        Some(SocketBindingEntry::Port(p)) => {
-                            if p == port {
-                                port_exists = true;
-                                break;
-                            }
+                    if let Some(SocketBindingEntry::Port(p)) = table[i] {
+                        if p == port {
+                            port_exists = true;
+                            break;
                         }
-                        _ => (),
                     }
                 }
                 port_exists

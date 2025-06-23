@@ -205,15 +205,12 @@ impl<
             Ok(()) => {
                 // We got a hash. Next we need to figure out how many keys we
                 // have.
-                match self.verifier.get_key_count() {
-                    Err(_) => {
-                        self.client.map(|c| {
-                            let binary = self.binary.take().unwrap();
-                            let cred = self.credentials.take().unwrap();
-                            c.check_done(Err(ErrorCode::FAIL), cred, binary)
-                        });
-                    }
-                    Ok(()) => {}
+                if self.verifier.get_key_count().is_err() {
+                    self.client.map(|c| {
+                        let binary = self.binary.take().unwrap();
+                        let cred = self.credentials.take().unwrap();
+                        c.check_done(Err(ErrorCode::FAIL), cred, binary)
+                    });
                 }
             }
         }
@@ -288,15 +285,12 @@ impl<
             } else {
                 // Activate the next key.
                 self.active_key_index.set((next_key, number_keys));
-                match self.verifier.select_key(next_key) {
-                    Err(_) => {
-                        self.client.map(|c| {
-                            let binary = self.binary.take().unwrap();
-                            let cred = self.credentials.take().unwrap();
-                            c.check_done(Err(ErrorCode::FAIL), cred, binary)
-                        });
-                    }
-                    Ok(()) => {}
+                if self.verifier.select_key(next_key).is_err() {
+                    self.client.map(|c| {
+                        let binary = self.binary.take().unwrap();
+                        let cred = self.credentials.take().unwrap();
+                        c.check_done(Err(ErrorCode::FAIL), cred, binary)
+                    });
                 }
             }
         }
