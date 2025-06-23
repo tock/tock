@@ -2264,10 +2264,9 @@ pub mod kernel_protection_mml_epmp {
             }
 
             // Setup complete
-            const DEFAULT_USER_PMPCFG_OCTET: Cell<TORUserPMPCFG> = Cell::new(TORUserPMPCFG::OFF);
             Ok(KernelProtectionMMLEPMP {
                 user_pmp_enabled: Cell::new(false),
-                shadow_user_pmpcfgs: [DEFAULT_USER_PMPCFG_OCTET; MPU_REGIONS],
+                shadow_user_pmpcfgs: [const { Cell::new(TORUserPMPCFG::OFF) }; MPU_REGIONS],
             })
         }
     }

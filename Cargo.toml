@@ -216,7 +216,6 @@ unusual-byte-groupings = "allow"
 upper_case_acronyms = "allow"
 
 
-declare-interior-mutable-const = "allow"
 missing_safety_doc = "allow"
 doc_lazy_continuation = "allow"
 
