@@ -169,12 +169,21 @@ option_map_unit_fn = "allow"
 # Sometimes the semantic meaning of variables means it is more clear to use
 # nonminimal if statements, particularly when matching hardware or datasheets.
 nonminimal_bool = "allow"
+# Particularly for setting register values, expressing a zero offset can be
+# semantically meaningful and encourage consistency between several lines of
+# code.
 identity-op = "allow"
-while-let-loop = "allow"
+# Subjective, and for SyscallDrivers sometimes enumerating the specific command
+# numbers rather than using a range is semantically more clear.
 manual-range-patterns = "allow"
+# Particularly when interactive with hardware, including a leading zero can
+# often be semantically more clear.
+zero_prefixed_literal = "allow"
+
+
+while-let-loop = "allow"
 manual-flatten = "allow"
 
-zero_prefixed_literal = "allow"
 
 # STYLE
 style = { level = "deny", priority = -1 }
