@@ -137,7 +137,8 @@ codegen-units = 1
 # Tock does not comply with or we do not want to use.
 #
 # For each group there are three sections:
-# 1. The first section are lints we almost certainly don't want.
+# 1. The first section are lints we don't want with a comment explaining our use
+#    case for not enabling that lint.
 # 2. The second section are lints we may not want, we probably have to see the
 #    resulting diff.
 # 3. The third section are lints that we do want we just need to fixup the code
@@ -145,14 +146,11 @@ codegen-units = 1
 #
 # There are some lints we specifically do not want:
 #
-# - `clippy::if_same_then_else`: There are often good reasons to enumerate
-#   different states that have the same effect.
 # - `clippy::manual_unwrap_or_default`: As of Apr 2024, this lint has many false
 #   positives.
 [workspace.lints.clippy]
 restriction = "allow"
 
-if_same_then_else = "allow"
 manual_unwrap_or_default = "allow"
 
 
@@ -198,6 +196,9 @@ comparison_chain = "allow"
 enum-variant-names = "allow"
 # For buffers, `.get(0)` (using byte index) makes more sense than `.first()`.
 get_first = "allow"
+# There are often good reasons to enumerate different states that have the same
+# effect.
+if_same_then_else = "allow"
 # Buffers and objects can have a length of 0, but it isn't necessarily intuitive
 # to think of a buffer or those objects as "empty".
 len_without_is_empty = "allow"
