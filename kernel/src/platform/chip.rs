@@ -67,7 +67,7 @@ pub trait Chip {
     /// The MPU state is printed by the MPU's implementation of
     /// the Display trait.
     /// Used by panic.
-    unsafe fn print_state(&self, writer: &mut dyn Write);
+    fn print_state(&self, writer: &mut dyn Write);
 }
 
 /// Interface for handling interrupts on a hardware chip.

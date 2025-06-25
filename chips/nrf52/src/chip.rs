@@ -146,7 +146,7 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for NRF52<'a, I>
         cortexm4f::support::atomic(f)
     }
 
-    unsafe fn print_state(&self, write: &mut dyn Write) {
+    fn print_state(&self, write: &mut dyn Write) {
         CortexM4F::print_cortexm_state(write);
     }
 }

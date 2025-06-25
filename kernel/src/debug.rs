@@ -51,6 +51,7 @@ use core::panic::PanicInfo;
 use core::ptr::addr_of_mut;
 use core::str;
 
+use crate::capabilities::DebugCapability;
 use crate::capabilities::SetDebugWriterCapability;
 use crate::collections::queue::Queue;
 use crate::collections::ring_buffer::RingBuffer;
@@ -106,19 +107,28 @@ pub trait IoWrite {
 /// returns.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
-pub unsafe fn panic_print<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
+pub fn panic_print<W: Write + IoWrite, C: Chip, PP: ProcessPrinter, CAP: DebugCapability>(
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
     processes: &'static [Option<&'static dyn Process>],
     chip: &'static Option<&'static C>,
     process_printer: &'static Option<&'static PP>,
+    cap: &CAP,
 ) {
-    panic_begin(nop);
+    panic_begin(nop, cap);
     // Flush debug buffer if needed
-    flush(writer);
+    //
+    // # Safety
+    //
+    // This is only called when the system is panic-ing, and no other `debug!
+    // ()` calls are made. Therefore, we know nothing else is using
+    // `DebugWriter`.
+    unsafe {
+        flush(writer);
+    }
     panic_banner(writer, panic_info);
-    panic_cpu_state(chip, writer);
+    panic_cpu_state(chip, writer, cap);
 
     // Some systems may enforce memory protection regions for the kernel, making
     // application memory inaccessible. However, printing process information
@@ -128,7 +138,7 @@ pub unsafe fn panic_print<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
         use crate::platform::mpu::MPU;
         c.mpu().disable_app_mpu()
     });
-    panic_process_info(processes, process_printer, writer);
+    panic_process_info(processes, process_printer, writer, cap);
 }
 
 /// Tock default panic routine.
@@ -137,7 +147,13 @@ pub unsafe fn panic_print<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
 ///
 /// This will print a detailed debugging message and then loop forever while
 /// blinking an LED in a recognizable pattern.
-pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
+pub unsafe fn panic<
+    L: hil::led::Led,
+    W: Write + IoWrite,
+    C: Chip,
+    PP: ProcessPrinter,
+    CAP: DebugCapability,
+>(
     leds: &mut [&L],
     writer: &mut W,
     panic_info: &PanicInfo,
@@ -145,10 +161,19 @@ pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip, PP: ProcessPr
     processes: &'static [Option<&'static dyn Process>],
     chip: &'static Option<&'static C>,
     process_printer: &'static Option<&'static PP>,
+    cap: &CAP,
 ) -> ! {
     // Call `panic_print` first which will print out the panic information and
     // return
-    panic_print(writer, panic_info, nop, processes, chip, process_printer);
+    panic_print(
+        writer,
+        panic_info,
+        nop,
+        processes,
+        chip,
+        process_printer,
+        cap,
+    );
 
     // The system is no longer in a well-defined state, we cannot
     // allow this function to return
@@ -162,7 +187,7 @@ pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip, PP: ProcessPr
 /// This opaque method should always be called at the beginning of a board's
 /// panic method to allow hooks for any core kernel cleanups that may be
 /// appropriate.
-pub unsafe fn panic_begin(nop: &dyn Fn()) {
+pub fn panic_begin<CAP: DebugCapability>(nop: &dyn Fn(), _cap: &CAP) {
     // Let any outstanding uart DMA's finish
     for _ in 0..200000 {
         nop();
@@ -172,7 +197,7 @@ pub unsafe fn panic_begin(nop: &dyn Fn()) {
 /// Lightweight prints about the current panic and kernel version.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
-pub unsafe fn panic_banner<W: Write>(writer: &mut W, panic_info: &PanicInfo) {
+pub fn panic_banner<W: Write>(writer: &mut W, panic_info: &PanicInfo) {
     let _ = writer.write_fmt(format_args!("\r\n{}\r\n", panic_info));
 
     // Print version of the kernel
@@ -185,9 +210,10 @@ pub unsafe fn panic_banner<W: Write>(writer: &mut W, panic_info: &PanicInfo) {
 /// Print current machine (CPU) state.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
-pub unsafe fn panic_cpu_state<W: Write, C: Chip>(
+pub fn panic_cpu_state<W: Write, C: Chip, CAP: DebugCapability>(
     chip: &'static Option<&'static C>,
     writer: &mut W,
+    _cap: &CAP,
 ) {
     chip.map(|c| {
         c.print_state(writer);
@@ -197,10 +223,11 @@ pub unsafe fn panic_cpu_state<W: Write, C: Chip>(
 /// More detailed prints about all processes.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
-pub unsafe fn panic_process_info<PP: ProcessPrinter, W: Write>(
+pub fn panic_process_info<PP: ProcessPrinter, W: Write, CAP: DebugCapability>(
     procs: &'static [Option<&'static dyn Process>],
     process_printer: &'static Option<&'static PP>,
     writer: &mut W,
+    _cap: &CAP,
 ) {
     process_printer.map(|printer| {
         // print data about each process
@@ -633,6 +660,11 @@ macro_rules! debug_expr {
 }
 
 /// Flush any stored messages to the output writer.
+///
+/// # Safety
+///
+/// This requires mutable access to the debug writer, so there cannot be
+/// anything else using the debug writer when `flush()` is called.
 pub unsafe fn flush<W: Write + IoWrite>(writer: &mut W) {
     if let Some(debug_writer) = try_get_debug_writer() {
         if let Some(ring_buffer) = debug_writer.extract() {

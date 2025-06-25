@@ -3,6 +3,7 @@
 // Copyright Tock Contributors 2022.
 
 use core::fmt::Write;
+use kernel::create_capability;
 use kernel::debug::IoWrite;
 use kernel::hil::uart;
 use kernel::hil::uart::Configure;
@@ -82,5 +83,6 @@ pub unsafe fn panic_fmt(pi: &core::panic::PanicInfo) -> ! {
         &*addr_of!(PROCESSES),
         &*addr_of!(CHIP),
         &*addr_of!(PROCESS_PRINTER),
+        &create_capability!(kernel::capabilities::DebugCapability),
     )
 }
