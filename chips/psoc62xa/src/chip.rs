@@ -59,17 +59,13 @@ impl<I: InterruptService> Chip for Psoc62xa<'_, I> {
 
     fn service_pending_interrupts(&self) {
         unsafe {
-            loop {
-                if let Some(interrupt) = cortexm0p::nvic::next_pending() {
-                    if !self.interrupt_service.service_interrupt(interrupt) {
-                        panic!("unhandled interrupt {}", interrupt);
-                    }
-                    let n = cortexm0p::nvic::Nvic::new(interrupt);
-                    n.clear_pending();
-                    n.enable();
-                } else {
-                    break;
+            while let Some(interrupt) = cortexm0p::nvic::next_pending() {
+                if !self.interrupt_service.service_interrupt(interrupt) {
+                    panic!("unhandled interrupt {}", interrupt);
                 }
+                let n = cortexm0p::nvic::Nvic::new(interrupt);
+                n.clear_pending();
+                n.enable();
             }
             while let Some(interrupt) = cortexm0p::nvic::next_pending() {
                 let nvic = cortexm0p::nvic::Nvic::new(interrupt);

@@ -170,7 +170,6 @@ option_map_unit_fn = "allow"
 # nonminimal if statements, particularly when matching hardware or datasheets.
 nonminimal_bool = "allow"
 identity-op = "allow"
-while-let-loop = "allow"
 manual-range-patterns = "allow"
 manual-flatten = "allow"
 

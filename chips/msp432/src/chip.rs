@@ -110,18 +110,14 @@ impl<'a, I: InterruptService + 'a> Chip for Msp432<'a, I> {
 
     fn service_pending_interrupts(&self) {
         unsafe {
-            loop {
-                if let Some(interrupt) = cortexm4::nvic::next_pending() {
-                    if !self.interrupt_service.service_interrupt(interrupt) {
-                        panic!("unhandled interrupt {}", interrupt);
-                    }
-
-                    let n = cortexm4::nvic::Nvic::new(interrupt);
-                    n.clear_pending();
-                    n.enable();
-                } else {
-                    break;
+            while let Some(interrupt) = cortexm4::nvic::next_pending() {
+                if !self.interrupt_service.service_interrupt(interrupt) {
+                    panic!("unhandled interrupt {}", interrupt);
                 }
+
+                let n = cortexm4::nvic::Nvic::new(interrupt);
+                n.clear_pending();
+                n.enable();
             }
         }
     }
