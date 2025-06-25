@@ -13,3 +13,4 @@ pub mod encryption_oracle_chkpt3;
 pub mod encryption_oracle_chkpt4;
 #[allow(dead_code)]
 pub mod encryption_oracle_chkpt5;
+pub mod fault_all_processes;
