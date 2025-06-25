@@ -241,18 +241,14 @@ impl<I: InterruptService + 'static> Chip for Sam4l<I> {
 
     fn service_pending_interrupts(&self) {
         unsafe {
-            loop {
-                if let Some(interrupt) = cortexm4::nvic::next_pending() {
-                    match self.interrupt_service.service_interrupt(interrupt) {
-                        true => {}
-                        false => panic!("unhandled interrupt"),
-                    }
-                    let n = cortexm4::nvic::Nvic::new(interrupt);
-                    n.clear_pending();
-                    n.enable();
-                } else {
-                    break;
+            while let Some(interrupt) = cortexm4::nvic::next_pending() {
+                match self.interrupt_service.service_interrupt(interrupt) {
+                    true => {}
+                    false => panic!("unhandled interrupt"),
                 }
+                let n = cortexm4::nvic::Nvic::new(interrupt);
+                n.clear_pending();
+                n.enable();
             }
         }
     }

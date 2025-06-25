@@ -171,7 +171,6 @@ manual-range-patterns = "allow"
 zero_prefixed_literal = "allow"
 
 
-while-let-loop = "allow"
 manual-flatten = "allow"
 
 
