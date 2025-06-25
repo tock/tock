@@ -137,24 +137,14 @@ codegen-units = 1
 # Tock does not comply with or we do not want to use.
 #
 # For each group there are three sections:
-# 1. The first section are lints we almost certainly don't want.
+# 1. The first section are lints we don't want with a comment explaining our use
+#    case for not enabling that lint.
 # 2. The second section are lints we may not want, we probably have to see the
 #    resulting diff.
 # 3. The third section are lints that we do want we just need to fixup the code
 #    to pass the lint checks.
-#
-# There are some lints we specifically do not want:
-#
-# - `clippy::if_same_then_else`: There are often good reasons to enumerate
-#   different states that have the same effect.
-# - `clippy::manual_unwrap_or_default`: As of Apr 2024, this lint has many false
-#   positives.
 [workspace.lints.clippy]
 restriction = "allow"
-
-if_same_then_else = "allow"
-manual_unwrap_or_default = "allow"
-
 
 # COMPLEXITY LINTS
 complexity = { level = "deny", priority = -1 }
@@ -169,11 +159,20 @@ option_map_unit_fn = "allow"
 # Sometimes the semantic meaning of variables means it is more clear to use
 # nonminimal if statements, particularly when matching hardware or datasheets.
 nonminimal_bool = "allow"
+# Particularly for setting register values, expressing a zero offset can be
+# semantically meaningful and encourage consistency between several lines of
+# code.
 identity-op = "allow"
+# Subjective, and for SyscallDrivers sometimes enumerating the specific command
+# numbers rather than using a range is semantically more clear.
 manual-range-patterns = "allow"
+# Particularly when interactive with hardware, including a leading zero can
+# often be semantically more clear.
+zero_prefixed_literal = "allow"
+
+
 manual-flatten = "allow"
 
-zero_prefixed_literal = "allow"
 
 # STYLE
 style = { level = "deny", priority = -1 }
@@ -188,6 +187,9 @@ comparison_chain = "allow"
 enum-variant-names = "allow"
 # For buffers, `.get(0)` (using byte index) makes more sense than `.first()`.
 get_first = "allow"
+# There are often good reasons to enumerate different states that have the same
+# effect.
+if_same_then_else = "allow"
 # Buffers and objects can have a length of 0, but it isn't necessarily intuitive
 # to think of a buffer or those objects as "empty".
 len_without_is_empty = "allow"
@@ -222,13 +224,21 @@ doc_lazy_continuation = "allow"
 # PERF
 perf = { level = "deny", priority = -1 }
 
+# Tock extensively uses enums for state machines, and it often is much clearer
+# to store objects between states in the state enum rather than as "global"
+# variables in the struct itself. Therefore, some enums end up quite large.
 large-enum-variant = "allow"
 
 
 # CARGO
 cargo = { level = "deny", priority = -1 }
 
+# Tock includes over 100 crates, and it is just too pedantic to expect each one
+# to have full and correct metadata.
 cargo_common_metadata = "allow"
+# We generally avoid all cargo features, and therefore it isn't intuitive that
+# we would expect some features to be enabled by default, so it can make sense
+# to have a feature to disable something.
 negative-feature-names = "allow"
 
 
