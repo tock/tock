@@ -3,9 +3,10 @@
 // Copyright OxidOS Automotive 2025 SRL.
 
 use core::cell::Cell;
-use core::num::NonZeroUsize;
+use core::num::{NonZero, NonZeroUsize};
 use kernel::errorcode::ErrorCode;
 use kernel::hil::uart::{self, Configure, Receive, ReceiveClient, Transmit, TransmitClient};
+use kernel::non_zero;
 use kernel::utilities::StaticRef;
 use kernel::utilities::{
     cells::{OptionalCell, TakeCell},
@@ -788,7 +789,7 @@ impl<'a> Receive<'a> for Scb<'a> {
 
 impl Configure for Scb<'_> {
     fn configure(&self, params: kernel::hil::uart::Parameters) -> Result<(), ErrorCode> {
-        if params.baud_rate != 115200 || params.hw_flow_control {
+        if params.baud_rate != non_zero!(115200) || params.hw_flow_control {
             Err(ErrorCode::NOSUPPORT)
         } else {
             // Modification of the SCB parameters require it to be disabled.

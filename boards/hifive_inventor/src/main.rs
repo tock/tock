@@ -16,6 +16,7 @@ use e310_g003::interrupt_service::E310G003DefaultPeripherals;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
+use kernel::hil::uart::BAUD115200;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::cooperative::CooperativeSched;
@@ -166,7 +167,7 @@ unsafe fn start() -> (
     kernel::debug::assign_gpios(None, None, None);
 
     // Create a shared UART channel for the console and for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(&peripherals.e310x.uart0, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(&peripherals.e310x.uart0, BAUD115200)
         .finalize(components::uart_mux_component_static!());
 
     let hardware_timer = static_init!(

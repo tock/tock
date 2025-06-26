@@ -34,7 +34,7 @@ use kernel::capabilities::SetDebugWriterCapability;
 use kernel::collections::ring_buffer::RingBuffer;
 use kernel::component::Component;
 use kernel::hil;
-use kernel::hil::uart;
+use kernel::hil::uart::{self, BAUD115200};
 
 // The sum of the output_buf and internal_buf is set to a multiple of 1024 bytes in order to avoid excessive
 // padding between kernel memory and application memory (which often needs to be aligned to at
@@ -199,7 +199,7 @@ impl<
         kernel::debug::set_debug_writer_wrapper(debug_wrapper, self.capability);
 
         let _ = self.uart.configure(uart::Parameters {
-            baud_rate: 115200,
+            baud_rate: BAUD115200,
             width: uart::Width::Eight,
             stop_bits: uart::StopBits::One,
             parity: uart::Parity::None,

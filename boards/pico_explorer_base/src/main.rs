@@ -18,6 +18,7 @@ use components::led::LedsComponent;
 use enum_primitive::cast::FromPrimitive;
 use kernel::component::Component;
 use kernel::hil::led::LedHigh;
+use kernel::hil::uart::BAUD115200;
 use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
@@ -369,7 +370,7 @@ pub unsafe fn start() -> (
 
     // UART
     // Create a shared UART channel for kernel debug.
-    let uart_mux = components::console::UartMuxComponent::new(cdc, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(cdc, BAUD115200)
         .finalize(components::uart_mux_component_static!());
 
     // Uncomment this to use UART as an output
