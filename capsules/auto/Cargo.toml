@@ -1,18 +1,20 @@
 # Licensed under the Apache License, Version 2.0 or the MIT License.
 # SPDX-License-Identifier: Apache-2.0 OR MIT
-# Copyright Tock Contributors 2023.
+# Copyright Tock Contributors 2024.
 
 [package]
-name = "capsules-core"
+name = "auto"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
 
+[lib]
+proc-macro = true
+
 [dependencies]
-auto = { path = "../auto" }
-kernel = { path = "../../kernel" }
-enum_primitive = { path = "../../libraries/enum_primitive" }
-tickv = { path = "../../libraries/tickv" }
+syn = { version = "2.0", features = [ "full", "extra-traits" ] }
+quote = "1.0"
+proc-macro2 = "1.0.86"
 
 [lints]
 workspace = true
