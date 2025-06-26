@@ -8,14 +8,14 @@
 #![no_main]
 #![deny(missing_docs)]
 
-use core::ptr::{addr_of, addr_of_mut};
+use core::ptr::addr_of;
 
 use kernel::component::Component;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::{capabilities, create_capability, static_init};
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
-use nrf52840dk_lib::{self, NUM_PROCS, PROCESSES};
+use nrf52840dk_lib::{self, NUM_PROCS};
 
 type ScreenDriver = components::screen::ScreenComponentType;
 
@@ -284,7 +284,6 @@ pub unsafe fn main() {
     // Create and start the asynchronous process loader.
     let _loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
         checker,
-        &mut *addr_of_mut!(PROCESSES),
         board_kernel,
         chip,
         &FAULT_RESPONSE,

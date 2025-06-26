@@ -70,6 +70,7 @@ pub mod nonvolatile_storage;
 pub mod nrf51822;
 pub mod panic_button;
 pub mod pressure;
+pub mod process_array;
 pub mod process_console;
 pub mod process_info_driver;
 pub mod process_printer;

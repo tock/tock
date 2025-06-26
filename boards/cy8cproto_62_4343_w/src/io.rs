@@ -57,7 +57,7 @@ pub unsafe fn panic_fmt(panic_info: &PanicInfo) -> ! {
         writer,
         panic_info,
         &cortexm0p::support::nop,
-        &*addr_of!(PROCESSES),
+        PROCESSES.unwrap().as_slice(),
         &*addr_of!(CHIP),
         &*addr_of!(PROCESS_PRINTER),
     );

@@ -47,7 +47,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
         writer,
         pi,
         &rv32i::support::nop,
-        &*addr_of!(PROCESSES),
+        PROCESSES.unwrap().as_slice(),
         &*addr_of!(PANIC_REFERENCES.chip),
         &*addr_of!(PANIC_REFERENCES.process_printer),
     )
