@@ -58,11 +58,12 @@ pub struct ProcessArray<const NUM_PROCS: usize> {
 
 impl<const NUM_PROCS: usize> ProcessArray<NUM_PROCS> {
     pub const fn new() -> Self {
-        const EMPTY: ProcessSlot = ProcessSlot {
-            proc: Cell::new(None),
-        };
         Self {
-            processes: [EMPTY; NUM_PROCS],
+            processes: [const {
+                ProcessSlot {
+                    proc: Cell::new(None),
+                }
+            }; NUM_PROCS],
         }
     }
 
