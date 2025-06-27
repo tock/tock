@@ -443,7 +443,11 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
         });
     }
 
-    fn process_loading_finished(&self) {}
+    fn process_loading_finished(&self) {
+        self.load_client.map(|client| {
+            client.load_done(Ok(()));
+        });
+    }
 }
 
 /// Storage interface exposed to the app_loader capsule
