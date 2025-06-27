@@ -20,8 +20,8 @@ use crate::{
 /// `FieldValueEnumSeq` is a debug helper trait representing a sequence of
 /// [field enum types](crate::fields::Field::read_as_enum).
 ///
-/// It provides methods to recurse through this sequence of types and
-/// thus call methods on them, such as
+/// It provides methods to recurse through this sequence of types and thus call
+/// methods on them, such as
 /// [`try_from_value`](crate::fields::TryFromValue::try_from_value).
 ///
 /// Its primary use lies in the [`RegisterDebugInfo`] trait. This trait provides
@@ -35,11 +35,12 @@ pub trait FieldValueEnumSeq<U: UIntLike> {
     /// Iterates over the sequence of types and performs the following steps:
     ///
     /// 1. Invokes the `data` function argument. This is expected to provide the
-    ///    numeric (`UIntLike`) value of the register field that the current type
-    ///    corresponds to.
+    ///    numeric (`UIntLike`) value of the register field that the current
+    ///    type corresponds to.
     ///
-    /// 2. Invoke [`try_from_value`](crate::fields::TryFromValue::try_from_value)
-    ///    on the current [field enum type](crate::fields::Field::read_as_enum),
+    /// 2. Invoke
+    ///    [`try_from_value`](crate::fields::TryFromValue::try_from_value) on
+    ///    the current [field enum type](crate::fields::Field::read_as_enum),
     ///    passing the value returned by `data`.
     ///
     /// 3. Provide the returned value to the `f` function argument. This is
@@ -50,8 +51,8 @@ pub trait FieldValueEnumSeq<U: UIntLike> {
     /// runtime-accessible information in tandem, to produce a human-readable
     /// register dump.
     ///
-    /// Importantly, `data` is invoked for every type in the sequence, and
-    /// every invocation of `data` is followed by a single invocation of `f`.
+    /// Importantly, `data` is invoked for every type in the sequence, and every
+    /// invocation of `data` is followed by a single invocation of `f`.
     fn recurse_try_from_value(data: &mut impl FnMut() -> U, f: &mut impl FnMut(&dyn fmt::Debug));
 }
 
@@ -116,8 +117,8 @@ pub trait RegisterDebugInfo<T: UIntLike>: RegisterLongName {
     /// correspond to indices of values returned from the [`fields`] and
     /// [`field_names`] methods.
     ///
-    /// [`field_names`]: RegisterDebugInfo::field_names
-    /// [`fields`]: RegisterDebugInfo::fields
+    /// [`field_names`]: RegisterDebugInfo::field_names [`fields`]:
+    /// RegisterDebugInfo::fields
     type FieldValueEnumTypes: FieldValueEnumSeq<T>;
 
     /// The name of the register.
