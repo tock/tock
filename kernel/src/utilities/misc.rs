@@ -55,6 +55,13 @@ create_non_zero!(create_non_zero_usize, usize);
 create_non_zero!(create_non_zero_u64, u64);
 create_non_zero!(create_non_zero_u32, u32);
 create_non_zero!(create_non_zero_u16, u16);
+create_non_zero!(create_non_zero_u8, u8);
+
+create_non_zero!(create_non_zero_isize, isize);
+create_non_zero!(create_non_zero_i64, i64);
+create_non_zero!(create_non_zero_i32, i32);
+create_non_zero!(create_non_zero_i16, i16);
+create_non_zero!(create_non_zero_i8, i8);
 
 macro_rules! impl_divide_zeroable {
     (
