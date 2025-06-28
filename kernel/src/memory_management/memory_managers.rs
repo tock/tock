@@ -157,47 +157,6 @@ impl<'a, Granule, const USING_MPU: bool> KernelMemoryManager<'a, Granule, USING_
         Ok(valid_process_configuration)
     }
 
-    /*
-    fn translate_user_prog_allocated_physical_pointer_byte<
-        const IS_MUTABLE: bool,
-        U: AlwaysAligned,
-    >(
-        &self,
-        physical_pointer: PhysicalPointer<IS_MUTABLE, U>,
-    ) -> Result<KernelVirtualPointer<IS_MUTABLE, U>, PhysicalPointer<IS_MUTABLE, U>> {
-        let configuration = self.get_configuration();
-        let prog_region = configuration.get_prog_region();
-        prog_region.translate_allocated_physical_pointer_byte(physical_pointer)
-    }
-
-    fn translate_user_ram_allocated_physical_pointer_byte<
-        const IS_MUTABLE: bool,
-        U: AlwaysAligned,
-    >(
-        &self,
-        physical_pointer: PhysicalPointer<IS_MUTABLE, U>,
-    ) -> Result<KernelVirtualPointer<IS_MUTABLE, U>, PhysicalPointer<IS_MUTABLE, U>> {
-        let configuration = self.get_configuration();
-        let ram_region = configuration.get_ram_region();
-        ram_region.translate_allocated_physical_pointer_byte(physical_pointer)
-    }
-
-    pub(crate) fn translate_user_allocated_physical_pointer_byte<
-        const IS_MUTABLE: bool,
-        U: AlwaysAligned,
-    >(
-        &self,
-        physical_pointer: PhysicalPointer<IS_MUTABLE, U>,
-    ) -> Result<KernelVirtualPointer<IS_MUTABLE, U>, PhysicalPointer<IS_MUTABLE, U>> {
-        let physical_pointer = match self.translate_user_prog_allocated_physical_pointer_byte(physical_pointer) {
-            Err(physical_pointer) => physical_pointer,
-            ok @ _ => return ok,
-        };
-
-        self.translate_user_ram_allocated_physical_pointer_byte(physical_pointer)
-    }
-    */
-
     pub(crate) fn translate_allocated_physical_pointer_byte<
         const IS_MUTABLE: bool,
         U: AlwaysAligned,

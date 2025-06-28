@@ -138,15 +138,6 @@ impl<'a, const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>
         unsafe { SmallerPair::new_unchecked(starting_pointer, ending_pointer) }
     }
 
-    /*
-    pub(super) fn consume(self) -> (Pointer<IS_VIRTUAL, IS_MUTABLE, T>, NonZero<usize>) {
-        let (downgrade_pointer, length) = self.0.consume();
-        // SAFETY: `pointer` comes from `self`
-        let upgrade_pointer = unsafe { Pointer::new(downgrade_pointer) };
-        (upgrade_pointer, length)
-    }
-    */
-
     pub(crate) fn split_at_checked(
         self,
         mid: NonZero<usize>,

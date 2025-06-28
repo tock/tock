@@ -486,12 +486,6 @@ impl<'a, const IS_USER: bool, T: Alignment> MappedProtectedAllocatedRegion<'a, I
             .get_allocated_length()
     }
 
-    /*
-    pub(crate) fn get_allocated_length_bytes(&self) -> NonZero<usize> {
-        self.as_physical_protected_allocated_region().get_allocated_length_bytes()
-    }
-    */
-
     pub const fn get_permissions(&self) -> Permissions {
         self.as_physical_protected_allocated_region()
             .get_permissions()
@@ -789,20 +783,6 @@ impl<'a, const IS_USER: bool, T: Alignment> DirtyMappedProtectedAllocatedRegion<
     ) -> &MappedProtectedAllocatedRegion<'a, IS_USER, T> {
         &self.mapped_protected_allocated_region
     }
-
-    /*
-    fn get_starting_virtual_pointer(&self) -> &MutableVirtualPointer<T> {
-        self.as_mapped_protected_allocated_region().get_starting_virtual_pointer()
-    }
-
-    fn get_starting_physical_pointer(&self) -> &MutablePhysicalPointer<T> {
-        self.as_mapped_protected_allocated_region().get_starting_physical_pointer()
-    }
-
-    fn get_allocated_length_bytes(&self) -> NonZero<usize> {
-        self.as_mapped_protected_allocated_region().get_allocated_length_bytes()
-    }
-    */
 
     pub(crate) fn is_dirty(&self) -> bool {
         self.is_dirty.get()
