@@ -4,35 +4,30 @@
 
 //! Register bitfield types and macros
 //!
-//! To conveniently access and manipulate fields of a register, this
-//! library provides types and macros to describe and access bitfields
-//! of a register. This can be especially useful in conjunction with
-//! the APIs defined in [`interfaces`](crate::interfaces), which make
-//! use of these types and hence allow to access and manipulate
-//! bitfields of proper registers directly.
+//! To conveniently access and manipulate fields of a register, this library
+//! provides types and macros to describe and access bitfields of a
+//! register. This can be especially useful in conjunction with the APIs defined
+//! in [`interfaces`](crate::interfaces), which make use of these types and
+//! hence allow to access and manipulate bitfields of proper registers directly.
 //!
-//! A specific section (bitfield) in a register is described by the
-//! [`Field`] type, consisting of an unshifted bitmask over the base
-//! register [`UIntLike`] type, and a shift
-//! parameter. It is further associated with a specific
-//! [`RegisterLongName`], which can prevent its use with incompatible
-//! registers.
+//! A specific section (bitfield) in a register is described by the [`Field`]
+//! type, consisting of an unshifted bitmask over the base register [`UIntLike`]
+//! type, and a shift parameter. It is further associated with a specific
+//! [`RegisterLongName`], which can prevent its use with incompatible registers.
 //!
-//! A value of a section of a register is described by the
-//! [`FieldValue`] type. It stores the information of the respective
-//! section in the register, as well as the associated value. A
-//! [`FieldValue`] can be created from a [`Field`] through the
-//! [`val`](Field::val) method.
+//! A value of a section of a register is described by the [`FieldValue`]
+//! type. It stores the information of the respective section in the register,
+//! as well as the associated value. A [`FieldValue`] can be created from a
+//! [`Field`] through the [`val`](Field::val) method.
 //!
 //! ## `register_bitfields` macro
 //!
-//! For defining register layouts with an associated
-//! [`RegisterLongName`], along with
-//! [`Field`]s and matching [`FieldValue`]s, a convenient macro-based
+//! For defining register layouts with an associated [`RegisterLongName`], along
+//! with [`Field`]s and matching [`FieldValue`]s, a convenient macro-based
 //! interface can be used.
 //!
-//! The following example demonstrates how two registers can be
-//! defined, over a `u32` base type:
+//! The following example demonstrates how two registers can be defined, over a
+//! `u32` base type:
 //!
 //! ```rust
 //! # use tock_registers::register_bitfields;
@@ -51,12 +46,11 @@
 //!     ],
 //! ];
 //!
-//! // In this scope, `Uart` is a module, representing the register and
-//! // its fields. `Uart::Register` is a `RegisterLongName` type
-//! // identifying this register. `Uart::ENABLE` is a field covering the
-//! // first 4 bits of this register. `Uart::ENABLE::ON` is a
-//! // `FieldValue` over that field, with the associated value 8.
-//! // We can now use the types like so:
+//! // In this scope, `Uart` is a module, representing the register and its
+//! // fields. `Uart::Register` is a `RegisterLongName` type identifying this
+//! // register. `Uart::ENABLE` is a field covering the first 4 bits of this
+//! // register. `Uart::ENABLE::ON` is a `FieldValue` over that field, with the
+//! // associated value 8. We can now use the types like so:
 //! let reg: InMemoryRegister<u32, Uart::Register> = InMemoryRegister::new(0);
 //! assert!(reg.read(Uart::ENABLE) == 0x00000000);
 //! reg.modify(Uart::ENABLE::ON);
@@ -152,10 +146,10 @@ impl<T: UIntLike, R: RegisterLongName> Field<T, R> {
     }
 }
 
-// #[derive(Copy, Clone)] won't work here because it will use
-// incorrect bounds, as a result of using a PhantomData over the
-// generic R. The PhantomData<R> implements Copy regardless of whether
-// R does, but the #[derive(Copy, Clone)] generates
+// #[derive(Copy, Clone)] won't work here because it will use incorrect bounds,
+// as a result of using a PhantomData over the generic R. The PhantomData<R>
+// implements Copy regardless of whether R does, but the #[derive(Copy, Clone)]
+// generates
 //
 //    #[automatically_derived]
 //    #[allow(unused_qualifications)]
@@ -205,8 +199,8 @@ pub struct FieldValue<T: UIntLike, R: RegisterLongName> {
 
 macro_rules! FieldValue_impl_for {
     ($type:ty) => {
-        // Necessary to split the implementation of new() out because the bitwise
-        // math isn't treated as const when the type is generic.
+        // Necessary to split the implementation of new() out because the
+        // bitwise math isn't treated as const when the type is generic.
         // Tracking issue: https://github.com/rust-lang/rfcs/pull/2632
         impl<R: RegisterLongName> FieldValue<$type, R> {
             pub const fn new(mask: $type, shift: usize, value: $type) -> Self {
@@ -218,8 +212,9 @@ macro_rules! FieldValue_impl_for {
             }
         }
 
-        // Necessary to split the implementation of From<> out because of the orphan rule
-        // for foreign trait implementation (see [E0210](https://doc.rust-lang.org/error-index.html#E0210)).
+        // Necessary to split the implementation of From<> out because of the
+        // orphan rule for foreign trait implementation (see
+        // [E0210](https://doc.rust-lang.org/error-index.html#E0210)).
         impl<R: RegisterLongName> From<FieldValue<$type, R>> for $type {
             fn from(val: FieldValue<$type, R>) -> $type {
                 val.value
@@ -262,9 +257,8 @@ impl<T: UIntLike, R: RegisterLongName> FieldValue<T, R> {
         (val & !self.mask) | self.value
     }
 
-    /// Check if any of the bits covered by the mask for this
-    /// `FieldValue` and set in the `FieldValue` are also set
-    /// in the passed value
+    /// Check if any of the bits covered by the mask for this `FieldValue` and
+    /// set in the `FieldValue` are also set in the passed value
     #[inline]
     pub fn any_matching_bits_set(&self, val: T) -> bool {
         val & self.mask & self.value != T::zero()
@@ -300,8 +294,8 @@ impl<T: UIntLike, R: RegisterLongName> AddAssign for FieldValue<T, R> {
     }
 }
 
-/// Conversion of raw register value into enumerated values member.
-/// Implemented inside register_bitfields! macro for each bit field.
+/// Conversion of raw register value into enumerated values member. Implemented
+/// inside register_bitfields! macro for each bit field.
 pub trait TryFromValue<V> {
     type EnumType;
 
@@ -374,8 +368,10 @@ macro_rules! register_bitmasks {
         $valtype:ident, $reg_desc:ident, $(#[$outer:meta])* $field:ident,
                     $offset:expr, $numbits:expr,
                     [$( $(#[$inner:meta])* $valname:ident = $value:expr ),+ $(,)?]
-    } => { // this match arm is duplicated below with an allowance for 0 elements in the valname -> value array,
-        // to separately support the case of zero-variant enums not supporting non-default
+    } => {
+        // this match arm is duplicated below with an allowance for 0 elements
+        // in the valname -> value array, to separately support the case of
+        // zero-variant enums not supporting non-default
         // representations.
         #[allow(non_upper_case_globals)]
         #[allow(unused)]
@@ -449,7 +445,9 @@ macro_rules! register_bitmasks {
         $valtype:ident, $reg_desc:ident, $(#[$outer:meta])* $field:ident,
                     $offset:expr, $numbits:expr,
                     []
-    } => { //same pattern as previous match arm, for 0 elements in array. Removes code associated with array.
+    } => {
+        // same pattern as previous match arm, for 0 elements in array. Removes
+        // code associated with array.
         #[allow(non_upper_case_globals)]
         #[allow(unused)]
         pub const $field: Field<$valtype, $reg_desc> =

@@ -4,8 +4,8 @@
 
 //! Tock Register Interface
 //!
-//! Provides efficient mechanisms to express and use type-checked
-//! memory mapped registers and bitfields.
+//! Provides efficient mechanisms to express and use type-checked memory mapped
+//! registers and bitfields.
 //!
 //! ```rust
 //! # fn main() {}
@@ -58,8 +58,8 @@
 //! - Shane Leonard <shanel@stanford.edu>
 
 #![no_std]
-// If we don't build any actual register types, we don't need unsafe
-// code in this crate
+// If we don't build any actual register types, we don't need unsafe code in
+// this crate
 #![cfg_attr(not(feature = "register_types"), forbid(unsafe_code))]
 
 pub mod fields;
@@ -79,13 +79,11 @@ use core::ops::{BitAnd, BitOr, BitOrAssign, Not, Shl, Shr};
 
 /// Trait representing the base type of registers.
 ///
-/// UIntLike defines basic properties of types required to
-/// read/write/modify a register through its methods and supertrait
-/// requirements.
+/// UIntLike defines basic properties of types required to read/write/modify a
+/// register through its methods and supertrait requirements.
 ///
-/// It features a range of default implementations for common unsigned
-/// integer types, such as [`u8`], [`u16`], [`u32`], [`u64`], [`u128`],
-/// and [`usize`].
+/// It features a range of default implementations for common unsigned integer
+/// types, such as [`u8`], [`u16`], [`u32`], [`u64`], [`u128`], and [`usize`].
 pub trait UIntLike:
     BitAnd<Output = Self>
     + BitOr<Output = Self>
@@ -98,19 +96,16 @@ pub trait UIntLike:
     + Clone
     + Debug
 {
-    /// Return the representation of the value `0` in the implementing
-    /// type.
+    /// Return the representation of the value `0` in the implementing type.
     ///
-    /// This can be used to acquire values of the [`UIntLike`] type,
-    /// even in generic implementations. For instance, to get the
-    /// value `1`, one can use `<T as UIntLike>::zero() + 1`. To get
-    /// the largest representable value, use a bitwise negation: `~(<T
-    /// as UIntLike>::zero())`.
+    /// This can be used to acquire values of the [`UIntLike`] type, even in
+    /// generic implementations. For instance, to get the value `1`, one can use
+    /// `<T as UIntLike>::zero() + 1`. To get the largest representable value,
+    /// use a bitwise negation: `~(<T as UIntLike>::zero())`.
     fn zero() -> Self;
 }
 
-// Helper macro for implementing the UIntLike trait on different
-// types.
+// Helper macro for implementing the UIntLike trait on different types.
 macro_rules! UIntLike_impl_for {
     ($type:ty) => {
         impl UIntLike for $type {
@@ -131,6 +126,6 @@ UIntLike_impl_for!(usize);
 /// Descriptive name for each register.
 pub trait RegisterLongName {}
 
-// Useful implementation for when no RegisterLongName is required
-// (e.g. no fields need to be accessed, just the raw register values)
+// Useful implementation for when no RegisterLongName is required (e.g. no
+// fields need to be accessed, just the raw register values)
 impl RegisterLongName for () {}
