@@ -9,7 +9,7 @@ Digest HIL
 **Draft-Created:** June 8, 2022<br/>
 **Draft-Modified:** June 8, 2022<br/>
 **Draft-Version:** 1<br/>
-**Draft-Discuss:** tock-dev@googlegroups.com</br>
+**Draft-Discuss:** devel@lists.tockos.org</br>
 
 Abstract
 -------------------------------
