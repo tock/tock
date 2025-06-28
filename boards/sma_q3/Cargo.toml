@@ -6,7 +6,7 @@
 name = "sma_q3"
 version.workspace = true
 authors = [
-    "Tock Project Developers <tock-dev@googlegroups.com>",
+    "Tock Project Developers <devel@lists.tockos.org>",
     "Dorota <gihu.dcz@porcupinefactory.org>"
 ]
 build = "../build.rs"

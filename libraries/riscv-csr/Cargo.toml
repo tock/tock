@@ -5,7 +5,7 @@
 [package]
 name = "riscv-csr"
 version = "0.1.0"
-authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+authors = ["Tock Project Developers <devel@lists.tockos.org>"]
 description = "RISC-V CSR interface developed for Tock."
 homepage = "https://www.tockos.org/"
 repository = "https://github.com/tock/tock/tree/master/libraries/riscv-csr"

@@ -6,7 +6,7 @@
 name = "particle_boron"
 version.workspace = true
 authors = [
-    "Tock Project Developers <tock-dev@googlegroups.com>",
+    "Tock Project Developers <devel@lists.tockos.org>",
     "Wilfred Mallawa <vindulawilfred@gmail.com>"
     ]
 build = "../build.rs"

@@ -9,7 +9,7 @@ Userspace Readable Allow System Call
 **Draft-Created:** June 17, 2021<br/>
 **Draft-Modified:** Sep 8, 2021<br/>
 **Draft-Version:** 2<br/>
-**Draft-Discuss:** tock-dev@googlegroups.com</br>
+**Draft-Discuss:** devel@lists.tockos.org</br>
 
 Abstract
 -------------------------------

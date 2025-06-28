@@ -9,7 +9,7 @@ Application Completion Codes
 **Draft-Created:** December 6, 2021<br/>
 **Draft-Modified:** January 25, 2022<br/>
 **Draft-Version:** 1<br/>
-**Draft-Discuss:** tock-dev@googlegroups.com</br>
+**Draft-Discuss:** devel@lists.tockos.org</br>
 
 Abstract
 -------------------------------
