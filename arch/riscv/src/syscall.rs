@@ -10,9 +10,7 @@ use core::ops::Range;
 
 use crate::csr::mcause;
 use kernel::errorcode::ErrorCode;
-use kernel::memory_management::pointers::{
-    ImmutableKernelVirtualPointer, ImmutableUserVirtualPointer,
-};
+use kernel::memory_management::pointers::ImmutableUserVirtualPointer;
 use kernel::syscall::ContextSwitchReason;
 
 /// This holds all of the state that the kernel must keep for the process when
@@ -151,8 +149,6 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
     unsafe fn set_syscall_return_value(
         &self,
-        _kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        _kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
         return_value: kernel::syscall::SyscallReturn,
     ) -> Result<(), ()> {
@@ -190,8 +186,6 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
     unsafe fn set_process_function(
         &self,
-        _kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        _kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &mut Riscv32iStoredState,
         callback: kernel::process::FunctionCall,
     ) -> Result<(), ()> {
@@ -220,8 +214,6 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     #[cfg(not(any(doc, all(target_arch = "riscv32", target_os = "none"))))]
     unsafe fn switch_to_process(
         &self,
-        _kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        _kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
         _state: &mut Riscv32iStoredState,
     ) -> (ContextSwitchReason, Option<ImmutableUserVirtualPointer<u8>>) {
         // Convince lint that 'mcause' and 'R_A4' are used during test build
@@ -233,8 +225,6 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     #[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
     unsafe fn switch_to_process(
         &self,
-        _kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        _kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &mut Riscv32iStoredState,
     ) -> (ContextSwitchReason, Option<ImmutableUserVirtualPointer<u8>>) {
         use core::arch::asm;
@@ -658,8 +648,6 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
     unsafe fn print_context(
         &self,
-        _accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        _app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &Riscv32iStoredState,
         writer: &mut dyn Write,
     ) {

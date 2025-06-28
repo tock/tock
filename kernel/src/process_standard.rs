@@ -1241,15 +1241,6 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
 
     fn set_syscall_return_value(&self, return_value: SyscallReturn) {
         match self.stored_state.map(|stored_state| unsafe {
-            let kernel_accessible_memory_start =
-                self.get_ram_start().as_immutable().infallible_cast();
-
-            // SAFETY: `app_memory_break` represents a valid kernel virtual pointer.
-            let kernel_app_brk = ImmutableKernelVirtualPointer::new_from_raw_byte(
-                self.app_memory_break().get() as *const u8,
-            )
-            .unwrap();
-
             // Actually set the return value for a particular process.
             //
             // The UKB implementation uses the bounds of process-accessible
@@ -1259,8 +1250,6 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             self.chip
                 .userspace_kernel_boundary()
                 .set_syscall_return_value(
-                    &kernel_accessible_memory_start,
-                    &kernel_app_brk,
                     stored_state,
                     return_value,
                 )
@@ -1299,25 +1288,12 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         // This can fail, for example if the process does not have enough memory
         // remaining.
         match self.stored_state.map(|stored_state| {
-            let kernel_accessible_memory_start =
-                self.get_ram_start().as_immutable().infallible_cast();
-
-            // SAFETY: `app_memory_break` represents a valid kernel virtual pointer.
-            let kernel_app_brk = unsafe {
-                ImmutableKernelVirtualPointer::new_from_raw_byte(
-                    self.app_memory_break().get() as *const u8
-                )
-                .unwrap()
-            };
-
             // Let the UKB implementation handle setting the process's PC so
             // that the process executes the upcall function. We encapsulate
             // unsafe here because we are guaranteeing that the memory bounds
             // passed to `set_process_function` are correct.
             unsafe {
                 self.chip.userspace_kernel_boundary().set_process_function(
-                    &kernel_accessible_memory_start,
-                    &kernel_app_brk,
                     stored_state,
                     callback,
                 )
@@ -1357,25 +1333,12 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
 
         let (switch_reason, stack_pointer) =
             self.stored_state.map_or((None, None), |stored_state| {
-                let kernel_accessible_memory_start =
-                    self.get_ram_start().as_immutable().infallible_cast();
-
-                // SAFETY: `app_memory_break` represents a valid kernel virtual pointer.
-                let kernel_app_brk = unsafe {
-                    ImmutableKernelVirtualPointer::new_from_raw_byte(
-                        self.app_memory_break().get() as *const u8
-                    )
-                    .unwrap()
-                };
-
                 // Switch to the process. We guarantee that the memory pointers
                 // we pass are valid, ensuring this context switch is safe.
                 // Therefore we encapsulate the `unsafe`.
                 unsafe {
                     let (switch_reason, optional_stack_pointer) =
                         self.chip.userspace_kernel_boundary().switch_to_process(
-                            &kernel_accessible_memory_start,
-                            &kernel_app_brk,
                             stored_state,
                         );
                     (Some(switch_reason), optional_stack_pointer)
@@ -1466,11 +1429,6 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             // correct.
             unsafe {
                 self.chip.userspace_kernel_boundary().print_context(
-                    self.get_ram_start().as_immutable().infallible_cast_ref(),
-                    &ImmutableKernelVirtualPointer::new_from_raw_byte(
-                        self.app_memory_break().get() as *const u8,
-                    )
-                    .unwrap(),
                     stored_state,
                     writer,
                 );

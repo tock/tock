@@ -16,7 +16,6 @@ use kernel::platform::KernelResources;
 use kernel::platform::SyscallDriverLookup;
 use kernel::process::ProcessArray;
 use kernel::scheduler::cooperative::CooperativeSched;
-use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::slices::NonEmptyMutableSlice;
 use kernel::{create_capability, debug, static_init};

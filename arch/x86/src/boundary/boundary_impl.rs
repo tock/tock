@@ -6,9 +6,7 @@ use core::fmt::Write;
 
 use crate::registers::bits32::eflags::{EFlags, EFLAGS};
 
-use kernel::memory_management::pointers::{
-    ImmutableKernelVirtualPointer, ImmutableUserVirtualPointer,
-};
+use kernel::memory_management::pointers::ImmutableUserVirtualPointer;
 use kernel::process::FunctionCall;
 use kernel::syscall::{ContextSwitchReason, Syscall, SyscallReturn, UserspaceKernelBoundary};
 use kernel::ErrorCode;
@@ -90,8 +88,6 @@ impl UserspaceKernelBoundary for Boundary {
 
     unsafe fn set_syscall_return_value(
         &self,
-        _user_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        _user_app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
         return_value: SyscallReturn,
     ) -> Result<(), ()> {
@@ -128,8 +124,6 @@ impl UserspaceKernelBoundary for Boundary {
 
     unsafe fn set_process_function(
         &self,
-        _user_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        _user_app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
         upcall: FunctionCall,
     ) -> Result<(), ()> {
@@ -147,8 +141,6 @@ impl UserspaceKernelBoundary for Boundary {
 
     unsafe fn switch_to_process(
         &self,
-        _user_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        _user_app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
     ) -> (ContextSwitchReason, Option<ImmutableUserVirtualPointer<u8>>) {
         // Sanity check: don't try to run a faulted app
@@ -194,8 +186,6 @@ impl UserspaceKernelBoundary for Boundary {
 
     unsafe fn print_context(
         &self,
-        _accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        _app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &Self::StoredState,
         writer: &mut dyn Write,
     ) {

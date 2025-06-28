@@ -9,13 +9,11 @@
 
 use core::fmt::Write;
 use core::marker::PhantomData;
-use core::mem::{self, size_of};
+use core::mem::size_of;
 use core::ops::Range;
 use core::ptr::{self, addr_of, addr_of_mut, read_volatile, write_volatile};
 use kernel::errorcode::ErrorCode;
-use kernel::memory_management::pointers::{
-    ImmutableKernelVirtualPointer, ImmutableUserVirtualPointer,
-};
+use kernel::memory_management::pointers::ImmutableUserVirtualPointer;
 
 use crate::CortexMVariant;
 
@@ -169,26 +167,12 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
 
     unsafe fn set_syscall_return_value(
         &self,
-        kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
         return_value: kernel::syscall::SyscallReturn,
     ) -> Result<(), ()> {
-        // On ARMv*-M architectures, user and kernel virtual pointers map 1:1.
-        let user_accessible_memory_start_address = kernel_accessible_memory_start.get_address();
-        let user_app_brk_address = kernel_app_brk.get_address();
-
         // For the Cortex-M arch, write the return values in the same
         // place that they were originally passed in (i.e. at the
         // bottom the SVC structure on the stack)
-
-        // First, we need to validate that this location is inside of the
-        // process's accessible memory. Alignment is guaranteed by hardware.
-        if state.psp < user_accessible_memory_start_address.get()
-            || state.psp.saturating_add(mem::size_of::<u32>() * 4) > user_app_brk_address.get()
-        {
-            return Err(());
-        }
 
         let sp = state.psp as *mut u32;
         let (r0, r1, r2, r3) = (sp.offset(0), sp.offset(1), sp.offset(2), sp.offset(3));
@@ -238,23 +222,9 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
     /// In effect, this converts `svc` into `bl callback`.
     unsafe fn set_process_function(
         &self,
-        kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &mut CortexMStoredState,
         callback: kernel::process::FunctionCall,
     ) -> Result<(), ()> {
-        // On ARMv*-M architectures, user and kernel virtual pointers map 1:1.
-        let user_accessible_memory_start_address = kernel_accessible_memory_start.get_address();
-        let user_app_brk_address = kernel_app_brk.get_address();
-
-        // Ensure that [`state.psp`, `state.psp + SVC_FRAME_SIZE`] is within
-        // process-accessible memory. Alignment is guaranteed by hardware.
-        if state.psp < user_accessible_memory_start_address.get()
-            || state.psp.saturating_add(SVC_FRAME_SIZE) > user_app_brk_address.get()
-        {
-            return Err(());
-        }
-
         // Notes:
         //  - Instruction addresses require `|1` to indicate thumb code
         //  - Stack offset 4 is R12, which the syscall interface ignores
@@ -272,27 +242,15 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
 
     unsafe fn switch_to_process(
         &self,
-        kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &mut CortexMStoredState,
     ) -> (
         kernel::syscall::ContextSwitchReason,
         Option<ImmutableUserVirtualPointer<u8>>,
     ) {
-        // On ARMv*-M architectures, user and kernel virtual pointers map 1:1.
-        let user_accessible_memory_start_address = kernel_accessible_memory_start.get_address();
-        let user_app_brk_address = kernel_app_brk.get_address();
-
         let new_stack_pointer = A::switch_to_user(state.psp as *const usize, &mut state.regs);
 
         // We need to keep track of the current stack pointer.
         state.psp = new_stack_pointer as usize;
-
-        // We need to validate that the stack pointer and the SVC frame are
-        // within process accessible memory. Alignment is guaranteed by
-        // hardware.
-        let invalid_stack_pointer = state.psp < user_accessible_memory_start_address.get()
-            || state.psp.saturating_add(SVC_FRAME_SIZE) > user_app_brk_address.get();
 
         // Determine why this returned and the process switched back to the
         // kernel.
@@ -308,7 +266,7 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         write_volatile(&mut *addr_of_mut!(SYSCALL_FIRED), 0);
 
         // Now decide the reason based on which flags were set.
-        let switch_reason = if app_fault == 1 || invalid_stack_pointer {
+        let switch_reason = if app_fault == 1 {
             // APP_HARD_FAULT takes priority. This means we hit the hardfault
             // handler and this process faulted.
             kernel::syscall::ContextSwitchReason::Fault
@@ -358,30 +316,16 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
 
     unsafe fn print_context(
         &self,
-        accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &CortexMStoredState,
         writer: &mut dyn Write,
     ) {
-        let accessible_memory_start_address = accessible_memory_start.get_address();
-        let app_brk_address = app_brk.get_address();
-
-        // Check if the stored stack pointer is valid. Alignment is guaranteed
-        // by hardware.
-        let invalid_stack_pointer = state.psp < accessible_memory_start_address.get()
-            || state.psp.saturating_add(SVC_FRAME_SIZE) > app_brk_address.get();
-
         let stack_pointer = state.psp as *const usize;
 
         // If we cannot use the stack pointer, generate default bad looking
         // values we can use for the printout. Otherwise, read the correct
         // values.
-        let (r0, r1, r2, r3, r12, lr, pc, xpsr) = if invalid_stack_pointer {
-            (
-                0xBAD00BAD, 0xBAD00BAD, 0xBAD00BAD, 0xBAD00BAD, 0xBAD00BAD, 0xBAD00BAD, 0xBAD00BAD,
-                0xBAD00BAD,
-            )
-        } else {
+        let (r0, r1, r2, r3, r12, lr, pc, xpsr) =
+        {
             let r0 = ptr::read(stack_pointer.offset(0));
             let r1 = ptr::read(stack_pointer.offset(1));
             let r2 = ptr::read(stack_pointer.offset(2));

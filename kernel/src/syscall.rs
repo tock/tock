@@ -70,7 +70,7 @@ use core::fmt::Write;
 
 use crate::errorcode::ErrorCode;
 use crate::memory_management::pointers::{
-    ImmutableKernelVirtualPointer, ImmutableUserNullableVirtualPointer,
+    ImmutableUserNullableVirtualPointer,
     ImmutableUserVirtualPointer, MutableUserNullableVirtualPointer,
 };
 
@@ -643,8 +643,6 @@ pub trait UserspaceKernelBoundary {
     /// pointers are valid for the process.
     unsafe fn set_syscall_return_value(
         &self,
-        user_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        user_app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
         return_value: SyscallReturn,
     ) -> Result<(), ()>;
@@ -685,8 +683,6 @@ pub trait UserspaceKernelBoundary {
     /// pointers are valid for the process.
     unsafe fn set_process_function(
         &self,
-        user_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        user_app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
         upcall: process::FunctionCall,
     ) -> Result<(), ()>;
@@ -710,8 +706,6 @@ pub trait UserspaceKernelBoundary {
     /// pointers are valid for the process.
     unsafe fn switch_to_process(
         &self,
-        user_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        user_app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
     ) -> (ContextSwitchReason, Option<ImmutableUserVirtualPointer<u8>>);
 
@@ -726,8 +720,6 @@ pub trait UserspaceKernelBoundary {
     /// pointers are valid for the process.
     unsafe fn print_context(
         &self,
-        accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
-        app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &Self::StoredState,
         writer: &mut dyn Write,
     );
