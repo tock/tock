@@ -11,6 +11,7 @@ use super::pointers::{ImmutablePointer, MutablePointer, Pointer};
 use core::marker::PhantomData;
 use core::num::NonZero;
 
+#[derive(Debug)]
 /// A non-empty slice.
 pub struct NonEmptySlice<'a, const IS_MUTABLE: bool, T: Alignment> {
     pointer: Pointer<IS_MUTABLE, T>,
@@ -98,12 +99,6 @@ impl<const IS_MUTABLE: bool, T: Alignment> NonEmptySlice<'_, IS_MUTABLE, T> {
 
         Ok((left_slice, Some(right_slice)))
     }
-
-    /*
-    pub(crate) fn consume(self) -> (Pointer<IS_MUTABLE, T>, NonZero<usize>) {
-        (self.pointer, self.length)
-    }
-    */
 }
 
 impl<'a, T: Alignment> NonEmptyMutableSlice<'a, T> {
@@ -137,5 +132,42 @@ impl<'a, T: Alignment> NonEmptyImmutableSlice<'a, T> {
         let non_empty_slice = unsafe { Self::from_raw_parts(pointer, non_zero_length) };
 
         Ok(non_empty_slice)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::utilities::misc::create_non_zero_usize;
+
+    #[test]
+    fn test_empty() {
+        let mut slice: [u8; 8] = [0, 1, 2, 3, 4, 5, 6, 7];
+
+        let result = NonEmptyImmutableSlice::new(&slice[..0]);
+        assert!(result.is_err());
+
+        let result = NonEmptyMutableSlice::new(&mut slice[..0]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_split_at() {
+        let mut slice: [u8; 8] = [0, 1, 2, 3, 4, 5, 6, 7];
+        let non_empty_slice = NonEmptyMutableSlice::new(&mut slice[..]).unwrap();
+        assert_eq!(8, non_empty_slice.get_length().get());
+
+        let (non_empty_slice, optional_leftover) = non_empty_slice.split_at_checked(create_non_zero_usize(3)).unwrap();
+        assert_eq!(3, non_empty_slice.get_length().get());
+        let leftover = optional_leftover.unwrap();
+        assert_eq!(5, leftover.get_length().get());
+
+        let leftover = leftover.split_at_checked(create_non_zero_usize(8)).unwrap_err();
+        assert_eq!(5, leftover.get_length().get());
+
+        let (non_empty_slice, optional_leftover) = leftover.split_at_checked(create_non_zero_usize(5)).unwrap();
+        assert_eq!(5, non_empty_slice.get_length().get());
+        assert!(optional_leftover.is_none());
     }
 }
