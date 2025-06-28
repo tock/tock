@@ -5,6 +5,10 @@
 //! Generic support for all Cortex-M platforms.
 
 #![no_std]
+// This feature is almost stable. There is an ongoing discussion on whether the
+// method should accept non power of two values. Tock is not concerned by this
+// discussion. It also produces better code than the manual check.
+#![feature(pointer_is_aligned_to)]
 
 use core::fmt::Write;
 

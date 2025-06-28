@@ -7,7 +7,7 @@
 //! Implementations of these traits are used by the core kernel.
 
 pub mod chip;
-pub mod mpu;
+pub mod mmu;
 pub mod scheduler_timer;
 pub mod watchdog;
 

@@ -10,7 +10,7 @@
 use core::cell::Cell;
 use core::cmp;
 use core::fmt::Write;
-use core::num::NonZeroU32;
+use core::num::{NonZero, NonZeroU32};
 use core::ptr::NonNull;
 use core::{mem, ptr, slice, str};
 
@@ -20,8 +20,23 @@ use crate::config;
 use crate::debug;
 use crate::errorcode::ErrorCode;
 use crate::kernel::Kernel;
+use crate::memory_management::configuration;
+use crate::memory_management::granules::Granule as GranuleTrait;
+use crate::memory_management::pages::Page4KiB;
+use crate::memory_management::permissions::Permissions;
+use crate::memory_management::pointers::{
+    ImmutableKernelNullableVirtualPointer, ImmutableKernelVirtualPointer,
+    ImmutableUserVirtualPointer, ImmutableVirtualPointer, MutableKernelNullableVirtualPointer,
+    MutableKernelVirtualPointer, MutablePhysicalPointer, MutableUserVirtualPointer,
+};
+use crate::memory_management::regions::{
+    AllocatedRegion, ProtectedAllocatedRegion, UserMappedProtectedAllocatedRegion,
+};
+use crate::memory_management::slices::{
+    ImmutableKernelVirtualSlice, MutableKernelVirtualSlice, MutablePhysicalSlice,
+};
 use crate::platform::chip::Chip;
-use crate::platform::mpu::{self, MPU};
+use crate::platform::mmu::MMU;
 use crate::process::BinaryVersion;
 use crate::process::ProcessBinary;
 use crate::process::{Error, FunctionCall, FunctionCallSource, Process, Task};
@@ -37,7 +52,11 @@ use crate::storage_permissions::StoragePermissions;
 use crate::syscall::{self, Syscall, SyscallReturn, UserspaceKernelBoundary};
 use crate::upcall::UpcallId;
 use crate::utilities::capability_ptr::{CapabilityPtr, CapabilityPtrPermissions};
-use crate::utilities::cells::{MapCell, NumericCellExt, OptionalCell};
+use crate::utilities::cells::{MapCell, OptionalCell};
+use crate::utilities::misc::{
+    align_down_usize, align_up_usize, ceil_non_zero_usize, ceil_usize, create_non_zero_usize,
+    divide_exact_non_zero_usize,
+};
 
 use tock_tbf::types::CommandPermissions;
 
@@ -65,21 +84,21 @@ pub trait ProcessStandardDebug: Default {
     /// recorded.
     fn get_fixed_address_ram(&self) -> Option<u32>;
     /// Record the address where the process placed its heap.
-    fn set_app_heap_start_pointer(&self, ptr: *const u8);
+    fn set_app_heap_start_pointer(&self, ptr: ImmutableUserVirtualPointer<u8>);
     /// Get the address where the process placed its heap, if it was recorded.
-    fn get_app_heap_start_pointer(&self) -> Option<*const u8>;
+    fn get_app_heap_start_pointer(&self) -> Option<ImmutableUserVirtualPointer<u8>>;
     /// Record the address where the process placed its stack.
-    fn set_app_stack_start_pointer(&self, ptr: *const u8);
+    fn set_app_stack_start_pointer(&self, ptr: ImmutableUserVirtualPointer<u8>);
     /// Get the address where the process placed its stack, if it was recorded.
-    fn get_app_stack_start_pointer(&self) -> Option<*const u8>;
+    fn get_app_stack_start_pointer(&self) -> Option<ImmutableUserVirtualPointer<u8>>;
     /// Update the lowest address that the process's stack has reached.
-    fn set_app_stack_min_pointer(&self, ptr: *const u8);
+    fn set_app_stack_min_pointer(&self, ptr: ImmutableUserVirtualPointer<u8>);
     /// Get the lowest address of the process's stack , if it was recorded.
-    fn get_app_stack_min_pointer(&self) -> Option<*const u8>;
+    fn get_app_stack_min_pointer(&self) -> Option<ImmutableUserVirtualPointer<u8>>;
     /// Provide the current address of the bottom of the stack and record the
     /// address if it is the lowest address that the process's stack has
     /// reached.
-    fn set_new_app_stack_min_pointer(&self, ptr: *const u8);
+    fn set_new_app_stack_min_pointer(&self, ptr: ImmutableUserVirtualPointer<u8>);
 
     /// Record the most recent system call the process called.
     fn set_last_syscall(&self, syscall: Syscall);
@@ -156,15 +175,15 @@ struct ProcessStandardDebugFullInner {
     fixed_address_ram: Option<u32>,
 
     /// Where the process has started its heap in RAM.
-    app_heap_start_pointer: Option<*const u8>,
+    app_heap_start_pointer: Option<ImmutableUserVirtualPointer<u8>>,
 
     /// Where the start of the stack is for the process. If the kernel does the
     /// PIC setup for this app then we know this, otherwise we need the app to
     /// tell us where it put its stack.
-    app_stack_start_pointer: Option<*const u8>,
+    app_stack_start_pointer: Option<ImmutableUserVirtualPointer<u8>>,
 
     /// How low have we ever seen the stack pointer.
-    app_stack_min_pointer: Option<*const u8>,
+    app_stack_min_pointer: Option<ImmutableUserVirtualPointer<u8>>,
 
     /// How many syscalls have occurred since the process started.
     syscall_count: usize,
@@ -194,25 +213,25 @@ impl ProcessStandardDebug for ProcessStandardDebugFull {
     fn get_fixed_address_ram(&self) -> Option<u32> {
         self.debug.map_or(None, |d| d.fixed_address_ram)
     }
-    fn set_app_heap_start_pointer(&self, ptr: *const u8) {
+    fn set_app_heap_start_pointer(&self, ptr: ImmutableUserVirtualPointer<u8>) {
         self.debug.map(|d| d.app_heap_start_pointer = Some(ptr));
     }
-    fn get_app_heap_start_pointer(&self) -> Option<*const u8> {
+    fn get_app_heap_start_pointer(&self) -> Option<ImmutableUserVirtualPointer<u8>> {
         self.debug.map_or(None, |d| d.app_heap_start_pointer)
     }
-    fn set_app_stack_start_pointer(&self, ptr: *const u8) {
+    fn set_app_stack_start_pointer(&self, ptr: ImmutableUserVirtualPointer<u8>) {
         self.debug.map(|d| d.app_stack_start_pointer = Some(ptr));
     }
-    fn get_app_stack_start_pointer(&self) -> Option<*const u8> {
+    fn get_app_stack_start_pointer(&self) -> Option<ImmutableUserVirtualPointer<u8>> {
         self.debug.map_or(None, |d| d.app_stack_start_pointer)
     }
-    fn set_app_stack_min_pointer(&self, ptr: *const u8) {
+    fn set_app_stack_min_pointer(&self, ptr: ImmutableUserVirtualPointer<u8>) {
         self.debug.map(|d| d.app_stack_min_pointer = Some(ptr));
     }
-    fn get_app_stack_min_pointer(&self) -> Option<*const u8> {
+    fn get_app_stack_min_pointer(&self) -> Option<ImmutableUserVirtualPointer<u8>> {
         self.debug.map_or(None, |d| d.app_stack_min_pointer)
     }
-    fn set_new_app_stack_min_pointer(&self, ptr: *const u8) {
+    fn set_new_app_stack_min_pointer(&self, ptr: ImmutableUserVirtualPointer<u8>) {
         self.debug.map(|d| {
             match d.app_stack_min_pointer {
                 None => d.app_stack_min_pointer = Some(ptr),
@@ -284,19 +303,19 @@ impl ProcessStandardDebug for () {
     fn get_fixed_address_ram(&self) -> Option<u32> {
         None
     }
-    fn set_app_heap_start_pointer(&self, _ptr: *const u8) {}
-    fn get_app_heap_start_pointer(&self) -> Option<*const u8> {
+    fn set_app_heap_start_pointer(&self, _ptr: ImmutableUserVirtualPointer<u8>) {}
+    fn get_app_heap_start_pointer(&self) -> Option<ImmutableUserVirtualPointer<u8>> {
         None
     }
-    fn set_app_stack_start_pointer(&self, _ptr: *const u8) {}
-    fn get_app_stack_start_pointer(&self) -> Option<*const u8> {
+    fn set_app_stack_start_pointer(&self, _ptr: ImmutableUserVirtualPointer<u8>) {}
+    fn get_app_stack_start_pointer(&self) -> Option<ImmutableUserVirtualPointer<u8>> {
         None
     }
-    fn set_app_stack_min_pointer(&self, _ptr: *const u8) {}
-    fn get_app_stack_min_pointer(&self) -> Option<*const u8> {
+    fn set_app_stack_min_pointer(&self, _ptr: ImmutableUserVirtualPointer<u8>) {}
+    fn get_app_stack_min_pointer(&self) -> Option<ImmutableUserVirtualPointer<u8>> {
         None
     }
-    fn set_new_app_stack_min_pointer(&self, _ptr: *const u8) {}
+    fn set_new_app_stack_min_pointer(&self, _ptr: ImmutableUserVirtualPointer<u8>) {}
 
     fn set_last_syscall(&self, _syscall: Syscall) {}
     fn get_last_syscall(&self) -> Option<Syscall> {
@@ -402,14 +421,6 @@ pub struct ProcessStandard<'a, C: 'static + Chip, D: 'static + ProcessStandardDe
     ///     │                                    ║ E
     ///  ╚═ ╘════════ ← memory_start            ═╝
     /// ```
-    ///
-    /// The start of process memory. We store this as a pointer and length and
-    /// not a slice due to Rust aliasing rules. If we were to store a slice,
-    /// then any time another slice to the same memory or an ProcessBuffer is
-    /// used in the kernel would be undefined behavior.
-    memory_start: *const u8,
-    /// Number of bytes of memory allocated to this process.
-    memory_len: usize,
 
     /// Reference to the slice of `GrantPointerEntry`s stored in the process's
     /// memory reserved for the kernel. These driver numbers are zero and
@@ -420,23 +431,21 @@ pub struct ProcessStandard<'a, C: 'static + Chip, D: 'static + ProcessStandardDe
     /// kernel.
     grant_pointers: MapCell<&'static mut [GrantPointerEntry]>,
 
-    /// Pointer to the end of the allocated (and MPU protected) grant region.
-    kernel_memory_break: Cell<*const u8>,
+    /// Address to the end of the allocated (and MMU protected) grant region.
+    kernel_memory_break: Cell<NonZero<usize>>,
 
-    /// Pointer to the end of process RAM that has been sbrk'd to the process.
-    app_break: Cell<*const u8>,
+    /// Address to the end of process RAM that has been sbrk'd to the process.
+    app_break: Cell<NonZero<usize>>,
 
-    /// Pointer to high water mark for process buffers shared through `allow`
-    allow_high_water_mark: Cell<*const u8>,
+    /// Address to high water mark for process buffers shared through `allow`
+    allow_high_water_mark: Cell<NonZero<usize>>,
 
     /// Process flash segment. This is the region of nonvolatile flash that
     /// the process occupies.
-    flash: &'static [u8],
+    flash: ImmutableKernelVirtualSlice<'static, u8>,
 
-    /// The footers of the process binary (may be zero-sized), which are metadata
-    /// about the process not covered by integrity. Used, among other things, to
-    /// store signatures.
-    footers: &'static [u8],
+    /// Process RAM segment
+    ram: MutableKernelVirtualSlice<'static, u8>,
 
     /// Collection of pointers to the TBF header in flash.
     header: tock_tbf::types::TbfHeader<'static>,
@@ -465,13 +474,9 @@ pub struct ProcessStandard<'a, C: 'static + Chip, D: 'static + ProcessStandardDe
     fault_policy: &'a dyn ProcessFaultPolicy,
 
     /// Storage permissions for this process.
-    storage_permissions: StoragePermissions,
+    storage_permissions: OptionalCell<StoragePermissions>,
 
-    /// Configuration data for the MPU
-    mpu_config: MapCell<<<C as Chip>::MPU as MPU>::MpuConfig>,
-
-    /// MPU regions are saved as a pointer-size pair.
-    mpu_regions: [Cell<Option<mpu::Region>>; 6],
+    memory_configuration: configuration::ValidProcessConfiguration<'a, Page4KiB>,
 
     /// Essentially a list of upcalls that want to call functions in the
     /// process.
@@ -747,7 +752,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
     }
 
     fn get_storage_permissions(&self) -> StoragePermissions {
-        self.storage_permissions
+        // This is set during ProcessStandard::create()
+        self.storage_permissions.get().unwrap()
     }
 
     fn number_writeable_flash_regions(&self) -> usize {
@@ -758,8 +764,9 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         self.header.get_writeable_flash_region(region_index)
     }
 
-    fn update_stack_start_pointer(&self, stack_pointer: *const u8) {
-        if stack_pointer >= self.mem_start() && stack_pointer < self.mem_end() {
+    fn update_stack_start_pointer(&self, stack_pointer: ImmutableUserVirtualPointer<u8>) {
+        let ram_region = self.get_ram_region();
+        if ram_region.is_containing_protected_virtual_byte(&stack_pointer) {
             self.debug.set_app_stack_start_pointer(stack_pointer);
             // We also reset the minimum stack pointer because whatever
             // value we had could be entirely wrong by now.
@@ -767,62 +774,15 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         }
     }
 
-    fn update_heap_start_pointer(&self, heap_pointer: *const u8) {
-        if heap_pointer >= self.mem_start() && heap_pointer < self.mem_end() {
+    fn update_heap_start_pointer(&self, heap_pointer: ImmutableUserVirtualPointer<u8>) {
+        let ram_region = self.get_ram_region();
+        if ram_region.is_containing_protected_virtual_byte(&heap_pointer) {
             self.debug.set_app_heap_start_pointer(heap_pointer);
         }
     }
 
-    fn setup_mpu(&self) {
-        self.mpu_config.map(|config| {
-            self.chip.mpu().configure_mpu(config);
-        });
-    }
-
-    fn add_mpu_region(
-        &self,
-        unallocated_memory_start: *const u8,
-        unallocated_memory_size: usize,
-        min_region_size: usize,
-    ) -> Option<mpu::Region> {
-        self.mpu_config.and_then(|config| {
-            let new_region = self.chip.mpu().allocate_region(
-                unallocated_memory_start,
-                unallocated_memory_size,
-                min_region_size,
-                mpu::Permissions::ReadWriteOnly,
-                config,
-            )?;
-
-            for region in self.mpu_regions.iter() {
-                if region.get().is_none() {
-                    region.set(Some(new_region));
-                    return Some(new_region);
-                }
-            }
-
-            // Not enough room in Process struct to store the MPU region.
-            None
-        })
-    }
-
-    fn remove_mpu_region(&self, region: mpu::Region) -> Result<(), ErrorCode> {
-        self.mpu_config.map_or(Err(ErrorCode::INVAL), |config| {
-            // Find the existing mpu region that we are removing; it needs to match exactly.
-            if let Some(internal_region) = self.mpu_regions.iter().find(|r| r.get() == Some(region))
-            {
-                self.chip
-                    .mpu()
-                    .remove_memory_region(region, config)
-                    .or(Err(ErrorCode::FAIL))?;
-
-                // Remove this region from the tracking cache of mpu_regions
-                internal_region.set(None);
-                Ok(())
-            } else {
-                Err(ErrorCode::INVAL)
-            }
-        })
+    fn get_memory_configuration(&self) -> &configuration::ValidProcessConfiguration<Page4KiB> {
+        &self.memory_configuration
     }
 
     fn sbrk(&self, increment: isize) -> Result<CapabilityPtr, Error> {
@@ -831,52 +791,37 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             return Err(Error::InactiveApp);
         }
 
-        let new_break = self.app_break.get().wrapping_offset(increment);
-        self.brk(new_break)
+        let app_break = self.app_memory_break().get() as isize;
+        let new_break_address = app_break.checked_add(increment).unwrap() as usize;
+        let new_break = unsafe {
+            ImmutableKernelVirtualPointer::new_from_raw_byte(new_break_address as *const u8)
+        }
+        .unwrap();
+        self.internal_brk(new_break)
     }
 
-    fn brk(&self, new_break: *const u8) -> Result<CapabilityPtr, Error> {
+    fn brk(&self, new_break: ImmutableUserVirtualPointer<u8>) -> Result<CapabilityPtr, Error> {
         // Do not modify an inactive process.
         if !self.is_running() {
             return Err(Error::InactiveApp);
         }
 
-        self.mpu_config.map_or(Err(Error::KernelError), |config| {
-            if new_break < self.allow_high_water_mark.get() || new_break >= self.mem_end() {
-                Err(Error::AddressOutOfBounds)
-            } else if new_break > self.kernel_memory_break.get() {
-                Err(Error::OutOfMemory)
-            } else if let Err(()) = self.chip.mpu().update_app_memory_region(
-                new_break,
-                self.kernel_memory_break.get(),
-                mpu::Permissions::ReadWriteOnly,
-                config,
-            ) {
-                Err(Error::OutOfMemory)
-            } else {
-                let old_break = self.app_break.get();
-                self.app_break.set(new_break);
-                self.chip.mpu().configure_mpu(config);
+        let memory_configuration = self.get_memory_configuration();
+        let kernel_new_break = match self
+            .kernel
+            .internal_translate_user_allocated_virtual_pointer_byte(memory_configuration, new_break)
+        {
+            Err(_new_break) => return Err(Error::AddressOutOfBounds),
+            Ok(kernel_new_break) => kernel_new_break,
+        };
 
-                let base = self.mem_start() as usize;
-                let break_result = unsafe {
-                    CapabilityPtr::new_with_authority(
-                        old_break as *const (),
-                        base,
-                        (new_break as usize) - base,
-                        CapabilityPtrPermissions::ReadWrite,
-                    )
-                };
-
-                Ok(break_result)
-            }
-        })
+        self.internal_brk(kernel_new_break)
     }
 
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
     fn build_readwrite_process_buffer(
         &self,
-        buf_start_addr: *mut u8,
+        buf_start_addr: MutableKernelNullableVirtualPointer<u8>,
         size: usize,
     ) -> Result<ReadWriteProcessBuffer, ErrorCode> {
         if !self.is_running() {
@@ -884,35 +829,48 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             return Err(ErrorCode::FAIL);
         }
 
-        // A process is allowed to pass any pointer if the buffer length is 0,
-        // as to revoke kernel access to a memory region without granting access
-        // to another one
-        if size == 0 {
-            // Clippy complains that we're dereferencing a pointer in a public
-            // and safe function here. While we are not dereferencing the
-            // pointer here, we pass it along to an unsafe function, which is as
-            // dangerous (as it is likely to be dereferenced down the line).
-            //
-            // Relevant discussion:
-            // https://github.com/rust-lang/rust-clippy/issues/3045
-            //
-            // It should be fine to ignore the lint here, as a buffer of length
-            // 0 will never allow dereferencing any memory in a safe manner.
-            //
-            // ### Safety
-            //
-            // We specify a zero-length buffer, so the implementation of
-            // `ReadWriteProcessBuffer` will handle any safety issues.
-            // Therefore, we can encapsulate the unsafe.
-            Ok(unsafe { ReadWriteProcessBuffer::new(buf_start_addr, 0, self.processid()) })
-        } else if self.in_app_owned_memory(buf_start_addr, size) {
+        let non_zero_size = match NonZero::new(size) {
+            // A process is allowed to pass any pointer if the buffer length is 0,
+            // as to revoke kernel access to a memory region without granting access
+            // to another one
+            None => {
+                // Clippy complains that we're dereferencing a pointer in a public
+                // and safe function here. While we are not dereferencing the
+                // pointer here, we pass it along to an unsafe function, which is as
+                // dangerous (as it is likely to be dereferenced down the line).
+                //
+                // Relevant discussion:
+                // https://github.com/rust-lang/rust-clippy/issues/3045
+                //
+                // It should be fine to ignore the lint here, as a buffer of length
+                // 0 will never allow dereferencing any memory in a safe manner.
+                //
+                // ### Safety
+                //
+                // We specify a zero-length buffer, so the implementation of
+                // `ReadWriteProcessBuffer` will handle any safety issues.
+                // Therefore, we can encapsulate the unsafe.
+                return Ok(unsafe {
+                    ReadWriteProcessBuffer::new(buf_start_addr, 0, self.processid())
+                });
+            }
+            Some(non_zero_size) => non_zero_size,
+        };
+
+        let buf_start_addr = match buf_start_addr {
+            MutableKernelNullableVirtualPointer::Null => return Err(ErrorCode::INVAL),
+            MutableKernelNullableVirtualPointer::NonNull(buf_start_addr) => buf_start_addr,
+        };
+
+        if self.in_app_owned_memory(buf_start_addr.as_immutable(), non_zero_size) {
             // TODO: Check for buffer aliasing here
 
             // Valid buffer, we need to adjust the app's watermark
-            // note: `in_app_owned_memory` ensures this offset does not wrap
-            let buf_end_addr = buf_start_addr.wrapping_add(size);
-            let new_water_mark = cmp::max(self.allow_high_water_mark.get(), buf_end_addr);
-            self.allow_high_water_mark.set(new_water_mark);
+            // PANIC: `in_app_owned_memory` ensures this offset does not wrap
+            let buf_end_addr = buf_start_addr.checked_add(non_zero_size).unwrap();
+            let new_water_mark_address =
+                cmp::max(self.allow_high_water_mark.get(), buf_end_addr.get_address());
+            self.allow_high_water_mark.set(new_water_mark_address);
 
             // Clippy complains that we're dereferencing a pointer in a public
             // and safe function here. While we are not dereferencing the
@@ -933,7 +891,13 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             // We encapsulate the unsafe here on the condition in the TODO
             // above, as we must ensure that this `ReadWriteProcessBuffer` will
             // be the only reference to this memory.
-            Ok(unsafe { ReadWriteProcessBuffer::new(buf_start_addr, size, self.processid()) })
+            Ok(unsafe {
+                ReadWriteProcessBuffer::new(
+                    MutableKernelNullableVirtualPointer::NonNull(buf_start_addr),
+                    size,
+                    self.processid(),
+                )
+            })
         } else {
             Err(ErrorCode::INVAL)
         }
@@ -942,7 +906,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
     fn build_readonly_process_buffer(
         &self,
-        buf_start_addr: *const u8,
+        buf_start_addr: ImmutableKernelNullableVirtualPointer<u8>,
         size: usize,
     ) -> Result<ReadOnlyProcessBuffer, ErrorCode> {
         if !self.is_running() {
@@ -950,39 +914,52 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             return Err(ErrorCode::FAIL);
         }
 
-        // A process is allowed to pass any pointer if the buffer length is 0,
-        // as to revoke kernel access to a memory region without granting access
-        // to another one
-        if size == 0 {
-            // Clippy complains that we're dereferencing a pointer in a public
-            // and safe function here. While we are not dereferencing the
-            // pointer here, we pass it along to an unsafe function, which is as
-            // dangerous (as it is likely to be dereferenced down the line).
-            //
-            // Relevant discussion:
-            // https://github.com/rust-lang/rust-clippy/issues/3045
-            //
-            // It should be fine to ignore the lint here, as a buffer of length
-            // 0 will never allow dereferencing any memory in a safe manner.
-            //
-            // ### Safety
-            //
-            // We specify a zero-length buffer, so the implementation of
-            // `ReadOnlyProcessBuffer` will handle any safety issues. Therefore,
-            // we can encapsulate the unsafe.
-            Ok(unsafe { ReadOnlyProcessBuffer::new(buf_start_addr, 0, self.processid()) })
-        } else if self.in_app_owned_memory(buf_start_addr, size)
-            || self.in_app_flash_memory(buf_start_addr, size)
+        let non_zero_size = match NonZero::new(size) {
+            // A process is allowed to pass any pointer if the buffer length is 0,
+            // as to revoke kernel access to a memory region without granting access
+            // to another one
+            None => {
+                // Clippy complains that we're dereferencing a pointer in a public
+                // and safe function here. While we are not dereferencing the
+                // pointer here, we pass it along to an unsafe function, which is as
+                // dangerous (as it is likely to be dereferenced down the line).
+                //
+                // Relevant discussion:
+                // https://github.com/rust-lang/rust-clippy/issues/3045
+                //
+                // It should be fine to ignore the lint here, as a buffer of length
+                // 0 will never allow dereferencing any memory in a safe manner.
+                //
+                // ### Safety
+                //
+                // We specify a zero-length buffer, so the implementation of
+                // `ReadOnlyProcessBuffer` will handle any safety issues. Therefore,
+                // we can encapsulate the unsafe.
+                return Ok(unsafe {
+                    ReadOnlyProcessBuffer::new(buf_start_addr, 0, self.processid())
+                });
+            }
+            Some(non_zero_size) => non_zero_size,
+        };
+
+        let buf_start_addr = match buf_start_addr {
+            ImmutableKernelNullableVirtualPointer::Null => return Err(ErrorCode::INVAL),
+            ImmutableKernelNullableVirtualPointer::NonNull(buf_start_addr) => buf_start_addr,
+        };
+
+        if self.in_app_owned_memory(&buf_start_addr, non_zero_size)
+            || self.in_app_flash_memory(&buf_start_addr, non_zero_size)
         {
             // TODO: Check for buffer aliasing here
 
-            if self.in_app_owned_memory(buf_start_addr, size) {
+            if self.in_app_owned_memory(&buf_start_addr, non_zero_size) {
                 // Valid buffer, and since this is in read-write memory (i.e.
                 // not flash), we need to adjust the process's watermark. Note:
                 // `in_app_owned_memory()` ensures this offset does not wrap.
-                let buf_end_addr = buf_start_addr.wrapping_add(size);
-                let new_water_mark = cmp::max(self.allow_high_water_mark.get(), buf_end_addr);
-                self.allow_high_water_mark.set(new_water_mark);
+                let buf_end_addr = buf_start_addr.checked_add(non_zero_size).unwrap();
+                let new_water_mark_address =
+                    cmp::max(self.allow_high_water_mark.get(), buf_end_addr.get_address());
+                self.allow_high_water_mark.set(new_water_mark_address);
             }
 
             // Clippy complains that we're dereferencing a pointer in a public
@@ -1004,18 +981,24 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             // We encapsulate the unsafe here on the condition in the TODO
             // above, as we must ensure that this `ReadOnlyProcessBuffer` will
             // be the only reference to this memory.
-            Ok(unsafe { ReadOnlyProcessBuffer::new(buf_start_addr, size, self.processid()) })
+            Ok(unsafe {
+                ReadOnlyProcessBuffer::new(
+                    ImmutableKernelNullableVirtualPointer::NonNull(buf_start_addr),
+                    size,
+                    self.processid(),
+                )
+            })
         } else {
             Err(ErrorCode::INVAL)
         }
     }
 
-    unsafe fn set_byte(&self, addr: *mut u8, value: u8) -> bool {
-        if self.in_app_owned_memory(addr, 1) {
+    unsafe fn set_byte(&self, mut addr: MutableKernelVirtualPointer<u8>, value: u8) -> bool {
+        if self.in_app_owned_memory(addr.as_immutable(), create_non_zero_usize(1)) {
             // We verify that this will only write process-accessible memory,
             // but this can still be undefined behavior if something else holds
             // a reference to this memory.
-            *addr = value;
+            addr.write(value);
             true
         } else {
             false
@@ -1238,12 +1221,14 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             })
     }
 
-    fn is_valid_upcall_function_pointer(&self, upcall_fn: *const ()) -> bool {
-        let ptr = upcall_fn as *const u8;
-        let size = mem::size_of::<*const u8>();
+    fn is_valid_upcall_function_pointer(
+        &self,
+        upcall_fn: ImmutableKernelVirtualPointer<u8>,
+    ) -> bool {
+        const SIZE: NonZero<usize> = create_non_zero_usize(mem::size_of::<*const u8>());
 
         // It is okay if this function is in memory or flash.
-        self.in_app_flash_memory(ptr, size) || self.in_app_owned_memory(ptr, size)
+        self.in_app_flash_memory(&upcall_fn, SIZE) || self.in_app_owned_memory(&upcall_fn, SIZE)
     }
 
     fn get_process_name(&self) -> &'static str {
@@ -1256,6 +1241,15 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
 
     fn set_syscall_return_value(&self, return_value: SyscallReturn) {
         match self.stored_state.map(|stored_state| unsafe {
+            let kernel_accessible_memory_start =
+                self.get_ram_start().as_immutable().infallible_cast();
+
+            // SAFETY: `app_memory_break` represents a valid kernel virtual pointer.
+            let kernel_app_brk = ImmutableKernelVirtualPointer::new_from_raw_byte(
+                self.app_memory_break().get() as *const u8,
+            )
+            .unwrap();
+
             // Actually set the return value for a particular process.
             //
             // The UKB implementation uses the bounds of process-accessible
@@ -1265,8 +1259,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             self.chip
                 .userspace_kernel_boundary()
                 .set_syscall_return_value(
-                    self.mem_start(),
-                    self.app_break.get(),
+                    &kernel_accessible_memory_start,
+                    &kernel_app_brk,
                     stored_state,
                     return_value,
                 )
@@ -1305,14 +1299,25 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         // This can fail, for example if the process does not have enough memory
         // remaining.
         match self.stored_state.map(|stored_state| {
+            let kernel_accessible_memory_start =
+                self.get_ram_start().as_immutable().infallible_cast();
+
+            // SAFETY: `app_memory_break` represents a valid kernel virtual pointer.
+            let kernel_app_brk = unsafe {
+                ImmutableKernelVirtualPointer::new_from_raw_byte(
+                    self.app_memory_break().get() as *const u8
+                )
+                .unwrap()
+            };
+
             // Let the UKB implementation handle setting the process's PC so
             // that the process executes the upcall function. We encapsulate
             // unsafe here because we are guaranteeing that the memory bounds
             // passed to `set_process_function` are correct.
             unsafe {
                 self.chip.userspace_kernel_boundary().set_process_function(
-                    self.mem_start(),
-                    self.app_break.get(),
+                    &kernel_accessible_memory_start,
+                    &kernel_app_brk,
                     stored_state,
                     callback,
                 )
@@ -1352,14 +1357,27 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
 
         let (switch_reason, stack_pointer) =
             self.stored_state.map_or((None, None), |stored_state| {
+                let kernel_accessible_memory_start =
+                    self.get_ram_start().as_immutable().infallible_cast();
+
+                // SAFETY: `app_memory_break` represents a valid kernel virtual pointer.
+                let kernel_app_brk = unsafe {
+                    ImmutableKernelVirtualPointer::new_from_raw_byte(
+                        self.app_memory_break().get() as *const u8
+                    )
+                    .unwrap()
+                };
+
                 // Switch to the process. We guarantee that the memory pointers
                 // we pass are valid, ensuring this context switch is safe.
                 // Therefore we encapsulate the `unsafe`.
                 unsafe {
-                    let (switch_reason, optional_stack_pointer) = self
-                        .chip
-                        .userspace_kernel_boundary()
-                        .switch_to_process(self.mem_start(), self.app_break.get(), stored_state);
+                    let (switch_reason, optional_stack_pointer) =
+                        self.chip.userspace_kernel_boundary().switch_to_process(
+                            &kernel_accessible_memory_start,
+                            &kernel_app_brk,
+                            stored_state,
+                        );
                     (Some(switch_reason), optional_stack_pointer)
                 }
             });
@@ -1400,19 +1418,32 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
 
     fn get_addresses(&self) -> ProcessAddresses {
         ProcessAddresses {
-            flash_start: self.flash_start() as usize,
-            flash_non_protected_start: self.flash_non_protected_start() as usize,
-            flash_integrity_end: ((self.flash.as_ptr() as usize)
-                + (self.header.get_binary_end() as usize))
-                as *const u8,
-            flash_end: self.flash_end() as usize,
-            sram_start: self.mem_start() as usize,
-            sram_app_brk: self.app_memory_break() as usize,
-            sram_grant_start: self.kernel_memory_break() as usize,
-            sram_end: self.mem_end() as usize,
-            sram_heap_start: self.debug.get_app_heap_start_pointer().map(|p| p as usize),
-            sram_stack_top: self.debug.get_app_stack_start_pointer().map(|p| p as usize),
-            sram_stack_bottom: self.debug.get_app_stack_min_pointer().map(|p| p as usize),
+            flash_start: self.flash_start().get_address().get(),
+            flash_non_protected_start: self.flash_non_protected_start().get_address().get(),
+            flash_integrity_end: self
+                .flash
+                .get_starting_pointer()
+                .checked_add(NonZero::new(self.header.get_binary_end() as usize).unwrap())
+                .unwrap()
+                .get_address()
+                .get(),
+            flash_end: self.flash_end().get_address().get(),
+            sram_start: self.get_ram_start().get_address().get(),
+            sram_app_brk: self.app_memory_break().get(),
+            sram_grant_start: self.kernel_memory_break().get(),
+            sram_end: self.get_ram_end().get_address().get(),
+            sram_heap_start: self
+                .debug
+                .get_app_heap_start_pointer()
+                .map(|p| p.get_address().get()),
+            sram_stack_top: self
+                .debug
+                .get_app_stack_start_pointer()
+                .map(|p| p.get_address().get()),
+            sram_stack_bottom: self
+                .debug
+                .get_app_stack_min_pointer()
+                .map(|p| p.get_address().get()),
         }
     }
 
@@ -1435,8 +1466,11 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             // correct.
             unsafe {
                 self.chip.userspace_kernel_boundary().print_context(
-                    self.mem_start(),
-                    self.app_break.get(),
+                    self.get_ram_start().as_immutable().infallible_cast_ref(),
+                    &ImmutableKernelVirtualPointer::new_from_raw_byte(
+                        self.app_memory_break().get() as *const u8,
+                    )
+                    .unwrap(),
                     stored_state,
                     writer,
                 );
@@ -1481,9 +1515,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         });
 
         // Display the current state of the MPU for this process.
-        self.mpu_config.map(|config| {
-            let _ = writer.write_fmt(format_args!("{}", config));
-        });
+        // NOTE: The caller's signature does not allow reporting any errors, so ignore them
+        let _ = writer.write_fmt(format_args!("{}\n", self.get_memory_configuration()));
 
         // Print a helpful message on how to re-compile a process to view the
         // listing file. If a process is PIC, then we also need to print the
@@ -1502,8 +1535,8 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             ));
         } else {
             // PIC, need to specify the addresses.
-            let sram_start = self.mem_start() as usize;
-            let flash_start = self.flash.as_ptr() as usize;
+            let sram_start = self.get_ram_start().get_address();
+            let flash_start = self.flash.get_starting_pointer().get_address().get();
             let flash_init_fn = flash_start + self.header.get_init_function_offset() as usize;
 
             let _ = writer.write_fmt(format_args!(
@@ -1536,48 +1569,71 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
     const PROCESS_STRUCT_OFFSET: usize = mem::size_of::<ProcessStandard<C, D>>();
 
     /// Create a `ProcessStandard` object based on the found `ProcessBinary`.
-    pub(crate) unsafe fn create<'a>(
+    pub(crate) unsafe fn create(
         kernel: &'static Kernel,
         chip: &'static C,
         pb: ProcessBinary,
-        remaining_memory: &'a mut [u8],
         fault_policy: &'static dyn ProcessFaultPolicy,
         storage_permissions_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C, D>,
         app_id: ShortId,
         index: usize,
-    ) -> Result<(Option<&'static dyn Process>, &'a mut [u8]), (ProcessLoadError, &'a mut [u8])>
-    {
+    ) -> Result<Option<&'static dyn Process>, ProcessLoadError> {
+        let process_memory_manager = kernel.get_process_memory_manager();
+
         let process_name = pb.header.get_package_name();
         let process_ram_requested_size = pb.header.get_minimum_app_ram_size() as usize;
 
-        // Initialize MPU region configuration.
-        let mut mpu_config = match chip.mpu().new_config() {
-            Some(mpu_config) => mpu_config,
-            None => return Err((ProcessLoadError::MpuConfigurationError, remaining_memory)),
+        /****************/
+        /* FLASH MEMORY */
+        /****************/
+
+        // Allocate region
+        let flash_start_address = pb.flash.as_ptr();
+        // PANIC: TODO: Return an error instead of panicking.
+        let app_flash_physical_starting_pointer =
+            MutablePhysicalPointer::new_raw(flash_start_address as *mut Page4KiB).unwrap();
+        let flat_app_flash_virtual_starting_pointer =
+            app_flash_physical_starting_pointer.to_valid_virtual_pointer();
+        let app_flash_length_bytes = match NonZero::new(pb.flash.len()) {
+            None => todo!("Return error"),
+            Some(app_flash_length) => app_flash_length,
+        };
+        let app_flash_length_granules =
+            divide_exact_non_zero_usize(app_flash_length_bytes, Page4KiB::SIZE_U8);
+        let app_flash_slice = MutablePhysicalSlice::from_raw_parts(
+            app_flash_physical_starting_pointer,
+            app_flash_length_granules,
+        );
+
+        let app_flash_allocated_region = AllocatedRegion::new(app_flash_slice);
+
+        // Associate permissions
+        let protected_app_flash_region = match ProtectedAllocatedRegion::new(
+            app_flash_allocated_region,
+            app_flash_length_granules,
+            Permissions::ReadExecute,
+        ) {
+            Err(()) => todo!("Return error"),
+            Ok(protected_app_flash_region) => protected_app_flash_region,
         };
 
-        // Allocate MPU region for flash.
-        if chip
-            .mpu()
-            .allocate_region(
-                pb.flash.as_ptr(),
-                pb.flash.len(),
-                pb.flash.len(),
-                mpu::Permissions::ReadExecuteOnly,
-                &mut mpu_config,
-            )
-            .is_none()
-        {
-            if config::CONFIG.debug_load_processes {
-                debug!(
-                        "[!] flash={:#010X}-{:#010X} process={:?} - couldn't allocate MPU region for flash",
-                        pb.flash.as_ptr() as usize,
-                        pb.flash.as_ptr() as usize + pb.flash.len() - 1,
-                        process_name
-                    );
+        let app_flash_virtual_starting_pointer = match pb.header.get_fixed_address_flash() {
+            None => flat_app_flash_virtual_starting_pointer,
+            Some(fixed_address) => {
+                // CAST: size_of::<usize>() >= size_of::<u32>() on 32 and 64-bit platforms
+                let raw_aligned_pointer =
+                    align_down_usize(fixed_address as usize, Page4KiB::SIZE_U8) as *mut _;
+                // TODO: return error instead of panicking
+                MutableUserVirtualPointer::new_from_raw(raw_aligned_pointer).unwrap()
             }
-            return Err((ProcessLoadError::MpuInvalidFlashLength, remaining_memory));
-        }
+        };
+
+        let mapped_app_flash_region = UserMappedProtectedAllocatedRegion::new_from_protected(
+            protected_app_flash_region,
+            app_flash_virtual_starting_pointer,
+            // TODO: Don't panic
+        )
+        .unwrap();
 
         // Determine how much space we need in the application's memory space
         // just for kernel and grant state. We need to make sure we allocate
@@ -1628,120 +1684,78 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         let min_process_ram_size = cmp::max(process_ram_requested_size, min_process_memory_size);
 
         // Minimum memory size for the process.
-        let min_total_memory_size = min_process_ram_size + initial_kernel_memory_size;
+        let optional_min_total_memory_size =
+            NonZero::new(min_process_ram_size + initial_kernel_memory_size);
 
-        // Check if this process requires a fixed memory start address. If so,
-        // try to adjust the memory region to work for this process.
-        //
-        // Right now, we only support skipping some RAM and leaving a chunk
-        // unused so that the memory region starts where the process needs it
-        // to.
-        let remaining_memory = if let Some(fixed_memory_start) = pb.header.get_fixed_address_ram() {
-            // The process does have a fixed address.
-            if fixed_memory_start == remaining_memory.as_ptr() as u32 {
-                // Address already matches.
-                remaining_memory
-            } else if fixed_memory_start > remaining_memory.as_ptr() as u32 {
-                // Process wants a memory address farther in memory. Try to
-                // advance the memory region to make the address match.
-                let diff = (fixed_memory_start - remaining_memory.as_ptr() as u32) as usize;
-                if diff > remaining_memory.len() {
-                    // We ran out of memory.
-                    let actual_address =
-                        remaining_memory.as_ptr() as u32 + remaining_memory.len() as u32 - 1;
-                    let expected_address = fixed_memory_start;
-                    return Err((
-                        ProcessLoadError::MemoryAddressMismatch {
-                            actual_address,
-                            expected_address,
-                        },
-                        remaining_memory,
-                    ));
-                } else {
-                    // Change the memory range to start where the process
-                    // requested it. Because of the if statement above we know this should
-                    // work. Doing it more cleanly would be good but was a bit beyond my borrow
-                    // ken; calling get_mut has a mutable borrow.-pal
-                    &mut remaining_memory[diff..]
-                }
-            } else {
-                // Address is earlier in memory, nothing we can do.
-                let actual_address = remaining_memory.as_ptr() as u32;
-                let expected_address = fixed_memory_start;
-                return Err((
-                    ProcessLoadError::MemoryAddressMismatch {
-                        actual_address,
-                        expected_address,
-                    },
-                    remaining_memory,
-                ));
-            }
-        } else {
-            remaining_memory
+        let min_total_memory_size = match optional_min_total_memory_size {
+            None => todo!("Return error"),
+            Some(min_total_memory_size) => min_total_memory_size,
         };
 
-        // Determine where process memory will go and allocate an MPU region.
-        //
-        // `[allocation_start, allocation_size)` will cover both
-        //
-        // - the app-owned `min_process_memory_size`-long part of memory (at
-        //   some offset within `remaining_memory`), as well as
-        //
-        // - the kernel-owned allocation growing downward starting at the end
-        //   of this allocation, `initial_kernel_memory_size` bytes long.
-        //
-        let (allocation_start, allocation_size) = match chip.mpu().allocate_app_memory_region(
-            remaining_memory.as_ptr(),
-            remaining_memory.len(),
-            min_total_memory_size,
-            min_process_memory_size,
-            initial_kernel_memory_size,
-            mpu::Permissions::ReadWriteOnly,
-            &mut mpu_config,
-        ) {
-            Some((memory_start, memory_size)) => (memory_start, memory_size),
-            None => {
-                // Failed to load process. Insufficient memory.
-                if config::CONFIG.debug_load_processes {
-                    debug!(
-                            "[!] flash={:#010X}-{:#010X} process={:?} - couldn't allocate memory region of size >= {:#X}",
-                            pb.flash.as_ptr() as usize,
-                            pb.flash.as_ptr() as usize + pb.flash.len() - 1,
-                            process_name,
-                            min_total_memory_size
-                        );
-                }
-                return Err((ProcessLoadError::NotEnoughMemory, remaining_memory));
+        /*******/
+        /* RAM */
+        /*******/
+
+        let allocation_granule_count =
+            ceil_non_zero_usize(min_total_memory_size, Page4KiB::SIZE_U8);
+        // Allocate region
+        let ram_allocated_region = match process_memory_manager.allocate(allocation_granule_count) {
+            Err(()) => todo!("Return error"),
+            Ok(ram_allocated_region) => ram_allocated_region,
+        };
+        let allocation_size_bytes = ram_allocated_region.get_length_bytes();
+        let protected_granule_count = ceil_usize(min_process_memory_size, Page4KiB::SIZE_U8);
+        let non_zero_protected_granule_count = match NonZero::new(protected_granule_count) {
+            None => todo!("Should granule count be really non-zero?"),
+            Some(non_zero_protected_granule_count) => non_zero_protected_granule_count,
+        };
+
+        // Associate permissions
+        let ram_protected_region = ProtectedAllocatedRegion::new(
+            ram_allocated_region,
+            non_zero_protected_granule_count,
+            Permissions::ReadWrite,
+            // PANIC: the granule count is computed in such a way that it is smaller than the length of
+            // the allocated region
+        )
+        .unwrap();
+
+        let ram_starting_physical_pointer = ram_protected_region.get_starting_pointer();
+        let ram_kernel_starting_virtual_pointer = kernel
+            .translate_kernel_allocated_physical_pointer_byte_to_kernel_virtual_pointer_byte(
+                ram_starting_physical_pointer.infallible_cast(),
+            )
+            // TODO: Don't panic
+            .unwrap();
+        let ram_starting_virtual_pointer = match pb.header.get_fixed_address_ram() {
+            None => ram_starting_physical_pointer.to_valid_virtual_pointer(),
+            Some(ram_fixed_address) => {
+                // TODO: don't panic
+                MutableUserVirtualPointer::new_from_raw(ram_fixed_address as *mut _).unwrap()
             }
         };
 
-        // Determine the offset of the app-owned part of the above memory
-        // allocation. An MPU may not place it at the very start of
-        // `remaining_memory` for internal alignment constraints. This can only
-        // overflow if the MPU implementation is incorrect; a compliant
-        // implementation must return a memory allocation within the
-        // `remaining_memory` slice.
-        let app_memory_start_offset =
-            allocation_start as usize - remaining_memory.as_ptr() as usize;
+        let mapped_ram_protected_region = UserMappedProtectedAllocatedRegion::new_from_protected(
+            ram_protected_region,
+            ram_starting_virtual_pointer,
+            // TODO: don't panic
+        )
+        .unwrap();
 
-        // Check if the memory region is valid for the process. If a process
-        // included a fixed address for the start of RAM in its TBF header (this
-        // field is optional, processes that are position independent do not
-        // need a fixed address) then we check that we used the same address
-        // when we allocated it in RAM.
-        if let Some(fixed_memory_start) = pb.header.get_fixed_address_ram() {
-            let actual_address = remaining_memory.as_ptr() as u32 + app_memory_start_offset as u32;
-            let expected_address = fixed_memory_start;
-            if actual_address != expected_address {
-                return Err((
-                    ProcessLoadError::MemoryAddressMismatch {
-                        actual_address,
-                        expected_address,
-                    },
-                    remaining_memory,
-                ));
-            }
-        }
+        let asid = chip.mmu().create_asid();
+
+        let app_memory_configuration = process_memory_manager.new_configuration(
+            asid,
+            mapped_app_flash_region,
+            mapped_ram_protected_region,
+        );
+
+        let valid_app_memory_configuration = match kernel
+            .is_process_memory_configuration_valid(app_memory_configuration)
+        {
+            Err(mapping_error) => return Err(ProcessLoadError::MemoryMappingError(mapping_error)),
+            Ok(valid_app_memory_configuration) => valid_app_memory_configuration,
+        };
 
         // With our MPU allocation, we can begin to divide up the
         // `remaining_memory` slice into individual regions for the process and
@@ -1787,31 +1801,37 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // - `unused_memory`: the rest of the `remaining_memory`, not assigned
         //   to this app.
         //
-        let (allocated_padded_memory, unused_memory) =
-            remaining_memory.split_at_mut(app_memory_start_offset + allocation_size);
 
-        // Now, slice off the (optional) padding at the start:
-        let (_padding, allocated_memory) =
-            allocated_padded_memory.split_at_mut(app_memory_start_offset);
-
-        // We continue to sub-slice the `allocated_memory` into
-        // process-accessible and kernel-owned memory. Prior to that, store the
-        // start and length ofthe overall allocation:
-        let allocated_memory_start = allocated_memory.as_ptr();
-        let allocated_memory_len = allocated_memory.len();
+        let allocated_memory: MutableKernelVirtualSlice<'static, u8> =
+            MutableKernelVirtualSlice::from_raw_parts(
+                ram_kernel_starting_virtual_pointer,
+                allocation_size_bytes,
+            );
 
         // Slice off the process-accessible memory:
-        let (app_accessible_memory, allocated_kernel_memory) =
-            allocated_memory.split_at_mut(min_process_memory_size);
+        // TODO: min_process_memory_size may be zero.
+        let (app_accessible_memory, optional_allocated_kernel_memory) = match allocated_memory
+            .split_at_checked(create_non_zero_usize(min_process_memory_size))
+        {
+            Err(_) => todo!(),
+            Ok(result) => result,
+        };
+
+        let allocated_kernel_memory = match optional_allocated_kernel_memory {
+            None => todo!(),
+            Some(allocated_kernel_memory) => allocated_kernel_memory,
+        };
 
         // Set the initial process-accessible memory:
-        let initial_app_brk = app_accessible_memory
-            .as_ptr()
-            .add(app_accessible_memory.len());
+        let kernel_initial_app_brk = app_accessible_memory
+            .get_starting_pointer()
+            .to_immutable()
+            .checked_add(app_accessible_memory.get_length())
+            .unwrap();
 
         // Set the initial allow high water mark to the start of process memory
         // since no `allow` calls have been made yet.
-        let initial_allow_high_water_mark = app_accessible_memory.as_ptr();
+        let initial_allow_high_water_mark = app_accessible_memory.get_starting_pointer();
 
         // Set up initial grant region.
         //
@@ -1827,22 +1847,22 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // Calling `wrapping_sub` is safe here, as we've factored in an optional
         // padding of at most `sizeof(usize)` bytes in the calculation of
         // `initial_kernel_memory_size` above.
-        let mut kernel_memory_break = allocated_kernel_memory
-            .as_ptr()
-            .add(allocated_kernel_memory.len());
-
-        kernel_memory_break = kernel_memory_break
-            .wrapping_sub(kernel_memory_break as usize % core::mem::size_of::<usize>());
+        let mut virtual_kernel_memory_break = allocated_kernel_memory
+            .get_starting_pointer()
+            .checked_add(allocated_kernel_memory.get_length())
+            .unwrap();
 
         // Now that we know we have the space we can setup the grant pointers.
-        kernel_memory_break = kernel_memory_break.offset(-(grant_ptrs_offset as isize));
+        virtual_kernel_memory_break = virtual_kernel_memory_break
+            .checked_offset(NonZero::new(-(grant_ptrs_offset as isize)).unwrap())
+            .unwrap();
 
         // This is safe, `kernel_memory_break` is aligned to a word-boundary,
         // and `grant_ptrs_offset` is a multiple of the word size.
         #[allow(clippy::cast_ptr_alignment)]
         // Set all grant pointers to null.
         let grant_pointers = slice::from_raw_parts_mut(
-            kernel_memory_break as *mut GrantPointerEntry,
+            virtual_kernel_memory_break.to_raw() as *mut GrantPointerEntry,
             grant_ptrs_num,
         );
         for grant_entry in grant_pointers.iter_mut() {
@@ -1852,7 +1872,9 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
 
         // Now that we know we have the space we can setup the memory for the
         // upcalls.
-        kernel_memory_break = kernel_memory_break.offset(-(Self::CALLBACKS_OFFSET as isize));
+        virtual_kernel_memory_break = virtual_kernel_memory_break
+            .checked_offset(const { NonZero::new(-(Self::CALLBACKS_OFFSET as isize)).unwrap() })
+            .unwrap();
 
         // This is safe today, as MPU constraints ensure that `memory_start`
         // will always be aligned on at least a word boundary, and that
@@ -1864,19 +1886,19 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // TODO: https://github.com/tock/tock/issues/1739
         #[allow(clippy::cast_ptr_alignment)]
         // Set up ring buffer for upcalls to the process.
-        let upcall_buf =
-            slice::from_raw_parts_mut(kernel_memory_break as *mut Task, Self::CALLBACK_LEN);
+        let upcall_buf = slice::from_raw_parts_mut(
+            virtual_kernel_memory_break.to_raw() as *mut Task,
+            Self::CALLBACK_LEN,
+        );
         let tasks = RingBuffer::new(upcall_buf);
 
         // Last thing in the kernel region of process RAM is the process struct.
-        kernel_memory_break = kernel_memory_break.offset(-(Self::PROCESS_STRUCT_OFFSET as isize));
-        let process_struct_memory_location = kernel_memory_break;
-
-        // Create the Process struct in the app grant region.
-        // Note that this requires every field be explicitly initialized, as
-        // we are just transforming a pointer into a structure.
-        let process: &mut ProcessStandard<C, D> =
-            &mut *(process_struct_memory_location as *mut ProcessStandard<'static, C, D>);
+        virtual_kernel_memory_break = virtual_kernel_memory_break
+            .checked_offset(
+                const { NonZero::new(-(Self::PROCESS_STRUCT_OFFSET as isize)).unwrap() },
+            )
+            .unwrap();
+        let process_struct_memory_location = virtual_kernel_memory_break;
 
         // Ask the kernel for a unique identifier for this process that is being
         // created.
@@ -1887,49 +1909,65 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         let fixed_address_flash = pb.header.get_fixed_address_flash();
         let fixed_address_ram = pb.header.get_fixed_address_ram();
 
-        process
-            .process_id
-            .set(ProcessId::new(kernel, unique_identifier, index));
-        process.app_id = app_id;
-        process.kernel = kernel;
-        process.chip = chip;
-        process.allow_high_water_mark = Cell::new(initial_allow_high_water_mark);
-        process.memory_start = allocated_memory_start;
-        process.memory_len = allocated_memory_len;
-        process.header = pb.header;
-        process.kernel_memory_break = Cell::new(kernel_memory_break);
-        process.app_break = Cell::new(initial_app_brk);
-        process.grant_pointers = MapCell::new(grant_pointers);
+        let kernel_flash_virtual_starting_pointer = kernel
+            .translate_kernel_allocated_physical_pointer_byte_to_kernel_virtual_pointer_byte(
+                app_flash_physical_starting_pointer.infallible_cast(),
+            )
+            .unwrap();
 
-        process.credential = pb.credential.get();
-        process.footers = pb.footers;
-        process.flash = pb.flash;
+        let virtual_flash_slice = ImmutableKernelVirtualSlice::from_raw_parts(
+            kernel_flash_virtual_starting_pointer.to_immutable(),
+            app_flash_length_bytes,
+        );
 
-        process.stored_state = MapCell::new(Default::default());
-        // Mark this process as approved and leave it to the kernel to start it.
-        process.state = Cell::new(State::Yielded);
-        process.fault_policy = fault_policy;
-        process.restart_count = Cell::new(0);
-        process.completion_code = OptionalCell::empty();
+        let virtual_ram_slice = MutableKernelVirtualSlice::from_raw_parts(
+            ram_kernel_starting_virtual_pointer,
+            min_total_memory_size,
+        );
 
-        process.mpu_config = MapCell::new(mpu_config);
-        process.mpu_regions = [
-            Cell::new(None),
-            Cell::new(None),
-            Cell::new(None),
-            Cell::new(None),
-            Cell::new(None),
-            Cell::new(None),
-        ];
-        process.tasks = MapCell::new(tasks);
+        let process = ProcessStandard {
+            process_id: Cell::new(ProcessId::new(kernel, unique_identifier, index)),
+            app_id,
+            kernel,
+            chip,
+            allow_high_water_mark: Cell::new(initial_allow_high_water_mark.get_address()),
+            header: pb.header,
+            kernel_memory_break: Cell::new(virtual_kernel_memory_break.get_address()),
+            app_break: Cell::new(kernel_initial_app_brk.get_address()),
+            grant_pointers: MapCell::new(grant_pointers),
+            credential: pb.credential.get(),
+            flash: virtual_flash_slice,
+            ram: virtual_ram_slice,
+            stored_state: MapCell::new(Default::default()),
+            // Mark this process as approved and leave it to the kernel to start it.
+            state: Cell::new(State::Yielded),
+            fault_policy,
+            restart_count: Cell::new(0),
+            completion_code: OptionalCell::empty(),
+            memory_configuration: valid_app_memory_configuration,
+            tasks: MapCell::new(tasks),
+            debug: D::default(),
+            storage_permissions: OptionalCell::empty(),
+        };
 
-        process.debug = D::default();
         if let Some(fix_addr_flash) = fixed_address_flash {
             process.debug.set_fixed_address_flash(fix_addr_flash);
         }
         if let Some(fix_addr_ram) = fixed_address_ram {
             process.debug.set_fixed_address_ram(fix_addr_ram);
         }
+
+        let kernel_app_accessible_memory_starting_pointer =
+            app_accessible_memory.get_starting_pointer().to_immutable();
+        let user_app_accessible_memory_starting_pointer = kernel
+            .translate_kernel_allocated_to_user_protected_byte(
+                &process,
+                kernel_app_accessible_memory_starting_pointer,
+            )
+            .unwrap();
+        let user_initial_app_brk = kernel
+            .translate_kernel_allocated_to_user_protected_byte(&process, kernel_initial_app_brk)
+            .unwrap();
 
         // Handle any architecture-specific requirements for a new process.
         //
@@ -1941,8 +1979,8 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // TODO: https://github.com/tock/tock/issues/1739
         match process.stored_state.map(|stored_state| {
             chip.userspace_kernel_boundary().initialize_process(
-                app_accessible_memory.as_ptr(),
-                initial_app_brk,
+                &user_app_accessible_memory_starting_pointer,
+                &user_initial_app_brk,
                 stored_state,
             )
         }) {
@@ -1960,46 +1998,77 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
                 // application memory and unused_memory, a failure here will leak
                 // the application memory. Not leaking it requires being able to
                 // reconstitute the original memory slice.
-                return Err((ProcessLoadError::InternalError, unused_memory));
+                return Err(ProcessLoadError::InternalError);
             }
         }
 
-        let flash_start = process.flash.as_ptr();
-        let app_start =
-            flash_start.wrapping_add(process.header.get_app_start_offset() as usize) as usize;
-        let init_addr =
-            flash_start.wrapping_add(process.header.get_init_function_offset() as usize) as usize;
-        let fn_base = flash_start as usize;
-        let fn_len = process.flash.len();
+        let flash_start = process.flash.get_starting_pointer();
+        // `flash_start` is used to enqueue the initial task of a process. A task runs in user
+        // space, so it needs user virtual pointers, not kernel virtual pointers.
+        let flash_start = kernel
+            .translate_kernel_allocated_to_user_protected_byte(&process, *flash_start)
+            .unwrap();
+        let app_start = flash_start
+            .checked_add(NonZero::new(process.header.get_app_start_offset() as usize).unwrap())
+            .unwrap()
+            .get_address();
+        let init_addr = flash_start
+            .checked_add(NonZero::new(process.header.get_init_function_offset() as usize).unwrap())
+            .unwrap()
+            .get_address();
+        let fn_base = flash_start.get_address();
+        let fn_len = process.flash.get_length().get();
 
         // We need to construct a capability with sufficient authority to cover all of a user's
         // code, with permissions to execute it. The entirety of flash is sufficient.
 
         let init_fn = CapabilityPtr::new_with_authority(
-            init_addr as *const (),
-            fn_base,
+            init_addr.get() as *const (),
+            fn_base.get(),
             fn_len,
             CapabilityPtrPermissions::Execute,
         );
+
+        // `ram_start` is used to enqueue the initial task of a process. A task runs in user
+        // space, so it needs user virtual pointers, not kernel virtual pointers.
+        let ram_start = kernel
+            .translate_kernel_allocated_to_user_protected_byte(&process, process.get_ram_start())
+            .unwrap();
+
+        let app_brk = ImmutableKernelVirtualPointer::new_from_raw_byte(
+            process.app_break.get().get() as *const u8,
+        )
+        .unwrap();
+        // `app_brk` is used to enqueue the initial task of a process. A task runs in user
+        // space, so it needs user virtual pointers, not kernel virtual pointers.
+        let app_brk = kernel
+            .translate_kernel_allocated_to_user_protected_byte(&process, app_brk)
+            .unwrap();
 
         process.tasks.map(|tasks| {
             tasks.enqueue(Task::FunctionCall(FunctionCall {
                 source: FunctionCallSource::Kernel,
                 pc: init_fn,
-                argument0: app_start,
-                argument1: process.memory_start as usize,
-                argument2: process.memory_len,
-                argument3: (process.app_break.get() as usize).into(),
+                argument0: app_start.get(),
+                argument1: ram_start.get_address().get(),
+                argument2: process.get_ram_length_bytes().get(),
+                argument3: app_brk.get_address().get().into(),
             }));
         });
 
-        // Set storage permissions. Put this at the end so that `process` is
-        // completely formed before using it to determine the storage
-        // permissions.
-        process.storage_permissions = storage_permissions_policy.get_permissions(process);
+        process
+            .storage_permissions
+            .set(storage_permissions_policy.get_permissions(&process));
+
+        let mut process_location = process_struct_memory_location
+            .cast::<ProcessStandard<C, D>>()
+            // TODO: Don't panic
+            .unwrap();
+        process_location.write(process);
+        let process = &*process_location.to_raw();
 
         // Return the process object and a remaining memory for processes slice.
-        Ok((Some(process), unused_memory))
+        Ok(Some(process))
     }
 
     /// Reset the process, resetting all of its state and re-initializing it so
@@ -2022,6 +2091,9 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         self.debug.reset_dropped_upcall_count();
         self.debug.reset_timeslice_expiration_count();
 
+        todo!()
+
+        /*
         // Reset MPU region configuration.
         //
         // TODO: ideally, this would be moved into a helper function used by
@@ -2069,7 +2141,6 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
 
         let initial_kernel_memory_size =
             grant_ptrs_offset + Self::CALLBACKS_OFFSET + Self::PROCESS_STRUCT_OFFSET;
-
         let app_mpu_mem = self.chip.mpu().allocate_app_memory_region(
             self.mem_start(),
             self.memory_len,
@@ -2129,7 +2200,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
                 // faulted and not schedule it.
                 return Err(ErrorCode::RESERVE);
             }
-        }
+        };
 
         self.restart_count.increment();
 
@@ -2163,6 +2234,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
             argument2: self.memory_len,
             argument3: (self.app_break.get() as usize).into(),
         }))
+        */
     }
 
     /// Checks if the buffer represented by the passed in base pointer and size
@@ -2170,33 +2242,43 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
     /// at `app_break`). If this method returns `true`, the buffer is guaranteed
     /// to be accessible to the process and to not overlap with the grant
     /// region.
-    fn in_app_owned_memory(&self, buf_start_addr: *const u8, size: usize) -> bool {
+    fn in_app_owned_memory(
+        &self,
+        buf_start_addr: &ImmutableKernelVirtualPointer<u8>,
+        size: NonZero<usize>,
+    ) -> bool {
         // TODO: On some platforms, CapabilityPtr has sufficient authority that we
         // could skip this check.
         // CapabilityPtr needs to make it slightly further, and we need to add
         // interfaces that tell us how much assurance it gives on the current
         // platform.
-        let buf_end_addr = buf_start_addr.wrapping_add(size);
+        // TODO: This shouldn't panic
+        let buf_end_addr = buf_start_addr.checked_add(size).unwrap();
 
-        buf_end_addr >= buf_start_addr
-            && buf_start_addr >= self.mem_start()
-            && buf_end_addr <= self.app_break.get()
+        &buf_end_addr >= buf_start_addr
+            && buf_start_addr >= self.get_ram_start().as_immutable()
+            && buf_end_addr.get_address() <= self.app_memory_break()
     }
 
     /// Checks if the buffer represented by the passed in base pointer and size
     /// are within the readable region of an application's flash memory.  If
     /// this method returns true, the buffer is guaranteed to be readable to the
     /// process.
-    fn in_app_flash_memory(&self, buf_start_addr: *const u8, size: usize) -> bool {
+    fn in_app_flash_memory(
+        &self,
+        buf_start_addr: &ImmutableKernelVirtualPointer<u8>,
+        size: NonZero<usize>,
+    ) -> bool {
         // TODO: On some platforms, CapabilityPtr has sufficient authority that we
         // could skip this check.
         // CapabilityPtr needs to make it slightly further, and we need to add
         // interfaces that tell us how much assurance it gives on the current
         // platform.
-        let buf_end_addr = buf_start_addr.wrapping_add(size);
+        // TODO: This shouldn't panic
+        let buf_end_addr = buf_start_addr.checked_add(size).unwrap();
 
-        buf_end_addr >= buf_start_addr
-            && buf_start_addr >= self.flash_non_protected_start()
+        &buf_end_addr >= buf_start_addr
+            && buf_start_addr >= &self.flash_non_protected_start()
             && buf_end_addr <= self.flash_end()
     }
 
@@ -2219,57 +2301,57 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
     /// accessible region from the new kernel memory break after doing the
     /// allocation, then this will return `None`.
     fn allocate_in_grant_region_internal(&self, size: usize, align: usize) -> Option<NonNull<u8>> {
-        self.mpu_config.and_then(|config| {
-            // First, compute the candidate new pointer. Note that at this point
-            // we have not yet checked whether there is space for this
-            // allocation or that it meets alignment requirements.
-            let new_break_unaligned = self.kernel_memory_break.get().wrapping_sub(size);
+        // First, compute the candidate new pointer. Note that at this point
+        // we have not yet checked whether there is space for this
+        // allocation or that it meets alignment requirements.
+        let new_break_unaligned = self.kernel_memory_break().get().wrapping_sub(size);
 
-            // Our minimum alignment requirement is two bytes, so that the
-            // lowest bit of the address will always be zero and we can use it
-            // as a flag. It doesn't hurt to increase the alignment (except for
-            // potentially a wasted byte) so we make sure `align` is at least
-            // two.
-            let align = cmp::max(align, 2);
+        // Our minimum alignment requirement is two bytes, so that the
+        // lowest bit of the address will always be zero and we can use it
+        // as a flag. It doesn't hurt to increase the alignment (except for
+        // potentially a wasted byte) so we make sure `align` is at least
+        // two.
+        let align = cmp::max(align, 2);
 
-            // The alignment must be a power of two, 2^a. The expression
-            // `!(align - 1)` then returns a mask with leading ones, followed by
-            // `a` trailing zeros.
-            let alignment_mask = !(align - 1);
-            let new_break = (new_break_unaligned as usize & alignment_mask) as *const u8;
+        // The alignment must be a power of two, 2^a. The expression
+        // `!(align - 1)` then returns a mask with leading ones, followed by
+        // `a` trailing zeros.
+        let alignment_mask = !(align - 1);
+        let raw_new_break = new_break_unaligned & alignment_mask;
+        // PANIC: a pointer to u8 is always aligned
+        // SAFETY: raw_new_break is a valid virtual pointer.
+        let new_break =
+            unsafe { ImmutableVirtualPointer::new_from_raw_byte(raw_new_break as *const u8) }
+                .unwrap();
+        let raw_aligned_new_break = align_down_usize(raw_new_break, Page4KiB::SIZE_U8) as *const u8;
+        // PANIC: a pointer to u8 is always aligned
+        // SAFETY: raw_new_break is a valid virtual pointer.
+        let aligned_new_break =
+            unsafe { ImmutableVirtualPointer::new_from_raw_byte(raw_aligned_new_break) }.unwrap();
 
-            // Verify there is space for this allocation
-            if new_break < self.app_break.get() {
-                None
-                // Verify it didn't wrap around
-            } else if new_break > self.kernel_memory_break.get() {
-                None
-                // Verify this is compatible with the MPU.
-            } else if let Err(()) = self.chip.mpu().update_app_memory_region(
-                self.app_break.get(),
-                new_break,
-                mpu::Permissions::ReadWriteOnly,
-                config,
-            ) {
-                None
-            } else {
-                // Allocation is valid.
+        // Verify there is space for this allocation
+        if aligned_new_break.get_address() < self.app_memory_break() {
+            None
+            // Verify it didn't wrap around
+        } else if aligned_new_break.get_address() > self.kernel_memory_break() {
+            None
+        } else {
+            // Allocation is valid.
 
-                // We always allocate down, so we must lower the
-                // kernel_memory_break.
-                self.kernel_memory_break.set(new_break);
+            // We always allocate down, so we must lower the
+            // kernel_memory_break.
+            self.kernel_memory_break.set(new_break.get_address());
 
-                // We need `grant_ptr` as a mutable pointer.
-                let grant_ptr = new_break as *mut u8;
+            // We need `grant_ptr` as a mutable pointer.
+            let grant_ptr = raw_new_break as *mut u8;
 
-                // ### Safety
-                //
-                // Here we are guaranteeing that `grant_ptr` is not null. We can
-                // ensure this because we just created `grant_ptr` based on the
-                // process's allocated memory, and we know it cannot be null.
-                unsafe { Some(NonNull::new_unchecked(grant_ptr)) }
-            }
-        })
+            // ### Safety
+            //
+            // Here we are guaranteeing that `grant_ptr` is not null. We can
+            // ensure this because we just created `grant_ptr` based on the
+            // process's allocated memory, and we know it cannot be null.
+            unsafe { Some(NonNull::new_unchecked(grant_ptr)) }
+        }
     }
 
     /// Create the identifier for a custom grant that grant.rs uses to access
@@ -2279,10 +2361,10 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
     /// where the custom grant starts and the end of the process memory.
     fn create_custom_grant_identifier(&self, ptr: NonNull<u8>) -> ProcessCustomGrantIdentifier {
         let custom_grant_address = ptr.as_ptr() as usize;
-        let process_memory_end = self.mem_end() as usize;
+        let process_memory_end = self.get_ram_end().get_address();
 
         ProcessCustomGrantIdentifier {
-            offset: process_memory_end - custom_grant_address,
+            offset: process_memory_end.get() - custom_grant_address,
         }
     }
 
@@ -2291,11 +2373,11 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
     ///
     /// This reverses `create_custom_grant_identifier()`.
     fn get_custom_grant_address(&self, identifier: ProcessCustomGrantIdentifier) -> usize {
-        let process_memory_end = self.mem_end() as usize;
+        let process_memory_end = self.get_ram_end().get_address();
 
         // Subtract the offset in the identifier from the end of the process
         // memory to get the address of the custom grant.
-        process_memory_end - identifier.offset
+        process_memory_end.get() - identifier.offset
     }
 
     /// Return the app's read and modify storage permissions from the TBF header
@@ -2325,43 +2407,116 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         }
     }
 
-    /// The start address of allocated RAM for this process.
-    fn mem_start(&self) -> *const u8 {
-        self.memory_start
+    fn get_ram_region(&self) -> &UserMappedProtectedAllocatedRegion<Page4KiB> {
+        self.get_memory_configuration()
+            .get_ram_region()
+            .as_mapped_protected_allocated_region()
     }
 
-    /// The first address after the end of the allocated RAM for this process.
-    fn mem_end(&self) -> *const u8 {
-        self.memory_start.wrapping_add(self.memory_len)
+    fn get_ram_start(&self) -> MutableKernelVirtualPointer<u8> {
+        *self.ram.get_starting_pointer()
+    }
+
+    fn get_ram_end(&self) -> MutableKernelVirtualPointer<u8> {
+        self.ram.get_ending_pointer()
+    }
+
+    fn get_ram_length_bytes(&self) -> NonZero<usize> {
+        self.ram.get_length()
     }
 
     /// The start address of the flash region allocated for this process.
-    fn flash_start(&self) -> *const u8 {
-        self.flash.as_ptr()
+    fn flash_start(&self) -> &ImmutableKernelVirtualPointer<u8> {
+        self.flash.get_starting_pointer()
     }
 
     /// Get the first address of process's flash that isn't protected by the
     /// kernel. The protected range of flash contains the TBF header and
     /// potentially other state the kernel is storing on behalf of the process,
     /// and cannot be edited by the process.
-    fn flash_non_protected_start(&self) -> *const u8 {
-        ((self.flash.as_ptr() as usize) + self.header.get_protected_size() as usize) as *const u8
+    fn flash_non_protected_start(&self) -> ImmutableKernelVirtualPointer<u8> {
+        let flash_start = self.flash_start();
+        // CAST: size_of::<usize>() >= size_of::<u32>() on 32 and 64-bit architectures
+        flash_start
+            .checked_add(NonZero::new(self.header.get_protected_size() as usize).unwrap())
+            .unwrap()
     }
 
     /// The first address after the end of the flash region allocated for this
     /// process.
-    fn flash_end(&self) -> *const u8 {
-        self.flash.as_ptr().wrapping_add(self.flash.len())
+    fn flash_end(&self) -> ImmutableKernelVirtualPointer<u8> {
+        self.flash.get_ending_pointer()
     }
 
     /// The lowest address of the grant region for the process.
-    fn kernel_memory_break(&self) -> *const u8 {
+    fn kernel_memory_break(&self) -> NonZero<usize> {
         self.kernel_memory_break.get()
     }
 
     /// Return the highest address the process has access to, or the current
     /// process memory brk.
-    fn app_memory_break(&self) -> *const u8 {
+    fn app_memory_break(&self) -> NonZero<usize> {
         self.app_break.get()
+    }
+
+    fn internal_brk(
+        &self,
+        new_break: ImmutableKernelVirtualPointer<u8>,
+    ) -> Result<CapabilityPtr, Error> {
+        // Do not modify an inactive process.
+        if !self.is_running() {
+            return Err(Error::InactiveApp);
+        }
+
+        // CAST: TODO
+        let raw_aligned_new_break =
+            align_up_usize(new_break.get_address().get(), Page4KiB::SIZE_U8) as *const u8;
+        // PANIC: a pointer to u8 is always aligned
+        // TODO: this may panic if `raw_aligned_new_break` is null.
+        // SAFETY: new_break is a valid virtual pointer.
+        let aligned_new_break =
+            unsafe { ImmutableVirtualPointer::new_from_raw_byte(raw_aligned_new_break) }.unwrap();
+
+        if new_break.get_address() < self.allow_high_water_mark.get() {
+            Err(Error::AddressOutOfBounds)
+        } else if aligned_new_break.get_address() > self.kernel_memory_break() {
+            Err(Error::OutOfMemory)
+        } else {
+            let old_break_address = self.app_memory_break();
+            let new_break_address = new_break.get_address();
+            let ram_start_address = self.get_ram_start().get_address();
+
+            let new_length_bytes =
+                match new_break_address.get().checked_sub(ram_start_address.get()) {
+                    None => return Err(Error::OutOfMemory),
+                    Some(new_length_bytes) => new_length_bytes,
+                };
+
+            let non_zero_new_length_bytes = match NonZero::new(new_length_bytes) {
+                None => todo!(),
+                Some(non_zero_new_length_bytes) => non_zero_new_length_bytes,
+            };
+
+            let new_length_granules =
+                ceil_non_zero_usize(non_zero_new_length_bytes, Page4KiB::SIZE_U8);
+
+            let ram_region = self.memory_configuration.get_ram_region();
+            if ram_region.resize(new_length_granules).is_err() {
+                return Err(Error::OutOfMemory);
+            }
+
+            self.app_break.set(new_break.get_address());
+            let base = self.get_ram_start().get_address();
+            let break_result = unsafe {
+                CapabilityPtr::new_with_authority(
+                    old_break_address.get() as *const (),
+                    base.get(),
+                    new_break.get_address().get() - base.get(),
+                    CapabilityPtrPermissions::ReadWrite,
+                )
+            };
+
+            Ok(break_result)
+        }
     }
 }

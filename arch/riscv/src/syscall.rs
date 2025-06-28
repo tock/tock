@@ -10,6 +10,9 @@ use core::ops::Range;
 
 use crate::csr::mcause;
 use kernel::errorcode::ErrorCode;
+use kernel::memory_management::pointers::{
+    ImmutableKernelVirtualPointer, ImmutableUserVirtualPointer,
+};
 use kernel::syscall::ContextSwitchReason;
 
 /// This holds all of the state that the kernel must keep for the process when
@@ -120,16 +123,15 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
     fn initial_process_app_brk_size(&self) -> usize {
         // The RV32I UKB implementation does not use process memory for any
-        // context switch state. Therefore, we do not need any process-accessible
-        // memory to start with to successfully context switch to the process the
-        // first time.
-        0
+        // context switch state. However, the memory manager expects this value
+        // to be non-zero.
+        1
     }
 
     unsafe fn initialize_process(
         &self,
-        accessible_memory_start: *const u8,
-        _app_brk: *const u8,
+        user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
+        _user_app_brk: &ImmutableUserVirtualPointer<u8>,
         state: &mut Self::StoredState,
     ) -> Result<(), ()> {
         // Need to clear the stored state when initializing.
@@ -141,7 +143,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         // pointer in the sp register.
         //
         // We do not pre-allocate any stack for RV32I processes.
-        state.regs[R_SP] = accessible_memory_start as u32;
+        state.regs[R_SP] = user_accessible_memory_start.get_address().get() as u32;
 
         // We do not use memory for UKB, so just return ok.
         Ok(())
@@ -149,8 +151,8 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
     unsafe fn set_syscall_return_value(
         &self,
-        _accessible_memory_start: *const u8,
-        _app_brk: *const u8,
+        _kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        _kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
         return_value: kernel::syscall::SyscallReturn,
     ) -> Result<(), ()> {
@@ -172,7 +174,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         let (a1slice, r) = r.split_at_mut(R_A2 - R_A1);
         let (a2slice, a3slice) = r.split_at_mut(R_A3 - R_A2);
 
-        kernel::utilities::arch_helpers::encode_syscall_return_trd104(
+        kernel::utilities::arch_helpers::encode_syscall_return_trd104_32bit(
             &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(
                 return_value,
             ),
@@ -188,8 +190,8 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
     unsafe fn set_process_function(
         &self,
-        _accessible_memory_start: *const u8,
-        _app_brk: *const u8,
+        _kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        _kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &mut Riscv32iStoredState,
         callback: kernel::process::FunctionCall,
     ) -> Result<(), ()> {
@@ -218,10 +220,10 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     #[cfg(not(any(doc, all(target_arch = "riscv32", target_os = "none"))))]
     unsafe fn switch_to_process(
         &self,
-        _accessible_memory_start: *const u8,
-        _app_brk: *const u8,
+        _kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        _kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
         _state: &mut Riscv32iStoredState,
-    ) -> (ContextSwitchReason, Option<*const u8>) {
+    ) -> (ContextSwitchReason, Option<ImmutableUserVirtualPointer<u8>>) {
         // Convince lint that 'mcause' and 'R_A4' are used during test build
         let _cause = mcause::Trap::from(_state.mcause as usize);
         let _arg4 = _state.regs[R_A4];
@@ -231,10 +233,10 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
     #[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
     unsafe fn switch_to_process(
         &self,
-        _accessible_memory_start: *const u8,
-        _app_brk: *const u8,
+        _kernel_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        _kernel_app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &mut Riscv32iStoredState,
-    ) -> (ContextSwitchReason, Option<*const u8>) {
+    ) -> (ContextSwitchReason, Option<ImmutableUserVirtualPointer<u8>>) {
         use core::arch::asm;
         // We need to ensure that the compiler does not reorder
         // kernel memory writes to after the userspace context switch
@@ -651,14 +653,13 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
                 }
             }
         };
-        let new_stack_pointer = state.regs[R_SP];
-        (ret, Some(new_stack_pointer as *const u8))
+        (ret, None)
     }
 
     unsafe fn print_context(
         &self,
-        _accessible_memory_start: *const u8,
-        _app_brk: *const u8,
+        _accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        _app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &Riscv32iStoredState,
         writer: &mut dyn Write,
     ) {

@@ -22,6 +22,18 @@ ENTRY(jump_to_bootloader)
 
 /* RP2040 has a bootloader that occupies the first 256 bytes of .text */
 SECTIONS {
+	_srom = ORIGIN(rom);
+	_erom = ORIGIN(rom) + LENGTH(rom);
+
+	_sprog = ORIGIN(prog);
+	_eprog = ORIGIN(prog) + LENGTH(prog);
+
+	_sram = ORIGIN(ram);
+	_eram = ORIGIN(ram) + LENGTH(ram);
+
+	_speripheral = 0x40000000;
+	_eperipheral = 0x60000000;
+
   .text  : ALIGN(4)
     {
         KEEP (*(.flash_bootloader));

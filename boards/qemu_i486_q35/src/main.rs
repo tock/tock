@@ -39,6 +39,7 @@ mod multiboot;
 use multiboot::MultibootV1Header;
 
 mod io;
+mod linker;
 
 /// Multiboot V1 header, allowing this kernel to be booted directly by QEMU
 #[link_section = ".vectors"]
@@ -172,8 +173,72 @@ unsafe extern "cdecl" fn main() {
         .finalize(components::process_array_component_static!(NUM_PROCS));
     PROCESSES = Some(processes);
 
-    // Setup space to store the core kernel data structure.
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
+    use kernel::memory_management::pages::Page4KiB;
+    let apps_ram = core::slice::from_raw_parts_mut(
+        (core::ptr::addr_of_mut!(linker::_sappmem) as usize) as *mut Page4KiB,
+        core::ptr::addr_of!(linker::_eappmem) as usize
+            - core::ptr::addr_of!(linker::_sappmem) as usize,
+    );
+
+    // PANIC: the linker script ensures that the RAM region is not empty.
+    let non_empty_ram_memory = kernel::utilities::slices::NonEmptyMutableSlice::new(apps_ram).unwrap();
+    let physical_ram_memory =
+        kernel::memory_management::slices::MutablePhysicalSlice::new(non_empty_ram_memory);
+
+    type RamAllocator = kernel::memory_management::allocators::StaticAllocator<'static, Page4KiB>;
+    let ram_allocator = RamAllocator::new(physical_ram_memory);
+
+    let physical_kernel_rom_memory = linker::get_kernel_rom_region();
+    let physical_kernel_prog_memory = linker::get_kernel_prog_region();
+    let physical_kernel_ram_memory = linker::get_kernel_ram_region();
+    let physical_kernel_peripheral_memory = linker::get_kernel_peripheral_region();
+
+    let allocated_kernel_rom_memory =
+        kernel::memory_management::regions::PhysicalAllocatedRegion::new(
+            physical_kernel_rom_memory,
+        );
+    let allocated_kernel_prog_memory =
+        kernel::memory_management::regions::PhysicalAllocatedRegion::new(
+            physical_kernel_prog_memory,
+        );
+    let allocated_kernel_ram_memory =
+        kernel::memory_management::regions::PhysicalAllocatedRegion::new(
+            physical_kernel_ram_memory,
+        );
+    let allocated_kernel_peripheral_memory =
+        kernel::memory_management::regions::PhysicalAllocatedRegion::new(
+            physical_kernel_peripheral_memory,
+        );
+
+    let mapped_kernel_rom_memory =
+        kernel::memory_management::regions::MappedAllocatedRegion::new_flat(
+            allocated_kernel_rom_memory,
+        );
+    let mapped_kernel_prog_memory =
+        kernel::memory_management::regions::MappedAllocatedRegion::new_flat(
+            allocated_kernel_prog_memory,
+        );
+    let mapped_kernel_ram_memory =
+        kernel::memory_management::regions::MappedAllocatedRegion::new_flat(
+            allocated_kernel_ram_memory,
+        );
+    let mapped_kernel_peripheral_memory =
+        kernel::memory_management::regions::MappedAllocatedRegion::new_flat(
+            allocated_kernel_peripheral_memory,
+        );
+
+    // Create a board kernel instance
+    let board_kernel = static_init!(
+        kernel::Kernel,
+        kernel::Kernel::new(
+            processes.as_slice(),
+            ram_allocator,
+            mapped_kernel_rom_memory,
+            mapped_kernel_prog_memory,
+            mapped_kernel_ram_memory,
+            mapped_kernel_peripheral_memory,
+        )
+    );
 
     // ---------- QEMU-SYSTEM-I386 "Q35" MACHINE PERIPHERALS ----------
 
@@ -286,9 +351,6 @@ unsafe extern "cdecl" fn main() {
     // Start the process console:
     let _ = platform.pconsole.start();
 
-    debug!("QEMU i486 \"Q35\" machine, initialization complete.");
-    debug!("Entering main loop.");
-
     // These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -310,10 +372,6 @@ unsafe extern "cdecl" fn main() {
             ptr::addr_of!(_sapps),
             ptr::addr_of!(_eapps) as usize - ptr::addr_of!(_sapps) as usize,
         ),
-        core::slice::from_raw_parts_mut(
-            ptr::addr_of_mut!(_sappmem),
-            ptr::addr_of!(_eappmem) as usize - ptr::addr_of!(_sappmem) as usize,
-        ),
         &FAULT_RESPONSE,
         &process_mgmt_cap,
     )
@@ -321,6 +379,9 @@ unsafe extern "cdecl" fn main() {
         debug!("Error loading processes!");
         debug!("{:?}", err);
     });
+
+    debug!("QEMU i486 \"Q35\" machine, initialization complete.");
+    debug!("Entering main loop.");
 
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap);
 }

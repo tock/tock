@@ -8,7 +8,7 @@ use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::platform::chip::Chip;
 
-use x86::mpu::PagingMPU;
+use x86::mmu::MMU;
 use x86::registers::bits32::paging::{PD, PT};
 use x86::support;
 use x86::{Boundary, InterruptPoller};
@@ -55,13 +55,14 @@ pub struct Pc<'a, const PR: u16 = RELOAD_1KHZ> {
 
     /// System call context
     syscall: Boundary,
-    paging: PagingMPU<'a>,
+    mmu: MMU<'a>,
 }
 
 impl<'a, const PR: u16> Chip for Pc<'a, PR> {
-    type MPU = PagingMPU<'a>;
-    fn mpu(&self) -> &Self::MPU {
-        &self.paging
+    type MMU = MMU<'a>;
+
+    fn mmu(&self) -> &Self::MMU {
+        &self.mmu
     }
 
     type UserspaceKernelBoundary = Boundary;
@@ -207,13 +208,13 @@ impl Component for PcComponent<'static> {
 
         let pit = unsafe { Pit::new() };
 
-        let paging = unsafe {
+        let mmu = unsafe {
             let pd_addr = core::ptr::from_ref(self.pd) as usize;
             let pt_addr = core::ptr::from_ref(self.pt) as usize;
-            PagingMPU::new(self.pd, pd_addr, self.pt, pt_addr)
+            MMU::new(self.pd, pd_addr, self.pt, pt_addr)
         };
 
-        paging.init();
+        mmu.init();
 
         let syscall = Boundary::new();
 
@@ -224,7 +225,7 @@ impl Component for PcComponent<'static> {
             com4,
             pit,
             syscall,
-            paging,
+            mmu,
         });
 
         pc

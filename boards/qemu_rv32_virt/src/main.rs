@@ -16,12 +16,15 @@ use kernel::platform::KernelResources;
 use kernel::platform::SyscallDriverLookup;
 use kernel::process::ProcessArray;
 use kernel::scheduler::cooperative::CooperativeSched;
+use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::ReadWriteable;
+use kernel::utilities::slices::NonEmptyMutableSlice;
 use kernel::{create_capability, debug, static_init};
 use qemu_rv32_virt_chip::chip::{QemuRv32VirtChip, QemuRv32VirtDefaultPeripherals};
 use rv32i::csr;
 
 pub mod io;
+mod linker;
 
 pub const NUM_PROCS: usize = 4;
 
@@ -167,30 +170,6 @@ unsafe fn start() -> (
         QemuRv32VirtDefaultPeripherals<'static>,
     >,
 ) {
-    // These symbols are defined in the linker script.
-    extern "C" {
-        /// Beginning of the ROM region containing app images.
-        static _sapps: u8;
-        /// End of the ROM region containing app images.
-        static _eapps: u8;
-        /// Beginning of the RAM region for app memory.
-        static mut _sappmem: u8;
-        /// End of the RAM region for app memory.
-        static _eappmem: u8;
-        /// The start of the kernel text (Included only for kernel PMP)
-        static _stext: u8;
-        /// The end of the kernel text (Included only for kernel PMP)
-        static _etext: u8;
-        /// The start of the kernel / app / storage flash (Included only for kernel PMP)
-        static _sflash: u8;
-        /// The end of the kernel / app / storage flash (Included only for kernel PMP)
-        static _eflash: u8;
-        /// The start of the kernel / app RAM (Included only for kernel PMP)
-        static _ssram: u8;
-        /// The end of the kernel / app RAM (Included only for kernel PMP)
-        static _esram: u8;
-    }
-
     // ---------- BASIC INITIALIZATION -----------
 
     // Basic setup of the RISC-V IMAC platform
@@ -202,15 +181,15 @@ unsafe fn start() -> (
     let epmp = rv32i::pmp::kernel_protection_mml_epmp::KernelProtectionMMLEPMP::new(
         rv32i::pmp::kernel_protection_mml_epmp::FlashRegion(
             rv32i::pmp::NAPOTRegionSpec::from_start_end(
-                core::ptr::addr_of!(_sflash),
-                core::ptr::addr_of!(_eflash),
+                core::ptr::addr_of!(linker::_srom),
+                core::ptr::addr_of!(linker::_eprog),
             )
             .unwrap(),
         ),
         rv32i::pmp::kernel_protection_mml_epmp::RAMRegion(
             rv32i::pmp::NAPOTRegionSpec::from_start_end(
-                core::ptr::addr_of!(_ssram),
-                core::ptr::addr_of!(_esram),
+                core::ptr::addr_of!(linker::_sram),
+                core::ptr::addr_of!(linker::_eram),
             )
             .unwrap(),
         ),
@@ -223,8 +202,8 @@ unsafe fn start() -> (
         ),
         rv32i::pmp::kernel_protection_mml_epmp::KernelTextRegion(
             rv32i::pmp::TORRegionSpec::from_start_end(
-                core::ptr::addr_of!(_stext),
-                core::ptr::addr_of!(_etext),
+                core::ptr::addr_of!(linker::_stext),
+                core::ptr::addr_of!(linker::_etext),
             )
             .unwrap(),
         ),
@@ -235,15 +214,77 @@ unsafe fn start() -> (
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
-    // Create a board kernel instance
+    use kernel::memory_management::pages::Page4KiB;
+    let apps_ram = core::slice::from_raw_parts_mut(
+        (core::ptr::addr_of_mut!(linker::_sappmem) as usize) as *mut Page4KiB,
+        core::ptr::addr_of!(linker::_eappmem) as usize
+            - core::ptr::addr_of!(linker::_sappmem) as usize,
+    );
+
+    // PANIC: the linker script ensures that the RAM region is not empty.
+    let non_empty_ram_memory = NonEmptyMutableSlice::new(apps_ram).unwrap();
+    let physical_ram_memory =
+        kernel::memory_management::slices::MutablePhysicalSlice::new(non_empty_ram_memory);
+
+    type RamAllocator = kernel::memory_management::allocators::StaticAllocator<'static, Page4KiB>;
+    let ram_allocator = RamAllocator::new(physical_ram_memory);
+
+    let physical_kernel_rom_memory = linker::get_kernel_rom_region();
+    let physical_kernel_prog_memory = linker::get_kernel_prog_region();
+    let physical_kernel_ram_memory = linker::get_kernel_ram_region();
+    let physical_kernel_peripheral_memory = linker::get_kernel_peripheral_region();
+
+    let allocated_kernel_rom_memory =
+        kernel::memory_management::regions::PhysicalAllocatedRegion::new(
+            physical_kernel_rom_memory,
+        );
+    let allocated_kernel_prog_memory =
+        kernel::memory_management::regions::PhysicalAllocatedRegion::new(
+            physical_kernel_prog_memory,
+        );
+    let allocated_kernel_ram_memory =
+        kernel::memory_management::regions::PhysicalAllocatedRegion::new(
+            physical_kernel_ram_memory,
+        );
+    let allocated_kernel_peripheral_memory =
+        kernel::memory_management::regions::PhysicalAllocatedRegion::new(
+            physical_kernel_peripheral_memory,
+        );
+
+    let mapped_kernel_rom_memory =
+        kernel::memory_management::regions::MappedAllocatedRegion::new_flat(
+            allocated_kernel_rom_memory,
+        );
+    let mapped_kernel_prog_memory =
+        kernel::memory_management::regions::MappedAllocatedRegion::new_flat(
+            allocated_kernel_prog_memory,
+        );
+    let mapped_kernel_ram_memory =
+        kernel::memory_management::regions::MappedAllocatedRegion::new_flat(
+            allocated_kernel_ram_memory,
+        );
+    let mapped_kernel_peripheral_memory =
+        kernel::memory_management::regions::MappedAllocatedRegion::new_flat(
+            allocated_kernel_peripheral_memory,
+        );
 
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
     PROCESSES = Some(processes);
 
-    // Setup space to store the core kernel data structure.
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
+    // Create a board kernel instance
+    let board_kernel = static_init!(
+        kernel::Kernel,
+        kernel::Kernel::new(
+            processes.as_slice(),
+            ram_allocator,
+            mapped_kernel_rom_memory,
+            mapped_kernel_prog_memory,
+            mapped_kernel_ram_memory,
+            mapped_kernel_peripheral_memory,
+        )
+    );
 
     // ---------- QEMU-SYSTEM-RISCV32 "virt" MACHINE PERIPHERALS ----------
 
@@ -587,12 +628,9 @@ unsafe fn start() -> (
         board_kernel,
         chip,
         core::slice::from_raw_parts(
-            core::ptr::addr_of!(_sapps),
-            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-        ),
-        core::slice::from_raw_parts_mut(
-            core::ptr::addr_of_mut!(_sappmem),
-            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
+            core::ptr::addr_of!(linker::_sapps),
+            core::ptr::addr_of!(linker::_eapps) as usize
+                - core::ptr::addr_of!(linker::_sapps) as usize,
         ),
         &FAULT_RESPONSE,
         &process_mgmt_cap,

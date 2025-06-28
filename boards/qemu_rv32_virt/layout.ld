@@ -17,17 +17,25 @@ MEMORY
   ram (rwx) : ORIGIN = 0x80200000, LENGTH = 0x200000
 }
 
+PAGE_SIZE = 4K;
+
 SECTIONS {
     /* Export the start & end of SRAM and flash as symbols for setting
      * up the ePMP. Flash includes rom, prog and flash storage, such
      * that we can use a single NAPOT region. The .text section will
      * be made executable by a separate PMP region.
      */
-    _sflash = ORIGIN(rom);
-    _eflash = ORIGIN(prog) + LENGTH(prog);
+	_srom = ORIGIN(rom);
+	_erom = ORIGIN(rom) + LENGTH(rom);
 
-    _ssram  = ORIGIN(ram);
-    _esram  = ORIGIN(ram) + LENGTH(ram);
+	_sprog = ORIGIN(prog);
+	_eprog = ORIGIN(prog) + LENGTH(prog);
+
+	_sram = ORIGIN(ram);
+	_eram = ORIGIN(ram) + LENGTH(ram);
+
+	_speripheral = 0x10000000;
+	_eperipheral = 0x10010000;
 }
 
 INCLUDE tock_kernel_layout.ld

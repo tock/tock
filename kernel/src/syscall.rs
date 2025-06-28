@@ -69,6 +69,11 @@
 use core::fmt::Write;
 
 use crate::errorcode::ErrorCode;
+use crate::memory_management::pointers::{
+    ImmutableKernelVirtualPointer, ImmutableUserNullableVirtualPointer,
+    ImmutableUserVirtualPointer, MutableUserNullableVirtualPointer,
+};
+
 use crate::process;
 use crate::utilities::capability_ptr::CapabilityPtr;
 use crate::utilities::machine_register::MachineRegister;
@@ -182,7 +187,7 @@ pub enum Syscall {
         /// The buffer identifier.
         subdriver_number: usize,
         /// The address where the buffer starts.
-        allow_address: *mut u8,
+        allow_pointer: MutableUserNullableVirtualPointer<u8>,
         /// The size of the buffer in bytes.
         allow_size: usize,
     },
@@ -195,7 +200,7 @@ pub enum Syscall {
         /// The buffer identifier.
         subdriver_number: usize,
         /// The address where the buffer starts.
-        allow_address: *mut u8,
+        allow_pointer: MutableUserNullableVirtualPointer<u8>,
         /// The size of the buffer in bytes.
         allow_size: usize,
     },
@@ -208,7 +213,7 @@ pub enum Syscall {
         /// The buffer identifier.
         subdriver_number: usize,
         /// The address where the buffer starts.
-        allow_address: *const u8,
+        allow_pointer: ImmutableUserNullableVirtualPointer<u8>,
         /// The size of the buffer in bytes.
         allow_size: usize,
     },
@@ -267,19 +272,37 @@ impl Syscall {
             Ok(SyscallClass::ReadWriteAllow) => Some(Syscall::ReadWriteAllow {
                 driver_number: r0,
                 subdriver_number: r1.as_usize(),
-                allow_address: r2.as_capability_ptr().as_ptr::<u8>().cast_mut(),
+                // SAFETY: User space always passes virtual pointers which are obviously user
+                // pointers.
+                allow_pointer: unsafe {
+                    MutableUserNullableVirtualPointer::new_from_byte(
+                        r2.as_capability_ptr().as_ptr::<u8>() as *mut u8,
+                    )
+                },
                 allow_size: r3.as_usize(),
             }),
             Ok(SyscallClass::UserspaceReadableAllow) => Some(Syscall::UserspaceReadableAllow {
                 driver_number: r0,
                 subdriver_number: r1.as_usize(),
-                allow_address: r2.as_capability_ptr().as_ptr::<u8>().cast_mut(),
+                // SAFETY: User space always passes virtual pointers which are obviously user
+                // pointers.
+                allow_pointer: unsafe {
+                    MutableUserNullableVirtualPointer::new_from_byte(
+                        r2.as_capability_ptr().as_ptr::<u8>() as *mut u8,
+                    )
+                },
                 allow_size: r3.as_usize(),
             }),
             Ok(SyscallClass::ReadOnlyAllow) => Some(Syscall::ReadOnlyAllow {
                 driver_number: r0,
                 subdriver_number: r1.as_usize(),
-                allow_address: r2.as_capability_ptr().as_ptr(),
+                // SAFETY: User space always passes virtual pointers which are obviously user
+                // pointers.
+                allow_pointer: unsafe {
+                    ImmutableUserNullableVirtualPointer::new_from_byte(
+                        r2.as_capability_ptr().as_ptr::<u8>(),
+                    )
+                },
                 allow_size: r3.as_usize(),
             }),
             Ok(SyscallClass::Memop) => Some(Syscall::Memop {
@@ -312,19 +335,19 @@ impl Syscall {
             Syscall::ReadWriteAllow {
                 driver_number,
                 subdriver_number: _,
-                allow_address: _,
+                allow_pointer: _,
                 allow_size: _,
             } => Some(driver_number),
             Syscall::UserspaceReadableAllow {
                 driver_number,
                 subdriver_number: _,
-                allow_address: _,
+                allow_pointer: _,
                 allow_size: _,
             } => Some(driver_number),
             Syscall::ReadOnlyAllow {
                 driver_number,
                 subdriver_number: _,
-                allow_address: _,
+                allow_pointer: _,
                 allow_size: _,
             } => Some(driver_number),
             _ => None,
@@ -350,19 +373,19 @@ impl Syscall {
             Syscall::ReadWriteAllow {
                 driver_number: _,
                 subdriver_number,
-                allow_address: _,
+                allow_pointer: _,
                 allow_size: _,
             } => Some(subdriver_number),
             Syscall::UserspaceReadableAllow {
                 driver_number: _,
                 subdriver_number,
-                allow_address: _,
+                allow_pointer: _,
                 allow_size: _,
             } => Some(subdriver_number),
             Syscall::ReadOnlyAllow {
                 driver_number: _,
                 subdriver_number,
-                allow_address: _,
+                allow_pointer: _,
                 allow_size: _,
             } => Some(subdriver_number),
             _ => None,
@@ -437,24 +460,24 @@ pub enum SyscallReturn {
     // as grant is stored in grant allow slots)
     /// Read/Write allow success case, returns the previous allowed buffer and
     /// size to the process.
-    AllowReadWriteSuccess(*mut u8, usize),
+    AllowReadWriteSuccess(MutableUserNullableVirtualPointer<u8>, usize),
     /// Read/Write allow failure case, returns the passed allowed buffer and
     /// size to the process.
-    AllowReadWriteFailure(ErrorCode, *mut u8, usize),
+    AllowReadWriteFailure(ErrorCode, MutableUserNullableVirtualPointer<u8>, usize),
 
     /// Shared Read/Write allow success case, returns the previous allowed
     /// buffer and size to the process.
-    UserspaceReadableAllowSuccess(*mut u8, usize),
+    UserspaceReadableAllowSuccess(MutableUserNullableVirtualPointer<u8>, usize),
     /// Shared Read/Write allow failure case, returns the passed allowed buffer
     /// and size to the process.
-    UserspaceReadableAllowFailure(ErrorCode, *mut u8, usize),
+    UserspaceReadableAllowFailure(ErrorCode, MutableUserNullableVirtualPointer<u8>, usize),
 
     /// Read only allow success case, returns the previous allowed buffer and
     /// size to the process.
-    AllowReadOnlySuccess(*const u8, usize),
+    AllowReadOnlySuccess(ImmutableUserNullableVirtualPointer<u8>, usize),
     /// Read only allow failure case, returns the passed allowed buffer and size
     /// to the process.
-    AllowReadOnlyFailure(ErrorCode, *const u8, usize),
+    AllowReadOnlyFailure(ErrorCode, ImmutableUserNullableVirtualPointer<u8>, usize),
 
     /// Subscribe success case, returns the previous upcall function pointer and
     /// application data.
@@ -598,8 +621,8 @@ pub trait UserspaceKernelBoundary {
     /// pointers are valid for the process.
     unsafe fn initialize_process(
         &self,
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
+        user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
+        user_app_brk: &ImmutableUserVirtualPointer<u8>,
         state: &mut Self::StoredState,
     ) -> Result<(), ()>;
 
@@ -620,8 +643,8 @@ pub trait UserspaceKernelBoundary {
     /// pointers are valid for the process.
     unsafe fn set_syscall_return_value(
         &self,
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
+        user_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        user_app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
         return_value: SyscallReturn,
     ) -> Result<(), ()>;
@@ -662,8 +685,8 @@ pub trait UserspaceKernelBoundary {
     /// pointers are valid for the process.
     unsafe fn set_process_function(
         &self,
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
+        user_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        user_app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
         upcall: process::FunctionCall,
     ) -> Result<(), ()>;
@@ -687,10 +710,10 @@ pub trait UserspaceKernelBoundary {
     /// pointers are valid for the process.
     unsafe fn switch_to_process(
         &self,
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
+        user_accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        user_app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &mut Self::StoredState,
-    ) -> (ContextSwitchReason, Option<*const u8>);
+    ) -> (ContextSwitchReason, Option<ImmutableUserVirtualPointer<u8>>);
 
     /// Display architecture specific (e.g. CPU registers or status flags) data
     /// for a process identified by the stored state for that process.
@@ -703,8 +726,8 @@ pub trait UserspaceKernelBoundary {
     /// pointers are valid for the process.
     unsafe fn print_context(
         &self,
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
+        accessible_memory_start: &ImmutableKernelVirtualPointer<u8>,
+        app_brk: &ImmutableKernelVirtualPointer<u8>,
         state: &Self::StoredState,
         writer: &mut dyn Write,
     );

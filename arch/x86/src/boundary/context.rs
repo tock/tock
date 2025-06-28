@@ -3,8 +3,6 @@
 // Copyright Tock Contributors 2024.
 
 use core::fmt::{self, Display, Formatter};
-use core::mem::size_of;
-use core::ptr;
 
 use crate::registers::irq::EXCEPTIONS;
 
@@ -42,108 +40,6 @@ pub struct UserContext {
     /// If the process triggers a CPU exception with an associated error code, this field will be
     /// populated with the error code value. Otherwise this field must remain zero.
     pub err_code: u32,
-}
-
-impl UserContext {
-    /// Pushes a value onto the user stack.
-    ///
-    /// Returns an `Err` if the new stack value would fall outside of valid memory.
-    ///
-    /// ## Safety
-    ///
-    /// The memory region described by `accessible_memory_start` and `app_brk` must point to memory
-    /// of the user process. This function will write to that memory.
-    pub unsafe fn push_stack(
-        &mut self,
-        value: u32,
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
-    ) -> Result<(), ()> {
-        let new_esp = self.esp - 4;
-
-        if new_esp < accessible_memory_start as u32 {
-            return Err(());
-        }
-
-        if new_esp + 4 > app_brk as u32 {
-            return Err(());
-        }
-
-        // Safety: We have validated above that new_esp lies within the specified memory region, and
-        //         the caller has guaranteed that this region is valid.
-        unsafe { ptr::write_volatile(new_esp as *mut u32, value) };
-
-        self.esp = new_esp;
-
-        Ok(())
-    }
-
-    /// Reads a value from `offset` relative to the current user stack pointer.
-    ///
-    /// `offset` is a DWORD offset (i.e. 4 bytes), not bytes.
-    ///
-    /// Returns an `Err` if the specified location falls outside of valid memory.
-    ///
-    /// ## Safety
-    ///
-    /// The memory region described by `accessible_memory_start` and `app_brk` must point to memory
-    /// of the user process. This function will read from that memory.
-    pub unsafe fn read_stack(
-        &self,
-        offset: u32,
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
-    ) -> Result<u32, ()> {
-        let stack_addr = self.esp + (offset * 4);
-
-        if stack_addr < accessible_memory_start as u32 {
-            return Err(());
-        }
-
-        if stack_addr + 4 > app_brk as u32 {
-            return Err(());
-        }
-
-        // Safety: We have validated above that stack_addr lies within the specified memory region,
-        //         and the caller has guaranteed that this region is valid.
-        let val = unsafe { ptr::read_volatile(stack_addr as *mut u32) };
-
-        Ok(val)
-    }
-
-    /// Writes a value to `offset` relative to the current user stack pointer.
-    ///
-    /// `offset` is a DWORD offset (i.e. 4 bytes), not bytes.
-    ///
-    /// Returns an `Err` if the specified location falls outside of valid memory.
-    ///
-    /// ## Safety
-    ///
-    /// The memory region described by `accessible_memory_start` and `app_brk` must point to memory
-    /// of the user process. This function will write to that memory.
-    pub unsafe fn write_stack(
-        &self,
-        offset: u32,
-        value: u32,
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
-    ) -> Result<(), ()> {
-        let stack_addr = self.esp + (offset * size_of::<usize>() as u32);
-
-        if stack_addr < accessible_memory_start as u32 {
-            return Err(());
-        }
-
-        if stack_addr + 4 > app_brk as u32 {
-            return Err(());
-        }
-
-        // Safety: We have validated above that stack_addr lies within the specified memory region,
-        //         and the caller has guaranteed that this region is valid.
-        unsafe { ptr::write_volatile(stack_addr as *mut u32, value) };
-
-        Ok(())
-    }
 }
 
 impl Display for UserContext {

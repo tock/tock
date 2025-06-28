@@ -134,6 +134,9 @@ use core::ptr::{write, NonNull};
 use core::slice;
 
 use crate::kernel::Kernel;
+use crate::memory_management::pointers::{
+    ImmutableKernelNullableVirtualPointer, MutableKernelNullableVirtualPointer,
+};
 use crate::process::ProcessSlot;
 use crate::process::{Error, Process, ProcessCustomGrantIdentifier, ProcessId};
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
@@ -742,7 +745,7 @@ struct SavedUpcall {
 /// memory duplicating information such as process ID.
 #[repr(C)]
 struct SavedAllowRo {
-    ptr: *const u8,
+    ptr: ImmutableKernelNullableVirtualPointer<u8>,
     len: usize,
 }
 
@@ -753,7 +756,7 @@ struct SavedAllowRo {
 impl Default for SavedAllowRo {
     fn default() -> Self {
         Self {
-            ptr: core::ptr::null(),
+            ptr: ImmutableKernelNullableVirtualPointer::new_null(),
             len: 0,
         }
     }
@@ -764,7 +767,7 @@ impl Default for SavedAllowRo {
 /// memory duplicating information such as process ID.
 #[repr(C)]
 struct SavedAllowRw {
-    ptr: *mut u8,
+    ptr: MutableKernelNullableVirtualPointer<u8>,
     len: usize,
 }
 
@@ -775,7 +778,7 @@ struct SavedAllowRw {
 impl Default for SavedAllowRw {
     fn default() -> Self {
         Self {
-            ptr: core::ptr::null_mut(),
+            ptr: MutableKernelNullableVirtualPointer::new_null(),
             len: 0,
         }
     }

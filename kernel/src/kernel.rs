@@ -19,8 +19,22 @@ use crate::errorcode::ErrorCode;
 use crate::grant::{AllowRoSize, AllowRwSize, Grant, UpcallSize};
 use crate::ipc;
 use crate::memop;
+use crate::memory_management::allocators::StaticAllocator;
+use crate::memory_management::configuration::{ProcessConfiguration, ValidProcessConfiguration};
+use crate::memory_management::memory_managers::{
+    KernelMemoryManager, ProcessMemoryManager, ProcessMemoryMappingError,
+};
+use crate::memory_management::pages::Page4KiB;
+use crate::memory_management::permissions::Permissions;
+use crate::memory_management::pointers::{
+    ImmutableUserVirtualPointer, KernelNullableVirtualPointer, KernelVirtualPointer,
+    MutableUserVirtualPointer, PhysicalPointer, UserNullableVirtualPointer, UserVirtualPointer,
+};
+use crate::memory_management::regions::{
+    KernelMappedAllocatedRegion, KernelMappedProtectedAllocatedRegion,
+};
 use crate::platform::chip::Chip;
-use crate::platform::mpu::MPU;
+use crate::platform::mmu::{self, MpuMmuCommon as _};
 use crate::platform::platform::ContextSwitchCallback;
 use crate::platform::platform::KernelResources;
 use crate::platform::platform::{ProcessFault, SyscallDriverLookup, SyscallFilter};
@@ -34,7 +48,8 @@ use crate::syscall::{ContextSwitchReason, SyscallReturn};
 use crate::syscall::{Syscall, YieldCall};
 use crate::syscall_driver::CommandReturn;
 use crate::upcall::{Upcall, UpcallId};
-use crate::utilities::cells::NumericCellExt;
+use crate::utilities::alignment::AlwaysAligned;
+use crate::utilities::cells::{NumericCellExt, OptionalCell};
 
 /// Threshold in microseconds to consider a process's timeslice to be exhausted.
 /// That is, Tock will skip re-scheduling a process if its remaining timeslice
@@ -50,6 +65,9 @@ pub struct Kernel {
     /// created. This is used to create new unique identifiers for processes.
     process_identifier_max: Cell<usize>,
 
+    /// Current running process
+    current_running_process: OptionalCell<ProcessId>,
+
     /// How many grant regions have been setup. This is incremented on every
     /// call to `create_grant()`. We need to explicitly track this so that when
     /// processes are created they can be allocated pointers for each grant.
@@ -60,6 +78,17 @@ pub struct Kernel {
     /// created and the data structures for grants have already been
     /// established.
     grants_finalized: Cell<bool>,
+
+    /// Process memory manager
+    // TODO: the granule and the allocator are currently hard-coded. Try to rework the kernel so
+    // that it can work with any granule and allocator.
+    process_memory_manager:
+        ProcessMemoryManager<'static, Page4KiB, StaticAllocator<'static, Page4KiB>>,
+
+    /// Kernel memory manager
+    // TODO: the granule is currently hard-coded. Try to rework the kernel so it can work with any
+    // granule.
+    kernel_memory_manager: KernelMemoryManager<'static, Page4KiB, { config::CONFIG.mpu }>,
 }
 
 /// Represents the different outcomes when trying to allocate a grant region
@@ -88,12 +117,225 @@ impl Kernel {
     /// Crucially, the processes included in the `processes` array MUST be valid
     /// to execute. Any credential checks or validation MUST happen before the
     /// `Process` object is included in this array.
-    pub const fn new(processes: &'static [ProcessSlot]) -> Kernel {
+    pub fn new(
+        processes: &'static [ProcessSlot],
+        process_memory_allocator: StaticAllocator<'static, Page4KiB>,
+        kernel_rom_region: KernelMappedAllocatedRegion<'static, Page4KiB>,
+        kernel_prog_region: KernelMappedAllocatedRegion<'static, Page4KiB>,
+        kernel_ram_region: KernelMappedAllocatedRegion<'static, Page4KiB>,
+        kernel_peripheral_region: KernelMappedAllocatedRegion<'static, Page4KiB>,
+    ) -> Kernel {
+        let process_memory_manager = ProcessMemoryManager::new(process_memory_allocator);
+
+        let protected_kernel_rom_region = KernelMappedProtectedAllocatedRegion::new_from_mapped(
+            kernel_rom_region,
+            Permissions::ReadExecute,
+        );
+        let protected_kernel_prog_region = KernelMappedProtectedAllocatedRegion::new_from_mapped(
+            kernel_prog_region,
+            Permissions::ReadWrite,
+        );
+        let protected_kernel_ram_region = KernelMappedProtectedAllocatedRegion::new_from_mapped(
+            kernel_ram_region,
+            Permissions::ReadWrite,
+        );
+        let protected_kernel_peripheral_region =
+            KernelMappedProtectedAllocatedRegion::new_from_mapped(
+                kernel_peripheral_region,
+                Permissions::ReadWrite,
+            );
+
+        let kernel_memory_manager = KernelMemoryManager::new(
+            protected_kernel_rom_region,
+            protected_kernel_prog_region,
+            protected_kernel_ram_region,
+            protected_kernel_peripheral_region,
+        );
+
         Kernel {
             processes,
             process_identifier_max: Cell::new(0),
+            current_running_process: OptionalCell::empty(),
             grant_counter: Cell::new(0),
             grants_finalized: Cell::new(false),
+            process_memory_manager,
+            kernel_memory_manager,
+        }
+    }
+
+    pub(crate) fn get_process_memory_manager(
+        &'static self,
+    ) -> &'static ProcessMemoryManager<'static, Page4KiB, StaticAllocator<'static, Page4KiB>> {
+        &self.process_memory_manager
+    }
+
+    pub(crate) fn is_process_memory_configuration_valid(
+        &self,
+        process_memory_configuration: ProcessConfiguration<'static, Page4KiB>,
+    ) -> Result<ValidProcessConfiguration<'static, Page4KiB>, ProcessMemoryMappingError> {
+        self.kernel_memory_manager
+            .is_process_configuration_valid(process_memory_configuration)
+    }
+
+    fn internal_translate_user_protected_physical_pointer_byte_to_user_virtual_pointer_byte<
+        const IS_MUTABLE: bool,
+        U: AlwaysAligned,
+    >(
+        &self,
+        process_memory_configuration: &ValidProcessConfiguration<Page4KiB>,
+        physical_pointer: PhysicalPointer<IS_MUTABLE, U>,
+    ) -> Result<UserVirtualPointer<IS_MUTABLE, U>, PhysicalPointer<IS_MUTABLE, U>> {
+        process_memory_configuration.translate_protected_physical_pointer_byte(physical_pointer)
+    }
+
+    pub(crate) fn translate_user_protected_physical_pointer_byte_to_user_virtual_pointer_byte<
+        const IS_MUTABLE: bool,
+        U: AlwaysAligned,
+    >(
+        &self,
+        process: &dyn process::Process,
+        physical_pointer: PhysicalPointer<IS_MUTABLE, U>,
+    ) -> Result<UserVirtualPointer<IS_MUTABLE, U>, PhysicalPointer<IS_MUTABLE, U>> {
+        let process_memory_configuration = process.get_memory_configuration();
+        self.internal_translate_user_protected_physical_pointer_byte_to_user_virtual_pointer_byte(
+            process_memory_configuration,
+            physical_pointer,
+        )
+    }
+
+    pub(crate) fn translate_kernel_allocated_physical_pointer_byte_to_kernel_virtual_pointer_byte<
+        const IS_MUTABLE: bool,
+        U: AlwaysAligned,
+    >(
+        &self,
+        physical_pointer: PhysicalPointer<IS_MUTABLE, U>,
+    ) -> Result<KernelVirtualPointer<IS_MUTABLE, U>, PhysicalPointer<IS_MUTABLE, U>> {
+        self.kernel_memory_manager
+            .translate_allocated_physical_pointer_byte(physical_pointer)
+    }
+
+    pub(crate) fn internal_translate_user_protected_virtual_pointer_byte<
+        const IS_MUTABLE: bool,
+        U: AlwaysAligned,
+    >(
+        &self,
+        process_memory_configuration: &ValidProcessConfiguration<Page4KiB>,
+        user_virtual_pointer: UserVirtualPointer<IS_MUTABLE, U>,
+    ) -> Result<KernelVirtualPointer<IS_MUTABLE, U>, UserVirtualPointer<IS_MUTABLE, U>> {
+        let physical_pointer = process_memory_configuration
+            .translate_protected_virtual_pointer_byte(user_virtual_pointer)?;
+        match self.translate_kernel_allocated_physical_pointer_byte_to_kernel_virtual_pointer_byte(
+            physical_pointer,
+        ) {
+            Err(_physical_pointer) => Err(user_virtual_pointer),
+            Ok(kernel_virtual_pointer) => Ok(kernel_virtual_pointer),
+        }
+    }
+
+    pub(crate) fn translate_user_protected_virtual_pointer_byte<
+        const IS_MUTABLE: bool,
+        U: AlwaysAligned,
+    >(
+        &self,
+        process: &dyn process::Process,
+        user_virtual_pointer: UserVirtualPointer<IS_MUTABLE, U>,
+    ) -> Result<KernelVirtualPointer<IS_MUTABLE, U>, UserVirtualPointer<IS_MUTABLE, U>> {
+        let process_memory_configuration = process.get_memory_configuration();
+        self.internal_translate_user_protected_virtual_pointer_byte(
+            process_memory_configuration,
+            user_virtual_pointer,
+        )
+    }
+
+    pub(crate) fn translate_user_protected_virtual_nullable_pointer_byte<
+        const IS_MUTABLE: bool,
+        U: AlwaysAligned,
+    >(
+        &self,
+        process: &dyn process::Process,
+        user_virtual_pointer: UserNullableVirtualPointer<IS_MUTABLE, U>,
+    ) -> Result<
+        KernelNullableVirtualPointer<IS_MUTABLE, U>,
+        UserNullableVirtualPointer<IS_MUTABLE, U>,
+    > {
+        match user_virtual_pointer {
+            UserNullableVirtualPointer::Null => Ok(KernelNullableVirtualPointer::Null),
+            UserNullableVirtualPointer::NonNull(non_null_user_virtual_pointer) => self
+                .translate_user_protected_virtual_pointer_byte(
+                    process,
+                    non_null_user_virtual_pointer,
+                )
+                .map(|non_null_kernel_virtual_pointer| {
+                    KernelNullableVirtualPointer::NonNull(non_null_kernel_virtual_pointer)
+                })
+                .map_err(|non_null_user_virtual_pointer| {
+                    UserNullableVirtualPointer::NonNull(non_null_user_virtual_pointer)
+                }),
+        }
+    }
+
+    pub(crate) fn internal_translate_user_allocated_virtual_pointer_byte<
+        const IS_MUTABLE: bool,
+        U: AlwaysAligned,
+    >(
+        &self,
+        process_memory_configuration: &ValidProcessConfiguration<Page4KiB>,
+        user_virtual_pointer: UserVirtualPointer<IS_MUTABLE, U>,
+    ) -> Result<KernelVirtualPointer<IS_MUTABLE, U>, UserVirtualPointer<IS_MUTABLE, U>> {
+        let physical_pointer = process_memory_configuration
+            .translate_allocated_virtual_pointer_byte(user_virtual_pointer)?;
+        match self.translate_kernel_allocated_physical_pointer_byte_to_kernel_virtual_pointer_byte(
+            physical_pointer,
+        ) {
+            Err(_physical_pointer) => Err(user_virtual_pointer),
+            Ok(kernel_virtual_pointer) => Ok(kernel_virtual_pointer),
+        }
+    }
+
+    pub(crate) fn translate_kernel_allocated_to_user_protected_byte<
+        const IS_MUTABLE: bool,
+        U: AlwaysAligned,
+    >(
+        &self,
+        process: &dyn process::Process,
+        kernel_virtual_pointer: KernelVirtualPointer<IS_MUTABLE, U>,
+    ) -> Result<UserVirtualPointer<IS_MUTABLE, U>, KernelVirtualPointer<IS_MUTABLE, U>> {
+        let physical_pointer = self
+            .kernel_memory_manager
+            .translate_allocated_virtual_pointer_byte(kernel_virtual_pointer)?;
+        match self.translate_user_protected_physical_pointer_byte_to_user_virtual_pointer_byte(
+            process,
+            physical_pointer,
+        ) {
+            Err(_physical_pointer) => Err(kernel_virtual_pointer),
+            Ok(user_virtual_pointer) => Ok(user_virtual_pointer),
+        }
+    }
+
+    fn translate_kernel_allocated_to_user_protected_nullable_byte<
+        const IS_MUTABLE: bool,
+        U: AlwaysAligned,
+    >(
+        &self,
+        process: &dyn process::Process,
+        kernel_virtual_pointer: KernelNullableVirtualPointer<IS_MUTABLE, U>,
+    ) -> Result<
+        UserNullableVirtualPointer<IS_MUTABLE, U>,
+        KernelNullableVirtualPointer<IS_MUTABLE, U>,
+    > {
+        match kernel_virtual_pointer {
+            KernelNullableVirtualPointer::Null => Ok(UserNullableVirtualPointer::Null),
+            KernelNullableVirtualPointer::NonNull(non_null_kernel_virtual_pointer) => self
+                .translate_kernel_allocated_to_user_protected_byte(
+                    process,
+                    non_null_kernel_virtual_pointer,
+                )
+                .map(|user_virtual_pointer| {
+                    UserNullableVirtualPointer::NonNull(user_virtual_pointer)
+                })
+                .map_err(|non_null_kernel_virtual_pointer| {
+                    KernelNullableVirtualPointer::NonNull(non_null_kernel_virtual_pointer)
+                }),
         }
     }
 
@@ -317,7 +559,7 @@ impl Kernel {
     /// Cause all apps to fault.
     ///
     /// This will call `set_fault_state()` on each app, causing the app to enter
-    /// the state as if it had crashed (for example with an MPU violation). If
+    /// the state as if it had crashed (for example with an MMU violation). If
     /// the process is configured to be restarted it will be.
     ///
     /// Only callers with the `ProcessManagementCapability` can call this
@@ -347,7 +589,11 @@ impl Kernel {
     /// This function has one configuration option: `no_sleep`. If that argument
     /// is set to true, the kernel will never attempt to put the chip to sleep,
     /// and this function can be called again immediately.
-    pub fn kernel_loop_operation<KR: KernelResources<C>, C: Chip, const NUM_PROCS: u8>(
+    pub fn kernel_loop_operation<
+        KR: KernelResources<C>,
+        C: Chip<MMU: mmu::MMU<Granule = Page4KiB>>,
+        const NUM_PROCS: u8,
+    >(
         &self,
         resources: &KR,
         chip: &C,
@@ -414,7 +660,11 @@ impl Kernel {
     ///
     /// Most of the behavior of this loop is controlled by the [`Scheduler`]
     /// implementation in use.
-    pub fn kernel_loop<KR: KernelResources<C>, C: Chip, const NUM_PROCS: u8>(
+    pub fn kernel_loop<
+        KR: KernelResources<C>,
+        C: Chip<MMU: mmu::MMU<Granule = Page4KiB>>,
+        const NUM_PROCS: u8,
+    >(
         &self,
         resources: &KR,
         chip: &C,
@@ -427,6 +677,83 @@ impl Kernel {
         loop {
             self.kernel_loop_operation(resources, chip, ipc, false, capability);
         }
+    }
+
+    fn apply_new_user_memory_configuration<MMU: mmu::MMU<Granule = Page4KiB>>(
+        mmu: &MMU,
+        process_memory_configuration: &ValidProcessConfiguration<Page4KiB>,
+    ) {
+        let mut is_configuration_dirty = false;
+        let dirty_prog_region = process_memory_configuration.get_prog_region();
+        let prog_region = dirty_prog_region.as_mapped_protected_allocated_region();
+        mmu.map_user_prog_region(prog_region);
+        if dirty_prog_region.is_dirty() {
+            is_configuration_dirty = true;
+        }
+        dirty_prog_region.clear_dirty();
+
+        let dirty_ram_region = process_memory_configuration.get_ram_region();
+        let ram_region = dirty_ram_region.as_mapped_protected_allocated_region();
+        mmu.map_user_ram_region(ram_region);
+        if dirty_ram_region.is_dirty() {
+            is_configuration_dirty = true;
+        }
+        dirty_ram_region.clear_dirty();
+
+        if is_configuration_dirty {
+            let asid = process_memory_configuration.get_asid();
+            mmu.flush(asid);
+        }
+    }
+
+    fn update_user_memory_configuration<MMU: mmu::MMU<Granule = Page4KiB>>(
+        mmu: &MMU,
+        process_memory_configuration: &ValidProcessConfiguration<Page4KiB>,
+    ) {
+        let mut is_configuration_dirty = false;
+        let dirty_prog_region = process_memory_configuration.get_prog_region();
+
+        if dirty_prog_region.is_dirty() {
+            let prog_region = dirty_prog_region.as_mapped_protected_allocated_region();
+            mmu.map_user_prog_region(prog_region);
+            dirty_prog_region.clear_dirty();
+            is_configuration_dirty = true;
+        }
+
+        let dirty_ram_region = process_memory_configuration.get_ram_region();
+        if dirty_ram_region.is_dirty() {
+            let ram_region = dirty_ram_region.as_mapped_protected_allocated_region();
+            mmu.map_user_ram_region(ram_region);
+            dirty_ram_region.clear_dirty();
+            is_configuration_dirty = true;
+        }
+
+        if is_configuration_dirty {
+            let asid = process_memory_configuration.get_asid();
+            mmu.flush(asid);
+        }
+    }
+
+    fn setup_user_mmu<MMU: mmu::MMU<Granule = Page4KiB>>(
+        &self,
+        mmu: &MMU,
+        process: &dyn process::Process,
+    ) {
+        let process_memory_configuration = process.get_memory_configuration();
+
+        match self.current_running_process.get() {
+            None => Self::apply_new_user_memory_configuration(mmu, process_memory_configuration),
+            Some(current_running_process) => {
+                if current_running_process != process.processid() {
+                    Self::apply_new_user_memory_configuration(mmu, process_memory_configuration);
+                } else {
+                    Self::update_user_memory_configuration(mmu, process_memory_configuration);
+                }
+            }
+        }
+
+        let asid = process_memory_configuration.get_asid();
+        mmu.enable_user_protection(asid);
     }
 
     /// Transfer control from the kernel to a userspace process.
@@ -460,7 +787,11 @@ impl Kernel {
     /// cooperatively). Notably, time spent in this function by the kernel,
     /// executing system calls or merely setting up the switch to/from
     /// userspace, is charged to the process.
-    fn do_process<KR: KernelResources<C>, C: Chip, const NUM_PROCS: u8>(
+    fn do_process<
+        KR: KernelResources<C>,
+        C: Chip<MMU: mmu::MMU<Granule = Page4KiB>>,
+        const NUM_PROCS: u8,
+    >(
         &self,
         resources: &KR,
         chip: &C,
@@ -537,12 +868,13 @@ impl Kernel {
                     resources
                         .context_switch_callback()
                         .context_switch_hook(process);
-                    process.setup_mpu();
-                    chip.mpu().enable_app_mpu();
+                    let mmu = chip.mmu();
+                    self.setup_user_mmu(mmu, process);
                     scheduler_timer.arm();
+                    self.current_running_process.set(process.processid());
                     let context_switch_reason = process.switch_to();
                     scheduler_timer.disarm();
-                    chip.mpu().disable_app_mpu();
+                    mmu.disable_user_protection();
 
                     // Now the process has returned back to the kernel. Check
                     // why and handle the process as appropriate.
@@ -816,8 +1148,18 @@ impl Kernel {
                         // process's memory exist. We do not have a reference,
                         // so we can safely call `set_byte()`.
                         unsafe {
-                            let address = param_a as *mut u8;
-                            process.set_byte(address, has_tasks as u8);
+                            // PANIC: TODO: param_a may be null
+                            let user_pointer =
+                                MutableUserVirtualPointer::new_from_raw_byte(param_a as *mut u8)
+                                    .unwrap();
+                            // PANIC: TODO: param_a may be null
+                            let kernel_pointer = self
+                                .translate_user_protected_virtual_pointer_byte(
+                                    process,
+                                    user_pointer,
+                                )
+                                .unwrap();
+                            process.set_byte(kernel_pointer, has_tasks as u8);
                         }
 
                         if has_tasks {
@@ -901,11 +1243,21 @@ impl Kernel {
                         // > immediately return a failure with a error code of
                         // > `INVALID`.
                         let rval1 = upcall_ptr.map_or(None, |upcall_ptr_nonnull| {
-                            if !process.is_valid_upcall_function_pointer(upcall_ptr_nonnull.as_ptr()) {
-                                Some(ErrorCode::INVAL)
-                            } else {
-                                None
-                            }
+                            let raw_ptr = upcall_ptr_nonnull.as_ptr();
+                            // SAFETY: `raw_ptr` comes from `upcall_ptr` which is a pointer passed
+                            // by the user space.
+                            let result_user_upcall_ptr = unsafe { ImmutableUserVirtualPointer::new_from_raw_byte(raw_ptr) };
+                            // PANIC: `raw_ptr` is non-null
+                            let user_upcall_ptr = result_user_upcall_ptr.unwrap();
+                            self.translate_user_protected_virtual_pointer_byte(process, user_upcall_ptr)
+                                .ok()
+                                .and_then(|kernel_upcall_ptr| {
+                                    if !process.is_valid_upcall_function_pointer(kernel_upcall_ptr) {
+                                        Some(ErrorCode::INVAL)
+                                    } else {
+                                        None
+                                    }
+                                })
                         });
 
                         // If the upcall is either null or valid, then we
@@ -1006,7 +1358,7 @@ impl Kernel {
                             // that there are no pending upcalls with the same
                             // identifier but with the old function pointer, we
                             // clear them now.
-                            let _ =process.remove_pending_upcalls(upcall_id);
+                            process.remove_pending_upcalls(upcall_id);
                         }
 
                         if config::CONFIG.trace_syscalls {
@@ -1052,9 +1404,21 @@ impl Kernel {
                     Syscall::ReadWriteAllow {
                         driver_number,
                         subdriver_number,
-                        allow_address,
+                        allow_pointer,
                         allow_size,
                     } => {
+                        let kernel_allow_pointer = match self.translate_user_protected_virtual_nullable_pointer_byte(
+                            process,
+                            allow_pointer,
+                        ) {
+                            Err(allow_pointer) => {
+                                let syscall_return = SyscallReturn::AllowReadWriteFailure(ErrorCode::INVAL, allow_pointer, allow_size);
+                                process.set_syscall_return_value(syscall_return);
+                                return;
+                            }
+                            Ok(kernel_allow_pointer) => kernel_allow_pointer,
+                        };
+
                         let res = match driver {
                             Some(driver) => {
                                 // Try to create an appropriate
@@ -1062,7 +1426,7 @@ impl Kernel {
                                 // ensure that the memory in question is located
                                 // in the process-accessible memory space.
                                 match process
-                                    .build_readwrite_process_buffer(allow_address, allow_size)
+                                    .build_readwrite_process_buffer(kernel_allow_pointer, allow_size)
                                 {
                                     Ok(rw_pbuf) => {
                                         // Creating the
@@ -1076,7 +1440,12 @@ impl Kernel {
                                         ) {
                                             Ok(rw_pbuf) => {
                                                 let (ptr, len) = rw_pbuf.consume();
-                                                SyscallReturn::AllowReadWriteSuccess(ptr, len)
+                                                let user_ptr = self
+                                                    .translate_kernel_allocated_to_user_protected_nullable_byte(process, ptr)
+                                                    // PANIC: only valid kernel virtual pointers
+                                                    // are stored in a grant.
+                                                    .unwrap();
+                                                SyscallReturn::AllowReadWriteSuccess(user_ptr, len)
                                             }
                                             Err((rw_pbuf, err @ ErrorCode::NOMEM)) => {
                                                 // If we get a memory error, we
@@ -1098,14 +1467,24 @@ impl Kernel {
                                                         ) {
                                                             Ok(rw_pbuf) => {
                                                                 let (ptr, len) = rw_pbuf.consume();
+                                                                let user_ptr = self
+                                                                    .translate_kernel_allocated_to_user_protected_nullable_byte(process, ptr)
+                                                                    // PANIC: only valid kernel virtual pointers
+                                                                    // are stored in a grant.
+                                                                    .unwrap();
                                                                 SyscallReturn::AllowReadWriteSuccess(
-                                                                    ptr, len,
+                                                                    user_ptr, len,
                                                                 )
                                                             }
                                                             Err((rw_pbuf, err)) => {
                                                                 let (ptr, len) = rw_pbuf.consume();
+                                                                let user_ptr = self
+                                                                    .translate_kernel_allocated_to_user_protected_nullable_byte(process, ptr)
+                                                                    // PANIC: only valid kernel virtual pointers
+                                                                    // are stored in a grant.
+                                                                    .unwrap();
                                                                 SyscallReturn::AllowReadWriteFailure(
-                                                                    err, ptr, len,
+                                                                    err, user_ptr, len,
                                                                 )
                                                             }
                                                         }
@@ -1129,15 +1508,25 @@ impl Kernel {
                                                             _ => {}
                                                         }
                                                         let (ptr, len) = rw_pbuf.consume();
+                                                        let user_ptr = self
+                                                            .translate_kernel_allocated_to_user_protected_nullable_byte(process, ptr)
+                                                            // PANIC: only valid kernel virtual pointers
+                                                            // are stored in a grant.
+                                                            .unwrap();
                                                         SyscallReturn::AllowReadWriteFailure(
-                                                            err, ptr, len,
+                                                            err, user_ptr, len,
                                                         )
                                                     }
                                                 }
                                             }
                                             Err((rw_pbuf, err)) => {
                                                 let (ptr, len) = rw_pbuf.consume();
-                                                SyscallReturn::AllowReadWriteFailure(err, ptr, len)
+                                                let user_ptr = self
+                                                    .translate_kernel_allocated_to_user_protected_nullable_byte(process, ptr)
+                                                    // PANIC: only valid kernel virtual pointers
+                                                    // are stored in a grant.
+                                                    .unwrap();
+                                                SyscallReturn::AllowReadWriteFailure(err, user_ptr, len)
                                             }
                                         }
                                     }
@@ -1148,7 +1537,7 @@ impl Kernel {
                                         // parameters.
                                         SyscallReturn::AllowReadWriteFailure(
                                             allow_error,
-                                            allow_address,
+                                            allow_pointer,
                                             allow_size,
                                         )
                                     }
@@ -1156,7 +1545,7 @@ impl Kernel {
                             }
                             None => SyscallReturn::AllowReadWriteFailure(
                                 ErrorCode::NODEVICE,
-                                allow_address,
+                                allow_pointer,
                                 allow_size,
                             ),
                         };
@@ -1167,7 +1556,7 @@ impl Kernel {
                                 process.processid(),
                                 driver_number,
                                 subdriver_number,
-                                allow_address as usize,
+                                allow_pointer.get_address(),
                                 allow_size,
                                 res
                             );
@@ -1177,9 +1566,21 @@ impl Kernel {
                     Syscall::UserspaceReadableAllow {
                         driver_number,
                         subdriver_number,
-                        allow_address,
+                        allow_pointer,
                         allow_size,
                     } => {
+                        let kernel_allow_pointer = match self.translate_user_protected_virtual_nullable_pointer_byte(
+                            process,
+                            allow_pointer,
+                        ) {
+                            Err(allow_pointer) => {
+                                let syscall_return = SyscallReturn::AllowReadWriteFailure(ErrorCode::INVAL, allow_pointer, allow_size);
+                                process.set_syscall_return_value(syscall_return);
+                                return;
+                            }
+                            Ok(kernel_allow_pointer) => kernel_allow_pointer,
+                        };
+
                         let res = match driver {
                             Some(d) => {
                                 // Try to create an appropriate
@@ -1188,7 +1589,7 @@ impl Kernel {
                                 // question is located in the process-accessible
                                 // memory space.
                                 match process
-                                    .build_readwrite_process_buffer(allow_address, allow_size)
+                                    .build_readwrite_process_buffer(kernel_allow_pointer, allow_size)
                                 {
                                     Ok(rw_pbuf) => {
                                         // Creating the
@@ -1205,8 +1606,13 @@ impl Kernel {
                                                 // previous buffer information
                                                 // back to the process.
                                                 let (ptr, len) = returned_pbuf.consume();
+                                                let user_ptr = self
+                                                    .translate_kernel_allocated_to_user_protected_nullable_byte(process, ptr)
+                                                    // PANIC: only valid kernel virtual pointers
+                                                    // are stored in a grant.
+                                                    .unwrap();
                                                 SyscallReturn::UserspaceReadableAllowSuccess(
-                                                    ptr, len,
+                                                    user_ptr, len,
                                                 )
                                             }
                                             Err((rejected_pbuf, err)) => {
@@ -1215,8 +1621,13 @@ impl Kernel {
                                                 // buffer information back to
                                                 // the process.
                                                 let (ptr, len) = rejected_pbuf.consume();
+                                                let user_ptr = self
+                                                    .translate_kernel_allocated_to_user_protected_nullable_byte(process, ptr)
+                                                    // PANIC: only valid kernel virtual pointers
+                                                    // are stored in a grant.
+                                                    .unwrap();
                                                 SyscallReturn::UserspaceReadableAllowFailure(
-                                                    err, ptr, len,
+                                                    err, user_ptr, len,
                                                 )
                                             }
                                         }
@@ -1227,7 +1638,7 @@ impl Kernel {
                                         // Report back to the process.
                                         SyscallReturn::UserspaceReadableAllowFailure(
                                             allow_error,
-                                            allow_address,
+                                            allow_pointer,
                                             allow_size,
                                         )
                                     }
@@ -1236,7 +1647,7 @@ impl Kernel {
 
                             None => SyscallReturn::UserspaceReadableAllowFailure(
                                 ErrorCode::NODEVICE,
-                                allow_address,
+                                allow_pointer,
                                 allow_size,
                             ),
                         };
@@ -1247,7 +1658,7 @@ impl Kernel {
                                 process.processid(),
                                 driver_number,
                                 subdriver_number,
-                                allow_address as usize,
+                                allow_pointer.get_address(),
                                 allow_size,
                                 res
                             );
@@ -1257,9 +1668,21 @@ impl Kernel {
                     Syscall::ReadOnlyAllow {
                         driver_number,
                         subdriver_number,
-                        allow_address,
+                        allow_pointer,
                         allow_size,
                     } => {
+                        let kernel_allow_pointer = match self.translate_user_protected_virtual_nullable_pointer_byte(
+                            process,
+                            allow_pointer,
+                        ) {
+                            Err(allow_pointer) => {
+                                let syscall_return = SyscallReturn::AllowReadOnlyFailure(ErrorCode::INVAL, allow_pointer, allow_size);
+                                process.set_syscall_return_value(syscall_return);
+                                return;
+                            }
+                            Ok(kernel_allow_pointer) => kernel_allow_pointer,
+                        };
+
                         let res = match driver {
                             Some(driver) => {
                                 // Try to create an appropriate
@@ -1267,7 +1690,7 @@ impl Kernel {
                                 // ensure that the memory in question is located
                                 // in the process-accessible memory space.
                                 match process
-                                    .build_readonly_process_buffer(allow_address, allow_size)
+                                    .build_readonly_process_buffer(kernel_allow_pointer, allow_size)
                                 {
                                     Ok(ro_pbuf) => {
                                         // Creating the
@@ -1281,7 +1704,12 @@ impl Kernel {
                                         ) {
                                             Ok(ro_pbuf) => {
                                                 let (ptr, len) = ro_pbuf.consume();
-                                                SyscallReturn::AllowReadOnlySuccess(ptr, len)
+                                                let user_ptr = self
+                                                    .translate_kernel_allocated_to_user_protected_nullable_byte(process, ptr)
+                                                    // PANIC: only valid kernel virtual pointers
+                                                    // are stored in a grant.
+                                                    .unwrap();
+                                                SyscallReturn::AllowReadOnlySuccess(user_ptr, len)
                                             }
                                             Err((ro_pbuf, err @ ErrorCode::NOMEM)) => {
                                                 // If we get a memory error, we
@@ -1303,14 +1731,24 @@ impl Kernel {
                                                         ) {
                                                             Ok(ro_pbuf) => {
                                                                 let (ptr, len) = ro_pbuf.consume();
+                                                                let user_ptr = self
+                                                                    .translate_kernel_allocated_to_user_protected_nullable_byte(process, ptr)
+                                                                    // PANIC: only valid kernel virtual pointers
+                                                                    // are stored in a grant.
+                                                                    .unwrap();
                                                                 SyscallReturn::AllowReadOnlySuccess(
-                                                                    ptr, len,
+                                                                    user_ptr, len,
                                                                 )
                                                             }
                                                             Err((ro_pbuf, err)) => {
                                                                 let (ptr, len) = ro_pbuf.consume();
+                                                                let user_ptr = self
+                                                                    .translate_kernel_allocated_to_user_protected_nullable_byte(process, ptr)
+                                                                    // PANIC: only valid kernel virtual pointers
+                                                                    // are stored in a grant.
+                                                                    .unwrap();
                                                                 SyscallReturn::AllowReadOnlyFailure(
-                                                                    err, ptr, len,
+                                                                    err, user_ptr, len,
                                                                 )
                                                             }
                                                         }
@@ -1334,15 +1772,25 @@ impl Kernel {
                                                             _ => {}
                                                         }
                                                         let (ptr, len) = ro_pbuf.consume();
+                                                        let user_ptr = self
+                                                            .translate_kernel_allocated_to_user_protected_nullable_byte(process, ptr)
+                                                            // PANIC: only valid kernel virtual pointers
+                                                            // are stored in a grant.
+                                                            .unwrap();
                                                         SyscallReturn::AllowReadOnlyFailure(
-                                                            err, ptr, len,
+                                                            err, user_ptr, len,
                                                         )
                                                     }
                                                 }
                                             }
                                             Err((ro_pbuf, err)) => {
                                                 let (ptr, len) = ro_pbuf.consume();
-                                                SyscallReturn::AllowReadOnlyFailure(err, ptr, len)
+                                                let user_ptr = self
+                                                    .translate_kernel_allocated_to_user_protected_nullable_byte(process, ptr)
+                                                    // PANIC: only valid kernel virtual pointers
+                                                    // are stored in a grant.
+                                                    .unwrap();
+                                                SyscallReturn::AllowReadOnlyFailure(err, user_ptr, len)
                                             }
                                         }
                                     }
@@ -1353,7 +1801,7 @@ impl Kernel {
                                         // parameters.
                                         SyscallReturn::AllowReadOnlyFailure(
                                             allow_error,
-                                            allow_address,
+                                            allow_pointer,
                                             allow_size,
                                         )
                                     }
@@ -1361,7 +1809,7 @@ impl Kernel {
                             }
                             None => SyscallReturn::AllowReadOnlyFailure(
                                 ErrorCode::NODEVICE,
-                                allow_address,
+                                allow_pointer,
                                 allow_size,
                             ),
                         };
@@ -1372,7 +1820,7 @@ impl Kernel {
                                 process.processid(),
                                 driver_number,
                                 subdriver_number,
-                                allow_address as usize,
+                                allow_pointer.get_address(),
                                 allow_size,
                                 res
                             );

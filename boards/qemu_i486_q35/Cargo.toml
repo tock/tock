@@ -11,7 +11,7 @@ build = "../build.rs"
 
 [dependencies]
 components = { path = "../components" }
-kernel = { path = "../../kernel" }
+kernel = { path = "../../kernel", features = ["debug_load_processes"] }
 x86_q35 = { path = "../../chips/x86_q35" }
 x86 = { path = "../../arch/x86" }
 
