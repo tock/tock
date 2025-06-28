@@ -100,8 +100,7 @@ impl<const IS_MUTABLE: bool, T: Alignment> Pointer<IS_MUTABLE, T> {
         let new_non_null_pointer = unsafe { NonNull::new_unchecked(new_raw_pointer) };
         // SAFETY: Adding count * size_of::<T>() bytes to the address of T-aligned pointer results
         // in an address that is also multiple of size_of::<T>()
-        let new_pointer = unsafe { Self::new_unchecked_alignment(new_non_null_pointer) };
-        new_pointer
+        unsafe { Self::new_unchecked_alignment(new_non_null_pointer) }
     }
 
     pub fn checked_add(&self, count: NonZero<usize>) -> Result<Self, ()> {

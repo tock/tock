@@ -209,8 +209,7 @@ impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>
     pub(crate) unsafe fn unchecked_add(&self, count: NonZero<usize>) -> Self {
         let inner = self.as_inner();
         let new_inner = inner.unchecked_add(count);
-        let new_pointer = Self::new(new_inner);
-        new_pointer
+        Self::new(new_inner)
     }
 
     pub fn checked_add(&self, count: NonZero<usize>) -> Result<Self, ()> {
@@ -601,8 +600,7 @@ impl<const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment>
         // SAFETY: The caller ensures that the addition does not overflow.
         let new_virtual_pointer = unsafe { virtual_pointer.unchecked_add(count) };
         // SAFETY: `new_virtual_pointer` comes from `self`
-        let new_pointer = unsafe { Self::new(new_virtual_pointer) };
-        new_pointer
+        unsafe { Self::new(new_virtual_pointer) }
     }
 
     pub(crate) fn checked_add(&self, count: NonZero<usize>) -> Result<Self, ()> {

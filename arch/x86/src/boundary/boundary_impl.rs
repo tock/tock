@@ -46,7 +46,7 @@ impl UserspaceKernelBoundary for Boundary {
     type StoredState = UserContext;
 
     fn initial_process_app_brk_size(&self) -> usize {
-        Self::MIN_APP_BRK as usize
+        Self::MIN_APP_BRK
     }
 
     unsafe fn initialize_process(

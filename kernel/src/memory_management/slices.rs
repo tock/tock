@@ -135,8 +135,7 @@ impl<'a, const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>
         // SAFETY: a slice cannot wrap
         let ending_pointer = unsafe { starting_pointer.unchecked_add(length) };
         // SAFETY: since a slice cannot wrap, `ending_pointer` > `starting_pointer`
-        let smaller = unsafe { SmallerPair::new_unchecked(starting_pointer, ending_pointer) };
-        smaller
+        unsafe { SmallerPair::new_unchecked(starting_pointer, ending_pointer) }
     }
 
     /*

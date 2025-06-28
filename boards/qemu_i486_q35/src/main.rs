@@ -181,7 +181,8 @@ unsafe extern "cdecl" fn main() {
     );
 
     // PANIC: the linker script ensures that the RAM region is not empty.
-    let non_empty_ram_memory = kernel::utilities::slices::NonEmptyMutableSlice::new(apps_ram).unwrap();
+    let non_empty_ram_memory =
+        kernel::utilities::slices::NonEmptyMutableSlice::new(apps_ram).unwrap();
     let physical_ram_memory =
         kernel::memory_management::slices::MutablePhysicalSlice::new(non_empty_ram_memory);
 
