@@ -249,3 +249,102 @@ impl<'a, const IS_USER: bool, const IS_MUTABLE: bool, T: Alignment>
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::memory_management::pages::Page4KiB;
+    use crate::memory_management::pointers::{
+        PhysicalPointer,
+        VirtualPointer,
+        UserVirtualPointer,
+    };
+    use crate::utilities::misc::create_non_zero_usize;
+    use crate::utilities::pointers::{
+        ImmutablePointer,
+        MutablePointer,
+    };
+
+    #[test]
+    fn test_physical_slice_split_at_checked() {
+        let pointer = ImmutablePointer::new(0x80000000 as *const Page4KiB).unwrap();
+        // SAFETY: let's assume 0x80000000 is a valid physical pointer
+        let pointer = unsafe { PhysicalPointer::new(pointer) };
+        let length = create_non_zero_usize(32);
+        // SAFETY: let's assume the slice is valid
+        let slice = unsafe { ImmutablePhysicalSlice::from_raw_parts(pointer, length) };
+
+        let (slice, optional_leftover) = match slice.split_at_checked(create_non_zero_usize(2)) {
+            Ok(result) => result,
+            Err(_) => panic!("split_at_checked() should have succeeded"),
+        };
+
+        assert_eq!(0x80000000, slice.get_starting_pointer().get_address().get());
+        assert_eq!(create_non_zero_usize(2), slice.get_length());
+
+        let leftover = match optional_leftover {
+            None => panic!("leftover cannot be None"),
+            Some(leftover) => leftover,
+        };
+
+        assert_eq!(0x80002000, leftover.get_starting_pointer().get_address().get());
+        assert_eq!(create_non_zero_usize(30), leftover.get_length());
+
+        let leftover = match leftover.split_at_checked(create_non_zero_usize(31)) {
+            Err(leftover) => leftover,
+            Ok(_) => panic!("split_at_checked() should have failed"),
+        };
+
+        let (slice, optional_leftover) = match leftover.split_at_checked(create_non_zero_usize(30)) {
+            Err(_) => panic!("split_at_checked() should have succeeded"),
+            Ok(result) => result,
+        };
+
+        assert_eq!(0x80002000, slice.get_starting_pointer().get_address().get());
+        assert_eq!(create_non_zero_usize(30), slice.get_length());
+        assert!(optional_leftover.is_none());
+    }
+
+    #[test]
+    fn test_virtual_slice_split_at_checked() {
+        let pointer = MutablePointer::new(0x40000000 as *mut Page4KiB).unwrap();
+        // SAFETY: let's assume 0x40000000 is a valid virtual pointer
+        let pointer = unsafe { VirtualPointer::new(pointer) };
+        // SAFETY: let's assume 0x40000000 is a valid user virtual pointer
+        let pointer = unsafe { UserVirtualPointer::new(pointer) };
+        let length = create_non_zero_usize(123);
+        // SAFETY: let's assume the slice is valid
+        let slice = unsafe { MutableUserVirtualSlice::from_raw_parts(pointer, length) };
+
+        let (slice, optional_leftover) = match slice.split_at_checked(create_non_zero_usize(98)) {
+            Ok(result) => result,
+            Err(_) => panic!("split_at_checked() should have succeeded"),
+        };
+
+        assert_eq!(0x40000000, slice.get_starting_pointer().get_address().get());
+        assert_eq!(create_non_zero_usize(98), slice.get_length());
+
+        let leftover = match optional_leftover {
+            None => panic!("leftover cannot be None"),
+            Some(leftover) => leftover,
+        };
+
+        assert_eq!(0x40062000, leftover.get_starting_pointer().get_address().get());
+        assert_eq!(create_non_zero_usize(25), leftover.get_length());
+
+        let leftover = match leftover.split_at_checked(create_non_zero_usize(26)) {
+            Err(leftover) => leftover,
+            Ok(_) => panic!("split_at_checked() should have failed"),
+        };
+
+        let (slice, optional_leftover) = match leftover.split_at_checked(create_non_zero_usize(25)) {
+            Err(_) => panic!("split_at_checked() should have succeeded"),
+            Ok(result) => result,
+        };
+
+        assert_eq!(0x40062000, slice.get_starting_pointer().get_address().get());
+        assert_eq!(create_non_zero_usize(25), slice.get_length());
+        assert!(optional_leftover.is_none());
+    }
+}
