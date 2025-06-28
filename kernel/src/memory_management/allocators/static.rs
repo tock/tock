@@ -52,3 +52,42 @@ impl<'a, Granule> Allocator<'a, Granule> for StaticAllocator<'a, Granule> {
         Ok(left_subslice)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::memory_management::pages::Page4KiB;
+    use crate::memory_management::pointers::PhysicalPointer;
+    use crate::utilities::misc::create_non_zero_usize;
+    use crate::utilities::pointers::MutablePointer;
+
+    #[test]
+    fn test_allocate() {
+        let pointer = MutablePointer::new(0x303000 as *mut Page4KiB).unwrap();
+        // SAFETY: let's assume 0x303000 is a valid physical pointer
+        let pointer = unsafe { PhysicalPointer::new(pointer) };
+        let length = create_non_zero_usize(16);
+        // SAFETY: let's assume the slice is valid
+        let slice = unsafe { MutablePhysicalSlice::from_raw_parts(pointer, length) };
+        let allocator = StaticAllocator::new(slice);
+
+        let allocation = allocator.allocate(create_non_zero_usize(1)).unwrap();
+        assert_eq!(create_non_zero_usize(1), allocation.get_length());
+        assert_eq!(0x303000, allocation.get_starting_pointer().get_address().get());
+
+        let allocation = allocator.allocate(create_non_zero_usize(11)).unwrap();
+        assert_eq!(create_non_zero_usize(11), allocation.get_length());
+        assert_eq!(0x304000, allocation.get_starting_pointer().get_address().get());
+
+        let result = allocator.allocate(create_non_zero_usize(5));
+        assert!(result.is_err());
+
+        let allocation = allocator.allocate(create_non_zero_usize(4)).unwrap();
+        assert_eq!(create_non_zero_usize(4), allocation.get_length());
+        assert_eq!(0x30F000, allocation.get_starting_pointer().get_address().get());
+
+        let result = allocator.allocate(create_non_zero_usize(4));
+        assert!(result.is_err());
+    }
+}
