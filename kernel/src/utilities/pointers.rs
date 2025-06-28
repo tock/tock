@@ -14,7 +14,7 @@ use core::ops::Sub;
 use core::ptr::NonNull;
 
 /// Pointer creation error.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Error {
     Null,
     NotAligned,
@@ -128,9 +128,10 @@ impl<const IS_MUTABLE: bool, T: Alignment> Pointer<IS_MUTABLE, T> {
             None => return Err(()),
             Some(new_address) => raw_pointer.with_addr(new_address),
         };
-        // SAFETY: adding a positive count to a non-null pointer without wrapping results in a
-        // non-null pointer
-        let new_non_null_pointer = unsafe { NonNull::new_unchecked(new_raw_pointer) };
+        let new_non_null_pointer = match NonNull::new(new_raw_pointer) {
+            None => return Err(()),
+            Some(new_non_null_pointer) => new_non_null_pointer,
+        };
         // SAFETY: Adding count * size_of::<T>() bytes to the address of T-aligned pointer results
         // in an address that is also multiple of size_of::<T>()
         let new_pointer = unsafe { Self::new_unchecked_alignment(new_non_null_pointer) };
@@ -138,24 +139,27 @@ impl<const IS_MUTABLE: bool, T: Alignment> Pointer<IS_MUTABLE, T> {
     }
 
     pub fn checked_offset(&self, count: NonZero<isize>) -> Result<Self, ()> {
-        let non_null_pointer = self.as_non_null();
-        let raw_pointer = non_null_pointer.as_ptr();
-        // CAST: TODO
-        let address = raw_pointer.addr() as isize;
-        // CAST: TODO
-        let new_raw_pointer =
-            match address.checked_add(count.get() * core::mem::size_of::<T>() as isize) {
-                None => return Err(()),
-                // CAST: TODO
-                Some(new_address) => raw_pointer.with_addr(new_address as usize),
-            };
-        // SAFETY: adding a positive count to a non-null pointer without wrapping results in a
-        // non-null pointer
-        let new_non_null_pointer = unsafe { NonNull::new_unchecked(new_raw_pointer) };
-        // SAFETY: Adding count * size_of::<T>() bytes to the address of T-aligned pointer results
-        // in an address that is also multiple of size_of::<T>()
-        let new_pointer = unsafe { Self::new_unchecked_alignment(new_non_null_pointer) };
-        Ok(new_pointer)
+        let raw_value = count.get();
+
+        if raw_value < 0 {
+            match raw_value.checked_neg() {
+                None => Err(()),
+                Some(negated_raw_value) => {
+                    // CAST: because of the if condition,
+                    // raw_value < 0 => negated_raw_value = -raw_value > 0
+                    let positive_raw_value = negated_raw_value as usize;
+                    // SAFETY: count != 0 => -count != 0
+                    let new_count = unsafe { NonZero::new_unchecked(positive_raw_value) };
+                    self.checked_sub(new_count)
+                }
+            }
+        } else {
+            // CAST: because of the if condition, count > 0
+            let positive_raw_value = raw_value as usize;
+            // SAFETY: count != 0
+            let new_count = unsafe { NonZero::new_unchecked(positive_raw_value) };
+            self.checked_add(new_count)
+        }
     }
 
     /// # Safety
@@ -175,6 +179,9 @@ impl<const IS_MUTABLE: bool, T: Alignment> Pointer<IS_MUTABLE, T> {
         unsafe { NonZero::new_unchecked(distance) }
     }
 
+    /// # Safety
+    ///
+    /// Same requirements as `core::ptr::offset_from()`
     pub const unsafe fn offset_from(&self, origin: &Self) -> isize {
         let inner = self.as_non_null();
         let origin_inner = origin.as_non_null();
@@ -241,7 +248,7 @@ impl<T: Alignment> MutablePointer<T> {
     /// # Safety
     ///
     /// `self` must be valid for writes and no reference to the memory pointed by `self` must exist
-    pub(crate) fn write(&mut self, value: T) {
+    pub(crate) unsafe fn write(&mut self, value: T) {
         // SAFETY:
         //
         // 1. the constructor ensures that the pointer is suitably aligned.
@@ -286,6 +293,20 @@ impl<T: Alignment> ImmutablePointer<T> {
     /// The two pointers must not be used at the same time.
     pub(crate) const unsafe fn as_raw(&self) -> *const T {
         self.as_non_null().as_ptr().cast_const()
+    }
+
+    /// # Safety
+    ///
+    /// `self` must be valid for reads and no reference to the memory pointed by `self` must exist
+    pub(crate) unsafe fn read(&self) -> T {
+        // SAFETY:
+        //
+        // 1. the constructor ensures that the pointer is suitably aligned.
+        // 2. the constructor ensures that the pointer is not null.
+        // 3. the method's precondition ensures that `self` points to writeable memory.
+        // 4. the method's precondition ensures that no reference to the memory pointed by `self`
+        //    exists.
+        unsafe { self.0.read() }
     }
 }
 
@@ -354,4 +375,255 @@ impl<const IS_MUTABLE: bool, T: Alignment> NullablePointer<IS_MUTABLE, T> {
         NullablePointer::NonNull(pointer)
     }
     */
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::utilities::misc::create_non_zero_isize;
+
+    #[test]
+    fn test_immutable_null() {
+        let result = ImmutablePointer::new(0 as *const u32);
+        assert_eq!(Err(Error::Null), result);
+    }
+
+    #[test]
+    fn test_mutable_null() {
+        let result = MutablePointer::new(0 as *mut u32);
+        assert_eq!(Err(Error::Null), result);
+    }
+
+    #[test]
+    fn test_immutable_unaligned() {
+        let result = ImmutablePointer::new(1 as *const u32);
+        assert_eq!(Err(Error::NotAligned), result);
+
+        let result = ImmutablePointer::new(2 as *const u32);
+        assert_eq!(Err(Error::NotAligned), result);
+
+        let result = ImmutablePointer::new(3 as *const u32);
+        assert_eq!(Err(Error::NotAligned), result);
+    }
+
+    #[test]
+    fn test_mutable_unaligned() {
+        let result = MutablePointer::new(1 as *mut u32);
+        assert_eq!(Err(Error::NotAligned), result);
+
+        let result = MutablePointer::new(2 as *mut u32);
+        assert_eq!(Err(Error::NotAligned), result);
+
+        let result = MutablePointer::new(3 as *mut u32);
+        assert_eq!(Err(Error::NotAligned), result);
+    }
+
+    #[test]
+    fn test_immutable_ok() {
+        let pointer = ImmutablePointer::new(0x200000 as *const u32).unwrap();
+        assert_eq!(create_non_zero_usize(0x200000), pointer.get_address());
+    }
+
+    #[test]
+    fn test_mutable_ok() {
+        let pointer = MutablePointer::new(0x200000 as *mut u32).unwrap();
+        assert_eq!(create_non_zero_usize(0x200000), pointer.get_address());
+    }
+
+    #[test]
+    fn test_mutable_cast_to_immutable() {
+        let pointer = MutablePointer::new(0x200008 as *mut u64).unwrap();
+        assert_eq!(0x200008, pointer.as_immutable().get_address().get());
+    }
+
+    #[test]
+    fn test_cast_to_lower_alignment() {
+        let pointer = MutablePointer::new(0x200008 as *mut u64).unwrap();
+        let pointer = pointer.cast::<u32>().unwrap();
+        assert_eq!(0x200008, pointer.get_address().get());
+    }
+
+    #[test]
+    fn test_cast_lower_alignment() {
+        let pointer = MutablePointer::new(0x200008 as *mut u64).unwrap();
+        let pointer = pointer.cast::<u32>().unwrap();
+        assert_eq!(0x200008, pointer.get_address().get());
+    }
+
+    #[test]
+    fn test_bad_cast_greater_alignment() {
+        let pointer = MutablePointer::new(0x200004 as *mut u32).unwrap();
+        assert!(pointer.cast::<u64>().is_err());
+    }
+
+    #[test]
+    fn test_good_cast_greater_alignment() {
+        let pointer = MutablePointer::new(0x200008 as *mut u32).unwrap();
+        let pointer = pointer.cast::<u64>().unwrap();
+        assert_eq!(0x200008, pointer.get_address().get());
+    }
+
+    #[test]
+    fn test_checked_add_ok() {
+        let pointer = ImmutablePointer::new(0x200004 as *const u32).unwrap();
+        let pointer = pointer.checked_add(create_non_zero_usize(3)).unwrap();
+        assert_eq!(0x200010, pointer.get_address().get());
+    }
+
+    #[test]
+    fn test_checked_add_overflow() {
+        let pointer = ImmutablePointer::new((usize::MAX - 79) as *const u64).unwrap();
+        let pointer = pointer.checked_add(create_non_zero_usize(9)).unwrap();
+        assert_eq!(usize::MAX - 7, pointer.get_address().get());
+
+        let result = pointer.checked_add(create_non_zero_usize(1));
+        assert!(result.is_err());
+
+        let result = pointer.checked_add(create_non_zero_usize(12));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_unchecked_add_ok() {
+        let pointer = ImmutablePointer::new(0x200004 as *const u32).unwrap();
+        // SAFETY:
+        //
+        // 1. The resulting address does not overflow.
+        // 2. Let's assume the two pointers belong to the same object.
+        let pointer = unsafe { pointer.unchecked_add(create_non_zero_usize(0x1000)) };
+        assert_eq!(0x204004, pointer.get_address().get());
+    }
+
+    #[test]
+    fn test_checked_sub_ok() {
+        let pointer = MutablePointer::new(0x20 as *mut u64).unwrap();
+        let pointer = pointer.checked_sub(create_non_zero_usize(2)).unwrap();
+        assert_eq!(0x10, pointer.get_address().get());
+    }
+
+    #[test]
+    fn test_checked_sub_underflow() {
+        let pointer = MutablePointer::new(0x20 as *mut u64).unwrap();
+        let pointer = pointer.checked_sub(create_non_zero_usize(3)).unwrap();
+        assert_eq!(0x08, pointer.get_address().get());
+
+        let result = pointer.checked_sub(create_non_zero_usize(1));
+        assert!(result.is_err());
+
+        let result = pointer.checked_sub(create_non_zero_usize(12));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_checked_offset_ok() {
+        let pointer = ImmutablePointer::new(0x200003 as *const u8).unwrap();
+        let pointer = pointer.checked_offset(create_non_zero_isize(2)).unwrap();
+        assert_eq!(0x200005, pointer.get_address().get());
+
+        let pointer = pointer.checked_offset(create_non_zero_isize(-5)).unwrap();
+        assert_eq!(0x200000, pointer.get_address().get());
+    }
+
+    #[test]
+    fn test_checked_offset_overflow() {
+        let pointer = ImmutablePointer::new((usize::MAX - 1) as *const u8).unwrap();
+        let pointer = pointer.checked_offset(create_non_zero_isize(1)).unwrap();
+        assert_eq!(usize::MAX, pointer.get_address().get());
+
+        let result = pointer.checked_offset(create_non_zero_isize(1));
+        assert!(result.is_err());
+
+        let result = pointer.checked_offset(create_non_zero_isize(0x1000));
+        assert!(result.is_err());
+
+    }
+
+    #[test]
+    fn test_checked_offset_underflow() {
+        let pointer = ImmutablePointer::new(100 as *const u8).unwrap();
+        let result = pointer.checked_offset(create_non_zero_isize(isize::MIN));
+        assert!(result.is_err());
+
+        let pointer = pointer.checked_offset(create_non_zero_isize(-99)).unwrap();
+        assert_eq!(1, pointer.get_address().get());
+
+        let result = pointer.checked_offset(create_non_zero_isize(-1));
+        assert!(result.is_err());
+
+        let result = pointer.checked_offset(create_non_zero_isize(-400));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_new_from_immutable_ref() {
+        let value = 1234u32;
+        let pointer = ImmutablePointer::new_from_ref(&value);
+        // SAFETY: pointer is readable and `value` is no longer in use.
+        let value = unsafe { pointer.read() };
+        assert_eq!(1234, value);
+
+        let pointer = pointer.clone();
+        // SAFETY: pointer is readable and `value` is no longer in use.
+        let value = unsafe { pointer.read() };
+        assert_eq!(1234, value);
+    }
+
+    #[test]
+    fn test_new_from_mutable_ref() {
+        let mut value = 1234u32;
+        let mut pointer = MutablePointer::new_from_ref(&mut value);
+        // SAFETY: pointer is writeable and `value` and `pointer` are not concurrently used.
+        unsafe { pointer.write(4321); }
+        assert_eq!(4321, value);
+
+        let mut pointer = pointer.clone();
+        // SAFETY: pointer is writeable and `value` and `pointer` are not concurrently used.
+        unsafe { pointer.write(2025); }
+        assert_eq!(2025, value);
+    }
+
+    #[test]
+    fn test_equality() {
+        let pointer1 = ImmutablePointer::new(0x20008 as *const u64).unwrap();
+        let pointer2 = ImmutablePointer::new(0x20008 as *const u64).unwrap();
+        let pointer3 = ImmutablePointer::new(0x20010 as *const u64).unwrap();
+
+        assert_eq!(pointer1, pointer2);
+        assert_ne!(pointer1, pointer3);
+        assert_ne!(pointer2, pointer3);
+    }
+
+    #[test]
+    fn test_compare() {
+        let pointer1 = ImmutablePointer::new(0x20008 as *const u64).unwrap();
+        let pointer2 = ImmutablePointer::new(0x20010 as *const u64).unwrap();
+
+        assert!(pointer1 < pointer2);
+        assert!(pointer2 > pointer1);
+    }
+
+    #[test]
+    fn test_distance_from_origin() {
+        let origin = MutablePointer::new(0x1000 as *mut u32).unwrap();
+        let pointer = MutablePointer::new(0x2000 as *mut u32).unwrap();
+
+        // SAFETY: pointer > origin
+        let distance = unsafe { pointer.distance_from_origin(&origin) };
+        assert_eq!(0x400, distance.get());
+    }
+
+    #[test]
+    fn test_offset_from() {
+        let origin = ImmutablePointer::new(0x1000 as *mut u64).unwrap();
+        let pointer = ImmutablePointer::new(0x2000 as *mut u64).unwrap();
+
+        // SAFETY: let's assume the two pointers come from the same allocated object.
+        let offset = unsafe { pointer.offset_from(&origin) };
+        assert_eq!(0x200, offset);
+
+        // SAFETY: let's assume the two pointers come from the same allocated object.
+        let offset = unsafe { origin.offset_from(&pointer) };
+        assert_eq!(-0x200, offset);
+    }
 }
