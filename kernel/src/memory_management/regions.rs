@@ -92,23 +92,23 @@ impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>
     fn intersect_pointer<'b>(
         &'b self,
         pointer: &'b ImmutablePointer<IS_VIRTUAL, T>,
-    ) -> Result<SmallerOrEqualPair<&'b ImmutablePointer<IS_VIRTUAL, T>>, ()> {
-        self.as_immutable_pointers().intersect_with_left(pointer)
+    ) -> bool {
+        self.as_immutable_pointers().is_intersecting(pointer)
     }
 
     fn is_intersecting_pointer(&self, pointer: &Pointer<IS_VIRTUAL, false, T>) -> bool {
-        self.intersect_pointer(pointer).is_ok()
+        self.intersect_pointer(pointer)
     }
 
     fn contain_pointer<'b>(
         &'b self,
         pointer: &'b ImmutablePointer<IS_VIRTUAL, T>,
-    ) -> Result<SmallerPair<&'b ImmutablePointer<IS_VIRTUAL, T>>, ()> {
-        self.as_immutable_pointers().contain_with_left(pointer)
+    ) -> bool {
+        self.as_immutable_pointers().is_containing(pointer)
     }
 
     fn is_containing_pointer(&self, pointer: &Pointer<IS_VIRTUAL, false, T>) -> bool {
-        self.contain_pointer(pointer).is_ok()
+        self.contain_pointer(pointer)
     }
 
     pub fn is_intersecting_region(&self, region: &ImmutableRegion<IS_VIRTUAL, T>) -> bool {

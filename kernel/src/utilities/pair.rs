@@ -4,6 +4,8 @@
 
 //! Support for pairs of heterogeneous values
 
+use core::fmt::Debug;
+
 /// A pair of heterogeneous values.
 pub struct Pair<T, U>(T, U);
 
@@ -30,5 +32,11 @@ impl<T, U> Pair<T, U> {
 
     pub fn consume(self) -> (T, U) {
         (self.0, self.1)
+    }
+}
+
+impl<T: Debug, U: Debug> Debug for Pair<T, U> {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(formatter, "Pair({:?}, {:?})", self.as_first(), self.as_second())
     }
 }

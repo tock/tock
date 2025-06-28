@@ -17,8 +17,10 @@ pub trait Relation<T> {
 }
 
 /// Smaller relation.
+#[derive(Debug)]
 pub enum Smaller {}
 /// Smaller or equal relation.
+#[derive(Debug)]
 pub enum SmallerOrEqual {}
 
 impl<T: Ord> Relation<T> for Smaller {
@@ -35,6 +37,7 @@ impl<T: Ord> Relation<T> for SmallerOrEqual {
 
 /// Two values that respect the given relation.
 #[repr(transparent)]
+#[derive(Debug)]
 pub struct RelationalPair<T, R: Relation<T>> {
     pair: Pair<T, T>,
     phantom_data: PhantomData<R>,
@@ -42,6 +45,7 @@ pub struct RelationalPair<T, R: Relation<T>> {
 
 /// Two references that respect the given relation.
 #[repr(transparent)]
+#[derive(Debug)]
 pub struct RelationalPairImmutableReference<'a, T, R: Relation<T>> {
     pair: Pair<&'a T, &'a T>,
     phantom_data: PhantomData<R>,
@@ -184,29 +188,18 @@ impl<T: Ord> SmallerPair<T> {
         self.to_second()
     }
 
-    pub fn intersect_with_left<'a>(
-        &'a self,
-        value: &'a T,
-    ) -> Result<SmallerOrEqualPair<&'a T>, ()> {
+    pub fn is_intersecting(&self, value: &T) -> bool {
         let smaller = self.as_smaller();
         let bigger = self.as_bigger();
 
-        if value < bigger {
-            SmallerOrEqualPair::new(smaller, value)
-        } else {
-            Err(())
-        }
+        smaller <= value && value < bigger
     }
 
-    pub fn contain_with_left<'a>(&'a self, value: &'a T) -> Result<SmallerPair<&'a T>, ()> {
+    pub fn is_containing<'a>(&'a self, value: &'a T) -> bool {
         let smaller = self.as_smaller();
         let bigger = self.as_bigger();
 
-        if value < bigger {
-            SmallerPair::new(smaller, value)
-        } else {
-            Err(())
-        }
+        smaller < value && value < bigger
     }
 }
 
@@ -281,5 +274,81 @@ where
         let bigger = self.as_bigger();
         // CAST: `bigger` >= `smaller` ==> `bigger` - `smaller` >= 0
         bigger.sub(smaller) as usize
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::utilities::misc::create_non_zero_usize;
+
+    #[test]
+    fn test_new_smaller_pair() {
+        let value1 = 2025;
+        let value2 = 2025;
+        let value3 = 2026;
+
+        let _ = SmallerPair::new(value1, value2).unwrap_err();
+        let _ = SmallerPair::new(value1, value3).unwrap();
+        let _ = SmallerPair::new(value3, value1).unwrap_err();
+    }
+
+    #[test]
+    fn test_new_smaller_or_equal_pair() {
+        let value1 = 2025;
+        let value2 = 2025;
+        let value3 = 2026;
+
+        let _ = SmallerOrEqualPair::new(value1, value2).unwrap();
+        let _ = SmallerOrEqualPair::new(value1, value3).unwrap();
+        let _ = SmallerOrEqualPair::new(value3, value1).unwrap_err();
+    }
+
+    #[test]
+    fn test_new_smaller_or_equal_pair_immutable_ref() {
+        let value1 = 2025;
+        let value2 = 2025;
+        let value3 = 2026;
+
+        let _ = SmallerOrEqualPairImmutableReference::new(&value1, &value2).unwrap();
+        let _ = SmallerOrEqualPairImmutableReference::new(&value1, &value3).unwrap();
+        let _ = SmallerOrEqualPairImmutableReference::new(&value3, &value1).unwrap_err();
+    }
+
+    #[test]
+    fn test_is_intersecting() {
+        let smaller_pair = SmallerPair::new(0x100, 0x200).unwrap();
+        assert!(smaller_pair.is_intersecting(&0x120));
+        assert!(smaller_pair.is_intersecting(&0x100));
+        assert!(!smaller_pair.is_intersecting(&0x90));
+        assert!(!smaller_pair.is_intersecting(&0x200));
+    }
+
+    #[test]
+    fn test_is_containing() {
+        let smaller_pair = SmallerPair::new(0x100, 0x200).unwrap();
+        assert!(smaller_pair.is_containing(&0x120));
+        assert!(!smaller_pair.is_containing(&0x100));
+        assert!(!smaller_pair.is_containing(&0x90));
+        assert!(!smaller_pair.is_containing(&0x200));
+    }
+
+    #[test]
+    fn test_smaller_pair_compute_difference() {
+        let smaller_pair = SmallerPair::new(0x100isize, 0x200).unwrap();
+        assert_eq!(create_non_zero_usize(0x100), smaller_pair.compute_difference());
+    }
+
+    #[test]
+    fn test_smaller_or_equal_pair_compute_difference() {
+        let smaller_or_equal = SmallerOrEqualPair::new(0x201000isize, 0x202000).unwrap();
+        assert_eq!(0x1000, smaller_or_equal.compute_difference());
+    }
+
+    #[test]
+    fn test_smaller_or_equal_pair_immutable_refcompute_difference() {
+        let smaller_or_equal = SmallerOrEqualPairImmutableReference::new(&0x201000isize, &0x202000).unwrap();
+        assert_eq!(0x1000, smaller_or_equal.compute_difference());
     }
 }
