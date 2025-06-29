@@ -155,10 +155,8 @@ impl CachedRegion {
     }
 }
 
-pub struct MMU<'a> {
-    num_regions: usize,
-    cached_user_prog_region: OptionalCell<CachedRegion>,
-    cached_user_ram_region: OptionalCell<CachedRegion>,
+pub struct MMU<'a, const NUMBER_OF_REGIONS: usize> {
+    cached_regions: [OptionalCell<CachedRegion>; NUMBER_OF_REGIONS],
     page_dir_paddr: usize,
     page_table_paddr: usize,
     pd: RefCell<&'a mut PD>,
@@ -169,7 +167,7 @@ fn calc_page_index(memory_address: usize) -> usize {
     memory_address / PAGE_SIZE_4K
 }
 
-impl<'a> MMU<'a> {
+impl<'a, const NUMBER_OF_REGIONS: usize> MMU<'a, NUMBER_OF_REGIONS> {
     pub unsafe fn new(
         page_dir: &'a mut PD,
         page_dir_paddr: usize,
@@ -180,9 +178,7 @@ impl<'a> MMU<'a> {
         let page_table = RefCell::new(page_table);
 
         Self {
-            num_regions: 0,
-            cached_user_prog_region: OptionalCell::empty(),
-            cached_user_ram_region: OptionalCell::empty(),
+            cached_regions: [const { OptionalCell::empty() }; NUMBER_OF_REGIONS],
             page_dir_paddr,
             page_table_paddr,
             pd: page_dir,
@@ -339,13 +335,7 @@ impl<'a> MMU<'a> {
     }
 }
 
-impl fmt::Display for MMU<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Num_regions: {:?}, ...", self.num_regions,)
-    }
-}
-
-impl kernel::platform::mmu::MpuMmuCommon for MMU<'_> {
+impl<const NUMBER_OF_REGIONS: usize> kernel::platform::mmu::MpuMmuCommon for MMU<'_, NUMBER_OF_REGIONS> {
     type Granule = Page4KiB;
 
     // Once the MMU is active, the user protection is always active
@@ -355,7 +345,7 @@ impl kernel::platform::mmu::MpuMmuCommon for MMU<'_> {
     fn disable_user_protection(&self) {}
 }
 
-impl kernel::platform::mmu::MMU for MMU<'_> {
+impl<const NUMBER_OF_REGIONS: usize> kernel::platform::mmu::MMU for MMU<'_, NUMBER_OF_REGIONS> {
     fn create_asid(&self) -> Asid {
         // The current implementation doesn't use ASIDs. This function returns a placeholder value.
         Asid::new(0)
@@ -364,32 +354,23 @@ impl kernel::platform::mmu::MMU for MMU<'_> {
     // The current implementation doesn't use ASIDs.
     fn flush(&self, _asid: Asid) {}
 
-    fn map_user_prog_region(
+    fn map_user_region(
         &self,
+        region_index: usize,
         mapped_region: &UserMappedProtectedAllocatedRegion<Self::Granule>,
     ) {
-        if let Some(cached_user_prog_region) = self.cached_user_prog_region.take() {
+        let cached_region = match self.cached_regions.get(region_index) {
+            // Ignore an invalid index
+            None => return,
+            Some(cached_region) => cached_region,
+        };
+
+        if let Some(cached_user_prog_region) = cached_region.take() {
             self.remove_user_cached_region(&cached_user_prog_region);
         }
 
         self.add_user_region(mapped_region);
-        self.cached_user_prog_region
-            .set(CachedRegion::new(mapped_region));
-
-        unsafe { tlb::flush_all() };
-    }
-
-    fn map_user_ram_region(
-        &self,
-        mapped_region: &UserMappedProtectedAllocatedRegion<Self::Granule>,
-    ) {
-        if let Some(cached_user_ram_region) = self.cached_user_ram_region.take() {
-            self.remove_user_cached_region(&cached_user_ram_region);
-        }
-
-        self.add_user_region(mapped_region);
-        self.cached_user_ram_region
-            .set(CachedRegion::new(mapped_region));
+        cached_region.set(CachedRegion::new(mapped_region));
 
         unsafe { tlb::flush_all() };
     }
