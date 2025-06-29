@@ -828,9 +828,6 @@ pub struct PMPUserMPU<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'st
 }
 
 impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> PMPUserMPU<MAX_REGIONS, P> {
-    const INDEX_PROG_REGION: usize = 0;
-    const INDEX_RAM_REGION: usize = 1;
-
     pub fn new(pmp: P) -> Self {
         // Assigning this constant here ensures evaluation of the const
         // expression at compile time, and can thus be used to enforce
@@ -899,18 +896,12 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static>
 impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::platform::mmu::MPU
     for PMPUserMPU<MAX_REGIONS, P>
 {
-    fn protect_user_prog_region(
+    fn protect_user_region(
         &self,
+        region_index: usize,
         protected_region: &PhysicalProtectedAllocatedRegion<Self::Granule>,
     ) {
-        self.configure_region(Self::INDEX_PROG_REGION, protected_region);
-    }
-
-    fn protect_user_ram_region(
-        &self,
-        protected_region: &PhysicalProtectedAllocatedRegion<Self::Granule>,
-    ) {
-        self.configure_region(Self::INDEX_RAM_REGION, protected_region);
+        self.configure_region(region_index, protected_region);
     }
 }
 
