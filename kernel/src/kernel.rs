@@ -111,6 +111,9 @@ fn try_allocate_grant(driver: &dyn SyscallDriver, process: &dyn process::Process
     }
 }
 
+const USER_PROG_REGION_INDEX: usize = 0;
+const USER_RAM_REGION_INDEX: usize = 1;
+
 impl Kernel {
     /// Create the kernel object that knows about the list of processes.
     ///
@@ -686,7 +689,7 @@ impl Kernel {
         let mut is_configuration_dirty = false;
         let dirty_prog_region = process_memory_configuration.get_prog_region();
         let prog_region = dirty_prog_region.as_mapped_protected_allocated_region();
-        mmu.map_user_prog_region(prog_region);
+        mmu.map_user_region(USER_PROG_REGION_INDEX, prog_region);
         if dirty_prog_region.is_dirty() {
             is_configuration_dirty = true;
         }
@@ -694,7 +697,7 @@ impl Kernel {
 
         let dirty_ram_region = process_memory_configuration.get_ram_region();
         let ram_region = dirty_ram_region.as_mapped_protected_allocated_region();
-        mmu.map_user_ram_region(ram_region);
+        mmu.map_user_region(USER_RAM_REGION_INDEX, ram_region);
         if dirty_ram_region.is_dirty() {
             is_configuration_dirty = true;
         }
@@ -715,7 +718,7 @@ impl Kernel {
 
         if dirty_prog_region.is_dirty() {
             let prog_region = dirty_prog_region.as_mapped_protected_allocated_region();
-            mmu.map_user_prog_region(prog_region);
+            mmu.map_user_region(USER_PROG_REGION_INDEX, prog_region);
             dirty_prog_region.clear_dirty();
             is_configuration_dirty = true;
         }
@@ -723,7 +726,7 @@ impl Kernel {
         let dirty_ram_region = process_memory_configuration.get_ram_region();
         if dirty_ram_region.is_dirty() {
             let ram_region = dirty_ram_region.as_mapped_protected_allocated_region();
-            mmu.map_user_ram_region(ram_region);
+            mmu.map_user_region(USER_RAM_REGION_INDEX, ram_region);
             dirty_ram_region.clear_dirty();
             is_configuration_dirty = true;
         }

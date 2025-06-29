@@ -38,17 +38,11 @@ pub trait MPU: MpuMmuCommon {
     ///
     /// Implementors may ignore the request if invalid. For instance if the region's protected
     /// length is not a power of two as mandated by the hardware.
-    fn protect_user_prog_region(
-        &self,
-        protected_region: &PhysicalProtectedAllocatedRegion<Self::Granule>,
-    );
-
-    /// Applies the memory protections of the given RAM region.
     ///
-    /// Implementors may ignore the request if invalid. For instance if the region's protected
-    /// length is not a power of two as mandated by the hardware.
-    fn protect_user_ram_region(
+    /// If the index is invalid, the region must be ignored.
+    fn protect_user_region(
         &self,
+        region_index: usize,
         protected_region: &PhysicalProtectedAllocatedRegion<Self::Granule>,
     );
 }
@@ -71,15 +65,12 @@ pub trait MMU: MpuMmuCommon {
     /// the entire TLB.
     fn flush(&self, asid: Asid);
 
-    /// Map and protect the given PROG region.
-    fn map_user_prog_region(
+    /// Map and protect the given region.
+    ///
+    /// If the index is invalid, the region must be ignored.
+    fn map_user_region(
         &self,
-        mapped_protected_region: &UserMappedProtectedAllocatedRegion<Self::Granule>,
-    );
-
-    /// Map and protect the given RAM region.
-    fn map_user_ram_region(
-        &self,
+        index: usize,
         mapped_protected_region: &UserMappedProtectedAllocatedRegion<Self::Granule>,
     );
 }
@@ -96,21 +87,13 @@ impl<T: MPU> MMU for T {
 
     fn flush(&self, _asid: Asid) {}
 
-    fn map_user_prog_region(
+    fn map_user_region(
         &self,
+        index: usize,
         mapped_protected_region: &UserMappedProtectedAllocatedRegion<Self::Granule>,
     ) {
         // Discard the memory mapping for MPUs.
         let protected_region = mapped_protected_region.as_physical_protected_allocated_region();
-        self.protect_user_prog_region(protected_region);
-    }
-
-    fn map_user_ram_region(
-        &self,
-        mapped_protected_region: &UserMappedProtectedAllocatedRegion<Self::Granule>,
-    ) {
-        // Discard the memory mapping for MPUs.
-        let protected_region = mapped_protected_region.as_physical_protected_allocated_region();
-        self.protect_user_ram_region(protected_region);
+        self.protect_user_region(index, protected_region);
     }
 }
