@@ -134,9 +134,6 @@ pub struct MPU<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> {
 }
 
 impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> MPU<NUM_REGIONS, MIN_REGION_SIZE> {
-    const PROG_REGION_INDEX: usize = 0;
-    const RAM_REGION_INDEX: usize = 1;
-
     pub unsafe fn new(registers: StaticRef<MpuRegisters>) -> Self {
         let mpu = Self { registers };
 
@@ -290,17 +287,12 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> MpuMmuCommon
 impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> MpuTrait
     for MPU<NUM_REGIONS, MIN_REGION_SIZE>
 {
-    fn protect_user_prog_region(
+    fn protect_user_region(
         &self,
+        region_index: usize,
         protected_region: &PhysicalProtectedAllocatedRegion<Self::Granule>,
-    ) {
-        self.protect_region(Self::PROG_REGION_INDEX, protected_region);
-    }
 
-    fn protect_user_ram_region(
-        &self,
-        protected_region: &PhysicalProtectedAllocatedRegion<Self::Granule>,
     ) {
-        self.protect_region(Self::RAM_REGION_INDEX, protected_region);
+        self.protect_region(region_index, protected_region);
     }
 }
