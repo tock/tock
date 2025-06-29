@@ -335,7 +335,9 @@ impl<'a, const NUMBER_OF_REGIONS: usize> MMU<'a, NUMBER_OF_REGIONS> {
     }
 }
 
-impl<const NUMBER_OF_REGIONS: usize> kernel::platform::mmu::MpuMmuCommon for MMU<'_, NUMBER_OF_REGIONS> {
+impl<const NUMBER_OF_REGIONS: usize> kernel::platform::mmu::MpuMmuCommon
+    for MMU<'_, NUMBER_OF_REGIONS>
+{
     type Granule = Page4KiB;
 
     // Once the MMU is active, the user protection is always active

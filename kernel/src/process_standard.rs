@@ -1249,10 +1249,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             // are correct.
             self.chip
                 .userspace_kernel_boundary()
-                .set_syscall_return_value(
-                    stored_state,
-                    return_value,
-                )
+                .set_syscall_return_value(stored_state, return_value)
         }) {
             Some(Ok(())) => {
                 // If we get an `Ok` we are all set.
@@ -1293,10 +1290,9 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             // unsafe here because we are guaranteeing that the memory bounds
             // passed to `set_process_function` are correct.
             unsafe {
-                self.chip.userspace_kernel_boundary().set_process_function(
-                    stored_state,
-                    callback,
-                )
+                self.chip
+                    .userspace_kernel_boundary()
+                    .set_process_function(stored_state, callback)
             }
         }) {
             Some(Ok(())) => {
@@ -1337,10 +1333,10 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                 // we pass are valid, ensuring this context switch is safe.
                 // Therefore we encapsulate the `unsafe`.
                 unsafe {
-                    let (switch_reason, optional_stack_pointer) =
-                        self.chip.userspace_kernel_boundary().switch_to_process(
-                            stored_state,
-                        );
+                    let (switch_reason, optional_stack_pointer) = self
+                        .chip
+                        .userspace_kernel_boundary()
+                        .switch_to_process(stored_state);
                     (Some(switch_reason), optional_stack_pointer)
                 }
             });
@@ -1428,10 +1424,9 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             // We guarantee the memory bounds pointers provided to the UKB are
             // correct.
             unsafe {
-                self.chip.userspace_kernel_boundary().print_context(
-                    stored_state,
-                    writer,
-                );
+                self.chip
+                    .userspace_kernel_boundary()
+                    .print_context(stored_state, writer);
             }
         });
 

@@ -61,7 +61,9 @@ pub struct Pc<'a, const MMU_NUMBER_OF_REGIONS: usize, const PR: u16 = RELOAD_1KH
     mmu: MMU<'a, MMU_NUMBER_OF_REGIONS>,
 }
 
-impl<'a, const MMU_NUMBER_OF_REGIONS: usize, const PR: u16> Chip for Pc<'a, MMU_NUMBER_OF_REGIONS, PR> {
+impl<'a, const MMU_NUMBER_OF_REGIONS: usize, const PR: u16> Chip
+    for Pc<'a, MMU_NUMBER_OF_REGIONS, PR>
+{
     type MMU = MMU<'a, MMU_NUMBER_OF_REGIONS>;
 
     fn mmu(&self) -> &Self::MMU {

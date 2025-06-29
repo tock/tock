@@ -314,18 +314,13 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
         (switch_reason, None)
     }
 
-    unsafe fn print_context(
-        &self,
-        state: &CortexMStoredState,
-        writer: &mut dyn Write,
-    ) {
+    unsafe fn print_context(&self, state: &CortexMStoredState, writer: &mut dyn Write) {
         let stack_pointer = state.psp as *const usize;
 
         // If we cannot use the stack pointer, generate default bad looking
         // values we can use for the printout. Otherwise, read the correct
         // values.
-        let (r0, r1, r2, r3, r12, lr, pc, xpsr) =
-        {
+        let (r0, r1, r2, r3, r12, lr, pc, xpsr) = {
             let r0 = ptr::read(stack_pointer.offset(0));
             let r1 = ptr::read(stack_pointer.offset(1));
             let r2 = ptr::read(stack_pointer.offset(2));

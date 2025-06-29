@@ -37,6 +37,11 @@ impl<T, U> Pair<T, U> {
 
 impl<T: Debug, U: Debug> Debug for Pair<T, U> {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(formatter, "Pair({:?}, {:?})", self.as_first(), self.as_second())
+        write!(
+            formatter,
+            "Pair({:?}, {:?})",
+            self.as_first(),
+            self.as_second()
+        )
     }
 }

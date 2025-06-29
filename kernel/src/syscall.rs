@@ -70,8 +70,8 @@ use core::fmt::Write;
 
 use crate::errorcode::ErrorCode;
 use crate::memory_management::pointers::{
-    ImmutableUserNullableVirtualPointer,
-    ImmutableUserVirtualPointer, MutableUserNullableVirtualPointer,
+    ImmutableUserNullableVirtualPointer, ImmutableUserVirtualPointer,
+    MutableUserNullableVirtualPointer,
 };
 
 use crate::process;
@@ -718,11 +718,7 @@ pub trait UserspaceKernelBoundary {
     /// will only change memory starting at `accessible_memory_start` and before
     /// `app_brk`. The caller is responsible for guaranteeing that those
     /// pointers are valid for the process.
-    unsafe fn print_context(
-        &self,
-        state: &Self::StoredState,
-        writer: &mut dyn Write,
-    );
+    unsafe fn print_context(&self, state: &Self::StoredState, writer: &mut dyn Write);
 
     /// Store architecture specific (e.g. CPU registers or status flags) data
     /// for a process. On success returns the number of elements written to out.

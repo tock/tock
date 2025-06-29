@@ -74,18 +74,27 @@ mod tests {
 
         let allocation = allocator.allocate(create_non_zero_usize(1)).unwrap();
         assert_eq!(create_non_zero_usize(1), allocation.get_length());
-        assert_eq!(0x303000, allocation.get_starting_pointer().get_address().get());
+        assert_eq!(
+            0x303000,
+            allocation.get_starting_pointer().get_address().get()
+        );
 
         let allocation = allocator.allocate(create_non_zero_usize(11)).unwrap();
         assert_eq!(create_non_zero_usize(11), allocation.get_length());
-        assert_eq!(0x304000, allocation.get_starting_pointer().get_address().get());
+        assert_eq!(
+            0x304000,
+            allocation.get_starting_pointer().get_address().get()
+        );
 
         let result = allocator.allocate(create_non_zero_usize(5));
         assert!(result.is_err());
 
         let allocation = allocator.allocate(create_non_zero_usize(4)).unwrap();
         assert_eq!(create_non_zero_usize(4), allocation.get_length());
-        assert_eq!(0x30F000, allocation.get_starting_pointer().get_address().get());
+        assert_eq!(
+            0x30F000,
+            allocation.get_starting_pointer().get_address().get()
+        );
 
         let result = allocator.allocate(create_non_zero_usize(4));
         assert!(result.is_err());

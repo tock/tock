@@ -255,16 +255,9 @@ mod tests {
     use super::*;
 
     use crate::memory_management::pages::Page4KiB;
-    use crate::memory_management::pointers::{
-        PhysicalPointer,
-        VirtualPointer,
-        UserVirtualPointer,
-    };
+    use crate::memory_management::pointers::{PhysicalPointer, UserVirtualPointer, VirtualPointer};
     use crate::utilities::misc::create_non_zero_usize;
-    use crate::utilities::pointers::{
-        ImmutablePointer,
-        MutablePointer,
-    };
+    use crate::utilities::pointers::{ImmutablePointer, MutablePointer};
 
     #[test]
     fn test_physical_slice_split_at_checked() {
@@ -288,7 +281,10 @@ mod tests {
             Some(leftover) => leftover,
         };
 
-        assert_eq!(0x80002000, leftover.get_starting_pointer().get_address().get());
+        assert_eq!(
+            0x80002000,
+            leftover.get_starting_pointer().get_address().get()
+        );
         assert_eq!(create_non_zero_usize(30), leftover.get_length());
 
         let leftover = match leftover.split_at_checked(create_non_zero_usize(31)) {
@@ -296,7 +292,8 @@ mod tests {
             Ok(_) => panic!("split_at_checked() should have failed"),
         };
 
-        let (slice, optional_leftover) = match leftover.split_at_checked(create_non_zero_usize(30)) {
+        let (slice, optional_leftover) = match leftover.split_at_checked(create_non_zero_usize(30))
+        {
             Err(_) => panic!("split_at_checked() should have succeeded"),
             Ok(result) => result,
         };
@@ -330,7 +327,10 @@ mod tests {
             Some(leftover) => leftover,
         };
 
-        assert_eq!(0x40062000, leftover.get_starting_pointer().get_address().get());
+        assert_eq!(
+            0x40062000,
+            leftover.get_starting_pointer().get_address().get()
+        );
         assert_eq!(create_non_zero_usize(25), leftover.get_length());
 
         let leftover = match leftover.split_at_checked(create_non_zero_usize(26)) {
@@ -338,7 +338,8 @@ mod tests {
             Ok(_) => panic!("split_at_checked() should have failed"),
         };
 
-        let (slice, optional_leftover) = match leftover.split_at_checked(create_non_zero_usize(25)) {
+        let (slice, optional_leftover) = match leftover.split_at_checked(create_non_zero_usize(25))
+        {
             Err(_) => panic!("split_at_checked() should have succeeded"),
             Ok(result) => result,
         };

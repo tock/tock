@@ -184,11 +184,7 @@ impl UserspaceKernelBoundary for Boundary {
         (reason, None)
     }
 
-    unsafe fn print_context(
-        &self,
-        state: &Self::StoredState,
-        writer: &mut dyn Write,
-    ) {
+    unsafe fn print_context(&self, state: &Self::StoredState, writer: &mut dyn Write) {
         let _ = writeln!(writer, "{}", state);
     }
 

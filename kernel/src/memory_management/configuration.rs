@@ -345,17 +345,10 @@ mod tests {
     use crate::memory_management::pages::Page4KiB;
     use crate::memory_management::permissions::Permissions;
     use crate::memory_management::pointers::{
-        MutablePhysicalPointer,
-        ValidMutableVirtualPointer,
-        VirtualPointer,
+        MutablePhysicalPointer, ValidMutableVirtualPointer, VirtualPointer,
     };
-    use crate::memory_management::regions::{
-        AllocatedRegion,
-        ProtectedAllocatedRegion,
-    };
-    use crate::memory_management::slices::{
-        MutablePhysicalSlice,
-    };
+    use crate::memory_management::regions::{AllocatedRegion, ProtectedAllocatedRegion};
+    use crate::memory_management::slices::MutablePhysicalSlice;
     use crate::utilities;
     use crate::utilities::misc::create_non_zero_usize;
 
@@ -366,7 +359,9 @@ mod tests {
         unsafe { MutablePhysicalPointer::new(pointer) }
     }
 
-    fn create_virtual_pointer<const IS_USER: bool, T>(address: usize) -> ValidMutableVirtualPointer<IS_USER, T> {
+    fn create_virtual_pointer<const IS_USER: bool, T>(
+        address: usize,
+    ) -> ValidMutableVirtualPointer<IS_USER, T> {
         // Allocated region
         let pointer = utilities::pointers::MutablePointer::new(address as *mut T).unwrap();
         // SAFETY: let's assume it's a valid physical pointer
@@ -383,49 +378,43 @@ mod tests {
         let starting_physical_pointer = create_physical_pointer(starting_physical_address);
         let physical_length = create_non_zero_usize(4);
         // SAFETY: let's assume it's a valid physical slice
-        let physical_slice = unsafe { MutablePhysicalSlice::from_raw_parts(starting_physical_pointer, physical_length) };
+        let physical_slice = unsafe {
+            MutablePhysicalSlice::from_raw_parts(starting_physical_pointer, physical_length)
+        };
         let allocated_region = AllocatedRegion::new(physical_slice);
 
         // Protected allocated region
         let protected_length = create_non_zero_usize(2);
-        let protected_allocated_region = ProtectedAllocatedRegion::new(
-            allocated_region,
-            protected_length,
-            permissions,
-        ).unwrap();
-
+        let protected_allocated_region =
+            ProtectedAllocatedRegion::new(allocated_region, protected_length, permissions).unwrap();
 
         // Allocated region
         let starting_virtual_pointer = create_virtual_pointer(starting_virtual_address);
         MappedProtectedAllocatedRegion::new_from_protected(
             protected_allocated_region,
             starting_virtual_pointer,
-        ).unwrap()
+        )
+        .unwrap()
     }
 
     fn create_process_configuration<'a>() -> ValidProcessConfiguration<'a, Page4KiB> {
-        let flash_region = create_region::<true>(0x9000_0000, 0x3000_0000, Permissions::ReadExecute);
+        let flash_region =
+            create_region::<true>(0x9000_0000, 0x3000_0000, Permissions::ReadExecute);
         let ram_region = create_region::<true>(0x3000_0000, 0x4000_0000, Permissions::ReadWrite);
-        let process_configuration = ProcessConfiguration::new(
-            Asid::new(0),
-            flash_region,
-            ram_region,
-        );
+        let process_configuration =
+            ProcessConfiguration::new(Asid::new(0), flash_region, ram_region);
         // SAFETY: let's assume the configuration is valid
         unsafe { ValidProcessConfiguration::new(process_configuration) }
     }
 
     fn create_kernel_configuration<'a>() -> KernelConfiguration<'a, Page4KiB> {
         let rom_region = create_region::<false>(0x1000_0000, 0xC000_0000, Permissions::ReadExecute);
-        let prog_region = create_region::<false>(0x2000_0000, 0xD000_0000, Permissions::ReadExecute);
+        let prog_region =
+            create_region::<false>(0x2000_0000, 0xD000_0000, Permissions::ReadExecute);
         let ram_region = create_region::<false>(0x3000_0000, 0xE000_0000, Permissions::ReadWrite);
-        let peripheral_region = create_region::<false>(0x4000_0000, 0xF000_0000, Permissions::ReadWrite);
-        KernelConfiguration::new(
-            rom_region,
-            prog_region,
-            ram_region,
-            peripheral_region
-        )
+        let peripheral_region =
+            create_region::<false>(0x4000_0000, 0xF000_0000, Permissions::ReadWrite);
+        KernelConfiguration::new(rom_region, prog_region, ram_region, peripheral_region)
     }
 
     #[test]
@@ -433,32 +422,48 @@ mod tests {
         let process_configuration = create_process_configuration();
 
         let physical_byte = create_physical_pointer::<u8>(0x8FFF_FFFF);
-        assert!(process_configuration.translate_protected_physical_pointer_byte(physical_byte).is_err());
+        assert!(process_configuration
+            .translate_protected_physical_pointer_byte(physical_byte)
+            .is_err());
 
         let physical_byte = create_physical_pointer::<u8>(0x9000_0000);
-        let virtual_byte = process_configuration.translate_protected_physical_pointer_byte(physical_byte).unwrap();
+        let virtual_byte = process_configuration
+            .translate_protected_physical_pointer_byte(physical_byte)
+            .unwrap();
         assert_eq!(0x3000_0000, virtual_byte.get_address().get());
 
         let physical_byte = create_physical_pointer::<u8>(0x9000_1FFF);
-        let virtual_byte = process_configuration.translate_protected_physical_pointer_byte(physical_byte).unwrap();
+        let virtual_byte = process_configuration
+            .translate_protected_physical_pointer_byte(physical_byte)
+            .unwrap();
         assert_eq!(0x3000_1FFF, virtual_byte.get_address().get());
 
         let physical_byte = create_physical_pointer::<u8>(0x9000_2000);
-        assert!(process_configuration.translate_protected_physical_pointer_byte(physical_byte).is_err());
+        assert!(process_configuration
+            .translate_protected_physical_pointer_byte(physical_byte)
+            .is_err());
 
         let physical_byte = create_physical_pointer::<u8>(0x2FFF_FFFF);
-        assert!(process_configuration.translate_protected_physical_pointer_byte(physical_byte).is_err());
+        assert!(process_configuration
+            .translate_protected_physical_pointer_byte(physical_byte)
+            .is_err());
 
         let physical_byte = create_physical_pointer::<u8>(0x3000_0000);
-        let virtual_byte = process_configuration.translate_protected_physical_pointer_byte(physical_byte).unwrap();
+        let virtual_byte = process_configuration
+            .translate_protected_physical_pointer_byte(physical_byte)
+            .unwrap();
         assert_eq!(0x4000_0000, virtual_byte.get_address().get());
 
         let physical_byte = create_physical_pointer::<u8>(0x3000_1FFF);
-        let virtual_byte = process_configuration.translate_protected_physical_pointer_byte(physical_byte).unwrap();
+        let virtual_byte = process_configuration
+            .translate_protected_physical_pointer_byte(physical_byte)
+            .unwrap();
         assert_eq!(0x4000_1FFF, virtual_byte.get_address().get());
 
         let physical_byte = create_physical_pointer::<u8>(0x3000_2000);
-        assert!(process_configuration.translate_protected_physical_pointer_byte(physical_byte).is_err());
+        assert!(process_configuration
+            .translate_protected_physical_pointer_byte(physical_byte)
+            .is_err());
     }
 
     #[test]
@@ -466,32 +471,48 @@ mod tests {
         let process_configuration = create_process_configuration();
 
         let virtual_byte = create_virtual_pointer::<true, u8>(0x2FFF_FFFF);
-        assert!(process_configuration.translate_protected_virtual_pointer_byte(virtual_byte).is_err());
+        assert!(process_configuration
+            .translate_protected_virtual_pointer_byte(virtual_byte)
+            .is_err());
 
         let virtual_byte = create_virtual_pointer::<true, u8>(0x3000_0000);
-        let physical_byte = process_configuration.translate_protected_virtual_pointer_byte(virtual_byte).unwrap();
+        let physical_byte = process_configuration
+            .translate_protected_virtual_pointer_byte(virtual_byte)
+            .unwrap();
         assert_eq!(0x9000_0000, physical_byte.get_address().get());
 
         let virtual_byte = create_virtual_pointer::<true, u8>(0x3000_1FFF);
-        let physical_byte = process_configuration.translate_protected_virtual_pointer_byte(virtual_byte).unwrap();
+        let physical_byte = process_configuration
+            .translate_protected_virtual_pointer_byte(virtual_byte)
+            .unwrap();
         assert_eq!(0x9000_1FFF, physical_byte.get_address().get());
 
         let virtual_byte = create_virtual_pointer::<true, u8>(0x3000_2000);
-        assert!(process_configuration.translate_protected_virtual_pointer_byte(virtual_byte).is_err());
+        assert!(process_configuration
+            .translate_protected_virtual_pointer_byte(virtual_byte)
+            .is_err());
 
         let virtual_byte = create_virtual_pointer::<true, u8>(0x3FFF_FFFF);
-        assert!(process_configuration.translate_protected_virtual_pointer_byte(virtual_byte).is_err());
+        assert!(process_configuration
+            .translate_protected_virtual_pointer_byte(virtual_byte)
+            .is_err());
 
         let virtual_byte = create_virtual_pointer::<true, u8>(0x4000_0000);
-        let physical_byte = process_configuration.translate_protected_virtual_pointer_byte(virtual_byte).unwrap();
+        let physical_byte = process_configuration
+            .translate_protected_virtual_pointer_byte(virtual_byte)
+            .unwrap();
         assert_eq!(0x3000_0000, physical_byte.get_address().get());
 
         let virtual_byte = create_virtual_pointer::<true, u8>(0x4000_1FFF);
-        let physical_byte = process_configuration.translate_protected_virtual_pointer_byte(virtual_byte).unwrap();
+        let physical_byte = process_configuration
+            .translate_protected_virtual_pointer_byte(virtual_byte)
+            .unwrap();
         assert_eq!(0x3000_1FFF, physical_byte.get_address().get());
 
         let virtual_byte = create_virtual_pointer::<true, u8>(0x4000_2000);
-        assert!(process_configuration.translate_protected_virtual_pointer_byte(virtual_byte).is_err());
+        assert!(process_configuration
+            .translate_protected_virtual_pointer_byte(virtual_byte)
+            .is_err());
     }
 
     #[test]
@@ -499,32 +520,48 @@ mod tests {
         let process_configuration = create_process_configuration();
 
         let virtual_byte = create_virtual_pointer::<true, u8>(0x2FFF_FFFF);
-        assert!(process_configuration.translate_allocated_virtual_pointer_byte(virtual_byte).is_err());
+        assert!(process_configuration
+            .translate_allocated_virtual_pointer_byte(virtual_byte)
+            .is_err());
 
         let virtual_byte = create_virtual_pointer::<true, u8>(0x3000_0000);
-        let physical_byte = process_configuration.translate_allocated_virtual_pointer_byte(virtual_byte).unwrap();
+        let physical_byte = process_configuration
+            .translate_allocated_virtual_pointer_byte(virtual_byte)
+            .unwrap();
         assert_eq!(0x9000_0000, physical_byte.get_address().get());
 
         let virtual_byte = create_virtual_pointer::<true, u8>(0x3000_3FFF);
-        let physical_byte = process_configuration.translate_allocated_virtual_pointer_byte(virtual_byte).unwrap();
+        let physical_byte = process_configuration
+            .translate_allocated_virtual_pointer_byte(virtual_byte)
+            .unwrap();
         assert_eq!(0x9000_3FFF, physical_byte.get_address().get());
 
         let virtual_byte = create_virtual_pointer::<true, u8>(0x3000_4000);
-        assert!(process_configuration.translate_allocated_virtual_pointer_byte(virtual_byte).is_err());
+        assert!(process_configuration
+            .translate_allocated_virtual_pointer_byte(virtual_byte)
+            .is_err());
 
         let virtual_byte = create_virtual_pointer::<true, u8>(0x3FFF_FFFF);
-        assert!(process_configuration.translate_allocated_virtual_pointer_byte(virtual_byte).is_err());
+        assert!(process_configuration
+            .translate_allocated_virtual_pointer_byte(virtual_byte)
+            .is_err());
 
         let virtual_byte = create_virtual_pointer::<true, u8>(0x4000_0000);
-        let physical_byte = process_configuration.translate_allocated_virtual_pointer_byte(virtual_byte).unwrap();
+        let physical_byte = process_configuration
+            .translate_allocated_virtual_pointer_byte(virtual_byte)
+            .unwrap();
         assert_eq!(0x3000_0000, physical_byte.get_address().get());
 
         let virtual_byte = create_virtual_pointer::<true, u8>(0x4000_3FFF);
-        let physical_byte = process_configuration.translate_allocated_virtual_pointer_byte(virtual_byte).unwrap();
+        let physical_byte = process_configuration
+            .translate_allocated_virtual_pointer_byte(virtual_byte)
+            .unwrap();
         assert_eq!(0x3000_3FFF, physical_byte.get_address().get());
 
         let virtual_byte = create_virtual_pointer::<true, u8>(0x4000_4000);
-        assert!(process_configuration.translate_allocated_virtual_pointer_byte(virtual_byte).is_err());
+        assert!(process_configuration
+            .translate_allocated_virtual_pointer_byte(virtual_byte)
+            .is_err());
     }
 
     #[test]
@@ -532,91 +569,43 @@ mod tests {
         let kernel_configuration = create_kernel_configuration();
 
         // ROM
-        let user_region = create_region::<true>(
-            0x5000_0000,
-            0xBFFF_C000,
-            Permissions::ReadWrite,
-        );
+        let user_region = create_region::<true>(0x5000_0000, 0xBFFF_C000, Permissions::ReadWrite);
         assert!(!kernel_configuration.is_intersecting_user_virtual_region(&user_region));
 
-        let user_region = create_region::<true>(
-            0x5000_0000,
-            0xBFFF_D000,
-            Permissions::ReadWrite,
-        );
+        let user_region = create_region::<true>(0x5000_0000, 0xBFFF_D000, Permissions::ReadWrite);
         assert!(kernel_configuration.is_intersecting_user_virtual_region(&user_region));
 
-        let user_region = create_region::<true>(
-            0x5000_0000,
-            0xC000_4000,
-            Permissions::ReadWrite,
-        );
+        let user_region = create_region::<true>(0x5000_0000, 0xC000_4000, Permissions::ReadWrite);
         assert!(!kernel_configuration.is_intersecting_user_virtual_region(&user_region));
 
         // PROG
-        let user_region = create_region::<true>(
-            0x5000_0000,
-            0xCFFF_C000,
-            Permissions::ReadWrite,
-        );
+        let user_region = create_region::<true>(0x5000_0000, 0xCFFF_C000, Permissions::ReadWrite);
         assert!(!kernel_configuration.is_intersecting_user_virtual_region(&user_region));
 
-        let user_region = create_region::<true>(
-            0x5000_0000,
-            0xCFFF_D000,
-            Permissions::ReadWrite,
-        );
+        let user_region = create_region::<true>(0x5000_0000, 0xCFFF_D000, Permissions::ReadWrite);
         assert!(kernel_configuration.is_intersecting_user_virtual_region(&user_region));
 
-        let user_region = create_region::<true>(
-            0x5000_0000,
-            0xD000_4000,
-            Permissions::ReadWrite,
-        );
+        let user_region = create_region::<true>(0x5000_0000, 0xD000_4000, Permissions::ReadWrite);
         assert!(!kernel_configuration.is_intersecting_user_virtual_region(&user_region));
 
         // RAM
-        let user_region = create_region::<true>(
-            0x5000_0000,
-            0xDFFF_C000,
-            Permissions::ReadWrite,
-        );
+        let user_region = create_region::<true>(0x5000_0000, 0xDFFF_C000, Permissions::ReadWrite);
         assert!(!kernel_configuration.is_intersecting_user_virtual_region(&user_region));
 
-        let user_region = create_region::<true>(
-            0x5000_0000,
-            0xDFFF_D000,
-            Permissions::ReadWrite,
-        );
+        let user_region = create_region::<true>(0x5000_0000, 0xDFFF_D000, Permissions::ReadWrite);
         assert!(kernel_configuration.is_intersecting_user_virtual_region(&user_region));
 
-        let user_region = create_region::<true>(
-            0x5000_0000,
-            0xE000_4000,
-            Permissions::ReadWrite,
-        );
+        let user_region = create_region::<true>(0x5000_0000, 0xE000_4000, Permissions::ReadWrite);
         assert!(!kernel_configuration.is_intersecting_user_virtual_region(&user_region));
 
         // PERIPHERAL
-        let user_region = create_region::<true>(
-            0x5000_0000,
-            0xEFFF_C000,
-            Permissions::ReadWrite,
-        );
+        let user_region = create_region::<true>(0x5000_0000, 0xEFFF_C000, Permissions::ReadWrite);
         assert!(!kernel_configuration.is_intersecting_user_virtual_region(&user_region));
 
-        let user_region = create_region::<true>(
-            0x5000_0000,
-            0xEFFF_D000,
-            Permissions::ReadWrite,
-        );
+        let user_region = create_region::<true>(0x5000_0000, 0xEFFF_D000, Permissions::ReadWrite);
         assert!(kernel_configuration.is_intersecting_user_virtual_region(&user_region));
 
-        let user_region = create_region::<true>(
-            0x5000_0000,
-            0xF000_4000,
-            Permissions::ReadWrite,
-        );
+        let user_region = create_region::<true>(0x5000_0000, 0xF000_4000, Permissions::ReadWrite);
         assert!(!kernel_configuration.is_intersecting_user_virtual_region(&user_region));
     }
 
@@ -626,63 +615,95 @@ mod tests {
 
         // ROM
         let virtual_byte = create_virtual_pointer::<false, u8>(0xBFFF_FFFF);
-        assert!(kernel_configuration.translate_allocated_virtual_pointer_byte(virtual_byte).is_err());
+        assert!(kernel_configuration
+            .translate_allocated_virtual_pointer_byte(virtual_byte)
+            .is_err());
 
         let virtual_byte = create_virtual_pointer::<false, u8>(0xC000_0000);
-        let physical_byte = kernel_configuration.translate_allocated_virtual_pointer_byte(virtual_byte).unwrap();
+        let physical_byte = kernel_configuration
+            .translate_allocated_virtual_pointer_byte(virtual_byte)
+            .unwrap();
         assert_eq!(0x1000_0000, physical_byte.get_address().get());
 
         let virtual_byte = create_virtual_pointer::<false, u8>(0xC000_3FFF);
-        let physical_byte = kernel_configuration.translate_allocated_virtual_pointer_byte(virtual_byte).unwrap();
+        let physical_byte = kernel_configuration
+            .translate_allocated_virtual_pointer_byte(virtual_byte)
+            .unwrap();
         assert_eq!(0x1000_3FFF, physical_byte.get_address().get());
 
         let virtual_byte = create_virtual_pointer::<false, u8>(0xC000_4000);
-        assert!(kernel_configuration.translate_allocated_virtual_pointer_byte(virtual_byte).is_err());
+        assert!(kernel_configuration
+            .translate_allocated_virtual_pointer_byte(virtual_byte)
+            .is_err());
 
         // PROG
         let virtual_byte = create_virtual_pointer::<false, u8>(0xCFFF_FFFF);
-        assert!(kernel_configuration.translate_allocated_virtual_pointer_byte(virtual_byte).is_err());
+        assert!(kernel_configuration
+            .translate_allocated_virtual_pointer_byte(virtual_byte)
+            .is_err());
 
         let virtual_byte = create_virtual_pointer::<false, u8>(0xD000_0000);
-        let physical_byte = kernel_configuration.translate_allocated_virtual_pointer_byte(virtual_byte).unwrap();
+        let physical_byte = kernel_configuration
+            .translate_allocated_virtual_pointer_byte(virtual_byte)
+            .unwrap();
         assert_eq!(0x2000_0000, physical_byte.get_address().get());
 
         let virtual_byte = create_virtual_pointer::<false, u8>(0xD000_3FFF);
-        let physical_byte = kernel_configuration.translate_allocated_virtual_pointer_byte(virtual_byte).unwrap();
+        let physical_byte = kernel_configuration
+            .translate_allocated_virtual_pointer_byte(virtual_byte)
+            .unwrap();
         assert_eq!(0x2000_3FFF, physical_byte.get_address().get());
 
         let virtual_byte = create_virtual_pointer::<false, u8>(0xD000_4000);
-        assert!(kernel_configuration.translate_allocated_virtual_pointer_byte(virtual_byte).is_err());
+        assert!(kernel_configuration
+            .translate_allocated_virtual_pointer_byte(virtual_byte)
+            .is_err());
 
         // RAM
         let virtual_byte = create_virtual_pointer::<false, u8>(0xCFFF_FFFF);
-        assert!(kernel_configuration.translate_allocated_virtual_pointer_byte(virtual_byte).is_err());
+        assert!(kernel_configuration
+            .translate_allocated_virtual_pointer_byte(virtual_byte)
+            .is_err());
 
         let virtual_byte = create_virtual_pointer::<false, u8>(0xD000_0000);
-        let physical_byte = kernel_configuration.translate_allocated_virtual_pointer_byte(virtual_byte).unwrap();
+        let physical_byte = kernel_configuration
+            .translate_allocated_virtual_pointer_byte(virtual_byte)
+            .unwrap();
         assert_eq!(0x2000_0000, physical_byte.get_address().get());
 
         let virtual_byte = create_virtual_pointer::<false, u8>(0xD000_3FFF);
-        let physical_byte = kernel_configuration.translate_allocated_virtual_pointer_byte(virtual_byte).unwrap();
+        let physical_byte = kernel_configuration
+            .translate_allocated_virtual_pointer_byte(virtual_byte)
+            .unwrap();
         assert_eq!(0x2000_3FFF, physical_byte.get_address().get());
 
         let virtual_byte = create_virtual_pointer::<false, u8>(0xD000_4000);
-        assert!(kernel_configuration.translate_allocated_virtual_pointer_byte(virtual_byte).is_err());
+        assert!(kernel_configuration
+            .translate_allocated_virtual_pointer_byte(virtual_byte)
+            .is_err());
 
         // PERIPHERAL
         let virtual_byte = create_virtual_pointer::<false, u8>(0xCFFF_FFFF);
-        assert!(kernel_configuration.translate_allocated_virtual_pointer_byte(virtual_byte).is_err());
+        assert!(kernel_configuration
+            .translate_allocated_virtual_pointer_byte(virtual_byte)
+            .is_err());
 
         let virtual_byte = create_virtual_pointer::<false, u8>(0xD000_0000);
-        let physical_byte = kernel_configuration.translate_allocated_virtual_pointer_byte(virtual_byte).unwrap();
+        let physical_byte = kernel_configuration
+            .translate_allocated_virtual_pointer_byte(virtual_byte)
+            .unwrap();
         assert_eq!(0x2000_0000, physical_byte.get_address().get());
 
         let virtual_byte = create_virtual_pointer::<false, u8>(0xD000_3FFF);
-        let physical_byte = kernel_configuration.translate_allocated_virtual_pointer_byte(virtual_byte).unwrap();
+        let physical_byte = kernel_configuration
+            .translate_allocated_virtual_pointer_byte(virtual_byte)
+            .unwrap();
         assert_eq!(0x2000_3FFF, physical_byte.get_address().get());
 
         let virtual_byte = create_virtual_pointer::<false, u8>(0xD000_4000);
-        assert!(kernel_configuration.translate_allocated_virtual_pointer_byte(virtual_byte).is_err());
+        assert!(kernel_configuration
+            .translate_allocated_virtual_pointer_byte(virtual_byte)
+            .is_err());
     }
 
     #[test]
@@ -691,62 +712,94 @@ mod tests {
 
         // ROM
         let physical_byte = create_physical_pointer::<u8>(0x0FFF_FFFF);
-        assert!(kernel_configuration.translate_allocated_physical_pointer_byte(physical_byte).is_err());
+        assert!(kernel_configuration
+            .translate_allocated_physical_pointer_byte(physical_byte)
+            .is_err());
 
         let physical_byte = create_physical_pointer::<u8>(0x1000_0000);
-        let virtual_byte = kernel_configuration.translate_allocated_physical_pointer_byte(physical_byte).unwrap();
+        let virtual_byte = kernel_configuration
+            .translate_allocated_physical_pointer_byte(physical_byte)
+            .unwrap();
         assert_eq!(0xC000_0000, virtual_byte.get_address().get());
 
         let physical_byte = create_physical_pointer::<u8>(0x1000_3FFF);
-        let virtual_byte = kernel_configuration.translate_allocated_physical_pointer_byte(physical_byte).unwrap();
+        let virtual_byte = kernel_configuration
+            .translate_allocated_physical_pointer_byte(physical_byte)
+            .unwrap();
         assert_eq!(0xC000_3FFF, virtual_byte.get_address().get());
 
         let physical_byte = create_physical_pointer::<u8>(0x1000_4000);
-        assert!(kernel_configuration.translate_allocated_physical_pointer_byte(physical_byte).is_err());
+        assert!(kernel_configuration
+            .translate_allocated_physical_pointer_byte(physical_byte)
+            .is_err());
 
         // PROG
         let physical_byte = create_physical_pointer::<u8>(0x1FFF_FFFF);
-        assert!(kernel_configuration.translate_allocated_physical_pointer_byte(physical_byte).is_err());
+        assert!(kernel_configuration
+            .translate_allocated_physical_pointer_byte(physical_byte)
+            .is_err());
 
         let physical_byte = create_physical_pointer::<u8>(0x2000_0000);
-        let virtual_byte = kernel_configuration.translate_allocated_physical_pointer_byte(physical_byte).unwrap();
+        let virtual_byte = kernel_configuration
+            .translate_allocated_physical_pointer_byte(physical_byte)
+            .unwrap();
         assert_eq!(0xD000_0000, virtual_byte.get_address().get());
 
         let physical_byte = create_physical_pointer::<u8>(0x2000_3FFF);
-        let virtual_byte = kernel_configuration.translate_allocated_physical_pointer_byte(physical_byte).unwrap();
+        let virtual_byte = kernel_configuration
+            .translate_allocated_physical_pointer_byte(physical_byte)
+            .unwrap();
         assert_eq!(0xD000_3FFF, virtual_byte.get_address().get());
 
         let physical_byte = create_physical_pointer::<u8>(0x2000_4000);
-        assert!(kernel_configuration.translate_allocated_physical_pointer_byte(physical_byte).is_err());
+        assert!(kernel_configuration
+            .translate_allocated_physical_pointer_byte(physical_byte)
+            .is_err());
 
         // RAM
         let physical_byte = create_physical_pointer::<u8>(0x2FFF_FFFF);
-        assert!(kernel_configuration.translate_allocated_physical_pointer_byte(physical_byte).is_err());
+        assert!(kernel_configuration
+            .translate_allocated_physical_pointer_byte(physical_byte)
+            .is_err());
 
         let physical_byte = create_physical_pointer::<u8>(0x3000_0000);
-        let virtual_byte = kernel_configuration.translate_allocated_physical_pointer_byte(physical_byte).unwrap();
+        let virtual_byte = kernel_configuration
+            .translate_allocated_physical_pointer_byte(physical_byte)
+            .unwrap();
         assert_eq!(0xE000_0000, virtual_byte.get_address().get());
 
         let physical_byte = create_physical_pointer::<u8>(0x3000_3FFF);
-        let virtual_byte = kernel_configuration.translate_allocated_physical_pointer_byte(physical_byte).unwrap();
+        let virtual_byte = kernel_configuration
+            .translate_allocated_physical_pointer_byte(physical_byte)
+            .unwrap();
         assert_eq!(0xE000_3FFF, virtual_byte.get_address().get());
 
         let physical_byte = create_physical_pointer::<u8>(0x3000_4000);
-        assert!(kernel_configuration.translate_allocated_physical_pointer_byte(physical_byte).is_err());
+        assert!(kernel_configuration
+            .translate_allocated_physical_pointer_byte(physical_byte)
+            .is_err());
 
         // PERIPHERAL
         let physical_byte = create_physical_pointer::<u8>(0x3FFF_FFFF);
-        assert!(kernel_configuration.translate_allocated_physical_pointer_byte(physical_byte).is_err());
+        assert!(kernel_configuration
+            .translate_allocated_physical_pointer_byte(physical_byte)
+            .is_err());
 
         let physical_byte = create_physical_pointer::<u8>(0x4000_0000);
-        let virtual_byte = kernel_configuration.translate_allocated_physical_pointer_byte(physical_byte).unwrap();
+        let virtual_byte = kernel_configuration
+            .translate_allocated_physical_pointer_byte(physical_byte)
+            .unwrap();
         assert_eq!(0xF000_0000, virtual_byte.get_address().get());
 
         let physical_byte = create_physical_pointer::<u8>(0x4000_3FFF);
-        let virtual_byte = kernel_configuration.translate_allocated_physical_pointer_byte(physical_byte).unwrap();
+        let virtual_byte = kernel_configuration
+            .translate_allocated_physical_pointer_byte(physical_byte)
+            .unwrap();
         assert_eq!(0xF000_3FFF, virtual_byte.get_address().get());
 
         let physical_byte = create_physical_pointer::<u8>(0x4000_4000);
-        assert!(kernel_configuration.translate_allocated_physical_pointer_byte(physical_byte).is_err());
+        assert!(kernel_configuration
+            .translate_allocated_physical_pointer_byte(physical_byte)
+            .is_err());
     }
 }

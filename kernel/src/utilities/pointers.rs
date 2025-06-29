@@ -536,7 +536,6 @@ mod tests {
 
         let result = pointer.checked_offset(create_non_zero_isize(0x1000));
         assert!(result.is_err());
-
     }
 
     #[test]
@@ -574,12 +573,16 @@ mod tests {
         let mut value = 1234u32;
         let mut pointer = MutablePointer::new_from_ref(&mut value);
         // SAFETY: pointer is writeable and `value` and `pointer` are not concurrently used.
-        unsafe { pointer.write(4321); }
+        unsafe {
+            pointer.write(4321);
+        }
         assert_eq!(4321, value);
 
         let mut pointer = pointer.clone();
         // SAFETY: pointer is writeable and `value` and `pointer` are not concurrently used.
-        unsafe { pointer.write(2025); }
+        unsafe {
+            pointer.write(2025);
+        }
         assert_eq!(2025, value);
     }
 

@@ -158,15 +158,20 @@ mod tests {
         let non_empty_slice = NonEmptyMutableSlice::new(&mut slice[..]).unwrap();
         assert_eq!(8, non_empty_slice.get_length().get());
 
-        let (non_empty_slice, optional_leftover) = non_empty_slice.split_at_checked(create_non_zero_usize(3)).unwrap();
+        let (non_empty_slice, optional_leftover) = non_empty_slice
+            .split_at_checked(create_non_zero_usize(3))
+            .unwrap();
         assert_eq!(3, non_empty_slice.get_length().get());
         let leftover = optional_leftover.unwrap();
         assert_eq!(5, leftover.get_length().get());
 
-        let leftover = leftover.split_at_checked(create_non_zero_usize(8)).unwrap_err();
+        let leftover = leftover
+            .split_at_checked(create_non_zero_usize(8))
+            .unwrap_err();
         assert_eq!(5, leftover.get_length().get());
 
-        let (non_empty_slice, optional_leftover) = leftover.split_at_checked(create_non_zero_usize(5)).unwrap();
+        let (non_empty_slice, optional_leftover) =
+            leftover.split_at_checked(create_non_zero_usize(5)).unwrap();
         assert_eq!(5, non_empty_slice.get_length().get());
         assert!(optional_leftover.is_none());
     }

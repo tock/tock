@@ -89,10 +89,7 @@ impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>
         self.as_pointers().compute_difference()
     }
 
-    fn intersect_pointer<'b>(
-        &'b self,
-        pointer: &'b ImmutablePointer<IS_VIRTUAL, T>,
-    ) -> bool {
+    fn intersect_pointer<'b>(&'b self, pointer: &'b ImmutablePointer<IS_VIRTUAL, T>) -> bool {
         self.as_immutable_pointers().is_intersecting(pointer)
     }
 
@@ -100,10 +97,7 @@ impl<const IS_VIRTUAL: bool, const IS_MUTABLE: bool, T: Alignment>
         self.intersect_pointer(pointer)
     }
 
-    fn contain_pointer<'b>(
-        &'b self,
-        pointer: &'b ImmutablePointer<IS_VIRTUAL, T>,
-    ) -> bool {
+    fn contain_pointer<'b>(&'b self, pointer: &'b ImmutablePointer<IS_VIRTUAL, T>) -> bool {
         self.as_immutable_pointers().is_containing(pointer)
     }
 
@@ -868,9 +862,7 @@ mod tests {
 
     use crate::memory_management::pages::Page4KiB;
     use crate::memory_management::pointers::{
-        VirtualPointer,
-        UserVirtualPointer,
-        MutableUserVirtualPointer,
+        MutableUserVirtualPointer, UserVirtualPointer, VirtualPointer,
     };
     use crate::utilities;
     use crate::utilities::misc::create_non_zero_usize;
@@ -898,25 +890,25 @@ mod tests {
         let starting_physical_pointer = create_physical_pointer(starting_physical_address);
         let physical_length = create_non_zero_usize(4);
         // SAFETY: let's assume it's a valid physical slice
-        let physical_slice = unsafe { MutablePhysicalSlice::from_raw_parts(starting_physical_pointer, physical_length) };
+        let physical_slice = unsafe {
+            MutablePhysicalSlice::from_raw_parts(starting_physical_pointer, physical_length)
+        };
         let allocated_region = AllocatedRegion::new(physical_slice);
 
         // Protected allocated region
         let permissions = Permissions::ReadWrite;
         let protected_length = create_non_zero_usize(2);
-        let protected_allocated_region = ProtectedAllocatedRegion::new(
-            allocated_region,
-            protected_length,
-            permissions,
-        ).unwrap();
-
+        let protected_allocated_region =
+            ProtectedAllocatedRegion::new(allocated_region, protected_length, permissions).unwrap();
 
         // Allocated region
         let starting_virtual_pointer = create_virtual_pointer(starting_virtual_address);
-        let mapped_protected_allocated_region = UserMappedProtectedAllocatedRegion::new_from_protected(
-            protected_allocated_region,
-            starting_virtual_pointer,
-        ).unwrap();
+        let mapped_protected_allocated_region =
+            UserMappedProtectedAllocatedRegion::new_from_protected(
+                protected_allocated_region,
+                starting_virtual_pointer,
+            )
+            .unwrap();
 
         DirtyMappedProtectedAllocatedRegion::new(mapped_protected_allocated_region)
     }
@@ -942,18 +934,26 @@ mod tests {
         let dirty_region = create_region(0x2000_0000, 0x4000_0000);
 
         let physical_pointer = create_physical_pointer::<u8>(0x1FFFFFFF);
-        assert!(dirty_region.translate_allocated_physical_pointer_byte(physical_pointer).is_err());
+        assert!(dirty_region
+            .translate_allocated_physical_pointer_byte(physical_pointer)
+            .is_err());
 
         let physical_pointer = create_physical_pointer::<u8>(0x20000000);
-        let virtual_pointer = dirty_region.translate_allocated_physical_pointer_byte(physical_pointer).unwrap();
+        let virtual_pointer = dirty_region
+            .translate_allocated_physical_pointer_byte(physical_pointer)
+            .unwrap();
         assert_eq!(0x40000000, virtual_pointer.get_address().get());
 
         let physical_pointer = create_physical_pointer::<u8>(0x20003FFF);
-        let virtual_pointer = dirty_region.translate_allocated_physical_pointer_byte(physical_pointer).unwrap();
+        let virtual_pointer = dirty_region
+            .translate_allocated_physical_pointer_byte(physical_pointer)
+            .unwrap();
         assert_eq!(0x40003FFF, virtual_pointer.get_address().get());
 
         let physical_pointer = create_physical_pointer::<u8>(0x20004000);
-        assert!(dirty_region.translate_allocated_physical_pointer_byte(physical_pointer).is_err());
+        assert!(dirty_region
+            .translate_allocated_physical_pointer_byte(physical_pointer)
+            .is_err());
     }
 
     #[test]
@@ -961,18 +961,26 @@ mod tests {
         let dirty_region = create_region(0x2000_0000, 0x4000_0000);
 
         let physical_pointer = create_physical_pointer::<u8>(0x1FFFFFFF);
-        assert!(dirty_region.translate_protected_physical_pointer_byte(physical_pointer).is_err());
+        assert!(dirty_region
+            .translate_protected_physical_pointer_byte(physical_pointer)
+            .is_err());
 
         let physical_pointer = create_physical_pointer::<u8>(0x20000000);
-        let virtual_pointer = dirty_region.translate_protected_physical_pointer_byte(physical_pointer).unwrap();
+        let virtual_pointer = dirty_region
+            .translate_protected_physical_pointer_byte(physical_pointer)
+            .unwrap();
         assert_eq!(0x40000000, virtual_pointer.get_address().get());
 
         let physical_pointer = create_physical_pointer::<u8>(0x20001FFF);
-        let virtual_pointer = dirty_region.translate_protected_physical_pointer_byte(physical_pointer).unwrap();
+        let virtual_pointer = dirty_region
+            .translate_protected_physical_pointer_byte(physical_pointer)
+            .unwrap();
         assert_eq!(0x40001FFF, virtual_pointer.get_address().get());
 
         let physical_pointer = create_physical_pointer::<u8>(0x20002000);
-        assert!(dirty_region.translate_protected_physical_pointer_byte(physical_pointer).is_err());
+        assert!(dirty_region
+            .translate_protected_physical_pointer_byte(physical_pointer)
+            .is_err());
     }
 
     #[test]
@@ -980,18 +988,26 @@ mod tests {
         let dirty_region = create_region(0x2000_0000, 0x4000_0000);
 
         let virtual_pointer = create_virtual_pointer::<u8>(0x3FFFFFFF);
-        assert!(dirty_region.translate_allocated_virtual_pointer_byte(virtual_pointer).is_err());
+        assert!(dirty_region
+            .translate_allocated_virtual_pointer_byte(virtual_pointer)
+            .is_err());
 
         let virtual_pointer = create_virtual_pointer::<u8>(0x40000000);
-        let virtual_pointer = dirty_region.translate_allocated_virtual_pointer_byte(virtual_pointer).unwrap();
+        let virtual_pointer = dirty_region
+            .translate_allocated_virtual_pointer_byte(virtual_pointer)
+            .unwrap();
         assert_eq!(0x20000000, virtual_pointer.get_address().get());
 
         let virtual_pointer = create_virtual_pointer::<u8>(0x40003FFF);
-        let virtual_pointer = dirty_region.translate_allocated_virtual_pointer_byte(virtual_pointer).unwrap();
+        let virtual_pointer = dirty_region
+            .translate_allocated_virtual_pointer_byte(virtual_pointer)
+            .unwrap();
         assert_eq!(0x20003FFF, virtual_pointer.get_address().get());
 
         let virtual_pointer = create_virtual_pointer::<u8>(0x40004000);
-        assert!(dirty_region.translate_allocated_virtual_pointer_byte(virtual_pointer).is_err());
+        assert!(dirty_region
+            .translate_allocated_virtual_pointer_byte(virtual_pointer)
+            .is_err());
     }
 
     #[test]
@@ -999,18 +1015,26 @@ mod tests {
         let dirty_region = create_region(0x2000_0000, 0x4000_0000);
 
         let virtual_pointer = create_virtual_pointer::<u8>(0x3FFFFFFF);
-        assert!(dirty_region.translate_protected_virtual_pointer_byte(virtual_pointer).is_err());
+        assert!(dirty_region
+            .translate_protected_virtual_pointer_byte(virtual_pointer)
+            .is_err());
 
         let virtual_pointer = create_virtual_pointer::<u8>(0x40000000);
-        let virtual_pointer = dirty_region.translate_protected_virtual_pointer_byte(virtual_pointer).unwrap();
+        let virtual_pointer = dirty_region
+            .translate_protected_virtual_pointer_byte(virtual_pointer)
+            .unwrap();
         assert_eq!(0x20000000, virtual_pointer.get_address().get());
 
         let virtual_pointer = create_virtual_pointer::<u8>(0x40001FFF);
-        let virtual_pointer = dirty_region.translate_protected_virtual_pointer_byte(virtual_pointer).unwrap();
+        let virtual_pointer = dirty_region
+            .translate_protected_virtual_pointer_byte(virtual_pointer)
+            .unwrap();
         assert_eq!(0x20001FFF, virtual_pointer.get_address().get());
 
         let virtual_pointer = create_virtual_pointer::<u8>(0x40002000);
-        assert!(dirty_region.translate_protected_virtual_pointer_byte(virtual_pointer).is_err());
+        assert!(dirty_region
+            .translate_protected_virtual_pointer_byte(virtual_pointer)
+            .is_err());
     }
 
     #[test]

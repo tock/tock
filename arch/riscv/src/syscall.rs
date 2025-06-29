@@ -646,11 +646,7 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
         (ret, None)
     }
 
-    unsafe fn print_context(
-        &self,
-        state: &Riscv32iStoredState,
-        writer: &mut dyn Write,
-    ) {
+    unsafe fn print_context(&self, state: &Riscv32iStoredState, writer: &mut dyn Write) {
         let _ = writer.write_fmt(format_args!(
             "\
              \r\n R0 : {:#010X}    R16: {:#010X}\

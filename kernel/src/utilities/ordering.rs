@@ -337,7 +337,10 @@ mod tests {
     #[test]
     fn test_smaller_pair_compute_difference() {
         let smaller_pair = SmallerPair::new(0x100isize, 0x200).unwrap();
-        assert_eq!(create_non_zero_usize(0x100), smaller_pair.compute_difference());
+        assert_eq!(
+            create_non_zero_usize(0x100),
+            smaller_pair.compute_difference()
+        );
     }
 
     #[test]
@@ -348,7 +351,8 @@ mod tests {
 
     #[test]
     fn test_smaller_or_equal_pair_immutable_refcompute_difference() {
-        let smaller_or_equal = SmallerOrEqualPairImmutableReference::new(&0x201000isize, &0x202000).unwrap();
+        let smaller_or_equal =
+            SmallerOrEqualPairImmutableReference::new(&0x201000isize, &0x202000).unwrap();
         assert_eq!(0x1000, smaller_or_equal.compute_difference());
     }
 }
