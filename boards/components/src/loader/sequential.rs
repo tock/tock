@@ -44,7 +44,6 @@ pub struct ProcessLoaderSequentialComponent<
     appid_policy: &'static dyn kernel::process_checker::AppIdPolicy,
     storage_policy: &'static dyn kernel::process::ProcessStandardStoragePermissionsPolicy<C, D>,
     app_flash: &'static [u8],
-    app_memory: &'static mut [u8],
 }
 
 impl<C: Chip, D: ProcessStandardDebug, const NUM_PROCS: usize>
@@ -58,7 +57,6 @@ impl<C: Chip, D: ProcessStandardDebug, const NUM_PROCS: usize>
         appid_policy: &'static dyn kernel::process_checker::AppIdPolicy,
         storage_policy: &'static dyn kernel::process::ProcessStandardStoragePermissionsPolicy<C, D>,
         app_flash: &'static [u8],
-        app_memory: &'static mut [u8],
     ) -> Self {
         Self {
             checker,
@@ -68,7 +66,6 @@ impl<C: Chip, D: ProcessStandardDebug, const NUM_PROCS: usize>
             appid_policy,
             storage_policy,
             app_flash,
-            app_memory,
         }
     }
 }
@@ -97,7 +94,6 @@ impl<C: Chip, D: ProcessStandardDebug, const NUM_PROCS: usize> Component
                 self.kernel,
                 self.chip,
                 self.app_flash,
-                self.app_memory,
                 self.fault_policy,
                 self.storage_policy,
                 self.appid_policy,

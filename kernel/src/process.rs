@@ -14,7 +14,12 @@ use crate::capabilities;
 use crate::errorcode::ErrorCode;
 use crate::ipc;
 use crate::kernel::Kernel;
-use crate::platform::mpu::{self};
+use crate::memory_management::configuration;
+use crate::memory_management::pages::Page4KiB;
+use crate::memory_management::pointers::{
+    ImmutableKernelNullableVirtualPointer, ImmutableKernelVirtualPointer,
+    ImmutableUserVirtualPointer, MutableKernelNullableVirtualPointer, MutableKernelVirtualPointer,
+};
 use crate::processbuffer::{ReadOnlyProcessBuffer, ReadWriteProcessBuffer};
 use crate::storage_permissions;
 use crate::syscall::{self, Syscall, SyscallReturn};
@@ -546,7 +551,7 @@ pub trait Process {
     ///   process's memory region.
     /// - [`Error::KernelError`] if there was an internal kernel error. This is
     ///   a bug.
-    fn brk(&self, new_break: *const u8) -> Result<CapabilityPtr, Error>;
+    fn brk(&self, new_break: ImmutableUserVirtualPointer<u8>) -> Result<CapabilityPtr, Error>;
 
     /// Change the location of the program break by `increment` bytes,
     /// reallocate the MPU region covering program memory, and return the
@@ -590,11 +595,11 @@ pub trait Process {
     /// Debug function to update the kernel on where the stack starts for this
     /// process. Processes are not required to call this through the memop
     /// system call, but it aids in debugging the process.
-    fn update_stack_start_pointer(&self, stack_pointer: *const u8);
+    fn update_stack_start_pointer(&self, stack_pointer: ImmutableUserVirtualPointer<u8>);
 
     /// Debug function to update the kernel on where the process heap starts.
     /// Also optional.
-    fn update_heap_start_pointer(&self, heap_pointer: *const u8);
+    fn update_heap_start_pointer(&self, heap_pointer: ImmutableUserVirtualPointer<u8>);
 
     /// Creates a [`ReadWriteProcessBuffer`] from the given offset and size in
     /// process memory.
@@ -614,7 +619,7 @@ pub trait Process {
     /// - For all other errors: [`ErrorCode::FAIL`].
     fn build_readwrite_process_buffer(
         &self,
-        buf_start_addr: *mut u8,
+        buf_start_addr: MutableKernelNullableVirtualPointer<u8>,
         size: usize,
     ) -> Result<ReadWriteProcessBuffer, ErrorCode>;
 
@@ -636,7 +641,7 @@ pub trait Process {
     /// - For all other errors: [`ErrorCode::FAIL`].
     fn build_readonly_process_buffer(
         &self,
-        buf_start_addr: *const u8,
+        buf_start_addr: ImmutableKernelNullableVirtualPointer<u8>,
         size: usize,
     ) -> Result<ReadOnlyProcessBuffer, ErrorCode>;
 
@@ -651,7 +656,7 @@ pub trait Process {
     /// accessible memory. However, to avoid undefined behavior the caller needs
     /// to ensure that no other references exist to the process's memory before
     /// calling this function.
-    unsafe fn set_byte(&self, addr: *mut u8, value: u8) -> bool;
+    unsafe fn set_byte(&self, addr: MutableKernelVirtualPointer<u8>, value: u8) -> bool;
 
     /// Return the permissions for this process for a given `driver_num`.
     ///
@@ -667,33 +672,8 @@ pub trait Process {
     /// Returns `None` if the process has no storage permissions.
     fn get_storage_permissions(&self) -> storage_permissions::StoragePermissions;
 
-    // mpu
-
-    /// Configure the MPU to use the process's allocated regions.
-    ///
-    /// It is not valid to call this function when the process is inactive (i.e.
-    /// the process will not run again).
-    fn setup_mpu(&self);
-
-    /// Allocate a new MPU region for the process that is at least
-    /// `min_region_size` bytes and lies within the specified stretch of
-    /// unallocated memory.
-    ///
-    /// It is not valid to call this function when the process is inactive (i.e.
-    /// the process will not run again).
-    fn add_mpu_region(
-        &self,
-        unallocated_memory_start: *const u8,
-        unallocated_memory_size: usize,
-        min_region_size: usize,
-    ) -> Option<mpu::Region>;
-
-    /// Removes an MPU region from the process that has been previously added
-    /// with `add_mpu_region`.
-    ///
-    /// It is not valid to call this function when the process is inactive (i.e.
-    /// the process will not run again).
-    fn remove_mpu_region(&self, region: mpu::Region) -> Result<(), ErrorCode>;
+    // Memory management
+    fn get_memory_configuration(&self) -> &configuration::ValidProcessConfiguration<Page4KiB>;
 
     // grants
 
@@ -800,7 +780,10 @@ pub trait Process {
     /// and `false` otherwise.
     // `upcall_fn` can eventually be a better type:
     // <https://github.com/tock/tock/issues/4134>
-    fn is_valid_upcall_function_pointer(&self, upcall_fn: *const ()) -> bool;
+    fn is_valid_upcall_function_pointer(
+        &self,
+        upcall_fn: ImmutableKernelVirtualPointer<u8>,
+    ) -> bool;
 
     // functions for processes that are architecture specific
 
@@ -1114,6 +1097,7 @@ pub struct ReturnArguments {
 
 /// Collection of process state information related to the memory addresses of
 /// different elements of the process.
+// TODO: Can any address be null? Probably not.
 pub struct ProcessAddresses {
     /// The address of the beginning of the process's region in nonvolatile
     /// memory.
@@ -1126,7 +1110,7 @@ pub struct ProcessAddresses {
     /// is covered by integrity; the integrity region is [flash_start -
     /// flash_integrity_end). Footers are stored in the flash after
     /// flash_integrity_end.
-    pub flash_integrity_end: *const u8,
+    pub flash_integrity_end: usize,
     /// The address immediately after the end of the region allocated for this
     /// process in nonvolatile memory.
     pub flash_end: usize,

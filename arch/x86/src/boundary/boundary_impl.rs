@@ -6,6 +6,7 @@ use core::fmt::Write;
 
 use crate::registers::bits32::eflags::{EFlags, EFLAGS};
 
+use kernel::memory_management::pointers::ImmutableUserVirtualPointer;
 use kernel::process::FunctionCall;
 use kernel::syscall::{ContextSwitchReason, Syscall, SyscallReturn, UserspaceKernelBoundary};
 use kernel::ErrorCode;
@@ -29,10 +30,9 @@ impl Boundary {
     ///
     /// Need at least 9 dwords of initial stack space for CRT 0:
     ///
-    /// - 4 dwords for initial upcall arguments
     /// - 1 dword for initial upcall return address (although this will be zero for init_fn)
     /// - 4 dwords of scratch space for invoking memop syscalls
-    const MIN_APP_BRK: u32 = 9 * core::mem::size_of::<usize>() as u32;
+    const MIN_APP_BRK: usize = 5 * core::mem::size_of::<usize>();
 
     /// Constructs a new instance of `SysCall`.
     pub fn new() -> Self {
@@ -44,21 +44,24 @@ impl UserspaceKernelBoundary for Boundary {
     type StoredState = UserContext;
 
     fn initial_process_app_brk_size(&self) -> usize {
-        Self::MIN_APP_BRK as usize
+        Self::MIN_APP_BRK
     }
 
     unsafe fn initialize_process(
         &self,
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
+        user_accessible_memory_start: &ImmutableUserVirtualPointer<u8>,
+        user_app_brk: &ImmutableUserVirtualPointer<u8>,
         state: &mut Self::StoredState,
     ) -> Result<(), ()> {
-        if (app_brk as u32 - accessible_memory_start as u32) < Self::MIN_APP_BRK {
+        if user_app_brk.get_address().get() - user_accessible_memory_start.get_address().get()
+            < Self::MIN_APP_BRK
+        {
             return Err(());
         }
 
         // We pre-allocate 16 bytes on the stack for initial upcall arguments.
-        let esp = (app_brk as u32) - 16;
+        // CAST: usize == u32 on x86
+        let esp = (user_app_brk.get_address().get() as u32) - 16;
 
         let mut eflags = EFlags::new();
         eflags.0.modify(EFLAGS::FLAGS_IF::SET);
@@ -85,16 +88,9 @@ impl UserspaceKernelBoundary for Boundary {
 
     unsafe fn set_syscall_return_value(
         &self,
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
         state: &mut Self::StoredState,
         return_value: SyscallReturn,
     ) -> Result<(), ()> {
-        let mut ret0 = 0;
-        let mut ret1 = 0;
-        let mut ret2 = 0;
-        let mut ret3 = 0;
-
         // These operations are only safe so long as
         // - the pointers are properly aligned. This is guaranteed because the
         //   pointers are all offset multiples of 4 bytes from the stack
@@ -113,63 +109,28 @@ impl UserspaceKernelBoundary for Boundary {
         //
         // Refer to
         // https://doc.rust-lang.org/std/primitive.pointer.html#safety-13
-        kernel::utilities::arch_helpers::encode_syscall_return_trd104(
+        kernel::utilities::arch_helpers::encode_syscall_return_trd104_32bit(
             &kernel::utilities::arch_helpers::TRD104SyscallReturn::from_syscall_return(
                 return_value,
             ),
-            &mut ret0,
-            &mut ret1,
-            &mut ret2,
-            &mut ret3,
+            &mut state.ebx,
+            &mut state.ecx,
+            &mut state.edx,
+            &mut state.edi,
         );
-
-        // App allocates 16 bytes of stack space for passing syscall arguments. We re-use that stack
-        // space to pass return values.
-        //
-        // Safety: Caller of this function has guaranteed that the memory region is valid.
-        unsafe {
-            state.write_stack(0, ret0, accessible_memory_start, app_brk)?;
-            state.write_stack(1, ret1, accessible_memory_start, app_brk)?;
-            state.write_stack(2, ret2, accessible_memory_start, app_brk)?;
-            state.write_stack(3, ret3, accessible_memory_start, app_brk)?;
-        }
 
         Ok(())
     }
 
     unsafe fn set_process_function(
         &self,
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
         state: &mut Self::StoredState,
         upcall: FunctionCall,
     ) -> Result<(), ()> {
-        // Our x86 port expects upcalls to be standard cdecl routines. We push args and return
-        // address onto the stack accordingly.
-        //
-        // Upcall arguments are written directly into the existing stack space (rather than
-        // being pushed on top). This is safe to do because:
-        //
-        // * When the process first starts ESP is initialized to `app_brk - 16`, giving us exactly
-        //   enough space for these arguments.
-        // * Otherwise, we assume the app is currently issuing a `yield` syscall. We re-use the
-        //   stack space from that syscall. This is okay because `yield` doesn't return anything.
-        //
-        // Safety: Caller of this function has guaranteed that the memory region is valid.
-        // usize is u32 on x86
-        unsafe {
-            state.write_stack(0, upcall.argument0 as u32, accessible_memory_start, app_brk)?;
-            state.write_stack(1, upcall.argument1 as u32, accessible_memory_start, app_brk)?;
-            state.write_stack(2, upcall.argument2 as u32, accessible_memory_start, app_brk)?;
-            state.write_stack(
-                3,
-                upcall.argument3.as_usize() as u32,
-                accessible_memory_start,
-                app_brk,
-            )?;
-
-            state.push_stack(state.eip, accessible_memory_start, app_brk)?;
-        }
+        state.ebx = upcall.argument0 as u32;
+        state.ecx = upcall.argument1 as u32;
+        state.edx = upcall.argument2 as u32;
+        state.edi = upcall.argument3.as_usize() as u32;
 
         // The next time we switch to this process, we will directly jump to the upcall. When the
         // upcall issues `ret`, it will return to wherever the yield syscall was invoked.
@@ -180,14 +141,12 @@ impl UserspaceKernelBoundary for Boundary {
 
     unsafe fn switch_to_process(
         &self,
-        accessible_memory_start: *const u8,
-        app_brk: *const u8,
         state: &mut Self::StoredState,
-    ) -> (ContextSwitchReason, Option<*const u8>) {
+    ) -> (ContextSwitchReason, Option<ImmutableUserVirtualPointer<u8>>) {
         // Sanity check: don't try to run a faulted app
         if state.exception != 0 || state.err_code != 0 {
-            let stack_ptr = state.esp as *mut u8;
-            return (ContextSwitchReason::Fault, Some(stack_ptr));
+            //let stack_ptr = state.esp as *mut u8;
+            return (ContextSwitchReason::Fault, None);
         }
 
         let mut err_code = 0;
@@ -203,17 +162,10 @@ impl UserspaceKernelBoundary for Boundary {
             SYSCALL_VECTOR => {
                 let num = state.eax as u8;
 
-                // Syscall arguments are passed on the stack using cdecl convention.
-                //
-                // Safety: Caller of this function has guaranteed that the memory region is valid.
-                let arg0 =
-                    unsafe { state.read_stack(0, accessible_memory_start, app_brk) }.unwrap_or(0);
-                let arg1 =
-                    unsafe { state.read_stack(1, accessible_memory_start, app_brk) }.unwrap_or(0);
-                let arg2 =
-                    unsafe { state.read_stack(2, accessible_memory_start, app_brk) }.unwrap_or(0);
-                let arg3 =
-                    unsafe { state.read_stack(3, accessible_memory_start, app_brk) }.unwrap_or(0);
+                let arg0 = state.ebx;
+                let arg1 = state.ecx;
+                let arg2 = state.edx;
+                let arg3 = state.edi;
 
                 Syscall::from_register_arguments(
                     num,
@@ -229,18 +181,10 @@ impl UserspaceKernelBoundary for Boundary {
             _ => ContextSwitchReason::Interrupted,
         };
 
-        let stack_ptr = state.esp as *const u8;
-
-        (reason, Some(stack_ptr))
+        (reason, None)
     }
 
-    unsafe fn print_context(
-        &self,
-        _accessible_memory_start: *const u8,
-        _app_brk: *const u8,
-        state: &Self::StoredState,
-        writer: &mut dyn Write,
-    ) {
+    unsafe fn print_context(&self, state: &Self::StoredState, writer: &mut dyn Write) {
         let _ = writeln!(writer, "{}", state);
     }
 

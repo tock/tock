@@ -179,7 +179,7 @@ const ADDRESS_MASK_PSE: u32 = !0x3fffff;
 /// Size of a base page (4 KiB)
 pub const BASE_PAGE_SIZE: usize = 4096;
 
-/// Page tables have 512 = 4096 / 32 entries.
+/// Page tables have 1024 = 4MiB / 4KiB entries.
 pub const PAGE_SIZE_ENTRIES: usize = 1024;
 
 /// A page directory.
