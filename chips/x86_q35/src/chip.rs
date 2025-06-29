@@ -36,8 +36,9 @@ mod interrupt {
 /// behavior and set of peripherals available on PCs is very heavily standardized. As a result, this
 /// chip definition should be broadly compatible with most PC hardware.
 ///
+/// Parameter `NUMBER_OF_REGIONS` is the number of supported user MMU regions.
 /// Parameter `PR` is the PIT reload value. See [`Pit`] for more information.
-pub struct Pc<'a, const PR: u16 = RELOAD_1KHZ> {
+pub struct Pc<'a, const MMU_NUMBER_OF_REGIONS: usize, const PR: u16 = RELOAD_1KHZ> {
     /// Legacy COM1 serial port
     pub com1: &'a SerialPort<'a>,
 
@@ -55,11 +56,13 @@ pub struct Pc<'a, const PR: u16 = RELOAD_1KHZ> {
 
     /// System call context
     syscall: Boundary,
-    mmu: MMU<'a>,
+
+    /// MMU
+    mmu: MMU<'a, MMU_NUMBER_OF_REGIONS>,
 }
 
-impl<'a, const PR: u16> Chip for Pc<'a, PR> {
-    type MMU = MMU<'a>;
+impl<'a, const MMU_NUMBER_OF_REGIONS: usize, const PR: u16> Chip for Pc<'a, MMU_NUMBER_OF_REGIONS, PR> {
+    type MMU = MMU<'a, MMU_NUMBER_OF_REGIONS>;
 
     fn mmu(&self) -> &Self::MMU {
         &self.mmu
@@ -161,12 +164,12 @@ impl<'a, const PR: u16> Chip for Pc<'a, PR> {
 /// During the call to `finalize()`, this helper will perform low-level initialization of the PC
 /// hardware to ensure a consistent CPU state. This includes initializing memory segmentation and
 /// interrupt handling. See [`x86::init`] for further details.
-pub struct PcComponent<'a> {
+pub struct PcComponent<'a, const MMU_NUMBER_OF_REGIONS: usize> {
     pd: &'a mut PD,
     pt: &'a mut PT,
 }
 
-impl<'a> PcComponent<'a> {
+impl<'a, const MMU_NUMBER_OF_REGIONS: usize> PcComponent<'a, MMU_NUMBER_OF_REGIONS> {
     /// Creates a new `PcComponent` instance.
     ///
     /// ## Safety
@@ -183,15 +186,15 @@ impl<'a> PcComponent<'a> {
     }
 }
 
-impl Component for PcComponent<'static> {
+impl<const MMU_NUMBER_OF_REGIONS: usize> Component for PcComponent<'static, MMU_NUMBER_OF_REGIONS> {
     type StaticInput = (
         <SerialPortComponent as Component>::StaticInput,
         <SerialPortComponent as Component>::StaticInput,
         <SerialPortComponent as Component>::StaticInput,
         <SerialPortComponent as Component>::StaticInput,
-        &'static mut MaybeUninit<Pc<'static>>,
+        &'static mut MaybeUninit<Pc<'static, MMU_NUMBER_OF_REGIONS>>,
     );
-    type Output = &'static Pc<'static>;
+    type Output = &'static Pc<'static, MMU_NUMBER_OF_REGIONS>;
 
     fn finalize(self, s: Self::StaticInput) -> Self::Output {
         // Low-level hardware initialization. We do this first to guarantee the CPU is in a
@@ -235,13 +238,13 @@ impl Component for PcComponent<'static> {
 /// Provides static buffers needed for `PcComponent::finalize()`.
 #[macro_export]
 macro_rules! x86_q35_component_static {
-    () => {{
+    ($mmu_number_of_regions:expr) => {{
         (
             $crate::serial_port_component_static!(),
             $crate::serial_port_component_static!(),
             $crate::serial_port_component_static!(),
             $crate::serial_port_component_static!(),
-            kernel::static_buf!($crate::Pc<'static>),
+            kernel::static_buf!($crate::Pc<'static, $mmu_number_of_regions>),
         )
     };};
 }
