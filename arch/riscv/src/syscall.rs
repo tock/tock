@@ -121,9 +121,10 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
 
     fn initial_process_app_brk_size(&self) -> usize {
         // The RV32I UKB implementation does not use process memory for any
-        // context switch state. However, the memory manager expects this value
-        // to be non-zero.
-        1
+        // context switch state. Therefore, we do not need any process-accessible
+        // memory to start with to successfully context switch to the process the
+        // first time.
+        0
     }
 
     unsafe fn initialize_process(
