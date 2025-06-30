@@ -354,7 +354,9 @@ impl<const NUMBER_OF_REGIONS: usize> kernel::platform::mmu::MMU for MMU<'_, NUMB
     }
 
     // The current implementation doesn't use ASIDs.
-    fn flush(&self, _asid: Asid) {}
+    fn flush(&self, _asid: Asid) {
+        unsafe { tlb::flush_all() };
+    }
 
     fn map_user_region(
         &self,
@@ -373,7 +375,5 @@ impl<const NUMBER_OF_REGIONS: usize> kernel::platform::mmu::MMU for MMU<'_, NUMB
 
         self.add_user_region(mapped_region);
         cached_region.set(CachedRegion::new(mapped_region));
-
-        unsafe { tlb::flush_all() };
     }
 }

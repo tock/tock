@@ -60,9 +60,7 @@ pub trait MMU: MpuMmuCommon {
 
     /// Flush TLB entries with the given ASID.
     ///
-    /// If the underlying hardware does not support TLB, this should be implemented as a no-op.
-    /// If the underlying hardware does support TLB, but it doesn't support ASIDs, it should flush
-    /// the entire TLB.
+    /// If the underlying hardware does not support TLB, nor ASIDs, this should be implemented as a no-op.
     fn flush(&self, asid: Asid);
 
     /// Map and protect the given region.
