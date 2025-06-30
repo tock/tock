@@ -359,8 +359,7 @@ impl<const NUMBER_OF_REGIONS: usize> kernel::platform::mmu::MMU for MMU<'_, NUMB
     }
 
     // The current implementation doesn't use ASIDs.
-    fn flush(&self, _asid: Asid) {
-    }
+    fn flush(&self, _asid: Asid) {}
 
     fn map_user_region(
         &self,

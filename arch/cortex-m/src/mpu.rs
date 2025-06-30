@@ -291,7 +291,6 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> MpuTrait
         &self,
         region_index: usize,
         protected_region: &PhysicalProtectedAllocatedRegion<Self::Granule>,
-
     ) {
         self.protect_region(region_index, protected_region);
     }
