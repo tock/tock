@@ -644,7 +644,9 @@ impl kernel::syscall::UserspaceKernelBoundary for SysCall {
                 }
             }
         };
-        (ret, None)
+        let new_stack_pointer =
+            ImmutableUserVirtualPointer::new_from_raw_byte(state.regs[R_SP] as *const u8).ok();
+        (ret, new_stack_pointer)
     }
 
     unsafe fn print_context(&self, state: &Riscv32iStoredState, writer: &mut dyn Write) {

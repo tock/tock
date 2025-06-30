@@ -736,7 +736,7 @@ impl<const IS_USER: bool, U: AlwaysAligned> ValidImmutableVirtualPointer<IS_USER
     ///
     /// 1. User virtual pointer if IS_USER == true
     /// 2. Kernel virtual pointer if IS_USER == false
-    pub(crate) unsafe fn new_from_raw_byte(pointer: *const U) -> Result<Self, ()> {
+    pub unsafe fn new_from_raw_byte(pointer: *const U) -> Result<Self, ()> {
         let non_null_pointer = match NonNull::new(pointer.cast_mut()) {
             None => return Err(()),
             Some(non_null_pointer) => non_null_pointer,
