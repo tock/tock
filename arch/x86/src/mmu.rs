@@ -16,7 +16,7 @@ use kernel::platform::mmu::Asid;
 use kernel::utilities::cells::OptionalCell;
 use tock_registers::LocalRegisterCopy;
 
-use core::cell::RefCell;
+use core::cell::{Cell, RefCell};
 use core::num::NonZero;
 
 //
@@ -157,6 +157,7 @@ impl CachedRegion {
 
 pub struct MMU<'a, const NUMBER_OF_REGIONS: usize> {
     cached_regions: [OptionalCell<CachedRegion>; NUMBER_OF_REGIONS],
+    reconfigured: Cell<bool>,
     page_dir_paddr: usize,
     page_table_paddr: usize,
     pd: RefCell<&'a mut PD>,
@@ -179,6 +180,7 @@ impl<'a, const NUMBER_OF_REGIONS: usize> MMU<'a, NUMBER_OF_REGIONS> {
 
         Self {
             cached_regions: [const { OptionalCell::empty() }; NUMBER_OF_REGIONS],
+            reconfigured: Cell::new(true),
             page_dir_paddr,
             page_table_paddr,
             pd: page_dir,
@@ -340,8 +342,11 @@ impl<const NUMBER_OF_REGIONS: usize> kernel::platform::mmu::MpuMmuCommon
 {
     type Granule = Page4KiB;
 
-    // Once the MMU is active, the user protection is always active
-    fn enable_user_protection(&self, _asid: Asid) {}
+    fn enable_user_protection(&self, _asid: Asid) {
+        if self.reconfigured.replace(false) {
+            unsafe { tlb::flush_all() };
+        }
+    }
 
     // Paging stays enabled for Ring0/Ring3
     fn disable_user_protection(&self) {}
@@ -355,7 +360,6 @@ impl<const NUMBER_OF_REGIONS: usize> kernel::platform::mmu::MMU for MMU<'_, NUMB
 
     // The current implementation doesn't use ASIDs.
     fn flush(&self, _asid: Asid) {
-        unsafe { tlb::flush_all() };
     }
 
     fn map_user_region(
@@ -375,5 +379,7 @@ impl<const NUMBER_OF_REGIONS: usize> kernel::platform::mmu::MMU for MMU<'_, NUMB
 
         self.add_user_region(mapped_region);
         cached_region.set(CachedRegion::new(mapped_region));
+
+        self.reconfigured.set(true);
     }
 }
