@@ -1622,9 +1622,19 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
         // the context switching implementation and allocate at least that much
         // memory so that we can successfully switch to the process. This is
         // architecture and implementation specific, so we query that now.
-        let min_process_memory_size = chip
+        let initial_process_app_brk_size = chip
             .userspace_kernel_boundary()
             .initial_process_app_brk_size();
+
+        // Protected allocated region cannot be empty. As such, if the
+        // architecture does not require any memory for a process to start
+        // running, tell the memory manager that the architectures requires 1
+        // byte.
+        let min_process_memory_size = if initial_process_app_brk_size == 0 {
+            1
+        } else {
+            initial_process_app_brk_size
+        };
 
         // We have to ensure that we at least ask the MPU for
         // `min_process_memory_size` so that we can be sure that `app_brk` is
