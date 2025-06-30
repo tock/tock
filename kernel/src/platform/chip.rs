@@ -4,7 +4,7 @@
 
 //! Interfaces for implementing microcontrollers in Tock.
 
-use crate::platform::mpu;
+use crate::platform::mmu;
 use crate::syscall;
 use core::fmt::Write;
 
@@ -17,8 +17,8 @@ use core::fmt::Write;
 ///
 /// Each microcontroller should define a struct and implement this trait.
 pub trait Chip {
-    /// The particular Memory Protection Unit (MPU) for this chip.
-    type MPU: mpu::MPU;
+    /// The particular Memory Management Unit (MMU) for this chip.
+    type MMU: mmu::MMU;
 
     /// The implementation of the interface between userspace and the kernel for
     /// this specific chip. Likely this is architecture specific, but individual
@@ -37,8 +37,8 @@ pub trait Chip {
     /// Ask the chip to check if there are any pending interrupts.
     fn has_pending_interrupts(&self) -> bool;
 
-    /// Returns a reference to the implementation for the MPU on this chip.
-    fn mpu(&self) -> &Self::MPU;
+    /// Returns a reference to the implementation for the MMU on this chip.
+    fn mmu(&self) -> &Self::MMU;
 
     /// Returns a reference to the implementation for the interface between
     /// userspace and kernelspace.
@@ -64,7 +64,7 @@ pub trait Chip {
     /// `syscall::UserspaceKernelBoundary::print_context`.
     /// This also does not print out a process memory state,
     /// that is implemented by `process::Process::print_memory_map`.
-    /// The MPU state is printed by the MPU's implementation of
+    /// The MMU state is printed by the MMU's implementation of
     /// the Display trait.
     /// Used by panic.
     unsafe fn print_state(&self, writer: &mut dyn Write);
