@@ -311,7 +311,9 @@ impl<A: CortexMVariant> kernel::syscall::UserspaceKernelBoundary for SysCall<A> 
             kernel::syscall::ContextSwitchReason::Interrupted
         };
 
-        (switch_reason, None)
+        let new_stack_pointer =
+            ImmutableUserVirtualPointer::new_from_raw_byte(new_stack_pointer as *const u8).ok();
+        (switch_reason, new_stack_pointer)
     }
 
     unsafe fn print_context(&self, state: &CortexMStoredState, writer: &mut dyn Write) {
