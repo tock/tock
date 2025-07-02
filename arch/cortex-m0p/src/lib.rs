@@ -36,22 +36,16 @@ use cortexm0::CortexM0;
 
 // Mock implementation for tests on Travis-CI.
 #[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
-pub unsafe extern "C" fn svc_handler_m0p() {
+pub unsafe extern "C" fn svc_handler() {
     unimplemented!()
 }
 
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
-extern "C" {
-    pub fn svc_handler_m0p();
-}
-
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
-core::arch::global_asm!(
-    "
-  .section .svc_handler_m0p, \"ax\"
-  .global svc_handler_m0p
-  .thumb_func
-svc_handler_m0p:
+#[unsafe(naked)]
+pub unsafe extern "C" fn svc_handler() {
+    use core::arch::naked_asm;
+    naked_asm!(
+        "
   ldr r0, 100f // EXC_RETURN_MSP
   cmp lr, r0
   bne 300f // to_kernel
@@ -78,8 +72,9 @@ svc_handler_m0p:
   .word 0xFFFFFFF9
 200: // EXC_RETURN_PSP
   .word 0xFFFFFFFD
-  "
-);
+  ",
+    );
+}
 
 // Enum with no variants to ensure that this type is not instantiable. It is
 // only used to pass architecture-specific constants and functions via the
@@ -89,7 +84,7 @@ pub enum CortexM0P {}
 impl cortexm::CortexMVariant for CortexM0P {
     const GENERIC_ISR: unsafe extern "C" fn() = CortexM0::GENERIC_ISR;
     const SYSTICK_HANDLER: unsafe extern "C" fn() = CortexM0::SYSTICK_HANDLER;
-    const SVC_HANDLER: unsafe extern "C" fn() = svc_handler_m0p;
+    const SVC_HANDLER: unsafe extern "C" fn() = svc_handler;
     const HARD_FAULT_HANDLER: unsafe extern "C" fn() = CortexM0::HARD_FAULT_HANDLER;
 
     #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]

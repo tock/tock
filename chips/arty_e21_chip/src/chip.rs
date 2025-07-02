@@ -12,10 +12,6 @@ use crate::clint;
 use crate::interrupts;
 use rv32i::pmp::{simple::SimplePMP, PMPUserMPU};
 
-extern "C" {
-    fn _start_trap();
-}
-
 pub type ArtyExxClint<'a> = sifive::clint::Clint<'a, Freq32KHz>;
 
 pub struct ArtyExx<'a, I: InterruptService + 'a> {
@@ -122,11 +118,12 @@ impl<'a, I: InterruptService + 'a> ArtyExx<'a, I> {
             // address of the trap handler. We do not care about its old value,
             // so we don't bother reading it. We want to enable direct CLIC mode
             // so we set the second lowest bit.
-            lui  t0, %hi(_start_trap)
-            addi t0, t0, %lo(_start_trap)
+            lui  t0, %hi({start_trap})
+            addi t0, t0, %lo({start_trap})
             ori  t0, t0, 0x02 // Set CLIC direct mode
             csrw 0x305, t0    // Write the mtvec CSR.
             ",
+            start_trap = sym rv32i::_start_trap,
             out("t0") _
         );
     }
