@@ -9,7 +9,7 @@ System Calls
 **Draft-Created:** August 31, 2020<br/>
 **Draft-Modified:** January 29, 2025<br/>
 **Draft-Version:** 11<br/>
-**Draft-Discuss:** tock-dev@googlegroups.com</br>
+**Draft-Discuss:** devel@lists.tockos.org</br>
 
 Abstract
 -------------------------------

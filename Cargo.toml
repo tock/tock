@@ -115,7 +115,7 @@ resolver = "2"
 
 [workspace.package]
 version = "0.2.3-dev"
-authors = ["Tock Project Developers <tock-dev@googlegroups.com>"]
+authors = ["Tock Project Developers <devel@lists.tockos.org>"]
 edition = "2021"
 
 [profile.dev]

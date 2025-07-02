@@ -9,7 +9,7 @@ Kernel 802.15.4 Radio HIL
 **Draft-Created:** Feb 14, 2017<br/>
 **Draft-Modified:** Mar 20, 2017<br/>
 **Draft-Version:** 2<br/>
-**Draft-Discuss:** tock-dev@googlegroups.com</br>
+**Draft-Discuss:** devel@lists.tockos.org</br>
 
 Abstract
 -------------------------------
