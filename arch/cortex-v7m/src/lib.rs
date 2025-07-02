@@ -435,7 +435,6 @@ pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
     // a non-naked function, to allow for use of rust code alongside inline asm.
     // Because calling a function increases the stack pointer, we have to check for a kernel
     // stack overflow and adjust the stack pointer before we branch
-
     naked_asm!(
     "
         mov    r2, 0     // r2 = 0
