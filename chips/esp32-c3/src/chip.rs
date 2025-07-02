@@ -299,7 +299,6 @@ pub extern "C" fn _start_trap_vectored() {
 
 #[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
 #[link_section = ".riscv.trap_vectored"]
-#[export_name = "_start_trap_vectored"]
 #[unsafe(naked)]
 pub extern "C" fn _start_trap_vectored() -> ! {
     use core::arch::naked_asm;
@@ -307,37 +306,39 @@ pub extern "C" fn _start_trap_vectored() -> ! {
     // range of vectored traps.
     naked_asm!(
         "
-        j _start_trap
-        j _start_trap
-        j _start_trap
-        j _start_trap
-        j _start_trap
-        j _start_trap
-        j _start_trap
-        j _start_trap
-        j _start_trap
-        j _start_trap
-        j _start_trap
-        j _start_trap
-        j _start_trap
-        j _start_trap
-        j _start_trap
-        j _start_trap
-        j _start_trap
-        j _start_trap
-        j _start_trap
-        j _start_trap
-        j _start_trap
-        j _start_trap
-        j _start_trap
-        j _start_trap
-        j _start_trap
-        j _start_trap
-        j _start_trap
-        j _start_trap
-        j _start_trap
-        j _start_trap
-        j _start_trap
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
         ",
+        start_trap = sym rv32i::_start_trap,
     );
 }
