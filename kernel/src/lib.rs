@@ -125,7 +125,7 @@ pub mod syscall;
 pub mod upcall;
 pub mod utilities;
 
-mod config;
+pub mod config;
 mod kernel;
 mod memop;
 mod process_binary;

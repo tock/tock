@@ -35,7 +35,7 @@
 ///
 /// To change the configuration, modify the relevant values in the `CONFIG`
 /// constant object defined at the end of this file.
-pub(crate) struct Config {
+pub struct Config {
     /// Whether the kernel should trace syscalls to the debug output.
     ///
     /// If enabled, the kernel will print a message in the debug output for each
@@ -80,6 +80,8 @@ pub(crate) struct Config {
     // credentials checking, e.g., whether elf2tab and tockloader are generating
     // properly formatted footers.
     pub(crate) debug_process_credentials: bool,
+
+    pub vga_mode: Option<VgaMode>,
 }
 
 /// A unique instance of `Config` where compile-time configuration options are
@@ -87,9 +89,49 @@ pub(crate) struct Config {
 /// relevant configuration. Notably, this is the only location in the Tock
 /// kernel where we permit `#[cfg(x)]` to be used to configure code based on
 /// Cargo features.
-pub(crate) const CONFIG: Config = Config {
+pub const CONFIG: Config = Config {
     trace_syscalls: cfg!(feature = "trace_syscalls"),
     debug_load_processes: cfg!(feature = "debug_load_processes"),
     debug_panics: !cfg!(feature = "no_debug_panics"),
     debug_process_credentials: cfg!(feature = "debug_process_credentials"),
+
+    vga_mode: {
+        #[cfg(feature = "vga_text_80x25")]
+        {
+            Some(VgaMode::Text80x25)
+        }
+
+        #[cfg(feature = "vga_640x480_16")]
+        {
+            Some(VgaMode::G640x480x16)
+        }
+
+        #[cfg(feature = "vga_800x600_16")]
+        {
+            Some(VgaMode::G800x600x16)
+        }
+
+        #[cfg(not(any(
+            feature = "vga_text_80x25",
+            feature = "vga_640x480_16",
+            feature = "vga_800x600_16"
+        )))]
+        {
+            None
+        }
+    },
 };
+
+const _: () = assert!(
+    (cfg!(feature = "vga_text_80x25") as u8
+        + cfg!(feature = "vga_640x480_16") as u8
+        + cfg!(feature = "vga_800x600_16") as u8)
+        <= 1,
+    "Select at most one VGA mode feature"
+);
+
+pub enum VgaMode {
+    Text80x25,
+    G640x480x16,
+    G800x600x16,
+}

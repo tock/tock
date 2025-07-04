@@ -34,6 +34,10 @@ trace_syscalls = []
 debug_load_processes = []
 no_debug_panics = []
 debug_process_credentials = []
+# VGA Mode Flags
+vga_text_80x25  = []
+vga_640x480_16  = []
+vga_800x600_16  = []
 
 [lints]
 workspace = true

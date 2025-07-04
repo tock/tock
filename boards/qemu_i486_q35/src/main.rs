@@ -9,15 +9,16 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 
-use core::ptr;
-
 use capsules_core::alarm;
 use capsules_core::console::{self, Console};
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use components::console::ConsoleComponent;
 use components::debug_writer::DebugWriterComponent;
+use core::fmt::Write;
+use core::ptr;
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::config::{VgaMode, CONFIG};
 use kernel::debug;
 use kernel::hil;
 use kernel::ipc::IPC;
@@ -28,9 +29,9 @@ use kernel::process::Process;
 use kernel::scheduler::cooperative::CooperativeSched;
 use kernel::syscall::SyscallDriver;
 use kernel::{create_capability, static_init, Kernel};
-
 use x86::registers::bits32::paging::{PDEntry, PTEntry, PD, PT};
 use x86::registers::irq;
+use x86_q35::vga::{self};
 
 use x86_q35::pit::{Pit, RELOAD_1KHZ};
 use x86_q35::{Pc, PcComponent};
@@ -163,6 +164,20 @@ unsafe extern "cdecl" fn main() {
     )
     .finalize(x86_q35::x86_q35_component_static!());
 
+    // Map the Bochs/QEMU linear-framebuffer BAR (0xE000_0000 - 0xE03F_FFFF)
+    unsafe {
+        //RW = true, Supervisor = true
+        //constants for a 4 Mib PDE
+        const PRESENT: u32 = 1 << 0;
+        const RW: u32 = 1 << 1;
+        const PS_4MIB: u32 = 1 << 7;
+
+        let pde_index = (0xE000_0000u32 >> 22) as usize;
+        let pde_value = (0xE000_0000u32 & 0xFFC0_0000) | PS_4MIB | RW | PRESENT;
+
+        PAGE_DIR[pde_index] = PDEntry(pde_value);
+    }
+
     // Acquire required capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
@@ -170,6 +185,27 @@ unsafe extern "cdecl" fn main() {
 
     // Create a board kernel instance
     let board_kernel = static_init!(Kernel, Kernel::new(&*ptr::addr_of!(PROCESSES)));
+
+    // VGA init
+    if let Some(mode) = CONFIG.vga_mode {
+        vga::init(mode);
+    }
+
+// Small Test
+    unsafe {
+        // Pointer to VGA text buffer
+        let fb = 0xB8000 as *mut u16;
+
+        // Write one coloured line: A..P with foreground cycling 0..15
+        for i in 0..16 {
+            let ch = b'A' + i as u8; // ASCII A, B, C …
+            let attr = (0 << 4) | i; // black bg | colour fg
+            core::ptr::write_volatile(fb.add(i), (attr as u16) << 8 | ch as u16);
+        }
+
+
+
+    }
 
     // ---------- QEMU-SYSTEM-I386 "Q35" MACHINE PERIPHERALS ----------
 
@@ -221,7 +257,6 @@ unsafe extern "cdecl" fn main() {
     irq::enable();
 
     // ---------- FINAL SYSTEM INITIALIZATION ----------
-
     // Create the process printer used in panic prints, etc.
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());

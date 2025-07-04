@@ -11,7 +11,7 @@ build = "../build.rs"
 
 [dependencies]
 components = { path = "../components" }
-kernel = { path = "../../kernel" }
+kernel = { path = "../../kernel"}
 x86_q35 = { path = "../../chips/x86_q35" }
 x86 = { path = "../../arch/x86" }
 
@@ -24,3 +24,8 @@ tock_build_scripts = { path = "../build_scripts" }
 
 [lints]
 workspace = true
+
+[features]
+vga_text_80x25 = ["kernel/vga_text_80x25"]
+vga_640x480_16 = ["kernel/vga_640x480_16"]
+vga_800x600_16 = ["kernel/vga_800x600_16"]
