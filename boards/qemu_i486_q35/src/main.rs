@@ -190,8 +190,7 @@ unsafe extern "cdecl" fn main() {
     if let Some(mode) = CONFIG.vga_mode {
         vga::init(mode);
     }
-
-// Small Test
+    // Small Test
     unsafe {
         // Pointer to VGA text buffer
         let fb = 0xB8000 as *mut u16;
@@ -202,9 +201,6 @@ unsafe extern "cdecl" fn main() {
             let attr = (0 << 4) | i; // black bg | colour fg
             core::ptr::write_volatile(fb.add(i), (attr as u16) << 8 | ch as u16);
         }
-
-
-
     }
 
     // ---------- QEMU-SYSTEM-I386 "Q35" MACHINE PERIPHERALS ----------

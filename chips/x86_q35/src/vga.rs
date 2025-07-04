@@ -231,28 +231,27 @@ fn init_mode_0x12() {
         // 3) Enable LinearFB and ClearMem
         vbe_write(0x04, 0x41); //bit0=enable, bit6=liner FP
     }
-   // init_text_mode();
 }
 
 // Same for 800x600x16
 fn init_mode_0x102() {
-    const VBE_INDEX: u16 = 0x01CE;   // Bochs VBE index port
-    const VBE_DATA:  u16 = 0x01CF;   // Bochs VBE data  port
+    const VBE_INDEX: u16 = 0x01CE; // Bochs VBE index port
+    const VBE_DATA: u16 = 0x01CF; // Bochs VBE data  port
 
     #[inline(always)]
     unsafe fn vbe_write(index: u16, value: u16) {
         outw(VBE_INDEX, index);
-        outw(VBE_DATA,  value);
+        outw(VBE_DATA, value);
     }
 
     unsafe {
         // 1) Disable display while reconfiguring
-        vbe_write(0x04, 0x00);          // VBE_DISPI_INDEX_ENABLE
+        vbe_write(0x04, 0x00); // VBE_DISPI_INDEX_ENABLE
 
         // 2) Set resolution and colour depth
-        vbe_write(0x01, 800);           // X-res (width)
-        vbe_write(0x02, 600);           // Y-res (height)
-        vbe_write(0x03, 16);            // bits per pixel (RGB 5-6-5)
+        vbe_write(0x01, 800); // X-res (width)
+        vbe_write(0x02, 600); // Y-res (height)
+        vbe_write(0x03, 16); // bits per pixel (RGB 5-6-5)
 
         // 3) Enable display | LinearFB
         //    bit0 = enable, bit6 = LFB, all others 0
