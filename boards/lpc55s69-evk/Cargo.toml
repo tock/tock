@@ -3,6 +3,7 @@ name = "lpc55s69-evk"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+build = "../build.rs"
 
 [dependencies]
 cortexm33 = { path = "../../arch/cortex-m33" }
