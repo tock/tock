@@ -1266,14 +1266,13 @@ impl<
 
                                     self.cursor.set(index);
                                 }
-                                EscKey::Delete if cursor < index => {
+                                EscKey::Delete if cursor > 0 && cursor < index => {
                                     // Move the bytes one position to left
-                                    for i in cursor..(index - 1) {
+                                    for i in (cursor - 1)..index {
                                         command[i] = command[i + 1];
                                         let _ = self.write_byte(command[i]);
                                     }
                                     // We don't want to write the EOL byte, but we want to copy it to the left
-                                    command[index - 1] = command[index];
 
                                     // Now that we copied all bytes to the left, we are left over with
                                     // a dublicate "ghost" character of the last byte,
@@ -1281,13 +1280,25 @@ impl<
                                     // the dublicate is not there.
                                     // |abcdef -> bcdef
                                     // abc|def -> abceff -> abcef
-                                    let _ = self.write_bytes(&[SPACE, BS]);
+                                    let _ = self.write_byte(BS);
+                                    let _ = self.write_byte(SPACE);
 
-                                    // Move the cursor to last position
-                                    for _ in cursor..(index - 1) {
+                                    // Move the cursor left
+                                    for _ in (cursor - 1)..(index - 1) {
                                         let _ = self.write_byte(BS);
                                     }
 
+                                    // Rewrite the command, cursor will be moved right also
+                                    for i in (cursor - 1)..(index - 1) {
+                                        let _ = self.write_byte(command[i]);
+                                    }
+
+                                    // Move the cursor left again
+                                    for _ in (cursor - 1)..(index - 1) {
+                                        let _ = self.write_byte(BS);
+                                    }
+
+                                    self.cursor.set(cursor - 1);
                                     self.command_index.set(index - 1);
 
                                     // Remove the byte from the command in order
