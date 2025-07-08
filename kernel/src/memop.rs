@@ -53,7 +53,7 @@ pub(crate) fn memop(process: &dyn Process, op_type: usize, r1: usize) -> Syscall
         // Op Type 1: SBRK
         1 => process
             .sbrk(r1 as isize)
-            .map(|addr| SyscallReturn::SuccessPtr(addr))
+            .map(SyscallReturn::SuccessPtr)
             .unwrap_or(SyscallReturn::Failure(ErrorCode::NOMEM)),
 
         // Op Type 2: Process memory start

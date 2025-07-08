@@ -553,9 +553,8 @@ impl Scb<'_> {
             self.disable_tx_interrupts();
             self.registers.intr_tx.modify(INTR_TX::UART_DONE::SET);
             // SAFETY: When a transmit is started, length is set to a non-zero value.
-            match self.tx_length.get() {
-                None => return,
-                Some(_) => (),
+            if self.tx_length.get().is_none() {
+                return;
             }
             let tx_length = self.tx_length.get().unwrap().get();
             if tx_length == self.tx_position.get() + 1 {

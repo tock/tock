@@ -417,11 +417,8 @@ impl<'a, 'b, U: hil::usb::UsbController<'a>> ClientCtrl<'a, 'b, U> {
         // Control Read: IN request acknowledged
         // Control Write: status sent
 
-        match self.state[endpoint].get() {
-            State::SetAddress => {
-                self.controller.enable_address();
-            }
-            _ => {}
+        if let State::SetAddress = self.state[endpoint].get() {
+            self.controller.enable_address();
         }
         self.state[endpoint].set(State::Init);
     }

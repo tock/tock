@@ -251,7 +251,7 @@ impl<'a, DateTime: date_time::DateTime<'a>> DateTimeCapsule<'a, DateTime> {
         self.apps.iter().find_map(|grant| {
             let processid = grant.processid();
             grant.enter(|app, kernel| {
-                app.task.map_or(None, |command| {
+                app.task.and_then(|command| {
                     let command_return = self.call_driver(command, processid);
                     match command_return {
                         Ok(()) => Some(()),

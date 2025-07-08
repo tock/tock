@@ -8,14 +8,14 @@
 #![no_main]
 #![deny(missing_docs)]
 
-use core::ptr::{addr_of, addr_of_mut};
+use core::ptr::addr_of;
 
 use kernel::component::Component;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::{capabilities, create_capability};
+use kernel::{capabilities, create_capability, static_init};
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
-use nrf52840dk_lib::{self, NUM_PROCS, PROCESSES};
+use nrf52840dk_lib::{self, NUM_PROCS};
 
 type ScreenDriver = components::screen::ScreenComponentType;
 
@@ -26,6 +26,12 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 
 type Ieee802154RawDriver =
     components::ieee802154::Ieee802154RawComponentType<nrf52840::ieee802154_radio::Radio<'static>>;
+
+type AES128CTREncryptionOracleDriver =
+    capsules_extra::tutorials::encryption_oracle_chkpt5::EncryptionOracleDriver<
+        'static,
+        nrf52840::aes::AesECB<'static>,
+    >;
 
 struct Platform {
     base: nrf52840dk_lib::Platform,
@@ -39,6 +45,7 @@ struct Platform {
                 components::isolated_nonvolatile_storage::ISOLATED_NONVOLATILE_STORAGE_APP_REGION_SIZE_DEFAULT
             },
         >,
+    encryption_oracle: &'static AES128CTREncryptionOracleDriver,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -50,6 +57,9 @@ impl SyscallDriverLookup for Platform {
             capsules_extra::eui64::DRIVER_NUM => f(Some(self.eui64)),
             capsules_extra::ieee802154::DRIVER_NUM => f(Some(self.ieee802154)),
             capsules_extra::screen::DRIVER_NUM => f(Some(self.screen)),
+            capsules_extra::tutorials::encryption_oracle_chkpt5::DRIVER_NUM => {
+                f(Some(self.encryption_oracle))
+            }
             capsules_extra::isolated_nonvolatile_storage_driver::DRIVER_NUM => {
                 f(Some(self.nonvolatile_storage))
             }
@@ -121,6 +131,30 @@ pub unsafe fn main() {
     ));
 
     //--------------------------------------------------------------------------
+    // AES Encryption Oracle
+    //--------------------------------------------------------------------------
+    const CRYPT_SIZE: usize = 7 * kernel::hil::symmetric_encryption::AES128_BLOCK_SIZE;
+    let aes_src_buffer = kernel::static_init!([u8; 16], [0; 16]);
+    let aes_dst_buffer = kernel::static_init!([u8; CRYPT_SIZE], [0; CRYPT_SIZE]);
+
+    let encryption_oracle = static_init!(
+        AES128CTREncryptionOracleDriver,
+        AES128CTREncryptionOracleDriver::new(
+            &nrf52840_peripherals.nrf52.ecb,
+            aes_src_buffer,
+            aes_dst_buffer,
+            board_kernel.create_grant(
+                capsules_extra::tutorials::encryption_oracle_chkpt5::DRIVER_NUM,
+                &create_capability!(capabilities::MemoryAllocationCapability)
+            )
+        )
+    );
+
+    kernel::hil::symmetric_encryption::AES128::set_client(
+        &nrf52840_peripherals.nrf52.ecb,
+        encryption_oracle,
+    );
+    //--------------------------------------------------------------------------
     // SCREEN
     //--------------------------------------------------------------------------
 
@@ -190,6 +224,7 @@ pub unsafe fn main() {
         ieee802154,
         screen,
         nonvolatile_storage,
+        encryption_oracle,
     };
 
     //--------------------------------------------------------------------------
@@ -249,7 +284,6 @@ pub unsafe fn main() {
     // Create and start the asynchronous process loader.
     let _loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
         checker,
-        &mut *addr_of_mut!(PROCESSES),
         board_kernel,
         chip,
         &FAULT_RESPONSE,

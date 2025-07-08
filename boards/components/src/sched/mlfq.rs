@@ -14,7 +14,7 @@ use core::mem::MaybeUninit;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::component::Component;
 use kernel::hil::time;
-use kernel::process::Process;
+use kernel::process::ProcessArray;
 use kernel::scheduler::mlfq::{MLFQProcessNode, MLFQSched};
 
 #[macro_export]
@@ -39,13 +39,13 @@ macro_rules! mlfq_component_static {
 
 pub struct MLFQComponent<A: 'static + time::Alarm<'static>, const NUM_PROCS: usize> {
     alarm_mux: &'static MuxAlarm<'static, A>,
-    processes: &'static [Option<&'static dyn Process>],
+    processes: &'static ProcessArray<NUM_PROCS>,
 }
 
 impl<A: 'static + time::Alarm<'static>, const NUM_PROCS: usize> MLFQComponent<A, NUM_PROCS> {
     pub fn new(
         alarm_mux: &'static MuxAlarm<'static, A>,
-        processes: &'static [Option<&'static dyn Process>],
+        processes: &'static ProcessArray<NUM_PROCS>,
     ) -> MLFQComponent<A, NUM_PROCS> {
         MLFQComponent {
             alarm_mux,
@@ -70,8 +70,9 @@ impl<A: 'static + time::Alarm<'static>, const NUM_PROCS: usize> Component
 
         let scheduler = static_buffer.1.write(MLFQSched::new(scheduler_alarm));
 
-        const UNINIT: MaybeUninit<MLFQProcessNode<'static>> = MaybeUninit::uninit();
-        let nodes = static_buffer.2.write([UNINIT; NUM_PROCS]);
+        let nodes = static_buffer
+            .2
+            .write([const { MaybeUninit::uninit() }; NUM_PROCS]);
 
         for (i, node) in nodes.iter_mut().enumerate() {
             let init_node = node.write(MLFQProcessNode::new(&self.processes[i]));

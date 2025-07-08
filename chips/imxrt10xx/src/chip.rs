@@ -108,16 +108,12 @@ impl<I: InterruptService + 'static> Chip for Imxrt10xx<I> {
 
     fn service_pending_interrupts(&self) {
         unsafe {
-            loop {
-                if let Some(interrupt) = cortexm7::nvic::next_pending() {
-                    let handled = self.interrupt_service.service_interrupt(interrupt);
-                    assert!(handled, "Unhandled interrupt number {}", interrupt);
-                    let n = cortexm7::nvic::Nvic::new(interrupt);
-                    n.clear_pending();
-                    n.enable();
-                } else {
-                    break;
-                }
+            while let Some(interrupt) = cortexm7::nvic::next_pending() {
+                let handled = self.interrupt_service.service_interrupt(interrupt);
+                assert!(handled, "Unhandled interrupt number {}", interrupt);
+                let n = cortexm7::nvic::Nvic::new(interrupt);
+                n.clear_pending();
+                n.enable();
             }
         }
     }

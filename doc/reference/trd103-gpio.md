@@ -9,7 +9,7 @@ Kernel General Purpose I/O (GPIO) HIL
 **Draft-Created:** Feb 05, 2017<br/>
 **Draft-Modified:** April 09, 2021<br/>
 **Draft-Version:** 3<br/>
-**Draft-Discuss:** tock-dev@googlegroups.com</br>
+**Draft-Discuss:** devel@lists.tockos.org</br>
 
 Abstract
 -------------------------------

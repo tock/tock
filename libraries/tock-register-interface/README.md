@@ -193,7 +193,7 @@ register_bitfields! [
 ```
 
 This generates the modules `Control`, `Status`, and `InterruptFlags`
-    
+
 ```rust
 
 mod Control {
@@ -244,7 +244,7 @@ mod Control {
             }
         }
     }
-}   
+}
 ```
 
 The macro generates a module for each register (e.g., Control, Status, InterruptFlags) that includes:

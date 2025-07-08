@@ -38,7 +38,6 @@ pub struct ProcessLoaderSequentialComponent<
     const NUM_PROCS: usize,
 > {
     checker: &'static kernel::process::ProcessCheckerMachine,
-    processes: &'static mut [Option<&'static dyn kernel::process::Process>],
     kernel: &'static kernel::Kernel,
     chip: &'static C,
     fault_policy: &'static dyn kernel::process::ProcessFaultPolicy,
@@ -53,7 +52,6 @@ impl<C: Chip, D: ProcessStandardDebug, const NUM_PROCS: usize>
 {
     pub fn new(
         checker: &'static kernel::process::ProcessCheckerMachine,
-        processes: &'static mut [Option<&'static dyn kernel::process::Process>],
         kernel: &'static kernel::Kernel,
         chip: &'static C,
         fault_policy: &'static dyn kernel::process::ProcessFaultPolicy,
@@ -64,7 +62,6 @@ impl<C: Chip, D: ProcessStandardDebug, const NUM_PROCS: usize>
     ) -> Self {
         Self {
             checker,
-            processes,
             kernel,
             chip,
             fault_policy,
@@ -96,7 +93,6 @@ impl<C: Chip, D: ProcessStandardDebug, const NUM_PROCS: usize> Component
         let loader =
             s.0.write(kernel::process::SequentialProcessLoaderMachine::new(
                 self.checker,
-                self.processes,
                 process_binary_array,
                 self.kernel,
                 self.chip,

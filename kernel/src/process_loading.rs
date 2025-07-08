@@ -141,7 +141,6 @@ pub fn load_processes<C: Chip>(
     chip: &'static C,
     app_flash: &'static [u8],
     app_memory: &'static mut [u8],
-    mut procs: &'static mut [Option<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
     _capability_management: &dyn ProcessManagementCapability,
 ) -> Result<(), ProcessLoadError> {
@@ -150,19 +149,14 @@ pub fn load_processes<C: Chip>(
         chip,
         app_flash,
         app_memory,
-        &mut procs,
         fault_policy,
     )?;
 
     if config::CONFIG.debug_process_credentials {
         debug!("Checking: no checking, load and run all processes");
-    }
-    for proc in procs.iter() {
-        proc.map(|p| {
-            if config::CONFIG.debug_process_credentials {
-                debug!("Running {}", p.get_process_name());
-            }
-        });
+        for proc in kernel.get_process_iter() {
+            debug!("Running {}", proc.get_process_name());
+        }
     }
     Ok(())
 }
@@ -191,7 +185,6 @@ fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
     chip: &'static C,
     app_flash: &'static [u8],
     app_memory: &'static mut [u8],
-    procs: &mut &'static mut [Option<&'static dyn Process>],
     fault_policy: &'static dyn ProcessFaultPolicy,
 ) -> Result<(), ProcessLoadError> {
     if config::CONFIG.debug_load_processes {
@@ -206,75 +199,83 @@ fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
 
     let mut remaining_flash = app_flash;
     let mut remaining_memory = app_memory;
-    // Try to discover up to `procs.len()` processes in flash.
-    let mut index = 0;
-    let num_procs = procs.len();
-    while index < num_procs {
-        let load_binary_result = discover_process_binary(remaining_flash);
 
-        match load_binary_result {
-            Ok((new_flash, process_binary)) => {
-                remaining_flash = new_flash;
+    loop {
+        match kernel.next_available_process_slot() {
+            Ok((index, slot)) => {
+                let load_binary_result = discover_process_binary(remaining_flash);
 
-                let load_result = load_process::<C, D>(
-                    kernel,
-                    chip,
-                    process_binary,
-                    remaining_memory,
-                    ShortId::LocallyUnique,
-                    index,
-                    fault_policy,
-                    &(),
-                );
-                match load_result {
-                    Ok((new_mem, proc)) => {
-                        remaining_memory = new_mem;
-                        match proc {
-                            Some(p) => {
-                                if config::CONFIG.debug_load_processes {
-                                    debug!("Loaded process {}", p.get_process_name())
+                match load_binary_result {
+                    Ok((new_flash, process_binary)) => {
+                        remaining_flash = new_flash;
+
+                        let load_result = load_process::<C, D>(
+                            kernel,
+                            chip,
+                            process_binary,
+                            remaining_memory,
+                            ShortId::LocallyUnique,
+                            index,
+                            fault_policy,
+                            &(),
+                        );
+                        match load_result {
+                            Ok((new_mem, proc)) => {
+                                remaining_memory = new_mem;
+                                match proc {
+                                    Some(p) => {
+                                        if config::CONFIG.debug_load_processes {
+                                            debug!("Loaded process {}", p.get_process_name())
+                                        }
+                                        slot.set(p);
+                                    }
+                                    None => {
+                                        if config::CONFIG.debug_load_processes {
+                                            debug!("No process loaded.");
+                                        }
+                                    }
                                 }
-                                procs[index] = proc;
-                                index += 1;
                             }
-                            None => {
+                            Err((new_mem, err)) => {
+                                remaining_memory = new_mem;
                                 if config::CONFIG.debug_load_processes {
-                                    debug!("No process loaded.");
+                                    debug!("Processes load error: {:?}.", err);
                                 }
                             }
                         }
                     }
-                    Err((new_mem, err)) => {
-                        remaining_memory = new_mem;
-                        if config::CONFIG.debug_load_processes {
-                            debug!("Processes load error: {:?}.", err);
+                    Err((new_flash, err)) => {
+                        remaining_flash = new_flash;
+                        match err {
+                            ProcessBinaryError::NotEnoughFlash
+                            | ProcessBinaryError::TbfHeaderNotFound => {
+                                if config::CONFIG.debug_load_processes {
+                                    debug!("No more processes to load: {:?}.", err);
+                                }
+                                // No more processes to load.
+                                break;
+                            }
+
+                            ProcessBinaryError::TbfHeaderParseFailure(_)
+                            | ProcessBinaryError::IncompatibleKernelVersion { .. }
+                            | ProcessBinaryError::IncorrectFlashAddress { .. }
+                            | ProcessBinaryError::NotEnabledProcess
+                            | ProcessBinaryError::Padding => {
+                                if config::CONFIG.debug_load_processes {
+                                    debug!("Unable to use process binary: {:?}.", err);
+                                }
+
+                                // Skip this binary and move to the next one.
+                                continue;
+                            }
                         }
                     }
                 }
             }
-            Err((new_flash, err)) => {
-                remaining_flash = new_flash;
-                match err {
-                    ProcessBinaryError::NotEnoughFlash | ProcessBinaryError::TbfHeaderNotFound => {
-                        if config::CONFIG.debug_load_processes {
-                            debug!("No more processes to load: {:?}.", err);
-                        }
-                        // No more processes to load.
-                        break;
-                    }
-
-                    ProcessBinaryError::TbfHeaderParseFailure(_)
-                    | ProcessBinaryError::IncompatibleKernelVersion { .. }
-                    | ProcessBinaryError::IncorrectFlashAddress { .. }
-                    | ProcessBinaryError::NotEnabledProcess
-                    | ProcessBinaryError::Padding => {
-                        if config::CONFIG.debug_load_processes {
-                            debug!("Unable to use process binary: {:?}.", err);
-                        }
-
-                        // Skip this binary and move to the next one.
-                        continue;
-                    }
+            Err(()) => {
+                // No slot available.
+                if config::CONFIG.debug_load_processes {
+                    debug!("No more process slots to load processes into.");
                 }
             }
         }
@@ -500,8 +501,6 @@ pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static, D: ProcessStand
     runtime_client: OptionalCell<&'a dyn ProcessLoadingAsyncClient>,
     /// Machine to use to check process credentials.
     checker: &'static ProcessCheckerMachine,
-    /// Array of stored process references for loaded processes.
-    procs: MapCell<&'static mut [Option<&'static dyn Process>]>,
     /// Array to store `ProcessBinary`s after checking credentials.
     proc_binaries: MapCell<&'static mut [Option<ProcessBinary>]>,
     /// Total available flash for process binaries on this board.
@@ -535,7 +534,6 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
     /// function.
     pub fn new(
         checker: &'static ProcessCheckerMachine,
-        procs: &'static mut [Option<&'static dyn Process>],
         proc_binaries: &'static mut [Option<ProcessBinary>],
         kernel: &'static Kernel,
         chip: &'static C,
@@ -552,7 +550,6 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
             boot_client: OptionalCell::empty(),
             runtime_client: OptionalCell::empty(),
             run_mode: OptionalCell::empty(),
-            procs: MapCell::new(procs),
             proc_binaries: MapCell::new(proc_binaries),
             kernel,
             chip,
@@ -578,18 +575,6 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
             SequentialProcessLoaderMachineRunMode::BootMode => self.boot_client.get(),
             SequentialProcessLoaderMachineRunMode::RuntimeMode => self.runtime_client.get(),
         }
-    }
-
-    /// Find a slot in the `PROCESSES` array to store this process.
-    fn find_open_process_slot(&self) -> Option<usize> {
-        self.procs.map_or(None, |procs| {
-            for (i, p) in procs.iter().enumerate() {
-                if p.is_none() {
-                    return Some(i);
-                }
-            }
-            None
-        })
     }
 
     /// Find a slot in the `PROCESS_BINARIES` array to store this process.
@@ -680,17 +665,14 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                 // Start by iterating all other process binaries and seeing
                 // if any are in conflict (same AppID with newer version).
                 for proc_bin in proc_binaries.iter() {
-                    match proc_bin {
-                        Some(other_process_binary) => {
-                            let blocked = self
-                                .is_blocked_from_loading_by(&process_binary, other_process_binary);
+                    if let Some(other_process_binary) = proc_bin {
+                        let blocked =
+                            self.is_blocked_from_loading_by(&process_binary, other_process_binary);
 
-                            if blocked {
-                                ok_to_load = false;
-                                break;
-                            }
+                        if blocked {
+                            ok_to_load = false;
+                            break;
                         }
-                        None => {}
                     }
                 }
 
@@ -703,30 +685,21 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                 // doesn't conflict with any of those. Since those processes
                 // are already loaded, we just need to check if this process
                 // binary has the same AppID as an already loaded process.
-                self.procs.map(|procs| {
-                    for proc in procs.iter() {
-                        match proc {
-                            Some(p) => {
-                                let blocked =
-                                    self.is_blocked_from_loading_by_process(&process_binary, *p);
-
-                                if blocked {
-                                    ok_to_load = false;
-                                    break;
-                                }
-                            }
-                            None => {}
-                        }
+                for proc in self.kernel.get_process_iter() {
+                    let blocked = self.is_blocked_from_loading_by_process(&process_binary, proc);
+                    if blocked {
+                        ok_to_load = false;
+                        break;
                     }
-                });
+                }
 
                 if !ok_to_load {
                     continue;
                 }
 
                 // If we get here it is ok to load the process.
-                match self.find_open_process_slot() {
-                    Some(index) => {
+                match self.kernel.next_available_process_slot() {
+                    Ok((index, slot)) => {
                         // Calculate the ShortId for this new process.
                         let short_app_id = self.policy.map_or(ShortId::LocallyUnique, |policy| {
                             policy.to_short_id(&process_binary)
@@ -757,9 +730,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
 
                                         // Store the `ProcessStandard` object in the `PROCESSES`
                                         // array.
-                                        self.procs.map(|procs| {
-                                            procs[index] = proc;
-                                        });
+                                        slot.set(p);
                                         // Notify the client the process was loaded
                                         // successfully.
                                         self.get_current_client().map(|client| {
@@ -784,7 +755,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                             }
                         }
                     }
-                    None => {
+                    Err(()) => {
                         // Nowhere to store the process.
                         self.get_current_client().map(|client| {
                             client.process_loaded(Err(ProcessLoadError::NoProcessSlot));
@@ -827,7 +798,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                 "Loading: ProcessBinary {}({:#02x}) does{} block {}({:#02x})",
                 pb2.header.get_package_name().unwrap_or(""),
                 pb2.flash.as_ptr() as usize,
-                if blocks { " not" } else { "" },
+                if blocks { "" } else { " not" },
                 pb1.header.get_package_name().unwrap_or(""),
                 pb1.flash.as_ptr() as usize,
             );
@@ -864,7 +835,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                 "Loading: Process {}({:#02x}) does{} block {}({:#02x})",
                 process.get_process_name(),
                 process.get_addresses().flash_start,
-                if blocks { " not" } else { "" },
+                if blocks { "" } else { " not" },
                 pb.header.get_package_name().unwrap_or(""),
                 pb.flash.as_ptr() as usize,
             );
@@ -1036,9 +1007,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         }
         // If no gaps found, check after the last app.
         let last_app_end_address = process_binaries_end_addresses[end_count - 1];
-        let potential_address =
-            self.find_next_cortex_m_aligned_address(last_app_end_address, app_size);
-        potential_address
+        self.find_next_cortex_m_aligned_address(last_app_end_address, app_size)
     }
 
     /// This function checks if there is a need to pad either before or after

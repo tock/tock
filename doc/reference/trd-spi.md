@@ -9,7 +9,7 @@ Kernel Serial Peripheral Interface (SPI) HIL
 **Draft-Created:** 2021/08/13 <br/>
 **Draft-Modified:** 2021/08/13 <br/>
 **Draft-Version:** 2 <br/>
-**Draft-Discuss:** tock-dev@googlegroups.com<br/>
+**Draft-Discuss:** devel@lists.tockos.org<br/>
 
 Abstract
 -------------------------------
