@@ -159,7 +159,7 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Pic
     }
 }
 
-/// Entry point used for debuger
+/// Entry point used for debugger.
 ///
 /// When loaded using gdb, the Raspberry Pi Pico is not reset
 /// by default. Without this function, gdb sets the PC to the
@@ -168,7 +168,7 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Pic
 ///
 /// This function is set to be the entry point for gdb and is used
 /// to send the RP2040 back in the bootloader so that all the boot
-/// sqeuence is performed.
+/// sequence is performed.
 #[no_mangle]
 #[unsafe(naked)]
 pub unsafe extern "C" fn jump_to_bootloader() {
