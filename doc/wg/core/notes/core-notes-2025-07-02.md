@@ -23,7 +23,6 @@
 * Branden: Big PR on MMU support that touches a lot of stuff in the kernel. This is the kind of intensive PR that lingers quietly for a long time because it's a lot of work to consider and comment about. So I want a path for considering it instead of that.
 * Alex: For background, we ported Tock to ARM64. It boots on a RPi and works! And that needs MMU. We can't open-source the ARM64 port, but we want to open-source what we can and stay in sync with upstream, so we're using x86 as a guinea pig.
 * Alex: We could use a simple MMU like Microsoft does, but we want paging to allow Tock to scale from smaller to large chips. This is particularly meaningful as chips are just going to keep improving moving forward
-* Branden:
 * Alex: Having paging could also support a way more capable IPC system with memory sharing. The use case is that many USB chips for AI processing don't need Linux but also don't have another choice. Tock could be a certifiable OS that could be useful for them. This could be a future selling point for Tock.
 * Alex: For performance, Tock isn't competing right now. Slower than Embassy or RTIC. But we could do way better and more deterministic than Linux with support here. We hope anyways.
 * Branden: Design document
