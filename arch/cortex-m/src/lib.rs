@@ -128,24 +128,18 @@ pub unsafe extern "C" fn unhandled_interrupt() {
     panic!("Unhandled Interrupt. ISR {} is active.", interrupt_number);
 }
 
+/// Assembly function to initialize the .bss and .data sections in RAM.
+///
+/// We need to (unfortunately) do these operations in assembly because it is
+/// not valid to run Rust code without RAM initialized.
+///
+/// See <https://github.com/tock/tock/issues/2222> for more information.
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
-extern "C" {
-    /// Assembly function to initialize the .bss and .data sections in RAM.
-    ///
-    /// We need to (unfortunately) do these operations in assembly because it is
-    /// not valid to run Rust code without RAM initialized.
-    ///
-    /// See <https://github.com/tock/tock/issues/2222> for more information.
-    pub fn initialize_ram_jump_to_main();
-}
-
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
-core::arch::global_asm!(
-"
-    .section .initialize_ram_jump_to_main, \"ax\"
-    .global initialize_ram_jump_to_main
-    .thumb_func
-  initialize_ram_jump_to_main:
+#[unsafe(naked)]
+pub unsafe extern "C" fn initialize_ram_jump_to_main() {
+    use core::arch::naked_asm;
+    naked_asm!(
+        "
     // Start by initializing .bss memory. The Tock linker script defines
     // `_szero` and `_ezero` to mark the .bss segment.
     ldr r0, ={sbss}     // r0 = first address of .bss
@@ -187,12 +181,13 @@ core::arch::global_asm!(
     // board initialization takes place and Rust code starts.
     bl main
     ",
-    sbss = sym _szero,
-    ebss = sym _ezero,
-    sdata = sym _srelocate,
-    edata = sym _erelocate,
-    etext = sym _etext,
-);
+        sbss = sym _szero,
+        ebss = sym _ezero,
+        sdata = sym _srelocate,
+        edata = sym _erelocate,
+        etext = sym _etext,
+    );
+}
 
 pub unsafe fn print_cortexm_state(writer: &mut dyn Write) {
     let _ccr = syscall::SCB_REGISTERS[0];

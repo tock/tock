@@ -452,56 +452,52 @@ pub extern "C" fn _earlgrey_start_trap_vectored() {
 }
 
 #[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
-extern "C" {
-    pub fn _earlgrey_start_trap_vectored();
+#[link_section = ".riscv.trap_vectored"]
+#[unsafe(naked)]
+pub extern "C" fn _earlgrey_start_trap_vectored() -> ! {
+    use core::arch::naked_asm;
+    // According to the Ibex user manual:
+    // [NMI] has interrupt ID 31, i.e., it has the highest priority of all
+    // interrupts and the core jumps to the trap-handler base address (in
+    // mtvec) plus 0x7C to handle the NMI.
+    //
+    // Below are 32 (non-compressed) jumps to cover the entire possible
+    // range of vectored traps.
+    naked_asm!(
+        "
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        j {start_trap}
+        ",
+        start_trap = sym rv32i::_start_trap,
+    );
 }
-
-#[cfg(any(doc, all(target_arch = "riscv32", target_os = "none")))]
-// According to the Ibex user manual:
-// [NMI] has interrupt ID 31, i.e., it has the highest priority of all
-// interrupts and the core jumps to the trap-handler base address (in
-// mtvec) plus 0x7C to handle the NMI.
-//
-// Below are 32 (non-compressed) jumps to cover the entire possible
-// range of vectored traps.
-core::arch::global_asm!(
-    "
-            .section .riscv.trap_vectored, \"ax\"
-            .globl _start_trap_vectored
-          _earlgrey_start_trap_vectored:
-
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-            j {start_trap}
-    ",
-    start_trap = sym rv32i::_start_trap,
-);
