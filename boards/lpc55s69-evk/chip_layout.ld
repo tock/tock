@@ -1,0 +1,9 @@
+MEMORY
+{
+  rom(rx) : ORIGIN = 0x00000000, LENGTH = 630K
+  ram(rwx) : ORIGIN = 0x20000000, LENGTH = 64K
+  prog(rx) : ORIGIN = 0x20010000, LENGTH = 64K
+}
+
+PAGE_SIZE = 4K;
+

@@ -16,3 +16,9 @@ MEMORY
 }
 
 PAGE_SIZE = 2K;
+
+SECTIONS {
+   .padding (NOLOAD) : {
+        BYTE(0xFF)
+    } > ram
+}
