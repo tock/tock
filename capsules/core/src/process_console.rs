@@ -53,7 +53,7 @@ const ESC: u8 = b'\x1B';
 const EOL: u8 = b'\x00';
 
 /// Backspace ANSI character
-const BS: u8 = b'\x08';
+const BACKSPACE: u8 = b'\x08';
 
 /// Delete ANSI character
 const DEL: u8 = b'\x7F';
@@ -1228,7 +1228,8 @@ impl<
 
                                             // Clear the displayed command
                                             for _ in 0..index {
-                                                let _ = self.write_bytes(&[BS, SPACE, BS]);
+                                                let _ = self
+                                                    .write_bytes(&[BACKSPACE, SPACE, BACKSPACE]);
                                             }
 
                                             // Display the new command
@@ -1246,7 +1247,7 @@ impl<
                                     });
                                 }
                                 EscKey::Left if cursor > 0 => {
-                                    let _ = self.write_byte(BS);
+                                    let _ = self.write_byte(BACKSPACE);
                                     self.cursor.set(cursor - 1);
                                 }
                                 EscKey::Right if cursor < index => {
@@ -1255,7 +1256,7 @@ impl<
                                 }
                                 EscKey::Home if cursor > 0 => {
                                     for _ in 0..cursor {
-                                        let _ = self.write_byte(BS);
+                                        let _ = self.write_byte(BACKSPACE);
                                     }
 
                                     self.cursor.set(0);
@@ -1278,16 +1279,17 @@ impl<
                                     // a dublicate "ghost" character of the last byte,
                                     // In case we deleted the first character, this doesn't do anything as
                                     // the dublicate is not there.
-                                    // |abcdef -> bcdef
-                                    // abc|def -> abceff -> abcef
+                                    // |abcdef -> abcdef (won't enter this match case)
+                                    // a|bcdef -> bcdef
+                                    // abc|def -> abdeff -> abdef
 
-                                    let _ = self.write_byte(BS);
+                                    let _ = self.write_byte(BACKSPACE);
                                     let _ = self.write_byte(SPACE);
-                                    let _ = self.write_byte(BS);
+                                    let _ = self.write_byte(BACKSPACE);
 
                                     // Move the cursor to last position
                                     for _ in (cursor - 1)..(index - 1) {
-                                        let _ = self.write_byte(BS);
+                                        let _ = self.write_byte(BACKSPACE);
                                     }
                                     // Rewrite the command, this will move the cursor right
                                     for i in (cursor - 1)..(index - 1) {
@@ -1295,7 +1297,7 @@ impl<
                                     }
                                     // Move the cursor left again
                                     for _ in (cursor - 1)..(index - 1) {
-                                        let _ = self.write_byte(BS);
+                                        let _ = self.write_byte(BACKSPACE);
                                     }
 
                                     self.cursor.set(cursor - 1);
@@ -1332,11 +1334,11 @@ impl<
                                     // the dublicate is not there.
                                     // |abcdef -> bcdef
                                     // abc|def -> abceff -> abcef
-                                    let _ = self.write_bytes(&[SPACE, BS]);
+                                    let _ = self.write_bytes(&[SPACE, BACKSPACE]);
 
                                     // Move the cursor to last position
                                     for _ in cursor..(index - 1) {
-                                        let _ = self.write_byte(BS);
+                                        let _ = self.write_byte(BACKSPACE);
                                     }
 
                                     self.command_index.set(index - 1);
@@ -1380,12 +1382,12 @@ impl<
                                     });
                                 }
                             }
-                        } else if read_buf[0] == BS {
+                        } else if read_buf[0] == BACKSPACE {
                             if cursor > 0 {
                                 // Backspace, echo and remove the byte
                                 // preceding the cursor
                                 // Note echo is '\b \b' to erase
-                                let _ = self.write_bytes(&[BS, SPACE, BS]);
+                                let _ = self.write_bytes(&[BACKSPACE, SPACE, BACKSPACE]);
 
                                 // Move the bytes one position to left
                                 for i in (cursor - 1)..(index - 1) {
@@ -1401,11 +1403,11 @@ impl<
                                 // the dublicate is not there.
                                 // abcdef| -> abcdef
                                 // abcd|ef -> abceff -> abcef
-                                let _ = self.write_bytes(&[SPACE, BS]);
+                                let _ = self.write_bytes(&[SPACE, BACKSPACE]);
 
                                 // Move the cursor to last position
                                 for _ in cursor..index {
-                                    let _ = self.write_byte(BS);
+                                    let _ = self.write_byte(BACKSPACE);
                                 }
 
                                 self.command_index.set(index - 1);
@@ -1450,7 +1452,7 @@ impl<
 
                             // Move the cursor to the last position
                             for _ in cursor..index {
-                                let _ = self.write_byte(BS);
+                                let _ = self.write_byte(BACKSPACE);
                             }
 
                             command[cursor] = read_buf[0];
