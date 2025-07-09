@@ -1283,9 +1283,7 @@ impl<
                                     // a|bcdef -> bcdef
                                     // abc|def -> abdeff -> abdef
 
-                                    let _ = self.write_byte(BACKSPACE);
-                                    let _ = self.write_byte(SPACE);
-                                    let _ = self.write_byte(BACKSPACE);
+                                    let _ = self.write_bytes(&[BACKSPACE, SPACE, BACKSPACE]);
 
                                     // The following for statements are mandatory for correctly displaying
                                     // the command and cursor
