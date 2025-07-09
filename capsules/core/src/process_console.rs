@@ -1287,15 +1287,22 @@ impl<
                                     let _ = self.write_byte(SPACE);
                                     let _ = self.write_byte(BACKSPACE);
 
-                                    // Move the cursor to last position
+                                    // The following for statements are mandatory for correctly displaying
+                                    // the command and cursor
+                                    //
+                                    // Move the cursor to the correct position (without this,
+                                    // it will get sent all the way right)
                                     for _ in (cursor - 1)..(index - 1) {
                                         let _ = self.write_byte(BACKSPACE);
                                     }
-                                    // Rewrite the command, this will move the cursor right
+                                    // Rewrite the command, this will move the cursor right (skipping this
+                                    // step will cause the command to not get updated correctly, for example
+                                    // abc|def -> ab|cde. This is just a visual mismatch)
                                     for i in (cursor - 1)..(index - 1) {
                                         let _ = self.write_byte(command[i]);
                                     }
-                                    // Move the cursor left again
+                                    // Move the cursor left again (previously, the cursor was sent to the
+                                    // right by the previous for statement, so we need to move it left)
                                     for _ in (cursor - 1)..(index - 1) {
                                         let _ = self.write_byte(BACKSPACE);
                                     }
