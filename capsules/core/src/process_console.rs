@@ -1276,9 +1276,9 @@ impl<
                                     }
 
                                     // Now that we copied all bytes to the left, we are left over with
-                                    // a dublicate "ghost" character of the last byte,
+                                    // a duplicate "ghost" character of the last byte,
                                     // In case we deleted the first character, this doesn't do anything as
-                                    // the dublicate is not there.
+                                    // the duplicate is not there.
                                     // |abcdef -> abcdef (won't enter this match case)
                                     // a|bcdef -> bcdef
                                     // abc|def -> abdeff -> abdef
@@ -1334,9 +1334,9 @@ impl<
                                     command[index - 1] = command[index];
 
                                     // Now that we copied all bytes to the left, we are left over with
-                                    // a dublicate "ghost" character of the last byte,
+                                    // a duplicate "ghost" character of the last byte,
                                     // In case we deleted the first character, this doesn't do anything as
-                                    // the dublicate is not there.
+                                    // the duplicate is not there.
                                     // |abcdef -> bcdef
                                     // abc|def -> abceff -> abcef
                                     let _ = self.write_bytes(&[SPACE, BACKSPACE]);
@@ -1403,9 +1403,9 @@ impl<
                                 command[index - 1] = command[index];
 
                                 // Now that we copied all bytes to the left, we are left over with
-                                // a dublicate "ghost" character of the last byte,
+                                // a duplicate "ghost" character of the last byte,
                                 // In case we deleted the last character, this doesn't do anything as
-                                // the dublicate is not there.
+                                // the duplicate is not there.
                                 // abcdef| -> abcdef
                                 // abcd|ef -> abceff -> abcef
                                 let _ = self.write_bytes(&[SPACE, BACKSPACE]);
