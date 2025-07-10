@@ -20,10 +20,10 @@ fn exit_qemu() -> ! {
     unsafe {
         asm!(
             "
-        mov dx, 0xf4
-        mov al, 0x01
-        out dx,al
-        "
+    mov dx, 0xf4
+    mov al, 0x01
+    out dx,al
+            "
         );
     }
 
