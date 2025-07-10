@@ -70,7 +70,7 @@ enum ShaOperation {
 // Needs to be able to accommodate the largest key sizes, e.g. 512
 const TMP_KEY_BUFFER_SIZE: usize = 512 / 8;
 
-pub struct HmacDriver<'a, H: digest::Digest<'a, L>, const L: usize> {
+pub struct HmacDriver<'a, H: digest::Digest<'a, DIGEST_LEN>, const DIGEST_LEN: usize> {
     hmac: &'a H,
 
     active: Cell<bool>,
@@ -85,26 +85,29 @@ pub struct HmacDriver<'a, H: digest::Digest<'a, L>, const L: usize> {
 
     data_buffer: TakeCell<'static, [u8]>,
     data_copied: Cell<usize>,
-    dest_buffer: TakeCell<'static, [u8; L]>,
+    dest_buffer: TakeCell<'static, [u8; DIGEST_LEN]>,
 }
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
-        const L: usize,
-    > HmacDriver<'a, H, L>
+        H: digest::Digest<'a, DIGEST_LEN>
+            + digest::HmacSha256
+            + digest::HmacSha384
+            + digest::HmacSha512,
+        const DIGEST_LEN: usize,
+    > HmacDriver<'a, H, DIGEST_LEN>
 {
     pub fn new(
         hmac: &'a H,
         data_buffer: &'static mut [u8],
-        dest_buffer: &'static mut [u8; L],
+        dest_buffer: &'static mut [u8; DIGEST_LEN],
         grant: Grant<
             App,
             UpcallCount<1>,
             AllowRoCount<{ ro_allow::COUNT }>,
             AllowRwCount<{ rw_allow::COUNT }>,
         >,
-    ) -> HmacDriver<'a, H, L> {
+    ) -> HmacDriver<'a, H, DIGEST_LEN> {
         HmacDriver {
             hmac,
             active: Cell::new(false),
@@ -247,9 +250,12 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
-        const L: usize,
-    > digest::ClientData<L> for HmacDriver<'a, H, L>
+        H: digest::Digest<'a, DIGEST_LEN>
+            + digest::HmacSha256
+            + digest::HmacSha384
+            + digest::HmacSha512,
+        const DIGEST_LEN: usize,
+    > digest::ClientData<DIGEST_LEN> for HmacDriver<'a, H, DIGEST_LEN>
 {
     // Because data needs to be copied from a userspace buffer into a kernel (RAM) one,
     // we always pass mut data; this callback should never be invoked.
@@ -384,11 +390,14 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
-        const L: usize,
-    > digest::ClientHash<L> for HmacDriver<'a, H, L>
+        H: digest::Digest<'a, DIGEST_LEN>
+            + digest::HmacSha256
+            + digest::HmacSha384
+            + digest::HmacSha512,
+        const DIGEST_LEN: usize,
+    > digest::ClientHash<DIGEST_LEN> for HmacDriver<'a, H, DIGEST_LEN>
 {
-    fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut [u8; L]) {
+    fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut [u8; DIGEST_LEN]) {
         self.processid.map(|id| {
             self.apps
                 .enter(id, |_, kernel_data| {
@@ -402,10 +411,10 @@ impl<
                             dest.mut_enter(|dest| {
                                 let len = dest.len();
 
-                                if len < L {
+                                if len < DIGEST_LEN {
                                     dest.copy_from_slice(&digest[0..len]);
                                 } else {
-                                    dest[0..L].copy_from_slice(digest);
+                                    dest[0..DIGEST_LEN].copy_from_slice(digest);
                                 }
                             })
                         });
@@ -436,11 +445,18 @@ impl<
 
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
-        const L: usize,
-    > digest::ClientVerify<L> for HmacDriver<'a, H, L>
+        H: digest::Digest<'a, DIGEST_LEN>
+            + digest::HmacSha256
+            + digest::HmacSha384
+            + digest::HmacSha512,
+        const DIGEST_LEN: usize,
+    > digest::ClientVerify<DIGEST_LEN> for HmacDriver<'a, H, DIGEST_LEN>
 {
-    fn verification_done(&self, result: Result<bool, ErrorCode>, compare: &'static mut [u8; L]) {
+    fn verification_done(
+        &self,
+        result: Result<bool, ErrorCode>,
+        compare: &'static mut [u8; DIGEST_LEN],
+    ) {
         self.processid.map(|id| {
             self.apps
                 .enter(id, |_app, kernel_data| {
@@ -483,9 +499,12 @@ impl<
 ///   the HMAC digest before calling the `hash_done` callback.
 impl<
         'a,
-        H: digest::Digest<'a, L> + digest::HmacSha256 + digest::HmacSha384 + digest::HmacSha512,
-        const L: usize,
-    > SyscallDriver for HmacDriver<'a, H, L>
+        H: digest::Digest<'a, DIGEST_LEN>
+            + digest::HmacSha256
+            + digest::HmacSha384
+            + digest::HmacSha512,
+        const DIGEST_LEN: usize,
+    > SyscallDriver for HmacDriver<'a, H, DIGEST_LEN>
 {
     // Subscribe to HmacDriver events.
     //

@@ -22,19 +22,19 @@ use tock_tbf::types::TbfFooterV2CredentialsType;
 ///
 /// This assumes the `TbfFooterV2CredentialsType` data format only contains the
 /// signature (i.e. the data length of the credential in the TBF footer is the
-/// same as `SL`).
+/// same as `SIGNATURE_LEN`).
 pub struct AppCheckerSignature<
     'a,
-    S: hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>
+    S: hil::public_key_crypto::signature::SignatureVerify<'static, HASH_LEN, SIGNATURE_LEN>
         + hil::public_key_crypto::keys::SelectKey<'a>,
-    H: hil::digest::DigestDataHash<'a, HL>,
-    const HL: usize,
-    const SL: usize,
+    H: hil::digest::DigestDataHash<'a, HASH_LEN>,
+    const HASH_LEN: usize,
+    const SIGNATURE_LEN: usize,
 > {
     hasher: &'a H,
     verifier: &'a S,
-    hash: MapCell<&'static mut [u8; HL]>,
-    signature: MapCell<&'static mut [u8; SL]>,
+    hash: MapCell<&'static mut [u8; HASH_LEN]>,
+    signature: MapCell<&'static mut [u8; SIGNATURE_LEN]>,
     client: OptionalCell<&'static dyn AppCredentialsPolicyClient<'static>>,
     credential_type: TbfFooterV2CredentialsType,
     credentials: OptionalCell<TbfFooterV2Credentials>,
@@ -44,20 +44,20 @@ pub struct AppCheckerSignature<
 
 impl<
         'a,
-        S: hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>
+        S: hil::public_key_crypto::signature::SignatureVerify<'static, HASH_LEN, SIGNATURE_LEN>
             + hil::public_key_crypto::keys::SelectKey<'a>,
-        H: hil::digest::DigestDataHash<'a, HL>,
-        const HL: usize,
-        const SL: usize,
-    > AppCheckerSignature<'a, S, H, HL, SL>
+        H: hil::digest::DigestDataHash<'a, HASH_LEN>,
+        const HASH_LEN: usize,
+        const SIGNATURE_LEN: usize,
+    > AppCheckerSignature<'a, S, H, HASH_LEN, SIGNATURE_LEN>
 {
     pub fn new(
         hasher: &'a H,
         verifier: &'a S,
-        hash_buffer: &'static mut [u8; HL],
-        signature_buffer: &'static mut [u8; SL],
+        hash_buffer: &'static mut [u8; HASH_LEN],
+        signature_buffer: &'static mut [u8; SIGNATURE_LEN],
         credential_type: TbfFooterV2CredentialsType,
-    ) -> AppCheckerSignature<'a, S, H, HL, SL> {
+    ) -> AppCheckerSignature<'a, S, H, HASH_LEN, SIGNATURE_LEN> {
         Self {
             hasher,
             verifier,
@@ -105,12 +105,12 @@ impl<
 
 impl<
         'a,
-        S: hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>
+        S: hil::public_key_crypto::signature::SignatureVerify<'static, HASH_LEN, SIGNATURE_LEN>
             + hil::public_key_crypto::keys::SelectKey<'a>,
-        H: hil::digest::DigestDataHash<'a, HL>,
-        const HL: usize,
-        const SL: usize,
-    > hil::digest::ClientData<HL> for AppCheckerSignature<'a, S, H, HL, SL>
+        H: hil::digest::DigestDataHash<'a, HASH_LEN>,
+        const HASH_LEN: usize,
+        const SIGNATURE_LEN: usize,
+    > hil::digest::ClientData<HASH_LEN> for AppCheckerSignature<'a, S, H, HASH_LEN, SIGNATURE_LEN>
 {
     fn add_mut_data_done(&self, _result: Result<(), ErrorCode>, _data: SubSliceMut<'static, u8>) {}
 
@@ -143,12 +143,13 @@ impl<
 
 impl<
         'a,
-        S: hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>
+        S: hil::public_key_crypto::signature::SignatureVerify<'static, HASH_LEN, SIGNATURE_LEN>
             + hil::public_key_crypto::keys::SelectKey<'a>,
-        H: hil::digest::DigestDataHash<'a, HL>,
-        const HL: usize,
-        const SL: usize,
-    > hil::public_key_crypto::keys::SelectKeyClient for AppCheckerSignature<'a, S, H, HL, SL>
+        H: hil::digest::DigestDataHash<'a, HASH_LEN>,
+        const HASH_LEN: usize,
+        const SIGNATURE_LEN: usize,
+    > hil::public_key_crypto::keys::SelectKeyClient
+    for AppCheckerSignature<'a, S, H, HASH_LEN, SIGNATURE_LEN>
 {
     fn get_key_count_done(&self, count: usize) {
         // We have the hash, we know how many keys, now we need to select the
@@ -180,14 +181,14 @@ impl<
 
 impl<
         'a,
-        S: hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>
+        S: hil::public_key_crypto::signature::SignatureVerify<'static, HASH_LEN, SIGNATURE_LEN>
             + hil::public_key_crypto::keys::SelectKey<'a>,
-        H: hil::digest::DigestDataHash<'a, HL>,
-        const HL: usize,
-        const SL: usize,
-    > hil::digest::ClientHash<HL> for AppCheckerSignature<'a, S, H, HL, SL>
+        H: hil::digest::DigestDataHash<'a, HASH_LEN>,
+        const HASH_LEN: usize,
+        const SIGNATURE_LEN: usize,
+    > hil::digest::ClientHash<HASH_LEN> for AppCheckerSignature<'a, S, H, HASH_LEN, SIGNATURE_LEN>
 {
-    fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut [u8; HL]) {
+    fn hash_done(&self, result: Result<(), ErrorCode>, digest: &'static mut [u8; HASH_LEN]) {
         // Save the hash buffer in all cases. If there was an error then we just
         // need to save the buffer, on success we need to keep the correct
         // hash digest.
@@ -219,14 +220,19 @@ impl<
 
 impl<
         'a,
-        S: hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>
+        S: hil::public_key_crypto::signature::SignatureVerify<'static, HASH_LEN, SIGNATURE_LEN>
             + hil::public_key_crypto::keys::SelectKey<'a>,
-        H: hil::digest::DigestDataHash<'a, HL>,
-        const HL: usize,
-        const SL: usize,
-    > hil::digest::ClientVerify<HL> for AppCheckerSignature<'a, S, H, HL, SL>
+        H: hil::digest::DigestDataHash<'a, HASH_LEN>,
+        const HASH_LEN: usize,
+        const SIGNATURE_LEN: usize,
+    > hil::digest::ClientVerify<HASH_LEN>
+    for AppCheckerSignature<'a, S, H, HASH_LEN, SIGNATURE_LEN>
 {
-    fn verification_done(&self, _result: Result<bool, ErrorCode>, _compare: &'static mut [u8; HL]) {
+    fn verification_done(
+        &self,
+        _result: Result<bool, ErrorCode>,
+        _compare: &'static mut [u8; HASH_LEN],
+    ) {
         // Unused for this checker.
         // Needed to make the sha256 client work.
     }
@@ -234,19 +240,19 @@ impl<
 
 impl<
         'a,
-        S: hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>
+        S: hil::public_key_crypto::signature::SignatureVerify<'static, HASH_LEN, SIGNATURE_LEN>
             + hil::public_key_crypto::keys::SelectKey<'a>,
-        H: hil::digest::DigestDataHash<'a, HL>,
-        const HL: usize,
-        const SL: usize,
-    > hil::public_key_crypto::signature::ClientVerify<HL, SL>
-    for AppCheckerSignature<'a, S, H, HL, SL>
+        H: hil::digest::DigestDataHash<'a, HASH_LEN>,
+        const HASH_LEN: usize,
+        const SIGNATURE_LEN: usize,
+    > hil::public_key_crypto::signature::ClientVerify<HASH_LEN, SIGNATURE_LEN>
+    for AppCheckerSignature<'a, S, H, HASH_LEN, SIGNATURE_LEN>
 {
     fn verification_done(
         &self,
         result: Result<bool, ErrorCode>,
-        hash: &'static mut [u8; HL],
-        signature: &'static mut [u8; SL],
+        hash: &'static mut [u8; HASH_LEN],
+        signature: &'static mut [u8; SIGNATURE_LEN],
     ) {
         self.hash.replace(hash);
         self.signature.replace(signature);
@@ -299,12 +305,12 @@ impl<
 
 impl<
         'a,
-        S: hil::public_key_crypto::signature::SignatureVerify<'static, HL, SL>
+        S: hil::public_key_crypto::signature::SignatureVerify<'static, HASH_LEN, SIGNATURE_LEN>
             + hil::public_key_crypto::keys::SelectKey<'a>,
-        H: hil::digest::DigestDataHash<'a, HL>,
-        const HL: usize,
-        const SL: usize,
-    > AppCredentialsPolicy<'static> for AppCheckerSignature<'a, S, H, HL, SL>
+        H: hil::digest::DigestDataHash<'a, HASH_LEN>,
+        const HASH_LEN: usize,
+        const SIGNATURE_LEN: usize,
+    > AppCredentialsPolicy<'static> for AppCheckerSignature<'a, S, H, HASH_LEN, SIGNATURE_LEN>
 {
     fn require_credentials(&self) -> bool {
         true
@@ -320,7 +326,8 @@ impl<
         if credentials.format() == self.credential_type {
             // Save the signature we are trying to compare with.
             self.signature.map(|b| {
-                b.as_mut_slice()[..SL].copy_from_slice(&credentials.data()[..SL]);
+                b.as_mut_slice()[..SIGNATURE_LEN]
+                    .copy_from_slice(&credentials.data()[..SIGNATURE_LEN]);
             });
 
             // Add the process binary to compute the hash.

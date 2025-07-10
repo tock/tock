@@ -7,7 +7,7 @@
 use crate::ErrorCode;
 
 /// This trait provides callbacks for when the verification has completed.
-pub trait ClientVerify<const HL: usize, const SL: usize> {
+pub trait ClientVerify<const HASH_LEN: usize, const SIGNATURE_LEN: usize> {
     /// Called when the verification is complete.
     ///
     /// If the verification operation encounters an error, result will be a
@@ -23,8 +23,8 @@ pub trait ClientVerify<const HL: usize, const SL: usize> {
     fn verification_done(
         &self,
         result: Result<bool, ErrorCode>,
-        hash: &'static mut [u8; HL],
-        signature: &'static mut [u8; SL],
+        hash: &'static mut [u8; HASH_LEN],
+        signature: &'static mut [u8; SIGNATURE_LEN],
     );
 }
 
@@ -33,12 +33,12 @@ pub trait ClientVerify<const HL: usize, const SL: usize> {
 /// This is a generic interface, and it is up to the implementation as to the
 /// signature verification algorithm being used.
 ///
-/// - `HL`: The length in bytes of the hash.
-/// - `SL`: The length in bytes of the signature.
-pub trait SignatureVerify<'a, const HL: usize, const SL: usize> {
+/// - `HASH_LEN`: The length in bytes of the hash.
+/// - `SIGNATURE_LEN`: The length in bytes of the signature.
+pub trait SignatureVerify<'a, const HASH_LEN: usize, const SIGNATURE_LEN: usize> {
     /// Set the client instance which will receive the `verification_done()`
     /// callback.
-    fn set_verify_client(&self, client: &'a dyn ClientVerify<HL, SL>);
+    fn set_verify_client(&self, client: &'a dyn ClientVerify<HASH_LEN, SIGNATURE_LEN>);
 
     /// Verify the signature matches the given hash.
     ///
@@ -53,9 +53,16 @@ pub trait SignatureVerify<'a, const HL: usize, const SL: usize> {
     ///   verification engine cannot accept another request.
     fn verify(
         &self,
-        hash: &'static mut [u8; HL],
-        signature: &'static mut [u8; SL],
-    ) -> Result<(), (ErrorCode, &'static mut [u8; HL], &'static mut [u8; SL])>;
+        hash: &'static mut [u8; HASH_LEN],
+        signature: &'static mut [u8; SIGNATURE_LEN],
+    ) -> Result<
+        (),
+        (
+            ErrorCode,
+            &'static mut [u8; HASH_LEN],
+            &'static mut [u8; SIGNATURE_LEN],
+        ),
+    >;
 }
 
 /// This trait provides callbacks for when the signing has completed.
