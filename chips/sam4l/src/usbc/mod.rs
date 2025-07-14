@@ -481,7 +481,7 @@ impl<'a> Usbc<'a> {
     ) {
         let e: usize = From::from(endpoint);
         let b: usize = From::from(bank);
-        let p = buf.as_ptr() as *mut u8;
+        let p = buf.as_ptr() as *const u8 as *mut u8;
 
         debug1!("Set Endpoint{}/Bank{} addr={:8?}", e, b, p);
         self.descriptors[e][b].set_addr(p);
