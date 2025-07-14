@@ -162,6 +162,17 @@ unsafe extern "cdecl" fn main() {
     )
     .finalize(x86_q35::x86_q35_component_static!());
 
+    // Smoke-test PS/2 primitives: read & write the config byte
+        use x86_q35::ps2::{read_data, write_command, write_data};
+        unsafe {
+            // 0x20 = “read config byte”, should return the current config
+            write_command(0x20);
+            let cfg = read_data();
+            // 0x60 = “write config byte”, write it back unchanged
+            write_command(0x60);
+            write_data(cfg);
+        }
+
     // Acquire required capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
