@@ -1,3 +1,4 @@
+use core::marker::PhantomData;
 use x86::registers::io;
 
 /// PS/2 controller ports
@@ -40,4 +41,26 @@ pub fn write_command(cmd: u8) {
 pub fn write_data(data: u8) {
     wait_input_ready();
     unsafe { io::outb(PS2_DATA_PORT, data) };
+}
+
+/// PS/2 controller driver (the “8042” peripheral)
+pub struct Ps2Controller<'a> {
+    _marker: PhantomData<&'a ()>,
+}
+
+impl<'a> Ps2Controller<'a> {
+    /// Constructor — for now takes no args, adjust later when you wire up ports.
+    pub fn new() -> Self {
+        Ps2Controller { _marker: PhantomData }
+    }
+
+    /// Run the basic init sequence (disable, flush, config, self-test, enable).
+    pub fn init(&self) {
+        // TODO: implement the sequence from OSDev wiki
+    }
+
+    /// Called from IRQ1 to read a scan-code byte and buffer it.
+    pub fn handle_interrupt(&self) {
+        // TODO: read_data(), push into ring buffer, pic::eoi()
+    }
 }

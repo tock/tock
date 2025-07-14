@@ -3,7 +3,7 @@
 // Copyright Tock Contributors 2024.
 
 use x86::InterruptPoller;
-
+use crate::pic::PIC1_OFFSET;
 use super::pic;
 
 /// Handler for external interrupts.
@@ -23,3 +23,5 @@ unsafe extern "cdecl" fn handle_external_interrupt(num: u32) {
         pic::eoi(num);
     }
 }
+
+pub(super) const KEYBOARD: u32 = (PIC1_OFFSET + 1) as u32;
