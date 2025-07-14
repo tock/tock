@@ -56,11 +56,31 @@ impl<'a> Ps2Controller<'a> {
 
     /// Run the basic init sequence (disable, flush, config, self-test, enable).
     pub fn init(&self) {
-        // TODO: implement the sequence from OSDev wiki
+        /// Run a minimal init: disable port, flush stale data, enable IRQ1
+        // 1) Disable keyboard port (0xAD)
+        write_command(0xAD);
+
+        // 3) Flush any pending bytes
+        while unsafe {
+            io::inb(PS2_STATUS_PORT)
+        } & STATUS_OUTPUT_FULL != 0 {
+            let _ = read_data();
+        }
+        // 3) Read config byte (0x20), set IRQ1-enable, write it back (0x60)
+        write_command(0x20);
+        let mut cfg = read_data();
+        cfg |= 1 << 0; //bit 0 = IRQ1 enable
+        write_data(0x60);
+        write_data(cfg);
+
+        // 4) Re-enable keyboard port (0xAE)
+        write_command(0xAE);
     }
 
     /// Called from IRQ1 to read a scan-code byte and buffer it.
     pub fn handle_interrupt(&self) {
-        // TODO: read_data(), push into ring buffer, pic::eoi()
+        // Pull the byte so the controller's output buffer clears
+        let _sc = read_data();
+        // (PIC EOI is already done by the interrupt stub)
     }
 }
