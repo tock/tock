@@ -69,6 +69,7 @@ members = [
     "boards/tutorials/nrf52840dk-thread-tutorial",
     "boards/tutorials/qemu_rv32_virt-tutorial",
     "capsules/aes_gcm",
+    "capsules/aes_ctr",
     "capsules/ecdsa_sw",
     "capsules/core",
     "capsules/extra",
