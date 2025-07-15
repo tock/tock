@@ -1729,8 +1729,8 @@ mod examples {
             sm.set_pins_dirs(pin2, 1, true);
             sm.init();
             sm.set_enabled(true);
-            sm.push_blocking(turn_on_gpio_6_7).ok();
-            sm.push_blocking(0).ok();
+            let _ = sm.push_blocking(turn_on_gpio_6_7);
+            let _ = sm.push_blocking(0);
         }
 
         pub fn pwm_program_init(
@@ -1751,7 +1751,7 @@ mod examples {
             sm.set_pins_dirs(pin, 1, true);
             sm.set_side_set_pins(pin, 1, false, true);
             sm.init();
-            sm.push_blocking(pwm_period).ok();
+            let _ = sm.push_blocking(pwm_period);
             sm.exec(pull_command);
             sm.exec(out_isr_32_command);
             sm.set_enabled(true);

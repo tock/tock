@@ -472,7 +472,7 @@ impl<'a, S: SpiMasterDevice<'a>> SpiMasterClient for Spi<'a, S> {
                     let len = app.len;
                     app.len = 0;
                     app.index = 0;
-                    kernel_data.schedule_upcall(0, (len, 0, 0)).ok();
+                    let _ = kernel_data.schedule_upcall(0, (len, 0, 0));
                 } else {
                     self.do_next_read_write(app, kernel_data);
                 }

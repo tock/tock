@@ -124,7 +124,7 @@ impl<'a, T: hil::sensors::PressureDriver<'a>> hil::sensors::PressureClient
                         ),
                         Err(err) => (kernel::errorcode::into_statuscode(Err(err)), 0, 0),
                     };
-                    upcalls.schedule_upcall(0, result).ok();
+                    let _ = upcalls.schedule_upcall(0, result);
                 }
             })
         }
