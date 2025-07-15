@@ -20,8 +20,7 @@ pub use chip::{Pc, PcComponent};
 mod interrupts;
 
 mod pic;
-
 pub mod pit;
 
-pub mod serial;
 pub mod ps2;
+pub mod serial;

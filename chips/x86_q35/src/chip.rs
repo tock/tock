@@ -4,10 +4,9 @@
 
 use core::fmt::Write;
 use core::mem::MaybeUninit;
-
 use kernel::component::Component;
+use kernel::hil::ps2_traits::PS2Traits;
 use kernel::platform::chip::Chip;
-
 use x86::mpu::PagingMPU;
 use x86::registers::bits32::paging::{PD, PT};
 use x86::support;
@@ -15,8 +14,6 @@ use x86::{Boundary, InterruptPoller};
 
 use crate::pit::{Pit, RELOAD_1KHZ};
 use crate::serial::{SerialPort, SerialPortComponent, COM1_BASE, COM2_BASE, COM3_BASE, COM4_BASE};
-
-
 
 /// Interrupt constants for legacy PC peripherals
 mod interrupt {
