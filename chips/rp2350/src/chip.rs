@@ -25,7 +25,7 @@ pub enum Processor {
 }
 
 pub struct Rp2350<'a, I: InterruptService + 'a> {
-    mpu: cortexm33::mpu::MPU,
+    mpu: cortexm33::mpu::MPU<8>,
     userspace_kernel_boundary: cortexm33::syscall::SysCall,
     interrupt_service: &'a I,
     sio: &'a SIO,
@@ -47,7 +47,7 @@ impl<'a, I: InterruptService> Rp2350<'a, I> {
 }
 
 impl<I: InterruptService> Chip for Rp2350<'_, I> {
-    type MPU = cortexm33::mpu::MPU;
+    type MPU = cortexm33::mpu::MPU<8>;
     type UserspaceKernelBoundary = cortexm33::syscall::SysCall;
 
     fn service_pending_interrupts(&self) {

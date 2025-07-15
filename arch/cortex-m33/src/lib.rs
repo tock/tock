@@ -8,16 +8,20 @@
 
 use core::fmt::Write;
 
+pub mod mpu_v8m;
+
 pub mod mpu {
+    use crate::mpu_v8m;
     use kernel::utilities::StaticRef;
-    pub type MPU = cortexm::mpu::MPU<16, 32>;
 
-    // This is the address for the Non-secure MPU, which is backwards compatible.
-    const MPU_BASE_ADDRESS: StaticRef<cortexm::mpu::MpuRegisters> =
-        unsafe { StaticRef::new(0xE002ED90 as *const cortexm::mpu::MpuRegisters) };
+    // Note: Cortex-M33 supports up to 16 regions.
+    pub type MPU<const NUM_REGIONS: usize> = mpu_v8m::MPU<NUM_REGIONS>;
 
-    pub unsafe fn new() -> MPU {
-        MPU::new(MPU_BASE_ADDRESS)
+    const MPU_BASE_ADDRESS: StaticRef<crate::mpu_v8m::MpuRegisters> =
+        unsafe { StaticRef::new(0xE000ED90 as *const crate::mpu_v8m::MpuRegisters) };
+
+    pub unsafe fn new<const NUM_REGIONS: usize>() -> mpu_v8m::MPU<NUM_REGIONS> {
+        mpu_v8m::MPU::new(MPU_BASE_ADDRESS)
     }
 }
 
