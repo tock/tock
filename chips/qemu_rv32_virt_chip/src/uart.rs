@@ -249,7 +249,14 @@ impl Uart16550<'_> {
 
         // Check if the register contained a valid interrupt at all
         if !iir.matches_all(IIR::Pending::Pending) {
-            panic!("UART 16550: interrupt without interrupt");
+            // There is no active interrupt. This happens on newer QEMU
+            // versions, where a transient interrupt occurs whose underlying
+            // interrupt condition clears on its own, but the PLIC still holds
+            // the interrupt in the asserted / pending state.
+            //
+            // In this case, we simply return and ignore the interrupt. It
+            // should already be cleared in the PLIC.
+            return;
         }
 
         // Check whether there is space for new data

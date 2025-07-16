@@ -14,13 +14,6 @@ stable QEMU target for using Tock in a virtualized RISC-V environment. This can
 be useful for CI and other purposes. In the future, this target can be extended
 to support VirtIO peripherals.
 
-Starting from at least QEMU v7.0.0 up to and including v7.1.0, QEMU cotained a
-bug which caused spurious memory access faults raised by the emulated Physical
-Memory Protection (PMP), part of the emulated RISC-V CPU core. Therefore, **this
-board requires at least QEMU v7.2.0** to function properly. Symptomps of the
-aforementioned bug are crashes of userspace processes with a memory-access fault
-reported by the kernel.
-
 Running QEMU
 ------------
 
@@ -37,24 +30,27 @@ QEMU standalone, or with a single app. These can be executed through the
 - **`run`**: Start Tock on an emulated QEMU board without an app:
 
   ```
-  tock/boards/qemu_rv32_virt $ make run
-      Finished release [optimized + debuginfo] target(s) in 0.05s
+      Finished `release` profile [optimized + debuginfo] target(s) in 0.08s
      text    data     bss     dec     hex filename
-    64880      12   11248   76140   1296c tock/target/riscv32imac-unknown-none-elf/release/qemu_rv32_virt
-  a9de4df9486d724e6bf6a3423af669903dfd2bd1fd65c1dd867ddf9d7bcbec9b  tock/target/riscv32imac-unknown-none-elf/release/qemu_rv32_virt.bin
+    87552      48   41940  129540   1fa04 target/riscv32imac-unknown-none-elf/release/qemu_rv32_virt
 
-  Running QEMU emulator version 7.0.0 (tested: 7.0.0) with
-    - kernel tock/target/riscv32imac-unknown-none-elf/release/qemu_rv32_virt.bin
+  Running QEMU emulator version 10.0.2 (tested: 8.2.7, 9.1.3; known broken: <= 8.1.5, >= 9.2.3) with
+    - kernel target/riscv32imac-unknown-none-elf/release/qemu_rv32_virt.elf
   To exit type C-a x
 
   qemu-system-riscv32 \
     -machine virt \
-    -bios tock/target/riscv32imac-unknown-none-elf/release/qemu_rv32_virt.bin \
+    -semihosting \
+    -global driver=riscv-cpu,property=smepmp,value=true \
     -global virtio-mmio.force-legacy=false \
-    -device virtio-rng-device \
-    -nographic
+    -device virtio-rng-device  \
+    -nographic \
+    -bios target/riscv32imac-unknown-none-elf/release/qemu_rv32_virt.elf
   QEMU RISC-V 32-bit "virt" machine, initialization complete.
+  - Found VirtIO EntropySource device, enabling RngDriver
+  - VirtIO NetworkCard device not found, disabling EthernetTapDriver
   Entering main loop.
+  tock$
   ```
 
 - **`run-app`**: Start Tock on an emulated QEMU board with an app:
