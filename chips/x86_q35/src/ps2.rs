@@ -1,4 +1,6 @@
-// chips/x86_q35/src/ps2.rs
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2024.
 
 use core::cell::{Cell, RefCell};
 use core::marker::PhantomData;
@@ -21,6 +23,7 @@ const TIMEOUT_LIMIT: usize = 1_000_000;
 /// Depth of the scan‑code ring buffer
 const BUFFER_SIZE: usize = 32;
 
+/// PS/2 controller driver (the “8042” peripheral)
 pub struct Ps2Controller<'a> {
     buffer: RefCell<[u8; BUFFER_SIZE]>,
     head: Cell<usize>,
@@ -28,7 +31,8 @@ pub struct Ps2Controller<'a> {
     _marker: PhantomData<&'a ()>,
 }
 
-impl<'a> Ps2Controller<'a> {
+impl Ps2Controller<'_> {
+    /// Create a new PS/2 controller instance.
     pub fn new() -> Self {
         Ps2Controller {
             buffer: RefCell::new([0; BUFFER_SIZE]),
@@ -39,7 +43,7 @@ impl<'a> Ps2Controller<'a> {
     }
 }
 
-impl<'a> PS2Traits for Ps2Controller<'a> {
+impl PS2Traits for Ps2Controller<'_> {
     fn wait_input_ready() {
         let mut cnt = 0;
         while unsafe { io::inb(PS2_STATUS_PORT) } & STATUS_INPUT_FULL != 0 {
@@ -88,7 +92,7 @@ impl<'a> PS2Traits for Ps2Controller<'a> {
                 let _ = Self::read_data();
             }
 
-            // 3) Controller self-test (0xAA → should return 0x55)
+            // 3) Controller self-test (0xAA → expect 0x55)
             Self::write_command(0xAA);
             Self::wait_output_ready();
             let res = Self::read_data();
@@ -103,7 +107,7 @@ impl<'a> PS2Traits for Ps2Controller<'a> {
             Self::write_command(0x60);
             Self::write_data(cfg);
 
-            // 5) Test keyboard port (0xAB → should return 0x00)
+            // 5) Test keyboard port (0xAB → expect 0x00)
             Self::write_command(0xAB);
             Self::wait_output_ready();
             let port_ok = Self::read_data();

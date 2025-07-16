@@ -88,7 +88,7 @@ impl<'a, const PR: u16> Chip for Pc<'a, PR> {
                         self.com3.handle_interrupt();
                     }
                     interrupt::KEYBOARD => {
-                        self.ps2.handle_interrupt();
+                        let _ = self.ps2.handle_interrupt();
                     }
                     _ => unimplemented!("interrupt {num}"),
                 }

@@ -1,3 +1,6 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2024.
 
 use crate::ErrorCode;
 
@@ -21,7 +24,7 @@ pub trait PS2Traits {
     /// Initialize the controller (self-test, config, enable IRQ, etc).
     fn init(&self);
 
-    /// Called from your IRQ stub.  Should read one byte and  
+    /// Called from your IRQ stub.  Should read one byte and
     /// return `Ok(())` or an error code.
     fn handle_interrupt(&self) -> Result<(), ErrorCode>;
 
