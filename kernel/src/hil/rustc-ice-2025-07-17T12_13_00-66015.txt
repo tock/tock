@@ -1,0 +1,33 @@
+thread 'main' panicked at /rust/deps/annotate-snippets-0.9.2/src/display_list/from_snippet.rs:275:9:
+SourceAnnotation range `(53, 55)` is bigger than source length `53`
+stack backtrace:
+   0:     0x7c54cff566e5 - std::backtrace::Backtrace::create::h5f3820685e3b8ecc
+   1:     0x7c54ce3590c5 - std::backtrace::Backtrace::force_capture::hf56ded53895093f7
+   2:     0x7c54cd39f8a1 - std[dc0440da7d90fed5]::panicking::update_hook::<alloc[30115695d1a25fb5]::boxed::Box<rustc_driver_impl[b07e60dcc714183d]::install_ice_hook::{closure#1}>>::{closure#0}
+   3:     0x7c54ce373013 - std::panicking::rust_panic_with_hook::h026e422ef4fd6b3b
+   4:     0x7c54ce372d0a - std::panicking::begin_panic_handler::{{closure}}::hce10997587822f9b
+   5:     0x7c54ce36f209 - std::sys::backtrace::__rust_end_short_backtrace::h1816a972667b4503
+   6:     0x7c54ce3729cd - __rustc[e262000787c33515]::rust_begin_unwind
+   7:     0x7c54cac88460 - core::panicking::panic_fmt::ha1c2b12394ca6114
+   8:     0x6505f3661aa5 - <annotate_snippets[19c97420d83d4e03]::display_list::structs::DisplayList as core[71dbd4a95fb1a922]::convert::From<annotate_snippets[19c97420d83d4e03]::snippet::Snippet>>::from
+   9:     0x6505f381ca91 - <rustfmt_nightly[86fc858488ee1bc1]::format_report_formatter::FormatReportFormatter as core[71dbd4a95fb1a922]::fmt::Display>::fmt
+  10:     0x7c54cea05a37 - core::fmt::write::he498a1d88439acb8
+  11:     0x7c54ce362f4e - <&std::io::stdio::Stderr as std::io::Write>::write_fmt::h2c8714bd57c2997b
+  12:     0x7c54ce363968 - std::io::stdio::_eprint::h2e06c79230ed1e4c
+  13:     0x6505f376fd21 - rustfmt[437e7e1367896e22]::format_and_emit_report::<std[dc0440da7d90fed5]::io::stdio::Stdout>
+  14:     0x6505f376e7e3 - rustfmt[437e7e1367896e22]::execute
+  15:     0x6505f37690ea - rustfmt[437e7e1367896e22]::main
+  16:     0x6505f375a7b3 - std[dc0440da7d90fed5]::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  17:     0x6505f375ad29 - std[dc0440da7d90fed5]::rt::lang_start::<()>::{closure#0}
+  18:     0x7c54cfa6f2bc - std::rt::lang_start_internal::hb18f100acc3902b7
+  19:     0x6505f3770e28 - main
+  20:     0x7c54c9629d90 - __libc_start_call_main
+                               at ./csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+  21:     0x7c54c9629e40 - __libc_start_main_impl
+                               at ./csu/../csu/libc-start.c:392:3
+  22:     0x6505f36323f9 - <unknown>
+  23:                0x0 - <unknown>
+
+
+rustc version: 1.89.0-nightly (4d051fb30 2025-05-18)
+platform: x86_64-unknown-linux-gnu

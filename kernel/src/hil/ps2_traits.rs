@@ -34,3 +34,65 @@ pub trait PS2Traits {
     /// Push one scan‐code into the ring buffer.
     fn push_code(&self, code: u8) -> Result<(), ErrorCode>;
 }
+pub trait PS2Keyboard {
+    /// Set keyboard LEDs: bit0=ScrollLock, bit1=NumLock, bit2=CapsLock.
+    fn set_leds(&self, mask: u8) -> Result<(), ErrorCode>;
+
+    /// Send Echo (0xEE) to keyboard and expect same byte back.
+    fn probe_echo(&self) -> Result<(), ErrorCode>;
+
+    /// Check if a keyboard is present (returns true on successful echo).
+    fn is_present(&self) -> bool;
+
+    /// Identify keyboard: send 0xF2, get up to 3 ID bytes and count.
+    fn identify(&self) -> Result<([u8; 3], usize), ErrorCode>;
+
+    /// Get or set current scan‑code set (0=Get, 1-3=Set).
+    /// Returns the set number on success.
+    fn scan_code_set(&self, subcmd: u8) -> Result<u8, ErrorCode>;
+
+    /// Set typematic rate and delay (0xF3 + rate_delay byte).
+    fn set_typematic(&self, rate_delay: u8) -> Result<(), ErrorCode>;
+
+    /// Enable scan-code reporting (0xF4).
+    fn enable_scanning(&self) -> Result<(), ErrorCode>;
+
+    /// Disable scan-code reporting (0xF5).
+    fn disable_scanning(&self) -> Result<(), ErrorCode>;
+
+    /// Restore default keyboard parameters (0xF6).
+    fn set_defaults(&self) -> Result<(), ErrorCode>;
+
+    /// Set all keys to auto-repeat only (0xF7, scancode set 3 only).
+    fn set_typematic_only(&self) -> Result<(), ErrorCode>;
+
+    /// Set all keys to make + release (0xF8, scancode set 3 only).
+    fn set_make_release(&self) -> Result<(), ErrorCode>;
+
+    /// Set all keys to make-only (0xF9, scancode set 3 only).
+    fn set_make_only(&self) -> Result<(), ErrorCode>;
+
+    /// Set full-full-full mode (0xFA, scancode set 3 only).
+    fn set_full_mode(&self) -> Result<(), ErrorCode>;
+
+    /// Set a specific key to auto-repeat only (0xFB, scancode set 3 only).
+    fn set_key_typematic_only(&self, scancode: u8) -> Result<(), ErrorCode>;
+
+    /// Set a specific key to make + release (0xFC, scancode set 3 only).
+    fn set_key_make_release(&self, scancode: u8) -> Result<(), ErrorCode>;
+
+    /// Set a specific key to make-only (0xFD, scancode set 3 only).
+    fn set_key_make_only(&self, scancode: u8) -> Result<(), ErrorCode>;
+
+    /// Request keyboard to resend last byte (0xFE). Returns the resent byte.
+    fn resend_last_byte(&self) -> Result<u8, ErrorCode>;
+
+    /// Reset keyboard and run self-test (0xFF). Expects ACK (0xFA), then result (0xAA pass).
+    fn reset_and_self_test(&self) -> Result<(), ErrorCode>;
+}
+
+/// Trait for consuming decoded key inputs (ASCII or keycodes).
+pub trait KBReceiver {
+    /// Called by consumers to fetch one decoded byte, `None` if none available.
+    fn receive(&self) -> Option<u8>;
+}
