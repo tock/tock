@@ -8,8 +8,8 @@
 include ../Makefile.common
 
 QEMU_CMD              := qemu-system-riscv32
-WORKING_QEMU_VERSIONS := 8.2.7, 9.1.3
-BROKEN_QEMU_VERSIONS  := <= 8.1.5, >= 9.2.3
+WORKING_QEMU_VERSIONS := 8.2.7, 9.1.3, 9.2.3, 10.0.2
+BROKEN_QEMU_VERSIONS  := <= 8.1.5
 
 # Whether a VirtIO network device shall be attached to the QEMU
 # machine, and which backend should be used. The following options are

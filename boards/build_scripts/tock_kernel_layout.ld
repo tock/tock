@@ -406,6 +406,15 @@ _sattributes = LOADADDR(.attributes);
 _eattributes = LOADADDR(.attributes) + SIZEOF(.attributes);
 _erom = ORIGIN(rom) + LENGTH(rom);
 
+/* Set the ENTRY attribute to the start of the text section, _stext. For RISC-V
+ * this should point to `.riscv.start`, which contains the `_start` symbol. For
+ * Cortex-M, this starts with the interrupt vector table.
+ *
+ * This variable is used by, e.g., QEMU to determine the entrypoint to start
+ * program execution.
+ */
+ENTRY(_stext);
+
 /* This.. this is a dirty, not-fully-understood, hack. In some way, linking is
  * a multi-pass process. i.e., if you were to ASSERT(0, "how many links")
  * you'll get three assertions printed for one invocation of rust-lld.
