@@ -6,12 +6,76 @@
 use core::cell::RefCell;
 use core::marker::PhantomData;
 use kernel::hil::ps2_traits::{KBReceiver, PS2Keyboard, PS2Traits};
+use kernel::errorcode::ErrorCode;
 
-/// Internal decoder state for PS/2 Set2 scan codes.
-///
-/// The decoder is deliberately *minimal*: it only attempts to turn key **make**
-/// events into ASCII bytes for the console capsule.  All key‑release events
-/// are consumed to keep modifier state.
+/// Public key‑event types
+
+/// High‑level keyboard event exposed to capsules.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum KeyEvent {
+    /// Printable ASCII (already affected by Shift / CapsLock).
+    Ascii(u8),
+    /// A few non‑printing keys that text UIs care about.
+    Special(SpecialKey),
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum SpecialKey {
+    Backspace,
+    Enter,
+    Tab,
+    ArrowUp,
+    ArrowDown,
+    ArrowLeft,
+    ArrowRight,
+    PauseBreak,
+}
+
+// Single‑producer / single‑consumer ring buffer for events
+const EVT_CAP: usize = 64; // power‑of‑two not required here
+
+struct EventFifo {
+    buf: [Option<KeyEvent>; EVT_CAP],
+    head: usize, // write position
+    tail: usize, // read position
+    full: bool,
+}
+
+impl EventFifo {
+    const fn new() -> Self {
+        Self {
+            buf: [None; EVT_CAP],
+            head: 0,
+            tail: 0,
+            full: false,
+        }
+    }
+
+    /// Push, overwriting the oldest event on overflow (lossy but simple).
+    #[inline]
+    fn push(&mut self, ev: KeyEvent) {
+        self.buf[self.head] = Some(ev);
+        self.head = (self.head + 1) % EVT_CAP;
+        if self.full {
+            self.tail = (self.tail + 1) % EVT_CAP; // drop oldest
+        } else if self.head == self.tail {
+            self.full = true;
+        }
+    }
+
+    #[inline]
+    fn pop(&mut self) -> Option<KeyEvent> {
+        if !self.full && self.head == self.tail {
+            return None; // empty
+        }
+        let ev = self.buf[self.tail].take();
+        self.tail = (self.tail + 1) % EVT_CAP;
+        self.full = false;
+        ev
+    }
+}
+
+/// Internal decoder state.  Only make codes generate output.
 pub struct DecoderState {
     prefix_e0: bool,
     prefix_e1: u8, // 0 = none, 1 = got E1, 2 = got E1 14
@@ -23,7 +87,7 @@ pub struct DecoderState {
 }
 
 impl DecoderState {
-    /// Create a fresh decoder (all modifiers cleared).
+    /// Fresh decoder (modifiers cleared).
     pub const fn new() -> Self {
         Self {
             prefix_e0: false,
@@ -34,9 +98,10 @@ impl DecoderState {
         }
     }
 
-    /// Feed one raw byte; returns Some(ASCII) only on key‑press.
+    /// Feed one raw scan‑code byte; returns Some(KeyEvent) on make only.
     #[inline]
-    pub fn process(&mut self, raw: u8) -> Option<u8> {
+    pub fn process(&mut self, raw: u8) -> Option<KeyEvent> {
+        // ---------------- Prefix handling ----------------
         if raw == 0xE0 {
             self.prefix_e0 = true;
             return None;
@@ -46,49 +111,41 @@ impl DecoderState {
             return None;
         }
         if self.prefix_e1 != 0 {
-            // We only care about the Pause/Break make sequence: E1 14 77 …
+            // Only handle Pause/Break (E1 14 77 …)
             match (self.prefix_e1, raw) {
                 (1, 0x14) => {
                     self.prefix_e1 = 2;
                     return None;
                 }
                 (2, 0x77) => {
-                    // Emit 0x13 (XOFF) for Pause — no standard ASCII.
                     self.prefix_e1 = 0;
-                    return Some(0x13);
+                    return Some(KeyEvent::Special(SpecialKey::PauseBreak));
                 }
                 _ => {
-                    // Unknown E1 sequence → reset.
-                    self.prefix_e1 = 0;
+                    self.prefix_e1 = 0; // unrecognised sequence
                     return None;
                 }
             }
         }
 
         if raw == 0xF0 {
-            // Next byte will be a break code.
             self.break_code = true;
             return None;
         }
 
-        // From here `raw` is a make or break code (depending on flag).
+        // At this point `raw` is a make/break code depending on flag.
         let make = !self.break_code;
         self.break_code = false;
 
-        // Modifiers first
-        // Left & right Shift (E0 12 / 59 for right, 12 for left): we only need
-        // the generic “shift” latch for ASCII generation.
+        // Modifier latches
         match raw {
             0x12 | 0x59 => {
-                if make {
-                    self.shift = true;
-                } else {
-                    self.shift = false;
-                }
-                return None; // modifiers never emit ASCII
+                // Shift (both sides)
+                self.shift = make;
+                return None;
             }
             0x58 => {
-                // CapsLock toggles on make only.
+                // CapsLock toggles on make only
                 if make {
                     self.caps_lock = !self.caps_lock;
                 }
@@ -97,19 +154,37 @@ impl DecoderState {
             _ => {}
         }
 
-        // Normal keys, boy here we go
         if !make {
-            // We ignore all releases for non‑mod keys.
-            return None;
+            return None; // ignore releases for non‑modifier keys
         }
 
-        let ascii = map_scan_to_ascii(raw, self.shift ^ self.caps_lock);
-        ascii
+        // Make => KeyEvent
+        if let Some(ascii) = map_scan_to_ascii(raw, self.shift ^ self.caps_lock) {
+            match ascii {
+                b'\n' => return Some(KeyEvent::Special(SpecialKey::Enter)),
+                0x08 => return Some(KeyEvent::Special(SpecialKey::Backspace)),
+                b'\t' => return Some(KeyEvent::Special(SpecialKey::Tab)),
+                _ => return Some(KeyEvent::Ascii(ascii)),
+            }
+        }
+
+        // Arrow keys are prefixed with E0.
+        if self.prefix_e0 {
+            self.prefix_e0 = false; // consume prefix
+            let sk = match raw {
+                0x75 => SpecialKey::ArrowUp,
+                0x72 => SpecialKey::ArrowDown,
+                0x6B => SpecialKey::ArrowLeft,
+                0x74 => SpecialKey::ArrowRight,
+                _ => return None,
+            };
+            return Some(KeyEvent::Special(sk));
+        }
+
+        None
     }
 }
 
-/// Convert a Set‑2 scan code into ASCII.  Returns `None` if the key is not
-/// representable (function keys, arrows, etc.).
 const fn map_scan_to_ascii(code: u8, shifted: bool) -> Option<u8> {
     match (code, shifted) {
         // Letters
@@ -174,6 +249,7 @@ const fn map_scan_to_ascii(code: u8, shifted: bool) -> Option<u8> {
 pub struct Keyboard<'a, C: PS2Traits> {
     ps2: &'a C,
     decoder: RefCell<DecoderState>,
+    events: RefCell<EventFifo>,
     _marker: PhantomData<&'a ()>,
 }
 
@@ -182,6 +258,7 @@ impl<'a, C: PS2Traits> Keyboard<'a, C> {
         Self {
             ps2,
             decoder: RefCell::new(DecoderState::new()),
+            events: RefCell::new(EventFifo::new()),
             _marker: PhantomData,
         }
     }
@@ -190,45 +267,126 @@ impl<'a, C: PS2Traits> Keyboard<'a, C> {
     pub fn handle_interrupt(&self) {
         let _ = self.ps2.handle_interrupt();
     }
+    /// Bottom-half: drain raw bytes and queue KeyEvents
+    pub fn poll (&self) {
+        while let Some(raw) = self.ps2.pop_scan_code() {
+            if let Some(evt) = self.decoder.borrow_mut().process(raw){
+                self.events.borrow_mut().push(evt);
+            }
+        }
+    }
+    /// Non-blocking getter for consumers
+    pub fn next_event(&self) -> Option<KeyEvent> {
+        self.events.borrow_mut().pop()
+    }
 }
 
 impl<'a, C: PS2Traits> KBReceiver for Keyboard<'a, C> {
-    /// Poll for a decoded byte (if any).
+    /// Return printable ASCII only; drop specials for legacy users.
     fn receive(&self) -> Option<u8> {
-        if let Some(raw) = self.ps2.pop_scan_code() {
-            self.decoder.borrow_mut().process(raw)
-        } else {
-            None
+        // Drain one raw byte from the controller
+        let raw = self.ps2.pop_scan_code()?;
+        // Decode it
+        match self.decoder.borrow_mut().process(raw) {
+            Some(KeyEvent::Ascii(b)) => Some(b),   // forward printable
+            _ => None,                             // swallow specials
         }
     }
 }
+
 
 /// Test
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::cell::Cell;
 
-    #[test]
-    fn letter_a() {
-        let mut d = DecoderState::new();
-        // Press 'a'
-        assert_eq!(d.process(0x1C), Some(b'a'));
-        // Release 'a' (F0 1C)
-        assert_eq!(d.process(0xF0), None);
-        assert_eq!(d.process(0x1C), None);
+    /// Minimal stub that satisfies `PS2Traits` for unit-testing.
+    ///
+    /// It implements only the methods the keyboard uses (`pop_scan_code`
+    /// and the const fns called by the command helpers are left empty).
+    struct DummyPs2 {
+        bytes: &'static [u8],
+        idx:   Cell<usize>,
     }
 
+    impl DummyPs2 {
+        const fn new(bytes: &'static [u8]) -> Self {
+            Self { bytes, idx: Cell::new(0) }
+        }
+    }
+
+    use kernel::errorcode::ErrorCode;
+
+    impl PS2Traits for DummyPs2 {
+        /*  methods the tests actually use  */
+
+        fn pop_scan_code(&self) -> Option<u8> {
+            let i = self.idx.get();
+            if i < self.bytes.len() {
+                self.idx.set(i + 1);
+                Some(self.bytes[i])
+            } else {
+                None
+            }
+        }
+
+        /* signature-correct no-ops  */
+
+        // Controller initialisation
+        fn init(&self) {}
+
+        // Host-to-device helpers
+        fn wait_input_ready() {}
+        fn write_data(_b: u8) {}
+        fn write_command(_cmd: u8) {}
+
+        // Device-to-host helper
+        fn wait_output_ready() {}
+        fn read_data() -> u8 { 0 }
+
+        // IRQ top-half
+        fn handle_interrupt(&self) -> Result<(), ErrorCode> {
+            Ok(())
+        }
+
+        // Push from ISR (unused in unit tests)
+        fn push_code(&self, _code: u8) -> Result<(), ErrorCode> {
+            Ok(())
+        }
+    }
+
+    //  Test 1: basic pump path
     #[test]
-    fn capital_a_with_shift() {
-        let mut d = DecoderState::new();
-        // Press left shift
-        assert_eq!(d.process(0x12), None);
-        // Press 'a'
-        assert_eq!(d.process(0x1C), Some(b'A'));
-        // Release 'a'
-        d.process(0xF0); d.process(0x1C);
-        // Release shift
-        d.process(0xF0); d.process(0x12);
+    fn pump_basic() {
+        // ‘a’ press, ‘a’ release (F0 1C)
+        static BYTES: &[u8] = &[0x1C, 0xF0, 0x1C];
+        let ctl = DummyPs2::new(BYTES);
+        let kb  = Keyboard::new(&ctl);
+
+        kb.poll(); // drain all bytes
+
+        assert_eq!(kb.next_event(), Some(KeyEvent::Ascii(b'a')));
+        assert_eq!(kb.next_event(), None); // release ignored
+    }
+
+    // Test 2: FIFO overflow wraps correctly
+    #[test]
+    fn overflow() {
+        // 70 × ‘a’ presses  -> EVT_CAP = 64, so oldest 6 must drop
+        const N: usize = 70;
+        static BYTES: [u8; N] = [0x1C; N]; // 70 make codes
+        let ctl = DummyPs2::new(&BYTES);
+        let kb  = Keyboard::new(&ctl);
+
+        kb.poll();
+
+        // count events left in the FIFO
+        let mut n_events = 0;
+        while kb.next_event().is_some() {
+            n_events += 1;
+        }
+        assert_eq!(n_events, EVT_CAP); // capped at 64
     }
 }

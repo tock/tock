@@ -14,6 +14,11 @@ use x86::{Boundary, InterruptPoller};
 
 use crate::pit::{Pit, RELOAD_1KHZ};
 use crate::serial::{SerialPort, SerialPortComponent, COM1_BASE, COM2_BASE, COM3_BASE, COM4_BASE};
+use crate::dv_kb::Keyboard;
+extern "Rust" {
+    /// Global keyboard object instantiated in the board setup
+    static KEYBOARD: Keyboard<'static, crate::ps2::Ps2Controller<'static>>;
+}
 
 /// Interrupt constants for legacy PC peripherals
 mod interrupt {
@@ -89,6 +94,8 @@ impl<'a, const PR: u16> Chip for Pc<'a, PR> {
                     }
                     interrupt::KEYBOARD => {
                         let _ = self.ps2.handle_interrupt();
+                        // decode + queue KeyEvent
+                        unsafe {KEYBOARD.poll();}
                     }
                     _ => unimplemented!("interrupt {num}"),
                 }
