@@ -413,7 +413,7 @@ impl Ccm {
     ///
     /// `divider` is a value bound by [1, 2^6].
     pub fn set_uart_clock_podf(&self, divider: u32) {
-        let divider = divider.max(1).min(1 << 6) - 1;
+        let divider = divider.clamp(1, 1 << 6) - 1;
         self.registers
             .cscdr1
             .modify(CSCDR1::UART_CLK_PODF.val(divider));
@@ -454,7 +454,7 @@ impl Ccm {
     ///
     /// `divider` will be clamped between 1 and 64.
     pub fn set_perclk_divider(&self, divider: u8) {
-        let divider: u32 = divider.min(64).max(1).into();
+        let divider: u32 = divider.clamp(1, 64).into();
         self.registers
             .cscmr1
             .modify(CSCMR1::PERCLK_PODF.val(divider - 1));
@@ -476,7 +476,7 @@ impl Ccm {
     ///
     /// Clamps `divider` between [1, 8].
     pub fn set_arm_divider(&self, divider: u32) {
-        let podf = divider.min(8).max(1) - 1;
+        let podf = divider.clamp(1, 8) - 1;
         self.registers.cacrr.set(podf);
         self.wait_for_handshakes();
     }
@@ -490,7 +490,7 @@ impl Ccm {
     ///
     /// Clamps `divider` between [1, 8].
     pub fn set_peripheral_clock2_divider(&self, divider: u32) {
-        let podf = divider.min(8).max(1) - 1;
+        let podf = divider.clamp(1, 8) - 1;
         self.registers
             .cbcdr
             .modify(CBCDR::PERIPH_CLK2_PODF.val(podf));
@@ -505,7 +505,7 @@ impl Ccm {
     ///
     /// Clamps `divider` between [1, 8].
     pub fn set_ahb_divider(&self, divider: u32) {
-        let podf = divider.min(8).max(1) - 1;
+        let podf = divider.clamp(1, 8) - 1;
         self.registers.cbcdr.modify(CBCDR::AHB_PODF.val(podf));
         self.wait_for_handshakes();
     }
@@ -519,7 +519,7 @@ impl Ccm {
     ///
     /// Clamps `divider` between [1, 4].
     pub fn set_ipg_divider(&self, divider: u32) {
-        let podf = divider.min(4).max(1) - 1;
+        let podf = divider.clamp(1, 4) - 1;
         self.registers.cbcdr.modify(CBCDR::IPG_PODF.val(podf));
     }
 

@@ -256,7 +256,6 @@ option_if_let_else = "allow"
 cognitive_complexity = "allow"
 
 
-manual_clamp = "allow"
 unused_peekable = "allow"
 branches_sharing_code = "allow"
 

@@ -716,7 +716,7 @@ impl<'a> hil::adc::Adc<'a> for Adc<'a> {
                 // set timer, limit to bounds
                 // f(timer) = f(adc) / (counter + 1)
                 let mut counter = (self.adc_clk_freq.get() / timer_frequency) - 1;
-                counter = cmp::max(cmp::min(counter, 0xFFFF), 0);
+                counter = counter.clamp(0, 0xFFFF);
                 self.registers
                     .itimer
                     .write(InternalTimer::ITMC.val(counter));
@@ -885,7 +885,7 @@ impl<'a> hil::adc::AdcHighSpeed<'a> for Adc<'a> {
                 // set timer, limit to bounds
                 // f(timer) = f(adc) / (counter + 1)
                 let mut counter = (self.adc_clk_freq.get() / frequency) - 1;
-                counter = cmp::max(cmp::min(counter, 0xFFFF), 0);
+                counter = counter.clamp(0, 0xFFFF);
                 self.registers
                     .itimer
                     .write(InternalTimer::ITMC.val(counter));

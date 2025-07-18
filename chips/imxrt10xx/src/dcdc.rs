@@ -142,7 +142,7 @@ impl<'a> Dcdc<'a> {
     /// Values are clamped between 800mV and 1575mV, with 25mV step
     /// sizes.
     pub fn set_target_vdd_soc(&self, millivolts: u32) {
-        let millivolts = millivolts.min(1575).max(800);
+        let millivolts = millivolts.clamp(800, 1575);
         let trg = (millivolts - 800) / 25;
         self.registers.reg3.modify(REG3::TRG.val(trg));
         while !self.registers.reg0.is_set(REG0::STS_DC_OK) {}
