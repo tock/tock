@@ -7,6 +7,7 @@ use core::cell::RefCell;
 use core::marker::PhantomData;
 use kernel::hil::ps2_traits::{KBReceiver, PS2Keyboard, PS2Traits};
 use kernel::errorcode::ErrorCode;
+use crate::ps2_cmd::send;
 
 /// Public key‑event types
 
