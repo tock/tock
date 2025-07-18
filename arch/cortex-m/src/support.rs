@@ -74,3 +74,29 @@ pub fn reset() -> ! {
         nop();
     }
 }
+
+/// Check if we are executing in an interrupt handler or not.
+///
+/// Returns `true` if the CPU is executing in an interrupt handler. Returns
+/// `false` if the chip is executing in thread mode.
+#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
+pub unsafe fn is_interrupt_context() -> bool {
+    use core::arch::asm;
+    let mut interrupt_number: u32;
+
+    // IPSR[8:0] holds the currently active interrupt
+    asm!(
+        "mrs r0, ipsr",
+        out("r0") interrupt_number,
+        options(nomem, nostack, preserves_flags)
+    );
+
+    // If IPSR[8:0] is 0 then we are in thread mode. Otherwise an interrupt has
+    // occurred and we are in some interrupt service routine.
+    (interrupt_number & 0xFF) != 0
+}
+
+#[cfg(not(any(doc, all(target_arch = "arm", target_os = "none"))))]
+pub unsafe fn is_interrupt_context() -> bool {
+    unimplemented!()
+}
