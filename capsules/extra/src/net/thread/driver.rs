@@ -314,9 +314,7 @@ impl<'a, A: time::Alarm<'a>> ThreadNetworkDriver<'a, A> {
         // userland of the reason for termination with the first argument.
 
         self.apps.each(|_, _, kernel_data| {
-            kernel_data
-                .schedule_upcall(upcall::JOINCOMPLETE, (into_statuscode(res), 0, 0))
-                .ok();
+            let _ = kernel_data.schedule_upcall(upcall::JOINCOMPLETE, (into_statuscode(res), 0, 0));
         });
     }
 

@@ -54,7 +54,7 @@ impl hil::pwm::Pwm for PioPwm<'_> {
 
         self.pio.map(|pio| {
             pio.init();
-            pio.add_program(Some(0), &path).ok();
+            let _ = pio.add_program(Some(0), &path);
             let mut custom_config = StateMachineConfiguration::default();
 
             let pin_nr = *pin as u32;
@@ -69,9 +69,9 @@ impl hil::pwm::Pwm for PioPwm<'_> {
             let sm_number = SMNumber::SM0;
             let duty_cycle = duty_cycle_percentage as u32;
             pio.pwm_program_init(sm_number, pin_nr, pwm_period, &custom_config);
-            pio.sm(sm_number)
-                .push_blocking(pwm_period * duty_cycle / (self.get_maximum_duty_cycle()) as u32)
-                .ok();
+            let _ = pio
+                .sm(sm_number)
+                .push_blocking(pwm_period * duty_cycle / (self.get_maximum_duty_cycle()) as u32);
         });
 
         Ok(())
