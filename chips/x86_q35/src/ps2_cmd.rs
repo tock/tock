@@ -29,6 +29,10 @@ impl Resp {
     pub fn as_slice(&self) -> &[u8] {
         &self.buf[..self.len]
     }
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
 }
 
 /// Send `cmd` (opcode + optional data) and collect `resp_len` bytes.
@@ -77,3 +81,47 @@ pub fn send<C: PS2Traits>(
         return Ok(resp);
     }
 }
+
+/// Testing the cmd
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::cell::Cell;
+    use kernel::errorcode::ErrorCode;
+    use kernel::hil::ps2_traits::PS2Traits;
+
+    /// Dummy controller that ACKs every byte except the first time, where it RESENDs once.
+    struct StubCtl {
+        step: Cell<u8>,
+    }
+    impl StubCtl {
+        const fn new() -> Self { Self { step: Cell::new(0) } }
+    }
+    impl PS2Traits for StubCtl {
+        fn wait_input_ready() {}
+        fn wait_output_ready() {}
+        fn write_data(_b: u8) {}
+        fn write_command(_: u8) {}
+        fn read_data() -> u8 {
+            // first call => 0xFE (RESEND), then 0xFA (ACK)
+            static mut COUNT: u8 = 0;
+            unsafe {
+                COUNT += 1;
+                if COUNT == 1 { 0xFE } else { 0xFA }
+            }
+        }
+        fn init(&self) {}
+        fn handle_interrupt(&self) -> Result<(), ErrorCode> { Ok(()) }
+        fn pop_scan_code(&self) -> Option<u8> { None }
+        fn push_code(&self, _: u8) -> Result<(), ErrorCode> { Ok(()) }
+    }
+
+    #[test]
+    fn resend_retry_succeeds() {
+        let ctl = StubCtl::new();
+        // Send “Set LEDs” (0xED) with dummy mask, expect no data bytes
+        let r = super::send(&ctl, &[0xED, 0x00], 0).unwrap();
+        assert_eq!(r.len(), 0);
+    }
+}
+

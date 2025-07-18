@@ -7,7 +7,7 @@ use core::cell::RefCell;
 use core::marker::PhantomData;
 use kernel::hil::ps2_traits::{KBReceiver, PS2Keyboard, PS2Traits};
 use kernel::errorcode::ErrorCode;
-use crate::ps2_cmd::send;
+use crate::ps2_cmd;
 
 /// Public key‑event types
 
@@ -282,20 +282,90 @@ impl<'a, C: PS2Traits> Keyboard<'a, C> {
     }
 }
 
-impl<'a, C: PS2Traits> KBReceiver for Keyboard<'a, C> {
-    /// Return printable ASCII only; drop specials for legacy users.
-    fn receive(&self) -> Option<u8> {
-        // Drain one raw byte from the controller
-        let raw = self.ps2.pop_scan_code()?;
-        // Decode it
-        match self.decoder.borrow_mut().process(raw) {
-            Some(KeyEvent::Ascii(b)) => Some(b),   // forward printable
-            _ => None,                             // swallow specials
+impl<'a, C: PS2Traits> PS2Keyboard for Keyboard<'a, C> {
+    fn set_leds(&self, mask: u8) -> Result<(), ErrorCode> {
+        ps2_cmd::send::<C>(self.ps2, &[0xED, mask & 0x07], 0).map(|_| ())
+    }
+
+    fn probe_echo(&self) -> Result<(), ErrorCode> {
+        let r = ps2_cmd::send::<C>(self.ps2, &[0xEE], 1)?;
+        (r.as_slice() == &[0xEE]).then_some(()).ok_or(ErrorCode::FAIL)
+    }
+
+    fn identify(&self) -> Result<([u8; 3], usize), ErrorCode> {
+        let r = ps2_cmd::send::<C>(self.ps2, &[0xF2], 3)?;
+        let mut ids = [0u8; 3];
+        ids[..r.len()].copy_from_slice(r.as_slice());
+        Ok((ids, r.len()))
+    }
+
+    fn scan_code_set(&self, cmd: u8) -> Result<u8, ErrorCode> {
+        let resp_len = if cmd == 0 { 1 } else { 0 };
+        let r = ps2_cmd::send::<C>(self.ps2, &[0xF0, cmd], resp_len)?;
+        Ok(if resp_len == 1 { r.as_slice()[0] } else { cmd })
+    }
+
+    fn set_typematic(&self, rate: u8) -> Result<(), ErrorCode> {
+        ps2_cmd::send::<C>(self.ps2, &[0xF3, rate & 0x7F], 0).map(|_| ())
+    }
+
+    fn enable_scanning(&self) -> Result<(), ErrorCode> {
+        ps2_cmd::send::<C>(self.ps2, &[0xF4], 0).map(|_| ())
+    }
+
+    fn disable_scanning(&self) -> Result<(), ErrorCode> {
+        ps2_cmd::send::<C>(self.ps2, &[0xF5], 0).map(|_| ())
+    }
+
+    fn set_defaults(&self) -> Result<(), ErrorCode> {
+        ps2_cmd::send::<C>(self.ps2, &[0xF6], 0).map(|_| ())
+    }
+
+    fn set_typematic_only(&self) -> Result<(), ErrorCode> {
+        ps2_cmd::send::<C>(self.ps2, &[0xF7], 0).map(|_| ())
+    }
+
+    fn set_make_release(&self) -> Result<(), ErrorCode> {
+        ps2_cmd::send::<C>(self.ps2, &[0xF8], 0).map(|_| ())
+    }
+
+    fn set_make_only(&self) -> Result<(), ErrorCode> {
+        ps2_cmd::send::<C>(self.ps2, &[0xF9], 0).map(|_| ())
+    }
+
+    fn set_full_mode(&self) -> Result<(), ErrorCode> {
+        ps2_cmd::send::<C>(self.ps2, &[0xFA], 0).map(|_| ())
+    }
+
+    fn set_key_typematic_only(&self, sc: u8) -> Result<(), ErrorCode> {
+        ps2_cmd::send::<C>(self.ps2, &[0xFB, sc], 0).map(|_| ())
+    }
+
+    fn set_key_make_release(&self, sc: u8) -> Result<(), ErrorCode> {
+        ps2_cmd::send::<C>(self.ps2, &[0xFC, sc], 0).map(|_| ())
+    }
+
+    fn set_key_make_only(&self, sc: u8) -> Result<(), ErrorCode> {
+        ps2_cmd::send::<C>(self.ps2, &[0xFD, sc], 0).map(|_| ())
+    }
+
+    fn is_present(&self) -> bool {
+        self.probe_echo().is_ok()
+    }
+
+    fn resend_last_byte(&self) -> Result<u8, ErrorCode> {
+        let r = ps2_cmd::send::<C>(self.ps2, &[0xFE], 1)?;
+        Ok(r.as_slice()[0])
+    }
+
+    fn reset_and_self_test(&self) -> Result<(), ErrorCode> {
+        let r = ps2_cmd::send::<C>(self.ps2, &[0xFF], 1)?;
+        match r.as_slice()[0] {
+            0xAA => Ok(()),
+            _    => Err(ErrorCode::FAIL),
         }
     }
 }
-
-
 /// Test
 
 #[cfg(test)]
@@ -375,7 +445,7 @@ mod tests {
     // Test 2: FIFO overflow wraps correctly
     #[test]
     fn overflow() {
-        // 70 × ‘a’ presses  -> EVT_CAP = 64, so oldest 6 must drop
+        // 70 x ‘a’ presses  => EVT_CAP = 64, so oldest 6 must drop
         const N: usize = 70;
         static BYTES: [u8; N] = [0x1C; N]; // 70 make codes
         let ctl = DummyPs2::new(&BYTES);
