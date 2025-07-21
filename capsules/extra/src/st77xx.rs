@@ -1219,6 +1219,24 @@ pub struct ST77XXScreen {
     offset: fn(rotation: ScreenRotation) -> (usize, usize),
 }
 
+impl ST77XXScreen {
+    pub const fn new(
+        init_sequence: &'static [SendCommand],
+        default_width: usize,
+        default_height: usize,
+        inverted: bool,
+        offset: fn(rotation: ScreenRotation) -> (usize, usize),
+    ) -> Self {
+        Self {
+            init_sequence,
+            default_width,
+            default_height,
+            inverted,
+            offset,
+        }
+    }
+}
+
 pub const ST7735: ST77XXScreen = ST77XXScreen {
     init_sequence: &ST7735_INIT_SEQUENCE,
     default_width: 128,
