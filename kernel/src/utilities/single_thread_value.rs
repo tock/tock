@@ -64,7 +64,7 @@ impl<T> SingleThreadValue<T> {
     where
         F: FnOnce(&T) -> R,
     {
-        f(unsafe { &*self.0.get() })
+        f(&self.0)
     }
 }
 
