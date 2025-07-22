@@ -43,33 +43,7 @@ PAGE_SIZE = DEFINED(PAGE_SIZE) ? PAGE_SIZE : 512;
 
 SECTIONS
 {
-   .stack (NOLOAD) :
-    {
-        /* Kernel stack.
-         *
-         * Tock places the kernel stack at the bottom of SRAM so that the
-         * kernel will trigger memory fault if it exceeds its stack depth,
-         * rather than silently overwriting valuable data.
-         */
-        . = ALIGN(8);
-         _sstack = .;
-
-         /* For GNU LD, we can just advance the location pointer (".") here to
-          * reserve space for the stack. That, however, doesn't seem to work
-          * for LLVM LLD. The resulting ELF has a stack section that shows the
-          * correct size, but the next section (in our case .relocate) is not
-          * moved down as well, instead it sits at the same address as .stack.
-          * To work around this, we declare a dummy buffer and then insert it
-          * here in the .stack section. This sets the stack size correctly and
-          * places the .relocate section at the correct address. */
-         KEEP(*(.stack_buffer))
-         /*. = . + 0x1000;*/  /*This is the original method. */
-
-         . = ALIGN(8);
-         _estack = .;
-    } > ram
-
-
+   
     /* STATIC ELEMENTS FOR TOCK KERNEL */
     .text :
     {
@@ -227,6 +201,31 @@ SECTIONS
 
 
 
+    .stack (NOLOAD) :
+    {
+        /* Kernel stack.
+         *
+         * Tock places the kernel stack at the bottom of SRAM so that the
+         * kernel will trigger memory fault if it exceeds its stack depth,
+         * rather than silently overwriting valuable data.
+         */
+        . = ALIGN(8);
+         _sstack = .;
+
+         /* For GNU LD, we can just advance the location pointer (".") here to
+          * reserve space for the stack. That, however, doesn't seem to work
+          * for LLVM LLD. The resulting ELF has a stack section that shows the
+          * correct size, but the next section (in our case .relocate) is not
+          * moved down as well, instead it sits at the same address as .stack.
+          * To work around this, we declare a dummy buffer and then insert it
+          * here in the .stack section. This sets the stack size correctly and
+          * places the .relocate section at the correct address. */
+         KEEP(*(.stack_buffer))
+         /*. = . + 0x1000;*/  /*This is the original method. */
+
+         . = ALIGN(8);
+         _estack = .;
+    } > ram
 
     /* Kernel data that must be relocated. This is program data that is
      * expected to live in SRAM, but is initialized with a value. This data is

@@ -22,6 +22,8 @@ MEMORY
  */
 PAGE_SIZE = 4K;
 
+INCLUDE tock_kernel_layout.ld
+
 SECTIONS
 {
     /**
@@ -36,4 +38,3 @@ SECTIONS
     } > pages
 }
 
-INCLUDE tock_kernel_layout.ld
