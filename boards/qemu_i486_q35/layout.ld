@@ -22,6 +22,14 @@ MEMORY
  */
 PAGE_SIZE = 4K;
 
+/**
+ * The order matters here as we need to make sure that qemu finds the multiboot header within the
+ * first 8K of the ELF. The multiboot header is placed at the begining of the .text section, so
+ * this section has to be is placed first in the file.
+ *  
+ * This is the reason why this INCLUDE has to be before the .pages declaration
+ */
+
 INCLUDE tock_kernel_layout.ld
 
 SECTIONS
