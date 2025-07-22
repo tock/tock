@@ -85,6 +85,7 @@ SECTIONS
          *
          * http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/BABIFJFG.html
          */
+
         KEEP(*(.vectors .vectors.*))
         KEEP(*(.irqs))
 
@@ -108,6 +109,9 @@ SECTIONS
         . = DEFINED(_start_trap) ? ALIGN(256) : ALIGN(1);
         KEEP(*(.riscv.trap_vectored));
         KEEP(*(.riscv.trap));
+
+        /* x86 */     
+        KEEP(*(.start_x86))
 
         /* .text and .rodata hold most program code and immutable constants */
         /* .gnu.linkonce hold C++ elements with vague linkage
