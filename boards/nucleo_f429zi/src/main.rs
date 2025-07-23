@@ -201,8 +201,6 @@ unsafe fn set_pin_primary_functions(
 ) {
     use kernel::hil::gpio::Configure;
 
-    syscfg.enable_clock();
-
     gpio_ports.get_port_from_port_id(PortId::B).enable_clock();
 
     // User LD2 is connected to PB07. Configure PB07 as `debug_gpio!(0, ...)`
@@ -402,6 +400,7 @@ unsafe fn start() -> (
         stm32f429zi::syscfg::Syscfg,
         stm32f429zi::syscfg::Syscfg::new(clocks)
     );
+    syscfg.enable_clock();
     syscfg.configure_ethernet_interface_mode(EthernetInterface::RMII);
 
     let exti = static_init!(
