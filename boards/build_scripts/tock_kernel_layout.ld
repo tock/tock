@@ -96,7 +96,7 @@ SECTIONS
         KEEP(*(.riscv.trap));
 
         /* x86 */     
-        KEEP(*(.start_x86))
+        KEEP(*(.x86.start))
 
         /* .text and .rodata hold most program code and immutable constants */
         /* .gnu.linkonce hold C++ elements with vague linkage

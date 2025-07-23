@@ -4,7 +4,7 @@
 
 use core::arch::naked_asm;
 
-#[unsafe(link_section = ".start_x86")]
+#[unsafe(link_section = ".x86.start")]
 #[unsafe(naked)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn start() {
