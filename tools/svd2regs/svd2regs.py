@@ -53,8 +53,6 @@ import sys
 import argparse
 from subprocess import Popen, PIPE
 from xml.etree import ElementTree as ET
-# import pydentifier
-# from cmsis_svd.parser import SVDParser
 
 try:
     from cmsis_svd.parser import SVDParser
