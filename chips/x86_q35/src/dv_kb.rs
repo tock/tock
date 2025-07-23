@@ -264,6 +264,32 @@ impl<'a, C: PS2Traits> Keyboard<'a, C> {
         }
     }
 
+    /// Full device bring-up
+    /// Controller must already be init
+    pub fn init(&self) -> Result<(), ErrorCode> {
+        use crate::ps2_cmd::send;
+
+        // Reset & self test (0xFF - expect 0xAA)
+        let r = send::<C>(self.ps2, &[0xFF], 1)?;
+        if r.as_slice() != &[0xAA] {
+            return Err(ErrorCode::FAIL);
+        }
+
+        // Use Scan-Set 2
+        send::<C>(self.ps2, &[0xF0, 0x02], 0)?;
+
+        // Restore Defaults
+        send::<C>(self.ps2, &[0xF6], 0)?;
+
+        // Typematic: 10.9 cps / 250 ms (0x20)
+        send::<C>(self.ps2, &[0xF3, 0x20], 0)?;
+
+        // Enable scanning
+        send::<C>(self.ps2, &[0xF4], 0)?;
+
+        Ok(())
+    }
+
     /// Thin top‑half: simply forward to the controller.
     pub fn handle_interrupt(&self) {
         let _ = self.ps2.handle_interrupt();
@@ -366,20 +392,17 @@ impl<'a, C: PS2Traits> PS2Keyboard for Keyboard<'a, C> {
         }
     }
 }
-/// Test
-
+/// Unit tests, compiled with cargo test
 #[cfg(test)]
 mod tests {
     use super::*;
     use core::cell::Cell;
+    use kernel::errorcode::ErrorCode;
+    use kernel::hil::ps2_traits::PS2Traits;
 
-    /// Minimal stub that satisfies `PS2Traits` for unit-testing.
-    ///
-    /// It implements only the methods the keyboard uses (`pop_scan_code`
-    /// and the const fns called by the command helpers are left empty).
     struct DummyPs2 {
         bytes: &'static [u8],
-        idx:   Cell<usize>,
+        idx: Cell<usize>,
     }
 
     impl DummyPs2 {
@@ -388,11 +411,8 @@ mod tests {
         }
     }
 
-    use kernel::errorcode::ErrorCode;
-
     impl PS2Traits for DummyPs2 {
-        /*  methods the tests actually use  */
-
+        /* functions the keyboard actually uses in these tests */
         fn pop_scan_code(&self) -> Option<u8> {
             let i = self.idx.get();
             if i < self.bytes.len() {
@@ -403,61 +423,88 @@ mod tests {
             }
         }
 
-        /* signature-correct no-ops  */
-
-        // Controller initialisation
+        /* signature-correct no-ops / dummies  */
         fn init(&self) {}
-
-        // Host-to-device helpers
         fn wait_input_ready() {}
-        fn write_data(_b: u8) {}
-        fn write_command(_cmd: u8) {}
-
-        // Device-to-host helper
+        fn write_data(_: u8) {}
+        fn write_command(_: u8) {}
         fn wait_output_ready() {}
         fn read_data() -> u8 { 0 }
-
-        // IRQ top-half
-        fn handle_interrupt(&self) -> Result<(), ErrorCode> {
-            Ok(())
-        }
-
-        // Push from ISR (unused in unit tests)
-        fn push_code(&self, _code: u8) -> Result<(), ErrorCode> {
-            Ok(())
-        }
+        fn handle_interrupt(&self) -> Result<(), ErrorCode> { Ok(()) }
+        fn push_code(&self, _: u8) -> Result<(), ErrorCode> { Ok(()) }
     }
-
-    //  Test 1: basic pump path
     #[test]
     fn pump_basic() {
-        // ‘a’ press, ‘a’ release (F0 1C)
+        // ‘a’ press, then release (F0 1C)
         static BYTES: &[u8] = &[0x1C, 0xF0, 0x1C];
         let ctl = DummyPs2::new(BYTES);
-        let kb  = Keyboard::new(&ctl);
+        let kb = Keyboard::new(&ctl);
 
         kb.poll(); // drain all bytes
 
         assert_eq!(kb.next_event(), Some(KeyEvent::Ascii(b'a')));
         assert_eq!(kb.next_event(), None); // release ignored
     }
-
-    // Test 2: FIFO overflow wraps correctly
     #[test]
     fn overflow() {
-        // 70 x ‘a’ presses  => EVT_CAP = 64, so oldest 6 must drop
+        // 70 ‘a’ presses  -> EVT_CAP = 64, so oldest 6 must drop
         const N: usize = 70;
-        static BYTES: [u8; N] = [0x1C; N]; // 70 make codes
+        static BYTES: [u8; N] = [0x1C; N];
         let ctl = DummyPs2::new(&BYTES);
-        let kb  = Keyboard::new(&ctl);
+        let kb = Keyboard::new(&ctl);
 
         kb.poll();
 
-        // count events left in the FIFO
-        let mut n_events = 0;
+        let mut count = 0;
         while kb.next_event().is_some() {
-            n_events += 1;
+            count += 1;
         }
-        assert_eq!(n_events, EVT_CAP); // capped at 64
+        assert_eq!(count, EVT_CAP); // capped at 64
+    }
+
+    #[test]
+    fn init_ok() {
+        /// Stub controller:
+        /// Every byte we send is ACKed with 0xFA.
+        ///  After the 0xFF reset command the keyboard replies 0xFA (ACK)
+        ///  followed by 0xAA (self-test pass).
+        struct AckCtl {
+            read_cnt: Cell<u8>,
+        }
+        impl AckCtl {
+            const fn new() -> Self {
+                Self { read_cnt: Cell::new(0) }
+            }
+        }
+        impl PS2Traits for AckCtl {
+            fn wait_input_ready() {}
+            fn write_data(_: u8) {}
+            fn write_command(_: u8) {}
+            fn wait_output_ready() {}
+
+            fn read_data() -> u8 {
+                // 0 -> ACK for 0xFF
+                // 1 -> 0xAA self-test pass
+                // 2+ -> ACKs for subsequent commands
+                use core::sync::atomic::{AtomicU8, Ordering};
+                static COUNTER: AtomicU8 = AtomicU8::new(0);
+                match COUNTER.fetch_add(1, Ordering::Relaxed) {
+                    0 => 0xFA,
+                    1 => 0xAA,
+                    _ => 0xFA,
+                }
+            }
+
+            /* Unused in this test */
+            fn init(&self) {}
+            fn handle_interrupt(&self) -> Result<(), ErrorCode> { Ok(()) }
+            fn pop_scan_code(&self) -> Option<u8> { None }
+            fn push_code(&self, _: u8) -> Result<(), ErrorCode> { Ok(()) }
+        }
+
+        let ctl = AckCtl::new();
+        let kb = Keyboard::new(&ctl);
+        assert!(kb.init().is_ok());
     }
 }
+

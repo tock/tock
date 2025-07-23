@@ -25,3 +25,4 @@ pub mod pit;
 pub mod ps2;
 pub mod serial;
 pub mod ps2_cmd;
+pub mod ps2_ctl;

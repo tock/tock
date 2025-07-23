@@ -165,11 +165,14 @@ impl<C: Chip> KernelResources<C> for QemuI386Q35Platform {
 
 #[no_mangle]
 unsafe extern "cdecl" fn main() {
-    // 1) Instantiate and init the PS/2 controller:
+    // Instantiate and init the PS/2 controller:
 
     let ps2_ref = PS2.write(Ps2Controller::new());
-    ps2_ref.init();
-    KEYBOARD.write(Keyboard::new(ps2_ref));
+    x86_q35::ps2_ctl::init_controller::<Ps2Controller>().expect("Ps2Controller initialization failed");
+    let kb = Keyboard::new(ps2_ref);
+    kb.init().expect("Failed to init keyboard");
+    KEYBOARD.write(kb);
+
     // ---------- BASIC INITIALIZATION -----------
 
     // Basic setup of the i486 platform
