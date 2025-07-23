@@ -340,3 +340,36 @@ pub unsafe fn disable_fpca() {
 
     unimplemented!()
 }
+
+/// Disable the MemFault exception.
+///
+/// # Notes
+///
+/// This escalates the exception to a HardFault instead of triggering a
+/// MemFault exception, so it does not _disable_ MemFault completely.
+pub unsafe fn disable_memfault() {
+    SCB.shcsr
+        .modify(SystemHandlerControlAndState::MEMFAULTENA::CLEAR);
+}
+
+/// Disable the UsageFault exception.
+///
+/// # Notes
+///
+/// This escalates the exception to a HardFault instead of triggering a
+/// UsageFault exception, so it does not _disable_ UsageFault completely.
+pub unsafe fn disable_usagefault() {
+    SCB.shcsr
+        .modify(SystemHandlerControlAndState::USGFAULTENA::CLEAR);
+}
+
+/// Disable the BusFault exception.
+///
+/// # Notes
+///
+/// This escalates the exception to a HardFault instead of triggering a
+/// BusFault exception, so it does not _disable_ BusFault completely.
+pub unsafe fn disable_busfault() {
+    SCB.shcsr
+        .modify(SystemHandlerControlAndState::BUSFAULTENA::CLEAR);
+}
