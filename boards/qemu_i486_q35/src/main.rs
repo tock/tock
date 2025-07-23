@@ -10,7 +10,6 @@
 #![cfg_attr(not(doc), no_main)]
 
 use core::ptr;
-
 use capsules_core::alarm;
 use capsules_core::console::{self, Console};
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
@@ -20,7 +19,6 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug;
 use kernel::hil;
-use kernel::hil::ps2_traits::PS2Traits;
 use kernel::ipc::IPC;
 use kernel::platform::chip::Chip;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
@@ -165,26 +163,35 @@ impl<C: Chip> KernelResources<C> for QemuI386Q35Platform {
 
 #[no_mangle]
 unsafe extern "cdecl" fn main() {
-    // Instantiate and init the PS/2 controller:
 
-    let ps2_ref = PS2.write(Ps2Controller::new());
-    x86_q35::ps2_ctl::init_controller::<Ps2Controller>().expect("Ps2Controller initialization failed");
-    let kb = Keyboard::new(ps2_ref);
-    kb.init().expect("Failed to init keyboard");
-    KEYBOARD.write(kb);
+    // -------- PS/2 controller & keyboard --------
+    let ps2_ctrl: &'static Ps2Controller = {
+        let ctrl_mut: &'static mut Ps2Controller = static_init!(
+            Ps2Controller<'static>,
+            Ps2Controller::new()
+        );
+        x86_q35::ps2_ctl::init_controller::<Ps2Controller<'static>>()
+            .expect("PS/2 controller init failed");
+        ctrl_mut
+    };
 
-    // ---------- BASIC INITIALIZATION -----------
+    let kb_val: Keyboard<'static, Ps2Controller> = {
+        let kb = Keyboard::new(ps2_ctrl);
+        kb.init().expect("Keyboard init failed");
+        kb
+    };
+    let slot: *mut Keyboard<'static, Ps2Controller> =
+        core::ptr::addr_of_mut!(KEYBOARD).cast();
+    ptr::write(slot, kb_val);
 
-    // Basic setup of the i486 platform
+    // -------- Chip initialisation --------
     let chip = PcComponent::new(
         &mut *ptr::addr_of_mut!(PAGE_DIR),
         &mut *ptr::addr_of_mut!(PAGE_TABLE),
     )
-    // PS/2
-        .with_ps2(unsafe { PS2.assume_init_ref() })
-    .finalize(x86_q35::x86_q35_component_static!());
+        .with_ps2(ps2_ctrl)
+        .finalize(x86_q35::x86_q35_component_static!());
 
-    // Smoke-test PS/2 primitives: read & write the config byte
 
     // Acquire required capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);

@@ -5,7 +5,7 @@
 //! PS/2 keyboard wrapper and Set‑2 decoder for the 8042 controller
 use core::cell::RefCell;
 use core::marker::PhantomData;
-use kernel::hil::ps2_traits::{KBReceiver, PS2Keyboard, PS2Traits};
+use kernel::hil::ps2_traits::{PS2Keyboard, PS2Traits};
 use kernel::errorcode::ErrorCode;
 use crate::ps2_cmd;
 
