@@ -1,6 +1,6 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2024.
+// Copyright Tock Contributors 2025.
 
 //! Objects guaranteed to be used by a single thread.
 
@@ -10,12 +10,15 @@
 /// access the value, and that thread may have multiple _shared_ (`&`)
 /// references to the value.
 ///
-/// It is [`Sync`] and thus appropriate for static allocations of values
-/// that are not themselves [`Sync`].
+/// It is [`Sync`] and thus appropriate for static allocations of values that
+/// are not themselves [`Sync`].
 ///
 /// # Example
 ///
 /// ```
+/// use core::cell::Cell;
+/// use kernel::utilities::single_thread_value::SingleThreadValue;
+///
 /// static FOO: SingleThreadValue<Cell<usize>> = unsafe { SingleThreadValue::new(Cell::new(123)) };
 ///
 /// fn main() {
@@ -26,10 +29,10 @@
 /// # Single-thread synchronization
 ///
 /// It is possible for the same thread to get multiple, shared, references. As a
-/// result, users must use other synchronization primitives (e.g. [`Cell`]
-/// (core::cell::Cell),[`MapCell`](tock_cells::map_cell::MapCell),[`TakeCell`]
-/// (tock_cells::take_cell::TakeCell) to allow obtaining exclusive mutable
-/// access.
+/// result, users must use other synchronization primitives (e.g.
+/// [`Cell`](core::cell::Cell), [`MapCell`](tock_cells::map_cell::MapCell), or
+/// [`TakeCell`](tock_cells::take_cell::TakeCell)) to allow obtaining exclusive
+/// mutable access.
 ///
 /// # Safety
 ///
