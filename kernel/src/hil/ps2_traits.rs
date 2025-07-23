@@ -96,3 +96,33 @@ pub trait KBReceiver {
     /// Called by consumers to fetch one decoded byte, `None` if none available.
     fn receive(&self) -> Option<u8>;
 }
+
+pub enum MousePacket {
+    /// (left, right, middle buttons state, x_delta, y_delta)
+    Relative { buttons: u8, dx: i8, dy: i8 },
+    /// (optional) Wheel or 5‑button support, if we want to expand
+    Extended {
+        buttons: u8,
+        dx: i8,
+        dy: i8,
+        wheel: i8,
+    },
+}
+
+pub trait PS2Mouse {
+    /// Reset + self‑test, returns OK or FAIL.
+    fn reset(&self) -> Result<(), ErrorCode>;
+
+    /// Enable streaming (data reporting).
+    fn enable_streaming(&self) -> Result<(), ErrorCode>;
+
+    /// Disable streaming.
+    fn disable_streaming(&self) -> Result<(), ErrorCode>;
+
+    /// Set sampling rate, protocol resolution, etc.
+    fn set_sample_rate(&self, hz: u8) -> Result<(), ErrorCode>;
+    fn set_resolution(&self, counts_per_mm: u8) -> Result<(), ErrorCode>;
+
+    /// Non‑blocking: try to pop one decoded packet.
+    fn read_packet(&self) -> Option<MousePacket>;
+}
