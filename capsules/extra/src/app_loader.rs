@@ -106,6 +106,8 @@ mod ro_allow {
     pub const COUNT: u8 = 1;
 }
 
+// Discussion regarding this buffer size value
+// can be found at: https://github.com/tock/tock/pull/4520
 pub const BUF_LEN: usize = 4096;
 
 #[derive(Default)]
