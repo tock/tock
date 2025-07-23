@@ -47,7 +47,7 @@ SECTIONS
     
     /**
      * The order matters here for the x86 platform.
-
+     *
      * We need to make sure that qemu-system-i386 finds the multiboot header within the
      * first 8K of the ELF. The multiboot header is placed at the beginning of the .text section, so
      * this section has to be placed first in the file.
