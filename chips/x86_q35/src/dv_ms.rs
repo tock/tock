@@ -4,7 +4,6 @@
 
 //! PS/2 mouse wrapper for the 8042 controller
 
-use crate::ps2_cmd;
 use core::cell::{Cell, RefCell};
 use core::marker::PhantomData;
 use kernel::errorcode::ErrorCode;
@@ -144,24 +143,58 @@ impl<'a, C: PS2Traits> Mouse<'a, C> {
         }
     }
 }
-
 impl<'a, C: PS2Traits> PS2Mouse for Mouse<'a, C> {
+    /// 1:1 scaling
     fn set_scaling_1_1(&self) -> Result<(), ErrorCode> {
         crate::ps2_cmd::send::<C>(self.controller, &[0xE6], 0).map(|_| ())
     }
+
+    /// 2:1 scaling
     fn set_scaling_2_1(&self) -> Result<(), ErrorCode> {
         crate::ps2_cmd::send::<C>(self.controller, &[0xE7], 0).map(|_| ())
     }
-    fn set_resolution(&self, r: u8) -> Result<(), ErrorCode> {
-        crate::ps2_cmd::send::<C>(self.controller, &[0xE8, r], 0).map(|_| ())
+
+    /// Resolution (0–3)
+    fn set_resolution(&self, res: u8) -> Result<(), ErrorCode> {
+        crate::ps2_cmd::send::<C>(self.controller, &[0xE8, res], 0).map(|_| ())
     }
+
+    /// Status request → 3‑byte response
     fn status_request(&self) -> Result<[u8; 3], ErrorCode> {
         let resp = crate::ps2_cmd::send::<C>(self.controller, &[0xE9], 3)?;
-        let mut out = [0; 3];
-        out[..3].copy_from_slice(resp.as_slice());
+        let mut out = [0u8; 3];
+        out.copy_from_slice(resp.as_slice());
         Ok(out)
     }
+
+    /// Read one “packet” (3 raw bytes assembled in your FIFO → decode elsewhere)
     fn read_data(&self) -> Result<MouseEvent, ErrorCode> {
         self.poll().ok_or(ErrorCode::NOMEM)
+    }
+
+    /// Remote‐mode sample‐rate setter (0xF3)
+    fn set_sample_rate(&self, rate: u8) -> Result<(), ErrorCode> {
+        crate::ps2_cmd::send::<C>(self.controller, &[0xF3, rate], 0).map(|_| ())
+    }
+
+    /// Put the device into “streaming” (push on movement)
+    fn enable_streaming(&self) -> Result<(), ErrorCode> {
+        crate::ps2_cmd::send::<C>(self.controller, &[0xF4], 0).map(|_| ())
+    }
+
+    /// Halt streaming updates
+    fn disable_streaming(&self) -> Result<(), ErrorCode> {
+        crate::ps2_cmd::send::<C>(self.controller, &[0xF5], 0).map(|_| ())
+    }
+
+    /// Reset device and verify self‐test
+    fn reset(&self) -> Result<(), ErrorCode> {
+        let resp = crate::ps2_cmd::send::<C>(self.controller, &[0xFF], 2)?;
+        // resp.as_slice() == &[0xFA, 0xAA]
+        if resp.as_slice() == &[0xAA] {
+            Ok(())
+        } else {
+            Err(ErrorCode::FAIL)
+        }
     }
 }

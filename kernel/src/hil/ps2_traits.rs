@@ -111,6 +111,10 @@ pub enum MousePacket {
 
 pub trait PS2Mouse {
     /// Reset + self‑test, returns OK or FAIL.
+    fn set_scaling_1_1(&self) -> Result<(), ErrorCode>;
+    fn set_scaling_2_1(&self) -> Result<(), ErrorCode>;
+    fn status_request(&self) -> Result<[u8; 3], ErrorCode>;
+    fn read_data(&self) -> Result<MouseEvent, ErrorCode>;
     fn reset(&self) -> Result<(), ErrorCode>;
 
     /// Enable streaming (data reporting).
@@ -122,7 +126,10 @@ pub trait PS2Mouse {
     /// Set sampling rate, protocol resolution, etc.
     fn set_sample_rate(&self, hz: u8) -> Result<(), ErrorCode>;
     fn set_resolution(&self, counts_per_mm: u8) -> Result<(), ErrorCode>;
-
-    /// Non‑blocking: try to pop one decoded packet.
-    fn read_packet(&self) -> Option<MousePacket>;
+}
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct MouseEvent {
+    pub buttons: u8,
+    pub x_movement: i8,
+    pub y_movement: i8,
 }
