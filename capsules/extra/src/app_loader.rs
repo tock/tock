@@ -71,7 +71,7 @@ use core::cmp;
 use kernel::dynamic_binary_storage;
 use kernel::errorcode::into_statuscode;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
-use kernel::process::ProcessLoadError;
+use kernel::process::{ProcessLoadError, ShortId};
 use kernel::processbuffer::ReadableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -94,8 +94,10 @@ mod upcall {
     pub const LOAD_DONE: usize = 3;
     /// Abort done callback.
     pub const ABORT_DONE: usize = 4;
+    /// Uninstall done callback.
+    pub const UNINSTALL_DONE: usize = 5;    
     /// Number of upcalls.
-    pub const COUNT: u8 = 5;
+    pub const COUNT: u8 = 6;
 }
 
 // Ids for read-only allow buffers
@@ -296,6 +298,20 @@ impl<
                 self.current_process.take();
                 kernel_data
                     .schedule_upcall(upcall::ABORT_DONE, (into_statuscode(result), 0, 0))
+                    .ok();
+            });
+        });
+    }
+
+    fn uninstall_done(&self, result: Result<(), ErrorCode>) {
+        self.current_process.map(|processid| {
+            let _ = self.apps.enter(processid, move |app, kernel_data| {
+                // And then signal the app.
+                app.pending_command = false;
+
+                self.current_process.take();
+                kernel_data
+                    .schedule_upcall(upcall::UNINSTALL_DONE, (into_statuscode(result), 0, 0))
                     .ok();
             });
         });
@@ -510,6 +526,22 @@ impl<
                     }
                     Err(e) => {
                         self.new_app_length.set(0);
+                        self.current_process.take();
+                        CommandReturn::failure(e)
+                    }
+                }
+            }
+
+            6 => {
+                // Request the kernel to uninstall an app/binary
+                // by specifying its AppID.
+                let shortid = arg1 as u32 as ShortId;
+                let result = self.storage_driver.uninstall(shortid);
+                match result {
+                    Ok(()) => {
+                        CommandReturn::success()
+                    }
+                    Err(e) => {
                         self.current_process.take();
                         CommandReturn::failure(e)
                     }

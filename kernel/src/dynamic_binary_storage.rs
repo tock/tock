@@ -36,6 +36,7 @@ pub enum State {
     AppWrite,
     Load,
     Abort,
+    Uninstall,
     PaddingWrite,
     Fail,
 }
@@ -87,6 +88,9 @@ pub trait DynamicBinaryStore {
     /// Call to abort the setup/writing process.
     fn abort(&self) -> Result<(), ErrorCode>;
 
+    /// Call to uninstall an app whose AppID is specified.
+    fn uninstall(&self, shortid: ShortId) -> Result<(), ErrorCode>;
+
     /// Sets a client for the SequentialDynamicBinaryStore Object
     ///
     /// When the client operation is done, it calls the `setup_done()`,
@@ -108,6 +112,9 @@ pub trait DynamicBinaryStoreClient {
 
     /// Canceled any setup or writing operation and freed up reserved space.
     fn abort_done(&self, result: Result<(), ErrorCode>);
+
+    /// Terminated app (if running), reclaimed memory and uninstalled binary from storage.
+    fn uninstall_done(&self, result: Result<(), ErrorCode>);
 }
 
 /// This interface supports loading processes at runtime.
@@ -426,6 +433,14 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
                     client.abort_done(Ok(()));
                 });
             }
+            State::Uninstall => {
+                self.buffer.replace(buffer);
+                // Reset metadata and let client know we are done aborting.
+                self.reset_process_loading_metadata();
+                self.storage_client.map(|client| {
+                    client.uninstall_done(Ok(()));
+                });
+            }
             State::Idle => {
                 self.buffer.replace(buffer);
             }
@@ -625,6 +640,51 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
                     }
                 } else {
                     Err(ErrorCode::FAIL)
+                }
+            }
+            _ => {
+                // We are in the wrong mode of operation. Ideally we should never reach
+                // here, but this error exists as a failsafe. The capsule should send
+                // a busy error out to the userland app.
+                Err(ErrorCode::INVAL)
+            }
+        }
+    }
+
+    fn uninstall(&self, shortid: ShortId){
+        match self.state.get() {
+            State::Idle => {
+                self.state.set(State::Uninstall);
+
+                match self.loader_driver.fetch_app_details(shortid)
+                {
+                    Ok((app_address, app_size)) => {
+                        if let Some(mut metadata) = self.process_metadata.get() {
+                            metadata.new_app_start_addr = new_app_start_address;
+                            metadata.new_app_length = app_size;
+                            self.process_metadata.set(metadata);
+                        }
+
+                        match self.loader_driver.reclaim_memory(shortid){
+                            Ok(()) => {
+                                if let Some(metadata) = self.process_metadata.get() {
+                                    // Write padding header to the beginning of the new app address.
+                                    // This ensures that the flash space is reclaimed for future use.
+                                    match self
+                                        .write_padding_app(metadata.new_app_length, metadata.new_app_start_addr)
+                                    {
+                                        Ok(()) => Ok(()),
+                                        // If uninstall() returns ErrorCode::BUSY,
+                                        // the userland app is expected to retry uninstall.
+                                        Err(_) => Err(ErrorCode::BUSY),
+                                    }
+                                } else {
+                                    Err(ErrorCode::FAIL)
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => Err(ErrorCode::FAIL)
                 }
             }
             _ => {

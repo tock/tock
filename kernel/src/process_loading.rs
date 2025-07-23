@@ -1229,6 +1229,20 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
             )),
         }
     }
+
+    pub fn fetch_app_details(&self, shortid: ShortId) -> Result<(u32, u32), ProcessLoadError> {
+        for process in self.kernel.get_process_iter() {
+            if process.short_app_id() == shortid {
+                let app_address = process.flash_start();
+                let app_size = process.flash_size();
+                return Ok((app_address, app_size));
+            }
+        }
+
+        Err(ProcessLoadError::CheckError(
+            crate::process_checker::ProcessCheckError::InvalidCredential,
+        ))
+    }
 }
 
 impl<'a, C: Chip, D: ProcessStandardDebug> ProcessLoadingAsync<'a>
