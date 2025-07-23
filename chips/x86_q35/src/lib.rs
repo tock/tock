@@ -18,8 +18,9 @@ mod chip;
 pub use chip::{Pc, PcComponent};
 
 mod interrupts;
-
+//keyboard + mouse drivers
 pub mod dv_kb;
+pub mod dv_ms;
 mod pic;
 pub mod pit;
 pub mod ps2;
