@@ -106,7 +106,7 @@ mod ro_allow {
     pub const COUNT: u8 = 1;
 }
 
-pub const BUF_LEN: usize = 512;
+pub const BUF_LEN: usize = 4096;
 
 #[derive(Default)]
 pub struct App {
