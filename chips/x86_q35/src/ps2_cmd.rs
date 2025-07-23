@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2024.
+
 //! Shared command‑queue helper for PS/2 host‑to‑device transactions
 //!
 //! Centralises the ACK/RESEND handshake and retry logic required by
@@ -18,7 +22,10 @@ pub struct Resp {
 }
 impl Resp {
     pub const fn new() -> Self {
-        Self { buf: [0; MAX_CMD], len: 0 }
+        Self {
+            buf: [0; MAX_CMD],
+            len: 0,
+        }
     }
     pub fn push(&mut self, b: u8) {
         if self.len < MAX_CMD {
@@ -32,7 +39,6 @@ impl Resp {
     pub fn len(&self) -> usize {
         self.len
     }
-
 }
 
 /// Send `cmd` (opcode + optional data) and collect `resp_len` bytes.
@@ -60,7 +66,7 @@ pub fn send<C: PS2Traits>(
 
             C::wait_output_ready();
             match C::read_data() {
-                0xFA => {}           // ACK – proceed
+                0xFA => {} // ACK – proceed
                 0xFE => {
                     retries += 1;
                     if retries > MAX_RETRIES {
@@ -95,7 +101,9 @@ mod tests {
         step: Cell<u8>,
     }
     impl StubCtl {
-        const fn new() -> Self { Self { step: Cell::new(0) } }
+        const fn new() -> Self {
+            Self { step: Cell::new(0) }
+        }
     }
     impl PS2Traits for StubCtl {
         fn wait_input_ready() {}
@@ -107,13 +115,23 @@ mod tests {
             static mut COUNT: u8 = 0;
             unsafe {
                 COUNT += 1;
-                if COUNT == 1 { 0xFE } else { 0xFA }
+                if COUNT == 1 {
+                    0xFE
+                } else {
+                    0xFA
+                }
             }
         }
         fn init(&self) {}
-        fn handle_interrupt(&self) -> Result<(), ErrorCode> { Ok(()) }
-        fn pop_scan_code(&self) -> Option<u8> { None }
-        fn push_code(&self, _: u8) -> Result<(), ErrorCode> { Ok(()) }
+        fn handle_interrupt(&self) -> Result<(), ErrorCode> {
+            Ok(())
+        }
+        fn pop_scan_code(&self) -> Option<u8> {
+            None
+        }
+        fn push_code(&self, _: u8) -> Result<(), ErrorCode> {
+            Ok(())
+        }
     }
 
     #[test]
@@ -124,4 +142,3 @@ mod tests {
         assert_eq!(r.len(), 0);
     }
 }
-

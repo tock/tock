@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2024.
+
 //! Low-level 8042 (i8042) controller bring-up.
 //! Does not touch keyboard protocol settings.
 
@@ -10,12 +14,12 @@ pub fn init_controller<C: PS2Traits>() -> Result<(), ErrorCode> {
     // Disable keyboard (port 1) and aux (port 2)
     C::write_command(0xAD);
     C::write_command(0xA7);
-    
+
     // Self-test: 0xAA - expect 0x55
     C::write_command(0xAA);
     C::wait_output_ready();
     if C::read_data() != 0x55 {
-        return Err (ErrorCode::FAIL);
+        return Err(ErrorCode::FAIL);
     }
 
     // Enable IRQ1 in config byte
@@ -30,8 +34,7 @@ pub fn init_controller<C: PS2Traits>() -> Result<(), ErrorCode> {
     C::write_command(0xAB);
     C::wait_output_ready();
     if C::read_data() != 0x00 {
-        return Err (ErrorCode::FAIL);
+        return Err(ErrorCode::FAIL);
     }
     Ok(())
-
 }

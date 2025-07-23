@@ -3,11 +3,11 @@
 // Copyright Tock Contributors 2024.
 
 //! PS/2 keyboard wrapper and Set‑2 decoder for the 8042 controller
+use crate::ps2_cmd;
 use core::cell::RefCell;
 use core::marker::PhantomData;
-use kernel::hil::ps2_traits::{PS2Keyboard, PS2Traits};
 use kernel::errorcode::ErrorCode;
-use crate::ps2_cmd;
+use kernel::hil::ps2_traits::{PS2Keyboard, PS2Traits};
 
 /// Public key‑event types
 
@@ -189,57 +189,104 @@ impl DecoderState {
 const fn map_scan_to_ascii(code: u8, shifted: bool) -> Option<u8> {
     match (code, shifted) {
         // Letters
-        (0x1C, false) => Some(b'a'), (0x1C, true) => Some(b'A'),
-        (0x32, false) => Some(b'b'), (0x32, true) => Some(b'B'),
-        (0x21, false) => Some(b'c'), (0x21, true) => Some(b'C'),
-        (0x23, false) => Some(b'd'), (0x23, true) => Some(b'D'),
-        (0x24, false) => Some(b'e'), (0x24, true) => Some(b'E'),
-        (0x2B, false) => Some(b'f'), (0x2B, true) => Some(b'F'),
-        (0x34, false) => Some(b'g'), (0x34, true) => Some(b'G'),
-        (0x33, false) => Some(b'h'), (0x33, true) => Some(b'H'),
-        (0x43, false) => Some(b'i'), (0x43, true) => Some(b'I'),
-        (0x3B, false) => Some(b'j'), (0x3B, true) => Some(b'J'),
-        (0x42, false) => Some(b'k'), (0x42, true) => Some(b'K'),
-        (0x4B, false) => Some(b'l'), (0x4B, true) => Some(b'L'),
-        (0x3A, false) => Some(b'm'), (0x3A, true) => Some(b'M'),
-        (0x31, false) => Some(b'n'), (0x31, true) => Some(b'N'),
-        (0x44, false) => Some(b'o'), (0x44, true) => Some(b'O'),
-        (0x4D, false) => Some(b'p'), (0x4D, true) => Some(b'P'),
-        (0x15, false) => Some(b'q'), (0x15, true) => Some(b'Q'),
-        (0x2D, false) => Some(b'r'), (0x2D, true) => Some(b'R'),
-        (0x1B, false) => Some(b's'), (0x1B, true) => Some(b'S'),
-        (0x2C, false) => Some(b't'), (0x2C, true) => Some(b'T'),
-        (0x3C, false) => Some(b'u'), (0x3C, true) => Some(b'U'),
-        (0x2A, false) => Some(b'v'), (0x2A, true) => Some(b'V'),
-        (0x1D, false) => Some(b'w'), (0x1D, true) => Some(b'W'),
-        (0x22, false) => Some(b'x'), (0x22, true) => Some(b'X'),
-        (0x35, false) => Some(b'y'), (0x35, true) => Some(b'Y'),
-        (0x1A, false) => Some(b'z'), (0x1A, true) => Some(b'Z'),
+        (0x1C, false) => Some(b'a'),
+        (0x1C, true) => Some(b'A'),
+        (0x32, false) => Some(b'b'),
+        (0x32, true) => Some(b'B'),
+        (0x21, false) => Some(b'c'),
+        (0x21, true) => Some(b'C'),
+        (0x23, false) => Some(b'd'),
+        (0x23, true) => Some(b'D'),
+        (0x24, false) => Some(b'e'),
+        (0x24, true) => Some(b'E'),
+        (0x2B, false) => Some(b'f'),
+        (0x2B, true) => Some(b'F'),
+        (0x34, false) => Some(b'g'),
+        (0x34, true) => Some(b'G'),
+        (0x33, false) => Some(b'h'),
+        (0x33, true) => Some(b'H'),
+        (0x43, false) => Some(b'i'),
+        (0x43, true) => Some(b'I'),
+        (0x3B, false) => Some(b'j'),
+        (0x3B, true) => Some(b'J'),
+        (0x42, false) => Some(b'k'),
+        (0x42, true) => Some(b'K'),
+        (0x4B, false) => Some(b'l'),
+        (0x4B, true) => Some(b'L'),
+        (0x3A, false) => Some(b'm'),
+        (0x3A, true) => Some(b'M'),
+        (0x31, false) => Some(b'n'),
+        (0x31, true) => Some(b'N'),
+        (0x44, false) => Some(b'o'),
+        (0x44, true) => Some(b'O'),
+        (0x4D, false) => Some(b'p'),
+        (0x4D, true) => Some(b'P'),
+        (0x15, false) => Some(b'q'),
+        (0x15, true) => Some(b'Q'),
+        (0x2D, false) => Some(b'r'),
+        (0x2D, true) => Some(b'R'),
+        (0x1B, false) => Some(b's'),
+        (0x1B, true) => Some(b'S'),
+        (0x2C, false) => Some(b't'),
+        (0x2C, true) => Some(b'T'),
+        (0x3C, false) => Some(b'u'),
+        (0x3C, true) => Some(b'U'),
+        (0x2A, false) => Some(b'v'),
+        (0x2A, true) => Some(b'V'),
+        (0x1D, false) => Some(b'w'),
+        (0x1D, true) => Some(b'W'),
+        (0x22, false) => Some(b'x'),
+        (0x22, true) => Some(b'X'),
+        (0x35, false) => Some(b'y'),
+        (0x35, true) => Some(b'Y'),
+        (0x1A, false) => Some(b'z'),
+        (0x1A, true) => Some(b'Z'),
         // Digits
-        (0x45, false) => Some(b'0'), (0x45, true) => Some(b')'),
-        (0x16, false) => Some(b'1'), (0x16, true) => Some(b'!'),
-        (0x1E, false) => Some(b'2'), (0x1E, true) => Some(b'@'),
-        (0x26, false) => Some(b'3'), (0x26, true) => Some(b'#'),
-        (0x25, false) => Some(b'4'), (0x25, true) => Some(b'$'),
-        (0x2E, false) => Some(b'5'), (0x2E, true) => Some(b'%'),
-        (0x36, false) => Some(b'6'), (0x36, true) => Some(b'^'),
-        (0x3D, false) => Some(b'7'), (0x3D, true) => Some(b'&'),
-        (0x3E, false) => Some(b'8'), (0x3E, true) => Some(b'*'),
-        (0x46, false) => Some(b'9'), (0x46, true) => Some(b'('),
+        (0x45, false) => Some(b'0'),
+        (0x45, true) => Some(b')'),
+        (0x16, false) => Some(b'1'),
+        (0x16, true) => Some(b'!'),
+        (0x1E, false) => Some(b'2'),
+        (0x1E, true) => Some(b'@'),
+        (0x26, false) => Some(b'3'),
+        (0x26, true) => Some(b'#'),
+        (0x25, false) => Some(b'4'),
+        (0x25, true) => Some(b'$'),
+        (0x2E, false) => Some(b'5'),
+        (0x2E, true) => Some(b'%'),
+        (0x36, false) => Some(b'6'),
+        (0x36, true) => Some(b'^'),
+        (0x3D, false) => Some(b'7'),
+        (0x3D, true) => Some(b'&'),
+        (0x3E, false) => Some(b'8'),
+        (0x3E, true) => Some(b'*'),
+        (0x46, false) => Some(b'9'),
+        (0x46, true) => Some(b'('),
         // Punctuation
-        (0x0E, false) => Some(b'`'), (0x0E, true) => Some(b'~'),
-        (0x4E, false) => Some(b'-'), (0x4E, true) => Some(b'_'),
-        (0x55, false) => Some(b'='), (0x55, true) => Some(b'+'),
-        (0x54, false) => Some(b'['), (0x54, true) => Some(b'{'),
-        (0x5B, false) => Some(b']'), (0x5B, true) => Some(b'}'),
-        (0x5D, false) => Some(b'\\'), (0x5D, true) => Some(b'|'),
-        (0x4C, false) => Some(b';'), (0x4C, true) => Some(b':'),
-        (0x52, false) => Some(b'\''), (0x52, true) => Some(b'"'),
-        (0x41, false) => Some(b','), (0x41, true) => Some(b'<'),
-        (0x49, false) => Some(b'.'), (0x49, true) => Some(b'>'),
-        (0x4A, false) => Some(b'/'), (0x4A, true) => Some(b'?'),
+        (0x0E, false) => Some(b'`'),
+        (0x0E, true) => Some(b'~'),
+        (0x4E, false) => Some(b'-'),
+        (0x4E, true) => Some(b'_'),
+        (0x55, false) => Some(b'='),
+        (0x55, true) => Some(b'+'),
+        (0x54, false) => Some(b'['),
+        (0x54, true) => Some(b'{'),
+        (0x5B, false) => Some(b']'),
+        (0x5B, true) => Some(b'}'),
+        (0x5D, false) => Some(b'\\'),
+        (0x5D, true) => Some(b'|'),
+        (0x4C, false) => Some(b';'),
+        (0x4C, true) => Some(b':'),
+        (0x52, false) => Some(b'\''),
+        (0x52, true) => Some(b'"'),
+        (0x41, false) => Some(b','),
+        (0x41, true) => Some(b'<'),
+        (0x49, false) => Some(b'.'),
+        (0x49, true) => Some(b'>'),
+        (0x4A, false) => Some(b'/'),
+        (0x4A, true) => Some(b'?'),
         // Whitespace & control
-        (0x29, _) => Some(b' '),   // space (shift has no effect)
+        (0x29, _) => Some(b' '),  // space (shift has no effect)
         (0x5A, _) => Some(b'\n'), // Enter
         (0x66, _) => Some(0x08),  // Backspace
         (0x0D, _) => Some(b'\t'), // Tab
@@ -271,7 +318,7 @@ impl<'a, C: PS2Traits> Keyboard<'a, C> {
 
         // Reset & self test (0xFF - expect 0xAA)
         let r = send::<C>(self.ps2, &[0xFF], 1)?;
-        if r.as_slice() != &[0xAA] {
+        if r.as_slice() != [0xAA] {
             return Err(ErrorCode::FAIL);
         }
 
@@ -295,9 +342,9 @@ impl<'a, C: PS2Traits> Keyboard<'a, C> {
         let _ = self.ps2.handle_interrupt();
     }
     /// Bottom-half: drain raw bytes and queue KeyEvents
-    pub fn poll (&self) {
+    pub fn poll(&self) {
         while let Some(raw) = self.ps2.pop_scan_code() {
-            if let Some(evt) = self.decoder.borrow_mut().process(raw){
+            if let Some(evt) = self.decoder.borrow_mut().process(raw) {
                 self.events.borrow_mut().push(evt);
             }
         }
@@ -308,14 +355,16 @@ impl<'a, C: PS2Traits> Keyboard<'a, C> {
     }
 }
 
-impl<'a, C: PS2Traits> PS2Keyboard for Keyboard<'a, C> {
+impl<C: PS2Traits> PS2Keyboard for Keyboard<'_, C> {
     fn set_leds(&self, mask: u8) -> Result<(), ErrorCode> {
         ps2_cmd::send::<C>(self.ps2, &[0xED, mask & 0x07], 0).map(|_| ())
     }
 
     fn probe_echo(&self) -> Result<(), ErrorCode> {
         let r = ps2_cmd::send::<C>(self.ps2, &[0xEE], 1)?;
-        (r.as_slice() == &[0xEE]).then_some(()).ok_or(ErrorCode::FAIL)
+        (r.as_slice() == [0xEE])
+            .then_some(())
+            .ok_or(ErrorCode::FAIL)
     }
 
     fn identify(&self) -> Result<([u8; 3], usize), ErrorCode> {
@@ -326,7 +375,7 @@ impl<'a, C: PS2Traits> PS2Keyboard for Keyboard<'a, C> {
     }
 
     fn scan_code_set(&self, cmd: u8) -> Result<u8, ErrorCode> {
-        let resp_len = if cmd == 0 { 1 } else { 0 };
+        let resp_len = usize::from(cmd == 0);
         let r = ps2_cmd::send::<C>(self.ps2, &[0xF0, cmd], resp_len)?;
         Ok(if resp_len == 1 { r.as_slice()[0] } else { cmd })
     }
@@ -388,7 +437,7 @@ impl<'a, C: PS2Traits> PS2Keyboard for Keyboard<'a, C> {
         let r = ps2_cmd::send::<C>(self.ps2, &[0xFF], 1)?;
         match r.as_slice()[0] {
             0xAA => Ok(()),
-            _    => Err(ErrorCode::FAIL),
+            _ => Err(ErrorCode::FAIL),
         }
     }
 }
@@ -407,7 +456,10 @@ mod tests {
 
     impl DummyPs2 {
         const fn new(bytes: &'static [u8]) -> Self {
-            Self { bytes, idx: Cell::new(0) }
+            Self {
+                bytes,
+                idx: Cell::new(0),
+            }
         }
     }
 
@@ -429,9 +481,15 @@ mod tests {
         fn write_data(_: u8) {}
         fn write_command(_: u8) {}
         fn wait_output_ready() {}
-        fn read_data() -> u8 { 0 }
-        fn handle_interrupt(&self) -> Result<(), ErrorCode> { Ok(()) }
-        fn push_code(&self, _: u8) -> Result<(), ErrorCode> { Ok(()) }
+        fn read_data() -> u8 {
+            0
+        }
+        fn handle_interrupt(&self) -> Result<(), ErrorCode> {
+            Ok(())
+        }
+        fn push_code(&self, _: u8) -> Result<(), ErrorCode> {
+            Ok(())
+        }
     }
     #[test]
     fn pump_basic() {
@@ -473,7 +531,9 @@ mod tests {
         }
         impl AckCtl {
             const fn new() -> Self {
-                Self { read_cnt: Cell::new(0) }
+                Self {
+                    read_cnt: Cell::new(0),
+                }
             }
         }
         impl PS2Traits for AckCtl {
@@ -497,9 +557,15 @@ mod tests {
 
             /* Unused in this test */
             fn init(&self) {}
-            fn handle_interrupt(&self) -> Result<(), ErrorCode> { Ok(()) }
-            fn pop_scan_code(&self) -> Option<u8> { None }
-            fn push_code(&self, _: u8) -> Result<(), ErrorCode> { Ok(()) }
+            fn handle_interrupt(&self) -> Result<(), ErrorCode> {
+                Ok(())
+            }
+            fn pop_scan_code(&self) -> Option<u8> {
+                None
+            }
+            fn push_code(&self, _: u8) -> Result<(), ErrorCode> {
+                Ok(())
+            }
         }
 
         let ctl = AckCtl::new();
@@ -507,4 +573,3 @@ mod tests {
         assert!(kb.init().is_ok());
     }
 }
-
