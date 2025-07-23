@@ -71,7 +71,7 @@ $(call check_defined, PLATFORM)
 $(call check_defined, TARGET)
 
 # Location of target-specific build.
-# Make sure we delete the ".json" extension if we are building a custon TARGET 
+# Make sure we delete the ".json" extension if we are building a custon TARGET
 # defined in a JSON file as cargo defines the target folder without ".json".
 TARGET_PATH := $(TARGET_DIRECTORY)$(subst .json,,$(TARGET))
 
@@ -293,7 +293,7 @@ show-target:
 	$(info $(TARGET))
 
 .PHONY: stack-analysis
-stack-analysis: $(TARGET_PATH)/release/$(PLATFORM)
+stack-analysis: $(TARGET_PATH)/release/$(PLATFORM).elf
 	@$ echo $(PLATFORM)
 	@$ echo ----------------------
 	$(Q)$(TOCK_ROOT_DIRECTORY)/tools/stack_analysis.sh $(TARGET_PATH)/release/$(PLATFORM).elf
