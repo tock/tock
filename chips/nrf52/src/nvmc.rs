@@ -363,7 +363,9 @@ impl Nvmc {
 
     fn erase_page(&self, page_number: usize) -> Result<(), ErrorCode> {
         // Do the basic erase.
-        self.erase_page_helper(page_number);
+        if !self.is_page_blank(page_number) {
+            self.erase_page_helper(page_number);
+        }
 
         // Mark that we want to trigger a pseudo interrupt so that we can issue
         // the callback even though the NVMC is completely blocking.
