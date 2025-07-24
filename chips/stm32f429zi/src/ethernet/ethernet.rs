@@ -1684,7 +1684,6 @@ impl<'a> Ethernet<'a> {
 
     fn handle_normal_interrupt(&self) {
         if self.did_transmit_interrupt_occur() {
-            self.clear_transmit_interrupt();
             self.client.map(|client| {
                 client.tx_done(
                     Ok(()),
@@ -1694,10 +1693,10 @@ impl<'a> Ethernet<'a> {
                     None,
                 )
             });
+            self.clear_transmit_interrupt();
         } else if self.did_transmit_buffer_unavailable_interrupt_occur() {
             self.clear_transmit_buffer_unavailable_interrupt();
         } else if self.did_receive_interrupt_occur() {
-            self.clear_receive_interrupt();
             self.client.map(|client| {
                 let received_packet = self.received_packet.take().unwrap();
                 client.rx_packet(received_packet, None);
@@ -1705,6 +1704,7 @@ impl<'a> Ethernet<'a> {
             });
             // Receive the following packet
             assert_eq!(Ok(()), self.receive_packet());
+            self.clear_receive_interrupt();
         } else if self.did_early_receive_interrupt_occur() {
             self.clear_early_receive_interrupt();
         }
