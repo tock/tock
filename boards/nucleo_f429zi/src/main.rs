@@ -18,6 +18,7 @@ use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::hil::ethernet::EthernetAdapter;
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
@@ -752,6 +753,8 @@ unsafe fn start() -> (
             tap_receive_buffers,
         )
     );
+
+    peripherals.ethernet.set_client(tap_ethernet);
 
     // PROCESS CONSOLE
     let process_console = components::process_console::ProcessConsoleComponent::new(
