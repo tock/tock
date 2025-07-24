@@ -91,7 +91,7 @@ jobs:
       # Setup Python and install dependencies:
       - uses: actions/setup-python@v5
       - name: Install Python Dependencies
-        run: pip install -r tools/tockbot/requirements.txt
+        run: pip install -r tools/ci/tockbot/requirements.txt
 
       # Run nightly tockbot maintenance:
       - name: Nightly Tockbot Maintenance
@@ -99,7 +99,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DRY_RUN: ${{ needs.dispatcher.outputs.dry-run == 'true' && '-n' || '' }}
         run: |
-          cd tools/tockbot/
+          cd tools/ci/tockbot/
           ./tockbot.py -v $DRY_RUN maint-nightly -c ./maint_nightly.yaml
 
   # We'd like to avoid duplicating this, either by using conditionals in the
@@ -125,7 +125,7 @@ jobs:
       # Setup Python and install dependencies:
       - uses: actions/setup-python@v5
       - name: Install Python Dependencies
-        run: pip install -r tools/tockbot/requirements.txt
+        run: pip install -r tools/ci/tockbot/requirements.txt
 
       # Run nightly tockbot maintenance:
       - name: Nightly Tockbot Maintenance
@@ -133,5 +133,5 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DRY_RUN: ${{ needs.dispatcher.outputs.dry-run == 'true' && '-n' || '' }}
         run: |
-          cd tools/tockbot/
+          cd tools/ci/tockbot/
           ./tockbot.py -v $DRY_RUN maint-nightly -c ./maint_nightly.yaml

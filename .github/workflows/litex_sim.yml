@@ -134,5 +134,5 @@ jobs:
       # Run the LiteX simulation with required options for Tock
       - name: Run various tests in the LiteX simulation using the litex-ci-runner
         run: |
-          pushd tools/litex-ci-runner
+          pushd tools/ci/litex-ci-runner
           cargo run

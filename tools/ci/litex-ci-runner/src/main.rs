@@ -134,12 +134,12 @@ fn run() -> Result<(), Error> {
         // Prepend the libtock-c path to the example apps
         let app_paths: Vec<String> = example_apps
             .iter()
-            .map(|example_path| format!("../../libtock-c/examples/{}", example_path))
+            .map(|example_path| format!("../../../libtock-c/examples/{}", example_path))
             .collect();
         let app_paths_str: Vec<&str> = app_paths.iter().map(|s| &**s).collect();
 
         let res = run_with_apps(
-            "../../target/riscv32imc-unknown-none-elf/release/litex_sim.bin",
+            "../../../target/riscv32imc-unknown-none-elf/release/litex_sim.bin",
             &app_paths_str,
             |p: &mut PtySession| -> Result<(), Error> {
                 println!("Starting test. This will compile a Verilated LiteX simulation and thus might take a bit...");
