@@ -712,7 +712,7 @@ impl<'a> Pwm<'a> {
             self.set_compare_value_a(channel_number, compare_value);
         } else {
             self.set_compare_value_b(channel_number, compare_value);
-        };
+        }
         // Finally, enable the channel
         self.set_enabled(channel_number, true);
         Ok(())

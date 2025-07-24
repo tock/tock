@@ -68,7 +68,6 @@ but the approximate definitions:
 | [Nordic nRF52-DK](nordic/nrf52dk/README.md)                       | ARM Cortex-M4    | nRF52832       | jLink      | tockloader                  | No            |
 | [Nordic nRF52840-Dongle](nordic/nrf52840_dongle/README.md)        | ARM Cortex-M4    | nRF52840       | jLink      | tockloader                  | No            |
 | [Particle Boron](particle_boron/README.md)                        | ARM Cortex-M4    | nRF52840       | jLink      | tockloader                  | No            |
-| [ACD52832](acd52832/README.md)                                    | ARM Cortex-M4    | nRF52832       | jLink      | tockloader                  | No            |
 | [MakePython nRF52840dk](makepython-nrf52840/README.md)            | ARM Cortex-M4    | nRF52840       | Bootloader | tockloader                  | No            |
 | [ST Nucleo F446RE](nucleo_f446re/README.md)                       | ARM Cortex-M4    | STM32F446      | openocd    | custom                      | https://github.com/tock/tock/issues/1827 |
 | [ST Nucleo F429ZI](nucleo_f429zi/README.md)                       | ARM Cortex-M4    | STM32F429      | openocd    | custom                      | https://github.com/tock/tock/issues/1827 |
@@ -97,6 +96,7 @@ but the approximate definitions:
 | [Teensy 4.0](teensy40/README.md)                                  | ARM Cortex-M7    | i.MX RT 1062   | custom     | custom                      | No            |
 | [Digilent Arty A-7 100T](arty_e21/README.md)                      | RISC-V RV32IMAC  | SiFive E21     | openocd    | tockloader                  | No            |
 | [MSP432 Evaluation kit MSP432P401R](msp_exp432p401r/README.md)    | ARM Cortex-M4    | MSP432P401R    | openocd    | custom                      | No            |
+| [CY8CPROTO-062-4343W](cy8cproto_62_4343_w/README.md)              | ARM Cortex-M0+   | PSoC62         | openocd    | custom                      | No            |
 
 
 ### Other
@@ -115,6 +115,7 @@ Virtual hardware platforms that are regularly tested as part of the CI.
 | [LiteX on Digilent Arty A-7](litex/arty/README.md)                | RISC-V RV32IMC   | LiteX+VexRiscV | custom     | tockloader (flash-file)[^1] | No            |
 | [Verilated LiteX Simulation](litex/sim/README.md)                 | RISC-V RV32IMC   | LiteX+VexRiscv | custom     | tockloader (flash-file)[^1] | No            |
 | [VeeR EL2 simulation](veer_el2_sim/README.md)                     | RISC-V RV32IMC   | VeeR EL2       | custom     | custom                      | No            |
+| [QEMU i486 Q53](qemu_i486_q35/README.md)                          | i468             | Q35            | custom     | custom                      | Yes           |
 
 [^1]: Tockloader is not able to interact with this board directly, but
       can be used to work on a flash-image of the board, which can in

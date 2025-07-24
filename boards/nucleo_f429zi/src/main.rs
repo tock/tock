@@ -7,12 +7,10 @@
 //! - <https://www.st.com/en/evaluation-tools/nucleo-f429zi.html>
 
 #![no_std]
-// Disable this attribute when documenting, as a workaround for
-// https://github.com/rust-lang/rust/issues/62184.
-#![cfg_attr(not(doc), no_main)]
+#![no_main]
 #![deny(missing_docs)]
 
-use core::ptr::{addr_of, addr_of_mut};
+use core::ptr::addr_of_mut;
 
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
@@ -20,6 +18,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::process::ProcessArray;
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 
@@ -36,10 +35,8 @@ pub mod io;
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
-// Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
-    [None, None, None, None];
-
+/// Static variables used by io.rs.
+static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 static mut CHIP: Option<&'static stm32f429zi::chip::Stm32f4xx<Stm32f429ziDefaultPeripherals>> =
     None;
 static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
@@ -52,7 +49,7 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
+static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 //------------------------------------------------------------------------------
 // SYSCALL DRIVER TYPE DEFINITIONS
@@ -95,7 +92,7 @@ struct NucleoF429ZI {
         'static,
         stm32f429zi::rtc::Rtc<'static>,
     >,
-    tap_ethernet: &'static capsules_extra::ethernet_app_tap::TapDriver<
+    tap_ethernet: &'static capsules_extra::ethernet_tap::EthernetTapDriver<
         'static,
         stm32f429zi::ethernet::Ethernet<'static>,
     >,
@@ -120,7 +117,7 @@ impl SyscallDriverLookup for NucleoF429ZI {
             capsules_extra::can::DRIVER_NUM => f(Some(self.can)),
             capsules_extra::dac::DRIVER_NUM => f(Some(self.dac)),
             capsules_extra::date_time::DRIVER_NUM => f(Some(self.date_time)),
-            capsules_extra::ethernet_app_tap::DRIVER_NUM => f(Some(self.tap_ethernet)),
+            capsules_extra::ethernet_tap::DRIVER_NUM => f(Some(self.tap_ethernet)),
             _ => f(None),
         }
     }
@@ -433,7 +430,13 @@ unsafe fn start() -> (
         &base_peripherals.usart3,
     );
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
+    // Create an array to hold process references.
+    let processes = components::process_array::ProcessArrayComponent::new()
+        .finalize(components::process_array_component_static!(NUM_PROCS));
+    PROCESSES = Some(processes);
+
+    // Setup space to store the core kernel data structure.
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
     let chip = static_init!(
         stm32f429zi::chip::Stm32f4xx<Stm32f429ziDefaultPeripherals>,
@@ -464,8 +467,11 @@ unsafe fn start() -> (
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux)
-        .finalize(components::debug_writer_component_static!());
+    components::debug_writer::DebugWriterComponent::new(
+        uart_mux,
+        create_capability!(capabilities::SetDebugWriterCapability),
+    )
+    .finalize(components::debug_writer_component_static!());
 
     // LEDs
 
@@ -690,10 +696,9 @@ unsafe fn start() -> (
     ));
 
     // RTC DATE TIME
-    match peripherals.rtc.rtc_init() {
-        Err(e) => debug!("{:?}", e),
-        _ => (),
-    };
+    if let Err(e) = peripherals.rtc.rtc_init() {
+        debug!("{:?}", e)
+    }
 
     let date_time = components::date_time::DateTimeComponent::new(
         board_kernel,
@@ -707,8 +712,8 @@ unsafe fn start() -> (
     // ETHERNET
     // Set up hardware receive buffers:
     let receive_buffer = static_init!(
-        [u8; capsules_extra::ethernet_app_tap::MAX_MTU],
-        [0; capsules_extra::ethernet_app_tap::MAX_MTU]
+        [u8; capsules_extra::ethernet_tap::MAX_MTU],
+        [0; capsules_extra::ethernet_tap::MAX_MTU]
     );
 
     peripherals
@@ -717,40 +722,23 @@ unsafe fn start() -> (
 
     // Create transmit buffer for tap Ethernet
     let tap_transmit_buffer = static_init!(
-        [u8; capsules_extra::ethernet_app_tap::MAX_MTU],
-        [0; capsules_extra::ethernet_app_tap::MAX_MTU]
-    );
-
-    // Create receive buffers for tap Ethernet
-    let tap_receive_buffers = static_init!(
-        [(
-            [u8; capsules_extra::ethernet_app_tap::MAX_MTU],
-            u16,
-            Option<u64>,
-            bool
-        ); 4],
-        [(
-            [0; capsules_extra::ethernet_app_tap::MAX_MTU],
-            0,
-            None,
-            false
-        ); 4]
+        [u8; capsules_extra::ethernet_tap::MAX_MTU],
+        [0; capsules_extra::ethernet_tap::MAX_MTU]
     );
 
     // Create tap ethernet
     let tap_ethernet = static_init!(
-        capsules_extra::ethernet_app_tap::TapDriver<
+        capsules_extra::ethernet_tap::EthernetTapDriver<
             'static,
             stm32f429zi::ethernet::Ethernet<'static>,
         >,
-        capsules_extra::ethernet_app_tap::TapDriver::new(
+        capsules_extra::ethernet_tap::EthernetTapDriver::new(
             &peripherals.ethernet,
             board_kernel.create_grant(
-                capsules_extra::ethernet_app_tap::DRIVER_NUM,
+                capsules_extra::ethernet_tap::DRIVER_NUM,
                 &memory_allocation_capability
             ),
             tap_transmit_buffer,
-            tap_receive_buffers,
         )
     );
 
@@ -767,7 +755,7 @@ unsafe fn start() -> (
     ));
     let _ = process_console.start();
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let nucleo_f429zi = NucleoF429ZI {
@@ -830,7 +818,6 @@ unsafe fn start() -> (
             core::ptr::addr_of_mut!(_sappmem),
             core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_management_capability,
     )

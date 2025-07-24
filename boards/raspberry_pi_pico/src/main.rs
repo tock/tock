@@ -7,12 +7,10 @@
 //! It is based on RP2040SoC SoC (Cortex M0+).
 
 #![no_std]
-// Disable this attribute when documenting, as a workaround for
-// https://github.com/rust-lang/rust/issues/62184.
-#![cfg_attr(not(doc), no_main)]
+#![no_main]
 #![deny(missing_docs)]
 
-use core::ptr::{addr_of, addr_of_mut};
+use core::ptr::addr_of_mut;
 
 use capsules_core::i2c_master::I2CMasterDriver;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
@@ -27,9 +25,10 @@ use kernel::hil::i2c::I2CMaster;
 use kernel::hil::led::LedHigh;
 use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::process::ProcessArray;
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::syscall::SyscallDriver;
-use kernel::{capabilities, create_capability, static_init, Kernel};
+use kernel::{capabilities, create_capability, static_init};
 
 use rp2040::adc::{Adc, Channel};
 use rp2040::chip::{Rp2040, Rp2040DefaultPeripherals};
@@ -51,7 +50,7 @@ mod flash_bootloader;
 /// Allocate memory for the stack
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x1500] = [0; 0x1500];
+static mut STACK_MEMORY: [u8; 0x1500] = [0; 0x1500];
 
 // Manually setting the boot header section that contains the FCB header
 #[used]
@@ -66,8 +65,8 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
-static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
-    [None; NUM_PROCS];
+/// Static variables used by io.rs.
+static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 
 static mut CHIP: Option<&'static Rp2040<Rp2040DefaultPeripherals>> = None;
 static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
@@ -150,36 +149,31 @@ impl KernelResources<Rp2040<'static, Rp2040DefaultPeripherals<'static>>> for Ras
     }
 }
 
-#[allow(dead_code)]
-extern "C" {
-    /// Entry point used for debugger
-    ///
-    /// When loaded using gdb, the Raspberry Pi Pico is not reset
-    /// by default. Without this function, gdb sets the PC to the
-    /// beginning of the flash. This is not correct, as the RP2040
-    /// has a more complex boot process.
-    ///
-    /// This function is set to be the entry point for gdb and is used
-    /// to send the RP2040 back in the bootloader so that all the boot
-    /// sequence is performed.
-    fn jump_to_bootloader();
-}
-
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
-core::arch::global_asm!(
-    "
-    .section .jump_to_bootloader, \"ax\"
-    .global jump_to_bootloader
-    .thumb_func
-  jump_to_bootloader:
+/// Entry point used for debugger
+///
+/// When loaded using gdb, the Raspberry Pi Pico is not reset
+/// by default. Without this function, gdb sets the PC to the
+/// beginning of the flash. This is not correct, as the RP2040
+/// has a more complex boot process.
+///
+/// This function is set to be the entry point for gdb and is used
+/// to send the RP2040 back in the bootloader so that all the boot
+/// sequence is performed.
+#[no_mangle]
+#[unsafe(naked)]
+pub unsafe extern "C" fn jump_to_bootloader() {
+    use core::arch::naked_asm;
+    naked_asm!(
+        "
     movs r0, #0
     ldr r1, =(0xe0000000 + 0x0000ed08)
     str r0, [r1]
     ldmia r0!, {{r1, r2}}
     msr msp, r1
     bx r2
-    "
-);
+    ",
+    );
+}
 
 fn init_clocks(peripherals: &Rp2040DefaultPeripherals) {
     // Start tick in watchdog
@@ -317,7 +311,13 @@ pub unsafe fn start() -> (
 
     CHIP = Some(chip);
 
-    let board_kernel = static_init!(Kernel, Kernel::new(&*addr_of!(PROCESSES)));
+    // Create an array to hold process references.
+    let processes = components::process_array::ProcessArrayComponent::new()
+        .finalize(components::process_array_component_static!(NUM_PROCS));
+    PROCESSES = Some(processes);
+
+    // Setup space to store the core kernel data structure.
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
     let process_management_capability =
         create_capability!(capabilities::ProcessManagementCapability);
@@ -378,8 +378,11 @@ pub unsafe fn start() -> (
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux)
-        .finalize(components::debug_writer_component_static!());
+    components::debug_writer::DebugWriterComponent::new(
+        uart_mux,
+        create_capability!(capabilities::SetDebugWriterCapability),
+    )
+    .finalize(components::debug_writer_component_static!());
 
     cdc.enable();
     cdc.attach();
@@ -453,9 +456,9 @@ pub unsafe fn start() -> (
     match peripherals.rtc.rtc_init() {
         Ok(()) => {}
         Err(e) => {
-            debug!("error starting rtc {:?}", e);
+            debug!("error starting rtc {:?}", e)
         }
-    };
+    }
 
     let date_time = components::date_time::DateTimeComponent::new(
         board_kernel,
@@ -536,7 +539,7 @@ pub unsafe fn start() -> (
     i2c0.init(10 * 1000);
     i2c0.set_master_client(i2c);
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let raspberry_pi_pico = RaspberryPiPico {
@@ -594,7 +597,6 @@ pub unsafe fn start() -> (
             core::ptr::addr_of_mut!(_sappmem),
             core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_management_capability,
     )

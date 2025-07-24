@@ -123,14 +123,16 @@ impl<const NUM_PROCS: u8> SyscallDriver for IPC<NUM_PROCS> {
     /// ### `command_num`
     ///
     /// - `0`: Driver existence check, always returns Ok(())
-    /// - `1`: Perform discovery on the package name passed to `allow_readonly`. Returns the
-    ///        service descriptor if the service is found, otherwise returns an error.
-    /// - `2`: Notify a service previously discovered to have the service descriptor in
-    ///        `target_id`. Returns an error if `target_id` refers to an invalid service or the
-    ///        notify fails to enqueue.
-    /// - `3`: Notify a client with descriptor `target_id`, typically in response to a previous
-    ///        notify from the client. Returns an error if `target_id` refers to an invalid client
-    ///        or the notify fails to enqueue.
+    /// - `1`: Perform discovery on the package name passed to `allow_readonly`.
+    ///   Returns the service descriptor if the service is found, otherwise
+    ///   returns an error.
+    /// - `2`: Notify a service previously discovered to have the service
+    ///   descriptor in `target_id`. Returns an error if `target_id` refers to
+    ///   an invalid service or the notify fails to enqueue.
+    /// - `3`: Notify a client with descriptor `target_id`, typically in
+    ///   response to a previous notify from the client. Returns an error if
+    ///   `target_id` refers to an invalid client or the notify fails to
+    ///   enqueue.
     fn command(
         &self,
         command_number: usize,

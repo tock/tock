@@ -11,12 +11,10 @@
 //! <https://hackaday.io/project/175577-hackable-nrf52840-smart-watch>
 
 #![no_std]
-// Disable this attribute when documenting, as a workaround for
-// https://github.com/rust-lang/rust/issues/62184.
-#![cfg_attr(not(doc), no_main)]
+#![no_main]
 #![deny(missing_docs)]
 
-use core::ptr::{addr_of, addr_of_mut};
+use core::ptr::addr_of;
 
 use capsules_core::virtualizers::virtual_aes_ccm::MuxAES128CCM;
 use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
@@ -29,6 +27,7 @@ use kernel::hil::screen::Screen;
 use kernel::hil::symmetric_encryption::AES128;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::process::ProcessArray;
 use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
@@ -65,8 +64,8 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 8;
 
-static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
-    [None; NUM_PROCS];
+/// Static variables used by io.rs.
+static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 
 // Static reference to chip for panic dumps
 static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>> = None;
@@ -77,7 +76,7 @@ static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::Pr
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 type Bmp280Sensor = components::bmp280::Bmp280ComponentType<
     VirtualMuxAlarm<'static, nrf52840::rtc::Rtc<'static>>,
@@ -214,7 +213,13 @@ pub unsafe fn start() -> (
     nrf52840_peripherals.init();
     let base_peripherals = &nrf52840_peripherals.nrf52;
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
+    // Create an array to hold process references.
+    let processes = components::process_array::ProcessArrayComponent::new()
+        .finalize(components::process_array_component_static!(NUM_PROCS));
+    PROCESSES = Some(processes);
+
+    // Setup space to store the core kernel data structure.
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
     // GPIOs
     let gpio = components::gpio::GpioComponent::new(
@@ -294,13 +299,13 @@ pub unsafe fn start() -> (
     // Initialize early so any panic beyond this point can use the RTT memory object.
     let uart_channel = {
         // RTT communication channel
-        let mut rtt_memory = components::segger_rtt::SeggerRttMemoryComponent::new()
+        let rtt_memory = components::segger_rtt::SeggerRttMemoryComponent::new()
             .finalize(components::segger_rtt_memory_component_static!());
 
         // TODO: This is inherently unsafe as it aliases the mutable reference to rtt_memory. This
         // aliases reference is only used inside a panic handler, which should be OK, but maybe we
         // should use a const reference to rtt_memory and leverage interior mutability instead.
-        self::io::set_rtt_memory(&*rtt_memory.get_rtt_memory_ptr());
+        self::io::set_rtt_memory(&*core::ptr::from_mut(rtt_memory.rtt_memory));
 
         components::segger_rtt::SeggerRttComponent::new(mux_alarm, rtt_memory)
             .finalize(components::segger_rtt_component_static!(nrf52840::rtc::Rtc))
@@ -329,8 +334,11 @@ pub unsafe fn start() -> (
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux)
-        .finalize(components::debug_writer_component_static!());
+    components::debug_writer::DebugWriterComponent::new(
+        uart_mux,
+        create_capability!(capabilities::SetDebugWriterCapability),
+    )
+    .finalize(components::debug_writer_component_static!());
 
     let ble_radio = components::ble::BLEComponent::new(
         board_kernel,
@@ -428,7 +436,7 @@ pub unsafe fn start() -> (
 
     nrf52_components::NrfClockComponent::new(&base_peripherals.clock).finalize(());
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let periodic_virtual_alarm = static_init!(
@@ -531,7 +539,6 @@ pub unsafe fn start() -> (
                     core::ptr::addr_of_mut!(_sappmem),
                     core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
                 ),
-                &mut *addr_of_mut!(PROCESSES),
                 &FAULT_RESPONSE,
                 &process_management_capability,
             )

@@ -5,19 +5,17 @@
 //! Tock kernel for the Nordic Semiconductor nRF52840 development kit (DK).
 
 #![no_std]
-// Disable this attribute when documenting, as a workaround for
-// https://github.com/rust-lang/rust/issues/62184.
-#![cfg_attr(not(doc), no_main)]
+#![no_main]
 #![deny(missing_docs)]
 
-use core::ptr::{addr_of, addr_of_mut};
+use core::ptr::addr_of;
 
 use kernel::component::Component;
-use kernel::debug;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::{capabilities, create_capability};
+use kernel::{capabilities, create_capability, static_init};
 use nrf52840::gpio::Pin;
-use nrf52840dk_lib::{self, PROCESSES};
+use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
+use nrf52840dk_lib::{self, NUM_PROCS};
 
 type ScreenDriver = components::screen::ScreenComponentType;
 
@@ -29,13 +27,25 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 type Ieee802154RawDriver =
     components::ieee802154::Ieee802154RawComponentType<nrf52840::ieee802154_radio::Radio<'static>>;
 
+type AES128CTREncryptionOracleDriver =
+    capsules_extra::tutorials::encryption_oracle_chkpt5::EncryptionOracleDriver<
+        'static,
+        nrf52840::aes::AesECB<'static>,
+    >;
+
 struct Platform {
     base: nrf52840dk_lib::Platform,
     ieee802154: &'static Ieee802154RawDriver,
     eui64: &'static nrf52840dk_lib::Eui64Driver,
     screen: &'static ScreenDriver,
     nonvolatile_storage:
-        &'static capsules_extra::nonvolatile_storage_driver::NonvolatileStorage<'static>,
+        &'static capsules_extra::isolated_nonvolatile_storage_driver::IsolatedNonvolatileStorage<
+            'static,
+            {
+                components::isolated_nonvolatile_storage::ISOLATED_NONVOLATILE_STORAGE_APP_REGION_SIZE_DEFAULT
+            },
+        >,
+    encryption_oracle: &'static AES128CTREncryptionOracleDriver,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -47,7 +57,10 @@ impl SyscallDriverLookup for Platform {
             capsules_extra::eui64::DRIVER_NUM => f(Some(self.eui64)),
             capsules_extra::ieee802154::DRIVER_NUM => f(Some(self.ieee802154)),
             capsules_extra::screen::DRIVER_NUM => f(Some(self.screen)),
-            capsules_extra::nonvolatile_storage_driver::DRIVER_NUM => {
+            capsules_extra::tutorials::encryption_oracle_chkpt5::DRIVER_NUM => {
+                f(Some(self.encryption_oracle))
+            }
+            capsules_extra::isolated_nonvolatile_storage_driver::DRIVER_NUM => {
                 f(Some(self.nonvolatile_storage))
             }
             _ => self.base.with_driver(driver_num, f),
@@ -118,6 +131,30 @@ pub unsafe fn main() {
     ));
 
     //--------------------------------------------------------------------------
+    // AES Encryption Oracle
+    //--------------------------------------------------------------------------
+    const CRYPT_SIZE: usize = 7 * kernel::hil::symmetric_encryption::AES128_BLOCK_SIZE;
+    let aes_src_buffer = kernel::static_init!([u8; 16], [0; 16]);
+    let aes_dst_buffer = kernel::static_init!([u8; CRYPT_SIZE], [0; CRYPT_SIZE]);
+
+    let encryption_oracle = static_init!(
+        AES128CTREncryptionOracleDriver,
+        AES128CTREncryptionOracleDriver::new(
+            &nrf52840_peripherals.nrf52.ecb,
+            aes_src_buffer,
+            aes_dst_buffer,
+            board_kernel.create_grant(
+                capsules_extra::tutorials::encryption_oracle_chkpt5::DRIVER_NUM,
+                &create_capability!(capabilities::MemoryAllocationCapability)
+            )
+        )
+    );
+
+    kernel::hil::symmetric_encryption::AES128::set_client(
+        &nrf52840_peripherals.nrf52.ecb,
+        encryption_oracle,
+    );
+    //--------------------------------------------------------------------------
     // SCREEN
     //--------------------------------------------------------------------------
 
@@ -165,18 +202,16 @@ pub unsafe fn main() {
     // 32kB of userspace-accessible storage, page aligned:
     kernel::storage_volume!(APP_STORAGE, 32);
 
-    let nonvolatile_storage = components::nonvolatile_storage::NonvolatileStorageComponent::new(
+    let nonvolatile_storage = components::isolated_nonvolatile_storage::IsolatedNonvolatileStorageComponent::new(
         board_kernel,
-        capsules_extra::nonvolatile_storage_driver::DRIVER_NUM,
+        capsules_extra::isolated_nonvolatile_storage_driver::DRIVER_NUM,
         &nrf52840_peripherals.nrf52.nvmc,
         core::ptr::addr_of!(APP_STORAGE) as usize,
-        APP_STORAGE.len(),
-        // No kernel-writeable flash:
-        core::ptr::null::<()>() as usize,
-        0,
+        APP_STORAGE.len()
     )
-    .finalize(components::nonvolatile_storage_component_static!(
-        nrf52840::nvmc::Nvmc
+    .finalize(components::isolated_nonvolatile_storage_component_static!(
+        nrf52840::nvmc::Nvmc,
+        { components::isolated_nonvolatile_storage::ISOLATED_NONVOLATILE_STORAGE_APP_REGION_SIZE_DEFAULT }
     ));
 
     //--------------------------------------------------------------------------
@@ -189,9 +224,43 @@ pub unsafe fn main() {
         ieee802154,
         screen,
         nonvolatile_storage,
+        encryption_oracle,
     };
 
-    // These symbols are defined in the linker script.
+    //--------------------------------------------------------------------------
+    // CREDENTIAL CHECKING
+    //--------------------------------------------------------------------------
+
+    // Create the credential checker.
+    let checking_policy = components::appid::checker_null::AppCheckerNullComponent::new()
+        .finalize(components::app_checker_null_component_static!());
+
+    // Create the AppID assigner.
+    let assigner = components::appid::assigner_name::AppIdAssignerNamesComponent::new()
+        .finalize(components::appid_assigner_names_component_static!());
+
+    // Create the process checking machine.
+    let checker = components::appid::checker::ProcessCheckerMachineComponent::new(checking_policy)
+        .finalize(components::process_checker_machine_component_static!());
+
+    //--------------------------------------------------------------------------
+    // STORAGE PERMISSIONS
+    //--------------------------------------------------------------------------
+
+    let storage_permissions_policy =
+        components::storage_permissions::individual::StoragePermissionsIndividualComponent::new()
+            .finalize(
+                components::storage_permissions_individual_component_static!(
+                    nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+                    kernel::process::ProcessStandardDebugFull,
+                ),
+            );
+
+    //--------------------------------------------------------------------------
+    // PROCESS LOADING
+    //--------------------------------------------------------------------------
+
+    // These symbols are defined in the standard Tock linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
         static _sapps: u8;
@@ -203,28 +272,31 @@ pub unsafe fn main() {
         static _eappmem: u8;
     }
 
-    let process_management_capability =
-        create_capability!(capabilities::ProcessManagementCapability);
+    let app_flash = core::slice::from_raw_parts(
+        core::ptr::addr_of!(_sapps),
+        core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
+    );
+    let app_memory = core::slice::from_raw_parts_mut(
+        core::ptr::addr_of_mut!(_sappmem),
+        core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
+    );
 
-    kernel::process::load_processes(
+    // Create and start the asynchronous process loader.
+    let _loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
+        checker,
         board_kernel,
         chip,
-        core::slice::from_raw_parts(
-            core::ptr::addr_of!(_sapps),
-            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-        ),
-        core::slice::from_raw_parts_mut(
-            core::ptr::addr_of_mut!(_sappmem),
-            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
-        ),
-        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
-        &process_management_capability,
+        assigner,
+        storage_permissions_policy,
+        app_flash,
+        app_memory,
     )
-    .unwrap_or_else(|err| {
-        debug!("Error loading processes!");
-        debug!("{:?}", err);
-    });
+    .finalize(components::process_loader_sequential_component_static!(
+        nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+        kernel::process::ProcessStandardDebugFull,
+        NUM_PROCS
+    ));
 
     board_kernel.kernel_loop(
         &platform,

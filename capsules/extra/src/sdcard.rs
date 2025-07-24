@@ -272,9 +272,8 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
         }
 
         // handle optional detect pin
-        let pin = detect_pin.map_or(None, |pin| {
+        let pin = detect_pin.inspect(|pin| {
             pin.make_input();
-            Some(pin)
         });
 
         // set up and return struct
@@ -1258,7 +1257,7 @@ impl<'a, A: hil::time::Alarm<'a>> SDCard<'a, A> {
 
     pub fn is_installed(&self) -> bool {
         // if there is no detect pin, assume an sd card is installed
-        self.detect_pin.get().map_or(true, |pin| {
+        self.detect_pin.get().is_none_or(|pin| {
             // sd card detection pin is active low
             !pin.read()
         })

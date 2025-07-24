@@ -48,7 +48,7 @@ impl DeferredCallClient for Rng<'_> {
         self.client.map(|client| {
             if let Continue::More = client.entropy_available(&mut RngIter(self), Ok(())) {
                 self.deferred_call.set();
-            };
+            }
         });
     }
 }

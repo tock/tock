@@ -47,22 +47,17 @@ impl IoWrite for Writer {
                     });
                 }
                 for &c in buf {
-                    unsafe {
-                        uart.send_byte(c);
-                    }
+                    unsafe { uart.send_byte(c) }
                     while !uart.tx_ready() {}
                 }
             }
-            Writer::WriterRtt(rtt_memory) => {
-                rtt_memory.write_sync(buf);
-            }
-        };
+            Writer::WriterRtt(rtt_memory) => rtt_memory.write_sync(buf),
+        }
         buf.len()
     }
 }
 
 #[cfg(not(test))]
-#[no_mangle]
 #[panic_handler]
 /// Panic handler
 pub unsafe fn panic_fmt(pi: &core::panic::PanicInfo) -> ! {
@@ -84,7 +79,7 @@ pub unsafe fn panic_fmt(pi: &core::panic::PanicInfo) -> ! {
         writer,
         pi,
         &cortexm4::support::nop,
-        &*addr_of!(PROCESSES),
+        PROCESSES.unwrap().as_slice(),
         &*addr_of!(CHIP),
         &*addr_of!(PROCESS_PRINTER),
     )

@@ -18,7 +18,7 @@
 
 use core::mem::MaybeUninit;
 use kernel::component::Component;
-use kernel::process::Process;
+use kernel::process::ProcessArray;
 use kernel::scheduler::round_robin::{RoundRobinProcessNode, RoundRobinSched};
 
 #[macro_export]
@@ -36,13 +36,11 @@ macro_rules! round_robin_component_static {
 }
 
 pub struct RoundRobinComponent<const NUM_PROCS: usize> {
-    processes: &'static [Option<&'static dyn Process>],
+    processes: &'static ProcessArray<NUM_PROCS>,
 }
 
 impl<const NUM_PROCS: usize> RoundRobinComponent<NUM_PROCS> {
-    pub fn new(
-        processes: &'static [Option<&'static dyn Process>],
-    ) -> RoundRobinComponent<NUM_PROCS> {
+    pub fn new(processes: &'static ProcessArray<NUM_PROCS>) -> RoundRobinComponent<NUM_PROCS> {
         RoundRobinComponent { processes }
     }
 }
@@ -57,8 +55,9 @@ impl<const NUM_PROCS: usize> Component for RoundRobinComponent<NUM_PROCS> {
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let scheduler = static_buffer.0.write(RoundRobinSched::new());
 
-        const UNINIT: MaybeUninit<RoundRobinProcessNode<'static>> = MaybeUninit::uninit();
-        let nodes = static_buffer.1.write([UNINIT; NUM_PROCS]);
+        let nodes = static_buffer
+            .1
+            .write([const { MaybeUninit::uninit() }; NUM_PROCS]);
 
         for (i, node) in nodes.iter_mut().enumerate() {
             let init_node = node.write(RoundRobinProcessNode::new(&self.processes[i]));

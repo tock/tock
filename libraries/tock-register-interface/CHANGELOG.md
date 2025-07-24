@@ -2,6 +2,38 @@
 
 ## master
 
+## v0.10.0
+
+This release contains some improvements to `tock-registers`. It should
+not contain breaking changes for the majority of users, except for
+those who provide custom implementations of the `UIntLike` trait.
+
+### **Breaking Changes**
+
+To support new debug infrastructure for registers, the `UIntLike` trait now has
+a supertrait-bound for the core library's `Debug` trait. To upgrade to this
+version, users who have custom implementations of `UIntLike` for downstream
+types will need to ensure that their types also implement the `Debug` trait.
+
+### Register Debugging Support
+
+https://github.com/tock/tock/pull/3771
+84a281c4a640f0216112affd3da16963d804e7ef
+add `debug()` method in registers for better human readable debug output
+
+This version adds a `debug()` method to registers implementing the `Readable`
+trait (through an auto-impl of the new `Debuggable` trait). It performs a read
+of the underlying register value and returns a type that implements
+`core::fmt::Debug` to print the register's fields and current values.
+
+### Other changes
+
+- #4230: add an example expansion of the `register_bitfields!` macro to the
+  crate's README
+- #4197: various documentation improvements
+- #3901: `test_fields!`: stringify offset and size in error messages. This
+  allows constant expressions to be used in the `register_structs!` macro.
+
 ## v0.9
 
 There is a small breaking change, described below, which addresses semantic

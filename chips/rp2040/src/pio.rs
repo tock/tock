@@ -6,11 +6,18 @@
 //         Alberto Udrea <albertoudrea4@gmail.com>
 
 //! Programmable Input Output (PIO) hardware.
+//! Refer to the RP2040 Datasheet, Section 3 for more information.
+//! RP2040 Datasheet [1].
+//!
+//! [1]: https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
 
-use kernel::debug;
+use core::cell::Cell;
+
+use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
 use kernel::utilities::registers::{register_bitfields, register_structs, ReadOnly, ReadWrite};
 use kernel::utilities::StaticRef;
+use kernel::{debug, ErrorCode};
 
 use crate::gpio::{GpioFunction, RPGpio, RPGpioPin};
 
@@ -24,7 +31,7 @@ struct InstrMem {
 }
 
 #[repr(C)]
-struct StateMachine {
+struct StateMachineReg {
     // Clock divisor register for state machine x
     // Frequency = clock freq / (CLKDIV_INT + CLKDIV_FRAC / 256)
     clkdiv: ReadWrite<u32, SMx_CLKDIV::Register>,
@@ -102,7 +109,7 @@ PioRegisters {
         // Write-only access to instruction memory locations 0-31
         (0x048 => instr_mem: [InstrMem; NUMBER_INSTR_MEMORY_LOCATIONS]),
         // State Machines
-        (0x0c8 => sm: [StateMachine; NUMBER_STATE_MACHINES]),
+        (0x0c8 => sm: [StateMachineReg; NUMBER_STATE_MACHINES]),
         // Raw Interrupts
         (0x128 => intr: ReadWrite<u32, INTR::Register>),
         // Interrupt Enable for irq0
@@ -173,9 +180,15 @@ FSTAT [
     TXFULL1 OFFSET(17) NUMBITS(1) [],
     TXFULL0 OFFSET(16) NUMBITS(1) [],
     // State machine RX FIFO is empty
-    RXEMPTY OFFSET(8) NUMBITS(4) [],
+    RXEMPTY3 OFFSET(11) NUMBITS(1) [],
+    RXEMPTY2 OFFSET(10) NUMBITS(1) [],
+    RXEMPTY1 OFFSET(9) NUMBITS(1) [],
+    RXEMPTY0 OFFSET(8) NUMBITS(1) [],
     // State machine RX FIFO is full
-    RXFULL OFFSET(0) NUMBITS(4) []
+    RXFULL3 OFFSET(3) NUMBITS(1) [],
+    RXFULL2 OFFSET(2) NUMBITS(1) [],
+    RXFULL1 OFFSET(1) NUMBITS(1) [],
+    RXFULL0 OFFSET(0) NUMBITS(1) []
 ],
 FDEBUG [
     // State machine has stalled on empty TX FIFO during a
@@ -430,17 +443,17 @@ IRQ0_INTF [
     SM0_RXNEMPTY OFFSET(0) NUMBITS(1) []
 ],
 IRQ0_INTS [
-    SM3 OFFSET(0) NUMBITS(1) [],
-    SM2 OFFSET(0) NUMBITS(1) [],
-    SM1 OFFSET(0) NUMBITS(1) [],
-    SM0 OFFSET(0) NUMBITS(1) [],
-    SM3_TXNFULL OFFSET(0) NUMBITS(1) [],
-    SM2_TXNFULL OFFSET(0) NUMBITS(1) [],
-    SM1_TXNFULL OFFSET(0) NUMBITS(1) [],
-    SM0_TXNFULL OFFSET(0) NUMBITS(1) [],
-    SM3_RXNEMPTY OFFSET(0) NUMBITS(1) [],
-    SM2_RXNEMPTY OFFSET(0) NUMBITS(1) [],
-    SM1_RXNEMPTY OFFSET(0) NUMBITS(1) [],
+    SM3 OFFSET(11) NUMBITS(1) [],
+    SM2 OFFSET(10) NUMBITS(1) [],
+    SM1 OFFSET(9) NUMBITS(1) [],
+    SM0 OFFSET(8) NUMBITS(1) [],
+    SM3_TXNFULL OFFSET(7) NUMBITS(1) [],
+    SM2_TXNFULL OFFSET(6) NUMBITS(1) [],
+    SM1_TXNFULL OFFSET(5) NUMBITS(1) [],
+    SM0_TXNFULL OFFSET(4) NUMBITS(1) [],
+    SM3_RXNEMPTY OFFSET(3) NUMBITS(1) [],
+    SM2_RXNEMPTY OFFSET(2) NUMBITS(1) [],
+    SM1_RXNEMPTY OFFSET(1) NUMBITS(1) [],
     SM0_RXNEMPTY OFFSET(0) NUMBITS(1) []
 ],
 IRQ1_INTE [
@@ -506,6 +519,61 @@ const PIO1_SET_BASE: StaticRef<PioRegisters> =
 const PIO1_CLEAR_BASE: StaticRef<PioRegisters> =
     unsafe { StaticRef::new((PIO_1_BASE_ADDRESS + 0x3000) as *const PioRegisters) };
 
+/// Represents a relocated PIO program.
+///
+/// An [Iterator] that yields the original program except `JMP` instructions have
+/// relocated target addresses based on an origin.
+pub struct RelocatedProgram<'a, I>
+where
+    I: Iterator<Item = &'a u16>,
+{
+    iter: I,
+    origin: usize,
+}
+
+impl<'a, I> RelocatedProgram<'a, I>
+where
+    I: Iterator<Item = &'a u16>,
+{
+    fn new(iter: I, origin: usize) -> Self {
+        Self { iter, origin }
+    }
+}
+
+impl<'a, I> Iterator for RelocatedProgram<'a, I>
+where
+    I: Iterator<Item = &'a u16>,
+{
+    type Item = u16;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(|&instr| {
+            if instr & 0b1110_0000_0000_0000 == 0 {
+                // this is a JMP instruction -> add offset to address
+                let address = instr & 0b1_1111;
+                let address = address.wrapping_add(self.origin as u16) % 32;
+                instr & (!0b11111) | address
+            } else {
+                instr
+            }
+        })
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct LoadedProgram {
+    used_memory: u32,
+    origin: usize,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ProgramError {
+    /// Insufficient consecutive free instruction space to load program.
+    InsufficientSpace,
+    /// Loading a program would overwrite the existing one
+    AddrInUse(usize),
+}
+
 /// There are a total of 4 State Machines per PIO.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum SMNumber {
@@ -515,52 +583,14 @@ pub enum SMNumber {
     SM3 = 3,
 }
 
+/// Array of all SMNumbers, used for convenience in Pio constructor
+const SM_NUMBERS: [SMNumber; 4] = [SMNumber::SM0, SMNumber::SM1, SMNumber::SM2, SMNumber::SM3];
+
 /// There can be 2 PIOs per RP2040.
-#[derive(PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum PIONumber {
     PIO0 = 0,
     PIO1 = 1,
-}
-
-impl RPGpio {
-    fn from_u32(value: u32) -> RPGpio {
-        match value {
-            0 => RPGpio::GPIO0,
-            1 => RPGpio::GPIO1,
-            2 => RPGpio::GPIO2,
-            3 => RPGpio::GPIO3,
-            4 => RPGpio::GPIO4,
-            5 => RPGpio::GPIO5,
-            6 => RPGpio::GPIO6,
-            7 => RPGpio::GPIO7,
-            8 => RPGpio::GPIO8,
-            9 => RPGpio::GPIO9,
-            10 => RPGpio::GPIO10,
-            11 => RPGpio::GPIO11,
-            12 => RPGpio::GPIO12,
-            13 => RPGpio::GPIO13,
-            14 => RPGpio::GPIO14,
-            15 => RPGpio::GPIO15,
-            16 => RPGpio::GPIO16,
-            17 => RPGpio::GPIO17,
-            18 => RPGpio::GPIO18,
-            19 => RPGpio::GPIO19,
-            20 => RPGpio::GPIO20,
-            21 => RPGpio::GPIO21,
-            22 => RPGpio::GPIO22,
-            23 => RPGpio::GPIO23,
-            24 => RPGpio::GPIO24,
-            25 => RPGpio::GPIO25,
-            26 => RPGpio::GPIO26,
-            27 => RPGpio::GPIO27,
-            28 => RPGpio::GPIO28,
-            29 => RPGpio::GPIO29,
-            _ => panic!(
-                "Unknown value for GPIO pin: {} (should be from 0 to 29)",
-                value
-            ),
-        }
-    }
 }
 
 /// The FIFO queues can be joined together for twice the length in one direction.
@@ -588,14 +618,613 @@ pub enum InterruptSources {
     Sm3RXNotEmpty = 11,
 }
 
-const STATE_MACHINE_NUMBERS: [SMNumber; NUMBER_STATE_MACHINES] =
-    [SMNumber::SM0, SMNumber::SM1, SMNumber::SM2, SMNumber::SM3];
+pub trait PioTxClient {
+    fn on_buffer_space_available(&self);
+}
+
+pub trait PioRxClient {
+    fn on_data_received(&self, data: u32);
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+enum StateMachineState {
+    #[default]
+    Ready,
+    Waiting,
+}
+
+pub struct StateMachine {
+    sm_number: SMNumber,
+    registers: StaticRef<PioRegisters>,
+    xor_registers: StaticRef<PioRegisters>,
+    set_registers: StaticRef<PioRegisters>,
+    tx_state: Cell<StateMachineState>,
+    tx_client: OptionalCell<&'static dyn PioTxClient>,
+    rx_state: Cell<StateMachineState>,
+    rx_client: OptionalCell<&'static dyn PioRxClient>,
+}
+
+impl StateMachine {
+    fn new(
+        sm_id: SMNumber,
+        registers: StaticRef<PioRegisters>,
+        xor_registers: StaticRef<PioRegisters>,
+        set_registers: StaticRef<PioRegisters>,
+    ) -> StateMachine {
+        StateMachine {
+            sm_number: sm_id,
+            registers,
+            xor_registers,
+            set_registers,
+            tx_state: Cell::new(StateMachineState::Ready),
+            tx_client: OptionalCell::empty(),
+            rx_state: Cell::new(StateMachineState::Ready),
+            rx_client: OptionalCell::empty(),
+        }
+    }
+
+    /// State machine configuration with any config structure.
+    pub fn config(&self, config: &StateMachineConfiguration) {
+        self.set_in_pins(config.in_pins_base);
+        self.set_out_pins(config.out_pins_base, config.out_pins_count);
+        self.set_set_pins(config.set_pins_base, config.set_pins_count);
+        self.set_side_set_pins(
+            config.side_set_base,
+            config.side_set_bit_count,
+            config.side_set_opt_enable,
+            config.side_set_pindirs,
+        );
+        self.set_in_shift(
+            config.in_shift_direction_right,
+            config.in_autopush,
+            config.in_push_threshold,
+        );
+        self.set_out_shift(
+            config.out_shift_direction_right,
+            config.out_autopull,
+            config.out_pull_threshold,
+        );
+        self.set_jmp_pin(config.jmp_pin);
+        self.set_wrap(config.wrap_to, config.wrap);
+        self.set_mov_status(config.mov_status_sel, config.mov_status_n);
+        self.set_out_special(
+            config.out_special_sticky,
+            config.out_special_has_enable_pin,
+            config.out_special_enable_pin_index,
+        );
+        self.set_clkdiv_int_frac(config.div_int, config.div_frac);
+    }
+
+    /// Set tx client for a state machine.
+    pub fn set_tx_client(&self, client: &'static dyn PioTxClient) {
+        self.tx_client.set(client);
+    }
+
+    /// Set rx client for a state machine.
+    pub fn set_rx_client(&self, client: &'static dyn PioRxClient) {
+        self.rx_client.set(client);
+    }
+
+    /// Set every config for the IN pins.
+    ///
+    /// in_base => the starting location for the input pins
+    pub fn set_in_pins(&self, in_base: u32) {
+        self.registers.sm[self.sm_number as usize]
+            .pinctrl
+            .modify(SMx_PINCTRL::IN_BASE.val(in_base));
+    }
+
+    /// Set every config for the SET pins.
+    ///
+    /// set_base => the starting location for the SET pins
+    /// set_count => the number of SET pins
+    pub fn set_set_pins(&self, set_base: u32, set_count: u32) {
+        self.registers.sm[self.sm_number as usize]
+            .pinctrl
+            .modify(SMx_PINCTRL::SET_BASE.val(set_base));
+        self.registers.sm[self.sm_number as usize]
+            .pinctrl
+            .modify(SMx_PINCTRL::SET_COUNT.val(set_count));
+    }
+
+    /// Set every config for the OUT pins.
+    ///
+    /// out_base => the starting location for the OUT pins
+    /// out_count => the number of OUT pins
+    pub fn set_out_pins(&self, out_base: u32, out_count: u32) {
+        self.registers.sm[self.sm_number as usize]
+            .pinctrl
+            .modify(SMx_PINCTRL::OUT_BASE.val(out_base));
+        self.registers.sm[self.sm_number as usize]
+            .pinctrl
+            .modify(SMx_PINCTRL::OUT_COUNT.val(out_count));
+    }
+
+    /// Setup 'in' shifting parameters.
+    ///
+    ///  shift_right => true to shift ISR to right or false to shift to left
+    ///  autopush => true to enable, false to disable
+    ///  push_threshold => threshold in bits to shift in before auto/conditional re-pushing of the ISR
+    pub fn set_in_shift(&self, shift_right: bool, autopush: bool, push_threshold: u32) {
+        self.registers.sm[self.sm_number as usize]
+            .shiftctrl
+            .modify(SMx_SHIFTCTRL::IN_SHIFTDIR.val(shift_right.into()));
+        self.registers.sm[self.sm_number as usize]
+            .shiftctrl
+            .modify(SMx_SHIFTCTRL::AUTOPUSH.val(autopush.into()));
+        self.registers.sm[self.sm_number as usize]
+            .shiftctrl
+            .modify(SMx_SHIFTCTRL::PUSH_THRESH.val(push_threshold));
+    }
+
+    /// Setup 'out' shifting parameters.
+    ///
+    /// shift_right => `true` to shift OSR to right or false to shift to left
+    /// autopull => true to enable, false to disable
+    /// pull_threshold => threshold in bits to shift out before auto/conditional re-pulling of the OSR
+    pub fn set_out_shift(&self, shift_right: bool, autopull: bool, pull_threshold: u32) {
+        self.registers.sm[self.sm_number as usize]
+            .shiftctrl
+            .modify(SMx_SHIFTCTRL::OUT_SHIFTDIR.val(shift_right.into()));
+        self.registers.sm[self.sm_number as usize]
+            .shiftctrl
+            .modify(SMx_SHIFTCTRL::AUTOPULL.val(autopull.into()));
+        self.registers.sm[self.sm_number as usize]
+            .shiftctrl
+            .modify(SMx_SHIFTCTRL::PULL_THRESH.val(pull_threshold));
+    }
+
+    /// Set special OUT operations in a state machine.
+    ///
+    /// sticky
+    /// => true to enable sticky output (rere-asserting most recent OUT/SET pin values on subsequent cycles)
+    /// => false to disable sticky output
+    /// has_enable_pin
+    /// => true to enable auxiliary OUT enable pin
+    /// => false to disable auxiliary OUT enable pin
+    /// enable_pin_index => pin index for auxiliary OUT enable
+    pub fn set_out_special(&self, sticky: bool, has_enable_pin: bool, enable_pin_index: u32) {
+        self.registers.sm[self.sm_number as usize]
+            .execctrl
+            .modify(SMx_EXECCTRL::OUT_STICKY.val(sticky as u32));
+        self.registers.sm[self.sm_number as usize]
+            .execctrl
+            .modify(SMx_EXECCTRL::INLINE_OUT_EN.val(has_enable_pin as u32));
+        self.registers.sm[self.sm_number as usize]
+            .execctrl
+            .modify(SMx_EXECCTRL::OUT_EN_SEL.val(enable_pin_index));
+    }
+
+    /// Set the 'jmp' pin.
+    ///
+    /// pin => the raw GPIO pin number to use as the source for a jmp pin instruction
+    pub fn set_jmp_pin(&self, pin: u32) {
+        self.registers.sm[self.sm_number as usize]
+            .execctrl
+            .modify(SMx_EXECCTRL::JMP_PIN.val(pin));
+    }
+
+    /// Set the clock divider for a state machine.
+    ///
+    /// div_int => Integer part of the divisor
+    /// div_frac => Fractional part in 1/256ths
+    pub fn set_clkdiv_int_frac(&self, div_int: u32, div_frac: u32) {
+        self.registers.sm[self.sm_number as usize]
+            .clkdiv
+            .modify(SMx_CLKDIV::INT.val(div_int));
+        self.registers.sm[self.sm_number as usize]
+            .clkdiv
+            .modify(SMx_CLKDIV::FRAC.val(div_frac));
+    }
+
+    /// Setup the FIFO joining in a state machine.
+    ///
+    /// fifo_join => specifies the join type - see the `PioFifoJoin` type
+    pub fn set_fifo_join(&self, fifo_join: PioFifoJoin) {
+        if fifo_join == PioFifoJoin::PioFifoJoinRx {
+            self.registers.sm[self.sm_number as usize]
+                .shiftctrl
+                .modify(SMx_SHIFTCTRL::FJOIN_RX.val(fifo_join as u32));
+        } else if fifo_join == PioFifoJoin::PioFifoJoinTx {
+            self.registers.sm[self.sm_number as usize]
+                .shiftctrl
+                .modify(SMx_SHIFTCTRL::FJOIN_TX.val(fifo_join as u32));
+        }
+    }
+
+    /// Set every config for the SIDESET pins.
+    ///
+    /// sideset_base => the starting location for the SIDESET pins
+    /// bit_count => number of SIDESET bits per instruction - max 5
+    /// optional
+    /// => true to use the topmost sideset bit as a flag for whether to apply side set on that instruction
+    /// => false to use sideset with every instruction
+    /// pindirs
+    /// => true to affect pin direction
+    /// => false to affect value of a pin
+    pub fn set_side_set_pins(
+        &self,
+        sideset_base: u32,
+        bit_count: u32,
+        optional: bool,
+        pindirs: bool,
+    ) {
+        self.registers.sm[self.sm_number as usize]
+            .pinctrl
+            .modify(SMx_PINCTRL::SIDESET_BASE.val(sideset_base));
+        self.registers.sm[self.sm_number as usize]
+            .pinctrl
+            .modify(SMx_PINCTRL::SIDESET_COUNT.val(bit_count));
+        self.registers.sm[self.sm_number as usize]
+            .execctrl
+            .modify(SMx_EXECCTRL::SIDE_EN.val(optional as u32));
+        self.registers.sm[self.sm_number as usize]
+            .execctrl
+            .modify(SMx_EXECCTRL::SIDE_PINDIR.val(pindirs as u32));
+    }
+
+    /// Use a state machine to set the same pin direction for multiple consecutive pins for the PIO instance.
+    /// This is the pio_sm_set_consecutive_pindirs function from the pico sdk, renamed to be more clear.
+    ///
+    /// pin => starting pin
+    /// count => how many pins (including the base) should be changed
+    /// is_out
+    /// => true to set the pin as OUT
+    /// => false to set the pin as IN
+    pub fn set_pins_dirs(&self, mut pin: u32, mut count: u32, is_out: bool) {
+        // "set pindirs, 0" command created by pioasm
+        let set_pindirs_0: u16 = 0b1110000010000000;
+        self.with_paused(|| {
+            let mut pindir_val: u8 = 0x00;
+            if is_out {
+                pindir_val = 0x1f;
+            }
+            while count > 5 {
+                self.registers.sm[self.sm_number as usize]
+                    .pinctrl
+                    .modify(SMx_PINCTRL::SET_COUNT.val(5));
+                self.registers.sm[self.sm_number as usize]
+                    .pinctrl
+                    .modify(SMx_PINCTRL::SET_BASE.val(pin));
+                self.exec((set_pindirs_0) | (pindir_val as u16));
+                count -= 5;
+                pin = (pin + 5) & 0x1f;
+            }
+            self.registers.sm[self.sm_number as usize]
+                .pinctrl
+                .modify(SMx_PINCTRL::SET_COUNT.val(count));
+            self.registers.sm[self.sm_number as usize]
+                .pinctrl
+                .modify(SMx_PINCTRL::SET_BASE.val(pin));
+            self.exec((set_pindirs_0) | (pindir_val as u16));
+        });
+    }
+
+    /// Sets pin output values. Pauses the state machine to run `SET` commands
+    /// and temporarily unsets the `OUT_STICKY` bit to avoid side effects.
+    ///
+    /// pins => pins to set the value for
+    /// high => true to set the pin high
+    pub fn set_pins(&self, pins: &[&RPGpioPin<'_>], high: bool) {
+        self.with_paused(|| {
+            for pin in pins {
+                self.registers.sm[self.sm_number as usize]
+                    .pinctrl
+                    .modify(SMx_PINCTRL::SET_BASE.val(pin.pin() as u32));
+                self.registers.sm[self.sm_number as usize]
+                    .pinctrl
+                    .modify(SMx_PINCTRL::SET_COUNT.val(1));
+
+                self.exec(0b11100_000_000_00000 | high as u16);
+            }
+        });
+    }
+
+    /// Set the wrap addresses for a state machine.
+    ///
+    /// wrap_target => the instruction memory address to wrap to
+    /// wrap => the instruction memory address after which the program counters wraps to the target
+    pub fn set_wrap(&self, wrap_target: u32, wrap: u32) {
+        self.registers.sm[self.sm_number as usize]
+            .execctrl
+            .modify(SMx_EXECCTRL::WRAP_BOTTOM.val(wrap_target));
+        self.registers.sm[self.sm_number as usize]
+            .execctrl
+            .modify(SMx_EXECCTRL::WRAP_TOP.val(wrap));
+    }
+
+    /// Resets the state machine to a consistent state and configures it.
+    pub fn init(&self) {
+        self.clear_fifos();
+        self.restart();
+        self.clkdiv_restart();
+        self.registers.sm[self.sm_number as usize]
+            .instr
+            .modify(SMx_INSTR::INSTR.val(0));
+    }
+
+    /// Restart a state machine.
+    pub fn restart(&self) {
+        match self.sm_number {
+            SMNumber::SM0 => self.set_registers.ctrl.modify(CTRL::SM0_RESTART::SET),
+            SMNumber::SM1 => self.set_registers.ctrl.modify(CTRL::SM1_RESTART::SET),
+            SMNumber::SM2 => self.set_registers.ctrl.modify(CTRL::SM2_RESTART::SET),
+            SMNumber::SM3 => self.set_registers.ctrl.modify(CTRL::SM3_RESTART::SET),
+        }
+    }
+
+    /// Clear a state machine’s TX and RX FIFOs.
+    pub fn clear_fifos(&self) {
+        self.xor_registers.sm[self.sm_number as usize]
+            .shiftctrl
+            .modify(SMx_SHIFTCTRL::FJOIN_RX::SET);
+        self.xor_registers.sm[self.sm_number as usize]
+            .shiftctrl
+            .modify(SMx_SHIFTCTRL::FJOIN_RX::SET);
+    }
+
+    /// Restart a state machine's clock divider.
+    pub fn clkdiv_restart(&self) {
+        match self.sm_number {
+            SMNumber::SM0 => self.set_registers.ctrl.modify(CTRL::CLKDIV0_RESTART::SET),
+            SMNumber::SM1 => self.set_registers.ctrl.modify(CTRL::CLKDIV1_RESTART::SET),
+            SMNumber::SM2 => self.set_registers.ctrl.modify(CTRL::CLKDIV2_RESTART::SET),
+            SMNumber::SM3 => self.set_registers.ctrl.modify(CTRL::CLKDIV3_RESTART::SET),
+        }
+    }
+
+    /// Returns true if the TX FIFO is full.
+    pub fn tx_full(&self) -> bool {
+        let field = match self.sm_number {
+            SMNumber::SM0 => FSTAT::TXFULL0,
+            SMNumber::SM1 => FSTAT::TXFULL1,
+            SMNumber::SM2 => FSTAT::TXFULL2,
+            SMNumber::SM3 => FSTAT::TXFULL3,
+        };
+        self.registers.fstat.read(field) != 0
+    }
+
+    /// Returns true if the RX FIFO is empty.
+    pub fn rx_empty(&self) -> bool {
+        let field = match self.sm_number {
+            SMNumber::SM0 => FSTAT::RXEMPTY0,
+            SMNumber::SM1 => FSTAT::RXEMPTY1,
+            SMNumber::SM2 => FSTAT::RXEMPTY2,
+            SMNumber::SM3 => FSTAT::RXEMPTY3,
+        };
+        self.registers.fstat.read(field) != 0
+    }
+
+    /// Returns true if the TX FIFO is empty.
+    pub fn tx_empty(&self) -> bool {
+        let field = match self.sm_number {
+            SMNumber::SM0 => FSTAT::TXEMPTY0,
+            SMNumber::SM1 => FSTAT::TXEMPTY1,
+            SMNumber::SM2 => FSTAT::TXEMPTY2,
+            SMNumber::SM3 => FSTAT::TXEMPTY3,
+        };
+        self.registers.fstat.read(field) != 0
+    }
+
+    /// Immediately execute an instruction on a state machine.
+    ///
+    /// => instr: the instruction to execute
+    /// Implicitly restricted size of instr to u16, cause it's the size pio asm instr
+    pub fn exec(&self, instr: u16) {
+        self.registers.sm[self.sm_number as usize]
+            .instr
+            .modify(SMx_INSTR::INSTR.val(instr as u32));
+    }
+
+    /// Executes a program on a state machine.
+    /// Jumps to the instruction at given address and runs the program.
+    ///
+    /// => program: a program loaded to PIO
+    /// => wrap: true to wrap the program, so it runs in loop
+    pub fn exec_program(&self, program: LoadedProgram, wrap: bool) {
+        if wrap {
+            self.set_wrap(
+                program.origin as u32,
+                program.origin as u32 + program.used_memory.count_ones(),
+            );
+        }
+        self.exec((program.origin as u16) & 0x1fu16)
+    }
+
+    /// Set source for 'mov status' in a state machine.
+    ///
+    /// status_sel => comparison used for the `MOV x, STATUS` instruction
+    /// status_n => comparison level for the `MOV x, STATUS` instruction
+    pub fn set_mov_status(&self, status_sel: PioMovStatusType, status_n: u32) {
+        self.registers.sm[self.sm_number as usize]
+            .execctrl
+            .modify(SMx_EXECCTRL::STATUS_SEL.val(status_sel as u32));
+        self.registers.sm[self.sm_number as usize]
+            .execctrl
+            .modify(SMx_EXECCTRL::STATUS_N.val(status_n));
+    }
+
+    /// Set a state machine's state to enabled or to disabled.
+    ///
+    /// enabled => true to enable the state machine
+    pub fn set_enabled(&self, enabled: bool) {
+        match self.sm_number {
+            SMNumber::SM0 => self.registers.ctrl.modify(match enabled {
+                true => CTRL::SM0_ENABLE::SET,
+                false => CTRL::SM0_ENABLE::CLEAR,
+            }),
+            SMNumber::SM1 => self.registers.ctrl.modify(match enabled {
+                true => CTRL::SM1_ENABLE::SET,
+                false => CTRL::SM1_ENABLE::CLEAR,
+            }),
+            SMNumber::SM2 => self.registers.ctrl.modify(match enabled {
+                true => CTRL::SM2_ENABLE::SET,
+                false => CTRL::SM2_ENABLE::CLEAR,
+            }),
+            SMNumber::SM3 => self.registers.ctrl.modify(match enabled {
+                true => CTRL::SM3_ENABLE::SET,
+                false => CTRL::SM3_ENABLE::CLEAR,
+            }),
+        }
+    }
+
+    /// Is state machine enabled.
+    pub fn is_enabled(&self) -> bool {
+        let field = match self.sm_number {
+            SMNumber::SM0 => CTRL::SM0_ENABLE,
+            SMNumber::SM1 => CTRL::SM1_ENABLE,
+            SMNumber::SM2 => CTRL::SM2_ENABLE,
+            SMNumber::SM3 => CTRL::SM3_ENABLE,
+        };
+        self.registers.ctrl.read(field) != 0
+    }
+
+    /// Runs function with the state machine paused.
+    /// Keeps pinctrl and execctrl of the SM the same during execution
+    fn with_paused(&self, f: impl FnOnce()) {
+        let enabled = self.is_enabled();
+        self.set_enabled(false);
+
+        let pio_sm = &self.registers.sm[self.sm_number as usize];
+
+        let pinctrl = pio_sm.pinctrl.get();
+        let execctrl = pio_sm.execctrl.get();
+        // Hold pins value set by latest OUT/SET op
+        pio_sm.execctrl.modify(SMx_EXECCTRL::OUT_STICKY::CLEAR);
+
+        f();
+
+        pio_sm.pinctrl.set(pinctrl);
+        pio_sm.execctrl.set(execctrl);
+        self.set_enabled(enabled);
+    }
+
+    /// Write a word of data to a state machine’s TX FIFO.
+    /// If the FIFO is full, the client will be notified when space is available.
+    ///
+    /// => data: the data to write to the FIFO
+    pub fn push(&self, data: u32) -> Result<(), ErrorCode> {
+        match self.tx_state.get() {
+            StateMachineState::Ready => {
+                if self.tx_full() {
+                    // TX queue is full, set interrupt
+                    let field = match self.sm_number {
+                        SMNumber::SM0 => IRQ0_INTE::SM0_TXNFULL::SET,
+                        SMNumber::SM1 => IRQ0_INTE::SM1_TXNFULL::SET,
+                        SMNumber::SM2 => IRQ0_INTE::SM2_TXNFULL::SET,
+                        SMNumber::SM3 => IRQ0_INTE::SM3_TXNFULL::SET,
+                    };
+                    self.registers.irq0_inte.modify(field);
+                    self.tx_state.set(StateMachineState::Waiting);
+                    Err(ErrorCode::BUSY)
+                } else {
+                    self.registers.txf[self.sm_number as usize].set(data);
+                    Ok(())
+                }
+            }
+            StateMachineState::Waiting => Err(ErrorCode::BUSY),
+        }
+    }
+
+    /// Wait until a state machine's TX FIFO is empty, then write a word of data to it.
+    /// If state machine is disabled and there is no space, an error will be returned.
+    /// If SM is stalled on RX or in loop, this will block forever.
+    ///
+    /// => data: the data to write to the FIFO
+    pub fn push_blocking(&self, data: u32) -> Result<(), ErrorCode> {
+        if self.tx_full() && !self.is_enabled() {
+            return Err(ErrorCode::OFF);
+        }
+        while self.tx_full() {}
+        self.registers.txf[self.sm_number as usize].set(data);
+        Ok(())
+    }
+
+    /// Read a word of data from a state machine’s RX FIFO.
+    /// If the FIFO is empty, the client will be notified when data is available.
+    pub fn pull(&self) -> Result<u32, ErrorCode> {
+        match self.rx_state.get() {
+            StateMachineState::Ready => {
+                if self.rx_empty() {
+                    // RX queue is empty, set interrupt
+                    let field = match self.sm_number {
+                        SMNumber::SM0 => IRQ0_INTE::SM0_RXNEMPTY::SET,
+                        SMNumber::SM1 => IRQ0_INTE::SM1_RXNEMPTY::SET,
+                        SMNumber::SM2 => IRQ0_INTE::SM2_RXNEMPTY::SET,
+                        SMNumber::SM3 => IRQ0_INTE::SM3_RXNEMPTY::SET,
+                    };
+                    self.registers.irq0_inte.modify(field);
+                    self.rx_state.set(StateMachineState::Waiting);
+                    Err(ErrorCode::BUSY)
+                } else {
+                    Ok(self.registers.rxf[self.sm_number as usize].read(RXFx::RXF))
+                }
+            }
+            StateMachineState::Waiting => Err(ErrorCode::BUSY),
+        }
+    }
+
+    /// Reads a word of data from a state machine’s RX FIFO.
+    /// If state machine is disabled and there is no space, an error will be returned.
+    /// If SM is stalled on TX or in loop, this will block forever.
+    pub fn pull_blocking(&self) -> Result<u32, ErrorCode> {
+        if self.tx_full() && !self.is_enabled() {
+            return Err(ErrorCode::OFF);
+        }
+        while self.rx_empty() {}
+        Ok(self.registers.rxf[self.sm_number as usize].read(RXFx::RXF))
+    }
+
+    /// Handle a TX interrupt - notify that buffer space is available.
+    fn handle_tx_interrupt(&self) {
+        match self.tx_state.get() {
+            StateMachineState::Waiting => {
+                // TX queue has emptied, clear interrupt
+                let field = match self.sm_number {
+                    SMNumber::SM0 => IRQ0_INTE::SM0_TXNFULL::CLEAR,
+                    SMNumber::SM1 => IRQ0_INTE::SM1_TXNFULL::CLEAR,
+                    SMNumber::SM2 => IRQ0_INTE::SM2_TXNFULL::CLEAR,
+                    SMNumber::SM3 => IRQ0_INTE::SM3_TXNFULL::CLEAR,
+                };
+                self.registers.irq0_inte.modify(field);
+                self.tx_state.set(StateMachineState::Ready);
+                self.tx_client.map(|client| {
+                    client.on_buffer_space_available();
+                });
+            }
+            StateMachineState::Ready => {}
+        }
+    }
+
+    /// Handle an RX interrupt - notify that data has been received.
+    fn handle_rx_interrupt(&self) {
+        match self.rx_state.get() {
+            StateMachineState::Waiting => {
+                // RX queue has data, clear interrupt
+                let field = match self.sm_number {
+                    SMNumber::SM0 => IRQ0_INTE::SM0_RXNEMPTY::CLEAR,
+                    SMNumber::SM1 => IRQ0_INTE::SM1_RXNEMPTY::CLEAR,
+                    SMNumber::SM2 => IRQ0_INTE::SM2_RXNEMPTY::CLEAR,
+                    SMNumber::SM3 => IRQ0_INTE::SM3_RXNEMPTY::CLEAR,
+                };
+                self.registers.irq0_inte.modify(field);
+                self.rx_state.set(StateMachineState::Ready);
+                self.rx_client.map(|client| {
+                    client.on_data_received(
+                        self.registers.rxf[self.sm_number as usize].read(RXFx::RXF),
+                    );
+                });
+            }
+            StateMachineState::Ready => {}
+        }
+    }
+}
 
 pub struct Pio {
     registers: StaticRef<PioRegisters>,
     pio_number: PIONumber,
-    xor_registers: StaticRef<PioRegisters>,
-    set_registers: StaticRef<PioRegisters>,
+    sms: [StateMachine; NUMBER_STATE_MACHINES],
+    instructions_used: Cell<u32>,
     _clear_registers: StaticRef<PioRegisters>,
 }
 
@@ -670,74 +1299,6 @@ impl Default for StateMachineConfiguration {
 }
 
 impl Pio {
-    /// State machine configuration with any config structure.
-    pub fn sm_config(&self, sm_number: SMNumber, config: &StateMachineConfiguration) {
-        self.set_in_pins(sm_number, config.in_pins_base);
-        self.set_out_pins(sm_number, config.out_pins_base, config.out_pins_count);
-        self.set_set_pins(sm_number, config.set_pins_base, config.set_pins_count);
-        self.set_side_set_pins(sm_number, config.side_set_base);
-        self.set_side_set(
-            sm_number,
-            config.side_set_bit_count,
-            config.side_set_opt_enable,
-            config.side_set_pindirs,
-        );
-        self.set_in_shift(
-            sm_number,
-            config.in_shift_direction_right,
-            config.in_autopush,
-            config.in_push_threshold,
-        );
-        self.set_out_shift(
-            sm_number,
-            config.out_shift_direction_right,
-            config.out_autopull,
-            config.out_pull_threshold,
-        );
-        self.set_jmp_pin(sm_number, config.jmp_pin);
-        self.set_wrap(sm_number, config.wrap_to, config.wrap);
-        self.set_mov_status(sm_number, config.mov_status_sel, config.mov_status_n);
-        self.set_out_special(
-            sm_number,
-            config.out_special_sticky,
-            config.out_special_has_enable_pin,
-            config.out_special_enable_pin_index,
-        );
-        self.set_clkdiv_int_frac(sm_number, config.div_int, config.div_frac);
-    }
-
-    /// Resets the state machine to a consistent state, and configures it.
-    pub fn sm_init(&self, sm_number: SMNumber) {
-        self.sm_clear_fifos(sm_number);
-        self.restart_sm(sm_number);
-        self.sm_clkdiv_restart(sm_number);
-        self.registers.sm[sm_number as usize]
-            .instr
-            .modify(SMx_INSTR::INSTR.val(0));
-    }
-
-    /// Set a state machine's state to enabled or to disabled.
-    pub fn sm_set_enabled(&self, sm_number: SMNumber, enabled: bool) {
-        match sm_number {
-            SMNumber::SM0 => self.registers.ctrl.modify(match enabled {
-                true => CTRL::SM0_ENABLE::SET,
-                false => CTRL::SM0_ENABLE::CLEAR,
-            }),
-            SMNumber::SM1 => self.registers.ctrl.modify(match enabled {
-                true => CTRL::SM1_ENABLE::SET,
-                false => CTRL::SM1_ENABLE::CLEAR,
-            }),
-            SMNumber::SM2 => self.registers.ctrl.modify(match enabled {
-                true => CTRL::SM2_ENABLE::SET,
-                false => CTRL::SM2_ENABLE::CLEAR,
-            }),
-            SMNumber::SM3 => self.registers.ctrl.modify(match enabled {
-                true => CTRL::SM3_ENABLE::SET,
-                false => CTRL::SM3_ENABLE::CLEAR,
-            }),
-        }
-    }
-
     /// Setup the function select for a GPIO to use output from the given PIO instance.
     pub fn gpio_init(&self, pin: &RPGpioPin) {
         if self.pio_number == PIONumber::PIO1 {
@@ -751,10 +1312,10 @@ impl Pio {
     pub fn new_pio0() -> Self {
         Self {
             registers: PIO0_BASE,
-            xor_registers: PIO0_XOR_BASE,
-            set_registers: PIO0_SET_BASE,
             _clear_registers: PIO0_CLEAR_BASE,
             pio_number: PIONumber::PIO0,
+            sms: SM_NUMBERS.map(|x| StateMachine::new(x, PIO0_BASE, PIO0_XOR_BASE, PIO0_SET_BASE)),
+            instructions_used: Cell::new(0),
         }
     }
 
@@ -762,252 +1323,16 @@ impl Pio {
     pub fn new_pio1() -> Self {
         Self {
             registers: PIO1_BASE,
-            xor_registers: PIO1_XOR_BASE,
-            set_registers: PIO1_SET_BASE,
             _clear_registers: PIO1_CLEAR_BASE,
             pio_number: PIONumber::PIO1,
+            sms: SM_NUMBERS.map(|x| StateMachine::new(x, PIO1_BASE, PIO1_XOR_BASE, PIO1_SET_BASE)),
+            instructions_used: Cell::new(0),
         }
     }
 
-    /// Set every config for the IN pins.
-    ///
-    /// in_base => the starting location for the input pins
-    pub fn set_in_pins(&self, sm_number: SMNumber, in_base: u32) {
-        self.registers.sm[sm_number as usize]
-            .pinctrl
-            .modify(SMx_PINCTRL::IN_BASE.val(in_base));
-    }
-
-    /// Set every config for the SET pins.
-    ///
-    /// set_base => the starting location for the SET pins
-    /// set_count => the number of SET pins
-    pub fn set_set_pins(&self, sm_number: SMNumber, set_base: u32, set_count: u32) {
-        self.registers.sm[sm_number as usize]
-            .pinctrl
-            .modify(SMx_PINCTRL::SET_BASE.val(set_base));
-        self.registers.sm[sm_number as usize]
-            .pinctrl
-            .modify(SMx_PINCTRL::SET_COUNT.val(set_count));
-    }
-
-    /// Set every config for the OUT pins.
-    ///
-    /// out_base => the starting location for the OUT pins
-    /// out_count => the number of OUT pins
-    pub fn set_out_pins(&self, sm_number: SMNumber, out_base: u32, out_count: u32) {
-        self.registers.sm[sm_number as usize]
-            .pinctrl
-            .modify(SMx_PINCTRL::OUT_BASE.val(out_base));
-        self.registers.sm[sm_number as usize]
-            .pinctrl
-            .modify(SMx_PINCTRL::OUT_COUNT.val(out_count));
-    }
-
-    /// Setup 'in' shifting parameters.
-    ///
-    ///  shift_right => true to shift ISR to right or false to shift to left
-    ///  autopush => true to enable, false to disable
-    ///  push_threshold => threshold in bits to shift in before auto/conditional re-pushing of the ISR
-    pub fn set_in_shift(
-        &self,
-        sm_number: SMNumber,
-        shift_right: bool,
-        autopush: bool,
-        push_threshold: u32,
-    ) {
-        self.registers.sm[sm_number as usize]
-            .shiftctrl
-            .modify(SMx_SHIFTCTRL::IN_SHIFTDIR.val(shift_right.into()));
-        self.registers.sm[sm_number as usize]
-            .shiftctrl
-            .modify(SMx_SHIFTCTRL::AUTOPUSH.val(autopush.into()));
-        self.registers.sm[sm_number as usize]
-            .shiftctrl
-            .modify(SMx_SHIFTCTRL::PUSH_THRESH.val(push_threshold));
-    }
-
-    /// Setup 'out' shifting parameters.
-    ///
-    /// shift_right => `true` to shift OSR to right or false to shift to left
-    /// autopull => true to enable, false to disable
-    /// pull_threshold => threshold in bits to shift out before auto/conditional re-pulling of the OSR
-    pub fn set_out_shift(
-        &self,
-        sm_number: SMNumber,
-        shift_right: bool,
-        autopull: bool,
-        pull_threshold: u32,
-    ) {
-        self.registers.sm[sm_number as usize]
-            .shiftctrl
-            .modify(SMx_SHIFTCTRL::OUT_SHIFTDIR.val(shift_right.into()));
-        self.registers.sm[sm_number as usize]
-            .shiftctrl
-            .modify(SMx_SHIFTCTRL::AUTOPULL.val(autopull.into()));
-        self.registers.sm[sm_number as usize]
-            .shiftctrl
-            .modify(SMx_SHIFTCTRL::PULL_THRESH.val(pull_threshold));
-    }
-
-    /// Set the 'jmp' pin.
-    ///
-    /// pin => the raw GPIO pin number to use as the source for a jmp pin instruction
-    pub fn set_jmp_pin(&self, sm_number: SMNumber, pin: u32) {
-        self.registers.sm[sm_number as usize]
-            .execctrl
-            .modify(SMx_EXECCTRL::JMP_PIN.val(pin));
-    }
-
-    /// Set the clock divider for a state machine.
-    ///
-    /// div_int => Integer part of the divisor
-    /// div_frac => Fractional part in 1/256ths
-    pub fn set_clkdiv_int_frac(&self, sm_number: SMNumber, div_int: u32, div_frac: u32) {
-        self.registers.sm[sm_number as usize]
-            .clkdiv
-            .modify(SMx_CLKDIV::INT.val(div_int));
-        self.registers.sm[sm_number as usize]
-            .clkdiv
-            .modify(SMx_CLKDIV::FRAC.val(div_frac));
-    }
-
-    /// Setup the FIFO joining in a state machine.
-    ///
-    /// fifo_join => specifies the join type - see the `PioFifoJoin` type
-    pub fn set_fifo_join(&self, sm_number: SMNumber, fifo_join: PioFifoJoin) {
-        if fifo_join == PioFifoJoin::PioFifoJoinRx {
-            self.registers.sm[sm_number as usize]
-                .shiftctrl
-                .modify(SMx_SHIFTCTRL::FJOIN_RX.val(fifo_join as u32));
-        } else if fifo_join == PioFifoJoin::PioFifoJoinTx {
-            self.registers.sm[sm_number as usize]
-                .shiftctrl
-                .modify(SMx_SHIFTCTRL::FJOIN_TX.val(fifo_join as u32));
-        }
-    }
-
-    /// Set the starting location for the sideset pins.
-    pub fn set_side_set_pins(&self, sm_number: SMNumber, sideset_base: u32) {
-        self.registers.sm[sm_number as usize]
-            .pinctrl
-            .modify(SMx_PINCTRL::SIDESET_BASE.val(sideset_base));
-    }
-
-    /// Set every config for the SIDESET pins.
-    ///
-    /// bit_count => number of SIDESET bits per instruction - max 5
-    /// optional
-    /// => true to use the topmost sideset bit as a flag for whether to apply side set on that instruction
-    /// => false to use sideset with every instruction
-    /// pindirs
-    /// => true to affect pin direction
-    /// => false to affect value of a pin
-    pub fn set_side_set(&self, sm_number: SMNumber, bit_count: u32, optional: bool, pindirs: bool) {
-        self.registers.sm[sm_number as usize]
-            .pinctrl
-            .modify(SMx_PINCTRL::SIDESET_COUNT.val(bit_count));
-        self.registers.sm[sm_number as usize]
-            .execctrl
-            .modify(SMx_EXECCTRL::SIDE_EN.val(optional as u32));
-        self.registers.sm[sm_number as usize]
-            .execctrl
-            .modify(SMx_EXECCTRL::SIDE_PINDIR.val(pindirs as u32));
-    }
-
-    /// Set the wrap addresses for a state machine.
-    ///
-    /// wrap_target => the instruction memory address to wrap to
-    /// wrap => the instruction memory address after which the program counters wraps to the target
-    pub fn set_wrap(&self, sm_number: SMNumber, wrap_target: u32, wrap: u32) {
-        self.registers.sm[sm_number as usize]
-            .execctrl
-            .modify(SMx_EXECCTRL::WRAP_BOTTOM.val(wrap_target));
-        self.registers.sm[sm_number as usize]
-            .execctrl
-            .modify(SMx_EXECCTRL::WRAP_TOP.val(wrap));
-    }
-
-    /// Set source for 'mov status' in a state machine.
-    ///
-    /// status_sel => comparison used for the `MOV x, STATUS` instruction
-    /// status_n => comparison level for the `MOV x, STATUS` instruction
-    pub fn set_mov_status(&self, sm_number: SMNumber, status_sel: PioMovStatusType, status_n: u32) {
-        self.registers.sm[sm_number as usize]
-            .execctrl
-            .modify(SMx_EXECCTRL::STATUS_SEL.val(status_sel as u32));
-        self.registers.sm[sm_number as usize]
-            .execctrl
-            .modify(SMx_EXECCTRL::STATUS_N.val(status_n));
-    }
-
-    /// Set special OUT operations in a state machine.
-    ///
-    /// sticky
-    /// => true to enable sticky output (rere-asserting most recent OUT/SET pin values on subsequent cycles)
-    /// => false to disable sticky output
-    /// has_enable_pin
-    /// => true to enable auxiliary OUT enable pin
-    /// => false to disable auxiliary OUT enable pin
-    /// enable_pin_index => pin index for auxiliary OUT enable
-    pub fn set_out_special(
-        &self,
-        sm_number: SMNumber,
-        sticky: bool,
-        has_enable_pin: bool,
-        enable_pin_index: u32,
-    ) {
-        self.registers.sm[sm_number as usize]
-            .execctrl
-            .modify(SMx_EXECCTRL::OUT_STICKY.val(sticky as u32));
-        self.registers.sm[sm_number as usize]
-            .execctrl
-            .modify(SMx_EXECCTRL::INLINE_OUT_EN.val(has_enable_pin as u32));
-        self.registers.sm[sm_number as usize]
-            .execctrl
-            .modify(SMx_EXECCTRL::OUT_EN_SEL.val(enable_pin_index));
-    }
-
-    /// Use a state machine to set the same pin direction for multiple consecutive pins for the PIO instance.
-    /// This is the pio_sm_set_consecutive_pindirs function from the pico sdk, renamed to be more clear.
-    ///
-    /// pin => starting pin
-    /// count => how many pins (including the base) should be changed
-    /// is_out
-    /// => true to set the pin as OUT
-    /// => false to set the pin as IN
-    pub fn set_pins_out(&self, sm_number: SMNumber, mut pin: u32, mut count: u32, is_out: bool) {
-        // "set pindirs, 0" command created by pioasm
-        let set_pindirs_0: u32 = 0b1110000010000000;
-        let pinctrl = self.registers.sm[sm_number as usize].pinctrl.get();
-        let execctrl = self.registers.sm[sm_number as usize].execctrl.get();
-        self.registers.sm[sm_number as usize]
-            .execctrl
-            .modify(SMx_EXECCTRL::OUT_STICKY.val(0));
-        let mut pindir_val: u8 = 0x00;
-        if is_out {
-            pindir_val = 0x1f;
-        }
-        while count > 5 {
-            self.registers.sm[sm_number as usize]
-                .pinctrl
-                .modify(SMx_PINCTRL::SET_COUNT.val(5));
-            self.registers.sm[sm_number as usize]
-                .pinctrl
-                .modify(SMx_PINCTRL::SET_BASE.val(pin));
-            self.sm_exec(sm_number, (set_pindirs_0) | (pindir_val as u32));
-            count -= 5;
-            pin = (pin + 5) & 0x1f;
-        }
-        self.registers.sm[sm_number as usize]
-            .pinctrl
-            .modify(SMx_PINCTRL::SET_COUNT.val(count));
-        self.registers.sm[sm_number as usize]
-            .pinctrl
-            .modify(SMx_PINCTRL::SET_BASE.val(pin));
-        self.sm_exec(sm_number, (set_pindirs_0) | (pindir_val as u32));
-        self.registers.sm[sm_number as usize].execctrl.set(execctrl);
-        self.registers.sm[sm_number as usize].pinctrl.set(pinctrl);
+    /// Get state machine
+    pub fn sm(&self, sm_number: SMNumber) -> &StateMachine {
+        &self.sms[sm_number as usize]
     }
 
     /// Enable/Disable a single source on a PIO's IRQ index.
@@ -1137,7 +1462,7 @@ impl Pio {
             6 => temp = self.registers.irq.read(IRQ::IRQ6),
             7 => temp = self.registers.irq.read(IRQ::IRQ7),
             _ => debug!("IRQ Number invalid - must be from 0 to 7"),
-        };
+        }
         temp != 0
     }
 
@@ -1156,68 +1481,110 @@ impl Pio {
         }
     }
 
-    /// Immediately execute an instruction on a state machine.
-    pub fn sm_exec(&self, sm_number: SMNumber, instr: u32) {
-        self.registers.sm[sm_number as usize]
-            .instr
-            .modify(SMx_INSTR::INSTR.val(instr));
-    }
-
-    /// Write a word of data to a state machine’s TX FIFO.
-    pub fn sm_put(&self, sm_number: SMNumber, data: u32) {
-        self.registers.txf[sm_number as usize].set(data);
-    }
-
-    /// Wait until a state machine's TX FIFO is empty, then write a word of data to it.
-    pub fn sm_put_blocking(&self, sm_number: SMNumber, data: u32) {
-        while self.registers.fstat.read(FSTAT::TXFULL0) != 0 {}
-        self.registers.txf[sm_number as usize].set(data);
-    }
-
-    /// Restart a state machine.
-    pub fn restart_sm(&self, sm_number: SMNumber) {
-        match sm_number {
-            SMNumber::SM0 => self.set_registers.ctrl.modify(CTRL::SM0_RESTART::SET),
-            SMNumber::SM1 => self.set_registers.ctrl.modify(CTRL::SM1_RESTART::SET),
-            SMNumber::SM2 => self.set_registers.ctrl.modify(CTRL::SM2_RESTART::SET),
-            SMNumber::SM3 => self.set_registers.ctrl.modify(CTRL::SM3_RESTART::SET),
+    /// Handle interrupts
+    pub fn handle_interrupt(&self) {
+        let ints = &self.registers.irq0_ints;
+        for (sm, irq) in self.sms.iter().zip([
+            IRQ0_INTS::SM0_TXNFULL,
+            IRQ0_INTS::SM1_TXNFULL,
+            IRQ0_INTS::SM2_TXNFULL,
+            IRQ0_INTS::SM3_TXNFULL,
+        ]) {
+            if ints.is_set(irq) {
+                sm.handle_tx_interrupt();
+            }
         }
-    }
-
-    /// Clear a state machine’s TX and RX FIFOs.
-    pub fn sm_clear_fifos(&self, sm_number: SMNumber) {
-        self.xor_registers.sm[sm_number as usize]
-            .shiftctrl
-            .modify(SMx_SHIFTCTRL::FJOIN_RX::SET);
-        self.xor_registers.sm[sm_number as usize]
-            .shiftctrl
-            .modify(SMx_SHIFTCTRL::FJOIN_RX::SET);
-    }
-
-    /// Restart a state machine's clock divider.
-    pub fn sm_clkdiv_restart(&self, sm_number: SMNumber) {
-        match sm_number {
-            SMNumber::SM0 => self.set_registers.ctrl.modify(CTRL::CLKDIV0_RESTART::SET),
-            SMNumber::SM1 => self.set_registers.ctrl.modify(CTRL::CLKDIV1_RESTART::SET),
-            SMNumber::SM2 => self.set_registers.ctrl.modify(CTRL::CLKDIV2_RESTART::SET),
-            SMNumber::SM3 => self.set_registers.ctrl.modify(CTRL::CLKDIV3_RESTART::SET),
+        for (sm, irq) in self.sms.iter().zip([
+            IRQ0_INTS::SM0_RXNEMPTY,
+            IRQ0_INTS::SM1_RXNEMPTY,
+            IRQ0_INTS::SM2_RXNEMPTY,
+            IRQ0_INTS::SM3_RXNEMPTY,
+        ]) {
+            if ints.is_set(irq) {
+                sm.handle_rx_interrupt();
+            }
         }
     }
 
     /// Adds a program to PIO.
-    /// Call this with add_program(include_bytes!("path_to_file")).
-    pub fn add_program(&self, program: &[u8]) {
-        self.clear_instr_registers();
-        let iter = program.chunks(2);
-        for (x, i) in iter.enumerate() {
-            if x == NUMBER_INSTR_MEMORY_LOCATIONS {
-                debug!("Maximum limit of instructions reached!");
-                break;
-            }
-            self.registers.instr_mem[x]
-                .instr_mem
-                .modify(INSTR_MEMx::INSTR_MEM.val((i[0] as u32) << 8 | (i[1] as u32)));
+    /// Call this with `add_program(Some(0), include_bytes!("path_to_file"))`.
+    /// => origin: the address in the PIO instruction memory to start the program at or None to find an empty space
+    /// => program: the program to load into the PIO
+    /// Returns `LoadedProgram` which contains information about program location and length.
+    pub fn add_program(
+        &self,
+        origin: Option<usize>,
+        program: &[u8],
+    ) -> Result<LoadedProgram, ProgramError> {
+        let mut program_u16: [u16; NUMBER_INSTR_MEMORY_LOCATIONS / 2] =
+            [0; NUMBER_INSTR_MEMORY_LOCATIONS / 2];
+        for (i, chunk) in program.chunks(2).enumerate() {
+            program_u16[i] = ((chunk[0] as u16) << 8) | (chunk[1] as u16);
         }
+
+        self.add_program16(origin, &program_u16[0..program.len() / 2])
+    }
+
+    /// Adds a program to PIO.
+    /// Takes `&[u16]` as input, cause pio-asm operations are 16bit.
+    /// => origin: the address in the PIO instruction memory to start the program at or None to find an empty space
+    /// => program: the program to load into the PIO
+    /// Returns `LoadedProgram` which contains information about program location and size.
+    pub fn add_program16(
+        &self,
+        origin: Option<usize>,
+        program: &[u16],
+    ) -> Result<LoadedProgram, ProgramError> {
+        // if origin is not set, try naively to find an empty space
+        match origin {
+            Some(origin) => {
+                assert!(origin < NUMBER_INSTR_MEMORY_LOCATIONS);
+                self.try_load_program_at(origin, program)
+                    .map_err(|_| ProgramError::AddrInUse(origin))
+            }
+            None => {
+                for origin in 0..NUMBER_INSTR_MEMORY_LOCATIONS {
+                    if let res @ Ok(_) = self.try_load_program_at(origin, program) {
+                        return res;
+                    }
+                }
+                Err(ProgramError::InsufficientSpace)
+            }
+        }
+    }
+
+    /// Try to load program at a specific origin, relocate operations if necessary.
+    /// Only for internals, use `add_program` or `add_program16` instead.
+    /// => origin: the address in the PIO instruction memory to start the program at
+    /// => program: the program to load into the PIO
+    /// Returns Ok(()) if the program was loaded successfully, otherwise an error.
+    fn try_load_program_at(
+        &self,
+        origin: usize,
+        program: &[u16],
+    ) -> Result<LoadedProgram, ProgramError> {
+        // Relocate program
+        let program = RelocatedProgram::new(program.iter(), origin);
+        let mut used_mask = 0;
+        for (i, instr) in program.enumerate() {
+            // wrapping around the end of program memory is valid
+            let addr = (i + origin) % 32;
+            let mask = 1 << addr;
+            if (self.instructions_used.get() | used_mask) & mask != 0 {
+                return Err(ProgramError::AddrInUse(addr));
+            }
+            self.registers.instr_mem[addr]
+                .instr_mem
+                .modify(INSTR_MEMx::INSTR_MEM.val(instr as u32));
+            used_mask |= mask;
+        }
+        // update the mask of used instructions slots
+        self.instructions_used
+            .set(self.instructions_used.get() | used_mask);
+        Ok(LoadedProgram {
+            used_memory: used_mask,
+            origin,
+        })
     }
 
     /// Clears all of a PIO instance's instruction memory.
@@ -1227,179 +1594,249 @@ impl Pio {
                 .instr_mem
                 .modify(INSTR_MEMx::INSTR_MEM::CLEAR);
         }
+
+        // update the mask of used instructions slots
+        self.instructions_used.set(0);
     }
 
     /// Initialize a new PIO with the same default configuration for all four state machines.
     pub fn init(&self) {
         let default_config: StateMachineConfiguration = StateMachineConfiguration::default();
-        for state_machine in STATE_MACHINE_NUMBERS {
-            self.sm_config(state_machine, &default_config);
+        for state_machine in self.sms.iter() {
+            state_machine.config(&default_config);
+        }
+        self.clear_instr_registers()
+    }
+}
+
+mod examples {
+    use super::{
+        debug, Pio, RPGpio, RPGpioPin, Readable, SMNumber, SMx_EXECCTRL, SMx_INSTR, SMx_PINCTRL,
+        StateMachineConfiguration, DBG_PADOUT, FDEBUG,
+    };
+
+    impl RPGpio {
+        fn from_u32(value: u32) -> RPGpio {
+            match value {
+                0 => RPGpio::GPIO0,
+                1 => RPGpio::GPIO1,
+                2 => RPGpio::GPIO2,
+                3 => RPGpio::GPIO3,
+                4 => RPGpio::GPIO4,
+                5 => RPGpio::GPIO5,
+                6 => RPGpio::GPIO6,
+                7 => RPGpio::GPIO7,
+                8 => RPGpio::GPIO8,
+                9 => RPGpio::GPIO9,
+                10 => RPGpio::GPIO10,
+                11 => RPGpio::GPIO11,
+                12 => RPGpio::GPIO12,
+                13 => RPGpio::GPIO13,
+                14 => RPGpio::GPIO14,
+                15 => RPGpio::GPIO15,
+                16 => RPGpio::GPIO16,
+                17 => RPGpio::GPIO17,
+                18 => RPGpio::GPIO18,
+                19 => RPGpio::GPIO19,
+                20 => RPGpio::GPIO20,
+                21 => RPGpio::GPIO21,
+                22 => RPGpio::GPIO22,
+                23 => RPGpio::GPIO23,
+                24 => RPGpio::GPIO24,
+                25 => RPGpio::GPIO25,
+                26 => RPGpio::GPIO26,
+                27 => RPGpio::GPIO27,
+                28 => RPGpio::GPIO28,
+                29 => RPGpio::GPIO29,
+                _ => panic!(
+                    "Unknown value for GPIO pin: {} (should be from 0 to 29)",
+                    value
+                ),
+            }
         }
     }
 
-    // # Examples
-    /// Used for the examples in the pico explorer base main.rs file.
+    impl Pio {
+        // # Examples
+        /// Used for the examples in the pico explorer base main.rs file.
 
-    pub fn blinking_hello_program_init(
-        &mut self,
-        pio_number: PIONumber,
-        sm_number: SMNumber,
-        pin: u32,
-        config: &StateMachineConfiguration,
-    ) {
-        self.sm_config(sm_number, config);
-        self.pio_number = pio_number;
-        self.gpio_init(&RPGpioPin::new(RPGpio::from_u32(pin)));
-        self.sm_set_enabled(sm_number, false);
-        self.set_pins_out(sm_number, pin, 1, true);
-        self.set_set_pins(sm_number, pin, 1);
-        self.sm_init(sm_number);
-        self.sm_set_enabled(sm_number, true);
-    }
+        pub fn blinking_hello_program_init(
+            &self,
+            sm_number: SMNumber,
+            pin: u32,
+            config: &StateMachineConfiguration,
+        ) {
+            let sm = &self.sms[sm_number as usize];
+            sm.config(config);
+            self.gpio_init(&RPGpioPin::new(RPGpio::from_u32(pin)));
+            sm.set_enabled(false);
+            sm.set_pins_dirs(pin, 1, true);
+            sm.set_set_pins(pin, 1);
+            sm.init();
+            sm.set_enabled(true);
+        }
 
-    pub fn blink_program_init(
-        &mut self,
-        pio_number: PIONumber,
-        sm_number: SMNumber,
-        pin: u32,
-        config: &StateMachineConfiguration,
-    ) {
-        self.sm_config(sm_number, config);
-        self.pio_number = pio_number;
-        self.gpio_init(&RPGpioPin::new(RPGpio::from_u32(pin)));
-        self.sm_set_enabled(sm_number, false);
-        self.set_pins_out(sm_number, pin, 1, true);
-        self.set_set_pins(sm_number, pin, 1);
-        self.sm_init(sm_number);
-        self.sm_set_enabled(sm_number, true);
-    }
+        pub fn blink_program_init(
+            &self,
+            sm_number: SMNumber,
+            pin: u32,
+            config: &StateMachineConfiguration,
+        ) {
+            let sm = &self.sms[sm_number as usize];
+            sm.config(config);
+            self.gpio_init(&RPGpioPin::new(RPGpio::from_u32(pin)));
+            sm.set_enabled(false);
+            sm.set_pins_dirs(pin, 1, true);
+            sm.set_set_pins(pin, 1);
+            sm.init();
+            sm.set_enabled(true);
+        }
 
-    pub fn sideset_program_init(
-        &mut self,
-        pio_number: PIONumber,
-        sm_number: SMNumber,
-        pin: u32,
-        config: &StateMachineConfiguration,
-    ) {
-        self.sm_config(sm_number, config);
-        self.pio_number = pio_number;
-        self.gpio_init(&RPGpioPin::new(RPGpio::from_u32(pin)));
-        self.gpio_init(&RPGpioPin::new(RPGpio::GPIO7));
-        self.sm_set_enabled(sm_number, false);
-        self.set_pins_out(sm_number, pin, 1, true);
-        self.set_pins_out(sm_number, 7, 1, true);
-        self.set_set_pins(sm_number, pin, 1);
-        self.set_side_set_pins(sm_number, 7);
-        self.sm_init(sm_number);
-        self.sm_set_enabled(sm_number, true);
-    }
+        pub fn sideset_program_init(
+            &self,
+            sm_number: SMNumber,
+            pin: u32,
+            config: &StateMachineConfiguration,
+        ) {
+            let sm = &self.sms[sm_number as usize];
+            sm.config(config);
+            self.gpio_init(&RPGpioPin::new(RPGpio::from_u32(pin)));
+            self.gpio_init(&RPGpioPin::new(RPGpio::GPIO7));
+            sm.set_enabled(false);
+            sm.set_pins_dirs(pin, 1, true);
+            sm.set_pins_dirs(7, 1, true);
+            sm.set_set_pins(pin, 1);
+            sm.set_side_set_pins(7, 1, false, true);
+            sm.init();
+            sm.set_enabled(true);
+        }
 
-    pub fn hello_program_init(
-        &mut self,
-        pio_number: PIONumber,
-        sm_number: SMNumber,
-        pin1: u32,
-        pin2: u32,
-        config: &StateMachineConfiguration,
-    ) {
-        // This is used to turn on specifically GPIOs 6 and 7 - LSB is for GPIO 0, next bit is for GPIO 1 etc.
-        let turn_on_gpio_6_7 = 0b11000000;
-        self.sm_config(sm_number, config);
-        self.pio_number = pio_number;
-        self.gpio_init(&RPGpioPin::new(RPGpio::from_u32(pin1)));
-        self.gpio_init(&RPGpioPin::new(RPGpio::from_u32(pin2)));
-        self.sm_set_enabled(sm_number, false);
-        self.set_pins_out(sm_number, pin1, 1, true);
-        self.set_pins_out(sm_number, pin2, 1, true);
-        self.sm_init(sm_number);
-        self.sm_set_enabled(sm_number, true);
-        self.sm_put_blocking(sm_number, turn_on_gpio_6_7);
-        self.sm_put_blocking(sm_number, 0);
-    }
+        pub fn hello_program_init(
+            &self,
+            sm_number: SMNumber,
+            pin1: u32,
+            pin2: u32,
+            config: &StateMachineConfiguration,
+        ) {
+            let sm = &self.sms[sm_number as usize];
+            // This is used to turn on specifically GPIOs 6 and 7 - LSB is for GPIO 0, next bit is for GPIO 1 etc.
+            let turn_on_gpio_6_7 = 0b11000000;
+            sm.config(config);
+            self.gpio_init(&RPGpioPin::new(RPGpio::from_u32(pin1)));
+            self.gpio_init(&RPGpioPin::new(RPGpio::from_u32(pin2)));
+            sm.set_enabled(false);
+            sm.set_pins_dirs(pin1, 1, true);
+            sm.set_pins_dirs(pin2, 1, true);
+            sm.init();
+            sm.set_enabled(true);
+            sm.push_blocking(turn_on_gpio_6_7).ok();
+            sm.push_blocking(0).ok();
+        }
 
-    pub fn pwm_program_init(
-        &mut self,
-        pio_number: PIONumber,
-        sm_number: SMNumber,
-        pin: u32,
-        pwm_period: u32,
-        config: &StateMachineConfiguration,
-    ) {
-        // "pull" command created by pioasm
-        let pull_command = 0x8080_u32;
-        // "out isr, 32" command created by pioasm
-        let out_isr_32_command = 0x60c0_u32;
-        self.sm_config(sm_number, config);
-        self.pio_number = pio_number;
-        self.gpio_init(&RPGpioPin::new(RPGpio::from_u32(pin)));
-        self.sm_set_enabled(sm_number, false);
-        self.set_pins_out(sm_number, pin, 1, true);
-        self.set_side_set_pins(sm_number, pin);
-        self.sm_init(sm_number);
-        self.sm_put_blocking(sm_number, pwm_period);
-        self.sm_exec(sm_number, pull_command);
-        self.sm_exec(sm_number, out_isr_32_command);
-        self.sm_set_enabled(sm_number, true);
-    }
+        pub fn pwm_program_init(
+            &self,
+            sm_number: SMNumber,
+            pin: u32,
+            pwm_period: u32,
+            config: &StateMachineConfiguration,
+        ) {
+            let sm = &self.sms[sm_number as usize];
+            // "pull" command created by pioasm
+            let pull_command = 0x8080_u16;
+            // "out isr, 32" command created by pioasm
+            let out_isr_32_command = 0x60c0_u16;
+            sm.config(config);
+            self.gpio_init(&RPGpioPin::new(RPGpio::from_u32(pin)));
+            sm.set_enabled(false);
+            sm.set_pins_dirs(pin, 1, true);
+            sm.set_side_set_pins(pin, 1, false, true);
+            sm.init();
+            sm.push_blocking(pwm_period).ok();
+            sm.exec(pull_command);
+            sm.exec(out_isr_32_command);
+            sm.set_enabled(true);
+        }
 
-    // # Debugging
-    /// Returns current instruction running on the state machine.
-    pub fn read_instr(&self, sm_number: SMNumber) -> u32 {
-        self.registers.sm[sm_number as usize]
-            .instr
-            .read(SMx_INSTR::INSTR)
-    }
+        pub fn spi_program_init(
+            &self,
+            sm_number: SMNumber,
+            clock_pin: u32,
+            in_pin: u32,
+            out_pin: u32,
+            config: &StateMachineConfiguration,
+        ) {
+            let sm = &self.sms[sm_number as usize];
+            sm.config(config);
+            self.gpio_init(&RPGpioPin::new(RPGpio::from_u32(clock_pin)));
+            self.gpio_init(&RPGpioPin::new(RPGpio::from_u32(in_pin)));
+            self.gpio_init(&RPGpioPin::new(RPGpio::from_u32(out_pin)));
+            sm.set_enabled(false);
 
-    pub fn read_sideset_reg(&self, sm_number: SMNumber) {
-        debug!(
-            "{}",
+            // Important: make the sideset pin an output pin then make it a side set pin
+            // and make sure to do all of this BEFORE setting the outpin as an outpin
+            sm.set_out_pins(clock_pin, 1);
+            sm.set_pins_dirs(clock_pin, 1, true);
+            sm.set_side_set_pins(clock_pin, 1, false, false); // Do not switch pin dirs again, it will mess with the output settings
+
+            sm.set_pins_dirs(out_pin, 1, true);
+            sm.set_out_pins(out_pin, config.out_pins_count);
+
+            sm.init();
+            sm.clear_fifos();
+            sm.set_enabled(true);
+        }
+
+        // # Debugging
+        /// Returns current instruction running on the state machine.
+        pub fn read_instr(&self, sm_number: SMNumber) -> u32 {
             self.registers.sm[sm_number as usize]
-                .pinctrl
-                .read(SMx_PINCTRL::SIDESET_COUNT)
-        );
-        debug!(
-            "{}",
-            self.registers.sm[sm_number as usize]
-                .execctrl
-                .read(SMx_EXECCTRL::SIDE_EN)
-        );
-        debug!(
-            "{}",
-            self.registers.sm[sm_number as usize]
-                .execctrl
-                .read(SMx_EXECCTRL::SIDE_PINDIR)
-        );
-        debug!(
-            "{}",
-            self.registers.sm[sm_number as usize]
-                .pinctrl
-                .read(SMx_PINCTRL::SIDESET_BASE)
-        );
-    }
+                .instr
+                .read(SMx_INSTR::INSTR)
+        }
 
-    pub fn read_txf(&self, sm_number: SMNumber) -> u32 {
-        self.registers.txf[sm_number as usize].read(TXFx::TXF)
-    }
+        pub fn read_sideset_reg(&self, sm_number: SMNumber) {
+            debug!(
+                "{}",
+                self.registers.sm[sm_number as usize]
+                    .pinctrl
+                    .read(SMx_PINCTRL::SIDESET_COUNT)
+            );
+            debug!(
+                "{}",
+                self.registers.sm[sm_number as usize]
+                    .execctrl
+                    .read(SMx_EXECCTRL::SIDE_EN)
+            );
+            debug!(
+                "{}",
+                self.registers.sm[sm_number as usize]
+                    .execctrl
+                    .read(SMx_EXECCTRL::SIDE_PINDIR)
+            );
+            debug!(
+                "{}",
+                self.registers.sm[sm_number as usize]
+                    .pinctrl
+                    .read(SMx_PINCTRL::SIDESET_BASE)
+            );
+        }
 
-    pub fn txf_full_0(&self) -> u32 {
-        self.registers.fstat.read(FSTAT::TXFULL0)
-    }
+        pub fn read_dbg_padout(&self) -> u32 {
+            self.registers.dbg_padout.read(DBG_PADOUT::DBG_PADOUT)
+        }
 
-    pub fn read_dbg_padout(&self) -> u32 {
-        self.registers.dbg_padout.read(DBG_PADOUT::DBG_PADOUT)
-    }
-
-    pub fn read_fdebug(&self, tx: bool, stall: bool) -> u32 {
-        if tx {
-            if stall {
-                self.registers.fdebug.read(FDEBUG::TXSTALL)
+        pub fn read_fdebug(&self, tx: bool, stall: bool) -> u32 {
+            if tx {
+                if stall {
+                    self.registers.fdebug.read(FDEBUG::TXSTALL)
+                } else {
+                    self.registers.fdebug.read(FDEBUG::TXOVER)
+                }
+            } else if stall {
+                self.registers.fdebug.read(FDEBUG::RXSTALL)
             } else {
-                self.registers.fdebug.read(FDEBUG::TXOVER)
+                self.registers.fdebug.read(FDEBUG::RXUNDER)
             }
-        } else if stall {
-            self.registers.fdebug.read(FDEBUG::RXSTALL)
-        } else {
-            self.registers.fdebug.read(FDEBUG::RXUNDER)
         }
     }
 }

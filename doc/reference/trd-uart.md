@@ -9,7 +9,7 @@ Universal Asynchronous Receiver Transmitter (UART)  HIL
 **Draft-Created:** August 5, 2021<br/>
 **Draft-Modified:** June 5, 2022<br/>
 **Draft-Version:** 5<br/>
-**Draft-Discuss:** tock-dev@googlegroups.com</br>
+**Draft-Discuss:** devel@lists.tockos.org</br>
 
 Abstract
 -------------------------------

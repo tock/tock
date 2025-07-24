@@ -13,6 +13,7 @@ use kernel::hil::{
 
 use crate::imxrt1060::gpio;
 use crate::imxrt1060::lpuart;
+use crate::PROCESSES;
 
 struct Writer<'a> {
     output: &'a mut lpuart::Lpuart<'a>,
@@ -50,7 +51,6 @@ impl Write for Writer<'_> {
     }
 }
 
-#[no_mangle]
 #[panic_handler]
 unsafe fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
     let ccm = crate::imxrt1060::ccm::Ccm::new();
@@ -63,7 +63,7 @@ unsafe fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
         &mut writer,
         panic_info,
         &cortexm7::support::nop,
-        &*addr_of!(crate::PROCESSES),
+        PROCESSES.unwrap().as_slice(),
         &*addr_of!(crate::CHIP),
         &*addr_of!(crate::PROCESS_PRINTER),
     )

@@ -26,6 +26,8 @@ pub enum NUM {
 
     // Kernel
     Ipc                   = 0x10000,
+    AppLoader             = 0x10001,
+    ProcessInfo           = 0x10002,
 
     // HW Buses
     Spi                   = 0x20001,
@@ -35,7 +37,7 @@ pub enum NUM {
     I2cMasterSlave        = 0x20006,
     Can                   = 0x20007,
 
-    // Radio & Networking
+    // Networking
     BleAdvertising        = 0x30000,
     Ieee802154            = 0x30001,
     Udp                   = 0x30002,
@@ -43,7 +45,7 @@ pub enum NUM {
     LoRaPhyGPIO           = 0x30004,
     Thread                = 0x30005,
     Eui64                 = 0x30006,
-    EthernetTAP           = 0x30007,
+    EthernetTap           = 0x30007,
 
     // Cryptography
     Rng                   = 0x40001,
@@ -58,6 +60,7 @@ pub enum NUM {
     NvmStorage            = 0x50001,
     SdCard                = 0x50002,
     Kv                    = 0x50003,
+    IsolatedNvmStorage    = 0x50004,
 
     // Sensors
     Temperature           = 0x60000,

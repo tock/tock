@@ -5,11 +5,7 @@
 //! Board file for the SiFive E21 Bitstream running on the Arty FPGA
 
 #![no_std]
-// Disable this attribute when documenting, as a workaround for
-// https://github.com/rust-lang/rust/issues/62184.
-#![cfg_attr(not(doc), no_main)]
-
-use core::ptr::{addr_of, addr_of_mut};
+#![no_main]
 
 use arty_e21_chip::chip::ArtyExxDefaultPeripherals;
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
@@ -18,6 +14,7 @@ use kernel::capabilities;
 use kernel::component::Component;
 use kernel::hil;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::process::ProcessArray;
 use kernel::scheduler::priority::PrioritySched;
 use kernel::{create_capability, debug, static_init};
 
@@ -35,9 +32,8 @@ const NUM_PROCS: usize = 4;
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
-// Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
-    [None, None, None, None];
+/// Static variables used by io.rs.
+static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 
 // Reference to the chip for panic dumps.
 static mut CHIP: Option<&'static arty_e21_chip::chip::ArtyExx<ArtyExxDefaultPeripherals>> = None;
@@ -47,7 +43,7 @@ static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::Pr
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -143,7 +139,12 @@ unsafe fn start() -> (
 
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
+    // Create an array to hold process references.
+    let processes = components::process_array::ProcessArrayComponent::new()
+        .finalize(components::process_array_component_static!(NUM_PROCS));
+    PROCESSES = Some(processes);
+
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
@@ -253,8 +254,11 @@ unsafe fn start() -> (
     };
 
     // Create virtual device for kernel debug.
-    components::debug_writer::DebugWriterComponent::new(uart_mux)
-        .finalize(components::debug_writer_component_static!());
+    components::debug_writer::DebugWriterComponent::new(
+        uart_mux,
+        create_capability!(capabilities::SetDebugWriterCapability),
+    )
+    .finalize(components::debug_writer_component_static!());
 
     // arty_e21_chip::uart::UART0.initialize_gpio_pins(&peripherals.gpio_port[17], &peripherals.gpio_port[16]);
 
@@ -289,7 +293,6 @@ unsafe fn start() -> (
             core::ptr::addr_of_mut!(_sappmem),
             core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_mgmt_cap,
     )

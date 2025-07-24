@@ -5,17 +5,14 @@
 //! Tock kernel for the Nordic Semiconductor nRF52840 development kit (DK).
 
 #![no_std]
-// Disable this attribute when documenting, as a workaround for
-// https://github.com/rust-lang/rust/issues/62184.
-#![cfg_attr(not(doc), no_main)]
+#![no_main]
 #![deny(missing_docs)]
-
-use core::ptr::{addr_of, addr_of_mut};
 
 use kernel::component::Component;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::process::ProcessArray;
 use kernel::process::ProcessLoadingAsync;
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{capabilities, create_capability, static_init};
@@ -47,15 +44,14 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 8;
 
-static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
-    [None; NUM_PROCS];
-
+/// Static variables used by io.rs.
+static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>> = None;
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
+static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 //------------------------------------------------------------------------------
 // SYSCALL DRIVER TYPE DEFINITIONS
@@ -74,7 +70,7 @@ pub struct Platform {
     alarm: &'static AlarmDriver,
     scheduler: &'static RoundRobinSched<'static>,
     systick: cortexm4::systick::SysTick,
-    processes: &'static [Option<&'static dyn kernel::process::Process>],
+    processes: &'static ProcessArray<NUM_PROCS>,
 }
 
 impl SyscallDriverLookup for Platform {
@@ -149,8 +145,8 @@ impl kernel::process::ProcessLoadingAsyncClient for Platform {
     fn process_loading_finished(&self) {
         kernel::debug!("Processes Loaded:");
 
-        for (i, proc) in self.processes.iter().enumerate() {
-            proc.map(|p| {
+        for (i, proc) in self.processes.as_slice().iter().enumerate() {
+            proc.get().map(|p| {
                 kernel::debug!("[{}] {}", i, p.get_process_name());
                 kernel::debug!("    ShortId: {}", p.short_app_id());
             });
@@ -176,15 +172,18 @@ pub unsafe fn main() {
     nrf52840_peripherals.init();
     let base_peripherals = &nrf52840_peripherals.nrf52;
 
-    let processes = &*addr_of!(PROCESSES);
-
     // Choose the channel for serial output. This board can be configured to use
     // either the Segger RTT channel or via UART with traditional TX/RX GPIO
     // pins.
     let uart_channel = UartChannel::Pins(UartPins::new(UART_RTS, UART_TXD, UART_CTS, UART_RXD));
 
+    // Create an array to hold process references.
+    let processes = components::process_array::ProcessArrayComponent::new()
+        .finalize(components::process_array_component_static!(NUM_PROCS));
+    PROCESSES = Some(processes);
+
     // Setup space to store the core kernel data structure.
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes));
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
     // Create (and save for panic debugging) a chip object to setup low-level
     // resources (e.g. MPU, systick).
@@ -282,8 +281,11 @@ pub unsafe fn main() {
     ));
 
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux)
-        .finalize(components::debug_writer_component_static!());
+    components::debug_writer::DebugWriterComponent::new(
+        uart_mux,
+        create_capability!(capabilities::SetDebugWriterCapability),
+    )
+    .finalize(components::debug_writer_component_static!());
 
     //--------------------------------------------------------------------------
     // NRF CLOCK SETUP
@@ -323,15 +325,37 @@ pub unsafe fn main() {
     // PROCESS LOADING
     //--------------------------------------------------------------------------
 
+    // These symbols are defined in the standard Tock linker script.
+    extern "C" {
+        /// Beginning of the ROM region containing app images.
+        static _sapps: u8;
+        /// End of the ROM region containing app images.
+        static _eapps: u8;
+        /// Beginning of the RAM region for app memory.
+        static mut _sappmem: u8;
+        /// End of the RAM region for app memory.
+        static _eappmem: u8;
+    }
+
+    let app_flash = core::slice::from_raw_parts(
+        core::ptr::addr_of!(_sapps),
+        core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
+    );
+    let app_memory = core::slice::from_raw_parts_mut(
+        core::ptr::addr_of_mut!(_sappmem),
+        core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
+    );
+
     // Create and start the asynchronous process loader.
     let loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
         checker,
-        &mut *addr_of_mut!(PROCESSES),
         board_kernel,
         chip,
         &FAULT_RESPONSE,
         assigner,
         storage_permissions_policy,
+        app_flash,
+        app_memory,
     )
     .finalize(components::process_loader_sequential_component_static!(
         nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,

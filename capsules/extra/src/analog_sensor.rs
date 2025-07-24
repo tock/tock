@@ -31,8 +31,8 @@ impl<'a, A: hil::adc::Adc<'a>> AnalogLightSensor<'a, A> {
         adc: &'a A,
         channel: &'a <A as kernel::hil::adc::Adc<'a>>::Channel,
         sensor_type: AnalogLightSensorType,
-    ) -> AnalogLightSensor<'a, A> {
-        AnalogLightSensor {
+    ) -> Self {
+        Self {
             adc,
             channel,
             sensor_type,
@@ -82,9 +82,9 @@ impl<'a, A: hil::adc::Adc<'a>> AnalogTemperatureSensor<'a, A> {
     pub fn new(
         adc: &'a A,
         channel: &'a <A as kernel::hil::adc::Adc<'a>>::Channel,
-        sensor_type: AnalogLightSensorType,
-    ) -> AnalogLightSensor<'a, A> {
-        AnalogLightSensor {
+        sensor_type: AnalogTemperatureSensorType,
+    ) -> Self {
+        Self {
             adc,
             channel,
             sensor_type,

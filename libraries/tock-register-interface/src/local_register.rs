@@ -15,20 +15,19 @@ use crate::{RegisterLongName, UIntLike};
 ///
 /// This behaves very similarly to a read-write register, but instead of doing a
 /// volatile read to MMIO to get the value for each function call, a copy of the
-/// register contents are stored locally in memory. This allows a peripheral
-/// to do a single read on a register, and then check which bits are set without
+/// register contents are stored locally in memory. This allows a peripheral to
+/// do a single read on a register, and then check which bits are set without
 /// having to do a full MMIO read each time. It also allows the value of the
 /// register to be "cached" in case the peripheral driver needs to clear the
-/// register in hardware yet still be able to check the bits.
-/// You can write to a local register, which will modify the stored value, but
-/// will not modify any hardware because it operates only on local copy.
+/// register in hardware yet still be able to check the bits.  You can write to
+/// a local register, which will modify the stored value, but will not modify
+/// any hardware because it operates only on local copy.
 ///
-/// This type does not implement the
-/// [`Readable`](crate::interfaces::Readable) and
-/// [`Writeable`](crate::interfaces::Writeable) traits because it
-/// requires a mutable reference to modify the contained value. It
-/// still mirrors the interface which would be exposed by a type
-/// implementing [`Readable`](crate::interfaces::Readable),
+/// This type does not implement the [`Readable`](crate::interfaces::Readable)
+/// and [`Writeable`](crate::interfaces::Writeable) traits because it requires a
+/// mutable reference to modify the contained value. It still mirrors the
+/// interface which would be exposed by a type implementing
+/// [`Readable`](crate::interfaces::Readable),
 /// [`Writeable`](crate::interfaces::Writeable) and
 /// [`ReadWriteable`](crate::interfaces::ReadWriteable).
 #[derive(Copy, Clone)]
@@ -69,13 +68,15 @@ impl<T: UIntLike, R: RegisterLongName> LocalRegisterCopy<T, R> {
         field.read_as_enum(self.get())
     }
 
-    /// Write the value of one or more fields, overwriting the other fields with zero
+    /// Write the value of one or more fields, overwriting the other fields with
+    /// zero
     #[inline]
     pub fn write(&mut self, field: FieldValue<T, R>) {
         self.set(field.value);
     }
 
-    /// Write the value of one or more fields, leaving the other fields unchanged
+    /// Write the value of one or more fields, leaving the other fields
+    /// unchanged
     #[inline]
     pub fn modify(&mut self, field: FieldValue<T, R>) {
         self.set(field.modify(self.get()));
@@ -87,7 +88,8 @@ impl<T: UIntLike, R: RegisterLongName> LocalRegisterCopy<T, R> {
         field.is_set(self.get())
     }
 
-    /// Check if any bits corresponding to the mask in the passed `FieldValue` are set.
+    /// Check if any bits corresponding to the mask in the passed `FieldValue`
+    /// are set.
     #[inline]
     pub fn any_matching_bits_set(&self, field: FieldValue<T, R>) -> bool {
         field.any_matching_bits_set(self.get())
@@ -100,8 +102,8 @@ impl<T: UIntLike, R: RegisterLongName> LocalRegisterCopy<T, R> {
     }
 
     /// Check if any of the passed parts of a field exactly match the contained
-    /// value. This allows for matching on unset bits, or matching on specific values
-    /// in multi-bit fields.
+    /// value. This allows for matching on unset bits, or matching on specific
+    /// values in multi-bit fields.
     #[inline]
     pub fn matches_any(&self, fields: &[FieldValue<T, R>]) -> bool {
         fields

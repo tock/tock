@@ -7,8 +7,9 @@
 
 include ../Makefile.common
 
-QEMU_CMD             := qemu-system-riscv32
-WORKING_QEMU_VERSION := 7.2.0
+QEMU_CMD              := qemu-system-riscv32
+WORKING_QEMU_VERSIONS := 8.2.7, 9.1.3, 9.2.3, 10.0.2
+BROKEN_QEMU_VERSIONS  := <= 8.1.5
 
 # Whether a VirtIO network device shall be attached to the QEMU
 # machine, and which backend should be used. The following options are
@@ -75,7 +76,7 @@ QEMU_BASE_CMDLINE := \
 run: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	@echo
 	@echo -e "Running $$($(QEMU_CMD) --version | head -n1)"\
-	  "(tested: $(WORKING_QEMU_VERSION)) with\n"\
+	  "(tested: $(WORKING_QEMU_VERSIONS); known broken: $(BROKEN_QEMU_VERSIONS)) with\n"\
           " - kernel $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf"
 	@echo "To exit type C-a x"
 	@echo
@@ -88,7 +89,7 @@ run: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 run-app: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
 	@echo
 	@echo -e "Running $$($(QEMU_CMD) --version | head -n1)"\
-	  "(tested: $(WORKING_QEMU_VERSION)) with\n"\
+	  "(tested: $(WORKING_QEMU_VERSIONS); known broken: $(BROKEN_QEMU_VERSIONS)) with\n"\
           " - kernel $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf\n"\
 	  " - app $(APP)"
 	@echo "To exit type C-a x"

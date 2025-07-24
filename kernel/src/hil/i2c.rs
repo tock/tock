@@ -95,7 +95,7 @@ pub trait I2CMaster<'a> {
 }
 
 /// Interface for an SMBus Master hardware driver.
-/// The device implementing this will also seperately implement
+/// The device implementing this will also separately implement
 /// I2CMaster.
 pub trait SMBusMaster<'a>: I2CMaster<'a> {
     /// Write data then read data via the I2C Master device in an SMBus

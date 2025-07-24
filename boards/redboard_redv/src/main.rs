@@ -9,11 +9,10 @@
 //! This board is a clone of the Hifive1-revB from SiFive with minor changes.
 
 #![no_std]
-// Disable this attribute when documenting, as a workaround for
-// https://github.com/rust-lang/rust/issues/62184.
-#![cfg_attr(not(doc), no_main)]
+#![no_main]
 
-use core::ptr::{addr_of, addr_of_mut};
+use core::ptr::addr_of;
+use core::ptr::addr_of_mut;
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use e310_g002::interrupt_service::E310G002DefaultPeripherals;
@@ -23,6 +22,7 @@ use kernel::hil;
 use kernel::hil::led::LedLow;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::process::ProcessArray;
 use kernel::scheduler::cooperative::CooperativeSched;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::{create_capability, debug, static_init};
@@ -31,11 +31,9 @@ use rv32i::csr;
 pub mod io;
 
 pub const NUM_PROCS: usize = 4;
-//
-// Actual memory for holding the active process structures. Need an empty list
-// at least.
-static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
-    [None; NUM_PROCS];
+
+/// Static variables used by io.rs.
+static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 
 // Reference to the chip for panic dumps.
 static mut CHIP: Option<&'static e310_g002::chip::E310x<E310G002DefaultPeripherals>> = None;
@@ -50,7 +48,7 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x900] = [0; 0x900];
+static mut STACK_MEMORY: [u8; 0x900] = [0; 0x900];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
@@ -162,7 +160,13 @@ unsafe fn start() -> (
         .prci
         .set_clock_frequency(sifive::prci::ClockFrequency::Freq16Mhz);
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
+    // Create an array to hold process references.
+    let processes = components::process_array::ProcessArrayComponent::new()
+        .finalize(components::process_array_component_static!(NUM_PROCS));
+    PROCESSES = Some(processes);
+
+    // Setup space to store the core kernel data structure.
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
     // Configure kernel debug gpios as early as possible
     kernel::debug::assign_gpios(
@@ -263,8 +267,11 @@ unsafe fn start() -> (
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux)
-        .finalize(components::debug_writer_component_static!());
+    components::debug_writer::DebugWriterComponent::new(
+        uart_mux,
+        create_capability!(capabilities::SetDebugWriterCapability),
+    )
+    .finalize(components::debug_writer_component_static!());
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,
@@ -291,9 +298,8 @@ unsafe fn start() -> (
         static _eappmem: u8;
     }
 
-    let scheduler =
-        components::sched::cooperative::CooperativeComponent::new(&*addr_of!(PROCESSES))
-            .finalize(components::cooperative_component_static!(NUM_PROCS));
+    let scheduler = components::sched::cooperative::CooperativeComponent::new(processes)
+        .finalize(components::cooperative_component_static!(NUM_PROCS));
 
     let scheduler_timer = static_init!(
         VirtualSchedulerTimer<VirtualMuxAlarm<'static, e310_g002::chip::E310xClint<'static>>>,
@@ -320,7 +326,6 @@ unsafe fn start() -> (
             addr_of_mut!(_sappmem),
             addr_of!(_eappmem) as usize - addr_of!(_sappmem) as usize,
         ),
-        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_mgmt_cap,
     )

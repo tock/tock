@@ -155,7 +155,7 @@ impl<ChipSpecs: ChipSpecsTrait> InterruptService for Stm32f4xxDefaultPeripherals
 impl<'a, I: InterruptService + 'a> Stm32f4xx<'a, I> {
     pub unsafe fn new(interrupt_service: &'a I) -> Self {
         Self {
-            mpu: cortexm4f::mpu::MPU::new(),
+            mpu: cortexm4f::mpu::new(),
             userspace_kernel_boundary: cortexm4f::syscall::SysCall::new(),
             interrupt_service,
         }
@@ -168,18 +168,14 @@ impl<'a, I: InterruptService + 'a> Chip for Stm32f4xx<'a, I> {
 
     fn service_pending_interrupts(&self) {
         unsafe {
-            loop {
-                if let Some(interrupt) = cortexm4f::nvic::next_pending() {
-                    if !self.interrupt_service.service_interrupt(interrupt) {
-                        panic!("unhandled interrupt {}", interrupt);
-                    }
-
-                    let n = cortexm4f::nvic::Nvic::new(interrupt);
-                    n.clear_pending();
-                    n.enable();
-                } else {
-                    break;
+            while let Some(interrupt) = cortexm4f::nvic::next_pending() {
+                if !self.interrupt_service.service_interrupt(interrupt) {
+                    panic!("unhandled interrupt {}", interrupt);
                 }
+
+                let n = cortexm4f::nvic::Nvic::new(interrupt);
+                n.clear_pending();
+                n.enable();
             }
         }
     }

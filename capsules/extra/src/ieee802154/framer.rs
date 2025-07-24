@@ -926,7 +926,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> radio::RxClient for Framer<'a, M, A> {
                 }
             };
             self.rx_state.replace(next_state);
-            self.step_receive_state();
+            self.step_receive_state()
         });
     }
 }
@@ -1000,7 +1000,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> CCMClient for Framer<'a, M, A> {
                             RxState::Idle
                         };
                         self.rx_state.replace(next_state);
-                        self.step_receive_state();
+                        self.step_receive_state()
                     }
                     other_state => {
                         rx_waiting = match other_state {
@@ -1009,7 +1009,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> CCMClient for Framer<'a, M, A> {
                         };
                         self.rx_state.replace(other_state);
                     }
-                };
+                }
             });
         }
 
@@ -1022,7 +1022,7 @@ impl<'a, M: Mac<'a>, A: AES128CCM<'a>> CCMClient for Framer<'a, M, A> {
                 });
             });
         } else if rx_waiting {
-            self.step_receive_state();
+            self.step_receive_state()
         }
     }
 }

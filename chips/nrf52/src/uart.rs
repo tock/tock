@@ -239,26 +239,35 @@ impl<'a> Uarte<'a> {
         self.enable_uart();
     }
 
-    fn set_baud_rate(&self, baud_rate: u32) {
-        match baud_rate {
-            1200 => self.registers.baudrate.set(0x0004F000),
-            2400 => self.registers.baudrate.set(0x0009D000),
-            4800 => self.registers.baudrate.set(0x0013B000),
-            9600 => self.registers.baudrate.set(0x00275000),
-            14400 => self.registers.baudrate.set(0x003AF000),
-            19200 => self.registers.baudrate.set(0x004EA000),
-            28800 => self.registers.baudrate.set(0x0075C000),
-            38400 => self.registers.baudrate.set(0x009D0000),
-            57600 => self.registers.baudrate.set(0x00EB0000),
-            76800 => self.registers.baudrate.set(0x013A9000),
-            115200 => self.registers.baudrate.set(0x01D60000),
-            230400 => self.registers.baudrate.set(0x03B00000),
-            250000 => self.registers.baudrate.set(0x04000000),
-            460800 => self.registers.baudrate.set(0x07400000),
-            921600 => self.registers.baudrate.set(0x0F000000),
-            1000000 => self.registers.baudrate.set(0x10000000),
-            _ => self.registers.baudrate.set(0x01D60000), //setting default to 115200
+    // The datasheet gives a non-exhaustive list of example settings for
+    // typical bauds. The register is actually just a simple clock divider,
+    // as explained and with implementation from:
+    // https://devzone.nordicsemi.com/f/nordic-q-a/43280/technical-question-regarding-uart-baud-rate-generator-baudrate-register-offset-0x524
+    //
+    // Technically only RX is limited to 1MBaud, can TX up to 8MBaud:
+    // https://devzone.nordicsemi.com/f/nordic-q-a/84204/framing-error-and-noisy-data-when-using-uarte-at-high-baud-rate
+    fn get_divider_for_baud(&self, baud_rate: u32) -> Result<u32, ErrorCode> {
+        if baud_rate > 1_000_000 || baud_rate < 1200 {
+            return Err(ErrorCode::INVAL);
         }
+
+        // force 64 bit values for precision
+        let system_clock = 16000000u64; // TODO: Support dynamic clock
+        let scalar = 32u64;
+        let target_baud: u64 = baud_rate.into();
+
+        // n.b. bits 11-0 are ignored by hardware
+        let divider64 = (((target_baud << scalar) + (system_clock >> 1)) / system_clock) + 0x800;
+        let divider = (divider64 & 0xffff_f000) as u32;
+
+        Ok(divider)
+    }
+
+    fn set_baud_rate(&self, baud_rate: u32) -> Result<(), ErrorCode> {
+        let divider = self.get_divider_for_baud(baud_rate)?;
+        self.registers.baudrate.set(divider);
+
+        Ok(())
     }
 
     // Enable UART peripheral, this need to disabled for low power applications
@@ -482,7 +491,7 @@ impl uart::Configure for Uarte<'_> {
             return Err(ErrorCode::NOSUPPORT);
         }
 
-        self.set_baud_rate(params.baud_rate);
+        self.set_baud_rate(params.baud_rate)?;
 
         Ok(())
     }
@@ -534,5 +543,58 @@ impl<'a> uart::Receive<'a> for Uarte<'a> {
             self.registers.task_stoprx.write(Task::ENABLE::SET);
             Err(ErrorCode::BUSY)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use kernel::ErrorCode;
+
+    #[test]
+    fn baud_rate_divider_calculation() {
+        let u = super::Uarte::new(super::UARTE0_BASE);
+        assert_eq!(u.get_divider_for_baud(0), Err(ErrorCode::INVAL));
+        assert_eq!(u.get_divider_for_baud(4_000_000), Err(ErrorCode::INVAL));
+
+        // The constants below are the list from the Nordic technical documents.
+        //
+        // n.b., some datasheet constants do not match formula constants,
+        // so we skip those, see nordic forum thread for details:
+        // https://devzone.nordicsemi.com/f/nordic-q-a/84204/framing-error-and-noisy-data-when-using-uarte-at-high-baud-rate
+        //
+        // This is a *datasheet bug*, i.e., for a target baud of 115200, the
+        // datasheet divisor yields 115108 (-0.079% err) where direct
+        // computation of the divider yields 115203 (+0.002% err). Both work in
+        // practice, but the error here is an annoying and uncharacteristic
+        // Nordic quirk.
+        assert_eq!(u.get_divider_for_baud(1200), Ok(0x0004F000));
+        assert_eq!(u.get_divider_for_baud(2400), Ok(0x0009D000));
+        assert_eq!(u.get_divider_for_baud(4800), Ok(0x0013B000));
+        assert_eq!(u.get_divider_for_baud(9600), Ok(0x00275000));
+        //assert_eq!(u.get_divider_for_baud(14400), Ok(0x003AF000));
+        assert_eq!(u.get_divider_for_baud(19200), Ok(0x004EA000));
+        //assert_eq!(u.get_divider_for_baud(28800), Ok(0x0075C000));
+        //assert_eq!(u.get_divider_for_baud(38400), Ok(0x009D0000));
+        //assert_eq!(u.get_divider_for_baud(57600), Ok(0x00EB0000));
+        assert_eq!(u.get_divider_for_baud(76800), Ok(0x013A9000));
+        //assert_eq!(u.get_divider_for_baud(115200), Ok(0x01D60000));
+        //assert_eq!(u.get_divider_for_baud(230400), Ok(0x03B00000));
+        assert_eq!(u.get_divider_for_baud(250000), Ok(0x04000000));
+        //assert_eq!(u.get_divider_for_baud(460800), Ok(0x07400000));
+        //assert_eq!(u.get_divider_for_baud(921600), Ok(0x0F000000));
+        assert_eq!(u.get_divider_for_baud(1000000), Ok(0x10000000));
+        //
+        // For completeness of testing, we do verify that the calculation works
+        // as-expected to generate the empirically correct divisors.  (i.e.,
+        // these are not the datasheet constants, but are the correct divisors
+        // for the desired bauds):
+        assert_eq!(u.get_divider_for_baud(14400), Ok(0x003B0000));
+        assert_eq!(u.get_divider_for_baud(28800), Ok(0x0075F000));
+        assert_eq!(u.get_divider_for_baud(38400), Ok(0x009D5000));
+        assert_eq!(u.get_divider_for_baud(57600), Ok(0x00EBF000));
+        assert_eq!(u.get_divider_for_baud(115200), Ok(0x01D7E000));
+        assert_eq!(u.get_divider_for_baud(230400), Ok(0x03AFB000));
+        assert_eq!(u.get_divider_for_baud(460800), Ok(0x075F7000));
+        assert_eq!(u.get_divider_for_baud(921600), Ok(0x0EBEE000));
     }
 }

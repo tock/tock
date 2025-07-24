@@ -97,7 +97,7 @@ impl kernel::platform::chip::InterruptService for Msp432DefaultPeripherals<'_> {
 impl<'a, I: InterruptService + 'a> Msp432<'a, I> {
     pub unsafe fn new(interrupt_service: &'a I) -> Self {
         Self {
-            mpu: cortexm4::mpu::MPU::new(),
+            mpu: cortexm4::mpu::new(),
             userspace_kernel_boundary: cortexm4::syscall::SysCall::new(),
             interrupt_service,
         }
@@ -110,18 +110,14 @@ impl<'a, I: InterruptService + 'a> Chip for Msp432<'a, I> {
 
     fn service_pending_interrupts(&self) {
         unsafe {
-            loop {
-                if let Some(interrupt) = cortexm4::nvic::next_pending() {
-                    if !self.interrupt_service.service_interrupt(interrupt) {
-                        panic!("unhandled interrupt {}", interrupt);
-                    }
-
-                    let n = cortexm4::nvic::Nvic::new(interrupt);
-                    n.clear_pending();
-                    n.enable();
-                } else {
-                    break;
+            while let Some(interrupt) = cortexm4::nvic::next_pending() {
+                if !self.interrupt_service.service_interrupt(interrupt) {
+                    panic!("unhandled interrupt {}", interrupt);
                 }
+
+                let n = cortexm4::nvic::Nvic::new(interrupt);
+                n.clear_pending();
+                n.enable();
             }
         }
     }

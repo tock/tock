@@ -38,7 +38,7 @@ Details of the [application binary interface](../Syscalls.md).
 
 Each driver type that has been allocated a permanent driver number is listed in
 the tables below. The "2.0" column indicates whether the driver has been
-stabilized or not (a "✓" indicates stability) in the Tock 2.0 release.
+[stabilized](../Maintenance.md#stabilizing-a-syscall-driver) or not (a "✓" indicates stability) in the Tock 2.0 release.
 
 ### Base
 
@@ -56,6 +56,8 @@ stabilized or not (a "✓" indicates stability) in the Tock 2.0 release.
 |---|---------------|------------------|--------------------------------------------|
 |   | 0x00009       | [ROS](00009_ros.md) | Read Only State, access system information |
 |   | 0x10000       | IPC              | Inter-process communication                |
+|   | 0x10001       | DBS              | Dynamic Binary Storage/Process Loading     |
+|   | 0x10002       | ProcessInfo      | Inspect and control processes              |
 
 ### Hardware Access
 
@@ -100,6 +102,7 @@ _Note:_ GPIO is slated for re-numbering in Tock 2.0.
 |   | 0x50001       | Nonvolatile Storage | Generic interface for persistent storage |
 |   | 0x50002       | SDCard           | Raw block access to an SD card             |
 |   | 0x50003       | [Key-Value](50003_key_value.md) | Access to a key-value storage database |
+|   | 0x50004       | [Isolated Nonvolatile Storage](50004_isolated_nonvolatile_storage.md) | Per-application nonvolatile storage |
 
 ### Sensors
 

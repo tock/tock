@@ -7,7 +7,7 @@
 //! Programmable Input Output (PIO) hardware test file.
 use crate::clocks::{self};
 use crate::gpio::RPGpio;
-use crate::pio::{PIONumber, Pio, SMNumber, StateMachineConfiguration};
+use crate::pio::{Pio, SMNumber, StateMachineConfiguration};
 
 use kernel::utilities::cells::TakeCell;
 use kernel::{hil, ErrorCode};
@@ -54,7 +54,7 @@ impl hil::pwm::Pwm for PioPwm<'_> {
 
         self.pio.map(|pio| {
             pio.init();
-            pio.add_program(&path);
+            pio.add_program(Some(0), &path).ok();
             let mut custom_config = StateMachineConfiguration::default();
 
             let pin_nr = *pin as u32;
@@ -68,17 +68,10 @@ impl hil::pwm::Pwm for PioPwm<'_> {
             let pwm_period = ((max_freq / frequency_hz) / 3) as u32;
             let sm_number = SMNumber::SM0;
             let duty_cycle = duty_cycle_percentage as u32;
-            pio.pwm_program_init(
-                PIONumber::PIO0,
-                sm_number,
-                pin_nr,
-                pwm_period,
-                &custom_config,
-            );
-            pio.sm_put_blocking(
-                sm_number,
-                pwm_period * duty_cycle / (self.get_maximum_duty_cycle()) as u32,
-            );
+            pio.pwm_program_init(sm_number, pin_nr, pwm_period, &custom_config);
+            pio.sm(sm_number)
+                .push_blocking(pwm_period * duty_cycle / (self.get_maximum_duty_cycle()) as u32)
+                .ok();
         });
 
         Ok(())

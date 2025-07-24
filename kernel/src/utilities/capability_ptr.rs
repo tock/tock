@@ -6,18 +6,17 @@
 
 use core::fmt::{Formatter, LowerHex, UpperHex};
 use core::ops::AddAssign;
+use core::ptr::null;
+
+use super::machine_register::MachineRegister;
 
 /// A pointer to userspace memory with implied authority.
 ///
-/// A [`CapabilityPtr`] points to memory a userspace process may be
-/// permitted to read, write, or execute. It is sized exactly to a
-/// CPU register that can pass values between userspace and the kernel.
-/// Because it is register sized, [`CapabilityPtr`] is guaranteed to be
-/// at least the size of a word ([usize]) [^note1]. Operations on the
-/// pointer may affect permissions, e.g. offsetting the pointer beyond
-/// the bounds of the memory object invalidates it. Like a `*const
-/// ()`, a [`CapabilityPtr`] may also "hide" information by storing a
-/// word of data with no memory access permissions.
+/// A [`CapabilityPtr`] points to memory a userspace process may be permitted to
+/// read, write, or execute. It is sized exactly to a CPU register that can pass
+/// values between userspace and the kernel [^note1]. Operations on the pointer
+/// may affect permissions, e.g. offsetting the pointer beyond the bounds of the
+/// memory object may invalidate it.
 ///
 /// [`CapabilityPtr`] should be used to store or pass a value between the
 /// kernel and userspace that may represent a valid userspace reference,
@@ -32,14 +31,6 @@ pub struct CapabilityPtr {
     ptr: *const (),
 }
 
-impl Default for CapabilityPtr {
-    fn default() -> Self {
-        Self {
-            ptr: core::ptr::null(),
-        }
-    }
-}
-
 /// Permission sets a [`CapabilityPtr`] may grant.
 /// These may not be enforced or exist on a given platform.
 #[derive(Copy, Clone, PartialEq)]
@@ -51,57 +42,70 @@ pub enum CapabilityPtrPermissions {
     Execute,
 }
 
-impl From<CapabilityPtr> for usize {
-    /// Returns the address of the [`CapabilityPtr`].
-    /// Provenance note: may not expose provenance.
-    #[inline]
-    fn from(from: CapabilityPtr) -> Self {
-        from.ptr as usize
+impl Default for CapabilityPtr {
+    /// Returns a null CapabilityPtr.
+    fn default() -> Self {
+        Self { ptr: null() }
     }
 }
 
 impl From<usize> for CapabilityPtr {
-    /// Constructs a [`CapabilityPtr`] with a given address and no authority
-    ///
-    /// Provenance note: may have null provenance.
+    /// Constructs a [`CapabilityPtr`] with a given address but no authority or
+    /// provenance.
     #[inline]
     fn from(from: usize) -> Self {
         Self {
-            ptr: from as *const (),
+            // Ideally this would be core::ptr::without_provenance(from), but
+            // the CHERI toolchain is too old for without_provenance. This is
+            // equivalent.
+            ptr: null::<()>().with_addr(from),
         }
     }
 }
 
+// In addition to its publicly-documented capabilities, CapabilityPtr's
+// implementation can also store integers. MachineRegister uses that ability to
+// simplify its implementation. No other user of CapabilityPtr should rely on
+// that ability.
+
+impl From<usize> for MachineRegister {
+    fn from(from: usize) -> Self {
+        Self::from(CapabilityPtr::from(from))
+    }
+}
+
 impl UpperHex for CapabilityPtr {
-    /// Format the capability as an uppercase hex string.
-    /// Will print at least the address, and any platform specific metadata if it exists.
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        UpperHex::fmt(&(self.ptr as usize), f)
+        UpperHex::fmt(&self.ptr.addr(), f)
     }
 }
 
 impl LowerHex for CapabilityPtr {
-    /// Format the capability as a lowercase hex string.
-    /// Will print at least the address, and any platform specific metadata if it exists.
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        LowerHex::fmt(&(self.ptr as usize), f)
+        LowerHex::fmt(&self.ptr.addr(), f)
     }
 }
 
 impl AddAssign<usize> for CapabilityPtr {
-    /// Increments the address of a [`CapabilityPtr`]
+    /// Increments the address of a [`CapabilityPtr`]. If the pointer is offset
+    /// past its bounds, its authority may be invalidated.
     #[inline]
     fn add_assign(&mut self, rhs: usize) {
-        self.ptr = (self.ptr as *const u8).wrapping_add(rhs) as *const ();
+        self.ptr = self.ptr.wrapping_byte_add(rhs);
     }
 }
 
 impl CapabilityPtr {
+    /// Returns the address of this pointer. Does not expose provenance.
+    pub fn addr(self) -> usize {
+        self.ptr.addr()
+    }
+
     /// Returns the pointer component of a [`CapabilityPtr`] but without any of the authority.
     pub fn as_ptr<T>(&self) -> *const T {
-        self.ptr as *const T
+        self.ptr.cast()
     }
 
     /// Construct a [`CapabilityPtr`] from a raw pointer, with authority ranging over

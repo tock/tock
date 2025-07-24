@@ -44,7 +44,7 @@ pub struct Rp2040<'a, I: InterruptService + 'a> {
 impl<'a, I: InterruptService> Rp2040<'a, I> {
     pub unsafe fn new(interrupt_service: &'a I, sio: &'a SIO) -> Self {
         Self {
-            mpu: cortexm0p::mpu::MPU::new(),
+            mpu: cortexm0p::mpu::new(),
             userspace_kernel_boundary: cortexm0p::syscall::SysCall::new(),
             interrupt_service,
             sio,
@@ -64,20 +64,16 @@ impl<I: InterruptService> Chip for Rp2040<'_, I> {
                 Processor::Processor0 => self.processor0_interrupt_mask,
                 Processor::Processor1 => self.processor1_interrupt_mask,
             };
-            loop {
-                if let Some(interrupt) = cortexm0p::nvic::next_pending_with_mask(mask) {
-                    // ignore SIO_IRQ_PROC1 as it is intended for processor 1
-                    // not able to unset its pending status
-                    // probably only processor 1 can unset the pending by reading the fifo
-                    if !self.interrupt_service.service_interrupt(interrupt) {
-                        panic!("unhandled interrupt {}", interrupt);
-                    }
-                    let n = cortexm0p::nvic::Nvic::new(interrupt);
-                    n.clear_pending();
-                    n.enable();
-                } else {
-                    break;
+            while let Some(interrupt) = cortexm0p::nvic::next_pending_with_mask(mask) {
+                // ignore SIO_IRQ_PROC1 as it is intended for processor 1
+                // not able to unset its pending status
+                // probably only processor 1 can unset the pending by reading the fifo
+                if !self.interrupt_service.service_interrupt(interrupt) {
+                    panic!("unhandled interrupt {}", interrupt);
                 }
+                let n = cortexm0p::nvic::Nvic::new(interrupt);
+                n.clear_pending();
+                n.enable();
             }
         }
     }
@@ -182,10 +178,7 @@ impl InterruptService for Rp2040DefaultPeripherals<'_> {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool {
         match interrupt {
             interrupts::PIO0_IRQ_0 => {
-                // As the current PIO interface does not provide support for interrupts, they are
-                // simply ignored.
-                //
-                // Note that PIO interrupts are raised only during unit tests.
+                self.pio0.handle_interrupt();
                 true
             }
             interrupts::TIMER_IRQ_0 => {

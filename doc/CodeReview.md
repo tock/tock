@@ -11,6 +11,8 @@ merges pull requests for the main Tock repository.
 
 - [Introduction](#introduction)
 - [Pull Requests](#pull-requests)
+  * [Significant pull requests](#significant-pull-requests)
+  * [Upkeep pull requests](#upkeep-pull-requests)
 - [Continuous Integration](#continuous-integration)
   * [CI Organization](#ci-organization)
     + [The short answer: `make prepush`](#the-short-answer-make-prepush)
@@ -50,7 +52,7 @@ more below) are made on branches.
 ## Pull Requests
 
 Any pull request against the master branch is reviewed by the core Tock
-team. Pull requests fall into two categories:
+team. Pull requests fall into two general categories:
 
 1. **Upkeep pull requests** involve minor changes to existing implementations.
    Examples of upkeep requests involve bug fixes, documentation (that isn't
@@ -77,10 +79,12 @@ core team will have good consensus on the boundary between upkeep vs.
 significant, but that specialized knowledge means that some team members will
 see implications that others may not.
 
-**Upkeep pull requests** can be merged by any member of the core team. That
-person is responsible for the merge and backing out the merge if needed.
+Core team members can change their votes at any time, based on discussion,
+changes, or further thought.
 
-**Significant pull requests** require review by the entire core team. Each
+### Significant pull requests
+
+These PRs require review by the entire core team. Each
 core team member is expected to respond within one week. There are three
 possible responses:
 
@@ -91,8 +95,57 @@ possible responses:
   - **Discuss**, which means the pull request needs to be discussed by the
     core team before considering merging it.
 
-Core team members can change their votes at any time, based on discussion,
-changes, or further thought.
+Significant pull requests are relatively uncommon, however, they will generally
+require extensive discussion and several revisions from the pull request author
+or other contributors. Significant PRs are often discussed during working group
+meetings, with feedback captured in meeting notes and commonly summarized in a
+comment on the PR thread. While the goal is for all significant PRs to receive a
+full core team review, sometimes members are unavailable for extended periods,
+in which case a subset of the core team may elect to merge a significant PR.
+
+### Upkeep pull requests
+
+These pull requests are more informally handled compared to significant pull
+requests. Commonly, upkeep pull requests fall into one of three groups:
+
+1. Very minor: these PRs fix typos, improve a comment, fix formatting, fix a
+   clippy lint, or make other inconsequential changes that do not affect the
+   code or are trivial to reason about.
+2. Minor: these PRs edit only a handful of lines of code to improve clarity, fix
+   an obvious bug, add functionality to a Tier 2 or 3 board, update the version
+   of a tool, add a component, add a test, or make other changes that are
+   straightforward to understand and reason about, do not make changes to the
+   kernel crate or depend on any specific hardware functionality, and are
+   limited in the scope of Tock code that is impacted.
+3. Moderate: these PRs add a new capsule, make minor modifications to the kernel
+   crate, modify a Tier 1 board, implement a HIL for a chip, modify existing
+   chip code based on how the hardware functions, modify the logic for an
+   intricate capsule, change a `SyscallDriver` interface, or make other changes
+   that could have impact to many Tock subsystems or users, require expertise in
+   a particular platform or subsystem to review, or add a moderate amount of new
+   code to Tock.
+
+These groups are not generally explicitly distinguished but instead are
+understood by core team members based on experience and discussion.
+
+Generally, very minor PRs will be handled and merged by the first core team
+member that reviews the PR. These are typically merged immediately to avoid
+unnecessary time spent reviewing very minor changes.
+
+Generally, minor PRs will be reviewed by two core team members, and if neither
+reviewer has any comments the second reviewer will merge the PR.
+
+Generally, moderate PRs will reviewed by at least two core team members and left
+open for several business days to leave time for any core team member to raise
+any potential issues. In the case that a moderate PR modifies specific
+subsystems, the PR will likely be left open until the core team member most
+familiar with that subsystem is able to review the PR. After two approval
+reviews with all comments addressed, the PR will often be tagged "last call",
+starting a roughly 24 hour clock for any last-chance reviews. If there are no
+additional comments the PR will generally be merged the next business day.
+
+All upkeep PRs can be merged by any member of the core team. That
+person is responsible for the merge and backing out the merge if needed.
 
 ## Continuous Integration
 

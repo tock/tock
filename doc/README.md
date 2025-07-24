@@ -27,3 +27,4 @@ Tock Policies
 - **[Working Groups](wg)** - Development groups for specific aspects of Tock.
 - **[Code Review Process](CodeReview.md)** - Process for pull request reviews.
 - **[Tock Management](Maintenance.md)** - Management processes for Tock, including releases.
+- **[Security Protocol](SecurityProtocol.md)** - Procedures for security vulnerability reporting, response, and disclosure.

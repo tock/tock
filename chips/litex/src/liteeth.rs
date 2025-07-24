@@ -4,8 +4,7 @@
 
 //! LiteX LiteEth peripheral
 //!
-//! The hardware source and any documentation can be found in the
-//! [LiteEth Git
+//! The hardware source and any documentation can be found in the [LiteEth Git
 //! repository](https://github.com/enjoy-digital/liteeth).
 
 use crate::event_manager::LiteXEventManager;
@@ -13,13 +12,13 @@ use crate::litex_registers::{LiteXSoCRegisterConfiguration, Read, Write};
 use core::cell::Cell;
 use core::slice;
 use kernel::debug;
-use kernel::hil::ethernet::{EthernetAdapter, EthernetAdapterClient};
-use kernel::utilities::cells::{OptionalCell, TakeCell};
+use kernel::hil::ethernet::{EthernetAdapterDatapath, EthernetAdapterDatapathClient};
+use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
-// Both events have the same index since they are located on different
-// event manager instances
+// Both events have the same index since they are located on different event
+// manager instances
 const LITEETH_TX_EVENT: usize = 0;
 const LITEETH_RX_EVENT: usize = 0;
 
@@ -78,20 +77,20 @@ impl<R: LiteXSoCRegisterConfiguration> LiteEthMacRegisters<R> {
     }
 }
 
-pub struct LiteEth<'a, R: LiteXSoCRegisterConfiguration> {
+pub struct LiteEth<'a, const MAX_TX_SLOTS: usize, R: LiteXSoCRegisterConfiguration> {
     mac_regs: StaticRef<LiteEthMacRegisters<R>>,
     mac_memory_base: usize,
     mac_memory_len: usize,
     slot_size: usize,
     rx_slots: usize,
     tx_slots: usize,
-    client: OptionalCell<&'a dyn EthernetAdapterClient>,
-    tx_packet: TakeCell<'static, [u8]>,
-    tx_packet_info: TakeCell<'static, [(usize, u16)]>,
+    client: OptionalCell<&'a dyn EthernetAdapterDatapathClient>,
+    tx_frame: TakeCell<'static, [u8]>,
+    tx_frame_info: MapCell<[(usize, u16); MAX_TX_SLOTS]>,
     initialized: Cell<bool>,
 }
 
-impl<'a, R: LiteXSoCRegisterConfiguration> LiteEth<'a, R> {
+impl<const MAX_TX_SLOTS: usize, R: LiteXSoCRegisterConfiguration> LiteEth<'_, MAX_TX_SLOTS, R> {
     pub unsafe fn new(
         mac_regs: StaticRef<LiteEthMacRegisters<R>>,
         mac_memory_base: usize,
@@ -99,8 +98,7 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteEth<'a, R> {
         slot_size: usize,
         rx_slots: usize,
         tx_slots: usize,
-        tx_packet_info: &'static mut [(usize, u16)],
-    ) -> LiteEth<'a, R> {
+    ) -> Self {
         LiteEth {
             mac_regs,
             mac_memory_base,
@@ -109,8 +107,8 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteEth<'a, R> {
             rx_slots,
             tx_slots,
             client: OptionalCell::empty(),
-            tx_packet: TakeCell::empty(),
-            tx_packet_info: TakeCell::new(tx_packet_info),
+            tx_frame: TakeCell::empty(),
+            tx_frame_info: MapCell::new([(0, 0); MAX_TX_SLOTS]),
             initialized: Cell::new(false),
         }
     }
@@ -118,11 +116,10 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteEth<'a, R> {
     pub fn initialize(&self) {
         // Sanity check the memory parameters
         //
-        // Technically the constructor is unsafe as it will (over the
-        // lifetime of this struct) "cast" the raw mac_memory pointer
-        // (and slot offsets) into pointers and access them
-        // directly. However checking it at runtime once seems like a
-        // good idea.
+        // Technically the constructor is unsafe as it will (over the lifetime
+        // of this struct) "cast" the raw mac_memory pointer (and slot offsets)
+        // into pointers and access them directly. However checking it at
+        // runtime once seems like a good idea.
         assert!(
             (self.rx_slots + self.tx_slots) * self.slot_size <= self.mac_memory_len,
             "LiteEth: slots would exceed assigned MAC memory area"
@@ -131,23 +128,23 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteEth<'a, R> {
         assert!(self.rx_slots > 0, "LiteEth: no RX slot");
         assert!(self.tx_slots > 0, "LiteEth: no TX slot");
 
-        // Sanity check the length of the packet info buffer, must be
-        // the same as the number of tx slots
+        // Sanity check the length of the frame_info buffer, must be able to fit
+        // all `tx_slots` requested at runtime.
         assert!(
-            self.tx_packet_info.map(|i| i.len()).unwrap() == self.tx_slots,
-            "LiteEth: tx_packet_info.len() must be equal to tx_slots"
+            MAX_TX_SLOTS >= self.tx_slots,
+            "LiteEth: MAX_TX_SLOTS ({}) must be larger or equal to tx_slots ({})",
+            MAX_TX_SLOTS,
+            self.tx_slots,
         );
 
-        // Disable TX events (first enabled when a packet is sent)
+        // Disable TX events (first enabled when a frame is sent)
         self.mac_regs.tx_ev().disable_event(LITEETH_TX_EVENT);
 
-        // Clear all pending RX & TX events (there might be leftovers
-        // from the bootloader or a reboot, for which we don't want to
-        // generate an event)
+        // Clear all pending RX & TX events (there might be leftovers from the
+        // bootloader or a reboot, for which we don't want to generate an event)
         //
-        // This is not sufficient to guarantee that all events will be
-        // cleared then. A packet could still be in reception or
-        // transmit.
+        // This is not sufficient to guarantee that all events will be cleared
+        // then. A frame could still be in reception or transmit.
         while self.mac_regs.rx_ev().event_pending(LITEETH_RX_EVENT) {
             self.mac_regs.rx_ev().clear_event(LITEETH_RX_EVENT);
         }
@@ -155,12 +152,10 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteEth<'a, R> {
             self.mac_regs.tx_ev().clear_event(LITEETH_TX_EVENT);
         }
 
-        // Enable RX events
-        self.mac_regs.rx_ev().enable_event(LITEETH_RX_EVENT);
-
         self.initialized.set(true);
     }
 
+    #[allow(clippy::mut_from_ref)]
     unsafe fn get_slot_buffer(&self, tx: bool, slot_id: usize) -> Option<&mut [u8]> {
         if (tx && slot_id > self.tx_slots) || (!tx && slot_id > self.rx_slots) {
             return None;
@@ -183,10 +178,12 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteEth<'a, R> {
         // Get the frame length
         let pkt_len = self.mac_regs.rx_length.get();
 
-        // Obtain the packet slot id
+        // Obtain the frame slot id
         let slot_id: usize = self.mac_regs.rx_slot.get().into();
 
-        // // Obtain the packet reception timestamp
+        // Obtain the frame reception timestamp. The `rx_timestamp` register is
+        // optional and disabled by default.
+        //
         // let timestamp = self.mac_regs.rx_timestamp.get();
 
         // Get the slot buffer reference
@@ -195,86 +192,103 @@ impl<'a, R: LiteXSoCRegisterConfiguration> LiteEth<'a, R> {
                 .expect("LiteEth: invalid RX slot id")
         };
 
-        // Give the client read-only access to the packet data
+        // Give the client read-only access to the frame data
         self.client
-            .map(|client| client.rx_packet(&slot[..(pkt_len as usize)], None));
+            .map(|client| client.received_frame(&slot[..(pkt_len as usize)], None));
 
-        // Since all data is copied, acknowledge the interrupt
-        // so that the slot is ready for use again
+        // Since all data is copied, acknowledge the interrupt so that the slot
+        // is ready for use again
         self.mac_regs.rx_ev().clear_event(LITEETH_RX_EVENT);
-
-        // Just in case it was disabled
-        self.mac_regs.rx_ev().enable_event(LITEETH_RX_EVENT);
     }
 
     fn tx_interrupt(&self) {
-        // // Store information about the packet that has been sent (from
-        // // the return channel)
+        // Store information about the frame that has been sent (from the return
+        // channel). Uncomment the below lines if hardware timestamping is
+        // enabled and frame TX timestamps are supposed to be recorded.
+        //
         // let res_slot = self.mac_regs.tx_timestamp_slot.get();
         // let res_timestamp = self.mac_regs.tx_timestamp.get();
 
         // Acknowledge the event, removing the tx_res fields from the FIFO
         self.mac_regs.tx_ev().clear_event(LITEETH_TX_EVENT);
 
-        if self.tx_packet.is_none() {
-            debug!("LiteEth: tx interrupt called without tx_packet set");
+        if self.tx_frame.is_none() {
+            debug!("LiteEth: tx interrupt called without tx_frame set");
         }
 
         // We use only one slot, so this event is unambiguous
-        let packet = self
-            .tx_packet
+        let frame = self
+            .tx_frame
             .take()
             .expect("LiteEth: TakeCell empty in tx callback");
 
-        // Retrieve the previously stored packet information for this
-        // slot.
+        // Retrieve the previously stored frame information for this slot.
         let slot_id = 0; // currently only use one TX slot
-        let (packet_identifier, len) = self
-            .tx_packet_info
+        let (frame_identifier, len) = self
+            .tx_frame_info
             .map(|pkt_info| pkt_info[slot_id])
             .unwrap();
 
-        self.client
-            .map(move |client| client.tx_done(Ok(()), packet, len, packet_identifier, None));
+        self.client.map(move |client| {
+            client.transmit_frame_done(Ok(()), frame, len, frame_identifier, None)
+        });
     }
 
     pub fn service_interrupt(&self) {
-        // The interrupt could've been generated by both a packet
-        // being received or finished transmitting. Check and handle
-        // both cases
-
-        while self.mac_regs.rx_ev().event_asserted(LITEETH_RX_EVENT) {
-            self.rx_interrupt();
-        }
+        // The interrupt could've been generated by both a frame being received
+        // or finished transmitting. Check and handle both cases.
 
         while self.mac_regs.tx_ev().event_asserted(LITEETH_TX_EVENT) {
             self.tx_interrupt();
         }
+
+        // `event_asserted` checks that the event is both pending _and_ enabled
+        // (raising a CPU interrupt). This means that reception is enabled, and
+        // we must handle it:
+        while self.mac_regs.rx_ev().event_asserted(LITEETH_RX_EVENT) {
+            self.rx_interrupt();
+        }
     }
 }
 
-impl<'a, R: LiteXSoCRegisterConfiguration> EthernetAdapter<'a> for LiteEth<'a, R> {
-    fn set_client(&self, client: &'a dyn EthernetAdapterClient) {
+impl<'a, const MAX_TX_SLOTS: usize, R: LiteXSoCRegisterConfiguration> EthernetAdapterDatapath<'a>
+    for LiteEth<'a, MAX_TX_SLOTS, R>
+{
+    fn set_client(&self, client: &'a dyn EthernetAdapterDatapathClient) {
         self.client.set(client);
     }
 
-    /// Transmit an ethernet packet over the interface
-    ///
-    /// For now this will only use a single slot on the interface and
-    /// is therefore blocking. A client must wait until a callback to
-    /// `tx_done` prior to sending a new packet.
-    fn transmit(
-        &self,
-        packet: &'static mut [u8],
-        len: u16,
-        packet_identifier: usize,
-    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
-        if packet.len() < (len as usize) {
-            return Err((ErrorCode::INVAL, packet));
+    fn enable_receive(&self) {
+        // Enable RX event interrupts:
+        if !self.initialized.get() {
+            panic!("LiteEth: cannot enable_receive without prior initialization!");
         }
 
-        if self.tx_packet.is_some() {
-            return Err((ErrorCode::BUSY, packet));
+        self.mac_regs.rx_ev().enable_event(LITEETH_RX_EVENT);
+    }
+
+    fn disable_receive(&self) {
+        // Disable RX event interrupts:
+        self.mac_regs.rx_ev().disable_event(LITEETH_RX_EVENT);
+    }
+
+    /// Transmit an Ethernet frame over the interface
+    ///
+    /// For now this will only use a single slot on the interface and is
+    /// therefore blocking. A client must wait until a callback to `tx_done`
+    /// prior to sending a new frame.
+    fn transmit_frame(
+        &self,
+        frame: &'static mut [u8],
+        len: u16,
+        frame_identifier: usize,
+    ) -> Result<(), (ErrorCode, &'static mut [u8])> {
+        if frame.len() < (len as usize) {
+            return Err((ErrorCode::INVAL, frame));
+        }
+
+        if self.tx_frame.is_some() {
+            return Err((ErrorCode::BUSY, frame));
         }
 
         // For now, we always use slot 0
@@ -282,24 +296,23 @@ impl<'a, R: LiteXSoCRegisterConfiguration> EthernetAdapter<'a> for LiteEth<'a, R
 
         let slot = unsafe { self.get_slot_buffer(true, slot_id) }.expect("LiteEth: no TX slot");
         if slot.len() < (len as usize) {
-            return Err((ErrorCode::SIZE, packet));
+            return Err((ErrorCode::SIZE, frame));
         }
 
-        // Set the slot's packet information
-        self.tx_packet_info
+        // Set the slot's frame information
+        self.tx_frame_info
             .map(|pkt_info| {
-                pkt_info[slot_id as usize] = (packet_identifier, len);
+                pkt_info[slot_id] = (frame_identifier, len);
             })
             .unwrap();
 
-        // Copy the packet into the slot HW buffer
-        slot[..(len as usize)].copy_from_slice(&packet[..(len as usize)]);
+        // Copy the frame into the slot HW buffer
+        slot[..(len as usize)].copy_from_slice(&frame[..(len as usize)]);
 
-        // Put the currently transmitting packet into the designated
-        // TakeCell
-        self.tx_packet.replace(packet);
+        // Put the currently transmitting frame into the designated TakeCell
+        self.tx_frame.replace(frame);
 
-        // Set the slot and packet length
+        // Set the slot and frame length
         self.mac_regs.tx_slot.set(0);
         self.mac_regs.tx_length.set(len);
 

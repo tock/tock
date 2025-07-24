@@ -8,12 +8,8 @@
 //! - <https://github.com/lab11/hail>
 
 #![no_std]
-// Disable this attribute when documenting, as a workaround for
-// https://github.com/rust-lang/rust/issues/62184.
-#![cfg_attr(not(doc), no_main)]
+#![no_main]
 #![deny(missing_docs)]
-
-use core::ptr::{addr_of, addr_of_mut};
 
 use kernel::capabilities;
 use kernel::component::Component;
@@ -21,6 +17,7 @@ use kernel::hil;
 use kernel::hil::led::LedLow;
 use kernel::hil::Controller;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::process::ProcessArray;
 use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
@@ -38,10 +35,8 @@ mod test_take_map_cell;
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 20;
 
-// Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
-    [None; NUM_PROCS];
-
+/// Static variables used by io.rs.
+static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 static mut CHIP: Option<&'static sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> = None;
 static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
     None;
@@ -49,7 +44,7 @@ static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::Pr
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 type SI7021Sensor = components::si7021::SI7021ComponentType<
     capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
@@ -270,7 +265,13 @@ unsafe fn start() -> (
         Some(&peripherals.pa[14]),
     );
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
+    // Create an array to hold process references.
+    let processes = components::process_array::ProcessArrayComponent::new()
+        .finalize(components::process_array_component_static!(NUM_PROCS));
+    PROCESSES = Some(processes);
+
+    // Setup space to store the core kernel data structure.
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
@@ -308,8 +309,11 @@ unsafe fn start() -> (
     .finalize(components::process_console_component_static!(
         sam4l::ast::Ast<'static>
     ));
-    components::debug_writer::DebugWriterComponent::new(uart_mux)
-        .finalize(components::debug_writer_component_static!());
+    components::debug_writer::DebugWriterComponent::new(
+        uart_mux,
+        create_capability!(capabilities::SetDebugWriterCapability),
+    )
+    .finalize(components::debug_writer_component_static!());
 
     // Initialize USART3 for UART for the nRF serialization link.
     peripherals.usart3.set_mode(sam4l::usart::UsartMode::Uart);
@@ -489,7 +493,7 @@ unsafe fn start() -> (
         capsules_system::process_policies::ThresholdRestartThenPanicFaultPolicy::new(4)
     );
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let hail = Hail {
@@ -550,7 +554,6 @@ unsafe fn start() -> (
             core::ptr::addr_of_mut!(_sappmem),
             core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut *addr_of_mut!(PROCESSES),
         fault_policy,
         &process_management_capability,
     )

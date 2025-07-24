@@ -6,8 +6,6 @@
 //!
 //! STM32F303: <https://www.st.com/en/microcontrollers-microprocessors/stm32f303.html>
 
-#![crate_name = "stm32f303xc"]
-#![crate_type = "rlib"]
 #![no_std]
 
 pub mod chip;

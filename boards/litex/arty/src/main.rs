@@ -6,11 +6,7 @@
 //! Digilent Arty-A7 FPGA board
 
 #![no_std]
-// Disable this attribute when documenting, as a workaround for
-// https://github.com/rust-lang/rust/issues/62184.
-#![cfg_attr(not(doc), no_main)]
-
-use core::ptr::{addr_of, addr_of_mut};
+#![no_main]
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 
@@ -20,6 +16,7 @@ use kernel::hil::time::{Alarm, Timer};
 use kernel::platform::chip::InterruptService;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::process::ProcessArray;
 use kernel::scheduler::mlfq::MLFQSched;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::utilities::StaticRef;
@@ -51,7 +48,11 @@ struct LiteXArtyInterruptablePeripherals {
         socc::SoCRegisterFmt,
         socc::ClockFrequency,
     >,
-    ethmac0: &'static litex_vexriscv::liteeth::LiteEth<'static, socc::SoCRegisterFmt>,
+    ethmac0: &'static litex_vexriscv::liteeth::LiteEth<
+        'static,
+        { socc::ETHMAC_TX_SLOTS },
+        socc::SoCRegisterFmt,
+    >,
 }
 
 impl LiteXArtyInterruptablePeripherals {
@@ -83,10 +84,8 @@ impl InterruptService for LiteXArtyInterruptablePeripherals {
 
 const NUM_PROCS: usize = 4;
 
-// Actual memory for holding the active process structures. Need an
-// empty list at least.
-static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
-    [None; NUM_PROCS];
+/// Static variables used by io.rs.
+static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 
 // Reference to the chip, led controller, UART hardware, and process printer for
 // panic dumps.
@@ -111,7 +110,7 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
+static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -293,28 +292,28 @@ unsafe fn start() -> (
     // memory protection.
     let pmp = rv32i::pmp::kernel_protection::KernelProtectionPMP::new(
         rv32i::pmp::kernel_protection::FlashRegion(
-            rv32i::pmp::NAPOTRegionSpec::new(
+            rv32i::pmp::NAPOTRegionSpec::from_start_end(
                 core::ptr::addr_of!(_sflash),
-                core::ptr::addr_of!(_eflash) as usize - core::ptr::addr_of!(_sflash) as usize,
+                core::ptr::addr_of!(_eflash),
             )
             .unwrap(),
         ),
         rv32i::pmp::kernel_protection::RAMRegion(
-            rv32i::pmp::NAPOTRegionSpec::new(
+            rv32i::pmp::NAPOTRegionSpec::from_start_end(
                 core::ptr::addr_of!(_ssram),
-                core::ptr::addr_of!(_esram) as usize - core::ptr::addr_of!(_ssram) as usize,
+                core::ptr::addr_of!(_esram),
             )
             .unwrap(),
         ),
         rv32i::pmp::kernel_protection::MMIORegion(
-            rv32i::pmp::NAPOTRegionSpec::new(
+            rv32i::pmp::NAPOTRegionSpec::from_start_size(
                 0xf0000000 as *const u8, // start
                 0x10000000,              // size
             )
             .unwrap(),
         ),
         rv32i::pmp::kernel_protection::KernelTextRegion(
-            rv32i::pmp::TORRegionSpec::new(
+            rv32i::pmp::TORRegionSpec::from_start_end(
                 core::ptr::addr_of!(_stext),
                 core::ptr::addr_of!(_etext),
             )
@@ -327,7 +326,13 @@ unsafe fn start() -> (
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
+    // Create an array to hold process references.
+    let processes = components::process_array::ProcessArrayComponent::new()
+        .finalize(components::process_array_component_static!(NUM_PROCS));
+    PROCESSES = Some(processes);
+
+    // Setup space to store the core kernel data structure.
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
     // ---------- LED CONTROLLER HARDWARE ----------
 
@@ -491,15 +496,9 @@ unsafe fn start() -> (
 
     // ---------- ETHERNET ----------
 
-    // TX packet metadata
-    let ethmac0_txinfo = static_init!(
-        [(usize, u16); socc::ETHMAC_TX_SLOTS],
-        [(0, 0); socc::ETHMAC_TX_SLOTS]
-    );
-
     // ETHMAC peripheral
     let ethmac0 = static_init!(
-        litex_vexriscv::liteeth::LiteEth<socc::SoCRegisterFmt>,
+        litex_vexriscv::liteeth::LiteEth<{socc::ETHMAC_TX_SLOTS}, socc::SoCRegisterFmt>,
         litex_vexriscv::liteeth::LiteEth::new(
             StaticRef::new(
                 socc::CSR_ETHMAC_BASE
@@ -510,7 +509,6 @@ unsafe fn start() -> (
             socc::ETHMAC_SLOT_SIZE,
             socc::ETHMAC_RX_SLOTS,
             socc::ETHMAC_TX_SLOTS,
-            ethmac0_txinfo,
         )
     );
 
@@ -594,8 +592,11 @@ unsafe fn start() -> (
     .finalize(components::console_component_static!());
 
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux)
-        .finalize(components::debug_writer_component_static!());
+    components::debug_writer::DebugWriterComponent::new(
+        uart_mux,
+        create_capability!(capabilities::SetDebugWriterCapability),
+    )
+    .finalize(components::debug_writer_component_static!());
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,
@@ -604,8 +605,8 @@ unsafe fn start() -> (
     )
     .finalize(components::low_level_debug_component_static!());
 
-    let scheduler = components::sched::mlfq::MLFQComponent::new(mux_alarm, &*addr_of!(PROCESSES))
-        .finalize(components::mlfq_component_static!(
+    let scheduler = components::sched::mlfq::MLFQComponent::new(mux_alarm, processes).finalize(
+        components::mlfq_component_static!(
             litex_vexriscv::timer::LiteXAlarm<
                 'static,
                 'static,
@@ -613,7 +614,8 @@ unsafe fn start() -> (
                 socc::ClockFrequency,
             >,
             NUM_PROCS
-        ));
+        ),
+    );
 
     let litex_arty = LiteXArty {
         console,
@@ -644,7 +646,6 @@ unsafe fn start() -> (
             core::ptr::addr_of_mut!(_sappmem),
             core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_mgmt_cap,
     )

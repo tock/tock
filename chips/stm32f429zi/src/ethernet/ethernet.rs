@@ -18,8 +18,8 @@ use crate::ethernet::utils::EthernetSpeed;
 use crate::ethernet::utils::MacAddress;
 use crate::ethernet::utils::OperationMode;
 use cortexm4f::support::nop;
-use kernel::hil::ethernet::EthernetAdapter;
-use kernel::hil::ethernet::EthernetAdapterClient;
+use kernel::hil::ethernet::EthernetAdapterDatapath;
+use kernel::hil::ethernet::EthernetAdapterDatapathClient;
 use kernel::platform::chip::ClockInterface;
 use kernel::utilities::cells::{NumericCellExt, OptionalCell, TakeCell};
 use kernel::utilities::registers::interfaces::{ReadWriteable, Readable, Writeable};
@@ -753,7 +753,7 @@ pub struct Ethernet<'a> {
     packet_identifier: OptionalCell<usize>,
     received_packet: TakeCell<'a, [u8]>,
     number_packets_missed: Cell<usize>,
-    client: OptionalCell<&'a dyn EthernetAdapterClient>,
+    client: OptionalCell<&'a dyn EthernetAdapterDatapathClient>,
     clocks: EthernetClocks<'a>,
     mac_address0: Cell<MacAddress>,
 }
@@ -1686,7 +1686,7 @@ impl<'a> Ethernet<'a> {
         if self.did_transmit_interrupt_occur() {
             self.clear_transmit_interrupt();
             self.client.map(|client| {
-                client.tx_done(
+                client.transmit_frame_done(
                     Ok(()),
                     self.transmit_packet.take().unwrap(),
                     self.transmit_packet_length.take().unwrap(),
@@ -1700,7 +1700,7 @@ impl<'a> Ethernet<'a> {
             self.clear_receive_interrupt();
             self.client.map(|client| {
                 let received_packet = self.received_packet.take().unwrap();
-                client.rx_packet(received_packet, None);
+                client.received_frame(received_packet, None);
                 self.received_packet.put(Some(received_packet));
             });
             // Receive the following packet
@@ -1731,7 +1731,7 @@ impl<'a> Ethernet<'a> {
         } else if self.did_transmit_buffer_underflow_interrupt_occur() {
             self.clear_transmit_buffer_underflow_interrupt();
             self.client.map(|client| {
-                client.tx_done(
+                client.transmit_frame_done(
                     // TODO: Does FAIL describe the error the best?
                     Err(ErrorCode::FAIL),
                     self.transmit_packet.take().unwrap(),
@@ -1803,12 +1803,26 @@ impl<'a> Ethernet<'a> {
     }
 }
 
-impl<'a> EthernetAdapter<'a> for Ethernet<'a> {
-    fn set_client(&self, client: &'a dyn EthernetAdapterClient) {
+impl<'a> EthernetAdapterDatapath<'a> for Ethernet<'a> {
+    fn set_client(&self, client: &'a dyn EthernetAdapterDatapathClient) {
         self.client.set(client);
     }
 
-    fn transmit(
+    fn enable_receive(&self) {
+        // TODO: the underlying implementation can panic -- should should return
+        // a Result!
+        self.enable_receiver()
+            .expect("Failed to enable Ethernet receive path!");
+    }
+
+    fn disable_receive(&self) {
+        // TODO: the underlying implementation can panic -- should should return
+        // a Result!
+        self.disable_receiver()
+            .expect("Failed to disable Ethernet receive path!");
+    }
+
+    fn transmit_frame(
         &self,
         packet: &'static mut [u8],
         len: u16,

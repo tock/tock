@@ -49,13 +49,11 @@ impl IoWrite for Writer {
                     });
                 }
                 for &c in buf {
-                    unsafe {
-                        uart.send_byte(c);
-                    }
+                    unsafe { uart.send_byte(c) }
                     while !uart.tx_ready() {}
                 }
             }
-        };
+        }
         buf.len()
     }
 }
@@ -63,7 +61,6 @@ impl IoWrite for Writer {
 const LED2_R_PIN: Pin = Pin::P0_13;
 
 #[cfg(not(test))]
-#[no_mangle]
 #[panic_handler]
 /// Panic handler
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
@@ -78,7 +75,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
         writer,
         pi,
         &cortexm4::support::nop,
-        &*addr_of!(PROCESSES),
+        PROCESSES.unwrap().as_slice(),
         &*addr_of!(CHIP),
         &*addr_of!(PROCESS_PRINTER),
     )

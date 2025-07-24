@@ -53,8 +53,8 @@ impl<'a> OtbnRsa<'a> {
     fn report_error(&self, error: ErrorCode, result: &'static mut [u8]) {
         match self.exponent.take().unwrap() {
             MutImutBuffer::Mutable(exponent) => {
-                self.client_mut.map(|client| {
-                    match self.modulus.take().unwrap() {
+                self.client_mut
+                    .map(|client| match self.modulus.take().unwrap() {
                         MutImutBuffer::Mutable(modulus) => {
                             client.mod_exponent_done(
                                 Err(error),
@@ -65,25 +65,22 @@ impl<'a> OtbnRsa<'a> {
                             );
                         }
                         MutImutBuffer::Immutable(_) => unreachable!(),
-                    };
-                });
+                    });
             }
-            MutImutBuffer::Immutable(exponent) => {
-                match self.modulus.take().unwrap() {
-                    MutImutBuffer::Immutable(modulus) => {
-                        self.client.map(|client| {
-                            client.mod_exponent_done(
-                                Err(error),
-                                self.message.take().unwrap(),
-                                modulus,
-                                exponent,
-                                result,
-                            );
-                        });
-                    }
-                    MutImutBuffer::Mutable(_) => unreachable!(),
-                };
-            }
+            MutImutBuffer::Immutable(exponent) => match self.modulus.take().unwrap() {
+                MutImutBuffer::Immutable(modulus) => {
+                    self.client.map(|client| {
+                        client.mod_exponent_done(
+                            Err(error),
+                            self.message.take().unwrap(),
+                            modulus,
+                            exponent,
+                            result,
+                        );
+                    });
+                }
+                MutImutBuffer::Mutable(_) => unreachable!(),
+            },
         }
     }
 }
@@ -100,8 +97,8 @@ impl<'a> crate::otbn::Client<'a> for OtbnRsa<'a> {
 
         match self.exponent.take().unwrap() {
             MutImutBuffer::Mutable(exponent) => {
-                self.client_mut.map(|client| {
-                    match self.modulus.take().unwrap() {
+                self.client_mut
+                    .map(|client| match self.modulus.take().unwrap() {
                         MutImutBuffer::Mutable(modulus) => {
                             client.mod_exponent_done(
                                 Ok(true),
@@ -112,25 +109,22 @@ impl<'a> crate::otbn::Client<'a> for OtbnRsa<'a> {
                             );
                         }
                         MutImutBuffer::Immutable(_) => unreachable!(),
-                    };
-                });
+                    });
             }
-            MutImutBuffer::Immutable(exponent) => {
-                match self.modulus.take().unwrap() {
-                    MutImutBuffer::Immutable(modulus) => {
-                        self.client.map(|client| {
-                            client.mod_exponent_done(
-                                Ok(true),
-                                self.message.take().unwrap(),
-                                modulus,
-                                exponent,
-                                output,
-                            );
-                        });
-                    }
-                    MutImutBuffer::Mutable(_) => unreachable!(),
-                };
-            }
+            MutImutBuffer::Immutable(exponent) => match self.modulus.take().unwrap() {
+                MutImutBuffer::Immutable(modulus) => {
+                    self.client.map(|client| {
+                        client.mod_exponent_done(
+                            Ok(true),
+                            self.message.take().unwrap(),
+                            modulus,
+                            exponent,
+                            output,
+                        );
+                    });
+                }
+                MutImutBuffer::Mutable(_) => unreachable!(),
+            },
         }
     }
 }

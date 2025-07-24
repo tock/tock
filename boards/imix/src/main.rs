@@ -8,13 +8,10 @@
 //! - <https://github.com/tock/imix>
 
 #![no_std]
-// Disable this attribute when documenting, as a workaround for
-// https://github.com/rust-lang/rust/issues/62184.
-#![cfg_attr(not(doc), no_main)]
+#![no_main]
 #![deny(missing_docs)]
 
 mod imix_components;
-use core::ptr::{addr_of, addr_of_mut};
 
 use capsules_core::alarm::AlarmDriver;
 use capsules_core::console_ordered::ConsoleOrdered;
@@ -33,6 +30,7 @@ use kernel::hil::radio;
 use kernel::hil::radio::{RadioConfig, RadioData};
 use kernel::hil::symmetric_encryption::AES128;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::process::ProcessArray;
 use kernel::scheduler::round_robin::RoundRobinSched;
 
 //use kernel::hil::time::Alarm;
@@ -96,9 +94,8 @@ const PAN_ID: u16 = 0xABCD;
 const FAULT_RESPONSE: capsules_system::process_policies::StopFaultPolicy =
     capsules_system::process_policies::StopFaultPolicy {};
 
-static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
-    [None; NUM_PROCS];
-
+/// Static variables used by io.rs.
+static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 static mut CHIP: Option<&'static sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> = None;
 static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
     None;
@@ -106,7 +103,7 @@ static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::Pr
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
+static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
 
 type SI7021Sensor = components::si7021::SI7021ComponentType<
     capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<'static, sam4l::ast::Ast<'static>>,
@@ -356,7 +353,13 @@ unsafe fn start() -> (
         },
     );
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
+    // Create an array to hold process references.
+    let processes = components::process_array::ProcessArrayComponent::new()
+        .finalize(components::process_array_component_static!(NUM_PROCS));
+    PROCESSES = Some(processes);
+
+    // Setup space to store the core kernel data structure.
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
@@ -400,7 +403,11 @@ unsafe fn start() -> (
     .finalize(components::console_ordered_component_static!(
         sam4l::ast::Ast
     ));
-    DebugWriterComponent::new(uart_mux).finalize(components::debug_writer_component_static!());
+    DebugWriterComponent::new(
+        uart_mux,
+        create_capability!(capabilities::SetDebugWriterCapability),
+    )
+    .finalize(components::debug_writer_component_static!());
 
     // Allow processes to communicate over BLE through the nRF51822
     peripherals.usart2.set_mode(sam4l::usart::UsartMode::Uart);
@@ -689,7 +696,7 @@ unsafe fn start() -> (
     )
     .finalize(components::udp_driver_component_static!(sam4l::ast::Ast));
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     // Create the software-based SHA engine.
@@ -725,15 +732,37 @@ unsafe fn start() -> (
     // PROCESS LOADING
     //--------------------------------------------------------------------------
 
+    // These symbols are defined in the standard Tock linker script.
+    extern "C" {
+        /// Beginning of the ROM region containing app images.
+        static _sapps: u8;
+        /// End of the ROM region containing app images.
+        static _eapps: u8;
+        /// Beginning of the RAM region for app memory.
+        static mut _sappmem: u8;
+        /// End of the RAM region for app memory.
+        static _eappmem: u8;
+    }
+
+    let app_flash = core::slice::from_raw_parts(
+        core::ptr::addr_of!(_sapps),
+        core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
+    );
+    let app_memory = core::slice::from_raw_parts_mut(
+        core::ptr::addr_of_mut!(_sappmem),
+        core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
+    );
+
     // Create and start the asynchronous process loader.
     let _loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
         checker,
-        &mut *addr_of_mut!(PROCESSES),
         board_kernel,
         chip,
         &FAULT_RESPONSE,
         assigner,
         storage_permissions_policy,
+        app_flash,
+        app_memory,
     )
     .finalize(components::process_loader_sequential_component_static!(
         sam4l::chip::Sam4l<Sam4lDefaultPeripherals>,

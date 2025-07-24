@@ -241,7 +241,7 @@ impl<'a> Fsmc<'a> {
 
     #[inline]
     pub fn read_reg(&self, bank: FsmcBanks) -> Option<u16> {
-        self.bank[bank as usize].map_or(None, |bank| Some(bank.ram.get()))
+        self.bank[bank as usize].map(|bank| bank.ram.get())
     }
 
     #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]

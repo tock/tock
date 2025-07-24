@@ -228,10 +228,8 @@ impl Component for UartChannelComponent {
                 self.uarte0
             }
             UartChannel::Rtt(rtt_memory) => {
-                let rtt =
-                    components::segger_rtt::SeggerRttComponent::new(self.mux_alarm, rtt_memory)
-                        .finalize(s);
-                rtt
+                components::segger_rtt::SeggerRttComponent::new(self.mux_alarm, rtt_memory)
+                    .finalize(s)
             }
         }
     }

@@ -6,8 +6,6 @@
 //!
 //! STM32F446RE: <https://www.st.com/en/microcontrollers/stm32f4.html>
 
-#![crate_name = "stm32f4xx"]
-#![crate_type = "rlib"]
 #![no_std]
 
 pub mod chip;

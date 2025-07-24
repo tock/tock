@@ -12,11 +12,11 @@
 //! must be pulled low.
 //!
 //! The ATECC508A is shipped in an unlocked state. That is, the configuration
-//! can be changed. The ATECC508A is practically usless while it's unlocked
+//! can be changed. The ATECC508A is practically useless while it's unlocked
 //! though. Even the random number generator only returns
 //! 0xFF, 0xFF, 0x00, 0x00 when the device is unlocked.
 //!
-//! Locking the device is permanant! Once the device is locked it can not be
+//! Locking the device is permanent! Once the device is locked it can not be
 //! unlocked. Be very careful about locking the configurations. In saying that
 //! the device must be locked before it can be used.
 //!
@@ -26,6 +26,7 @@
 use core::cell::Cell;
 use kernel::debug;
 use kernel::hil::i2c::{self, I2CClient, I2CDevice};
+use kernel::hil::public_key_crypto::keys;
 use kernel::hil::public_key_crypto::signature::{ClientVerify, SignatureVerify};
 use kernel::hil::{digest, entropy, entropy::Entropy32};
 use kernel::utilities::cells::{MapCell, OptionalCell, TakeCell};
@@ -201,6 +202,9 @@ pub struct Atecc508a<'a> {
     message_data: TakeCell<'static, [u8; 32]>,
     signature_data: TakeCell<'static, [u8; 64]>,
     ext_public_key: TakeCell<'static, [u8; 64]>,
+    ext_public_key_temp: TakeCell<'static, [u8; 64]>,
+    key_set_client: OptionalCell<&'a dyn keys::SetKeyBySliceClient<64>>,
+    deferred_call: kernel::deferred_call::DeferredCall,
 
     wakeup_device: fn(),
 
@@ -235,6 +239,9 @@ impl<'a> Atecc508a<'a> {
             message_data: TakeCell::empty(),
             signature_data: TakeCell::empty(),
             ext_public_key: TakeCell::empty(),
+            ext_public_key_temp: TakeCell::empty(),
+            key_set_client: OptionalCell::empty(),
+            deferred_call: kernel::deferred_call::DeferredCall::new(),
             wakeup_device,
             config_lock: Cell::new(false),
             data_lock: Cell::new(false),
@@ -451,7 +458,7 @@ impl<'a> Atecc508a<'a> {
     /// This will return the previous key if one was stored. Pass in
     /// `None` to retrieve the key without providing a new one.
     pub fn set_public_key(
-        &'a self,
+        &self,
         public_key: Option<&'static mut [u8; 64]>,
     ) -> Option<&'static mut [u8; 64]> {
         let ret = self.ext_public_key.take();
@@ -1195,7 +1202,7 @@ impl Iterator for Atecc508aRngIter<'_, '_> {
     type Item = u32;
 
     fn next(&mut self) -> Option<u32> {
-        self.0.entropy_buffer.take().map_or(None, |entropy_buffer| {
+        self.0.entropy_buffer.take().map(|entropy_buffer| {
             let offset = self.0.entropy_offset.get();
             let entropy_bytes =
                 <[u8; 4]>::try_from(&entropy_buffer[(offset + 0)..(offset + 4)]).unwrap();
@@ -1208,7 +1215,7 @@ impl Iterator for Atecc508aRngIter<'_, '_> {
             }
             self.0.entropy_buffer.replace(entropy_buffer);
 
-            Some(entropy)
+            entropy
         })
     }
 }
@@ -1391,5 +1398,40 @@ impl<'a> SignatureVerify<'a, 32, 64> for Atecc508a<'a> {
         self.send_command(COMMAND_OPCODE_NONCE, NONCE_MODE_PASSTHROUGH, 0x0000, 32);
 
         Ok(())
+    }
+}
+
+impl<'a> keys::SetKeyBySlice<'a, 64> for Atecc508a<'a> {
+    fn set_key(
+        &self,
+        key: &'static mut [u8; 64],
+    ) -> Result<(), (ErrorCode, &'static mut [u8; 64])> {
+        // Copy the key into our public key buffer.
+        self.ext_public_key.map(|epkey| {
+            epkey.copy_from_slice(key);
+        });
+
+        // Save the key so we can return the buffer in `set_key_done()`.
+        self.ext_public_key_temp.replace(key);
+        self.deferred_call.set();
+        Ok(())
+    }
+
+    fn set_client(&self, client: &'a dyn keys::SetKeyBySliceClient<64>) {
+        self.key_set_client.replace(client);
+    }
+}
+
+impl kernel::deferred_call::DeferredCallClient for Atecc508a<'_> {
+    fn handle_deferred_call(&self) {
+        self.key_set_client.map(|client| {
+            self.ext_public_key_temp
+                .take()
+                .map(|key| client.set_key_done(key, Ok(())))
+        });
+    }
+
+    fn register(&'static self) {
+        self.deferred_call.register(self);
     }
 }

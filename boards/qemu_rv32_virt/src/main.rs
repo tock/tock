@@ -5,12 +5,7 @@
 //! Board file for qemu-system-riscv32 "virt" machine type
 
 #![no_std]
-// Disable this attribute when documenting, as a workaround for
-// https://github.com/rust-lang/rust/issues/62184.
-#![cfg_attr(not(doc), no_main)]
-
-use core::ptr::addr_of;
-use core::ptr::addr_of_mut;
+#![no_main]
 
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
@@ -19,6 +14,7 @@ use kernel::hil;
 use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
 use kernel::platform::KernelResources;
 use kernel::platform::SyscallDriverLookup;
+use kernel::process::ProcessArray;
 use kernel::scheduler::cooperative::CooperativeSched;
 use kernel::utilities::registers::interfaces::ReadWriteable;
 use kernel::{create_capability, debug, static_init};
@@ -29,10 +25,8 @@ pub mod io;
 
 pub const NUM_PROCS: usize = 4;
 
-// Actual memory for holding the active process structures. Need an empty list
-// at least.
-static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] =
-    [None; NUM_PROCS];
+/// Static variables used by io.rs.
+static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 
 // Reference to the chip for panic dumps.
 static mut CHIP: Option<&'static QemuRv32VirtChip<QemuRv32VirtDefaultPeripherals>> = None;
@@ -48,7 +42,7 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x8000] = [0; 0x8000];
+static mut STACK_MEMORY: [u8; 0x8000] = [0; 0x8000];
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
@@ -82,8 +76,8 @@ struct QemuRv32VirtPlatform {
             qemu_rv32_virt_chip::virtio::devices::virtio_rng::VirtIORng<'static, 'static>,
         >,
     >,
-    virtio_net_tap: Option<
-        &'static capsules_extra::ethernet_app_tap::TapDriver<
+    virtio_ethernet_tap: Option<
+        &'static capsules_extra::ethernet_tap::EthernetTapDriver<
             'static,
             qemu_rv32_virt_chip::virtio::devices::virtio_net::VirtIONet<'static>,
         >,
@@ -96,15 +90,23 @@ impl SyscallDriverLookup for QemuRv32VirtPlatform {
     where
         F: FnOnce(Option<&dyn kernel::syscall::SyscallDriver>) -> R,
     {
-        use kernel::syscall::SyscallDriver;
-
         match driver_num {
             capsules_core::console::DRIVER_NUM => f(Some(self.console)),
             capsules_core::alarm::DRIVER_NUM => f(Some(self.alarm)),
             capsules_core::low_level_debug::DRIVER_NUM => f(Some(self.lldb)),
-            capsules_core::rng::DRIVER_NUM => f(self.virtio_rng.map(|d| d as &dyn SyscallDriver)),
-            capsules_extra::ethernet_app_tap::DRIVER_NUM => {
-                f(self.virtio_net_tap.map(|d| d as &dyn SyscallDriver))
+            capsules_core::rng::DRIVER_NUM => {
+                if let Some(rng_driver) = self.virtio_rng {
+                    f(Some(rng_driver))
+                } else {
+                    f(None)
+                }
+            }
+            capsules_extra::ethernet_tap::DRIVER_NUM => {
+                if let Some(ethernet_tap_driver) = self.virtio_ethernet_tap {
+                    f(Some(ethernet_tap_driver))
+                } else {
+                    f(None)
+                }
             }
             kernel::ipc::DRIVER_NUM => f(Some(&self.ipc)),
             _ => f(None),
@@ -199,28 +201,28 @@ unsafe fn start() -> (
     // protection.
     let epmp = rv32i::pmp::kernel_protection_mml_epmp::KernelProtectionMMLEPMP::new(
         rv32i::pmp::kernel_protection_mml_epmp::FlashRegion(
-            rv32i::pmp::NAPOTRegionSpec::new(
+            rv32i::pmp::NAPOTRegionSpec::from_start_end(
                 core::ptr::addr_of!(_sflash),
-                core::ptr::addr_of!(_eflash) as usize - core::ptr::addr_of!(_sflash) as usize,
+                core::ptr::addr_of!(_eflash),
             )
             .unwrap(),
         ),
         rv32i::pmp::kernel_protection_mml_epmp::RAMRegion(
-            rv32i::pmp::NAPOTRegionSpec::new(
+            rv32i::pmp::NAPOTRegionSpec::from_start_end(
                 core::ptr::addr_of!(_ssram),
-                core::ptr::addr_of!(_esram) as usize - core::ptr::addr_of!(_ssram) as usize,
+                core::ptr::addr_of!(_esram),
             )
             .unwrap(),
         ),
         rv32i::pmp::kernel_protection_mml_epmp::MMIORegion(
-            rv32i::pmp::NAPOTRegionSpec::new(
+            rv32i::pmp::NAPOTRegionSpec::from_start_size(
                 core::ptr::null::<u8>(), // start
                 0x20000000,              // size
             )
             .unwrap(),
         ),
         rv32i::pmp::kernel_protection_mml_epmp::KernelTextRegion(
-            rv32i::pmp::TORRegionSpec::new(
+            rv32i::pmp::TORRegionSpec::from_start_end(
                 core::ptr::addr_of!(_stext),
                 core::ptr::addr_of!(_etext),
             )
@@ -234,7 +236,14 @@ unsafe fn start() -> (
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
     // Create a board kernel instance
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
+
+    // Create an array to hold process references.
+    let processes = components::process_array::ProcessArrayComponent::new()
+        .finalize(components::process_array_component_static!(NUM_PROCS));
+    PROCESSES = Some(processes);
+
+    // Setup space to store the core kernel data structure.
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
     // ---------- QEMU-SYSTEM-RISCV32 "virt" MACHINE PERIPHERALS ----------
 
@@ -371,17 +380,16 @@ unsafe fn start() -> (
     };
 
     // If there is a VirtIO NetworkCard present, use the appropriate VirtIONet
-    // driver. Currently this is not used, as work on the userspace network
-    // driver and kernel network stack is in progress.
-    //
-    // A template dummy driver is provided to verify basic functionality of this
-    // interface.
-    let virtio_net_tap: Option<
-        &'static capsules_extra::ethernet_app_tap::TapDriver<
+    // driver, and expose this device through the Ethernet Tap driver
+    // (forwarding raw Ethernet frames from and to userspace).
+    let virtio_ethernet_tap: Option<
+        &'static capsules_extra::ethernet_tap::EthernetTapDriver<
             'static,
             qemu_rv32_virt_chip::virtio::devices::virtio_net::VirtIONet<'static>,
         >,
     > = if let Some(net_idx) = virtio_net_idx {
+        use capsules_extra::ethernet_tap::EthernetTapDriver;
+        use kernel::hil::ethernet::EthernetAdapterDatapath;
         use qemu_rv32_virt_chip::virtio::devices::virtio_net::VirtIONet;
         use qemu_rv32_virt_chip::virtio::queues::split_queue::{
             SplitVirtqueue, VirtqueueAvailableRing, VirtqueueDescriptors, VirtqueueUsedRing,
@@ -442,47 +450,28 @@ unsafe fn start() -> (
             .initialize(virtio_net, mmio_queues)
             .unwrap();
 
-        // Setup the userspace Ethernet TAP driver:
-        let virtio_net_tap_txbuf = static_init!(
-            [u8; capsules_extra::ethernet_app_tap::MAX_MTU],
-            [0; capsules_extra::ethernet_app_tap::MAX_MTU]
+        // Instantiate the userspace tap network driver over this device:
+        let virtio_ethernet_tap_tx_buffer = static_init!(
+            [u8; capsules_extra::ethernet_tap::MAX_MTU],
+            [0; capsules_extra::ethernet_tap::MAX_MTU],
         );
-        let virtio_net_tap_rxbufs = static_init!(
-            [(
-                [u8; capsules_extra::ethernet_app_tap::MAX_MTU],
-                u16,
-                Option<u64>,
-                bool
-            ); 16],
-            [(
-                [0; capsules_extra::ethernet_app_tap::MAX_MTU],
-                0,
-                None,
-                false
-            ); 16]
-        );
-
-        let virtio_net_tap = static_init!(
-            capsules_extra::ethernet_app_tap::TapDriver<
-                'static,
-                qemu_rv32_virt_chip::virtio::devices::virtio_net::VirtIONet<'static>,
-            >,
-            capsules_extra::ethernet_app_tap::TapDriver::new(
+        let virtio_ethernet_tap = static_init!(
+            EthernetTapDriver<'static, VirtIONet<'static>>,
+            EthernetTapDriver::new(
                 virtio_net,
                 board_kernel.create_grant(
-                    capsules_extra::ethernet_app_tap::DRIVER_NUM,
+                    capsules_extra::ethernet_tap::DRIVER_NUM,
                     &memory_allocation_cap
                 ),
-                virtio_net_tap_txbuf,
-                virtio_net_tap_rxbufs,
+                virtio_ethernet_tap_tx_buffer,
             ),
         );
-        kernel::hil::ethernet::EthernetAdapter::set_client(virtio_net, virtio_net_tap);
+        virtio_net.set_client(virtio_ethernet_tap);
 
-        // Enable RX on the VirtIO network card
-        virtio_net.enable_rx();
+        // This enables reception on the underlying device:
+        virtio_ethernet_tap.initialize();
 
-        Some(virtio_net_tap)
+        Some(virtio_ethernet_tap as &'static EthernetTapDriver<'static, VirtIONet<'static>>)
     } else {
         // No VirtIO NetworkCard discovered
         None
@@ -532,8 +521,11 @@ unsafe fn start() -> (
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux)
-        .finalize(components::debug_writer_component_static!());
+    components::debug_writer::DebugWriterComponent::new(
+        uart_mux,
+        create_capability!(capabilities::SetDebugWriterCapability),
+    )
+    .finalize(components::debug_writer_component_static!());
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,
@@ -542,9 +534,8 @@ unsafe fn start() -> (
     )
     .finalize(components::low_level_debug_component_static!());
 
-    let scheduler =
-        components::sched::cooperative::CooperativeComponent::new(&*addr_of!(PROCESSES))
-            .finalize(components::cooperative_component_static!(NUM_PROCS));
+    let scheduler = components::sched::cooperative::CooperativeComponent::new(processes)
+        .finalize(components::cooperative_component_static!(NUM_PROCS));
 
     let scheduler_timer = static_init!(
         VirtualSchedulerTimer<
@@ -561,7 +552,7 @@ unsafe fn start() -> (
         scheduler,
         scheduler_timer,
         virtio_rng: virtio_rng_driver,
-        virtio_net_tap,
+        virtio_ethernet_tap,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
@@ -573,6 +564,21 @@ unsafe fn start() -> (
     let _ = platform.pconsole.start();
 
     debug!("QEMU RISC-V 32-bit \"virt\" machine, initialization complete.");
+
+    // This board dynamically discovers VirtIO devices like a randomness source
+    // or a network card. Print a message indicating whether or not each such
+    // device and corresponding userspace driver is present:
+    if virtio_rng_driver.is_some() {
+        debug!("- Found VirtIO EntropySource device, enabling RngDriver");
+    } else {
+        debug!("- VirtIO EntropySource device not found, disabling RngDriver");
+    }
+    if virtio_ethernet_tap.is_some() {
+        debug!("- Found VirtIO NetworkCard device, enabling EthernetTapDriver");
+    } else {
+        debug!("- VirtIO NetworkCard device not found, disabling EthernetTapDriver");
+    }
+
     debug!("Entering main loop.");
 
     // ---------- PROCESS LOADING, SCHEDULER LOOP ----------
@@ -588,7 +594,6 @@ unsafe fn start() -> (
             core::ptr::addr_of_mut!(_sappmem),
             core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
         ),
-        &mut *addr_of_mut!(PROCESSES),
         &FAULT_RESPONSE,
         &process_mgmt_cap,
     )
