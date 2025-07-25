@@ -270,6 +270,16 @@ impl Nvmc {
         }
     }
 
+    fn is_page_blank(&self, page_number: usize) -> bool {
+        let address = (page_number * PAGE_SIZE) as *const u32;
+        for i in 0..(PAGE_SIZE / 4) {
+            if unsafe { core::ptr::read(address.add(i)) } != 0xFFFFFFFF {
+                return false;
+            }
+        }
+        true
+    }
+
     fn erase_page_helper(&self, page_number: usize) {
         // Put the NVMC in erase mode.
         self.registers.config.write(Configuration::WEN::Een);
@@ -315,8 +325,11 @@ impl Nvmc {
         page_number: usize,
         data: &'static mut NrfPage,
     ) -> Result<(), (ErrorCode, &'static mut NrfPage)> {
-        // Need to erase the page first.
-        self.erase_page_helper(page_number);
+        // Need to erase the page if the page is not filled
+        // with 0xFF.
+        if !self.is_page_blank(page_number) {
+            self.erase_page_helper(page_number);
+        }
 
         // Put the NVMC in write mode.
         self.registers.config.write(Configuration::WEN::Wen);
@@ -350,7 +363,9 @@ impl Nvmc {
 
     fn erase_page(&self, page_number: usize) -> Result<(), ErrorCode> {
         // Do the basic erase.
-        self.erase_page_helper(page_number);
+        if !self.is_page_blank(page_number) {
+            self.erase_page_helper(page_number);
+        }
 
         // Mark that we want to trigger a pseudo interrupt so that we can issue
         // the callback even though the NVMC is completely blocking.
