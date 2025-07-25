@@ -1397,7 +1397,6 @@ impl<'a> Ethernet<'a> {
         Ok(())
     }
 
-    #[allow(dead_code)]
     // When a standard HIL will be implemented, this method will be used
     fn disable_dma_reception(&self) -> Result<(), ErrorCode> {
         if self.get_receive_process_state() != DmaReceiveProcessState::Suspended {
@@ -1642,7 +1641,6 @@ impl<'a> Ethernet<'a> {
         Err(ErrorCode::BUSY)
     }
 
-    #[allow(dead_code)]
     // When a standard HIL will be implemented, this method will be used
     fn disable_receiver(&self) -> Result<(), ErrorCode> {
         self.disable_dma_reception()?;
