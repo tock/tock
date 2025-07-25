@@ -1813,6 +1813,8 @@ impl<'a> EthernetAdapterDatapath<'a> for Ethernet<'a> {
         // a Result!
         self.enable_receiver()
             .expect("Failed to enable Ethernet receive path!");
+        self.receive_packet()
+            .expect("Failed to start receiving a packet!");
     }
 
     fn disable_receive(&self) {
