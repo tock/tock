@@ -181,7 +181,7 @@ pub unsafe extern "C" fn jump_to_bootloader() {
     ldmia r0!, {{r1, r2}}
     msr msp, r1
     bx r2
-    ",
+        "
     );
 }
 

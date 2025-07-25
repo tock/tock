@@ -111,20 +111,20 @@ impl<'a, I: InterruptService + 'a> ArtyExx<'a, I> {
         use core::arch::asm;
         asm!(
             "
-            // The csrw instruction writes a Control and Status Register (CSR)
-            // with a new value.
-            //
-            // CSR 0x305 (mtvec, 'Machine trap-handler base address.') sets the
-            // address of the trap handler. We do not care about its old value,
-            // so we don't bother reading it. We want to enable direct CLIC mode
-            // so we set the second lowest bit.
-            lui  t0, %hi({start_trap})
-            addi t0, t0, %lo({start_trap})
-            ori  t0, t0, 0x02 // Set CLIC direct mode
-            csrw 0x305, t0    // Write the mtvec CSR.
+    // The csrw instruction writes a Control and Status Register (CSR)
+    // with a new value.
+    //
+    // CSR 0x305 (mtvec, 'Machine trap-handler base address.') sets the
+    // address of the trap handler. We do not care about its old value,
+    // so we don't bother reading it. We want to enable direct CLIC mode
+    // so we set the second lowest bit.
+    lui  t0, %hi({start_trap})
+    addi t0, t0, %lo({start_trap})
+    ori  t0, t0, 0x02 // Set CLIC direct mode
+    csrw 0x305, t0    // Write the mtvec CSR.
             ",
             start_trap = sym rv32i::_start_trap,
-            out("t0") _
+            out("t0") _,
         );
     }
 
