@@ -22,11 +22,11 @@
 /boards/apollo3/ambiq/keys_info.py
 /boards/arty_e21/core/sifive_coreip_E21_AHB_rtl_eval_v19_05p1_release_arty_a7_100t.mcs
 /boards/arty_e21/core/sifive_coreip_E21_FPGA_Evaluation_v19_02_rc0.mcs
-/tools/sha256sum/src/main.rs
+/tools/build/sha256sum/src/main.rs
 
 # These files are part of the license checker's test suite, and are designed to
 # produce license checker errors.
-/tools/license-checker/testdata/error_missing.rs
-/tools/license-checker/testdata/many_errors.rs
-/tools/license-checker/testdata/no_copyright.rs
-/tools/license-checker/testdata/no_spdx.rs
+/tools/ci/license-checker/testdata/error_missing.rs
+/tools/ci/license-checker/testdata/many_errors.rs
+/tools/ci/license-checker/testdata/no_copyright.rs
+/tools/ci/license-checker/testdata/no_spdx.rs

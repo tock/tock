@@ -14,7 +14,7 @@
 set -e
 
 # Verify that we're running in the base directory
-if [ ! -x tools/check_format.sh ]; then
+if [ ! -x tools/ci/check_format.sh ]; then
 	echo ERROR: $0 must be run from the tock repository root.
 	echo ""
 	exit 1

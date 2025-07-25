@@ -22,12 +22,12 @@ fn hifive1() -> Result<(), Error> {
     // the standard Rust process library mechanism instead.
     let mut build = Command::new("make")
         .arg("-C")
-        .arg("../../boards/hifive1")
+        .arg("../../../boards/hifive1")
         .spawn()
         .expect("failed to spawn build");
     assert!(build.wait().unwrap().success());
 
-    let mut p = spawn("make qemu -C ../../boards/hifive1", Some(3_000))?;
+    let mut p = spawn("make qemu -C ../../../boards/hifive1", Some(3_000))?;
 
     p.exp_string("HiFive1 initialization complete.")?;
     p.exp_string("Entering main loop.")?;
@@ -45,7 +45,7 @@ fn earlgrey_cw310() -> Result<(), Error> {
     // the standard Rust process library mechanism instead.
     let mut build = Command::new("make")
         .arg("-C")
-        .arg("../../boards/opentitan/earlgrey-cw310")
+        .arg("../../../boards/opentitan/earlgrey-cw310")
         .spawn()
         .expect("failed to spawn build");
     assert!(build.wait().unwrap().success());
@@ -58,7 +58,7 @@ fn earlgrey_cw310() -> Result<(), Error> {
     rom_path.push("opentitan-boot-rom.elf");
 
     let mut p = spawn(
-        "make qemu -C ../../boards/opentitan/earlgrey-cw310",
+        "make qemu -C ../../../boards/opentitan/earlgrey-cw310",
         Some(10_000),
     )?;
 

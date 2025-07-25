@@ -1,8 +1,8 @@
 # Tock Board Runner
 
-This is a Rust program that uses rexpect to test Tock on different boards.
-The goal of this is to automated the testing, currently it still requires
-manual steps though.
+This is a Rust program that uses [`rexpect`][rexpect] to test Tock on different
+boards.  The goal of this is to automate the testing, currently it still
+requires manual steps though.
 
 ## Supported Boards
 
@@ -54,3 +54,6 @@ LIBTOCK_C_TREE=<libtock_c_repo> TARGET=esp32_c3 make board-release-test
 
 Where `libtock_c_repo` points to the top level directory of the corresponding
 libtock-c repo.
+
+
+[rexpect]: https://docs.rs/rexpect/latest/rexpect/

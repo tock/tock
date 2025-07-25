@@ -4,15 +4,15 @@
 
 [workspace]
 members = [
-    "alert_codes",
-    "board-runner",
-    "license-checker",
-    "litex-ci-runner",
-    "qemu-runner",
-    "sha256sum",
-    "usb/bulk-echo",
-    "usb/bulk-test",
-    "usb/control-test",
+    "ci/board-runner",
+    "ci/license-checker",
+    "ci/litex-ci-runner",
+    "ci/qemu-runner",
+    "build/sha256sum",
+    "debugging-and-development/alert_codes",
+    "debugging-and-development/usb/bulk-echo",
+    "debugging-and-development/usb/bulk-test",
+    "debugging-and-development/usb/control-test",
 ]
 resolver = "2"
 

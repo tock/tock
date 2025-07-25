@@ -115,8 +115,8 @@ endif
 MINIMUM_RUSTUP_VERSION := 1.23.0
 RUSTUP_VERSION := $(strip $(word 2, $(shell $(RUSTUP) --version 2> /dev/null)))
 # Check that the semver script exists.
-ifneq (,$(wildcard $(TOCK_ROOT_DIRECTORY)tools/semver.sh))
-ifeq ($(shell $(TOCK_ROOT_DIRECTORY)tools/semver.sh $(RUSTUP_VERSION) \< $(MINIMUM_RUSTUP_VERSION)), true)
+ifneq (,$(wildcard $(TOCK_ROOT_DIRECTORY)tools/build/semver.sh))
+ifeq ($(shell $(TOCK_ROOT_DIRECTORY)tools/build/semver.sh $(RUSTUP_VERSION) \< $(MINIMUM_RUSTUP_VERSION)), true)
   $(warning Required tool `$(RUSTUP)` is out-of-date.)
   $(warning Running `$(RUSTUP) update` in 3 seconds (ctrl-c to cancel))
   $(shell sleep 3)
@@ -205,7 +205,7 @@ PTMU_ARGS ?=
 ifeq (, $(shell sha256sum --version 2>/dev/null))
   ifeq (, $(shell shasum --version 2>/dev/null))
     # No system sha256sum available.
-    SHA256SUM := $(CARGO) run --manifest-path $(TOCK_ROOT_DIRECTORY)tools/sha256sum/Cargo.toml -- 2>/dev/null
+    SHA256SUM := $(CARGO) run --manifest-path $(TOCK_ROOT_DIRECTORY)tools/build/sha256sum/Cargo.toml -- 2>/dev/null
   else
     # Use shasum found on MacOS.
     SHA256SUM := shasum -a 256
@@ -296,7 +296,7 @@ show-target:
 stack-analysis: $(TARGET_PATH)/release/$(PLATFORM).elf
 	@$ echo $(PLATFORM)
 	@$ echo ----------------------
-	$(Q)$(TOCK_ROOT_DIRECTORY)/tools/stack_analysis.sh $(TARGET_PATH)/release/$(PLATFORM).elf
+	$(Q)$(TOCK_ROOT_DIRECTORY)/tools/build/stack_analysis.sh $(TARGET_PATH)/release/$(PLATFORM).elf
 
 # Run the `print_tock_memory_usage.py` script for this board.
 .PHONY: memory
@@ -318,8 +318,8 @@ memory: $(TARGET_PATH)/release/$(PLATFORM).elf
 	$(Q)$(OBJDUMP) $(OBJDUMP_FLAGS) $< > $@
 
 
-$(TOCK_ROOT_DIRECTORY)tools/sha256sum/target/debug/sha256sum:
-	$(Q)$(CARGO) build $(VERBOSE_FLAGS) --manifest-path $(TOCK_ROOT_DIRECTORY)tools/sha256sum/Cargo.toml
+$(TOCK_ROOT_DIRECTORY)tools/build/sha256sum/target/debug/sha256sum:
+	$(Q)$(CARGO) build $(VERBOSE_FLAGS) --manifest-path $(TOCK_ROOT_DIRECTORY)tools/build/sha256sum/Cargo.toml
 
 
 # Cargo-drivers

@@ -20,7 +20,7 @@ make allboards > /dev/null 2>&1
 for elf in $(find . -maxdepth 8 | grep 'release' | grep -E '\.elf$'); do
     tmp=${elf#*release/}
     b=${tmp%.elf}
-    ./tools/print_tock_memory_usage.py -w ${elf} > current-benchmark-${b}
+    ./tools/debugging-and-development/print_tock_memory_usage.py -w ${elf} > current-benchmark-${b}
 done
 
 git remote set-branches "$UPSTREAM_REMOTE_NAME" "$GITHUB_BASE_REF"  > /dev/null 2>&1
@@ -32,7 +32,7 @@ make allboards > /dev/null 2>&1
 for elf in $(find . -maxdepth 8 | grep 'release' | grep -E '\.elf$'); do
     tmp=${elf#*release/}
     b=${tmp%.elf}
-    ./tools/print_tock_memory_usage.py -w ${elf} > previous-benchmark-${b}
+    ./tools/debugging-and-development/print_tock_memory_usage.py -w ${elf} > previous-benchmark-${b}
 done
 
 DIFF_DETECTED=0
@@ -42,7 +42,7 @@ for elf in $(find . -maxdepth 8 | grep 'release' | grep -E '\.elf$'); do
     tmp=${elf#*release/}
     b=${tmp%.elf}
     # Compute a summary suitable for GitHub.
-    ./tools/diff_memory_usage.py previous-benchmark-${b} current-benchmark-${b} size-diffs-${b}.txt ${b}
+    ./tools/ci/diff_memory_usage.py previous-benchmark-${b} current-benchmark-${b} size-diffs-${b}.txt ${b}
     if [ -s "size-diffs-${b}.txt" ]; then
 	DIFF_DETECTED=1
         RES="$( grep -hs ^ size-diffs-${b}.txt )" #grep instead of cat to prevent errors on no match

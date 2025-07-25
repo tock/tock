@@ -76,7 +76,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
-          path: tools/ci-artifacts
+          path: tools/ci/ci-artifacts
 
   ci-tests:
     strategy:
