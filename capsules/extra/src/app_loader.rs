@@ -538,7 +538,7 @@ impl<
             6 => {
                 // Request the kernel to uninstall an app/binary
                 // by specifying its ShortId.
-                let result = self.storage_driver.uninstall(arg1);
+                let result = self.storage_driver.uninstall(arg1, arg2);
                 match result {
                     Ok(()) => CommandReturn::success(),
                     Err(e) => {

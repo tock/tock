@@ -1244,11 +1244,24 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         }
     }
 
-    fn shortid_match_check(&self, shortid: ShortId, app_short_id: core::num::NonZeroU32) -> bool {
-        matches!(shortid, ShortId::Fixed(id) if id == app_short_id)
+    fn app_match_check(
+        &self,
+        shortid: ShortId,
+        app_short_id: core::num::NonZeroU32,
+        version: u32,
+        app_version: u32,
+    ) -> bool {
+        if matches!(shortid, ShortId::Fixed(id) if id == app_short_id) && version == app_version {
+            return true;
+        }
+        false
     }
 
-    pub fn fetch_app_details(&self, shortid: ShortId) -> Result<(u32, u32), ProcessLoadError> {
+    pub fn fetch_app_details(
+        &self,
+        shortid: ShortId,
+        version: u32,
+    ) -> Result<(u32, u32), ProcessLoadError> {
         const MAX_PROCS: usize = 10;
         let mut pb_start_address: [usize; MAX_PROCS] = [0; MAX_PROCS];
         let mut pb_end_address: [usize; MAX_PROCS] = [0; MAX_PROCS];
@@ -1295,8 +1308,10 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                     policy.to_short_id(&process_binary)
                 });
 
+                let app_version: u32 = process_binary.header.get_binary_version();
+
                 if let ShortId::Fixed(app_id) = app_short_id {
-                    if self.shortid_match_check(shortid, app_id) {
+                    if self.app_match_check(shortid, app_id, version, app_version) {
                         return Ok((
                             pb_start_address[i] as u32,
                             (pb_end_address[i] - pb_start_address[i]) as u32,
@@ -1312,7 +1327,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
     }
 
     pub fn reclaim_memory(&self, shortid: ShortId) {
-        self.kernel.reclaim_memory_by_shortid(shortid)
+        self.kernel.reclaim_app_memory(shortid)
     }
 }
 

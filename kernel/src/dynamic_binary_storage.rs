@@ -90,7 +90,7 @@ pub trait DynamicBinaryStore {
     fn abort(&self) -> Result<(), ErrorCode>;
 
     /// Call to uninstall an app whose AppID is specified.
-    fn uninstall(&self, short_id: usize) -> Result<(), ErrorCode>;
+    fn uninstall(&self, short_id: usize, app_version: usize) -> Result<(), ErrorCode>;
 
     /// Sets a client for the SequentialDynamicBinaryStore Object
     ///
@@ -654,7 +654,7 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
         }
     }
 
-    fn uninstall(&self, short_id: usize) -> Result<(), ErrorCode> {
+    fn uninstall(&self, short_id: usize, app_version: usize) -> Result<(), ErrorCode> {
         match self.state.get() {
             State::Idle => {
                 self.process_metadata.set(ProcessLoadMetadata::default());
@@ -664,7 +664,10 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
                     .map(ShortId::Fixed)
                     .ok_or(ErrorCode::INVAL)?;
 
-                let (app_address, app_size) = match self.loader_driver.fetch_app_details(shortid) {
+                let (app_address, app_size) = match self
+                    .loader_driver
+                    .fetch_app_details(shortid, app_version as u32)
+                {
                     Ok((addr, size)) => (addr, size),
                     Err(_) => return Err(ErrorCode::FAIL),
                 };
@@ -675,6 +678,9 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
                     self.process_metadata.set(metadata);
                 }
 
+                // Passing the ShortId is enough because only one
+                // version of an app can be run at any given
+                // time, so ShortId is a unique identifier
                 self.loader_driver.reclaim_memory(shortid);
                 if let Some(metadata) = self.process_metadata.get() {
                     match self
