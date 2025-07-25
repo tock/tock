@@ -975,7 +975,7 @@ fn decompress_multicast(
             iphc::DAM_INLINE => {
                 // DAC = 1, DAM = 00: 48 bits
                 // ffXX:XXLL:PPPP:PPPP:PPPP:PPPP:XXXX:XXXX
-                let prefix_bytes = ((ctx.prefix_len + 7) / 8) as usize;
+                let prefix_bytes = ctx.prefix_len.div_ceil(8) as usize;
                 if prefix_bytes > 8 {
                     // The maximum prefix length for this mode is 64 bits.
                     // If the specified prefix exceeds this length, the

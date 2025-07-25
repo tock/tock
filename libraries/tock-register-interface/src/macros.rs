@@ -90,16 +90,14 @@ macro_rules! register_fields {
 // test the desired assertion any longer. This should be switched to a
 // `should_panic`-akin attribute which works for const panics, once that is
 // available.
-/// Statically validate the size and offsets of the fields defined
-/// within the register struct through the `register_structs!()`
-/// macro.
+/// Statically validate the size and offsets of the fields defined within the
+/// register struct through the `register_structs!()` macro.
 ///
-/// This macro expands to an expression which contains static
-/// assertions about various parameters of the individual fields in
-/// the register struct definition. It will test for:
+/// This macro expands to an expression which contains static assertions about
+/// various parameters of the individual fields in the register struct
+/// definition. It will test for:
 ///
-/// - Proper start offset of padding fields. It will fail in cases
-///   such as
+/// - Proper start offset of padding fields. It will fail in cases such as
 ///
 ///   ```should_fail
 ///   # #[macro_use]
@@ -147,7 +145,7 @@ macro_rules! register_fields {
 /// - Invalid alignment of fields.
 ///
 /// - That the end marker matches the actual generated struct size. This will
-///   fail in cases such as
+/// fail in cases such as
 ///
 ///   ```should_fail
 ///   # #[macro_use]

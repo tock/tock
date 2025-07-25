@@ -694,7 +694,7 @@ impl<'a> hil::spi::SpiMaster<'a> for SpiHost<'a> {
         match polarity {
             ClockPolarity::IdleLow => regs.config_opts.modify(conf_opts::CPOL_0::CLEAR),
             ClockPolarity::IdleHigh => regs.config_opts.modify(conf_opts::CPOL_0::SET),
-        };
+        }
         Ok(())
     }
 
@@ -713,7 +713,7 @@ impl<'a> hil::spi::SpiMaster<'a> for SpiHost<'a> {
         match phase {
             ClockPhase::SampleLeading => regs.config_opts.modify(conf_opts::CPHA_0::CLEAR),
             ClockPhase::SampleTrailing => regs.config_opts.modify(conf_opts::CPHA_0::SET),
-        };
+        }
         Ok(())
     }
 

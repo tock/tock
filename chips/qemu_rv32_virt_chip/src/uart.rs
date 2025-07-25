@@ -249,7 +249,14 @@ impl Uart16550<'_> {
 
         // Check if the register contained a valid interrupt at all
         if !iir.matches_all(IIR::Pending::Pending) {
-            panic!("UART 16550: interrupt without interrupt");
+            // There is no active interrupt. This happens on newer QEMU
+            // versions, where a transient interrupt occurs whose underlying
+            // interrupt condition clears on its own, but the PLIC still holds
+            // the interrupt in the asserted / pending state.
+            //
+            // In this case, we simply return and ignore the interrupt. It
+            // should already be cleared in the PLIC.
+            return;
         }
 
         // Check whether there is space for new data
@@ -393,7 +400,7 @@ impl hil::uart::Configure for Uart16550<'_> {
             Width::Six => lcr.modify(LCR::DataWordLength::Bits6),
             Width::Seven => lcr.modify(LCR::DataWordLength::Bits7),
             Width::Eight => lcr.modify(LCR::DataWordLength::Bits8),
-        };
+        }
 
         match params.stop_bits {
             StopBits::One => LCR::StopBits::One,
@@ -407,12 +414,12 @@ impl hil::uart::Configure for Uart16550<'_> {
             Parity::None => lcr.modify(LCR::Parity.val(0b000)),
             Parity::Odd => lcr.modify(LCR::Parity.val(0b001)),
             Parity::Even => lcr.modify(LCR::Parity.val(0b011)),
-        };
+        }
 
         match params.hw_flow_control {
             true => lcr.modify(LCR::BreakSignal::SET),
             false => lcr.modify(LCR::BreakSignal::CLEAR),
-        };
+        }
 
         self.regs.lcr.set(lcr.get());
 

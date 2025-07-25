@@ -31,11 +31,10 @@ impl<'a, const NUM_PINS: usize> Pwm<'a, NUM_PINS> {
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> Pwm<'a, NUM_PINS> {
         assert!(u16::try_from(NUM_PINS).is_ok());
-        const EMPTY: OptionalCell<ProcessId> = OptionalCell::empty();
         Pwm {
             pwm_pins,
             apps: grant,
-            active_process: [EMPTY; NUM_PINS],
+            active_process: [const { OptionalCell::empty() }; NUM_PINS],
         }
     }
 
@@ -67,10 +66,11 @@ impl<const NUM_PINS: usize> SyscallDriver for Pwm<'_, NUM_PINS> {
     /// ### `command_num`
     ///
     /// - `0`: Driver existence check.
-    /// - `1`: Start the PWM pin output. First 16 bits of `data1` are used for the duty cycle, as a
-    ///     percentage with 2 decimals, and the last 16 bits of `data1` are used for the PWM channel
-    ///     to be controlled. `data2` is used for the frequency in hertz. For the duty cycle, 100% is
-    ///     the max duty cycle for this pin.
+    /// - `1`: Start the PWM pin output. First 16 bits of `data1` are used for
+    ///   the duty cycle, as a percentage with 2 decimals, and the last 16 bits
+    ///   of `data1` are used for the PWM channel to be controlled. `data2` is
+    ///   used for the frequency in hertz. For the duty cycle, 100% is the max
+    ///   duty cycle for this pin.
     /// - `2`: Stop the PWM output.
     /// - `3`: Return the maximum possible frequency for this pin.
     /// - `4`: Return number of PWM pins if this driver is included on the platform.

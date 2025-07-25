@@ -71,6 +71,7 @@ use core::fmt::Write;
 use crate::errorcode::ErrorCode;
 use crate::process;
 use crate::utilities::capability_ptr::CapabilityPtr;
+use crate::utilities::machine_register::MachineRegister;
 
 pub use crate::syscall_driver::{CommandReturn, SyscallDriver};
 
@@ -158,7 +159,7 @@ pub enum Syscall {
         /// Upcall pointer to the upcall function.
         upcall_ptr: CapabilityPtr,
         /// Userspace application data.
-        appdata: CapabilityPtr,
+        appdata: MachineRegister,
     },
 
     /// Structure representing an invocation of the Command system call class.
@@ -241,53 +242,53 @@ impl Syscall {
     pub fn from_register_arguments(
         syscall_number: u8,
         r0: usize,
-        r1: CapabilityPtr,
-        r2: CapabilityPtr,
-        r3: CapabilityPtr,
+        r1: MachineRegister,
+        r2: MachineRegister,
+        r3: MachineRegister,
     ) -> Option<Syscall> {
         match SyscallClass::try_from(syscall_number) {
             Ok(SyscallClass::Yield) => Some(Syscall::Yield {
                 which: r0,
-                param_a: r1.into(),
-                param_b: r2.into(),
+                param_a: r1.as_usize(),
+                param_b: r2.as_usize(),
             }),
             Ok(SyscallClass::Subscribe) => Some(Syscall::Subscribe {
                 driver_number: r0,
-                subdriver_number: r1.into(),
-                upcall_ptr: r2,
+                subdriver_number: r1.as_usize(),
+                upcall_ptr: r2.as_capability_ptr(),
                 appdata: r3,
             }),
             Ok(SyscallClass::Command) => Some(Syscall::Command {
                 driver_number: r0,
-                subdriver_number: r1.into(),
-                arg0: r2.into(),
-                arg1: r3.into(),
+                subdriver_number: r1.as_usize(),
+                arg0: r2.as_usize(),
+                arg1: r3.as_usize(),
             }),
             Ok(SyscallClass::ReadWriteAllow) => Some(Syscall::ReadWriteAllow {
                 driver_number: r0,
-                subdriver_number: r1.into(),
-                allow_address: r2.as_ptr::<u8>().cast_mut(),
-                allow_size: r3.into(),
+                subdriver_number: r1.as_usize(),
+                allow_address: r2.as_capability_ptr().as_ptr::<u8>().cast_mut(),
+                allow_size: r3.as_usize(),
             }),
             Ok(SyscallClass::UserspaceReadableAllow) => Some(Syscall::UserspaceReadableAllow {
                 driver_number: r0,
-                subdriver_number: r1.into(),
-                allow_address: r2.as_ptr::<u8>().cast_mut(),
-                allow_size: r3.into(),
+                subdriver_number: r1.as_usize(),
+                allow_address: r2.as_capability_ptr().as_ptr::<u8>().cast_mut(),
+                allow_size: r3.as_usize(),
             }),
             Ok(SyscallClass::ReadOnlyAllow) => Some(Syscall::ReadOnlyAllow {
                 driver_number: r0,
-                subdriver_number: r1.into(),
-                allow_address: r2.as_ptr::<u8>().cast_mut(),
-                allow_size: r3.into(),
+                subdriver_number: r1.as_usize(),
+                allow_address: r2.as_capability_ptr().as_ptr(),
+                allow_size: r3.as_usize(),
             }),
             Ok(SyscallClass::Memop) => Some(Syscall::Memop {
                 operand: r0,
-                arg0: r1.into(),
+                arg0: r1.as_usize(),
             }),
             Ok(SyscallClass::Exit) => Some(Syscall::Exit {
                 which: r0,
-                completion_code: r1.into(),
+                completion_code: r1.as_usize(),
             }),
             Err(_) => None,
         }

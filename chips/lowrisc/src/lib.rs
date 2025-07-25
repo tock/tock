@@ -5,8 +5,6 @@
 //! Implementations for generic LowRISC peripherals.
 
 #![no_std]
-#![crate_name = "lowrisc"]
-#![crate_type = "rlib"]
 
 pub mod aon_timer;
 pub mod csrng;

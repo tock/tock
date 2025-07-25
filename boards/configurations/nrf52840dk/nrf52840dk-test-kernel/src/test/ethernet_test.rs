@@ -11,7 +11,7 @@
 use kernel::{
     component::Component,
     hil::{
-        ethernet::{EthernetAdapter, EthernetAdapterClient},
+        ethernet::{EthernetAdapterDatapath, EthernetAdapterDatapathClient},
         usb::Client,
     },
     static_init,
@@ -115,7 +115,7 @@ struct Arp {
 pub(crate) const SRC_ADDR: [u8; 6] = [0x06, 0x1b, 0x5f, 0x44, 0x31, 0xee];
 
 pub(crate) struct NetworkTest {
-    adapter: &'static dyn EthernetAdapter<'static>,
+    adapter: &'static dyn EthernetAdapterDatapath<'static>,
     buffer: TakeCell<'static, [u8]>,
     my_ipv4_addr: [u8; 4],
     my_mac_addr: [u8; 6],
@@ -123,7 +123,7 @@ pub(crate) struct NetworkTest {
 
 impl NetworkTest {
     pub fn new(
-        adapter: &'static dyn EthernetAdapter<'static>,
+        adapter: &'static dyn EthernetAdapterDatapath<'static>,
         buffer: &'static mut [u8; 1522],
         my_ipv4_addr: [u8; 4],
         my_mac_addr: [u8; 6],
@@ -167,7 +167,7 @@ impl NetworkTest {
                 };
                 eth_header_resp.bytes().len() + arp_response.bytes().len()
             };
-            if let Err((_, buffer)) = self.adapter.transmit(buffer, len as u16, 0) {
+            if let Err((_, buffer)) = self.adapter.transmit_frame(buffer, len as u16, 0) {
                 kernel::debug!("Uh oh");
                 self.buffer.replace(buffer);
             }
@@ -258,7 +258,7 @@ impl NetworkTest {
                     + icmp_response.bytes().len()
                     + body.len()
             };
-            if let Err((_, buffer)) = self.adapter.transmit(buffer, len as u16, 0) {
+            if let Err((_, buffer)) = self.adapter.transmit_frame(buffer, len as u16, 0) {
                 kernel::debug!("Uh oh");
                 self.buffer.replace(buffer);
             }
@@ -350,7 +350,7 @@ impl NetworkTest {
                     + udp_response.bytes().len()
                     + udp_response_body.len()
             };
-            if let Err((_, buffer)) = self.adapter.transmit(buffer, len as u16, 0) {
+            if let Err((_, buffer)) = self.adapter.transmit_frame(buffer, len as u16, 0) {
                 kernel::debug!("Uh oh");
                 self.buffer.replace(buffer);
             }
@@ -465,7 +465,7 @@ impl NetworkTest {
                     + tcp_response.bytes().len()
                     + tcp_response_body.len()
             };
-            if let Err((_, buffer)) = self.adapter.transmit(buffer, len as u16, 0) {
+            if let Err((_, buffer)) = self.adapter.transmit_frame(buffer, len as u16, 0) {
                 kernel::debug!("Uh oh");
                 self.buffer.replace(buffer);
             }
@@ -532,8 +532,8 @@ impl NetworkTest {
     }
 }
 
-impl EthernetAdapterClient for NetworkTest {
-    fn tx_done(
+impl EthernetAdapterDatapathClient for NetworkTest {
+    fn transmit_frame_done(
         &self,
         _err: Result<(), kernel::ErrorCode>,
         packet_buffer: &'static mut [u8],
@@ -544,7 +544,7 @@ impl EthernetAdapterClient for NetworkTest {
         self.buffer.replace(packet_buffer);
     }
 
-    fn rx_packet(&self, frame: &[u8], _timestamp: Option<u64>) {
+    fn received_frame(&self, frame: &[u8], _timestamp: Option<u64>) {
         if frame.len() < 12 {
             kernel::debug!("frame: {:#x?}", frame);
         } else {

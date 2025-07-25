@@ -23,7 +23,7 @@ if [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then
     # Bench the current commit that was pushed. Requires navigating back to build directory
     cd ${TRAVIS_BUILD_DIR}
     make allboards
-    for elf in $(find . -maxdepth 8 | grep 'release' | egrep '\.elf$'); do
+    for elf in $(find . -maxdepth 8 | grep 'release' | grep -E '\.elf$'); do
         tmp=${elf#*release/}
         b=${tmp%.elf}
         ${TRAVIS_BUILD_DIR}/tools/print_tock_memory_usage.py -s ${elf} | tee ${TRAVIS_BUILD_DIR}/current-benchmark-${b}
@@ -50,7 +50,7 @@ if [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then
     make allboards
 
     # Find elfs compiled for release (for use in analyzing binaries in CI),
-    for elf in $(find . -maxdepth 8 | grep 'release' | egrep '\.elf$'); do
+    for elf in $(find . -maxdepth 8 | grep 'release' | grep -E '\.elf$'); do
         tmp=${elf#*release/}
         b=${tmp%.elf}
         ${TRAVIS_BUILD_DIR}/tools/print_tock_memory_usage.py -s ${elf} | tee ${TRAVIS_BUILD_DIR}/previous-benchmark-${b}
@@ -58,7 +58,7 @@ if [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then
 
     # now calculate diff for each board, and post status to github for each non-0 diff
     cd ${TRAVIS_BUILD_DIR}
-    for elf in $(find . -maxdepth 8 | grep 'release' | egrep '\.elf$'); do
+    for elf in $(find . -maxdepth 8 | grep 'release' | grep -E '\.elf$'); do
         tmp=${elf#*release/}
         b=${tmp%.elf}
         # Print a detailed by raw line-by-line diff. Can be useful to

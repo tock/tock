@@ -17,7 +17,7 @@
 
 use core::mem::MaybeUninit;
 use kernel::component::Component;
-use kernel::process::Process;
+use kernel::process::ProcessArray;
 use kernel::scheduler::cooperative::{CoopProcessNode, CooperativeSched};
 
 #[macro_export]
@@ -34,13 +34,11 @@ macro_rules! cooperative_component_static {
 }
 
 pub struct CooperativeComponent<const NUM_PROCS: usize> {
-    processes: &'static [Option<&'static dyn Process>],
+    processes: &'static ProcessArray<NUM_PROCS>,
 }
 
 impl<const NUM_PROCS: usize> CooperativeComponent<NUM_PROCS> {
-    pub fn new(
-        processes: &'static [Option<&'static dyn Process>],
-    ) -> CooperativeComponent<NUM_PROCS> {
+    pub fn new(processes: &'static ProcessArray<NUM_PROCS>) -> CooperativeComponent<NUM_PROCS> {
         CooperativeComponent { processes }
     }
 }
@@ -55,8 +53,9 @@ impl<const NUM_PROCS: usize> Component for CooperativeComponent<NUM_PROCS> {
     fn finalize(self, static_buffer: Self::StaticInput) -> Self::Output {
         let scheduler = static_buffer.0.write(CooperativeSched::new());
 
-        const UNINIT: MaybeUninit<CoopProcessNode<'static>> = MaybeUninit::uninit();
-        let nodes = static_buffer.1.write([UNINIT; NUM_PROCS]);
+        let nodes = static_buffer
+            .1
+            .write([const { MaybeUninit::uninit() }; NUM_PROCS]);
 
         for (i, node) in nodes.iter_mut().enumerate() {
             let init_node = node.write(CoopProcessNode::new(&self.processes[i]));

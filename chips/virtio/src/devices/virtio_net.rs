@@ -1,10 +1,10 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2022.
+// Copyright Tock Contributors 2025.
 
 use core::cell::Cell;
 
-use kernel::hil::ethernet::{EthernetAdapter, EthernetAdapterClient};
+use kernel::hil::ethernet::{EthernetAdapterDatapath, EthernetAdapterDatapathClient};
 use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::{register_bitfields, LocalRegisterCopy};
 use kernel::ErrorCode;
@@ -46,10 +46,11 @@ pub struct VirtIONet<'a> {
     rxqueue: &'a SplitVirtqueue<'static, 'static, 2>,
     txqueue: &'a SplitVirtqueue<'static, 'static, 2>,
     tx_header: OptionalCell<&'static mut [u8; 12]>,
-    tx_packet_info: Cell<(u16, usize)>,
+    tx_frame_info: Cell<(u16, usize)>,
     rx_header: OptionalCell<&'static mut [u8]>,
     rx_buffer: OptionalCell<&'static mut [u8]>,
-    client: OptionalCell<&'a dyn EthernetAdapterClient>,
+    client: OptionalCell<&'a dyn EthernetAdapterDatapathClient>,
+    rx_enabled: Cell<bool>,
 }
 
 impl<'a> VirtIONet<'a> {
@@ -67,38 +68,42 @@ impl<'a> VirtIONet<'a> {
             rxqueue,
             txqueue,
             tx_header: OptionalCell::new(tx_header),
-            tx_packet_info: Cell::new((0, 0)),
+            tx_frame_info: Cell::new((0, 0)),
             rx_header: OptionalCell::new(rx_header),
             rx_buffer: OptionalCell::new(rx_buffer),
             client: OptionalCell::empty(),
+            rx_enabled: Cell::new(false),
         }
     }
 
-    // This is not executed as part of the `device_initialized` hook to avoid
-    // missing any packets if a client has not been registered, and because this
-    // device can be used in a transmit-only fashion before invoking this
-    // function.
-    pub fn enable_rx(&self) {
-        // To start operation, put the receive buffers into the device initially
-        let rx_buffer = self.rx_buffer.take().unwrap();
-        let rx_buffer_len = rx_buffer.len();
+    fn reinsert_virtqueue_receive_buffer(&self) {
+        // Don't reinsert receive buffer when reception is disabled. The buffers
+        // will be reinserted on the next call to `enable_receive`:
+        if !self.rx_enabled.get() {
+            return;
+        }
 
-        let mut buffer_chain = [
-            Some(VirtqueueBuffer {
-                buf: self.rx_header.take().unwrap(),
-                len: 12,
-                device_writeable: true,
-            }),
-            Some(VirtqueueBuffer {
-                buf: rx_buffer,
-                len: rx_buffer_len,
-                device_writeable: true,
-            }),
-        ];
+        // Place the receive buffers into the device's VirtQueue
+        if let Some(rx_buffer) = self.rx_buffer.take() {
+            let rx_buffer_len = rx_buffer.len();
 
-        self.rxqueue
-            .provide_buffer_chain(&mut buffer_chain)
-            .unwrap();
+            let mut buffer_chain = [
+                Some(VirtqueueBuffer {
+                    buf: self.rx_header.take().unwrap(),
+                    len: 12,
+                    device_writeable: true,
+                }),
+                Some(VirtqueueBuffer {
+                    buf: rx_buffer,
+                    len: rx_buffer_len,
+                    device_writeable: true,
+                }),
+            ];
+
+            self.rxqueue
+                .provide_buffer_chain(&mut buffer_chain)
+                .unwrap();
+        }
     }
 }
 
@@ -110,32 +115,43 @@ impl SplitVirtqueueClient<'static> for VirtIONet<'_> {
         bytes_used: usize,
     ) {
         if queue_number == self.rxqueue.queue_number().unwrap() {
-            // Received a packet
+            // Received an Ethernet frame
 
             let rx_header = buffer_chain[0].take().expect("No header buffer").buf;
             // TODO: do something with the header
             self.rx_header.replace(rx_header);
 
             let rx_buffer = buffer_chain[1].take().expect("No rx content buffer").buf;
-            self.client
-                .map(|client| client.rx_packet(&rx_buffer[..(bytes_used - 12)], None));
+
+            if self.rx_enabled.get() {
+                self.client
+                    .map(|client| client.received_frame(&rx_buffer[..(bytes_used - 12)], None));
+            }
+
             self.rx_buffer.replace(rx_buffer);
 
             // Re-run enable RX to provide the RX buffer chain back to the
-            // device:
-            self.enable_rx();
+            // device (if reception is still enabled):
+            self.reinsert_virtqueue_receive_buffer();
         } else if queue_number == self.txqueue.queue_number().unwrap() {
-            // Sent a packet
+            // Sent an Ethernet frame
 
             let header_buf = buffer_chain[0].take().expect("No header buffer").buf;
             self.tx_header.replace(header_buf.try_into().unwrap());
 
-            let packet_buf = buffer_chain[1].take().expect("No packet buffer").buf;
+            let frame_buf = buffer_chain[1].take().expect("No frame buffer").buf;
 
-            let (packet_len, packet_id) = self.tx_packet_info.get();
+            let (frame_len, transmission_identifier) = self.tx_frame_info.get();
 
-            self.client
-                .map(move |client| client.tx_done(Ok(()), packet_buf, packet_len, packet_id, None));
+            self.client.map(move |client| {
+                client.transmit_frame_done(
+                    Ok(()),
+                    frame_buf,
+                    frame_len,
+                    transmission_identifier,
+                    None,
+                )
+            });
         } else {
             panic!("Callback from unknown queue");
         }
@@ -177,24 +193,43 @@ impl VirtIODeviceDriver for VirtIONet<'_> {
     }
 }
 
-impl<'a> EthernetAdapter<'a> for VirtIONet<'a> {
-    fn set_client(&self, client: &'a dyn EthernetAdapterClient) {
+impl<'a> EthernetAdapterDatapath<'a> for VirtIONet<'a> {
+    fn set_client(&self, client: &'a dyn EthernetAdapterDatapathClient) {
         self.client.set(client);
     }
 
-    fn transmit(
+    fn enable_receive(&self) {
+        // Enable receive callbacks:
+        self.rx_enabled.set(true);
+
+        // Attempt to reinsert any driver-owned receive buffers into the receive
+        // queues. This will be a nop if reception was already enabled before
+        // this call:
+        self.reinsert_virtqueue_receive_buffer();
+    }
+
+    fn disable_receive(&self) {
+        // Disable receive callbacks:
+        self.rx_enabled.set(false);
+
+        // We don't "steal" any receive buffers out of the virtqueue, but the
+        // above flag will avoid reinserting buffers into the VirtQueue until
+        // reception is enabled again:
+    }
+
+    fn transmit_frame(
         &self,
-        packet: &'static mut [u8],
+        frame_buffer: &'static mut [u8],
         len: u16,
-        packet_identifier: usize,
+        transmission_identifier: usize,
     ) -> Result<(), (ErrorCode, &'static mut [u8])> {
         // Try to get a hold of the header buffer
         //
         // Otherwise, the device is currently busy transmissing a buffer
         //
         // TODO: Implement simultaneous transmissions
-        let mut packet_buf = Some(VirtqueueBuffer {
-            buf: packet,
+        let mut frame_queue_buf = Some(VirtqueueBuffer {
+            buf: frame_buffer,
             len: len as usize,
             device_writeable: false,
         });
@@ -203,7 +238,7 @@ impl<'a> EthernetAdapter<'a> for VirtIONet<'a> {
             .tx_header
             .take()
             .ok_or(ErrorCode::BUSY)
-            .map_err(|ret| (ret, packet_buf.take().unwrap().buf))?;
+            .map_err(|ret| (ret, frame_queue_buf.take().unwrap().buf))?;
 
         // Write the header
         //
@@ -227,10 +262,10 @@ impl<'a> EthernetAdapter<'a> for VirtIONet<'a> {
                 len: 12,
                 device_writeable: false,
             }),
-            packet_buf.take(),
+            frame_queue_buf.take(),
         ];
 
-        self.tx_packet_info.set((len, packet_identifier));
+        self.tx_frame_info.set((len, transmission_identifier));
 
         self.txqueue
             .provide_buffer_chain(&mut buffer_chain)

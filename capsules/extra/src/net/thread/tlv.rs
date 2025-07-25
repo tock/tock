@@ -29,7 +29,7 @@
 //!
 //! 1. Type   - A one-byte TLV type number.
 //! 2. Length - A one-byte number representing the length of the TLV
-//!             value in bytes.
+//!    value in bytes.
 //! 3. Value  - The TLV value.
 //!
 //! For some TLVs, the TLV type number is shifted left by one to leave the

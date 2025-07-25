@@ -20,12 +20,10 @@ pub struct TakeCell<'a, T: 'a + ?Sized> {
 }
 
 impl<'a, T: ?Sized> TakeCell<'a, T> {
-    const EMPTY: Self = Self {
-        val: Cell::new(None),
-    };
-
     pub const fn empty() -> TakeCell<'a, T> {
-        Self::EMPTY
+        Self {
+            val: Cell::new(None),
+        }
     }
 
     /// Creates a new `TakeCell` containing `value`
@@ -145,14 +143,11 @@ impl<'a, T: ?Sized> TakeCell<'a, T> {
         F: FnOnce(&mut T) -> U,
     {
         let maybe_val = self.take();
-        maybe_val.map_or_else(
-            || default(),
-            |val| {
-                let res = f(val);
-                self.replace(val);
-                res
-            },
-        )
+        maybe_val.map_or_else(default, |val| {
+            let res = f(val);
+            self.replace(val);
+            res
+        })
     }
 
     /// Behaves the same as `map`, except the closure is allowed to return

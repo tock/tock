@@ -62,13 +62,7 @@ macro_rules! segger_rtt_component_static {
 }
 
 pub struct SeggerRttMemoryRefs<'a> {
-    rtt_memory: &'a mut SeggerRttMemory<'a>,
-}
-
-impl<'a> SeggerRttMemoryRefs<'a> {
-    pub unsafe fn get_rtt_memory_ptr(&mut self) -> *mut SeggerRttMemory<'a> {
-        core::ptr::from_mut(self.rtt_memory)
-    }
+    pub rtt_memory: &'a mut SeggerRttMemory<'a>,
 }
 
 pub struct SeggerRttMemoryComponent {}

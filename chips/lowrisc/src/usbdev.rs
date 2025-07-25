@@ -643,7 +643,7 @@ impl<'a> Usb<'a> {
                                             .state
                                             .set(EndpointState::Ctrl(CtrlState::Init));
                                     }
-                                };
+                                }
                             });
                         }
                     }
@@ -701,7 +701,7 @@ impl<'a> Usb<'a> {
                         }
 
                         hil::usb::OutResult::Error => unreachable!(),
-                    };
+                    }
                 }
             }
         });
@@ -772,7 +772,7 @@ impl<'a> Usb<'a> {
                                     }
                                     hil::usb::InResult::Delay => unimplemented!(),
                                     hil::usb::InResult::Error => unreachable!(),
-                                };
+                                }
                             });
                         }
                     },
@@ -809,28 +809,26 @@ impl<'a> Usb<'a> {
                             self.complete_ctrl_status();
                         }
                         CtrlState::WriteOut => {
-                            self.client.map(|client| {
-                                match client.ctrl_in(ep as usize) {
-                                    hil::usb::CtrlInResult::Packet(size, last) => {
-                                        if size == 0 {
-                                            panic!("Empty ctrl packet?");
-                                        }
-
-                                        self.copy_slice_out_to_hw(ep as usize, buf as usize, size);
-
-                                        if last {
-                                            self.descriptors[ep as usize]
-                                                .state
-                                                .set(EndpointState::Ctrl(CtrlState::ReadStatus));
-                                        } else {
-                                            self.descriptors[ep as usize]
-                                                .state
-                                                .set(EndpointState::Ctrl(CtrlState::WriteOut));
-                                        }
+                            self.client.map(|client| match client.ctrl_in(ep as usize) {
+                                hil::usb::CtrlInResult::Packet(size, last) => {
+                                    if size == 0 {
+                                        panic!("Empty ctrl packet?");
                                     }
-                                    hil::usb::CtrlInResult::Delay => unimplemented!(),
-                                    hil::usb::CtrlInResult::Error => unreachable!(),
-                                };
+
+                                    self.copy_slice_out_to_hw(ep as usize, buf as usize, size);
+
+                                    if last {
+                                        self.descriptors[ep as usize]
+                                            .state
+                                            .set(EndpointState::Ctrl(CtrlState::ReadStatus));
+                                    } else {
+                                        self.descriptors[ep as usize]
+                                            .state
+                                            .set(EndpointState::Ctrl(CtrlState::WriteOut));
+                                    }
+                                }
+                                hil::usb::CtrlInResult::Delay => unimplemented!(),
+                                hil::usb::CtrlInResult::Error => unreachable!(),
                             });
                         }
                         CtrlState::SetAddress => {
@@ -920,7 +918,7 @@ impl<'a> Usb<'a> {
                                 self.copy_slice_out_to_hw(ep, buf, size)
                             } else {
                                 panic!("No free bufs");
-                            };
+                            }
                             EndpointState::Bulk(Some(BulkInState::In(size)), None)
                         }
                         EndpointState::Iso => unreachable!(),
@@ -1070,7 +1068,7 @@ impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
                 self.registers.in_iso.set(1 << endpoint);
                 self.descriptors[endpoint].state.set(EndpointState::Iso);
             }
-        };
+        }
     }
 
     fn endpoint_out_enable(&self, transfer_type: TransferType, endpoint: usize) {
@@ -1115,15 +1113,12 @@ impl<'a> hil::usb::UsbController<'a> for Usb<'a> {
                 self.registers.out_iso.set(1 << endpoint);
                 self.descriptors[endpoint].state.set(EndpointState::Iso);
             }
-        };
+        }
     }
 
     fn endpoint_in_out_enable(&self, transfer_type: TransferType, endpoint: usize) {
-        match transfer_type {
-            TransferType::Bulk => {
-                panic!("IN/OUT Bulk transfer is unsupported ");
-            }
-            _ => {}
+        if let TransferType::Bulk = transfer_type {
+            panic!("IN/OUT Bulk transfer is unsupported ");
         }
         self.endpoint_out_enable(transfer_type, endpoint)
     }

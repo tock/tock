@@ -844,16 +844,15 @@ impl<'a> Can<'a> {
             }
         }
 
-        match state {
-            Err(err) => self.can_state.set(CanState::RunningError(err)),
-            _ => {}
+        if let Err(err) = state {
+            self.can_state.set(CanState::RunningError(err))
         }
 
-        self.transmit_client
-            .map(|transmit_client| match self.tx_buffer.take() {
-                Some(buf) => transmit_client.transmit_complete(state, buf),
-                None => {}
-            });
+        self.transmit_client.map(|transmit_client| {
+            if let Some(buf) = self.tx_buffer.take() {
+                transmit_client.transmit_complete(state, buf)
+            }
+        });
     }
 
     pub fn process_received_message(
@@ -989,13 +988,10 @@ impl<'a> Can<'a> {
         self.error_interrupt_counter
             .replace(self.error_interrupt_counter.get() + 1);
 
-        match self.can_state.get() {
-            CanState::RunningError(err) => {
-                self.controller_client.map(|controller_client| {
-                    controller_client.state_changed(kernel::hil::can::State::Error(err));
-                });
-            }
-            _ => {}
+        if let CanState::RunningError(err) = self.can_state.get() {
+            self.controller_client.map(|controller_client| {
+                controller_client.state_changed(kernel::hil::can::State::Error(err));
+            });
         }
     }
 

@@ -6,8 +6,6 @@
 //!
 //! <http://www.atmel.com/microsite/sam4l/default.aspx>
 
-#![crate_name = "sam4l"]
-#![crate_type = "rlib"]
 #![no_std]
 
 pub mod acifc;

@@ -124,7 +124,7 @@ pub struct ProcessBinary {
     pub footers: &'static [u8],
 
     /// Collection of pointers to the TBF header in flash.
-    pub header: tock_tbf::types::TbfHeader,
+    pub header: tock_tbf::types::TbfHeader<'static>,
 
     /// Optional credential that was used to approve this application. This is
     /// set if the process is checked by a credential checker and a specific

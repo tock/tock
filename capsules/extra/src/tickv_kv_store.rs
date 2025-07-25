@@ -353,20 +353,18 @@ impl<'a, K: KVSystem<'a, K = T>, T: KeyType> KVSystemClient<T> for TicKVKVStore<
                             }
                         }
                     }
-                    Operation::Delete => {
-                        match self.kv.invalidate_key(hashed_key) {
-                            Ok(()) => {
-                                self.unhashed_key.replace(unhashed_key);
-                            }
-                            Err((key, _e)) => {
-                                self.hashed_key.replace(key);
-                                self.operation.clear();
-                                self.client.map(move |cb| {
-                                    cb.delete_complete(Err(ErrorCode::FAIL), unhashed_key);
-                                });
-                            }
-                        };
-                    }
+                    Operation::Delete => match self.kv.invalidate_key(hashed_key) {
+                        Ok(()) => {
+                            self.unhashed_key.replace(unhashed_key);
+                        }
+                        Err((key, _e)) => {
+                            self.hashed_key.replace(key);
+                            self.operation.clear();
+                            self.client.map(move |cb| {
+                                cb.delete_complete(Err(ErrorCode::FAIL), unhashed_key);
+                            });
+                        }
+                    },
                     Operation::GarbageCollect => {}
                 }
             }
@@ -469,8 +467,8 @@ impl<'a, K: KVSystem<'a, K = T>, T: KeyType> KVSystemClient<T> for TicKVKVStore<
         key: &'static mut T,
         ret_buf: SubSliceMut<'static, u8>,
     ) {
-        self.operation.map(|op| match op {
-            Operation::Get => {
+        self.operation.map(|op| {
+            if op == Operation::Get {
                 self.hashed_key.replace(key);
                 self.operation.clear();
 
@@ -488,7 +486,6 @@ impl<'a, K: KVSystem<'a, K = T>, T: KeyType> KVSystemClient<T> for TicKVKVStore<
                     });
                 });
             }
-            _ => {}
         });
     }
 

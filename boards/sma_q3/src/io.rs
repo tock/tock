@@ -36,16 +36,13 @@ impl IoWrite for Writer {
     fn write(&mut self, buf: &[u8]) -> usize {
         match self {
             Writer::Uninitialized => {}
-            Writer::WriterRtt(rtt_memory) => {
-                rtt_memory.write_sync(buf);
-            }
-        };
+            Writer::WriterRtt(rtt_memory) => rtt_memory.write_sync(buf),
+        }
         buf.len()
     }
 }
 
 #[cfg(not(test))]
-#[no_mangle]
 #[panic_handler]
 /// Panic handler
 pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
@@ -60,7 +57,7 @@ pub unsafe fn panic_fmt(pi: &PanicInfo) -> ! {
         writer,
         pi,
         &cortexm4::support::nop,
-        &*addr_of!(PROCESSES),
+        PROCESSES.unwrap().as_slice(),
         &*addr_of!(CHIP),
         &*addr_of!(PROCESS_PRINTER),
     )

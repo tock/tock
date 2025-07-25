@@ -71,7 +71,9 @@ $(call check_defined, PLATFORM)
 $(call check_defined, TARGET)
 
 # Location of target-specific build.
-TARGET_PATH := $(TARGET_DIRECTORY)$(TARGET)
+# Make sure we delete the ".json" extension if we are building a custon TARGET
+# defined in a JSON file as cargo defines the target folder without ".json".
+TARGET_PATH := $(TARGET_DIRECTORY)$(subst .json,,$(TARGET))
 
 # If environment variable V or VERBOSE is non-empty, be verbose.
 ifneq ($(V),)
@@ -126,23 +128,34 @@ endif
 # only have to be done once per Rust version, but will take some time when
 # compiling for the first time.
 ifneq ($(shell $(RUSTUP) target list | grep "$(TARGET) (installed)"),$(TARGET) (installed))
-  $(warning Request to compile for a missing TARGET, make will install in 5s)
-  $(warning Consider updating 'targets' in 'rust-toolchain.toml')
-  $(shell sleep 5)
-  $(shell $(RUSTUP) target add $(TARGET))
+  $(info Request to compile for a missing TARGET: $(TARGET))
+  $(info )
+  $(info If you are adding a new architecture, you will need to update)
+  $(info 'targets' in 'rust-toolchain.toml' to merge upstream.)
+  $(info )
+  $(info If you are just doing some local testing, you can install the)
+  $(info target manually for just your system with:)
+  $(info )
+  $(info     $(RUSTUP) target add $(TARGET))
+  $(info )
+  $(error Missing required target: $(TARGET))
 endif
 
 # If the board the user is compiling is using the stable toolchain, verify that
 # the user's stable rustc toolchain is new enough to compile the board. If the
-# toolchain is too old, wait 5 seconds and then install for the user.
+# toolchain is too old, wait 10 seconds and then install for the user.
 ifneq ($(shell $(RUSTUP) show active-toolchain | grep "stable"),)
   # If the error from running --version shows a version mismatch we know the
   # installed toolchain is too old.
   ifneq ($(shell $(CARGO) rustc -- --version 2>&1 | grep "is not supported by the following packages"),)
-    $(warning Your stable rustc is older than the MSRV of this board)
-    $(warning make will update your stable rustc in 5s)
-    $(shell sleep 5)
+    $(warning Your stable rustc is older than the MSRV of this board.)
+    $(warning )
+    $(warning make will run `$(RUSTUP) update` to update your stable rustc in 10s.)
+    $(shell sleep 10)
     DUMMY := $(shell $(RUSTUP) update)
+  endif
+  ifneq ($(shell $(CARGO) rustc -- --version 2>&1 | grep "is not supported by the following packages"),)
+    $(error Rustup update failed. Please fix your rustup or update your rustc manually.)
   endif
 endif
 endif # $(NO_RUSTUP)
@@ -215,6 +228,7 @@ RUST_FLAGS = $(shell $(CARGO) -Zunstable-options config get build.rustflags --fo
   $(info )
   $(info PLATFORM                      = $(PLATFORM))
   $(info TARGET                        = $(TARGET))
+  $(info TARGET_PATH                   = $(TARGET_PATH))
   $(info TOCK_KERNEL_VERSION           = $(TOCK_KERNEL_VERSION))
   $(info RUSTFLAGS                     = $(RUST_FLAGS))
   $(info MAKEFLAGS                     = $(MAKEFLAGS))
@@ -279,7 +293,7 @@ show-target:
 	$(info $(TARGET))
 
 .PHONY: stack-analysis
-stack-analysis: $(TARGET_PATH)/release/$(PLATFORM)
+stack-analysis: $(TARGET_PATH)/release/$(PLATFORM).elf
 	@$ echo $(PLATFORM)
 	@$ echo ----------------------
 	$(Q)$(TOCK_ROOT_DIRECTORY)/tools/stack_analysis.sh $(TARGET_PATH)/release/$(PLATFORM).elf

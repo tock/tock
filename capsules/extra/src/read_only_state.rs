@@ -93,8 +93,8 @@ impl<T: Time> SyscallDriver for ReadOnlyStateDriver<'_, T> {
     ///
     /// ### `allow_num`
     ///
-    /// - `0`: Allow a buffer for the kernel to stored syscall values.
-    ///        This should only be read by the app and written by the capsule.
+    /// - `0`: Allow a buffer for the kernel to stored syscall values. This
+    ///   should only be read by the app and written by the capsule.
     fn allow_userspace_readable(
         &self,
         processid: ProcessId,

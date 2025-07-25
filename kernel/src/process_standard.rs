@@ -439,7 +439,7 @@ pub struct ProcessStandard<'a, C: 'static + Chip, D: 'static + ProcessStandardDe
     footers: &'static [u8],
 
     /// Collection of pointers to the TBF header in flash.
-    header: tock_tbf::types::TbfHeader,
+    header: tock_tbf::types::TbfHeader<'static>,
 
     /// Credential that was approved for this process, or `None` if the
     /// credential was permitted to run without an accepted credential.
@@ -574,7 +574,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                     count_before - count_after,
                 );
             }
-            count_after - count_before
+            count_before - count_after
         })
     }
 
@@ -618,13 +618,12 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
     }
 
     fn resume(&self) {
-        match self.state.get() {
-            State::Stopped(stopped_state) => match stopped_state {
+        if let State::Stopped(stopped_state) = self.state.get() {
+            match stopped_state {
                 StoppedState::Running => self.state.set(State::Running),
                 StoppedState::Yielded => self.state.set(State::Yielded),
                 StoppedState::YieldedFor(upcall_id) => self.state.set(State::YieldedFor(upcall_id)),
-            },
-            _ => {} // Do nothing
+            }
         }
     }
 
@@ -832,7 +831,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             return Err(Error::InactiveApp);
         }
 
-        let new_break = unsafe { self.app_break.get().offset(increment) };
+        let new_break = self.app_break.get().wrapping_offset(increment);
         self.brk(new_break)
     }
 
@@ -1451,7 +1450,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             \r\n Total number of grant regions defined: {}\r\n",
             self.kernel.get_grant_count_and_finalize()
         ));
-        let rows = (number_grants + 2) / 3;
+        let rows = number_grants.div_ceil(3);
 
         // Access our array of grant pointers.
         self.grant_pointers.map(|grant_pointers| {
@@ -1963,7 +1962,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
                 // reconstitute the original memory slice.
                 return Err((ProcessLoadError::InternalError, unused_memory));
             }
-        };
+        }
 
         let flash_start = process.flash.as_ptr();
         let app_start =
@@ -2130,7 +2129,7 @@ impl<C: 'static + Chip, D: 'static + ProcessStandardDebug> ProcessStandard<'_, C
                 // faulted and not schedule it.
                 return Err(ErrorCode::RESERVE);
             }
-        };
+        }
 
         self.restart_count.increment();
 

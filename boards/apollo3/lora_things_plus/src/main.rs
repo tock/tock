@@ -31,16 +31,11 @@
 //! IOM5: Pins used by UART0
 
 #![no_std]
-// Disable this attribute when documenting, as a workaround for
-// https://github.com/rust-lang/rust/issues/62184.
-#![cfg_attr(not(doc), no_main)]
+#![no_main]
 #![deny(missing_docs)]
 #![feature(custom_test_frameworks)]
 #![test_runner(test_runner)]
 #![reexport_test_harness_main = "test_main"]
-
-use core::ptr::addr_of;
-use core::ptr::addr_of_mut;
 
 use apollo3::chip::Apollo3DefaultPeripherals;
 use capsules_core::virtualizers::virtual_alarm::MuxAlarm;
@@ -56,6 +51,7 @@ use kernel::hil::led::LedHigh;
 use kernel::hil::spi::SpiMaster;
 use kernel::hil::time::Counter;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
+use kernel::process::ProcessArray;
 use kernel::scheduler::round_robin::RoundRobinSched;
 use kernel::{create_capability, debug, static_init};
 
@@ -80,8 +76,8 @@ mod tests;
 // Number of concurrent processes this platform supports.
 const NUM_PROCS: usize = 4;
 
-// Actual memory for holding the active process structures.
-static mut PROCESSES: [Option<&'static dyn kernel::process::Process>; NUM_PROCS] = [None; 4];
+/// Static variables used by io.rs.
+static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 
 // Static reference to chip for panic dumps.
 static mut CHIP: Option<&'static apollo3::chip::Apollo3<Apollo3DefaultPeripherals>> = None;
@@ -120,7 +116,7 @@ static mut ATECC508A: Option<&'static capsules_extra::atecc508a::Atecc508a<'stat
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-pub static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
 
 const LORA_SPI_DRIVER_NUM: usize = capsules_core::driver::NUM::LoRaPhySPI as usize;
 const LORA_GPIO_DRIVER_NUM: usize = capsules_core::driver::NUM::LoRaPhyGPIO as usize;
@@ -141,6 +137,18 @@ type BME280Sensor = components::bme280::Bme280ComponentType<
 
 type TemperatureDriver = components::temperature::TemperatureComponentType<BME280Sensor>;
 type HumidityDriver = components::humidity::HumidityComponentType<BME280Sensor>;
+
+#[cfg(feature = "atecc508a")]
+type Verifier = capsules_extra::atecc508a::Atecc508a<'static>;
+#[cfg(feature = "atecc508a")]
+type SignatureVerifyInMemoryKeys =
+    components::signature_verify_in_memory_keys::SignatureVerifyInMemoryKeysComponentType<
+        Verifier,
+        1,
+        64,
+        32,
+        64,
+    >;
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.
@@ -419,7 +427,12 @@ unsafe fn setup() -> (
     // initialize capabilities
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
-    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(&*addr_of!(PROCESSES)));
+    // Create an array to hold process references.
+    let processes = components::process_array::ProcessArrayComponent::new()
+        .finalize(components::process_array_component_static!(NUM_PROCS));
+    PROCESSES = Some(processes);
+
+    let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
 
     // Power up components
     pwr_ctrl.enable_uart0();
@@ -463,8 +476,11 @@ unsafe fn setup() -> (
     )
     .finalize(components::console_component_static!());
     // Create the debugger object that handles calls to `debug!()`.
-    components::debug_writer::DebugWriterComponent::new(uart_mux)
-        .finalize(components::debug_writer_component_static!());
+    components::debug_writer::DebugWriterComponent::new(
+        uart_mux,
+        create_capability!(capabilities::SetDebugWriterCapability),
+    )
+    .finalize(components::debug_writer_component_static!());
 
     // LEDs
     let led = components::led::LedsComponent::new().finalize(components::led_component_static!(
@@ -795,7 +811,7 @@ unsafe fn setup() -> (
         static _lkv_data: u8;
     }
 
-    let scheduler = components::sched::round_robin::RoundRobinComponent::new(&*addr_of!(PROCESSES))
+    let scheduler = components::sched::round_robin::RoundRobinComponent::new(processes)
         .finalize(components::round_robin_component_static!(NUM_PROCS));
 
     let systick = cortexm4::systick::SysTick::new_with_calibration(48_000_000);
@@ -864,16 +880,27 @@ unsafe fn setup() -> (
                 0x0a, 0xa3, 0x05, 0xd5, 0x84, 0xaa, 0x6a, 0x56
             ]
         );
+        let verifying_keys = kernel::static_init!([&'static mut [u8; 64]; 1], [public_key]);
 
-        ATECC508A.unwrap().set_public_key(Some(public_key));
+        // Setup the in-memory key selector.
+        let verifier_multiple_keys =
+            components::signature_verify_in_memory_keys::SignatureVerifyInMemoryKeysComponent::new(
+                ATECC508A.unwrap(),
+                verifying_keys,
+            )
+            .finalize(
+                components::signature_verify_in_memory_keys_component_static!(
+                    Verifier, 1, 64, 32, 64,
+                ),
+            );
 
         checking_policy = components::appid::checker_signature::AppCheckerSignatureComponent::new(
             sha,
-            ATECC508A.unwrap(),
+            verifier_multiple_keys,
             tock_tbf::types::TbfFooterV2CredentialsType::EcdsaNistP256,
         )
         .finalize(components::app_checker_signature_component_static!(
-            capsules_extra::atecc508a::Atecc508a<'static>,
+            SignatureVerifyInMemoryKeys,
             capsules_extra::sha256::Sha256Software<'static>,
             32,
             64,
@@ -902,15 +929,25 @@ unsafe fn setup() -> (
                 ),
             );
 
+    let app_flash = core::slice::from_raw_parts(
+        core::ptr::addr_of!(_sapps),
+        core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
+    );
+    let app_memory = core::slice::from_raw_parts_mut(
+        core::ptr::addr_of_mut!(_sappmem),
+        core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
+    );
+
     // Create and start the asynchronous process loader.
     let _loader = components::loader::sequential::ProcessLoaderSequentialComponent::new(
         checker,
-        &mut *addr_of_mut!(PROCESSES),
         board_kernel,
         chip,
         &FAULT_RESPONSE,
         assigner,
         storage_permissions_policy,
+        app_flash,
+        app_memory,
     )
     .finalize(components::process_loader_sequential_component_static!(
         apollo3::chip::Apollo3<Apollo3DefaultPeripherals>,

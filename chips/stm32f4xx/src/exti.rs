@@ -631,7 +631,7 @@ impl<'a> Exti<'a> {
 
         // ignore the "reserved" EXTI bits. Use bits [22:0]. See `EXTI_PR` for
         // details.
-        exti_pr |= 0x007fffff;
+        exti_pr &= 0x007fffff;
 
         let mut flagged_bit = 0;
 

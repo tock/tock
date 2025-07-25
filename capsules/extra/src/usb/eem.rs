@@ -12,12 +12,12 @@
 //! The EEM subclass is simply a CDC class descriptor with one in and one out
 //! bulk endpoint.
 //!
-//! The capsule implements the (experimental) `EthernetAdapter` HIL which allows
-//! reception and transmission of individual ethernet frames. Generally, the
-//! capsule treats frames opaquely---it does not enforce or validate the
-//! standard frame format or do any MAC filtering---and simply adds the USB EEM
-//! header and (dummy) CRC footer. Similarly, on reception, it simply strips the
-//! EEM header and CRC.
+//! The capsule implements the (experimental) `EthernetDatapathAdapter` HIL
+//! which allows reception and transmission of individual ethernet
+//! frames. Generally, the capsule treats frames opaquely---it does not enforce
+//! or validate the standard frame format or do any MAC filtering---and simply
+//! adds the USB EEM header and (dummy) CRC footer. Similarly, on reception, it
+//! simply strips the EEM header and CRC.
 
 use core::cell::Cell;
 use core::cmp;
@@ -32,8 +32,8 @@ use super::descriptors::TransferDirection;
 use super::usbc_client_ctrl::ClientCtrl;
 
 use kernel::hil;
-use kernel::hil::ethernet::EthernetAdapter;
-use kernel::hil::ethernet::EthernetAdapterClient;
+use kernel::hil::ethernet::EthernetAdapterDatapath;
+use kernel::hil::ethernet::EthernetAdapterDatapathClient;
 use kernel::hil::usb::TransferType;
 use kernel::hil::usb::UsbController;
 use kernel::utilities::cells::MapCell;
@@ -84,6 +84,9 @@ pub struct CdcEem<'a, U: 'a> {
     rx_buffer: MapCell<[u8; 1522]>,
     /// The receiver's current state
     rx_state: Cell<RxState>,
+    /// Whether received packets invoke the `EthernetAdapterDatapathClient`
+    /// callbacks:
+    rx_enabled: Cell<bool>,
 
     /// A holder for the buffer to transmit
     tx_buffer: TakeCell<'static, [u8]>,
@@ -94,7 +97,7 @@ pub struct CdcEem<'a, U: 'a> {
     /// Client-specified identifier for the ethernet frame
     tx_identifier: Cell<usize>,
 
-    client: OptionalCell<&'a dyn EthernetAdapterClient>,
+    client: OptionalCell<&'a dyn EthernetAdapterDatapathClient>,
 }
 
 pub mod subclass {
@@ -176,6 +179,7 @@ impl<'a, U: hil::usb::UsbController<'a>> CdcEem<'a, U> {
             buffers: Default::default(),
             rx_buffer: MapCell::new([0; 1522]),
             rx_state: Cell::new(RxState::Idle),
+            rx_enabled: Cell::new(false),
 
             tx_buffer: TakeCell::empty(),
             tx_offset: Cell::new(0),
@@ -243,9 +247,11 @@ impl<'a, U: hil::usb::UsbController<'a>> CdcEem<'a, U> {
                             let len_without_mac =
                                 core::cmp::min(len.saturating_sub(4), rx_buffer.len());
                             self.rx_state.set(RxState::Idle);
-                            self.client.map(|client| {
-                                client.rx_packet(&rx_buffer[..len_without_mac], None)
-                            });
+                            if self.rx_enabled.get() {
+                                self.client.map(|client| {
+                                    client.received_frame(&rx_buffer[..len_without_mac], None)
+                                });
+                            }
                         } else if current_packet.is_empty() {
                             break;
                         } else {
@@ -416,7 +422,7 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a> for CdcEem<'a, U> 
 
                             // Signal the callback and pass back the TX buffer.
                             self.client.map(move |client| {
-                                client.tx_done(
+                                client.transmit_frame_done(
                                     Ok(()),
                                     tx_buf,
                                     self.tx_len.get(),
@@ -474,7 +480,7 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a> for CdcEem<'a, U> 
 
                 // Signal the callback and pass back the TX buffer.
                 self.client.map(|client| {
-                    client.tx_done(
+                    client.transmit_frame_done(
                         Ok(()),
                         tx_buf,
                         self.tx_len.get(),
@@ -487,24 +493,32 @@ impl<'a, U: hil::usb::UsbController<'a>> hil::usb::Client<'a> for CdcEem<'a, U> 
     }
 }
 
-impl<'a, U: UsbController<'a>> EthernetAdapter<'a> for CdcEem<'a, U> {
-    fn set_client(&self, client: &'a dyn EthernetAdapterClient) {
+impl<'a, U: UsbController<'a>> EthernetAdapterDatapath<'a> for CdcEem<'a, U> {
+    fn enable_receive(&self) {
+        self.rx_enabled.set(true)
+    }
+
+    fn disable_receive(&self) {
+        self.rx_enabled.set(false)
+    }
+
+    fn set_client(&self, client: &'a dyn EthernetAdapterDatapathClient) {
         self.client.set(client);
     }
 
-    fn transmit(
+    fn transmit_frame(
         &self,
-        packet: &'static mut [u8],
+        frame_buffer: &'static mut [u8],
         len: u16,
-        packet_identifier: usize,
+        transmission_identifier: usize,
     ) -> Result<(), (kernel::ErrorCode, &'static mut [u8])> {
         if self.tx_buffer.is_some() {
-            Err((kernel::ErrorCode::BUSY, packet))
+            Err((kernel::ErrorCode::BUSY, frame_buffer))
         } else {
-            self.tx_buffer.put(Some(packet));
+            self.tx_buffer.put(Some(frame_buffer));
             self.tx_len.set(len);
             self.tx_offset.set(0);
-            self.tx_identifier.set(packet_identifier);
+            self.tx_identifier.set(transmission_identifier);
             self.controller().endpoint_resume_in(ENDPOINT_IN_NUM);
             Ok(())
         }

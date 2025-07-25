@@ -82,16 +82,13 @@ impl<'a, I: I2CDevice> Hs3003<'a, I> {
             .take()
             .map(|buffer| {
                 self.i2c.enable();
-                match self.state.get() {
-                    State::Sleep => {
-                        if let Err((_error, buffer)) = self.i2c.write(buffer, 1) {
-                            self.buffer.replace(buffer);
-                            self.i2c.disable();
-                        } else {
-                            self.state.set(State::InitiateReading);
-                        }
+                if let State::Sleep = self.state.get() {
+                    if let Err((_error, buffer)) = self.i2c.write(buffer, 1) {
+                        self.buffer.replace(buffer);
+                        self.i2c.disable();
+                    } else {
+                        self.state.set(State::InitiateReading);
                     }
-                    _ => {}
                 }
             })
             .ok_or(ErrorCode::BUSY)

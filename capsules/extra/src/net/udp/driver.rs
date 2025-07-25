@@ -87,8 +87,8 @@ impl UDPEndpoint {
     ///
     /// # Arguments
     ///
-    /// `buf` - A mutable buffer to serialize the `UDPEndpoint` into
-    /// `offset` - The current offset into the provided buffer
+    /// - `buf` - A mutable buffer to serialize the `UDPEndpoint` into
+    /// - `offset` - The current offset into the provided buffer
     ///
     /// # Return Value
     ///
@@ -336,46 +336,49 @@ impl SyscallDriver for UDPDriver<'_> {
     /// ### `command_num`
     ///
     /// - `0`: Driver existence check.
-    /// - `1`: Get the interface list
-    ///        app_cfg (out): 16 * `n` bytes: the list of interface IPv6 addresses, length
-    ///                       limited by `app_cfg` length.
-    ///        Returns INVAL if the cfg buffer is the wrong size, or not available.
+    /// - `1`: Get the interface list app_cfg (out): 16 * `n` bytes: the list of
+    ///   interface IPv6 addresses, length limited by `app_cfg` length. Returns
+    ///   INVAL if the cfg buffer is the wrong size, or not available.
     /// - `2`: Transmit payload.
-    ///        Returns BUSY is this process already has a pending tx.
-    ///        Returns INVAL if no valid buffer has been loaded into the write buffer,
-    ///        or if the config buffer is the wrong length, or if the destination and source
-    ///        port/address pairs cannot be parsed.
-    ///        Otherwise, returns the result of do_next_tx_immediate(). Notably, a successful
-    ///        transmit can produce two different success values. If success is returned,
-    ///        this simply means that the packet was queued. In this case, the app still
-    ///        still needs to wait for a callback to check if any errors occurred before
-    ///        the packet was passed to the radio. However, if Success_U32
-    ///        is returned with value 1, this means the the packet was successfully passed
-    ///        the radio without any errors, which tells the userland application that it does
-    ///        not need to wait for a callback to check if any errors occurred while the packet
-    ///        was being passed down to the radio. Any successful return value indicates that
-    ///        the app should wait for a send_done() callback before attempting to queue another
-    ///        packet.
-    ///        Currently, only will transmit if the app has bound to the port passed in the tx_cfg
-    ///        buf as the source address. If no port is bound, returns RESERVE, if it tries to
-    ///        send on a port other than the port which is bound, returns INVALID.
-    ///        Notably, the currently transmit implementation allows for starvation - an
-    ///        an app with a lower app id can send constantly and starve an app with a
-    ///        later ID.
-    /// - `3`: Bind to the address in rx_cfg. Returns Ok(()) if that addr/port combo is free,
-    ///        returns INVAL if the address requested is not a local interface, or if the port
-    ///        requested is 0. Returns BUSY if that port is already bound to by another app.
-    ///        This command should be called after allow() is called on the rx_cfg buffer, and
-    ///        before subscribe() is used to set up the recv callback. Additionally, apps can only
-    ///        send on ports after they have bound to said port. If this command is called
-    ///        and the address in rx_cfg is 0::0 : 0, this command will reset the option
-    ///        containing the bound port to None. Notably,
-    ///        the current implementation of this only allows for each app to bind to a single
-    ///        port at a time, as such an implementation conserves memory (and is similar
-    ///        to the approach applied by TinyOS and Riot).
-    ///        /// - `4`: Returns the maximum payload that can be transmitted by apps using this driver.
-    ///        This represents the size of the payload buffer in the kernel. Apps can use this
-    ///        syscall to ensure they do not attempt to send too-large messages.
+    ///   - Returns BUSY is this process already has a pending tx.
+    ///   - Returns INVAL if no valid buffer has been loaded into the write
+    ///     buffer, or if the config buffer is the wrong length, or if the
+    ///     destination and source port/address pairs cannot be parsed.
+    ///   - Otherwise, returns the result of do_next_tx_immediate(). Notably, a
+    ///     successful transmit can produce two different success values. If
+    ///     success is returned, this simply means that the packet was queued.
+    ///     In this case, the app still still needs to wait for a callback to
+    ///     check if any errors occurred before the packet was passed to the
+    ///     radio. However, if Success_U32 is returned with value 1, this means
+    ///     the the packet was successfully passed the radio without any errors,
+    ///     which tells the userland application that it does not need to wait
+    ///     for a callback to check if any errors occurred while the packet was
+    ///     being passed down to the radio. Any successful return value
+    ///     indicates that the app should wait for a send_done() callback before
+    ///     attempting to queue another packet. Currently, only will transmit if
+    ///     the app has bound to the port passed in the tx_cfg buf as the source
+    ///     address.
+    ///   - If no port is bound, returns RESERVE,
+    ///   - if it tries to send on a port other than the port which is bound,
+    ///     returns INVALID. Notably, the currently transmit implementation
+    ///     allows for starvation: an an app with a lower app id can send
+    ///     constantly and starve an app with a later ID.
+    /// - `3`: Bind to the address in rx_cfg. Returns Ok(()) if that addr/port
+    ///   combo is free, returns INVAL if the address requested is not a local
+    ///   interface, or if the port requested is 0. Returns BUSY if that port is
+    ///   already bound to by another app. This command should be called after
+    ///   allow() is called on the rx_cfg buffer, and before subscribe() is used
+    ///   to set up the recv callback. Additionally, apps can only send on ports
+    ///   after they have bound to said port. If this command is called and the
+    ///   address in rx_cfg is 0::0 : 0, this command will reset the option
+    ///   containing the bound port to None. Notably, the current implementation
+    ///   of this only allows for each app to bind to a single port at a time,
+    ///   as such an implementation conserves memory (and is similar to the
+    ///   approach applied by TinyOS and Riot).
+    /// - `4`: Returns the maximum payload that can be transmitted by apps using
+    ///   this driver. This represents the size of the payload buffer in the
+    ///   kernel. Apps can use this syscall to ensure they do not attempt to
+    ///   send too-large messages.
 
     fn command(
         &self,
@@ -467,10 +470,9 @@ impl SyscallDriver for UDPDriver<'_> {
                     })
                     .unwrap_or_else(|err| Err(err.into()));
                 match res {
-                    Ok(()) => self.do_next_tx_immediate(processid).map_or_else(
-                        |err| CommandReturn::failure(err),
-                        |v| CommandReturn::success_u32(v),
-                    ),
+                    Ok(()) => self
+                        .do_next_tx_immediate(processid)
+                        .map_or_else(CommandReturn::failure, CommandReturn::success_u32),
                     Err(e) => CommandReturn::failure(e),
                 }
             }

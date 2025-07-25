@@ -3,8 +3,6 @@
 // Copyright Tock Contributors 2022.
 
 #![no_std]
-#![crate_name = "nrf52"]
-#![crate_type = "rlib"]
 
 pub mod acomp;
 pub mod adc;

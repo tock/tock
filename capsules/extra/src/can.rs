@@ -493,7 +493,7 @@ impl<Can: can::Can> can::ReceiveClient<{ can::STANDARD_CAN_PACKET_SIZE }> for Ca
                     (error_upcalls::ERROR_RX, kernel_err.into(), 0),
                 )
             }
-        };
+        }
     }
 
     fn stopped(&self, buffer: &'static mut [u8; can::STANDARD_CAN_PACKET_SIZE]) {

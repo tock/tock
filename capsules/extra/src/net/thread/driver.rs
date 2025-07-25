@@ -231,7 +231,7 @@ impl<'a, A: time::Alarm<'a>> ThreadNetworkDriver<'a, A> {
                 self.state.replace(curr_state);
                 self.terminate_child_join(Err(ErrorCode::BUSY));
             }
-        };
+        }
     }
 
     fn thread_mle_send(
@@ -733,11 +733,11 @@ impl<'a, A: time::Alarm<'a>> CCMClient for ThreadNetworkDriver<'a, A> {
                 // Move the decrypted MLE message into the recv_buf and execute the receiving logic. Upon
                 // an error in `recv_logic`, joining the network fails and schedule termination upcall
                 self.recv_buffer.replace(assembled_subslice);
-                self.recv_logic(IPAddr(src_ipv6))
-                    .err()
-                    .map(|code| self.terminate_child_join(Err(code)));
+                if let Err(code) = self.recv_logic(IPAddr(src_ipv6)) {
+                    self.terminate_child_join(Err(code))
+                }
             }
             _ => (),
-        };
+        }
     }
 }

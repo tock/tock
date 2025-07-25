@@ -21,6 +21,8 @@ To install `elf2uf2`, run the commands:
 $ cargo install elf2uf2-rs
 ```
 
+> Note: Sometimes cargo will not be able to find libudev bindings. Installing the apt package `librust-libudev-dev` might solve this issue.
+
 ## Flashing the kernel
 
 The Raspberry Pi Pico RP2040 Connect can be programmed using its bootloader, which requires an UF2 file.
@@ -29,6 +31,9 @@ The Raspberry Pi Pico RP2040 Connect can be programmed using its bootloader, whi
 
 To flash the Pico RP2040, it needs to be put into BOOTSEL mode. This will mount
 a flash drive that allows one to copy a UF2 file. To enter BOOTSEL mode, press the BOOTSEL button and hold it while you connect the other end of the micro USB cable to your computer.
+
+> Note: One problem you can run into is the Pico unmounting as soon as you let go of the BOOTSEL button. 
+> In this case hold the BOOTSEL button for the entire duration of the flashing process.
 
 Then `cd` into `boards/raspberry_pi_pico` directory and run:
 
@@ -50,7 +55,7 @@ Enter BOOTSEL mode.
 
 Apps are built out-of-tree. Once an app is built, you can add the path to it in the Makefile (APP variable), then run:
 ```bash
-$ APP="<path to app's tbf file>" make flash-app
+$ APP="<path to app's tbf file>" make program
 ```
 
 ## Debugging

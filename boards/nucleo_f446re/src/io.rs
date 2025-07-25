@@ -69,7 +69,6 @@ impl IoWrite for Writer {
 }
 
 /// Panic handler.
-#[no_mangle]
 #[panic_handler]
 pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
     // User LD2 is connected to PA05
@@ -91,7 +90,7 @@ pub unsafe fn panic_fmt(info: &PanicInfo) -> ! {
         writer,
         info,
         &cortexm4::support::nop,
-        &*addr_of!(PROCESSES),
+        PROCESSES.unwrap().as_slice(),
         &*addr_of!(CHIP),
         &*addr_of!(PROCESS_PRINTER),
     )

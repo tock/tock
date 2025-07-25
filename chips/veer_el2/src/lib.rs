@@ -3,8 +3,6 @@
 // Copyright Tock Contributors 2022.
 
 #![no_std]
-#![crate_name = "veer_el2"]
-#![crate_type = "rlib"]
 
 pub mod chip;
 pub mod io;

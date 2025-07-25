@@ -9,7 +9,7 @@ Kernel Analog-to-Digital Conversion HIL
 **Draft-Created:** Dec 18, 2016<br/>
 **Draft-Modified:** June 12, 2017<br/>
 **Draft-Version:** 2<br/>
-**Draft-Discuss:** tock-dev@googlegroups.com</br>
+**Draft-Discuss:** devel@lists.tockos.org</br>
 
 Abstract
 -------------------------------

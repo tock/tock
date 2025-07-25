@@ -18,6 +18,7 @@ developing Tock.
   * [Programming Adapter](#programming-adapter)
     + [Installing `JLinkExe`](#installing-jlinkexe)
     + [Installing `openocd`](#installing-openocd)
+    + [Installing `probe-rs`](#installing-probe-rs)
   * [Loading the Kernel onto a Board](#loading-the-kernel-onto-a-board)
 - [Installing Applications](#installing-applications)
   * [Compiling Your Own Applications](#compiling-your-own-applications)
@@ -72,7 +73,7 @@ of installing some of these tools, but you can also install them yourself.
 
 #### Rust (nightly)
 
-We are using `nightly-2024-11-16`. We require
+We are using `nightly-2025-05-19`. We require
 installing it with [rustup](http://www.rustup.rs) so you can manage multiple
 versions of Rust and continue using stable versions for other Rust code:
 
@@ -87,7 +88,7 @@ to your `$PATH`.
 Then install the correct nightly version of Rust:
 
 ```bash
-$ rustup install nightly-2024-11-16
+$ rustup install nightly-2025-05-19
 ```
 
 ### Compiling the Kernel
@@ -163,7 +164,10 @@ generally four options:
    the instructions below.
 3. `openocd`: This is a free programming adapter which you will need to install
    if you do not already have it. See the instructions below.
-4. `custom`: The board uses some other programming adapter, likely a
+4. `probe-rs`: This is a programming and debugging tool written in Rust. You will
+   need to install this if you do not already have it. See the instructions
+   below.
+5. `custom`: The board uses some other programming adapter, likely a
    microcontroller-specific tool. See the board's README for how to get started.
 
 #### Installing `JLinkExe`
@@ -183,9 +187,23 @@ with:
 ```bash
 (Ubuntu): sudo apt-get install openocd
 (MacOS): brew install open-ocd
+(Fedora): sudo dnf install openocd
 ```
 
 We require at least version `0.10.0`.
+
+#### Installing `probe-rs`
+
+[`probe-rs`](https://probe.rs/) works with various programming and debugging adapters. It can be
+installed with:
+
+```bash
+(Ubuntu): curl --proto '=https' --tlsv1.2 -LsSf https://github.com/probe-rs/probe-rs/releases/latest/download/probe-rs-tools-installer.sh | sh
+(MacOS): brew tap probe-rs/probe-rs && brew install probe-rs
+(Windows) irm https://github.com/probe-rs/probe-rs/releases/latest/download/probe-rs-tools-installer.ps1 | iex
+```
+
+Or generally, follow the [`probe-rs` installation instructions in their own documentation](https://probe.rs/docs/getting-started/installation/).
 
 ### Loading the Kernel onto a Board
 
@@ -196,6 +214,10 @@ be able to program the kernel by changing to the correct board directory in
 ```
 $ make install
 ```
+
+Each board has a default programming adapter tool for flashing code. Some boards
+only support a single tool, while others support multiple. You can inspect the
+`Makefile` within the board folder to see which flashing options exist.
 
 ## Installing Applications
 

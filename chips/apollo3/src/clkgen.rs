@@ -77,7 +77,7 @@ impl ClkGen {
                 regs.cctrl.set(0);
                 regs.clkkey.set(0);
             }
-        };
+        }
     }
 
     pub fn enable_ble(&self) {

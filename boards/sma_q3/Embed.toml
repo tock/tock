@@ -1,0 +1,31 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright Tock Contributors 2024.
+
+[default.general]
+chip = "nRF52840_xxAA"
+
+[default.flashing]
+enabled = false
+restore_unwritten_bytes = true
+
+[flash.flashing]
+enabled = true
+restore_unwritten_bytes = true
+
+[rtt.rtt]
+enabled = true
+up_channels = [
+    { channel = 0, mode = "BlockIfFull", format = "String", socket = "127.0.0.1:12345" },
+]
+# The UI configuration:
+tabs = [
+    { up_channel = 0, name = "Log" },
+]
+
+[full.flashing]
+enabled = true
+restore_unwritten_bytes = true
+
+[full.rtt]
+enabled = true

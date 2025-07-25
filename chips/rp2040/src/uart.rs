@@ -603,7 +603,7 @@ impl Configure for Uart<'_> {
         // Calculate baud rate
         let baud_rate_div = 8 * clk / params.baud_rate;
         let mut baud_ibrd = baud_rate_div >> 7;
-        let mut baud_fbrd = ((baud_rate_div & 0x7f) + 1) / 2;
+        let mut baud_fbrd = (baud_rate_div & 0x7f).div_ceil(2);
 
         if baud_ibrd == 0 {
             baud_ibrd = 1;

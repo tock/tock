@@ -1,0 +1,14 @@
+# Licensed under the Apache License, Version 2.0 or the MIT License.
+# SPDX-License-Identifier: Apache-2.0 OR MIT
+# Copyright OxidOS Automotive SRL 2025.
+
+include = [
+"../../cargo/tock_flags.toml",
+"../../cargo/unstable_flags.toml",
+]
+
+[build]
+target = "thumbv6m-none-eabi"
+
+[unstable]
+config-include = true
