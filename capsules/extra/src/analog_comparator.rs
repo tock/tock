@@ -178,7 +178,7 @@ impl<'a, A: hil::analog_comparator::AnalogComparator<'a>> hil::analog_comparator
     fn fired(&self, channel: usize) {
         self.current_process.map(|processid| {
             let _ = self.grants.enter(processid, |_app, upcalls| {
-                upcalls.schedule_upcall(0, (channel, 0, 0)).ok();
+                let _ = upcalls.schedule_upcall(0, (channel, 0, 0));
             });
         });
     }

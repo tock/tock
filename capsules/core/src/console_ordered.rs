@@ -521,31 +521,21 @@ impl<'a, A: Alarm<'a>> uart::ReceiveClient for ConsoleOrdered<'a, A> {
                                     // case.
                                     (rcode, rx_len)
                                 };
-                                kernel_data
-                                    .schedule_upcall(
-                                        2,
-                                        (
-                                            kernel::errorcode::into_statuscode(ret),
-                                            received_length,
-                                            0,
-                                        ),
-                                    )
-                                    .ok();
+                                let _ = kernel_data.schedule_upcall(
+                                    2,
+                                    (kernel::errorcode::into_statuscode(ret), received_length, 0),
+                                );
                             }
                             _ => {
                                 // Some UART error occurred
-                                kernel_data
-                                    .schedule_upcall(
-                                        2,
-                                        (
-                                            kernel::errorcode::into_statuscode(Err(
-                                                ErrorCode::FAIL,
-                                            )),
-                                            0,
-                                            0,
-                                        ),
-                                    )
-                                    .ok();
+                                let _ = kernel_data.schedule_upcall(
+                                    2,
+                                    (
+                                        kernel::errorcode::into_statuscode(Err(ErrorCode::FAIL)),
+                                        0,
+                                        0,
+                                    ),
+                                );
                             }
                         }
                     })
