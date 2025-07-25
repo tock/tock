@@ -33,14 +33,13 @@
 // From the perspective of the code that originally called switch_to_user, it should look like a
 // regular cdecl function call occurred.
 
-use core::arch::global_asm;
+use core::arch::naked_asm;
 
-global_asm!(
-    "
-    .section .text
-    .global return_from_user
-    return_from_user:
-
+#[unsafe(naked)]
+#[unsafe(no_mangle)]
+pub extern "C" fn return_from_user() {
+    naked_asm!(
+        "
         mov     ecx, dword ptr [esp+76]       # UserContext
 
         # First switch back to the kernel's data segment. Once this is done, we are safe to start
@@ -98,4 +97,5 @@ global_asm!(
         # Return to whoever called switch_to_user
         ret
 "
-);
+    );
+}
