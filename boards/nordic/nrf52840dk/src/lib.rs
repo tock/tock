@@ -81,7 +81,6 @@ use kernel::hil::time::Counter;
 #[allow(unused_imports)]
 use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
-use kernel::process::ProcessArray;
 use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
@@ -130,6 +129,8 @@ const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0_u8; 16]; //Context for 6LoWPAN Compres
 /// Debug Writer
 pub mod io;
 
+pub mod board_panic;
+
 // Whether to use UART debugging or Segger RTT (USB) debugging.
 // - Set to false to use UART.
 // - Set to true to use Segger RTT over USB.
@@ -141,11 +142,16 @@ pub type Chip = nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'stati
 /// Number of concurrent processes this platform supports.
 pub const NUM_PROCS: usize = 8;
 
-/// Static variables used by io.rs.
-static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
-static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>> = None;
-static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
-    None;
+use board_panic::BoardPanic;
+use kernel::utilities::single_thread_value::SingleThreadValue;
+
+/// Resources for when a board panics used by io.rs.
+pub static PANIC_RESOURCES: SingleThreadValue<
+    BoardPanic<
+        nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
+        capsules_system::process_printer::ProcessPrinterText,
+    >,
+> = unsafe { SingleThreadValue::new(BoardPanic::new()) };
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -455,7 +461,9 @@ pub unsafe fn start_no_pconsole() -> (
     // Create an array to hold process references.
     let processes = components::process_array::ProcessArrayComponent::new()
         .finalize(components::process_array_component_static!(NUM_PROCS));
-    PROCESSES = Some(processes);
+    PANIC_RESOURCES.with(|resources| {
+        resources.set_processes(processes.as_slice());
+    });
 
     // Setup space to store the core kernel data structure.
     let board_kernel = static_init!(kernel::Kernel, kernel::Kernel::new(processes.as_slice()));
@@ -463,7 +471,9 @@ pub unsafe fn start_no_pconsole() -> (
     // Create (and save for panic debugging) a chip object to setup low-level
     // resources (e.g. MPU, systick).
     let chip = static_init!(Chip, nrf52840::chip::NRF52::new(nrf52840_peripherals));
-    CHIP = Some(chip);
+    PANIC_RESOURCES.with(|resources| {
+        resources.set_chip(chip);
+    });
 
     // Do nRF configuration and setup. This is shared code with other nRF-based
     // platforms.
@@ -595,7 +605,9 @@ pub unsafe fn start_no_pconsole() -> (
     // Tool for displaying information about processes.
     let process_printer = components::process_printer::ProcessPrinterTextComponent::new()
         .finalize(components::process_printer_text_component_static!());
-    PROCESS_PRINTER = Some(process_printer);
+    PANIC_RESOURCES.with(|resources| {
+        resources.set_process_printer(process_printer);
+    });
 
     // Virtualize the UART channel for the console and for kernel debug.
     let uart_mux = components::console::UartMuxComponent::new(uart_channel, 115200)
