@@ -227,8 +227,8 @@ impl<'a, PllConstants: clock_constants::PllConstants> Pll<'a, PllConstants> {
         self.rcc.enable_pll_clock();
 
         // Wait until the PLL clock is locked.
-        // 200 was obtained by running tests in release mode
-        for _ in 0..200 {
+        // 1000 was obtained by running tests in release mode
+        for _ in 0..1000 {
             if self.rcc.is_locked_pll_clock() {
                 return Ok(());
             }
