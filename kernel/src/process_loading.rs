@@ -1244,6 +1244,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         }
     }
 
+    /// Function to check if the ShortId and version of the binary matches supplied values.
     fn app_match_check(
         &self,
         shortid: ShortId,
@@ -1257,6 +1258,8 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         false
     }
 
+    /// Function to return the address and size of the binary whose ShortId and version are passed
+    /// as input arguments.
     pub fn fetch_app_details(
         &self,
         shortid: ShortId,
@@ -1326,6 +1329,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         ))
     }
 
+    /// Function to terminate process and remove it from process array
     pub fn reclaim_memory(&self, shortid: ShortId) {
         self.kernel.reclaim_app_memory(shortid)
     }

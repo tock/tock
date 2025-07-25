@@ -89,7 +89,7 @@ pub trait DynamicBinaryStore {
     /// Call to abort the setup/writing process.
     fn abort(&self) -> Result<(), ErrorCode>;
 
-    /// Call to uninstall an app whose AppID is specified.
+    /// Call to uninstall an app with given ShortId and app version.
     fn uninstall(&self, short_id: usize, app_version: usize) -> Result<(), ErrorCode>;
 
     /// Sets a client for the SequentialDynamicBinaryStore Object
