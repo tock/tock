@@ -8,13 +8,14 @@
 //! during runtime without requiring the user to restart the device.
 
 use core::cell::Cell;
+use core::num::NonZeroU32;
 
 use crate::config;
 use crate::debug;
 use crate::deferred_call::{DeferredCall, DeferredCallClient};
 use crate::hil::nonvolatile_storage::{NonvolatileStorage, NonvolatileStorageClient};
 use crate::platform::chip::Chip;
-use crate::process::ProcessLoadingAsyncClient;
+use crate::process::{ProcessLoadingAsyncClient, ShortId};
 use crate::process_loading::{
     PaddingRequirement, ProcessLoadError, SequentialProcessLoaderMachine,
 };
@@ -89,7 +90,7 @@ pub trait DynamicBinaryStore {
     fn abort(&self) -> Result<(), ErrorCode>;
 
     /// Call to uninstall an app whose AppID is specified.
-    fn uninstall(&self, shortid: ShortId) -> Result<(), ErrorCode>;
+    fn uninstall(&self, short_id: usize) -> Result<(), ErrorCode>;
 
     /// Sets a client for the SequentialDynamicBinaryStore Object
     ///
@@ -217,7 +218,9 @@ impl<'a, 'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: Nonvolatil
             // If we are going to write the padding header, we already know
             // where to write in flash, so we don't have to add the start
             // address
-            State::Setup | State::Load | State::PaddingWrite | State::Abort => Ok(offset),
+            State::Setup | State::Load | State::PaddingWrite | State::Abort | State::Uninstall => {
+                Ok(offset)
+            }
             // We aren't supposed to be able to write unless we are in one of
             // the first two write states
             _ => Err(ErrorCode::FAIL),
@@ -651,40 +654,42 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
         }
     }
 
-    fn uninstall(&self, shortid: ShortId){
+    fn uninstall(&self, short_id: usize) -> Result<(), ErrorCode> {
         match self.state.get() {
             State::Idle => {
+                self.process_metadata.set(ProcessLoadMetadata::default());
                 self.state.set(State::Uninstall);
 
-                match self.loader_driver.fetch_app_details(shortid)
-                {
-                    Ok((app_address, app_size)) => {
-                        if let Some(mut metadata) = self.process_metadata.get() {
-                            metadata.new_app_start_addr = new_app_start_address;
-                            metadata.new_app_length = app_size;
-                            self.process_metadata.set(metadata);
-                        }
+                let shortid = NonZeroU32::new(short_id as u32)
+                    .map(ShortId::Fixed)
+                    .ok_or(ErrorCode::INVAL)?;
 
-                        match self.loader_driver.reclaim_memory(shortid){
-                            Ok(()) => {
-                                if let Some(metadata) = self.process_metadata.get() {
-                                    // Write padding header to the beginning of the new app address.
-                                    // This ensures that the flash space is reclaimed for future use.
-                                    match self
-                                        .write_padding_app(metadata.new_app_length, metadata.new_app_start_addr)
-                                    {
-                                        Ok(()) => Ok(()),
-                                        // If uninstall() returns ErrorCode::BUSY,
-                                        // the userland app is expected to retry uninstall.
-                                        Err(_) => Err(ErrorCode::BUSY),
-                                    }
-                                } else {
-                                    Err(ErrorCode::FAIL)
-                                }
+                let (app_address, app_size) = match self.loader_driver.fetch_app_details(shortid) {
+                    Ok((addr, size)) => (addr, size),
+                    Err(_) => return Err(ErrorCode::FAIL),
+                };
+
+                if let Some(mut metadata) = self.process_metadata.get() {
+                    metadata.new_app_start_addr = app_address as usize;
+                    metadata.new_app_length = app_size as usize;
+                    self.process_metadata.set(metadata);
+                }
+
+                match self.loader_driver.reclaim_memory(shortid) {
+                    Ok(()) => {
+                        if let Some(metadata) = self.process_metadata.get() {
+                            match self.write_padding_app(
+                                metadata.new_app_length,
+                                metadata.new_app_start_addr,
+                            ) {
+                                Ok(()) => Ok(()),
+                                Err(_) => Err(ErrorCode::BUSY),
                             }
+                        } else {
+                            Err(ErrorCode::FAIL)
                         }
                     }
-                    Err(e) => Err(ErrorCode::FAIL)
+                    Err(_) => Err(ErrorCode::FAIL),
                 }
             }
             _ => {

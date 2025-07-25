@@ -1230,18 +1230,81 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         }
     }
 
+    fn shortid_match_check(&self, shortid: ShortId, app_short_id: core::num::NonZeroU32) -> bool {
+        matches!(shortid, ShortId::Fixed(id) if id == app_short_id)
+    }
+
     pub fn fetch_app_details(&self, shortid: ShortId) -> Result<(u32, u32), ProcessLoadError> {
-        for process in self.kernel.get_process_iter() {
-            if process.short_app_id() == shortid {
-                let app_address = process.flash_start();
-                let app_size = process.flash_size();
-                return Ok((app_address, app_size));
+        const MAX_PROCS: usize = 10;
+        let mut pb_start_address: [usize; MAX_PROCS] = [0; MAX_PROCS];
+        let mut pb_end_address: [usize; MAX_PROCS] = [0; MAX_PROCS];
+
+        let total_flash = self.flash_bank.get();
+
+        self.scan_flash_for_process_binaries(
+            total_flash,
+            &mut pb_start_address,
+            &mut pb_end_address,
+        )
+        .map_err(|()| ProcessLoadError::CheckError(ProcessCheckError::InternalError))?;
+
+        let mut start_count = 0;
+        let mut end_count = 0;
+
+        // Remove zeros from addresses in place.
+        for i in 0..pb_start_address.len() {
+            if pb_start_address[i] != 0 {
+                pb_start_address[start_count] = pb_start_address[i];
+                start_count += 1;
+            }
+        }
+
+        for i in 0..pb_end_address.len() {
+            if pb_end_address[i] != 0 {
+                pb_end_address[end_count] = pb_end_address[i];
+                end_count += 1;
+            }
+        }
+
+        for i in 0..start_count {
+            let app_binary_start_address = pb_start_address[i] - total_flash.as_ptr() as usize;
+            let app_binary_end_address = pb_end_address[i] - total_flash.as_ptr() as usize;
+
+            let app_flash = total_flash
+                .get(app_binary_start_address..app_binary_end_address)
+                .ok_or(ProcessLoadError::BinaryError(
+                    ProcessBinaryError::NotEnoughFlash,
+                ))?;
+
+            if let Ok((_remaining_flash, process_binary)) = discover_process_binary(app_flash) {
+                let app_short_id = self.policy.map_or(ShortId::LocallyUnique, |policy| {
+                    policy.to_short_id(&process_binary)
+                });
+
+                if let ShortId::Fixed(app_id) = app_short_id {
+                    if self.shortid_match_check(shortid, app_id) {
+                        return Ok((
+                            pb_start_address[i] as u32,
+                            (pb_end_address[i] - pb_start_address[i]) as u32,
+                        ));
+                    }
+                }
             }
         }
 
         Err(ProcessLoadError::CheckError(
-            crate::process_checker::ProcessCheckError::InvalidCredential,
+            ProcessCheckError::CredentialsRejected(0),
         ))
+    }
+
+    pub fn reclaim_memory(&self, shortid: ShortId) -> Result<(), ProcessLoadError> {
+        if self.kernel.reclaim_memory_by_shortid(shortid) {
+            Ok(())
+        } else {
+            Err(ProcessLoadError::CheckError(
+                ProcessCheckError::CredentialsRejected(0),
+            ))
+        }
     }
 }
 

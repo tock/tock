@@ -71,7 +71,7 @@ use core::cmp;
 use kernel::dynamic_binary_storage;
 use kernel::errorcode::into_statuscode;
 use kernel::grant::{AllowRoCount, AllowRwCount, Grant, UpcallCount};
-use kernel::process::{ProcessLoadError, ShortId};
+use kernel::process::ProcessLoadError;
 use kernel::processbuffer::ReadableProcessBuffer;
 use kernel::syscall::{CommandReturn, SyscallDriver};
 use kernel::utilities::cells::{OptionalCell, TakeCell};
@@ -95,7 +95,7 @@ mod upcall {
     /// Abort done callback.
     pub const ABORT_DONE: usize = 4;
     /// Uninstall done callback.
-    pub const UNINSTALL_DONE: usize = 5;    
+    pub const UNINSTALL_DONE: usize = 5;
     /// Number of upcalls.
     pub const COUNT: u8 = 6;
 }
@@ -408,6 +408,9 @@ impl<
     ///  - Returns ErrorCode::BUSY when the abort fails
     ///  (due to padding app being unable to be written, so try again)
     ///  - Returns ErrorCode::FAIL if the driver is not dedicated to this process
+    /// - `6`: Request kernel to uninstall an application
+    ///  - Returns Ok(()) when the application is successfully scheduled for uninstall
+    ///  - Returns ErrorCode::FAIL when the uninstall fails
     ///
     /// The driver returns ErrorCode::INVAL if any operation is called before the
     /// preceeding operation was invoked. For example, `write()` cannot be called before
@@ -534,13 +537,10 @@ impl<
 
             6 => {
                 // Request the kernel to uninstall an app/binary
-                // by specifying its AppID.
-                let shortid = arg1 as u32 as ShortId;
-                let result = self.storage_driver.uninstall(shortid);
+                // by specifying its ShortId.
+                let result = self.storage_driver.uninstall(arg1);
                 match result {
-                    Ok(()) => {
-                        CommandReturn::success()
-                    }
+                    Ok(()) => CommandReturn::success(),
                     Err(e) => {
                         self.current_process.take();
                         CommandReturn::failure(e)
