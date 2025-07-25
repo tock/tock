@@ -194,7 +194,6 @@ unsafe fn setup_dma(
 
 /// Helper function called during bring-up that configures multiplexed I/O.
 unsafe fn set_pin_primary_functions(
-    syscfg: &stm32f429zi::syscfg::Syscfg,
     gpio_ports: &'static stm32f429zi::gpio::GpioPorts<'static>,
 ) {
     use kernel::hil::gpio::Configure;
@@ -420,7 +419,7 @@ unsafe fn start() -> (
         &peripherals.rtc,
     );
 
-    set_pin_primary_functions(syscfg, &base_peripherals.gpio_ports);
+    set_pin_primary_functions(&base_peripherals.gpio_ports);
 
     setup_dma(
         dma1,
