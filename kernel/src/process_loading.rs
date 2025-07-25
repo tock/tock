@@ -658,6 +658,20 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
             // We are either going to load this process binary or discard it, so
             // we can use `take()` here.
             if let Some(process_binary) = proc_binaries[i].take() {
+                // This means the app is disabled, and does not have to be
+                // loaded
+                if !process_binary.valid_app {
+                    if config::CONFIG.debug_load_processes {
+                        debug!(
+                            "Skipping disabled process: {}",
+                            process_binary
+                                .header
+                                .get_package_name()
+                                .unwrap_or("unknown_app")
+                        );
+                    }
+                    continue;
+                }
                 // We assume the process can be loaded. This is not the case
                 // if there is a conflicting process.
                 let mut ok_to_load = true;
@@ -1297,14 +1311,8 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         ))
     }
 
-    pub fn reclaim_memory(&self, shortid: ShortId) -> Result<(), ProcessLoadError> {
-        if self.kernel.reclaim_memory_by_shortid(shortid) {
-            Ok(())
-        } else {
-            Err(ProcessLoadError::CheckError(
-                ProcessCheckError::CredentialsRejected(0),
-            ))
-        }
+    pub fn reclaim_memory(&self, shortid: ShortId) {
+        self.kernel.reclaim_memory_by_shortid(shortid)
     }
 }
 

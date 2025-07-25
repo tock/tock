@@ -315,17 +315,16 @@ impl Kernel {
     }
 
     /// Terminate a process if it exists, and remove it from ProcessArray.
-    pub(crate) fn reclaim_memory_by_shortid(&self, shortid: process::ShortId) -> bool {
+    pub(crate) fn reclaim_memory_by_shortid(&self, shortid: process::ShortId) {
         for slot in self.processes.iter() {
             if let Some(process) = slot.get() {
                 if process.short_app_id() == shortid {
                     process.terminate(None);
                     slot.proc.set(None);
-                    return true;
+                    break;
                 }
             }
         }
-        false
     }
 
     /// Cause all apps to fault.

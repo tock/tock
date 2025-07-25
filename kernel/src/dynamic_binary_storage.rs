@@ -675,21 +675,16 @@ impl<'b, C: Chip + 'static, D: ProcessStandardDebug + 'static, F: NonvolatileSto
                     self.process_metadata.set(metadata);
                 }
 
-                match self.loader_driver.reclaim_memory(shortid) {
-                    Ok(()) => {
-                        if let Some(metadata) = self.process_metadata.get() {
-                            match self.write_padding_app(
-                                metadata.new_app_length,
-                                metadata.new_app_start_addr,
-                            ) {
-                                Ok(()) => Ok(()),
-                                Err(_) => Err(ErrorCode::BUSY),
-                            }
-                        } else {
-                            Err(ErrorCode::FAIL)
-                        }
+                self.loader_driver.reclaim_memory(shortid);
+                if let Some(metadata) = self.process_metadata.get() {
+                    match self
+                        .write_padding_app(metadata.new_app_length, metadata.new_app_start_addr)
+                    {
+                        Ok(()) => Ok(()),
+                        Err(_) => Err(ErrorCode::BUSY),
                     }
-                    Err(_) => Err(ErrorCode::FAIL),
+                } else {
+                    Err(ErrorCode::FAIL)
                 }
             }
             _ => {
