@@ -38,7 +38,7 @@ QEMU_BASE_CMDLINE := \
 .PHONY: run
 run: $(TARGET_PATH)/release/$(PLATFORM).elf
 	@echo
-	@echo Reordering ELF file sections
+#	@echo Reordering ELF file sections
 #	@$(OBJCOPY)  $<
 	@echo
 	@echo -e "Running $$(qemu-system-i386 --version | head -n1)"\
