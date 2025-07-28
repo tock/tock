@@ -25,7 +25,7 @@
 /tools/sha256sum/src/main.rs
 
 # CYW43 firmware blobs license file.
-/boards/cyw43-firmware/LICENSE-permissive-binary-license-1.0.txt
+/firmware/cyw43439/LICENSE-permissive-binary-license-1.0.txt
 
 # These files are part of the license checker's test suite, and are designed to
 # produce license checker errors.

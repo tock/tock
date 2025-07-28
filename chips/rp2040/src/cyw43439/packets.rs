@@ -1,6 +1,8 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2025.
+//
+// Credit: Taken from https://github.com/embassy-rs/embassy/blob/8f64a14bebe711962af0136a5acd2b3cef509402/cyw43/src/structs.rs (also licensed Apache 2.0 + MIT).
 // Copyright (c) Embassy project contributors
 
 use crate::impl_bytes;

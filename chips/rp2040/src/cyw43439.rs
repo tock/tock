@@ -596,7 +596,6 @@ impl<'a, A: Alarm<'a>> EthernetAdapterDatapath<'a> for PioCyw43439<'a, A> {
 
         self.write_buf(&buffer[..len_32 + 1]);
         self.buffer.put(Some(buffer));
-        self.recv();
 
         self.tx.set((transmission_identifier, frame_buffer, len));
         self.deferred_call.set();
