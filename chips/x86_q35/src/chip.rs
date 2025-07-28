@@ -30,6 +30,8 @@ mod interrupt {
 
     /// Interrupt number shared by COM1 and COM3 serial devices
     pub(super) const COM1_COM3: u32 = (PIC1_OFFSET as u32) + 4;
+
+    pub(super) const KEYBOARD: u32 = (PIC1_OFFSET as u32) + 1;
 }
 
 /// Representation of a generic PC platform.
@@ -74,6 +76,9 @@ pub struct Pc<'a, I: InterruptService + 'a, const PR: u16 = RELOAD_1KHZ> {
     /// Vga
     pub vga: &'a VgaText<'a>,
 
+    /// PS/2
+    pub ps2: &'a crate::ps2::Ps2Controller,
+
     /// System call context
     syscall: Boundary,
     paging: PagingMPU<'a>,
@@ -109,6 +114,9 @@ impl<'a, I: InterruptService + 'a, const PR: u16> Chip for Pc<'a, I, PR> {
                         self.com1.handle_interrupt();
                         self.com3.handle_interrupt();
                     }
+                    interrupt::KEYBOARD => {
+                        self.ps2.handle_interrupt();
+                    }
                     _ => {
                         // Convert back to physical interrupt line number before passing to
                         // board-specific handler
@@ -116,6 +124,7 @@ impl<'a, I: InterruptService + 'a, const PR: u16> Chip for Pc<'a, I, PR> {
                         handled = unsafe { self.int_svc.service_interrupt(phys_num) };
                     }
                 }
+
 
                 poller.clear_pending(num);
 
@@ -207,6 +216,7 @@ pub struct PcComponent<'a, I: InterruptService + 'a> {
     int_svc: &'a I,
 }
 
+
 impl<'a, I: InterruptService + 'a> PcComponent<'a, I> {
     /// Creates a new `PcComponent` instance.
     ///
@@ -274,6 +284,14 @@ impl<I: InterruptService + 'static> Component for PcComponent<'static, I> {
 
         let syscall = Boundary::new();
 
+        // PS/2 inside the component
+        let ps2 =
+            unsafe { static_init!(crate::ps2::Ps2Controller, crate::ps2::Ps2Controller::new()) };
+        kernel::deferred_call::DeferredCallClient::register(ps2);
+
+        // controller bring-up owned by the chip
+        let _ = ps2.init_early();
+
         let pc = s.4.write(Pc {
             com1,
             com2,
@@ -281,6 +299,7 @@ impl<I: InterruptService + 'static> Component for PcComponent<'static, I> {
             com4,
             pit,
             vga,
+            ps2,
             syscall,
             paging,
             int_svc: self.int_svc,

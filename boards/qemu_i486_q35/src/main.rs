@@ -154,7 +154,7 @@ unsafe extern "cdecl" fn main() {
         &mut *ptr::addr_of_mut!(PAGE_TABLE),
         &(),
     )
-    .finalize(x86_q35::x86_q35_component_static!(()));
+        .finalize(x86_q35::x86_q35_component_static!(()));
 
     // Acquire required capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
