@@ -46,22 +46,10 @@ SECTIONS
 
     
     /**
-     * The order matters here for the x86 platform.
-     *
-     * We need to make sure that qemu-system-i386 finds the multiboot header within the
-     * first 8K of the ELF. The multiboot header is placed at the beginning of the .text section, so
-     * this section has to be placed first in the file.
-     *
-     * The multiboot header's documentation is available at
-     * https://www.gnu.org/software/grub/manual/multiboot/multiboot.html.
-     * This allows Tock to be booted using a bootloader that supports multiboot v1.
-     * QEMU provides for x86 such a bootloader when used with the `-kernel` flag.
-     *
-     * The bootloader is responsable for loading the kernel into RAM and executing it. Without it,
-     * the Tock kernel should provide a bootloader that starts reading the kernel into RAM.
-     *
-     * This is the reason why the .text section has to be the first.
+     * The order matters here for the x86 platform, the .text section has to be the first one.
+     * Please see the details bellow where the .x86.start is stored.
      */
+    
    
     /* STATIC ELEMENTS FOR TOCK KERNEL */
     .text :
@@ -103,7 +91,21 @@ SECTIONS
         KEEP(*(.riscv.trap_vectored));
         KEEP(*(.riscv.trap));
 
-        /* x86 */     
+        /* x86     
+         * We need to make sure that qemu-system-i386 finds the multiboot header within the
+         * first 8K of the ELF. The multiboot header is placed at the beginning of the .text section, so
+         * this section has to be placed first in the file.
+         *
+         * The multiboot header's documentation is available at
+         * https://www.gnu.org/software/grub/manual/multiboot/multiboot.html.
+         * This allows Tock to be booted using a bootloader that supports multiboot v1.
+         * QEMU provides for x86 such a bootloader when used with the `-kernel` flag.
+         *
+         * The bootloader is responsable for loading the kernel into RAM and executing it. Without it,
+         * the Tock kernel should provide a bootloader that starts reading the kernel into RAM.
+         *
+         * This is the reason why the .text section has to be the first.
+         */
         KEEP(*(.x86.start))
 
         /* .text and .rodata hold most program code and immutable constants */
