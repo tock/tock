@@ -9,6 +9,7 @@ to.
 <!-- toc -->
 
 - [Code Style](#code-style)
+  * [Assembly Code Style](#assembly-code-style)
 - [Commenting](#commenting)
   * [Example: mycapsule.rs](#example-mycapsulers)
 - [Using Descriptive Names](#using-descriptive-names)
@@ -21,6 +22,54 @@ Tock uses [rustfmt](https://github.com/rust-lang/rustfmt) for source code style
 and formatting. In general, all of Tock's code is formatted according to the
 `rustfmt` defaults. There are a few exceptions, but these should generally be
 avoided.
+
+### Assembly Code Style
+
+As of July 7, 2025, [rustfmt](https://github.com/rust-lang/rustfmt) does not
+rigidly format assembly code blocks and assembly macros. To compensate, Tock
+defines its own format. If, in the future, rustfmt does rigidly format assembly
+code block and macros we will switch to that format.
+
+Tock's format is:
+
+```text
+{
+    naked_asm!(         // macro indented with the relevant code block as usual
+        "               // opening quote on next line, indented
+    inst r1, r2         // assembly instructions always indented exactly four spaces
+    inst r3, r4
+    // Comment.         // comments always use "//" style
+    inst r5, r6
+
+label:                  // labels always indented exactly zero spaces
+    inst r1, r2
+        ",              // closing quote always aligned with opening quote
+        out("r10") _,   // additional arguments aligned with quotes
+        out("r11") _,   // exactly one argument per line
+    );                  // closing brace aligned with macro
+}
+```
+
+Notes:
+
+1. One-line assembly blocks may be formatted on a single line.
+2. Assembly instructions are always indented four spaces, even if the macro is
+   indented more due to nesting. For example, an `asm!()` macro doubly nested:
+    ```
+    {
+        {
+            asm!(
+                "
+        inst r1, r2
+        inst r2, r3
+                "
+            );
+        }
+    }
+    ```
+3. If the assembly macro only has one argument (i.e., the instructions), there
+   is no comma after the closing quote.
+
 
 ## Commenting
 
