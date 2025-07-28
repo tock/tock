@@ -2,7 +2,26 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2025.
 
-//! Interfaces for CYW43439 WiFi devices
+//! Interface for CYW43439 WiFi devices
+//!
+//! Access point (AP) and station (STA) functionalities are split into
+//! two traits. Concurrent access point and station (STA+AP)
+//! configuration should be up to the device if it supports it.
+//! Joining or starting a network are asynchronous operations.
+//! Leaving or stopping the network operations are, on the other side,
+//! synchronous, as the CYW43439 devices don't seem to emit any events
+//! upon requesting these operations.
+//!
+//! The `Scanner` trait is used for scanning devices on the network.
+//! The scanner client should be called when a network is found and
+//! the SSID is provided. The client should be notified when the
+//! CYW43439 device sends an event that implies that the scan is done.
+//! Regardless, the device should also request synchronously to stop
+//! scanning so that other scan-related events are disabled.
+//!
+//! Device initialisation is done asynchronously and moved into
+//! a separate trait `WifiCtrl`. After initialisation, the device
+//! should provide its MAC address.
 
 use crate::ErrorCode;
 
