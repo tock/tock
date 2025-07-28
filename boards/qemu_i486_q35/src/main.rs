@@ -34,6 +34,7 @@ use x86::registers::irq;
 
 use x86_q35::pit::{Pit, RELOAD_1KHZ};
 use x86_q35::{Pc, PcComponent};
+use x86_q35::ps2::Ps2Controller;
 
 mod multiboot;
 use multiboot::MultibootV1Header;
@@ -155,11 +156,13 @@ impl<C: Chip> KernelResources<C> for QemuI386Q35Platform {
 unsafe extern "cdecl" fn main() {
     // ---------- BASIC INITIALIZATION -----------
 
+    let ps2 = static_init!(Ps2Controller, Ps2Controller::new());
+
     // Basic setup of the i486 platform
     let chip = PcComponent::new(
         &mut *ptr::addr_of_mut!(PAGE_DIR),
         &mut *ptr::addr_of_mut!(PAGE_TABLE),
-    )
+    ).with_ps2(ps2)
     .finalize(x86_q35::x86_q35_component_static!());
 
     // Acquire required capabilities
