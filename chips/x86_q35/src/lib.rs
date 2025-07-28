@@ -23,6 +23,7 @@ pub mod pic;
 
 pub mod pit;
 
+pub mod ps2;
 pub mod serial;
 
 pub mod vga;
