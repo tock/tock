@@ -4,6 +4,8 @@
 
 //! Objects guaranteed to be used by a single thread.
 
+use crate::utilities::cells::OptionalCell;
+
 /// A single-thread store that owns its contents.
 ///
 /// This type wraps a value of type `T` by a single thread. Only that thread may
@@ -38,7 +40,11 @@
 ///
 /// Creators of a [`SingleThreadValue`] must ensure that the object is **ONLY**
 /// accessible from the single thread.
-pub struct SingleThreadValue<T>(T);
+pub struct SingleThreadValue<T> {
+    value: T,
+    thread_id: OptionalCell<usize>,
+    chip: OptionalCell<&'static dyn crate::platform::chip::ChipThreadId>,
+}
 
 impl<T> SingleThreadValue<T> {
     /// Create a [`SingleThreadValue`].
@@ -56,18 +62,47 @@ impl<T> SingleThreadValue<T> {
     /// By convention, users should declare [`SingleThreadValue`] variables in
     /// scopes that are inaccessible to ISRs or signal handler, e.g. in
     /// module-private or function-local scopes.
-    pub const unsafe fn new(val: T) -> Self {
-        Self(val)
+    pub const unsafe fn new(value: T) -> Self {
+        Self {
+            value,
+            thread_id: OptionalCell::empty(),
+            chip: OptionalCell::empty(),
+        }
     }
-}
 
-impl<T> SingleThreadValue<T> {
+    pub fn set_chip(&self, chip: &'static dyn crate::platform::chip::ChipThreadId) {
+        self.chip.set(chip);
+        self.thread_id.set(chip.running_thread_id());
+    }
+
     /// Acquires a reference to value in [`SingleThreadValue`].
     pub fn with<F, R>(&self, f: F) -> R
     where
-        F: FnOnce(&T) -> R,
+        F: FnOnce(Option<&T>) -> R,
     {
-        f(&self.0)
+        f(self.chip.map_or(None, |chip| {
+            self.thread_id.map_or(None, |thread_id| {
+                if chip.running_thread_id() == thread_id {
+                    Some(&self.value)
+                } else {
+                    None
+                }
+            })
+        }))
+    }
+
+    /// Acquires a reference to value in [`SingleThreadValue`].
+    pub fn with_valid<F>(&self, f: F)
+    where
+        F: FnOnce(&T),
+    {
+        self.chip.map(|chip| {
+            self.thread_id.map(|thread_id| {
+                if chip.running_thread_id() == thread_id {
+                    f(&self.value);
+                }
+            });
+        });
     }
 }
 
