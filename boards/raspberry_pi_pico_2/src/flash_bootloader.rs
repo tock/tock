@@ -27,6 +27,11 @@ pub const FLASH_BOOTLOADER: [u8; 256] = [
 ];
 
 /// The RP2350 chip requires a metadata block.
+/// As per section 5.9 from the RP2350 manual, the block contains 2 items:
+/// - An IMAGE_DEF item that declares that the Tock image is executable,
+/// runs in Secure mode, for the ARM architecture, for the RP2350 chip.
+/// - A VECTOR_TABLE item that specifies that the vector table is loaded
+/// at memory address 0x10000400.
 
 pub const METADATA_BLOCK: [u8; 28] = [
     0xd3, 0xde, 0xff, 0xff, 0x42, 0x01, 0x21, 0x10, 0x03, 0x02, 0x00, 0x00, 0x00, 0x04, 0x00, 0x10,

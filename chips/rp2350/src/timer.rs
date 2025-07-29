@@ -11,7 +11,7 @@ use kernel::utilities::registers::{register_bitfields, register_structs, ReadWri
 use kernel::utilities::StaticRef;
 use kernel::ErrorCode;
 
-use crate::interrupts::{TIMER0_IRQ_0, TIMER1_IRQ_0};
+use crate::interrupts::TIMER0_IRQ_0;
 
 register_structs! {
     /// Controls time and alarms
@@ -171,18 +171,9 @@ INTS [
 const TIMER0_BASE: StaticRef<TimerRegisters> =
     unsafe { StaticRef::new(0x400B0000 as *const TimerRegisters) };
 
-const TIMER1_BASE: StaticRef<TimerRegisters> =
-    unsafe { StaticRef::new(0x400B8000 as *const TimerRegisters) };
-
-enum Timer {
-    Timer0,
-    Timer1,
-}
-
 pub struct RPTimer<'a> {
     registers: StaticRef<TimerRegisters>,
     client: OptionalCell<&'a dyn hil::time::AlarmClient>,
-    timer: Timer,
 }
 
 impl<'a> RPTimer<'a> {
@@ -190,27 +181,18 @@ impl<'a> RPTimer<'a> {
         RPTimer {
             registers: TIMER0_BASE,
             client: OptionalCell::empty(),
-            timer: Timer::Timer0,
         }
     }
 
-    pub const fn new_timer1() -> RPTimer<'a> {
-        RPTimer {
-            registers: TIMER1_BASE,
-            client: OptionalCell::empty(),
-            timer: Timer::Timer1,
-        }
-    }
-
-    fn enable_interrupt(&self) {
+    fn enable_interrupt0(&self) {
         self.registers.inte.modify(INTE::ALARM_0::SET);
     }
 
-    fn disable_interrupt(&self) {
+    fn disable_interrupt0(&self) {
         self.registers.inte.modify(INTE::ALARM_0::CLEAR);
     }
 
-    fn enable_timer_interrupt(&self) {
+    fn enable_timer_interrupt0(&self) {
         // Even though setting the INTE::ALARM_0 bit should be enough to enable
         // the interrupt firing, it seems that RP2040 requires manual NVIC
         // enabling of the interrupt.
@@ -220,24 +202,17 @@ impl<'a> RPTimer<'a> {
         // next kernel tasks are processed.
         unsafe {
             atomic(|| {
-                let n = match self.timer {
-                    Timer::Timer0 => cortexm33::nvic::Nvic::new(TIMER0_IRQ_0),
-                    Timer::Timer1 => cortexm33::nvic::Nvic::new(TIMER1_IRQ_0),
-                };
-                n.enable();
+                cortexm33::nvic::Nvic::new(TIMER0_IRQ_0).enable();
             })
         }
     }
 
-    fn disable_timer_interrupt(&self) {
+    fn disable_timer_interrupt0(&self) {
         // Even though clearing the INTE::ALARM_0 bit should be enough to disable
         // the interrupt firing, it seems that RP2040 requires manual NVIC
         // disabling of the interrupt.
         unsafe {
-            match self.timer {
-                Timer::Timer0 => cortexm33::nvic::Nvic::new(TIMER0_IRQ_0).disable(),
-                Timer::Timer1 => cortexm33::nvic::Nvic::new(TIMER1_IRQ_0).disable(),
-            }
+            cortexm33::nvic::Nvic::new(TIMER0_IRQ_0).disable();
         }
     }
 
@@ -273,8 +248,8 @@ impl<'a> Alarm<'a> for RPTimer<'a> {
         }
 
         self.registers.alarm0.set(expire.into_u32());
-        self.enable_timer_interrupt();
-        self.enable_interrupt();
+        self.enable_timer_interrupt0();
+        self.enable_interrupt0();
     }
 
     fn get_alarm(&self) -> Self::Ticks {
@@ -286,14 +261,11 @@ impl<'a> Alarm<'a> for RPTimer<'a> {
         unsafe {
             atomic(|| {
                 // Clear pending interrupts
-                match self.timer {
-                    Timer::Timer0 => cortexm33::nvic::Nvic::new(TIMER0_IRQ_0).clear_pending(),
-                    Timer::Timer1 => cortexm33::nvic::Nvic::new(TIMER1_IRQ_0).clear_pending(),
-                }
+                cortexm33::nvic::Nvic::new(TIMER0_IRQ_0).clear_pending();
             });
         }
-        self.disable_interrupt();
-        self.disable_timer_interrupt();
+        self.disable_interrupt0();
+        self.disable_timer_interrupt0();
         Ok(())
     }
 
