@@ -150,3 +150,9 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for NRF52<'a, I>
         CortexM4F::print_cortexm_state(write);
     }
 }
+
+impl<'a, I: InterruptService + 'a> kernel::platform::chip::ChipThreadId for NRF52<'a, I> {
+    fn running_thread_id(&self) -> usize {
+        1
+    }
+}
