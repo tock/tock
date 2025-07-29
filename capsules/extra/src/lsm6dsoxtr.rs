@@ -405,16 +405,14 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm6dsoxtrI2C<'_, I> {
 
                 self.syscall_process.take().map(|pid| {
                     let _res = self.apps.enter(pid, |_app, upcalls| {
-                        upcalls
-                            .schedule_upcall(
+                        let _ = upcalls.schedule_upcall(
+                            0,
+                            (
+                                into_statuscode(status.map_err(|i2c_error| i2c_error.into())),
+                                usize::from(self.is_present.get()),
                                 0,
-                                (
-                                    into_statuscode(status.map_err(|i2c_error| i2c_error.into())),
-                                    usize::from(self.is_present.get()),
-                                    0,
-                                ),
-                            )
-                            .ok();
+                            ),
+                        );
                     });
                 });
             }
@@ -510,16 +508,14 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm6dsoxtrI2C<'_, I> {
                 }
                 self.syscall_process.take().map(|pid| {
                     let _res = self.apps.enter(pid, |_app, upcalls| {
-                        upcalls
-                            .schedule_upcall(
+                        let _ = upcalls.schedule_upcall(
+                            0,
+                            (
+                                into_statuscode(status.map_err(|i2c_error| i2c_error.into())),
+                                usize::from(status == Ok(())),
                                 0,
-                                (
-                                    into_statuscode(status.map_err(|i2c_error| i2c_error.into())),
-                                    usize::from(status == Ok(())),
-                                    0,
-                                ),
-                            )
-                            .ok();
+                            ),
+                        );
                     });
                 });
             }
@@ -531,16 +527,14 @@ impl<I: i2c::I2CDevice> i2c::I2CClient for Lsm6dsoxtrI2C<'_, I> {
                 self.config_in_progress.set(false);
                 self.syscall_process.take().map(|pid| {
                     let _res = self.apps.enter(pid, |_app, upcalls| {
-                        upcalls
-                            .schedule_upcall(
+                        let _ = upcalls.schedule_upcall(
+                            0,
+                            (
+                                into_statuscode(status.map_err(|i2c_error| i2c_error.into())),
+                                usize::from(status == Ok(())),
                                 0,
-                                (
-                                    into_statuscode(status.map_err(|i2c_error| i2c_error.into())),
-                                    usize::from(status == Ok(())),
-                                    0,
-                                ),
-                            )
-                            .ok();
+                            ),
+                        );
                     });
                 });
             }

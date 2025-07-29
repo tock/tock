@@ -211,16 +211,14 @@ impl hil::touch::TouchClient for Touch<'_> {
                         Some(size) => size as usize,
                         None => 0,
                     };
-                    kernel_data
-                        .schedule_upcall(
-                            0,
-                            (
-                                event_status,
-                                (event.x as usize) << 16 | event.y as usize,
-                                pressure_size,
-                            ),
-                        )
-                        .ok();
+                    let _ = kernel_data.schedule_upcall(
+                        0,
+                        (
+                            event_status,
+                            (event.x as usize) << 16 | event.y as usize,
+                            pressure_size,
+                        ),
+                    );
                 }
             });
         }
@@ -296,9 +294,8 @@ impl hil::touch::MultiTouchClient for Touch<'_> {
                         let dropped_events = app.dropped_events;
                         if num > 0 {
                             app.ack = false;
-                            kernel_data
-                                .schedule_upcall(2, (num, dropped_events, len.saturating_sub(num)))
-                                .ok();
+                            let _ = kernel_data
+                                .schedule_upcall(2, (num, dropped_events, len.saturating_sub(num)));
                         }
                     } else {
                         app.dropped_events += 1;
@@ -321,7 +318,7 @@ impl hil::touch::GestureClient for Touch<'_> {
                     GestureEvent::ZoomIn => 5,
                     GestureEvent::ZoomOut => 6,
                 };
-                kernel_data.schedule_upcall(1, (gesture_id, 0, 0)).ok();
+                let _ = kernel_data.schedule_upcall(1, (gesture_id, 0, 0));
             });
         }
     }
