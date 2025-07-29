@@ -46,10 +46,6 @@ pub enum ProcessBinaryError {
         expected_address: u32,
     },
 
-    /// The process binary specifies the process is not enabled, and therefore
-    /// cannot be loaded.
-    NotEnabledProcess,
-
     /// This entry in flash is just padding.
     Padding,
 }
@@ -101,10 +97,6 @@ impl fmt::Debug for ProcessBinaryError {
                 None => write!(f, "Process did not provide a TBF kernel version header"),
             },
 
-            ProcessBinaryError::NotEnabledProcess => {
-                write!(f, "Process marked not enabled")
-            }
-
             ProcessBinaryError::Padding => {
                 write!(f, "Process item is just padding")
             }
@@ -130,9 +122,6 @@ pub struct ProcessBinary {
     /// set if the process is checked by a credential checker and a specific
     /// credential was used to approve this process. Otherwise this is `None`.
     pub credential: OptionalCell<AcceptedCredential>,
-
-    /// Credential to vaildate if the app needs to be loaded
-    pub valid_app: bool,
 }
 
 impl ProcessBinary {
@@ -150,10 +139,6 @@ impl ProcessBinary {
         // Parse the full TBF header to see if this is a valid app. If the
         // header can't parse, we will error right here.
         let tbf_header = tock_tbf::parse::parse_tbf_header(header_flash, tbf_version)?;
-
-        // a flag to let process loaders know if this is an app to make a process out of,
-        // or if it is a disabled app that is stored in the storage, but otherwise not used
-        let valid_app: bool = tbf_header.enabled();
 
         // If this isn't an app (i.e. it is padding) then we can skip it and do
         // not create a `ProcessBinary` object.
@@ -240,7 +225,6 @@ impl ProcessBinary {
             footers: footer_region,
             flash: app_flash,
             credential: OptionalCell::empty(),
-            valid_app,
         })
     }
 

@@ -222,6 +222,7 @@ fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
                         match load_result {
                             Ok((new_mem, proc)) => {
                                 remaining_memory = new_mem;
+
                                 match proc {
                                     Some(p) => {
                                         if config::CONFIG.debug_load_processes {
@@ -259,7 +260,6 @@ fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
                             ProcessBinaryError::TbfHeaderParseFailure(_)
                             | ProcessBinaryError::IncompatibleKernelVersion { .. }
                             | ProcessBinaryError::IncorrectFlashAddress { .. }
-                            | ProcessBinaryError::NotEnabledProcess
                             | ProcessBinaryError::Padding => {
                                 if config::CONFIG.debug_load_processes {
                                     debug!("Unable to use process binary: {:?}.", err);
@@ -286,6 +286,54 @@ fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
 ////////////////////////////////////////////////////////////////////////////////
 // HELPER FUNCTIONS
 ////////////////////////////////////////////////////////////////////////////////
+/// Find an available region of RAM for a new process that needs to be loaded.
+fn find_ram_region(
+    memory: &'static [u8],
+    process_memory_start_addresses: &mut [usize],
+    process_memory_end_addresses: &mut [usize],
+    required_size: usize,
+    alignment: usize,
+) -> Option<usize> {
+    let app_memory_start = memory.as_ptr() as usize;
+    let app_memory_end = app_memory_start + memory.len();
+
+    let mut count = 0;
+    for i in 0..process_memory_start_addresses.len() {
+        if process_memory_start_addresses[i] != 0 {
+            process_memory_start_addresses[count] = process_memory_start_addresses[i];
+            process_memory_end_addresses[count] = process_memory_end_addresses[i];
+            count += 1;
+        }
+    }
+
+    // If no processes, return start of memory
+    if count == 0 {
+        return Some((app_memory_start + alignment - 1) & !(alignment - 1));
+    }
+
+    // Scan for gaps
+    let mut current = app_memory_start;
+    for i in 0..count {
+        let start = process_memory_start_addresses[i];
+        let end = process_memory_end_addresses[i];
+
+        let aligned = (current + alignment - 1) & !(alignment - 1);
+
+        if aligned + required_size <= start {
+            return Some(aligned);
+        }
+
+        current = core::cmp::max(current, end);
+    }
+
+    // Check remaining space after last process
+    let aligned = (current + alignment - 1) & !(alignment - 1);
+    if aligned + required_size <= app_memory_end {
+        Some(aligned)
+    } else {
+        None
+    }
+}
 
 /// Find a process binary stored at the beginning of `flash` and create a
 /// `ProcessBinary` object if the process is viable to run on this kernel.
@@ -507,6 +555,8 @@ pub struct SequentialProcessLoaderMachine<'a, C: Chip + 'static, D: ProcessStand
     flash_bank: Cell<&'static [u8]>,
     /// Flash memory region to load processes from.
     flash: Cell<&'static [u8]>,
+    /// Total available memory for processes on this board.
+    memory_bank: Cell<&'static [u8]>,
     /// Memory available to assign to applications.
     app_memory: Cell<&'static mut [u8]>,
     /// Mechanism for generating async callbacks.
@@ -538,6 +588,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         kernel: &'static Kernel,
         chip: &'static C,
         flash: &'static [u8],
+        memory_bank: &'static [u8],
         app_memory: &'static mut [u8],
         fault_policy: &'static dyn ProcessFaultPolicy,
         storage_policy: &'static dyn ProcessStandardStoragePermissionsPolicy<C, D>,
@@ -555,6 +606,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
             chip,
             flash_bank: Cell::new(flash),
             flash: Cell::new(flash),
+            memory_bank: Cell::new(memory_bank),
             app_memory: Cell::new(app_memory),
             policy: OptionalCell::new(policy),
             fault_policy,
@@ -646,6 +698,42 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
         }
     }
 
+    /// Scans the RAM regions alloted to current processes
+    fn scan_memory_for_ram_regions(
+        &self,
+        process_memory_start_addresses: &mut [usize],
+        process_memory_end_addresses: &mut [usize],
+    ) {
+        for (i, proc) in self.kernel.get_process_iter().enumerate() {
+            process_memory_start_addresses[i] = proc.get_addresses().sram_start;
+            process_memory_end_addresses[i] = proc.get_addresses().sram_end;
+        }
+    }
+
+    /// Try to find memory for new process
+    ///
+    /// Returns a memory address if available, or
+    /// None, if there isn't one
+    fn find_ram_region(
+        &self,
+        memory: &'static [u8],
+        process_memory_start_addresses: &mut [usize],
+        process_memory_end_addresses: &mut [usize],
+        required_size: usize,
+        alignment: usize,
+    ) -> Option<usize> {
+        match find_ram_region(
+            memory,
+            process_memory_start_addresses,
+            process_memory_end_addresses,
+            required_size,
+            alignment,
+        ) {
+            Some(address) => Some(address),
+            None => None,
+        }
+    }
+
     /// Create process objects from the discovered process binaries.
     ///
     /// This verifies that the discovered processes are valid to run.
@@ -660,7 +748,7 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
             if let Some(process_binary) = proc_binaries[i].take() {
                 // This means the app is disabled, and does not have to be
                 // loaded
-                if !process_binary.valid_app {
+                if !process_binary.header.enabled() {
                     if config::CONFIG.debug_load_processes {
                         debug!(
                             "Skipping disabled process: {}",
@@ -719,54 +807,94 @@ impl<'a, C: Chip, D: ProcessStandardDebug> SequentialProcessLoaderMachine<'a, C,
                             policy.to_short_id(&process_binary)
                         });
 
-                        // Try to create a `Process` object.
-                        let load_result = load_process(
-                            self.kernel,
-                            self.chip,
-                            process_binary,
-                            self.app_memory.take(),
-                            short_app_id,
-                            index,
-                            self.fault_policy,
-                            self.storage_policy,
-                        );
-                        match load_result {
-                            Ok((new_mem, proc)) => {
-                                self.app_memory.set(new_mem);
-                                match proc {
-                                    Some(p) => {
-                                        if config::CONFIG.debug_load_processes {
-                                            debug!(
-                                                "Loading: Loaded process {}",
-                                                p.get_process_name()
-                                            )
-                                        }
+                        // Scan for a new memory regions
+                        const MAX_PROCS: usize = 10;
+                        let mut start_addrs = [0; MAX_PROCS];
+                        let mut end_addrs = [0; MAX_PROCS];
+                        let app_memory = self.memory_bank.get();
 
-                                        // Store the `ProcessStandard` object in the `PROCESSES`
-                                        // array.
-                                        slot.set(p);
-                                        // Notify the client the process was loaded
-                                        // successfully.
-                                        self.get_current_client().map(|client| {
-                                            client.process_loaded(Ok(()));
-                                        });
-                                    }
-                                    None => {
-                                        if config::CONFIG.debug_load_processes {
-                                            debug!("No process loaded.");
+                        let new_app_memory_size =
+                            process_binary.header.get_minimum_app_ram_size() as usize;
+
+                        // Check to ensure that the new process does not require more
+                        // memory than what the board can offer
+                        if new_app_memory_size > app_memory.len() {
+                            self.get_current_client().map(|client| {
+                                client.process_loaded(Err(ProcessLoadError::NotEnoughMemory));
+                            });
+                        }
+
+                        self.scan_memory_for_ram_regions(&mut start_addrs, &mut end_addrs);
+
+                        let available_ram_address = self.find_ram_region(
+                            app_memory,
+                            &mut start_addrs,
+                            &mut end_addrs,
+                            new_app_memory_size,
+                            new_app_memory_size.next_power_of_two(),
+                        );
+
+                        if let Some(ram_address) = available_ram_address {
+                            let ram_slice: &mut [u8] = unsafe {
+                                core::slice::from_raw_parts_mut(
+                                    ram_address as *mut u8,
+                                    new_app_memory_size.next_power_of_two(),
+                                )
+                            };
+
+                            // Try to create a `Process` object.
+                            let load_result = load_process(
+                                self.kernel,
+                                self.chip,
+                                process_binary,
+                                ram_slice,
+                                short_app_id,
+                                index,
+                                self.fault_policy,
+                                self.storage_policy,
+                            );
+                            match load_result {
+                                Ok((new_mem, proc)) => {
+                                    self.app_memory.set(new_mem);
+                                    match proc {
+                                        Some(p) => {
+                                            if config::CONFIG.debug_load_processes {
+                                                debug!(
+                                                    "Loading: Loaded process {}",
+                                                    p.get_process_name()
+                                                )
+                                            }
+
+                                            // Store the `ProcessStandard` object in the `PROCESSES`
+                                            // array.
+                                            slot.set(p);
+                                            // Notify the client the process was loaded
+                                            // successfully.
+                                            self.get_current_client().map(|client| {
+                                                client.process_loaded(Ok(()));
+                                            });
+                                        }
+                                        None => {
+                                            if config::CONFIG.debug_load_processes {
+                                                debug!("No process loaded.");
+                                            }
                                         }
                                     }
                                 }
-                            }
-                            Err((new_mem, err)) => {
-                                self.app_memory.set(new_mem);
-                                if config::CONFIG.debug_load_processes {
-                                    debug!("Could not load process: {:?}.", err);
+                                Err((new_mem, err)) => {
+                                    self.app_memory.set(new_mem);
+                                    if config::CONFIG.debug_load_processes {
+                                        debug!("Could not load process: {:?}.", err);
+                                    }
+                                    self.get_current_client().map(|client| {
+                                        client.process_loaded(Err(err));
+                                    });
                                 }
-                                self.get_current_client().map(|client| {
-                                    client.process_loaded(Err(err));
-                                });
                             }
+                        } else {
+                            self.get_current_client().map(|client| {
+                                client.process_loaded(Err(ProcessLoadError::NotEnoughMemory));
+                            });
                         }
                     }
                     Err(()) => {
