@@ -29,7 +29,7 @@
 /// # Single-thread synchronization
 ///
 /// It is possible for the same thread to get multiple, shared, references. As a
-/// result, users must use other synchronization primitives (e.g.
+/// result, users must use interior mutability (e.g.
 /// [`Cell`](core::cell::Cell), [`MapCell`](tock_cells::map_cell::MapCell), or
 /// [`TakeCell`](tock_cells::take_cell::TakeCell)) to allow obtaining exclusive
 /// mutable access.
