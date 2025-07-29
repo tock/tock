@@ -41,7 +41,7 @@ use multiboot::MultibootV1Header;
 mod io;
 
 /// Multiboot V1 header, allowing this kernel to be booted directly by QEMU
-#[link_section = ".vectors"]
+#[link_section = ".multiboot"]
 #[used]
 static MULTIBOOT_V1_HEADER: MultibootV1Header = MultibootV1Header::new(0);
 
