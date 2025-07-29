@@ -13,17 +13,17 @@ register_structs! {
         (0x000 => ctrl: ReadWrite<u32, CTRL::Register>),
         /// Crystal Oscillator Status
         (0x004 => status: ReadWrite<u32, STATUS::Register>),
-        /// Crystal Oscillator pause control\n
-        /// This is used to save power by pausing the XOSC\n
-        /// On power-up this field is initialised to WAKE\n
-        /// An invalid write will also select WAKE\n
-        /// WARNING: stop the PLLs before selecting dormant mode\n
+        /// Crystal Oscillator pause control.
+        /// This is used to save power by pausing the XOSC.
+        /// On power-up this field is initialised to WAKE.
+        /// An invalid write will also select WAKE.
+        /// WARNING: stop the PLLs before selecting dormant mode.
         /// WARNING: setup the irq before selecting dormant mode
         (0x008 => dormant: ReadWrite<u32, DORMANT::Register>),
         /// Controls the startup delay
         (0x00C => startup: ReadWrite<u32, STARTUP::Register>),
-        /// A down counter running at the xosc frequency which counts to zero and stops.\n
-        /// To start the counter write a non-zero value.\n
+        /// A down counter running at the xosc frequency which counts to zero and stops..
+        /// To start the counter write a non-zero value.
         /// Can be used for short software pauses when setting up time sensitive
         (0x010 => count: ReadWrite<u32>),
         (0x014 => @END),
@@ -41,10 +41,10 @@ register_bitfields![u32,
         ],
         /// Frequency range. This resets to 0xAA0 and cannot be changed.
         FREQ_RANGE OFFSET(0) NUMBITS(12) [
-            _1_15MHZ = 0xaa0,
-            _10_30MHZ = 0xaa1,
-            _25_60MHZ = 0xaa2,
-            _40_100MHZ = 0xaa3,
+            FREQ_1_15MHZ = 0xaa0,
+            FREQ_10_30MHZ = 0xaa1,
+            FREQ_25_60MHZ = 0xaa2,
+            FREQ_40_100MHZ = 0xaa3,
         ]
     ],
     STATUS [
@@ -56,10 +56,10 @@ register_bitfields![u32,
         ENABLED OFFSET(12) NUMBITS(1) [],
         /// The current frequency range setting, always reads 0
         FREQ_RANGE OFFSET(0) NUMBITS(2) [
-            _1_15MHZ = 0x0,
-            _10_30MHZ = 0x1,
-            _25_60MHZ = 0x2,
-            _40_100MHZ = 0x3,
+            FREQ_1_15MHZ = 0x0,
+            FREQ_10_30MHZ = 0x1,
+            FREQ_25_60MHZ = 0x2,
+            FREQ_40_100MHZ = 0x3,
         ]
     ],
     DORMANT [
@@ -94,7 +94,9 @@ impl Xosc {
     }
 
     pub fn init(&self) {
-        self.registers.ctrl.modify(CTRL::FREQ_RANGE::_1_15MHZ);
+        self.registers.ctrl.modify(CTRL::FREQ_RANGE::FREQ_1_15MHZ);
+        // This delay is from the RP2350 manual, page 552, section 8.2.4, and from the Pico SDK
+        // implementation of the XOSC driver.
         let startup_delay = (((12 * 1000000) / 1000) + 128) / 256;
         self.registers
             .startup

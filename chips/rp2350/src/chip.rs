@@ -111,7 +111,6 @@ pub struct Rp2350DefaultPeripherals<'a> {
     pub sio: SIO,
     pub ticks: Ticks,
     pub timer0: RPTimer<'a>,
-    pub timer1: RPTimer<'a>,
     pub uart0: Uart<'a>,
     pub uart1: Uart<'a>,
     pub xosc: Xosc,
@@ -126,7 +125,6 @@ impl Rp2350DefaultPeripherals<'_> {
             sio: SIO::new(),
             ticks: Ticks::new(),
             timer0: RPTimer::new_timer0(),
-            timer1: RPTimer::new_timer1(),
             uart0: Uart::new_uart0(),
             uart1: Uart::new_uart1(),
             xosc: Xosc::new(),
@@ -147,10 +145,6 @@ impl InterruptService for Rp2350DefaultPeripherals<'_> {
         match interrupt {
             interrupts::TIMER0_IRQ_0 => {
                 self.timer0.handle_interrupt();
-                true
-            }
-            interrupts::TIMER1_IRQ_0 => {
-                self.timer1.handle_interrupt();
                 true
             }
             interrupts::SIO_IRQ_FIFO => {

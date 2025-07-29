@@ -453,7 +453,7 @@ impl<'a> Uart<'a> {
         if self.registers.uartimsc.is_set(UARTIMSC::TXIM) {
             if self.registers.uartfr.is_set(UARTFR::TXFE) {
                 if self.tx_status.get() == UARTStateTX::Idle {
-                    panic!("No data to transmit");
+                    kernel::debug!("No data to transmit");
                 } else if self.tx_status.get() == UARTStateTX::Transmitting {
                     self.disable_transmit_interrupt();
                     if self.tx_position.get() < self.tx_len.get() {

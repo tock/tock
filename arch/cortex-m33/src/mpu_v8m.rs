@@ -253,8 +253,8 @@ impl<const NUM_REGIONS: usize> fmt::Display for CortexMConfig<NUM_REGIONS> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "\r\n Cortex-M MPU")?;
         for (i, region) in self.regions.iter().enumerate() {
-            if let Some(location) = region.location() {
-                let access_bits = region.rbar_value().read(MPU_RBAR::AP);
+            if let Some(location) = region.location {
+                let access_bits = region.rbar_value.read(MPU_RBAR::AP);
                 let access_str = match access_bits {
                     0b00 => "ReadWritePrivilegedOnly",
                     0b01 => "ReadWrite",
@@ -289,7 +289,7 @@ impl<const NUM_REGIONS: usize> CortexMConfig<NUM_REGIONS> {
             if number == APP_MEMORY_REGION_MAX_NUM {
                 continue;
             }
-            if region.location().is_none() {
+            if region.location.is_none() {
                 return Some(number);
             }
         }
@@ -375,18 +375,6 @@ impl CortexMRegion {
             rlar_value: MPU_RLAR::ENABLE::CLEAR,
             region_num,
         }
-    }
-
-    fn location(&self) -> Option<(*const u8, *const u8)> {
-        self.location
-    }
-
-    fn rbar_value(&self) -> FieldValue<u32, MPU_RBAR::Register> {
-        self.rbar_value
-    }
-
-    fn rlar_value(&self) -> FieldValue<u32, MPU_RLAR::Register> {
-        self.rlar_value
     }
 
     fn overlaps(&self, other_start: *const u8, other_size: usize) -> bool {
@@ -603,7 +591,7 @@ impl<const NUM_REGIONS: usize> mpu::MPU for MPU<NUM_REGIONS> {
     ) -> Result<(), ()> {
         // Get first region, or error if the process tried to update app memory
         // MPU region before it was created.
-        let (region_start, region_end) = config.regions[0].location().ok_or(())?;
+        let (region_start, region_end) = config.regions[0].location.ok_or(())?;
         // .map(|(region_start, region_end)| (region_start as usize, region_end as usize))?;
 
         // Check if the memory breaks are out of the allocated region.
@@ -669,8 +657,8 @@ impl<const NUM_REGIONS: usize> mpu::MPU for MPU<NUM_REGIONS> {
                 self.registers
                     .rnr
                     .modify(MPU_RNR::REGION.val(region.region_num as u32));
-                self.registers.rbar.write(region.rbar_value());
-                self.registers.rlar.write(region.rlar_value());
+                self.registers.rbar.write(region.rbar_value);
+                self.registers.rlar.write(region.rlar_value);
             }
             self.hardware_is_configured_for.set(config.id);
             config.is_dirty.set(false);
