@@ -46,8 +46,12 @@ SECTIONS
 
     
     /**
-     * The order matters here for the x86 platform, the .text section has to be the first one.
-     * Please see the details bellow where the .x86.start is stored.
+     * The order that section contents ends up emitted in the final physical ELF file is
+     * significant for systems like QEMU that use multiboot. Only the first 8192 bytes of the file
+     * are scanned ( https://www.gnu.org/software/grub/manual/multiboot/multiboot.html ).
+     *
+     * For this reason, it is important that the `.text` section, which contains the `.multiboot`
+     * section, is defined first in this file as tools tend to write sections out in linear order.
      */
     
    
