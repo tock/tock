@@ -1,6 +1,7 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-//! PS/2 controller – step 1 run the controller self‑test only.  No clock, no IRQ.
+//! PS/2 controller – *step 2*: controller self‑test **and** keyboard clock enabled.
+//! IRQ 1 remains masked; no scan‑code handling yet.
 
 use core::cell::{Cell, RefCell};
 use core::marker::PhantomData;
@@ -72,11 +73,9 @@ fn write_data(data: u8) {
     unsafe { io::outb(PS2_DATA_PORT, data) };
 }
 
+// Driver Object
 
-/// Driver object
-
-
-/// IRQs are still masked; buffer is unused until step #
+/// IRQs are **still masked**; buffer is unused until step 3.
 pub struct Ps2Controller {
     buffer:   RefCell<[u8; BUFFER_SIZE]>,
     head:     Cell<usize>,
@@ -94,38 +93,45 @@ impl Ps2Controller {
         }
     }
 
-    /// Step 1 initialisation – only run the built‑in self‑test.
-    /// No device clock and no PIC mask changes yet.
+    /// Init sequence for *step2*.
+    ///   1. Disable channels - flush - self‑test.
+    ///   2. Re‑enable **keyboard** clock (0xAE). IRQ remains masked, so any
+    ///      scan‑codes the device might emit stay in the controller’s buffer
+    ///      for now and cannot crash the kernel.
     pub fn init(&self) {
         unsafe {
-            // Disable both channels (keyboard & aux) so they stay quiet.
-            write_command(0xAD); // disable port 1
-            write_command(0xA7); // disable port 2
+            /* --- quiet controller & self‑test --- */
+            write_command(0xAD);               // disable port 1 (kbd)
+            write_command(0xA7);               // disable port 2 (aux)
 
-            // Flush any residual byte in the output buffer.
             while unsafe { io::inb(PS2_STATUS_PORT) } & 0x01 != 0 {
                 let _ = unsafe { io::inb(PS2_DATA_PORT) };
             }
 
-            // Controller self‑test (0xAA => 0x55 on success).
-            write_command(0xAA);
-            wait_output_ready();
-            let result = read_data();
+            write_command(0xAA);               // self‑test
+            let result = {
+                wait_output_ready();
+                read_data()
+            };
             if result == 0x55 {
                 debug!("ps2: self‑test passed");
             } else {
                 debug!("ps2: self‑test FAILED (0x{:02X})", result);
             }
+
+            /* -- 2. enable keyboard clock, still leave IRQ masked --- */
+            write_command(0xAE);               // enable port 1 clock
+            debug!("ps2: keyboard clock enabled");
         }
     }
 
-    /* --- stubs for later steps --- */
+    /* ---stubs for later steps --- */
 
     pub fn handle_interrupt(&self) {
-        // will be filled in Step # when IRQ1 is unmasked
+        // will be implemented in Step 3 when IRQ1 is unmasked
     }
 
     pub fn pop_scan_code(&self) -> Option<u8> {
-        None // buffer unused until Step #
+        None // buffer unused until later
     }
 }
