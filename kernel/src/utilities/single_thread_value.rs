@@ -114,7 +114,7 @@ impl<T> SingleThreadValue<T> {
     /// [`set_chip()`]. Since in many cases a suitable implementation of
     /// [`ChipThreadId`] is not available when [`SingleThreadValue::new()`] is
     /// called, the [`ChipThreadId`] implementation is provided later.
-    pub const unsafe fn new(value: T) -> Self {
+    pub const fn new(value: T) -> Self {
         Self {
             value,
             thread_id: OptionalCell::empty(),
@@ -128,8 +128,10 @@ impl<T> SingleThreadValue<T> {
     /// This method is used to determine if an attempted access is permitted or
     /// not.
     pub fn set_chip<C: crate::platform::chip::ChipThreadId>(&self) {
-        self.running_thread_id_fn.set(C::running_thread_id);
-        self.thread_id.set(C::running_thread_id());
+        if self.thread_id.is_none() {
+            self.running_thread_id_fn.set(C::running_thread_id);
+            self.thread_id.set(C::running_thread_id());
+        }
     }
 
     /// Attempt to acquire a reference to the wrapped value.
