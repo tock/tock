@@ -224,6 +224,8 @@ unsafe extern "cdecl" fn main() {
     // PIT interrupts need to be started manually
     chip.pit.start();
 
+    ps2.init();
+
     // Enable interrupts after all drivers are initialized
     irq::enable();
 

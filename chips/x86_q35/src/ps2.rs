@@ -68,6 +68,7 @@ pub struct Ps2Controller {
     buffer: RefCell<[u8; BUFFER_SIZE]>,
     head:   Cell<usize>,
     tail:   Cell<usize>,
+    count:  Cell<usize>,         // ← new field to track number of valid entries
     _p:     PhantomData<()>,
 }
 
@@ -77,6 +78,7 @@ impl Ps2Controller {
             buffer: RefCell::new([0; BUFFER_SIZE]),
             head:   Cell::new(0),
             tail:   Cell::new(0),
+            count:  Cell::new(0),       // ← initialize count
             _p:     PhantomData,
         }
     }
@@ -95,20 +97,19 @@ impl Ps2Controller {
 
             /* controller self-test */
             write_command(0xAA);
-            let passed = { wait_output_ready(); read_data() } == 0x55;
-            debug!("ps2: self-test {}", if passed { "ok" } else { "FAIL" });
+            let _ = { wait_output_ready(); read_data() } == 0x55;
 
             /* enable keyboard clock */
             write_command(0xAE);
 
             if !send_with_ack(0xF4) {
-                debug!("ps2: enable-scan failed");
+                // debug!("ps2: enable-scan failed");
             }
 
             /* unmask IRQ 1 */
             let mask = io::inb(PIC1_DATA_PORT);
             io::outb(PIC1_DATA_PORT, mask & !(1 << 1));
-            debug!("ps2: clock on, IRQ1 unmasked");
+            // debug!("ps2: clock on, IRQ1 unmasked");
         }
     }
 
@@ -118,26 +119,68 @@ impl Ps2Controller {
             if unsafe { io::inb(PS2_STATUS_PORT) } & 0x01 == 0 { break; }
             let byte = unsafe { io::inb(PS2_DATA_PORT) };
             self.push_code(byte);
-            debug!("ps2 irq 0x{:02X}", byte);
+            // debug!("ps2 irq 0x{:02X}", byte);
         }
     }
 
     pub fn pop_scan_code(&self) -> Option<u8> {
+        if self.count.get() == 0 {
+            return None;
+        }
         let t = self.tail.get();
-        if t == self.head.get() { return None; }
         let b = self.buffer.borrow()[t];
         self.tail.set((t + 1) % BUFFER_SIZE);
+        self.count.set(self.count.get() - 1);
         Some(b)
     }
 
     /* --- internal ring-buffer --- */
     fn push_code(&self, b: u8) {
         let h = self.head.get();
-        let next = (h + 1) % BUFFER_SIZE;
-        if next == self.tail.get() { // overwrite oldest if full
+        self.buffer.borrow_mut()[h] = b;
+        let nh = (h + 1) % BUFFER_SIZE;
+        self.head.set(nh);
+
+        // track count and drop oldest if full:
+        if self.count.get() < BUFFER_SIZE {
+            self.count.set(self.count.get() + 1);
+        } else {
             self.tail.set((self.tail.get() + 1) % BUFFER_SIZE);
         }
-        self.buffer.borrow_mut()[h] = b;
-        self.head.set(next);
+    }
+}
+
+// ---------- Unit tests for ring buffer only ----------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ring_buffer_basic() {
+        let dev = Ps2Controller::new();
+        // buffer empty
+        assert_eq!(dev.pop_scan_code(), None);
+        // simulate push via the internal helper
+        dev.push_code(0x10);
+        assert_eq!(dev.pop_scan_code(), Some(0x10));
+        assert_eq!(dev.pop_scan_code(), None);
+    }
+
+    #[test]
+    fn test_ring_buffer_overflow() {
+        let dev = Ps2Controller::new();
+        // fill buffer
+        for i in 0..BUFFER_SIZE {
+            dev.push_code(i as u8);
+        }
+        // overflow one slot
+        dev.push_code(0xFF);
+        // should have dropped the first (0), yielding 1..BUFFER_SIZE-1 then 0xFF
+        for expected in 1..BUFFER_SIZE {
+            assert_eq!(dev.pop_scan_code(), Some(expected as u8));
+        }
+        assert_eq!(dev.pop_scan_code(), Some(0xFF));
+        assert_eq!(dev.pop_scan_code(), None);
     }
 }

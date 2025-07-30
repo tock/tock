@@ -86,6 +86,13 @@ impl<'a, const PR: u16> Chip for Pc<'a, PR> {
                         self.com1.handle_interrupt();
                         self.com3.handle_interrupt();
                     }
+
+                    // new PS/2 keyboard interrupt handler
+                    interrupt::KEYBOARD => {
+                        self.ps2.handle_interrupt();
+                    }
+
+
                     _ => unimplemented!("interrupt {num}"),
                 }
 
@@ -229,7 +236,7 @@ impl Component for PcComponent<'static> {
         // debug
         let ps2 = self
             .ps2
-            .expect("PcComponent::with_ps2 was not called in main.rs");
+            .expect("PcComponent::with_ps2 was not called");
 
         let pc = s.4.write(Pc {
             com1,
