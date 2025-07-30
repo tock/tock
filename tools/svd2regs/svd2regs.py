@@ -69,14 +69,12 @@ except ImportError:
     sys.exit(1)
 
 RUST_KEYWORDS = ["mod"]
-COMMENT_MAX_LENGTH = 80
 
 
 def comment(text):
     if text:
-        lines = text.split ("\n")
-        lines = ["/// {}".format(line[:COMMENT_MAX_LENGTH].strip()) for line in lines]
-        return "\n".join (lines)
+        # Convert text to Rust doc comments, but leave line-wrapping to rustfmt
+        return "\n".join(map(lambda s: '/// ' + s if len(s) else '///', text.split('\n')))
     else:
         return ""
 
