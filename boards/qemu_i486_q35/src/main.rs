@@ -33,8 +33,8 @@ use x86::registers::bits32::paging::{PDEntry, PTEntry, PD, PT};
 use x86::registers::irq;
 
 use x86_q35::pit::{Pit, RELOAD_1KHZ};
-use x86_q35::{Pc, PcComponent};
 use x86_q35::ps2::Ps2Controller;
+use x86_q35::{Pc, PcComponent};
 
 mod multiboot;
 use multiboot::MultibootV1Header;
@@ -162,7 +162,8 @@ unsafe extern "cdecl" fn main() {
     let chip = PcComponent::new(
         &mut *ptr::addr_of_mut!(PAGE_DIR),
         &mut *ptr::addr_of_mut!(PAGE_TABLE),
-    ).with_ps2(ps2)
+    )
+    .with_ps2(ps2)
     .finalize(x86_q35::x86_q35_component_static!());
 
     // Acquire required capabilities
@@ -224,8 +225,6 @@ unsafe extern "cdecl" fn main() {
     // PIT interrupts need to be started manually
     chip.pit.start();
 
-    ps2.init();
-
     // Enable interrupts after all drivers are initialized
     irq::enable();
 
@@ -258,6 +257,8 @@ unsafe extern "cdecl" fn main() {
         create_capability!(capabilities::SetDebugWriterCapability),
     )
     .finalize(components::debug_writer_component_static!());
+
+    ps2.init();
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,

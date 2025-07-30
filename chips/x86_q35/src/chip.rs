@@ -92,7 +92,6 @@ impl<'a, const PR: u16> Chip for Pc<'a, PR> {
                         self.ps2.handle_interrupt();
                     }
 
-
                     _ => unimplemented!("interrupt {num}"),
                 }
 
@@ -234,9 +233,7 @@ impl Component for PcComponent<'static> {
         let syscall = Boundary::new();
 
         // debug
-        let ps2 = self
-            .ps2
-            .expect("PcComponent::with_ps2 was not called");
+        let ps2 = self.ps2.expect("PcComponent::with_ps2 was not called");
 
         let pc = s.4.write(Pc {
             com1,
