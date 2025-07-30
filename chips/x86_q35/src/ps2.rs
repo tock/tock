@@ -1,7 +1,9 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-//! PS/2 controller – **step 4**: controller self-test, keyboard clock on,
-//! IRQ 1 unmasked, and a drain-loop IRQ handler that feeds a ring buffer.
+
+//! PS/2 controller – **step 5**: same as step 4 **plus** robust
+//! `send_with_ack()` helper that retries once on `0xFE` (RESEND) and
+//! enables keyboard scanning with `0xF4`.
 
 use core::cell::{Cell, RefCell};
 use core::marker::PhantomData;
@@ -45,6 +47,22 @@ fn wait_output_ready() {
 #[inline(always)] fn write_command(c: u8) { wait_input_ready(); unsafe { io::outb(PS2_STATUS_PORT, c) } }
 #[inline(always)] fn write_data(d: u8)    { wait_input_ready(); unsafe { io::outb(PS2_DATA_PORT,   d) } }
 
+/// Send a byte to the keyboard and wait for ACK (`0xFA`).
+/// If the device replies RESEND (`0xFE`) we retry **once**.
+fn send_with_ack(byte: u8) -> bool {
+    for _ in 0..=1 {
+        write_data(byte);
+        let resp = read_data();
+        match resp {
+            0xFA => return true, // ACK
+            0xFE => continue,    // RESEND -> try again
+            _    => return false, // error
+        }
+    }
+    false
+}
+
+
 // Driver Object
 pub struct Ps2Controller {
     buffer: RefCell<[u8; BUFFER_SIZE]>,
@@ -82,6 +100,10 @@ impl Ps2Controller {
 
             /* enable keyboard clock */
             write_command(0xAE);
+
+            if !send_with_ack(0xF4) {
+                debug!("ps2: enable-scan failed");
+            }
 
             /* unmask IRQ 1 */
             let mask = io::inb(PIC1_DATA_PORT);
