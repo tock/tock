@@ -11,7 +11,7 @@ External Dependencies
 - [External Dependency Selection](#external-dependency-selection)
   * [General Guidelines for Dependency Selection](#general-guidelines-for-dependency-selection)
     + [Provide Important Functionality](#provide-important-functionality)
-    + [Project Maturity](#project-maturity)
+    + [Project Understandability](#project-understandability)
     + [Limited Sub-dependencies](#limited-sub-dependencies)
   * [Board-Specific External Dependencies](#board-specific-external-dependencies)
   * [Capsule Crate-Specific External Dependencies](#capsule-crate-specific-external-dependencies)
@@ -112,10 +112,12 @@ Such functionality includes:
   high-quality cryptographic libraries instead of Tock-specific cryptographic
   code increases the security of the Tock kernel.
 
-#### Project Maturity
+#### Project Understandability
 
-The external crate being added should be a mature project, with a high quality
-of code. The project must be well regarded in the Rust community.
+The external crate should be focused to a particular, understandable operation
+or feature set. The code should be high quality and straightforward to
+encourage confident auditing. The crate should only use standard and commonly
+used Rust and Rust ecosystem mechanisms.
 
 #### Limited Sub-dependencies
 
