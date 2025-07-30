@@ -43,7 +43,7 @@ use crate::utilities::cells::OptionalCell;
 pub struct SingleThreadValue<T> {
     value: T,
     thread_id: OptionalCell<usize>,
-    chip: OptionalCell<&'static dyn crate::platform::chip::ChipThreadId>,
+    running_thread_id_fn: OptionalCell<fn() -> usize>,
 }
 
 impl<T> SingleThreadValue<T> {
@@ -66,13 +66,13 @@ impl<T> SingleThreadValue<T> {
         Self {
             value,
             thread_id: OptionalCell::empty(),
-            chip: OptionalCell::empty(),
+            running_thread_id_fn: OptionalCell::empty(),
         }
     }
 
-    pub fn set_chip(&self, chip: &'static dyn crate::platform::chip::ChipThreadId) {
-        self.chip.set(chip);
-        self.thread_id.set(chip.running_thread_id());
+    pub fn set_chip<C: crate::platform::chip::ChipThreadId>(&self) {
+        self.running_thread_id_fn.set(C::running_thread_id);
+        self.thread_id.set(C::running_thread_id());
     }
 
     /// Acquires a reference to value in [`SingleThreadValue`].
@@ -80,15 +80,17 @@ impl<T> SingleThreadValue<T> {
     where
         F: FnOnce(Option<&T>) -> R,
     {
-        f(self.chip.map_or(None, |chip| {
-            self.thread_id.map_or(None, |thread_id| {
-                if chip.running_thread_id() == thread_id {
-                    Some(&self.value)
-                } else {
-                    None
-                }
-            })
-        }))
+        f(self
+            .running_thread_id_fn
+            .map_or(None, |running_thread_id_fn| {
+                self.thread_id.map_or(None, |thread_id| {
+                    if (running_thread_id_fn)() == thread_id {
+                        Some(&self.value)
+                    } else {
+                        None
+                    }
+                })
+            }))
     }
 
     /// Acquires a reference to value in [`SingleThreadValue`].
@@ -96,9 +98,9 @@ impl<T> SingleThreadValue<T> {
     where
         F: FnOnce(&T),
     {
-        self.chip.map(|chip| {
+        self.running_thread_id_fn.map(|running_thread_id_fn| {
             self.thread_id.map(|thread_id| {
-                if chip.running_thread_id() == thread_id {
+                if (running_thread_id_fn)() == thread_id {
                     f(&self.value);
                 }
             });
