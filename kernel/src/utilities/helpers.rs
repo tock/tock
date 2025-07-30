@@ -69,7 +69,7 @@ macro_rules! count_expressions {
 /// Executables must specify their stack size by using the `stack_size!` macro.
 /// It takes a single argument, the desired stack size in bytes. Example:
 /// ```
-/// stack_size!{0x1000}
+/// kernel::stack_size!{0x1000}
 /// ```
 // stack_size works by putting a symbol equal to the size of the stack in the
 // .stack_buffer section. The linker script uses the .stack_buffer section to
