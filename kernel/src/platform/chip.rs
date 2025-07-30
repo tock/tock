@@ -70,7 +70,7 @@ pub trait Chip {
     unsafe fn print_state(&self, writer: &mut dyn Write);
 }
 
-pub trait ChipThreadId {
+pub unsafe trait ChipThreadId {
     /// Return a unique ID for the currently executing thread.
     fn running_thread_id(&self) -> usize;
 }

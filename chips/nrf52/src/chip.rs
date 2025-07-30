@@ -151,7 +151,7 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for NRF52<'a, I>
     }
 }
 
-impl<'a, I: InterruptService + 'a> kernel::platform::chip::ChipThreadId for NRF52<'a, I> {
+unsafe impl<'a, I: InterruptService + 'a> kernel::platform::chip::ChipThreadId for NRF52<'a, I> {
     fn running_thread_id(&self) -> usize {
         1
     }
