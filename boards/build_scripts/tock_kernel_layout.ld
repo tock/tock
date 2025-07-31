@@ -43,33 +43,26 @@ PAGE_SIZE = DEFINED(PAGE_SIZE) ? PAGE_SIZE : 512;
 
 SECTIONS
 {
-   .stack (NOLOAD) :
-    {
-        /* Kernel stack.
-         *
-         * Tock places the kernel stack at the bottom of SRAM so that the
-         * kernel will trigger memory fault if it exceeds its stack depth,
-         * rather than silently overwriting valuable data.
-         */
-        . = ALIGN(8);
-         _sstack = .;
 
-         /* For GNU LD, we can just advance the location pointer (".") here to
-          * reserve space for the stack. That, however, doesn't seem to work
-          * for LLVM LLD. The resulting ELF has a stack section that shows the
-          * correct size, but the next section (in our case .relocate) is not
-          * moved down as well, instead it sits at the same address as .stack.
-          * To work around this, we declare a dummy buffer and then insert it
-          * here in the .stack section. This sets the stack size correctly and
-          * places the .relocate section at the correct address. */
-         KEEP(*(.stack_buffer))
-         /*. = . + 0x1000;*/  /*This is the original method. */
-
-         . = ALIGN(8);
-         _estack = .;
-    } > ram
-
-
+    
+    /**
+     * The order matters here for the x86 platform.
+     *
+     * We need to make sure that qemu-system-i386 finds the multiboot header within the
+     * first 8K of the ELF. The multiboot header is placed at the beginning of the .text section, so
+     * this section has to be placed first in the file.
+     *
+     * The multiboot header's documentation is available at
+     * https://www.gnu.org/software/grub/manual/multiboot/multiboot.html.
+     * This allows Tock to be booted using a bootloader that supports multiboot v1.
+     * QEMU provides for x86 such a bootloader when used with the `-kernel` flag.
+     *
+     * The bootloader is responsable for loading the kernel into RAM and executing it. Without it,
+     * the Tock kernel should provide a bootloader that starts reading the kernel into RAM.
+     *
+     * This is the reason why the .text section has to be the first.
+     */
+   
     /* STATIC ELEMENTS FOR TOCK KERNEL */
     .text :
     {
@@ -85,6 +78,7 @@ SECTIONS
          *
          * http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/BABIFJFG.html
          */
+
         KEEP(*(.vectors .vectors.*))
         KEEP(*(.irqs))
 
@@ -108,6 +102,9 @@ SECTIONS
         . = DEFINED(_start_trap) ? ALIGN(256) : ALIGN(1);
         KEEP(*(.riscv.trap_vectored));
         KEEP(*(.riscv.trap));
+
+        /* x86 */     
+        KEEP(*(.x86.start))
 
         /* .text and .rodata hold most program code and immutable constants */
         /* .gnu.linkonce hold C++ elements with vague linkage
@@ -222,8 +219,6 @@ SECTIONS
     } > ccfg
 
 
-
-
     /* Kernel data that must be relocated. This is program data that is
      * expected to live in SRAM, but is initialized with a value. This data is
      * physically placed into flash and is copied into SRAM by Tock. The
@@ -264,6 +259,31 @@ SECTIONS
     } > ram
 
 
+   .stack (NOLOAD) :
+    {
+        /* Kernel stack.
+         *
+         * Tock places the kernel stack at the bottom of SRAM so that the
+         * kernel will trigger memory fault if it exceeds its stack depth,
+         * rather than silently overwriting valuable data.
+         */
+        . = ALIGN(8);
+         _sstack = .;
+
+         /* For GNU LD, we can just advance the location pointer (".") here to
+          * reserve space for the stack. That, however, doesn't seem to work
+          * for LLVM LLD. The resulting ELF has a stack section that shows the
+          * correct size, but the next section (in our case .relocate) is not
+          * moved down as well, instead it sits at the same address as .stack.
+          * To work around this, we declare a dummy buffer and then insert it
+          * here in the .stack section. This sets the stack size correctly and
+          * places the .relocate section at the correct address. */
+         KEEP(*(.stack_buffer))
+         /*. = . + 0x1000;*/  /*This is the original method. */
+
+         . = ALIGN(8);
+         _estack = .;
+    } > ram
 
     /* Section for application binaries in flash.
      *
@@ -405,6 +425,15 @@ SECTIONS
 _sattributes = LOADADDR(.attributes);
 _eattributes = LOADADDR(.attributes) + SIZEOF(.attributes);
 _erom = ORIGIN(rom) + LENGTH(rom);
+
+/* Set the ENTRY attribute to the start of the text section, _stext. For RISC-V
+ * this should point to `.riscv.start`, which contains the `_start` symbol. For
+ * Cortex-M, this starts with the interrupt vector table.
+ *
+ * This variable is used by, e.g., QEMU to determine the entrypoint to start
+ * program execution.
+ */
+ENTRY(_stext);
 
 /* This.. this is a dirty, not-fully-understood, hack. In some way, linking is
  * a multi-pass process. i.e., if you were to ASSERT(0, "how many links")

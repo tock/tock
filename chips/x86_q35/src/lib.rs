@@ -23,7 +23,12 @@ pub mod dv_kb;
 pub mod dv_ms;
 mod pic;
 pub mod pit;
+<<<<<<< HEAD
 pub mod ps2;
 pub mod ps2_cmd;
 pub mod ps2_ctl;
+=======
+
+pub mod ps2;
+>>>>>>> ps2-incremental
 pub mod serial;

@@ -12,22 +12,16 @@ extern "C" {
     static _sstack: u8;
 }
 
+/// ARMv7-M systick handler function.
+///
+/// For documentation of this function, please see
+/// [`CortexMVariant::SYSTICK_HANDLER`].
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
-extern "C" {
-    /// ARMv7-M systick handler function.
-    ///
-    /// For documentation of this function, please see
-    /// `CortexMVariant::SYSTICK_HANDLER`.
-    pub fn systick_handler_arm_v7m();
-}
-
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
-core::arch::global_asm!(
-    "
-    .section .systick_handler_arm_v7m, \"ax\"
-    .global systick_handler_arm_v7m
-    .thumb_func
-  systick_handler_arm_v7m:
+#[unsafe(naked)]
+pub unsafe extern "C" fn systick_handler_arm_v7m() {
+    use core::arch::naked_asm;
+    naked_asm!(
+        "
     // Use the CONTROL register to set the thread mode to privileged to switch
     // back to kernel mode.
     //
@@ -51,25 +45,20 @@ core::arch::global_asm!(
     // This will resume in the switch_to_user function where application state
     // is saved and the scheduler can choose what to do next.
     bx lr
-    "
-);
-
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
-extern "C" {
-    /// Handler of `svc` instructions on ARMv7-M.
-    ///
-    /// For documentation of this function, please see
-    /// `CortexMVariant::SVC_HANDLER`.
-    pub fn svc_handler_arm_v7m();
+    ",
+    );
 }
 
+/// Handler of `svc` instructions on ARMv7-M.
+///
+/// For documentation of this function, please see
+/// [`CortexMVariant::SVC_HANDLER`].
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
-core::arch::global_asm!(
-    "
-    .section .svc_handler_arm_v7m, \"ax\"
-    .global svc_handler_arm_v7m
-    .thumb_func
-  svc_handler_arm_v7m:
+#[unsafe(naked)]
+pub unsafe extern "C" fn svc_handler_arm_v7m() {
+    use core::arch::naked_asm;
+    naked_asm!(
+        "
     // First check to see which direction we are going in. If the link register
     // (containing EXC_RETURN) has a 1 in the SPSEL bit (meaning the
     // alternative/process stack was in use) then we are coming from a process
@@ -133,23 +122,19 @@ core::arch::global_asm!(
 
     // Return to the kernel.
     bx lr
-    "
-);
-
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
-extern "C" {
-    /// Generic interrupt handler for ARMv7-M instruction sets.
-    ///
-    /// For documentation of this function, see `CortexMVariant::GENERIC_ISR`.
-    pub fn generic_isr_arm_v7m();
+    ",
+    );
 }
+
+/// Generic interrupt handler for ARMv7-M instruction sets.
+///
+/// For documentation of this function, see [`CortexMVariant::GENERIC_ISR`].
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
-core::arch::global_asm!(
+#[unsafe(naked)]
+pub unsafe extern "C" fn generic_isr_arm_v7m() {
+    use core::arch::naked_asm;
+    naked_asm!(
         "
-    .section .generic_isr_arm_v7m, \"ax\"
-    .global generic_isr_arm_v7m
-    .thumb_func
-  generic_isr_arm_v7m:
     // Use the CONTROL register to set the thread mode to privileged to ensure
     // we are executing as the kernel. This may be redundant if the interrupt
     // happened while the kernel code was executing.
@@ -214,7 +199,9 @@ core::arch::global_asm!(
     // doing. If an app was executing we will switch to the kernel so it can
     // choose whether to service the interrupt.
     bx lr
-    ");
+    ",
+    );
+}
 
 /// Assembly function to switch into userspace and store/restore application
 /// state.
@@ -435,27 +422,21 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
     }
 }
 
+/// ARMv7-M hardfault handler.
+///
+/// For documentation of this function, please see
+/// [`CortexMVariant::HARD_FAULT_HANDLER_HANDLER`].
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
-extern "C" {
-    /// ARMv7-M hardfault handler.
-    ///
-    /// For documentation of this function, please see
-    /// `CortexMVariant::HARD_FAULT_HANDLER_HANDLER`.
-    pub fn hard_fault_handler_arm_v7m();
-}
-
-#[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
-// First need to determine if this a kernel fault or a userspace fault, and store
-// the unmodified stack pointer. Place these values in registers, then call
-// a non-naked function, to allow for use of rust code alongside inline asm.
-// Because calling a function increases the stack pointer, we have to check for a kernel
-// stack overflow and adjust the stack pointer before we branch
-core::arch::global_asm!(
+#[unsafe(naked)]
+pub unsafe extern "C" fn hard_fault_handler_arm_v7m() {
+    use core::arch::naked_asm;
+    // First need to determine if this a kernel fault or a userspace fault, and store
+    // the unmodified stack pointer. Place these values in registers, then call
+    // a non-naked function, to allow for use of rust code alongside inline asm.
+    // Because calling a function increases the stack pointer, we have to check for a kernel
+    // stack overflow and adjust the stack pointer before we branch
+    naked_asm!(
     "
-        .section .hard_fault_handler_arm_v7m, \"ax\"
-        .global hard_fault_handler_arm_v7m
-        .thumb_func
-    hard_fault_handler_arm_v7m:
         mov    r2, 0     // r2 = 0
         tst    lr, #4    // bitwise AND link register to 0b100
         itte   eq        // if lr==4, run next two instructions, else, run 3rd instruction.
@@ -528,7 +509,8 @@ core::arch::global_asm!(
         bx lr",
     estack = sym _estack,
     kernel_hard_fault_handler = sym hard_fault_handler_arm_v7m_kernel,
-);
+    );
+}
 
 // Table 2.5
 // http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/CHDBIBGJ.html

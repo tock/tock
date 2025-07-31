@@ -574,7 +574,7 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
                     count_before - count_after,
                 );
             }
-            count_after - count_before
+            count_before - count_after
         })
     }
 

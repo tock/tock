@@ -245,11 +245,15 @@ negative-feature-names = "allow"
 # NURSERY
 nursery = { level = "deny", priority = -1 }
 
-use_self = "allow"
+# In some cases we mark `pub(crate)` in a module which isn't exposed outside of
+# the crate. This redundancy is OK, and if the module were to be made public
+# for some reason in the future the visibility would transparently change.
+redundant_pub_crate = "allow"
+# Sometimes a `map_or_else()` seems like a better option, but it doesn't always
+# pass the borrow checker. if let/else is more reliable.
 option_if_let_else = "allow"
+# Some OS functions are necessarily complex.
 cognitive_complexity = "allow"
-or_fun_call = "allow"
-collection_is_never_read = "allow"
 
 
 manual_clamp = "allow"
@@ -257,14 +261,14 @@ unused_peekable = "allow"
 branches_sharing_code = "allow"
 
 
+use_self = "allow"
+or_fun_call = "allow"
 missing_const_for_fn = "allow"
-redundant_pub_crate = "allow"
 equatable_if_let = "allow"
 derive_partial_eq_without_eq = "allow"
 empty_line_after_doc_comments = "allow"
 trait_duplication_in_bounds = "allow"
 useless_let_if_seq = "allow"
-as_ptr_cast_mut = "allow"
 
 
 # PEDANTIC

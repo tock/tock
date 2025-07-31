@@ -33,7 +33,10 @@ mod interrupt {
     /// Interrupt number shared by COM1 and COM3 serial devices
     pub(super) const COM1_COM3: u32 = (PIC1_OFFSET as u32) + 4;
 
+<<<<<<< HEAD
     /// Interrupt number for PS/2 keyboard (IRQ1)
+=======
+>>>>>>> ps2-incremental
     pub(super) const KEYBOARD: u32 = (PIC1_OFFSET as u32) + 1;
 }
 
@@ -60,8 +63,12 @@ pub struct Pc<'a, const PR: u16 = RELOAD_1KHZ> {
     /// Legacy PIT timer
     pub pit: Pit<'a, PR>,
 
+<<<<<<< HEAD
     /// PS/2 controller (keyboard/mouse)
     pub ps2: &'a crate::ps2::Ps2Controller<'a>,
+=======
+    pub ps2: &'a crate::ps2::Ps2Controller,
+>>>>>>> ps2-incremental
 
     /// System call context
     syscall: Boundary,
@@ -92,6 +99,7 @@ impl<'a, const PR: u16> Chip for Pc<'a, PR> {
                         self.com1.handle_interrupt();
                         self.com3.handle_interrupt();
                     }
+<<<<<<< HEAD
                     interrupt::KEYBOARD => {
                         let _ = self.ps2.handle_interrupt();
                         // decode + queue KeyEvent
@@ -99,6 +107,14 @@ impl<'a, const PR: u16> Chip for Pc<'a, PR> {
                             KEYBOARD.poll();
                         }
                     }
+=======
+
+                    // new PS/2 keyboard interrupt handler
+                    interrupt::KEYBOARD => {
+                        self.ps2.handle_interrupt();
+                    }
+
+>>>>>>> ps2-incremental
                     _ => unimplemented!("interrupt {num}"),
                 }
 
@@ -180,7 +196,11 @@ impl<'a, const PR: u16> Chip for Pc<'a, PR> {
 pub struct PcComponent<'a> {
     pd: &'a mut PD,
     pt: &'a mut PT,
+<<<<<<< HEAD
     ps2: Option<&'a crate::ps2::Ps2Controller<'a>>,
+=======
+    ps2: Option<&'a crate::ps2::Ps2Controller>,
+>>>>>>> ps2-incremental
 }
 
 impl<'a> PcComponent<'a> {
@@ -198,9 +218,13 @@ impl<'a> PcComponent<'a> {
     pub unsafe fn new(pd: &'a mut PD, pt: &'a mut PT) -> Self {
         Self { pd, pt, ps2: None }
     }
+<<<<<<< HEAD
 
     /// Provide the PS/2 controller instance so `Pc` can dispatch IRQ1.
     pub fn with_ps2(mut self, ps2: &'a crate::ps2::Ps2Controller<'a>) -> Self {
+=======
+    pub fn with_ps2(mut self, ps2: &'a crate::ps2::Ps2Controller) -> Self {
+>>>>>>> ps2-incremental
         self.ps2 = Some(ps2);
         self
     }
@@ -241,7 +265,12 @@ impl Component for PcComponent<'static> {
 
         let syscall = Boundary::new();
 
+<<<<<<< HEAD
         let ps2 = self.ps2.expect("PcComponent.with_ps2 not called");
+=======
+        // debug
+        let ps2 = self.ps2.expect("PcComponent::with_ps2 was not called");
+>>>>>>> ps2-incremental
 
         let pc = s.4.write(Pc {
             com1,
