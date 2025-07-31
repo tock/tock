@@ -170,30 +170,14 @@ unsafe extern "cdecl" fn main() {
         ctrl_mut
     };
 
-<<<<<<< HEAD
-    let kb_val: Keyboard<'static, Ps2Controller> = {
-        let kb = Keyboard::new(ps2_ctrl);
-        kb.init().expect("Keyboard init failed");
-        kb
-    };
-    let slot: *mut Keyboard<'static, Ps2Controller> = core::ptr::addr_of_mut!(KEYBOARD).cast();
-    ptr::write(slot, kb_val);
-
-    // -------- Chip initialisation --------
-=======
     let ps2 = static_init!(Ps2Controller, Ps2Controller::new());
 
     // Basic setup of the i486 platform
->>>>>>> ps2-incremental
     let chip = PcComponent::new(
         &mut *ptr::addr_of_mut!(PAGE_DIR),
         &mut *ptr::addr_of_mut!(PAGE_TABLE),
     )
-<<<<<<< HEAD
-    .with_ps2(ps2_ctrl)
-=======
     .with_ps2(ps2)
->>>>>>> ps2-incremental
     .finalize(x86_q35::x86_q35_component_static!());
 
     // Acquire required capabilities
