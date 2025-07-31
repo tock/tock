@@ -1,14 +1,14 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2024.
+// Copyright Tock Contributors 2025.
 
 //! Shared command‑queue helper for PS/2 host‑to‑device transactions
 //!
 //! Centralises the ACK/RESEND handshake and retry logic required by
 //! LED, typematic‑rate, scan‑set and similar commands.
 
+use crate::ps2::{read_data, wait_input_ready, wait_output_ready, write_data, Ps2Controller};
 use kernel::errorcode::ErrorCode;
-use kernel::hil::ps2_traits::PS2Traits;
 
 /// Maximum number of bytes the command helper supports
 /// (opcode + parameters + response).
@@ -44,8 +44,8 @@ impl Resp {
 /// Send `cmd` (opcode + optional data) and collect `resp_len` bytes.
 /// Automatically retries the entire sequence on `0xFE` (RESEND)
 /// up to 3 times.
-pub fn send<C: PS2Traits>(
-    _ctl: &C, // reference kept for type inference; methods are static
+pub fn send(
+    _ctl: &Ps2Controller, // reference kept for type inference; methods are static
     cmd: &[u8],
     resp_len: usize,
 ) -> Result<Resp, ErrorCode> {
@@ -59,13 +59,13 @@ pub fn send<C: PS2Traits>(
     let _ = _ctl; // suppress unused warning
 
     'retry: loop {
-        // host => device
         for &b in cmd {
-            C::wait_input_ready();
-            C::write_data(b);
+            // drive the concrete controller
+            wait_input_ready();
+            write_data(b);
 
-            C::wait_output_ready();
-            match C::read_data() {
+            wait_output_ready();
+            match read_data() {
                 0xFA => {} // ACK – proceed
                 0xFE => {
                     retries += 1;
@@ -81,8 +81,8 @@ pub fn send<C: PS2Traits>(
         // device => host response
         resp.len = 0; // reset
         for _ in 0..resp_len {
-            C::wait_output_ready();
-            resp.push(C::read_data());
+            wait_output_ready();
+            resp.push(read_data());
         }
         return Ok(resp);
     }

@@ -1,14 +1,14 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Your Name 2024.
+// Copyright Your Name 2025.
 
 //! PS/2 mouse wrapper for the 8042 controller
 
+use crate::ps2::{read_data, wait_input_ready, wait_output_ready, write_data, Ps2Controller};
+use crate::ps2_cmd;
 use core::cell::{Cell, RefCell};
 use core::marker::PhantomData;
 use kernel::errorcode::ErrorCode;
-use kernel::hil::ps2_traits::{MouseEvent, PS2Mouse, PS2Traits};
-
 const RAW_BUF_SIZE: usize = 32; // depth of raw‐byte ring
 const PACKET_BUF_SIZE: usize = 16; // depth of 3‐byte packet ring
 
@@ -18,6 +18,13 @@ struct RawFifo {
     head: usize,
     tail: usize,
     full: bool,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct MouseEvent {
+    pub buttons: u8,
+    pub x_movement: i8,
+    pub y_movement: i8,
 }
 
 impl RawFifo {
@@ -89,8 +96,8 @@ impl PacketFifo {
 }
 
 /// Main PS/2 mouse driver
-pub struct Mouse<'a, C: PS2Traits> {
-    controller: &'a C,
+pub struct Mouse<'a> {
+    controller: &'a Ps2Controller,
     raw: RefCell<RawFifo>,
     packet_fifo: RefCell<PacketFifo>,
     state: Cell<usize>,
@@ -98,8 +105,8 @@ pub struct Mouse<'a, C: PS2Traits> {
     _marker: PhantomData<&'a ()>,
 }
 
-impl<'a, C: PS2Traits> Mouse<'a, C> {
-    pub fn new(controller: &'a C) -> Self {
+impl<'a> Mouse<'a> {
+    pub fn new(controller: &'a Ps2Controller) -> Self {
         Self {
             controller,
             raw: RefCell::new(RawFifo::new()),
@@ -143,25 +150,25 @@ impl<'a, C: PS2Traits> Mouse<'a, C> {
         }
     }
 }
-impl<'a, C: PS2Traits> PS2Mouse for Mouse<'a, C> {
+impl<'a> PS2Mouse for Mouse<'a> {
     /// 1:1 scaling
     fn set_scaling_1_1(&self) -> Result<(), ErrorCode> {
-        crate::ps2_cmd::send::<C>(self.controller, &[0xE6], 0).map(|_| ())
+        ps2_cmd::send(self.controller, &[0xE6], 0).map(|_| ())
     }
 
     /// 2:1 scaling
     fn set_scaling_2_1(&self) -> Result<(), ErrorCode> {
-        crate::ps2_cmd::send::<C>(self.controller, &[0xE7], 0).map(|_| ())
+        ps2_cmd::send(self.controller, &[0xE7], 0).map(|_| ())
     }
 
     /// Resolution (0–3)
     fn set_resolution(&self, res: u8) -> Result<(), ErrorCode> {
-        crate::ps2_cmd::send::<C>(self.controller, &[0xE8, res], 0).map(|_| ())
+        ps2_cmd::send(self.controller, &[0xE8, res], 0).map(|_| ())
     }
 
-    /// Status request → 3‑byte response
+    /// Status request → 3-byte response
     fn status_request(&self) -> Result<[u8; 3], ErrorCode> {
-        let resp = crate::ps2_cmd::send::<C>(self.controller, &[0xE9], 3)?;
+        let resp = ps2_cmd::send(self.controller, &[0xE9], 3)?;
         let mut out = [0u8; 3];
         out.copy_from_slice(resp.as_slice());
         Ok(out)
@@ -174,24 +181,24 @@ impl<'a, C: PS2Traits> PS2Mouse for Mouse<'a, C> {
 
     /// Remote‐mode sample‐rate setter (0xF3)
     fn set_sample_rate(&self, rate: u8) -> Result<(), ErrorCode> {
-        crate::ps2_cmd::send::<C>(self.controller, &[0xF3, rate], 0).map(|_| ())
+        ps2_cmd::send(self.controller, &[0xF3, rate], 0).map(|_| ())
     }
 
     /// Put the device into “streaming” (push on movement)
     fn enable_streaming(&self) -> Result<(), ErrorCode> {
-        crate::ps2_cmd::send::<C>(self.controller, &[0xF4], 0).map(|_| ())
+        ps2_cmd::send(self.controller, &[0xF4], 0).map(|_| ())
     }
 
     /// Halt streaming updates
     fn disable_streaming(&self) -> Result<(), ErrorCode> {
-        crate::ps2_cmd::send::<C>(self.controller, &[0xF5], 0).map(|_| ())
+        ps2_cmd::send(self.controller, &[0xF5], 0).map(|_| ())
     }
 
     /// Reset device and verify self‐test
     fn reset(&self) -> Result<(), ErrorCode> {
-        let resp = crate::ps2_cmd::send::<C>(self.controller, &[0xFF], 2)?;
-        // resp.as_slice() == &[0xFA, 0xAA]
-        if resp.as_slice() == &[0xAA] {
+        let resp = ps2_cmd::send(self.controller, &[0xFF], 2)?;
+        // the controller will ACK (0xFA) then return self‐test code (0xAA)
+        if resp.as_slice() == [0xAA] {
             Ok(())
         } else {
             Err(ErrorCode::FAIL)
