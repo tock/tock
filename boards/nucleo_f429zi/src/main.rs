@@ -193,9 +193,7 @@ unsafe fn setup_dma(
 }
 
 /// Helper function called during bring-up that configures multiplexed I/O.
-unsafe fn set_pin_primary_functions(
-    gpio_ports: &'static stm32f429zi::gpio::GpioPorts<'static>,
-) {
+unsafe fn set_pin_primary_functions(gpio_ports: &'static stm32f429zi::gpio::GpioPorts<'static>) {
     use kernel::hil::gpio::Configure;
 
     gpio_ports.get_port_from_port_id(PortId::B).enable_clock();
@@ -709,8 +707,8 @@ unsafe fn start() -> (
     // ETHERNET
     // Set up hardware receive buffers:
     let receive_buffer = static_init!(
-        [u8; capsules_extra::ethernet_tap::MAX_MTU],
-        [0; capsules_extra::ethernet_tap::MAX_MTU]
+        [u8; stm32f429zi::ethernet::RX_PACKET_LENGTH],
+        [0; stm32f429zi::ethernet::RX_PACKET_LENGTH],
     );
 
     peripherals

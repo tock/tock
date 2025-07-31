@@ -175,16 +175,9 @@ pub const DRIVER_NUM: usize = capsules_core::driver::NUM::EthernetTap as usize;
 /// Maximum size of a frame which can be transmitted over the underlying
 /// [`EthernetAdapterDatapath`] device.
 ///
-/// Currently hard-coded to `align4(1522 - 4)` bytes, for an Ethernet frame with an
-/// 802.1q VLAN tag with a 1500 byte payload MTU, excluding the 4-byte FCS. Some Ethernet DMA
-/// controllers require a frame whose size is a multiple of 4.
-pub const MAX_MTU: usize = 1520;
-
-const _ASSERT_MTU_MULTIPLE_OF_4: () = if MAX_MTU % 4 != 0 {
-    panic!("Some Ethernet DMAs require a frame whose size is a multiple of 4")
-} else {
-    ()
-};
+/// Currently hard-coded to `1522 - 4` bytes, for an Ethernet frame with an
+/// 802.1q VLAN tag with a 1518 byte payload MTU, excluding the 4-byte FCS.
+pub const MAX_MTU: usize = 1518;
 
 mod upcall {
     pub const RX_FRAME: usize = 0;

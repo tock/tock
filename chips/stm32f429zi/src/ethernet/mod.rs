@@ -9,4 +9,4 @@ mod receive_descriptor;
 mod transmit_descriptor;
 pub mod utils;
 
-pub use ethernet::Ethernet;
+pub use ethernet::{Ethernet, RX_PACKET_LENGTH};

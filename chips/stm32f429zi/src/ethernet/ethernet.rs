@@ -759,6 +759,7 @@ pub struct Ethernet<'a> {
 }
 
 const DEFAULT_MAC_ADDRESS: MacAddress = MacAddress::new([0xD4, 0x5D, 0x64, 0x62, 0x95, 0x1A]);
+pub const RX_PACKET_LENGTH: usize = 1500;
 
 impl<'a> Ethernet<'a> {
     /// Ethernet constructor
