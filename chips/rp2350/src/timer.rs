@@ -15,27 +15,24 @@ use crate::interrupts::TIMER0_IRQ_0;
 
 register_structs! {
     /// Controls time and alarms
-    /// time is a 64 bit value indicating the time since power-on
-    /// timeh is the top 32 bits of time & timel is the bottom 32 bits to ch
-    /// An alarm is set by setting alarm_enable and writing to the correspon
     TimerRegisters {
         /// Write to bits 63:32 of time always write timelw before timehw
         (0x000 => timehw: ReadWrite<u32>),
-        /// Write to bits 31:0 of time writes do not get copied to time until timehw is writ
+        /// Write to bits 31:0 of time writes do not get copied to time until timehw is written
         (0x004 => timelw: ReadWrite<u32>),
         /// Read from bits 63:32 of time always read timelr before timehr
         (0x008 => timehr: ReadWrite<u32>),
         /// Read from bits 31:0 of time
         (0x00C => timelr: ReadWrite<u32>),
-        /// Arm alarm 0, and configure the time it will fire. Once armed, the alarm fires wh
+        /// Arm alarm 0, and configure the time it will fire. Once armed, the alarm fires when TIMER_ALARM0 == TIMELR. The alarm will disarm itself once it fires, and can be disarmed early using the ARMED status register.
         (0x010 => alarm0: ReadWrite<u32>),
-        /// Arm alarm 1, and configure the time it will fire. Once armed, the alarm fires wh
+        /// Arm alarm 1, and configure the time it will fire. Once armed, the alarm fires when TIMER_ALARM1 == TIMELR. The alarm will disarm itself once it fires, and can be disarmed early using the ARMED status register.
         (0x014 => alarm1: ReadWrite<u32>),
-        /// Arm alarm 2, and configure the time it will fire. Once armed, the alarm fires wh
+        /// Arm alarm 2, and configure the time it will fire. Once armed, the alarm fires when TIMER_ALARM2 == TIMELR. The alarm will disarm itself once it fires, and can be disarmed early using the ARMED status register.
         (0x018 => alarm2: ReadWrite<u32>),
-        /// Arm alarm 3, and configure the time it will fire. Once armed, the alarm fires wh
+        /// Arm alarm 3, and configure the time it will fire. Once armed, the alarm fires when TIMER_ALARM3 == TIMELR. The alarm will disarm itself once it fires, and can be disarmed early using the ARMED status register.
         (0x01C => alarm3: ReadWrite<u32>),
-        /// Indicates the armed/disarmed status of each alarm. A write to the corresponding
+        /// Indicates the armed/disarmed status of each alarm. A write to the corresponding ALARMx register arms the alarm. Alarms automatically disarm upon firing, but writing ones here will disarm immediately without waiting to fire.
         (0x020 => armed: ReadWrite<u32>),
         /// Raw read from bits 63:32 of time (no side effects)
         (0x024 => timerawh: ReadWrite<u32>),
@@ -45,9 +42,9 @@ register_structs! {
         (0x02C => dbgpause: ReadWrite<u32, DBGPAUSE::Register>),
         /// Set high to pause the timer
         (0x030 => pause: ReadWrite<u32>),
-        /// Set locked bit to disable write access to timer Once set, cannot be cleared (wit
+        /// Set locked bit to disable write access to timer Once set, cannot be cleared (without a reset)
         (0x034 => locked: ReadWrite<u32>),
-        /// Selects the source for the timer. Defaults to the normal tick configured in the
+        /// Selects the source for the timer. Defaults to the normal tick configured in the ticks block (typically configured to 1 microsecond). Writing to 1 will ignore the tick and count clk_sys cycles instead.
         (0x038 => source: ReadWrite<u32>),
         /// Raw Interrupts
         (0x03C => intr: ReadWrite<u32, INTR::Register>),
