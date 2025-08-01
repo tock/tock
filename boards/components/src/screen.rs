@@ -32,11 +32,99 @@
 
 use capsules_extra::screen::Screen;
 use capsules_extra::screen_shared::ScreenShared;
+use capsules_extra::virtual_screen_split;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::create_capability;
 use kernel::hil;
+
+#[macro_export]
+macro_rules! screen_split_mux_component_static {
+    ($S:ty $(,)?) => {{
+        kernel::static_buf!(capsules_extra::virtual_screen_split::ScreenSplitMux<'static, $S>)
+    };};
+}
+
+#[macro_export]
+macro_rules! screen_split_user_component_static {
+    ($S:ty $(,)?) => {{
+        kernel::static_buf!(capsules_extra::virtual_screen_split::ScreenSplitUser<'static, $S>)
+    };};
+}
+
+pub type ScreenSplitMuxComponentType<S> = virtual_screen_split::ScreenSplitMux<'static, S>;
+
+pub struct ScreenSplitMuxComponent<S: hil::screen::Screen<'static> + 'static> {
+    screen: &'static S,
+}
+
+impl<S: hil::screen::Screen<'static>> ScreenSplitMuxComponent<S> {
+    pub fn new(screen: &'static S) -> Self {
+        Self { screen }
+    }
+}
+
+impl<S: hil::screen::Screen<'static> + 'static> Component for ScreenSplitMuxComponent<S> {
+    type StaticInput = &'static mut MaybeUninit<virtual_screen_split::ScreenSplitMux<'static, S>>;
+    type Output = &'static virtual_screen_split::ScreenSplitMux<'static, S>;
+
+    fn finalize(self, static_input: Self::StaticInput) -> Self::Output {
+        let mux = static_input.write(virtual_screen_split::ScreenSplitMux::new(self.screen));
+
+        kernel::hil::screen::Screen::set_client(self.screen, mux);
+        kernel::deferred_call::DeferredCallClient::register(mux);
+
+        mux
+    }
+}
+
+pub type ScreenSplitUserComponentType<S> = virtual_screen_split::ScreenSplitUser<'static, S>;
+
+pub struct ScreenSplitUserComponent<S: hil::screen::Screen<'static> + 'static> {
+    mux: &'static virtual_screen_split::ScreenSplitMux<'static, S>,
+    x: usize,
+    y: usize,
+    width: usize,
+    height: usize,
+}
+
+impl<S: hil::screen::Screen<'static>> ScreenSplitUserComponent<S> {
+    pub fn new(
+        mux: &'static virtual_screen_split::ScreenSplitMux<'static, S>,
+        x: usize,
+        y: usize,
+        width: usize,
+        height: usize,
+    ) -> Self {
+        Self {
+            mux,
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+}
+
+impl<S: hil::screen::Screen<'static> + 'static> Component for ScreenSplitUserComponent<S> {
+    type StaticInput = &'static mut MaybeUninit<virtual_screen_split::ScreenSplitUser<'static, S>>;
+    type Output = &'static virtual_screen_split::ScreenSplitUser<'static, S>;
+
+    fn finalize(self, static_input: Self::StaticInput) -> Self::Output {
+        let split = static_input.write(virtual_screen_split::ScreenSplitUser::new(
+            self.mux,
+            self.x,
+            self.y,
+            self.width,
+            self.height,
+        ));
+
+        split.add_to_mux();
+
+        split
+    }
+}
 
 #[macro_export]
 macro_rules! screen_component_static {
