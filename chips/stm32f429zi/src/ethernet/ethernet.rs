@@ -759,6 +759,7 @@ pub struct Ethernet<'a> {
 }
 
 const DEFAULT_MAC_ADDRESS: MacAddress = MacAddress::new([0xD4, 0x5D, 0x64, 0x62, 0x95, 0x1A]);
+pub const RX_PACKET_LENGTH: usize = 1500;
 
 impl<'a> Ethernet<'a> {
     /// Ethernet constructor
@@ -1397,7 +1398,6 @@ impl<'a> Ethernet<'a> {
         Ok(())
     }
 
-    #[allow(dead_code)]
     // When a standard HIL will be implemented, this method will be used
     fn disable_dma_reception(&self) -> Result<(), ErrorCode> {
         if self.get_receive_process_state() != DmaReceiveProcessState::Suspended {
@@ -1642,7 +1642,6 @@ impl<'a> Ethernet<'a> {
         Err(ErrorCode::BUSY)
     }
 
-    #[allow(dead_code)]
     // When a standard HIL will be implemented, this method will be used
     fn disable_receiver(&self) -> Result<(), ErrorCode> {
         self.disable_dma_reception()?;
@@ -1684,7 +1683,6 @@ impl<'a> Ethernet<'a> {
 
     fn handle_normal_interrupt(&self) {
         if self.did_transmit_interrupt_occur() {
-            self.clear_transmit_interrupt();
             self.client.map(|client| {
                 client.transmit_frame_done(
                     Ok(()),
@@ -1694,10 +1692,10 @@ impl<'a> Ethernet<'a> {
                     None,
                 )
             });
+            self.clear_transmit_interrupt();
         } else if self.did_transmit_buffer_unavailable_interrupt_occur() {
             self.clear_transmit_buffer_unavailable_interrupt();
         } else if self.did_receive_interrupt_occur() {
-            self.clear_receive_interrupt();
             self.client.map(|client| {
                 let received_packet = self.received_packet.take().unwrap();
                 client.received_frame(received_packet, None);
@@ -1705,6 +1703,7 @@ impl<'a> Ethernet<'a> {
             });
             // Receive the following packet
             assert_eq!(Ok(()), self.receive_packet());
+            self.clear_receive_interrupt();
         } else if self.did_early_receive_interrupt_occur() {
             self.clear_early_receive_interrupt();
         }
@@ -1813,6 +1812,8 @@ impl<'a> EthernetAdapterDatapath<'a> for Ethernet<'a> {
         // a Result!
         self.enable_receiver()
             .expect("Failed to enable Ethernet receive path!");
+        self.receive_packet()
+            .expect("Failed to start receiving a packet!");
     }
 
     fn disable_receive(&self) {

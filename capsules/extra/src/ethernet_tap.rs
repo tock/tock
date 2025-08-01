@@ -115,13 +115,10 @@
 //!
 //! ## Subscribe-type system calls
 //!
-//! - **Upcall `0`**: _(currently not supported)_ Register an upcall to be
-//!   informed when the driver was released by another process.
-//!
-//! - **Upcall `1`**: Register an upcall to be called when one or more frames
+//! - **Upcall `0`**: Register an upcall to be called when one or more frames
 //!   have been placed into the receive [`StreamingProcessSlice`].
 //!
-//! - **Upcall `2`**: Register an upcall to be called when a frame transmission
+//! - **Upcall `1`**: Register an upcall to be called when a frame transmission
 //!   has been completed.
 //!
 //!   Upcall arguments:

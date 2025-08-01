@@ -16,6 +16,7 @@ use capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm;
 use components::gpio::GpioComponent;
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::hil::ethernet::EthernetAdapterDatapath;
 use kernel::hil::led::LedHigh;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessArray;
@@ -49,7 +50,7 @@ const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
 #[link_section = ".stack_buffer"]
-static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
+static mut STACK_MEMORY: [u8; 0x3000] = [0; 0x3000];
 
 //------------------------------------------------------------------------------
 // SYSCALL DRIVER TYPE DEFINITIONS
@@ -192,13 +193,8 @@ unsafe fn setup_dma(
 }
 
 /// Helper function called during bring-up that configures multiplexed I/O.
-unsafe fn set_pin_primary_functions(
-    syscfg: &stm32f429zi::syscfg::Syscfg,
-    gpio_ports: &'static stm32f429zi::gpio::GpioPorts<'static>,
-) {
+unsafe fn set_pin_primary_functions(gpio_ports: &'static stm32f429zi::gpio::GpioPorts<'static>) {
     use kernel::hil::gpio::Configure;
-
-    syscfg.enable_clock();
 
     gpio_ports.get_port_from_port_id(PortId::B).enable_clock();
 
@@ -371,10 +367,7 @@ fn setup_ethernet(peripherals: &Stm32f429ziDefaultPeripherals) {
     setup_clocks_for_ethernet(&peripherals.stm32f4.clocks);
     let ethernet = &peripherals.ethernet;
     assert_eq!(Ok(()), ethernet.init());
-    // TODO: Remove these calls once Transmit and Receive HILs are implemented
     assert_eq!(Ok(()), ethernet.enable_transmitter());
-    assert_eq!(Ok(()), ethernet.enable_receiver());
-    assert_eq!(Ok(()), peripherals.ethernet.receive_packet());
 }
 
 /// This is in a separate, inline(never) function so that its stack frame is
@@ -399,6 +392,7 @@ unsafe fn start() -> (
         stm32f429zi::syscfg::Syscfg,
         stm32f429zi::syscfg::Syscfg::new(clocks)
     );
+    syscfg.enable_clock();
     syscfg.configure_ethernet_interface_mode(EthernetInterface::RMII);
 
     let exti = static_init!(
@@ -422,7 +416,7 @@ unsafe fn start() -> (
         &peripherals.rtc,
     );
 
-    set_pin_primary_functions(syscfg, &base_peripherals.gpio_ports);
+    set_pin_primary_functions(&base_peripherals.gpio_ports);
 
     setup_dma(
         dma1,
@@ -712,8 +706,8 @@ unsafe fn start() -> (
     // ETHERNET
     // Set up hardware receive buffers:
     let receive_buffer = static_init!(
-        [u8; capsules_extra::ethernet_tap::MAX_MTU],
-        [0; capsules_extra::ethernet_tap::MAX_MTU]
+        [u8; stm32f429zi::ethernet::RX_PACKET_LENGTH],
+        [0; stm32f429zi::ethernet::RX_PACKET_LENGTH],
     );
 
     peripherals
@@ -741,6 +735,8 @@ unsafe fn start() -> (
             tap_transmit_buffer,
         )
     );
+
+    peripherals.ethernet.set_client(tap_ethernet);
 
     // PROCESS CONSOLE
     let process_console = components::process_console::ProcessConsoleComponent::new(
@@ -792,6 +788,7 @@ unsafe fn start() -> (
     // 180000 now. Also, this must be done late in the process to not impact the initialization of
     // other peripherals.
     setup_ethernet(&peripherals);
+    tap_ethernet.initialize();
 
     debug!("Initialization complete. Entering main loop");
 
