@@ -6,7 +6,7 @@
 
 FLASHID=--dev-id="0403:6010"
 RISC_PREFIX ?= riscv64-linux-gnu
-QEMU ?= ../../../tools/qemu/build/qemu-system-riscv32
+QEMU ?= ../../../tools/ci/qemu/build/qemu-system-riscv32
 # Override for the entry point
 # This offset is calculated (from the linker file) as:
 # ORIGIN(rom) + size_manifest = 0x20000000 + 0x400

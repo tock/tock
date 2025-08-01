@@ -11,7 +11,7 @@
 ##
 
 # First, need to fill out some variables that the Makefile will use
-$(eval ALL_BOARDS := $(shell ./tools/list_boards.sh))
+$(eval ALL_BOARDS := $(shell ./tools/build/list_boards.sh))
 
 # Force the Shell to be bash as some systems have strange default shells
 SHELL := bash
@@ -135,7 +135,7 @@ endef
 ## Aggregate targets
 .PHONY: allaudit audit
 allaudit audit:
-	@for f in `./tools/list_lock.sh`;\
+	@for f in `./tools/build/list_lock.sh`;\
 		do echo "$$(tput bold)Auditing $$f";\
 		(cd "$$f" && cargo audit || exit 1);\
 		done
@@ -167,7 +167,7 @@ allstack stack stack-analysis:
 .PHONY: licensecheck
 licensecheck:
 	$(call banner,License checker)
-	@cargo run --manifest-path=tools/license-checker/Cargo.toml --release
+	@cargo run --manifest-path=tools/ci/license-checker/Cargo.toml --release
 
 ## Commands
 .PHONY: clean
@@ -175,7 +175,7 @@ clean:
 	@echo "$$(tput bold)Clean top-level Cargo workspace" && cargo clean
 	@echo "$$(tput bold)Clean tools Cargo workspace" && cargo clean --manifest-path tools/Cargo.toml
 	@echo "$$(tput bold)Clean rustdoc" && rm -rf doc/rustdoc
-	@echo "$$(tput bold)Clean ci-artifacts" && rm -rf tools/ci-artifacts
+	@echo "$$(tput bold)Clean ci-artifacts" && rm -rf tools/ci/ci-artifacts
 
 .PHONY: fmt format
 fmt format:
@@ -185,7 +185,7 @@ fmt format:
 .PHONY: format-check
 format-check:
 	$(call banner,Formatting checker)
-	@./tools/check_format.sh
+	@./tools/ci/check_format.sh
 	$(call banner,Check for formatting complete)
 
 .PHONY: list
@@ -330,7 +330,7 @@ ci-runner-github-qemu:\
 	$(call banner,CI-Runner: GitHub qemu runner DONE)
 
 
-#n.b. netlify calls tools/netlify-build.sh, which is a wrapper
+#n.b. netlify calls tools/ci/netlify-build.sh, which is a wrapper
 #     that first installs toolchains, then calls this.
 .PHONY: ci-runner-netlify
 ci-runner-netlify:\
@@ -374,7 +374,7 @@ ci-setup-markdown-toc:
 
 define ci_job_markdown_toc
 	$(call banner,CI-Job: Markdown Table of Contents Validation)
-	@NOWARNINGS=true PATH="node_modules/.bin:${PATH}" tools/toc.sh
+	@NOWARNINGS=true PATH="node_modules/.bin:${PATH}" tools/ci/toc.sh
 endef
 
 .PHONY: ci-job-markdown-toc
@@ -383,9 +383,9 @@ ci-job-markdown-toc: ci-setup-markdown-toc
 
 define ci_job_readme_check
 	$(call banner,CI-Job: README Validation)
-	tools/check_boards_readme.py
-	tools/check_capsule_readme.py
-	tools/check-for-readmes.sh
+	tools/ci/check-boards-readme.py
+	tools/ci/check-capsule-readme.py
+	tools/ci/check-for-readmes.sh
 endef
 
 .PHONY: ci-job-readme-check
@@ -460,11 +460,11 @@ ci-job-collect-artifacts: ci-job-compilation
 	#
 	# This is currently used only for code size detection changes, but in
 	# the future may also be used to support checks for deterministic builds.
-	@rm -rf "tools/ci-artifacts"
-	@mkdir tools/ci-artifacts
+	@rm -rf "tools/ci/ci-artifacts"
+	@mkdir tools/ci/ci-artifacts
 	@for f in $$(find target -iname '*.bin' | grep -E "release/.*\.bin");\
-		do mkdir -p "tools/ci-artifacts/$$(dirname $$f)";\
-		cp "$$f" "tools/ci-artifacts/$$f";\
+		do mkdir -p "tools/ci/ci-artifacts/$$(dirname $$f)";\
+		cp "$$f" "tools/ci/ci-artifacts/$$f";\
 		done
 
 
@@ -482,7 +482,7 @@ ci-job-libraries:
 .PHONY: ci-job-archs
 ci-job-archs:
 	$(call banner,CI-Job: Archs)
-	@for arch in `./tools/list_archs.sh`;\
+	@for arch in `./tools/build/list_archs.sh`;\
 		do echo "$$(tput bold)Test $$arch";\
 		cd arch/$$arch;\
 		NOWARNINGS=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test || exit 1;\
@@ -505,7 +505,7 @@ ci-job-capsules:
 .PHONY: ci-job-chips
 ci-job-chips:
 	$(call banner,CI-Job: Chips)
-	@for chip in `./tools/list_chips.sh`;\
+	@for chip in `./tools/build/list_chips.sh`;\
 		do echo "$$(tput bold)Test $$chip";\
 		cd chips/$$chip;\
 		NOWARNINGS=true RUSTFLAGS="-D warnings" TOCK_KERNEL_VERSION=ci_test cargo test || exit 1;\
@@ -558,11 +558,11 @@ ci-job-miri:
 	@# Hangs forever during `Building` for this one :shrug:
 	@#cd libraries/tock-register-interface && NOWARNINGS=true cargo miri test
 	@cd kernel && NOWARNINGS=true cargo miri test
-	@for a in $$(tools/list_archs.sh); do cd arch/$$a && NOWARNINGS=true cargo miri test && cd ../..; done
+	@for a in $$(tools/build/list_archs.sh); do cd arch/$$a && NOWARNINGS=true cargo miri test && cd ../..; done
 	@cd capsules/core && NOWARNINGS=true cargo miri test
 	@cd capsules/extra && NOWARNINGS=true cargo miri test
 	@cd capsules/system && NOWARNINGS=true cargo miri test
-	@for c in $$(tools/list_chips.sh); do cd chips/$$c && NOWARNINGS=true cargo miri test && cd ../..; done
+	@for c in $$(tools/build/list_chips.sh); do cd chips/$$c && NOWARNINGS=true cargo miri test && cd ../..; done
 
 
 .PHONY: ci-job-cargo-test-build
@@ -583,17 +583,17 @@ define ci_setup_qemu_riscv
 	$(call banner,CI-Setup: Build QEMU)
 	@# Use the latest QEMU as it has OpenTitan support
 	@printf "Building QEMU, this could take a few minutes\n\n"
-	@git clone https://github.com/qemu/qemu ./tools/qemu 2>/dev/null || echo "qemu already cloned, checking out"
-	@cd tools/qemu; git checkout ${QEMU_COMMIT_HASH}; ../qemu/configure --target-list=riscv32-softmmu --disable-linux-io-uring --disable-libdaxctl;
+	@git clone https://github.com/qemu/qemu ./tools/ci/qemu 2>/dev/null || echo "qemu already cloned, checking out"
+	@cd tools/ci/qemu; git checkout ${QEMU_COMMIT_HASH}; ../qemu/configure --target-list=riscv32-softmmu --disable-linux-io-uring --disable-libdaxctl;
 	@# Build qemu
-	@$(MAKE) -C "tools/qemu/build" -j2 || (echo "You might need to install some missing packages" || exit 127)
+	@$(MAKE) -C "tools/ci/qemu/build" -j2 || (echo "You might need to install some missing packages" || exit 127)
 endef
 
 .PHONY: ci-setup-qemu
 ci-setup-qemu:
 	$(call ci_setup_helper,\
-		[[ $$(git -C ./tools/qemu rev-parse HEAD 2>/dev/null || echo 0) == "${QEMU_COMMIT_HASH}" ]] && \
-			cd tools/qemu/build && make -q riscv32-softmmu && echo yes,\
+		[[ $$(git -C ./tools/ci/qemu rev-parse HEAD 2>/dev/null || echo 0) == "${QEMU_COMMIT_HASH}" ]] && \
+			cd tools/ci/qemu/build && make -q riscv32-softmmu && echo yes,\
 		Clone QEMU and run its build scripts,\
 		ci_setup_qemu_riscv,\
 		CI_JOB_QEMU_RISCV)
@@ -601,11 +601,11 @@ ci-setup-qemu:
 
 define ci_job_qemu
 	$(call banner,CI-Job: QEMU)
-	@cd tools/qemu-runner;\
-		PATH="$(shell pwd)/tools/qemu/build/:${PATH}"\
+	@cd tools/ci/qemu-runner;\
+		PATH="$(shell pwd)/tools/ci/qemu/build/:${PATH}"\
 		NOWARNINGS=true cargo run
 	@cd boards/opentitan/earlgrey-cw310;\
-		PATH="$(shell pwd)/tools/qemu/build/:${PATH}"\
+		PATH="$(shell pwd)/tools/ci/qemu/build/:${PATH}"\
 		make test
 endef
 
@@ -619,7 +619,7 @@ ci-job-qemu: ci-setup-qemu
 .PHONY: ci-job-rustdoc
 ci-job-rustdoc:
 	$(call banner,CI-Job: Rustdoc Documentation)
-	@NOWARNINGS=true tools/build-all-docs.sh
+	@NOWARNINGS=true tools/build/build_all_docs.sh
 
 ## End CI rules
 ##
@@ -627,5 +627,5 @@ ci-job-rustdoc:
 
 .PHONY: board-release-test
 board-release-test:
-	@cd tools/board-runner;\
+	@cd tools/ci/board-runner;\
 		cargo run ${TARGET}

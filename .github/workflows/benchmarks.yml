@@ -36,4 +36,4 @@ jobs:
           sudo apt install llvm
       - name: size report
         run: |
-          ./tools/github_actions_size_changes.sh
+          ./tools/ci/github_actions_size_changes.sh

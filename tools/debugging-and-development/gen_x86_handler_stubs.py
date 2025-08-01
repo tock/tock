@@ -19,7 +19,7 @@ import sys
 DEFAULT_STUB_FILE = os.path.normpath(
     os.path.join(
         os.path.dirname(__file__),
-        "../arch/x86/src/interrupts/handler_stubs.rs",
+        "../../arch/x86/src/interrupts/handler_stubs.rs",
     )
 )
 
