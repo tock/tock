@@ -309,10 +309,10 @@ unsafe fn start() -> (
     for (i, virtio_device) in peripherals.virtio_mmio.iter().enumerate() {
         use qemu_rv32_virt_chip::virtio::devices::VirtIODeviceType;
         match virtio_device.query() {
-            Some(VirtIODeviceType::NetworkCard) => {
+            Ok(VirtIODeviceType::NetworkCard) => {
                 virtio_net_idx = Some(i);
             }
-            Some(VirtIODeviceType::EntropySource) => {
+            Ok(VirtIODeviceType::EntropySource) => {
                 virtio_rng_idx = Some(i);
             }
             _ => (),

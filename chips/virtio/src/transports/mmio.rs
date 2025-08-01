@@ -160,13 +160,17 @@ impl VirtIOMMIODevice {
         }
     }
 
-    /// Partial initialization routine as per 4.2.3.1 MMIO-specific
-    /// device initialization
+    /// Partial initialization routine as per 4.2.3.1 MMIO-specific device
+    /// initialization
     ///
-    /// This can be used to query the VirtIO transport information
-    /// (e.g. whether it's a supported transport and the attached
-    /// device)
-    pub fn query(&self) -> Option<VirtIODeviceType> {
+    /// This can be used to query the VirtIO transport information (e.g. whether
+    /// it's a supported transport and the attached device).
+    ///
+    /// Returns `Ok(VirtIODeviceType)` if this MMIO device instance hosts a
+    /// known VirtIO device type, and `Err(device_id: u32)` with the raw device
+    /// ID otherwise. A device ID of `0` indicates that no active VirtIO device
+    /// is present at this MMIO address currently.
+    pub fn query(&self) -> Result<VirtIODeviceType, u32> {
         // Verify that we are talking to a VirtIO MMIO device...
         if self.regs.magic_value.get() != u32::from_le_bytes(VIRTIO_MAGIC_VALUE) {
             panic!("Not a VirtIO MMIO device");
@@ -181,7 +185,11 @@ impl VirtIOMMIODevice {
         }
 
         // Extract the device type
-        VirtIODeviceType::from_device_id(self.regs.device_id.get())
+        let device_id = self.regs.device_id.get();
+
+        // Try to decode the device ID into a `VirtIODeviceType`, and otherwise
+        // return the raw device ID number in the `Err` variant.
+        VirtIODeviceType::from_device_id(device_id).ok_or(device_id)
     }
 }
 
