@@ -367,7 +367,6 @@ fn setup_ethernet(peripherals: &Stm32f429ziDefaultPeripherals) {
     setup_clocks_for_ethernet(&peripherals.stm32f4.clocks);
     let ethernet = &peripherals.ethernet;
     assert_eq!(Ok(()), ethernet.init());
-    // TODO: Remove this call once Transmit HIL is implemented
     assert_eq!(Ok(()), ethernet.enable_transmitter());
 }
 

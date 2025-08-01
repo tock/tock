@@ -176,7 +176,7 @@ pub const DRIVER_NUM: usize = capsules_core::driver::NUM::EthernetTap as usize;
 /// [`EthernetAdapterDatapath`] device.
 ///
 /// Currently hard-coded to `1522 - 4` bytes, for an Ethernet frame with an
-/// 802.1q VLAN tag with a 1518 byte payload MTU, excluding the 4-byte FCS.
+/// 802.1q VLAN tag with a 1500 byte payload MTU, excluding the 4-byte FCS.
 pub const MAX_MTU: usize = 1518;
 
 mod upcall {
