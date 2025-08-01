@@ -66,6 +66,24 @@ macro_rules! count_expressions {
     ($head:expr, $($tail:expr),* $(,)?) => (1usize + count_expressions!($($tail),*));
 }
 
+/// Executables must specify their stack size by using the `stack_size!` macro.
+/// It takes a single argument, the desired stack size in bytes. Example:
+/// ```
+/// kernel::stack_size!{0x1000}
+/// ```
+// stack_size works by putting a symbol equal to the size of the stack in the
+// .stack_buffer section. The linker script uses the .stack_buffer section to
+// size the stack.
+#[macro_export]
+macro_rules! stack_size {
+    {$size:expr} => {
+        /// Size to allocate for the stack.
+        #[no_mangle]
+        #[link_section = ".stack_buffer"]
+        static mut STACK_MEMORY: [u8; $size] = [0; $size];
+    }
+}
+
 /// Compute a POSIX-style CRC32 checksum of a slice.
 ///
 /// Online calculator: <https://crccalc.com/>
