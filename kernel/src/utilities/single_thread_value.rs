@@ -101,8 +101,7 @@ use crate::utilities::cells::OptionalCell;
 // generally.
 pub struct SingleThreadValue<T> {
     value: T,
-    thread_id: OptionalCell<usize>,
-    running_thread_id_fn: OptionalCell<fn() -> usize>,
+    thread_id_and_fn: OptionalCell<(fn() -> usize, usize)>,
 }
 
 impl<T> SingleThreadValue<T> {
@@ -117,8 +116,7 @@ impl<T> SingleThreadValue<T> {
     pub const fn new(value: T) -> Self {
         Self {
             value,
-            thread_id: OptionalCell::empty(),
-            running_thread_id_fn: OptionalCell::empty(),
+            thread_id_and_fn: OptionalCell::empty(),
         }
     }
 
@@ -128,9 +126,9 @@ impl<T> SingleThreadValue<T> {
     /// This method is used to determine if an attempted access is permitted or
     /// not.
     pub fn set_chip<C: crate::platform::chip::ChipThreadId>(&self) {
-        if self.thread_id.is_none() {
-            self.running_thread_id_fn.set(C::running_thread_id);
-            self.thread_id.set(C::running_thread_id());
+        if self.thread_id_and_fn.is_none() {
+            self.thread_id_and_fn
+                .set((C::running_thread_id, C::running_thread_id()));
         }
     }
 
@@ -145,17 +143,16 @@ impl<T> SingleThreadValue<T> {
     where
         F: FnOnce(Option<&T>) -> R,
     {
-        f(self
-            .running_thread_id_fn
-            .map_or(None, |running_thread_id_fn| {
-                self.thread_id.map_or(None, |thread_id| {
-                    if (running_thread_id_fn)() == thread_id {
-                        Some(&self.value)
-                    } else {
-                        None
-                    }
-                })
-            }))
+        f(self.thread_id_and_fn.map_or(
+            None,
+            |(running_thread_id_fn, initialized_for_thread_id)| {
+                if (running_thread_id_fn)() == initialized_for_thread_id {
+                    Some(&self.value)
+                } else {
+                    None
+                }
+            },
+        ))
     }
 
     /// Acquire a reference to the wrapped value only if permitted.
@@ -167,13 +164,12 @@ impl<T> SingleThreadValue<T> {
     where
         F: FnOnce(&T),
     {
-        self.running_thread_id_fn.map(|running_thread_id_fn| {
-            self.thread_id.map(|thread_id| {
-                if (running_thread_id_fn)() == thread_id {
+        self.thread_id_and_fn
+            .map(|(running_thread_id_fn, initialized_for_thread_id)| {
+                if (running_thread_id_fn)() == initialized_for_thread_id {
                     f(&self.value);
                 }
             });
-        });
     }
 }
 
