@@ -162,12 +162,6 @@ unsafe impl<'a, I: InterruptService + 'a> kernel::platform::chip::ChipThreadId f
         //
         // This accesses low-level arch registers with assembly. It is safe
         // because we are only reading a status register.
-        unsafe {
-            if cortexm4f::support::is_interrupt_context() {
-                1
-            } else {
-                0
-            }
-        }
+        unsafe { cortexm4f::support::is_interrupt_context() as usize }
     }
 }
