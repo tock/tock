@@ -120,16 +120,57 @@ impl<T> SingleThreadValue<T> {
         }
     }
 
+    fn fence_acquire() {
+        // "Compiler fence" with Acquire memory ordering, to order this
+        // operation after a store operation with Release memory ordering.
+        //
+        // In essence, this serves to make previous writes by `set_chip` visible
+        // to the subsequent read of `thread_id_and_fn`.
+        //
+        // We can't use an actual `core::sync::atomic::fence` operation, as that
+        // is not sufficient to establish a happens-before relation when used
+        // with non-atomic operations.
+        unsafe { core::arch::asm!("", options(nostack, preserves_flags)) };
+    }
+
+    fn fence_release() {
+        // "Compiler fence" with Release memory ordering, establishing a
+        // happens-before relation with a subsequent ference with Release
+        // ordering. In essence, this serves to make any writes by the above
+        // visible to subsequent reads of `thread_id_and_fn`.
+        //
+        // We can't use an actual `core::sync::atomic::fence` operation, as that
+        // is not sufficient to establish a happens-before relation when used
+        // with non-atomic operations.
+        unsafe { core::arch::asm!("", options(nostack, preserves_flags)) };
+    }
+
     /// Assign the [`ChipThreadId`] implementation.
     ///
     /// This stores the method that can identify the currently executing thread.
     /// This method is used to determine if an attempted access is permitted or
     /// not.
-    pub fn set_chip<C: crate::platform::chip::ChipThreadId>(&self) {
+    ///
+    /// # Safety
+    ///
+    /// Callers of this function must ensure that there are no concurrent calls
+    /// to any functions that access (read or write) the internal fields of this
+    /// struct storing the thread ID this type is initialized for, and the
+    /// function pointer used to obtain this thread ID. This includes the
+    /// `set_chip` function itself, as well as all other methods that check the
+    /// thread ID, such as `with` and `with_valid`.
+    ///
+    /// A simple way to maintain this guarantee is to only ever call this
+    /// function once, before any other uses (reads / writes) of this type.
+    pub unsafe fn set_chip<C: crate::platform::chip::ChipThreadId>(&self) {
+        Self::fence_acquire();
+
         if self.thread_id_and_fn.is_none() {
             self.thread_id_and_fn
                 .set((C::running_thread_id, C::running_thread_id()));
         }
+
+        Self::fence_release();
     }
 
     /// Attempt to acquire a reference to the wrapped value.
@@ -143,6 +184,8 @@ impl<T> SingleThreadValue<T> {
     where
         F: FnOnce(Option<&T>) -> R,
     {
+        Self::fence_acquire();
+
         f(self.thread_id_and_fn.map_or(
             None,
             |(running_thread_id_fn, initialized_for_thread_id)| {
@@ -164,6 +207,8 @@ impl<T> SingleThreadValue<T> {
     where
         F: FnOnce(&T),
     {
+        Self::fence_acquire();
+
         self.thread_id_and_fn
             .map(|(running_thread_id_fn, initialized_for_thread_id)| {
                 if (running_thread_id_fn)() == initialized_for_thread_id {
