@@ -50,10 +50,11 @@ pub trait Chip {
     /// chip and resumes the scheduler.
     fn sleep(&self);
 
-    /// Run a function in an atomic state, which means that interrupts are
-    /// disabled so that an interrupt will not fire during the passed in
-    /// function's execution.
-    unsafe fn atomic<F, R>(&self, f: F) -> R
+    /// Run a function in an atomic state w.r.t. to the current core. This
+    /// means that interrupts are disabled so that an interrupt will not fire
+    /// during the passed in function's execution, but *does not* make any
+    /// guarantees about memory consistency on a multi-core system.
+    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R;
 
