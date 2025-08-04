@@ -90,6 +90,7 @@ pub mod rf233;
 pub mod rf233_const;
 pub mod screen;
 pub mod screen_adapters;
+pub mod screen_on_led;
 pub mod screen_shared;
 pub mod sdcard;
 pub mod servo;
