@@ -53,6 +53,8 @@ fn screen_pixel_format_from(screen_pixel_format: usize) -> Option<ScreenPixelFor
         2 => Some(ScreenPixelFormat::RGB_565),
         3 => Some(ScreenPixelFormat::RGB_888),
         4 => Some(ScreenPixelFormat::ARGB_8888),
+        5 => Some(ScreenPixelFormat::RGB_4BIT),
+        6 => Some(ScreenPixelFormat::Mono_8BitPage),
         _ => None,
     }
 }

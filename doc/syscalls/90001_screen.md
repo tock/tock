@@ -196,11 +196,15 @@ may return OFF when power is not enabled (see screen HIL for details).
     **Argument 2**: unused
 
     **Returns**: A single u32 value.
-    0: 8 pixels per byte monochromatic, pixels more to the left are more significant bits. 1 is light, 0 is dark.
-    1: RGB_233, 2-bit red channel, 3-bit green channel, 3-bit blue channel.
-    2: RGB_565, 5-bit red channel, 6-bit green channel, 5-bit blue channel.
-    3: RGB_888
-    4: ARGB_8888 (RGB with transparency)
+    - 0: 8 pixels per byte monochromatic, pixels more to the left are more significant bits. 1 is light, 0 is dark.
+    - 1: RGB_233, 2-bit red channel, 3-bit green channel, 3-bit blue channel.
+    - 2: RGB_565, 5-bit red channel, 6-bit green channel, 5-bit blue channel.
+    - 3: RGB_888
+    - 4: ARGB_8888 (RGB with transparency)
+    - 5: RGB_4BIT, 1-bit blue channel, 1-bit green, 1-bit red, 1-bit for opaque (1) vs transparent (0)
+    - 6: Mono_8BitPage, 8 pixels per byte monochromatic, each byte is displayed
+      vertically (pixels above are less significant bits) and tile
+      horizontally.
 
   * ### Command number: `26` 
 
