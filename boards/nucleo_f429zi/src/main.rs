@@ -364,7 +364,6 @@ fn setup_clocks_for_ethernet(clocks: &stm32f429zi::clocks::Clocks<Stm32f429Specs
 // Helper function to initialize and start the ethernet peripheral
 fn setup_ethernet(peripherals: &Stm32f429ziDefaultPeripherals) {
     setup_ethernet_gpios(&peripherals.stm32f4.gpio_ports);
-    setup_clocks_for_ethernet(&peripherals.stm32f4.clocks);
     let ethernet = &peripherals.ethernet;
     assert_eq!(Ok(()), ethernet.init());
     assert_eq!(Ok(()), ethernet.enable_transmitter());
@@ -407,6 +406,7 @@ unsafe fn start() -> (
         Stm32f429ziDefaultPeripherals::new(clocks, exti, dma1, dma2)
     );
     peripherals.init();
+    setup_clocks_for_ethernet(&peripherals.stm32f4.clocks);
     let base_peripherals = &peripherals.stm32f4;
 
     setup_peripherals(
@@ -784,9 +784,6 @@ unsafe fn start() -> (
     // // See comment in `boards/imix/src/main.rs`
     // virtual_uart_rx_test::run_virtual_uart_receive(mux_uart);
 
-    // This function changes clocks. The baud rate for the board is
-    // 180000 now. Also, this must be done late in the process to not impact the initialization of
-    // other peripherals.
     setup_ethernet(&peripherals);
     tap_ethernet.initialize();
 
