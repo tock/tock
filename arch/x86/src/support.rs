@@ -7,12 +7,13 @@
 #[cfg(any(doc, target_arch = "x86"))]
 use core::arch::asm;
 
-/// Execute a given closure atomically.
+/// Execute closure without allowing any interrupts on the current core.
 ///
-/// This function ensures interrupts are disabled before invoking the given closue `f`. This allows
-/// you to safely perform memory accesses which would otherwise race against interrupt handlers.
+/// This function ensures interrupts are disabled before invoking the given
+/// closue `f`. This allows / you to safely perform single-core operations
+/// which would otherwise race against interrupt handlers.
 #[cfg(any(doc, target_arch = "x86"))]
-pub fn atomic<F, R>(f: F) -> R
+pub fn with_interrupts_disabled<F, R>(f: F) -> R
 where
     F: FnOnce() -> R,
 {
@@ -41,7 +42,7 @@ where
 }
 
 #[cfg(not(any(doc, target_arch = "x86")))]
-pub fn atomic<F, R>(_: F) -> R
+pub fn with_interrupts_disabled<F, R>(_: F) -> R
 where
     F: FnOnce() -> R,
 {

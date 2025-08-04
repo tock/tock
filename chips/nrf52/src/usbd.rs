@@ -5,7 +5,7 @@
 //! Universal Serial Bus Device with EasyDMA (USBD)
 
 use core::cell::Cell;
-use cortexm4f::support::atomic;
+use cortexm4f::support::with_interrupts_disabled;
 use kernel::hil;
 use kernel::hil::usb::TransferType;
 use kernel::utilities::cells::{OptionalCell, VolatileCell};
@@ -792,7 +792,7 @@ impl<'a> Usbd<'a> {
     fn apply_errata_171(&self, val: u32) {
         if self.has_errata_171() {
             unsafe {
-                atomic(|| {
+                with_interrupts_disabled(|| {
                     if USBERRATA_BASE.reg_c00.get() == 0 {
                         USBERRATA_BASE.reg_c00.set(0x9375);
                         USBERRATA_BASE.reg_c14.set(val);
@@ -809,7 +809,7 @@ impl<'a> Usbd<'a> {
     fn apply_errata_187(&self, val: u32) {
         if self.has_errata_187() {
             unsafe {
-                atomic(|| {
+                with_interrupts_disabled(|| {
                     if USBERRATA_BASE.reg_c00.get() == 0 {
                         USBERRATA_BASE.reg_c00.set(0x9375);
                         USBERRATA_BASE.reg_d14.set(val);
