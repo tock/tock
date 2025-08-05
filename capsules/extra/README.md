@@ -169,6 +169,8 @@ Utility Capsules
 Other capsules that implement reusable logic.
 
 - **[Bus Adapters](src/bus.rs)**: Generic abstraction for SPI/I2C/8080.
+- **[Button Keyboard](src/button_keyboard.rs)**: Convert keyboard key presses
+    into button presses.
 - **[Buzzer PWM](src/buzzer_pwm.rs)**: Buzzer with a PWM pin.
 - **[SG90 PWM](src/sg90.rs)**: SG90 servomotor.
 - **[HMAC-SHA256](src/hmac_sha256.rs)**: HMAC using SHA-256.

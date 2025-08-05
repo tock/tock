@@ -26,6 +26,7 @@ pub mod bme280;
 pub mod bmm150;
 pub mod bmp280;
 pub mod bus;
+pub mod button_keyboard;
 pub mod buzzer_driver;
 pub mod buzzer_pwm;
 pub mod can;
