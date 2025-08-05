@@ -68,6 +68,7 @@ QEMU_BASE_CMDLINE := \
     -global driver=riscv-cpu,property=smepmp,value=true \
     -global virtio-mmio.force-legacy=false \
     -device virtio-rng-device \
+    -device virtio-keyboard-device \
     $(QEMU_NETDEV_CMDLINE) \
     -nographic
 
