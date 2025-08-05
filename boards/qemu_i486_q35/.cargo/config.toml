@@ -15,5 +15,8 @@ RUST_TARGET_PATH = "."
 [build]
 target = "i486-unknown-none.json"
 
+[target.i486-unknown-none]
+runner = "qemu-system-i386 -cpu 486 -machine q35 -net none -device isa-debug-exit,iobase=0xf4,iosize=0x04 -serial stdio -kernel"
+
 [unstable]
 config-include = true

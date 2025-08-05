@@ -7,7 +7,7 @@ use core::mem::MaybeUninit;
 
 use kernel::component::Component;
 use kernel::platform::chip::Chip;
-
+use kernel::static_init;
 use x86::mpu::PagingMPU;
 use x86::registers::bits32::paging::{PD, PT};
 use x86::support;
@@ -15,6 +15,7 @@ use x86::{Boundary, InterruptPoller};
 
 use crate::pit::{Pit, RELOAD_1KHZ};
 use crate::serial::{SerialPort, SerialPortComponent, COM1_BASE, COM2_BASE, COM3_BASE, COM4_BASE};
+use crate::vga_uart_driver::Vga;
 
 /// Interrupt constants for legacy PC peripherals
 mod interrupt {
@@ -52,6 +53,9 @@ pub struct Pc<'a, const PR: u16 = RELOAD_1KHZ> {
 
     /// Legacy PIT timer
     pub pit: Pit<'a, PR>,
+
+    /// Vga
+    pub vga: &'a Vga<'a>,
 
     /// System call context
     syscall: Boundary,
@@ -207,6 +211,9 @@ impl Component for PcComponent<'static> {
 
         let pit = unsafe { Pit::new() };
 
+        let vga = unsafe { static_init!(Vga, Vga::new()) };
+        kernel::deferred_call::DeferredCallClient::register(vga);
+
         let paging = unsafe {
             let pd_addr = core::ptr::from_ref(self.pd) as usize;
             let pt_addr = core::ptr::from_ref(self.pt) as usize;
@@ -223,6 +230,7 @@ impl Component for PcComponent<'static> {
             com3,
             com4,
             pit,
+            vga,
             syscall,
             paging,
         });

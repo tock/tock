@@ -36,4 +36,25 @@ Download QEMU for Windows from the official site: https://www.qemu.org/download/
 
 ## Running the kernel
 
-To run the kernel use `make run`.
++ ### Console paths: serial vs. VGA
+
+By default the board prints all kernel output over **COM 1** and QEMU opens a
+terminal window for you.  
+If you prefer the 80 × 25 **VGA text console** instead, just pass
+QEMU’s headless flag:
+
+To run the kernel use `cargo run`.
+
+To boot QEMU without a display use `cargo run -- -display none`.
+
++ ### Internally the board picks the console path at boot:
+
+`vga::new_text_console()` initialises the VGA registers and maps the 0xB8000 text buffer.
+
+Two UART muxes are created - one for COM 1 and one backed by the new VGA text driver.
+
+The debug writer is wired to the VGA mux, while the interactive
+ProcessConsole stays on COM 1 until a keyboard driver lands.
+
+
+

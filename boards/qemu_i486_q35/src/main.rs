@@ -9,13 +9,12 @@
 // https://github.com/rust-lang/rust/issues/62184.
 #![cfg_attr(not(doc), no_main)]
 
-use core::ptr;
-
 use capsules_core::alarm;
 use capsules_core::console::{self, Console};
 use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use components::console::ConsoleComponent;
 use components::debug_writer::DebugWriterComponent;
+use core::ptr;
 use kernel::capabilities;
 use kernel::component::Component;
 use kernel::debug;
@@ -28,12 +27,10 @@ use kernel::process::ProcessArray;
 use kernel::scheduler::cooperative::CooperativeSched;
 use kernel::syscall::SyscallDriver;
 use kernel::{create_capability, static_init};
-
 use x86::registers::bits32::paging::{PDEntry, PTEntry, PD, PT};
 use x86::registers::irq;
-
 use x86_q35::pit::{Pit, RELOAD_1KHZ};
-use x86_q35::{Pc, PcComponent};
+use x86_q35::{vga, Pc, PcComponent};
 
 mod multiboot;
 use multiboot::MultibootV1Header;
@@ -150,7 +147,6 @@ impl<C: Chip> KernelResources<C> for QemuI386Q35Platform {
         &()
     }
 }
-
 #[no_mangle]
 unsafe extern "cdecl" fn main() {
     // ---------- BASIC INITIALIZATION -----------
@@ -161,6 +157,16 @@ unsafe extern "cdecl" fn main() {
         &mut *ptr::addr_of_mut!(PAGE_TABLE),
     )
     .finalize(x86_q35::x86_q35_component_static!());
+
+    // Enable the VGA path by building or running with the feature flag, e.g.:
+    //   `cargo run -- -display none`
+    // A plain `make run` / `cargo run` keeps everything on COM1.
+    //
+    // Initialise VGA and clear BIOS text if VGA is enabled
+    // Clear BIOS banner: the real-mode BIOS leaves its text (and the cursor off-screen) in
+    // 0xB8000.  Wiping the full 80×25 buffer gives us a clean screen and a visible cursor
+    // before the kernel prints its first message.
+    vga::new_text_console(&raw mut PAGE_DIR);
 
     // Acquire required capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
@@ -179,8 +185,21 @@ unsafe extern "cdecl" fn main() {
 
     // Create a shared UART channel for the console and for kernel
     // debug over the provided 8250-compatible UART.
-    let uart_mux = components::console::UartMuxComponent::new(chip.com1, 115200)
+    let uart_mux = components::console::UartMuxComponent::new(chip.com1, 115_200)
         .finalize(components::uart_mux_component_static!());
+
+    // Alternative for VGA
+    let vga_uart_mux = components::console::UartMuxComponent::new(chip.vga, 115_200)
+        .finalize(components::uart_mux_component_static!());
+
+    // Debug output: default to the VGA mux is
+    // active.  If you prefer to keep debug on the serial port even with VGA
+    // enabled, comment the line below and uncomment the next one.
+
+    // Debug output uses VGA when available, otherwise COM1
+    let debug_uart_device = vga_uart_mux;
+
+    // let debug_uart_device  = com1_uart_mux;
 
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
@@ -231,10 +250,21 @@ unsafe extern "cdecl" fn main() {
         .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
+    // ProcessConsole stays on COM1 because we have no keyboard input yet.
+    // As soon as keyboard support will be added, the process console
+    // may be used with the VGA and keyboard.
+    //
+    // let console_uart_device = vga_uart_mux;
+
+    // For now the ProcessConsole (interactive shell) is wired to COM1 so the user can
+    // type commands over the serial port.  Once keyboard input is implemented
+    // we can switch `console_uart_device` to `vga_uart_mux`.
+    let console_uart_device = uart_mux;
+
     // Initialize the kernel's process console.
     let pconsole = components::process_console::ProcessConsoleComponent::new(
         board_kernel,
-        uart_mux,
+        console_uart_device,
         mux_alarm,
         process_printer,
         None,
@@ -244,12 +274,12 @@ unsafe extern "cdecl" fn main() {
     ));
 
     // Setup the console.
-    let console = ConsoleComponent::new(board_kernel, console::DRIVER_NUM, uart_mux)
+    let console = ConsoleComponent::new(board_kernel, console::DRIVER_NUM, console_uart_device)
         .finalize(components::console_component_static!());
 
     // Create the debugger object that handles calls to `debug!()`.
     DebugWriterComponent::new(
-        uart_mux,
+        debug_uart_device,
         create_capability!(capabilities::SetDebugWriterCapability),
     )
     .finalize(components::debug_writer_component_static!());
