@@ -161,7 +161,7 @@ impl<
         let led_dimension = self.get_size().1;
 
         LEFT_RIGTH_PADDING
-            + self.get_led_width()
+            + self.get_led_width(led_dimension)
             + TEXT_LEDS_PADDING
             + ((led_dimension + 1) * led_index)
     }
@@ -174,8 +174,10 @@ impl<
     }
 
     fn render_led_text(&self, buffer: &mut [u8], x_offset: usize) {
-        let y_top = TOP_BOTTOM_PADDING + TEXT_TOP_BOTTOM_PADDING;
-        let y_bottom = SCREEN_HEIGHT - TOP_BOTTOM_PADDING - TEXT_TOP_BOTTOM_PADDING;
+        let y_offset = self.get_size().2;
+
+        let y_top = TOP_BOTTOM_PADDING + TEXT_TOP_BOTTOM_PADDING + y_offset;
+        let y_bottom = SCREEN_HEIGHT - TOP_BOTTOM_PADDING - TEXT_TOP_BOTTOM_PADDING - y_offset;
         let height = y_bottom - y_top;
 
         // L
@@ -204,14 +206,14 @@ impl<
     fn render_led(&self, buffer: &mut [u8], led_index: usize) {
         // Draw two squares, one on, then one inside that is off.
 
-        let led_dimension: usize = self.get_size().1;
+        let (_width, led_dimension, y_offset) = self.get_size();
         let x_offset: usize = self.get_led_offset(led_index);
 
         // Write the outside box fully on.
         self.write_square(
             buffer.as_mut(),
             x_offset,
-            TOP_BOTTOM_PADDING,
+            TOP_BOTTOM_PADDING + y_offset,
             led_dimension,
             1,
         );
@@ -219,21 +221,21 @@ impl<
         self.write_square(
             buffer.as_mut(),
             x_offset + 1,
-            TOP_BOTTOM_PADDING + 1,
+            TOP_BOTTOM_PADDING + y_offset + 1,
             led_dimension - 2,
             0,
         );
     }
 
     fn render_led_state(&self, buffer: &mut [u8], led_index: usize, on: bool) {
-        let led_dimension: usize = self.get_size().1;
+        let (_width, led_dimension, y_offset) = self.get_size();
         let x_offset: usize = self.get_led_offset(led_index);
 
         // Clear the inside to make just the border.
         self.write_square(
             buffer.as_mut(),
             x_offset + 1,
-            TOP_BOTTOM_PADDING + 1,
+            TOP_BOTTOM_PADDING + y_offset + 1,
             led_dimension - 2,
             0,
         );
@@ -243,7 +245,7 @@ impl<
             self.write_square(
                 buffer.as_mut(),
                 x_offset + 2,
-                TOP_BOTTOM_PADDING + 2,
+                TOP_BOTTOM_PADDING + y_offset + 2,
                 led_dimension - 4,
                 1,
             );
@@ -308,7 +310,7 @@ impl<
 
     /// Find a size of the graphic that works with the screen by shrinking the
     /// LEDs until everything fits.
-    pub const fn get_size(&self) -> (usize, usize) {
+    pub const fn get_size(&self) -> (usize, usize, usize) {
         let mut width = SCREEN_WIDTH + 1;
         let mut led_dimension = SCREEN_HEIGHT - (TOP_BOTTOM_PADDING * 2);
 
@@ -318,13 +320,15 @@ impl<
 
             let leds_width: usize = (led_dimension * NUM_LEDS) + (NUM_LEDS - 1);
             width = LEFT_RIGTH_PADDING
-                + self.get_led_width()
+                + self.get_led_width(led_dimension)
                 + TEXT_LEDS_PADDING
                 + leds_width
                 + LEFT_RIGTH_PADDING;
         }
 
-        (width, led_dimension)
+        let y_offset = (SCREEN_HEIGHT - (TOP_BOTTOM_PADDING * 2) - led_dimension) / 2;
+
+        (width, led_dimension, y_offset)
     }
 
     pub const fn get_char_width(&self, height: usize, c: char) -> usize {
@@ -336,8 +340,8 @@ impl<
         }
     }
 
-    pub const fn get_led_width(&self) -> usize {
-        let height = SCREEN_HEIGHT - (TEXT_TOP_BOTTOM_PADDING * 2);
+    pub const fn get_led_width(&self, height: usize) -> usize {
+        let height = height - (TEXT_TOP_BOTTOM_PADDING * 2);
 
         let l_width = self.get_char_width(height, 'l');
         let e_width = self.get_char_width(height, 'e');
