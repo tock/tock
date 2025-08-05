@@ -76,7 +76,7 @@ pub struct Pc<'a, I: InterruptService + 'a, const PR: u16 = RELOAD_1KHZ> {
     /// Vga
     pub vga: &'a VgaText<'a>,
 
-    /// PS/2
+    /// PS/2 Controller
     pub ps2: &'a crate::ps2::Ps2Controller,
 
     /// System call context
@@ -216,7 +216,6 @@ pub struct PcComponent<'a, I: InterruptService + 'a> {
     int_svc: &'a I,
 }
 
-
 impl<'a, I: InterruptService + 'a> PcComponent<'a, I> {
     /// Creates a new `PcComponent` instance.
     ///
@@ -234,7 +233,7 @@ impl<'a, I: InterruptService + 'a> PcComponent<'a, I> {
     }
 }
 
-impl<I: InterruptService + 'static> Component for PcComponent<'static, I> {
+    impl<I: InterruptService + 'static> Component for PcComponent<'static, I> {
     type StaticInput = (
         <SerialPortComponent as Component>::StaticInput,
         <SerialPortComponent as Component>::StaticInput,

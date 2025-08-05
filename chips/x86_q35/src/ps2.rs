@@ -20,7 +20,7 @@ const BUFFER_SIZE: usize = 32;
 /// Depth of the scan-code ring buffer
 const TIMEOUT_LIMIT: usize = 1_000_000;
 
-// Define the two status‐register bits
+// Status-register bits returned by inb(0x64)
 register_bitfields![u8,
     pub STATUS [
         OUTPUT_FULL OFFSET(0) NUMBITS(1), // data ready
@@ -31,6 +31,8 @@ register_bitfields![u8,
 /// Note: There is no hardware interrupt when the input buffer empties, so we must poll bit 1.
 /// See OSDev documentation:
 /// https://wiki.osdev.org/I8042_PS/2_Controller#Status_Register
+///
+/// Block until the controller’s input buffer is empty (ready for a command).
 #[inline(always)]
 fn wait_input_ready() {
     let mut s = LocalRegisterCopy::<u8, STATUS::Register>::new(0);
@@ -52,6 +54,8 @@ fn wait_input_ready() {
 /// Data-ready events trigger IRQ1, handled asynchronously in `handle_interrupt()`.
 /// See OSDev documentation:
 /// https://wiki.osdev.org/I8042_PS/2_Controller#Status_Register
+///
+/// Block until there is data ready to read in the output buffer.
 #[inline(always)]
 fn wait_output_ready() {
     let mut s = LocalRegisterCopy::<u8, STATUS::Register>::new(0);

@@ -129,7 +129,7 @@ impl<C: Chip> KernelResources<C> for QemuI386Q35Platform {
     }
 
     type SchedulerTimer =
-        VirtualSchedulerTimer<VirtualMuxAlarm<'static, Pit<'static, RELOAD_1KHZ>>>;
+    VirtualSchedulerTimer<VirtualMuxAlarm<'static, Pit<'static, RELOAD_1KHZ>>>;
     fn scheduler_timer(&self) -> &Self::SchedulerTimer {
         self.scheduler_timer
     }
@@ -144,6 +144,7 @@ impl<C: Chip> KernelResources<C> for QemuI386Q35Platform {
         &()
     }
 }
+
 #[no_mangle]
 unsafe extern "cdecl" fn main() {
     // ---------- BASIC INITIALIZATION -----------
@@ -180,14 +181,8 @@ unsafe extern "cdecl" fn main() {
     let vga_uart_mux = components::console::UartMuxComponent::new(chip.vga, 115_200)
         .finalize(components::uart_mux_component_static!());
 
-    // Debug output: default to the VGA mux is
-    // active.  If you prefer to keep debug on the serial port even with VGA
-    // enabled, comment the line below and uncomment the next one.
-
     // Debug output uses VGA when available, otherwise COM1
     let debug_uart_device = vga_uart_mux;
-
-    // let debug_uart_device  = com1_uart_mux;
 
     // Create a shared virtualization mux layer on top of a single hardware
     // alarm.
@@ -238,12 +233,6 @@ unsafe extern "cdecl" fn main() {
         .finalize(components::process_printer_text_component_static!());
     PROCESS_PRINTER = Some(process_printer);
 
-    // ProcessConsole stays on COM1 because we have no keyboard input yet.
-    // As soon as keyboard support will be added, the process console
-    // may be used with the VGA and keyboard.
-    //
-    // let console_uart_device = vga_uart_mux;
-
     // For now the ProcessConsole (interactive shell) is wired to COM1 so the user can
     // type commands over the serial port.  Once keyboard input is implemented
     // we can switch `console_uart_device` to `vga_uart_mux`.
@@ -257,7 +246,7 @@ unsafe extern "cdecl" fn main() {
         process_printer,
         None,
     )
-    .finalize(components::process_console_component_static!(
+        .finalize(components::process_console_component_static!(
         Pit<'static, RELOAD_1KHZ>
     ));
 
@@ -270,14 +259,14 @@ unsafe extern "cdecl" fn main() {
         debug_uart_device,
         create_capability!(capabilities::SetDebugWriterCapability),
     )
-    .finalize(components::debug_writer_component_static!());
+        .finalize(components::debug_writer_component_static!());
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,
         capsules_core::low_level_debug::DRIVER_NUM,
         uart_mux,
     )
-    .finalize(components::low_level_debug_component_static!());
+        .finalize(components::low_level_debug_component_static!());
 
     let scheduler = components::sched::cooperative::CooperativeComponent::new(processes)
         .finalize(components::cooperative_component_static!(NUM_PROCS));
@@ -335,10 +324,10 @@ unsafe extern "cdecl" fn main() {
         &FAULT_RESPONSE,
         &process_mgmt_cap,
     )
-    .unwrap_or_else(|err| {
-        debug!("Error loading processes!");
-        debug!("{:?}", err);
-    });
+        .unwrap_or_else(|err| {
+            debug!("Error loading processes!");
+            debug!("{:?}", err);
+        });
 
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_cap);
 }
