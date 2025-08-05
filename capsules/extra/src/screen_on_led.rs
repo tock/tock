@@ -136,15 +136,22 @@ impl<
         });
     }
 
-    /// Main function to turn on or off the virtual LED graphic.
-    fn led_control(&self, led_index: usize, on: bool) {
-        let initialized = self.initialized.get();
-        if !initialized {
+    /// Draw all LEDs.
+    ///
+    /// This is a hack to help correctly show LEDs even though the screen is
+    /// async and LEDs are sync. We can get LEDs changing when the buffer is
+    /// being used by the screen, so we try to hide that by updating the status
+    /// of all LEDs each time.
+    fn show_leds(&self) {
+        if !self.initialized.get() {
             return;
         }
 
         self.buffer.take().map(|buffer| {
-            self.render_led_state(buffer, led_index, on);
+            let leds = self.leds.get();
+            for (i, led_state) in leds.iter().enumerate() {
+                self.render_led_state(buffer, i, *led_state);
+            }
             let data = SubSliceMut::new(buffer);
             let _ = self.screen.write(data, false);
         });
@@ -353,14 +360,14 @@ impl<
         let mut leds = self.leds.get();
         leds[index] = true;
         self.leds.set(leds);
-        self.led_control(index, true);
+        self.show_leds();
     }
 
     fn off(&self, index: usize) {
         let mut leds = self.leds.get();
         leds[index] = false;
         self.leds.set(leds);
-        self.led_control(index, false);
+        self.show_leds();
     }
 
     fn toggle(&self, index: usize) {
@@ -368,7 +375,7 @@ impl<
         let updated = !leds[index];
         leds[index] = updated;
         self.leds.set(leds);
-        self.led_control(index, updated);
+        self.show_leds();
     }
 
     fn read(&self, index: usize) -> bool {
