@@ -36,25 +36,22 @@ Download QEMU for Windows from the official site: https://www.qemu.org/download/
 
 ## Running the kernel
 
-+ ### Console paths: serial vs. VGA
+By default `cargo run` launches QEMU exactly as the build script spells out:
+`qemu-system-i386 -cpu 486 -machine q35 -net none -device isa-debug-exit,iobase=0xf4,iosize=0x04 -serial stdio -kernel`.  
+That gives you **two views**:
 
-By default the board prints all kernel output over **COM 1** and QEMU opens a
-terminal window for you.  
-If you prefer the 80 × 25 **VGA text console** instead, just pass
-QEMU’s headless flag:
+* a VGA window where all `debug!()` output from the kernel is shown, and
+* the serial terminal on the right (stdout) that hosts the interactive
+  **ProcessConsole** shell.
 
-To run the kernel use `cargo run`.
+If you instead run `cargo run -- -display none`
+the extra **-display none** flag tells QEMU to skip creating the VGA window.
+The kernel still programs the VGA hardware, but you will not see that screen;
+only the serial terminal (ProcessConsole) remains visible. 
 
-To boot QEMU without a display use `cargo run -- -display none`.
+Regardless of the flag, ProcessConsole is always on the serial port, while kernel debug messages
+are routed to VGA whenever a display is present.
 
-+ ### Internally the board picks the console path at boot:
-
-`vga::new_text_console()` initialises the VGA registers and maps the 0xB8000 text buffer.
-
-Two UART muxes are created - one for COM 1 and one backed by the new VGA text driver.
-
-The debug writer is wired to the VGA mux, while the interactive
-ProcessConsole stays on COM 1 until a keyboard driver lands.
 
 
 
