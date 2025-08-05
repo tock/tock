@@ -42,10 +42,10 @@ That gives you **two views**:
 
 * a VGA window where all `debug!()` output from the kernel is shown, and
 * the serial terminal on the right (stdout) that hosts the interactive
-  **ProcessConsole** shell.
+  `ProcessConsole` shell.
 
 If you instead run `cargo run -- -display none`
-the extra **-display none** flag tells QEMU to skip creating the VGA window.
+the extra `-display none` flag tells QEMU to skip creating the VGA window.
 The kernel still programs the VGA hardware, but you will not see that screen;
 only the serial terminal (ProcessConsole) remains visible. 
 
