@@ -111,8 +111,8 @@ pub unsafe fn panic_print<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
     processes: &'static [ProcessSlot],
-    chip: &'static Option<&'static C>,
-    process_printer: &'static Option<&'static PP>,
+    chip: Option<&'static C>,
+    process_printer: Option<&'static PP>,
 ) {
     panic_begin(nop);
     // Flush debug buffer if needed
@@ -143,8 +143,8 @@ pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip, PP: ProcessPr
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
     processes: &'static [ProcessSlot],
-    chip: &'static Option<&'static C>,
-    process_printer: &'static Option<&'static PP>,
+    chip: Option<&'static C>,
+    process_printer: Option<&'static PP>,
 ) -> ! {
     // Call `panic_print` first which will print out the panic information and
     // return
@@ -185,10 +185,7 @@ pub unsafe fn panic_banner<W: Write>(writer: &mut W, panic_info: &PanicInfo) {
 /// Print current machine (CPU) state.
 ///
 /// **NOTE:** The supplied `writer` must be synchronous.
-pub unsafe fn panic_cpu_state<W: Write, C: Chip>(
-    chip: &'static Option<&'static C>,
-    writer: &mut W,
-) {
+pub unsafe fn panic_cpu_state<W: Write, C: Chip>(chip: Option<&'static C>, writer: &mut W) {
     chip.map(|c| {
         c.print_state(writer);
     });
@@ -199,7 +196,7 @@ pub unsafe fn panic_cpu_state<W: Write, C: Chip>(
 /// **NOTE:** The supplied `writer` must be synchronous.
 pub unsafe fn panic_process_info<PP: ProcessPrinter, W: Write>(
     processes: &'static [ProcessSlot],
-    process_printer: &'static Option<&'static PP>,
+    process_printer: Option<&'static PP>,
     writer: &mut W,
 ) {
     process_printer.map(|printer| {
