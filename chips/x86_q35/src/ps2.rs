@@ -3,7 +3,6 @@
 // Copyright Tock Contributors 2025.
 
 use core::cell::{Cell, RefCell};
-use core::marker::PhantomData;
 use kernel::debug;
 use kernel::utilities::registers::register_bitfields;
 use tock_registers::LocalRegisterCopy;
@@ -14,10 +13,10 @@ const PS2_DATA_PORT: u16 = 0x60;
 const PS2_STATUS_PORT: u16 = 0x64;
 const PIC1_DATA_PORT: u16 = 0x21;
 
-/// Timeout limit for spin loops
+/// Depth of the scan-code ring buffer
 const BUFFER_SIZE: usize = 32;
 
-/// Depth of the scan-code ring buffer
+/// Timeout limit for spin loops
 const TIMEOUT_LIMIT: usize = 1_000_000;
 
 // Status-register bits returned by inb(0x64)
@@ -96,6 +95,10 @@ fn write_data(d: u8) {
 
 /// Send a byte to the keyboard and wait for ACK (`0xFA`).
 /// If the device replies RESEND (`0xFE`) we retry **once**.
+///
+/// Heads-up: this will be modififed in the keyboard driver
+/// to better handle command requests,
+/// this is just a showcase... for now
 fn send_with_ack(byte: u8) -> bool {
     for _ in 0..=1 {
         write_data(byte);
@@ -115,7 +118,6 @@ pub struct Ps2Controller {
     head: Cell<usize>,
     tail: Cell<usize>,
     count: Cell<usize>, // new field to track number of valid entries
-    _p: PhantomData<()>,
 }
 
 impl Ps2Controller {
@@ -125,7 +127,6 @@ impl Ps2Controller {
             head: Cell::new(0),
             tail: Cell::new(0),
             count: Cell::new(0), // ← initialize count
-            _p: PhantomData,
         }
     }
     pub fn init(&self) {
@@ -153,6 +154,13 @@ impl Ps2Controller {
             cfg |= 1 << 0; // set bit0 = IRQ1 enable
             write_command(0x60); // tell controller we’ll write it
             write_data(cfg);
+
+            // keyboard port test, (0xAB, expect 0x00)
+            write_command(0xAB);
+            wait_output_ready();
+            if read_data() != 0x00 {
+                debug!("ps2: port-1 interface test failed");
+            }
 
             /* enable keyboard clock */
             write_command(0xAE);
