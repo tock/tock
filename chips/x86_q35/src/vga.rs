@@ -250,10 +250,7 @@ pub fn framebuffer() -> Option<(*mut u8, usize)> {
     None
 }
 
-unsafe fn init_and_map_lfb(
-    mode: VgaMode,
-    page_dir_ptr: *mut x86::registers::bits32::paging::PD,
-) {
+unsafe fn init_and_map_lfb(mode: VgaMode, page_dir_ptr: *mut x86::registers::bits32::paging::PD) {
     init(mode);
     if mode == VgaMode::Text80x25 {
         let pd: &mut x86::registers::bits32::paging::PD = unsafe { &mut *page_dir_ptr };
