@@ -30,7 +30,7 @@ use kernel::{create_capability, static_init};
 use x86::registers::bits32::paging::{PDEntry, PTEntry, PD, PT};
 use x86::registers::irq;
 use x86_q35::pit::{Pit, RELOAD_1KHZ};
-use x86_q35::{vga, Pc, PcComponent};
+use x86_q35::{Pc, PcComponent};
 
 mod multiboot;
 use multiboot::MultibootV1Header;
@@ -157,16 +157,6 @@ unsafe extern "cdecl" fn main() {
         &mut *ptr::addr_of_mut!(PAGE_TABLE),
     )
     .finalize(x86_q35::x86_q35_component_static!());
-
-    // Enable the VGA path by building or running with the feature flag, e.g.:
-    //   `cargo run -- -display none`
-    // A plain `make run` / `cargo run` keeps everything on COM1.
-    //
-    // Initialise VGA and clear BIOS text if VGA is enabled
-    // Clear BIOS banner: the real-mode BIOS leaves its text (and the cursor off-screen) in
-    // 0xB8000.  Wiping the full 80×25 buffer gives us a clean screen and a visible cursor
-    // before the kernel prints its first message.
-    vga::new_text_console(&raw mut PAGE_DIR);
 
     // Acquire required capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);

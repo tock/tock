@@ -202,6 +202,15 @@ impl Component for PcComponent<'static> {
         unsafe {
             x86::init();
             crate::pic::init();
+            // Enable the VGA path by building or running with the feature flag, e.g.:
+            //   `cargo run -- -display none`
+            // A plain `make run` / `cargo run` keeps everything on COM1.
+            //
+            // Initialise VGA and clear BIOS text if VGA is enabled
+            // Clear BIOS banner: the real-mode BIOS leaves its text (and the cursor off-screen) in
+            // 0xB8000.  Wiping the full 80×25 buffer gives us a clean screen and a visible cursor
+            // before the kernel prints its first message.
+            crate::vga::new_text_console(core::ptr::from_mut(self.pd));
         }
 
         let com1 = unsafe { SerialPortComponent::new(COM1_BASE).finalize(s.0) };
