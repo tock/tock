@@ -34,17 +34,25 @@ register_bitfields![u8,
 /// Block until the controller’s input buffer is empty (ready for a command).
 #[inline(always)]
 fn wait_input_ready() {
-    let mut s = LocalRegisterCopy::<u8, STATUS::Register>::new(0);
-    let mut n = 0;
+    // Local copy of the status register
+    let mut status_reg = LocalRegisterCopy::<u8, STATUS::Register>::new(0);
+    // Loop counter to avoid infinite spin
+    let mut loops = 0;
+
+    // Continue spinning while the INPUT_FULL bit is set
     while {
-        s.set(unsafe { io::inb(PS2_STATUS_PORT) });
-        s.is_set(STATUS::INPUT_FULL)
+        // Fetch latest status from hardware port
+        let raw = unsafe { io::inb(PS2_STATUS_PORT) };
+        status_reg.set(raw);
+
+        // Check if controller is still busy (input buffer full)
+        status_reg.is_set(STATUS::INPUT_FULL)
     } {
-        if {
-            n += 1;
-            n
-        } >= TIMEOUT_LIMIT
-        {
+        // Increment our loop counter and bail out on timeout
+        loops += 1;
+        if loops >= TIMEOUT_LIMIT {
+            // We could log a debug here if desired:
+            // debug!("ps2: wait_input_ready timed out after {} loops", loops);
             break;
         }
     }
@@ -57,17 +65,25 @@ fn wait_input_ready() {
 /// Block until there is data ready to read in the output buffer.
 #[inline(always)]
 fn wait_output_ready() {
-    let mut s = LocalRegisterCopy::<u8, STATUS::Register>::new(0);
-    let mut n = 0;
+    // Local copy of the status register
+    let mut status_reg = LocalRegisterCopy::<u8, STATUS::Register>::new(0);
+    // Loop counter to prevent infinite spin
+    let mut loops = 0;
+
+    // Continue spinning while the OUTPUT_FULL bit is *not* set
     while {
-        s.set(unsafe { io::inb(PS2_STATUS_PORT) });
-        !s.is_set(STATUS::OUTPUT_FULL)
+        // Read current status from the controller
+        let raw = unsafe { io::inb(PS2_STATUS_PORT) };
+        status_reg.set(raw);
+
+        // Keep looping if no data is available yet
+        !status_reg.is_set(STATUS::OUTPUT_FULL)
     } {
-        if {
-            n += 1;
-            n
-        } >= TIMEOUT_LIMIT
-        {
+        // Increment loop counter and abort on timeout
+        loops += 1;
+        if loops >= TIMEOUT_LIMIT {
+            // Optionally log a timeout here:
+            // debug!("ps2: wait_output_ready timed out after {} loops", loops);
             break;
         }
     }
@@ -96,7 +112,7 @@ fn write_data(d: u8) {
 /// Send a byte to the keyboard and wait for ACK (`0xFA`).
 /// If the device replies RESEND (`0xFE`) we retry **once**.
 ///
-/// Heads-up: this will be modififed in the keyboard driver
+/// Heads-up: this will be modified in the keyboard driver
 /// to better handle command requests,
 /// this is just a showcase... for now
 fn send_with_ack(byte: u8) -> bool {
