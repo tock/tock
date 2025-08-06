@@ -250,7 +250,7 @@ pub fn framebuffer() -> Option<(*mut u8, usize)> {
     None
 }
 
-pub(crate) unsafe fn init_and_map_lfb(
+unsafe fn init_and_map_lfb(
     mode: VgaMode,
     page_dir_ptr: *mut x86::registers::bits32::paging::PD,
 ) {
