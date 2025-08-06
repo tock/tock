@@ -2,31 +2,35 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2024.
 
-// Minimal VGA peripheral implementation for the Tock x86_q35 chip crate.
-// Supports classic 80×25 text mode out-of-the-box and exposes a stub for
-// setting planar 16-colour graphics modes (640×480 and 800×600).  These
-// extra modes will be filled in later once the driver is integrated with a
-// future framebuffer capsule.
-//
-//
-// NOTE!!!
-//
-// This file compiles and provides working text-
-// mode console support so the board can swap from the UART mux to a VGA
-// console.  Graphical modes are *disabled at runtime* until a framebuffer
-// capsule implementation lands.  The low-level register writes for 640×480 and 800×600 are
-// nonetheless laid out so they can be enabled by flipping a constant.
-//
-// VGA peripheral driver for the x86_q35 chip.
-//
-// The driver currently focuses on **text mode** (colour attribute buffer at
-// 0xB8000).  It also defines [`VgaMode`] and an [`init`] routine that writes
-// the necessary CRT controller registers for text mode and two common planar
-// 16-colour modes.  Other code (e.g. the board crate) can query the selected
-// mode via `kernel::config::CONFIG.vga_mode` and decide whether to route the
-// `ProcessConsole` to this driver or to the legacy serial mux.
+//! Minimal VGA peripheral implementation for the Tock x86_q35 chip crate.
+//!
+//! Supports classic 80×25 text mode out-of-the-box and exposes a stub for
+//! setting planar 16-colour graphics modes (640×480 and 800×600).  These
+//! extra modes will be filled in later once the driver is integrated with a
+//! future framebuffer capsule.
+//!
+//!
+//! NOTE!!!
+//!
+//! This file compiles and provides working text-
+//! mode console support so the board can swap from the UART mux to a VGA
+//! console.  Graphical modes are *disabled at runtime* until a framebuffer
+//! capsule implementation lands.  The low-level register writes for 640×480 and 800×600 are
+//! nonetheless laid out so they can be enabled by flipping a constant.
+//!
+//! VGA peripheral driver for the x86_q35 chip.
+//!
+//! The driver currently focuses on **text mode** (colour attribute buffer at
+//! 0xB8000).  It also defines [`VgaMode`] and an [`init`] routine that writes
+//! the necessary CRT controller registers for text mode and two common planar
+//! 16-colour modes.  Other code (e.g. the board crate) can query the selected
+//! mode via `kernel::config::CONFIG.vga_mode` and decide whether to route the
+//! `ProcessConsole` to this driver or to the legacy serial mux.
 
 use core::cell::Cell;
+/// Write an 8-bit value to an I/O Port.
+/// Read an 8-bit value from an I/O port.
+use x86::registers::io::{inb as raw_inb, outb as raw_outb};
 
 /// All VGA modes supported by the x86_q35 chip crate.
 #[non_exhaustive]
@@ -49,26 +53,18 @@ const TEXT_BUFFER_HEIGHT: usize = 25;
 // Low-level port I/O helpers
 // inb/outb wrappers
 
-/// Write an 8-bit value to an I/O Port.
+/// Safe wrappers (single place to audit)
 #[inline(always)]
 fn outb(port: u16, val: u8) {
-    unsafe {
-        core::arch::asm!("out dx, al", in ("dx") port, in("al") val, options(nomem, nostack, preserves_flags));
-    }
+    // SAFETY: caller already has I/O privileges; wrapper centralises the `unsafe`.
+    unsafe { raw_outb(port, val) }
 }
 
-/// Read an 8-bit value from an I/O port.
 #[inline(always)]
 fn inb(port: u16) -> u8 {
-    let val: u8;
-
-    unsafe {
-        core::arch::asm!("in al, dx", out("al") val, in("dx") port, options(nomem, nostack, preserves_flags));
-    }
-    val
+    // SAFETY: caller already has I/O privileges.
+    unsafe { raw_inb(port) }
 }
-
-/// Write a 16-bit value to an I/O Port
 
 // Public API - the VGA struct providing text console implementation
 
@@ -260,9 +256,8 @@ pub unsafe fn init_and_map_lfb(
     init(mode);
     if mode == VgaMode::Text80x25 {
         let pd: &mut x86::registers::bits32::paging::PD = unsafe { &mut *page_dir_ptr };
-        unsafe {
-            crate::mmu::map_linear_framebuffer(pd);
-        }
+
+        crate::mmu::map_linear_framebuffer(pd);
     }
 }
 

@@ -25,7 +25,7 @@ pub mod pde_flags {
 ///
 /// The mapping is *identity* (virtual == physical) because the board runs
 /// in a flat 1 GiB address space.
-pub unsafe fn map_linear_framebuffer(page_dir: &mut PD) {
+pub fn map_linear_framebuffer(page_dir: &mut PD) {
     let idx = (LFB_PHYS_BASE >> 22) as usize; // top 10 bits → PDE index
     let entry_value = (LFB_PHYS_BASE & 0xFFC0_0000)
         | pde_flags::PRESENT
