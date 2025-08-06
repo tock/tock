@@ -260,7 +260,7 @@ fn init_and_map_lfb(mode: VgaMode, page_dir_ptr: *mut x86::registers::bits32::pa
 }
 
 /// Initialise 80×25 text mode and start with a clean screen.
-pub(crate) unsafe fn new_text_console(page_dir_ptr: *mut x86::registers::bits32::paging::PD) {
+pub(crate) fn new_text_console(page_dir_ptr: *mut x86::registers::bits32::paging::PD) {
     // Map VGA linear-framebuffer + program CRTC/attribute regs
 
     init_and_map_lfb(VgaMode::Text80x25, page_dir_ptr);
