@@ -250,7 +250,7 @@ pub fn framebuffer() -> Option<(*mut u8, usize)> {
     None
 }
 
-unsafe fn init_and_map_lfb(mode: VgaMode, page_dir_ptr: *mut x86::registers::bits32::paging::PD) {
+fn init_and_map_lfb(mode: VgaMode, page_dir_ptr: *mut x86::registers::bits32::paging::PD) {
     init(mode);
     if mode == VgaMode::Text80x25 {
         let pd: &mut x86::registers::bits32::paging::PD = unsafe { &mut *page_dir_ptr };
@@ -262,9 +262,8 @@ unsafe fn init_and_map_lfb(mode: VgaMode, page_dir_ptr: *mut x86::registers::bit
 /// Initialise 80×25 text mode and start with a clean screen.
 pub(crate) unsafe fn new_text_console(page_dir_ptr: *mut x86::registers::bits32::paging::PD) {
     // Map VGA linear-framebuffer + program CRTC/attribute regs
-    unsafe {
-        init_and_map_lfb(VgaMode::Text80x25, page_dir_ptr);
-    }
+
+    init_and_map_lfb(VgaMode::Text80x25, page_dir_ptr);
 
     // Wipe the BIOS banner so the kernel starts on a blank page.
     let blank: u16 = 0x0720; // white-on-black space
