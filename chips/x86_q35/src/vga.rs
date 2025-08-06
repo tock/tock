@@ -30,7 +30,7 @@
 use core::cell::Cell;
 /// Write an 8-bit value to an I/O Port.
 /// Read an 8-bit value from an I/O port.
-use x86::registers::io::{inb as raw_inb, outb as raw_outb};
+use x86::registers::io::{inb, outb};
 
 /// All VGA modes supported by the x86_q35 chip crate.
 #[non_exhaustive]
@@ -49,22 +49,8 @@ const TEXT_BUFFER_ADDR: usize = 0xB8000;
 // Buffer dimensions
 const TEXT_BUFFER_WIDTH: usize = 80;
 const TEXT_BUFFER_HEIGHT: usize = 25;
-
-// Low-level port I/O helpers
-// inb/outb wrappers
-
-/// Safe wrappers (single place to audit)
-#[inline(always)]
-fn outb(port: u16, val: u8) {
-    // SAFETY: caller already has I/O privileges; wrapper centralises the `unsafe`.
-    unsafe { raw_outb(port, val) }
-}
-
-#[inline(always)]
-fn inb(port: u16) -> u8 {
-    // SAFETY: caller already has I/O privileges.
-    unsafe { raw_inb(port) }
-}
+/// Physical address where QEMU exposes the linear-frame-buffer BAR.
+const LFB_PHYS_BASE: u32 = 0xE0_00_0000;
 
 // Public API - the VGA struct providing text console implementation
 
@@ -97,11 +83,12 @@ impl VgaTextBuffer {
 
     fn update_hw_cursor(&self) {
         let pos = (self.row.get() * TEXT_BUFFER_WIDTH + self.col.get()) as u16;
-
-        outb(0x3D4, 0x0F);
-        outb(0x3D5, (pos & 0xFF) as u8);
-        outb(0x3D4, 0x0E);
-        outb(0x3D5, (pos >> 8) as u8);
+        unsafe {
+            outb(0x3D4, 0x0F);
+            outb(0x3D5, (pos & 0xFF) as u8);
+            outb(0x3D4, 0x0E);
+            outb(0x3D5, (pos >> 8) as u8);
+        }
     }
 
     fn scroll_up(&self) {
@@ -127,11 +114,12 @@ impl VgaTextBuffer {
 
     pub fn set_cursor(&self, col: usize, row: usize) {
         let pos = (row * TEXT_BUFFER_WIDTH + col) as u16;
-
-        outb(0x3D4, 0x0F);
-        outb(0x3D5, (pos & 0xFF) as u8);
-        outb(0x3D4, 0x0E);
-        outb(0x3D5, (pos >> 8) as u8);
+        unsafe {
+            outb(0x3D4, 0x0F);
+            outb(0x3D5, (pos & 0xFF) as u8);
+            outb(0x3D4, 0x0E);
+            outb(0x3D5, (pos >> 8) as u8);
+        }
     }
 
     pub fn set_attr(&self, attr: u8) {
@@ -181,11 +169,13 @@ impl VgaTextBuffer {
 
 fn init_text_mode() {
     // Select CRTC register index 0x11 (cursor start register) and reset its value to 0
-    outb(0x3D4, 0x11);
-    outb(0x3D5, 0x00);
+    unsafe {
+        outb(0x3D4, 0x11);
+        outb(0x3D5, 0x00);
 
-    // Read the Attribute Controller’s status register to reset its internal flip-flop
-    inb(0x3DA);
+        // Read the Attribute Controller’s status register to reset its internal flip-flop
+        inb(0x3DA);
+    }
 
     // Program the 21 Attribute Controller registers:
     //   0x00–0x0F are the 16 palette entries,
@@ -215,16 +205,20 @@ fn init_text_mode() {
     .copied()
     {
         // Write the register index to the Attribute Controller
-        outb(0x3C0, idx);
-        // Write the corresponding value
-        outb(0x3C0, val);
+        unsafe {
+            outb(0x3C0, idx);
+            // Write the corresponding value
+            outb(0x3C0, val);
+        }
     }
 
     // Reset the flip-flop again before enabling video output
-    inb(0x3DA);
+    unsafe {
+        inb(0x3DA);
 
-    // Turn video output back on (set bit 5 of the Attribute Controller’s 0x20 register)
-    outb(0x3C0, 0x20);
+        // Turn video output back on (set bit 5 of the Attribute Controller’s 0x20 register)
+        outb(0x3C0, 0x20);
+    }
 }
 
 #[allow(clippy::single_match)]
@@ -250,17 +244,30 @@ pub fn framebuffer() -> Option<(*mut u8, usize)> {
     None
 }
 
-fn init_and_map_lfb(mode: VgaMode, page_dir_ptr: *mut x86::registers::bits32::paging::PD) {
+fn init_and_map_lfb(mode: VgaMode, page_dir: &mut x86::registers::bits32::paging::PD) {
     init(mode);
     if mode == VgaMode::Text80x25 {
-        let pd: &mut x86::registers::bits32::paging::PD = unsafe { &mut *page_dir_ptr };
+        // Inline 4 MiB VGA framebuffer mapping using PDEntry::new()
+        use x86::registers::bits32::paging::{PAddr, PDEntry, PDFlags, PDFLAGS};
 
-        crate::mmu::map_linear_framebuffer(pd);
+        // Compute which PDE slot holds LFB_PHYS_BASE
+        let idx = (LFB_PHYS_BASE >> 22) as usize;
+        // Wrap the physical base in a PAddr
+        let pa = PAddr::from(LFB_PHYS_BASE);
+
+        // Build flags via PDFlags + PDFLAGS::...::SET
+        let mut flags = PDFlags::new(0);
+        flags.modify(PDFLAGS::P::SET);
+        flags.modify(PDFLAGS::RW::SET);
+        flags.modify(PDFLAGS::PS::SET);
+
+        // Construct the entry (new() will mask & assert alignment)
+        page_dir[idx] = PDEntry::new(pa, flags);
     }
 }
 
 /// Initialise 80×25 text mode and start with a clean screen.
-pub(crate) fn new_text_console(page_dir_ptr: *mut x86::registers::bits32::paging::PD) {
+pub(crate) fn new_text_console(page_dir_ptr: &mut x86::registers::bits32::paging::PD) {
     // Map VGA linear-framebuffer + program CRTC/attribute regs
 
     init_and_map_lfb(VgaMode::Text80x25, page_dir_ptr);

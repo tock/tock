@@ -210,7 +210,9 @@ impl Component for PcComponent<'static> {
             // Clear BIOS banner: the real-mode BIOS leaves its text (and the cursor off-screen) in
             // 0xB8000.  Wiping the full 80×25 buffer gives us a clean screen and a visible cursor
             // before the kernel prints its first message.
-            crate::vga::new_text_console(core::ptr::from_mut(self.pd));
+            // SAFETY: PAGE_DIR is identity-mapped, aligned, and unique
+            let pd: &mut PD = &mut *core::ptr::from_mut(self.pd);
+            crate::vga::new_text_console(pd);
         }
 
         let com1 = unsafe { SerialPortComponent::new(COM1_BASE).finalize(s.0) };
