@@ -150,3 +150,18 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for NRF52<'a, I>
         CortexM4F::print_cortexm_state(write);
     }
 }
+
+unsafe impl<'a, I: InterruptService + 'a> kernel::platform::chip::ChipThreadId for NRF52<'a, I> {
+    fn running_thread_id() -> usize {
+        // We assign thread IDs this way:
+        //
+        // - 0: Main thread
+        // - 1: Any interrupt service routine
+        //
+        // # Safety
+        //
+        // This accesses low-level arch registers with assembly. It is safe
+        // because we are only reading a status register.
+        unsafe { cortexm4f::support::is_interrupt_context() as usize }
+    }
+}
