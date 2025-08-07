@@ -20,7 +20,6 @@ QEMU_BASE_CMDLINE := \
     -cpu 486 \
     -machine q35 \
     -net none \
-    -nographic \
     -device isa-debug-exit,iobase=0xf4,iosize=0x04
 
 # Run the kernel inside a qemu-system-i386 "q35" machine type simulation
