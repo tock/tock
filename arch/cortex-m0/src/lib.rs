@@ -79,21 +79,21 @@ unsafe extern "C" fn generic_isr() {
     use core::arch::naked_asm;
     naked_asm!(
         "
-    /* Skip saving process state if not coming from user-space */
+    // Skip saving process state if not coming from user-space
     ldr r0, 300f // MEXC_RETURN_PSP
     cmp lr, r0
     bne 100f
 
-    /* We need to make sure the kernel cotinues the execution after this ISR */
+    // We need to make sure the kernel continues the execution after this ISR
     movs r0, #0
     msr CONTROL, r0
-    /* CONTROL writes must be followed by ISB */
-    /* https://developer.arm.com/documentation/dui0662/b/The-Cortex-M0--Processor/Programmers-model/Core-registers */
+    // CONTROL writes must be followed by ISB
+    // https://developer.arm.com/documentation/dui0662/b/The-Cortex-M0--Processor/Programmers-model/Core-registers
     isb
 
-    /* We need the most recent kernel's version of r1, which points */
-    /* to the Process struct's stored registers field. The kernel's r1 */
-    /* lives in the second word of the hardware stacked registers on MSP */
+    // We need the most recent kernel's version of r1, which points
+    // to the Process struct's stored registers field. The kernel's r1
+    // lives in the second word of the hardware stacked registers on MSP
     mov r1, sp
     ldr r1, [r1, #4]
     str r4, [r1, #16]
@@ -115,52 +115,51 @@ unsafe extern "C" fn generic_isr() {
     ldr r0, 200f // MEXC_RETURN_MSP
     mov lr, r0
 100: // _ggeneric_isr_no_stacking
-    /* Find the ISR number by looking at the low byte of the IPSR registers */
+    // Find the ISR number by looking at the low byte of the IPSR registers
     mrs r0, IPSR
     movs r1, #0xff
     ands r0, r1
-    /* ISRs start at 16, so subtract 16 to get zero-indexed */
+    // ISRs start at 16, so subtract 16 to get zero-indexed
     subs r0, r0, #16
 
-    /*
-     * High level:
-     *    NVIC.ICER[r0 / 32] = 1 << (r0 & 31)
-     * */
-    /* r3 = &NVIC.ICER[r0 / 32] */
-    ldr r2, 101f      /* r2 = &NVIC.ICER */
-    lsrs r3, r0, #5   /* r3 = r0 / 32 */
-    lsls r3, r3, #2   /* ICER is word-sized, so multiply offset by 4 */
-    adds r3, r3, r2   /* r3 = r2 + r3 */
+    // High level:
+    //    NVIC.ICER[r0 / 32] = 1 << (r0 & 31)
+    //
+    // r3 = &NVIC.ICER[r0 / 32]
+    ldr r2, 101f      // r2 = &NVIC.ICER
+    lsrs r3, r0, #5   // r3 = r0 / 32
+    lsls r3, r3, #2   // ICER is word-sized, so multiply offset by 4
+    adds r3, r3, r2   // r3 = r2 + r3
 
-    /* r2 = 1 << (r0 & 31) */
-    movs r2, #31      /* r2 = 31 */
-    ands r0, r2       /* r0 = r0 & r2 */
-    subs r2, r2, #30  /* r2 = r2 - 30 i.e. r2 = 1 */
-    lsls r2, r2, r0   /* r2 = 1 << r0 */
+    // r2 = 1 << (r0 & 31)
+    movs r2, #31      // r2 = 31
+    ands r0, r2       // r0 = r0 & r2
+    subs r2, r2, #30  // r2 = r2 - 30 i.e. r2 = 1
+    lsls r2, r2, r0   // r2 = 1 << r0
 
-    /* *r3 = r2 */
+    // *r3 = r2
     str r2, [r3]
 
-    /* The pending bit in ISPR might be reset by hardware for pulse interrupts
-     * at this point. So set it here again so the interrupt does not get lost
-     * in service_pending_interrupts()
-     *
-     * The NVIC.ISPR base is 0xE000E200, which is 0x20 (aka #32) above the
-     * NVIC.ICER base.  Calculate the ISPR address by offsetting from the ICER
-     * address so as to avoid re-doing the [r0 / 32] index math.
-     */
+    // The pending bit in ISPR might be reset by hardware for pulse interrupts
+    // at this point. So set it here again so the interrupt does not get lost
+    // in service_pending_interrupts()
+    //
+    // The NVIC.ISPR base is 0xE000E200, which is 0x20 (aka #32) above the
+    // NVIC.ICER base.  Calculate the ISPR address by offsetting from the ICER
+    // address so as to avoid re-doing the [r0 / 32] index math.
     adds r3, #32
     str r2, [r3]
 
-    bx lr /* return here since we have extra words in the assembly */
+    bx lr // return here since we have extra words in the assembly
 
 .align 4
 101: // NVICICER
-  .word 0xE000E180
+    .word 0xE000E180
 200: // MEXC_RETURN_MSP
-  .word 0xFFFFFFF9
+    .word 0xFFFFFFF9
 300: // MEXC_RETURN_PSP
-  .word 0xFFFFFFFD",
+    .word 0xFFFFFFFD
+        "
     );
 }
 
@@ -185,8 +184,8 @@ unsafe extern "C" fn systick_handler() {
     // Set thread mode to privileged to switch back to kernel mode.
     movs r0, #0
     msr CONTROL, r0
-    /* CONTROL writes must be followed by ISB */
-    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    // CONTROL writes must be followed by ISB
+    // http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html
     isb
 
     ldr r0, 100f // ST_EXC_RETURN_MSP
@@ -194,10 +193,10 @@ unsafe extern "C" fn systick_handler() {
     // This will resume in the switch to user function where application state
     // is saved and the scheduler can choose what to do next.
     bx   r0
-.align 4
+    .align 4
 100: // ST_EXC_RETURN_MSP
-  .word 0xFFFFFFF9
-    ",
+    .word 0xFFFFFFF9
+        "
     );
 }
 
@@ -213,35 +212,35 @@ unsafe extern "C" fn svc_handler() {
     use core::arch::naked_asm;
     naked_asm!(
         "
-  ldr r0, 200f // EXC_RETURN_MSP
-  cmp lr, r0
-  bne 100f
-  movs r0, #1
-  msr CONTROL, r0
-  /* CONTROL writes must be followed by ISB */
-    /* https://developer.arm.com/documentation/dui0662/b/The-Cortex-M0--Processor/Programmers-model/Core-registers */
-  isb
-  ldr r1, 300f // EXC_RETURN_PSP
-  bx r1
+    ldr r0, 200f // EXC_RETURN_MSP
+    cmp lr, r0
+    bne 100f
+    movs r0, #1
+    msr CONTROL, r0
+    // CONTROL writes must be followed by ISB
+    // https://developer.arm.com/documentation/dui0662/b/The-Cortex-M0--Processor/Programmers-model/Core-registers
+    isb
+    ldr r1, 300f // EXC_RETURN_PSP
+    bx r1
 
 100: // to_kernel
-  movs r0, #0
-  msr CONTROL, r0
-  /* CONTROL writes must be followed by ISB */
-    /* https://developer.arm.com/documentation/dui0662/b/The-Cortex-M0--Processor/Programmers-model/Core-registers */
-  isb
-  ldr r0, =SYSCALL_FIRED
-  movs r1, #1
-  str r1, [r0, #0]
-  ldr r1, 200f
-  bx r1
+    movs r0, #0
+    msr CONTROL, r0
+    // CONTROL writes must be followed by ISB
+    // https://developer.arm.com/documentation/dui0662/b/The-Cortex-M0--Processor/Programmers-model/Core-registers
+    isb
+    ldr r0, =SYSCALL_FIRED
+    movs r1, #1
+    str r1, [r0, #0]
+    ldr r1, 200f
+    bx r1
 
-.align 4
+    .align 4
 200: // EXC_RETURN_MSP
-  .word 0xFFFFFFF9
+    .word 0xFFFFFFF9
 300: // EXC_RETURN_PSP
-  .word 0xFFFFFFFD
-  ",
+    .word 0xFFFFFFFD
+        "
     );
 }
 
@@ -257,22 +256,19 @@ unsafe extern "C" fn hard_fault_handler() {
     use core::arch::naked_asm;
     // If `kernel_stack` is non-zero, then hard-fault occurred in
     // kernel, otherwise the hard-fault occurred in user.
-    naked_asm!("
-    /*
-     * Will be incremented to 1 when we determine that it was a fault
-     * in the kernel
-     */
+    naked_asm!(
+        "
+    // Will be incremented to 1 when we determine that it was a fault
+    // in the kernel
     movs r1, #0
-    /*
-     * r2 is used for testing and r3 is used to store lr
-     */
+    // r2 is used for testing and r3 is used to store lr
     mov r3, lr
 
     movs r2, #4
     tst r3, r2
     beq 100f
 
-// _hardfault_psp:
+    // _hardfault_psp:
     mrs r0, psp
     b 200f
 
@@ -295,40 +291,38 @@ unsafe extern "C" fn hard_fault_handler() {
     // Otherwise, store that a hardfault occurred in an app, store some CPU
     // state and finally return to the kernel stack:
     ldr r0, =APP_HARD_FAULT
-    movs r1, #1 /* Fault */
+    movs r1, #1 // Fault
     str r1, [r0, #0]
 
-    /*
-    * NOTE:
-    * -----
-    *
-    * Even though ARMv6-M SCB and Control registers
-    * are different from ARMv7-M, they are still compatible
-    * with each other. So, we can keep the same code as
-    * ARMv7-M.
-    *
-    * ARMv6-M however has no _privileged_ mode.
-    */
+    // NOTE:
+    // -----
+    //
+    // Even though ARMv6-M SCB and Control registers
+    // are different from ARMv7-M, they are still compatible
+    // with each other. So, we can keep the same code as
+    // ARMv7-M.
+    //
+    // ARMv6-M however has no _privileged_ mode.
 
-    /* Read the SCB registers. */
+    // Read the SCB registers.
     ldr r0, =SCB_REGISTERS
     ldr r1, =0xE000ED14
-    ldr r2, [r1, #0] /* CCR */
+    ldr r2, [r1, #0] // CCR
     str r2, [r0, #0]
-    ldr r2, [r1, #20] /* CFSR */
+    ldr r2, [r1, #20] // CFSR
     str r2, [r0, #4]
-    ldr r2, [r1, #24] /* HFSR */
+    ldr r2, [r1, #24] // HFSR
     str r2, [r0, #8]
-    ldr r2, [r1, #32] /* MMFAR */
+    ldr r2, [r1, #32] // MMFAR
     str r2, [r0, #12]
-    ldr r2, [r1, #36] /* BFAR */
+    ldr r2, [r1, #36] // BFAR
     str r2, [r0, #16]
 
-    /* Set thread mode to privileged */
+    // Set thread mode to privileged
     movs r0, #0
     msr CONTROL, r0
-    /* No ISB required on M0 */
-    /* http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html */
+    // No ISB required on M0
+    // http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dai0321a/BIHFJCAC.html
 
     // Load the FEXC_RETURN_MSP LR address and return to it, to switch to the
     // kernel (MSP) stack:
@@ -339,8 +333,8 @@ unsafe extern "C" fn hard_fault_handler() {
     .align 4
 300: // FEXC_RETURN_MSP
     .word 0xFFFFFFF9
-    ",
-    kernel_hard_fault_handler = sym hard_fault_handler_kernel,
+        ",
+        kernel_hard_fault_handler = sym hard_fault_handler_kernel,
     );
 }
 
@@ -370,7 +364,8 @@ impl cortexm::CortexMVariant for CortexM0 {
         process_regs: &mut [usize; 8],
     ) -> *const usize {
         use core::arch::asm;
-        asm!("
+        asm!(
+            "
     // Rust `asm!()` macro (as of May 2021) will not let us mark r6, r7 and r9
     // as clobbers. r6 and r9 is used internally by LLVM, and r7 is used for
     // the frame pointer. However, in the process of restoring and saving the
@@ -381,25 +376,25 @@ impl cortexm::CortexMVariant for CortexM0 {
     mov r3, r7
     mov r12, r9
 
-    /* Load non-hardware-stacked registers from Process stack */
+    // Load non-hardware-stacked registers from Process stack
     ldmia r1!, {{r4-r7}}
     mov r11, r7
     mov r10, r6
     mov r9,  r5
     mov r8,  r4
     ldmia r1!, {{r4-r7}}
-    subs r1, 32 /* Restore pointer to process_regs
-                /* ldmia! added a 32-byte offset */
+    subs r1, 32 // Restore pointer to process_regs
+                // ldmia! added a 32-byte offset
 
-    /* Load bottom of stack into Process Stack Pointer */
+    // Load bottom of stack into Process Stack Pointer
     msr psp, r0
 
-    /* SWITCH */
-    svc 0xff /* It doesn't matter which SVC number we use here */
+    // SWITCH
+    svc 0xff // It doesn't matter which SVC number we use here
 
-    /* Store non-hardware-stacked registers in process_regs */
-    /* r1 still points to process_regs because we are clobbering all */
-    /* non-hardware-stacked registers */
+    // Store non-hardware-stacked registers in process_regs
+    // r1 still points to process_regs because we are clobbering all
+    // non-hardware-stacked registers
     str r4, [r1, #16]
     str r5, [r1, #20]
     str r6, [r1, #24]
@@ -415,18 +410,24 @@ impl cortexm::CortexMVariant for CortexM0 {
     str r6, [r1, #8]
     str r7, [r1, #12]
 
-    mrs r0, PSP /* PSP into user_stack */
+    mrs r0, PSP // PSP into user_stack
 
     // Manually restore r6, r7 and r9.
     mov r6, r2
     mov r7, r3
     mov r9, r12
-
-    ",
-    inout("r0") user_stack,
-    in("r1") process_regs,
-    out("r2") _, out("r3") _, out("r4") _, out("r5") _, out("r8") _,
-    out("r10") _, out("r11") _, out("r12") _);
+            ",
+            inout("r0") user_stack,
+            in("r1") process_regs,
+            out("r2") _,
+            out("r3") _,
+            out("r4") _,
+            out("r5") _,
+            out("r8") _,
+            out("r10") _,
+            out("r11") _,
+            out("r12") _,
+        );
 
         user_stack
     }

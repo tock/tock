@@ -60,76 +60,76 @@ extern "C" {
 #[unsafe(naked)]
 pub extern "C" fn _start() {
     use core::arch::naked_asm;
-    naked_asm! ("
-        // Set the global pointer register using the variable defined in the
-        // linker script. This register is only set once. The global pointer
-        // is a method for sharing state between the linker and the CPU so
-        // that the linker can emit code with offsets that are relative to
-        // the gp register, and the CPU can successfully execute them.
-        //
-        // https://gnu-mcu-eclipse.github.io/arch/riscv/programmer/#the-gp-global-pointer-register
-        // https://groups.google.com/a/groups.riscv.org/forum/#!msg/sw-dev/60IdaZj27dY/5MydPLnHAQAJ
-        // https://www.sifive.com/blog/2017/08/28/all-aboard-part-3-linker-relaxation-in-riscv-toolchain/
-        //
-        // Disable linker relaxation for code that sets up GP so that this doesn't
-        // get turned into `mv gp, gp`.
-        .option push
-        .option norelax
+    naked_asm!(
+        "
+    // Set the global pointer register using the variable defined in the
+    // linker script. This register is only set once. The global pointer
+    // is a method for sharing state between the linker and the CPU so
+    // that the linker can emit code with offsets that are relative to
+    // the gp register, and the CPU can successfully execute them.
+    //
+    // https://gnu-mcu-eclipse.github.io/arch/riscv/programmer/#the-gp-global-pointer-register
+    // https://groups.google.com/a/groups.riscv.org/forum/#!msg/sw-dev/60IdaZj27dY/5MydPLnHAQAJ
+    // https://www.sifive.com/blog/2017/08/28/all-aboard-part-3-linker-relaxation-in-riscv-toolchain/
+    //
+    // Disable linker relaxation for code that sets up GP so that this doesn't
+    // get turned into `mv gp, gp`.
+    .option push
+    .option norelax
 
-        la gp, {gp}                 // Set the global pointer from linker script.
+    la gp, {gp}                 // Set the global pointer from linker script.
 
-        // Re-enable linker relaxations.
-        .option pop
+    // Re-enable linker relaxations.
+    .option pop
 
-        // Initialize the stack pointer register. This comes directly from
-        // the linker script.
-        la sp, {estack}             // Set the initial stack pointer.
+    // Initialize the stack pointer register. This comes directly from
+    // the linker script.
+    la sp, {estack}             // Set the initial stack pointer.
 
-        // Set s0 (the frame pointer) to the start of the stack.
-        add  s0, sp, zero           // s0 = sp
+    // Set s0 (the frame pointer) to the start of the stack.
+    add  s0, sp, zero           // s0 = sp
 
-        // Initialize mscratch to 0 so that we know that we are currently
-        // in the kernel. This is used for the check in the trap handler.
-        csrw 0x340, zero            // CSR=0x340=mscratch
+    // Initialize mscratch to 0 so that we know that we are currently
+    // in the kernel. This is used for the check in the trap handler.
+    csrw 0x340, zero            // CSR=0x340=mscratch
 
-        // INITIALIZE MEMORY
+    // INITIALIZE MEMORY
 
-        // Start by initializing .bss memory. The Tock linker script defines
-        // `_szero` and `_ezero` to mark the .bss segment.
-        la a0, {sbss}               // a0 = first address of .bss
-        la a1, {ebss}               // a1 = first address after .bss
+    // Start by initializing .bss memory. The Tock linker script defines
+    // `_szero` and `_ezero` to mark the .bss segment.
+    la a0, {sbss}               // a0 = first address of .bss
+    la a1, {ebss}               // a1 = first address after .bss
 
-      100: // bss_init_loop
-        beq  a0, a1, 101f           // If a0 == a1, we are done.
-        sw   zero, 0(a0)            // *a0 = 0. Write 0 to the memory location in a0.
-        addi a0, a0, 4              // a0 = a0 + 4. Increment pointer to next word.
-        j 100b                      // Continue the loop.
+100: // bss_init_loop
+    beq  a0, a1, 101f           // If a0 == a1, we are done.
+    sw   zero, 0(a0)            // *a0 = 0. Write 0 to the memory location in a0.
+    addi a0, a0, 4              // a0 = a0 + 4. Increment pointer to next word.
+    j 100b                      // Continue the loop.
 
-      101: // bss_init_done
+101: // bss_init_done
 
+    // Now initialize .data memory. This involves coping the values right at the
+    // end of the .text section (in flash) into the .data section (in RAM).
+    la a0, {sdata}              // a0 = first address of data section in RAM
+    la a1, {edata}              // a1 = first address after data section in RAM
+    la a2, {etext}              // a2 = address of stored data initial values
 
-        // Now initialize .data memory. This involves coping the values right at the
-        // end of the .text section (in flash) into the .data section (in RAM).
-        la a0, {sdata}              // a0 = first address of data section in RAM
-        la a1, {edata}              // a1 = first address after data section in RAM
-        la a2, {etext}              // a2 = address of stored data initial values
+200: // data_init_loop
+    beq  a0, a1, 201f           // If we have reached the end of the .data
+                                // section then we are done.
+    lw   a3, 0(a2)              // a3 = *a2. Load value from initial values into a3.
+    sw   a3, 0(a0)              // *a0 = a3. Store initial value into
+                                // next place in .data.
+    addi a0, a0, 4              // a0 = a0 + 4. Increment to next word in memory.
+    addi a2, a2, 4              // a2 = a2 + 4. Increment to next word in flash.
+    j 200b                      // Continue the loop.
 
-      200: // data_init_loop
-        beq  a0, a1, 201f           // If we have reached the end of the .data
-                                    // section then we are done.
-        lw   a3, 0(a2)              // a3 = *a2. Load value from initial values into a3.
-        sw   a3, 0(a0)              // *a0 = a3. Store initial value into
-                                    // next place in .data.
-        addi a0, a0, 4              // a0 = a0 + 4. Increment to next word in memory.
-        addi a2, a2, 4              // a2 = a2 + 4. Increment to next word in flash.
-        j 200b                      // Continue the loop.
+201: // data_init_done
 
-      201: // data_init_done
-
-        // With that initial setup out of the way, we now branch to the main
-        // code, likely defined in a board's main.rs.
-        j main
-    ",
+    // With that initial setup out of the way, we now branch to the main
+    // code, likely defined in a board's main.rs.
+    j main
+        ",
         gp = sym __global_pointer,
         estack = sym _estack,
         sbss = sym _szero,
@@ -273,113 +273,113 @@ pub extern "C" fn _start_trap() {
     use core::arch::naked_asm;
     naked_asm!(
         "
-        // This is the global trap handler. By default, Tock expects this
-        // trap handler to be registered at all times, and that all traps
-        // and interrupts occurring in all modes of execution (M-, S-, and
-        // U-mode) will cause this trap handler to be executed.
-        //
-        // For documentation of its behavior, and how process
-        // implementations can hook their own trap handler code, see the
-        // comment on the `extern C _start_trap` symbol above.
+    // This is the global trap handler. By default, Tock expects this
+    // trap handler to be registered at all times, and that all traps
+    // and interrupts occurring in all modes of execution (M-, S-, and
+    // U-mode) will cause this trap handler to be executed.
+    //
+    // For documentation of its behavior, and how process
+    // implementations can hook their own trap handler code, see the
+    // comment on the `extern C _start_trap` symbol above.
 
-        // Atomically swap s0 and mscratch:
-        csrrw s0, mscratch, s0        // s0 = mscratch; mscratch = s0
+    // Atomically swap s0 and mscratch:
+    csrrw s0, mscratch, s0        // s0 = mscratch; mscratch = s0
 
-        // If mscratch contained 0, invoke the kernel trap handler.
-        beq   s0, x0, 100f      // if s0==x0: goto 100
+    // If mscratch contained 0, invoke the kernel trap handler.
+    beq   s0, x0, 100f      // if s0==x0: goto 100
 
-        // Else, save the current value of s1 to `0*4(s0)`, load `1*4(s0)`
-        // into s1 and jump to it (invoking a custom trap handler).
-        sw    s1, 0*4(s0)       // *s0 = s1
-        lw    s1, 1*4(s0)       // s1 = *(s0+4)
-        jr    s1                // goto s1
+    // Else, save the current value of s1 to `0*4(s0)`, load `1*4(s0)`
+    // into s1 and jump to it (invoking a custom trap handler).
+    sw    s1, 0*4(s0)       // *s0 = s1
+    lw    s1, 1*4(s0)       // s1 = *(s0+4)
+    jr    s1                // goto s1
 
-      100: // _start_kernel_trap
+  100: // _start_kernel_trap
 
-        // The global trap handler has swapped s0 into mscratch. We can thus
-        // freely clobber s0 without losing any information.
-        //
-        // Since we want to use the stack to save kernel registers, we
-        // first need to make sure that the trap wasn't the result of a
-        // stack overflow, in which case we can't use the current stack
-        // pointer. Use s0 as a scratch register:
+    // The global trap handler has swapped s0 into mscratch. We can thus
+    // freely clobber s0 without losing any information.
+    //
+    // Since we want to use the stack to save kernel registers, we
+    // first need to make sure that the trap wasn't the result of a
+    // stack overflow, in which case we can't use the current stack
+    // pointer. Use s0 as a scratch register:
 
-        // Load the address of the bottom of the stack (`_sstack`) into our
-        // newly freed-up s0 register.
-        la s0, {sstack}                     // s0 = _sstack
+    // Load the address of the bottom of the stack (`_sstack`) into our
+    // newly freed-up s0 register.
+    la s0, {sstack}                     // s0 = _sstack
 
-        // Compare the kernel stack pointer to the bottom of the stack. If
-        // the stack pointer is above the bottom of the stack, then continue
-        // handling the fault as normal.
-        bgtu sp, s0, 200f                   // branch if sp > s0
+    // Compare the kernel stack pointer to the bottom of the stack. If
+    // the stack pointer is above the bottom of the stack, then continue
+    // handling the fault as normal.
+    bgtu sp, s0, 200f                   // branch if sp > s0
 
-        // If we get here, then we did encounter a stack overflow. We are
-        // going to panic at this point, but for that to work we need a
-        // valid stack to run the panic code. We do this by just starting
-        // over with the kernel stack and placing the stack pointer at the
-        // top of the original stack.
-        la sp, {estack}                     // sp = _estack
+    // If we get here, then we did encounter a stack overflow. We are
+    // going to panic at this point, but for that to work we need a
+    // valid stack to run the panic code. We do this by just starting
+    // over with the kernel stack and placing the stack pointer at the
+    // top of the original stack.
+    la sp, {estack}                     // sp = _estack
 
-    200: // _start_kernel_trap_continue
+200: // _start_kernel_trap_continue
 
-        // Restore s0. We reset mscratch to 0 (kernel trap handler mode)
-        csrrw s0, mscratch, zero    // s0 = mscratch; mscratch = 0
+    // Restore s0. We reset mscratch to 0 (kernel trap handler mode)
+    csrrw s0, mscratch, zero    // s0 = mscratch; mscratch = 0
 
-        // Make room for the caller saved registers we need to restore after
-        // running any trap handler code.
-        addi sp, sp, -16*4
+    // Make room for the caller saved registers we need to restore after
+    // running any trap handler code.
+    addi sp, sp, -16*4
 
-        // Save all of the caller saved registers.
-        sw   ra, 0*4(sp)
-        sw   t0, 1*4(sp)
-        sw   t1, 2*4(sp)
-        sw   t2, 3*4(sp)
-        sw   t3, 4*4(sp)
-        sw   t4, 5*4(sp)
-        sw   t5, 6*4(sp)
-        sw   t6, 7*4(sp)
-        sw   a0, 8*4(sp)
-        sw   a1, 9*4(sp)
-        sw   a2, 10*4(sp)
-        sw   a3, 11*4(sp)
-        sw   a4, 12*4(sp)
-        sw   a5, 13*4(sp)
-        sw   a6, 14*4(sp)
-        sw   a7, 15*4(sp)
+    // Save all of the caller saved registers.
+    sw   ra, 0*4(sp)
+    sw   t0, 1*4(sp)
+    sw   t1, 2*4(sp)
+    sw   t2, 3*4(sp)
+    sw   t3, 4*4(sp)
+    sw   t4, 5*4(sp)
+    sw   t5, 6*4(sp)
+    sw   t6, 7*4(sp)
+    sw   a0, 8*4(sp)
+    sw   a1, 9*4(sp)
+    sw   a2, 10*4(sp)
+    sw   a3, 11*4(sp)
+    sw   a4, 12*4(sp)
+    sw   a5, 13*4(sp)
+    sw   a6, 14*4(sp)
+    sw   a7, 15*4(sp)
 
-        // Jump to board-specific trap handler code. Likely this was an
-        // interrupt and we want to disable a particular interrupt, but each
-        // board/chip can customize this as needed.
-        jal ra, _start_trap_rust_from_kernel
+    // Jump to board-specific trap handler code. Likely this was an
+    // interrupt and we want to disable a particular interrupt, but each
+    // board/chip can customize this as needed.
+    jal ra, _start_trap_rust_from_kernel
 
-        // Restore the registers from the stack.
-        lw   ra, 0*4(sp)
-        lw   t0, 1*4(sp)
-        lw   t1, 2*4(sp)
-        lw   t2, 3*4(sp)
-        lw   t3, 4*4(sp)
-        lw   t4, 5*4(sp)
-        lw   t5, 6*4(sp)
-        lw   t6, 7*4(sp)
-        lw   a0, 8*4(sp)
-        lw   a1, 9*4(sp)
-        lw   a2, 10*4(sp)
-        lw   a3, 11*4(sp)
-        lw   a4, 12*4(sp)
-        lw   a5, 13*4(sp)
-        lw   a6, 14*4(sp)
-        lw   a7, 15*4(sp)
+    // Restore the registers from the stack.
+    lw   ra, 0*4(sp)
+    lw   t0, 1*4(sp)
+    lw   t1, 2*4(sp)
+    lw   t2, 3*4(sp)
+    lw   t3, 4*4(sp)
+    lw   t4, 5*4(sp)
+    lw   t5, 6*4(sp)
+    lw   t6, 7*4(sp)
+    lw   a0, 8*4(sp)
+    lw   a1, 9*4(sp)
+    lw   a2, 10*4(sp)
+    lw   a3, 11*4(sp)
+    lw   a4, 12*4(sp)
+    lw   a5, 13*4(sp)
+    lw   a6, 14*4(sp)
+    lw   a7, 15*4(sp)
 
-        // Reset the stack pointer.
-        addi sp, sp, 16*4
+    // Reset the stack pointer.
+    addi sp, sp, 16*4
 
-        // mret returns from the trap handler. The PC is set to what is in
-        // mepc and execution proceeds from there. Since we did not modify
-        // mepc we will return to where the exception occurred.
-        mret
-    ",
-    estack = sym _estack,
-    sstack = sym _sstack,
+    // mret returns from the trap handler. The PC is set to what is in
+    // mepc and execution proceeds from there. Since we did not modify
+    // mepc we will return to where the exception occurred.
+    mret
+        ",
+        estack = sym _estack,
+        sstack = sym _sstack,
     );
 }
 
@@ -399,20 +399,20 @@ pub unsafe fn semihost_command(command: usize, arg0: usize, arg1: usize) -> usiz
     use core::arch::asm;
     let res;
     asm!(
-    "
-      .balign 16
-      .option push
-      .option norelax
-      .option norvc
-      slli x0, x0, 0x1f
-      ebreak
-      srai x0, x0, 7
-      .option pop
-      ",
-    in("a0") command,
-    in("a1") arg0,
-    in("a2") arg1,
-    lateout("a0") res,
+        "
+    .balign 16
+    .option push
+    .option norelax
+    .option norvc
+    slli x0, x0, 0x1f
+    ebreak
+    srai x0, x0, 7
+    .option pop
+        ",
+        in("a0") command,
+        in("a1") arg0,
+        in("a2") arg1,
+        lateout("a0") res,
     );
     res
 }

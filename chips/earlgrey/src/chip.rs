@@ -465,38 +465,38 @@ pub extern "C" fn _earlgrey_start_trap_vectored() -> ! {
     // range of vectored traps.
     naked_asm!(
         "
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
-        j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
+    j {start_trap}
         ",
         start_trap = sym rv32i::_start_trap,
     );
