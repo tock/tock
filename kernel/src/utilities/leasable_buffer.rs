@@ -321,11 +321,14 @@ impl<'a, T> SubSliceMut<'a, T> {
         self.as_slice().len()
     }
 
-    /// Returns a pointer to the currently accessible portion of the SubSlice.
+    /// Returns a const pointer to the currently accessible portion of the
+    /// SubSlice.
     pub fn as_ptr(&self) -> *const T {
         self.as_slice().as_ptr()
     }
 
+    /// Returns a mutable pointer to the currently accessible portion of the
+    /// SubSlice.
     pub fn as_mut_ptr(&mut self) -> *mut T {
         self.as_mut_slice().as_mut_ptr()
     }
