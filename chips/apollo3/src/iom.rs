@@ -602,19 +602,19 @@ impl<'a> Iom<'_> {
                     let d = self.registers.fifopop.get().to_ne_bytes();
                     let data_idx = self.read_index.get();
 
-                    if let Some(b) = buf.as_slice().get_mut(data_idx + 0) {
+                    if let Some(b) = buf.as_mut_slice().get_mut(data_idx + 0) {
                         *b = d[0];
                         self.read_index.set(data_idx + 1);
                     }
-                    if let Some(b) = buf.as_slice().get_mut(data_idx + 1) {
+                    if let Some(b) = buf.as_mut_slice().get_mut(data_idx + 1) {
                         *b = d[1];
                         self.read_index.set(data_idx + 2);
                     }
-                    if let Some(b) = buf.as_slice().get_mut(data_idx + 2) {
+                    if let Some(b) = buf.as_mut_slice().get_mut(data_idx + 2) {
                         *b = d[2];
                         self.read_index.set(data_idx + 3);
                     }
-                    if let Some(b) = buf.as_slice().get_mut(data_idx + 3) {
+                    if let Some(b) = buf.as_mut_slice().get_mut(data_idx + 3) {
                         *b = d[3];
                         self.read_index.set(data_idx + 4);
                     }
