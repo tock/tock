@@ -223,12 +223,10 @@ impl<'a, C: Crc<'a>> CrcDriver<'a, C> {
                     Ok(()) => Ok(()),
                     Err(e) => {
                         if grant.request.is_some() {
-                            kernel_data
-                                .schedule_upcall(
-                                    0,
-                                    (kernel::errorcode::into_statuscode(Err(e)), 0, 0),
-                                )
-                                .ok();
+                            let _ = kernel_data.schedule_upcall(
+                                0,
+                                (kernel::errorcode::into_statuscode(Err(e)), 0, 0),
+                            );
                             grant.request = None;
                         }
                         Err(e)
@@ -411,18 +409,14 @@ impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
                             // through a system call: regardless, the request is gone, so cancel
                             // the CRC.
                             if grant.request.is_none() {
-                                kernel_data
-                                    .schedule_upcall(
+                                let _ = kernel_data.schedule_upcall(
+                                    0,
+                                    (
+                                        kernel::errorcode::into_statuscode(Err(ErrorCode::FAIL)),
                                         0,
-                                        (
-                                            kernel::errorcode::into_statuscode(Err(
-                                                ErrorCode::FAIL,
-                                            )),
-                                            0,
-                                            0,
-                                        ),
-                                    )
-                                    .ok();
+                                        0,
+                                    ),
+                                );
                                 return;
                             }
 
@@ -446,18 +440,16 @@ impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
                                     }
                                     Err(_) => {
                                         grant.request = None;
-                                        kernel_data
-                                            .schedule_upcall(
+                                        let _ = kernel_data.schedule_upcall(
+                                            0,
+                                            (
+                                                kernel::errorcode::into_statuscode(Err(
+                                                    ErrorCode::FAIL,
+                                                )),
                                                 0,
-                                                (
-                                                    kernel::errorcode::into_statuscode(Err(
-                                                        ErrorCode::FAIL,
-                                                    )),
-                                                    0,
-                                                    0,
-                                                ),
-                                            )
-                                            .ok();
+                                                0,
+                                            ),
+                                        );
                                     }
                                 }
                             } else {
@@ -475,18 +467,16 @@ impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
                                     .unwrap_or(0);
                                 if amount == 0 {
                                     grant.request = None;
-                                    kernel_data
-                                        .schedule_upcall(
+                                    let _ = kernel_data.schedule_upcall(
+                                        0,
+                                        (
+                                            kernel::errorcode::into_statuscode(Err(
+                                                ErrorCode::NOMEM,
+                                            )),
                                             0,
-                                            (
-                                                kernel::errorcode::into_statuscode(Err(
-                                                    ErrorCode::NOMEM,
-                                                )),
-                                                0,
-                                                0,
-                                            ),
-                                        )
-                                        .ok();
+                                            0,
+                                        ),
+                                    );
                                 } else {
                                     self.app_buffer_written.add(amount);
                                 }
@@ -503,12 +493,10 @@ impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
                             self.current_process.map(|pid| {
                                 let _res = self.grant.enter(pid, |grant, kernel_data| {
                                     grant.request = None;
-                                    kernel_data
-                                        .schedule_upcall(
-                                            0,
-                                            (kernel::errorcode::into_statuscode(Err(e)), 0, 0),
-                                        )
-                                        .ok();
+                                    let _ = kernel_data.schedule_upcall(
+                                        0,
+                                        (kernel::errorcode::into_statuscode(Err(e)), 0, 0),
+                                    );
                                 });
                             });
                         }
@@ -521,9 +509,8 @@ impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
                 self.current_process.map(|pid| {
                     let _res = self.grant.enter(pid, |grant, kernel_data| {
                         grant.request = None;
-                        kernel_data
-                            .schedule_upcall(0, (kernel::errorcode::into_statuscode(Err(e)), 0, 0))
-                            .ok();
+                        let _ = kernel_data
+                            .schedule_upcall(0, (kernel::errorcode::into_statuscode(Err(e)), 0, 0));
                     });
                 });
             }
@@ -544,21 +531,18 @@ impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
                 match result {
                     Ok(output) => {
                         let (val, user_int) = encode_upcall_crc_output(output);
-                        kernel_data
-                            .schedule_upcall(
-                                0,
-                                (
-                                    kernel::errorcode::into_statuscode(Ok(())),
-                                    val as usize,
-                                    user_int as usize,
-                                ),
-                            )
-                            .ok();
+                        let _ = kernel_data.schedule_upcall(
+                            0,
+                            (
+                                kernel::errorcode::into_statuscode(Ok(())),
+                                val as usize,
+                                user_int as usize,
+                            ),
+                        );
                     }
                     Err(e) => {
-                        kernel_data
-                            .schedule_upcall(0, (kernel::errorcode::into_statuscode(Err(e)), 0, 0))
-                            .ok();
+                        let _ = kernel_data
+                            .schedule_upcall(0, (kernel::errorcode::into_statuscode(Err(e)), 0, 0));
                     }
                 }
             });

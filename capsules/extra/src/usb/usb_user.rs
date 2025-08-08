@@ -84,12 +84,10 @@ where
                             self.usbc_client.attach();
 
                             // Schedule a callback immediately
-                            upcalls
-                                .schedule_upcall(
-                                    0,
-                                    (kernel::errorcode::into_statuscode(Ok(())), 0, 0),
-                                )
-                                .ok();
+                            let _ = upcalls.schedule_upcall(
+                                0,
+                                (kernel::errorcode::into_statuscode(Ok(())), 0, 0),
+                            );
                             app.awaiting = None;
                         }
                     }

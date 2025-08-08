@@ -238,7 +238,7 @@ impl<'a> TextScreen<'a> {
         self.current_app.take().map(|processid| {
             let _ = self.apps.enter(processid, |app, kernel_data| {
                 app.pending_command = false;
-                kernel_data.schedule_upcall(0, (data1, data2, data3)).ok();
+                let _ = kernel_data.schedule_upcall(0, (data1, data2, data3));
             });
         });
     }
