@@ -793,7 +793,7 @@ impl<'a, A: Alarm<'a>, B: Bus<'a, BusAddr8>, P: Pin> screen::Screen<'a> for ST77
         if self.status.get() == Status::Idle {
             // Data is provided as RGB565 ( RRRRR GGG | GGG BBBBB ), but the device expects it to come over the bus in little endian, so ( GGG BBBBB | RRRRR GGG ).
             // TODO(alevy): replace `chunks_mut` wit `array_chunks` when stable.
-            for pair in data.as_slice().chunks_mut(2) {
+            for pair in data.as_mut_slice().chunks_mut(2) {
                 pair.swap(0, 1);
             }
 

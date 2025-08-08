@@ -299,7 +299,7 @@ impl<'a, A: BusAddr, S: SpiMasterDevice<'a>> Bus<'a, A> for SpiMasterBus<'a, S> 
                     buffer.slice(0..addr.len());
                     self.status.set(BusStatus::SetAddress);
                     buffer
-                        .as_slice()
+                        .as_mut_slice()
                         .iter_mut()
                         .zip(bytes)
                         .for_each(|(d, s)| *d = s);
