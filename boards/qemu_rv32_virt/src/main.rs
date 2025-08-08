@@ -82,6 +82,7 @@ struct QemuRv32VirtPlatform {
             qemu_rv32_virt_chip::virtio::devices::virtio_net::VirtIONet<'static>,
         >,
     >,
+    virtio_gpu_screen: Option<&'static capsules_extra::screen::Screen<'static>>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -104,6 +105,13 @@ impl SyscallDriverLookup for QemuRv32VirtPlatform {
             capsules_extra::ethernet_tap::DRIVER_NUM => {
                 if let Some(ethernet_tap_driver) = self.virtio_ethernet_tap {
                     f(Some(ethernet_tap_driver))
+                } else {
+                    f(None)
+                }
+            }
+            capsules_extra::screen::DRIVER_NUM => {
+                if let Some(screen_driver) = self.virtio_gpu_screen {
+                    f(Some(screen_driver))
                 } else {
                     f(None)
                 }
@@ -159,6 +167,10 @@ impl
 /// removed when this function returns. Otherwise, the stack space used for
 /// these static_inits is wasted.
 #[inline(never)]
+// We allocate a frame-buffer for converting Mono_8BitPage pixel data
+// into an ARGB_8888 format. This can consume a large amount of stack
+// space, as we allocate this buffer with `static_init!()`:
+#[allow(clippy::large_stack_frames, clippy::large_stack_arrays)]
 unsafe fn start() -> (
     &'static kernel::Kernel,
     QemuRv32VirtPlatform,
@@ -305,10 +317,14 @@ unsafe fn start() -> (
     // Collect supported VirtIO peripheral indicies and initialize them if they
     // are found. If there are two instances of a supported peripheral, the one
     // on a higher-indexed VirtIO transport is used.
-    let (mut virtio_net_idx, mut virtio_rng_idx, mut virtio_input_idx) = (None, None, None);
+    let (mut virtio_gpu_idx, mut virtio_net_idx, mut virtio_rng_idx, mut virtio_input_idx) =
+        (None, None, None, None);
     for (i, virtio_device) in peripherals.virtio_mmio.iter().enumerate() {
         use qemu_rv32_virt_chip::virtio::devices::VirtIODeviceType;
         match virtio_device.query() {
+            Ok(VirtIODeviceType::GPUDevice) => {
+                virtio_gpu_idx = Some(i);
+            }
             Ok(VirtIODeviceType::NetworkCard) => {
                 virtio_net_idx = Some(i);
             }
@@ -321,6 +337,104 @@ unsafe fn start() -> (
             _ => (),
         }
     }
+
+    // If there is a VirtIO EntropySource present, use the appropriate VirtIORng
+    // driver and expose it to userspace though the RngDriver
+    let virtio_gpu_screen: Option<&'static capsules_extra::screen::Screen<'static>> =
+        if let Some(gpu_idx) = virtio_gpu_idx {
+            use kernel::hil::screen::Screen;
+
+            use qemu_rv32_virt_chip::virtio::devices::virtio_gpu::{
+                VirtIOGPU, MAX_REQ_SIZE, MAX_RESP_SIZE, PIXEL_STRIDE,
+            };
+            use qemu_rv32_virt_chip::virtio::queues::split_queue::{
+                SplitVirtqueue, VirtqueueAvailableRing, VirtqueueDescriptors, VirtqueueUsedRing,
+            };
+            use qemu_rv32_virt_chip::virtio::queues::Virtqueue;
+            use qemu_rv32_virt_chip::virtio::transports::VirtIOTransport;
+
+            use capsules_extra::screen_adapters::ScreenARGB8888ToMono8BitPage;
+
+            // Video output dimensions:
+
+            const VIDEO_WIDTH: usize = 128;
+            const VIDEO_HEIGHT: usize = 128;
+
+            // VirtIO GPU requires a single Virtqueue for sending commands. It can
+            // optionally use a second VirtQueue for cursor commands, which we don't
+            // use (as we don't have the concept of a cursor).
+            //
+            // The VirtIO GPU control queue must be able to hold two descriptors:
+            // one for the request, and another for the response.
+            let descriptors =
+                static_init!(VirtqueueDescriptors<2>, VirtqueueDescriptors::default(),);
+            let available_ring =
+                static_init!(VirtqueueAvailableRing<2>, VirtqueueAvailableRing::default(),);
+            let used_ring = static_init!(VirtqueueUsedRing<2>, VirtqueueUsedRing::default(),);
+            let control_queue = static_init!(
+                SplitVirtqueue<2>,
+                SplitVirtqueue::new(descriptors, available_ring, used_ring),
+            );
+            control_queue.set_transport(&peripherals.virtio_mmio[gpu_idx]);
+
+            // Create required buffers:
+            let req_buffer = static_init!([u8; MAX_REQ_SIZE], [0; MAX_REQ_SIZE]);
+            let resp_buffer = static_init!([u8; MAX_RESP_SIZE], [0; MAX_RESP_SIZE]);
+            let frame_buffer = static_init!(
+                [u8; VIDEO_WIDTH * VIDEO_HEIGHT * PIXEL_STRIDE],
+                [0; VIDEO_WIDTH * VIDEO_HEIGHT * PIXEL_STRIDE]
+            );
+
+            // VirtIO GPU device driver instantiation
+            let gpu = static_init!(
+                VirtIOGPU,
+                VirtIOGPU::new(
+                    control_queue,
+                    req_buffer,
+                    resp_buffer,
+                    VIDEO_WIDTH,
+                    VIDEO_HEIGHT,
+                )
+                .unwrap()
+            );
+            kernel::deferred_call::DeferredCallClient::register(gpu);
+            control_queue.set_client(gpu);
+
+            // Register the queues and driver with the transport, so interrupts
+            // are routed properly
+            let mmio_queues = static_init!([&'static dyn Virtqueue; 1], [control_queue; 1]);
+            peripherals.virtio_mmio[gpu_idx]
+                .initialize(gpu, mmio_queues)
+                .unwrap();
+
+            // Convert the `ARGB_8888` pixel mode offered by this device into a
+            // pixel mode that the rest of the kernel and userspace understands,
+            // namely the cursed `Mono_8BitPage` mode:
+            let screen_argb_8888_to_mono_8bit_page = static_init!(
+                ScreenARGB8888ToMono8BitPage<
+                    'static,
+                    qemu_rv32_virt_chip::virtio::devices::virtio_gpu::VirtIOGPU<'static, 'static>,
+                >,
+                ScreenARGB8888ToMono8BitPage::new(gpu, frame_buffer)
+            );
+            // kernel::deferred_call::DeferredCallClient::register(screen_argb_8888_to_mono_8bit_page);
+            gpu.set_client(screen_argb_8888_to_mono_8bit_page);
+
+            let screen = components::screen::ScreenComponent::new(
+                board_kernel,
+                capsules_extra::screen::DRIVER_NUM,
+                screen_argb_8888_to_mono_8bit_page,
+                None,
+            )
+            .finalize(components::screen_component_static!(1032));
+
+            gpu.initialize().unwrap();
+
+            Some(screen)
+        } else {
+            // No VirtIO GPU device discovered
+            None
+        };
 
     // If there is a VirtIO EntropySource present, use the appropriate VirtIORng
     // driver and expose it to userspace though the RngDriver
@@ -619,6 +733,7 @@ unsafe fn start() -> (
         scheduler_timer,
         virtio_rng: virtio_rng_driver,
         virtio_ethernet_tap,
+        virtio_gpu_screen,
         ipc: kernel::ipc::IPC::new(
             board_kernel,
             kernel::ipc::DRIVER_NUM,
@@ -634,6 +749,11 @@ unsafe fn start() -> (
     // This board dynamically discovers VirtIO devices like a randomness source
     // or a network card. Print a message indicating whether or not each such
     // device and corresponding userspace driver is present:
+    if virtio_gpu_screen.is_some() {
+        debug!("- Found VirtIO GPUDevice, enabling video output");
+    } else {
+        debug!("- VirtIO GPUDevice not found, disabling video output");
+    }
     if virtio_rng_driver.is_some() {
         debug!("- Found VirtIO EntropySource device, enabling RngDriver");
     } else {
