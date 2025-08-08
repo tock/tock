@@ -256,7 +256,7 @@ impl<'a> Hasher<'a, 8> for SipHasher24<'a> {
         if hasher.ntail != 0 {
             needed = 8 - hasher.ntail;
             hasher.tail |=
-                u8to64_le(data.as_slice(), 0, cmp::min(length, needed)) << (8 * hasher.ntail);
+                u8to64_le(data.as_mut_slice(), 0, cmp::min(length, needed)) << (8 * hasher.ntail);
             if length < needed {
                 hasher.ntail += length;
                 return Ok(length);

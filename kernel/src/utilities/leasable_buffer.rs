@@ -296,14 +296,6 @@ impl<'a, T> SubSliceMut<'a, T> {
         }
     }
 
-    fn active_slice(&self) -> &[T] {
-        &self.internal[self.active_range.clone()]
-    }
-
-    fn active_slice_mut(&mut self) -> &mut [T] {
-        &mut self.internal[self.active_range.clone()]
-    }
-
     /// Retrieve the raw buffer used to create the SubSlice. Consumes the
     /// SubSlice.
     pub fn take(self) -> &'a mut [T] {
@@ -326,21 +318,27 @@ impl<'a, T> SubSliceMut<'a, T> {
 
     /// Returns the length of the currently accessible portion of the SubSlice.
     pub fn len(&self) -> usize {
-        self.active_slice().len()
+        self.as_slice().len()
     }
 
     /// Returns a pointer to the currently accessible portion of the SubSlice.
     pub fn as_ptr(&self) -> *const T {
-        self.active_slice().as_ptr()
+        self.as_slice().as_ptr()
     }
 
     pub fn as_mut_ptr(&mut self) -> *mut T {
-        self.active_slice_mut().as_mut_ptr()
+        self.as_mut_slice().as_mut_ptr()
     }
 
     /// Returns a slice of the currently accessible portion of the
     /// LeasableBuffer.
-    pub fn as_slice(&mut self) -> &mut [T] {
+    pub fn as_slice(&self) -> &[T] {
+        &self.internal[self.active_range.clone()]
+    }
+
+    /// Returns a mutable slice of the currently accessible portion of
+    /// the LeasableBuffer.
+    pub fn as_mut_slice(&mut self) -> &mut [T] {
         &mut self.internal[self.active_range.clone()]
     }
 
@@ -422,10 +420,6 @@ impl<'a, T> SubSlice<'a, T> {
         }
     }
 
-    fn active_slice(&self) -> &[T] {
-        &self.internal[self.active_range.clone()]
-    }
-
     /// Retrieve the raw buffer used to create the SubSlice. Consumes the
     /// SubSlice.
     pub fn take(self) -> &'a [T] {
@@ -448,12 +442,12 @@ impl<'a, T> SubSlice<'a, T> {
 
     /// Returns the length of the currently accessible portion of the SubSlice.
     pub fn len(&self) -> usize {
-        self.active_slice().len()
+        self.as_slice().len()
     }
 
     /// Returns a pointer to the currently accessible portion of the SubSlice.
     pub fn as_ptr(&self) -> *const T {
-        self.active_slice().as_ptr()
+        self.as_slice().as_ptr()
     }
 
     /// Returns a slice of the currently accessible portion of the
