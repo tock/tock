@@ -262,7 +262,7 @@ impl SpiHost<'_> {
                             break;
                         }
                         val8 = ((val32 & shift_mask) >> (i * 8)) as u8;
-                        if let Some(ptr) = rx_buf.as_slice().get_mut(self.rx_offset.get()) {
+                        if let Some(ptr) = rx_buf.as_mut_slice().get_mut(self.rx_offset.get()) {
                             *ptr = val8;
                         } else {
                             // We have run out of rx buffer size
@@ -293,7 +293,7 @@ impl SpiHost<'_> {
         if self
             .tx_buf
             .take()
-            .map(|mut tx_buf| -> Result<(), ErrorCode> {
+            .map(|tx_buf| -> Result<(), ErrorCode> {
                 let regs = self.registers;
                 let mut t_byte: u32;
                 let mut tx_slice: [u8; 4];
