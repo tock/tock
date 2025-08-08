@@ -419,6 +419,7 @@ impl<'b> SharedDescriptorBuffer<'b> {
 ///
 /// The [`SplitVirtqueue`] does not actually enfore that a VirtIO device adheres
 /// to the `device_writeable` flag, although compliant devices should.
+#[derive(Debug)]
 pub struct VirtqueueBuffer<'b> {
     pub buf: &'b mut [u8],
     pub len: usize,
