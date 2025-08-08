@@ -555,7 +555,7 @@ impl<'a, 'b, const MAX_QUEUE_SIZE: usize> SplitVirtqueue<'a, 'b, MAX_QUEUE_SIZE>
         pending_chains as usize
     }
 
-    /// Remove an element from the Virtqueue's used ring.q
+    /// Remove an element from the Virtqueue's used ring.
     ///
     /// If `self.last_used_idx.get() == self.used_ring.idx.get()` (e.g. we don't
     /// have an unprocessed used buffer chain) this will return
