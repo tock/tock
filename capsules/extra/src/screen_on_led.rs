@@ -108,6 +108,10 @@ pub struct ScreenOnLed<
 
     /// Whether or not the buffer is initialized with the LED graphics.
     initialized: Cell<bool>,
+
+    /// Whether LEDs were changed while a screen write was outstanding. When the
+    /// write finishes, write again with the updated LED state.
+    dirty: Cell<bool>,
 }
 
 impl<
@@ -124,6 +128,7 @@ impl<
             leds: Cell::new([false; NUM_LEDS]),
             buffer: MapCell::new(buffer),
             initialized: Cell::new(false),
+            dirty: Cell::new(false),
         }
     }
 
@@ -147,14 +152,22 @@ impl<
             return;
         }
 
-        self.buffer.take().map(|buffer| {
-            let leds = self.leds.get();
-            for (i, led_state) in leds.iter().enumerate() {
-                self.render_led_state(buffer, i, *led_state);
-            }
-            let data = SubSliceMut::new(buffer);
-            let _ = self.screen.write(data, false);
-        });
+        self.buffer.take().map_or_else(
+            || {
+                // We can't update the LEDs because we don't have the screen
+                // buffer. This means a screen write is in progress. We mark
+                // this and re-write when the current screen write finishes.
+                self.dirty.set(true);
+            },
+            |buffer| {
+                let leds = self.leds.get();
+                for (i, led_state) in leds.iter().enumerate() {
+                    self.render_led_state(buffer, i, *led_state);
+                }
+                let data = SubSliceMut::new(buffer);
+                let _ = self.screen.write(data, false);
+            },
+        );
     }
 
     fn get_led_offset(&self, led_index: usize) -> usize {
@@ -405,6 +418,13 @@ impl<
 
     fn write_complete(&self, data: SubSliceMut<'static, u8>, _r: Result<(), ErrorCode>) {
         self.buffer.replace(data.take());
+
+        // Check if LED state changed while we were writing. If so, do another
+        // screen write to update the LEDs.
+        if self.dirty.get() {
+            self.dirty.set(false);
+            self.show_leds();
+        }
     }
 
     fn screen_is_ready(&self) {
