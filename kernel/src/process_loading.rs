@@ -277,6 +277,7 @@ fn load_processes_from_flash<C: Chip, D: ProcessStandardDebug + 'static>(
                 if config::CONFIG.debug_load_processes {
                     debug!("No more process slots to load processes into.");
                 }
+                break;
             }
         }
     }
