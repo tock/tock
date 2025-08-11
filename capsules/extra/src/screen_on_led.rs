@@ -68,7 +68,7 @@ impl<'a, L: LedIndexed> ScreenOnLedSingle<'a, L> {
     }
 }
 
-impl<'a, L: LedIndexed> hil::led::Led for ScreenOnLedSingle<'a, L> {
+impl<L: LedIndexed> hil::led::Led for ScreenOnLedSingle<'_, L> {
     fn init(&self) {
         self.led_controller.init(self.index);
     }
@@ -192,7 +192,13 @@ impl<
         self.write_vertical_line(buffer, e_offset, y_top, height, 1);
         self.write_horizontal_line(buffer, e_offset, y_top, e_width, 1);
         self.write_horizontal_line(buffer, e_offset, y_bottom, e_width, 1);
-        self.write_horizontal_line(buffer, e_offset, (y_top + y_bottom) / 2, e_width / 2, 1);
+        self.write_horizontal_line(
+            buffer,
+            e_offset,
+            usize::midpoint(y_top, y_bottom),
+            e_width / 2,
+            1,
+        );
 
         // D
         let d_offset = e_offset + e_width + TEXT_SPACING;
