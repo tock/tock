@@ -283,7 +283,7 @@ impl<'a, S: hil::screen::Screen<'a>> ScreenSplitMux<'a, S> {
                         absolute_frame.width,
                         absolute_frame.height,
                     )
-                    .inspect(|_| {
+                    .inspect(|()| {
                         self.current_user.set((
                             split,
                             ScreenSplitState::WriteSetFrame(subslice, continue_write),
@@ -321,18 +321,15 @@ impl<'a, S: hil::screen::Screen<'a>> ScreenSplitMux<'a, S> {
 
 impl<'a, S: hil::screen::Screen<'a>> hil::screen::ScreenClient for ScreenSplitMux<'a, S> {
     fn command_complete(&self, _r: Result<(), ErrorCode>) {
-        if let Some((current_user, state)) = self.current_user.take() {
-            match state {
-                ScreenSplitState::WriteSetFrame(subslice, continue_write) => {
-                    let _ = self.screen.write(subslice, continue_write).inspect(|_| {
-                        self.current_user
-                            .set((current_user, ScreenSplitState::WriteBuffer))
-                    });
-                }
-                _ => {
-                    // No other state will trigger this callback.
-                }
-            }
+        if let Some((current_user, ScreenSplitState::WriteSetFrame(subslice, continue_write))) =
+            self.current_user.take()
+        {
+            let _ = self.screen.write(subslice, continue_write).inspect(|()| {
+                self.current_user
+                    .set((current_user, ScreenSplitState::WriteBuffer))
+            });
+        } else {
+            // No other state will trigger this callback.
         }
     }
 
