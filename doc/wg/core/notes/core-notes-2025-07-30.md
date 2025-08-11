@@ -1,0 +1,87 @@
+# Tock Meeting Notes 2025-07-30
+
+## Attendees
+- Alexandru Radovici
+- Brad Campbell
+- Leon Schuermann
+- Johnathan Van Why
+- Amit Levy
+- Tyler Potyondy
+- Hudson Ayers
+
+## Updates
+- Brad: I merged Pat's libtock-c PR that helps with the libtock sync clean up and with some of the new C changes.
+
+## WiFi Binary Blob
+- Alex: Problem - wifi chips we use are software defined radios. This means we must use vendor supplied firmware for these wifi chips to be standards compliant. The blob is the firmware for this chip. This binary blob is not linked to Tock and we only need this written into the flash of our board. This blob then is written over spi to the software defined radio. 
+- Alex: Current chips on the market are ESP or Infineon chips.
+- Alex: The Infineon blob is proprietary. Need license for commercial application with exception of RP2040 or Pico chip.
+- Alex: The question is where to load this from.
+- Leon: Initial proposal is to have these blobs in a Tock firmware folder. This doesn't seem great.
+- Leon: A better proposal may be to host this on our mirror similar to libtock-c.
+- Leon: A more elegant solution might be to have Cargo do this. We wouldn't need to vendor them in this case and can also remove license concerns.
+- Leon: The question: is this an acceptable use of external crates and if this should be in a board or capsules crate.
+- Amit: I think we should discuss if we should use an external crate for this or if we should just include the binary blob.
+- Amit: Second, I think we should think about if this is a more general use case for external dependencies and something we should update in our policy on external dependencies.
+- Amit: To summarize, I think we need a blob that needs to be loaded at runtime to this WiFi chip, and it has a non-free license?
+- Alex: Yes, it is non-free, except on the Pi.
+- Amit: Another concern, which I have not been able to confirm, the blob seems large in size.
+- Alex: No, it is not large, on the order of few KB.
+- Amit: From an ease of use, it seems more complicated to have anything other than just including the binary (ignoring licensing concerns).
+- Brad: Makes sense.
+- Alex: I agree.
+- Leon: There is an argument to be had in principle on not having binary files in the repo history.
+- Leon: This seems to be bad practice, but I'm not sure if including smaller binary blobs is a major issue.
+- Alex: To counter this, we already have this, in the form of Rust arrays for some bootloaders.
+- Leon: Linux has a different repo for anything that is binary or firmware blobs so they are not in the source tree. I'm unsure what the motivation for this is.
+- Amit: Linux is GPL so the licensing is trickier. 
+- Alex: One argument against a different repo is that you would no longer be able to build Tock in an airgapped repo. 
+- Amit: Other than the licensing, it seems it would be preferable to include this as a binary.
+- Amit: Then, the question becomes what is the actual licensing issue.
+- Brad: There are benefits having it be fetched dynamically and not committed. 
+- Brad: libtock-c has avoided committing binary blobs.
+- Brad: Some bootloaders like the microbit and a few other boards we dynamically fetch the bootloader.
+- Amit: What are other reasons to fetch the binary dynamically?
+- Brad: From a Tock perspective, it makes sense to decouple the Tock implementation from the tools and things required as dependencies. The more compelling reason is to have a roadmap. Saying "this is too big" seems somewhat arbitrary and it seems unideal to have to make judgement decisions for which things to include in the repo.
+- Leon: I agree with this. I am worried about where we draw the line. 
+- Alex: What about a submodule?
+- Brad: I think our new policy moving forward is to remove binary blobs from the repo.
+- Amit: Alright, so instead we want to have external dependencies?
+- Brad: That's the crux of the question.
+- Leon: There are degrees to what constitutes an external dependency.
+- Leon: There is the route of having a separate repo under our control the holds all these blobs. 
+- Hudson: We have not had the easiest time managing versioning between libtock-c and tock. Having a new repo for firmware blobs creates the same issue.
+- Leon: A more niche binary is exactly the type we do not want in the library as it is not essential to every build compared to newlib which is used in every build.
+- Leon: Re the versioning issue, I do not think this is a concern since we use a checksum on the image from the mirror so we know exactly what we are fetching.
+- Alex: As a sidenote, we still have blobs in the Pi for the PIO SPI.
+- Alex: This is a very small binary and it would be ugly if we needed to pull in the needed dependencies to build this.
+- Leon: I agree with this, but this seems a slippery slope.
+- Brad: This is an external dependencies. I think we want this in the cargo file to signal we are pulling in something else.
+- Alex: I agree with this, but think we should make our own crate. This way we do not depend on the embassy crate.
+- Amit: If we do an external crate, can the board depend on this and not the capsule?
+- Alex: I'm not sure how to check if the blob is correct, but that is another question.
+- Leon: This seems inconsistent with how we currently deal with external dependencies.
+- Leon: We currently are using external dependencies not under our control. We currently do not do what we propose for some crates.
+- Amit: An important difference between our current external dependencies and this case is that there is not an authoritative source for this binary blob. Someone went and downloaded the binary blobs from Infineon and then put this into a crate.
+- Amit: This is different from a crypto crate.
+- Amit: I think this makes a good case for why we should maintain this ourself.
+- Amit: One version this could look like is to have a repository of binary blobs that holds a bunch of crates. We then can use Cargo dependencies for this.
+- Leon: This seems good. 
+- Leon: What is the motivation of having the board depend on this and not the capsule?
+- Amit: Presumably this is to avoid more specialized capsules.
+- Hudson: Would limiting the file size of newly contributed files mitigate the slippery slope argument?
+- Amit: Yes, I think it would.
+- Alex: So how do we proceed?
+- Leon: I can volunteer to draft a small revision of the external dependencies document that proposes we include a certain type of an external dependency that has certain restraints/conditions.
+- Alex: Then we make a new repo called "tock-firmware" and commit this there?
+- Amit: Can we look at the external dependencies doc? (https://github.com/tock/tock/blob/master/doc/ExternalDependencies.md#general-guidelines-for-dependency-selection)
+- Leon: It seems that our current criteria here is that this is okay for boards and capsules external dependencies.
+- Brad: This does seem different in that binary blobs we do not have any clue what this is doing.
+- Amit: I agree with this. We likely want to differentiate between a binary blob vs a crypto lib that we can see the source.
+- Leon: We should explicitly call this out in our revision to the capsule crate external dependencies. 
+- Amit: I don't think we should block for 4529 since this doesn't violate anything for the board.
+- Leon: Longer term I think we should go with the separate repo route.
+- Amit: This seems like a good idea.
+- Leon: Who is going to do that?
+- Amit: I can make a new repo.
+- Alex: Let's call this repo firmware.
