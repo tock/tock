@@ -251,15 +251,18 @@ fn init_and_map_lfb(mode: VgaMode, page_dir: &mut x86::registers::bits32::paging
         use x86::registers::bits32::paging::{PAddr, PDEntry, PDFlags, PDFLAGS};
 
         // Compute which PDE slot holds LFB_PHYS_BASE
+        // The page directory has 1024 entries, and the directory
+        // index is the top 10 bits of the (virtual) address: bits [31:22].
+        // We map the LFB with 4 MiB pages (PS=1) and use an identity mapping
+        // (virt == phys), so shifting the physical base right by 22 yields the PDE index.
+
         let idx = (LFB_PHYS_BASE >> 22) as usize;
         // Wrap the physical base in a PAddr
         let pa = PAddr::from(LFB_PHYS_BASE);
 
         // Build flags via PDFlags + PDFLAGS::...::SET
         let mut flags = PDFlags::new(0);
-        flags.modify(PDFLAGS::P::SET);
-        flags.modify(PDFLAGS::RW::SET);
-        flags.modify(PDFLAGS::PS::SET);
+        flags.write(PDFLAGS::P::SET + PDFLAGS::RW::SET + PDFLAGS::PS::SET);
 
         // Construct the entry (new() will mask & assert alignment)
         page_dir[idx] = PDEntry::new(pa, flags);
