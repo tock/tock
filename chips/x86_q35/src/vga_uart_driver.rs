@@ -14,9 +14,10 @@
 //! - **Receive / abort / re-configure** operations just return
 //!   `ErrorCode::NOSUPPORT` — VGA is output-only.
 
+use crate::vga::Vga;
+use core::mem::MaybeUninit;
 use core::{cell::Cell, cmp};
-
-use crate::vga::VgaTextBuffer;
+use kernel::component::Component;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::hil::uart::{Configure, Parameters, Receive, ReceiveClient, Transmit, TransmitClient};
 use kernel::utilities::cells::TakeCell;
@@ -24,8 +25,8 @@ use kernel::ErrorCode;
 use tock_cells::optional_cell::OptionalCell;
 
 /// UART-compatible wrapper around the VGA text writer.
-pub struct Vga<'a> {
-    vga_buffer: VgaTextBuffer,
+pub struct VgaText<'a> {
+    vga_buffer: Vga,
     tx_client: OptionalCell<&'a dyn TransmitClient>,
     rx_client: OptionalCell<&'a dyn ReceiveClient>,
     deferred_call: DeferredCall,
@@ -33,10 +34,10 @@ pub struct Vga<'a> {
     pending_len: Cell<usize>,
 }
 
-impl Vga<'_> {
+impl VgaText<'_> {
     pub fn new() -> Self {
         Self {
-            vga_buffer: VgaTextBuffer::new(),
+            vga_buffer: Vga::new(),
             tx_client: OptionalCell::empty(),
             rx_client: OptionalCell::empty(),
             deferred_call: DeferredCall::new(),
@@ -53,7 +54,7 @@ impl Vga<'_> {
 }
 
 // DeferredCallClient implementation
-impl DeferredCallClient for Vga<'_> {
+impl DeferredCallClient for VgaText<'_> {
     fn handle_deferred_call(&self) {
         if let Some(buf) = self.pending_buf.take() {
             let len = self.pending_len.get();
@@ -67,7 +68,7 @@ impl DeferredCallClient for Vga<'_> {
 }
 
 // Transmit for Vga
-impl<'a> Transmit<'a> for Vga<'a> {
+impl<'a> Transmit<'a> for VgaText<'a> {
     fn set_transmit_client(&self, client: &'a dyn TransmitClient) {
         self.tx_client.set(client);
     }
@@ -97,7 +98,7 @@ impl<'a> Transmit<'a> for Vga<'a> {
 }
 
 // Receive for Vga
-impl<'a> Receive<'a> for Vga<'a> {
+impl<'a> Receive<'a> for VgaText<'a> {
     fn set_receive_client(&self, client: &'a dyn ReceiveClient) {
         self.rx_client.set(client);
     }
@@ -120,8 +121,53 @@ impl<'a> Receive<'a> for Vga<'a> {
 }
 
 // Configure for Vga
-impl Configure for Vga<'_> {
+impl Configure for VgaText<'_> {
     fn configure(&self, _params: Parameters) -> Result<(), ErrorCode> {
         Ok(())
     }
+}
+// VgaText component: builds a single global `VgaText` and wires it up to DeferredCall.
+//
+// This follows the Tock Component pattern so boards can do:
+//   let vga = VgaTextComponent::new().finalize(vga_text_component_static!());
+//
+
+/// Zero-sized builder for `VgaText`.
+pub struct VgaTextComponent;
+
+impl VgaTextComponent {
+    /// Constructor; zero-sized
+    pub const fn new() -> Self {
+        Self
+    }
+}
+
+impl Component for VgaTextComponent {
+    /// The board provides a static buffer where we will place the `VgaText`.
+    type StaticInput = &'static mut MaybeUninit<VgaText<'static>>;
+    /// We return a `'static` reference so the board can store it long-term.
+    type Output = &'static VgaText<'static>;
+
+    fn finalize(self, s: Self::StaticInput) -> Self::Output {
+        // Place-construct `VgaText` in the caller-provided static buffer.
+        let v = s.write(VgaText::new());
+
+        // Register with the kernel’s DeferredCall so `VgaText` can deliver
+        // its split-phase transmit completion callbacks later.
+        kernel::deferred_call::DeferredCallClient::register(v);
+
+        // Hand back a stable reference to the initialized instance.
+        v
+    }
+}
+
+/// Macro to allocate the static storage required by the component.
+///
+/// Usage from chip:
+///   let vga = VgaTextComponent::new().finalize(vga_text_component_static!());
+#[macro_export]
+macro_rules! vga_text_component_static {
+    () => {{
+        kernel::static_buf!($crate::vga_uart_driver::VgaText<'static>)
+    }};
 }

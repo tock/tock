@@ -55,12 +55,12 @@ const LFB_PHYS_BASE: u32 = 0xE0_00_0000;
 // Public API - the VGA struct providing text console implementation
 
 /// Simple text-mode VGA console.
-pub struct VgaTextBuffer {
+pub struct Vga {
     col: Cell<usize>,
     row: Cell<usize>,
     attr: Cell<u8>,
 }
-impl VgaTextBuffer {
+impl Vga {
     pub const fn new() -> Self {
         Self {
             col: Cell::new(0),
