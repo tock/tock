@@ -137,14 +137,12 @@ is too small), `set_rate` MUST return `Err(INVAL)`.
 The relationship of phase and polarity follows the standard SPI
 specification[1]:
 
-+------------+------------------+-------------+----------------+----------------+
 |  Polarity  |      Phase       |  Idle Level |    Data Out    |     Data In    |
-+------------+------------------+-------------+----------------+----------------+
+|------------|------------------|-------------|----------------|----------------|
 |  IdleLow   |  SampleLeading   |     Low     |  Rising Edge   |  Falling Edge  |
 |  IdleLow   |  SampleTrailing  |     Low     |  Falling Edge  |  Rising Edge   |
 |  IdleHigh  |  SampleLeading   |     High    |  Rising Edge   |  Rising Edge   |
 |  IdleHigh  |  SampleTrailing  |     High    |  Falling Edge  |  Falling Edge  |
-+------------+------------------+-------------+----------------+----------------+
 
 If the SPI bus is in the middle an outstanding operation
 (`Controller::read_write_bytes` or `Peripheral::read_write_bytes`),
