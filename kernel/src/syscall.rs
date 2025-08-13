@@ -138,7 +138,7 @@ impl TryFrom<u8> for SyscallClass {
     }
 }
 
-/// Decoded system calls as defined in TRD104.
+/// Decoded system calls as [defined in TRD104](tock_docs::reference::trd104_syscalls).
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Syscall {
     /// Structure representing an invocation of the [`SyscallClass::Yield`]
