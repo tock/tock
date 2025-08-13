@@ -28,6 +28,9 @@
 //! `ProcessConsole` to this driver or to the legacy serial mux.
 
 use core::cell::Cell;
+use kernel::utilities::StaticRef;
+use tock_cells::volatile_cell::VolatileCell;
+
 /// Write an 8-bit value to an I/O Port.
 /// Read an 8-bit value from an I/O port.
 use x86::registers::io::{inb, outb};
@@ -147,6 +150,15 @@ const TEXT_BUFFER_HEIGHT: usize = 25;
 /// Physical address where QEMU exposes the linear-frame-buffer BAR.
 const LFB_PHYS_BASE: u32 = 0xE0_00_0000;
 
+const VGA_CELLS: StaticRef<[VolatileCell<u16>; TEXT_BUFFER_WIDTH * TEXT_BUFFER_HEIGHT]> =
+    unsafe { StaticRef::new(TEXT_BUFFER_ADDR as *const _) };
+
+#[inline(always)]
+fn idx(col: usize, row: usize) -> usize {
+    debug_assert!(col < TEXT_BUFFER_WIDTH && row < TEXT_BUFFER_HEIGHT);
+    row * TEXT_BUFFER_WIDTH + col
+}
+
 // Public API - the VGA struct providing text console implementation
 
 /// Simple text-mode VGA console.
@@ -169,18 +181,6 @@ impl Vga {
         }
     }
 
-    const fn buffer_ptr() -> *mut u16 {
-        TEXT_BUFFER_ADDR as *mut u16
-    }
-
-    // Index -> pointer into 0xB8000.
-    // SAFETY: `buffer_ptr()` points to the VGA text buffer at a fixed, valid address (0xB8000), and callers ensure
-    // that `index < TEXT_BUFFER_WIDTH * TEXT_BUFFER_HEIGHT`, so the pointer offset is always in-bounds.
-    #[inline(always)]
-    unsafe fn cell_at(index: usize) -> *mut u16 {
-        unsafe { Self::buffer_ptr().add(index) }
-    }
-
     fn update_hw_cursor(&self) {
         let pos = (self.row.get() * TEXT_BUFFER_WIDTH + self.col.get()) as u16;
         unsafe {
@@ -194,18 +194,18 @@ impl Vga {
     fn scroll_up(&self) {
         let blank = ((self.attr.get() as u16) << 8) | b' ' as u16;
 
+        // move rows 1..H up by one
         for row in 1..TEXT_BUFFER_HEIGHT {
             for col in 0..TEXT_BUFFER_WIDTH {
-                let src = unsafe { Self::cell_at(row * TEXT_BUFFER_WIDTH + col) };
-                let dst = unsafe { Self::cell_at((row - 1) * TEXT_BUFFER_WIDTH + col) };
-                let val = unsafe { core::ptr::read_volatile(src) };
-                unsafe { core::ptr::write_volatile(dst, val) };
+                let s = idx(col, row);
+                let d = idx(col, row - 1);
+                VGA_CELLS[d].set(VGA_CELLS[s].get()); // volatile read + write
             }
         }
 
+        // clear last row
         for col in 0..TEXT_BUFFER_WIDTH {
-            let idx = (TEXT_BUFFER_HEIGHT - 1) * TEXT_BUFFER_WIDTH + col;
-            unsafe { core::ptr::write_volatile(Self::cell_at(idx), blank) };
+            VGA_CELLS[idx(col, TEXT_BUFFER_HEIGHT - 1)].set(blank);
         }
 
         self.row.set(TEXT_BUFFER_HEIGHT - 1);
@@ -242,8 +242,8 @@ impl Vga {
 
     pub fn clear(&self) {
         let blank = ((self.attr.get() as u16) << 8) | b' ' as u16;
-        for i in 0..TEXT_BUFFER_WIDTH * TEXT_BUFFER_HEIGHT {
-            unsafe { core::ptr::write_volatile(Self::cell_at(i), blank) };
+        for i in 0..(TEXT_BUFFER_WIDTH * TEXT_BUFFER_HEIGHT) {
+            VGA_CELLS[i].set(blank); // volatile write, safe indexing
         }
         self.col.set(0);
         self.row.set(0);
@@ -261,12 +261,9 @@ impl Vga {
             }
             byte => {
                 let val = ((self.attr.get() as u16) << 8) | byte as u16;
-                unsafe {
-                    core::ptr::write_volatile(
-                        Self::cell_at(self.row.get() * TEXT_BUFFER_WIDTH + self.col.get()),
-                        val,
-                    );
-                }
+                let i = idx(self.col.get(), self.row.get());
+                VGA_CELLS[i].set(val); // volatile write
+
                 self.col.set(self.col.get() + 1);
                 if self.col.get() == TEXT_BUFFER_WIDTH {
                     self.col.set(0);
@@ -392,8 +389,6 @@ pub(crate) fn new_text_console(page_dir_ptr: &mut x86::registers::bits32::paging
     // Wipe the BIOS banner so the kernel starts on a blank page.
     let blank: u16 = 0x0720; // white-on-black space
     for i in 0..(TEXT_BUFFER_WIDTH * TEXT_BUFFER_HEIGHT) {
-        unsafe {
-            core::ptr::write_volatile((TEXT_BUFFER_ADDR as *mut u16).add(i), blank);
-        }
+        VGA_CELLS[i].set(blank);
     }
 }
