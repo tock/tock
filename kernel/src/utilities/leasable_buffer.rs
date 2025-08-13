@@ -296,14 +296,6 @@ impl<'a, T> SubSliceMut<'a, T> {
         }
     }
 
-    fn active_slice(&self) -> &[T] {
-        &self.internal[self.active_range.clone()]
-    }
-
-    fn active_slice_mut(&mut self) -> &mut [T] {
-        &mut self.internal[self.active_range.clone()]
-    }
-
     /// Retrieve the raw buffer used to create the SubSlice. Consumes the
     /// SubSlice.
     pub fn take(self) -> &'a mut [T] {
@@ -326,21 +318,68 @@ impl<'a, T> SubSliceMut<'a, T> {
 
     /// Returns the length of the currently accessible portion of the SubSlice.
     pub fn len(&self) -> usize {
-        self.active_slice().len()
+        self.as_slice().len()
     }
 
-    /// Returns a pointer to the currently accessible portion of the SubSlice.
+    /// Returns a const pointer to the currently accessible portion of the
+    /// SubSlice.
     pub fn as_ptr(&self) -> *const T {
-        self.active_slice().as_ptr()
+        self.as_slice().as_ptr()
     }
 
+    /// Returns a mutable pointer to the currently accessible portion of the
+    /// SubSlice.
     pub fn as_mut_ptr(&mut self) -> *mut T {
-        self.active_slice_mut().as_mut_ptr()
+        self.as_mut_slice().as_mut_ptr()
+    }
+
+    /// Returns the bounds of the currently accessible `SubSliceMut` window,
+    /// relative to the underlying, internal buffer.
+    ///
+    /// This method can be used to re-construct a `SubSliceMut`, retaining its
+    /// active window, after `take()`ing its internal buffer. This is useful for
+    /// performing nested sub-slicing and interoperability with interfaces that take
+    /// a `&[u8]` buffer with an offset and length.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// use kernel::utilities::leasable_buffer::SubSliceMut;
+    /// let mut buffer: [u8; 8] = [0, 1, 2, 3, 4, 5, 6, 7];
+    ///
+    /// // Construct a SubSliceMut and activate a window:
+    /// let mut original_subslicemut = SubSliceMut::new(&mut buffer[..]);
+    /// original_subslicemut.slice(3..5);
+    /// assert!(original_subslicemut.as_slice() == &[3, 4]);
+    ///
+    /// // Destruct the SubSliceMut, extracting its underlying buffer, but
+    /// // remembering its active range:
+    /// let remembered_range = original_subslicemut.active_range();
+    /// let extracted_buffer = original_subslicemut.take();
+    /// assert!(remembered_range == (3..5));
+    ///
+    /// // Construct a new SubSliceMut, over the original buffer, with identical
+    /// // bounds:
+    /// let mut reconstructed_subslicemut = SubSliceMut::new(extracted_buffer);
+    /// reconstructed_subslicemut.slice(remembered_range);
+    ///
+    /// // The new, reconstructed SubSliceMut's window is identical to the
+    /// // original one's:
+    /// assert!(reconstructed_subslicemut.as_slice() == &[3, 4]);
+    /// ```
+    pub fn active_range(&self) -> Range<usize> {
+        self.active_range.clone()
     }
 
     /// Returns a slice of the currently accessible portion of the
     /// LeasableBuffer.
-    pub fn as_slice(&mut self) -> &mut [T] {
+    pub fn as_slice(&self) -> &[T] {
+        &self.internal[self.active_range.clone()]
+    }
+
+    /// Returns a mutable slice of the currently accessible portion of
+    /// the LeasableBuffer.
+    pub fn as_mut_slice(&mut self) -> &mut [T] {
         &mut self.internal[self.active_range.clone()]
     }
 
@@ -422,10 +461,6 @@ impl<'a, T> SubSlice<'a, T> {
         }
     }
 
-    fn active_slice(&self) -> &[T] {
-        &self.internal[self.active_range.clone()]
-    }
-
     /// Retrieve the raw buffer used to create the SubSlice. Consumes the
     /// SubSlice.
     pub fn take(self) -> &'a [T] {
@@ -448,12 +483,12 @@ impl<'a, T> SubSlice<'a, T> {
 
     /// Returns the length of the currently accessible portion of the SubSlice.
     pub fn len(&self) -> usize {
-        self.active_slice().len()
+        self.as_slice().len()
     }
 
     /// Returns a pointer to the currently accessible portion of the SubSlice.
     pub fn as_ptr(&self) -> *const T {
-        self.active_slice().as_ptr()
+        self.as_slice().as_ptr()
     }
 
     /// Returns a slice of the currently accessible portion of the
@@ -470,6 +505,44 @@ impl<'a, T> SubSlice<'a, T> {
     /// to try to use a sliced LeasableBuffer.
     pub fn is_sliced(&self) -> bool {
         self.internal.len() != self.len()
+    }
+
+    /// Returns the bounds of the currently accessible `SubSlice` window,
+    /// relative to the underlying, internal buffer.
+    ///
+    /// This method can be used to re-construct a `SubSlice`, retaining its
+    /// active window, after `take()`ing its internal buffer. This is useful for
+    /// performing nested sub-slicing and interoperability with interfaces that take
+    /// a `&[u8]` buffer with an offset and length.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// use kernel::utilities::leasable_buffer::SubSlice;
+    /// let mut buffer: [u8; 8] = [0, 1, 2, 3, 4, 5, 6, 7];
+    ///
+    /// // Construct a SubSlice and activate a window:
+    /// let mut original_subslicemut = SubSlice::new(&mut buffer[..]);
+    /// original_subslicemut.slice(3..5);
+    /// assert!(original_subslicemut.as_slice() == &[3, 4]);
+    ///
+    /// // Destruct the SubSlice, extracting its underlying buffer, but
+    /// // remembering its active range:
+    /// let remembered_range = original_subslicemut.active_range();
+    /// let extracted_buffer = original_subslicemut.take();
+    /// assert!(remembered_range == (3..5));
+    ///
+    /// // Construct a new SubSlice, over the original buffer, with identical
+    /// // bounds:
+    /// let mut reconstructed_subslicemut = SubSlice::new(extracted_buffer);
+    /// reconstructed_subslicemut.slice(remembered_range);
+    ///
+    /// // The new, reconstructed SubSlice's window is identical to the
+    /// // original one's:
+    /// assert!(reconstructed_subslicemut.as_slice() == &[3, 4]);
+    /// ```
+    pub fn active_range(&self) -> Range<usize> {
+        self.active_range.clone()
     }
 
     /// Reduces the range of the SubSlice that is accessible.

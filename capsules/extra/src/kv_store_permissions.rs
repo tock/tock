@@ -139,7 +139,7 @@ impl<'a, K: kv::KV<'a>> KVStorePermissions<'a, K> {
         };
 
         // Copy in the header to the buffer.
-        header.copy_to_buf(value.as_slice());
+        header.copy_to_buf(value.as_mut_slice());
 
         self.operation.set(operation);
 
@@ -453,7 +453,7 @@ impl<'a, K: kv::KV<'a>> kv::KVClient for KVStorePermissions<'a, K> {
 
                     if !read_allowed {
                         // Access denied or the header is invalid, zero the buffer.
-                        value.as_slice().iter_mut().for_each(|m| *m = 0)
+                        value.as_mut_slice().iter_mut().for_each(|m| *m = 0)
                     }
 
                     self.client.map(move |cb| {
