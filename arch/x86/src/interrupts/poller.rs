@@ -61,13 +61,14 @@ static mut SINGLETON: InterruptPoller = InterruptPoller {
 impl InterruptPoller {
     /// Provides safe access to the singleton instance of `InterruptPoller`.
     ///
-    /// The given closure `f` is executed with interrupts disabled (using [`support::atomic`](crate::support::atomic)) and
-    /// passed a reference to the singleton.
+    /// The given closure `f` is executed with interrupts disabled (using
+    /// [`support::with_interrupts_disabled`](crate::support::with_interrupts_disabled))
+    /// and  passed a reference to the singleton.
     pub fn access<F, R>(f: F) -> R
     where
         F: FnOnce(&InterruptPoller) -> R,
     {
-        support::atomic(|| {
+        support::with_interrupts_disabled(|| {
             // Safety: Interrupts are disabled within this closure, so we can safely access the
             //         singleton without racing against interrupt handlers.
             let poller = unsafe { &*ptr::addr_of!(SINGLETON) };

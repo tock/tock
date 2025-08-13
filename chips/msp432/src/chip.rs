@@ -140,11 +140,11 @@ impl<'a, I: InterruptService + 'a> Chip for Msp432<'a, I> {
         }
     }
 
-    unsafe fn atomic<F, R>(&self, f: F) -> R
+    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {
-        cortexm4::support::atomic(f)
+        cortexm4::support::with_interrupts_disabled(f)
     }
 
     unsafe fn print_state(&self, write: &mut dyn Write) {

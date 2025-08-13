@@ -38,11 +38,11 @@ impl<I: InterruptService> Chip for Psoc62xa<'_, I> {
         }
     }
 
-    unsafe fn atomic<F, R>(&self, f: F) -> R
+    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {
-        cortexm0p::support::atomic(f)
+        cortexm0p::support::with_interrupts_disabled(f)
     }
 
     unsafe fn print_state(&self, writer: &mut dyn core::fmt::Write) {
