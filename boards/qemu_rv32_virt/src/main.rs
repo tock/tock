@@ -305,7 +305,7 @@ unsafe fn start() -> (
     // Collect supported VirtIO peripheral indicies and initialize them if they
     // are found. If there are two instances of a supported peripheral, the one
     // on a higher-indexed VirtIO transport is used.
-    let (mut virtio_net_idx, mut virtio_rng_idx) = (None, None);
+    let (mut virtio_net_idx, mut virtio_rng_idx, mut virtio_input_idx) = (None, None, None);
     for (i, virtio_device) in peripherals.virtio_mmio.iter().enumerate() {
         use qemu_rv32_virt_chip::virtio::devices::VirtIODeviceType;
         match virtio_device.query() {
@@ -314,6 +314,9 @@ unsafe fn start() -> (
             }
             Ok(VirtIODeviceType::EntropySource) => {
                 virtio_rng_idx = Some(i);
+            }
+            Ok(VirtIODeviceType::InputDevice) => {
+                virtio_input_idx = Some(i);
             }
             _ => (),
         }
@@ -477,6 +480,69 @@ unsafe fn start() -> (
         None
     };
 
+    let virtio_keyboard: Option<
+        &'static qemu_rv32_virt_chip::virtio::devices::virtio_input::VirtIOInput,
+    > = if let Some(input_idx) = virtio_input_idx {
+        use qemu_rv32_virt_chip::virtio::devices::virtio_input::VirtIOInput;
+        use qemu_rv32_virt_chip::virtio::queues::split_queue::{
+            SplitVirtqueue, VirtqueueAvailableRing, VirtqueueDescriptors, VirtqueueUsedRing,
+        };
+        use qemu_rv32_virt_chip::virtio::queues::Virtqueue;
+        use qemu_rv32_virt_chip::virtio::transports::VirtIOTransport;
+
+        // Event Virtqueue
+        let event_descriptors =
+            static_init!(VirtqueueDescriptors<3>, VirtqueueDescriptors::default(),);
+        let event_available_ring =
+            static_init!(VirtqueueAvailableRing<3>, VirtqueueAvailableRing::default(),);
+        let event_used_ring = static_init!(VirtqueueUsedRing<3>, VirtqueueUsedRing::default(),);
+        let event_queue = static_init!(
+            SplitVirtqueue<3>,
+            SplitVirtqueue::new(event_descriptors, event_available_ring, event_used_ring),
+        );
+        event_queue.set_transport(&peripherals.virtio_mmio[input_idx]);
+
+        // Status Virtqueue
+        let status_descriptors =
+            static_init!(VirtqueueDescriptors<1>, VirtqueueDescriptors::default(),);
+        let status_available_ring =
+            static_init!(VirtqueueAvailableRing<1>, VirtqueueAvailableRing::default(),);
+        let status_used_ring = static_init!(VirtqueueUsedRing<1>, VirtqueueUsedRing::default(),);
+        let status_queue = static_init!(
+            SplitVirtqueue<1>,
+            SplitVirtqueue::new(status_descriptors, status_available_ring, status_used_ring),
+        );
+        status_queue.set_transport(&peripherals.virtio_mmio[input_idx]);
+
+        // Buffers to store events from the keyboard.
+        let event_buf1 = static_init!([u8; 8], [0; 8]);
+        let event_buf2 = static_init!([u8; 8], [0; 8]);
+        let event_buf3 = static_init!([u8; 8], [0; 8]);
+        let status_buf = static_init!([u8; 128], [0; 128]);
+
+        // Instantiate the input driver
+        let virtio_input = static_init!(
+            VirtIOInput<'static>,
+            VirtIOInput::new(event_queue, status_queue, status_buf),
+        );
+        event_queue.set_client(virtio_input);
+        status_queue.set_client(virtio_input);
+
+        // Register the queues and driver with the transport, so
+        // interrupts are routed properly
+        let mmio_queues = static_init!([&'static dyn Virtqueue; 2], [event_queue, status_queue]);
+        peripherals.virtio_mmio[input_idx]
+            .initialize(virtio_input, mmio_queues)
+            .unwrap();
+
+        virtio_input.provide_buffers(event_buf1, event_buf2, event_buf3);
+
+        Some(virtio_input)
+    } else {
+        // No Input device
+        None
+    };
+
     // ---------- INITIALIZE CHIP, ENABLE INTERRUPTS ---------
 
     let chip = static_init!(
@@ -577,6 +643,11 @@ unsafe fn start() -> (
         debug!("- Found VirtIO NetworkCard device, enabling EthernetTapDriver");
     } else {
         debug!("- VirtIO NetworkCard device not found, disabling EthernetTapDriver");
+    }
+    if virtio_keyboard.is_some() {
+        debug!("- Found VirtIO Input device, enabling Input");
+    } else {
+        debug!("- VirtIO Input device not found, disabling Input");
     }
 
     debug!("Entering main loop.");
