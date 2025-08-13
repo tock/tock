@@ -138,6 +138,8 @@ const USB_DEBUGGING: bool = false;
 
 /// This platform's chip type:
 pub type Chip = nrf52840::chip::NRF52<'static, Nrf52840DefaultPeripherals<'static>>;
+/// Type for the process details printer.
+type ProcessPrinter = capsules_system::process_printer::ProcessPrinterText;
 
 /// Number of concurrent processes this platform supports.
 pub const NUM_PROCS: usize = 8;
@@ -146,12 +148,8 @@ use board_panic::BoardPanic;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 
 /// Resources for when a board panics used by io.rs.
-pub static PANIC_RESOURCES: SingleThreadValue<
-    BoardPanic<
-        nrf52840::chip::NRF52<Nrf52840DefaultPeripherals>,
-        capsules_system::process_printer::ProcessPrinterText,
-    >,
-> = unsafe { SingleThreadValue::new(BoardPanic::new()) };
+pub static PANIC_RESOURCES: SingleThreadValue<BoardPanic<Chip, ProcessPrinter>> =
+    unsafe { SingleThreadValue::new(BoardPanic::new()) };
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
