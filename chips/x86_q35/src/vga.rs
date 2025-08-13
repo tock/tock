@@ -32,6 +32,101 @@ use core::cell::Cell;
 /// Read an 8-bit value from an I/O port.
 use x86::registers::io::{inb, outb};
 
+// 16 classic VGA colors (matches text-mode palette indices 0–15)
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Color {
+    Black = 0x0,
+    Blue = 0x1,
+    Green = 0x2,
+    Cyan = 0x3,
+    Red = 0x4,
+    Magenta = 0x5,
+    Brown = 0x6,
+    LightGray = 0x7,
+    DarkGray = 0x8,
+    LightBlue = 0x9,
+    LightGreen = 0xA,
+    LightCyan = 0xB,
+    LightRed = 0xC,
+    Pink = 0xD,
+    Yellow = 0xE,
+    White = 0xF,
+}
+
+/// Packed VGA attribute byte for text mode:
+/// bits 0–3 = foreground color; 4–6 = background color; 7 = blink/bright (mode-dependent).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ColorCode(u8);
+
+impl ColorCode {
+    /// Build a color code from fg/bg/blink.
+    /// Note: with Attribute Controller mode bit 7 = blink enabled, bit 7 here blinks.
+    /// If blink is disabled in the controller, bit 7 acts as "bright background".
+    pub const fn new(fg: Color, bg: Color, blink: bool) -> Self {
+        let mut b = (fg as u8) & 0x0F;
+        b |= ((bg as u8) & 0x07) << 4;
+        if blink {
+            b |= 1 << 7;
+        }
+        Self(b)
+    }
+
+    /// Raw byte as written to the high byte of the cell.
+    #[inline(always)]
+    pub const fn as_u8(self) -> u8 {
+        self.0
+    }
+
+    /// Construct directly from a packed byte (for interop/tests).
+    #[inline(always)]
+    pub const fn from_u8(b: u8) -> Self {
+        Self(b)
+    }
+
+    /// Extractors (handy for debugging/tools)
+    #[inline(always)]
+    pub const fn fg(self) -> Color {
+        match self.0 & 0x0F {
+            0x0 => Color::Black,
+            0x1 => Color::Blue,
+            0x2 => Color::Green,
+            0x3 => Color::Cyan,
+            0x4 => Color::Red,
+            0x5 => Color::Magenta,
+            0x6 => Color::Brown,
+            0x7 => Color::LightGray,
+            0x8 => Color::DarkGray,
+            0x9 => Color::LightBlue,
+            0xA => Color::LightGreen,
+            0xB => Color::LightCyan,
+            0xC => Color::LightRed,
+            0xD => Color::Pink,
+            0xE => Color::Yellow,
+            _ => Color::White, // 0xF
+        }
+    }
+    /// Note: background uses only 3 bits (0..=7). Bright backgrounds require
+    /// disabling blink in the Attribute Controller and repurposing bit 7.
+    #[inline(always)]
+    pub const fn bg(self) -> Color {
+        match (self.0 >> 4) & 0x07 {
+            0x0 => Color::Black,
+            0x1 => Color::Blue,
+            0x2 => Color::Green,
+            0x3 => Color::Cyan,
+            0x4 => Color::Red,
+            0x5 => Color::Magenta,
+            0x6 => Color::Brown,
+            _ => Color::LightGray, // 0x7
+        }
+    }
+    pub const fn blink(self) -> bool {
+        (self.0 & 0x80) != 0
+    }
+}
+
 /// All VGA modes supported by the x86_q35 chip crate.
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -58,6 +153,10 @@ const LFB_PHYS_BASE: u32 = 0xE0_00_0000;
 pub struct Vga {
     col: Cell<usize>,
     row: Cell<usize>,
+    /// Current VGA text attribute byte for newly written characters.
+    /// Layout (text mode):
+    /// bits 0–3 = fg (0–15), 4–6 = bg (0–7), 7 = blink/bright (mode-dependent).
+    /// Kept packed to match hardware and allow a single 16-bit volatile store per glyph.
     attr: Cell<u8>,
 }
 impl Vga {
@@ -65,7 +164,8 @@ impl Vga {
         Self {
             col: Cell::new(0),
             row: Cell::new(0),
-            attr: Cell::new(0x07),
+            // default: LightGray on Black, no blink
+            attr: Cell::new(ColorCode::new(Color::LightGray, Color::Black, false).as_u8()),
         }
     }
 
@@ -113,17 +213,31 @@ impl Vga {
     }
 
     pub fn set_cursor(&self, col: usize, row: usize) {
-        let pos = (row * TEXT_BUFFER_WIDTH + col) as u16;
-        unsafe {
-            outb(0x3D4, 0x0F);
-            outb(0x3D5, (pos & 0xFF) as u8);
-            outb(0x3D4, 0x0E);
-            outb(0x3D5, (pos >> 8) as u8);
-        }
+        self.col.set(col);
+        self.row.set(row);
+        self.update_hw_cursor();
     }
 
-    pub fn set_attr(&self, attr: u8) {
-        self.attr.set(attr);
+    // pub fn set_attr(&self, attr: u8) {
+    //   self.attr.set(attr);
+    //}
+
+    /// Set the current attribute from a typed ColorCode.
+    #[inline(always)]
+    pub fn set_color_code(&self, code: ColorCode) {
+        self.attr.set(code.as_u8());
+    }
+
+    /// Set fg/bg/blink with typed colors.
+    #[inline(always)]
+    pub fn set_colors(&self, fg: Color, bg: Color, blink: bool) {
+        self.set_color_code(ColorCode::new(fg, bg, blink));
+    }
+
+    /// Read back the current color code (typed).
+    #[inline(always)]
+    pub fn color_code(&self) -> ColorCode {
+        ColorCode::from_u8(self.attr.get())
     }
 
     pub fn clear(&self) {
