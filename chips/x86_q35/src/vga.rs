@@ -153,6 +153,94 @@ const LFB_PHYS_BASE: u32 = 0xE0_00_0000;
 const VGA_CELLS: StaticRef<[VolatileCell<u16>; TEXT_BUFFER_WIDTH * TEXT_BUFFER_HEIGHT]> =
     unsafe { StaticRef::new(TEXT_BUFFER_ADDR as *const _) };
 
+/// Low-level VGA controller (global mode/programming).
+/// This configures the hardware; it is not tied to a particular `Vga` writer.
+pub struct VgaDevice;
+
+impl VgaDevice {
+    /// Program the requested mode on the VGA controller.
+    pub fn set_mode(mode: VgaMode) {
+        match mode {
+            VgaMode::Text80x25 => Self::program_text_mode(),
+            VgaMode::Graphics640x480_16 => panic!("VGA 640×480 mode not implemented"),
+            VgaMode::Graphics800x600_16 => panic!("VGA 800×600 mode not implemented"),
+        }
+    }
+
+    /// Only needed for graphics modes (linear framebuffer @ LFB_PHYS_BASE).
+    pub fn map_for_mode(mode: VgaMode, page_dir: &mut x86::registers::bits32::paging::PD) {
+        use x86::registers::bits32::paging::{PAddr, PDEntry, PDFlags, PDFLAGS};
+
+        if matches!(
+            mode,
+            VgaMode::Graphics640x480_16 | VgaMode::Graphics800x600_16
+        ) {
+            let pde_idx = (LFB_PHYS_BASE >> 22) as usize;
+            let pa = PAddr::from(LFB_PHYS_BASE);
+            let mut flags = PDFlags::new(0);
+            flags.write(PDFLAGS::P::SET + PDFLAGS::RW::SET + PDFLAGS::PS::SET);
+            page_dir[pde_idx] = PDEntry::new(pa, flags);
+        }
+    }
+
+    // --- private ---
+
+    fn program_text_mode() {
+        // (content moved verbatim from old `init_text_mode`)
+        unsafe {
+            // Select CRTC register index 0x11 (cursor start register) and reset its value to 0
+            outb(0x3D4, 0x11);
+            outb(0x3D5, 0x00);
+
+            // Read the Attribute Controller’s status register to reset its internal flip-flop
+            inb(0x3DA);
+        }
+
+        // Program the 21 Attribute Controller registers:
+        //   0x00–0x0F are the 16 palette entries,
+        //   0x10 = mode control (graphics off, blink on),
+        //   0x12 = color plane enable mask.
+        for (idx, val) in [
+            (0x00, 0x00u8), // palette 0: black
+            (0x01, 0x01),   // palette 1: blue
+            (0x02, 0x02),   // palette 2: green
+            (0x03, 0x03),   // palette 3: cyan
+            (0x04, 0x04),   // palette 4: red
+            (0x05, 0x05),   // palette 5: magenta
+            (0x06, 0x14),   // palette 6: brown
+            (0x07, 0x07),   // palette 7: light grey
+            (0x08, 0x38),   // palette 8: dark grey
+            (0x09, 0x39),   // palette 9: light blue
+            (0x0A, 0x3A),   // palette A: light green
+            (0x0B, 0x3B),   // palette B: light cyan
+            (0x0C, 0x3C),   // palette C: light red
+            (0x0D, 0x3D),   // palette D: light magenta
+            (0x0E, 0x3E),   // palette E: yellow
+            (0x0F, 0x3F),   // palette F: white
+            (0x10, 0x0C),   // mode control: text mode, blink attribute on
+            (0x12, 0x0F),   // enable all 4 color planes
+        ]
+        .iter()
+        .copied()
+        {
+            unsafe {
+                // Write the register index to the Attribute Controller
+                outb(0x3C0, idx);
+                // Write the corresponding value
+                outb(0x3C0, val);
+            }
+        }
+
+        // Reset the flip-flop again before enabling video output
+        unsafe {
+            inb(0x3DA);
+
+            // Turn video output back on (set bit 5 of the Attribute Controller’s 0x20 register)
+            outb(0x3C0, 0x20);
+        }
+    }
+}
+
 #[inline(always)]
 fn idx(col: usize, row: usize) -> usize {
     debug_assert!(col < TEXT_BUFFER_WIDTH && row < TEXT_BUFFER_HEIGHT);
@@ -278,69 +366,6 @@ impl Vga {
     }
 }
 
-fn init_text_mode() {
-    // Select CRTC register index 0x11 (cursor start register) and reset its value to 0
-    unsafe {
-        outb(0x3D4, 0x11);
-        outb(0x3D5, 0x00);
-
-        // Read the Attribute Controller’s status register to reset its internal flip-flop
-        inb(0x3DA);
-    }
-
-    // Program the 21 Attribute Controller registers:
-    //   0x00–0x0F are the 16 palette entries,
-    //   0x10 = mode control (graphics off, blink on),
-    //   0x12 = color plane enable mask.
-    for (idx, val) in [
-        (0x00, 0x00u8), // palette 0: black
-        (0x01, 0x01),   // palette 1: blue
-        (0x02, 0x02),   // palette 2: green
-        (0x03, 0x03),   // palette 3: cyan
-        (0x04, 0x04),   // palette 4: red
-        (0x05, 0x05),   // palette 5: magenta
-        (0x06, 0x14),   // palette 6: brown
-        (0x07, 0x07),   // palette 7: light grey
-        (0x08, 0x38),   // palette 8: dark grey
-        (0x09, 0x39),   // palette 9: light blue
-        (0x0A, 0x3A),   // palette A: light green
-        (0x0B, 0x3B),   // palette B: light cyan
-        (0x0C, 0x3C),   // palette C: light red
-        (0x0D, 0x3D),   // palette D: light magenta
-        (0x0E, 0x3E),   // palette E: yellow
-        (0x0F, 0x3F),   // palette F: white
-        (0x10, 0x0C),   // mode control: text mode, blink attribute on
-        (0x12, 0x0F),   // enable all 4 color planes
-    ]
-    .iter()
-    .copied()
-    {
-        // Write the register index to the Attribute Controller
-        unsafe {
-            outb(0x3C0, idx);
-            // Write the corresponding value
-            outb(0x3C0, val);
-        }
-    }
-
-    // Reset the flip-flop again before enabling video output
-    unsafe {
-        inb(0x3DA);
-
-        // Turn video output back on (set bit 5 of the Attribute Controller’s 0x20 register)
-        outb(0x3C0, 0x20);
-    }
-}
-
-#[allow(clippy::single_match)]
-pub fn init(mode: VgaMode) {
-    match mode {
-        VgaMode::Text80x25 => init_text_mode(),
-        VgaMode::Graphics640x480_16 => panic!("VGA 640×480 mode not implemented"),
-        VgaMode::Graphics800x600_16 => panic!("VGA 800×600 mode not implemented"),
-    }
-}
-
 const _: () = {
     // Exhaustively touch every current VgaMode variant
     match VgaMode::Text80x25 {
@@ -355,36 +380,10 @@ pub fn framebuffer() -> Option<(*mut u8, usize)> {
     None
 }
 
-fn init_and_map_lfb(mode: VgaMode, page_dir: &mut x86::registers::bits32::paging::PD) {
-    init(mode);
-    if mode == VgaMode::Text80x25 {
-        // Inline 4 MiB VGA framebuffer mapping using PDEntry::new()
-        use x86::registers::bits32::paging::{PAddr, PDEntry, PDFlags, PDFLAGS};
-
-        // Compute which PDE slot holds LFB_PHYS_BASE
-        // The page directory has 1024 entries, and the directory
-        // index is the top 10 bits of the (virtual) address: bits [31:22].
-        // We map the LFB with 4 MiB pages (PS=1) and use an identity mapping
-        // (virt == phys), so shifting the physical base right by 22 yields the PDE index.
-
-        let idx = (LFB_PHYS_BASE >> 22) as usize;
-        // Wrap the physical base in a PAddr
-        let pa = PAddr::from(LFB_PHYS_BASE);
-
-        // Build flags via PDFlags + PDFLAGS::...::SET
-        let mut flags = PDFlags::new(0);
-        flags.write(PDFLAGS::P::SET + PDFLAGS::RW::SET + PDFLAGS::PS::SET);
-
-        // Construct the entry (new() will mask & assert alignment)
-        page_dir[idx] = PDEntry::new(pa, flags);
-    }
-}
-
 /// Initialise 80×25 text mode and start with a clean screen.
-pub(crate) fn new_text_console(page_dir_ptr: &mut x86::registers::bits32::paging::PD) {
-    // Map VGA linear-framebuffer + program CRTC/attribute regs
-
-    init_and_map_lfb(VgaMode::Text80x25, page_dir_ptr);
+pub(crate) fn new_text_console(_page_dir_ptr: &mut x86::registers::bits32::paging::PD) {
+    // Program 80×25 text mode
+    VgaDevice::set_mode(VgaMode::Text80x25);
 
     // Wipe the BIOS banner so the kernel starts on a blank page.
     let blank: u16 = 0x0720; // white-on-black space
