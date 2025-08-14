@@ -4,7 +4,6 @@
 
 include ../Makefile.common
 
-OPENOCD_OPTIONS= -s ${OPENOCD_ROOT}/scripts -f openocd.cfg
 # Define the path to the TBF file to flash an application
 APP=
 KERNEL=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/release/$(PLATFORM).elf
@@ -13,9 +12,10 @@ KERNEL_WITH_APP=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/release/$(PLATFORM)-app.
 install: flash
 .PHONY: install
 
-flash: release
-	${OPENOCD_ROOT}/bin/openocd $(OPENOCD_OPTIONS) -c "program $(KERNEL); verify_image $(KERNEL); reset; shutdown"
 .PHONY: flash
+flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
+	probe-rs download --chip CY8C624AAZI-S2D44 --binary-format bin --base-address 0x10000000 $<
+
 
 .PHONY: program
 program: release
