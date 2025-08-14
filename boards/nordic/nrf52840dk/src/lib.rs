@@ -76,12 +76,14 @@ use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use capsules_extra::net::ieee802154::MacAddress;
 use capsules_extra::net::ipv6::ip_utils::IPAddr;
 use kernel::component::Component;
+use kernel::debug::PanicResources;
 use kernel::hil::led::LedLow;
 use kernel::hil::time::Counter;
 #[allow(unused_imports)]
 use kernel::hil::usb::Client;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::scheduler::round_robin::RoundRobinSched;
+use kernel::utilities::cells::MapCell;
 #[allow(unused_imports)]
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
 use nrf52840::gpio::Pin;
@@ -129,8 +131,6 @@ const DEFAULT_CTX_PREFIX: [u8; 16] = [0x0_u8; 16]; //Context for 6LoWPAN Compres
 /// Debug Writer
 pub mod io;
 
-pub mod board_panic;
-
 // Whether to use UART debugging or Segger RTT (USB) debugging.
 // - Set to false to use UART.
 // - Set to true to use Segger RTT over USB.
@@ -144,12 +144,14 @@ type ProcessPrinter = capsules_system::process_printer::ProcessPrinterText;
 /// Number of concurrent processes this platform supports.
 pub const NUM_PROCS: usize = 8;
 
-use board_panic::BoardPanic;
 use kernel::utilities::single_thread_value::SingleThreadValue;
 
 /// Resources for when a board panics used by io.rs.
-pub static PANIC_RESOURCES: SingleThreadValue<BoardPanic<Chip, ProcessPrinter>> =
-    unsafe { SingleThreadValue::new(BoardPanic::new()) };
+static PANIC_RESOURCES: SingleThreadValue<PanicResources<Chip, ProcessPrinter>> =
+    SingleThreadValue::new(PanicResources::new());
+
+static RTT_BUFFER: SingleThreadValue<MapCell<&'static segger::rtt::SeggerRttMemory<'static>>> =
+    SingleThreadValue::new(MapCell::empty());
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
@@ -449,7 +451,9 @@ pub unsafe fn start_no_pconsole() -> (
         // rtt_memory. This aliases reference is only used inside a panic
         // handler, which should be OK, but maybe we should use a const
         // reference to rtt_memory and leverage interior mutability instead.
-        self::io::set_rtt_memory(&*core::ptr::from_mut(rtt_memory_refs.rtt_memory));
+        RTT_BUFFER.with(|rtt_buffer_cell| {
+            rtt_buffer_cell.replace(*core::ptr::addr_of!(rtt_memory_refs.rtt_memory))
+        });
 
         UartChannel::Rtt(rtt_memory_refs)
     } else {
