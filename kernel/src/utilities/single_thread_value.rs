@@ -53,7 +53,7 @@ impl<T> SingleThreadValue<T> {
     /// By convention, users should declare [`SingleThreadValue`] variables in
     /// scopes that are inaccessible to ISRs or signal handler, e.g. in
     /// module-private or function-local scopes.
-    pub const unsafe fn new(val: T) -> Self {
+    pub const fn new(val: T) -> Self {
         Self(val)
     }
 }
