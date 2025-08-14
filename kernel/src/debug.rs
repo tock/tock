@@ -98,11 +98,11 @@ pub trait IoWrite {
 /// Resources needed by the main panic routines.
 pub struct PanicResources<C: Chip + 'static, PP: ProcessPrinter + 'static> {
     /// The array of process slots.
-    processes: MapCell<&'static [ProcessSlot]>,
+    pub processes: MapCell<&'static [ProcessSlot]>,
     /// The board-specific chip object.
-    chip: MapCell<&'static C>,
+    pub chip: MapCell<&'static C>,
     /// The tool for printing process details.
-    printer: MapCell<&'static PP>,
+    pub printer: MapCell<&'static PP>,
 }
 
 impl<C: Chip, PP: ProcessPrinter> PanicResources<C, PP> {
