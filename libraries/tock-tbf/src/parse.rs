@@ -71,7 +71,7 @@ pub fn parse_tbf_header_lengths(
 pub fn parse_tbf_header(
     header: &[u8],
     version: u16,
-) -> Result<types::TbfHeader, types::TbfParseError> {
+) -> Result<types::TbfHeader<'_>, types::TbfParseError> {
     match version {
         2 => {
             // Get the required base. This will succeed because we parsed the

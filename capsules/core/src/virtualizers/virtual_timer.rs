@@ -39,7 +39,7 @@ pub struct VirtualTimer<'a, A: Alarm<'a>> {
 }
 
 impl<'a, A: Alarm<'a>> ListNode<'a, VirtualTimer<'a, A>> for VirtualTimer<'a, A> {
-    fn next(&self) -> &'a ListLink<VirtualTimer<'a, A>> {
+    fn next(&self) -> &'a ListLink<'_, VirtualTimer<'a, A>> {
         &self.next
     }
 }

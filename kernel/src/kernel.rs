@@ -182,7 +182,7 @@ impl Kernel {
     pub(crate) fn get_process_iter(
         &self,
     ) -> core::iter::FilterMap<
-        core::slice::Iter<ProcessSlot>,
+        core::slice::Iter<'_, ProcessSlot>,
         fn(&ProcessSlot) -> Option<&'static dyn process::Process>,
     > {
         self.processes.iter().filter_map(ProcessSlot::get)

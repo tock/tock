@@ -49,7 +49,7 @@ pub struct VirtualMuxAlarm<'a, A: Alarm<'a>> {
 }
 
 impl<'a, A: Alarm<'a>> ListNode<'a, VirtualMuxAlarm<'a, A>> for VirtualMuxAlarm<'a, A> {
-    fn next(&self) -> &'a ListLink<VirtualMuxAlarm<'a, A>> {
+    fn next(&self) -> &'a ListLink<'_, VirtualMuxAlarm<'a, A>> {
         &self.next
     }
 }

@@ -309,7 +309,7 @@ impl Tlv<'_> {
     /// the TLV type.
     /// `SResult::Error` is returned if the type field does not match any
     /// implemented TLV type.
-    pub fn decode(buf: &[u8]) -> SResult<Tlv> {
+    pub fn decode(buf: &[u8]) -> SResult<Tlv<'_>> {
         let (offset, tlv_type) = dec_try!(buf; decode_u8);
         let tlv_type = TlvType::from(tlv_type);
         let (offset, length) = dec_try!(buf, offset; decode_u8);
@@ -653,7 +653,7 @@ impl NetworkDataTlv<'_> {
     /// otherwise.
     /// `SResult::Error` is returned if the type field does not match any
     /// implemented TLV type.
-    pub fn decode(buf: &[u8]) -> SResult<(NetworkDataTlv, bool)> {
+    pub fn decode(buf: &[u8]) -> SResult<(NetworkDataTlv<'_>, bool)> {
         let (offset, tlv_type_field) = dec_try!(buf; decode_u8);
         let tlv_type_raw = tlv_type_field >> 1;
         let tlv_type = NetworkDataTlvType::from(tlv_type_raw);
@@ -810,7 +810,7 @@ impl PrefixSubTlv<'_> {
     /// otherwise.
     /// `SResult::Error` is returned if the type field does not match any
     /// implemented TLV type.
-    pub fn decode(buf: &[u8]) -> SResult<(PrefixSubTlv, bool)> {
+    pub fn decode(buf: &[u8]) -> SResult<(PrefixSubTlv<'_>, bool)> {
         let (offset, tlv_type_field) = dec_try!(buf; decode_u8);
         let tlv_type_raw = tlv_type_field >> 1;
         let tlv_type = PrefixSubTlvType::from(tlv_type_raw);
@@ -1249,7 +1249,7 @@ impl NetworkManagementTlv<'_> {
     /// otherwise.
     /// `SResult::Error` is returned if the type field does not match any
     /// implemented TLV type.
-    pub fn decode(buf: &[u8]) -> SResult<NetworkManagementTlv> {
+    pub fn decode(buf: &[u8]) -> SResult<NetworkManagementTlv<'_>> {
         let (offset, tlv_type_raw) = dec_try!(buf; decode_u8);
         let tlv_type = NetworkManagementTlvType::from(tlv_type_raw);
         let (offset, length) = dec_try!(buf, offset; decode_u8);
