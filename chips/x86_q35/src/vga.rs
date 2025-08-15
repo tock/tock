@@ -1,6 +1,6 @@
 // Licensed under the Apache License, Version 2.0 or the MIT License.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright Tock Contributors 2024.
+// Copyright Tock Contributors 2025.
 
 //! Minimal VGA peripheral implementation for the Tock x86_q35 chip crate.
 //!
@@ -153,6 +153,51 @@ const LFB_PHYS_BASE: u32 = 0xE0_00_0000;
 const VGA_CELLS: StaticRef<[VolatileCell<u16>; TEXT_BUFFER_WIDTH * TEXT_BUFFER_HEIGHT]> =
     unsafe { StaticRef::new(TEXT_BUFFER_ADDR as *const _) };
 
+/// Row-major view over the VGA text buffer with bracket indexing.
+struct TextBuf {
+    cells: StaticRef<[VolatileCell<u16>; TEXT_BUFFER_WIDTH * TEXT_BUFFER_HEIGHT]>,
+}
+
+impl TextBuf {
+    #[inline(always)]
+    const fn new() -> Self {
+        Self { cells: VGA_CELLS }
+    }
+
+    /// Iterate all cells (row-major).
+    #[inline(always)]
+    fn iter(&self) -> core::slice::Iter<'_, VolatileCell<u16>> {
+        self.cells[..].iter()
+    }
+
+    /// Iterate rows as fixed-size chunks.
+    #[inline(always)]
+    fn rows(&self) -> core::slice::ChunksExact<'_, VolatileCell<u16>> {
+        self.cells[..].chunks_exact(TEXT_BUFFER_WIDTH)
+    }
+}
+
+impl core::ops::Index<usize> for TextBuf {
+    type Output = VolatileCell<u16>;
+    #[inline(always)]
+    fn index(&self, i: usize) -> &Self::Output {
+        &self.cells[i]
+    }
+}
+
+impl core::ops::Index<(usize, usize)> for TextBuf {
+    type Output = VolatileCell<u16>;
+    #[inline(always)]
+    fn index(&self, rc: (usize, usize)) -> &Self::Output {
+        let (row, col) = rc;
+        debug_assert!(row < TEXT_BUFFER_HEIGHT && col < TEXT_BUFFER_WIDTH);
+        &self.cells[row * TEXT_BUFFER_WIDTH + col]
+    }
+}
+
+/// Global, row-major, bracket-indexable view.
+const TEXT: TextBuf = TextBuf::new();
+
 /// Low-level VGA controller (global mode/programming).
 /// This configures the hardware; it is not tied to a particular `Vga` writer.
 pub struct VgaDevice;
@@ -241,12 +286,6 @@ impl VgaDevice {
     }
 }
 
-#[inline(always)]
-fn idx(col: usize, row: usize) -> usize {
-    debug_assert!(col < TEXT_BUFFER_WIDTH && row < TEXT_BUFFER_HEIGHT);
-    row * TEXT_BUFFER_WIDTH + col
-}
-
 // Public API - the VGA struct providing text console implementation
 
 /// Simple text-mode VGA console.
@@ -283,17 +322,20 @@ impl Vga {
         let blank = ((self.attr.get() as u16) << 8) | b' ' as u16;
 
         // move rows 1..H up by one
-        for row in 1..TEXT_BUFFER_HEIGHT {
-            for col in 0..TEXT_BUFFER_WIDTH {
-                let s = idx(col, row);
-                let d = idx(col, row - 1);
-                VGA_CELLS[d].set(VGA_CELLS[s].get()); // volatile read + write
+        let rows = TEXT.rows();
+        let src_rows = rows.clone().skip(1);
+        let dst_rows = rows;
+        for (src_row, dst_row) in src_rows.zip(dst_rows) {
+            for (src, dst) in src_row.iter().zip(dst_row.iter()) {
+                dst.set(src.get()); // volatile read + write
             }
         }
 
         // clear last row
-        for col in 0..TEXT_BUFFER_WIDTH {
-            VGA_CELLS[idx(col, TEXT_BUFFER_HEIGHT - 1)].set(blank);
+        if let Some(last_row) = TEXT.rows().last() {
+            for cell in last_row {
+                cell.set(blank);
+            }
         }
 
         self.row.set(TEXT_BUFFER_HEIGHT - 1);
@@ -305,10 +347,6 @@ impl Vga {
         self.row.set(row);
         self.update_hw_cursor();
     }
-
-    // pub fn set_attr(&self, attr: u8) {
-    //   self.attr.set(attr);
-    //}
 
     /// Set the current attribute from a typed ColorCode.
     #[inline(always)]
@@ -330,8 +368,8 @@ impl Vga {
 
     pub fn clear(&self) {
         let blank = ((self.attr.get() as u16) << 8) | b' ' as u16;
-        for i in 0..(TEXT_BUFFER_WIDTH * TEXT_BUFFER_HEIGHT) {
-            VGA_CELLS[i].set(blank); // volatile write, safe indexing
+        for cell in TEXT.iter() {
+            cell.set(blank);
         }
         self.col.set(0);
         self.row.set(0);
@@ -349,8 +387,7 @@ impl Vga {
             }
             byte => {
                 let val = ((self.attr.get() as u16) << 8) | byte as u16;
-                let i = idx(self.col.get(), self.row.get());
-                VGA_CELLS[i].set(val); // volatile write
+                TEXT[(self.row.get(), self.col.get())].set(val); // volatile write
 
                 self.col.set(self.col.get() + 1);
                 if self.col.get() == TEXT_BUFFER_WIDTH {
@@ -387,7 +424,7 @@ pub(crate) fn new_text_console(_page_dir_ptr: &mut x86::registers::bits32::pagin
 
     // Wipe the BIOS banner so the kernel starts on a blank page.
     let blank: u16 = 0x0720; // white-on-black space
-    for i in 0..(TEXT_BUFFER_WIDTH * TEXT_BUFFER_HEIGHT) {
-        VGA_CELLS[i].set(blank);
+    for cell in TEXT.iter() {
+        cell.set(blank);
     }
 }
