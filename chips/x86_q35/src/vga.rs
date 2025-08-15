@@ -153,7 +153,13 @@ const LFB_PHYS_BASE: u32 = 0xE0_00_0000;
 const VGA_CELLS: StaticRef<[VolatileCell<u16>; TEXT_BUFFER_WIDTH * TEXT_BUFFER_HEIGHT]> =
     unsafe { StaticRef::new(TEXT_BUFFER_ADDR as *const _) };
 
-/// Row-major view over the VGA text buffer with bracket indexing.
+/// `TextBuf` is a thin, zero-cost view over the 80×25 VGA text buffer at 0xB8000.
+/// It wraps the `StaticRef<[VolatileCell<u16>; N]>` so code can:
+/// - iterate all cells (`iter()`) and by rows (`rows()`),
+/// - use bracket indexing `TEXT[(row, col)]` (panics on OOB in debug),
+/// - or use safe lookup `get(row, col) -> Option<&VolatileCell<u16>>`.
+///
+/// All accesses go through `VolatileCell`, so reads/writes are *volatile*.
 struct TextBuf {
     cells: StaticRef<[VolatileCell<u16>; TEXT_BUFFER_WIDTH * TEXT_BUFFER_HEIGHT]>,
 }
@@ -174,6 +180,16 @@ impl TextBuf {
     #[inline(always)]
     fn rows(&self) -> core::slice::ChunksExact<'_, VolatileCell<u16>> {
         self.cells[..].chunks_exact(TEXT_BUFFER_WIDTH)
+    }
+
+    /// Expose an Option for row, col for the user
+    #[inline(always)]
+    pub fn get(&self, row: usize, col: usize) -> Option<&VolatileCell<u16>> {
+        if row < TEXT_BUFFER_HEIGHT && col < TEXT_BUFFER_WIDTH {
+            Some(&self.cells[row * TEXT_BUFFER_WIDTH + col])
+        } else {
+            None
+        }
     }
 }
 
@@ -343,9 +359,11 @@ impl Vga {
     }
 
     pub fn set_cursor(&self, col: usize, row: usize) {
-        self.col.set(col);
-        self.row.set(row);
-        self.update_hw_cursor();
+        if TEXT.get(row, col).is_some() {
+            self.col.set(col);
+            self.row.set(row);
+            self.update_hw_cursor();
+        }
     }
 
     /// Set the current attribute from a typed ColorCode.
@@ -385,20 +403,36 @@ impl Vga {
             b'\r' => {
                 self.col.set(0);
             }
-            byte => {
-                let val = ((self.attr.get() as u16) << 8) | byte as u16;
-                TEXT[(self.row.get(), self.col.get())].set(val); // volatile write
+            b => {
+                let val = ((self.attr.get() as u16) << 8) | b as u16;
 
-                self.col.set(self.col.get() + 1);
-                if self.col.get() == TEXT_BUFFER_WIDTH {
-                    self.col.set(0);
-                    self.row.set(self.row.get() + 1);
+                // safe write; if somehow OOB, scroll and retry once
+                if let Some(cell) = TEXT.get(self.row.get(), self.col.get()) {
+                    cell.set(val);
+                } else {
+                    self.scroll_up();
+                    if let Some(cell) = TEXT.get(self.row.get(), self.col.get()) {
+                        cell.set(val);
+                    }
                 }
+
+                // advance cursor, wrap at end-of-line
+                let mut col = self.col.get() + 1;
+                let mut row = self.row.get();
+                if col >= TEXT_BUFFER_WIDTH {
+                    col = 0;
+                    row += 1;
+                }
+                self.col.set(col);
+                self.row.set(row);
             }
         }
-        if self.row.get() == TEXT_BUFFER_HEIGHT {
+
+        // scroll if we ran off the last row (covers '\n' path too)
+        if self.row.get() >= TEXT_BUFFER_HEIGHT {
             self.scroll_up();
         }
+
         self.update_hw_cursor();
     }
 }
