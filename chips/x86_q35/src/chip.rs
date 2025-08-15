@@ -7,7 +7,7 @@ use core::mem::MaybeUninit;
 
 use kernel::component::Component;
 use kernel::platform::chip::Chip;
-
+use kernel::static_init;
 use x86::mpu::PagingMPU;
 use x86::registers::bits32::paging::{PD, PT};
 use x86::support;
@@ -15,6 +15,7 @@ use x86::{Boundary, InterruptPoller};
 
 use crate::pit::{Pit, RELOAD_1KHZ};
 use crate::serial::{SerialPort, SerialPortComponent, COM1_BASE, COM2_BASE, COM3_BASE, COM4_BASE};
+use crate::vga_uart_driver::VgaText;
 
 /// Interrupt constants for legacy PC peripherals
 mod interrupt {
@@ -52,6 +53,9 @@ pub struct Pc<'a, const PR: u16 = RELOAD_1KHZ> {
 
     /// Legacy PIT timer
     pub pit: Pit<'a, PR>,
+
+    /// Vga
+    pub vga: &'a VgaText<'a>,
 
     /// System call context
     syscall: Boundary,
@@ -198,6 +202,17 @@ impl Component for PcComponent<'static> {
         unsafe {
             x86::init();
             crate::pic::init();
+            // Enable the VGA path by building or running with the feature flag, e.g.:
+            //   `cargo run -- -display none`
+            // A plain `make run` / `cargo run` keeps everything on COM1.
+            //
+            // Initialise VGA and clear BIOS text if VGA is enabled
+            // Clear BIOS banner: the real-mode BIOS leaves its text (and the cursor off-screen) in
+            // 0xB8000.  Wiping the full 80×25 buffer gives us a clean screen and a visible cursor
+            // before the kernel prints its first message.
+            // SAFETY: PAGE_DIR is identity-mapped, aligned, and unique
+            let pd: &mut PD = &mut *core::ptr::from_mut(self.pd);
+            crate::vga::new_text_console(pd);
         }
 
         let com1 = unsafe { SerialPortComponent::new(COM1_BASE).finalize(s.0) };
@@ -206,6 +221,10 @@ impl Component for PcComponent<'static> {
         let com4 = unsafe { SerialPortComponent::new(COM4_BASE).finalize(s.3) };
 
         let pit = unsafe { Pit::new() };
+
+        let vga = unsafe { static_init!(VgaText, VgaText::new()) };
+
+        kernel::deferred_call::DeferredCallClient::register(vga);
 
         let paging = unsafe {
             let pd_addr = core::ptr::from_ref(self.pd) as usize;
@@ -223,6 +242,7 @@ impl Component for PcComponent<'static> {
             com3,
             com4,
             pit,
+            vga,
             syscall,
             paging,
         });
