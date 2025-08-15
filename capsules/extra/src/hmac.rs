@@ -339,9 +339,8 @@ impl<
                     // If we get here we are ready to run the digest, reset the copied data
                     if app.op.get().unwrap() == UserSpaceOp::Run {
                         if let Err(e) = self.calculate_digest() {
-                            kernel_data
-                                .schedule_upcall(0, (into_statuscode(e.into()), 0, 0))
-                                .ok();
+                            let _ =
+                                kernel_data.schedule_upcall(0, (into_statuscode(e.into()), 0, 0));
                         }
                     } else if app.op.get().unwrap() == UserSpaceOp::Verify {
                         let _ = kernel_data
@@ -367,12 +366,11 @@ impl<
                             });
 
                         if let Err(e) = self.verify_digest() {
-                            kernel_data
-                                .schedule_upcall(1, (into_statuscode(e.into()), 0, 0))
-                                .ok();
+                            let _ =
+                                kernel_data.schedule_upcall(1, (into_statuscode(e.into()), 0, 0));
                         }
                     } else {
-                        kernel_data.schedule_upcall(0, (0, 0, 0)).ok();
+                        let _ = kernel_data.schedule_upcall(0, (0, 0, 0));
                     }
                 })
                 .map_err(|err| {
@@ -419,12 +417,11 @@ impl<
                             })
                         });
 
-                    match result {
+                    let _ = match result {
                         Ok(()) => kernel_data.schedule_upcall(0, (0, pointer as usize, 0)),
                         Err(e) => kernel_data
                             .schedule_upcall(0, (into_statuscode(e.into()), pointer as usize, 0)),
-                    }
-                    .ok();
+                    };
 
                     // Clear the current processid as it has finished running
                     self.processid.clear();
@@ -462,11 +459,10 @@ impl<
                 .enter(id, |_app, kernel_data| {
                     self.hmac.clear_data();
 
-                    match result {
+                    let _ = match result {
                         Ok(equal) => kernel_data.schedule_upcall(1, (0, equal as usize, 0)),
                         Err(e) => kernel_data.schedule_upcall(1, (into_statuscode(e.into()), 0, 0)),
-                    }
-                    .ok();
+                    };
 
                     // Clear the current processid as it has finished running
                     self.processid.clear();
@@ -685,12 +681,10 @@ impl<
                     3 => {
                         if app_match {
                             if let Err(e) = self.calculate_digest() {
-                                kernel_data
-                                    .schedule_upcall(
-                                        0,
-                                        (kernel::errorcode::into_statuscode(e.into()), 0, 0),
-                                    )
-                                    .ok();
+                                let _ = kernel_data.schedule_upcall(
+                                    0,
+                                    (kernel::errorcode::into_statuscode(e.into()), 0, 0),
+                                );
                             }
                             CommandReturn::success()
                         } else {
@@ -743,9 +737,8 @@ impl<
                                 });
 
                             if let Err(e) = self.verify_digest() {
-                                kernel_data
-                                    .schedule_upcall(1, (into_statuscode(e.into()), 0, 0))
-                                    .ok();
+                                let _ = kernel_data
+                                    .schedule_upcall(1, (into_statuscode(e.into()), 0, 0));
                             }
                             CommandReturn::success()
                         } else {

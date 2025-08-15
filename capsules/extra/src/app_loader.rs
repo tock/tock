@@ -247,9 +247,8 @@ impl<
             let _ = self.apps.enter(processid, move |app, kernel_data| {
                 app.pending_command = false;
                 // Signal the app.
-                kernel_data
-                    .schedule_upcall(upcall::SETUP_DONE, (into_statuscode(result), 0, 0))
-                    .ok();
+                let _ = kernel_data
+                    .schedule_upcall(upcall::SETUP_DONE, (into_statuscode(result), 0, 0));
             });
         });
     }
@@ -264,9 +263,8 @@ impl<
                 app.pending_command = false;
 
                 // And then signal the app.
-                kernel_data
-                    .schedule_upcall(upcall::WRITE_DONE, (into_statuscode(result), length, 0))
-                    .ok();
+                let _ = kernel_data
+                    .schedule_upcall(upcall::WRITE_DONE, (into_statuscode(result), length, 0));
             });
         });
     }
@@ -279,9 +277,8 @@ impl<
                 app.pending_command = false;
 
                 self.current_process.take();
-                kernel_data
-                    .schedule_upcall(upcall::FINALIZE_DONE, (into_statuscode(result), 0, 0))
-                    .ok();
+                let _ = kernel_data
+                    .schedule_upcall(upcall::FINALIZE_DONE, (into_statuscode(result), 0, 0));
             });
         });
     }
@@ -294,9 +291,8 @@ impl<
                 app.pending_command = false;
 
                 self.current_process.take();
-                kernel_data
-                    .schedule_upcall(upcall::ABORT_DONE, (into_statuscode(result), 0, 0))
-                    .ok();
+                let _ = kernel_data
+                    .schedule_upcall(upcall::ABORT_DONE, (into_statuscode(result), 0, 0));
             });
         });
     }
@@ -342,9 +338,8 @@ impl<
                 app.pending_command = false;
                 // Signal the app.
                 self.current_process.take();
-                kernel_data
-                    .schedule_upcall(upcall::LOAD_DONE, (into_statuscode(status_code), 0, 0))
-                    .ok();
+                let _ = kernel_data
+                    .schedule_upcall(upcall::LOAD_DONE, (into_statuscode(status_code), 0, 0));
             });
         });
     }

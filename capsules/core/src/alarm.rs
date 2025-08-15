@@ -166,19 +166,17 @@ impl<'a, A: Alarm<'a>> AlarmDriver<'a, A> {
                 alarm_state.expiration = None;
 
                 // Deliver the upcall:
-                upcalls
-                    .schedule_upcall(
-                        ALARM_CALLBACK_NUM,
-                        (
-                            now.into_u32_left_justified() as usize,
-                            expired
-                                .reference
-                                .wrapping_add(expired.dt)
-                                .into_u32_left_justified() as usize,
-                            0,
-                        ),
-                    )
-                    .ok();
+                let _ = upcalls.schedule_upcall(
+                    ALARM_CALLBACK_NUM,
+                    (
+                        now.into_u32_left_justified() as usize,
+                        expired
+                            .reference
+                            .wrapping_add(expired.dt)
+                            .into_u32_left_justified() as usize,
+                        0,
+                    ),
+                );
             });
 
             // Proceed iteration across expirations:
