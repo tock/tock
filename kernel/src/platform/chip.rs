@@ -147,6 +147,13 @@ pub trait InterruptService {
     unsafe fn service_interrupt(&self, interrupt: u32) -> bool;
 }
 
+/// A default implementation of `InterruptService` that handles nothing and returns `false`.
+impl InterruptService for () {
+    unsafe fn service_interrupt(&self, _interrupt: u32) -> bool {
+        false
+    }
+}
+
 /// Generic operations that clock-like things are expected to support.
 pub trait ClockInterface {
     fn is_enabled(&self) -> bool;
