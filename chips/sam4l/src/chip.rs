@@ -281,11 +281,11 @@ impl<I: InterruptService + 'static> Chip for Sam4l<I> {
         }
     }
 
-    unsafe fn atomic<F, R>(&self, f: F) -> R
+    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {
-        cortexm4::support::atomic(f)
+        cortexm4::support::with_interrupts_disabled(f)
     }
 
     unsafe fn print_state(&self, writer: &mut dyn Write) {

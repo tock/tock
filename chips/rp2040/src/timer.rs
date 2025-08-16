@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
-use cortexm0p::support::atomic;
+use cortexm0p::support::with_interrupts_disabled;
 use kernel::hil;
 use kernel::hil::time::{Alarm, Ticks, Ticks32, Time};
 use kernel::utilities::cells::OptionalCell;
@@ -200,7 +200,7 @@ impl<'a> RPTimer<'a> {
         // not fired. This means that the interrupt will be handled whenever the
         // next kernel tasks are processed.
         unsafe {
-            atomic(|| {
+            with_interrupts_disabled(|| {
                 let n = cortexm0p::nvic::Nvic::new(TIMER_IRQ_0);
                 n.enable();
             })
@@ -259,7 +259,7 @@ impl<'a> Alarm<'a> for RPTimer<'a> {
     fn disarm(&self) -> Result<(), ErrorCode> {
         self.registers.armed.set(1);
         unsafe {
-            atomic(|| {
+            with_interrupts_disabled(|| {
                 // Clear pending interrupts
                 cortexm0p::nvic::Nvic::new(TIMER_IRQ_0).clear_pending();
             });

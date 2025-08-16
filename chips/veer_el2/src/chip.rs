@@ -81,7 +81,7 @@ impl<'a, I: InterruptService + 'a> VeeR<'a, I> {
             if !self.pic_interrupt_service.service_interrupt(interrupt) {
                 panic!("Unhandled interrupt {}", interrupt);
             }
-            self.atomic(|| {
+            self.with_interrupts_disabled(|| {
                 // Safe as interrupts are disabled
                 self.pic.complete(interrupt);
             });
@@ -138,11 +138,11 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for VeeR<'a, I> 
         }
     }
 
-    unsafe fn atomic<F, R>(&self, f: F) -> R
+    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {
-        rv32i::support::atomic(f)
+        rv32i::support::with_interrupts_disabled(f)
     }
 
     unsafe fn print_state(&self, writer: &mut dyn Write) {

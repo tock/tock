@@ -102,7 +102,7 @@ pub const KERNEL_MAJOR_VERSION: u16 = 2;
 ///
 /// This is compiled with the crate to enable for checking of compatibility with
 /// loaded apps.
-pub const KERNEL_MINOR_VERSION: u16 = 1;
+pub const KERNEL_MINOR_VERSION: u16 = 2;
 
 pub mod capabilities;
 pub mod collections;

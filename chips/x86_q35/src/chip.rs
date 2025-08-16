@@ -137,11 +137,11 @@ impl<'a, const PR: u16> Chip for Pc<'a, PR> {
         unimplemented!()
     }
 
-    unsafe fn atomic<F, R>(&self, f: F) -> R
+    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {
-        support::atomic(f)
+        support::with_interrupts_disabled(f)
     }
 
     unsafe fn print_state(&self, writer: &mut dyn Write) {

@@ -100,7 +100,7 @@ impl<'a, I: InterruptService + 'a> Esp32C3<'a, I> {
             if !self.pic_interrupt_service.service_interrupt(interrupt) {
                 panic!("Unhandled interrupt {}", interrupt);
             }
-            self.atomic(|| {
+            self.with_interrupts_disabled(|| {
                 // Safe as interrupts are disabled
                 self.intc.complete(interrupt);
             });
@@ -146,11 +146,11 @@ impl<'a, I: InterruptService + 'a> Chip for Esp32C3<'a, I> {
         }
     }
 
-    unsafe fn atomic<F, R>(&self, f: F) -> R
+    unsafe fn with_interrupts_disabled<F, R>(&self, f: F) -> R
     where
         F: FnOnce() -> R,
     {
-        rv32i::support::atomic(f)
+        rv32i::support::with_interrupts_disabled(f)
     }
 
     unsafe fn print_state(&self, writer: &mut dyn Write) {

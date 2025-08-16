@@ -271,11 +271,14 @@ impl<'a> FrameBuffer<'a> {
     }
 
     fn rows(&mut self) -> impl Iterator<Item = RowMut<'_>> {
-        self.data.as_slice().chunks_mut(LINE_LEN).map_while(|c| {
-            c.get_mut(2..).map(|data| RowMut {
-                data: Cell::from_mut(data).as_slice_of_cells(),
+        self.data
+            .as_mut_slice()
+            .chunks_mut(LINE_LEN)
+            .map_while(|c| {
+                c.get_mut(2..).map(|data| RowMut {
+                    data: Cell::from_mut(data).as_slice_of_cells(),
+                })
             })
-        })
     }
 }
 

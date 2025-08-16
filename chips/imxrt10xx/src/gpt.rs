@@ -3,7 +3,7 @@
 // Copyright Tock Contributors 2022.
 
 use core::sync::atomic::{AtomicU32, Ordering};
-use cortexm7::support::atomic;
+use cortexm7::support::with_interrupts_disabled;
 use kernel::hil;
 use kernel::hil::time::{Ticks, Ticks32, Time};
 use kernel::platform::chip::ClockInterface;
@@ -393,7 +393,7 @@ impl<'a, F: hil::time::Frequency> hil::time::Alarm<'a> for Gpt<'a, F> {
 
     fn disarm(&self) -> Result<(), ErrorCode> {
         unsafe {
-            atomic(|| {
+            with_interrupts_disabled(|| {
                 // Disable counter
                 self.registers.ir.modify(IR::OF1IE::CLEAR);
                 cortexm7::nvic::Nvic::new(self.irqn).clear_pending();

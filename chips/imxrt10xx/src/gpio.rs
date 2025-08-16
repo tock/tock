@@ -26,7 +26,7 @@
 //! assert_eq!(pin_from_id as *const _, pin_from_port as *const _);
 //! ```
 
-use cortexm7::support::atomic;
+use cortexm7::support::with_interrupts_disabled;
 use enum_primitive::cast::FromPrimitive;
 use enum_primitive::enum_from_primitive;
 use kernel::hil;
@@ -333,7 +333,7 @@ impl<'a, const N: usize> Port<'a, N> {
         // 1 register (`rc_w1`). So, we only clear bits whose value has been
         // transferred to `isr`.
         let isr_val = unsafe {
-            atomic(|| {
+            with_interrupts_disabled(|| {
                 let isr_val = self.registers.isr.get();
                 self.registers.isr.set(isr_val);
                 isr_val
@@ -747,7 +747,7 @@ impl hil::gpio::Input for Pin<'_> {
 impl<'a> hil::gpio::Interrupt<'a> for Pin<'a> {
     fn enable_interrupts(&self, mode: hil::gpio::InterruptEdge) {
         unsafe {
-            atomic(|| {
+            with_interrupts_disabled(|| {
                 // disable the interrupt
                 self.mask_interrupt();
                 self.clear_pending();
@@ -760,7 +760,7 @@ impl<'a> hil::gpio::Interrupt<'a> for Pin<'a> {
 
     fn disable_interrupts(&self) {
         unsafe {
-            atomic(|| {
+            with_interrupts_disabled(|| {
                 self.mask_interrupt();
                 self.clear_pending();
             });
