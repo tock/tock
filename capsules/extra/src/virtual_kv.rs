@@ -66,7 +66,7 @@ pub struct VirtualKVPermissions<'a, V: kv::KVPermissions<'a>> {
 impl<'a, V: kv::KVPermissions<'a>> ListNode<'a, VirtualKVPermissions<'a, V>>
     for VirtualKVPermissions<'a, V>
 {
-    fn next(&self) -> &'a ListLink<VirtualKVPermissions<'a, V>> {
+    fn next(&self) -> &'a ListLink<'_, VirtualKVPermissions<'a, V>> {
         &self.next
     }
 }
