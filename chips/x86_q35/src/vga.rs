@@ -192,6 +192,14 @@ impl TextBuf {
         }
     }
 }
+impl<'a> IntoIterator for &'a TextBuf {
+    type Item = &'a VolatileCell<u16>;
+    type IntoIter = core::slice::Iter<'a, VolatileCell<u16>>;
+    #[inline(always)]
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
 
 impl core::ops::Index<usize> for TextBuf {
     type Output = VolatileCell<u16>;
@@ -206,19 +214,23 @@ impl core::ops::Index<(usize, usize)> for TextBuf {
     #[inline(always)]
     fn index(&self, rc: (usize, usize)) -> &Self::Output {
         let (row, col) = rc;
-        debug_assert!(row < TEXT_BUFFER_HEIGHT && col < TEXT_BUFFER_WIDTH);
+        assert!(
+            row < TEXT_BUFFER_HEIGHT && col < TEXT_BUFFER_WIDTH,
+            "TextBuf index OOB: ({}, {})",
+            row,
+            col
+        );
         &self.cells[row * TEXT_BUFFER_WIDTH + col]
     }
 }
-
-/// Global, row-major, bracket-indexable view.
-const TEXT: TextBuf = TextBuf::new();
 
 /// Low-level VGA controller (global mode/programming).
 /// This configures the hardware; it is not tied to a particular `Vga` writer.
 pub struct VgaDevice;
 
 impl VgaDevice {
+    /// Global, row-major, bracket-indexable view.
+    const TEXT: TextBuf = TextBuf::new();
     /// Program the requested mode on the VGA controller.
     pub fn set_mode(mode: VgaMode) {
         match mode {
@@ -338,7 +350,7 @@ impl Vga {
         let blank = ((self.attr.get() as u16) << 8) | b' ' as u16;
 
         // move rows 1..H up by one
-        let rows = TEXT.rows();
+        let rows = VgaDevice::TEXT.rows();
         let src_rows = rows.clone().skip(1);
         let dst_rows = rows;
         for (src_row, dst_row) in src_rows.zip(dst_rows) {
@@ -348,7 +360,7 @@ impl Vga {
         }
 
         // clear last row
-        if let Some(last_row) = TEXT.rows().last() {
+        if let Some(last_row) = VgaDevice::TEXT.rows().last() {
             for cell in last_row {
                 cell.set(blank);
             }
@@ -359,7 +371,7 @@ impl Vga {
     }
 
     pub fn set_cursor(&self, col: usize, row: usize) {
-        if TEXT.get(row, col).is_some() {
+        if VgaDevice::TEXT.get(row, col).is_some() {
             self.col.set(col);
             self.row.set(row);
             self.update_hw_cursor();
@@ -386,7 +398,7 @@ impl Vga {
 
     pub fn clear(&self) {
         let blank = ((self.attr.get() as u16) << 8) | b' ' as u16;
-        for cell in TEXT.iter() {
+        for cell in &VgaDevice::TEXT {
             cell.set(blank);
         }
         self.col.set(0);
@@ -407,11 +419,11 @@ impl Vga {
                 let val = ((self.attr.get() as u16) << 8) | b as u16;
 
                 // safe write; if somehow OOB, scroll and retry once
-                if let Some(cell) = TEXT.get(self.row.get(), self.col.get()) {
+                if let Some(cell) = VgaDevice::TEXT.get(self.row.get(), self.col.get()) {
                     cell.set(val);
                 } else {
                     self.scroll_up();
-                    if let Some(cell) = TEXT.get(self.row.get(), self.col.get()) {
+                    if let Some(cell) = VgaDevice::TEXT.get(self.row.get(), self.col.get()) {
                         cell.set(val);
                     }
                 }
@@ -458,7 +470,7 @@ pub(crate) fn new_text_console(_page_dir_ptr: &mut x86::registers::bits32::pagin
 
     // Wipe the BIOS banner so the kernel starts on a blank page.
     let blank: u16 = 0x0720; // white-on-black space
-    for cell in TEXT.iter() {
+    for cell in &VgaDevice::TEXT {
         cell.set(blank);
     }
 }
