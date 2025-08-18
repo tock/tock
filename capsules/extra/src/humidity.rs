@@ -129,7 +129,7 @@ impl<'a, H: hil::sensors::HumidityDriver<'a>> hil::sensors::HumidityClient
             cntr.enter(|app, upcalls| {
                 if app.subscribed {
                     app.subscribed = false;
-                    upcalls.schedule_upcall(0, (humidity_val, 0, 0)).ok();
+                    let _ = upcalls.schedule_upcall(0, (humidity_val, 0, 0));
                 }
             });
         }

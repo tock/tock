@@ -324,12 +324,10 @@ impl<'a, V: kv::KVPermissions<'a>> kv::KVClient for KVStoreDriver<'a, V> {
                     app.op.clear();
 
                     if let Err(e) = result {
-                        upcalls
-                            .schedule_upcall(
-                                upcalls::VALUE,
-                                (errorcode::into_statuscode(e.into()), 0, 0),
-                            )
-                            .ok();
+                        let _ = upcalls.schedule_upcall(
+                            upcalls::VALUE,
+                            (errorcode::into_statuscode(e.into()), 0, 0),
+                        );
                     } else {
                         let value_len = value.len();
                         let ret = upcalls
@@ -352,12 +350,10 @@ impl<'a, V: kv::KVPermissions<'a>> kv::KVClient for KVStoreDriver<'a, V> {
                         // error and only read the portion that would fit in the
                         // buffer if the value was larger than the provided
                         // processbuffer.
-                        upcalls
-                            .schedule_upcall(
-                                upcalls::VALUE,
-                                (errorcode::into_statuscode(ret), value_len, 0),
-                            )
-                            .ok();
+                        let _ = upcalls.schedule_upcall(
+                            upcalls::VALUE,
+                            (errorcode::into_statuscode(ret), value_len, 0),
+                        );
                     }
                 }
 
@@ -385,9 +381,10 @@ impl<'a, V: kv::KVPermissions<'a>> kv::KVClient for KVStoreDriver<'a, V> {
             self.apps.enter(id, move |app, upcalls| {
                 if app.op.contains(&UserSpaceOp::Set) {
                     app.op.clear();
-                    upcalls
-                        .schedule_upcall(upcalls::VALUE, (errorcode::into_statuscode(result), 0, 0))
-                        .ok();
+                    let _ = upcalls.schedule_upcall(
+                        upcalls::VALUE,
+                        (errorcode::into_statuscode(result), 0, 0),
+                    );
                 }
             })
         });
@@ -412,9 +409,10 @@ impl<'a, V: kv::KVPermissions<'a>> kv::KVClient for KVStoreDriver<'a, V> {
             self.apps.enter(id, move |app, upcalls| {
                 if app.op.contains(&UserSpaceOp::Add) {
                     app.op.clear();
-                    upcalls
-                        .schedule_upcall(upcalls::VALUE, (errorcode::into_statuscode(result), 0, 0))
-                        .ok();
+                    let _ = upcalls.schedule_upcall(
+                        upcalls::VALUE,
+                        (errorcode::into_statuscode(result), 0, 0),
+                    );
                 }
             })
         });
@@ -439,9 +437,10 @@ impl<'a, V: kv::KVPermissions<'a>> kv::KVClient for KVStoreDriver<'a, V> {
             self.apps.enter(id, move |app, upcalls| {
                 if app.op.contains(&UserSpaceOp::Update) {
                     app.op.clear();
-                    upcalls
-                        .schedule_upcall(upcalls::VALUE, (errorcode::into_statuscode(result), 0, 0))
-                        .ok();
+                    let _ = upcalls.schedule_upcall(
+                        upcalls::VALUE,
+                        (errorcode::into_statuscode(result), 0, 0),
+                    );
                 }
             })
         });
@@ -459,9 +458,10 @@ impl<'a, V: kv::KVPermissions<'a>> kv::KVClient for KVStoreDriver<'a, V> {
             self.apps.enter(id, move |app, upcalls| {
                 if app.op.contains(&UserSpaceOp::Delete) {
                     app.op.clear();
-                    upcalls
-                        .schedule_upcall(upcalls::VALUE, (errorcode::into_statuscode(result), 0, 0))
-                        .ok();
+                    let _ = upcalls.schedule_upcall(
+                        upcalls::VALUE,
+                        (errorcode::into_statuscode(result), 0, 0),
+                    );
                 }
             })
         });
@@ -477,9 +477,10 @@ impl<'a, V: kv::KVPermissions<'a>> kv::KVClient for KVStoreDriver<'a, V> {
             self.apps.enter(id, move |app, upcalls| {
                 if app.op.contains(&UserSpaceOp::GarbageCollect) {
                     app.op.clear();
-                    upcalls
-                        .schedule_upcall(upcalls::VALUE, (errorcode::into_statuscode(result), 0, 0))
-                        .ok();
+                    let _ = upcalls.schedule_upcall(
+                        upcalls::VALUE,
+                        (errorcode::into_statuscode(result), 0, 0),
+                    );
                 }
             })
         });
