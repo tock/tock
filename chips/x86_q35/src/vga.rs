@@ -212,15 +212,8 @@ impl core::ops::Index<usize> for TextBuf {
 impl core::ops::Index<(usize, usize)> for TextBuf {
     type Output = VolatileCell<u16>;
     #[inline(always)]
-    fn index(&self, rc: (usize, usize)) -> &Self::Output {
-        let (row, col) = rc;
-        assert!(
-            row < TEXT_BUFFER_HEIGHT && col < TEXT_BUFFER_WIDTH,
-            "TextBuf index OOB: ({}, {})",
-            row,
-            col
-        );
-        &self.cells[row * TEXT_BUFFER_WIDTH + col]
+    fn index(&self, (row, col): (usize, usize)) -> &Self::Output {
+        &self.cells[row * TEXT_BUFFER_WIDTH + col] // panics on OOB
     }
 }
 
