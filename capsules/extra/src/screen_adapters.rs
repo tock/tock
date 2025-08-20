@@ -1,3 +1,9 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2025.
+
+//! Tools for adapting to different screen formats.
+
 use core::cell::Cell;
 
 use kernel::hil::screen::{Screen, ScreenClient, ScreenPixelFormat, ScreenRotation};
@@ -5,13 +11,16 @@ use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::leasable_buffer::SubSliceMut;
 use kernel::ErrorCode;
 
+/// Convert an ARGB8888 formatted screen to a Mono8BitPage formatted screen of
+/// the same resolution.
+///
+/// All pixels are converted to mono (black and white)
 pub struct ScreenARGB8888ToMono8BitPage<'a, S: Screen<'a>> {
     screen: &'a S,
     draw_buffer: OptionalCell<SubSliceMut<'static, u8>>,
     draw_width: Cell<usize>,
     client_buffer: OptionalCell<SubSliceMut<'static, u8>>,
     client: OptionalCell<&'a dyn ScreenClient>,
-    _phantom_lifetime: core::marker::PhantomData<&'a ()>,
 }
 
 impl<'a, S: Screen<'a>> ScreenARGB8888ToMono8BitPage<'a, S> {
@@ -24,7 +33,6 @@ impl<'a, S: Screen<'a>> ScreenARGB8888ToMono8BitPage<'a, S> {
             draw_width: Cell::new(0),
             client_buffer: OptionalCell::empty(),
             client: OptionalCell::empty(),
-            _phantom_lifetime: core::marker::PhantomData,
         }
     }
 }
