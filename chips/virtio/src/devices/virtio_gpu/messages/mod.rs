@@ -80,39 +80,6 @@ impl Rect {
         self.width == 0 && self.height == 0
     }
 
-    // pub fn extend(&self, other: Rect) -> Rect {
-    //     use core::cmp::{max, min};
-
-    //     // If either one of the `Rect`s is empty, simply return the other:
-    //     if self.is_empty() {
-    //         other
-    //     } else if other.is_empty() {
-    //         *self
-    //     } else {
-    //         // Determine the "x1" for both self and other, so that we can calculate
-    //         // the final width based on the distance of the larger of the two "x0"s
-    //         // and the larger of the two "x1"s:
-    //         let self_x1 = self.x.saturating_add(self.width);
-    //         let other_x1 = other.x.saturating_add(other.width);
-
-    //         // Same for "y1"s:
-    //         let self_y1 = self.y.saturating_add(self.height);
-    //         let other_y1 = other.y.saturating_add(other.height);
-
-    //         // Now, build the rect:
-    //         let new_x0 = min(self.x, other.x);
-    //         let new_x1 = max(self_x1, other_x1);
-    //         let new_y0 = min(self.y, other.y);
-    //         let new_y1 = max(self_y1, other_y1);
-    //         Rect {
-    //             x: new_x0,
-    //             y: new_y0,
-    //             width: new_x1.saturating_sub(new_x0),
-    //             height: new_y1.saturating_sub(new_y0),
-    //         }
-    //     }
-    // }
-
     fn write_to_byte_iter<'a>(
         &self,
         dst: &mut impl Iterator<Item = &'a mut u8>,
