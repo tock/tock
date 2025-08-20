@@ -44,36 +44,40 @@ PAGE_SIZE = DEFINED(PAGE_SIZE) ? PAGE_SIZE : 512;
 SECTIONS
 {
 
-    
-    /**
-     * The order that section contents ends up emitted in the final physical ELF file is
-     * significant for systems like QEMU that use multiboot. Only the first 8192 bytes of the file
-     * are scanned ( https://www.gnu.org/software/grub/manual/multiboot/multiboot.html ).
+    /*
+     * The order that section contents ends up emitted in the final physical ELF
+     * file is significant for systems like QEMU that use multiboot. Only the
+     * first 8192 bytes of the file are scanned
+     * (https://www.gnu.org/software/grub/manual/multiboot/multiboot.html).
      *
-     * For this reason, it is important that the `.text` section, which contains the `.multiboot`
-     * section, is defined first in this file as tools tend to write sections out in linear order.
+     * For this reason, it is important that the `.text` section, which contains
+     * the `.multiboot` section, is defined first in this file as tools tend to
+     * write sections out in linear order.
      */
-    
-   
+
+
     /* STATIC ELEMENTS FOR TOCK KERNEL */
     .text :
     {
         . = ALIGN(4);
-        _textstart = .;         /* Symbol expected by some MS build toolchains */
+        _textstart = .;     /* Symbol expected by some MS build toolchains */
         _stext = .;         /* First of standard s,e (start/end) pair */
 
-        /* x86     
-         * We need to make sure that qemu-system-i386 finds the multiboot header within the
-         * first 8K of the ELF. The multiboot header is placed at the beginning of the .text section, so
-         * this section has to be placed first in the file.
+        /* x86
+         * We need to make sure that qemu-system-i386 finds the multiboot header
+         * within the first 8K of the ELF. The multiboot header is placed at the
+         * beginning of the .text section, so this section has to be placed
+         * first in the file.
          *
          * The multiboot header's documentation is available at
          * https://www.gnu.org/software/grub/manual/multiboot/multiboot.html.
-         * This allows Tock to be booted using a bootloader that supports multiboot v1.
-         * QEMU provides for x86 such a bootloader when used with the `-kernel` flag.
+         * This allows Tock to be booted using a bootloader that supports
+         * multiboot v1. QEMU provides for x86 such a bootloader when used with
+         * the `-kernel` flag.
          *
-         * The bootloader is responsable for loading the kernel into RAM and executing it. Without it,
-         * the Tock kernel should provide a bootloader that starts reading the kernel into RAM.
+         * The bootloader is responsible for loading the kernel into RAM and
+         * executing it. Without it, the Tock kernel should provide a bootloader
+         * that starts reading the kernel into RAM.
          *
          * This is the reason why the .text section has to be the first.
          */
@@ -104,7 +108,7 @@ SECTIONS
          * and that function is at the start of the .riscv.trap section. If that
          * function does not exist (as for non-RISC-V platforms) then we do not
          * need any unusual alignment.
-         * The allignment is implementation specific, so we currently use 256 to
+         * The alignment is implementation specific, so we currently use 256 to
          * work with the lowRISC CPUs.
          */
         . = DEFINED(_start_trap) ? ALIGN(256) : ALIGN(1);
@@ -114,9 +118,10 @@ SECTIONS
         /* x86 */
         KEEP(*(.x86.start))
 
-        /* .text and .rodata hold most program code and immutable constants */
-        /* .gnu.linkonce hold C++ elements with vague linkage
-                https://gcc.gnu.org/onlinedocs/gcc/Vague-Linkage.html */
+        /* .text and .rodata hold most program code and immutable constants.
+         * .gnu.linkonce hold C++ elements with vague linkage.
+         * https://gcc.gnu.org/onlinedocs/gcc/Vague-Linkage.html
+         */
         *(.text .text.* .gnu.linkonce.t.*)
 
         _srodata = .;
@@ -126,55 +131,56 @@ SECTIONS
         *(.ARM.extab* .gnu.linkonce.armextab.*)
 
         /* glue_7 and glue_7t hold helper functions emitted by the compiler to
-           support interworking (linking between functions in ARM and THUMB
-           mode). Note that Cortex-M's do not support ARM mode, but this is left
-           here to save someone headache if they ever attempt to port Tock to a
-           Cortex-A core.  */
+         * support interworking (linking between functions in ARM and THUMB
+         * mode). Note that Cortex-M's do not support ARM mode, but this is left
+         * here to save someone headache if they ever attempt to port Tock to a
+         * Cortex-A core.
+         */
         *(.glue_7t) *(.glue_7)
 
 
         /* Constructor and destructor sections:
-
-           - init/fini
-              Defined by ELF as sections that hold `process
-              initialization/termination code`
-           - {pre}{init/fini}_array_{start/end}
-              Symbols used by the C runtime for initialization / termination
-           - ctors/dtors
-              Symbols used by the C++ runtime for initialization / termination
-        */
+         *
+         * - init/fini
+         *    Defined by ELF as sections that hold `process
+         *    initialization/termination code`
+         * - {pre}{init/fini}_array_{start/end}
+         *    Symbols used by the C runtime for initialization / termination
+         * - ctors/dtors
+         *    Symbols used by the C++ runtime for initialization / termination
+         */
         . = ALIGN(4);
         KEEP(*(.init))
         . = ALIGN(4);
         __preinit_array_start = .;
-        KEEP (*(.preinit_array))
+        KEEP(*(.preinit_array))
         __preinit_array_end = .;
 
         . = ALIGN(4);
         __init_array_start = .;
-        KEEP (*(SORT(.init_array.*)))
-        KEEP (*(.init_array))
+        KEEP(*(SORT(.init_array.*)))
+        KEEP(*(.init_array))
         __init_array_end = .;
 
         . = ALIGN(4);
-        KEEP (*crtbegin.o(.ctors))
-        KEEP (*(EXCLUDE_FILE (*crtend.o) .ctors))
-        KEEP (*(SORT(.ctors.*)))
-        KEEP (*crtend.o(.ctors))
+        KEEP(*crtbegin.o(.ctors))
+        KEEP(*(EXCLUDE_FILE (*crtend.o) .ctors))
+        KEEP(*(SORT(.ctors.*)))
+        KEEP(*crtend.o(.ctors))
 
         . = ALIGN(4);
         KEEP(*(.fini))
 
         . = ALIGN(4);
         __fini_array_start = .;
-        KEEP (*(.fini_array))
-        KEEP (*(SORT(.fini_array.*)))
+        KEEP(*(.fini_array))
+        KEEP(*(SORT(.fini_array.*)))
         __fini_array_end = .;
 
-        KEEP (*crtbegin.o(.dtors))
-        KEEP (*(EXCLUDE_FILE (*crtend.o) .dtors))
-        KEEP (*(SORT(.dtors.*)))
-        KEEP (*crtend.o(.dtors))
+        KEEP(*crtbegin.o(.dtors))
+        KEEP(*(EXCLUDE_FILE (*crtend.o) .dtors))
+        KEEP(*(SORT(.dtors.*)))
+        KEEP(*crtend.o(.dtors))
         /* End constructor/destructor */
     } > rom
 
@@ -188,13 +194,13 @@ SECTIONS
      *
      * .ARM.exidx is sorted, so has to go in its own output section.
      */
-    PROVIDE_HIDDEN (__exidx_start = .);
+    PROVIDE_HIDDEN(__exidx_start = .);
     .ARM.exidx :
     {
-      /* (C++) Index entries for section unwinding */
-      *(.ARM.exidx* .gnu.linkonce.armexidx.*)
+        /* (C++) Index entries for section unwinding */
+        *(.ARM.exidx* .gnu.linkonce.armexidx.*)
     } > rom
-    PROVIDE_HIDDEN (__exidx_end = .);
+    PROVIDE_HIDDEN(__exidx_end = .);
 
     /* Region for on-chip kernel non-volatile storage.
      *
@@ -203,11 +209,11 @@ SECTIONS
      */
     .storage :
     {
-      . = ALIGN(PAGE_SIZE);
-      _sstorage = .;
-      *(.storage* storage*)
-      _estorage = .;
-      . = ALIGN(PAGE_SIZE);
+        . = ALIGN(PAGE_SIZE);
+        _sstorage = .;
+        *(.storage* storage*)
+        _estorage = .;
+        . = ALIGN(PAGE_SIZE);
     } > rom
     . = ALIGN(PAGE_SIZE);
 
@@ -276,21 +282,10 @@ SECTIONS
          * rather than silently overwriting valuable data.
          */
         . = ALIGN(8);
-         _sstack = .;
-
-         /* For GNU LD, we can just advance the location pointer (".") here to
-          * reserve space for the stack. That, however, doesn't seem to work
-          * for LLVM LLD. The resulting ELF has a stack section that shows the
-          * correct size, but the next section (in our case .relocate) is not
-          * moved down as well, instead it sits at the same address as .stack.
-          * To work around this, we declare a dummy buffer and then insert it
-          * here in the .stack section. This sets the stack size correctly and
-          * places the .relocate section at the correct address. */
-         KEEP(*(.stack_buffer))
-         /*. = . + 0x1000;*/  /*This is the original method. */
-
-         . = ALIGN(8);
-         _estack = .;
+        _sstack = .;
+        KEEP(*(.stack_buffer))
+        . = ALIGN(8);
+        _estack = .;
     } > ram
 
     /* Section for application binaries in flash.
@@ -420,16 +415,18 @@ SECTIONS
 
 
     /* Discard RISC-V relevant .eh_frame, we are not doing unwind on panic
-       so it is not needed. */
+     * so it is not needed.
+     */
     /DISCARD/ :
     {
-      *(.eh_frame*);
+        *(.eh_frame*);
     }
 }
 
 /* LOADADDR: Return the absolute load address of the named section. This is
  * normally the same as ADDR, but it may be different if the AT keyword is used
- * in the section definition. */
+ * in the section definition.
+ */
 _sattributes = LOADADDR(.attributes);
 _eattributes = LOADADDR(.attributes) + SIZEOF(.attributes);
 _erom = ORIGIN(rom) + LENGTH(rom);
@@ -460,6 +457,7 @@ ENTRY(_stext);
 ASSERT((_eattributes == _erom) || (_eattributes == _erom + SIZEOF(.attributes)), "Kernel attributes are not at the end of ROM.")
 
 /* This assert works out because even though some of the relative positions are
- * off, the sizes are sane in each pass. */
+ * off, the sizes are sane in each pass.
+ */
 ASSERT((_etext - _stext) + (_erelocate - _srelocate) + (_eattributes - _sattributes) < LENGTH(rom),
 "Text plus relocations plus attributes exceeds the available ROM space.");

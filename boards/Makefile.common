@@ -71,7 +71,7 @@ $(call check_defined, PLATFORM)
 $(call check_defined, TARGET)
 
 # Location of target-specific build.
-# Make sure we delete the ".json" extension if we are building a custon TARGET
+# Make sure we delete the ".json" extension if we are building a custom TARGET
 # defined in a JSON file as cargo defines the target folder without ".json".
 TARGET_PATH := $(TARGET_DIRECTORY)$(subst .json,,$(TARGET))
 
@@ -136,7 +136,7 @@ ifneq ($(shell $(RUSTUP) target list | grep "$(TARGET) (installed)"),$(TARGET) (
   $(info If you are just doing some local testing, you can install the)
   $(info target manually for just your system with:)
   $(info )
-  $(info     $(RUSTUP) target add $(TARGET))
+  $(info     $(RUSTUP) target add $(TARGET))
   $(info )
   $(error Missing required target: $(TARGET))
 endif
