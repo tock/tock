@@ -81,7 +81,7 @@ SECTIONS
          *
          * This is the reason why the .text section has to be the first.
          */
-        KEEP (*(.multiboot))
+        KEEP(*(.multiboot))
 
         /* Place vector table at the beginning of ROM.
          *
@@ -91,8 +91,8 @@ SECTIONS
          *
          * http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0553a/BABIFJFG.html
          */
-        KEEP (*(.vectors .vectors.*))
-        KEEP (*(.irqs))
+        KEEP(*(.vectors .vectors.*))
+        KEEP(*(.irqs))
 
         /* RISC-V
          * There is no vector table in RISCV, so .vectors and .irqs will be
@@ -103,7 +103,7 @@ SECTIONS
          * These are expected to just be empty on other platforms so they
          * shouldn't have any effect.
          */
-        KEEP (*(.riscv.start));
+        KEEP(*(.riscv.start));
         /* For RISC-V we need the `_start_trap` function to be 256 byte aligned,
          * and that function is at the start of the .riscv.trap section. If that
          * function does not exist (as for non-RISC-V platforms) then we do not
@@ -112,15 +112,15 @@ SECTIONS
          * work with the lowRISC CPUs.
          */
         . = DEFINED(_start_trap) ? ALIGN(256) : ALIGN(1);
-        KEEP (*(.riscv.trap_vectored));
-        KEEP (*(.riscv.trap));
+        KEEP(*(.riscv.trap_vectored));
+        KEEP(*(.riscv.trap));
 
         /* x86 */
-        KEEP (*(.x86.start))
+        KEEP(*(.x86.start))
 
-        /* .text and .rodata hold most program code and immutable constants
-        /* .gnu.linkonce hold C++ elements with vague linkage
-         *      https://gcc.gnu.org/onlinedocs/gcc/Vague-Linkage.html
+        /* .text and .rodata hold most program code and immutable constants.
+         * .gnu.linkonce hold C++ elements with vague linkage.
+         * https://gcc.gnu.org/onlinedocs/gcc/Vague-Linkage.html
          */
         *(.text .text.* .gnu.linkonce.t.*)
 
@@ -150,37 +150,37 @@ SECTIONS
          *    Symbols used by the C++ runtime for initialization / termination
          */
         . = ALIGN(4);
-        KEEP (*(.init))
+        KEEP(*(.init))
         . = ALIGN(4);
         __preinit_array_start = .;
-        KEEP (*(.preinit_array))
+        KEEP(*(.preinit_array))
         __preinit_array_end = .;
 
         . = ALIGN(4);
         __init_array_start = .;
-        KEEP (*(SORT(.init_array.*)))
-        KEEP (*(.init_array))
+        KEEP(*(SORT(.init_array.*)))
+        KEEP(*(.init_array))
         __init_array_end = .;
 
         . = ALIGN(4);
-        KEEP (*crtbegin.o(.ctors))
-        KEEP (*(EXCLUDE_FILE (*crtend.o) .ctors))
-        KEEP (*(SORT(.ctors.*)))
-        KEEP (*crtend.o(.ctors))
+        KEEP(*crtbegin.o(.ctors))
+        KEEP(*(EXCLUDE_FILE (*crtend.o) .ctors))
+        KEEP(*(SORT(.ctors.*)))
+        KEEP(*crtend.o(.ctors))
 
         . = ALIGN(4);
         KEEP(*(.fini))
 
         . = ALIGN(4);
         __fini_array_start = .;
-        KEEP (*(.fini_array))
-        KEEP (*(SORT(.fini_array.*)))
+        KEEP(*(.fini_array))
+        KEEP(*(SORT(.fini_array.*)))
         __fini_array_end = .;
 
-        KEEP (*crtbegin.o(.dtors))
-        KEEP (*(EXCLUDE_FILE (*crtend.o) .dtors))
-        KEEP (*(SORT(.dtors.*)))
-        KEEP (*crtend.o(.dtors))
+        KEEP(*crtbegin.o(.dtors))
+        KEEP(*(EXCLUDE_FILE (*crtend.o) .dtors))
+        KEEP(*(SORT(.dtors.*)))
+        KEEP(*crtend.o(.dtors))
         /* End constructor/destructor */
     } > rom
 
@@ -194,13 +194,13 @@ SECTIONS
      *
      * .ARM.exidx is sorted, so has to go in its own output section.
      */
-    PROVIDE_HIDDEN (__exidx_start = .);
+    PROVIDE_HIDDEN(__exidx_start = .);
     .ARM.exidx :
     {
         /* (C++) Index entries for section unwinding */
         *(.ARM.exidx* .gnu.linkonce.armexidx.*)
     } > rom
-    PROVIDE_HIDDEN (__exidx_end = .);
+    PROVIDE_HIDDEN(__exidx_end = .);
 
     /* Region for on-chip kernel non-volatile storage.
      *
@@ -283,7 +283,7 @@ SECTIONS
          */
         . = ALIGN(8);
         _sstack = .;
-        KEEP (*(.stack_buffer))
+        KEEP(*(.stack_buffer))
         . = ALIGN(8);
         _estack = .;
     } > ram
