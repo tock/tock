@@ -136,7 +136,7 @@ ifneq ($(shell $(RUSTUP) target list | grep "$(TARGET) (installed)"),$(TARGET) (
   $(info If you are just doing some local testing, you can install the)
   $(info target manually for just your system with:)
   $(info )
-  $(info $(RUSTUP) target add $(TARGET))
+  $(info     $(RUSTUP) target add $(TARGET))
   $(info )
   $(error Missing required target: $(TARGET))
 endif
