@@ -214,8 +214,9 @@ impl<T> SingleThreadValue<T> {
 
     /// Bind this [`SingleThreadValue`] to the currently running thread.
     ///
-    /// If not already bound to or currently in the process of binding to a
-    /// thread, this binds the [`SingleThreadValue`] to the current thread.
+    /// If this [`SingleThreadValue`] is not already bound to a thread, or if it
+    /// is not currently in the process of binding to a thread, then this binds
+    /// the [`SingleThreadValue`] to the current thread.
     ///
     /// It further records the [`ThreadIdProvider::running_thread_id`] function
     /// reference, and uses this function to determine the currently running
@@ -242,100 +243,99 @@ impl<T> SingleThreadValue<T> {
         // to be initialized: other concurrent accesses observing a `Binding`
         // stage must not assume that `thread_id_and_fn` is initialized, but
         // also will not attempt to being initialization themselves:
-        if let Ok(_) = self.bound_to_thread.compare_exchange(
-            // Expected current value:
-            BoundToThreadStage::Unbound as usize,
-            // New value:
-            BoundToThreadStage::Binding as usize,
-            // Success memory ordering:
-            Ordering::Relaxed,
-            // Failure memory ordering:
-            Ordering::Relaxed,
-        ) {
-            // Great, we have reserved the value for initialization!
-            //
-            // Write the current thread ID, and the function symbol used to
-            // query the currently running thread ID.
-            let ptr_thread_id_and_fn = self.thread_id_and_fn.get();
-
-            // Safety:
-            //
-            // We must ensure that there are no (mutable) aliases or concurrent
-            // reads or writes of the thread_id_and_fn value.
-            //
-            // This value is accessed in three functions:
-            // `bind_to_thread_unsafe`, `bind_to_thread`, and
-            // `bound_to_current_thread`:
-            //
-            // - `bind_to_thread_unsafe`: Callers of that function guarantee
-            //   that there are no concurrent invocations of it together with
-            //   our current function, `bind_to_thread`. Thus, no concurrent
-            //   call to that other function can hold an alias, or perform a
-            //   read or write of this value.
-            //
-            // - `bind_to_thread`: Before obtaining a reference to the
-            //   `thread_id_and_fn` value or reading/writing it, this function
-            //   performs a compare-exchange operation on the `bound_to_thread`
-            //   value, ensuring that it is currently `Unbound`, and atomtically
-            //   transitioning it towards `Binding`.
-            //
-            //   Our own compare-exchange operation on this value was
-            //   successful. As `Binding` cannot transition back to `Unbound`,
-            //   there can only be a single `bind_to_thread` call to
-            //   successfully perform this compare-exchange operation per
-            //   [`SingleThreadValue`].
-            //
-            //   If another concurrent call had performed this compare-exchange
-            //   successfully, our own operation would have failed. Given that
-            //   we successfully performed this operation, all other concurrent
-            //   calls to this function must fail this operation instead, and
-            //   thus will not take this if-branch, and therefore will not
-            //   attempt to access the `thread_id_and_fn` value.
-            //
-            // - `bound_to_current_thread`: This function is allowed to run
-            //   concurrently with `bind_to_thread`. However, it only accesses
-            //   the `thread_id_and_fn` value when the `bound_to_thread` atomic
-            //   contains `Bound`.
-            //
-            //   The compare and swap has transitioned this value from `Unbound`
-            //   to `Binding`, and no concurrent call can further *modify*
-            //   `bound_to_thread` other than our own function instance. This
-            //   currently running function will only transition the
-            //   `bound_to_thread` value from `Binding` to `Bound` once it has
-            //   initialized `thread_id_and_fn` and all references to it cease
-            //   to exist. Thus, no concurrent calls to
-            //   `bound_to_current_thread` will read the `thread_id_and_fn`
-            //   before that point.
-            //
-            // Hence this operation is safe.
-            unsafe {
-                *ptr_thread_id_and_fn =
-                    MaybeUninit::new((P::running_thread_id, P::running_thread_id()));
-            }
-
-            // When initializing the `SingleThreadValue`, we must use `Release`
-            // ordering on the `bound_to_thread` store. This ensures that any
-            // subsequent atomic load of this value with at least `Acquire`
-            // ordering constraints will observe the previous write to
-            // `thread_id_and_fn`).
-            self.bound_to_thread
-                .store(BoundToThreadStage::Bound as usize, Ordering::Release);
-
-            // We have successfully bound this `SingleThreadValue` to the
-            // currently running thread:
-            true
-        } else {
-            // We have failed to reserve the value for initialization, either
-            // because it was already bound to a thread, or is in the process of
-            // being bound to a thread by a concurrent call.
-            false
+        if self
+            .bound_to_thread
+            .compare_exchange(
+                // Expected current value:
+                BoundToThreadStage::Unbound as usize,
+                // New value:
+                BoundToThreadStage::Binding as usize,
+                // Success memory ordering:
+                Ordering::Relaxed,
+                // Failure memory ordering:
+                Ordering::Relaxed,
+            )
+            .is_err()
+        {
+            return false;
         }
+
+        // Great, we have reserved the value for initialization!
+        //
+        // Write the current thread ID, and the function symbol used to query
+        // the currently running thread ID.
+        let ptr_thread_id_and_fn = self.thread_id_and_fn.get();
+
+        // # Safety
+        //
+        // We must ensure that there are no (mutable) aliases or concurrent
+        // reads or writes of the thread_id_and_fn value.
+        //
+        // This value is accessed in three functions: `bind_to_thread_unsafe`,
+        // `bind_to_thread`, and `bound_to_current_thread`:
+        //
+        // - `bind_to_thread_unsafe`: Callers of that function guarantee that
+        //   there are no concurrent invocations of it together with our
+        //   current function, `bind_to_thread`. Thus, no concurrent call to
+        //   that other function can hold an alias, or perform a read or write
+        //   of this value.
+        //
+        // - `bind_to_thread`: Before obtaining a reference to the
+        //   `thread_id_and_fn` value or reading/writing it, this function
+        //   performs a compare-exchange operation on the `bound_to_thread`
+        //   value, ensuring that it is currently `Unbound`, and atomtically
+        //   transitioning it towards `Binding`.
+        //
+        //   Our own compare-exchange operation on this value was successful. As
+        //   `Binding` cannot transition back to `Unbound`, there can only be a
+        //   single `bind_to_thread` call to successfully perform this
+        //   compare-exchange operation per[`SingleThreadValue`].
+        //
+        //   If another concurrent call had performed this compare-exchange
+        //   successfully, our own operation would have failed. Given that we
+        //   successfully performed this operation, all other concurrent calls
+        //   to this function must fail this operation instead, and thus will
+        //   not take this if-branch, and therefore will not attempt to access
+        //   the `thread_id_and_fn` value.
+        //
+        // - `bound_to_current_thread`: This function is allowed to run
+        //   concurrently with `bind_to_thread`. However, it only accesses the
+        //   `thread_id_and_fn` value when the `bound_to_thread` atomic
+        //   contains `Bound`.
+        //
+        //   The compare and swap has transitioned this value from `Unbound` to
+        //   `Binding`, and no concurrent call can further *modify*
+        //   `bound_to_thread` other than our own function instance. This
+        //   currently running function will only transition the
+        //   `bound_to_thread` value from `Binding` to `Bound` once it has
+        //   initialized `thread_id_and_fn` and all references to it cease to
+        //   exist. Thus, no concurrent calls to `bound_to_current_thread` will
+        //   read the `thread_id_and_fn` before that point.
+        //
+        // Hence this operation is sound.
+        unsafe {
+            *ptr_thread_id_and_fn =
+                MaybeUninit::new((P::running_thread_id, P::running_thread_id()));
+        }
+
+        // When initializing the `SingleThreadValue`, we must use `Release`
+        // ordering on the `bound_to_thread` store. This ensures that any
+        // subsequent atomic load of this value with at least `Acquire`
+        // ordering constraints will observe the previous write to
+        // `thread_id_and_fn`).
+        self.bound_to_thread
+            .store(BoundToThreadStage::Bound as usize, Ordering::Release);
+
+        // We have successfully bound this `SingleThreadValue` to the
+        // currently running thread:
+        true
     }
 
     /// Bind this [`SingleThreadValue`] to the currently running thread.
     ///
-    /// If not already bound to or currently in the process of binding to a
-    /// thread, this binds the [`SingleThreadValue`] to the current thread.
+    /// If this [`SingleThreadValue`] is not already bound to a thread, or if it
+    /// is not currently in the process of binding to a thread, then this binds
+    /// the [`SingleThreadValue`] to the current thread.
     ///
     /// It further records the [`ThreadIdProvider::running_thread_id`] function
     /// reference, and uses this function to determine the currently running
@@ -360,63 +360,61 @@ impl<T> SingleThreadValue<T> {
         // ordering is fine: we don't actually care about the value in
         // `thread_id_and_fn`, and don't need previous writes to it to be
         // visible to this thread.
-        if self.bound_to_thread.load(Ordering::Relaxed) == BoundToThreadStage::Unbound as usize {
-            // Write the current thread ID, and the function symbol used to
-            // query the currently running thread ID.
-            let ptr_thread_id_and_fn = self.thread_id_and_fn.get();
-
-            // Safety:
-            //
-            // We must ensure that there are no (mutable) aliases or concurrent
-            // reads or writes of the `thread_id_and_fn` value.
-            //
-            // This value is accessed in three functions: `bind_to_thread`,
-            // `bind_to_thread_unsafe`, and `bound_to_current_thread`:
-            //
-            // - `bind_to_thread` & `bind_to_thread_unsafe`: Callers of this
-            //   current function guarantee that there are no concurrent
-            //   invocations of either `bind_to_thread` or
-            //   `bind_to_thread_unsafe` on the same `SingleThreadValue`
-            //   object. Thus, no concurrent call to either of these functions
-            //   can hold an alias, or perform a read or write of the
-            //   `thread_id_and_fn` value.
-            //
-            // - `bound_to_current_thread`: This function is allowed to run
-            //   concurrently with `bind_to_thread`. However, it only accesses
-            //   this value when the `bound_to_thread` atomic contains
-            //   `Bound`. `bound_to_current_thread` never writes to
-            //   `bound_to_thread`.
-            //
-            //   This current function has, before taking this if-branch,
-            //   checked that `bound_to_thread` is currently `Unbound`, and will
-            //   continue to be `Unbound` for the duration of the write to
-            //   `thread_id_and_fn`, as there are no concurrent calls to
-            //   `bind_to_thread` or `bind_to_thread_unsafe`. It only
-            //   transitions `bound_to_thread` to `Bound` after completing the
-            //   initialization of `thread_id_and_fn` and all references to that
-            //   value cease to exist.
-            //
-            // Thus, this operation is safe.
-            unsafe {
-                *ptr_thread_id_and_fn =
-                    MaybeUninit::new((P::running_thread_id, P::running_thread_id()));
-            }
-
-            // When initializing the `SingleThreadValue`, we must use `Release`
-            // ordering on the `bound_to_thread` store. This ensures that any
-            // subsequent atomic load of this value with at least `Acquire`
-            // ordering constraints will observe the previous write to
-            // `thread_id_and_fn`).
-            self.bound_to_thread
-                .store(BoundToThreadStage::Bound as usize, Ordering::Release);
-
-            // We have successfully bound this `SingleThreadValue` to the
-            // currently running thread:
-            true
-        } else {
-            // This value is already bound to a thread:
-            false
+        if self.bound_to_thread.load(Ordering::Relaxed) != BoundToThreadStage::Unbound as usize {
+            // This value is already bound to a thread
+            return false;
         }
+
+        // Write the current thread ID, and the function symbol used to
+        // query the currently running thread ID.
+        let ptr_thread_id_and_fn = self.thread_id_and_fn.get();
+
+        // # Safety
+        //
+        // We must ensure that there are no (mutable) aliases or concurrent
+        // reads or writes of the `thread_id_and_fn` value.
+        //
+        // This value is accessed in three functions: `bind_to_thread`,
+        // `bind_to_thread_unsafe`, and `bound_to_current_thread`:
+        //
+        // - `bind_to_thread` & `bind_to_thread_unsafe`: Callers of this current
+        //   function guarantee that there are no concurrent invocations of
+        //   either `bind_to_thread` or `bind_to_thread_unsafe` on the same
+        //   `SingleThreadValue` object. Thus, no concurrent call to either of
+        //   these functions can hold an alias, or perform a read or write of
+        //   the `thread_id_and_fn` value.
+        //
+        // - `bound_to_current_thread`: This function is allowed to run
+        //   concurrently with `bind_to_thread`. However, it only accesses this
+        //   value when the `bound_to_thread` atomic contains `Bound`.
+        //   `bound_to_current_thread` never writes to `bound_to_thread`.
+        //
+        //   This current function has, before taking this if-branch, checked
+        //   that `bound_to_thread` is currently `Unbound`, and will continue
+        //   to be `Unbound` for the duration of the write to
+        //   `thread_id_and_fn`, as there are no concurrent calls to
+        //   `bind_to_thread` or `bind_to_thread_unsafe`. It only transitions
+        //   `bound_to_thread` to `Bound` after completing the initialization
+        //   of `thread_id_and_fn` and all references to that value cease to
+        //   exist.
+        //
+        // Thus, this operation is sound.
+        unsafe {
+            *ptr_thread_id_and_fn =
+                MaybeUninit::new((P::running_thread_id, P::running_thread_id()));
+        }
+
+        // When initializing the `SingleThreadValue`, we must use `Release`
+        // ordering on the `bound_to_thread` store. This ensures that any
+        // subsequent atomic load of this value with at least `Acquire`
+        // ordering constraints will observe the previous write to
+        // `thread_id_and_fn`).
+        self.bound_to_thread
+            .store(BoundToThreadStage::Bound as usize, Ordering::Release);
+
+        // We have successfully bound this `SingleThreadValue` to the
+        // currently running thread:
+        true
     }
 
     /// Check whether this `SingleThreadValue` instance is bound to the
@@ -425,88 +423,88 @@ impl<T> SingleThreadValue<T> {
     /// Returns `true` if the value is bound to the thread that is currently
     /// running (as determined by the implementation of `ThreadIdProvider` used
     /// in [`bind_to_thread`](SingleThreadValue::bind_to_thread) or
-    /// [`bind_to_thread_unsafe`](SingleThreadValue::bind_to_thread_unsafe)). Returns
-    /// `false` when a different thread is executing, when it is not bound to
-    /// any thread yet, or currently in the process of being bound to a thread.
+    /// [`bind_to_thread_unsafe`](SingleThreadValue::bind_to_thread_unsafe)).
+    /// Returns `false` when a different thread is executing, when it is not
+    /// bound to any thread yet, or currently in the process of being bound to a
+    /// thread.
     pub fn bound_to_current_thread(&self) -> bool {
         // This function loads the `thread_id_and_fn` field, written by either
         // `bind_to_thread` or `bind_to_thread_unsafe` before setting
         // `bound_to_thread` to `Bound` with `Release` ordering constraints. To
         // make those writes visible, we need to load the `bound_to_thread`
         // value with at least `Acquire` ordering constraints:
-        if self.bound_to_thread.load(Ordering::Acquire) == BoundToThreadStage::Bound as usize {
-            // The `SingleThreadValue` value is bound to _a_ thread, check
-            // whether it is the currently running thread:
-            let ptr_thread_id_and_fn: *mut MaybeUninit<(fn() -> usize, usize)> =
-                self.thread_id_and_fn.get();
-
-            // Safety:
-            //
-            // We must ensure that there are no (mutable) aliases or concurrent
-            // reads or writes of the thread_id_and_fn value.
-            //
-            // This value is accessed in three functions: `bind_to_thread`,
-            // `bind_to_thread_unsafe`, and `bound_to_current_thread`:
-            //
-            // - `bind_to_thread` / `bind_to_thread_unsafe`: Before creating a
-            //   reference to, reading from, or writing to the `bound_to_thread`
-            //   value, both functions check that `bound_to_thread` is not
-            //   already set to `Bound`. However, when reaching if-branch in
-            //   this current function, we have observed that `bound_to_thread`
-            //   is set to `Bound`. The state of `Bound` cannot be transitioned
-            //   out of. Thus, `bound_to_thread` will never be written again.
-            //
-            //   `bound_to_thread` is only ever set to `Bound`, *after*
-            //   `thread_id_and_fn` has been initialized, and all references to
-            //   `thread_id_and_fn` cease to exist.
-            //
-            //   When reaching this point, neither `bind_to_thread` nor
-            //   `bind_to_thread_unsafe` will ever read from, write to, or
-            //   create a reference to `thread_id_and_fn` again.
-            //
-            // - `bound_to_current_thread`: This function is allowed to run
-            //   concurrently with other calls to `bound_to_current_thread`.
-            //
-            //   However, this function only creates shared / immutable
-            //   references to this value that are never written. Multiple
-            //   shared references to this value are allowed to exist, so long
-            //   as they are not aliased by another exclusive / mutable
-            //   reference, and the underlying memory is not modified otherwise.
-            //
-            //   The only functions writing to `thread_id_and_fn` are
-            //   `bind_to_thread` and `bind_to_thread_unsafe`. As stated above,
-            //   when reaching this point, neither functions will ever write to
-            //   `thread_id_and_fn` again, and all of their internal references
-            //   have ceased to exist.
-            //
-            // Thus, this operation is safe.
-            let maybe_thread_id_and_fn: &MaybeUninit<(fn() -> usize, usize)> =
-                unsafe { &*(ptr_thread_id_and_fn as *const _) };
-
-            // Safety:
-            //
-            // Both `bind_to_thread` and `bind_to_thread_unsafe` are guaranteed
-            // to have initialized `thread_id_and_fn` *before* setting
-            // `bound_to_thread` to `Bound` with `Release` ordering constraints.
-            //
-            // In this if-branch, `bound_to_thread` has been observed to be
-            // `Bound`, a state that cannot be transitioned out of. We have
-            // loaded this value with `Acquire` ordering constraints, making all
-            // values written by other threads before a write to
-            // `bound_to_thread` with `Release` constraints visible to this
-            // thread.
-            //
-            // Thus, we can safely rely on `thread_id_and_fn` to be initialized:
-            let (running_thread_id_fn, bound_thread_id) =
-                unsafe { maybe_thread_id_and_fn.assume_init() };
-
-            // Finally, check if the thread this `SingleThreadValue` is bound to
-            // is the running thread ID:
-            bound_thread_id == running_thread_id_fn()
-        } else {
+        if self.bound_to_thread.load(Ordering::Acquire) != BoundToThreadStage::Bound as usize {
             // The `SingleThreadValue` value is not yet bound to any thread:
-            false
+            return false;
         }
+
+        // The `SingleThreadValue` value is bound to _a_ thread, check whether
+        // it is the currently running thread:
+        let ptr_thread_id_and_fn: *mut MaybeUninit<(fn() -> usize, usize)> =
+            self.thread_id_and_fn.get();
+
+        // # Safety
+        //
+        // We must ensure that there are no (mutable) aliases or concurrent
+        // reads or writes of the thread_id_and_fn value.
+        //
+        // This value is accessed in three functions: `bind_to_thread`,
+        // `bind_to_thread_unsafe`, and `bound_to_current_thread`:
+        //
+        // - `bind_to_thread` / `bind_to_thread_unsafe`: Before creating a
+        //   reference to, reading from, or writing to the `bound_to_thread`
+        //   value, both functions check that `bound_to_thread` is not already
+        //   set to `Bound`. However, when reaching if-branch in this current
+        //   function, we have observed that `bound_to_thread` is set to
+        //   `Bound`. The state of `Bound` cannot be transitioned out of. Thus,
+        //   `bound_to_thread` will never be written again.
+        //
+        //   `bound_to_thread` is only ever set to `Bound`, *after*
+        //   `thread_id_and_fn` has been initialized, and all references to
+        //   `thread_id_and_fn` cease to exist.
+        //
+        //   When reaching this point, neither `bind_to_thread` nor
+        //   `bind_to_thread_unsafe` will ever read from, write to, or create a
+        //   reference to `thread_id_and_fn` again.
+        //
+        // - `bound_to_current_thread`: This function is allowed to run
+        //   concurrently with other calls to `bound_to_current_thread`.
+        //
+        //   However, this function only creates shared / immutable references
+        //   to this value that are never written. Multiple shared references
+        //   to this value are allowed to exist, so long as they are not
+        //   aliased by another exclusive / mutable reference, and the
+        //   underlying memory is not modified otherwise.
+        //
+        //   The only functions writing to `thread_id_and_fn` are
+        //   `bind_to_thread` and `bind_to_thread_unsafe`. As stated above,
+        //   when reaching this point, neither functions will ever write to
+        //   `thread_id_and_fn` again, and all of their internal references
+        //   have ceased to exist.
+        //
+        // Thus, this operation is sound.
+        let maybe_thread_id_and_fn: &MaybeUninit<(fn() -> usize, usize)> =
+            unsafe { &*(ptr_thread_id_and_fn as *const _) };
+
+        // # Safety
+        //
+        // Both `bind_to_thread` and `bind_to_thread_unsafe` are guaranteed to
+        // have initialized `thread_id_and_fn` *before* setting
+        // `bound_to_thread` to `Bound` with `Release` ordering constraints.
+        //
+        // In this if-branch, `bound_to_thread` has been observed to be `Bound`,
+        // a state that cannot be transitioned out of. We have loaded this
+        // value with `Acquire` ordering constraints, making all values written
+        // by other threads before a write to `bound_to_thread` with `Release`
+        // constraints visible to this thread.
+        //
+        // Thus, we can safely rely on `thread_id_and_fn` to be initialized:
+        let (running_thread_id_fn, bound_thread_id) =
+            unsafe { maybe_thread_id_and_fn.assume_init() };
+
+        // Finally, check if the thread this `SingleThreadValue` is bound to
+        // is the running thread ID:
+        bound_thread_id == running_thread_id_fn()
     }
 
     /// Obtain a reference to the contained value.
