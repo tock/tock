@@ -1,3 +1,7 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright Tock Contributors 2025.
+
 use super::super::helpers::{bytes_from_iter, copy_to_iter};
 use kernel::ErrorCode;
 
