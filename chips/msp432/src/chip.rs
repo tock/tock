@@ -107,6 +107,7 @@ impl<'a, I: InterruptService + 'a> Msp432<'a, I> {
 impl<'a, I: InterruptService + 'a> Chip for Msp432<'a, I> {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
+    type ThreadIdProvider = cortexm4::thread_id::CortexMThreadIdProvider;
 
     fn service_pending_interrupts(&self) {
         unsafe {

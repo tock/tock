@@ -238,6 +238,7 @@ impl InterruptService for Sam4lDefaultPeripherals {
 impl<I: InterruptService + 'static> Chip for Sam4l<I> {
     type MPU = cortexm4::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4::syscall::SysCall;
+    type ThreadIdProvider = cortexm4::thread_id::CortexMThreadIdProvider;
 
     fn service_pending_interrupts(&self) {
         unsafe {

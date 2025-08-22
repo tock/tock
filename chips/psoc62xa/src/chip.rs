@@ -27,6 +27,7 @@ impl<'a, I: InterruptService> Psoc62xa<'a, I> {
 impl<I: InterruptService> Chip for Psoc62xa<'_, I> {
     type MPU = cortexm0p::mpu::MPU;
     type UserspaceKernelBoundary = cortexm0p::syscall::SysCall;
+    type ThreadIdProvider = cortexm0p::thread_id::CortexMThreadIdProvider;
 
     fn mpu(&self) -> &Self::MPU {
         &self.mpu
