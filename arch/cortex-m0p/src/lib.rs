@@ -30,6 +30,7 @@ pub use cortexm::interrupt_mask;
 pub use cortexm::nvic;
 pub use cortexm::scb;
 pub use cortexm::systick;
+pub use cortexm::thread_id;
 pub use cortexm::unhandled_interrupt;
 pub use cortexm::CortexMVariant;
 use cortexm0::CortexM0;
