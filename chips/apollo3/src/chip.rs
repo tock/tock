@@ -95,6 +95,7 @@ impl kernel::platform::chip::InterruptService for Apollo3DefaultPeripherals {
 impl<I: InterruptService + 'static> Chip for Apollo3<I> {
     type MPU = cortexm4f::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4f::syscall::SysCall;
+    type ThreadIdProvider = cortexm4f::thread_id::CortexMThreadIdProvider;
 
     fn service_pending_interrupts(&self) {
         unsafe {
