@@ -9,12 +9,11 @@ use crate::registers::bits32::paging::{
 };
 use crate::registers::controlregs::{self, CR0, CR4};
 use crate::registers::tlb;
+use core::cell::RefCell;
 use core::{cmp, fmt, mem};
 use kernel::platform::mpu::{Permissions, Region, MPU};
 use kernel::utilities::cells::MapCell;
 use tock_registers::LocalRegisterCopy;
-
-use core::cell::RefCell;
 
 //
 // Information about the page table and virtual addresses can be found here:

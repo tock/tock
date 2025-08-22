@@ -8,7 +8,6 @@
 
 pub mod eflags;
 pub mod paging;
-// pub mod segmentation;
 pub mod task;
 
 #[cfg(target_arch = "x86")]

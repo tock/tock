@@ -10,7 +10,6 @@ use super::segmentation::SegmentSelector;
 
 #[cfg(target_arch = "x86")]
 use core::arch::asm;
-
 use core::fmt;
 use core::mem::size_of;
 

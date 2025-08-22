@@ -7,6 +7,7 @@
 #[cfg(target_arch = "x86")]
 use core::arch::asm;
 use core::fmt;
+
 /// x86 Exception description (see also Intel Vol. 3a Chapter 6).
 #[derive(Debug)]
 pub struct InterruptDescription {

@@ -4,17 +4,15 @@
 
 //! Facilities for handling interrupts and CPU exceptions
 
+#[cfg(target_arch = "x86")]
+mod handler_entry;
+#[cfg(target_arch = "x86")]
+mod handler_stubs;
 mod handlers;
 mod idt;
 mod poller;
 
 pub use self::poller::InterruptPoller;
-
-#[cfg(target_arch = "x86")]
-mod handler_stubs;
-
-#[cfg(target_arch = "x86")]
-mod handler_entry;
 
 /// Total number of interrupt vectors.
 pub const NUM_VECTORS: usize = 256;

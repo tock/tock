@@ -36,23 +36,20 @@
 
 #![deny(unsafe_op_in_unsafe_fn)]
 #![no_std]
-mod boundary;
-pub use boundary::Boundary;
 
+mod boundary;
 mod interrupts;
+mod segmentation;
+#[cfg(target_arch = "x86")]
+mod start;
+
+pub use boundary::Boundary;
 pub use interrupts::InterruptPoller;
 pub use interrupts::IDT_RESERVED_EXCEPTIONS;
 
-mod segmentation;
-
-pub mod support;
-
 pub mod mpu;
-
 pub mod registers;
-
-#[cfg(target_arch = "x86")]
-mod start;
+pub mod support;
 
 /// Performs low-level CPU initialization.
 ///

@@ -68,17 +68,16 @@
 //! to invoke system calls. In most cases, the first task of the app entry point will be to allocate
 //! itself a larger stack.
 
-mod context;
-use context::UserContext;
-
 mod boundary_impl;
-pub use self::boundary_impl::Boundary;
-
+mod context;
+#[cfg(target_arch = "x86")]
+mod return_from_user;
 #[cfg(target_arch = "x86")]
 mod switch_to_user;
 
-#[cfg(target_arch = "x86")]
-mod return_from_user;
+use context::UserContext;
+
+pub use self::boundary_impl::Boundary;
 
 extern "cdecl" {
     /// Performs a context switch to the given process.

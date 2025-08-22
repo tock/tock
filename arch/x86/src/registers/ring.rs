@@ -5,6 +5,7 @@
 // This is inspired and adapted for Tock from the [x86](https://github.com/gz/rust-x86) crate.
 
 /// x86 Protection levels
+///
 /// # Note
 /// This should not contain values larger than 2 bits, otherwise
 /// segment descriptor code needs to be adjusted accordingly.
