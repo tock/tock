@@ -14,6 +14,7 @@ pub mod csr;
 pub mod pmp;
 pub mod support;
 pub mod syscall;
+pub mod thread_id;
 
 // Default to 32 bit if no architecture is specified of if this is being
 // compiled for docs or testing on a different architecture.

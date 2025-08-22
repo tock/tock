@@ -264,6 +264,7 @@ impl<
 {
     type MPU = PMPUserMPU<MPU_REGIONS, PMP>;
     type UserspaceKernelBoundary = SysCall;
+    type ThreadIdProvider = rv32i::thread_id::RiscvThreadIdProvider;
 
     fn mpu(&self) -> &Self::MPU {
         &self.mpu
@@ -501,3 +502,11 @@ pub extern "C" fn _earlgrey_start_trap_vectored() -> ! {
         start_trap = sym rv32i::_start_trap,
     );
 }
+
+/// Array used to track the "trap handler active" state per hart.
+///
+/// The `riscv` crate requires chip crates to allocate an array to
+/// track whether any given hart is currently in a trap handler. The
+/// array must be zero-initialized.
+#[export_name = "_trap_handler_active"]
+static mut TRAP_HANDLER_ACTIVE: [usize; 1] = [0; 1];
