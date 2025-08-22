@@ -20,6 +20,9 @@ pub trait Chip {
     /// The particular Memory Protection Unit (MPU) for this chip.
     type MPU: mpu::MPU;
 
+    /// Provider to query the currently running thread ID.
+    type ThreadIdProvider: ThreadIdProvider;
+
     /// The implementation of the interface between userspace and the kernel for
     /// this specific chip. Likely this is architecture specific, but individual
     /// chips may have various custom requirements.
@@ -69,6 +72,37 @@ pub trait Chip {
     /// the Display trait.
     /// Used by panic.
     unsafe fn print_state(&self, writer: &mut dyn Write);
+}
+
+/// Interface for retrieving the currently executing thread.
+///
+/// This is used to enforce correctness with shared state that has access
+/// restrictions (e.g., only a single thread can access a specific value).
+///
+/// Many embedded platforms are single-core and only permit a single execution
+/// thread at a time. However, interrupts can typically occur at any time, and
+/// the execution of an interrupt service routine (ISR) constitutes a second
+/// thread. Implementations of this trait must be able to differentiate between
+/// at minimum the main thread of execution and an ISR execution, but may also
+/// consider multiple execution threads if available on a particular device.
+///
+/// # Safety
+///
+/// This thread is marked as `unsafe` as implementation must guarantee its
+/// correctness. Users of this trait are allowed to make soundness guarantees
+/// based on the implementation being correct. Failing to provide a correct
+/// implementation can lead to unsound behavior. By implementing this trait,
+/// providers are guaranteeing the implementations are always correct for the
+/// given hardware platform.
+pub unsafe trait ThreadIdProvider {
+    /// Return a unique ID for the currently executing thread.
+    ///
+    /// The unique ID must fit in a `usize` and must be unique and consistent
+    /// for the currently running thread. The actual value is opaque and there
+    /// is no assumption about the meaning of the assigned IDs. Implementations
+    /// are allowed to arbitrarily assign IDs to threads as long as the IDs are
+    /// unique and consistent.
+    fn running_thread_id() -> usize;
 }
 
 /// Interface for handling interrupts on a hardware chip.

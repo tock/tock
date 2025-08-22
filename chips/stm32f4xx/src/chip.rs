@@ -165,6 +165,7 @@ impl<'a, I: InterruptService + 'a> Stm32f4xx<'a, I> {
 impl<'a, I: InterruptService + 'a> Chip for Stm32f4xx<'a, I> {
     type MPU = cortexm4f::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4f::syscall::SysCall;
+    type ThreadIdProvider = cortexm4f::thread_id::CortexMThreadIdProvider;
 
     fn service_pending_interrupts(&self) {
         unsafe {

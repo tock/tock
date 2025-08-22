@@ -59,6 +59,8 @@ pub struct Pc<'a, const PR: u16 = RELOAD_1KHZ> {
 }
 
 impl<'a, const PR: u16> Chip for Pc<'a, PR> {
+    type ThreadIdProvider = x86::thread_id::X86ThreadIdProvider;
+
     type MPU = PagingMPU<'a>;
     fn mpu(&self) -> &Self::MPU {
         &self.paging
