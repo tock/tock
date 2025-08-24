@@ -385,6 +385,14 @@ SECTIONS
      */
     .attributes : AT (ORIGIN(rom) + LENGTH(rom) - SIZEOF(.attributes))
     {
+        /* TLV: Kernel Version
+         * This specifies the version of the kernel.
+         *
+         * Because we use the constants set in the kernel source code, we must
+         * create the TLV structure there and include it here.
+         */
+        KEEP(*(.tock.attr.kernel_version))
+
         /* TLV: Kernel Flash
          * This indicates the start address of the kernel flash and the size of
          * the kernel binary.

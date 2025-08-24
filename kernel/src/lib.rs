@@ -103,6 +103,47 @@ pub const KERNEL_MAJOR_VERSION: u16 = 2;
 /// This is compiled with the crate to enable for checking of compatibility with
 /// loaded apps.
 pub const KERNEL_MINOR_VERSION: u16 = 2;
+/// Kernel micro version.
+///
+/// Use to denote development kernels from release kernels.
+///
+/// Nonzero numbers are releases.
+///
+/// Negative numbers are development or pre-releases.
+/// - -1: "-dev"
+/// - -2: alpha
+/// - -3: beta, etc.
+pub const KERNEL_MICRO_VERSION: i16 = -1;
+
+/// Tock kernel attributes structure for version information.
+#[repr(C)]
+struct TockAttributesKernelVersion {
+    major: u16,
+    minor: u16,
+    micro: i16,
+    padding: u16,
+    tlv_type: u16,
+    tlv_len: u16,
+}
+
+/// Create a data structure which follows the Tock Kernel Attributes format
+/// for specifying the version of the Tock kernel.
+///
+/// More information on kernel attributes is
+/// [here](https://book.tockos.org/doc/kernel_attributes.html).
+///
+/// This is inserted into a specific section that the linker script includes at
+/// the correct location to be included in the attributes.
+#[link_section = ".tock.attr.kernel_version"]
+#[used]
+static TOCK_ATTRIBUTES_KERNEL_VERSION: TockAttributesKernelVersion = TockAttributesKernelVersion {
+    major: KERNEL_MAJOR_VERSION,
+    minor: KERNEL_MINOR_VERSION,
+    micro: KERNEL_MICRO_VERSION,
+    padding: 0,
+    tlv_type: 0x0103,
+    tlv_len: 8,
+};
 
 pub mod capabilities;
 pub mod collections;
