@@ -13,12 +13,14 @@
 
 use kernel::capabilities;
 use kernel::component::Component;
+use kernel::debug::PanicResources;
 use kernel::hil;
 use kernel::hil::led::LedLow;
 use kernel::hil::Controller;
 use kernel::platform::{KernelResources, SyscallDriverLookup};
 use kernel::process::ProcessArray;
 use kernel::scheduler::round_robin::RoundRobinSched;
+use kernel::utilities::single_thread_value::SingleThreadValue;
 #[allow(unused_imports)]
 use kernel::{create_capability, debug, debug_gpio, static_init};
 use sam4l::chip::Sam4lDefaultPeripherals;
@@ -40,6 +42,13 @@ static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
 static mut CHIP: Option<&'static sam4l::chip::Sam4l<Sam4lDefaultPeripherals>> = None;
 static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
     None;
+
+type Chip = sam4l::chip::Sam4l<Sam4lDefaultPeripherals>;
+type ProcessPrinter = capsules_system::process_printer::ProcessPrinterText;
+
+/// Resources for when a board panics used by io.rs.
+static PANIC_RESOURCES: SingleThreadValue<PanicResources<Chip, ProcessPrinter>> =
+    SingleThreadValue::new(PanicResources::new());
 
 /// Dummy buffer that causes the linker to reserve enough space for the stack.
 #[no_mangle]
