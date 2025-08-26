@@ -40,6 +40,9 @@ impl<'a> ButtonKeyboard<'a> {
         key_codes: &'a [u16],
         grant: Grant<App, UpcallCount<1>, AllowRoCount<0>, AllowRwCount<0>>,
     ) -> Self {
+        if key_codes.len() >= 32 {
+            panic!("ButtonKeyboard capsule only supports up to 32 buttons.");
+        }
         Self {
             key_codes,
             apps: grant,
@@ -116,27 +119,31 @@ impl SyscallDriver for ButtonKeyboard<'_> {
 }
 
 impl kernel::hil::keyboard::KeyboardClient for ButtonKeyboard<'_> {
-    fn keys_pressed(&self, keys: &[(u16, bool)], _result: Result<(), ErrorCode>) {
-        // Iterate all key presses we received.
-        for (key, is_pressed) in keys.iter() {
-            // Iterate through all of the keys we are looking for.
-            for (active_key_index, active_key) in self.key_codes.iter().enumerate() {
-                // If there is a match then we may want to handle this key.
-                if key == active_key {
-                    kernel::debug!(
-                        "[ButtonKeyboard] Notify button {} (key {})",
-                        active_key_index,
-                        key
-                    );
+    fn keys_pressed(&self, keys: &[(u16, bool)], result: Result<(), ErrorCode>) {
+        if result.is_ok() {
+            // Iterate all key presses we received.
+            for (key, is_pressed) in keys.iter() {
+                // Iterate through all of the keys we are looking for.
+                for (active_key_index, active_key) in self.key_codes.iter().enumerate() {
+                    // If there is a match then we may want to handle this key.
+                    if key == active_key {
+                        kernel::debug!(
+                            "[ButtonKeyboard] Notify button {} (key {})",
+                            active_key_index,
+                            key
+                        );
 
-                    // Schedule callback for apps waiting on that key.
-                    self.apps.each(|_, app, upcalls| {
-                        if app.subscribe_map & (1 << active_key_index) != 0 {
-                            let button_state = if *is_pressed { 1 } else { 0 };
-                            let _ = upcalls
-                                .schedule_upcall(UPCALL_NUM, (active_key_index, button_state, 0));
-                        }
-                    });
+                        // Schedule callback for apps waiting on that key.
+                        self.apps.each(|_, app, upcalls| {
+                            if app.subscribe_map & (1 << active_key_index) != 0 {
+                                let button_state = if *is_pressed { 1 } else { 0 };
+                                let _ = upcalls.schedule_upcall(
+                                    UPCALL_NUM,
+                                    (active_key_index, button_state, 0),
+                                );
+                            }
+                        });
+                    }
                 }
             }
         }
