@@ -16,7 +16,7 @@ To install QEMU follow these steps:
 **Linux**
 ```bash
 sudo apt update
-sudo apt install qemu-system-i386
+sudo apt install qemu-system-x86
 ```
 
 **MacOS**
