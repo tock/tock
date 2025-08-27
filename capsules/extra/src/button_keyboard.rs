@@ -136,7 +136,7 @@ impl kernel::hil::keyboard::KeyboardClient for ButtonKeyboard<'_> {
                         // Schedule callback for apps waiting on that key.
                         self.apps.each(|_, app, upcalls| {
                             if app.subscribe_map & (1 << active_key_index) != 0 {
-                                let button_state = if *is_pressed { 1 } else { 0 };
+                                let button_state = usize::from(*is_pressed);
                                 let _ = upcalls.schedule_upcall(
                                     UPCALL_NUM,
                                     (active_key_index, button_state, 0),
