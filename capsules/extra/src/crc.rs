@@ -266,12 +266,11 @@ impl<'a, C: Crc<'a>> SyscallDriver for CrcDriver<'a, C> {
     //
     // where
     //
-    //   * `status` is indicates whether the computation
-    //     succeeded. The status `BUSY` indicates the unit is already
-    //     busy. The status `SIZE` indicates the provided buffer is
-    //     too large for the unit to handle.
+    // * `status` is indicates whether the computation succeeded. The status
+    //   `BUSY` indicates the unit is already busy. The status `SIZE` indicates
+    //   the provided buffer is too large for the unit to handle.
     //
-    //   * `result` is the result of the Crc computation when `status == BUSY`.
+    // * `result` is the result of the Crc computation when `status == BUSY`.
     //
 
     /// The command system call for this driver return meta-data about the driver and kicks off
@@ -279,27 +278,25 @@ impl<'a, C: Crc<'a>> SyscallDriver for CrcDriver<'a, C> {
     ///
     /// ### Command Numbers
     ///
-    ///   *   `0`: Returns non-zero to indicate the driver is present.
+    /// * `0`: Returns non-zero to indicate the driver is present.
     ///
-    ///   *   `1`: Requests that a Crc be computed over the buffer
-    ///       previously provided by `allow`.  If none was provided,
-    ///       this command will return `INVAL`.
+    /// * `1`: Requests that a Crc be computed over the buffer previously
+    ///   provided by `allow`.  If none was provided, this command will return
+    ///   `INVAL`.
     ///
-    ///       This command's driver-specific argument indicates what Crc
-    ///       algorithm to perform, as listed below.  If an invalid
-    ///       algorithm specifier is provided, this command will return
-    ///       `INVAL`.
+    ///   This command's driver-specific argument indicates what Crc algorithm
+    ///   to perform, as listed below.  If an invalid algorithm specifier is
+    ///   provided, this command will return `INVAL`.
     ///
-    ///       If a callback was not previously registered with
-    ///       `subscribe`, this command will return `INVAL`.
+    ///   If a callback was not previously registered with `subscribe`, this
+    ///   command will return `INVAL`.
     ///
-    ///       If a computation has already been requested by this
-    ///       application but the callback has not yet been invoked to
-    ///       receive the result, this command will return `BUSY`.
+    ///   If a computation has already been requested by this application but
+    ///   the callback has not yet been invoked to receive the result, this
+    ///   command will return `BUSY`.
     ///
-    ///       When `Ok(())` is returned, this means the request has been
-    ///       queued and the callback will be invoked when the Crc
-    ///       computation is complete.
+    ///   When `Ok(())` is returned, this means the request has been queued and
+    ///   the callback will be invoked when the Crc computation is complete.
     ///
     /// ### Algorithm
     ///
@@ -310,16 +307,16 @@ impl<'a, C: Crc<'a>> SyscallDriver for CrcDriver<'a, C> {
     /// consume each input byte from most-significant bit to
     /// least-significant.
     ///
-    ///   * `0: Crc-32`  This algorithm is used in Ethernet and many other
+    /// * `0: Crc-32`  This algorithm is used in Ethernet and many other
     ///   applications.  It uses polynomial 0x04C11DB7 and it bit-reverses
     ///   and then bit-inverts the output.
     ///
-    ///   * `1: Crc-32C`  This algorithm uses polynomial 0x1EDC6F41 (due
+    /// * `1: Crc-32C`  This algorithm uses polynomial 0x1EDC6F41 (due
     ///   to Castagnoli) and it bit-reverses and then bit-inverts the
     ///   output.  It *may* be equivalent to various Crc functions using
     ///   the same name.
     ///
-    ///   * `2: Crc-16CCITT`  This algorithm uses polynomial 0x1021 and does
+    /// * `2: Crc-16CCITT`  This algorithm uses polynomial 0x1021 and does
     ///   no post-processing on the output value. The sixteen-bit Crc
     ///   result is placed in the low-order bits of the returned result
     ///   value. That is, result values will always be of the form `0x0000xxxx`
@@ -396,9 +393,9 @@ impl<'a, C: Crc<'a>> Client for CrcDriver<'a, C> {
         // SubSliceMut window and pass it in again.
         let mut computing = false;
         // There are three outcomes to this match:
-        //   - crc_buffer is not put back: input is ongoing
-        //   - crc_buffer is put back and computing is true: compute is ongoing
-        //   - crc_buffer is put back and computing is false: something failed, start a new request
+        // - crc_buffer is not put back: input is ongoing
+        // - crc_buffer is put back and computing is true: compute is ongoing
+        // - crc_buffer is put back and computing is false: something failed, start a new request
         match result {
             Ok(()) => {
                 // Completed leasable buffer, either refill it or compute

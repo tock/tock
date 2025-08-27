@@ -319,7 +319,6 @@ impl<
     /// 2. ProcessLoadError::MpuInvalidFlashLength <==> ErrorCode::INVAL
     /// 3. ProcessLoadError::InternalError         <==> ErrorCode::OFF
     /// 4. All other ProcessLoadError types        <==> ErrorCode::FAIL
-
     fn load_done(&self, result: Result<(), ProcessLoadError>) {
         let status_code = match result {
             Ok(()) => Ok(()),
@@ -359,8 +358,8 @@ impl<
     /// Command interface.
     ///
     /// The driver returns ErrorCode::BUSY if:
-    ///    - The kernel has already dedicated this driver to another process.
-    ///    - The kernel is busy executing another command for this process.
+    /// - The kernel has already dedicated this driver to another process.
+    /// - The kernel is busy executing another command for this process.
     ///
     /// Currently, this capsule is not virtualized and can only be used by one
     /// application at a time.
@@ -372,30 +371,32 @@ impl<
     /// - `0`: Return Ok(()) if this driver is included on the platform.
     /// - `1`: Request kernel to setup for loading app.
     ///  - Returns appsize if the kernel has available space
-    ///  - Returns ErrorCode::FAIL if the kernel is unable to allocate space for the new app
+    ///  - Returns ErrorCode::FAIL if the kernel is unable to allocate space for
+    ///    the new app
     /// - `2`: Request kernel to write app data to the nonvolatile_storage
     ///  - Returns Ok(()) when write is successful
     ///  - Returns ErrorCode::INVAL when the app is violating bounds
     ///  - Returns ErrorCode::FAIL when the write fails
     /// - `3`: Signal to the kernel that the writing is done.
     ///  - Returns Ok(()) if the kernel successfully verified it and
-    ///  set the stage for `load()`.
+    ///    set the stage for `load()`.
     ///  - Returns ErrorCode::FAIL if:
-    ///  a. The kernel needs to write a leading padding app but is unable to.
-    ///  b. The command is called during setup or load phases.
+    ///    a. The kernel needs to write a leading padding app but is unable to.
+    ///    b. The command is called during setup or load phases.
     /// - `4`: Request kernel to load app.
     ///  - Returns Ok(()) when the process is successfully loaded
     ///  - Returns ErrorCode::FAIL if:
-    ///  a. The kernel is unable to create a process object for the application
+    ///    a. The kernel is unable to create a process object for the application
     /// - `5`: Request kernel to abort setup/write operation.
     ///  - Returns Ok(()) when the operation is cancelled successfully
-    ///  - Returns ErrorCode::BUSY when the abort fails
-    ///  (due to padding app being unable to be written, so try again)
+    ///  - Returns ErrorCode::BUSY when the abort fails(due to padding app being
+    ///    unable to be written, so try again)
     ///  - Returns ErrorCode::FAIL if the driver is not dedicated to this process
     ///
-    /// The driver returns ErrorCode::INVAL if any operation is called before the
-    /// preceeding operation was invoked. For example, `write()` cannot be called before
-    /// `setup()`, and `load()` cannot be called before `write()` (for this implementation).
+    /// The driver returns ErrorCode::INVAL if any operation is called before
+    /// the preceding operation was invoked. For example, `write()` cannot be
+    /// called before `setup()`, and `load()` cannot be called before `write()`
+    /// (for this implementation).
     fn command(
         &self,
         command_num: usize,

@@ -6,9 +6,10 @@
 
 //! STM32F4xx clock driver
 //!
-//! This crate provides drivers for various clocks: HSI, PLL, system, AHB, APB1 and APB2.
-//! This documentation applies to the system clock, AHB, APB1 and APB2. For in-detail documentation
-//! for HSI and PLL, check their documentation.
+//! This crate provides drivers for various clocks: HSI, PLL, system, AHB, APB1
+//! and APB2. This documentation applies to the system clock, AHB, APB1 and
+//! APB2. For in-detail documentation for HSI and PLL, check their
+//! documentation.
 //!
 //! # Features
 //!
@@ -72,8 +73,8 @@
 //!
 //! ## APB1 and APB2 prescalers
 //!
-//! APB1 and APB2 prescalers are configured in a similar way as AHB prescaler, except that the
-//! corresponding enum is APBPrescaler.
+//! APB1 and APB2 prescalers are configured in a similar way as AHB prescaler,
+//! except that the corresponding enum is APBPrescaler.
 //!
 //! ## Retrieve the system clock frequency:
 //!
@@ -91,8 +92,9 @@
 //!
 //! ## Change the system clock source to PLL:
 //!
-//! Changing the system clock source is a fastidious task because of AHB, APB1 and APB2 limits,
-//! which are chip-dependent. This example assumes a STM32F429 chip.
+//! Changing the system clock source is a fastidious task because of AHB, APB1
+//! and APB2 limits, which are chip-dependent. This example assumes a STM32F429
+//! chip.
 //!
 //! First, get a reference to the PLL
 //!
@@ -107,15 +109,16 @@
 //! ```
 //!
 //! STM32F429 maximum APB1 frequency is 45MHz, which is computed as following:
-//! freq_APB1 = freq_sys / AHB_prescaler / APB1_prescaler
-//! Default prescaler values are 1, which gives an frequency of 50MHz without modifying the
-//! APB1 prescaler. As such, the APB1 prescaler must be changed.
+//! freq_APB1 = freq_sys / AHB_prescaler / APB1_prescaler Default prescaler
+//! values are 1, which gives an frequency of 50MHz without modifying the APB1
+//! prescaler. As such, the APB1 prescaler must be changed.
 //!
 //! ```rust,ignore
 //! clocks.set_apb1_prescaler(APBPrescaler::DivideBy2);
 //! ```
 //!
-//! Since the APB1 frequency limit is satisfied now, the system clock source can be safely changed.
+//! Since the APB1 frequency limit is satisfied now, the system clock source can
+//! be safely changed.
 //!
 //! ```rust,ignore
 //! clocks.set_sys_clock_source(SysClockSource::PLL);
@@ -130,16 +133,16 @@
 //! pll.enable();
 //! ```
 //!
-//! Because of the high frequency of the PLL clock, both APB1 and APB2 prescalers must be
-//! configured.
+//! Because of the high frequency of the PLL clock, both APB1 and APB2
+//! prescalers must be configured.
 //!
 //! ```rust,ignore
 //! clocks.set_apb1_prescaler(APBPrescaler::DivideBy4);
 //! clocks.set_apb2_prescaler(APBPrescaler::DivideBy2);
 //! ```
 //!
-//! As an alternative, the AHB prescaler could be configured to change both APB1 and APB2
-//! frequencies.
+//! As an alternative, the AHB prescaler could be configured to change both APB1
+//! and APB2 frequencies.
 //!
 //! ```rust,ignore
 //! // Changing it to 2 wouldn't work, because it would give a frequency of 50MHz for the APB1.
@@ -208,9 +211,10 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
     ///
     /// # Errors:
     ///
-    /// + [Err]\([ErrorCode::FAIL]\) if changing the AHB prescaler doesn't preserve APB frequency
-    /// constraints
-    /// + [Err]\([ErrorCode::BUSY]\) if changing the AHB prescaler took too long. Retry.
+    /// + [Err]\([ErrorCode::FAIL]\) if changing the AHB prescaler doesn't
+    ///   preserve APB frequency constraints
+    /// + [Err]\([ErrorCode::BUSY]\) if changing the AHB prescaler took too
+    ///   long. Retry.
     pub fn set_ahb_prescaler(&self, prescaler: AHBPrescaler) -> Result<(), ErrorCode> {
         // Changing the AHB prescaler affects the APB frequencies. A check must be done to ensure
         // that the constraints are still valid
@@ -255,13 +259,15 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
 
     /// Set the APB1 prescaler.
     ///
-    /// The APB1 peripheral clock frequency is equal to the AHB frequency divided by the APB1
-    /// prescaler.
+    /// The APB1 peripheral clock frequency is equal to the AHB frequency
+    /// divided by the APB1 prescaler.
     ///
     /// # Errors:
     ///
-    /// + [Err]\([ErrorCode::FAIL]\) if the desired prescaler would break the APB1 frequency limit
-    /// + [Err]\([ErrorCode::BUSY]\) if setting the prescaler took too long. Retry.
+    /// + [Err]\([ErrorCode::FAIL]\) if the desired prescaler would break the
+    ///   APB1 frequency limit
+    /// + [Err]\([ErrorCode::BUSY]\) if setting the prescaler took too long.
+    ///   Retry.
     pub fn set_apb1_prescaler(&self, prescaler: APBPrescaler) -> Result<(), ErrorCode> {
         let ahb_frequency = self.get_ahb_frequency_mhz();
         let divider: usize = prescaler.into();
@@ -292,7 +298,8 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
         self.get_ahb_frequency_mhz() / divider
     }
 
-    // Same as for APB1, APB2 has a frequency limit that must be enforced by software
+    // Same as for APB1, APB2 has a frequency limit that must be enforced by
+    // software
     fn check_apb2_frequency_limit(&self, ahb_frequency_mhz: usize) -> bool {
         ahb_frequency_mhz
             <= ChipSpecs::APB2_FREQUENCY_LIMIT_MHZ
@@ -301,13 +308,15 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
 
     /// Set the APB2 prescaler.
     ///
-    /// The APB2 peripheral clock frequency is equal to the AHB frequency divided by the APB2
-    /// prescaler.
+    /// The APB2 peripheral clock frequency is equal to the AHB frequency
+    /// divided by the APB2 prescaler.
     ///
     /// # Errors:
     ///
-    /// + [Err]\([ErrorCode::FAIL]\) if the desired prescaler would break the APB2 frequency limit
-    /// + [Err]\([ErrorCode::BUSY]\) if setting the prescaler took too long. Retry.
+    /// + [Err]\([ErrorCode::FAIL]\) if the desired prescaler would break the
+    ///   APB2 frequency limit
+    /// + [Err]\([ErrorCode::BUSY]\) if setting the prescaler took too long.
+    ///   Retry.
     pub fn set_apb2_prescaler(&self, prescaler: APBPrescaler) -> Result<(), ErrorCode> {
         let current_ahb_frequency = self.get_ahb_frequency_mhz();
         let divider: usize = prescaler.into();
@@ -343,9 +352,11 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
     /// # Errors:
     ///
     /// + [Err]\([ErrorCode::FAIL]\) if the source is not enabled.
-    /// + [Err]\([ErrorCode::SIZE]\) if the source frequency surpasses the system clock frequency
-    /// limit, or the APB1 and APB2 limits are not satisfied.
-    /// + [Err]\([ErrorCode::BUSY]\) if the source switching took too long. Retry.
+    /// + [Err]\([ErrorCode::SIZE]\) if the source frequency surpasses the
+    ///   system clock frequency limit, or the APB1 and APB2 limits are not
+    ///   satisfied.
+    /// + [Err]\([ErrorCode::BUSY]\) if the source switching took too long.
+    ///   Retry.
     pub fn set_sys_clock_source(&self, source: SysClockSource) -> Result<(), ErrorCode> {
         // Immediately return if the required source is already configured as the system clock
         // source. Should this maybe be Err(ErrorCode::ALREADY)?
@@ -432,8 +443,8 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
         }
     }
 
-    /// Get the current system clock frequency in MHz from RCC registers instead of the cached
-    /// value. Used for debug only.
+    /// Get the current system clock frequency in MHz from RCC registers instead
+    /// of the cached value. Used for debug only.
     pub fn _get_sys_clock_frequency_mhz_no_cache(&self) -> usize {
         match self.get_sys_clock_source() {
             // These unwraps can't panic because set_sys_clock_frequency ensures that the source is
@@ -459,13 +470,15 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
     ///
     /// + pll_source: PLL source clock (HSI or HSE)
     ///
-    /// + desired_frequency_mhz: the desired frequency in MHz. Supported values: 24-216MHz for
-    /// STM32F401 and 13-216MHz for all the other chips
+    /// + desired_frequency_mhz: the desired frequency in MHz. Supported values:
+    ///   24-216MHz for STM32F401 and 13-216MHz for all the other chips
     ///
     /// # Errors
     ///
-    /// + [Err]\([ErrorCode::INVAL]\): if the desired frequency can't be achieved
-    /// + [Err]\([ErrorCode::FAIL]\): if the PLL clock is already enabled. It must be disabled before
+    /// + [Err]\([ErrorCode::INVAL]\): if the desired frequency can't be
+    ///   achieved
+    /// + [Err]\([ErrorCode::FAIL]\): if the PLL clock is already enabled. It
+    ///   must be disabled before
     pub fn set_pll_frequency_mhz(
         &self,
         pll_source: PllSource,
@@ -483,7 +496,8 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
     ///
     /// # Errors:
     ///
-    /// + [Err]\([ErrorCode::FAIL]\) if the source apart from HSI is already enabled.
+    /// + [Err]\([ErrorCode::FAIL]\) if the source apart from HSI is already
+    ///   enabled.
     pub fn set_mco1_clock_source(&self, source: MCO1Source) -> Result<(), ErrorCode> {
         match source {
             MCO1Source::HSE => {
@@ -513,7 +527,8 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
     ///
     /// # Errors:
     ///
-    /// + [Err]\([ErrorCode::FAIL]\) if the configured source apart from HSI is already enabled.
+    /// + [Err]\([ErrorCode::FAIL]\) if the configured source apart from HSI is
+    ///   already enabled.
     pub fn set_mco1_clock_divider(&self, divider: MCO1Divider) -> Result<(), ErrorCode> {
         match self.get_mco1_clock_source() {
             MCO1Source::PLL => {
@@ -538,8 +553,8 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Clocks<'a, ChipSpecs> {
 
 /// Stm32f4Clocks trait
 ///
-/// This can be used to control clocks without the need to keep a reference of the chip specific
-/// Clocks struct, for instance by peripherals
+/// This can be used to control clocks without the need to keep a reference of
+/// the chip specific Clocks struct, for instance by peripherals
 pub trait Stm32f4Clocks {
     /// Get RCC instance
     fn get_rcc(&self) -> &Rcc;
@@ -562,8 +577,8 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Stm32f4Clocks for Clocks<'a, ChipSpecs> {
 
 /// Tests for clocks functionalities
 ///
-/// These tests ensure the clocks are properly working. If any changes are made to the clock
-/// module, make sure to run these tests.
+/// These tests ensure the clocks are properly working. If any changes are made
+/// to the clock module, make sure to run these tests.
 ///
 /// # Usage
 ///
@@ -574,13 +589,15 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Stm32f4Clocks for Clocks<'a, ChipSpecs> {
 /// use stm32f429zi::clocks;
 /// ```
 ///
-/// To run all the available tests, add this line before **kernel::process::load_processes()**:
+/// To run all the available tests, add this line before
+/// `kernel::process::load_processes()`:
 ///
 /// ```rust,ignore
 /// clocks::tests::run_all(&peripherals.stm32f4.clocks);
 /// ```
 ///
-/// If everything works as expected, the following message should be printed on the kernel console:
+/// If everything works as expected, the following message should be printed on
+/// the kernel console:
 ///
 /// ```text
 /// ===============================================
@@ -614,13 +631,14 @@ impl<'a, ChipSpecs: ChipSpecsTrait> Stm32f4Clocks for Clocks<'a, ChipSpecs> {
 /// ===============================================
 /// ```
 ///
-/// There is also the possibility to run a part of the test suite. Check the functions present in
-/// this module for more details.
+/// There is also the possibility to run a part of the test suite. Check the
+/// functions present in this module for more details.
 ///
 /// # Errors
 ///
-/// If there are any errors, open an issue ticket at <https://github.com/tock/tock>. Please provide the
-/// output of the test execution.
+/// If there are any errors, open an issue ticket at
+/// <https://github.com/tock/tock>. Please provide the output of the test
+/// execution.
 pub mod tests {
     use super::{
         debug, AHBPrescaler, APBPrescaler, ChipSpecsTrait, Clocks, ErrorCode, MCO1Divider,

@@ -145,7 +145,7 @@ macro_rules! register_fields {
 /// - Invalid alignment of fields.
 ///
 /// - That the end marker matches the actual generated struct size. This will
-/// fail in cases such as
+///   fail in cases such as
 ///
 ///   ```should_fail
 ///   # #[macro_use]

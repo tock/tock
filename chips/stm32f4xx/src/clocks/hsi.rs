@@ -8,8 +8,8 @@
 //!
 //! # Usage
 //!
-//! For the purposes of brevity, any error checking has been removed. In real applications, always
-//! check the return values of the [Hsi] methods.
+//! For the purposes of brevity, any error checking has been removed. In real
+//! applications, always check the return values of the [Hsi] methods.
 //!
 //! First, get a reference to the [Hsi] struct:
 //! ```rust,ignore
@@ -75,8 +75,8 @@ impl<'a> Hsi<'a> {
     ///
     /// # Errors
     ///
-    /// + [Err]\([ErrorCode::BUSY]\): if enabling the HSI clock took too long. Recall this method to
-    /// ensure the HSI clock is running.
+    /// + [Err]\([ErrorCode::BUSY]\): if enabling the HSI clock took too long.
+    ///   Recall this method to ensure the HSI clock is running.
     pub fn enable(&self) -> Result<(), ErrorCode> {
         self.rcc.enable_hsi_clock();
 
@@ -94,8 +94,8 @@ impl<'a> Hsi<'a> {
     /// # Errors
     ///
     /// + [Err]\([ErrorCode::FAIL]\): if the HSI clock is configured as the system clock.
-    /// + [Err]\([ErrorCode::BUSY]\): disabling the HSI clock took to long. Retry to ensure it is
-    /// not running.
+    /// + [Err]\([ErrorCode::BUSY]\): disabling the HSI clock took to long.
+    ///   Retry to ensure it is not running.
     pub fn disable(&self) -> Result<(), ErrorCode> {
         if self.rcc.is_hsi_clock_system_clock() {
             return Err(ErrorCode::FAIL);
