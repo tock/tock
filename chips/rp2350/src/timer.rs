@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OxidOS Automotive 2025.
 
-use cortexm33::support::atomic;
+use cortexm33::support::with_interrupts_disabled;
 use kernel::hil;
 use kernel::hil::time::{Alarm, Ticks, Ticks32, Time};
 use kernel::utilities::cells::OptionalCell;
@@ -198,7 +198,7 @@ impl<'a> RPTimer<'a> {
         // not fired. This means that the interrupt will be handled whenever the
         // next kernel tasks are processed.
         unsafe {
-            atomic(|| {
+            with_interrupts_disabled(|| {
                 cortexm33::nvic::Nvic::new(TIMER0_IRQ_0).enable();
             })
         }
@@ -256,7 +256,7 @@ impl<'a> Alarm<'a> for RPTimer<'a> {
     fn disarm(&self) -> Result<(), ErrorCode> {
         self.registers.armed.set(1);
         unsafe {
-            atomic(|| {
+            with_interrupts_disabled(|| {
                 // Clear pending interrupts
                 cortexm33::nvic::Nvic::new(TIMER0_IRQ_0).clear_pending();
             });
