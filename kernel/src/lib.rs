@@ -107,7 +107,7 @@ pub const KERNEL_MINOR_VERSION: u16 = 2;
 ///
 /// Use to denote development kernels from release kernels.
 ///
-/// Nonzero numbers are releases.
+/// Non-negative numbers are releases.
 ///
 /// Negative numbers are development or pre-releases.
 /// - -1: "-dev"
