@@ -15,7 +15,7 @@ Usage
 
 There are three general steps to use this crate.
 
-1. This crate should be included as a build dependency in the boards's
+1. This crate should be included as a build dependency in the board's
    Cargo.toml file:
 
    ```toml

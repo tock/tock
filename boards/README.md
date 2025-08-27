@@ -15,7 +15,7 @@ but the approximate definitions:
  - **Tier 2:** Platforms seeing reasonably regular use. These generally
                have broader, but still incomplete, peripheral support.
                They may also be 'relatives' of Tier 1 boards (e.g. a
-               less-used varient in the nrf52 family) – likely in good
+               less-used variant in the nrf52 family) – likely in good
                shape, but not heavily tested. Some Tier 2 boards may
                have known issues, which are documented in release notes
                during release testing.
