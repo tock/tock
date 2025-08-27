@@ -133,6 +133,8 @@ use core::ops::{Deref, DerefMut};
 use core::ptr::{write, NonNull};
 use core::slice;
 
+use crate::config;
+use crate::debug;
 use crate::kernel::Kernel;
 use crate::process::ProcessSlot;
 use crate::process::{Error, Process, ProcessCustomGrantIdentifier, ProcessId};
@@ -601,8 +603,19 @@ impl<'a> GrantKernelData<'a> {
         r: (usize, usize, usize),
     ) -> Result<(), UpcallError> {
         // Implement `self.upcalls[subscribe_num]` without a chance of a panic.
-        self.upcalls.get(subscribe_num).map_or(
-            Err(UpcallError::InvalidSubscribeNum),
+        self.upcalls.get(subscribe_num).map_or_else(
+            || {
+                if config::CONFIG.trace_syscalls {
+                    debug!(
+                        "[{:?}] schedule[{:#x}:{}] invalid subscribe_num",
+                        self.process.processid(),
+                        self.driver_num,
+                        subscribe_num,
+                    );
+                }
+
+                Err(UpcallError::InvalidSubscribeNum)
+            },
             |saved_upcall| {
                 // We can create an `Upcall` object based on what is stored in
                 // the process grant and use that to add the upcall to the
