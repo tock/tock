@@ -613,7 +613,7 @@ impl CcmAnalog {
     ///
     /// Clamps `div_sel` to [54, 108].
     pub fn restart_pll1(&self, div_sel: u32) {
-        let div_sel = div_sel.min(108).max(54);
+        let div_sel = div_sel.clamp(54, 108);
 
         // Clear all bits except powerdown
         self.registers.pll_arm.reg.write(PLL_ARM::POWERDOWN::SET);
