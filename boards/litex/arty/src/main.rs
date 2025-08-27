@@ -107,10 +107,7 @@ static mut PANIC_REFERENCES: LiteXArtyPanicReferences = LiteXArtyPanicReferences
 const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
     capsules_system::process_policies::PanicFaultPolicy {};
 
-/// Dummy buffer that causes the linker to reserve enough space for the stack.
-#[no_mangle]
-#[link_section = ".stack_buffer"]
-static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
+kernel::stack_size! {0x2000}
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.

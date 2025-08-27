@@ -375,13 +375,7 @@ pub unsafe fn main() {
     board_kernel.kernel_loop(&platform, chip, Some(&platform.ipc), &main_loop_capability);
 }
 
-/// Space for the stack buffer
-///
-/// Justified in tock's `kernel_layout.ld`.
-#[no_mangle]
-#[link_section = ".stack_buffer"]
-#[used]
-static mut STACK_BUFFER: [u8; 0x2000] = [0; 0x2000];
+kernel::stack_size! {0x2000}
 
 const FCB_SIZE: usize = core::mem::size_of::<fcb::FCB>();
 
