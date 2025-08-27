@@ -10,6 +10,7 @@ use kernel::hil::led::LedHigh;
 use kernel::hil::uart::{Configure, Parameters, Parity, StopBits, Width};
 use kernel::utilities::cells::OptionalCell;
 
+use rp2040::clocks::Clocks;
 use rp2040::gpio::{GpioFunction, RPGpio, RPGpioPin};
 use rp2040::uart::Uart;
 
@@ -51,7 +52,8 @@ impl IoWrite for Writer {
         self.uart.map_or_else(
             || {
                 // If no UART is configured for panic print, use UART0
-                let uart0 = &Uart::new_uart0();
+                let clocks = &Clocks::new();
+                let uart0 = &Uart::new_uart0(clocks);
 
                 if !uart0.is_configured() {
                     let parameters = Parameters {
