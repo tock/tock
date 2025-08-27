@@ -102,7 +102,7 @@ impl<Port: hil::gpio_async::Port> hil::gpio_async::Client for GPIOAsync<'_, Port
     fn fired(&self, pin: usize, identifier: usize) {
         // schedule callback with the pin number and value for all apps
         self.grants.each(|_, _app, upcalls| {
-            upcalls.schedule_upcall(1, (identifier, pin, 0)).ok();
+            let _ = upcalls.schedule_upcall(1, (identifier, pin, 0));
         });
     }
 
@@ -110,7 +110,7 @@ impl<Port: hil::gpio_async::Port> hil::gpio_async::Client for GPIOAsync<'_, Port
         // alert currently configuring app
         self.configuring_process.map(|pid| {
             let _ = self.grants.enter(pid, |_app, upcalls| {
-                upcalls.schedule_upcall(0, (0, value, 0)).ok();
+                let _ = upcalls.schedule_upcall(0, (0, value, 0));
             });
         });
         // then clear currently configuring app

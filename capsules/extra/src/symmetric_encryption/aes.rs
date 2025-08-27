@@ -450,7 +450,7 @@ impl<
                             // No data buffer, clear the processid and data
                             self.aes.disable();
                             self.processid.clear();
-                            kernel_data.schedule_upcall(0, (e as usize, 0, 0)).ok();
+                            let _ = kernel_data.schedule_upcall(0, (e as usize, 0, 0));
                             exit = true;
                         }
                     });
@@ -490,7 +490,7 @@ impl<
                             // No data buffer, clear the processid and data
                             self.aes.disable();
                             self.processid.clear();
-                            kernel_data.schedule_upcall(0, (e as usize, 0, 0)).ok();
+                            let _ = kernel_data.schedule_upcall(0, (e as usize, 0, 0));
                             exit = true;
                         }
                     });
@@ -532,9 +532,7 @@ impl<
                     }
 
                     // If we get here we have finished all the crypto operations
-                    kernel_data
-                        .schedule_upcall(0, (0, self.data_copied.get(), 0))
-                        .ok();
+                    let _ = kernel_data.schedule_upcall(0, (0, self.data_copied.get(), 0));
                     self.data_copied.set(0);
                 })
                 .map_err(|err| {
@@ -566,7 +564,7 @@ impl<
                     let mut exit = false;
 
                     if let Err(e) = res {
-                        kernel_data.schedule_upcall(0, (e as usize, 0, 0)).ok();
+                        let _ = kernel_data.schedule_upcall(0, (e as usize, 0, 0));
                         return;
                     }
 
@@ -598,7 +596,7 @@ impl<
                             // No data buffer, clear the processid and data
                             self.aes.disable();
                             self.processid.clear();
-                            kernel_data.schedule_upcall(0, (e as usize, 0, 0)).ok();
+                            let _ = kernel_data.schedule_upcall(0, (e as usize, 0, 0));
                             exit = true;
                         }
                     });
@@ -609,9 +607,8 @@ impl<
 
                     // AES CCM is online only we can't send any more data in, so
                     // just report what we did to the app.
-                    kernel_data
-                        .schedule_upcall(0, (0, self.data_copied.get(), tag_is_valid as usize))
-                        .ok();
+                    let _ = kernel_data
+                        .schedule_upcall(0, (0, self.data_copied.get(), tag_is_valid as usize));
                     self.data_copied.set(0);
                 })
                 .map_err(|err| {
@@ -643,7 +640,7 @@ impl<
                     let mut exit = false;
 
                     if let Err(e) = res {
-                        kernel_data.schedule_upcall(0, (e as usize, 0, 0)).ok();
+                        let _ = kernel_data.schedule_upcall(0, (e as usize, 0, 0));
                         return;
                     }
 
@@ -675,7 +672,7 @@ impl<
                             // No data buffer, clear the appid and data
                             self.aes.disable();
                             self.processid.clear();
-                            kernel_data.schedule_upcall(0, (e as usize, 0, 0)).ok();
+                            let _ = kernel_data.schedule_upcall(0, (e as usize, 0, 0));
                             exit = true;
                         }
                     });
@@ -686,9 +683,8 @@ impl<
 
                     // AES GCM is online only we can't send any more data in, so
                     // just report what we did to the app.
-                    kernel_data
-                        .schedule_upcall(0, (0, self.data_copied.get(), tag_is_valid as usize))
-                        .ok();
+                    let _ = kernel_data
+                        .schedule_upcall(0, (0, self.data_copied.get(), tag_is_valid as usize));
                     self.data_copied.set(0);
                 })
                 .map_err(|err| {
@@ -878,12 +874,10 @@ impl<
                                 })
                                 .unwrap_or(Err(ErrorCode::RESERVE))
                             {
-                                kernel_data
-                                    .schedule_upcall(
-                                        0,
-                                        (kernel::errorcode::into_statuscode(e.into()), 0, 0),
-                                    )
-                                    .ok();
+                                let _ = kernel_data.schedule_upcall(
+                                    0,
+                                    (kernel::errorcode::into_statuscode(e.into()), 0, 0),
+                                );
                             }
                             CommandReturn::success()
                         } else {

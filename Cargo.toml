@@ -144,7 +144,9 @@ codegen-units = 1
 # 3. The third section are lints that we do want we just need to fixup the code
 #    to pass the lint checks.
 [workspace.lints.clippy]
-restriction = "allow"
+# RESTRICTION LINTS
+restriction = { level = "allow", priority = -1 }
+unused_result_ok = "deny"
 
 # COMPLEXITY LINTS
 complexity = { level = "deny", priority = -1 }

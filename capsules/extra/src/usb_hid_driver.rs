@@ -91,7 +91,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Usb
                         })
                     });
 
-                kernel_data.schedule_upcall(0, (0, 0, 0)).ok();
+                let _ = kernel_data.schedule_upcall(0, (0, 0, 0));
             });
         });
 
@@ -106,7 +106,7 @@ impl<'a, U: usb_hid::UsbHid<'a, [u8; 64]>> usb_hid::Client<'a, [u8; 64]> for Usb
     ) {
         self.processid.map(|id| {
             let _ = self.app.enter(id, |_app, kernel_data| {
-                kernel_data.schedule_upcall(0, (1, 0, 0)).ok();
+                let _ = kernel_data.schedule_upcall(0, (1, 0, 0));
             });
         });
 

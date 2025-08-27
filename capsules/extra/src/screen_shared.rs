@@ -267,7 +267,7 @@ impl<'a, S: hil::screen::Screen<'a>> ScreenShared<'a, S> {
 
     fn schedule_callback(&self, process_id: ProcessId, data1: usize, data2: usize, data3: usize) {
         let _ = self.apps.enter(process_id, |_app, kernel_data| {
-            kernel_data.schedule_upcall(0, (data1, data2, data3)).ok();
+            let _ = kernel_data.schedule_upcall(0, (data1, data2, data3));
         });
     }
 
