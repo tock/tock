@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
+//! Startup and vectors for the nRF52.
+
 use cortexm4f::{
     initialize_ram_jump_to_main, nvic, scb, unhandled_interrupt, CortexM4F, CortexMVariant,
 };
@@ -63,14 +65,19 @@ pub static BASE_VECTORS: [unsafe extern "C" fn(); 16] = [
     CortexM4F::SYSTICK_HANDLER,
 ];
 
+/// Interrupt service routine pointers.
+///
+/// All ISRs just mark the interrupt occurred and then return, so we can use
+/// the [`CortexM4F::GENERIC_ISR`] routine for each.
 #[cfg_attr(
     all(target_arch = "arm", target_os = "none"),
     link_section = ".vectors"
 )]
-// used Ensures that the symbol is kept until the final binary
+// `used` ensures that the symbol is kept until the final binary
 #[cfg_attr(all(target_arch = "arm", target_os = "none"), used)]
 pub static IRQS: [unsafe extern "C" fn(); 80] = [CortexM4F::GENERIC_ISR; 80];
 
+/// nRF52 init function to apply errata fixes and enable interrupts.
 #[no_mangle]
 pub unsafe extern "C" fn init() {
     // Apply early initialization workarounds for anomalies documented on

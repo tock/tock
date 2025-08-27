@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
+//! Interrupt numbers for nRF52840 peripherals
+
 pub const USBD: u32 = 39;
 #[allow(dead_code)]
 pub const UART1: u32 = 40;

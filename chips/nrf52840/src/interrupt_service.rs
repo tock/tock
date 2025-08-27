@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2022.
 
+//! Handle interrupts for nRF52840-specific peripherals
+
 use kernel::hil::time::Alarm;
 use nrf52::chip::Nrf52DefaultPeripherals;
 
