@@ -4,9 +4,11 @@
 
 use core::cell::{Cell, RefCell};
 use kernel::debug;
+use kernel::deferred_call::{DeferredCall, DeferredCallClient};
 use kernel::utilities::registers::register_bitfields;
 use tock_registers::LocalRegisterCopy;
 use x86::registers::io;
+use x86::support;
 
 /// PS/2 controller ports
 const PS2_DATA_PORT: u16 = 0x60;
@@ -284,10 +286,17 @@ pub struct Ps2Controller {
     // track prefix bytes for logging => press/release only inputs
     break_next: Cell<bool>, // saw 0xF0; next data byte is a BREAK
     ext_next: Cell<bool>,   // saw 0xE0; next data byte is extended
+
+    // "health" counters
+    parity_drops: Cell<u32>,
+    timeout_drops: Cell<u32>,
+    overruns: Cell<u32>,
+    // deferred call handle (bottom-half scheduling)
+    deferred_call: DeferredCall,
 }
 
 impl Ps2Controller {
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             buffer: RefCell::new([0; BUFFER_SIZE]),
             head: Cell::new(0),
@@ -295,6 +304,10 @@ impl Ps2Controller {
             count: Cell::new(0),
             break_next: Cell::new(false),
             ext_next: Cell::new(false),
+            parity_drops: Cell::new(0),
+            timeout_drops: Cell::new(0),
+            overruns: Cell::new(0),
+            deferred_call: DeferredCall::new(),
         }
     }
 
@@ -334,65 +347,12 @@ impl Ps2Controller {
         Ok(())
     }
 
-    /// Handle a keyboard interrupt: read a scan-code and buffer it.
-    /// as of now it works, but it prints press/release as well
-    /// which gets messy in the terminal
-    /// for testing, i'll make it so we only log make/break events
-    /* pub fn handle_interrupt(&self) {
-        loop {
-            if unsafe { io::inb(PS2_STATUS_PORT) } & 0x01 == 0 {
-                break;
-            }
-            let byte = unsafe { io::inb(PS2_DATA_PORT) };
-            self.push_code(byte);
-            debug!("ps2 irq 0x{:02X}", byte);
-        }
-    }*/
-
-    pub fn handle_interrupt(&self) {
-        loop {
-            // Snapshot the controller status. Bit0 (OUTPUT_FULL) says whether
-            // there's a byte waiting in the output buffer (OB) at 0x60.
-            let status = read_status();
-            if (status & 0x01) == 0 {
-                // OUTPUT_FULL == 0 => no more data
-                break;
-            }
-
-            // Reading 0x60 pops one byte from OB and (for that byte) clears OUTPUT_FULL.
-            let b = unsafe { io::inb(PS2_DATA_PORT) };
-
-            // Check error flags associated with this byte:
-            // bit7 PARITY_ERR
-            // bit6 TIMEOUT_ERR
-            // If either is set we drop the byte (we already consumed OB by reading).
-            let parity = (status & (1 << 7)) != 0;
-            let timeout = (status & (1 << 6)) != 0;
-            if parity || timeout {
-                debug!(
-                    "ps2: dropped byte {:02X} ({}{})",
-                    b,
-                    if parity { "PARITY" } else { "" },
-                    if timeout {
-                        if parity {
-                            "+"
-                        } else {
-                            ""
-                        }
-                    } else {
-                        ""
-                    }
-                );
-                continue; // don’t push/log corrupted data
-            }
-
-            // Always preserve the raw stream (including prefixes) for the future keyboard driver.
-            self.push_code(b);
-
-            // Set-2 uses prefixes:
-            // - 0xE0 marks "extended" keys (next data byte is extended)
-            // - 0xF0 marks a BREAK (key release) for the next data byte
-            // We don't log prefixes themselves; we just remember them.
+    /// Drain queued bytes and print clean MAKE/BREAK lines.
+    /// Runs in the deferred bottom-half (not in IRQ context).
+    #[inline(always)]
+    fn decode_and_log_stream(&self) {
+        while let Some(b) = self.pop_scan_code() {
+            // Track Set-2 prefixes locally; we keep state in the controller
             if b == 0xE0 {
                 self.ext_next.set(true);
                 continue;
@@ -402,16 +362,8 @@ impl Ps2Controller {
                 continue;
             }
 
-            // At this point `b` is a real scancode byte (not a prefix).
-            // Consume the remembered prefix flags to print exactly one MAKE/BREAK line.
-            let ext = self.ext_next.get();
-            let brk = self.break_next.get();
-            if ext {
-                self.ext_next.set(false);
-            }
-            if brk {
-                self.break_next.set(false);
-            }
+            let ext = self.ext_next.replace(false);
+            let brk = self.break_next.replace(false);
 
             if brk {
                 debug!("ps2: BREAK {}{:02X}", if ext { "E0 " } else { "" }, b);
@@ -420,30 +372,91 @@ impl Ps2Controller {
             }
         }
     }
+    pub fn handle_interrupt(&self) {
+        let mut scheduled = false;
 
-    /// Pop the next scan-code, or None if buffer is empty.
-    pub fn pop_scan_code(&self) -> Option<u8> {
-        if self.count.get() == 0 {
-            return None;
+        loop {
+            // Check if there is a byte waiting in the output buffer (OB)
+            let status = read_status();
+            if (status & 0x01) == 0 {
+                // OUTPUT_FULL == 0 → done
+                break;
+            }
+
+            // Reading from 0x60 consumes one byte from OB.
+            let b = unsafe { io::inb(PS2_DATA_PORT) };
+
+            // Drop corrupted bytes, bump counters. No logging here.
+            if (status & (1 << 7)) != 0 {
+                // PARITY_ERR
+                self.parity_drops
+                    .set(self.parity_drops.get().wrapping_add(1));
+                continue;
+            }
+            if (status & (1 << 6)) != 0 {
+                // TIMEOUT_ERR
+                self.timeout_drops
+                    .set(self.timeout_drops.get().wrapping_add(1));
+                continue;
+            }
+
+            // Enqueue safely; overflow tracked inside.
+            self.push_code_atomic(b);
+            scheduled = true;
         }
-        let t = self.tail.get();
-        let b = self.buffer.borrow()[t];
-        self.tail.set((t + 1) % BUFFER_SIZE);
-        self.count.set(self.count.get() - 1);
-        Some(b)
+
+        // Kick the bottom-half once if we queued anything.
+        if scheduled {
+            self.deferred_call.set();
+        }
     }
 
-    /// Internal: push a scan-code into the ring buffer, dropping oldest if full.
-    fn push_code(&self, b: u8) {
-        let h = self.head.get();
-        self.buffer.borrow_mut()[h] = b;
-        let nh = (h + 1) % BUFFER_SIZE;
-        self.head.set(nh);
+    /// Pop the next scan-code, or None if buffer is empty.
+    #[inline(always)]
+    fn push_code_atomic(&self, b: u8) {
+        // Mask IRQs briefly while we mutate head/tail/count.
 
-        if self.count.get() < BUFFER_SIZE {
-            self.count.set(self.count.get() + 1);
-        } else {
-            self.tail.set((self.tail.get() + 1) % BUFFER_SIZE);
-        }
+        support::with_interrupts_disabled(|| {
+            let h = self.head.get();
+            self.buffer.borrow_mut()[h] = b;
+            let nh = (h + 1) % BUFFER_SIZE;
+            self.head.set(nh);
+
+            if self.count.get() < BUFFER_SIZE {
+                self.count.set(self.count.get() + 1);
+            } else {
+                // overwrite oldest and count overrun
+                self.tail.set((self.tail.get() + 1) % BUFFER_SIZE);
+                self.overruns.set(self.overruns.get().wrapping_add(1));
+            }
+        })
+    }
+    /// Internal: push a scan-code into the ring buffer, dropping oldest if full.
+    pub fn pop_scan_code(&self) -> Option<u8> {
+        // Same tiny IRQ-masked critical section for the consumer.
+
+        support::with_interrupts_disabled(|| {
+            if self.count.get() == 0 {
+                None
+            } else {
+                let t = self.tail.get();
+                let b = self.buffer.borrow()[t];
+                self.tail.set((t + 1) % BUFFER_SIZE);
+                self.count.set(self.count.get() - 1);
+                Some(b)
+            }
+        })
+    }
+}
+
+impl DeferredCallClient for Ps2Controller {
+    fn handle_deferred_call(&self) {
+        // Bottom-half work: decode + log outside IRQ context.
+        self.decode_and_log_stream();
+    }
+
+    fn register(&'static self) {
+        // Same style as VgaText (hopefully this works)
+        self.deferred_call.register(self);
     }
 }
