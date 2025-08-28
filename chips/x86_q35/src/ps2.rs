@@ -11,7 +11,6 @@ use x86::registers::io;
 /// PS/2 controller ports
 const PS2_DATA_PORT: u16 = 0x60;
 const PS2_STATUS_PORT: u16 = 0x64;
-const PIC1_DATA_PORT: u16 = 0x21;
 
 /// Depth of the scan-code ring buffer
 const BUFFER_SIZE: usize = 32;
@@ -26,6 +25,14 @@ register_bitfields![u8,
         INPUT_FULL  OFFSET(1) NUMBITS(1), // input buffer full
     ]
 ];
+
+/// This will be explained in the future but we need this
+/// to separate possible errors/issues so we don't hang the kernel
+/// if the controller breaks, for now, we return something on failure
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Ps2Error {
+    InitFailed,
+}
 
 /// Note: There is no hardware interrupt when the input buffer empties, so we must poll bit 1.
 /// See OSDev documentation:
@@ -42,7 +49,8 @@ fn wait_input_ready() {
     // Continue spinning while the INPUT_FULL bit is set
     while {
         // Fetch latest status from hardware port
-        let raw = unsafe { io::inb(PS2_STATUS_PORT) };
+        let raw = read_status();
+
         status_reg.set(raw);
 
         // Check if controller is still busy (input buffer full)
@@ -108,6 +116,10 @@ fn write_data(d: u8) {
     wait_input_ready();
     unsafe { io::outb(PS2_DATA_PORT, d) }
 }
+#[inline(always)]
+fn read_status() -> u8 {
+    unsafe { io::inb(PS2_STATUS_PORT) }
+}
 
 /// Send a byte to the keyboard and wait for ACK (`0xFA`).
 /// If the device replies RESEND (`0xFE`) we retry **once**.
@@ -142,54 +154,71 @@ impl Ps2Controller {
             buffer: RefCell::new([0; BUFFER_SIZE]),
             head: Cell::new(0),
             tail: Cell::new(0),
-            count: Cell::new(0), // ← initialize count
+            count: Cell::new(0),
         }
     }
-    pub fn init(&self) {
-        unsafe {
-            /* disable both ports */
-            write_command(0xAD);
-            write_command(0xA7);
 
-            /* flush any stale byte */
-            while io::inb(PS2_STATUS_PORT) & 1 != 0 {
-                let _ = io::inb(PS2_DATA_PORT);
-            }
+    /// Pure controller + device bring-up.
+    /// No logging, no PIC masking/unmasking, no CPU-IRQ enabling. (hopefully)
+    /// Called by PcComponent::finalize() (chip layer).
+    /// Whole goal of this change is to stop nagging the memory directly
+    pub fn init_early(&self) -> Result<(), Ps2Error> {
+        // disable both ports
+        write_command(0xAD); // disable keyboard (port 1)
+        write_command(0xA7); // disable aux/mouse (port 2)
 
-            /* controller self-test */
-            write_command(0xAA);
-            let _ = {
-                wait_output_ready();
-                read_data()
-            } == 0x55;
-
-            // IRQ1 fire test
-            write_command(0x20); // request config byte
-            wait_output_ready();
-            let mut cfg = read_data();
-            cfg |= 1 << 0; // set bit0 = IRQ1 enable
-            write_command(0x60); // tell controller we’ll write it
-            write_data(cfg);
-
-            // keyboard port test, (0xAB, expect 0x00)
-            write_command(0xAB);
-            wait_output_ready();
-            if read_data() != 0x00 {
-                debug!("ps2: port-1 interface test failed");
-            }
-
-            /* enable keyboard clock */
-            write_command(0xAE);
-
-            if !send_with_ack(0xF4) {
-                debug!("ps2: enable-scan failed");
-            }
-
-            /* unmask IRQ 1 */
-            let mask = io::inb(PIC1_DATA_PORT);
-            io::outb(PIC1_DATA_PORT, mask & !(1 << 1));
-            debug!("ps2: clock on, IRQ1 unmasked");
+        // flush any stale bytes from the output buffer
+        while read_status() & 0x01 != 0 {
+            let _ = unsafe { io::inb(PS2_DATA_PORT) };
         }
+
+        // controller self-test: 0xAA -> expect 0x55
+        write_command(0xAA);
+        wait_output_ready();
+        if read_data() != 0x55 {
+            return Err(Ps2Error::InitFailed);
+        }
+
+        // read config, ensure IRQ1 off during tests
+        write_command(0x20); // read config
+        wait_output_ready();
+        let mut cfg = read_data();
+        cfg &= !(1 << 0); // IRQ1 = 0 (off)
+        write_command(0x60); // write config
+        write_data(cfg);
+
+        // port 1 (keyboard) interface test: 0xAB -> expect 0x00
+        write_command(0xAB);
+        wait_output_ready();
+        if read_data() != 0x00 {
+            return Err(Ps2Error::InitFailed);
+        }
+
+        // enable keyboard clock
+        write_command(0xAE);
+
+        // enable scanning (strict Set-2 policy comes in the future)
+        if !send_with_ack(0xF4) {
+            return Err(Ps2Error::InitFailed);
+        }
+
+        // re-enable IRQ1 in the *controller* (PIC unmask is done in chip)
+        write_command(0x20);
+        wait_output_ready();
+        let mut cfg2 = read_data();
+        cfg2 |= 1 << 0; // IRQ1 = 1 (on)
+        write_command(0x60);
+        write_data(cfg2);
+
+        Ok(())
+    }
+
+    /// Legacy wrapper: keep around short-term so old call sites compile.
+    /// Chip will call `init_early()` instead.
+    /// for now
+    #[deprecated(note = "Use init_early() from the chip bring-up.")]
+    pub fn init(&self) {
+        let _ = self.init_early();
     }
 
     /// Handle a keyboard interrupt: read a scan-code and buffer it.
@@ -223,7 +252,6 @@ impl Ps2Controller {
         let nh = (h + 1) % BUFFER_SIZE;
         self.head.set(nh);
 
-        // track count and drop oldest if full:
         if self.count.get() < BUFFER_SIZE {
             self.count.set(self.count.get() + 1);
         } else {
