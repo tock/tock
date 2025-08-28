@@ -16,6 +16,7 @@ pub mod nvic;
 
 // Peripherals
 pub mod gpio;
+pub mod i2c;
 pub mod rcc;
 pub mod tim2;
 pub mod usart;

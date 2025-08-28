@@ -4,11 +4,7 @@
 
 #![no_std]
 
-<<<<<<< HEAD
-pub use stm32wle5xx::{chip, clocks, gpio, nvic, rcc};
-=======
-pub use stm32wle5xx::{chip, clocks, gpio, nvic, rcc, tim2, usart};
->>>>>>> 783613c11 (chips: stm32wle5xx: add tim2 driver)
+pub use stm32wle5xx::{chip, clocks, gpio, i2c, nvic, rcc, spi, tim2, usart};
 
 pub mod chip_specs;
 pub mod interrupt_service;
