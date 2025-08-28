@@ -107,6 +107,7 @@ impl kernel::platform::chip::InterruptService for Nrf52DefaultPeripherals<'_> {
 impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for NRF52<'a, I> {
     type MPU = cortexm4f::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4f::syscall::SysCall;
+    type ThreadIdProvider = cortexm4f::thread_id::CortexMThreadIdProvider;
 
     fn mpu(&self) -> &Self::MPU {
         &self.mpu
