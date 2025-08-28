@@ -107,6 +107,7 @@ impl kernel::platform::chip::InterruptService for Nrf52DefaultPeripherals<'_> {
 impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for NRF52<'a, I> {
     type MPU = cortexm4f::mpu::MPU;
     type UserspaceKernelBoundary = cortexm4f::syscall::SysCall;
+    type ThreadIdProvider = NRF52ThreadIdProvider;
 
     fn mpu(&self) -> &Self::MPU {
         &self.mpu
@@ -148,5 +149,21 @@ impl<'a, I: InterruptService + 'a> kernel::platform::chip::Chip for NRF52<'a, I>
 
     unsafe fn print_state(&self, write: &mut dyn Write) {
         CortexM4F::print_cortexm_state(write);
+    }
+}
+
+pub enum NRF52ThreadIdProvider {}
+unsafe impl kernel::platform::chip::ThreadIdProvider for NRF52ThreadIdProvider {
+    fn running_thread_id() -> usize {
+        // We assign thread IDs this way:
+        //
+        // - 0: Main thread
+        // - 1: Any interrupt service routine
+        //
+        // # Safety
+        //
+        // This accesses low-level arch registers with assembly. It is safe
+        // because we are only reading a status register.
+        unsafe { cortexm4f::support::is_interrupt_context() as usize }
     }
 }
