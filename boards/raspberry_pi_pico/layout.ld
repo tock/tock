@@ -11,8 +11,8 @@ MEMORY
   ram (rwx) : ORIGIN = 0x20004000, LENGTH = 240K */
 
   /* boot from Flash */
-  rom (rx)  : ORIGIN = 0x10000000, LENGTH = 256K
-  prog (rx) : ORIGIN = 0x10040000, LENGTH = 256K
+  rom (rx)  : ORIGIN = 0x10000000, LENGTH = 576K
+  prog (rx) : ORIGIN = 0x10090000, LENGTH = 512K
   ram (rwx) : ORIGIN = 0x20000000, LENGTH = 264K
 }
 
