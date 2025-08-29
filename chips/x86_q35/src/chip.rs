@@ -198,7 +198,6 @@ impl<'a, I: InterruptService + 'a, const PR: u16> Chip for Pc<'a, I, PR> {
         let _ = writeln!(writer);
         let _ = writeln!(writer, "---| PC State |---");
         let _ = writeln!(writer);
-
         // todo: print out anything that might be useful
 
         let _ = writeln!(writer, "(placeholder)");

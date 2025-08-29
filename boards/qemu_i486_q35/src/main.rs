@@ -261,6 +261,9 @@ unsafe extern "cdecl" fn main() {
     )
         .finalize(components::debug_writer_component_static!());
 
+    // Now we can safely log via `debug!()`
+    debug!("ps/2 health: {}", chip.ps2.health_snapshot());
+
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,
         capsules_core::low_level_debug::DRIVER_NUM,

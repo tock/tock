@@ -2,9 +2,21 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2025.
 
+//! i8042 PS/2 controller for x86_q35
+//!
+//! Init policy (chip owns bring-up -> `init_early()`):
+//!  - Disable ports, flush OB, self-test
+//!  - Config: translation OFF (Set-2), IRQ bits off during tests
+//!  - Port1 test + enable; device: F5, FF -> AA, F0 02 (Set-2), enable IRQ1, F4
+//!
+//! ISR/BH split:
+//!  - ISR reads OB, drops on parity/timeout, queues bytes, schedules deferred call
+//!  - Deferred call drains ring; for now it logs; and attempts to send data to a present client
+
 use core::cell::{Cell, RefCell};
 use kernel::debug;
 use kernel::deferred_call::{DeferredCall, DeferredCallClient};
+use kernel::utilities::cells::OptionalCell;
 use kernel::utilities::registers::register_bitfields;
 use tock_registers::LocalRegisterCopy;
 use x86::registers::io;
@@ -51,6 +63,44 @@ pub enum Ps2Error {
     AckError,
     ControllerTimeout,
     UnexpectedResponse(u8),
+}
+
+/// Lightweight health snapshot for observability.
+#[derive(Debug, Clone, Copy)]
+pub struct Ps2Health {
+    pub bytes_rx: u32,
+    pub overruns: u32,
+    pub parity_err: u32,
+    pub timeout_err: u32,
+    pub timeouts: u32, // controller wait timeouts (IB/OB)
+    pub resends: u32,  // times device asked us to resend (0xFE)
+}
+
+/// Since I really want to minimise the risk of the controller
+/// bringing the whole kernel down if a device (or even the controller itself)
+/// breaks, I will add this simple display + its struct,
+///
+/// Log it anywhere with
+/// debug!("ps2 health: {}", ps2.health_snapshot());
+/// check chip.rs for example
+impl core::fmt::Display for Ps2Health {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "rx={} overruns={} parity_err={} timeout_err={} ctrl_timeouts={} resends={}",
+            self.bytes_rx,
+            self.overruns,
+            self.parity_err,
+            self.timeout_err,
+            self.timeouts,
+            self.resends
+        )
+    }
+}
+
+/// Client hook (future: keyboard capsule)
+pub trait Ps2Client {
+    fn receive_scancode(&self, code: u8);
 }
 
 pub type Ps2Result<T> = core::result::Result<T, Ps2Error>;
@@ -235,48 +285,6 @@ fn enable_port1_clock() -> Ps2Result<()> {
     write_command(0xAE)
 }
 
-fn kbd_disable_scan() -> Ps2Result<()> {
-    send_with_ack(0xF5, 3)
-}
-
-fn kbd_reset_and_wait_bat() -> Ps2Result<()> {
-    send_with_ack(0xFF, 3)?; // ACK for reset
-    match read_data()? {
-        // BAT result
-        0xAA => Ok(()),
-        other => Err(Ps2Error::UnexpectedResponse(other)),
-    }
-}
-
-fn kbd_set_scancode_set2() -> Ps2Result<()> {
-    send_with_ack(0xF0, 3)?;
-    send_with_ack(0x02, 3)
-}
-
-fn kbd_enable_scan() -> Ps2Result<()> {
-    send_with_ack(0xF4, 3)
-}
-
-/// Send a byte to the keyboard and wait for ACK (`0xFA`).
-/// If the device replies RESEND (`0xFE`) we retry **once**.
-///
-/// Heads-up: this will be modified in the keyboard driver
-/// to better handle command requests,
-fn send_with_ack(byte: u8, tries: u8) -> Ps2Result<()> {
-    let mut attempts = 0;
-    loop {
-        attempts += 1;
-        write_data(byte)?;
-        let resp = read_data()?;
-        match resp {
-            0xFA => return Ok(()),                // ACK
-            0xFE if attempts < tries => continue, // RESEND -> retry
-            0xFE => return Err(Ps2Error::AckError),
-            other => return Err(Ps2Error::UnexpectedResponse(other)),
-        }
-    }
-}
-
 /// PS/2 controller driver (the “8042” peripheral)
 pub struct Ps2Controller {
     buffer: RefCell<[u8; BUFFER_SIZE]>,
@@ -291,8 +299,17 @@ pub struct Ps2Controller {
     parity_drops: Cell<u32>,
     timeout_drops: Cell<u32>,
     overruns: Cell<u32>,
+    bytes_rx: Cell<u32>,
+    resends: Cell<u32>,
+    timeouts: Cell<u32>,
     // deferred call handle (bottom-half scheduling)
     deferred_call: DeferredCall,
+
+    // actually count health logs in board
+    prev_log_bytes: Cell<u32>,
+
+    // optional client for keyboard capsule later on
+    client: OptionalCell<&'static dyn Ps2Client>,
 }
 
 impl Ps2Controller {
@@ -304,10 +321,92 @@ impl Ps2Controller {
             count: Cell::new(0),
             break_next: Cell::new(false),
             ext_next: Cell::new(false),
+
             parity_drops: Cell::new(0),
             timeout_drops: Cell::new(0),
             overruns: Cell::new(0),
+            bytes_rx: Cell::new(0),
+            resends: Cell::new(0),
+            timeouts: Cell::new(0),
+
             deferred_call: DeferredCall::new(),
+            prev_log_bytes: Cell::new(0),
+            client: OptionalCell::empty(),
+        }
+    }
+
+    /// telemetry debugging for future devices
+    pub fn health_snapshot(&self) -> Ps2Health {
+        Ps2Health {
+            bytes_rx: self.bytes_rx.get(),
+            overruns: self.overruns.get(),
+            parity_err: self.parity_drops.get(),
+            timeout_err: self.timeout_drops.get(),
+            timeouts: self.timeouts.get(),
+            resends: self.resends.get(),
+        }
+    }
+
+    /// Install the "keyboard" client, we'll wire calls to this later
+    /// for now it's just the hook
+    pub fn set_client(&self, client: &'static dyn Ps2Client) {
+        self.client.set(client);
+    }
+
+    /// Count controller wait timeouts
+    #[inline(always)]
+    fn tally_timeout<T>(&self, r: Ps2Result<T>) -> Ps2Result<T> {
+        if matches!(r, Err(Ps2Error::TimeoutIB) | Err(Ps2Error::TimeoutOB)) {
+            self.timeouts.set(self.timeouts.get().wrapping_add(1));
+        }
+        r
+    }
+
+    /// I moved this helpers inside the impl of the Controller
+    /// Instead of resending an exact N amount of times
+    /// I changed it so the send_with_ack actually counts the ~good~ bytes it received
+
+    fn kbd_disable_scan(&self) -> Ps2Result<()> {
+        self.send_with_ack(0xF5, 3)
+    }
+
+    fn kbd_reset_and_wait_bat(&self) -> Ps2Result<()> {
+        self.send_with_ack(0xFF, 3)?; // reset
+        match read_data()? {
+            0xAA => Ok(()), // BAT passed
+            other => Err(Ps2Error::UnexpectedResponse(other)),
+        }
+    }
+
+    fn kbd_set_scancode_set2(&self) -> Ps2Result<()> {
+        self.send_with_ack(0xF0, 3)?;
+        self.send_with_ack(0x02, 3)
+    }
+
+    fn kbd_enable_scan(&self) -> Ps2Result<()> {
+        self.send_with_ack(0xF4, 3)
+    }
+
+    /// Send a byte to the device and wait for ACK (0xFA).
+    /// Count 0xFE (RESEND) attempts in `resends`.
+    fn send_with_ack(&self, byte: u8, tries: u8) -> Ps2Result<()> {
+        let mut attempts = 0;
+        loop {
+            attempts += 1;
+            write_data(byte)?;
+            let resp = read_data()?;
+            match resp {
+                0xFA => return Ok(()), // ACK
+                0xFE if attempts < tries => {
+                    self.resends.set(self.resends.get().wrapping_add(1));
+                    continue;
+                }
+                0xFE => {
+                    self.resends.set(self.resends.get().wrapping_add(1));
+                    return Err(Ps2Error::AckError);
+                }
+                other => return Err(Ps2Error::UnexpectedResponse(other)),
+            }
         }
     }
 
@@ -318,31 +417,34 @@ impl Ps2Controller {
     /// Whole goal of this change is to stop nagging the memory directly
     /// We created tiny wrappers and helpers, so we can configure the init
     /// much easier
+    ///
+    /// For testing and health of the controller, we'll wrap each call with
+    /// tally_timeout helper
     pub fn init_early(&self) -> Ps2Result<()> {
         // disable ports; flush OB
-        disable_ports()?;
-        flush_output_buffer()?;
+        self.tally_timeout(disable_ports())?;
+        self.tally_timeout(flush_output_buffer())?;
 
         // controller self-test
-        controller_self_test()?;
+        self.tally_timeout(controller_self_test())?;
 
         // config policy (do not generate IRQs during tests)
-        cfg_set_irq1(false)?; // IRQ1 off
-        cfg_set_irq12(false)?; // IRQ12 off
-        cfg_set_translation(false)?; // translation OFF (we want Set2)
-        cfg_set_port1_clock(true)?; // keyboard clock enabled
-        cfg_set_port2_clock(false)?; // mouse clock disabled (for now)
+        self.tally_timeout(cfg_set_irq1(false))?; // IRQ1 off
+        self.tally_timeout(cfg_set_irq12(false))?; // IRQ12 off
+        self.tally_timeout(cfg_set_translation(false))?; // translation OFF (we want Set2)
+        self.tally_timeout(cfg_set_port1_clock(true))?; // keyboard clock enabled
+        self.tally_timeout(cfg_set_port2_clock(false))?; // mouse clock disabled (for now)
 
         // port1 test then enable keyboard clock at the controller command level
-        port1_interface_test()?;
-        enable_port1_clock()?; // 0xAE
+        self.tally_timeout(port1_interface_test())?;
+        self.tally_timeout(enable_port1_clock())?; // 0xAE
 
         // device sequence (keyboard)
-        kbd_disable_scan()?; // F5
-        kbd_reset_and_wait_bat()?; // FF -> BAT=AA
-        kbd_set_scancode_set2()?; // F0 02
-        cfg_set_irq1(true)?; // turn on controller-side IRQ1 (PIC policy lives in chip)
-        kbd_enable_scan()?; // F4
+        self.tally_timeout(self.kbd_disable_scan())?; // F5
+        self.tally_timeout(self.kbd_reset_and_wait_bat())?; // FF -> BAT=AA
+        self.tally_timeout(self.kbd_set_scancode_set2())?; // F0 02
+        self.tally_timeout(cfg_set_irq1(true))?; // turn on controller-side IRQ1 (PIC policy lives in chip)
+        self.tally_timeout(self.kbd_enable_scan())?; // F4
 
         Ok(())
     }
@@ -352,6 +454,9 @@ impl Ps2Controller {
     #[inline(always)]
     fn decode_and_log_stream(&self) {
         while let Some(b) = self.pop_scan_code() {
+            // hand the raw byte to a client if present
+            self.client.map(|c| c.receive_scancode(b));
+
             // Track Set-2 prefixes locally; we keep state in the controller
             if b == 0xE0 {
                 self.ext_next.set(true);
@@ -419,8 +524,7 @@ impl Ps2Controller {
         support::with_interrupts_disabled(|| {
             let h = self.head.get();
             self.buffer.borrow_mut()[h] = b;
-            let nh = (h + 1) % BUFFER_SIZE;
-            self.head.set(nh);
+            self.head.set((h + 1) % BUFFER_SIZE);
 
             if self.count.get() < BUFFER_SIZE {
                 self.count.set(self.count.get() + 1);
@@ -429,6 +533,9 @@ impl Ps2Controller {
                 self.tail.set((self.tail.get() + 1) % BUFFER_SIZE);
                 self.overruns.set(self.overruns.get().wrapping_add(1));
             }
+
+            // count accepted bytes
+            self.bytes_rx.set(self.bytes_rx.get().wrapping_add(1));
         })
     }
     /// Internal: push a scan-code into the ring buffer, dropping oldest if full.
@@ -448,15 +555,20 @@ impl Ps2Controller {
         })
     }
 }
-
 impl DeferredCallClient for Ps2Controller {
     fn handle_deferred_call(&self) {
-        // Bottom-half work: decode + log outside IRQ context.
+        // drain and print MAKE/BREAKs
         self.decode_and_log_stream();
-    }
 
+        // log health only when bytes_rx advanced
+        let cur = self.bytes_rx.get();
+        // print every N bytes so we don't spam the console
+        if cur.wrapping_sub(self.prev_log_bytes.get()) >= 16 {
+            self.prev_log_bytes.set(cur);
+            debug!("ps/2 health: {}", self.health_snapshot());
+        }
+    }
     fn register(&'static self) {
-        // Same style as VgaText (hopefully this works)
         self.deferred_call.register(self);
     }
 }
