@@ -74,10 +74,7 @@ static mut CHIP: Option<&'static nrf52840::chip::NRF52<Nrf52840DefaultPeripheral
 static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
     None;
 
-/// Dummy buffer that causes the linker to reserve enough space for the stack.
-#[no_mangle]
-#[link_section = ".stack_buffer"]
-static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+kernel::stack_size! {0x1000}
 
 type TemperatureDriver =
     components::temperature::TemperatureComponentType<nrf52840::temperature::Temp<'static>>;

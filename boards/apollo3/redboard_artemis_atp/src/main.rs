@@ -65,10 +65,7 @@ static mut MAIN_CAP: Option<&dyn kernel::capabilities::MainLoopCapability> = Non
 // Test access to alarm
 static mut ALARM: Option<&'static MuxAlarm<'static, apollo3::stimer::STimer<'static>>> = None;
 
-/// Dummy buffer that causes the linker to reserve enough space for the stack.
-#[no_mangle]
-#[link_section = ".stack_buffer"]
-static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+kernel::stack_size! {0x1000}
 
 /// A structure representing this platform that holds references to all
 /// capsules for this platform.

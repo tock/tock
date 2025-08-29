@@ -67,6 +67,7 @@ macro_rules! count_expressions {
 }
 
 /// Executables must specify their stack size by using the `stack_size!` macro.
+///
 /// It takes a single argument, the desired stack size in bytes. Example:
 /// ```
 /// kernel::stack_size!{0x1000}

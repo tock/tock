@@ -113,10 +113,7 @@ static mut CCS811: Option<&'static capsules_extra::ccs811::Ccs811<'static>> = No
 #[cfg(feature = "atecc508a")]
 static mut ATECC508A: Option<&'static capsules_extra::atecc508a::Atecc508a<'static>> = None;
 
-/// Dummy buffer that causes the linker to reserve enough space for the stack.
-#[no_mangle]
-#[link_section = ".stack_buffer"]
-static mut STACK_MEMORY: [u8; 0x1000] = [0; 0x1000];
+kernel::stack_size! {0x1000}
 
 const LORA_SPI_DRIVER_NUM: usize = capsules_core::driver::NUM::LoRaPhySPI as usize;
 const LORA_GPIO_DRIVER_NUM: usize = capsules_core::driver::NUM::LoRaPhyGPIO as usize;

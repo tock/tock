@@ -10,10 +10,7 @@
 
 mod io;
 
-/// Kernel stack memory
-#[no_mangle]
-#[link_section = ".stack_buffer"]
-static mut STACK_MEMORY: [u8; 0x2000] = [0; 0x2000];
+kernel::stack_size! {0x2000}
 
 use core::ptr::addr_of_mut;
 
