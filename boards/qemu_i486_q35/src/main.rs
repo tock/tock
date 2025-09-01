@@ -256,6 +256,7 @@ unsafe extern "cdecl" fn main() {
                     (kernel::static_buf!(x86_q35::serial::SerialPort<'static>),),
                     kernel::static_buf!(x86_q35::vga_uart_driver::VgaText<'static>),
                     kernel::static_buf!(x86_q35::ps2::Ps2Controller),
+                    kernel::static_buf!(x86_q35::keyboard::Keyboard<'static>),
                 ),
                 &mut *ptr::addr_of_mut!(PAGE_DIR),
             )

@@ -11,6 +11,7 @@ use x86::registers::bits32::paging::{PD, PT};
 use x86::support;
 use x86::{Boundary, InterruptPoller};
 
+use crate::keyboard::Ps2Keyboard;
 use crate::pic::PIC1_OFFSET;
 use crate::pit::{Pit, RELOAD_1KHZ};
 use crate::ps2::Ps2Controller;
@@ -81,6 +82,9 @@ pub struct Pc<'a, I1: InterruptService + 'a, I2: InterruptService + 'a, const PR
     /// PS/2 Controller
     pub ps2: &'a Ps2Controller,
 
+    /// Keyboard device
+    pub keyboard: &'a Ps2Keyboard<'a>,
+
     /// System call context
     syscall: Boundary,
     paging: PagingMPU<'a>,
@@ -122,6 +126,7 @@ impl<I2: InterruptService, const PR: u16> Pc<'static, PcDefaultPeripherals<PR>, 
             pit: &default_peripherals.pit,
             vga: default_peripherals.vga,
             ps2: default_peripherals.ps2,
+            keyboard: default_peripherals.keyboard,
             syscall,
             paging,
             default_peripherals,
@@ -256,6 +261,7 @@ pub struct PcDefaultPeripherals<const PR: u16 = RELOAD_1KHZ> {
     pub pit: Pit<'static, PR>,
     pub vga: &'static VgaText<'static>,
     pub ps2: &'static Ps2Controller,
+    pub keyboard: &'static Ps2Keyboard<'static>,
 }
 
 impl<const PR: u16> PcDefaultPeripherals<PR> {
@@ -273,6 +279,7 @@ impl<const PR: u16> PcDefaultPeripherals<PR> {
             (&'static mut core::mem::MaybeUninit<SerialPort<'static>>,),
             &'static mut core::mem::MaybeUninit<VgaText<'static>>,
             &'static mut core::mem::MaybeUninit<Ps2Controller>,
+            &'static mut core::mem::MaybeUninit<Ps2Keyboard<'static>>,
         ),
         page_dir: &mut PD,
     ) -> Self {
@@ -308,6 +315,12 @@ impl<const PR: u16> PcDefaultPeripherals<PR> {
         // controller bring-up owned by the chip
         let _ = ps2.init_early();
 
+        // keyboard device
+        let keyboard = s.6.write(Ps2Keyboard::new(ps2));
+        // connect keyboard as the ps/2 client, controller will call `receive_scancode`
+        ps2.set_client(keyboard);
+        keyboard.init_device();
+
         Self {
             com1,
             com2,
@@ -316,6 +329,7 @@ impl<const PR: u16> PcDefaultPeripherals<PR> {
             pit,
             vga,
             ps2,
+            keyboard,
         }
     }
 
