@@ -3,3 +3,4 @@
 // Copyright Tock Contributors 2025.
 
 pub mod screen;
+pub mod virtual_kv;

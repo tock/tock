@@ -189,7 +189,8 @@ Other capsules that implement reusable logic.
 - **[SipHash](src/sip_hash.rs)**: SipHash software hash.
 - **[TicKV](src/tickv.rs)**: Key-value storage.
 - **[TicKV KV Store](src/tickv_kv_store.rs)**: Provide `hil::kv::KV` with TickV.
-- **[Virtual KV](src/virtual_kv.rs)**: Virtualize access to KV with permissions.
+- **[Virtual KV](src/virtualizers/virtual_kv.rs)**: Virtualize access to KV with
+  permissions.
 - **[Virtual Screen Split](src/virtualizers/screen/virtual_screen_split.rs)**:
   Virtualize access to the screen by splitting into sections.
 
