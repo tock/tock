@@ -51,7 +51,7 @@ impl SyscallDriverLookup for Platform {
         match driver_num {
             capsules_extra::hmac::DRIVER_NUM => f(Some(self.hmac)),
             KEYBOARD_HID_DRIVER_NUM => f(Some(self.keyboard_hid_driver)),
-            capsules_extra::screen::DRIVER_NUM => f(Some(self.screen)),
+            capsules_extra::screen::screen::DRIVER_NUM => f(Some(self.screen)),
             _ => self.base.with_driver(driver_num, f),
         }
     }
@@ -152,7 +152,7 @@ pub unsafe fn main() {
 
     let screen = components::screen::ScreenComponent::new(
         board_kernel,
-        capsules_extra::screen::DRIVER_NUM,
+        capsules_extra::screen::screen::DRIVER_NUM,
         ssd1306_sh1106,
         None,
     )

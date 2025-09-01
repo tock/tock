@@ -30,8 +30,8 @@
 //!         .finalize(components::screen_component_static!(40960));
 //! ```
 
-use capsules_extra::screen::Screen;
-use capsules_extra::screen_shared::ScreenShared;
+use capsules_extra::screen::screen::Screen;
+use capsules_extra::screen::screen_shared::ScreenShared;
 use capsules_extra::virtual_screen_split;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
@@ -130,13 +130,13 @@ impl<S: hil::screen::Screen<'static> + 'static> Component for ScreenSplitUserCom
 macro_rules! screen_component_static {
     ($s:literal $(,)?) => {{
         let buffer = kernel::static_buf!([u8; $s]);
-        let screen = kernel::static_buf!(capsules_extra::screen::Screen);
+        let screen = kernel::static_buf!(capsules_extra::screen::screen::Screen);
 
         (buffer, screen)
     };};
 }
 
-pub type ScreenComponentType = capsules_extra::screen::Screen<'static>;
+pub type ScreenComponentType = capsules_extra::screen::screen::Screen<'static>;
 
 pub struct ScreenComponent<const SCREEN_BUF_LEN: usize> {
     board_kernel: &'static kernel::Kernel,
@@ -194,13 +194,14 @@ impl<const SCREEN_BUF_LEN: usize> Component for ScreenComponent<SCREEN_BUF_LEN> 
 macro_rules! screen_shared_component_static {
     ($s:literal, $S:ty $(,)?) => {{
         let buffer = kernel::static_buf!([u8; $s]);
-        let screen = kernel::static_buf!(capsules_extra::screen_shared::ScreenShared<$S>);
+        let screen = kernel::static_buf!(capsules_extra::screen::screen_shared::ScreenShared<$S>);
 
         (buffer, screen)
     };};
 }
 
-pub type ScreenSharedComponentType<S> = capsules_extra::screen_shared::ScreenShared<'static, S>;
+pub type ScreenSharedComponentType<S> =
+    capsules_extra::screen::screen_shared::ScreenShared<'static, S>;
 
 pub struct ScreenSharedComponent<
     const SCREEN_BUF_LEN: usize,
@@ -209,7 +210,7 @@ pub struct ScreenSharedComponent<
     board_kernel: &'static kernel::Kernel,
     driver_num: usize,
     screen: &'static S,
-    apps_regions: &'static [capsules_extra::screen_shared::AppScreenRegion],
+    apps_regions: &'static [capsules_extra::screen::screen_shared::AppScreenRegion],
 }
 
 impl<const SCREEN_BUF_LEN: usize, S: hil::screen::Screen<'static>>
@@ -219,7 +220,7 @@ impl<const SCREEN_BUF_LEN: usize, S: hil::screen::Screen<'static>>
         board_kernel: &'static kernel::Kernel,
         driver_num: usize,
         screen: &'static S,
-        apps_regions: &'static [capsules_extra::screen_shared::AppScreenRegion],
+        apps_regions: &'static [capsules_extra::screen::screen_shared::AppScreenRegion],
     ) -> ScreenSharedComponent<SCREEN_BUF_LEN, S> {
         ScreenSharedComponent {
             board_kernel,

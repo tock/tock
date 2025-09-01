@@ -7,7 +7,7 @@
 //! Supported examples:
 //! - LED: draw LEDs on the screen.
 
-use capsules_extra::screen_on_led;
+use capsules_extra::screen::screen_on_led;
 use core::mem::MaybeUninit;
 use kernel::component::Component;
 use kernel::hil;
@@ -17,7 +17,7 @@ macro_rules! screen_on_led_component_static {
     ($S:ty, $NUM_LEDS:expr, $SCREEN_WIDTH:expr, $SCREEN_HEIGHT:expr $(,)?) => {{
         let buffer = kernel::static_buf!([u8; ($SCREEN_WIDTH * $SCREEN_HEIGHT) / 8]);
         let screen_on_led = kernel::static_buf!(
-            capsules_extra::screen_on_led::ScreenOnLed<
+            capsules_extra::screen::screen_on_led::ScreenOnLed<
                 'static,
                 $S,
                 $NUM_LEDS,
