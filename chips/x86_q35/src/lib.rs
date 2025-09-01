@@ -26,6 +26,6 @@ pub mod pit;
 pub mod ps2;
 pub mod serial;
 
+pub mod keyboard;
 pub mod vga;
 pub mod vga_uart_driver;
-pub mod keyboard;
