@@ -190,8 +190,8 @@ Other capsules that implement reusable logic.
 - **[TicKV](src/tickv.rs)**: Key-value storage.
 - **[TicKV KV Store](src/tickv_kv_store.rs)**: Provide `hil::kv::KV` with TickV.
 - **[Virtual KV](src/virtual_kv.rs)**: Virtualize access to KV with permissions.
-- **[Virtual Screen Split](src/virtual_screen_split.rs)**: Virtualize access to
-  the screen by splitting into sections.
+- **[Virtual Screen Split](src/virtualizers/screen/virtual_screen_split.rs)**:
+  Virtualize access to the screen by splitting into sections.
 
 
 Debugging Capsules

@@ -32,7 +32,7 @@
 
 use capsules_extra::screen::screen::Screen;
 use capsules_extra::screen::screen_shared::ScreenShared;
-use capsules_extra::virtual_screen_split;
+use capsules_extra::virtualizers::screen::virtual_screen_split;
 use core::mem::MaybeUninit;
 use kernel::capabilities;
 use kernel::component::Component;
@@ -42,14 +42,21 @@ use kernel::hil;
 #[macro_export]
 macro_rules! screen_split_mux_component_static {
     ($S:ty $(,)?) => {{
-        kernel::static_buf!(capsules_extra::virtual_screen_split::ScreenSplitMux<'static, $S>)
+        kernel::static_buf!(
+            capsules_extra::virtualizers::screen::virtual_screen_split::ScreenSplitMux<'static, $S>
+        )
     };};
 }
 
 #[macro_export]
 macro_rules! screen_split_user_component_static {
     ($S:ty $(,)?) => {{
-        kernel::static_buf!(capsules_extra::virtual_screen_split::ScreenSplitUser<'static, $S>)
+        kernel::static_buf!(
+            capsules_extra::virtualizers::screen::virtual_screen_split::ScreenSplitUser<
+                'static,
+                $S,
+            >
+        )
     };};
 }
 
