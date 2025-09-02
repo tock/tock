@@ -12,6 +12,12 @@ use core::cell::{Cell, RefCell};
 use kernel::debug;
 use kernel::utilities::cells::OptionalCell;
 
+/// Set-2 scancode constands used for decoding
+
+const SC_LSHIFT: u8 = 0x12;
+const SC_RSHIFT: u8 = 0x59;
+const SC_CAPS: u8 = 0x58;
+
 // Minimal, layout-free key event (future commits will populate this)
 #[derive(Copy, Clone, Debug)]
 pub struct KeyEvent {
@@ -69,16 +75,27 @@ pub struct Keyboard<'a> {
     ps2: &'a Ps2Controller,
     client: OptionalCell<&'static dyn KeyboardClient>,
 
+    // decoder state
+    got_e0: Cell<bool>,   // sau 0xE0: next code is extended
+    got_f0: Cell<bool>,   // saw oxF0: next code is a break
+    swallow_e1: Cell<u8>, // > 0 means we are swallowing remaining Pause seq bytes
+
+    // modifiers
+    shift_l: Cell<bool>,
+    shift_r: Cell<bool>,
+    caps: Cell<bool>,
+
+    // diagnostics
     bytes_seen: Cell<u32>,
+
     // here comes the engine
     cmd_q: RefCell<[CmdEntry; CMDQ_LEN]>,
     q_head: Cell<usize>,  // write cursor
     q_tail: Cell<usize>,  // read cursor
     q_count: Cell<usize>, // number of entries enqueued
 
-    in_flight: Cell<bool>,  // waiting for ACK/RESEND to the last sent byte
-    retries_left: Cell<u8>, // remaining entries for the current byte
-    // telemetry
+    in_flight: Cell<bool>,      // waiting for ACK/RESEND to the last sent byte
+    retries_left: Cell<u8>,     // remaining entries for the current byte
     cmd_sent_bytes: Cell<u32>,  //bytes attempted to send
     cmd_acks: Cell<u32>,        // ACKs observed
     cmd_resends: Cell<u32>,     // RESENDs observed
@@ -91,6 +108,14 @@ impl<'a> Keyboard<'a> {
         Self {
             ps2,
             client: OptionalCell::empty(),
+
+            // decoder state
+            got_e0: Cell::new(false),
+            got_f0: Cell::new(false),
+            swallow_e1: Cell::new(0),
+            shift_l: Cell::new(false),
+            shift_r: Cell::new(false),
+            caps: Cell::new(false),
             bytes_seen: Cell::new(0),
 
             cmd_q: RefCell::new([CmdEntry::empty(); CMDQ_LEN]),
@@ -224,6 +249,78 @@ impl<'a> Keyboard<'a> {
         // New byte will get a fresh budget retry on first send
         self.retries_left.set(0);
     }
+
+    #[inline(always)]
+    fn emit_event(&self, code: u8, pressed: bool, extended: bool) {
+        let keycode = (code as u16) | (if extended { 0x0100 } else { 0x0000 });
+        let ev = KeyEvent {
+            keycode,
+            pressed,
+            extended,
+        };
+
+        // deliver to client if present, else log something
+        if self.client.is_some() {
+            self.client.map(|c| c.key_event(ev));
+        } else {
+            if extended {
+                debug!(
+                    "ps2-kbd: EV {} E0 {:02X}",
+                    if pressed { "MAKE " } else { "BREAK" },
+                    code
+                );
+            } else {
+                debug!(
+                    "ps2-kbd: EV {} {:02X}",
+                    if pressed { "MAKE " } else { "BREAK" },
+                    code
+                );
+            }
+        }
+    }
+
+    /// Core set-2 decoder. Consumes one non-command byte
+    #[inline(always)]
+    fn decode_byte(&self, byte: u8) {
+        // handle E1 (pause) long sequence
+        if self.swallow_e1.get() > 0 {
+            self.swallow_e1.set(self.swallow_e1.get() - 1);
+            return;
+        }
+        if byte == 0xE1 {
+            // start swallowing the remaining 7 bytes
+            self.swallow_e1.set(7);
+            return;
+        }
+
+        // Prefix events (caps, shifts)
+        if byte == 0xE0 {
+            self.got_e0.set(true);
+            return;
+        }
+
+        if byte == 0xF0 {
+            self.got_f0.set(true);
+            return;
+        }
+
+        // resolve latched prefixes
+        let extended = self.got_e0.replace(false);
+        let breaking = self.got_f0.replace(false);
+        let pressed = !breaking;
+
+        // Update local modifier state (we still emit events for them)
+        // consumers can ignore
+        match byte {
+            SC_LSHIFT => self.shift_l.set(pressed),
+            SC_RSHIFT => self.shift_r.set(pressed),
+            SC_CAPS if pressed => self.caps.set(!self.caps.get()), // toggle on make; ignore break
+            _ => {}
+        }
+
+        // Emit event for this key
+        self.emit_event(byte, pressed, extended);
+    }
 }
 impl Ps2Client for Keyboard<'_> {
     /// Called by the controller (in def context) for each byte)
@@ -264,7 +361,9 @@ impl Ps2Client for Keyboard<'_> {
                 }
             }
         }
-        // For now: basic init + counter
+        self.decode_byte(byte);
+
+        // Optional: basic init + counter
         let n = self.bytes_seen.get().wrapping_add(1);
         self.bytes_seen.set(n);
 
