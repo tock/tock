@@ -4,15 +4,13 @@
 
 //! PS/2 keyboard device skeleton over the i8042 controller.
 
-#![allow(dead_code)] // ONLY FOR THIS MILESTONE SKELETON, WILL BE REMOVED
-
 use crate::ps2::Ps2Client;
 use crate::ps2::Ps2Controller;
 use core::cell::{Cell, RefCell};
 use kernel::debug;
 use kernel::utilities::cells::OptionalCell;
 
-/// Set-2 scancode constands used for decoding
+/// Set-2 scancode constants used for decoding
 
 const SC_LSHIFT: u8 = 0x12;
 const SC_RSHIFT: u8 = 0x59;
@@ -48,7 +46,7 @@ pub trait KeyboardClient {
 
 const CMDQ_LEN: usize = 8;
 const CMD_MAX_LEN: usize = 3;
-const MAX_RETRIES: u8 = 3; // to not be confused with the deff call "good bytes" we do for telemetry
+const MAX_RETRIES: u8 = 3; // to not be confused with the deff call "good bytes" we do for telemetry on controller
 
 #[derive(Copy, Clone)]
 struct CmdEntry {
@@ -83,16 +81,13 @@ pub struct Keyboard<'a> {
 
     // decoder state
     got_e0: Cell<bool>,   // sau 0xE0: next code is extended
-    got_f0: Cell<bool>,   // saw oxF0: next code is a break
+    got_f0: Cell<bool>,   // saw 0xF0: next code is a break
     swallow_e1: Cell<u8>, // > 0 means we are swallowing remaining Pause seq bytes
 
     // modifiers
     shift_l: Cell<bool>,
     shift_r: Cell<bool>,
     caps: Cell<bool>,
-
-    // diagnostics
-    bytes_seen: Cell<u32>,
 
     // here comes the engine
     cmd_q: RefCell<[CmdEntry; CMDQ_LEN]>,
@@ -123,7 +118,6 @@ impl<'a> Keyboard<'a> {
             shift_l: Cell::new(false),
             shift_r: Cell::new(false),
             caps: Cell::new(false),
-            bytes_seen: Cell::new(0),
 
             cmd_q: RefCell::new([CmdEntry::empty(); CMDQ_LEN]),
             q_head: Cell::new(0),
@@ -156,7 +150,7 @@ impl<'a> Keyboard<'a> {
         self.ascii.set(c);
     }
 
-    /// Translate a Set-2 scancode to US-ASCII (press only, non-extend)
+    /// Translate a Set-2 scancode to US-ASCII (press only, non-extended)
     /// Returns None for unmapped keys
     #[inline(always)]
     fn ascii_for(&self, code: u8, pressed: bool, extended: bool) -> Option<u8> {
@@ -363,25 +357,8 @@ impl<'a> Keyboard<'a> {
             pressed,
             extended,
         };
-
-        // deliver to client if present, else log something
-        if self.client.is_some() {
-            self.client.map(|c| c.key_event(ev));
-        } else {
-            if extended {
-                debug!(
-                    "ps2-kbd: EV {} E0 {:02X}",
-                    if pressed { "MAKE " } else { "BREAK" },
-                    code
-                );
-            } else {
-                debug!(
-                    "ps2-kbd: EV {} {:02X}",
-                    if pressed { "MAKE " } else { "BREAK" },
-                    code
-                );
-            }
-        }
+        // deliver to client if present
+        self.client.map(|c| c.key_event(ev));
     }
 
     /// Core set-2 decoder. Consumes one non-command byte
@@ -416,10 +393,10 @@ impl<'a> Keyboard<'a> {
 
         // Update local modifier state (we still emit events for them)
         // consumers can ignore
-        match byte {
-            SC_LSHIFT => self.shift_l.set(pressed),
-            SC_RSHIFT => self.shift_r.set(pressed),
-            SC_CAPS if pressed => self.caps.set(!self.caps.get()), // toggle on make; ignore break
+        match (byte, extended) {
+            (SC_LSHIFT, false) => self.shift_l.set(pressed),
+            (SC_RSHIFT, false) => self.shift_r.set(pressed),
+            (SC_CAPS, _) if pressed => self.caps.set(!self.caps.get()), // toggle on make; ignore break
             _ => {}
         }
 
@@ -432,9 +409,9 @@ impl<'a> Keyboard<'a> {
             } else {
                 // Logging
                 if b >= 0x20 && b != 0x7F {
-                    debug!("pse-kbd: ASCII '{}'", b as char);
+                    debug!("ps2-kbd: ASCII '{}'", b as char);
                 } else {
-                    debug!("pse-kbd: ASCII 0x{:02x}", b);
+                    debug!("ps2-kbd: ASCII 0x{:02x}", b);
                 }
             }
         }
@@ -480,18 +457,5 @@ impl Ps2Client for Keyboard<'_> {
             }
         }
         self.decode_byte(byte);
-
-        // Optional: basic init + counter
-        let n = self.bytes_seen.get().wrapping_add(1);
-        self.bytes_seen.set(n);
-
-        // keep the log basic
-        if n <= 8 || (n & 0x0F) == 0 {
-            debug!("ps2-kbd: byte {:02x} (count={})", byte, n);
-        }
-
-        // Decoder and event emitter come in the future
-        let _ = &self.ps2;
-        let _ = &self.client;
     }
 }
