@@ -29,6 +29,11 @@ pub struct KeyEvent {
     pub extended: bool,
 }
 
+/// Optional byte send for ASCII output (useful for a later capsule)
+pub trait AsciiClient {
+    fn put_byte(&self, b: u8);
+}
+
 /// Callback that the keyboard will use to deliver events
 pub trait KeyboardClient {
     fn key_event(&self, _ev: KeyEvent) {
@@ -74,6 +79,7 @@ impl CmdEntry {
 pub struct Keyboard<'a> {
     ps2: &'a Ps2Controller,
     client: OptionalCell<&'static dyn KeyboardClient>,
+    ascii: OptionalCell<&'static dyn AsciiClient>,
 
     // decoder state
     got_e0: Cell<bool>,   // sau 0xE0: next code is extended
@@ -108,6 +114,7 @@ impl<'a> Keyboard<'a> {
         Self {
             ps2,
             client: OptionalCell::empty(),
+            ascii: OptionalCell::empty(),
 
             // decoder state
             got_e0: Cell::new(false),
@@ -143,6 +150,104 @@ impl<'a> Keyboard<'a> {
     /// already is done by the controller
     pub fn init_device(&self) {
         // TODO
+    }
+
+    pub fn set_ascii_client(&self, c: &'static dyn AsciiClient) {
+        self.ascii.set(c);
+    }
+
+    /// Translate a Set-2 scancode to US-ASCII (press only, non-extend)
+    /// Returns None for unmapped keys
+    #[inline(always)]
+    fn ascii_for(&self, code: u8, pressed: bool, extended: bool) -> Option<u8> {
+        if !pressed || extended {
+            return None;
+        }
+        // modifier states
+        let shift = self.shift_l.get() || self.shift_r.get();
+        let caps = self.caps.get();
+
+        // letters
+        let letter = match code {
+            0x1C => b'a',
+            0x32 => b'b',
+            0x21 => b'c',
+            0x23 => b'd',
+            0x24 => b'e',
+            0x2B => b'f',
+            0x34 => b'g',
+            0x33 => b'h',
+            0x43 => b'i',
+            0x3B => b'j',
+            0x42 => b'k',
+            0x4B => b'l',
+            0x3A => b'm',
+            0x31 => b'n',
+            0x44 => b'o',
+            0x4D => b'p',
+            0x15 => b'q',
+            0x2D => b'r',
+            0x1B => b's',
+            0x2C => b't',
+            0x3C => b'u',
+            0x2A => b'v',
+            0x1D => b'w',
+            0x22 => b'x',
+            0x35 => b'y',
+            0x1A => b'z',
+            _ => 0,
+        };
+        if letter != 0 {
+            let upper = shift ^ caps;
+            return Some(if upper {
+                letter.to_ascii_uppercase()
+            } else {
+                letter
+            });
+        }
+
+        // Digits
+        let digit = match code {
+            0x16 => (b'1', b'!'),
+            0x1E => (b'2', b'@'),
+            0x26 => (b'3', b'#'),
+            0x25 => (b'4', b'$'),
+            0x2E => (b'5', b'%'),
+            0x36 => (b'6', b'^'),
+            0x3D => (b'7', b'&'),
+            0x3E => (b'8', b'*'),
+            0x46 => (b'9', b'('),
+            0x45 => (b'0', b')'),
+            _ => (0, 0),
+        };
+        if digit.0 != 0 {
+            return Some(if shift { digit.1 } else { digit.0 });
+        }
+
+        // Punctuation / misc (US)
+        let punct = match code {
+            0x0E => (b'`', b'~'),
+            0x4E => (b'-', b'_'),
+            0x55 => (b'=', b'+'),
+            0x54 => (b'[', b'{'),
+            0x5B => (b']', b'}'),
+            0x5D => (b'\\', b'|'),
+            0x4C => (b';', b':'),
+            0x52 => (b'\'', b'"'),
+            0x41 => (b',', b'<'),
+            0x49 => (b'.', b'>'),
+            0x4A => (b'/', b'?'),
+            0x29 => (b' ', b' '),   // space
+            0x0D => (b'\t', b'\t'), // tab
+            0x5A => (b'\n', b'\n'), // enter
+            0x66 => (0x08, 0x08),   // backspace
+            _ => (0, 0),
+        };
+        if punct.0 != 0 {
+            return Some(if shift { punct.1 } else { punct.0 });
+        }
+
+        None
     }
 
     /// Command engine public API
@@ -320,6 +425,19 @@ impl<'a> Keyboard<'a> {
 
         // Emit event for this key
         self.emit_event(byte, pressed, extended);
+
+        if let Some(b) = self.ascii_for(byte, pressed, extended) {
+            if self.ascii.is_some() {
+                self.ascii.map(|c| c.put_byte(b));
+            } else {
+                // Logging
+                if b >= 0x20 && b != 0x7F {
+                    debug!("pse-kbd: ASCII '{}'", b as char);
+                } else {
+                    debug!("pse-kbd: ASCII 0x{:02x}", b);
+                }
+            }
+        }
     }
 }
 impl Ps2Client for Keyboard<'_> {
