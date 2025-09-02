@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright Tock Contributors 2025.
 
-//! PS/2 keyboard device skeleton over the i8042 controller.
+//! PS/2 keyboard device over the i8042 controller.
 
 use crate::ps2::Ps2Client;
 use crate::ps2::Ps2Controller;
@@ -15,11 +15,18 @@ use kernel::utilities::cells::OptionalCell;
 const SC_LSHIFT: u8 = 0x12;
 const SC_RSHIFT: u8 = 0x59;
 const SC_CAPS: u8 = 0x58;
+const RESP_ACK: u8 = 0xFA;
+const RESP_RESEND: u8 = 0xFE;
+const RESP_BAT_OK: u8 = 0xAA; // BAT after reset
+
+/// High bitmask used in `KeyEvent.keycode` to mark E0-extended keys.
+const EXT_MASK: u16 = 0x0100;
 
 // Minimal, layout-free key event (future commits will populate this)
 #[derive(Copy, Clone, Debug)]
 pub struct KeyEvent {
-    /// Derive key identifier (based on Set-2)
+    /// `keycode`: low 8 bits = Set-2 code, `EXT_MASK` set if E0-extended. `E1` Pause is never emitted
+    /// as events (swallowed), and repeats appear as repeated MAKEs.
     pub keycode: u16,
     /// true = make (press), false = break (release)
     pub pressed: bool,
@@ -28,12 +35,16 @@ pub struct KeyEvent {
 }
 
 /// Optional byte send for ASCII output (useful for a later capsule)
-pub trait AsciiClient {
+/// Not used by the current ASCII-only console path. Subject to change.
+/// Called from the keyboard's deferred (bottom-half) context; keep it non-blocking.
+pub(crate) trait AsciiClient {
     fn put_byte(&self, b: u8);
 }
 
-/// Callback that the keyboard will use to deliver events
-pub trait KeyboardClient {
+/// Internal hook for full key events (press/release, extended keys).
+/// Not used by the current ASCII-only console path. Subject to change.
+/// Full key events (press/release, E0-extended). Deferred context; non-blocking.
+pub(crate) trait KeyboardClient {
     fn key_event(&self, _ev: KeyEvent) {
         // TODO
     }
@@ -136,22 +147,34 @@ impl<'a> Keyboard<'a> {
     }
 
     /// Install the client which will receive the events
-    pub fn set_client(&self, client: &'static dyn KeyboardClient) {
+    /// Will expand when writing a capsule for PC
+    #[allow(dead_code)]
+    pub(crate) fn set_client(&self, client: &'static dyn KeyboardClient) {
         self.client.set(client);
     }
 
     /// Device-level init hook. No-op for now since the `init_early()`
-    /// already is done by the controller
+    /// already runs in the controller. After capsule lands, we will enqueue:
+    ///  F5 (disable scan) -> FF (reset; expect FA then AA) - F0 02 (Set-2) - F4 (enable).
+    /// This will use the command engine (ACK/RESEND) and can run with IRQ1 enabled.
     pub fn init_device(&self) {
         // TODO
     }
 
-    pub fn set_ascii_client(&self, c: &'static dyn AsciiClient) {
+    /// Not used by the current ASCII-only console path. Subject to change.
+    /// Will expand when writing a capsule for PC
+    #[allow(dead_code)]
+    pub(crate) fn set_ascii_client(&self, c: &'static dyn AsciiClient) {
         self.ascii.set(c);
     }
 
     /// Translate a Set-2 scancode to US-ASCII (press only, non-extended)
     /// Returns None for unmapped keys
+    /**
+     * ASCII mapping: US layout, press-only, non-extended keys.
+     * Shift + Caps for letters; digits/punct respect Shift.
+     * Enter => '\n', Backspace => 0x08, Tab => '\t'. Extended keypad Enter and arrows return None.
+     */
     #[inline(always)]
     fn ascii_for(&self, code: u8, pressed: bool, extended: bool) -> Option<u8> {
         if !pressed || extended {
@@ -246,8 +269,12 @@ impl<'a> Keyboard<'a> {
 
     /// Command engine public API
     ///
-    /// Enqueue a short command sequence
-    /// Returns false if the queue is full or seq is too long
+    /// Queue a short PS/2 device command (e.g. `&[0xF0, 0x02]`, `&[0xF4]`).
+    ///
+    ///  Runs in the keyboard’s deferred/bottom-half context;
+    ///  Bytes are sent one-by-one; `ACK (0xFA)` advances; `RESEND (0xFE)` retries with a bounded budget.
+    ///  Returns `false` if the queue is full or the sequence length exceeds `CMD_MAX_LEN`.
+    ///  No completion callback; failures are tracked internally (telemetry counters).
 
     pub fn enqueue_command(&self, seq: &[u8]) -> bool {
         if seq.is_empty() || seq.len() > CMD_MAX_LEN {
@@ -351,7 +378,7 @@ impl<'a> Keyboard<'a> {
 
     #[inline(always)]
     fn emit_event(&self, code: u8, pressed: bool, extended: bool) {
-        let keycode = (code as u16) | (if extended { 0x0100 } else { 0x0000 });
+        let keycode = (code as u16) | (if extended { EXT_MASK } else { 0x0000 });
         let ev = KeyEvent {
             keycode,
             pressed,
@@ -423,7 +450,7 @@ impl Ps2Client for Keyboard<'_> {
         // First, if a command byte is in flight, interpret 0XFA/0XFE
         if self.in_flight.get() {
             match byte {
-                0xFA => {
+                RESP_ACK => {
                     // ACK
                     self.cmd_acks.set(self.cmd_acks.get().wrapping_add(1));
                     self.in_flight.set(false);
@@ -432,7 +459,7 @@ impl Ps2Client for Keyboard<'_> {
                     self.drive_tx();
                     return;
                 }
-                0xFE => {
+                RESP_RESEND => {
                     // RESEND - bounded retry of the same byte
                     self.cmd_resends.set(self.cmd_resends.get().wrapping_add(1));
                     let left = self.retries_left.get();
@@ -451,10 +478,14 @@ impl Ps2Client for Keyboard<'_> {
                     return;
                 }
                 _ => {
-                    // Not an ACK/RESEND. For now we ignore it
-                    // Keep waiting for ACK/RESEND
+                    // Not an ACK/RESEND while waiting = ignore (do NOT decode as a key).
+                    return;
                 }
             }
+        }
+        // No command in flight: ignore device-only responses that aren’t keystrokes.
+        if byte == RESP_ACK || byte == RESP_RESEND || byte == RESP_BAT_OK {
+            return;
         }
         self.decode_byte(byte);
     }
