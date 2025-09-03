@@ -890,9 +890,9 @@ to r0-r3 on CortexM and a0-a3 on RISC-V.
 | Argument               | Register | Type     |
 |------------------------|----------|----------|
 | Operation              | r0       | `u32`    |
-| Operation argument     | r1       | _varies_ |
-| unused                 | r2       |          |
-| unused                 | r3       |          |
+| Operation argument 1   | r1       | _varies_ |
+| Operation argument 2   | r2       | _varies_ |
+| Operation argument 3   | r3       | _varies_ |
 
 The operation argument specifies which memory operation to perform. There
 are 12:

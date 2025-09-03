@@ -217,8 +217,12 @@ pub enum Syscall {
     Memop {
         /// The operation.
         operand: usize,
-        /// The operation argument.
+        /// The first operation argument.
         arg0: usize,
+        /// The second operation argument.
+        arg1: usize,
+        /// The third operation argument.
+        arg2: usize,
     },
 
     /// Structure representing an invocation of the Exit system call class.
@@ -285,6 +289,8 @@ impl Syscall {
             Ok(SyscallClass::Memop) => Some(Syscall::Memop {
                 operand: r0,
                 arg0: r1.as_usize(),
+                arg1: r2.as_usize(),
+                arg2: r3.as_usize(),
             }),
             Ok(SyscallClass::Exit) => Some(Syscall::Exit {
                 which: r0,

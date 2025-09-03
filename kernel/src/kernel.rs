@@ -755,6 +755,8 @@ impl Kernel {
             Syscall::Memop {
                 operand: _,
                 arg0: _,
+                arg1: _,
+                arg2: _,
             } => {} // Memop is not filterable.
             _ => {
                 // Check all other syscalls for filtering.
@@ -778,14 +780,21 @@ impl Kernel {
 
         // Handle each of the syscalls.
         match syscall {
-            Syscall::Memop { operand, arg0 } => {
-                let rval = memop::memop(process, operand, arg0);
+            Syscall::Memop {
+                operand,
+                arg0,
+                arg1,
+                arg2,
+            } => {
+                let rval = memop::memop(process, operand, arg0, arg1, arg2);
                 if config::CONFIG.trace_syscalls {
                     debug!(
-                        "[{:?}] memop({}, {:#x}) = {:?}",
+                        "[{:?}] memop({}, {:#x}, {:#x}, {:#x}) = {:?}",
                         process.processid(),
                         operand,
                         arg0,
+                        arg1,
+                        arg2,
                         rval
                     );
                 }
