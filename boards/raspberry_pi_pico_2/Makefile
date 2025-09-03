@@ -12,38 +12,25 @@ OPENOCD_OPTIONS=-f openocd-$(OPENOCD_INTERFACE).cfg
 
 BOOTSEL_FOLDER?=/run/media/$(USER)/RP2350
 
-KERNEL=$(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
-KERNEL_WITH_APP=$(TOCK_ROOT_DIRECTORY)/target/$(TARGET)/release/$(PLATFORM)-app.elf
-
-
 # Default target for installing the kernel.
 .PHONY: install
-install: flash
+install: program
 
-.PHONY: flash-openocd
-flash-openocd: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).elf
-	$(OPENOCD) $(OPENOCD_OPTIONS) -c "adapter speed 5000" -c "program $<; verify_image $<;  reset; shutdown;"
 
 .PHONY: flash
-flash: $(KERNEL)
-	picotool uf2 convert $< $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).uf2
-	@if [ -d $(BOOTSEL_FOLDER) ]; then cp $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).uf2 "$(BOOTSEL_FOLDER)"; else echo; echo Please edit the BOOTSEL_FOLDER variable to point to you Raspberry Pi Pico 2 Flash Drive Folder; echo You can download and flash $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).uf2; fi
+flash: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
+	tockloader flash --address 0x10000000 --board raspberry_pi_pico_2 $<
+
+
+.PHONY: init
+	tockloader local-board set raspberry_pi_pico --binary-path rpi2.bin --flash-address 0x10000000 --app-address 0x10040000
+
+rpi2.bin: $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM).bin
+	tockloader flash --address 0x10000000 $<
+
+rpi2.uf2: rpi2.bin
+	picotool uf2 convert $< $@
 
 .PHONY: program
-program: $(KERNEL)
-ifeq ($(APP),)
-	$(error Please define the APP variable with the TBF file to flash an application)
-endif
-	arm-none-eabi-objcopy --set-section-flags .apps=LOAD,ALLOC $(KERNEL) $(KERNEL_WITH_APP)
-	arm-none-eabi-objcopy --update-section .apps=$(APP) $(KERNEL_WITH_APP)
-	picotool uf2 convert $(KERNEL_WITH_APP) $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.uf2
-	@if [ -d $(BOOTSEL_FOLDER) ]; then cp $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.uf2 "$(BOOTSEL_FOLDER)"; else echo; echo Please edit the BOOTSEL_FOLDER variable to point to you Raspberry Pi Pico 2 Flash Drive Folder; echo You can download and flash $(TOCK_ROOT_DIRECTORY)target/$(TARGET)/release/$(PLATFORM)-app.uf2; fi
-
-.PHONY: program-openocd
-program-openocd: $(KERNEL)
-ifeq ($(APP),)
-	$(error Please define the APP variable with the TBF file to flash an application)
-endif
-	arm-none-eabi-objcopy --set-section-flags .apps=LOAD,ALLOC $(KERNEL) $(KERNEL_WITH_APP)
-	arm-none-eabi-objcopy --update-section .apps=$(APP) $(KERNEL_WITH_APP)
-	$(OPENOCD) $(OPENOCD_OPTIONS) -c "adapter speed 5000" -c "program $(KERNEL_WITH_APP); verify_image $(KERNEL_WITH_APP);  reset; shutdown;"
+program: rpi2.uf2
+	cp $< "$(BOOTSEL_FOLDER)"
