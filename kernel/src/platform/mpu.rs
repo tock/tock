@@ -251,6 +251,14 @@ pub trait MPU {
         config: &mut Self::MpuConfig,
     ) -> Result<(), ()>;
 
+    fn update_app_memory_permissions(
+        &self,
+        start: *const u8,
+        length: usize,
+        permissions: Permissions,
+        config: &mut Self::MpuConfig,
+    ) -> Result<(), ()>;
+
     /// Configures the MPU with the provided region configuration.
     ///
     /// An implementation must ensure that all memory locations not covered by

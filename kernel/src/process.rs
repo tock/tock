@@ -596,6 +596,15 @@ pub trait Process {
     /// Also optional.
     fn update_heap_start_pointer(&self, heap_pointer: *const u8);
 
+    fn change_region_permissions(
+        &self,
+        start: *const u8,
+        length: usize,
+        read: bool,
+        write: bool,
+        execute: bool,
+    ) -> Result<(), ()>;
+
     /// Creates a [`ReadWriteProcessBuffer`] from the given offset and size in
     /// process memory.
     ///

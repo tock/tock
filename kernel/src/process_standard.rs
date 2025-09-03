@@ -778,6 +778,41 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
             self.chip.mpu().configure_mpu(config);
         });
     }
+    fn change_region_permissions(
+        &self,
+        start: *const u8,
+        length: usize,
+        read: bool,
+        write: bool,
+        execute: bool,
+    ) -> Result<(), ()> {
+        let mpu_permissions = match (read, write, execute) {
+            (true, true, true) => Some(mpu::Permissions::ReadWriteExecute),
+            (true, true, false) => Some(mpu::Permissions::ReadWriteOnly),
+            (true, false, true) => Some(mpu::Permissions::ReadExecuteOnly),
+            (true, false, false) => Some(mpu::Permissions::ReadOnly),
+            (false, false, true) => Some(mpu::Permissions::ExecuteOnly),
+            (false, true, true) => None,
+            (false, true, false) => None,
+            (false, false, false) => None,
+        }
+        .ok_or(())?;
+
+        // Check if the specified region to change permissions for is within the
+        // process's RAM region.
+        if self.in_app_owned_memory(start, length) {
+            self.mpu_config.map_or(Err(()), |config| {
+                self.chip.mpu().update_app_memory_permissions(
+                    start,
+                    length,
+                    mpu::Permissions::ReadWriteOnly,
+                    config,
+                )
+            })
+        } else {
+            Err(())
+        }
+    }
 
     fn add_mpu_region(
         &self,

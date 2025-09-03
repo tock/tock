@@ -42,12 +42,14 @@ use crate::ErrorCode;
 ///   where the app has put the start of its heap. This is not strictly
 ///   necessary for correct operation, but allows for better debugging if the
 ///   app crashes.
+/// - `12`: Change the read-write-execute permissions of a region of the
+///   process's accessible memory.
 pub(crate) fn memop(
     process: &dyn Process,
     op_type: usize,
     r1: usize,
-    _r2: usize,
-    _r3: usize,
+    r2: usize,
+    r3: usize,
 ) -> SyscallReturn {
     match op_type {
         // Op Type 0: BRK
@@ -160,6 +162,26 @@ pub(crate) fn memop(
         11 => {
             process.update_heap_start_pointer(r1 as *const u8);
             SyscallReturn::Success
+        }
+
+        // Op Type 12: Change the R-W-E permissions of app memory.
+        12 => {
+            let start_address = r1 as *const u8;
+            let length = r2;
+            let permission_read = r3 & 0b100 > 0;
+            let permission_write = r3 & 0b010 > 0;
+            let permission_execute = r3 & 0b001 > 0;
+
+            match process.change_region_permissions(
+                start_address,
+                length,
+                permission_read,
+                permission_write,
+                permission_execute,
+            ) {
+                Ok(()) => SyscallReturn::Success,
+                Err(()) => SyscallReturn::Failure(ErrorCode::FAIL),
+            }
         }
 
         _ => SyscallReturn::Failure(ErrorCode::NOSUPPORT),
