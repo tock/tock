@@ -45,7 +45,7 @@ are:
 - Pat Pannuto, [ppannuto](https://github.com/ppannuto), UCSD
 - Alexandru Radovici [alexandruradovici](https://github.com/alexandruradovici), Politehnica Bucharest & OxidOS
 - Leon Schuermann, [lschuermann](https://github.com/lschuermann), Princeton University
-- Johnathan Van Why, [jrvanwhy](https://github.com/jrvanwhy), Google
+- Johnathan Van Why, [jrvanwhy](https://github.com/jrvanwhy), Better Bytes
 
 ## Membership
 

@@ -955,7 +955,7 @@ Stanford, CA 94305
 USA
 pal@cs.stanford.edu
 
-Johnathan Van Why <jrvanwhy@google.com>
+Johnathan Van Why <tock@jrvanwhy.net>
 
 Brad Campbell <bradjc@virginia.edu>
 ```
