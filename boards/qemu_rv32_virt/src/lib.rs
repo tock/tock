@@ -7,23 +7,40 @@
 #![no_std]
 #![no_main]
 
+use capsules_core::virtualizers::virtual_alarm::{MuxAlarm, VirtualMuxAlarm};
 use kernel::capabilities;
-use kernel::{create_capability, debug};
+use kernel::component::Component;
+use kernel::hil;
+use kernel::platform::scheduler_timer::VirtualSchedulerTimer;
+use kernel::platform::KernelResources;
+use kernel::platform::SyscallDriverLookup;
+use kernel::process::ProcessArray;
+use kernel::scheduler::cooperative::CooperativeSched;
+use kernel::utilities::registers::interfaces::ReadWriteable;
+use kernel::{create_capability, debug, static_init};
+use qemu_rv32_virt_chip::chip::{QemuRv32VirtChip, QemuRv32VirtDefaultPeripherals};
+use rv32i::csr;
 
-// How should the kernel respond when a process faults.
-const FAULT_RESPONSE: capsules_system::process_policies::PanicFaultPolicy =
-    capsules_system::process_policies::PanicFaultPolicy {};
+pub mod io;
 
-/// Main function called after RAM initialized.
-#[no_mangle]
-pub unsafe fn main() {
-    let main_loop_capability = create_capability!(capabilities::MainLoopCapability);
+pub const NUM_PROCS: usize = 4;
 
-<<<<<<< Updated upstream
+/// Static variables used by io.rs.
+static mut PROCESSES: Option<&'static ProcessArray<NUM_PROCS>> = None;
+
+// Reference to the chip for panic dumps.
+static mut CHIP: Option<&'static QemuRv32VirtChip<QemuRv32VirtDefaultPeripherals>> = None;
+
+// Reference to the process printer for panic dumps.
+static mut PROCESS_PRINTER: Option<&'static capsules_system::process_printer::ProcessPrinterText> =
+    None;
+
+kernel::stack_size! {0x8000}
+
 /// A structure representing this platform that holds references to all
 /// capsules for this platform. We've included an alarm and console.
-struct QemuRv32VirtPlatform {
-    pconsole: &'static capsules_core::process_console::ProcessConsole<
+pub struct QemuRv32VirtPlatform {
+    pub pconsole: &'static capsules_core::process_console::ProcessConsole<
         'static,
         { capsules_core::process_console::DEFAULT_COMMAND_HISTORY_LEN },
         capsules_core::virtualizers::virtual_alarm::VirtualMuxAlarm<
@@ -41,7 +58,7 @@ struct QemuRv32VirtPlatform {
         'static,
         VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
     >,
-    ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
+    pub ipc: kernel::ipc::IPC<{ NUM_PROCS as u8 }>,
     scheduler: &'static CooperativeSched<'static>,
     scheduler_timer: &'static VirtualSchedulerTimer<
         VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
@@ -58,7 +75,7 @@ struct QemuRv32VirtPlatform {
             qemu_rv32_virt_chip::virtio::devices::virtio_net::VirtIONet<'static>,
         >,
     >,
-    virtio_gpu_screen: Option<&'static capsules_extra::screen::Screen<'static>>,
+    virtio_gpu_screen: Option<&'static capsules_extra::screen::screen::Screen<'static>>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -85,7 +102,7 @@ impl SyscallDriverLookup for QemuRv32VirtPlatform {
                     f(None)
                 }
             }
-            capsules_extra::screen::DRIVER_NUM => {
+            capsules_extra::screen::screen::DRIVER_NUM => {
                 if let Some(screen_driver) = self.virtio_gpu_screen {
                     f(Some(screen_driver))
                 } else {
@@ -97,13 +114,64 @@ impl SyscallDriverLookup for QemuRv32VirtPlatform {
         }
     }
 }
-=======
-    let (board_kernel, base_platform, chip) = qemu_rv32_virt_lib::start();
 
-    // Start the process console:
-    let _ = base_platform.pconsole.start();
->>>>>>> Stashed changes
+impl
+    KernelResources<
+        qemu_rv32_virt_chip::chip::QemuRv32VirtChip<
+            'static,
+            QemuRv32VirtDefaultPeripherals<'static>,
+        >,
+    > for QemuRv32VirtPlatform
+{
+    type SyscallDriverLookup = Self;
+    type SyscallFilter = ();
+    type ProcessFault = ();
+    type Scheduler = CooperativeSched<'static>;
+    type SchedulerTimer = VirtualSchedulerTimer<
+        VirtualMuxAlarm<'static, qemu_rv32_virt_chip::chip::QemuRv32VirtClint<'static>>,
+    >;
+    type WatchDog = ();
+    type ContextSwitchCallback = ();
 
+    fn syscall_driver_lookup(&self) -> &Self::SyscallDriverLookup {
+        self
+    }
+    fn syscall_filter(&self) -> &Self::SyscallFilter {
+        &()
+    }
+    fn process_fault(&self) -> &Self::ProcessFault {
+        &()
+    }
+    fn scheduler(&self) -> &Self::Scheduler {
+        self.scheduler
+    }
+    fn scheduler_timer(&self) -> &Self::SchedulerTimer {
+        self.scheduler_timer
+    }
+    fn watchdog(&self) -> &Self::WatchDog {
+        &()
+    }
+    fn context_switch_callback(&self) -> &Self::ContextSwitchCallback {
+        &()
+    }
+}
+
+/// This is in a separate, inline(never) function so that its stack frame is
+/// removed when this function returns. Otherwise, the stack space used for
+/// these static_inits is wasted.
+#[inline(never)]
+// We allocate a frame-buffer for converting Mono_8BitPage pixel data
+// into an ARGB_8888 format. This can consume a large amount of stack
+// space, as we allocate this buffer with `static_init!()`:
+#[allow(clippy::large_stack_frames, clippy::large_stack_arrays)]
+pub unsafe fn start() -> (
+    &'static kernel::Kernel,
+    QemuRv32VirtPlatform,
+    &'static qemu_rv32_virt_chip::chip::QemuRv32VirtChip<
+        'static,
+        QemuRv32VirtDefaultPeripherals<'static>,
+    >,
+) {
     // These symbols are defined in the linker script.
     extern "C" {
         /// Beginning of the ROM region containing app images.
@@ -127,8 +195,48 @@ impl SyscallDriverLookup for QemuRv32VirtPlatform {
         /// The end of the kernel / app RAM (Included only for kernel PMP)
         static _esram: u8;
     }
-    let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
-<<<<<<< Updated upstream
+
+    // ---------- BASIC INITIALIZATION -----------
+
+    // Basic setup of the RISC-V IMAC platform
+    rv32i::configure_trap_handler();
+
+    // Set up memory protection immediately after setting the trap handler, to
+    // ensure that much of the board initialization routine runs with ePMP
+    // protection.
+    let epmp = rv32i::pmp::kernel_protection_mml_epmp::KernelProtectionMMLEPMP::new(
+        rv32i::pmp::kernel_protection_mml_epmp::FlashRegion(
+            rv32i::pmp::NAPOTRegionSpec::from_start_end(
+                core::ptr::addr_of!(_sflash),
+                core::ptr::addr_of!(_eflash),
+            )
+            .unwrap(),
+        ),
+        rv32i::pmp::kernel_protection_mml_epmp::RAMRegion(
+            rv32i::pmp::NAPOTRegionSpec::from_start_end(
+                core::ptr::addr_of!(_ssram),
+                core::ptr::addr_of!(_esram),
+            )
+            .unwrap(),
+        ),
+        rv32i::pmp::kernel_protection_mml_epmp::MMIORegion(
+            rv32i::pmp::NAPOTRegionSpec::from_start_size(
+                core::ptr::null::<u8>(), // start
+                0x20000000,              // size
+            )
+            .unwrap(),
+        ),
+        rv32i::pmp::kernel_protection_mml_epmp::KernelTextRegion(
+            rv32i::pmp::TORRegionSpec::from_start_end(
+                core::ptr::addr_of!(_stext),
+                core::ptr::addr_of!(_etext),
+            )
+            .unwrap(),
+        ),
+    )
+    .unwrap();
+
+    // Acquire required capabilities
     let memory_allocation_cap = create_capability!(capabilities::MemoryAllocationCapability);
 
     // Create a board kernel instance
@@ -224,7 +332,7 @@ impl SyscallDriverLookup for QemuRv32VirtPlatform {
 
     // If there is a VirtIO EntropySource present, use the appropriate VirtIORng
     // driver and expose it to userspace though the RngDriver
-    let virtio_gpu_screen: Option<&'static capsules_extra::screen::Screen<'static>> =
+    let virtio_gpu_screen: Option<&'static capsules_extra::screen::screen::Screen<'static>> =
         if let Some(gpu_idx) = virtio_gpu_idx {
             use kernel::hil::screen::Screen;
 
@@ -237,7 +345,7 @@ impl SyscallDriverLookup for QemuRv32VirtPlatform {
             use qemu_rv32_virt_chip::virtio::queues::Virtqueue;
             use qemu_rv32_virt_chip::virtio::transports::VirtIOTransport;
 
-            use capsules_extra::screen_adapters::ScreenARGB8888ToMono8BitPage;
+            use capsules_extra::screen::screen_adapters::ScreenARGB8888ToMono8BitPage;
 
             // Video output dimensions:
 
@@ -306,7 +414,7 @@ impl SyscallDriverLookup for QemuRv32VirtPlatform {
 
             let screen = components::screen::ScreenComponent::new(
                 board_kernel,
-                capsules_extra::screen::DRIVER_NUM,
+                capsules_extra::screen::screen::DRIVER_NUM,
                 screen_argb_8888_to_mono_8bit_page,
                 None,
             )
@@ -625,9 +733,6 @@ impl SyscallDriverLookup for QemuRv32VirtPlatform {
         ),
     };
 
-    // Start the process console:
-    let _ = platform.pconsole.start();
-
     debug!("QEMU RISC-V 32-bit \"virt\" machine, initialization complete.");
 
     // This board dynamically discovers VirtIO devices like a randomness source
@@ -656,33 +761,5 @@ impl SyscallDriverLookup for QemuRv32VirtPlatform {
 
     debug!("Entering main loop.");
 
-    // ---------- PROCESS LOADING, SCHEDULER LOOP ----------
-
-=======
->>>>>>> Stashed changes
-    kernel::process::load_processes(
-        board_kernel,
-        chip,
-        core::slice::from_raw_parts(
-            core::ptr::addr_of!(_sapps),
-            core::ptr::addr_of!(_eapps) as usize - core::ptr::addr_of!(_sapps) as usize,
-        ),
-        core::slice::from_raw_parts_mut(
-            core::ptr::addr_of_mut!(_sappmem),
-            core::ptr::addr_of!(_eappmem) as usize - core::ptr::addr_of!(_sappmem) as usize,
-        ),
-        &FAULT_RESPONSE,
-        &process_mgmt_cap,
-    )
-    .unwrap_or_else(|err| {
-        debug!("Error loading processes!");
-        debug!("{:?}", err);
-    });
-
-    board_kernel.kernel_loop(
-        &base_platform,
-        chip,
-        Some(&base_platform.ipc),
-        &main_loop_capability,
-    );
+    (board_kernel, platform, chip)
 }
