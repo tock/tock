@@ -9,6 +9,11 @@ use kernel::platform::chip::ThreadIdProvider;
 /// Implement the [`ThreadIdProvider`] trait for x86 platforms.
 pub enum X86ThreadIdProvider {}
 
+// # Safety
+//
+// By implementing [`ThreadIdProvider`] we are guaranteeing that we correctly
+// return the thread ID. THIS IMPLEMENTATION IS BROKEN. We need to implement
+// this correctly.
 unsafe impl ThreadIdProvider for X86ThreadIdProvider {
     fn running_thread_id() -> usize {
         // TODO: IMPLEMENT!

@@ -9,6 +9,12 @@ use kernel::platform::chip::ThreadIdProvider;
 /// Implement [`ThreadIdProvider`] for RISC-V.
 pub enum RiscvThreadIdProvider {}
 
+// # Safety
+//
+// By implementing [`ThreadIdProvider`] we are guaranteeing that we correctly
+// return the thread ID. On single-core platforms the thread ID only depends on
+// whether execution is in an interrupt service routine or not, which is what
+// this implementation checks for.
 unsafe impl ThreadIdProvider for RiscvThreadIdProvider {
     /// Return the current thread ID, computed using the `mhartid` (hardware thread
     /// ID), and a flag indicating whether the current hart is currently in a trap
