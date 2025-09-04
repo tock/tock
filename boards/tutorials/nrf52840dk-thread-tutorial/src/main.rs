@@ -56,7 +56,7 @@ impl SyscallDriverLookup for Platform {
         match driver_num {
             capsules_extra::eui64::DRIVER_NUM => f(Some(self.eui64)),
             capsules_extra::ieee802154::DRIVER_NUM => f(Some(self.ieee802154)),
-            capsules_extra::screen::DRIVER_NUM => f(Some(self.screen)),
+            capsules_extra::screen::screen::DRIVER_NUM => f(Some(self.screen)),
             capsules_extra::tutorials::encryption_oracle_chkpt5::DRIVER_NUM => {
                 f(Some(self.encryption_oracle))
             }
@@ -187,7 +187,7 @@ pub unsafe fn main() {
 
     let screen = components::screen::ScreenComponent::new(
         board_kernel,
-        capsules_extra::screen::DRIVER_NUM,
+        capsules_extra::screen::screen::DRIVER_NUM,
         ssd1306_sh1106,
         None,
     )

@@ -206,7 +206,7 @@ struct EarlGrey {
     >,
     kv_driver: &'static capsules_extra::kv_driver::KVStoreDriver<
         'static,
-        capsules_extra::virtual_kv::VirtualKVPermissions<
+        capsules_extra::virtualizers::virtual_kv::VirtualKVPermissions<
             'static,
             capsules_extra::kv_store_permissions::KVStorePermissions<
                 'static,
@@ -717,7 +717,7 @@ unsafe fn setup() -> (
         capsules_extra::kv_driver::DRIVER_NUM,
     )
     .finalize(components::kv_driver_component_static!(
-        capsules_extra::virtual_kv::VirtualKVPermissions<
+        capsules_extra::virtualizers::virtual_kv::VirtualKVPermissions<
             capsules_extra::kv_store_permissions::KVStorePermissions<
                 capsules_extra::tickv_kv_store::TicKVKVStore<
                     capsules_extra::tickv::TicKVSystem<

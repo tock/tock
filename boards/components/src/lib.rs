@@ -81,6 +81,7 @@ pub mod rf233;
 pub mod rng;
 pub mod sched;
 pub mod screen;
+pub mod screen_on;
 pub mod segger_rtt;
 pub mod servo;
 pub mod sh1106;
