@@ -75,7 +75,7 @@ pub struct QemuRv32VirtPlatform {
             qemu_rv32_virt_chip::virtio::devices::virtio_net::VirtIONet<'static>,
         >,
     >,
-    virtio_gpu_screen: Option<&'static capsules_extra::screen::screen::Screen<'static>>,
+    virtio_gpu_screen: Option<&'static capsules_extra::screen::Screen<'static>>,
 }
 
 /// Mapping of integer syscalls to objects that implement syscalls.
@@ -102,7 +102,7 @@ impl SyscallDriverLookup for QemuRv32VirtPlatform {
                     f(None)
                 }
             }
-            capsules_extra::screen::screen::DRIVER_NUM => {
+            capsules_extra::screen::DRIVER_NUM => {
                 if let Some(screen_driver) = self.virtio_gpu_screen {
                     f(Some(screen_driver))
                 } else {
@@ -332,7 +332,7 @@ pub unsafe fn start() -> (
 
     // If there is a VirtIO EntropySource present, use the appropriate VirtIORng
     // driver and expose it to userspace though the RngDriver
-    let virtio_gpu_screen: Option<&'static capsules_extra::screen::screen::Screen<'static>> =
+    let virtio_gpu_screen: Option<&'static capsules_extra::screen::Screen<'static>> =
         if let Some(gpu_idx) = virtio_gpu_idx {
             use kernel::hil::screen::Screen;
 
@@ -345,7 +345,7 @@ pub unsafe fn start() -> (
             use qemu_rv32_virt_chip::virtio::queues::Virtqueue;
             use qemu_rv32_virt_chip::virtio::transports::VirtIOTransport;
 
-            use capsules_extra::screen::screen_adapters::ScreenARGB8888ToMono8BitPage;
+            use capsules_extra::screen_adapters::ScreenARGB8888ToMono8BitPage;
 
             // Video output dimensions:
 
@@ -414,7 +414,7 @@ pub unsafe fn start() -> (
 
             let screen = components::screen::ScreenComponent::new(
                 board_kernel,
-                capsules_extra::screen::screen::DRIVER_NUM,
+                capsules_extra::screen::DRIVER_NUM,
                 screen_argb_8888_to_mono_8bit_page,
                 None,
             )
