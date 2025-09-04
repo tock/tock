@@ -162,16 +162,18 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> MPU<NUM_REGIONS, MI
         self.registers.ctrl.write(Control::ENABLE::CLEAR);
     }
 
-    fn configure_region(
+    /// Setup the region at `region_num` to protect the region of memory
+    /// starting at `start` with length `size`.
+    fn protect_region(
         &self,
         region_num: usize,
-        valid_memory_start: *const u8,
-        valid_memory_size: usize,
         start: *const u8,
         size: usize,
         permissions: mpu::Permissions,
-        config: &mut Self::MpuConfig,
-    ) {
+        config: &mut CortexMConfig<NUM_REGIONS>,
+    ) -> Option<mpu::Region> {
+        let start = start as usize;
+
         // Region start MUST align to `MIN_REGION_SIZE` bytes.
         if start % MIN_REGION_SIZE != 0 {
             return None;
@@ -182,17 +184,16 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> MPU<NUM_REGIONS, MI
             return None;
         }
 
-        // Physical MPU region. The entire region might be larger than the
-        // logical region if some subregions are disabled.
-        let mut region_start = start;
-        let mut region_size = size;
-        let mut subregions = None;
-
         // We can only create an MPU region if the size is a power of two and it
         // divides the start address. If this is not the case, the first thing
         // we try to do to cover the memory region is to use a larger MPU
         // region and expose certain subregions.
-        if size.count_ones() > 1 || start % size != 0 {
+        let (region_start, region_size, subregions) = if size.count_ones() == 1 && start % size == 0
+        {
+            // The size is a power of two and aligned to that size. We can just
+            // use a single MPU region without subregions to handle this.
+            (start, size, None)
+        } else {
             // Which (power-of-two) subregion size would align with the start
             // address?
             //
@@ -215,6 +216,17 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> MPU<NUM_REGIONS, MI
                 }
             };
 
+            // Subregions must be at least 32 bytes.
+            if subregion_size < 32 {
+                return None;
+            }
+
+            // We only support a logical region that starts at the beginning
+            // of a subregion.
+            if start % subregion_size != 0 {
+                return None;
+            }
+
             // Once we have a subregion size, we get a region size by
             // multiplying it by the number of subregions per region.
             let underlying_region_size = subregion_size * 8;
@@ -224,17 +236,21 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> MPU<NUM_REGIONS, MI
             let underlying_region_start = start - (start % underlying_region_size);
 
             // If `size` doesn't align to the subregion size, extend it.
-            if size % subregion_size != 0 {
-                size += subregion_size - (size % subregion_size);
-            }
+            let logical_size = if size % subregion_size != 0 {
+                // Extend the logical size to include the remainder of the
+                // fractional subregion.
+                size + (subregion_size - (size % subregion_size))
+            } else {
+                size
+            };
 
-            let end = start + size;
+            let logical_end = start + logical_size;
             let underlying_region_end = underlying_region_start + underlying_region_size;
 
             // To use subregions, the region must be at least 256 bytes. Also, we need
             // the amount of left over space in the region after `start` to be at least as
             // large as the memory region we want to cover.
-            if subregion_size >= 32 && underlying_region_end >= end {
+            if underlying_region_end >= logical_end {
                 // The index of the first subregion to activate is the number of
                 // regions between `region_start` (MPU) and `start` (memory).
                 let min_subregion = (start - underlying_region_start) / subregion_size;
@@ -242,27 +258,17 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> MPU<NUM_REGIONS, MI
                 // The index of the last subregion to activate is the number of
                 // regions that fit in `len`, plus the `min_subregion`, minus one
                 // (because subregions are zero-indexed).
-                let max_subregion = min_subregion + size / subregion_size - 1;
+                let max_subregion = min_subregion + (logical_size / subregion_size) - 1;
 
-                region_start = underlying_region_start;
-                region_size = underlying_region_size;
-                subregions = Some((min_subregion, max_subregion));
+                (
+                    underlying_region_start,
+                    underlying_region_size,
+                    Some((min_subregion, max_subregion)),
+                )
             } else {
-                // In this case, we can't use subregions to solve the alignment
-                // problem. Instead, we round up `size` to a power of two and
-                // shift `start` up in memory to make it align with `size`.
-                size = math::closest_power_of_two(size as u32) as usize;
-                start += size - (start % size);
-
-                region_start = start;
-                region_size = size;
+                return None;
             }
-        }
-
-        // Check that our logical region fits in memory.
-        if start + size > (unallocated_memory_start as usize) + unallocated_memory_size {
-            return None;
-        }
+        };
 
         let region = CortexMRegion::new(
             start as *const u8,
@@ -907,9 +913,13 @@ impl<const NUM_REGIONS: usize, const MIN_REGION_SIZE: usize> mpu::MPU
         &self,
         start: *const u8,
         length: usize,
-        permissions: Permissions,
+        permissions: mpu::Permissions,
         config: &mut Self::MpuConfig,
     ) -> Result<(), ()> {
+        let region_num = config.unused_region_number().ok_or(())?;
+
+        self.protect_region(region_num, start, length, permissions, config)
+            .map_or_else(|| Err(()), |_m| Ok(()))
     }
 
     fn configure_mpu(&self, config: &Self::MpuConfig) {

@@ -347,5 +347,15 @@ impl MPU for () {
         }
     }
 
+    fn update_app_memory_permissions(
+        &self,
+        _start: *const u8,
+        _length: usize,
+        _permissions: Permissions,
+        _config: &mut Self::MpuConfig,
+    ) -> Result<(), ()> {
+        Ok(())
+    }
+
     fn configure_mpu(&self, _config: &Self::MpuConfig) {}
 }
