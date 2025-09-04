@@ -44,6 +44,10 @@ use crate::ErrorCode;
 ///   app crashes.
 /// - `12`: Change the read-write-execute permissions of a region of the
 ///   process's accessible memory.
+///
+///   If successful, and the requested region was granted the desired
+///   permissions, returns the region by start address and length that was
+///   actually configured to the desired permissions.
 pub(crate) fn memop(
     process: &dyn Process,
     op_type: usize,

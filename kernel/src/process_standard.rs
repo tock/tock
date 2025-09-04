@@ -801,14 +801,22 @@ impl<C: Chip, D: 'static + ProcessStandardDebug> Process for ProcessStandard<'_,
         // Check if the specified region to change permissions for is within the
         // process's RAM region.
         if self.in_app_owned_memory(start, length) {
-            self.mpu_config.map_or(Err(()), |config| {
-                self.chip.mpu().update_app_memory_permissions(
-                    start,
-                    length,
-                    mpu::Permissions::ReadWriteOnly,
-                    config,
-                )
-            })
+            // Check that start is the start of the app's memory region.
+            // Otherwise we currently return an error.
+            if start == self.mem_start() {
+                self.mpu_config.map_or(Err(()), |config| {
+                    self.chip.mpu().update_app_memory_permissions(
+                        start,
+                        length,
+                        mpu_permissions,
+                        config,
+                    )
+                })
+            } else {
+                // We currently require the region of new permissions to start
+                // at the beginning of app memory.
+                Err(())
+            }
         } else {
             Err(())
         }
