@@ -1196,6 +1196,54 @@ impl<const MAX_REGIONS: usize, P: TORUserPMP<MAX_REGIONS> + 'static> kernel::pla
         Ok(())
     }
 
+    fn update_app_memory_permissions(
+        &self,
+        start: *const u8,
+        length: usize,
+        permissions: mpu::Permissions,
+        config: &mut Self::MpuConfig,
+    ) -> Result<(), ()> {
+        // Find a free region slot. If we don't have one, abort early:
+        let region_num = config
+            .regions
+            .iter()
+            .enumerate()
+            .find(|(_i, (pmpcfg, _, _))| *pmpcfg == TORUserPMPCFG::OFF)
+            .map(|(i, _)| i)
+            .ok_or(())?;
+
+        // Now, meet the PMP TOR region constraints. For this, start with the
+        // provided start address and length, transform them to meet the
+        // constraints, and then check that we're still within the bounds of the
+        // provided values:
+        let start = start as usize;
+
+        // Region start always has to align to 4 bytes.
+        if start % 4 != 0 {
+            return Err(());
+        }
+
+        // Region size always has to align to 4 bytes.
+        if length % 4 != 0 {
+            return Err(());
+        }
+
+        // Regions must be at least 4 bytes in length.
+        if length < 4 {
+            return Err(());
+        }
+
+        // All checks passed, store region allocation and mark config as dirty:
+        config.regions[region_num] = (
+            permissions.into(),
+            start as *const u8,
+            (start + length) as *const u8,
+        );
+        config.is_dirty.set(true);
+
+        Ok(())
+    }
+
     fn configure_mpu(&self, config: &Self::MpuConfig) {
         if !self.last_configured_for.contains(&config.id) || config.is_dirty.get() {
             self.pmp.configure_pmp(&config.regions).unwrap();
