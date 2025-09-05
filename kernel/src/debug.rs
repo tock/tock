@@ -114,21 +114,6 @@ impl<C: Chip, PP: ProcessPrinter> PanicResources<C, PP> {
             printer: MapCell::empty(),
         }
     }
-
-    /// Set the process slot array.
-    pub fn set_processes(&self, processes: &'static [ProcessSlot]) {
-        self.processes.put(processes);
-    }
-
-    /// Set the chip reference.
-    pub fn set_chip(&self, chip: &'static C) {
-        self.chip.put(chip);
-    }
-
-    /// Set the process printer reference.
-    pub fn set_process_printer(&self, printer: &'static PP) {
-        self.printer.put(printer);
-    }
 }
 
 /// Tock default panic routine.
@@ -142,7 +127,7 @@ pub unsafe fn panic<L: hil::led::Led, W: Write + IoWrite, C: Chip, PP: ProcessPr
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
-    panic_resources: &PanicResources<C, PP>,
+    panic_resources: Option<&PanicResources<C, PP>>,
 ) -> ! {
     // Call `panic_print` first which will print out the panic information and
     // return
@@ -170,25 +155,27 @@ pub unsafe fn panic_print<W: Write + IoWrite, C: Chip, PP: ProcessPrinter>(
     writer: &mut W,
     panic_info: &PanicInfo,
     nop: &dyn Fn(),
-    panic_resources: &PanicResources<C, PP>,
+    panic_resources: Option<&PanicResources<C, PP>>,
 ) {
     panic_begin(nop);
     // Flush debug buffer if needed
     flush(writer);
     panic_banner(writer, panic_info);
 
-    panic_resources.chip.take().map(|c| {
-        c.print_state(writer);
+    panic_resources.map(|pr| {
+        pr.chip.take().map(|c| {
+            c.print_state(writer);
 
-        // Some systems may enforce memory protection regions for the kernel,
-        // making application memory inaccessible. However, printing process
-        // information will attempt to access memory. If we are provided a chip
-        // reference, attempt to disable userspace memory protection first:
-        use crate::platform::mpu::MPU;
-        c.mpu().disable_app_mpu()
-    });
-    panic_resources.processes.take().map(|p| {
-        panic_process_info(p, panic_resources.printer.take(), writer);
+            // Some systems may enforce memory protection regions for the kernel,
+            // making application memory inaccessible. However, printing process
+            // information will attempt to access memory. If we are provided a chip
+            // reference, attempt to disable userspace memory protection first:
+            use crate::platform::mpu::MPU;
+            c.mpu().disable_app_mpu()
+        });
+        pr.processes.take().map(|p| {
+            panic_process_info(p, pr.printer.take(), writer);
+        });
     });
 }
 
