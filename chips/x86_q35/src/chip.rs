@@ -179,7 +179,7 @@ pub struct PcComponent<'a> {
     pt: &'a mut PT,
 
     /// Holds the PS/2 controller passed in by the board
-    ps2: Option<&'a crate::ps2::Ps2Controller>,
+    ps2: &'a crate::ps2::Ps2Controller,
 }
 
 impl<'a> PcComponent<'a> {
@@ -194,13 +194,8 @@ impl<'a> PcComponent<'a> {
     /// will cause the kernel's code/data to move unexpectedly.
     ///
     /// See [`x86::init`] for further details.
-    pub unsafe fn new(pd: &'a mut PD, pt: &'a mut PT) -> Self {
-        Self { pd, pt, ps2: None }
-    }
-    /// Supply the PS/2 controller so that `Pc` can dispatch KEYBOARD IRQs
-    pub fn with_ps2(mut self, ps2: &'a crate::ps2::Ps2Controller) -> Self {
-        self.ps2 = Some(ps2);
-        self
+    pub unsafe fn new(pd: &'a mut PD, pt: &'a mut PT, ps2: &'a crate::ps2::Ps2Controller) -> Self {
+        Self { pd, pt, ps2 }
     }
 }
 
@@ -254,8 +249,8 @@ impl Component for PcComponent<'static> {
 
         let syscall = Boundary::new();
 
-        // PS/2 instance supplied via .with_ps2(...)
-        let ps2 = self.ps2.expect("PcComponent::with_ps2 was not called");
+        // PS/2 instance
+        let ps2 = self.ps2;
 
         kernel::deferred_call::DeferredCallClient::register(ps2);
 

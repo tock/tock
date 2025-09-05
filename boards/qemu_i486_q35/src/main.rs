@@ -163,8 +163,8 @@ unsafe extern "cdecl" fn main() {
     let chip = PcComponent::new(
         &mut *ptr::addr_of_mut!(PAGE_DIR),
         &mut *ptr::addr_of_mut!(PAGE_TABLE),
+        ps2,
     )
-    .with_ps2(ps2)
     .finalize(x86_q35::x86_q35_component_static!());
 
     // Acquire required capabilities
@@ -282,12 +282,6 @@ unsafe extern "cdecl" fn main() {
         create_capability!(capabilities::SetDebugWriterCapability),
     )
     .finalize(components::debug_writer_component_static!());
-
-    // Tiny breadcrumb: PS/2 bring-up ran in the chip already.
-    debug!("ps/2: controller initialized (chip ran init_early)");
-
-    // Now we can safely log via `debug!()`
-    debug!("ps/2 health: {}", chip.ps2.health_snapshot());
 
     let lldb = components::lldb::LowLevelDebugComponent::new(
         board_kernel,
