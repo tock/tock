@@ -16,6 +16,7 @@ pub mod scb;
 pub mod support;
 pub mod syscall;
 pub mod systick;
+pub mod thread_id;
 
 // These constants are defined in the linker script.
 extern "C" {
