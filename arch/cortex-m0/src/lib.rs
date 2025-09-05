@@ -14,6 +14,7 @@ pub use cortexm::support;
 
 pub use cortexm::nvic;
 pub use cortexm::syscall;
+pub use cortexm::thread_id;
 
 #[cfg(any(doc, all(target_arch = "arm", target_os = "none")))]
 struct HardFaultStackedRegisters {
