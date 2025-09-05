@@ -412,6 +412,10 @@ pub unsafe fn start_no_pconsole() -> (
     // Apply errata fixes and enable interrupts.
     nrf52840::init();
 
+    // Bind global variables to this thread.
+    PANIC_RESOURCES.bind_to_thread::<<Chip as kernel::platform::chip::Chip>::ThreadIdProvider>();
+    RTT_BUFFER.bind_to_thread::<<Chip as kernel::platform::chip::Chip>::ThreadIdProvider>();
+
     // Set up peripheral drivers. Called in separate function to reduce stack
     // usage.
     let ieee802154_ack_buf = static_init!(
