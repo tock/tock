@@ -150,6 +150,18 @@ static TOCK_ATTRIBUTES_KERNEL_VERSION: TockAttributesKernelVersion = TockAttribu
     tlv_len: 8,
 };
 
+pub static TOCK_KERNEL_VERSION: &str = concat!(
+    stringify!(KERNEL_MAJOR_VERSION),
+    ".",
+    stringify!(KERNEL_MINOR_VERSION),
+    ".",
+    stringify!(KERNEL_PATCH_VERSION),
+    "-",
+    stringify!(KERNEL_PRERELEASE_VERSION),
+    "-",
+    stringify!(option_env!("TOCK_IS_TAGGED_RELEASE").unwrap_or("dirty")),
+);
+
 pub mod capabilities;
 pub mod collections;
 pub mod component;

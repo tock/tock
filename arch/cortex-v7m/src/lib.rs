@@ -374,7 +374,7 @@ unsafe extern "C" fn hard_fault_handler_arm_v7m_kernel(
          \tBus Fault Address:       (valid: {}) {:#010X}\r\n\
          ",
             mode_str,
-            option_env!("TOCK_KERNEL_VERSION").unwrap_or("unknown"),
+            kernel::TOCK_KERNEL_VERSION,
             stacked_r0,
             stacked_r1,
             stacked_r2,
