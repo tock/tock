@@ -106,3 +106,4 @@ pub mod touch;
 pub mod udp_driver;
 pub mod udp_mux;
 pub mod usb;
+pub mod x86_pc_component;
