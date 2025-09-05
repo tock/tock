@@ -85,6 +85,7 @@ use kernel::process::ProcessArray;
 use kernel::scheduler::round_robin::RoundRobinSched;
 #[allow(unused_imports)]
 use kernel::{capabilities, create_capability, debug, debug_gpio, debug_verbose, static_init};
+use nrf52840::chip::NRF52ThreadIdProvider;
 use nrf52840::gpio::Pin;
 use nrf52840::interrupt_service::Nrf52840DefaultPeripherals;
 use nrf52_components::{UartChannel, UartPins};
@@ -405,6 +406,9 @@ pub unsafe fn start_no_pconsole() -> (
 
     // Apply errata fixes and enable interrupts.
     nrf52840::init();
+
+    // Initialize deferred calls very early.
+    kernel::deferred_call::initialize_deferred_call_state::<NRF52ThreadIdProvider>();
 
     // Set up peripheral drivers. Called in separate function to reduce stack
     // usage.
