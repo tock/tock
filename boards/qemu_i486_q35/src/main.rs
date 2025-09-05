@@ -30,7 +30,7 @@ use kernel::{create_capability, static_init};
 use x86::registers::bits32::paging::{PDEntry, PTEntry, PD, PT};
 use x86::registers::irq;
 use x86_q35::pit::{Pit, RELOAD_1KHZ};
-use x86_q35::{Pc, PcComponent};
+use x86_q35::Pc;
 
 mod multiboot;
 use multiboot::MultibootV1Header;
@@ -149,11 +149,13 @@ unsafe extern "cdecl" fn main() {
     // ---------- BASIC INITIALIZATION -----------
 
     // Basic setup of the i486 platform
-    let chip = PcComponent::new(
-        &mut *ptr::addr_of_mut!(PAGE_DIR),
-        &mut *ptr::addr_of_mut!(PAGE_TABLE),
-    )
-    .finalize(x86_q35::x86_q35_component_static!());
+    let chip = unsafe {
+        components::x86_pc_component::X86PcComponent::new(
+            &mut *ptr::addr_of_mut!(PAGE_DIR),
+            &mut *ptr::addr_of_mut!(PAGE_TABLE),
+        )
+        .finalize(components::x86_pc_component_static!())
+    };
 
     // Acquire required capabilities
     let process_mgmt_cap = create_capability!(capabilities::ProcessManagementCapability);
